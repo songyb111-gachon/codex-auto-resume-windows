@@ -202,5 +202,10 @@ class OptionsMixin:
         return self.delay_for(1)
 
     def allowed(self, row):
-        return (self.store.settings()["enabled"] and self.store.thread_enabled(row["thread_id"])
-                and not row.get("cancel_requested"))
+        """Consent: recovery on, the conversation on, no cancel - and, from schema 4, not only
+        observed and not held for a person, both of which are off at the defaults. What the
+        last look before a send asks again (presend_problem), with a postponement beside it."""
+        settings = self.store.settings()
+        return (settings["enabled"] and self.store.thread_enabled(row["thread_id"])
+                and not row.get("cancel_requested") and not settings["observe_only"]
+                and row.get("hold") is None)

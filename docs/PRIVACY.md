@@ -410,7 +410,11 @@ default (or wherever `CODEX_AUTO_RESUME_PLUGIN_HOME`, or failing that
   bucket name and reset time and whether that reading was uncertain, attempt counts, state,
   flags and the last reason code, and the two ids it needs to prove delivery (its marker and
   the queued item's id); also the on/off switch for recovery, with when it was switched on
-  and the poll interval, and the switch for each conversation. Beside those it holds a bounded
+  and the poll interval, and the switch for each conversation. From v0.6.11 it also has room
+  for a time a recovery is postponed to, a word for why one waits for you, a word for how much
+  a conversation asks first, an observe-only switch, and needs-you notices - each the failure's
+  and the conversation's ids, a failure category and times - all of it empty until you use it.
+  Beside those it holds a bounded
   journal of what happened to each recovery - codes, ids, actor, turn references, counters and
   times, at most 5,000 entries and 90 days, with no prompt, reply or error text - and one row
   for the watcher itself: its process id, session id, start and last-tick times, and which code

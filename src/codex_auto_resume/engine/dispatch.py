@@ -24,9 +24,8 @@ class DispatchMixin:
         now = self.clock()
         poll = self.options["state_poll_seconds"]
         settings = self.store.settings()
-        vector = {"consent": machine.gate_consent(settings["enabled"],
-                                                  self.store.thread_enabled(row["thread_id"]),
-                                                  row.get("cancel_requested"))}
+        vector = {"consent": machine.gate_consent(settings["enabled"], self.store.thread_enabled(row["thread_id"]),
+                  row.get("cancel_requested"), observe_only=settings["observe_only"], hold=row.get("hold"))}
         if vector["consent"][0] != machine.PASS:
             # No transition - the overlays already say why it waits - but a due record
             # still records the refusing gate, once, so every interface can show it.
@@ -41,6 +40,8 @@ class DispatchMixin:
                 # due every poll and silently refused.
                 self._wait(row, "waiting_reset", "waiting_reset",
                            row["reset_at"] + self.options["reset_grace_seconds"] - now, vector)
+            elif vector["schedule"][1] == machine.POSTPONED and (row.get("next_retry_at") or 0) <= now:
+                self._wait(row, row["state"], row.get("last_error"), row["not_before"] - now, vector)
             return
         # P7: due by core's schedule, and the plug may say not yet.
         if self._held("schedule", row, vector, self.plug.schedule(row, machine.eligible_at(row))):
@@ -330,9 +331,8 @@ class DispatchMixin:
             return "waiting_retry", "released_before_send", poll
         if claim["cancel_requested"]:
             return "cancelled", "user_cancelled", 0
-        waiting = self.waiting_state(claim)
-        if not self.store.settings()["enabled"] or not self.store.thread_enabled(claim["thread_id"]):
-            return waiting, "released_before_send", poll
+        if not self.allowed(claim) or (claim.get("not_before") or 0) > self.clock():  # with schema 4's
+            return self.waiting_state(claim), "released_before_send", poll
         if not self.valid_interruption(claim):
             state, reason = self.supersede_reason(claim)
             return state, reason, 0

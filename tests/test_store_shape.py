@@ -44,6 +44,8 @@ METHODS = {
     "thread_enabled", "update", "watcher_status",
     # v0.6.11: the edition's claim ledger, asked inside the claim (P11) - store/ledger.py.
     "_ledger_holds",
+    # v0.6.11: schema 4, made fresh and reached from schema 3 - store/migrations.py.
+    "_add_schema_4", "_migrate_3_to_4",
 }
 
 # Reachable as `store.<name>` before the split, and still.

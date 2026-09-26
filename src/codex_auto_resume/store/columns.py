@@ -54,7 +54,33 @@ _SCHEMA_3_COLUMNS = (
     ("history_hidden_at", "REAL"),
 )
 
-_RECORD_COLUMNS = _V2_COLUMNS + tuple(name for name, _ in _SCHEMA_3_COLUMNS)
+_V3_COLUMNS = _V2_COLUMNS + tuple(name for name, _ in _SCHEMA_3_COLUMNS)
+
+# Columns added in schema 4 (v0.6.11), each to the table it names. Content-free like the rest: a
+# time, a word from a closed list, a flag. Every one is empty - or 0 - on a record, a conversation
+# and a state that nobody has postponed, held, given a tier or put in observe-only, which is every
+# one at the defaults: the state v0.6.10 kept, with nothing added to it (tests/test_schema_v4.py).
+_SCHEMA_4_COLUMNS = (
+    ("interruptions", "not_before", "REAL"),
+    ("interruptions", "hold", "TEXT"),
+    ("threads", "tier", "TEXT"),
+    ("settings", "observe_only", "INTEGER NOT NULL DEFAULT 0 CHECK (observe_only IN (0, 1))"),
+)
+
+_RECORD_COLUMNS = _V3_COLUMNS + tuple(name for table, name, _ in _SCHEMA_4_COLUMNS
+                                      if table == "interruptions")
+
+_SETTINGS_COLUMNS = ("singleton", "enabled", "armed_at", "poll_seconds", "observe_only")
+
+_THREAD_COLUMNS = ("thread_id", "enabled", "tier")
+
+# Schema 4's needs-you notices: one row per failure that needs a person, raised once. Ids, a
+# failure category, times - and nothing the engine's dispatch ever reads (tests/test_schema_v4.py).
+_NOTICE_COLUMNS = ("interruption_id", "thread_id", "category", "raised_at", "seen_at")
+
+# Core's tables that nothing deciding a send may read: the claim refuses its ledger any read of
+# them (store/ledger.py), and core's own dispatch reads none (tests/test_schema_v4.py).
+_UNREAD_BY_DISPATCH = frozenset({"notices"})
 
 _EVENT_COLUMNS = ("event_id", "at", "interruption_id", "chain_origin_id", "code", "from_state",
                   "to_state", "reason", "actor", "turn_ref", "flags", "value")

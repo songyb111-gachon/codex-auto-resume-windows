@@ -67,14 +67,21 @@ LISTS = {
     "machine.OVERLAYS": ("tuple", 7, "ec4b756213ffdd1a"),
     "machine.GATE_RESULTS": ("set", 4, "9a50f41ff116a706"),
     "machine.GATES": ("tuple", 13, "547089c399324718"),
-    # v0.6.11: `held`, a gate core passed and the edition's plug held (domain/plug.py, HOLD).
-    "machine.GATE_REASONS": ("set", 76, "ba3953d7dffacbdc"),
+    # v0.6.11: `held`, a gate core passed and the edition's plug held (domain/plug.py, HOLD);
+    # and schema 4's `postponed`, `quiet_hours` and `observe_only`, reasons of consent and schedule.
+    "machine.GATE_REASONS": ("set", 79, "540193750ec65d3b"),
     "machine.PASS": "PASS",
     "machine.WAIT": "WAIT",
     "machine.BLOCK": "BLOCK",
     "machine.UNKNOWN": "UNKNOWN",
     "machine.NOT_CHECKED": "not_checked",
     "machine.HELD": "held",
+    "machine.POSTPONED": "postponed",
+    "machine.QUIET_HOURS": "quiet_hours",
+    "machine.OBSERVE_ONLY": "observe_only",
+    # v0.6.11, schema 4: a record's hold, and a conversation's tier, least asking first.
+    "machine.HOLDS": ("set", 5, "0467f811b37b122b"),
+    "machine.IMPORTANCE_TIERS": ("tuple", 4, "1020c428556c4555"),
     "failures.CATEGORIES": ("set", 14, "05e7b8e16f528bde"),
     # v0.6.10: auth_service_transient, which nothing produces, left TRANSIENT for RESERVED.
     "failures.TRANSIENT": ("set", 5, "7c4f1306a8dcfc48"),
@@ -263,6 +270,8 @@ HOMES = {
     v.TurnStatus: ("list", "machine.TURN_STATUSES"),
     v.Page: ("list", "machine.PAGES"),
     v.Overlay: ("list", "machine.OVERLAYS"),
+    v.HoldKind: ("list", "machine.HOLDS"),
+    v.ImportanceTier: ("list", "machine.IMPORTANCE_TIERS"),
     v.GateName: ("list", "machine.GATES"),
     v.GateResult: ("list", "machine.GATE_RESULTS"),
     v.FailureCategory: ("list", "failures.CATEGORIES"),

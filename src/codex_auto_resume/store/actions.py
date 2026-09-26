@@ -68,7 +68,8 @@ class ActionsMixin:
         _timestamp(now, "now")
         with self._transaction() as connection:
             connection.execute(
-                "INSERT INTO threads VALUES (?,0) ON CONFLICT(thread_id) DO UPDATE SET enabled=0", (thread_id,)
+                "INSERT INTO threads (thread_id, enabled) VALUES (?,0) "
+                "ON CONFLICT(thread_id) DO UPDATE SET enabled=0", (thread_id,)
             )
             for value in connection.execute("SELECT * FROM interruptions WHERE thread_id=?", (thread_id,)).fetchall():
                 row = _validated_record(dict(value))

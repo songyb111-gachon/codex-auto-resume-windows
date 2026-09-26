@@ -68,6 +68,14 @@ class SchemaGoldenTests(unittest.TestCase):
         self.assertNotIn("watcher_status", made["tables"], "v2 has no watcher_status table")
         self.assertIn("interruptions", made["tables"])
 
+    def test_the_downgrade_to_v3_leaves_the_database_v0_6_10_makes(self):
+        """Not only a file v0.6.10 opens: the very file it makes itself, table for table."""
+        made, released = self.made["downgraded-to-v3"], self.made["fresh-v0.6.10"]
+        if "skipped" in made or "skipped" in released:
+            self.skipTest(made.get("skipped") or released.get("skipped"))
+        self.assertEqual(made["user_version"], 3)
+        self.assertEqual(made, released)
+
     def test_the_golden_names_the_version_the_code_says(self):
         from codex_auto_resume.store import SCHEMA_VERSION
         self.assertEqual(self.stored["fresh"]["user_version"], SCHEMA_VERSION)

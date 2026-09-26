@@ -13,9 +13,11 @@ import os
 import sqlite3
 
 from ..domain.plug import Alternative
+from .columns import _UNREAD_BY_DISPATCH
 
-# What a ledger may do on the claim's connection while it is asked (P11): read anything, attach
-# a database of its own, and write, create and drop there. Core's schemas - main, and temp,
+# What a ledger may do on the claim's connection while it is asked (P11): read anything but the
+# needs-you notices (schema 4), which decide no claim; attach a database of its own; and write,
+# create and drop there. Core's schemas - main, and temp,
 # where a trigger on core's tables could be left behind - are never written, and no transaction
 # or savepoint is begun, ended or rolled back: those are the claim's. A statement with no schema
 # to judge it by, other than the reads below, is refused.
@@ -38,6 +40,8 @@ def _ledger_authorizer(attached):
     """What a ledger may do while it is asked. `attached` is every file the claim's connection
     has attached, main's first; a file an ATTACH lets on is added to it."""
     def authorize(action, first, second, schema, _trigger):
+        if action == sqlite3.SQLITE_READ and schema in _CORE_SCHEMAS and first in _UNREAD_BY_DISPATCH:
+            return sqlite3.SQLITE_DENY                   # a needs-you notice decides no claim
         if action in _LEDGER_READS:
             return sqlite3.SQLITE_OK
         if action == sqlite3.SQLITE_ATTACH:

@@ -6,8 +6,8 @@ names are drawn from, which is why nothing here reads settings or the clock.
 """
 from __future__ import annotations
 
-from .vocabulary import (Actor, EventCode, GateName, GateResult, Overlay, Page,
-                         PublicCode, ReasonCode, RecordState, TurnStatus,
+from .vocabulary import (Actor, EventCode, GateName, GateResult, HoldKind, ImportanceTier,
+                         Overlay, Page, PublicCode, ReasonCode, RecordState, TurnStatus,
                          WithdrawReason)
 from .states import CLAIMED, IN_FLIGHT, OBSERVING, TERMINAL, WAITING, waiting_state
 
@@ -17,6 +17,11 @@ WITHDRAW_REASONS = frozenset(WithdrawReason)
 SUPERSEDE_WITHDRAWALS = frozenset({"superseded", "superseded_by_user", "user_queued_input"})
 TURN_STATUSES = frozenset(TurnStatus)
 ACTORS = frozenset(Actor)
+# Schema 4 (v0.6.11). Why a record waits for a person (`interruptions.hold`), and how much a
+# conversation asks first (`threads.tier`). Neither is ever set at the defaults: a record with no
+# hold and a conversation with no tier are what every record and conversation were until then.
+HOLDS = frozenset(HoldKind)
+IMPORTANCE_TIERS = tuple(ImportanceTier)
 
 # Every reason the engine or the store writes. The journal stores only these; anything
 # else is recorded as "other" rather than refused, because a journal entry must never
@@ -90,10 +95,12 @@ def public_code(record: dict) -> str:
 
 
 def eligible_at(record: dict):
-    """When a waiting record is next looked at: its schedule, or a later usage reset."""
+    """When a waiting record is next looked at: its schedule, or a later usage reset, or a
+    later time a person postponed it to (`not_before`, schema 4), whichever is last."""
     if record.get("state") not in WAITING:
         return None
-    return max(record.get("next_retry_at") or 0, record.get("reset_at") or 0) or None
+    return max(record.get("next_retry_at") or 0, record.get("reset_at") or 0,
+               record.get("not_before") or 0) or None
 
 
 def public_reason(record: dict):

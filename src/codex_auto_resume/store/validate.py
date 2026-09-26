@@ -12,7 +12,7 @@ from .. import failures
 from ..domain import ids, vocabulary
 from .. import machine
 from ..machine import CLAIMED, IN_FLIGHT, OBSERVING, STATES
-from .columns import _MUTABLE, _NEEDS_RECOVERY_TURN, _RECORD_COLUMNS
+from .columns import _MUTABLE, _NEEDS_RECOVERY_TURN, _NOTICE_COLUMNS, _RECORD_COLUMNS
 from .errors import RecordSchemaMismatch, StoreError
 
 
@@ -77,7 +77,7 @@ def _validated_record(row: dict[str, Any]) -> dict[str, Any]:
         _timestamp(row[field], field)
     for field in ("started_at", "reset_at", "resumed_at", "submitted_at", "withdrawn_at",
                   "turn_started_at", "outcome_at", "first_queued_at", "last_claim_at",
-                  "usage_probe_at", "gate_eval_at", "history_hidden_at"):
+                  "usage_probe_at", "gate_eval_at", "history_hidden_at", "not_before"):
         _timestamp(row[field], field, nullable=True)
     for field in ("ordinal", "retry_count", "attempt_count", "recovery_attempts",
                   "no_progress_count", "withdraw_failures", "chain_continuations",
@@ -93,8 +93,10 @@ def _validated_record(row: dict[str, Any]) -> dict[str, Any]:
     _short_text(row["gate_eval"], "gate_eval", 4000, nullable=True)
     if not isinstance(row["state"], str) or row["state"] not in STATES:
         raise StoreError("Unknown record state")
-    if row["marker"] != ids.marker(key):
+    # Its short marker, or - for a record made before v0.6.11 - the marker of its whole id.
+    if row["marker"] not in ids.record_markers(key):
         raise StoreError("Invalid record marker")
+    _choice(row["hold"], "hold", machine.HOLDS)
     for field in ("queue_id", "recovery_turn_id"):
         if row[field] is not None:
             _uuid(row[field], field)
@@ -114,6 +116,25 @@ def _validated_record(row: dict[str, Any]) -> dict[str, Any]:
         raise StoreError("Missing recovery turn")
     if state == "withdrawn_unconfirmed" and (row["withdraw_reason"] is None or row["withdrawn_at"] is None):
         raise StoreError("Missing withdrawal details")
+    return row
+
+
+def _validated_tier(value):
+    """A conversation's tier (schema 4): one of the closed list, or None - no tier of its own."""
+    return _choice(value, "tier", machine.IMPORTANCE_TIERS)
+
+
+def _validated_notice(row: dict[str, Any]) -> dict[str, Any]:
+    """One needs-you notice (schema 4): ids, a failure category and times - nothing else."""
+    if set(row) != set(_NOTICE_COLUMNS):
+        raise RecordSchemaMismatch("Invalid notice schema")
+    if not ids.is_interruption_id(row["interruption_id"], as_stored=True):
+        raise StoreError("Invalid notice interruption_id")
+    _uuid(row["thread_id"], "notice thread_id")
+    if row["category"] not in failures.CATEGORIES:
+        raise StoreError("Invalid notice category")
+    _timestamp(row["raised_at"], "raised_at")
+    _timestamp(row["seen_at"], "seen_at", nullable=True)
     return row
 
 

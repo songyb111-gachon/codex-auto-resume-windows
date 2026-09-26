@@ -1,7 +1,8 @@
-"""The state as an older release wrote it, opened read-only.
+"""The state as an older release wrote it, opened without changing its schema.
 
 A watcher from before this schema may still be running, and what it owns is read here rather
-than upgraded: an upgrade under a running older watcher would rewrite rows it is writing.
+than upgraded: an upgrade under a running older watcher would rewrite rows it is writing. From
+v0.6.11 that watcher can be a v0.6.x one, whose state is schema 3, as well as a v0.5 one.
 """
 from __future__ import annotations
 
@@ -14,13 +15,14 @@ from .. import machine
 from ..machine import TERMINAL
 from .errors import StoreError
 from .policy import PolicyMixin
-from .schema import SchemaMixin, _TABLES_V2
+from .schema import SchemaMixin, _TABLES_V2, _TABLES_V3
 from .session import SessionMixin
 from .validate import _timestamp, _uuid, _validated_record
 
 
 class LegacyStore:
-    """A schema-2 state that an older watcher still owns, opened without changing it.
+    """A state an older watcher still owns - schema 1 or 2 (v0.5), or 3 (v0.6.0 to v0.6.10) -
+    opened without changing it.
 
     Between an upgrade and the moment the old watcher exits, the new interfaces must
     still be able to do the things that only ever reduce automation: pause, switch a
@@ -40,9 +42,13 @@ class LegacyStore:
             tables = SessionMixin._tables(self._connection)
         except sqlite3.Error as exc:
             raise StoreError("Cannot open valid auto-resume state") from exc
-        if version not in (1, 2) or tables != _TABLES_V2:
+        if (version, tables) not in ((1, _TABLES_V2), (2, _TABLES_V2), (3, _TABLES_V3)):
             self.close()
             raise StoreError("Not a state an older watcher owns")
+        self.version = version
+        # The states that older watcher knows, and those of them that are final.
+        self._states = machine.V2_STATES if version < 3 else machine.STATES
+        self._terminal = self._states & TERMINAL
 
     def close(self) -> None:
         if self._connection is not None:
@@ -98,30 +104,32 @@ class LegacyStore:
         if not isinstance(enabled, bool):
             raise StoreError("enabled must be boolean")
         with self._transaction() as connection:
-            connection.execute("INSERT INTO threads VALUES (?,?) ON CONFLICT(thread_id) "
+            connection.execute("INSERT INTO threads (thread_id, enabled) VALUES (?,?) ON CONFLICT(thread_id) "
                                "DO UPDATE SET enabled=excluded.enabled", (thread_id, int(enabled)))
 
     def cancel_thread(self, thread_id: str, now: float, **_ignored) -> None:
         """v0.5's cancel, exactly: disable the thread, cancel what was never sent, and
-        mark what may have been sent so the old watcher withdraws it."""
+        mark what may have been sent so the old watcher withdraws it. A schema-3 watcher's
+        cancel does the same, and names why a record it cancelled stopped, as it does itself."""
         _uuid(thread_id, "thread_id")
         _timestamp(now, "now")
-        v2_terminal = tuple(sorted(machine.V2_STATES & TERMINAL))
-        marks = ",".join("?" for _ in v2_terminal)
+        terminal = tuple(sorted(self._terminal))
+        marks = ",".join("?" for _ in terminal)
+        reason = ", last_error='user_cancelled'" if self.version >= 3 else ""
         with self._transaction() as connection:
-            connection.execute("INSERT INTO threads VALUES (?,0) ON CONFLICT(thread_id) DO UPDATE SET enabled=0",
-                               (thread_id,))
+            connection.execute("INSERT INTO threads (thread_id, enabled) VALUES (?,0) "
+                               "ON CONFLICT(thread_id) DO UPDATE SET enabled=0", (thread_id,))
             connection.execute("UPDATE interruptions SET cancel_requested=1 WHERE thread_id=? AND "
                                "submitted_at IS NOT NULL AND state NOT IN (%s)" % marks,
-                               (thread_id, *v2_terminal))
-            connection.execute("UPDATE interruptions SET state='cancelled', cancel_requested=1, "
+                               (thread_id, *terminal))
+            connection.execute("UPDATE interruptions SET state='cancelled', cancel_requested=1%s, "
                                "next_retry_at=? WHERE thread_id=? AND submitted_at IS NULL AND "
-                               "state NOT IN (%s)" % marks, (now, thread_id, *v2_terminal))
+                               "state NOT IN (%s)" % (reason, marks), (now, thread_id, *terminal))
 
     def status_counts(self) -> dict:
         with self._transaction() as connection:
             return {row[0]: row[1] for row in connection.execute(
-                "SELECT state, count(*) FROM interruptions GROUP BY state") if row[0] in machine.V2_STATES}
+                "SELECT state, count(*) FROM interruptions GROUP BY state") if row[0] in self._states}
 
     def thread_of(self, interruption_id: str):
         with self._transaction() as connection:

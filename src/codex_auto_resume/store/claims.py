@@ -78,11 +78,14 @@ class ClaimsMixin:
         """
         with self._transaction() as connection:
             row = self._row(connection, interruption_id)
+            settings = self._read_settings(connection)
+            # A hold or observe-only (schema 4) that commits first stops the launch as a Pause
+            # does; neither is ever set at the defaults.
             permitted = bool(
                 row is not None and row["state"] == "submitting"
                 and row["submitted_at"] is not None and row["queue_id"] is None
-                and not row["cancel_requested"]
-                and self._read_settings(connection)["enabled"]
+                and not row["cancel_requested"] and row["hold"] is None
+                and settings["enabled"] and not settings["observe_only"]
                 and self._thread_enabled(connection, row["thread_id"]))
             yield permitted
 
@@ -90,7 +93,8 @@ class ClaimsMixin:
         return self.reserve_detailed(interruption_id, now, **options)[0]
 
     def reserve_detailed(self, interruption_id: str, now: float, *, limits: dict | None = None,
-                         gates: dict | None = None, ledger=None, carried=frozenset()) -> tuple:
+                         gates: dict | None = None, ledger=None, carried=frozenset(),
+                         quiet_until: float | None = None) -> tuple:
         """Claim a record for sending, re-checking every store-side gate in the claim.
 
         Returns (claimed, refusing_gate, reason). The gate vector - the engine's view of
@@ -99,7 +103,9 @@ class ClaimsMixin:
         `ledger` is the engine's plug (domain/plug.py), asked last (P11); None is NULL's.
         `carried` is the points whose answers of the plug's the send this claim leads to
         carries - Point.TEXT for its words, Point.SENDER for its channel - which its ledger pays
-        for (`_ledger_holds`).
+        for (`_ledger_holds`). `quiet_until` is the end of the quiet hours `now` falls in, or None.
+        Schema 4's conditions - observe-only, a hold, a postponement, the quiet hours - are asked
+        here again, inside the claim, as reasons of the consent and schedule gates.
         """
         _timestamp(now, "now")
         if gates is not None and limits is None:
@@ -113,10 +119,10 @@ class ClaimsMixin:
             vector = dict(gates or {})
             vector["consent"] = machine.gate_consent(
                 settings["enabled"], self._thread_enabled(connection, row["thread_id"]),
-                row["cancel_requested"])
+                row["cancel_requested"], observe_only=settings["observe_only"], hold=row["hold"])
             vector["submission_safe"] = machine.gate_submission_safe(
                 row, self._others_in_flight(connection, row["thread_id"], interruption_id))
-            vector["schedule"] = machine.gate_schedule(row, now)
+            vector["schedule"] = machine.gate_schedule(row, now, quiet_until=quiet_until)
             if limits is not None:
                 vector.update(machine.gate_budgets(row, limits, is_usage(row)))
             refusal = None

@@ -52,7 +52,7 @@ class RecordsMixin:
             **record, "detected_at": now, "state": state, "retry_count": 0,
             "next_retry_at": now if next_retry_at is None else next_retry_at,
             "resumed_at": None, "last_error": None,
-            "marker": ids.marker(key), "queue_id": None,
+            "marker": ids.short_marker(key), "queue_id": None,
             "submitted_at": None, "attempt_count": 0, "cancel_requested": False,
             "recovery_attempts": 0, "no_progress_count": 0,
             "recovery_turn_id": None, "recovery_client_id": None, "recovery_turn_status": None,
@@ -63,7 +63,7 @@ class RecordsMixin:
             "chain_origin_id": key, "chain_first_detected_at": now, "chain_continuations": 0,
             "budget_resets": 0, "retry_now_count": 0, "usage_unavailable_seconds": 0.0,
             "usage_probe_at": None, "gate_eval": None, "gate_eval_at": None,
-            "history_hidden_at": None,
+            "history_hidden_at": None, "not_before": None, "hold": None,
         }
         _validated_record(dict(row))
         with self._transaction() as connection:
@@ -73,6 +73,12 @@ class RecordsMixin:
                        ("thread_id", "turn_id", "completed_at", "started_at", "ordinal")):
                     raise StoreError("Interruption identity collision")
                 return False
+            # One marker per interruption in its conversation (A4), by construction rather than by
+            # the odds of 16 hex digits: a record whose short marker another record of the same
+            # conversation already carries is given the marker of its whole id instead.
+            if connection.execute("SELECT 1 FROM interruptions WHERE thread_id=? AND marker=? LIMIT 1",
+                                  (row["thread_id"], row["marker"])).fetchone() is not None:
+                row["marker"] = ids.marker(key)
             drift = connection.execute(
                 "SELECT interruption_id FROM interruptions WHERE thread_id=? AND turn_id=? "
                 "AND interruption_id<>? LIMIT 1", (row["thread_id"], row["turn_id"], key)).fetchone()

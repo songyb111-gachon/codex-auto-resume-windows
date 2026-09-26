@@ -19,13 +19,20 @@ GATE_RESULTS = frozenset(GateResult)
 GATES = tuple(GateName)
 NOT_CHECKED = "not_checked"
 # v0.6.11: a gate core passed and the edition's plug held (domain/plug.py, HOLD). The standard
-# edition's plug holds nothing, so no standard record is ever stored with it.
+# edition's plug holds nothing, so no standard record is ever stored with it. From schema 4 it is
+# also the consent gate's word for a record that waits for a person (`interruptions.hold`).
 HELD = "held"
+# Schema 4 (v0.6.11): a record a person postponed (`interruptions.not_before`), a moment inside the
+# quiet hours, and the watcher told to watch and never send (`settings.observe_only`). Each is a
+# reason of a gate there already was - consent or schedule - so A8's thirteen gates, and their
+# order, are what they were; and each is off at the defaults, where no record has a hold or a
+# postponement, no hour is quiet and nothing is only observed.
+POSTPONED, QUIET_HOURS, OBSERVE_ONLY = "postponed", "quiet_hours", "observe_only"
 GATE_REASONS = REASONS | frozenset({
     NOT_CHECKED, "paused", "thread_disabled", "cancel_requested", "not_due", "possibly_sent",
     "engine_incompatible", "engine_unknown", "projection_table_missing",
     "home_lock_unavailable", "identity_unreadable", "not_recoverable", "usage_available",
-    "ok", HELD,
+    "ok", HELD, POSTPONED, QUIET_HOURS, OBSERVE_ONLY,
 })
 
 
@@ -33,21 +40,36 @@ def gate(result: str, reason: str = "ok") -> tuple:
     return (result, reason if reason in GATE_REASONS else "other")
 
 
-def gate_consent(enabled, thread_enabled, cancel_requested) -> tuple:
+def gate_consent(enabled, thread_enabled, cancel_requested, *, observe_only=False,
+                 hold=None) -> tuple:
+    """Whether sending is allowed at all. The schema-4 conditions come after the three there
+    always were, so a record they do not touch - every record, at the defaults - gets the answer
+    it got before: observe-only blocks like a Pause, and a hold, of any word, waits for a person."""
     if not enabled:
         return gate(BLOCK, "paused")
     if not thread_enabled:
         return gate(BLOCK, "thread_disabled")
     if cancel_requested:
         return gate(BLOCK, "cancel_requested")
+    if observe_only:
+        return gate(BLOCK, OBSERVE_ONLY)
+    if hold is not None:
+        return gate(WAIT, HELD)
     return gate(PASS)
 
 
-def gate_schedule(record, now) -> tuple:
+def gate_schedule(record, now, *, quiet_until=None) -> tuple:
+    """Whether it is time. A postponement (`not_before`) only ever makes a record later, and
+    `quiet_until` - the end of the quiet hours `now` falls in, or None outside them - only holds
+    a record that is otherwise due; neither is ever set at the defaults."""
     if (record.get("next_retry_at") or 0) > now:
         return gate(WAIT, "not_due")
     if record.get("reset_at") is not None and record["reset_at"] > now:
         return gate(WAIT, "waiting_reset")
+    if (record.get("not_before") or 0) > now:
+        return gate(WAIT, POSTPONED)
+    if quiet_until is not None and quiet_until > now:
+        return gate(WAIT, QUIET_HOURS)
     return gate(PASS)
 
 

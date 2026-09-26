@@ -20,7 +20,11 @@ class PolicyMixin:
         poll = _integer(row["poll_seconds"], "poll_seconds")
         if not 5 <= poll <= 3600 or (enabled and armed_at == 0):
             raise StoreError("Invalid settings")
-        return {"enabled": enabled, "armed_at": armed_at, "poll_seconds": poll}
+        # Schema 4's switch. An older watcher's state (store/legacy.py) has no such column, and
+        # nothing there is only observed.
+        observe_only = _flag(row.get("observe_only", 0), "observe_only")
+        return {"enabled": enabled, "armed_at": armed_at, "poll_seconds": poll,
+                "observe_only": observe_only}
 
     def settings(self) -> dict[str, Any]:
         with self._read() as connection:
@@ -63,7 +67,8 @@ class PolicyMixin:
         with self._transaction() as connection:
             before = self._thread_enabled(connection, thread_id)
             connection.execute(
-                "INSERT INTO threads VALUES (?,?) ON CONFLICT(thread_id) DO UPDATE SET enabled=excluded.enabled",
+                "INSERT INTO threads (thread_id, enabled) VALUES (?,?) "
+                "ON CONFLICT(thread_id) DO UPDATE SET enabled=excluded.enabled",
                 (thread_id, int(enabled)),
             )
             if enabled and not before:

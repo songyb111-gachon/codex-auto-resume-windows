@@ -71,6 +71,17 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 GOLDEN = ROOT / "tests" / "golden"
+# The wire's goldens are in these two folders. A file directly in tests/golden is another
+# test's - tests/golden/defaults-v0.6.10.json is tests/test_defaults_golden.py's - and is never
+# this script's to rewrite or remove.
+WIRE_FOLDERS = ("bridge", "mcp")
+
+
+def wire_goldens() -> set:
+    """Every wire golden on disk, as a path relative to GOLDEN with forward slashes."""
+    return {str(path.relative_to(GOLDEN)).replace(os.sep, "/")
+            for folder in WIRE_FOLDERS for path in (GOLDEN / folder).rglob("*.json")}
+
 # The files that are not one command's or one tool's.
 BRIDGE_FRAMING = "_framing"
 MCP_PROTOCOL = "_protocol"
@@ -734,9 +745,7 @@ def main(argv=None) -> int:
     write = "--write" in arguments
     made = generate()
     differ = sorted(name for name, text in made.items() if recorded(name) != text)
-    stale = sorted(str(path.relative_to(GOLDEN)).replace(os.sep, "/")
-                   for path in GOLDEN.rglob("*.json")
-                   if str(path.relative_to(GOLDEN)).replace(os.sep, "/") not in made)
+    stale = sorted(name for name in wire_goldens() if name not in made)
     if write:
         for name in differ:
             target = GOLDEN / name

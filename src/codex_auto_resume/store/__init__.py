@@ -20,7 +20,7 @@ to hold in your head:
     watcher     the heartbeat
     reporting   counts, and the last seven days
     legacy      an older release's state, read-only
-    downgrade   putting it back to v2, by hand
+    downgrade   putting it back to v3 or v2, by hand
 
 The order the mixins are named in is the order the file used to read in, and nothing depends
 on it: no two of them define the same method, which `tests/test_store_shape.py` holds them to.
@@ -37,9 +37,10 @@ from ..machine import (CLAIMED, EXHAUSTED, IN_FLIGHT, OBSERVING, STATES,  # noqa
 from .actions import ActionsMixin, MAX_BUDGET_RESETS, UNKNOWN_WINDOW  # noqa: F401
 from .claims import ClaimsMixin
 from .columns import (_EVENT_COLUMNS, _MUTABLE, _NEEDS_RECOVERY_TURN,  # noqa: F401
-                      _RECORD_COLUMNS, _SCHEMA_2_COLUMNS, _SCHEMA_3_COLUMNS,
-                      _V2_COLUMNS, _WATCHER_COLUMNS)
-from .downgrade import downgrade_to_v2  # noqa: F401
+                      _NOTICE_COLUMNS, _RECORD_COLUMNS, _SCHEMA_2_COLUMNS, _SCHEMA_3_COLUMNS,
+                      _SCHEMA_4_COLUMNS, _SETTINGS_COLUMNS, _THREAD_COLUMNS, _V2_COLUMNS,
+                      _V3_COLUMNS, _WATCHER_COLUMNS)
+from .downgrade import downgrade_state, downgrade_to_v2, downgrade_to_v3  # noqa: F401
 from .errors import (RecordSchemaMismatch, StateFromNewerVersion,  # noqa: F401
                      StoreError, UpgradePending)
 from .journal import EVENT_LIMIT, EVENT_MAX_AGE, JournalMixin, _PRUNE_EVERY  # noqa: F401
@@ -49,11 +50,11 @@ from .migrations import MigrationsMixin
 from .policy import PolicyMixin
 from .records import RecordsMixin
 from .reporting import ReportingMixin
-from .schema import SCHEMA_VERSION, SchemaMixin, _TABLES_V2, _TABLES_V3  # noqa: F401
+from .schema import SCHEMA_VERSION, SchemaMixin, _TABLES_V2, _TABLES_V3, _TABLES_V4  # noqa: F401
 from .session import SessionMixin
 from .validate import (ENGINE_STATES, _choice, _claim_cost, _finite, _flag,  # noqa: F401
                        _integer, _short_text, _sql, _timestamp, _uuid,
-                       _validated_record, is_usage)
+                       _validated_notice, _validated_record, _validated_tier, is_usage)
 from .watcher import WatcherMixin
 
 

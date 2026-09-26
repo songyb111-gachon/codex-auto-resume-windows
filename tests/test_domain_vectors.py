@@ -129,32 +129,47 @@ class InterruptionIdTests(unittest.TestCase):
 # ------------------------------------------------------------------------------ marker
 class MarkerTests(unittest.TestCase):
     def test_the_store_writes_the_marker_of_the_key_it_is_given(self):
+        """From v0.6.11 an interruption id's marker is its first 16 hex digits (the owner's
+        shorter marker); a stored key no interruption id is - a test's - keeps the whole key."""
         with tempfile.TemporaryDirectory() as temp:
             with Store(Path(temp) / "state") as store:
-                for key in (KEY, "rec-0001"):
+                for key, marked in ((KEY, KEY[:16]), ("rec-0001", "rec-0001")):
                     with self.subTest(key):
                         self.assertTrue(store.register(failure(key, THREAD, str(uuid.uuid4())), 111.0))
-                        self.assertEqual(store.get(key)["marker"], "[codex-auto-resume:%s]" % key)
+                        self.assertEqual(store.get(key)["marker"], "[codex-auto-resume:%s]" % marked)
 
     def test_the_history_reader_looks_only_for_a_marker_of_an_exact_id(self):
         accepted = []
         for text in ("[codex-auto-resume:%s]" % KEY, "[codex-auto-resume:%s]" % KEY.upper(),
                      "[codex-auto-resume:%s]\n" % KEY, " [codex-auto-resume:%s]" % KEY,
                      "[codex-auto-resume:%s]" % KEY[:-1], "[codex-auto-resume:rec-0001]",
-                     "[codex-auto-resume: %s]" % KEY, "codex-auto-resume:%s" % KEY, None):
+                     "[codex-auto-resume: %s]" % KEY, "codex-auto-resume:%s" % KEY, None,
+                     # v0.6.11's short marker, and the spellings next to it that are not one.
+                     "[codex-auto-resume:%s]" % KEY[:16], "[codex-auto-resume:%s]" % KEY[:16].upper(),
+                     "[codex-auto-resume:%s]" % KEY[:15], "[codex-auto-resume:%s]" % KEY[:17],
+                     "[codex-auto-resume:%s]" % (KEY[:15] + "g"), " [codex-auto-resume:%s]" % KEY[:16]):
             try:
                 codex.LocalSource._identity(THREAD, text)
             except codex.SourceError:
                 continue
             accepted.append(text)
-        self.assertEqual(accepted, ["[codex-auto-resume:%s]" % KEY])
+        self.assertEqual(accepted, ["[codex-auto-resume:%s]" % KEY, "[codex-auto-resume:%s]" % KEY[:16]])
 
     def test_the_one_implementation_writes_and_reads_the_same_marker(self):
         self.assertEqual(ids.marker(KEY), "[codex-auto-resume:%s]" % KEY)
         self.assertEqual(ids.marker("rec-0001"), "[codex-auto-resume:rec-0001]")
+        self.assertEqual(ids.short_marker(KEY), "[codex-auto-resume:%s]" % KEY[:16])
+        self.assertEqual(ids.short_marker("rec-0001"), "[codex-auto-resume:rec-0001]")
+        self.assertEqual(ids.record_markers(KEY), (ids.short_marker(KEY), ids.marker(KEY)))
+        self.assertEqual(ids.record_markers("rec-0001"), (ids.marker("rec-0001"),))
         self.assertTrue(ids.is_marker(ids.marker(KEY)))
+        self.assertTrue(ids.is_marker(ids.short_marker(KEY)))
         self.assertFalse(ids.is_marker(ids.marker("rec-0001")))
         self.assertTrue(ids.marker(KEY).startswith(ids.MARKER_PREFIX))
+        # The closing bracket keeps the two lengths apart: neither is found inside the other,
+        # which is what an `instr(...)>0` bound on Codex's history relies on.
+        self.assertNotIn(ids.short_marker(KEY), ids.marker(KEY))
+        self.assertNotIn(ids.marker(KEY), ids.short_marker(KEY))
 
 
 # --------------------------------------------------------------------------- gate vector

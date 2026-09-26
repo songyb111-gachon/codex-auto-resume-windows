@@ -248,6 +248,23 @@ class Overlay(StrEnum):
     WATCHER_NOT_TICKING = "watcher_not_ticking"
 
 
+class HoldKind(StrEnum):
+    """Why a record waits for a person before it may be sent (schema 4; machine.HOLDS)."""
+    ASK = "ask"
+    NOTIFY_ONLY = "notify_only"
+    AFTER_SLEEP = "after_sleep"
+    ACCOUNT_CHANGED = "account_changed"
+    WORKSPACE_CHANGED = "workspace_changed"
+
+
+class ImportanceTier(StrEnum):
+    """How much a conversation asks before it is resumed, least first (machine.IMPORTANCE_TIERS)."""
+    AUTOMATIC = "automatic"
+    OBJECTION_WINDOW = "objection_window"
+    ASK_FIRST = "ask_first"
+    NOTIFY_ONLY = "notify_only"
+
+
 # -------------------------------------------------------------------------------- gates
 class GateName(StrEnum):
     """The gates, in the order they are evaluated (machine.GATES)."""

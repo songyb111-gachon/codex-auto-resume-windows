@@ -58,8 +58,8 @@ from codex_auto_resume.app import App  # noqa: E402
 from codex_auto_resume.engine import Engine  # noqa: E402
 from codex_auto_resume.mcp import server as mcp_server  # noqa: E402
 from codex_auto_resume.machine import STATES, WATCHED  # noqa: E402
-from codex_auto_resume.store import (LegacyStore, StateFromNewerVersion, Store, StoreError,  # noqa: E402
-                                     UpgradePending)
+from codex_auto_resume.store import (SCHEMA_VERSION, LegacyStore, StateFromNewerVersion, Store,  # noqa: E402
+                                     StoreError, UpgradePending)
 
 NOW = 1_000_000.0
 
@@ -267,7 +267,7 @@ class OpeningTests(unittest.TestCase):
             with self.subTest(name):
                 paths = self.older_state()
                 self.assertIsInstance(self.opened(opener, paths), Store)
-                self.assertEqual(self.version(paths), 3)
+                self.assertEqual(self.version(paths), SCHEMA_VERSION)
 
     def test_an_older_state_under_an_older_watcher_is_opened_as_each_caller_decides(self):
         answers = {}
@@ -290,7 +290,7 @@ class OpeningTests(unittest.TestCase):
         })
 
     def test_a_newer_or_damaged_state_is_refused_the_same_way_whatever_the_policy(self):
-        for state, app_error, code in ((lambda: self.current_state(user_version=4), StateFromNewerVersion,
+        for state, app_error, code in ((lambda: self.current_state(user_version=SCHEMA_VERSION + 1), StateFromNewerVersion,
                                         "newer_state"),
                                        (self.damaged_state, StoreError, "store_unavailable")):
             for name, opener in self.openers().items():
