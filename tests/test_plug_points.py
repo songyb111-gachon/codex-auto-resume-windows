@@ -502,6 +502,30 @@ class LedgerTests(PluggedCase):
         self.h.store.set_thread_enabled(T2, True, at=self.h.now)
         self.assertTrue(self.h.store.thread_enabled(T2))
 
+    def test_a_ledger_cannot_keep_what_it_was_handed_alive(self):
+        """The handle's `close` was an attribute of the handle, so a ledger that set it to a
+        no-op kept a live connection past its answer - with the authorizer gone - and wrote
+        core's tables with it. Nothing can be set on the handle, and what ends it is the
+        claim's own."""
+        self.due()
+        self.h.store.set_thread_enabled(T2, False, at=self.h.now)
+        kept = []
+
+        def claim_ledger(connection, record, now):
+            with contextlib.suppress(AttributeError):
+                connection.close = lambda: None
+            kept.append(connection)
+            return DEFER
+        self.plugged(Asked(claim_ledger=claim_ledger))
+        self.h.tick()
+        self.assertEqual(len(self.h.backend.send_calls), 1)
+        with self.assertRaises(sqlite3.ProgrammingError):
+            kept[0].execute("UPDATE threads SET enabled=1")
+        self.assertFalse(self.h.store.thread_enabled(T2))
+        for name in ("close", "_execute", "execute", "extra"):
+            with self.subTest(name), self.assertRaises(AttributeError):
+                setattr(kept[0], name, None)
+
     def test_a_ledger_that_breaks_holds_a_claim_that_carries_the_plugs_words_or_channel(self):
         """What the plug's words or its channel cost is paid in its ledger, before the claim is
         granted. A ledger that raised paid nothing, so what it would have paid for is not sent;
