@@ -30,5 +30,10 @@ def open_dashboard(home: Path, page: str = None) -> bool:
     arguments = [str(exe)]
     if page is not None:
         arguments.append("--page=" + page)
-    subprocess.Popen(arguments, cwd=str(home), close_fds=True)
+    # The caller is the watcher, under pythonw.exe with no console. The window is a GUI program
+    # (build/make_gui.ps1 compiles it /target:winexe), so no console is made for it and the flag
+    # changes nothing today. It is here so this start obeys the one rule every other start does
+    # (tests/test_no_console_windows.py), and stays hidden if the target is ever a console one.
+    subprocess.Popen(arguments, cwd=str(home), close_fds=True,
+                     creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     return True

@@ -8,15 +8,34 @@
     Re-running it is the upgrade and the repair path. Runtime state - settings, pending
     recoveries, retry budgets and logs - lives beside the installation and is never
     touched here; only the program files are replaced.
+
+    An archive of the other edition from the one installed replaces it only when that was
+    asked for: -AllowEditionChange, which Install.cmd passes after a y/N answer and the
+    bootstrap only after -Edition and -Force. Without it this says what the change would
+    keep and change, and stops with 14 before anything is moved.
 #>
 [CmdletBinding()]
 param(
     [switch]$SkipStartup,        # install, but do not run at Windows sign-in
     [switch]$Uninstall,          # remove the program, keeping settings and pending state
     [switch]$Purge,              # with -Uninstall: also delete settings, state and logs
+    [switch]$AllowEditionChange, # replace the installed edition with this archive's other one
     [string]$PluginName      = 'codex-auto-resume',
     [string]$MarketplaceName = 'codex-auto-resume-windows'
 )
+
+# Every published bootstrap from v0.5.2 to v0.6.10 passes its -NoStartup in an array splatted
+# into this script: `$arguments += '-SkipStartup'; & $installer @arguments`. An array binds by
+# position, so the word lands in the first positional parameter, $PluginName, and -SkipStartup
+# stays off. Those bootstraps are still installed, and `-Update -NoStartup` makes one of them
+# download this release and run this script that way: without this, the update registered the
+# sign-in start the person had asked it not to, and gave Codex a plugin named -SkipStartup.
+# The word is read back as the switch it meant. Not refused: a refusal here would fail every
+# such update outright, for a word whose meaning is not in doubt.
+if ($PluginName -ieq '-SkipStartup') {
+    $SkipStartup = [switch]$true
+    $PluginName = 'codex-auto-resume'
+}
 
 $ErrorActionPreference = 'Stop'
 $script:Failed = $false
@@ -162,6 +181,38 @@ function Test-PathInside {
     if (-not $c -or -not $p) { return $false }
     if ($c -eq $p) { return $true }
     return $c.StartsWith($p + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)
+}
+
+function Get-Edition {
+    <#
+        Which edition the tree whose `src` this is: the advanced one when the advanced
+        package is in it, the standard one otherwise. Nothing is stamped anywhere to say
+        which. It is the fact the product itself reads (src/codex_auto_resume/edition.py,
+        name()), and scripts/bootstrap.ps1 reads it the same way, so the three agree -
+        even about an installation whose advanced package would not load.
+    #>
+    param([string]$Src)
+    # The package's directory in exactly this case. Python's import finds a package by its
+    # directory's own name, case and all, so a tree that spells it otherwise is the standard
+    # edition to the product; Test-Path, which ignores case, called it advanced. Its __init__.py
+    # may be in any case, as it may for Python, which asks the file system for that file.
+    $package = @(Get-ChildItem -LiteralPath $Src -Directory -Force -ErrorAction SilentlyContinue |
+                 Where-Object { $_.Name -ceq 'codex_auto_resume_advanced' })
+    if ($package.Count -and (Test-Path -LiteralPath (Join-Path $package[0].FullName '__init__.py') -PathType Leaf)) {
+        return 'advanced'
+    }
+    return 'standard'
+}
+
+function Get-EditionStatement {
+    # What moving from one edition to the other keeps and what it changes, in one line said
+    # before anything is done. The bootstrap says the same line (scripts/bootstrap.ps1) before
+    # it downloads anything; a test holds the two copies to each other.
+    param([string]$From, [string]$To)
+    $words = @{ standard = 'Standard edition'; advanced = 'Advanced edition' }
+    $line = $words[$From] + ' -> ' + $words[$To] + '; settings and pending recoveries are kept; '
+    if ($To -eq 'advanced') { return $line + 'every advanced feature starts off' }
+    return $line + 'the advanced features go, and their code with them'
 }
 
 function Get-OwnedMcpProcess {
@@ -641,6 +692,11 @@ if ($Uninstall) {
 # -------------------------------------------------------------------------- install
 if (-not (Test-Path $Payload)) { Fail 'This installer is missing its payload folder.'; exit 1 }
 
+# Said before anything is done: which edition this archive installs. Every route in - Install.cmd,
+# the bootstrap, an update - passes here, so every install says it.
+$edition = Get-Edition -Src (Join-Path $Payload 'app\src')
+Write-Host ('edition: ' + $edition)
+
 $codex = Get-CodexCli
 if ($null -eq $codex) {
     Fail 'The ChatGPT/Codex desktop app was not found.'
@@ -694,6 +750,32 @@ if (-not $OwnedHome -or -not (Test-PathInside $AppDir $OwnedHome)) {
 $claimedAside = Restore-InterruptedCopy -Path $Journal -Root $OwnedHome
 
 $upgrade = Test-Path $AppDir
+
+# Which edition is installed, read while the old program files are still where they were.
+# The move-aside below takes the whole app tree away, which is why no advanced package can
+# outlive a move to the standard edition - and why this is the last moment to read it.
+#
+# Moving between editions is a reinstall, never an update, so it happens only when asked for.
+# Refused before the sweep, the handover and the move: a run that stops here has changed
+# nothing, and says what going ahead would keep and change. Install.cmd reads the code as its
+# cue to ask y/N and run this again with -AllowEditionChange; the bootstrap passes that only
+# after -Edition and -Force.
+$EDITION_CHANGE_REFUSED = 14
+$previousEdition = $null
+if ($upgrade) { $previousEdition = Get-Edition -Src (Join-Path $AppDir 'src') }
+$editionChange = $upgrade -and ($previousEdition -ne $edition)
+if ($editionChange) {
+    Write-Host ''
+    Write-Host (Get-EditionStatement -From $previousEdition -To $edition)
+    if (-not $AllowEditionChange) {
+        Fail ('This archive is the ' + $edition + ' edition, and the ' + $previousEdition + ' edition is installed here.')
+        Write-Host '       An edition is changed only when that is asked for, so nothing was changed.'
+        Write-Host '       Install.cmd asks before it changes it; run by hand, add -AllowEditionChange.'
+        exit $EDITION_CHANGE_REFUSED
+    }
+    Ok ('Replacing the ' + $previousEdition + ' edition with the ' + $edition + ' edition, as asked')
+}
+
 if ($upgrade) { Step 'Updating program files' } else { Step 'Installing program files' }
 
 # Sweep up copies moved aside by an earlier upgrade. They are only removable once
@@ -905,6 +987,20 @@ $setupArgs = @('setup')
 # Only on the upgrade branch. A first install has no decision to preserve, and has to end
 # up enabled and registered or nothing is being watched.
 if ($upgrade) { $setupArgs += '--keep-state' }
+# An edition change is the new edition's to act on, and only it knows what that means for it:
+# entering the advanced edition starts every advanced feature off, whatever an earlier advanced
+# installation left on. Setup carries the edition it replaced across to `install --edition-from`.
+#
+# A home with no program in it but advanced state in config\advanced is the other way in. An
+# uninstall keeps config\ unless it purges, so the state of an advanced installation that was
+# armed, moved to the standard edition and then uninstalled is still there, and nothing says
+# which edition ran here last. The advanced archive installed over it enters from standard as
+# far as setup is told, so every advanced feature starts off rather than coming back on.
+$advancedLeft = Test-Path -LiteralPath (Join-Path (Join-Path $InstallHome 'config') 'advanced')
+if ($editionChange) { $setupArgs += @('--edition-from', $previousEdition) }
+elseif (-not $upgrade -and $edition -eq 'advanced' -and $advancedLeft) {
+    $setupArgs += @('--edition-from', 'standard')
+}
 if ($SkipStartup) { $setupArgs += '--no-startup' }
 # 2 means everything was done but the watcher was not seen running - a real outcome that
 # is neither success nor failure. Treating it as failure would roll back a good install;

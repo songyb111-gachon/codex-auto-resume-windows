@@ -6,7 +6,8 @@ it says is the same wherever and whenever it is asked - and it is what a port of
 another language has to say too.
 
 `ids` is every identifier the product reads or writes, with the one parser for each kind;
-`vocabulary` is every closed list of words it stores, shows or decides on, one `StrEnum` each.
+`vocabulary` is every closed list of words it stores, shows or decides on, one `StrEnum` each;
+`plug` is the interface an edition's own code reaches core through, with the words it speaks in.
 
 Nothing is imported here: a caller names the module it uses.
 """

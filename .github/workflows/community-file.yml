@@ -1,0 +1,468 @@
+name: community file
+
+# Files the compatibility reports people send, with no step by the maintainer.
+#
+# community-report.yml judges a report's pull request and writes nothing. This files the ones that
+# pass: it judges each again, against main as it is by then, with main's own check
+# (build/community_check.py), and puts on main this project's own regeneration of the report - never
+# the sender's bytes - with the index, the folder's README and the counts a release carries written
+# again beside it (build/community_report.py). The sender is told in one comment, and the pull
+# request is closed rather than merged, because what is kept is the regenerated file.
+# build/community_file.py says which limits it applies and why.
+#
+# It is a sweep, not a reaction: every run reads every open report pull request from scratch and
+# nothing from the event that started it, so a run is only a wake-up and any run can do another's
+# work. It wakes when a report's check finishes, once a day for what waits on a date, and when a run
+# that lost a race to main asks for another.
+#
+# Two jobs, because steps on one runner are not a boundary. `plan` parses what strangers sent, so it
+# holds no write access at all: read-only tokens in the steps that ask GitHub (public data), none in
+# the steps that run Python, and its whole answer is a git bundle and a few lines of text, kept for
+# a day. `write` starts on a fresh runner, runs no Python and no repository code, reads that answer
+# as data, re-derives every commit from git, and only then writes. main moves by compare-and-swap,
+# and only when GitHub's tree for each commit is, hash for hash, the tree `plan` tested.
+# tests/test_workflow_privilege.py holds each of those.
+on:
+  workflow_run:
+    workflows: ["community report"]
+    types: [completed]
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      attempt:
+        description: "Which try this is after a run lost a race to main (the filer sets it)."
+        required: false
+        default: "1"
+
+permissions: {}
+
+# One sweep at a time, and never one cancelled half way. Without `queue: max` a newer pending run
+# replaces an older pending one, which is right for a sweep: one waiting run stands in for them all.
+concurrency:
+  group: community-file
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    if: github.repository == 'songyb111-gachon/codex-auto-resume-windows'
+    # Windows, where the product and its tests run; the tests below read what a filing writes.
+    runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # main, never a pull request's head: this is the code that runs.
+          ref: main
+          persist-credentials: false
+          # Every tag: a report's product version has to be one of this repository's releases.
+          fetch-depth: 0
+
+      - name: Fetch dev, as data
+        shell: bash
+        run: git fetch --no-tags --quiet origin +refs/heads/dev:refs/remotes/origin/dev || echo "no dev branch"
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      # The token here reads what anyone can read of a public repository; only list calls, a
+      # bounded number of them, and nothing is run but gh.
+      - name: Read the queue
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          q="$RUNNER_TEMP/queue"
+          repo="$GITHUB_REPOSITORY"
+          mkdir -p "$q"
+          # What is left of the hour's requests: with too little, nothing is looked at.
+          gh api rate_limit --jq '.resources.core.remaining' > "$q/rate"
+          # The open pull requests on main, oldest first, three pages at most.
+          for page in 1 2 3; do
+            gh api "repos/$repo/pulls?state=open&base=main&sort=created&direction=asc&per_page=100&page=$page" \
+              --jq '.[] | {number, draft, created_at, head_sha: .head.sha, head_ref: .head.ref, user_id: .user.id, login: .user.login, type: .user.type, association: .author_association} | tojson' \
+              > "$q/pulls-$page.jsonl"
+            [ "$(wc -l < "$q/pulls-$page.jsonl")" -ge 100 ] || break
+          done
+          # The filer's own comments, the most recently changed first: each one's first line says
+          # what it last told that pull request. Older ones fall off these pages; the two steps
+          # after this read those pull requests one by one.
+          for page in 1 2 3; do
+            gh api "repos/$repo/issues/comments?sort=updated&direction=desc&per_page=100&page=$page" \
+              --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- community-file "))) | {id, issue: (.issue_url | split("/") | last), marker: (.body | split("\n") | first)} | tojson' \
+              > "$q/comments-$page.jsonl"
+          done
+          # main's recent test runs: nothing is filed onto a red main.
+          gh api "repos/$repo/actions/workflows/test.yml/runs?branch=main&per_page=20" \
+            --jq '.workflow_runs[] | {status, conclusion, head_sha, event, repo: .head_repository.full_name, branch: .head_branch} | tojson' \
+            > "$q/runs.jsonl"
+
+      - name: Find what the survey missed
+        shell: bash
+        env:
+          PYTHONPATH: src
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python build/community_file.py unseen --queue "$RUNNER_TEMP/queue"
+
+      # Each report pull request whose comment the pages above did not hold, read on its own, thirty
+      # at most: nothing is decided about one without what it was told, and nothing is told twice.
+      # What was chosen is data: a number a line, refused otherwise.
+      - name: Read what the survey missed
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          q="$RUNNER_TEMP/queue"
+          repo="$GITHUB_REPOSITORY"
+          asked=0
+          while read -r number; do
+            if ! [[ $number =~ ^[0-9]{1,7}$ ]]; then
+              echo "::error::the planner asked for something that is not a pull request"
+              exit 1
+            fi
+            asked=$((asked + 1))
+            [ "$asked" -le 30 ] || break
+            gh api "repos/$repo/issues/$number/comments?per_page=100" \
+              --jq '[.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- community-file "))) | {id, marker: (.body | split("\n") | first)}] | tojson' \
+              > "$q/sticky-$number.json" || rm -f "$q/sticky-$number.json"
+          done < "$q/unseen"
+
+      - name: Choose what to read closer
+        shell: bash
+        env:
+          PYTHONPATH: src
+          PYTHONDONTWRITEBYTECODE: "1"
+          AUTOFILE: ${{ vars.COMMUNITY_AUTOFILE }}
+          BLOCKED: ${{ vars.COMMUNITY_BLOCKED }}
+        run: python build/community_file.py choose --queue "$RUNNER_TEMP/queue"
+
+      # Three reads for each pull request chosen above, eight at most; what it was told is known
+      # already. What was chosen is data: two numbers a line, refused otherwise.
+      - name: Read those closer
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          q="$RUNNER_TEMP/queue"
+          repo="$GITHUB_REPOSITORY"
+          looked=0
+          while read -r number user; do
+            if ! [[ $number =~ ^[0-9]{1,7}$ && $user =~ ^[0-9]{1,12}$ ]]; then
+              echo "::error::the planner asked for something that is not a pull request"
+              exit 1
+            fi
+            looked=$((looked + 1))
+            [ "$looked" -le 8 ] || break
+            gh api "repos/$repo/pulls/$number" \
+              --jq '{state, draft, base: .base.ref, head_sha: .head.sha, commits, changed_files, user_id: .user.id} | tojson' \
+              > "$q/pull-$number.json" || rm -f "$q/pull-$number.json"
+            gh api "repos/$repo/pulls/$number/files?per_page=5" --jq '[.[] | {filename, status}] | tojson' \
+              > "$q/files-$number.json" || rm -f "$q/files-$number.json"
+            gh api "user/$user" --jq '{id, type, created_at} | tojson' \
+              > "$q/user-$user.json" || rm -f "$q/user-$user.json"
+          done < "$q/look"
+
+      # No token from here on in this job. The pull requests' commits are fetched anonymously and
+      # read with git plumbing as data; nothing from them is checked out or run.
+      - name: Plan, build and test
+        shell: bash
+        env:
+          PYTHONPATH: src
+          PYTHONDONTWRITEBYTECODE: "1"
+          GIT_NO_LAZY_FETCH: "1"
+          AUTOFILE: ${{ vars.COMMUNITY_AUTOFILE }}
+          BLOCKED: ${{ vars.COMMUNITY_BLOCKED }}
+        run: python build/community_file.py plan --queue "$RUNNER_TEMP/queue" --out "$RUNNER_TEMP/plan" --work "$RUNNER_TEMP/filer"
+
+      - name: Say what was planned
+        shell: bash
+        run: cat "$RUNNER_TEMP/plan/summary.md" >> "$GITHUB_STEP_SUMMARY"
+
+      # The one artifact: made here, read by `write` below, and gone after a day.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: community-plan
+          path: ${{ runner.temp }}/plan
+          retention-days: 1
+          if-no-files-found: error
+
+  write:
+    needs: plan
+    if: github.repository == 'songyb111-gachon/codex-auto-resume-windows'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: community-plan
+          path: ${{ runner.temp }}/plan
+
+      # The only step that can write. It runs git, gh, base64 and coreutils by absolute path, with
+      # no configuration of the runner's and no hooks, and trusts nothing it was handed: every line
+      # is read against a pattern, every commit is re-derived from git and held to the paths and the
+      # message the filer writes, GitHub's hash for every blob and tree must equal the one tested,
+      # and main moves only from exactly the commit the plan was made on.
+      - name: Write to GitHub
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AUTOFILE: ${{ vars.COMMUNITY_AUTOFILE }}
+          EVENT: ${{ github.event_name }}
+          ATTEMPT: ${{ inputs.attempt }}
+        run: |
+          set -euo pipefail
+          export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_TERMINAL_PROMPT=0 GIT_NO_LAZY_FETCH=1 LC_ALL=C
+          git=/usr/bin/git
+          gh=/usr/bin/gh
+          remote="https://github.com/$GITHUB_REPOSITORY.git"
+          repo="$GITHUB_REPOSITORY"
+          export GH_REPO="$repo"
+          plan="$RUNNER_TEMP/plan"
+          work="$RUNNER_TEMP/work"
+          scratch="$RUNNER_TEMP/scratch"
+          mkdir -p "$scratch"
+          # What a filing may put on main, word for word as the planner has it.
+          report_add='^docs/evidence/community/[A-Za-z0-9](-?[A-Za-z0-9]){0,38}/codex-cli-(0|[1-9][0-9]{0,5})[.](0|[1-9][0-9]{0,5})[.](0|[1-9][0-9]{0,5})(-alpha[.](0|[1-9][0-9]{0,8})([.][1-9][0-9]{0,8})?)?[.]json$'
+          regenerated='^(docs/evidence/community/index[.]json|docs/evidence/community/README[.]md|src/codex_auto_resume/data/reported[.]json)$'
+          reserved='^(con|prn|aux|nul|com[0-9]|lpt[0-9])$'
+          commit_body='Filed by .github/workflows/community-file.yml from the pull request named below: the counts, states and times the sender measured, with every conclusion recomputed from its records and every sentence replaced by ours. It raises the tier of no version.'
+          dev_subject='Take the community reports on main into dev; the Korean documents stay'
+          dev_body='Made by .github/workflows/community-file.yml: dev with the reports main has filed, their index, README and counts, and nothing else. Every Korean document dev has is as it was.'
+          marker='^<!-- community-file state=(filed|queued|refused|needs-owner|closed) head=[0-9a-f]{40} at=[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z until=(-|[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z) why=(-|[a-z][a-z-]{0,23}) -->$'
+          sha='^[0-9a-f]{40}$'
+
+          fail() { echo "::error::$1; nothing more was written"; exit 1; }
+          g() { "$git" -c core.hooksPath=/dev/null -c core.fsmonitor=false -C "$work" "$@"; }
+          api() { "$gh" api "$@"; }
+
+          # Paused since the plan was made: nothing is written. Anything but unset or `on` pauses.
+          switch="${AUTOFILE:-}"
+          switch="${switch,,}"
+          if [ -n "$switch" ] && [ "$switch" != "on" ]; then
+            echo "paused by COMMUNITY_AUTOFILE; nothing was written"
+            exit 0
+          fi
+          attempt="${ATTEMPT:-1}"
+          [[ $attempt =~ ^[1-3]$ ]] || attempt=1
+
+          lost_race() {
+            if [ "$attempt" -lt 3 ]; then
+              "$gh" workflow run community-file.yml --ref main -f attempt="$((attempt + 1))"
+              echo "main moved while this run planned; nothing was written, and try $((attempt + 1)) of 3 is asked for"
+              exit 0
+            fi
+            fail "main moved under three tries in a row"
+          }
+
+          # ---- what the plan says, each line against its pattern
+          # An empty file may not survive the artifact; an absent one says nothing, as an empty one does.
+          touch "$plan/chain" "$plan/dev" "$plan/actions"
+          main=$(head -c 41 "$plan/main" | tr -d '\n')
+          [[ $main =~ $sha ]] || fail "the plan names no main"
+          mapfile -t chain < "$plan/chain"
+          [ "${#chain[@]}" -le 8 ] || fail "the plan files more than a run may"
+          for commit in "${chain[@]}"; do [[ $commit =~ $sha ]] || fail "the plan names something that is not a commit"; done
+          dev_base="" dev_merge=""
+          if [ -s "$plan/dev" ]; then
+            read -r dev_base dev_merge < "$plan/dev"
+            [[ $dev_base =~ $sha && $dev_merge =~ $sha ]] || fail "the plan names no dev"
+          fi
+
+          declare -A filed_in=()
+          new_main="$main"
+          if [ "${#chain[@]}" -gt 0 ] || [ -n "$dev_merge" ]; then
+            "$git" init --quiet "$work"
+            # main and dev as the plan saw them, one commit deep and whole: the bundle rests on them.
+            # A main that no longer has that commit has moved, and this run has lost the race.
+            wanted=("$main")
+            if [ -n "$dev_base" ]; then wanted+=("$dev_base"); fi
+            g fetch --quiet --no-tags --depth=1 "$remote" "${wanted[@]}" || lost_race
+            g bundle verify --quiet "$plan/plan.bundle" || fail "the plan's bundle does not rest on main and dev"
+            g fetch --quiet --no-tags "$plan/plan.bundle" "+refs/plan/*:refs/plan/*"
+          fi
+
+          # ---- each filing, re-derived from git
+          if [ "${#chain[@]}" -gt 0 ]; then
+            [ "$(g rev-parse --verify 'refs/plan/main^{commit}')" = "${chain[-1]}" ] || fail "the bundle is not the plan"
+            mapfile -t derived < <(g rev-list --first-parent --reverse "$main..${chain[-1]}")
+            [ "${derived[*]}" = "${chain[*]}" ] || fail "the filings are not one line of commits on main"
+            [ "$(g rev-list --count "$main..${chain[-1]}")" = "${#chain[@]}" ] || fail "the filings are not one line of commits on main"
+            [ "$(api "repos/$repo/git/ref/heads/main" --jq .object.sha)" = "$main" ] || lost_race
+            local_parent="$main"
+            remote_parent="$main"
+            for commit in "${chain[@]}"; do
+              [ "$(g rev-list --parents -n 1 "$commit")" = "$commit $local_parent" ] || fail "a filing is not on the one before it"
+              report="" entries=()
+              while IFS= read -r -d '' meta && IFS= read -r -d '' path; do
+                read -r _old_mode new_mode _old_blob new_blob status <<< "${meta#:}"
+                [ "$new_mode" = 100644 ] || fail "a filing holds something other than an ordinary file"
+                [ "$(g cat-file -t "$new_blob")" = blob ] || fail "a filing holds something other than a file"
+                [ "$(g cat-file -s "$new_blob")" -le 1000000 ] || fail "a filing holds a file over 1 MB"
+                if [[ $path =~ $regenerated ]]; then
+                  [[ $status == A || $status == M ]] || fail "a filing removes a file"
+                elif [[ $path =~ $report_add ]]; then
+                  [ "$status" = A ] && [ -z "$report" ] || fail "a filing adds exactly one new report"
+                  report="$path"
+                else
+                  fail "a filing touches a path the filer does not write"
+                fi
+                entries+=("$path $new_blob")
+              done < <(g diff-tree -r -z --no-renames --raw --no-abbrev "$local_parent" "$commit")
+              [ -n "$report" ] || fail "a filing adds no report"
+              rest="${report#docs/evidence/community/}"
+              login="${rest%%/*}"
+              version="${rest#*/codex-cli-}"
+              version="${version%.json}"
+              [ "${#login}" -le 39 ] || fail "a report folder longer than a login"
+              login_lower="${login,,}"
+              [[ ! $login_lower =~ $reserved ]] || fail "a report folder no Windows checkout can hold"
+              # The message: the filer's, rebuilt from its own trailers and nothing else.
+              message=$(g cat-file commit "$commit" | sed '1,/^$/d')
+              number=$(sed -n 's/^Pull-request: #\([0-9]\{1,7\}\)$/\1/p' <<< "$message")
+              reporter_id=$(sed -n 's/^Community-reporter-id: \([0-9]\{1,12\}\)$/\1/p' <<< "$message")
+              expected=$(printf 'Community report: codex-cli %s from %s\n\n%s\n\nCommunity-report: %s %s\nCommunity-reporter-id: %s\nPull-request: #%s\n' \
+                "$version" "$login" "$commit_body" "$login" "$version" "$reporter_id" "$number")
+              [ "$message" = "$expected" ] || fail "a filing's message is not the filer's"
+              [[ $number =~ ^[0-9]{1,7}$ && $reporter_id =~ ^[0-9]{1,12}$ ]] || fail "a filing names no pull request"
+              # GitHub's blobs and tree, hash for hash the ones tested.
+              tree_entries=""
+              for entry in "${entries[@]}"; do
+                path="${entry% *}"
+                blob="${entry##* }"
+                { printf '{"encoding":"base64","content":"'; g cat-file blob "$blob" | base64 -w0; printf '"}'; } > "$scratch/blob.json"
+                [ "$(api -X POST "repos/$repo/git/blobs" --input "$scratch/blob.json" --jq .sha)" = "$blob" ] \
+                  || fail "GitHub stored a file other than the one tested"
+                tree_entries="$tree_entries${tree_entries:+,}{\"path\":\"$path\",\"mode\":\"100644\",\"type\":\"blob\",\"sha\":\"$blob\"}"
+              done
+              printf '{"base_tree":"%s","tree":[%s]}' "$(g rev-parse "$local_parent^{tree}")" "$tree_entries" > "$scratch/tree.json"
+              [ "$(api -X POST "repos/$repo/git/trees" --input "$scratch/tree.json" --jq .sha)" = "$(g rev-parse "$commit^{tree}")" ] \
+                || fail "GitHub made a tree other than the one tested"
+              message="$message"$'\n'
+              printf '{"message":"%s","tree":"%s","parents":["%s"]}' "${message//$'\n'/\\n}" "$(g rev-parse "$commit^{tree}")" "$remote_parent" > "$scratch/commit.json"
+              remote_parent=$(api -X POST "repos/$repo/git/commits" --input "$scratch/commit.json" --jq .sha)
+              [[ $remote_parent =~ $sha ]] || fail "GitHub did not make the commit"
+              local_parent="$commit"
+              filed_in[$number]="$remote_parent"
+            done
+            # main moves only from the commit the plan was made on, and only forward.
+            [ "$(api "repos/$repo/git/ref/heads/main" --jq .object.sha)" = "$main" ] || lost_race
+            if ! answer=$(api -X PATCH "repos/$repo/git/refs/heads/main" -f sha="$remote_parent" -F force=false 2>&1); then
+              if grep -q "not a fast forward" <<< "$answer"; then lost_race; fi
+              fail "main could not be moved"
+            fi
+            new_main="$remote_parent"
+            echo "main: ${#chain[@]} report(s) filed, now $new_main"
+          fi
+
+          # ---- dev takes the same files, and keeps everything else it has
+          if [ -n "$dev_merge" ]; then
+            local_main="$main"
+            if [ "${#chain[@]}" -gt 0 ]; then local_main="${chain[-1]}"; fi
+            [ "$(g rev-parse --verify 'refs/plan/dev^{commit}')" = "$dev_merge" ] || fail "the bundle is not the plan"
+            [ "$(g rev-list --parents -n 1 "$dev_merge")" = "$dev_merge $dev_base $local_main" ] || fail "dev's merge is not of dev and main"
+            dev_entries=""
+            while IFS= read -r -d '' meta && IFS= read -r -d '' path; do
+              read -r _old_mode new_mode _old_blob new_blob status <<< "${meta#:}"
+              [[ $path =~ $regenerated || $path =~ $report_add ]] || fail "dev's merge touches a path the filer does not write"
+              [[ $new_mode == 100644 && ( $status == A || $status == M ) ]] || fail "dev's merge does more than set files"
+              [ "$(g rev-parse "$local_main:$path")" = "$new_blob" ] || fail "dev's merge is not main's files"
+              dev_entries="$dev_entries${dev_entries:+,}{\"path\":\"$path\",\"mode\":\"100644\",\"type\":\"blob\",\"sha\":\"$new_blob\"}"
+            done < <(g diff-tree -r -z --no-renames --raw --no-abbrev "$dev_base" "$dev_merge")
+            if [ -z "$dev_entries" ]; then
+              echo "dev: nothing to take"
+            elif [ "$(api "repos/$repo/git/ref/heads/dev" --jq .object.sha)" != "$dev_base" ]; then
+              echo "dev: it moved while this run planned; the next run brings main's reports to it"
+            else
+              printf '{"base_tree":"%s","tree":[%s]}' "$(g rev-parse "$dev_base^{tree}")" "$dev_entries" > "$scratch/tree.json"
+              [ "$(api -X POST "repos/$repo/git/trees" --input "$scratch/tree.json" --jq .sha)" = "$(g rev-parse "$dev_merge^{tree}")" ] \
+                || fail "GitHub made a tree for dev other than the one tested"
+              printf '{"message":"%s\\n\\n%s\\n","tree":"%s","parents":["%s","%s"]}' "$dev_subject" "$dev_body" \
+                "$(g rev-parse "$dev_merge^{tree}")" "$dev_base" "$new_main" > "$scratch/commit.json"
+              dev_commit=$(api -X POST "repos/$repo/git/commits" --input "$scratch/commit.json" --jq .sha)
+              if api -X PATCH "repos/$repo/git/refs/heads/dev" -f sha="$dev_commit" -F force=false > /dev/null 2>&1; then
+                echo "dev: takes main's reports, now $dev_commit"
+              else
+                echo "dev: it moved while this run wrote; the next run brings main's reports to it"
+              fi
+            fi
+          fi
+
+          # ---- once a day, the tests on what the filer wrote, only where none is running or waiting
+          if [ "$EVENT" = schedule ]; then
+            for ref in main dev; do
+              tip=$(api "repos/$repo/git/ref/heads/$ref" --jq .object.sha 2> /dev/null) || continue
+              busy=$(api "repos/$repo/actions/workflows/test.yml/runs?branch=$ref&per_page=20" \
+                --jq '[.workflow_runs[] | select(.status != "completed")] | length')
+              tested=$(api "repos/$repo/actions/workflows/test.yml/runs?branch=$ref&per_page=20" \
+                --jq '[.workflow_runs[] | select(.event == "push" or .event == "workflow_dispatch") | .head_sha] | first // ""')
+              if [ "$busy" = 0 ] && [ "$tested" != "$tip" ]; then
+                "$gh" workflow run test.yml --ref "$ref"
+                echo "tests: asked for on $ref"
+              fi
+            done
+          fi
+
+          # ---- what each sender is told, last, and only on an open report pull request
+          while read -r number state what comment post; do
+            [[ $number =~ ^[0-9]{1,7}$ && $state =~ ^(filed|queued|refused|needs-owner|closed)$ ]] || fail "the plan says something that is not a state"
+            [[ $what =~ ^(close|keep)$ && $comment =~ ^[0-9]{1,12}$ && $post =~ ^(post|none)$ ]] || fail "the plan says something that is not an action"
+            info=$(api "repos/$repo/pulls/$number" --jq '[.state, .base.ref, .author_association, (.head.ref | startswith("compat-report/") | tostring)] | join(" ")')
+            case "$info" in
+              "open main OWNER "*|"open main MEMBER "*|"open main COLLABORATOR "*) echo "#$number: from the project itself; left alone"; continue ;;
+              "open main "*" true") ;;
+              *) echo "#$number: not an open report pull request now; left alone"; continue ;;
+            esac
+            if [ "$post" = post ]; then
+              text="$plan/texts/$number.md"
+              [ -f "$text" ] && [ "$(wc -c < "$text")" -le 4096 ] || fail "a text is missing or too long"
+              first=$(head -n 1 "$text")
+              [[ $first =~ $marker && ${BASH_REMATCH[1]} == "$state" ]] || fail "a text does not say what the plan says"
+              tail -n +2 "$text" > "$scratch/rest"
+              if grep -qF -e '@' -e '<' -e '>' -e '"' -e '\' -e '](' -e '://' "$scratch/rest" || grep -q '[^ -~]' "$scratch/rest"; then
+                fail "a text holds something a text may not"
+              fi
+              body=$(cat "$text")
+              body="${body//\{commit\}/${filed_in[$number]:-main}}"
+              printf '{"body":"%s"}' "${body//$'\n'/\\n}" > "$scratch/comment.json"
+              if [ "$comment" != 0 ]; then
+                [ "$(api "repos/$repo/issues/comments/$comment" --jq '[.user.login, (.issue_url | split("/") | last)] | join(" ")')" = "github-actions[bot] $number" ] \
+                  || fail "a comment to change is not the filer's on that pull request"
+                api -X PATCH "repos/$repo/issues/comments/$comment" --input "$scratch/comment.json" > /dev/null
+              else
+                api -X POST "repos/$repo/issues/$number/comments" --input "$scratch/comment.json" > /dev/null
+              fi
+            fi
+            if [ "$what" = close ]; then
+              api -X PATCH "repos/$repo/pulls/$number" -f state=closed > /dev/null
+            fi
+            echo "#$number: $state"
+          done < "$plan/actions"
+
+      - name: Tell the maintainer what needs a person
+        run: |
+          set -euo pipefail
+          red="$RUNNER_TEMP/plan/red"
+          [ -s "$red" ] || exit 0
+          while read -r code number; do
+            [[ $number =~ ^[0-9]{1,7}$ ]] || number="?"
+            case "$code" in
+              tests) said="a filing failed the tests that read the files it writes" ;;
+              contradicts) said="a report says a version this project verifies failed" ;;
+              *) said="something needs a person" ;;
+            esac
+            echo "::error title=community report::#$number: $said"
+          done < "$red"
+          exit 1

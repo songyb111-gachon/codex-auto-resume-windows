@@ -27,8 +27,8 @@ namespace CodexAutoResume
     /// glow spreads from its edge and draws back in. Waiting breathes on monitoring's rhythm (until
     /// v0.6.9 it held lit and still); checking holds lit and turns a small arc. Until v0.6.8 a problem ran the cycle once and held. brand.glow() defines every number, for the popup and the
     /// panel too. With motion reduced nothing moves and the dot holds lit with no glow; in High
-    /// Contrast the dot is a system colour, unlit. v0.6.10: in the design too (Soft.LightStill, Palette.Halo) -
-    /// Still holds it as Reduce motion does, and Plain dims it on its breath with no glow, which Classic keeps.
+    /// Contrast the dot is a system colour, unlit. v0.6.10: in the design too (Palette.Halo) - Plain dims it on
+    /// its breath with no glow, which Classic keeps; it moves the same in every design (Soft.ReduceMotion).
     internal sealed class HaloDot : Control
     {
         private string state = "idle";
@@ -120,7 +120,7 @@ namespace CodexAutoResume
 
         private bool ShouldRun()
         {
-            if (!Visible || !IsHandleCreated || Soft.LightStill) return false;
+            if (!Visible || !IsHandleCreated || Soft.ReduceMotion) return false;
             Form form = FindForm();
             if (form != null && form.WindowState == FormWindowState.Minimized) return false;
             if (Soft.StillLightMs >= 0) return false;      // held still for a picture
@@ -152,7 +152,7 @@ namespace CodexAutoResume
             double since = Soft.StillLightMs >= 0 ? Soft.StillLightMs
                                                   : clock.Elapsed.TotalMilliseconds - enteredAt;
             double dim, opacity, spread, arc;
-            bool lit = Brand.Glow(state, since, since, Soft.LightStill, out dim, out opacity, out spread, out arc);
+            bool lit = Brand.Glow(state, since, since, Soft.ReduceMotion, out dim, out opacity, out spread, out arc);
             Color colour = DotColour(state);
             float cx = Width / 2f, cy = Height / 2f, dot = Soft.PxF(Brand.StatusDotRadius);
             GraphicsState saved = g.Save();
@@ -413,9 +413,8 @@ namespace CodexAutoResume
     /// watcher stopped it is grey, a problem its colour. No badge: the header says the rest.
     ///
     /// Nothing moves under this product's Reduce motion, Windows' animation effects or High Contrast (Soft.ReduceMotion,
-    /// Theme.ContrastOn), in a design whose light does not breathe (v0.6.10: Still, as the notification-area icon holds
-    /// for it - Soft.LightStill), under battery saver, while the session is locked or disconnected, or while the window
-    /// is not shown; the states then differ by colour only.
+    /// Theme.ContrastOn), under battery saver, while the session is locked or disconnected, or while the window is not
+    /// shown; the states then differ by colour only. The design has no say: the mark moves the same in every one.
     /// Windows is asked only while the state has something to move, once a second (Sync, on the window's clock), so the
     /// motion is back within a second of the last reason going. With nothing moving there is no timer at all. Every
     /// icon made is destroyed once the window holds the next; the timer stops once the window has closed (FormClosed,
@@ -535,8 +534,7 @@ namespace CodexAutoResume
         }
 
         /// Whether anything may move. Any one reason holds it still: this product's Reduce motion, Windows' animation
-        /// effects, High Contrast or a design whose light does not breathe (Soft.LightStill, which High Contrast's palette
-        /// is part of, and Theme.ContrastOn),
+        /// effects or High Contrast (Soft.ReduceMotion, which High Contrast's palette is part of, and Theme.ContrastOn),
         /// battery saver, a locked or disconnected session, a window that is not shown - with no taskbar button - or no
         /// frames at its big icon's size.
         internal static bool MotionAllowed(bool reduced, bool contrast, bool batterySaver, bool locked, bool shown, bool frames)
@@ -561,7 +559,7 @@ namespace CodexAutoResume
                 locked = away != null && away();
             }
             catch (Exception) { locked = false; }
-            return MotionAllowed(Soft.LightStill, contrast, saver, locked, owner.Visible && owner.IsHandleCreated, Frames() != null);
+            return MotionAllowed(Soft.ReduceMotion, contrast, saver, locked, owner.Visible && owner.IsHandleCreated, Frames() != null);
         }
 
         /// Whether this session is locked (WTSINFOEX's SessionFlags) or disconnected (its SessionState), asked now; false

@@ -81,7 +81,11 @@ ENGINE_TO_STORE = {
 }
 # What it asks of Codex itself, through the backend: is the app there, what is my usage, send
 # this, take it back, is the thread loaded. Five, and the split must not make it six by accident.
+# Since v0.6.11 the send is asked of `sender`, the one name dispatch binds to the backend - or to
+# a channel the edition's plug names at P5 (tests/test_structural_invariants.py) - so both names
+# are read as this seam.
 ENGINE_TO_BACKEND = {"app_identity", "delete_queue", "loaded", "send", "usage"}
+BACKEND_NAMES = ("backend", "sender")
 # What it reads out of Codex's own files, through the source: the turns, the markers that say a
 # continuation of ours is in the queue, what a recovered turn produced, and the projection's age.
 ENGINE_TO_SOURCE = {
@@ -89,6 +93,22 @@ ENGINE_TO_SOURCE = {
     "turn_progress", "progress", "projection", "marker_presence", "marker_rows", "queue_row",
     "queued_rows", "foreign_queued", "reset_hint",
 }
+# v0.6.11: what core asks the edition's plug, which it holds as `Guarded` (domain/plug.py). The
+# engine asks at the points of a tick, a dispatch and an ended turn; the claim asks the ledger,
+# and first whether it is NULL's, which is never asked; the control layer asks for what a surface
+# adds and for a start route.
+# `null` is not a point: it is how the engine skips the two consent reads P6 needs when there is
+# no plug to ask (engine/announce.py), so the standard edition reads what v0.6.10 read.
+# `moved` is P14: core tells the plug of each move of a record as it writes it, so a plug learns
+# what became of a record from core itself - a paid send that went through submission_unknown
+# included, though the watch settled it before P8 looked - and never by reading the journal
+# back, which no decision may (tests/test_surface_properties.py). Never told to NULL.
+ENGINE_TO_PLUG = {"gate", "moved", "null", "outcome", "partition", "records", "schedule", "sender",
+                  "text", "tick"}
+# `claim_ledger_checked` is how the claim asks: it says whether that one call raised, so a
+# failure on another thread holding the same plug is not read as this claim's (domain/plug.py).
+STORE_TO_LEDGER = {"claim_ledger_checked", "null"}
+CONTROL_TO_PLUG = {"start_route", "surface"}
 # What the one layer a front end calls asks of the state: what to show, and the four things a
 # person can ask for - pause, cancel, retry now, give the attempts back.
 CONTROL_TO_STORE = {
@@ -113,7 +133,12 @@ class SeamTests(unittest.TestCase):
         self.check("engine", ("store",), ENGINE_TO_STORE, "store")
 
     def test_the_engine_asks_the_backend_for_exactly_these(self):
-        self.check("engine", ("backend",), ENGINE_TO_BACKEND, "backend")
+        self.check("engine", BACKEND_NAMES, ENGINE_TO_BACKEND, "backend")
+
+    def test_core_asks_the_plug_for_exactly_these(self):
+        self.check("engine", ("plug",), ENGINE_TO_PLUG, "plug")
+        self.check("store", ("ledger",), STORE_TO_LEDGER, "plug")
+        self.check("control", ("plug",), CONTROL_TO_PLUG, "plug")
 
     def test_the_engine_asks_codex_for_exactly_these(self):
         self.check("engine", ("source",), ENGINE_TO_SOURCE, "source")

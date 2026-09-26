@@ -24,8 +24,8 @@ from codex_auto_resume import store  # noqa: E402
 from codex_auto_resume.store import Store  # noqa: E402
 
 MIXINS = (store.SessionMixin, store.SchemaMixin, store.MigrationsMixin, store.JournalMixin,
-          store.PolicyMixin, store.RecordsMixin, store.ClaimsMixin, store.ActionsMixin,
-          store.WatcherMixin, store.ReportingMixin)
+          store.PolicyMixin, store.RecordsMixin, store.ClaimsMixin, store.LedgerMixin,
+          store.ActionsMixin, store.WatcherMixin, store.ReportingMixin)
 
 # What `Store` has, as the one class had it. Sixty-one methods, counted the day the file was
 # split; a method added or taken away is a decision, and this is where it is made.
@@ -42,6 +42,8 @@ METHODS = {
     "restore_budget", "restore_budget_detailed", "schema_version", "set_enabled",
     "set_thread_enabled", "settings", "status_counts", "statistics", "submission_guard",
     "thread_enabled", "update", "watcher_status",
+    # v0.6.11: the edition's claim ledger, asked inside the claim (P11) - store/ledger.py.
+    "_ledger_holds",
 }
 
 # Reachable as `store.<name>` before the split, and still.

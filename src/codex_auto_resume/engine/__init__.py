@@ -22,7 +22,7 @@ from .detect import DetectMixin
 from .dispatch import DispatchMixin
 from .freshness import FreshnessMixin
 from .options import (BACKOFF_LADDER, TRANSIENT_BACKOFF, OptionsMixin,  # noqa: F401
-                      backoff_delay, transient_delay)
+                      StoreView, backoff_delay, transient_delay)
 from .outcome import OutcomeMixin
 from .reconcile import SETTLED, UNSENT, ReconcileMixin, _UNDETERMINED  # noqa: F401
 
@@ -43,13 +43,26 @@ class Engine(OptionsMixin, AnnounceMixin, FreshnessMixin, DetectMixin, Reconcile
         self.observe_all()
         if not self.store.settings()["enabled"]:
             return
+        # The plug is asked nothing more while recovery is paused: a Pause beats every
+        # capability, as it beats core. P8 is once a tick, after everything is observed.
+        view = StoreView(self.store, self.clock())
+        self.plug.tick(view)
         try:
             self.collect()
         except Exception:
             self.log(None, "detection_unavailable_no_submission", None)
             return
-        for row in self.store.records_in(UNSENT):
+        due = self.store.records_in(UNSENT)
+        # P12: how the due records are divided for dispatch. Core carries out no division but
+        # its own - one record after another, in this thread - so nothing is taken from the
+        # answer yet (domain/plug.py, ALTERNATIVES).
+        self.plug.partition(due)
+        for row in due:
             try:
                 self.attempt(row)
             except Exception:
                 self.log(row["thread_id"], "eligibility_check_failed_no_submission", None)
+        # P2: the records of the advanced store that are due, after core's own. None is tried
+        # yet: an advanced record reaches the one claim only once core has learned to carry it
+        # through it (domain/plug.py, ALTERNATIVES).
+        self.plug.records(view)

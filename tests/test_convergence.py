@@ -25,9 +25,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import re
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -88,12 +91,34 @@ class InterpreterTests(unittest.TestCase):
             self.assertEqual(plugin_setup.python_for_watcher(home),
                              home / "runtime" / "pythonw.exe")
 
-    def test_console_interpreter_is_used_when_there_is_no_windowless_one(self):
+    def test_a_runtime_without_pythonw_is_not_an_installation(self):
+        """It used to be one, with python.exe registered in its place: Windows starts the Run
+        value and the notification button plainly, so each opened a console window, and the
+        sign-in watcher's stayed for the whole session. Setup now says the runtime is not
+        installed and prints the command that installs it again."""
         with tempfile.TemporaryDirectory() as name:
             home = make_home(Path(name))
             (home / "runtime" / "pythonw.exe").unlink()
-            self.assertEqual(plugin_setup.python_for_watcher(home),
-                             home / "runtime" / "python.exe")
+            self.assertFalse(plugin_setup.installed(home))
+            self.assertIsNone(plugin_setup.bundled_python(home))
+            self.assertEqual(plugin_setup.bundled_python(home, windowless=False), home / "runtime" / "python.exe")
+
+    def test_no_route_names_a_console_interpreter(self):
+        with tempfile.TemporaryDirectory() as name:
+            home = make_home(Path(name))
+            (home / "runtime" / "pythonw.exe").unlink()
+            # Not the bundled python.exe beside the missing pythonw.exe, whatever else happens.
+            with mock.patch.object(plugin_setup.startup.sys, "executable", str(home / "runtime" / "python.exe")):
+                with self.assertRaises(plugin_setup.startup.StartupError):
+                    plugin_setup.python_for_watcher(home)
+                with self.assertRaises(plugin_setup.startup.StartupError):
+                    plugin_setup.watcher_command(home)
+                with self.assertRaises(plugin_setup.startup.StartupError):
+                    plugin_setup.notification_command(home)
+                with mock.patch.object(plugin_setup, "App") as app,                         mock.patch.object(plugin_setup.subprocess, "Popen") as popen:
+                    app.return_value.watcher_running.return_value = False
+                    self.assertEqual(plugin_setup.start_watcher(home), "not-started")
+                popen.assert_not_called()
 
     def test_it_falls_back_only_when_nothing_is_installed(self):
         with tempfile.TemporaryDirectory() as name:
@@ -299,6 +324,38 @@ class ReleaseManifestTests(unittest.TestCase):
             if digest is not None:
                 self.assertRegex(digest, r"^[0-9a-f]{64}$")
 
+    def test_the_advanced_edition_has_a_template_of_its_own(self):
+        """A second constant, pinned exactly as the first is, and never a variation of it. The
+        top-level keys stay the standard edition's: every published bootstrap builds the
+        standard archive's name from its own copy of `archive`, so that key cannot change what
+        it means."""
+        advanced = self.release["advanced"]
+        self.assertEqual(set(advanced), {"archive", "sha256", "since"})
+        self.assertEqual(advanced["archive"], "CodexAutoResume-Advanced-v{version}-win-x64.zip")
+        self.assertEqual(set(re.findall(r"\{(\w+)\}", advanced["archive"])), {"version"})
+        self.assertNotEqual(advanced["archive"], self.release["archive"])
+        self.assertEqual(advanced["since"], "0.6.11")
+        self.assertIsInstance(advanced["sha256"], dict)
+
+    def test_advanced_digests_are_real_and_pinned_with_the_standard_ones(self):
+        """The same shape as the standard table, only for versions the edition exists in, and
+        pinned in the same commit: a version with one edition's digest and not the other's is a
+        release verified by halves."""
+        def number(version):
+            return tuple(int(part) for part in version.split("."))
+        advanced = self.release["advanced"]
+        since = number(advanced["since"])
+        for version, digest in advanced["sha256"].items():
+            with self.subTest(version):
+                self.assertRegex(version, r"^\d+\.\d+\.\d+$")
+                self.assertGreaterEqual(number(version), since)
+                if digest is not None:
+                    self.assertRegex(digest, r"^[0-9a-f]{64}$")
+        standard = {version for version, digest in self.release["sha256"].items()
+                    if digest and number(version) >= since}
+        self.assertEqual({version for version, digest in advanced["sha256"].items() if digest},
+                         standard)
+
     def test_every_released_version_is_pinned(self):
         """Released versions carry a digest; the one being developed need not appear.
 
@@ -409,17 +466,25 @@ class BootstrapTests(unittest.TestCase):
         it from a redirect under this repository and rebuilds it out of three integers,
         which `tests/test_update_check.py` exercises against the shipped function.
         -Compatibility (v0.6.5) is a switch too: the compatibility data's address is one
-        constant, and nothing a caller passes reaches it.
+        constant, and nothing a caller passes reaches it. -Edition (v0.6.11) carries a value,
+        but one of two words the parameter itself closes, and the word only chooses which of
+        two constant templates in release.json names the archive; it is never spliced.
         """
         parameters = re.search(r"param\((.*?)\n\)", self.text, re.S).group(1)
         self.assertEqual(set(re.findall(r"\$(\w+)", parameters)),
                          {"Force", "NoStartup", "ArchivePath", "CheckOnly", "Update",
-                          "Compatibility"})
+                          "Compatibility", "Edition"})
         values = [name for name in re.findall(r"\[(\w+)\]\$(\w+)", parameters)]
-        self.assertEqual([name for kind, name in values if kind != "switch"], ["ArchivePath"])
-        # And the one value never reaches the URL the archive is fetched from.
+        self.assertEqual([name for kind, name in values if kind != "switch"], ["ArchivePath", "Edition"])
+        self.assertIn("[ValidateSet('Standard', 'Advanced')]\n    [string]$Edition", parameters)
+        # And neither value reaches the URL the archive is fetched from.
         fetch = self.text[self.text.index("$base = $release.download"):]
         self.assertNotIn("$ArchivePath", fetch[:fetch.index("Get-Remote")])
+        self.assertNotIn("$Edition", fetch[:fetch.index("Get-Remote")])
+        named = self.text[self.text.index("    $name = "):]
+        named = named[:named.index("\n")]
+        self.assertNotIn("$Edition", named, "the typed word, rather than the settled one")
+        self.assertIn(".archive.Replace('{version}', $target)", named)
 
     def test_the_update_check_never_parses_what_the_server_sends(self):
         """The answer is the URL the request ended at. Nothing reads the page."""
@@ -450,6 +515,10 @@ class BootstrapTests(unittest.TestCase):
         # and has one answer of its own - the data arrived and was refused - on its own code.
         refused = codes.pop("ExitCompatibilityRefused")
         self.assertNotIn(refused, codes.values(), "the refresh's own answer shares a code")
+        # v0.6.11: an install refused because the other edition is there, which is no answer
+        # to the update question and must never read as one - nor as the refresh's refusal.
+        other = codes.pop("ExitOtherEdition")
+        self.assertNotIn(other, list(codes.values()) + [refused], "the edition refusal shares a code")
         self.assertEqual(set(codes), {"ExitCurrent", "ExitAvailable", "ExitLocalNewer",
                                       "ExitUnavailable"})
         self.assertEqual(len(set(codes.values())), 4, "two answers share a code")
@@ -486,6 +555,109 @@ class BootstrapTests(unittest.TestCase):
         self.assertTrue(mine.issubset(theirs),
                         "the release would publish an archive the bootstrap refuses: "
                         + str(sorted(mine - theirs)))
+
+
+class EditionReleaseTests(unittest.TestCase):
+    """The release names, checks and tells apart the two editions' archives as the bootstrap does.
+
+    An installed copy fetches the archive its own release.json names for its edition, and
+    installs it only if its Test-Archive, asked for that edition, accepts it. The release
+    workflow names the same two archives in both of its jobs, checks the same entries in the
+    build job, and tells the editions apart in the publish job - which runs nothing of the
+    repository's, so it does that with `unzip` and `grep`. Two rules, written four times in
+    three languages: they drift, so they are compared here.
+    """
+
+    def setUp(self):
+        self.workflow = WORKFLOW.read_text(encoding="utf-8")
+        self.build = self.workflow[:self.workflow.index("\n  publish:")]
+        self.publish = self.workflow[self.workflow.index("\n  publish:"):]
+        release = json.loads(RELEASE.read_text(encoding="utf-8"))
+        self.templates = {"standard": release["archive"], "advanced": release["advanced"]["archive"]}
+        test_archive = block(BOOTSTRAP.read_text(encoding="utf-8"), "function Test-Archive", "\n}\n")
+        self.package = re.search(r"\$package = '([^']+)'", test_archive).group(1)
+        self.skill = re.search(r"\$skill = '([^']+)'", test_archive).group(1)
+
+    def step(self, text, name):
+        start = text.index("- name: %s\n" % name)
+        return text[start:text.index("\n      - name:", start)]
+
+    def test_both_jobs_name_each_archive_by_its_template(self):
+        for edition, template in self.templates.items():
+            with self.subTest(edition):
+                built = "build/dist/" + template.replace("{version}", "$($env:VERSION)")
+                self.assertIn('%s = "%s"' % (edition, built), self.build)
+                published = "dist/" + template.replace("{version}", "${{ needs.build.outputs.version }}")
+                self.assertIn(": %s\n" % published, self.publish)
+        named = re.findall(r'(?m)^ +(\w+) = "build/dist/[^"]+\.zip"\s*$', self.build)
+        self.assertEqual(named, list(self.templates), "the build job checks an archive of no edition")
+
+    def test_every_archive_is_held_to_the_required_list(self):
+        """The list itself is BootstrapTests' (test_required_contents_match_the_release_workflow);
+        this is that each edition's archive is held to it, since the bootstrap holds both."""
+        check = self.step(self.build, "Check each archive is what it claims to be")
+        self.assertLess(check.index("foreach ($edition in $archives.Keys)"),
+                        check.index("foreach ($required in @("))
+
+    def test_the_advanced_archive_needs_what_the_bootstrap_needs_of_it(self):
+        check = self.step(self.build, "Check each archive is what it claims to be")
+        self.assertIn("$package = '%s__init__.py'" % self.package, check)
+        self.assertIn("if ($edition -eq 'advanced' -and $names -notcontains $package)", check)
+
+    def test_the_publish_job_tells_the_editions_apart_by_the_bootstraps_rule(self):
+        check = self.step(self.publish, "Check each archive is its own edition")
+        for zip_ in ("$STANDARD_ZIP", "$ADVANCED_ZIP"):
+            self.assertIn('unzip -Z1 "%s" | tr \'\\\\\' \'/\'' % zip_, check)
+        found = re.search(r"grep -iE '([^']+)' <<<\"\$standard\"", check)
+        self.assertIsNotNone(found, "the standard archive's listing is not searched")
+        refused = re.compile(found.group(1), re.IGNORECASE)
+        # Every name the bootstrap refuses in a standard archive, in any case, and nothing of core.
+        for prefix in (self.package, self.skill):
+            for name in (prefix + "__init__.py", (prefix + "SKILL.md").upper()):
+                with self.subTest(name):
+                    self.assertIsNotNone(refused.search(name))
+        for name in ("payload/app/src/codex_auto_resume/edition.py",
+                     "payload/app/skills/codex-auto-resume/SKILL.md", "payload/runtime/python.exe"):
+            with self.subTest(name):
+                self.assertIsNone(refused.search(name))
+        self.assertIn("grep -qx '%s__init__.py' <<<\"$advanced\"" % self.package, check)
+
+    def test_the_publish_job_reads_each_name_as_the_extraction_writes_it(self):
+        """ExtractToDirectory writes 'src/./x', 'src//x' and 'src/x./y' into src/x - Windows drops
+        a segment's trailing dots and spaces - so the grep has to read them there too, as the
+        bootstrap's Test-Archive does."""
+        check = self.step(self.publish, "Check each archive is its own edition")
+        written = re.search(r"written='([^']+)'", check)
+        self.assertIsNotNone(written, "the listing is not normalised")
+        for zip_ in ("$STANDARD_ZIP", "$ADVANCED_ZIP"):
+            self.assertIn('unzip -Z1 "%s" | tr \'\\\\\' \'/\' | sed -E "$written"' % zip_, check)
+        sed = shutil.which("sed")
+        if sed is None:
+            self.skipTest("no sed here to run the job's program with")
+        package = self.package.rstrip("/").rsplit("/", 1)[-1]
+        names = ["payload/app/src/./%s/__init__.py" % package, "payload/app/src//%s/__init__.py" % package,
+                 "./payload/app/src/././%s/plug.py" % package, "payload/runtime/python.exe",
+                 "payload/app/src/%s./__init__.py" % package, "payload/app/src/%s. . /plug.py" % package,
+                 "payload/app/.codex-plugin/plugin.json"]
+        done = subprocess.run([sed, "-E", written.group(1)], input="\n".join(names) + "\n",
+                              capture_output=True, text=True, encoding="utf-8", timeout=60)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(done.stdout.splitlines(),
+                         [self.package + "__init__.py"] * 2
+                         + [self.package + "plug.py", "payload/runtime/python.exe"]
+                         + [self.package + "__init__.py", self.package + "plug.py",
+                            "payload/app/.codex-plugin/plugin.json"])
+
+    def test_both_editions_are_built_audited_and_checked_before_anything_is_kept(self):
+        order = [self.build.index(marker) for marker in (
+            "./build/make_gui.ps1 -Edition advanced",
+            "run: python build/make_release.py --edition standard",
+            "run: python build/make_release.py --edition advanced",
+            "- name: Check each archive is what it claims to be",
+            "run: python build/edition_audit.py",
+            "run: python build/legacy_bootstraps.py",
+            "- name: Keep the archives even when nothing is published")]
+        self.assertEqual(order, sorted(order))
 
 
 class ArgumentQuotingTests(unittest.TestCase):

@@ -67,14 +67,19 @@ ITEM = {_q(name): item for item, names in {
                "engine.options", "engine.outcome"),
     "policy": ("failures", "reasons", "settings", "continuation", "openstate", "domain.gates",
                # what may be done at a tier, and with whose word: policy, not registry data
-               "compat.permits"),
+               "compat.permits",
+               # v0.6.11: what an edition may change about a decision, and which edition this
+               # is - the "under which edition" of HOMELESS below, in code
+               "domain.plug", "edition"),
     "machine": ("machine", "domain", "domain.errors", "domain.ids", "domain.public",
                 "domain.states", "domain.vocabulary"),
     "scheduler": ("engine.reconcile",),
     "store": ("store", "store.actions", "store.claims", "store.columns", "store.downgrade",
               "store.errors", "store.journal", "store.legacy", "store.migrations", "store.policy",
               "store.records", "store.reporting", "store.schema", "store.session",
-              "store.validate", "store.watcher"),
+              "store.validate", "store.watcher",
+              # v0.6.11: the claim ledger's machinery (P11), out of store/claims.py.
+              "store.ledger"),
     "codex": ("codex", "codex.appserver", "codex.errors", "codex.history", "codex.labels",
               "codex.pairing", "codex.paths", "codex.payload", "codex.schema", "codex.transport",
               "codex.usage", "codex.values", "compat", "compatio", "windows",
@@ -183,6 +188,9 @@ EDGES = {
     ("watcher", "codex"), ("watcher", "config"), ("watcher", "control"), ("watcher", "engine"),
     ("watcher", "notifications"), ("watcher", "policy"), ("watcher", "popup"),
     ("watcher", "store"), ("watcher", "tray"), ("watcher", "words"),
+    # v0.6.11: runtime/app.py holds the edition's plug, and domain/plug.py - policy's - is reached
+    # through the domain package, which is the machine's.
+    ("watcher", "machine"),
 
     ("engine", "codex"), ("engine", "machine"), ("engine", "policy"), ("engine", "scheduler"),
     ("engine", "words"),

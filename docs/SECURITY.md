@@ -332,13 +332,40 @@ this product's plugin and marketplace).
   checks out the base commit with no token left on disk, holds `contents: read` and no secret,
   installs nothing, keeps no cache or artifact, runs for at most five minutes, and reads the
   head's commits with git plumbing only (`build/community_check.py`) - nothing in them is checked
-  out, merged or run. A contributor's pull request may add one new file, at
+  out, merged or run. A contributor's pull request, from a branch whose name starts with
+  `compat-report/`, may add one new file, at
   `docs/evidence/community/<their GitHub login>/codex-cli-<its own version>.json`, of at most 1 MB
   known before it is read, that the report reader (`build/community_report.py`) accepts, and that
   is not a copy of a filed report; anything else is refused. The report's own levels and verdict
   are recomputed from what it measured, and only ever lowered. `tests/test_workflow_privilege.py`
-  and `tests/test_community_check.py` hold each rule, and a maintainer still reviews and merges
-  every report.
+  and `tests/test_community_check.py` hold each rule.
+- **A report that passes is filed by `main`'s code, as data.** This is the repository's own
+  machinery rather than the product's, and works from the day it is on `main`.
+  `.github/workflows/community-file.yml` files what the check accepted with no step by the
+  maintainer, in two jobs, so that nothing a stranger sends can reach its write access. The first,
+  `plan`, holds no write access at all: a read-only token is given only to the steps that ask
+  GitHub's list and read endpoints and run nothing else, and the steps that run Python
+  (`build/community_file.py`) have no token. It fetches each pull request's commits anonymously,
+  with no file over 1 MB brought over, judges them again with the same check against `main` as it
+  is then, builds this project's own regeneration of the report - never the sender's bytes - and
+  runs the tests that read what a filing writes on the tree that would become `main`. Its whole
+  answer is a git bundle and a few lines of text, kept for a day. The second, `write`, starts on a
+  fresh runner, runs no Python and no repository code, uses git and gh by absolute path with no
+  configuration of the runner's and no hooks, and trusts nothing it is handed: it re-derives every
+  commit from git and refuses one that adds more than one report, changes a filed one, touches any
+  path but that report and the index, README and counts every filing rewrites, names a folder
+  Windows keeps for a device, or carries a message other than the filer's own. GitHub's hash for
+  every blob and tree it uploads has to equal the one tested, and `main` moves only forward and only
+  from the exact commit the plan was made on, so a race is lost rather than won wrongly. dev takes
+  the same files only when that cannot touch anything else on it. What a sender is told is fixed
+  text, with no mention, link or markup. The limits a maintainer used to apply - account age, one
+  open report per account, reports per account and per Codex version per week, a budget of Codex
+  versions the project's data does not name - are counted from `main`'s own history and keyed by
+  numeric account id, which a rename does not change. The repository variable `COMMUNITY_AUTOFILE`
+  pauses it on anything but unset or `on`, `COMMUNITY_BLOCKED` refuses an account, and cancelling a
+  running job stops it at once. A pull request whose comment the survey's page of recent comments
+  misses is read on its own before anything is decided about it, so none is told twice. `tests/test_workflow_privilege.py` and `tests/test_community_file.py`
+  hold each of these, the second by running the write step itself against a stand-in for GitHub.
 
 ## Destructive-operation safety
 

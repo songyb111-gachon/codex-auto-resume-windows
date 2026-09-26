@@ -1,0 +1,15 @@
+{
+  "_edition": "ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.",
+  "edition.badge": "Avancée",
+  "edition.not_loaded": "Avancée - non chargée",
+  "edition.summary": "Avancée · {n} activées",
+  "all_off": "Désactiver toutes les fonctions avancées",
+  "field.departs": "Règles dont elle s'écarte",
+  "field.does": "Ce qu'elle fait",
+  "field.instead": "Ce que fait l'édition standard à la place",
+  "field.risks": "Ce qui peut mal tourner",
+  "field.stop": "Comment l'arrêter",
+  "state.armed": "Activée",
+  "state.off": "Désactivée",
+  "state.shadow": "En observation"
+}

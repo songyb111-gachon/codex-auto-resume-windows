@@ -38,7 +38,7 @@ EXIT_ERROR = 1
 EXIT_UNCONFIRMED = 2
 
 sys.path.insert(0, str(PLUGIN_ROOT / "src"))
-from codex_auto_resume import config, control, l10n, startup          # noqa: E402
+from codex_auto_resume import config, control, edition, l10n, startup # noqa: E402
 from codex_auto_resume.app import App                        # noqa: E402
 
 
@@ -86,23 +86,32 @@ def bundled_python(home: Path, windowless: bool = True) -> Path | None:
     setup - the installer, the Codex skill, a command line - the watcher, the autostart
     entry and the notification handler all end up pointing at this one interpreter,
     rather than at whatever interpreter happened to be running the setup.
+
+    `windowless` asks for pythonw.exe and nothing else. It used to fall back to python.exe,
+    which is a console program: Windows starts the Run value and the protocol handler
+    plainly, so each would have opened a console window, the watcher's for the whole session.
     """
-    runtime = home / "runtime"
-    if windowless:
-        launcher = runtime / "pythonw.exe"
-        if launcher.is_file():
-            return launcher
-    executable = runtime / "python.exe"
+    name = "pythonw.exe" if windowless else "python.exe"
+    executable = home / "runtime" / name
     return executable if executable.is_file() else None
 
 
 def installed(home: Path) -> bool:
-    """A complete installation: the bundled runtime and the application beside it."""
+    """A complete installation: the bundled runtime and the application beside it.
+
+    Both interpreters: python.exe runs setup and the bridges, and the watcher runs under
+    pythonw.exe or not at all. A runtime without pythonw.exe is a damaged one, and setup
+    says so - with the command that installs it again - rather than set up a watcher that
+    opens a console window."""
     return (bundled_python(home, windowless=False) is not None
+            and bundled_python(home) is not None
             and (home / "app" / "src" / "codex_auto_resume").is_dir())
 
 
 def python_for_watcher(home: Path | None = None) -> Path:
+    """pythonw.exe: the bundled one, or for a home with no runtime, the one beside this
+    interpreter. Raises startup.StartupError where there is none: python.exe is never the
+    answer (startup.python_launcher)."""
     launcher = bundled_python(home) if home is not None else None
     return launcher if launcher is not None else startup.python_launcher()
 
@@ -164,7 +173,8 @@ def start_watcher(home: Path) -> str:
     """Launch the watcher detached, so it outlives this command and the Codex UI.
 
     Returns the state the watcher is actually in - "running", "already-running",
-    "exited" or "unconfirmed" - rather than whether a process was created. Setup prints
+    "exited", "unconfirmed", or "not-started" when there is no pythonw.exe to run it under -
+    rather than whether a process was created. Setup prints
     a line about the watcher immediately afterwards, and it used to print the one that
     says it is running no matter what happened next.
     """
@@ -179,10 +189,17 @@ def start_watcher(home: Path) -> str:
     # returns "unconfirmed" for a probe that stays unavailable.
     if app.watcher_running() is True:
         return "already-running"
+    try:
+        interpreter = python_for_watcher(home)
+    except startup.StartupError:
+        # No pythonw.exe to run it under. Nothing is started rather than a console one, and
+        # the caller reports a watcher it could not confirm, which is the truth.
+        return "not-started"
     flags = 0
     if os.name == "nt":
+        # Safe only because the interpreter is pythonw.exe, a GUI program: see python_for_watcher.
         flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-    process = subprocess.Popen([str(python_for_watcher(home)), str(home / LAUNCHER_NAME), "run"],
+    process = subprocess.Popen([str(interpreter), str(home / LAUNCHER_NAME), "run"],
                                cwd=str(home), close_fds=True, creationflags=flags,
                                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return control.await_watcher(app.watcher_running, process)["state"]
@@ -238,7 +255,12 @@ def cmd_setup(args) -> int:
     install_launcher(home, "plugin" if installed_as_plugin() else "local")
     # Both are reported when they fail. Ignoring them is how a setup that never prepared
     # the state, or never switched recovery on, used to end with "set up and running".
-    incomplete = (_cli_silent(home, ["--quiet", "install"]) != EXIT_OK)
+    # An edition change is the installer's to report and the new edition's to act on
+    # (`install --edition-from`); setup only carries it across.
+    prepare = ["--quiet", "install"]
+    if getattr(args, "edition_from", None):
+        prepare += ["--edition-from", args.edition_from]
+    incomplete = (_cli_silent(home, prepare) != EXIT_OK)
     # A repair must not undo a decision the user made. Turning recovery back on, or
     # adding a sign-in entry they removed, would do exactly that under the name of fixing
     # something - so --keep-state leaves the pause switch alone and only re-registers an
@@ -446,6 +468,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--keep-state", action="store_true",
                    help="repair registrations only; never change the pause state or add a "
                         "sign-in autostart that is not already there")
+    p.add_argument("--edition-from", choices=edition.EDITIONS, metavar="EDITION",
+                   help="the edition the installer replaced (standard or advanced)")
     sub.add_parser("status")
     sub.add_parser("pending")
     sub.add_parser("enable")

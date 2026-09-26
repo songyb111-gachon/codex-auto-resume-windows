@@ -29,7 +29,7 @@ re-exported here, so nothing that imports `machine` changes.
 """
 from __future__ import annotations
 
-from .domain.gates import (BLOCK, GATE_REASONS, GATE_RESULTS, GATES, NOT_CHECKED, PASS,
+from .domain.gates import (BLOCK, GATE_REASONS, GATE_RESULTS, GATES, HELD, NOT_CHECKED, PASS,
                            UNKNOWN, WAIT, decode_gates, encode_gates, first_refusal,
                            gate, gate_budgets, gate_consent, gate_schedule,
                            gate_submission_safe)
@@ -46,7 +46,7 @@ from .domain.states import (CLAIMED, EPOCH_CODEX, EPOCH_STORE, EPOCH_USAGE, EXHA
 
 __all__ = ["ACTORS", "BLOCK", "CLAIMED", "EPOCH_CODEX", "EPOCH_STORE", "EPOCH_USAGE", "EVENT_CODES",
            "EXHAUSTED", "FLAG_AFTER_USER_WORK", "FLAG_LEGACY", "FLAG_USER_JOINED",
-           "FLAG_WITHDRAW_DELETED", "GATES", "GATE_REASONS", "GATE_RESULTS", "IN_FLIGHT",
+           "FLAG_WITHDRAW_DELETED", "GATES", "GATE_REASONS", "GATE_RESULTS", "HELD", "IN_FLIGHT",
            "NOT_CHECKED", "OBSERVING", "OUTCOMES", "OVERLAYS", "PAGES", "PASS", "PLAIN_MOVES",
            "POSSIBLY_SENT", "PUBLIC_CODES", "REASONS", "STATES", "SUPERSEDE_WITHDRAWALS",
            "TERMINAL", "TURN_STATUSES", "UNKNOWN", "V2_STATES", "WAIT", "WAITING",

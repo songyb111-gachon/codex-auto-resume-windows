@@ -120,7 +120,7 @@ class DesignWordsTests(unittest.TestCase):
                     self.assertTrue(table[key].strip(), key)
                     if locale != l10n.DEFAULT and key != "choice.design.classic":
                         self.assertNotEqual(table[key], english[key], "translated, not copied: " + key)
-                # Four different words, and a name for the setting that neither theme has.
+                # Different words for each, and a name for the setting that neither theme has.
                 self.assertEqual(len(set(labels)), len(labels), labels)
                 self.assertNotIn(table["field.design"], (table["field.theme"], table["field.panel_theme"]))
                 # The help names each choice as the picker spells it, and Reduce motion by its name.
@@ -129,11 +129,16 @@ class DesignWordsTests(unittest.TestCase):
                 # Classic says which release it is.
                 self.assertIn("v0.6.2", table["choice.design.classic"])
 
-    def test_reduce_motion_names_every_surface_it_stops_and_the_design_it_has_nothing_to_stop_in(self):
+    def test_reduce_motion_names_every_surface_it_stops_and_no_design_escapes_it(self):
+        """Since v0.6.11 Reduce motion is the one way to stop motion, in every design: v0.6.10's "Soft, without motion"
+        is gone from every catalog, and neither its help nor the Design's names it or sets a design apart."""
+        from codex_auto_resume import settings
         for locale in l10n.available():
             table = l10n._read(locale)
             with self.subTest(locale):
-                self.assertIn(table["choice.design.still"], table["help.reduce_motion"])
+                self.assertNotIn("choice.design.still", table)
+                for choice in settings.DESIGNS:
+                    self.assertNotIn(table["choice.design." + choice], table["help.reduce_motion"])
                 self.assertIn("Codex", table["help.reduce_motion"])
                 self.assertIn("Windows", table["help.reduce_motion"])
         english = l10n._read(l10n.DEFAULT)["help.reduce_motion"]
@@ -319,6 +324,19 @@ class LoaderTests(unittest.TestCase):
             self.assertEqual(l10n.text("n", n=3), "3 left")
             with self.assertRaises(KeyError):
                 l10n.text("absent")
+
+    def test_a_catalog_anywhere_is_read_and_filled_by_the_same_rules(self):
+        """v0.6.11: the advanced edition keeps its words in a directory of its own, and they are
+        read by the one reader and filled by the one formatter core's are."""
+        path = self.directory / "anywhere.json"
+        for broken in ('{"a": "one", "a": "two"}', '{"a": 3}', '["a"]', '{"a": '):
+            with self.subTest(broken=broken):
+                path.write_text(broken, encoding="utf-8")
+                with self.assertRaises(l10n.CatalogError):
+                    l10n.read_catalog(path)
+        path.write_text(json.dumps({"on": "{n} on, {left} left"}), encoding="utf-8")
+        self.assertEqual(l10n.fill(l10n.read_catalog(path)["on"], n=2, other=5), "2 on, {left} left")
+        self.assertEqual(l10n._read(l10n.DEFAULT), l10n.read_catalog(l10n.DIRECTORY / "en.json"))
 
 
 class NormalizationTests(unittest.TestCase):

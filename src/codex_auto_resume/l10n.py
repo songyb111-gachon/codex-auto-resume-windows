@@ -245,7 +245,17 @@ def _no_duplicates(pairs):
 
 
 def _read(locale: str) -> dict:
-    path = DIRECTORY / ("%s.json" % locale)
+    return read_catalog(DIRECTORY / ("%s.json" % locale))
+
+
+def read_catalog(path) -> dict:
+    """One catalog file, held to every rule a catalog is: UTF-8 JSON, one object, every value
+    text, no key twice. `CatalogError` says which rule it broke.
+
+    The catalogs beside this module are read through here, and so is any other set of them -
+    the advanced edition keeps its own words in a directory of its own, and they are held to
+    the same rules by the same code rather than by a copy of it."""
+    path = Path(path)
     try:
         raw = path.read_text(encoding="utf-8")
     except OSError as exc:
@@ -303,6 +313,12 @@ def text(key: str, locale: str = DEFAULT, **fields) -> str:
     value = catalog(locale).get(key)
     if value is None:
         raise KeyError(key)
+    return fill(value, **fields)
+
+
+def fill(value: str, **fields) -> str:
+    """`value` with every `{name}` the caller supplies filled in, and nothing else touched: the
+    one way a sentence is formatted, whichever catalog it came from."""
     for name, supplied in fields.items():
         value = value.replace("{%s}" % name, str(supplied))
     return value

@@ -39,12 +39,20 @@ class LauncherPathTests(unittest.TestCase):
                 self.assertIn(r'"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"', text)
 
     def test_no_command_is_resolved_through_the_current_directory(self):
-        """Every line that runs something names it by absolute path, or is a cmd builtin."""
-        builtins = {"@echo", "setlocal", "title", "set", "echo.", "echo", "if", "pause", "exit"}
+        """Every line that runs something names it by absolute path, or is a cmd builtin.
+
+        `rem` and `goto` are internal to cmd.exe like the rest of the set: cmd acts on them
+        itself and never looks for a file by that name, so a planted rem.bat or goto.bat in
+        the current directory is never run - `rem` is even dropped by the parser before any
+        command is looked up. A line starting with `:` is a label, which runs nothing. The
+        edition-change question in Install.cmd needs all three.
+        """
+        builtins = {"@echo", "setlocal", "title", "set", "echo.", "echo", "if", "pause", "exit",
+                    "rem", "goto"}
         for launcher in LAUNCHERS:
             for number, line in enumerate(launcher.read_text(encoding="utf-8").splitlines(), 1):
                 stripped = line.strip()
-                if not stripped:
+                if not stripped or stripped.startswith(":"):
                     continue
                 first = stripped.split()[0].lower()
                 with self.subTest("%s:%d" % (launcher.name, number)):

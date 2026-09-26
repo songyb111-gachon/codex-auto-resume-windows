@@ -2,10 +2,11 @@
 
 The panel's stylesheet is built once, at import, so a design cannot be chosen by rebuilding it: every
 design is in it, as custom properties under the root's `data-design` stamp in the four places the base
-theme blocks stand, and as rules for what each design moves. The script stamps the root from the stored
+theme blocks stand, and as rules for each design's marks. The script stamps the root from the stored
 settings (applyDesign) - the design, and `data-motion="reduced"` for Reduce motion, which until this
 release the panel did not read at all. And the panel draws in the design without ever writing it: it is
-not an editor, not a change, and not in what Save sends (standard H3).
+not an editor, not a change, and not in what Save sends (standard H3). Since v0.6.11 no design holds motion:
+Reduce motion is the one rule that does, and v0.6.10's Still - which held it - is Reduce motion.
 """
 from __future__ import annotations
 
@@ -54,10 +55,9 @@ class StylesheetTests(unittest.TestCase):
                     for role, radius in brand.design_radii(design).items():
                         self.assertEqual(declarations["--radius-" + role], "%dpx" % radius)
 
-    def test_soft_and_still_have_no_block_of_their_own(self):
-        for design in ("soft", "still"):
-            for form in ("root", "host dark", "dark", "light"):
-                self.assertIsNone(block(design, form), (design, form))
+    def test_soft_has_no_block_of_its_own(self):
+        for form in ("root", "host dark", "dark", "light"):
+            self.assertIsNone(block("soft", form), form)
 
     def test_every_variable_a_design_block_uses_is_defined(self):
         used = set(re.findall(r"var\(\s*(--[a-z-]+)\s*\)", brand.css_design_blocks(mcpui.tile_elevation)
@@ -65,15 +65,14 @@ class StylesheetTests(unittest.TestCase):
         defined = set(re.findall(r"(--[a-z-]+)\s*:", mcpui._STYLE))
         self.assertEqual(used - defined, set())
 
-    def test_still_and_reduce_motion_hold_everything_as_the_reduced_motion_block_does(self):
+    def test_reduce_motion_holds_everything_as_the_reduced_motion_block_does(self):
+        """What v0.6.10's Still held, Reduce motion holds - a stored Still is Reduce motion now (settings._migrate)."""
         stopped = selectors_with("animation", "none !important") & selectors_with("transition", "none !important")
         hidden = {selector for where, selectors, declarations in RULES
                   if where == "" and declarations.get("display") == "none" for selector in selectors}
-        for root in (STAMPED["still"], MOTION):
-            with self.subTest(root):
-                for part in ("*", "*::before", "*::after"):
-                    self.assertIn("%s %s" % (root, part), stopped)
-                self.assertIn(root + " .halo::before", hidden)
+        for part in ("*", "*::before", "*::after"):
+            self.assertIn("%s %s" % (MOTION, part), stopped)
+        self.assertIn(MOTION + " .halo::before", hidden)
         # The reduced-motion block the host's preference reaches says the same.
         reduced = [declarations for where, selectors, declarations in RULES if where == REDUCED]
         self.assertTrue(any(declarations.get("animation") == "none !important" for declarations in reduced))
@@ -88,17 +87,14 @@ class StylesheetTests(unittest.TestCase):
             self.assertNotIn("%s %s" % (STAMPED["classic"], part), animation_stopped)
         self.assertNotIn(STAMPED["classic"] + " .halo::before", hidden)
 
-    def test_only_still_holds_the_controls(self):
-        """Only Still ("Soft, without motion") takes motion away: Classic and Plain glide as Soft does - v0.6.2's
-        look with today's motion, the roadmap's ask - where for a while in v0.6.10 they held the controls too."""
-        self.assertEqual([design for design in brand.DESIGNS if not brand.design_glides(design)], ["still"])
-        stopped = selectors_with("transition", "none !important")
-        lists = selectors_with("animation", "none !important")
-        for design in brand.DESIGNS:
-            with self.subTest(design):
-                self.assertEqual(STAMPED[design] + " *" in stopped, not brand.design_glides(design))
-                self.assertEqual(STAMPED[design] + " .combo-list" in lists | stopped,
-                                 not brand.design_glides(design))
+    def test_no_design_holds_motion(self):
+        """Every design glides and breathes as Soft does - Classic is v0.6.2's look with today's motion, the
+        roadmap's ask - and only Reduce motion holds anything: no rule a design's stamp starts stops a transition
+        or an animation, and no stylesheet rule names v0.6.10's Still."""
+        held = selectors_with("transition", "none !important") | selectors_with("animation", "none !important")
+        self.assertEqual({selector for selector in held if selector.startswith(":root[")},
+                         {"%s %s" % (MOTION, part) for part in ("*", "*::before", "*::after")})
+        self.assertNotIn('data-design="still"', mcpui._STYLE)
 
     def test_classic_draws_its_bar_as_a_shadow_so_nothing_moves(self):
         bar = [declarations for where, selectors, declarations in RULES
@@ -132,7 +128,7 @@ class ApplyDesignTests(unittest.TestCase):
                                                 "motion": "reduced" if reduced else None})
 
     def test_soft_an_unknown_value_or_none_at_all_removes_the_stamp(self):
-        for value in ("soft", "neon", "Classic", 3, None):
+        for value in ("soft", "neon", "Classic", 3, None, "still"):      # v0.6.10's Still: a value it does not know
             observed = run_page("adopt({design: 'plain', reduce_motion: true});"
                                 "adopt({design: %s});" % ("null" if value is None else repr(value)) + self.ROOT)
             with self.subTest(value=value):

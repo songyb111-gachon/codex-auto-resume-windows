@@ -3,6 +3,9 @@
 v0.6.9 measured this rather than assuming it: Codex runs each MCP server in a job object with
 KILL_ON_JOB_CLOSE and no breakaway, so a watcher started there dies with the server. The
 refusal and the note are what is left, and they say which of those two things happened.
+
+The refusal is where the edition's plug is asked for a route of its own (P9). The standard
+edition has none, and no plug's route is carried out yet, so the refusal is what it was.
 """
 from __future__ import annotations
 
@@ -133,6 +136,10 @@ class CodexStartMixin:
         # this product does not do. So where the job would end it and will not let it leave, nothing is
         # started: the line below is the whole answer for that Codex, and the switch is not offered.
         if ends_with_job(context, leaving=breakaway) is True:
+            # P9: asked only here, with the setting on and nothing running - after every
+            # consent this start has. Core carries out no route of a plug's yet (domain/plug.py,
+            # ALTERNATIVES), so whatever it answers, the refusal stands.
+            self.plug.start_route(dict(context))
             return "not started: this Codex ends what its plugins start"
         # Looked at once more, as late as it can be: an installation may have begun meanwhile.
         if windows.install_in_progress() is not False:

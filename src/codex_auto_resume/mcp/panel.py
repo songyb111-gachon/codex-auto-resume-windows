@@ -45,10 +45,11 @@ read-only (`renderCompatibility`): codes in, words out, and no way to refresh th
 Its tiles - a waiting task, the master switch - stand on their cards as the popup's task tiles do
 (`tile_elevation`), and a line of Korean breaks between words and one of Japanese between phrases.
 
-v0.6.10 draws it in the stored Design - Soft, Still, Classic or Plain - stamped on the root as the theme
-is, with every design's properties in the stylesheet (`brand.css_design_blocks`) and what each moves
-beside them (`design_rules`); and it follows the product's own Reduce motion as well as the host's. It
-draws in both and edits neither: what moves is the Dashboard's to change, not Codex's.
+v0.6.10 draws it in the stored Design - Soft, Classic or Plain - stamped on the root as the theme is,
+with every design's properties in the stylesheet (`brand.css_design_blocks`) and its marks beside them
+(`design_rules`); and it follows the product's own Reduce motion as well as the host's, the one thing
+that holds its motion in any design. It draws in both and edits neither: both are the Dashboard's to
+change, not Codex's (mcp.tools.PANEL_APPEARANCE).
 """
 from __future__ import annotations
 
@@ -101,29 +102,24 @@ def tile_elevation(theme, design="soft") -> str:
 
 
 def design_rules() -> str:
-    """The stylesheet's rules for what each design moves and for Classic's mark, from brand.DESIGN (v0.6.10).
+    """The stylesheet's rules for the product's Reduce motion and for each design's marks, from brand.DESIGN
+    (v0.6.10).
 
     Written from the table rather than per design, so a design whose row changes carries its rules with
-    it. Every selector starts from the root's stamp - `data-design`, or `data-motion="reduced"` for the
-    product's own Reduce motion, which holds everything as a design that does not breathe does - so none
-    of them matches a page that is stamped with neither: Soft, and a watcher older than the setting.
+    it. Every selector starts from the root's stamp - `data-motion="reduced"` for the product's own Reduce
+    motion, or `data-design` - so none of them matches a page that is stamped with neither: Soft with its
+    motion, and a watcher older than the setting. Reduce motion holds everything, in every design, and it
+    is the only rule here that holds anything: since v0.6.11 no design holds motion of its own.
     """
     def roots(designs):
         return [':root[data-design="%s"]' % design for design in designs]
 
-    def every(selected):
-        return ", ".join("%s %s" % (root, part) for root in selected for part in ("*", "*::before", "*::after"))
-
-    held = roots(design for design in brand.DESIGNS if not brand.design_breathes(design))
-    held.append(':root[data-motion="reduced"]')
-    unglided = roots(design for design in brand.DESIGNS if not brand.design_glides(design))
-    glowless = held + [root for root in roots(design for design in brand.DESIGNS if not brand.design_glow(design))
-                       if root not in held]
+    held = ':root[data-motion="reduced"]'
+    glowless = [held] + roots(design for design in brand.DESIGNS if not brand.design_glow(design))
     barred = roots(design for design in brand.DESIGNS if brand.design_accent_bar(design))
     return "\n".join([
-        "%s { animation: none !important; transition: none !important; }" % every(held),
-        "%s { transition: none !important; }" % every(unglided),
-        "%s { animation: none !important; }" % ", ".join(root + " .combo-list" for root in unglided),
+        "%s { animation: none !important; transition: none !important; }"
+        % ", ".join("%s %s" % (held, part) for part in ("*", "*::before", "*::after")),
         "%s { display: none; }" % ", ".join(root + " .halo::before" for root in glowless),
         "%s { box-shadow: inset %s 0 0 var(--accent); }" % (", ".join(root + " .card" for root in barred),
                                                             brand._css_length(brand.ACCENT_BAR)),

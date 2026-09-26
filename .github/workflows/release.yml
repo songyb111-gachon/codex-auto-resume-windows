@@ -18,7 +18,13 @@ name: release
 # Two jobs, split by privilege. `build` runs the repository's code - its tests, its build
 # scripts - with a read-only token that is not left on disk. `publish` holds the rights to
 # create a release and attest it, and runs none of the repository's code: it takes the
-# archive `build` produced, checks it again, attests it and publishes it.
+# archives `build` produced, checks them again, attests them and publishes them.
+#
+# Two editions, one version, one release (v0.6.11). The standard archive is the one every
+# installed bootstrap updates to, under the name it has always had; the advanced archive is
+# that same build plus the advanced package, under a name of its own. Both are built,
+# audited and checked here, attested together, and published by the one release, so neither
+# edition can go out without the other or under a different version.
 #
 # The split exists because the dispatch "dry run" was not one. Its build steps ran with
 # the workflow-wide contents: write and id-token: write, checkout left the token in
@@ -115,34 +121,64 @@ jobs:
           PYTHONPATH: src
         run: python -m unittest discover -s tests
 
-      - name: Build the settings window and the MCP launcher
+      # The advanced archive is the standard one plus the advanced package, so its suite is the
+      # one above plus the package's own tests, run with the package importable - as the advanced
+      # lane of test.yml runs them. That lane has also run the whole core suite with the package
+      # on the path; here that would be the same run a second time.
+      - name: Run the advanced edition's tests
+        env:
+          PYTHONPATH: src;advanced/src
+          CODEX_AR_EDITION: advanced
+        run: python -m unittest discover -s advanced/tests
+
+      # Each edition has a settings window of its own - the advanced one is the standard sources
+      # and the overlay's, in build/advanced/ - and the MCP launcher is one file for both.
+      # make_gui.ps1 throws on any failure, so a first build that fails stops the step there.
+      - name: Build each edition's settings window and the MCP launcher
         shell: pwsh
-        run: ./build/make_gui.ps1
+        run: |
+          ./build/make_gui.ps1
+          ./build/make_gui.ps1 -Edition advanced
 
       # Built a second time from the same source, and the digests compared. A release is
       # meant to be reproducible - anyone can rebuild the tag and get these bytes - and
       # this is where that stops being a claim: if the two builds on one machine differ,
       # nothing a reader rebuilds will match either, and the release does not go out.
+      #
+      # All three: the standard window and the launcher in build/, the advanced window in
+      # build/advanced/. The two windows share a file name, so each is known by its folder too.
       - name: Check the executables are reproducible
         shell: pwsh
         run: |
-          $first = @{}
-          foreach ($exe in Get-ChildItem build -Filter *.exe) {
-            $first[$exe.Name] = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash
+          function Get-Built {
+            @(Get-ChildItem build -Filter *.exe) + @(Get-ChildItem build/advanced -Filter *.exe)
           }
-          if ($first.Count -lt 2) { throw 'expected two executables in build/' }
+          $first = @{}
+          foreach ($exe in Get-Built) {
+            $first["$($exe.Directory.Name)/$($exe.Name)"] = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash
+          }
+          if ($first.Count -ne 3) {
+            throw "expected three executables, two in build/ and one in build/advanced/; found $($first.Count)"
+          }
           Start-Sleep -Seconds 2
           ./build/make_gui.ps1 | Out-Null
-          foreach ($exe in Get-ChildItem build -Filter *.exe) {
+          ./build/make_gui.ps1 -Edition advanced | Out-Null
+          foreach ($exe in Get-Built) {
+            $name = "$($exe.Directory.Name)/$($exe.Name)"
             $second = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash
-            if ($first[$exe.Name] -ne $second) {
-              throw "$($exe.Name) differs between two builds of the same source"
+            if ($first[$name] -ne $second) {
+              throw "$name differs between two builds of the same source"
             }
-            Write-Host "$($exe.Name) reproducible: $($second.ToLower())"
+            Write-Host "$name reproducible: $($second.ToLower())"
           }
 
+      # One step each: a step's result is its last command's, so a first build that failed
+      # ahead of a second that did not would pass as one step.
       - name: Build the release archive
-        run: python build/make_release.py
+        run: python build/make_release.py --edition standard
+
+      - name: Build the advanced edition's release archive
+        run: python build/make_release.py --edition advanced
 
       - name: Extract the release notes
         env:
@@ -150,40 +186,74 @@ jobs:
         shell: pwsh
         run: python build/release_notes.py "$env:VERSION" --output build/dist/release-notes.md
 
-      - name: Check the archive is what it claims to be
+      - name: Check each archive is what it claims to be
         env:
           VERSION: ${{ steps.version.outputs.version }}
         shell: pwsh
         run: |
-          $zip = "build/dist/CodexAutoResume-v$($env:VERSION)-win-x64.zip"
-          if (-not (Test-Path $zip)) { throw "the build did not produce $zip" }
-          # The checksum published beside the archive has to be the checksum OF the
-          # archive; a stale one is worse than none, because people verify against it.
-          $recorded = (Get-Content "$zip.sha256" -Raw).Split(' ')[0].Trim()
-          $actual = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
-          if ($recorded -ne $actual) { throw "checksum mismatch: recorded $recorded, actual $actual" }
-          # An archive with no interpreter would install and then do nothing at all. The list is
-          # what an installed bootstrap requires before it installs an archive (scripts/bootstrap.ps1
-          # Test-Archive: $required and the payload root's files), and what every published
-          # bootstrap required: an update is checked by the bootstrap already on the machine, so
-          # an entry may be added here but never dropped.
           Add-Type -AssemblyName System.IO.Compression.FileSystem
-          $names = [IO.Compression.ZipFile]::OpenRead((Resolve-Path $zip)).Entries.FullName
-          foreach ($required in @('payload/runtime/python.exe',
-                                  'payload/app/src/codex_auto_resume/mcpserver.py',
-                                  'payload/app/mcp/codex-auto-resume-mcp.exe',
-                                  'payload/app/.mcp.json',
-                                  'payload/app/.codex-plugin/plugin.json',
-                                  'payload/app/scripts/plugin_setup.py',
-                                  'payload/CodexAutoResumeSettings.exe',
-                                  'payload/codex-auto-resume.ico',
-                                  'install/install.ps1',
-                                  'Install.cmd')) {
-            if ($names -notcontains $required) { throw "the archive is missing $required" }
+          # Each edition's archive under the name its template in scripts/release.json gives it,
+          # which is the name a bootstrap of that edition asks for (tests/test_convergence.py
+          # holds these to the templates).
+          $archives = [ordered]@{
+            standard = "build/dist/CodexAutoResume-v$($env:VERSION)-win-x64.zip"
+            advanced = "build/dist/CodexAutoResume-Advanced-v$($env:VERSION)-win-x64.zip"
           }
-          Write-Host "archive verified: $actual"
+          foreach ($edition in $archives.Keys) {
+            $zip = $archives[$edition]
+            if (-not (Test-Path $zip)) { throw "the build did not produce $zip" }
+            # The checksum published beside the archive has to be the checksum OF the
+            # archive; a stale one is worse than none, because people verify against it.
+            $recorded = (Get-Content "$zip.sha256" -Raw).Split(' ')[0].Trim()
+            $actual = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+            if ($recorded -ne $actual) { throw "checksum mismatch in ${zip}: recorded $recorded, actual $actual" }
+            # An archive with no interpreter would install and then do nothing at all. The list is
+            # what an installed bootstrap requires before it installs an archive (scripts/bootstrap.ps1
+            # Test-Archive: $required and the payload root's files), and what every published
+            # bootstrap required: an update is checked by the bootstrap already on the machine, so
+            # an entry may be added here but never dropped. Both editions: the advanced archive is
+            # checked by the same Test-Archive, asked for its edition.
+            $names = [IO.Compression.ZipFile]::OpenRead((Resolve-Path $zip)).Entries.FullName
+            foreach ($required in @('payload/runtime/python.exe',
+                                    'payload/app/src/codex_auto_resume/mcpserver.py',
+                                    'payload/app/mcp/codex-auto-resume-mcp.exe',
+                                    'payload/app/.mcp.json',
+                                    'payload/app/.codex-plugin/plugin.json',
+                                    'payload/app/scripts/plugin_setup.py',
+                                    'payload/CodexAutoResumeSettings.exe',
+                                    'payload/codex-auto-resume.ico',
+                                    'install/install.ps1',
+                                    'Install.cmd')) {
+              if ($names -notcontains $required) { throw "the $edition archive is missing $required" }
+            }
+            # And what makes the advanced one advanced: its package beside core, without which a
+            # bootstrap asked for that edition refuses the archive.
+            $package = 'payload/app/src/codex_auto_resume_advanced/__init__.py'
+            if ($edition -eq 'advanced' -and $names -notcontains $package) {
+              throw "the advanced archive is missing $package"
+            }
+            Write-Host "$edition archive verified: $actual"
+          }
 
-      - name: Keep the archive even when nothing is published
+      # The standard archive is built from a list of trees that does not name advanced/, so it
+      # cannot hold the advanced code; this is the proof that does not take the build script's
+      # word for it. Six findings, (a) to (f) in the script, read from the two archives' bytes -
+      # the last builds the standard archive again from `git archive HEAD` with advanced/
+      # deleted and wants the same file. It runs before anything is kept, so an archive it
+      # refuses never reaches the publish job.
+      - name: Prove the standard archive holds none of the advanced edition
+        run: python build/edition_audit.py
+
+      # An installed copy updates with the bootstrap it was installed with, never with this one:
+      # that copy names the archive from its own release.json and checks what arrives with its
+      # own Test-Archive. Each published bootstrap from v0.5.2 on is taken out of git - the tags
+      # are here, fetch-depth: 0 above - and run on the standard archive just built, and one that
+      # knows the advanced edition on the advanced archive too. One that would not take it is a
+      # release installed copies silently stop updating to, so it stops here.
+      - name: Check every published bootstrap takes the archive
+        run: python build/legacy_bootstraps.py
+
+      - name: Keep the archives even when nothing is published
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-build
@@ -199,9 +269,9 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         shell: pwsh
         run: |
-          Write-Host "Built and verified v$($env:VERSION)."
+          Write-Host "Built and verified v$($env:VERSION), both editions."
           Write-Host "Nothing was published: a dispatch never reaches the publish job."
-          Write-Host "The archive is attached to this run as a workflow artifact."
+          Write-Host "The archives are attached to this run as a workflow artifact."
 
   publish:
     needs: build
@@ -220,10 +290,14 @@ jobs:
     env:
       VERSION: ${{ needs.build.outputs.version }}
       GH_REPO: ${{ github.repository }}
+      # Each edition's archive, named as the build job named it. Values, not code: every step
+      # reads them as variables, and the first step below refuses a version of any other shape.
+      STANDARD_ZIP: dist/CodexAutoResume-v${{ needs.build.outputs.version }}-win-x64.zip
+      ADVANCED_ZIP: dist/CodexAutoResume-Advanced-v${{ needs.build.outputs.version }}-win-x64.zip
 
     steps:
       # No checkout. Nothing in this job runs the repository's code.
-      - name: Take the archive the build job verified
+      - name: Take the archives the build job verified
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: release-build
@@ -235,11 +309,44 @@ jobs:
           set -euo pipefail
           [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-alpha)?$ ]] || { echo "bad version '$VERSION'"; exit 1; }
           [[ "$GITHUB_REF" == "refs/tags/v$VERSION" ]] || { echo "tag $GITHUB_REF does not match v$VERSION"; exit 1; }
-          zip="dist/CodexAutoResume-v$VERSION-win-x64.zip"
-          recorded="$(cut -d' ' -f1 "$zip.sha256")"
-          actual="$(sha256sum "$zip" | cut -d' ' -f1)"
-          [[ "$recorded" == "$actual" ]] || { echo "checksum mismatch: recorded $recorded, actual $actual"; exit 1; }
-          echo "archive verified: $actual"
+          for zip in "$STANDARD_ZIP" "$ADVANCED_ZIP"; do
+            recorded="$(cut -d' ' -f1 "$zip.sha256")"
+            actual="$(sha256sum "$zip" | cut -d' ' -f1)"
+            [[ "$recorded" == "$actual" ]] || { echo "checksum mismatch in $zip: recorded $recorded, actual $actual"; exit 1; }
+            echo "$zip verified: $actual"
+          done
+
+      # Which edition each archive is, read from its listing by `unzip`, because this job runs
+      # nothing of the repository's - not even the audit the build job ran. The rule is the one
+      # every bootstrap applies before it installs an archive (Test-Archive): the standard
+      # archive holds nothing under the advanced package or skill, whatever the case or the
+      # separator, and the advanced one holds the package. Two archives swapped or mixed would
+      # publish the advanced code under the name every installed copy updates to. Each name is
+      # read as the extraction writes it, with no '.' or empty segment and no '.' or ' ' at the
+      # end of a segment, which Windows drops: 'src/./x', 'src//x' and 'src/x./y' all land in
+      # src/x, and the raw name hid them from the grep.
+      - name: Check each archive is its own edition
+        shell: bash
+        run: |
+          set -euo pipefail
+          written='s#[. ]+(/|$)#\1#g; s#/+#/#g; s#^/##'
+          standard="$(unzip -Z1 "$STANDARD_ZIP" | tr '\\' '/' | sed -E "$written")"
+          advanced="$(unzip -Z1 "$ADVANCED_ZIP" | tr '\\' '/' | sed -E "$written")"
+          # A listing of nothing holds nothing of the advanced edition, and proves nothing.
+          for listing in "$standard" "$advanced"; do
+            grep -qx 'payload/runtime/python.exe' <<<"$listing" \
+              || { echo "::error::An archive lists no payload/runtime/python.exe"; exit 1; }
+          done
+          held="$(grep -iE '^payload/app/(src/codex_auto_resume_advanced|skills/codex-auto-resume-advanced)/' <<<"$standard" || true)"
+          if [[ -n "$held" ]]; then
+            echo "::error::The standard archive holds the advanced edition:"
+            echo "$held"
+            exit 1
+          fi
+          grep -qx 'payload/app/src/codex_auto_resume_advanced/__init__.py' <<<"$advanced" \
+            || { echo "::error::The advanced archive has no payload/app/src/codex_auto_resume_advanced/__init__.py"; exit 1; }
+          echo "standard: $(wc -l <<<"$standard") entries, none of the advanced edition"
+          echo "advanced: $(wc -l <<<"$advanced") entries, the advanced package among them"
 
       # The immutability gate. Publishing is refused outright if this version already
       # has assets, rather than replacing them - so the archive a `v0.5.4` download
@@ -266,10 +373,16 @@ jobs:
       # Build provenance, so a downloaded archive can be traced back to the workflow run
       # and the commit that produced it. Runs before publication: an archive that cannot
       # be attested should not become a release.
-      - name: Attest the archive
+      #
+      # One attestation, naming both archives as its subjects: they come from one run of one
+      # commit, and `gh attestation verify` on either finds it. One step, so neither edition
+      # can be published unattested by a step that was skipped or left out.
+      - name: Attest the archives
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-path: dist/CodexAutoResume-v${{ needs.build.outputs.version }}-win-x64.zip
+          subject-path: |
+            ${{ env.STANDARD_ZIP }}
+            ${{ env.ADVANCED_ZIP }}
 
       - name: Publish the GitHub release
         env:
@@ -281,8 +394,10 @@ jobs:
           # installation's update check reads releases/latest, and none may be offered it.
           prerelease=()
           if [[ "$VERSION" == *-* ]]; then prerelease=(--prerelease --latest=false); fi
+          # Four assets: each edition's archive and the checksum beside it. The pre-release
+          # flags above are the release's, so they apply to both editions alike.
           gh release create "v$VERSION" \
-            "dist/CodexAutoResume-v$VERSION-win-x64.zip" \
-            "dist/CodexAutoResume-v$VERSION-win-x64.zip.sha256" \
+            "$STANDARD_ZIP" "$STANDARD_ZIP.sha256" \
+            "$ADVANCED_ZIP" "$ADVANCED_ZIP.sha256" \
             --title "v$VERSION" \
             --notes-file dist/release-notes.md "${prerelease[@]}"
