@@ -15,10 +15,11 @@ registry's order, and what it may do depends only on where it stands (arming.py)
 Only an answer core would take counts at all. Core checks every answer as it checks its own
 (domain/plug.py's consult and Guarded, and the Custom message's validator for words), and the
 same checks are made here first, so a capability is never journalled, counted or paid for an
-answer core would not carry out; anything else is DEFER, as it is to core. (Words that pass the
+answer core would not carry out; anything else is DEFER, as it is to core. Words that pass the
 validator and still fill in to nothing for a record are the one answer core can drop after this -
-it sends the person's own style instead - and that unit is spent all the same: a ceiling may be
-reached early, never passed.)
+it sends the person's own style instead - so what is paid for at the claim is what core says
+there the send carries (P11's `carried`), never this runtime's own list of what it answered:
+dropped words are journalled as taken, and cost nothing.
 
 A hook that raises trips its own capability and costs its own answer, nothing more.
 
@@ -158,7 +159,7 @@ class Runtime:
         if chooser is None:
             return getattr(NULL, HOOKS[point])(*arguments)
         if point in SENDING:
-            self._acted.setdefault(record.get("interruption_id"), set()).add(chooser.id)
+            self._acted.setdefault(record.get("interruption_id"), set()).add((point, chooser.id))
         self._once(JournalCode.ACTED, chooser, point, chosen, record)
         return chosen
 
@@ -196,15 +197,20 @@ class Runtime:
         self.states(fresh=True)
         return self.ask(Point.TICK, view)
 
-    def claim(self, connection, record, now):
+    def claim(self, connection, record, now, carried):
         """P11: the ledger, told which capabilities' answers this claim carries.
+
+        Those are the capabilities that answered at a point in `carried` - the points whose
+        answers core says the send carries - and no other: words core dropped for filling in to
+        nothing were answered here and never sent, so they are neither paid for nor a reason to
+        hold a claim of core's own words.
 
         A ledger that breaks is two different things. On a claim of core's own it costs its
         answer, as any hook's failure does, and core claims as it would with no plug. On a claim
         that carries a capability's answer, that answer could not be paid for, so the claim is
         held and nothing of it is sent; core takes back whatever the ledger had written."""
         key = record.get("interruption_id") if isinstance(record, dict) else None
-        acted = self._acted.pop(key, ())
+        acted = {capability for point, capability in self._acted.pop(key, ()) if point in carried}
         try:
             return self.ledger.claim(connection, record, now, acted)
         except Exception:

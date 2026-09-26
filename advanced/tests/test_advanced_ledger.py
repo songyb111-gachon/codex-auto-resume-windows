@@ -23,9 +23,11 @@ from codex_auto_resume import config  # noqa: E402
 from codex_auto_resume.domain.plug import DEFER, Alternative, Point, guard  # noqa: E402
 from codex_auto_resume.store import Store  # noqa: E402
 from codex_auto_resume.store.schema import _TABLES_V3  # noqa: E402
+from codex_auto_resume_advanced import ledger as ledger_module  # noqa: E402
 from codex_auto_resume_advanced.registry import Ceilings  # noqa: E402
 from codex_auto_resume_advanced.state import ATTACHED  # noqa: E402
 from codex_auto_resume_advanced.vocabulary import Actor, ArmingState, RecordState  # noqa: E402
+from test_engine import T1, TURN_A  # noqa: E402
 from test_plug_points import POLL, PluggedCase  # noqa: E402
 
 DAY = 86400
@@ -137,7 +139,7 @@ class BothTablesTests(LedgerCase):
     def claim(self, plug, row=None):
         row = row or self.h.record()
         with self.h.store._transaction() as connection:
-            return guard(plug).claim_ledger(connection, row, self.h.now)
+            return guard(plug).claim_ledger(connection, row, self.h.now, frozenset())
 
     def test_a_record_of_this_editions_in_flight_on_the_conversation_holds_the_claim(self):
         self.due()
@@ -271,7 +273,8 @@ class SpendTests(LedgerCase):
         with runtime.state._transaction() as connection:          # spent elsewhere, since
             runtime.state.record_spend(connection, "main", "test_wake", record["thread_id"], None, self.h.now)
         with self.h.store._transaction() as connection:
-            self.assertEqual(guard(plug).claim_ledger(connection, record, self.h.now), Alternative.HOLD)
+            self.assertEqual(guard(plug).claim_ledger(connection, record, self.h.now, {Point.TEXT}),
+                             Alternative.HOLD)
 
     def test_a_capability_turned_off_after_it_answered_is_not_paid_for_and_holds_the_claim(self):
         self.due()
@@ -282,7 +285,8 @@ class SpendTests(LedgerCase):
         self.assertEqual(runtime.ask(Point.TEXT, record, "core"), "Please go on.")
         runtime.arming.disarm("test_wake", actor=Actor.MCP)
         with self.h.store._transaction() as connection:
-            self.assertEqual(guard(plug).claim_ledger(connection, record, self.h.now), Alternative.HOLD)
+            self.assertEqual(guard(plug).claim_ledger(connection, record, self.h.now, {Point.TEXT}),
+                             Alternative.HOLD)
         self.assertEqual(self.spends(plug), [])
 
     def test_an_answer_core_would_not_take_is_neither_journalled_nor_paid_for(self):
@@ -314,11 +318,41 @@ class SpendTests(LedgerCase):
         with broken:
             self.assertEqual(runtime.ask(Point.TEXT, record, "core"), "Please go on.")
             with self.h.store._transaction() as connection:
-                self.assertEqual(guard(plug).claim_ledger(connection, record, self.h.now), Alternative.HOLD)
+                self.assertEqual(guard(plug).claim_ledger(connection, record, self.h.now, {Point.TEXT}),
+                                 Alternative.HOLD)
             guarded = guard(plug)
             with self.h.store._transaction() as connection:
-                self.assertIs(guarded.claim_ledger(connection, record, self.h.now), DEFER)
+                self.assertIs(guarded.claim_ledger(connection, record, self.h.now, frozenset()), DEFER)
             self.assertEqual(guarded.failures, 1, "core's own claim: the failure costs only its answer")
+
+    def test_words_core_drops_are_neither_paid_for_nor_a_reason_to_hold(self):
+        """Words that pass the validator and fill in to nothing for the record - {reset_time}
+        on a failure with no reset - are dropped by core, which sends the person's own style.
+        The runtime paid by its own list of what it had answered, so a unit was spent on words
+        never sent, and a ledger that broke held a claim that carried only core's own words.
+        It pays for what core says the send carries, and nothing else."""
+        for broken in (False, True):
+            with self.subTest(broken=broken):
+                standard, h = self.fresh(), self.fresh()
+                plug = self.advanced(h, home="broken" if broken else "whole")
+                self.arm(plug).answers["text"] = "{reset_time}"
+                for harness in (standard, h):
+                    harness.home.fail_transient(T1, TURN_A)
+                    harness.backend.loaded_map[T1] = "loaded"
+                    harness.tick()
+                self.plugged(plug, h)
+                standard.tick(advance=300)
+                failing = (patch.object(ledger_module, "held_by_records",
+                                        side_effect=sqlite3.OperationalError("advanced.sqlite is locked"))
+                           if broken else contextlib.nullcontext())
+                with failing:
+                    h.tick(advance=300)
+                self.assertEqual(len(standard.backend.send_calls), 1)
+                self.assertEqual(len(h.backend.send_calls), 1, "core's own words go, as with no plug")
+                words = [calls[0][1].rsplit("\n\n", 1)[0]
+                         for calls in (h.backend.send_calls, standard.backend.send_calls)]
+                self.assertEqual(words[0], words[1])
+                self.assertEqual(self.spends(plug), [])
 
     def test_a_held_claim_spends_nothing_and_a_released_claim_gives_nothing_back(self):
         self.due()

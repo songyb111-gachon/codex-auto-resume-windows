@@ -13,7 +13,7 @@ one call, made after the one claim, the pre-send look and inside the launch guar
 from __future__ import annotations
 
 from .. import continuation as _message, failures, l10n, machine
-from ..domain.plug import DEFER, Alternative
+from ..domain.plug import DEFER, Alternative, Point
 from ..machine import OBSERVING, TERMINAL, WAITING, WATCHED
 from .options import backoff_delay
 from .reconcile import UNSENT
@@ -231,12 +231,15 @@ class DispatchMixin:
             # send below, after the claim and the pre-send look, inside the launch guard.
             sender = self.plug.sender(current, self.backend)
             # P11 is asked inside the claim, once every check the store makes there has passed.
-            # The claim is told whether the send carries the plug's words or channel: those are
-            # paid for in its ledger, so a ledger that breaks holds the claim instead of letting
-            # them go out unpaid.
+            # The claim is told which of the plug's answers the send carries - its words, its
+            # channel - as decided here, where words that fill in to nothing were dropped: those
+            # are paid for in its ledger, so a ledger that breaks holds the claim instead of
+            # letting them go out unpaid, and nothing core dropped is paid for or held.
+            carried = frozenset(point for point, taken in ((Point.TEXT, worded),
+                                                           (Point.SENDER, sender is not self.backend))
+                                if taken)
             claimed, gate, reason = self.store.reserve_detailed(
-                key, self.clock(), limits=limits, gates=vector, ledger=self.plug,
-                carried=worded or sender is not self.backend)
+                key, self.clock(), limits=limits, gates=vector, ledger=self.plug, carried=carried)
             if not claimed:
                 self._refused(current, gate, reason)
                 return

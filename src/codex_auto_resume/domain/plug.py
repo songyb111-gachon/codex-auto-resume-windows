@@ -182,10 +182,13 @@ class Plug:
         """What one surface shows beyond core's own fields: a JSON object, or DEFER."""
         return DEFER
 
-    def claim_ledger(self, connection, record, now):  # P11
+    def claim_ledger(self, connection, record, now, carried):  # P11
         """What the one claim counts beside core's own rows. Asked inside the claim's own
         transaction, on its connection, once every check core makes there has passed; what the
-        hook writes on that connection is committed with the claim and with nothing else."""
+        hook writes on that connection is committed with the claim and with nothing else.
+        `carried` is the points whose answers the send this claim leads to carries, as core
+        decided them - TEXT for the plug's words, SENDER for its channel: what a ledger pays
+        for, and all it pays for."""
         return DEFER
 
     def partition(self, records):                     # P12
@@ -438,17 +441,18 @@ class Guarded:
         """Fields for surface `name` (a Surface), or DEFER."""
         return fields(self._ask(Point.SURFACES, Surface(name), facts))
 
-    def claim_ledger(self, connection, record, now):
-        return self.claim_ledger_checked(connection, record, now)[0]
+    def claim_ledger(self, connection, record, now, carried):
+        return self.claim_ledger_checked(connection, record, now, carried)[0]
 
-    def claim_ledger_checked(self, connection, record, now):
+    def claim_ledger_checked(self, connection, record, now, carried):
         """P11 as the claim asks it: the answer, and whether this very call raised.
 
         Not `failures` read before and after: that counter is shared by every thread that holds
         this plug - the engine's, the icon's, a card's - and a surface failing on one of them
         while the ledger answered would have looked like the ledger breaking."""
         broke = []
-        answer = self._ask(Point.CLAIM_LEDGER, connection, record, now, failed=broke.append)
+        answer = self._ask(Point.CLAIM_LEDGER, connection, record, now, carried,
+                           failed=broke.append)
         return answer, bool(broke)
 
     def partition(self, records):

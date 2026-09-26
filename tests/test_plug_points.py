@@ -42,8 +42,8 @@ from test_control import ControlTestCase  # noqa: E402
 from test_engine import T1, T2, TURN_A, EngineCase  # noqa: E402
 from codex_auto_resume import (config, continuation, control, controlcli, diagnostics,  # noqa: E402
                                edition, mcpserver, settings, windows)
-from codex_auto_resume.domain.plug import (DEFER, EXTRA, Alternative, Plug, Surface,  # noqa: E402
-                                           guard)
+from codex_auto_resume.domain.plug import (DEFER, EXTRA, Alternative, Plug, Point,  # noqa: E402
+                                           Surface, guard)
 from codex_auto_resume.engine import Engine  # noqa: E402
 from codex_auto_resume.mcp.tools import TOOLS as MCP_TOOLS  # noqa: E402
 from codex_auto_resume.runtime.app import App  # noqa: E402
@@ -99,8 +99,8 @@ class Asked(Plug):
     def surface(self, name, facts):
         return self._answer("surface", name, facts)
 
-    def claim_ledger(self, connection, record, now):
-        return self._answer("claim_ledger", connection, record, now)
+    def claim_ledger(self, connection, record, now, carried):
+        return self._answer("claim_ledger", connection, record, now, carried)
 
     def partition(self, records):
         return self._answer("partition", records)
@@ -414,7 +414,7 @@ class LedgerTests(PluggedCase):
         """A ledger in a database of its own, attached to the claim's connection."""
         path = str(Path(self.root).parent / "ledger.sqlite")
 
-        def claim_ledger(connection, record, now):
+        def claim_ledger(connection, record, now, carried):
             if "ledger" not in [row[1] for row in connection.execute("PRAGMA database_list")]:
                 connection.execute(attach(path, "ledger"))
             connection.execute("CREATE TABLE IF NOT EXISTS ledger.spent (id TEXT, at REAL)")
@@ -482,7 +482,7 @@ class LedgerTests(PluggedCase):
                     "DETACH DATABASE ledger")
         done, kept = [], []
 
-        def claim_ledger(connection, record, now):
+        def claim_ledger(connection, record, now, carried):
             kept.append(connection)
             connection.execute(attach(path, "ledger"))
             connection.execute("CREATE TABLE IF NOT EXISTS ledger.spent (id TEXT)")
@@ -519,7 +519,7 @@ class LedgerTests(PluggedCase):
         linked = Path(self.root).parent / "linked.sqlite"
         done = []
 
-        def claim_ledger(connection, record, now):
+        def claim_ledger(connection, record, now, carried):
             main = [row[2] for row in connection.execute("PRAGMA database_list") if row[1] == "main"][0]
             connection.execute(attach(path, "ledger"))
             os.link(main, linked)
@@ -557,7 +557,7 @@ class LedgerTests(PluggedCase):
         before = {flag: connection.execute("PRAGMA %s" % flag).fetchone()[0] for flag in flags}
         done, read = [], []
 
-        def claim_ledger(connection, record, now):
+        def claim_ledger(connection, record, now, carried):
             connection.execute(attach(path, "ledger"))
             for statement in ["PRAGMA ledger.%s=%d" % (flag, 0 if flag == "busy_timeout" else 1)
                               for flag in flags if flag != "query_only"] + [
@@ -590,7 +590,7 @@ class LedgerTests(PluggedCase):
         self.h.store.set_thread_enabled(T2, False, at=self.h.now)
         kept = []
 
-        def claim_ledger(connection, record, now):
+        def claim_ledger(connection, record, now, carried):
             with contextlib.suppress(AttributeError):
                 connection.close = lambda: None
             kept.append(connection)
@@ -604,6 +604,34 @@ class LedgerTests(PluggedCase):
         for name in ("close", "_execute", "execute", "extra"):
             with self.subTest(name), self.assertRaises(AttributeError):
                 setattr(kept[0], name, None)
+
+    def test_the_ledger_is_told_which_of_the_plugs_answers_the_send_carries(self):
+        """As the dispatch decided them: its words, its channel, or neither - and not words that
+        fill in to nothing for the record, {reset_time} on a failure with no reset, which core
+        drops for the person's own style. A ledger that paid by its own list of what it had
+        answered charged for those, and held a claim of core's own words when it broke."""
+        channel = Channel(None)
+        for label, answers, expected in (
+                ("words", {"text": "Please go on with the {category} task."}, {Point.TEXT}),
+                ("channel", {"sender": channel}, {Point.SENDER}),
+                ("both", {"text": "Please go on.", "sender": channel}, {Point.TEXT, Point.SENDER}),
+                ("neither", {}, set()), ("dropped words", {"text": "{reset_time}"}, set())):
+            with self.subTest(label):
+                h = self.fresh()
+                if label == "dropped words":
+                    h.home.fail_transient(T1, TURN_A)
+                    h.backend.loaded_map[T1] = "loaded"
+                    h.tick()
+                else:
+                    self.due(h)
+                channel.h, told = h, []
+
+                def claim_ledger(connection, record, now, carried, _told=told):
+                    _told.append(carried)
+                    return DEFER
+                self.plugged(Asked(claim_ledger=claim_ledger, **answers), h)
+                h.tick(advance=300 if label == "dropped words" else 0)
+                self.assertEqual(told, [frozenset(expected)])
 
     def test_a_ledger_that_breaks_holds_a_claim_that_carries_the_plugs_words_or_channel(self):
         """What the plug's words or its channel cost is paid in its ledger, before the claim is
@@ -635,7 +663,7 @@ class LedgerTests(PluggedCase):
         path = str(Path(self.root).parent / "ledger.sqlite")
         holder = {}
 
-        def claim_ledger(connection, record, now):
+        def claim_ledger(connection, record, now, carried):
             connection.execute(attach(path, "ledger"))
             connection.execute("CREATE TABLE IF NOT EXISTS ledger.spent (id TEXT, at REAL)")
             connection.execute("INSERT INTO ledger.spent VALUES (?, ?)", (record["interruption_id"], now))
