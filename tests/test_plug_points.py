@@ -115,6 +115,12 @@ class Asked(Plug):
         return [arguments[0] for hook, arguments in self.asked if hook == "gate"]
 
 
+def attach(path, name):
+    """An ATTACH of the file at `path` as `name`, which the statement names: the claim lets a
+    ledger's ATTACH on only once it has read which file it is (store/claims.py)."""
+    return "ATTACH DATABASE '%s' AS %s" % (str(path).replace("'", "''"), name)
+
+
 def holding(name):
     """Hold at gate `name` (or the schedule), and nowhere else."""
     if name == "schedule":
@@ -410,7 +416,7 @@ class LedgerTests(PluggedCase):
 
         def claim_ledger(connection, record, now):
             if "ledger" not in [row[1] for row in connection.execute("PRAGMA database_list")]:
-                connection.execute("ATTACH DATABASE ? AS ledger", (path,))
+                connection.execute(attach(path, "ledger"))
             connection.execute("CREATE TABLE IF NOT EXISTS ledger.spent (id TEXT, at REAL)")
             connection.execute("INSERT INTO ledger.spent VALUES (?, ?)", (record["interruption_id"], now))
             if fail:
@@ -478,7 +484,7 @@ class LedgerTests(PluggedCase):
 
         def claim_ledger(connection, record, now):
             kept.append(connection)
-            connection.execute("ATTACH DATABASE ? AS ledger", (path,))
+            connection.execute(attach(path, "ledger"))
             connection.execute("CREATE TABLE IF NOT EXISTS ledger.spent (id TEXT)")
             connection.execute("INSERT INTO ledger.spent VALUES (?)", (record["interruption_id"],))
             self.assertEqual([row[1] for row in connection.execute("PRAGMA database_list")][-1], "ledger")
@@ -502,6 +508,42 @@ class LedgerTests(PluggedCase):
         self.h.store.set_thread_enabled(T2, True, at=self.h.now)
         self.assertTrue(self.h.store.thread_enabled(T2))
 
+    def test_a_ledger_attaches_no_file_the_connection_has_already(self):
+        """Nothing a ledger attaches can be detached. Core's own state.sqlite attached again
+        under another name stayed, and needed a second write lock on its own file: every write
+        transaction core began afterwards - the send the claim had just granted included - waited
+        ten seconds and failed. The ledger's own file twice is the same, and a name the
+        statement binds or computes cannot be read to tell which file it is."""
+        self.due()
+        path = Path(self.root).parent / "ledger.sqlite"
+        linked = Path(self.root).parent / "linked.sqlite"
+        done = []
+
+        def claim_ledger(connection, record, now):
+            main = [row[2] for row in connection.execute("PRAGMA database_list") if row[1] == "main"][0]
+            connection.execute(attach(path, "ledger"))
+            os.link(main, linked)
+            for statement, parameters in (
+                    (attach(main, "again"), ()), (attach(main.upper(), "shouting"), ()),
+                    (attach(linked, "linked"), ()), (attach(path, "twice"), ()),
+                    ("ATTACH DATABASE ? AS bound", (str(Path(self.root).parent / "other.sqlite"),)),
+                    ("ATTACH DATABASE 'other' || '.sqlite' AS computed", ())):
+                try:
+                    connection.execute(statement, parameters)
+                    done.append(statement)
+                except sqlite3.DatabaseError:
+                    pass
+            return DEFER
+        self.plugged(Asked(claim_ledger=claim_ledger))
+        self.h.tick()
+        self.assertEqual(done, [])
+        names = [row[1] for row in self.h.store._connection.execute("PRAGMA database_list")]
+        self.assertEqual([name for name in names if name not in ("main", "temp")], ["ledger"])
+        self.assertEqual(len(self.h.backend.send_calls), 1)
+        self.assertEqual(self.h.record()["state"], "queued")
+        self.h.store.set_thread_enabled(T2, False, at=self.h.now)
+        self.assertFalse(self.h.store.thread_enabled(T2))
+
     def test_a_ledger_sets_no_pragma_even_through_its_own_schema(self):
         """`PRAGMA ledger.query_only=1` was judged by the schema it names, but query_only, like
         busy_timeout, trusted_schema and writable_schema, is the whole connection's - core's,
@@ -516,7 +558,7 @@ class LedgerTests(PluggedCase):
         done, read = [], []
 
         def claim_ledger(connection, record, now):
-            connection.execute("ATTACH DATABASE ? AS ledger", (path,))
+            connection.execute(attach(path, "ledger"))
             for statement in ["PRAGMA ledger.%s=%d" % (flag, 0 if flag == "busy_timeout" else 1)
                               for flag in flags if flag != "query_only"] + [
                               "PRAGMA ledger.case_sensitive_like=1", "PRAGMA ledger.user_version=7",
@@ -594,7 +636,7 @@ class LedgerTests(PluggedCase):
         holder = {}
 
         def claim_ledger(connection, record, now):
-            connection.execute("ATTACH DATABASE ? AS ledger", (path,))
+            connection.execute(attach(path, "ledger"))
             connection.execute("CREATE TABLE IF NOT EXISTS ledger.spent (id TEXT, at REAL)")
             connection.execute("INSERT INTO ledger.spent VALUES (?, ?)", (record["interruption_id"], now))
             icon = threading.Thread(target=lambda: holder["engine"].plug.surface(Surface.TRAY, {}))
