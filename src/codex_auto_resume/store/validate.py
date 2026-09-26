@@ -58,12 +58,6 @@ def _short_text(value: Any, name: str, maximum: int, *, nullable: bool = False) 
     return value
 
 
-def _digest(value: Any) -> bool:
-    """A SHA-256 as the store keeps one: 64 lowercase hex digits."""
-    return (isinstance(value, str) and len(value) == 64
-            and all(character in "0123456789abcdef" for character in value))
-
-
 def _choice(value: Any, name: str, allowed) -> Any:
     if value is not None and value not in allowed:
         raise StoreError(f"Invalid {name}")
@@ -105,7 +99,7 @@ def _validated_record(row: dict[str, Any]) -> dict[str, Any]:
     _choice(row["hold"], "hold", machine.HOLDS)
     # v0.6.11: the guards' digest and count (guards.py), each empty while its guard is off: 64 hex
     # digits, and a whole number no larger than guards.MAX_TOKENS.
-    if row["task_print"] is not None and not _digest(row["task_print"]):
+    if row["task_print"] is not None and not ids.is_digest(row["task_print"]):
         raise StoreError("Invalid task_print")
     if row["context_tokens"] is not None and _integer(row["context_tokens"], "context_tokens") > 2 ** 53:
         raise StoreError("Invalid context_tokens")

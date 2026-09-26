@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import hashlib
 
+from .domain import ids
 from .domain.vocabulary import ContextGuard, HoldKind, TaskGuard
 
 TASK_GUARDS = tuple(TaskGuard)
@@ -84,8 +85,8 @@ def fingerprint(model, approval, head) -> str:
 
 
 def is_print(value) -> bool:
-    return (isinstance(value, str) and len(value) == 64
-            and all(character in "0123456789abcdef" for character in value))
+    """Whether `value` is a task's digest as `task_print` writes one (a SHA-256: domain/ids.py)."""
+    return ids.is_digest(value)
 
 
 def changed(recorded, now) -> bool:

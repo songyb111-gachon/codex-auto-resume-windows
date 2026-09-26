@@ -19,8 +19,8 @@ sent; it never names a conversation (B8), whose identity stays its exact id (A3)
 from __future__ import annotations
 
 import hashlib
-import re
 
+from .domain import ids
 from .domain.vocabulary import HoldKind, ProjectPolicy
 
 POLICIES = tuple(ProjectPolicy)
@@ -28,7 +28,6 @@ DEFAULT_POLICY = ProjectPolicy.EVERY.value
 # The settings that hold the two lists, each a comma-separated run of keys in order.
 ALWAYS, NEVER = "project_keys_always", "project_keys_never"
 MAX_KEYS = 50
-_KEY = re.compile(r"[0-9a-f]{64}\Z")
 
 
 def normal_folder(cwd):
@@ -55,7 +54,7 @@ def key_for(project_id=None, cwd=None):
 
 
 def is_key(value) -> bool:
-    return isinstance(value, str) and _KEY.match(value) is not None
+    return ids.is_digest(value)
 
 
 def parse_keys(text):

@@ -4,6 +4,7 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 from .. import machine
+from ..domain import ids
 from ..machine import WAITING
 from .errors import StoreError
 from .validate import _flag, _integer, _timestamp, _uuid, _validated_record, _validated_tier
@@ -166,8 +167,7 @@ class PolicyMixin:
         transaction, so a person's Let it continue lets it go and only a further change holds it
         again. Only while it still waits unsent and nothing holds it; False when it was not held."""
         _timestamp(now, "now")
-        if not (isinstance(task_print, str) and len(task_print) == 64
-                and all(character in "0123456789abcdef" for character in task_print)):
+        if not ids.is_digest(task_print):
             raise StoreError("Invalid task_print")
         waiting = sorted(WAITING)
         with self._transaction() as connection:

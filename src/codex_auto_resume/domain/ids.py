@@ -121,6 +121,14 @@ def interruption_id(thread_id, turn_id, completed_at, ordinal) -> InterruptionId
     return InterruptionId(hashlib.sha256(text.encode("ascii")).hexdigest())
 
 
+def is_digest(value) -> bool:
+    """Whether `value` is a SHA-256 as the product writes one: 64 lowercase hex digits, with nothing
+    around them. What an interruption id is, and - from v0.6.11 - a project's key (projects.py) and
+    what the task-changed guard keeps of a task (guards.py): one rule for all three."""
+    return (isinstance(value, str) and len(value) == INTERRUPTION_ID_LENGTH
+            and all(character in _HEX_DIGITS for character in value))
+
+
 def is_interruption_id(value, *, as_stored: bool = False) -> bool:
     """Whether `value` is exactly an id `interruption_id` makes: 64 lowercase hex digits.
 
@@ -128,8 +136,7 @@ def is_interruption_id(value, *, as_stored: bool = False) -> bool:
     parent's, or its chain's: 1 to 128 letters, digits, `_` and `-`, as it always has."""
     if as_stored:
         return isinstance(value, str) and _STORED_KEY.fullmatch(value) is not None
-    return (isinstance(value, str) and len(value) == INTERRUPTION_ID_LENGTH
-            and all(character in _HEX_DIGITS for character in value))
+    return is_digest(value)
 
 
 def read_interruption_id(text: str):
