@@ -1,10 +1,96 @@
 # Changelog
 
-## Unreleased — Reports filed with no step by the maintainer
+## v0.6.11-alpha — Two editions, and the ground the advanced one stands on
 
-**Not in a release yet.** This is the repository's own machinery, working from the day it is on
-`main`; what the next release carries of it is the counts file's new comment, and this entry moves
-into that release's when it is opened.
+[The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.10...v0.6.11-alpha)
+
+**A pre-release, published from `main`.** It is a GitHub pre-release, so `releases/latest` never
+answers with it and an installed copy's update check never offers it. It is on `main`, though, and
+the plugin's own route installs what `main`'s manifest says, so an installation made that way gets
+it. It is here because v0.6.11 adds features in two editions and has to be built in stages, and
+this one - the ground both editions stand on - is not a release on its own: there is no advanced
+feature in it to switch on yet. The standard edition behaves as v0.6.10 did, apart from what
+[In the standard edition](#in-the-standard-edition) lists. To leave it, run `Install.cmd` from any
+later release's archive.
+
+### Two editions, from one repository
+
+- **The standard edition is what every release so far has been.** The advanced edition is the
+  standard one plus one Python package, one skill and some window code of its own; every other
+  file in its archive is the standard archive's, byte for byte, apart from the settings window and
+  one display name. Which edition a copy is, is decided by whether that package sits beside the
+  product's code, and by nothing written anywhere - there is no edition file to get wrong.
+- **The standard archive provably holds none of the advanced code.** `build/edition_audit.py`
+  checks that no advanced path, file, name or marker is in it - in a text file, a binary or a zip
+  inside the zip - that the standard archive rebuilt from `git archive` with `advanced/` deleted is
+  byte-identical, and that every standard entry is in the advanced archive unchanged. It runs in CI
+  and before anything is published.
+- **A release is four files and one proof.** Both archives and their `.sha256` sidecars are
+  published together, and one provenance attestation names both. CI tests each edition in lanes of
+  its own.
+
+### Staying in an edition
+
+- **An update stays in the edition that is installed.** `bootstrap.ps1 -Update` keeps it and
+  refuses `-Edition` (exit 12). Asking for the other edition needs `-Edition` and `-Force`;
+  without both it stops with exit 14 before anything is downloaded, and says what changing means.
+- **The installer asks before it changes the edition.** It reads the installed edition before it
+  touches anything, and goes on only with `-AllowEditionChange` or a yes to `Install.cmd`'s
+  question (no is the default). Settings and pending recoveries are kept, every advanced capability
+  starts off, and moving back to standard replaces the app folder whole, so no advanced code stays
+  behind.
+- **Every published bootstrap still updates.** `build/legacy_bootstraps.py` takes each tag's own
+  bootstrap, from v0.5.2 on, out of git, and checks with its own code that it accepts the new
+  archive.
+
+### What the advanced edition stands on
+
+Nothing here can be switched on yet: the list of advanced capabilities is empty. What is here is
+what every one of them will go through.
+
+- **Twelve places where core asks.** At each, the standard edition asks nobody. An advanced
+  capability may always hold something back there; it can never send by itself - the one send is
+  still core's, after core's own consent check, claim and pre-send look. A plug is handed copies,
+  cannot write core's tables, and a channel it names is held to core's launch guard. The claim
+  counts both editions' sends under one lock, so the five-a-day and fifteen-minute limits hold
+  across them.
+- **Its own state, kept apart.** Advanced state lives in `config/advanced/advanced.sqlite`. Nothing
+  is added to the product's state or settings files, and a purge removes it.
+- **Who turns a capability on, and what turns it off.** Each capability will carry a statement, in
+  nine languages, naming the standards it departs from. It is off, watched without acting, or on,
+  and only the Dashboard can turn one on. It can be turned off from anywhere, including from inside
+  Codex, and "All advanced features off" is one action. A capability turns itself off when a
+  submission's result is unknown, a local check fails, the Codex version changes, its statement
+  changes or its code fails. Read-only Windows policy keys can forbid the edition, force it to
+  watch only, or allow only named capabilities.
+- **Measuring before building.** Some capabilities depend on what only a live machine can show.
+  `measure <id>` and `measure-verdict` record, content-free, what a person saw on a throwaway
+  conversation, in `docs/evidence/live/`.
+
+How it was checked: every one of the 283 simulated scenarios gives identical records and identical
+calls to Codex with a plug that defers everywhere, and in the advanced lane with the advanced
+package's own plug. A review from three sides reproduced 21 problems before this was released -
+among them, a plug could change a conversation it was handed and send to one the person had turned
+off - and a second pass found 10 more; each is fixed, with a test that failed before.
+
+### In the standard edition
+
+- **The Design called Still is gone; Reduce motion does what it did.** It drew exactly what Soft
+  with Reduce motion draws, so there were two ways to one picture. A stored Still opens as Soft with
+  Reduce motion on, the same picture from the window's first frame. Reduce motion is the one way to
+  stop the motion now, in every design.
+- **`-NoStartup` works again.** Since v0.5.2 the bootstrap handed the installer its switches by
+  position, so a switch landed on the wrong parameter and the sign-in start was registered anyway.
+  The bootstrap passes them by name now, and the installer reads an older bootstrap's switch as
+  the one it meant.
+- **Nothing the product starts can flash a console window.** Nothing did in v0.6.10 either. Now a
+  test covers everything either edition ships, and the ways one could have appeared are closed: the
+  sign-in start refuses an interpreter that would open one, the watcher restarts itself only
+  windowless, and diagnostics reads the Windows build without starting a program.
+- The installer says which edition it installed, and the settings window's file description names
+  its edition.
+
+### Around the product
 
 - **A compatibility report that passes is filed with no step by the maintainer.**
   `.github/workflows/community-file.yml` wakes when a report's check finishes, and once a day. It
