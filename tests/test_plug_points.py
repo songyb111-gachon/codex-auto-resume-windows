@@ -273,8 +273,7 @@ class Channel:
         self.h, self.calls = h, []
 
     def send(self, thread_id, prompt, *, launch_guard=None):
-        # Read on a connection of its own: core holds a channel to the launch guard, so the
-        # store's own connection is inside the guard's transaction while this runs.
+        # Read on a connection of its own, as a transport outside core would.
         with contextlib.closing(sqlite3.connect(self.h.store.path)) as connection:
             state = connection.execute("SELECT state FROM interruptions WHERE thread_id=?",
                                        (thread_id,)).fetchone()[0]
@@ -338,6 +337,31 @@ class SenderTests(PluggedCase):
                            h.record()["attempt_count"])
         self.assertEqual(seen["careless channel"], seen["backend"])
         self.assertEqual(seen["backend"][0], 0)
+
+    def test_a_channel_sends_with_the_stores_write_lock_let_go(self):
+        """Core reads consent for a channel under the store's write lock, and lets it go before
+        the channel is called, as its backend does once it has launched. Held across the whole
+        send, it kept a Pause from the settings window or the MCP server waiting on a transport
+        core cannot see into, and past SQLite's ten seconds the Pause failed with recovery on."""
+        self.due()
+        writable = []
+
+        class Pausing:
+            def send(self, thread_id, prompt, *, launch_guard=None):
+                with contextlib.closing(sqlite3.connect(path, timeout=0, isolation_level=None)) as other:
+                    try:
+                        other.execute("BEGIN IMMEDIATE")             # what a Pause takes first
+                        other.execute("ROLLBACK")
+                        writable.append(True)
+                    except sqlite3.OperationalError:
+                        writable.append(False)
+                return {"outcome": "unknown"}
+        path = self.h.store.path
+        self.plugged(Asked(sender=Pausing()))
+        self.h.tick()
+        self.assertEqual(writable, [True])
+        self.assert_no_send()
+        self.assertEqual(self.h.record()["state"], "submission_unknown")
 
     def test_what_is_not_a_channel_leaves_the_backend(self):
         self.due()

@@ -312,10 +312,16 @@ class _Channel:
     Core's backend enters the guard it is handed around the one moment it launches the queue
     process, so a Pause, a cancel or a conversation switched off that committed after the claim
     stops the send there. A channel is the plug's code, and nothing made it enter the guard it
-    was handed, so this enters the guard for it: the channel is called only while consent holds,
-    and is handed a guard already held. The store's write lock stays taken for the whole of the
-    channel's send, not only a launch - a Pause waits for the channel rather than racing it,
-    which is the price of a transport core cannot see into."""
+    was handed, so this enters the guard for it: consent is read under the store's write lock,
+    and the channel is called only if it held, with a guard already decided.
+
+    The lock is let go before the channel is called, as core's backend lets it go once the
+    queue process is launched: calling the channel is this send's launch. It is never held
+    across the channel's send. That is a transport core cannot see into, and the lock is the
+    advanced state's too once the claim has attached it, so a Pause from the settings window,
+    a disarm on another thread and the channel's own write to the advanced state all waited
+    for it - and failed, past SQLite's ten seconds. A Pause that commits once consent was read
+    finds a send started, as it finds one of the backend's after its launch."""
     __slots__ = ("_send",)
 
     def __init__(self, send):
@@ -323,9 +329,10 @@ class _Channel:
 
     def send(self, thread_id, prompt, *, launch_guard=None):
         with launch_guard if launch_guard is not None else nullcontext(True) as permitted:
-            if permitted is not True:
-                return {"outcome": "not_started", "error_code": "queue_consent_refused"}
-            return self._send(thread_id, prompt, launch_guard=nullcontext(True))
+            pass
+        if permitted is not True:
+            return {"outcome": "not_started", "error_code": "queue_consent_refused"}
+        return self._send(thread_id, prompt, launch_guard=nullcontext(True))
 
 
 class Guarded:
