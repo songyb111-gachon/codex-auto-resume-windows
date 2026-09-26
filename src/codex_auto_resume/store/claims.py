@@ -66,18 +66,20 @@ class _LedgerConnection:
     """The claim's connection as a ledger is handed it: `execute`, and nothing else.
 
     Not the connection itself, whose authorizer, row factory and transaction are the claim's to
-    set: a ledger holding it could have taken the authorizer off before it wrote. It is closed
-    once the ledger has answered, so one a ledger kept is no way into a later transaction."""
-    __slots__ = ("_execute", "close")
+    set: a ledger holding it could have taken the authorizer off before it wrote. What ends it
+    is the claim's own (`_ledger_holds`), and nothing on this object: its `close` was an
+    attribute a ledger could set to a no-op, and the handle it kept then wrote core's tables
+    after the authorizer was gone. Nothing can be set on it at all."""
+    __slots__ = ("_execute",)
 
-    def __init__(self, connection):
-        live = [connection]
+    def __init__(self, execute):
+        object.__setattr__(self, "_execute", execute)
 
-        def execute(statement, parameters=()):
-            if not live:
-                raise sqlite3.ProgrammingError("the claim this connection was handed for is over")
-            return _Rows(live[0].execute(statement, parameters).fetchall())
-        self._execute, self.close = execute, live.clear
+    def __setattr__(self, name, value):
+        raise AttributeError("the claim's connection has nothing to set")
+
+    def __delattr__(self, name):
+        raise AttributeError("the claim's connection has nothing to delete")
 
     def execute(self, statement, parameters=()):
         return self._execute(statement, parameters)
@@ -231,13 +233,20 @@ class ClaimsMixin:
         plug adds to.
         """
         connection.execute("SAVEPOINT claim_ledger")
-        handed = _LedgerConnection(connection)
+        # The handle's one way to the connection. Emptied here once the ledger has answered, so
+        # a handle it kept is no way into a later transaction.
+        live = [connection]
+
+        def execute(statement, parameters=()):
+            if not live:
+                raise sqlite3.ProgrammingError("the claim this connection was handed for is over")
+            return _Rows(live[0].execute(statement, parameters).fetchall())
         connection.set_authorizer(_ledger_authorizer)
         try:
-            answer, broke = ledger.claim_ledger_checked(handed, row, now)
+            answer, broke = ledger.claim_ledger_checked(_LedgerConnection(execute), row, now)
         finally:
             connection.set_authorizer(None)
-            handed.close()
+            live.clear()
         held = answer is Alternative.HOLD or (broke and carried)
         if held or broke:
             connection.execute("ROLLBACK TO claim_ledger")
