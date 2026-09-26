@@ -76,6 +76,22 @@ class SessionRefused(RuntimeError):
     forbidden outright. A static reason only - never a value, a path or a conversation."""
 
 
+def _refused_by_codex(method, code):
+    """Codex answered, and its answer was no: a measurement's result, not a failure to reach it.
+    Raised as core's AdapterError, so a caller that knows only that still stops, and carrying the
+    method and Codex's numeric error code - nothing Codex wrote in words. M3 on codex-cli
+    0.158.0-alpha.2.1 (2026-09-26) was the case: an empty thread/queue/add is refused with -32600,
+    and the harness first recorded that as "not reached"."""
+    from codex_auto_resume.codex.errors import AdapterError
+
+    class RefusedByCodex(AdapterError):
+        pass
+    refusal = RefusedByCodex("protocol_request_failed")
+    refusal.method = method
+    refusal.code = code if isinstance(code, int) and not isinstance(code, bool) else None
+    return refusal
+
+
 def methods_for(measurement) -> frozenset:
     """The methods `measurement` may call, `initialize` always among them and a forbidden method
     never, whatever the table says."""
@@ -182,7 +198,8 @@ class Session:
                 if response.get("id") != sequence:
                     continue
                 if "error" in response:
-                    raise AdapterError("protocol_request_failed")
+                    error = response.get("error")
+                    raise _refused_by_codex(method, error.get("code") if isinstance(error, dict) else None)
                 return response.get("result")
         except (queue.Empty, OSError, ValueError):
             raise AdapterError("protocol_unavailable") from None

@@ -209,13 +209,21 @@ def _mw(ctx):
         return _blocked("the launcher reported nothing", wmi_started=False)
     observed = {"wmi_started": bool(facts.get("started")),
                 "in_job": bool(facts.get("in_job")),
+                "job_kills_on_close": bool(facts.get("job_kills_on_close")),
                 "kill_on_close": bool(facts.get("kill_on_close")),
                 "survived_codex_close": bool(facts.get("survived"))}
-    escaped = observed["wmi_started"] and not observed["in_job"] and observed["survived_codex_close"]
+    # What decides it is whether anything can still end the watcher, not whether Windows keeps it
+    # in some job: a process WMI starts sits in a large job of Windows' own, with BREAKAWAY_OK and
+    # SILENT_BREAKAWAY_OK and no KILL_ON_JOB_CLOSE (measured 2026-09-26 on Windows 11 26200), and
+    # the first version of this asked for no job at all and left a working escape blocked. So: it
+    # started, the job built in Codex's shape did end its own member (the shape held), the
+    # heartbeat outlived that, and the job it is in now would not end it when it closes.
+    escaped = (observed["wmi_started"] and observed["kill_on_close"] and observed["survived_codex_close"]
+               and not observed["job_kills_on_close"])
     if escaped:
         return Verdict.PASS, observed, None
-    return _blocked("the WMI-started watcher did not leave Codex's job or did not survive its "
-                    "close; re-measure before offering start-with-Codex", **observed)
+    return _blocked("the WMI-started watcher did not leave Codex's job, sits in a job that would "
+                    "end it, or did not survive; re-measure before offering start-with-Codex", **observed)
 
 
 PROBES = {
@@ -253,7 +261,15 @@ def probe(ctx) -> tuple:
     same way and none has to carry the thread through."""
     try:
         verdict, observed, note = PROBES[ctx.measurement](ctx)
-    except (EvidenceUnavailable, SessionRefused, AdapterError) as exc:
+    except AdapterError as exc:
+        if hasattr(exc, "method"):
+            # Codex was reached and said no to a call this measurement needs: the capability's
+            # premise does not hold on this Codex, which is a fail, not a measurement that could
+            # not run. The method and Codex's error code are recorded; its words never are.
+            return (Verdict.FAIL, ctx.given({"refused_method": exc.method, "refusal_code": exc.code}),
+                    "Codex refused a call this measurement needs")
+        return Verdict.BLOCKED, {"thread_given": ctx.thread_given}, "not reached: %s" % type(exc).__name__
+    except (EvidenceUnavailable, SessionRefused) as exc:
         return Verdict.BLOCKED, {"thread_given": ctx.thread_given}, "not reached: %s" % type(exc).__name__
     return verdict, ctx.given(observed), note
 
