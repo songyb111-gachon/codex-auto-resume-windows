@@ -166,6 +166,11 @@ class WellFormedTests(unittest.TestCase):
         for path in sorted(EVIDENCE.glob("*.json")):
             with self.subTest(path.name):
                 document = json.loads(path.read_text(encoding="utf-8"))
+                if isinstance(document, dict) and document.get("format") == live_evidence.MEASUREMENT_FORMAT:
+                    # The advanced harness's measurement record (v0.6.11): not a step of this
+                    # procedure, held - as the validator holds it - to the content rule alone.
+                    self.assertEqual(live_evidence.content_refusals(document), [])
+                    continue
                 self.assertEqual(live_evidence.refusals(
                     path.name, document, product_version=live_evidence.config.version()), [])
 
