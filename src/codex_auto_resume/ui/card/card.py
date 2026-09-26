@@ -22,13 +22,10 @@ class Card:
         self.edge, self.born, self._breathed = "bottom", now_ms, now_ms
         self.scale = where["dpi"] / 96.0
         self.theme, self.contrast = drawn["theme"], drawn["contrast"]
-        # v0.6.10: the design, and the two gates it splits motion into (win32.look): the light's breath,
-        # and the card's own entrance, exit and slide. A look without them is Soft's, gated by `reduced`.
+        # v0.6.10: the design (win32.look), which chooses paint only. What moves - the light's breath, and
+        # the card's own entrance, exit and slide - is held by `reduced` alone, the same in every design.
         self.design = popup.design_choice(drawn.get("design"))
-        stopped = bool(drawn["reduced"])
-        self.light_still = bool(drawn.get("light_still", not brand.light_moves(self.design, stopped=stopped)))
-        controls_still = bool(drawn.get("controls_still", not brand.controls_move(self.design, stopped=stopped)))
-        self.motion = notice_card.CardMotion(now_ms, hold_ms=stack.hold(), reduced=controls_still)
+        self.motion = notice_card.CardMotion(now_ms, hold_ms=stack.hold(), reduced=bool(drawn["reduced"]))
         self.hover = self.pressed = None
         self.tracking = False
         self.pushed_out = False
@@ -68,7 +65,7 @@ class Card:
     def _glow(self, now_ms):
         """The light for `now_ms`: its own moment, counted from when the card came."""
         age = 0.0 if now_ms is None else now_ms - self.born
-        return None if self.contrast else brand.glow(self.vm["status"], age, age, reduced=self.light_still,
+        return None if self.contrast else brand.glow(self.vm["status"], age, age, reduced=self.motion.reduced,
                                                      design=self.design)
 
     def _draw_card(self, now_ms=None):
@@ -141,8 +138,7 @@ class Card:
         runs at the popup's rate then, and on every other one while another card moves. Less one motion
         frame, so a tick that lands a little early is not left for the next. The stack asks only while
         this card stands still."""
-        if self.contrast or not brand.glow_moves(self.vm["status"], now_ms - self.born, reduced=self.light_still,
-                                                 design=self.design):
+        if self.contrast or not brand.glow_moves(self.vm["status"], now_ms - self.born, reduced=self.motion.reduced):
             return False
         if now_ms - self._breathed >= notice_card.BREATH_FRAME_MS - notice_card.FRAME_MS:
             self._draw_light(now_ms)

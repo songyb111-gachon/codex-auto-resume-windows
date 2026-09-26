@@ -336,15 +336,15 @@ namespace CodexAutoResume
         }
 
         /// Scrolls to `target` pixels down, as far as there is to scroll. With `animate` it glides
-        /// there, unless motion is reduced, the design does not glide (Soft.ControlsStill) or it is not
-        /// on screen; otherwise it is there at once.
+        /// there, unless motion is reduced (Soft.ReduceMotion) or it is not on screen; otherwise it is
+        /// there at once.
         internal void ScrollTo(int target, bool animate)
         {
             if (!scrolls) return;
             int range = overflow ? Math.Max(0, extent - ClientSize.Height) : 0;
             target = Math.Max(0, Math.Min(range, target));
             glideTarget = target;
-            if (animate && !Soft.ControlsStill && IsHandleCreated && Soft.Shown(this))
+            if (animate && !Soft.ReduceMotion && IsHandleCreated && Soft.Shown(this))
             {
                 if (!glide.Enabled) glide.Start();
                 return;

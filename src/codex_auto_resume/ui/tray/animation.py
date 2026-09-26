@@ -11,7 +11,6 @@ import ctypes as C
 import threading
 import time
 
-from ... import brand
 from ...tray_place import IconPlacement, battery_saver
 from .motion import (build_icon_frames,
                      icon_frame,
@@ -62,9 +61,9 @@ class AnimationMixin:
 
         Windows is asked what may move only when the state has something to move, and whether
         the icon is in the overflow flyout only when nothing else already holds it still. The
-        product's own Reduce motion and Design are taken from the stored settings on the same tick
-        (`_adopt_motion_settings`), so a Save in the window holds the icon within a second: Reduce
-        motion in every design, and Still, whose light does not breathe (v0.6.10), in any case.
+        product's own Reduce motion is taken from the stored settings on the same tick
+        (`_adopt_reduce_motion`), so a Save in the window holds the icon within a second. The Design
+        setting has no say: the icon moves alike in each, and only a stopper holds it.
         """
         attention = popup_attention(self._popup)
         state = icon_state(snapshot, attention=attention, failed=snapshot.get("failed") is True)
@@ -75,9 +74,8 @@ class AnimationMixin:
         allowed = False
         if icon_frame_ms(state, (now - self._epoch) * 1000.0, since) is not None:
             from .. import popup as tray_popup
-            self._adopt_motion_settings(tray_popup)
-            still = tray_popup.reduced_motion() or not brand.design_breathes(tray_popup.design_setting())
-            allowed = icon_motion_allowed(reduced=still, contrast=tray_popup.high_contrast(),
+            self._adopt_reduce_motion(tray_popup)
+            allowed = icon_motion_allowed(reduced=tray_popup.reduced_motion(), contrast=tray_popup.high_contrast(),
                                           battery_saver=battery_saver(),
                                           locked=self._session_locked or self._session_away,
                                           frames=bool(self._frames))

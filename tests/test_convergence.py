@@ -28,6 +28,7 @@ import re
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -88,12 +89,34 @@ class InterpreterTests(unittest.TestCase):
             self.assertEqual(plugin_setup.python_for_watcher(home),
                              home / "runtime" / "pythonw.exe")
 
-    def test_console_interpreter_is_used_when_there_is_no_windowless_one(self):
+    def test_a_runtime_without_pythonw_is_not_an_installation(self):
+        """It used to be one, with python.exe registered in its place: Windows starts the Run
+        value and the notification button plainly, so each opened a console window, and the
+        sign-in watcher's stayed for the whole session. Setup now says the runtime is not
+        installed and prints the command that installs it again."""
         with tempfile.TemporaryDirectory() as name:
             home = make_home(Path(name))
             (home / "runtime" / "pythonw.exe").unlink()
-            self.assertEqual(plugin_setup.python_for_watcher(home),
-                             home / "runtime" / "python.exe")
+            self.assertFalse(plugin_setup.installed(home))
+            self.assertIsNone(plugin_setup.bundled_python(home))
+            self.assertEqual(plugin_setup.bundled_python(home, windowless=False), home / "runtime" / "python.exe")
+
+    def test_no_route_names_a_console_interpreter(self):
+        with tempfile.TemporaryDirectory() as name:
+            home = make_home(Path(name))
+            (home / "runtime" / "pythonw.exe").unlink()
+            # Not the bundled python.exe beside the missing pythonw.exe, whatever else happens.
+            with mock.patch.object(plugin_setup.startup.sys, "executable", str(home / "runtime" / "python.exe")):
+                with self.assertRaises(plugin_setup.startup.StartupError):
+                    plugin_setup.python_for_watcher(home)
+                with self.assertRaises(plugin_setup.startup.StartupError):
+                    plugin_setup.watcher_command(home)
+                with self.assertRaises(plugin_setup.startup.StartupError):
+                    plugin_setup.notification_command(home)
+                with mock.patch.object(plugin_setup, "App") as app,                         mock.patch.object(plugin_setup.subprocess, "Popen") as popen:
+                    app.return_value.watcher_running.return_value = False
+                    self.assertEqual(plugin_setup.start_watcher(home), "not-started")
+                popen.assert_not_called()
 
     def test_it_falls_back_only_when_nothing_is_installed(self):
         with tempfile.TemporaryDirectory() as name:

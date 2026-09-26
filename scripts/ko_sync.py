@@ -33,6 +33,12 @@ import re
 import subprocess
 import sys
 
+# A developer tool, run from a terminal, but it ships inside scripts/ with the product, and
+# everything the product ships starts its console programs with a hidden console of their
+# own (tests/test_no_console_windows.py). git from a program with no console would open a
+# window per call. Every call here captures what git prints, so nothing is lost by it.
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
 MAPPING_NAME = "scripts/ko_branch.json"
 NOTICE_PATH = ".github/GENERATED-BRANCH.md"
 
@@ -96,7 +102,7 @@ def tracked_markdown(root: Path, expected_missing=()) -> list[Path]:
     code - which is precisely what `test_it_touches_no_code` exists to catch, and it did.
     """
     listing = subprocess.run(["git", "-C", str(root), "ls-files", "-z", "--", "*.md"],
-                             capture_output=True, text=True, encoding="utf-8")
+                             capture_output=True, text=True, encoding="utf-8", creationflags=NO_WINDOW)
     if listing.returncode != 0:
         raise SystemExit("ko_sync needs a git checkout; `git ls-files` failed here")
     # NUL-separated, because git prints a path containing a space raw and a non-ASCII
@@ -197,7 +203,7 @@ TRAILER = "Korean-sources:"
 
 def git(root: Path, *args: str, check: bool = True) -> str:
     done = subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True,
-                          encoding="utf-8")
+                          encoding="utf-8", creationflags=NO_WINDOW)
     if check and done.returncode != 0:
         raise SystemExit("git %s failed: %s" % (" ".join(args), done.stderr.strip()))
     return done.stdout
@@ -244,7 +250,7 @@ def bring_korean(root: Path) -> list[str]:
         return []
     commit = korean_sources_commit(root)
     if subprocess.run(["git", "-C", str(root), "merge-base", "--is-ancestor", commit, "HEAD"],
-                      capture_output=True).returncode != 0:
+                      capture_output=True, creationflags=NO_WINDOW).returncode != 0:
         raise SystemExit("%s names %s, which is not in this checkout's history" % (TRAILER, commit))
     mapping = load_mapping(root)
     moved = [english for english in sorted(mapping["documents"].values())

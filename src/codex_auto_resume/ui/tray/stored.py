@@ -57,8 +57,8 @@ class StoredMixin:
         except Exception as exc:                # an unreadable file costs the new words, nothing else
             self.log("tray settings read failed (%s)" % type(exc).__name__)
 
-    def _adopt_motion_settings(self, tray_popup):
-        """Take up the stored Reduce motion and Design on the tick that decides whether the icon may move.
+    def _adopt_reduce_motion(self, tray_popup):
+        """Take up the stored Reduce motion on the tick that decides whether the icon may move.
 
         The watcher adopts a changed settings file at its own next tick, poll_seconds away - 30 s
         by default and up to an hour - and a Save in the window wakes nothing, so an icon that
@@ -66,11 +66,12 @@ class StoredMixin:
         itself instead: a look at the file's stamp a second while there is something to move, and
         a read only when the file changed (`_stored_settings`). What it read is set again on every
         such tick, so a watcher tick that read the file just before the save is overruled a second
-        later. An unreadable file keeps the settings there are, and is said once until it reads again.
+        later. An unreadable file keeps the setting there is, and is said once until it reads again.
 
-        v0.6.10: the design too, which can hold the icon as Reduce motion does - Still's light does not
-        breathe - and was `_adopt_reduce_motion` until then. The icon's pixels are the same in every
-        design: the mark is not a theme token, and it stays the brand's whatever the design.
+        v0.6.10 took up the Design here too, as `_adopt_motion_settings`, because Still's light did not
+        breathe. Since v0.6.11 no design holds anything - a Still stored by v0.6.10 reads as Reduce motion
+        (settings._migrate) - so Reduce motion is again all this takes up. The icon's pixels are the same
+        in every design: the mark is not a theme token, and it stays the brand's whatever the design.
         """
         try:
             values = self._stored_settings()
@@ -82,4 +83,3 @@ class StoredMixin:
         self._motion_read_failed = False
         if values is not None:
             tray_popup.set_reduce_motion(values.get("reduce_motion"))
-            tray_popup.set_design(values.get("design"))

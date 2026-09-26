@@ -31,6 +31,12 @@ from pathlib import Path
 import subprocess
 import sys
 
+# A developer tool, run from a terminal, but it ships inside scripts/ with the product, and
+# everything the product ships starts its console programs with a hidden console of their
+# own (tests/test_no_console_windows.py). git from a program with no console would open a
+# window per call. Every call here captures what git prints, so nothing is lost by it.
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
 TRAILER = "Korean-sources:"
 
 
@@ -40,7 +46,7 @@ class Refused(SystemExit):
 
 def git(root: Path, *args: str, check: bool = True) -> str:
     done = subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True,
-                          encoding="utf-8")
+                          encoding="utf-8", creationflags=NO_WINDOW)
     if check and done.returncode != 0:
         raise Refused("git %s failed: %s" % (" ".join(args), (done.stderr or done.stdout).strip()))
     return done.stdout
@@ -74,7 +80,7 @@ def to_main(root: Path, dev: str, title: str, body: str = "") -> str:
     if dev_sha == git(root, "rev-parse", "HEAD").strip():
         raise Refused("main is already %s; there is nothing to promote" % dev)
     if subprocess.run(["git", "-C", str(root), "merge-base", "--is-ancestor", "HEAD", dev_sha],
-                      capture_output=True).returncode != 0:
+                      capture_output=True, creationflags=NO_WINDOW).returncode != 0:
         raise Refused("%s does not contain main yet. On dev, run `promote.py into-dev` (which "
                       "keeps the Korean documents), push it, and let dev's CI pass first." % dev)
     korean = korean_blobs(root, dev_sha)
@@ -86,7 +92,7 @@ def to_main(root: Path, dev: str, title: str, body: str = "") -> str:
         message = title.strip() + "\n\n" + (body.strip() + "\n\n" if body.strip() else "") + \
             "The Korean documents stay on dev; main is English only.\n\n%s %s\n" % (TRAILER, dev_sha)
         done = subprocess.run(["git", "-C", str(root), "commit", "-q", "-F", "-"], input=message,
-                              capture_output=True, text=True, encoding="utf-8")
+                              capture_output=True, text=True, encoding="utf-8", creationflags=NO_WINDOW)
         if done.returncode != 0:
             raise Refused("git commit failed: " + (done.stderr or done.stdout).strip())
     except BaseException:
@@ -109,7 +115,7 @@ def restore(root: Path) -> None:
     and the staged deletions of every Korean file would stay; the checkout was clean when this
     started (require_clean_branch), so resetting to HEAD loses nothing."""
     merging = subprocess.run(["git", "-C", str(root), "rev-parse", "-q", "--verify", "MERGE_HEAD"],
-                             capture_output=True).returncode == 0
+                             capture_output=True, creationflags=NO_WINDOW).returncode == 0
     if merging:
         git(root, "merge", "--abort", check=False)
     git(root, "reset", "-q", "--hard", "HEAD", check=False)
@@ -119,11 +125,11 @@ def into_dev(root: Path, main: str) -> str | None:
     require_clean_branch(root, "dev")
     main_sha = git(root, "rev-parse", main + "^{commit}").strip()
     if subprocess.run(["git", "-C", str(root), "merge-base", "--is-ancestor", main_sha, "HEAD"],
-                      capture_output=True).returncode == 0:
+                      capture_output=True, creationflags=NO_WINDOW).returncode == 0:
         return None                                       # dev already contains main
     before = korean_blobs(root, "HEAD")
     merged = subprocess.run(["git", "-C", str(root), "merge", "--no-ff", "--no-commit", main_sha],
-                            capture_output=True, text=True, encoding="utf-8")
+                            capture_output=True, text=True, encoding="utf-8", creationflags=NO_WINDOW)
     try:
         conflicted = git(root, "diff", "--name-only", "--diff-filter=U").split()
         other = [path for path in conflicted if not path.endswith(".ko.md")]
@@ -144,7 +150,7 @@ def into_dev(root: Path, main: str) -> str | None:
                    "Merges %s. Every *.ko.md dev had is kept as it was: main is English only, "
                    "and its deletions of them are not dev's.\n" % main_sha)
         done = subprocess.run(["git", "-C", str(root), "commit", "-q", "-F", "-"], input=message,
-                              capture_output=True, text=True, encoding="utf-8")
+                              capture_output=True, text=True, encoding="utf-8", creationflags=NO_WINDOW)
         if done.returncode != 0:
             raise Refused("git commit failed: " + (done.stderr or done.stdout).strip())
     except BaseException:
