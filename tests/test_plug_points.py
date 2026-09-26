@@ -45,6 +45,7 @@ from codex_auto_resume import (config, continuation, control, controlcli, diagno
 from codex_auto_resume.domain.plug import (DEFER, EXTRA, Alternative, Plug, Point,  # noqa: E402
                                            Surface, guard)
 from codex_auto_resume.engine import Engine  # noqa: E402
+from codex_auto_resume.engine.options import VIEW_READS  # noqa: E402
 from codex_auto_resume.mcp.tools import TOOLS as MCP_TOOLS  # noqa: E402
 from codex_auto_resume.runtime.app import App  # noqa: E402
 
@@ -809,11 +810,12 @@ class HandedCopiesTests(PluggedCase):
         everything in core's process is to code that goes looking for it."""
         self.due()
         self.h.store.set_thread_enabled(T2, False, at=self.h.now)
-        reached = []
+        reached, seen = [], set()
 
         def tick(view):
+            seen.update(name for name in VIEW_READS if callable(getattr(view, name, None)))
             for way in (lambda: view._store, lambda: view.get.__self__,
-                        lambda: view._read("get").__self__):
+                        lambda: view._reads["get"].__self__):
                 try:
                     reached.append(way())
                 except AttributeError:
@@ -824,6 +826,7 @@ class HandedCopiesTests(PluggedCase):
         self.plugged(Asked(tick=tick))
         self.h.tick()
         self.assertEqual(reached, [])
+        self.assertEqual(seen, set(VIEW_READS), "every read the view declares is one it hands over")
         self.assertFalse(self.h.store.thread_enabled(T2))
         self.assertEqual(len(self.h.backend.send_calls), 1)
 

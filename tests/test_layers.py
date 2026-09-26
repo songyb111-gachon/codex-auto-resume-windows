@@ -136,9 +136,12 @@ MCP = {_q("mcpserver"), _q("mcp")}
 # the icon used to own and the other two imported out of it - the cycle that is now gone.
 UI_MAY_IMPORT = ({_q("control"), _q("machine"), _q("domain.public"), _q("l10n"), _q("interface"),
                   _q("win"), _q("win.dll")} | UI)
-PURE_STDLIB = {"__future__", "abc", "collections", "dataclasses", "decimal", "enum", "fractions", "functools",
-               "hashlib", "itertools", "json", "math", "numbers", "operator", "re", "string", "textwrap",
-               "types", "typing", "uuid"}
+# v0.6.11 adds `copy` and `contextlib` for domain/plug.py: a hook is handed deep copies, and a
+# channel that is given no launch guard is given `nullcontext(True)`. Neither reads a clock,
+# touches a file or reaches Windows.
+PURE_STDLIB = {"__future__", "abc", "collections", "contextlib", "copy", "dataclasses", "decimal", "enum",
+               "fractions", "functools", "hashlib", "itertools", "json", "math", "numbers", "operator", "re",
+               "string", "textwrap", "types", "typing", "uuid"}
 
 # Target rules that do not hold yet: the real edges that break them. Each fails the test the
 # day it no longer exists, so these only shrink.
