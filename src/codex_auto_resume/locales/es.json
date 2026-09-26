@@ -346,7 +346,7 @@
   "help.style.standard": "Indica por qué se detuvo la tarea y luego pide a Codex que lo vuelva a intentar. Recomendado.",
   "help.theme": "Claro u oscuro para el Panel, la ventana emergente del área de notificación y la tarjeta de notificación, y para el panel de Codex mientras Tema en Codex sea Igual que el tema. La opción Usar la configuración del sistema sigue a Windows en los tres primeros y, en el panel de Codex, el tema del propio Codex.",
   "help.panel_theme": "Claro u oscuro solo para el panel de Codex. Igual que el tema usa la opción de arriba; Tema de Codex sigue a Codex sea cual sea el tema.",
-  "help.design": "Cómo se dibujan el Panel, la ventana emergente del área de notificación, la tarjeta de notificación y el panel de Codex; claro u oscuro lo sigue decidiendo el Tema. Suave tiene relieve; Clásico (v0.6.2) es plano, con las barras de acento de esa versión; Sencillo es plano y gris. El contraste alto sustituye a cualquier estilo, y Reducir movimiento detiene el movimiento en todos.",
+  "help.design": "Suave tiene relieve; Clásico (v0.6.2) es plano, con barras de acento; Sencillo es plano y gris.",
   "history.col_detected": "Detectada",
   "history.col_finished": "Terminada",
   "history.col_outcome": "Resultado",

@@ -346,7 +346,7 @@
   "help.style.standard": "Diz por que a tarefa parou e pede ao Codex que tente novamente. Recomendado.",
   "help.theme": "Claro ou escuro para o Dashboard, o pop-up da área de notificação e o cartão de notificação, e para o painel no Codex enquanto Tema no Codex for Igual ao tema. A opção Usar a configuração do sistema segue o Windows nos três primeiros e, no painel, o tema do próprio Codex.",
   "help.panel_theme": "Claro ou escuro apenas para o painel no Codex. Igual ao tema usa a opção acima; Tema do Codex segue o Codex seja qual for o tema.",
-  "help.design": "Como o Dashboard, o pop-up da área de notificação, o cartão de notificação e o painel no Codex são desenhados; claro ou escuro continua a cargo do Tema. Suave tem relevo; Clássico (v0.6.2) é plano, com as barras de destaque daquela versão; Simples é plano e cinza. O alto contraste substitui qualquer estilo, e Reduzir movimento interrompe o movimento em todos.",
+  "help.design": "Suave tem relevo; Clássico (v0.6.2) é plano, com barras de destaque; Simples é plano e cinza.",
   "history.col_detected": "Detecção",
   "history.col_finished": "Conclusão",
   "history.col_outcome": "Resultado",
