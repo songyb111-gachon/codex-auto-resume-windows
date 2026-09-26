@@ -227,7 +227,12 @@ resuming is safe. Codex's databases are opened read-only (SQLite `mode=ro` with
   path; those are parsed and discarded;
 - rate-limit and usage snapshots, for the reset timestamp;
 - `threads.name`, the project name and the working directory (only its last segment is
-  kept), used only as labels in a notification.
+  kept), used only as labels in a notification;
+- from v0.6.11, and only while Settings let some projects resume without you and not others (the
+  default lets every project resume, and then this is never read): the conversation's project id
+  and working directory, read to make one SHA-256 digest of the project - the id's, or else the
+  directory's - and dropped. The digest decides whether an interruption waits for you when it is
+  detected; nothing is ever found by it.
 
 It also asks Windows content-free questions, chiefly two: which ChatGPT and Codex processes are
 running (process id, parent and executable path), to find the desktop app; and, through the
@@ -427,7 +432,10 @@ default (or wherever `CODEX_AUTO_RESUME_PLUGIN_HOME`, or failing that
   `uninstall` deletes `state.sqlite` unless you pass `--keep-state`, and leaves this copy either way;
 - `config/settings.json` — your settings, including the interface and continuation languages
   and, from v0.6.3, any Custom message you write in the Dashboard: the message for every
-  interruption and any per-kind ones, each at most 2,000 characters, stored exactly as typed;
+  interruption and any per-kind ones, each at most 2,000 characters, stored exactly as typed. From
+  v0.6.11 it may also hold two lists of projects you set, on a task's row, to resume or to wait for
+  you: at most 50 each, and each project only as the 64-digit digest described above - never its
+  name or its path;
 - `config/strings-cache.json` — written by the Dashboard window so it can show its first screen
   without waiting for the Python side: the interface text in the language it resolved, the stored
   Interface language and the language Windows prefers, and the key that says whether the copy is

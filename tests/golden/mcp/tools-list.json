@@ -349,6 +349,27 @@
                 "minimum": 1,
                 "maximum": 60,
                 "description": "How long the objection window waits before a continuation is sent."
+              },
+              "observe_only": {
+                "type": "boolean",
+                "description": "Observe only: every check still runs and when a continuation would have been sent is recorded, but nothing is sent. false (the default) sends as usual."
+              },
+              "new_conversation_policy": {
+                "type": "string",
+                "enum": [
+                  "resume",
+                  "notify_only"
+                ],
+                "description": "What a conversation this product has never seen before gets: resume (the default: the same as every other conversation) or notify_only (its own tier becomes Only notify me, so nothing is sent for it until a person lets a task continue)."
+              },
+              "project_policy": {
+                "type": "string",
+                "enum": [
+                  "every",
+                  "only_listed",
+                  "except_listed"
+                ],
+                "description": "Which projects resume without a person: every (the default), only_listed (only projects a person set to Always on a task's row) or except_listed (every project but those set to Never). An interruption of any other project, or of one whose project cannot be read, waits for a person and is never dropped. Applies to interruptions detected after it is chosen."
               }
             },
             "additionalProperties": false

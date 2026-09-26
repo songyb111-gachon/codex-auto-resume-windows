@@ -192,6 +192,12 @@ this product's plugin and marketplace).
   it for 24 hours, and if the message turns out to have arrived it is matched to the exact turn
   it started and follows that turn to its outcome. (`resumed`, the name v0.5 wrote on delivery,
   is kept so old rows stay valid and is never written now.)
+- **Observe only sends nothing, twice over.** From v0.6.11 Observe only is refused by the watcher on
+  the setting and by the claim itself on the state's own switch, which the setting is written into, so
+  either one alone stops a send the other has not heard of yet. What a conversation seen for the first
+  time gets and which projects may resume only ever hold an interruption for a person when it is
+  detected, and a project that cannot be read is held; a project is only a digest, it narrows what
+  may be sent and never names a conversation, whose identity stays its exact UUID.
 - **Path confinement.** Owned directories are rejected if they are links, or if they resolve outside the
   configured home. The resolve-based check also catches NTFS junctions, which `is_symlink()` does not.
 - **No contention with the app's thread lock.** There is no byte-lock API anywhere in the adapter.

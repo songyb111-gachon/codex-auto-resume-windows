@@ -919,7 +919,7 @@ namespace CodexAutoResume
                 entry["to_code"] = states[i];
                 events.Add(entry);
             }
-            using (Form dialog = BuildTimeline(row, events))
+            using (Form dialog = BuildTimeline(row, events, null))
             {
                 dialog.TopLevel = false;
                 Materialise(dialog);

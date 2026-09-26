@@ -119,9 +119,10 @@ class DetectMixin:
             progress = self.source.turn_progress(detection["thread_id"], detection["turn_id"])
             carry = None if owner else self._legacy_carry(detection)
             # v0.6.11: a conversation that asks first, or only notifies, has what it detects held
-            # for a person from the start - its tier as it stands now (machine.hold_for_tier).
-            # None at the defaults, where every conversation is resumed automatically.
-            hold = machine.hold_for_tier(self.tier(detection["thread_id"]))
+            # for a person from the start - its tier as it stands now (machine.hold_for_tier) - and
+            # so does one new to this state or in a project not let resume, when Settings say so
+            # (admission). None at the defaults, where every conversation is resumed automatically.
+            hold = self.admission(detection["thread_id"], now)
             # One transaction: the record can never exist without its real schedule and
             # the counters of the task it continues.
             if not self.store.register(detection, now, state=state, next_retry_at=when,

@@ -7,7 +7,8 @@ from __future__ import annotations
 
 import time
 
-from .. import quiet, settings
+from .. import projects, quiet, settings
+from ..machine import WAITING
 from ..store import TERMINAL, StoreError
 from ..windows import WakeEvent
 from .errors import (ControlError,
@@ -271,6 +272,65 @@ class ActionsMixin:
                     raise ControlError("that recovery has already finished", code="already_finished")
             result = store.set_thread_tier(thread, tier, time.time(), actor=actor)
         return {"thread_id": thread, "tier": result["tier"], "held": result["held"]}
+
+    def set_project_rule(self, interruption_id, thread_id, always, *, source=None,
+                         actor: str = "gui") -> dict:
+        """Always, or Never, for the project one exact task's conversation is filed under (v0.6.11).
+
+        Chosen from the task's row, so the click carries its interruption and its conversation and is
+        refused if the record has gone, finished or is another conversation's. The project is read
+        through `source` - Codex's own state, read-only - as a key and nothing more (projects.py),
+        and the key is written into Settings' Always or Never list. Never also holds, for a person,
+        what waits unsent in that project; Always lets nothing go that is held. Nothing is sent."""
+        key, thread = _identifier(interruption_id), _thread_id(thread_id)
+        if not isinstance(always, bool):
+            raise ControlError("always must be true or false", code="invalid_enabled")
+        with self._open() as store:
+            self._bound_record(store, key, thread)
+        project = self._project_of(source, thread)
+        if project is None:
+            raise ControlError("the project of that conversation cannot be read",
+                               code="project_unreadable")
+        try:
+            changes = projects.rule(self.get_settings(), project, always)
+        except ValueError:
+            raise ControlError("at most %d projects can be listed" % projects.MAX_KEYS,
+                               code="too_many_projects") from None
+        saved = self.update_settings(changes)
+        allowed, held = projects.allows(saved, project), 0
+        if not allowed:
+            with self._open() as store:
+                keys, seen = [], {thread: project}
+                for row in store.pending():
+                    if row["hold"] is not None or row["state"] not in WAITING:
+                        continue
+                    if row["thread_id"] not in seen:
+                        seen[row["thread_id"]] = self._project_of(source, row["thread_id"])
+                    if seen[row["thread_id"]] == project:
+                        keys.append(row["interruption_id"])
+                held = store.hold_waiting(keys, projects.hold_for(saved, project), time.time(), actor=actor)
+        return {"thread_id": thread, "always": always, "project_policy": saved["project_policy"],
+                "allowed": allowed, "held": held}
+
+    @staticmethod
+    def _bound_record(store, key, thread) -> dict:
+        """The record a row's click names, refused if it is gone, finished or another conversation's."""
+        record = store.get(key)
+        if record is None:
+            raise ControlError("no such interruption", code="no_such_interruption")
+        if record["thread_id"] != thread:
+            raise ControlError("that recovery belongs to a different conversation", code="thread_mismatch")
+        if record["state"] in TERMINAL:
+            raise ControlError("that recovery has already finished", code="already_finished")
+        return record
+
+    @staticmethod
+    def _project_of(source, thread_id):
+        """A conversation's project key, read through `source`, or None when it cannot be read."""
+        try:
+            return None if source is None else source.project_key(thread_id)
+        except Exception:
+            return None
 
     def cancel_all_pending(self, *, actor: str = "gui") -> dict:
         """Stop every pending recovery, one exact interruption at a time.

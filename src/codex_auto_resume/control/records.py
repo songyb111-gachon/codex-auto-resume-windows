@@ -16,7 +16,24 @@ from .errors import ControlError, _identifier
 # The journal entries that change a schedule or a flag and never the record's stored
 # reason. Every other same-state event really did change the reason - `Store.update`
 # writes one whenever `last_error` changed - and so really did change the public code.
-_REASON_UNCHANGED = frozenset({"retry_now", "cancel_requested"})
+_REASON_UNCHANGED = frozenset({"retry_now", "cancel_requested", "would_send"})
+
+
+def receipts(rows) -> list:
+    """What delivery showed of each continuation of one chain (v0.6.11), oldest first: when it was
+    seen starting a turn in its conversation, that its delivery is uncertain - watched for a day and
+    never sent again - or, handed to Codex and not seen yet, when it was handed over. Times and kinds
+    from the records' own columns; no content, and nothing read from the journal."""
+    found = []
+    for row in sorted(rows, key=lambda row: (row["detected_at"], row["interruption_id"])):
+        entry = {"interruption_id": row["interruption_id"]}
+        if row.get("recovery_turn_id") and row.get("turn_started_at"):
+            found.append(dict(entry, kind="seen", at=row["turn_started_at"]))
+        elif row["state"] == "submission_unknown":
+            found.append(dict(entry, kind="uncertain", at=row.get("submitted_at") or row.get("last_claim_at")))
+        elif row.get("first_queued_at"):
+            found.append(dict(entry, kind="queued", at=row["first_queued_at"]))
+    return found
 
 
 def describe_record(row, *, enabled=True, thread_enabled=True, watcher=None) -> dict:
@@ -57,6 +74,9 @@ def describe_record(row, *, enabled=True, thread_enabled=True, watcher=None) -> 
         # whether it waits for a person to let it continue. Empty at the defaults.
         "not_before": row.get("not_before"),
         "hold": row.get("hold"),
+        # v0.6.11: observe only - when every check but consent last passed, so it would have been
+        # sent; None for every record that is not only observed.
+        "would_send_at": machine.would_send_at(row),
     }
 
 
@@ -112,6 +132,7 @@ class RecordsMixin:
             if record is None:
                 raise ControlError("no such interruption", code="no_such_interruption")
             events = store.events(chain_origin_id=record["chain_origin_id"])
+            chain = [row for row in store.all_records() if row["chain_origin_id"] == record["chain_origin_id"]]
         # Each state an event moved to, also as the public code every interface already
         # has words for - the stored state names are the engine's, not a person's.
         #
@@ -134,7 +155,8 @@ class RecordsMixin:
             event["to_code"] = code
             if code is not None:
                 previous[owner] = code
-        return {"interruption_id": key, "chain_origin_id": record["chain_origin_id"], "events": events}
+        return {"interruption_id": key, "chain_origin_id": record["chain_origin_id"], "events": events,
+                "receipts": receipts(chain)}
 
     def statistics(self, days: float | None = None) -> dict:
         since = 0.0 if not days else max(0.0, time.time() - float(days) * 86400)

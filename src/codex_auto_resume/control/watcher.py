@@ -316,6 +316,9 @@ class WatcherMixin:
         status = {
             "version": _version(),
             "enabled": bool(stored["enabled"]),
+            # v0.6.11: observe only - the state's switch or the setting it is written from, either of
+            # which the watcher obeys - so every surface says nothing will be sent. False at the defaults.
+            "observe_only": bool(stored.get("observe_only") or values.get("observe_only")),
             "watcher_running": watcher["running"],
             "watcher": watcher,
             "upgrade_pending": legacy,

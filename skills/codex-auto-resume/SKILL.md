@@ -179,8 +179,13 @@ Report what the command actually printed. Useful fields from `status` and `pendi
   will do next: `paused`, `thread_disabled`, `held`, `engine_unavailable`,
   `watcher_not_ticking`, `compatibility_blocked`, `cancel_pending`. A recovery can be waiting
   exactly as it should and still never run because of one of these, so say which. `held` means
-  its conversation asks the user first, or only notifies: nothing is sent for it until the user
-  lets it continue (`release_hold`, or Let it continue on its row in the Dashboard).
+  its conversation asks the user first, or only notifies - or its project, or a conversation
+  seen for the first time, is set to wait for them: nothing is sent for it until the user lets it
+  continue (`release_hold`, or Let it continue on its row in the Dashboard).
+- `observe_only` in `get_status` — Observe only is on: every check runs and nothing is sent, and
+  a pending entry's `would_send_at` says when it would have been. Say so plainly; never describe a
+  recovery as about to resume while it is true. Turning it off is `update_settings` with
+  `observe_only` false, which asks the user first.
 - `state` on a pending entry — the engine's own name for where that recovery is:
   - `waiting_reset` / `waiting_poll` / `waiting_for_usage` — waiting for the usage limit to
     reset.

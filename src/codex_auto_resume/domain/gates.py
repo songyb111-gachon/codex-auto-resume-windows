@@ -110,6 +110,20 @@ def first_refusal(vector: dict):
     return None
 
 
+def would_send_at(record: dict):
+    """Observe only (v0.6.11): when a waiting record last passed every gate but consent, which only
+    observe-only refused - the moment it would have been sent - or None. Read from the record's own
+    stored vector, never the journal, and never a setting."""
+    if record.get("state") not in WAITING or not record.get("gate_eval"):
+        return None
+    vector = decode_gates(record.get("gate_eval"))
+    if vector["consent"] != (BLOCK, OBSERVE_ONLY):
+        return None
+    if any(vector[name][0] != PASS for name in GATES if name != "consent"):
+        return None
+    return record.get("gate_eval_at")
+
+
 def encode_gates(vector: dict) -> str:
     """The persisted form. Allowlisted names and codes only, so it is display-safe."""
     clean = {}

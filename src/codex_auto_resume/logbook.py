@@ -101,6 +101,7 @@ _MESSAGES = {
     ("reconciliation_unavailable", None): "reconciliation unavailable this tick; no submission",
     ("detection_unavailable_no_submission", None): "Codex local state unavailable; detection skipped, no submission",
     ("eligibility_check_failed_no_submission", None): "eligibility check failed; no submission",
+    ("would_send", None): "observe only: every other check passed; a continuation would have been sent now, and none was",
 }
 
 

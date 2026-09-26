@@ -81,6 +81,8 @@ ENGINE_TO_STORE = {
     # v0.6.11: a conversation's tier, read when a failure is detected and before a first send,
     # and the objection window that tier opens.
     "thread_tier", "open_objection_window",
+    # and observe only's "would have been sent", and a conversation first seen given Only notify me.
+    "record_would_send", "enrol_conversation",
 }
 # What it asks of Codex itself, through the backend: is the app there, what is my usage, send
 # this, take it back, is the thread loaded. Five, and the split must not make it six by accident.
@@ -95,6 +97,9 @@ ENGINE_TO_SOURCE = {
     "latest", "later_turns", "latest_failures", "turn_markers", "turn_observation",
     "turn_progress", "progress", "projection", "marker_presence", "marker_rows", "queue_row",
     "queued_rows", "foreign_queued", "reset_hint",
+    # v0.6.11: the key of a conversation's project, asked only when Settings let some projects
+    # resume and not others (projects.asks) - never at the defaults.
+    "project_key",
 }
 # v0.6.11: what core asks the edition's plug, which it holds as `Guarded` (domain/plug.py). The
 # engine asks at the points of a tick, a dispatch and an ended turn; the claim asks the ledger,
@@ -121,6 +126,8 @@ CONTROL_TO_STORE = {
     "cancel_thread", "request_retry_now", "restore_budget_detailed",
     # v0.6.11: postpone one record, let a held one continue, and a conversation's tier.
     "postpone", "release_hold", "set_thread_tier", "thread_tiers",
+    # and observe only written as the settings say it, and a project's waiting records held.
+    "set_observe_only", "hold_waiting",
 }
 
 

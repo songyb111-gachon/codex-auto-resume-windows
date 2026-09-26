@@ -47,6 +47,18 @@ class PolicyMixin:
                 "UPDATE settings SET enabled=?, armed_at=? WHERE singleton=1", (int(enabled), armed_at)
             )
 
+    def set_observe_only(self, observe_only: bool) -> bool:
+        """Observe only (schema 4), written from the setting of that name: while it is on, every
+        claim is refused here whatever the engine asked. Returns whether it changed."""
+        if not isinstance(observe_only, bool):
+            raise StoreError("observe_only must be boolean")
+        with self._transaction() as connection:
+            before = self._read_settings(connection)["observe_only"]
+            if before != observe_only:
+                connection.execute("UPDATE settings SET observe_only=? WHERE singleton=1",
+                                   (int(observe_only),))
+            return before != observe_only
+
     @staticmethod
     def _thread_enabled(connection: sqlite3.Connection, thread_id: str) -> bool:
         row = connection.execute("SELECT enabled FROM threads WHERE thread_id=?", (thread_id,)).fetchone()
@@ -127,3 +139,46 @@ class PolicyMixin:
                                 to_state=row["state"], actor=actor)
                     held += 1
         return {"tier": tier, "held": held}
+
+    def enrol_conversation(self, thread_id: str, tier: str, now: float) -> bool:
+        """Give a conversation this state has never seen - no switch or tier of its own, no record -
+        `tier` as its own (settings' new_conversation_policy), in one transaction, so a person's own
+        choice made a moment earlier is never written over. Returns whether it was new."""
+        _uuid(thread_id, "thread_id")
+        _timestamp(now, "now")
+        if _validated_tier(tier) is None:
+            raise StoreError("A new conversation needs a tier")
+        with self._transaction() as connection:
+            seen = connection.execute(
+                "SELECT 1 FROM threads WHERE thread_id=? UNION ALL "
+                "SELECT 1 FROM interruptions WHERE thread_id=? LIMIT 1", (thread_id, thread_id)).fetchone()
+            if seen is not None:
+                return False
+            connection.execute("INSERT INTO threads (thread_id, enabled, tier) VALUES (?,1,?)",
+                               (thread_id, tier))
+            self._event(connection, now, "tier_set")
+            return True
+
+    def hold_waiting(self, interruption_ids, hold: str, now: float, *, actor: str = "gui") -> int:
+        """Hold these records for a person (`hold`), each only while it still waits unsent and
+        nothing holds it yet - so this can only ever hold more back. Returns how many it held."""
+        _timestamp(now, "now")
+        if hold not in machine.HOLDS:
+            raise StoreError("Invalid hold")
+        held = 0
+        waiting = sorted(WAITING)
+        with self._transaction() as connection:
+            for key in sorted(set(interruption_ids)):
+                value = connection.execute(
+                    "SELECT * FROM interruptions WHERE interruption_id=? AND hold IS NULL "
+                    "AND submitted_at IS NULL AND cancel_requested=0 AND state IN (%s)"
+                    % ",".join("?" for _ in waiting), (key, *waiting)).fetchone()
+                if value is None:
+                    continue
+                row = _validated_record(dict(value))
+                connection.execute("UPDATE interruptions SET hold=? WHERE interruption_id=?",
+                                   (hold, key))
+                self._event(connection, now, "held", record=row, from_state=row["state"],
+                            to_state=row["state"], actor=actor)
+                held += 1
+        return held

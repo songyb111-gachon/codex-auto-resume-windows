@@ -157,7 +157,6 @@ class ClaimsMixin:
                         to_state="submitting")
             return True, None, None
 
-
     def record_gates(self, interruption_id: str, gates: dict, now: float) -> None:
         """Persist a gate vector for a waiting record that was due but not claimable."""
         _timestamp(now, "now")
@@ -167,6 +166,26 @@ class ClaimsMixin:
                 "UPDATE interruptions SET gate_eval=?, gate_eval_at=? WHERE interruption_id=? "
                 "AND state IN (%s)" % ",".join("?" for _ in WAITING),
                 (encoded, now, interruption_id, *sorted(WAITING)))
+
+    def record_would_send(self, interruption_id: str, gates: dict, now: float, next_retry_at: float) -> bool:
+        """Observe only (v0.6.11): a waiting record every gate but consent passed, parked until
+        `next_retry_at` with that vector. Journaled as would_send when the vector it had was not this
+        one - once for each time it came due and would have gone - and never claimed. Returns whether
+        it was journaled."""
+        _timestamp(now, "now")
+        _timestamp(next_retry_at, "next_retry_at")
+        encoded = machine.encode_gates(gates)
+        with self._transaction() as connection:
+            row = self._row(connection, interruption_id)
+            if row is None or row["state"] not in WAITING or row["submitted_at"] is not None:
+                return False
+            fresh = row["gate_eval"] != encoded
+            connection.execute("UPDATE interruptions SET gate_eval=?, gate_eval_at=?, next_retry_at=? "
+                               "WHERE interruption_id=?", (encoded, now, next_retry_at, interruption_id))
+            if fresh:
+                self._event(connection, now, "would_send", record=row, from_state=row["state"],
+                            to_state=row["state"], value=now)
+            return fresh
 
     def release_claim(self, interruption_id: str, target: str, reason: str, now: float, *,
                       next_retry_at: float | None = None, actor: str = "engine") -> bool:

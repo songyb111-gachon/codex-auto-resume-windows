@@ -71,8 +71,9 @@ ITEM = {_q(name): item for item, names in {
                # v0.6.11: what an edition may change about a decision, and which edition this
                # is - the "under which edition" of HOMELESS below, in code
                "domain.plug", "edition",
-               # v0.6.11: quiet hours and a postponement's times - when, by the local clock.
-               "quiet"),
+               # v0.6.11: quiet hours and a postponement's times - when, by the local clock - and
+               # which projects may resume without a person.
+               "quiet", "projects"),
     "machine": ("machine", "domain", "domain.errors", "domain.ids", "domain.public",
                 "domain.states", "domain.vocabulary",
                 # v0.6.11: the registry's vocabularies, out of domain/vocabulary.py.

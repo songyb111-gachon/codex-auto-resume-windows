@@ -58,6 +58,8 @@ class RecordView(TypedDict):
     # v0.6.11 (schema 4): not before this time, and whether it waits for a person.
     not_before: float | None
     hold: str | None
+    # v0.6.11: observe only - when every check but consent last passed, or None.
+    would_send_at: float | None
 
 
 class PendingRow(RecordView):
@@ -86,6 +88,13 @@ class TimelineEvent(TypedDict):
     value: float | int | None
 
 
+class Receipt(TypedDict):
+    """What delivery showed of one continuation of a chain (v0.6.11): seen, uncertain or queued."""
+    interruption_id: str
+    kind: str
+    at: float | None
+
+
 class WatcherView(TypedDict):
     """What is known of the watcher: its heartbeat, and whether it is there to beat."""
     running: bool | None
@@ -101,6 +110,8 @@ class WatcherView(TypedDict):
 class StatusSnapshot(TypedDict):
     """`status`, and the part of `dashboard` every page opens with."""
     enabled: bool
+    # v0.6.11: nothing will be sent - the state's switch or the setting it is written from.
+    observe_only: bool
     pending: int
     version: str
     watcher: WatcherView
@@ -220,6 +231,6 @@ class SchemaField(TypedDict):
 
 
 # Every contract, by name, for the test that holds each to the goldens.
-CONTRACTS = (RecordView, PendingRow, TimelineEvent, WatcherView, StatusSnapshot, Outcomes,
+CONTRACTS = (RecordView, PendingRow, TimelineEvent, Receipt, WatcherView, StatusSnapshot, Outcomes,
              Statistics, CompatEngine, CompatData, CompatCapability, CompatReported, CompatView,
              SchemaField)

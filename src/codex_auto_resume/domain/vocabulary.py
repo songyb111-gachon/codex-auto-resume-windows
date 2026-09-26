@@ -219,6 +219,8 @@ class EventCode(StrEnum):
     HELD = "held"
     HOLD_RELEASED = "hold_released"
     TIER_SET = "tier_set"
+    # v0.6.11: observe only - every check but consent passed, and nothing was sent (once a period).
+    WOULD_SEND = "would_send"
     OTHER = "other"
 
 
@@ -385,6 +387,10 @@ class ErrorCode(StrEnum):
     TOO_FAR = "too_far"
     NOT_HELD = "not_held"
     INVALID_TIER = "invalid_tier"
+    # v0.6.11: Always or Never for a project whose conversation's project cannot be read, or one more
+    # than a list of projects holds.
+    PROJECT_UNREADABLE = "project_unreadable"
+    TOO_MANY_PROJECTS = "too_many_projects"
 
 
 # ---------------------------------------------------------------- settings and language
@@ -424,6 +430,21 @@ class QuietDays(StrEnum):
     EVERY_DAY = "every_day"
     WEEKDAYS = "weekdays"
     WEEKENDS = "weekends"
+
+
+class NewConversationPolicy(StrEnum):
+    """What a conversation this product has never seen gets (settings.NEW_CONVERSATION_POLICIES):
+    the same as every other (the default), or Only notify me as a tier of its own (v0.6.11)."""
+    RESUME = "resume"
+    NOTIFY_ONLY = "notify_only"
+
+
+class ProjectPolicy(StrEnum):
+    """Which projects may resume without a person (settings.PROJECT_POLICIES, projects.py): every
+    one (the default), only those set to Always, or every one but those set to Never (v0.6.11)."""
+    EVERY = "every"
+    ONLY_LISTED = "only_listed"
+    EXCEPT_LISTED = "except_listed"
 
 
 class RetryTiming(StrEnum):

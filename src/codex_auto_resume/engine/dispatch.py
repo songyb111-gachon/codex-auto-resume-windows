@@ -25,8 +25,9 @@ class DispatchMixin:
         poll = self.options["state_poll_seconds"]
         settings = self.store.settings()
         vector = {"consent": machine.gate_consent(settings["enabled"], self.store.thread_enabled(row["thread_id"]),
-                  row.get("cancel_requested"), observe_only=settings["observe_only"], hold=row.get("hold"))}
-        if vector["consent"][0] != machine.PASS:
+                  row.get("cancel_requested"), observe_only=self.observing(settings), hold=row.get("hold"))}
+        # Observe only goes on through every other gate, asking no plug, to where a send would begin.
+        if vector["consent"][0] != machine.PASS and not self.observes(row, vector):
             # No transition - the overlays already say why it waits - but a due record
             # still records the refusing gate, once, so every interface can show it.
             recorded = machine.decode_gates(row.get("gate_eval")).get("consent")
@@ -47,7 +48,8 @@ class DispatchMixin:
                 self._quiet(row, vector, quiet_until - now)
             return
         # P7: due by core's schedule, and the plug may say not yet.
-        if self._held("schedule", row, vector, self.plug.schedule(row, machine.eligible_at(row))):
+        if (vector["consent"][0] == machine.PASS
+                and self._held("schedule", row, vector, self.plug.schedule(row, machine.eligible_at(row)))):
             return
         if row["state"] in ("waiting_reset", "waiting_poll"):
             self.log(row["thread_id"], "checking_eligibility", None)
@@ -154,12 +156,17 @@ class DispatchMixin:
         vector["usage"] = machine.gate(machine.PASS)
         if self._plugged("usage", row, vector):
             return
+        if vector["consent"][0] != machine.PASS:
+            return self._would_send(row, vector, now)       # observe only: every other gate passed
         if self._objection(row, vector, now):
             return
         self.dispatch(row, app, vector, limits)
 
     def _plugged(self, name, row, vector) -> bool:
-        """P3: gate `name`, which core has just passed, put to the plug. True if it held."""
+        """P3: gate `name`, which core has just passed, put to the plug. True if it held. Never asked
+        of a record only observed: the plug is asked after consent, and observe only refused it."""
+        if vector["consent"][0] != machine.PASS:
+            return False
         return self._held(name, row, vector, self.plug.gate(name, row, dict(vector)))
 
     def _held(self, name, row, vector, answer) -> bool:

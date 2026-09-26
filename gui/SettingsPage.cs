@@ -497,6 +497,10 @@ namespace CodexAutoResume
                     if (name == "start_with_codex")
                         host.Controls.Add(HelpText(S("help.start_with_codex",
                             "Codex starts this plugin whenever it opens, and the watcher starts with it if it is not already running. This is separate from starting at sign-in: either or both can be on. It changes nothing about what is recovered.")));
+                    // v0.6.11: what observe only does, under its switch.
+                    if (name == "observe_only")
+                        host.Controls.Add(HelpText(S("help.observe_only",
+                            "Every check still runs, and when a continuation would have been sent is shown in Pending, History and the timeline; nothing is sent. Turn it off to let recovery send again.")));
                 }
                 else if (type == "integer")
                 {
@@ -543,6 +547,13 @@ namespace CodexAutoResume
                     if (name == "default_tier")
                         host.Controls.Add(HelpText(S("help.default_tier",
                             "For every conversation without a choice of its own, and for interruptions detected from then on; choose for one conversation from its task's row in Pending. After a chance to object shows a notification first and sends only once the time to object has passed. Ask me first and Only notify me send nothing until you let the task continue.")));
+                    // v0.6.11: what a new conversation gets, and which projects may resume, under each.
+                    if (name == "new_conversation_policy")
+                        host.Controls.Add(HelpText(S("help.new_conversation_policy",
+                            "Only notify me gives a conversation this product has never seen that choice as its own, so nothing is sent for it until you let a task continue or change how it resumes from its task's row.")));
+                    if (name == "project_policy")
+                        host.Controls.Add(HelpText(S("help.project_policy",
+                            "Let this project resume and Hold this project for me are on a task's row in Pending and in the popup. A task of any other project, or of one that cannot be read, waits for you and is never dropped. For interruptions detected from then on; holding a project from a row also holds what it has waiting.")));
                 }
             }
             if (master != null)

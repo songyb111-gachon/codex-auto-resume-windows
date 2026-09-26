@@ -28,9 +28,10 @@ KEY_REPEAT_SECONDS = 0.3     # Enter on the icon arrives twice
 
 
 # The whole of what this window may ask of the control layer. v0.6.11 adds a task row's own menu:
-# postpone it, let a held one continue, how its conversation resumes.
+# postpone it, let a held one continue, how its conversation resumes, and Always or Never for its
+# project.
 CONTROL_CALLS = ("list_pending", "get_status", "set_enabled", "set_interruption_recovery",
-                 "postpone", "release_hold", "set_thread_tier")
+                 "postpone", "release_hold", "set_thread_tier", "set_project_rule")
 
 # The row menu's choices (v0.6.11), in the order it offers them: the times a task can be postponed
 # by (quiet.PRESETS), and how much a conversation asks before it resumes, least first
@@ -216,6 +217,12 @@ def row_menu(task, strings, default_tier) -> list:
         None,
         {"text": say(strings, "menu.tier"), "action": None, "enabled": True, "checked": False,
          "items": tiers},
+        # Always or Never for the project its conversation is filed under: the row's identities, and
+        # the project read by the control layer, never by what the row shows.
+        {"text": say(strings, "menu.project_always"), "action": ("project", key, thread, True),
+         "enabled": True, "checked": False, "items": None},
+        {"text": say(strings, "menu.project_never"), "action": ("project", key, thread, False),
+         "enabled": True, "checked": False, "items": None},
     ]
 
 
@@ -252,6 +259,9 @@ def view_model(rows, status, strings, now, *, notice=None, error=None) -> dict:
         "toggle_text": say(strings, "action.resume" if paused else "action.pause"),
         "toggle_busy": False,
         "dashboard_text": say(strings, "popup.open_dashboard"),
+        # v0.6.11: observe only, said under the list while recovery is on and nothing will be sent.
+        "observe_note": (say(strings, "popup.observe_only")
+                         if status is not None and status.get("observe_only") is True and not paused else None),
     }
 
 
@@ -268,7 +278,7 @@ def busy_key(action):
 
 
 # What a row menu's items ask for (v0.6.11): each is one control call, bound to its row.
-ROW_ACTIONS = ("postpone", "release", "tier")
+ROW_ACTIONS = ("postpone", "release", "tier", "project")
 
 
 def perform(action, control, *, source=None, dashboard=None):
@@ -295,6 +305,10 @@ def perform(action, control, *, source=None, dashboard=None):
         if kind == "tier":
             _, interruption_id, thread_id, tier = action
             return ("ok", dict(control.set_thread_tier(thread_id, tier, interruption_id=interruption_id)))
+        if kind == "project":
+            _, interruption_id, thread_id, always = action
+            return ("ok", dict(control.set_project_rule(interruption_id, thread_id, bool(always),
+                                                        source=source)))
         if kind == "dashboard":
             return ("ok", {"opened": bool(dashboard()) if dashboard else False})
     except Exception as exc:                  # a front end reports; it never raises into the loop

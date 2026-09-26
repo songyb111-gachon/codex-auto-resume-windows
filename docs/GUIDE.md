@@ -240,7 +240,11 @@ recovery, and they are not evidence that one was observed in Codex.
 
 Each waiting recovery shows why it is waiting and when it is next checked, and **Why it is
 waiting** lists the watcher's safety checks for the selected task as the watcher last recorded
-them. The **Auto-resume** switch on each row turns automatic recovery off or on for that
+them - from v0.6.11 with a sentence under them saying, in words, what the first check that did not
+pass is waiting for: the Codex app, the conversation being opened, the usage reset, and so on. The
+**Timeline** of a recovery lists, after its journal, what delivery showed of each continuation: when
+it was seen starting a turn in its conversation, that it was handed to Codex and not seen yet, or
+that its delivery is uncertain - watched for a day and never sent again. The **Auto-resume** switch on each row turns automatic recovery off or on for that
 task's conversation. The click carries the exact interruption and conversation the row was
 drawn from, and a click that reaches a task which has since finished, disappeared or turned
 out to belong to another conversation is refused and changes nothing; either way the switch sends
@@ -258,8 +262,11 @@ on a right click, Shift+F10 or the menu key: **Postpone** holds that task back 3
 three hours or until 09:00 tomorrow, and only ever later; **Let it continue** lets a task that waits
 for you go on, after asking; and **How this conversation resumes** chooses one of the four ways
 described under [Quiet hours and how a conversation resumes](#quiet-hours-and-how-a-conversation-resumes)
-for that conversation alone. None of them sends anything, each is refused if its row has since become
-another task, and the notification-area popup offers the same menu on a right click on a task:
+for that conversation alone. **Let this project resume** and **Hold this project for me** decide for
+the project that task's conversation is filed under, as described under
+[Observe only, and which conversations and projects resume](#observe-only-and-which-conversations-and-projects-resume).
+None of them sends anything, each is refused if its row has since become another task, and the
+notification-area popup offers the same menu on a right click on a task:
 
 <img src="images/dashboard-pending.png" alt="The Pending page of the Dashboard: two conversations waiting, one for the usage reset and one with a retry scheduled, each with a state chip and an Auto-resume switch, the Why it is waiting checklist for the selected task, and Retry now, Cancel, Timeline, Turn off for this conversation and Cancel all buttons" width="680">
 
@@ -723,10 +730,10 @@ The Settings page is split into five sections:
 | Section | What is in it |
 | --- | --- |
 | General | Interface language, starting at Windows sign-in, the notification-area icon, and which notifications appear |
-| Automatic recovery | Which classified kinds of interruption are recovered, one check box each |
+| Automatic recovery | Which classified kinds of interruption are recovered, one check box each, and from v0.6.11 Observe only |
 | Continuation message | The language and style of the message sent to Codex, your own Custom message, and a Preview of the exact text |
 | Appearance | The theme - Use system setting, Light or Dark - the panel's Theme in Codex, the Design - Soft, Classic (v0.6.2) or Plain - and Reduce motion |
-| Advanced | Attempts per interruption, when to give up after recoveries that produce nothing, continuations per task, retry timing, and from v0.6.11 quiet hours and how a conversation resumes |
+| Advanced | Attempts per interruption, when to give up after recoveries that produce nothing, continuations per task, retry timing, and from v0.6.11 quiet hours, how a conversation resumes, what a conversation seen for the first time gets and which projects may resume |
 
 Every kind of interruption the watcher recovers has a check box, ticked by default. From v0.6.3 to
 v0.6.9 there was one more, **Sign-in service failures**, for a sign-in service that is temporarily
@@ -768,6 +775,35 @@ first, for interruptions detected from then on; a task's row menu chooses for it
 Choosing Ask me first or Only notify me for a conversation also holds what it has waiting. Choosing a
 way that asks less lets nothing go that already waits for you: each such task still needs its own
 **Let it continue**. A postponement or quiet hours still apply after it.
+
+### Observe only, and which conversations and projects resume
+
+From v0.6.11 three more settings can hold recovery back. Each is off by default, where the watcher
+behaves as it always did, and none can make anything be sent sooner or skip a check.
+
+**Observe only**, under Automatic recovery, lets the watcher do everything but send. Every check still
+runs, and a recovery that would have been sent is shown as such: its row in Pending and History says
+"would have been sent" and when, *Why it is waiting* says every check but Observe only passed, and its
+timeline records it once each time it comes to that. The Overview says observe only where it says
+recovery is on, and so does the popup. Nothing is claimed and nothing is sent: the watcher refuses on
+the setting, and the recovery state it keeps has a switch of its own, written from the setting, that
+refuses every send by itself. Turn it off to let recovery send again.
+
+**A conversation seen for the first time**, under Advanced, is resumed like the others by default.
+**Only notify me** gives a conversation this product has never seen that choice as its own when its
+first interruption is detected, so nothing is sent for it until you let a task continue or change how
+it resumes from its task's row. A conversation already seen keeps what it had.
+
+**Projects that may resume**, under Advanced, is every project by default. **Only projects let resume**
+lets a task resume without you only when its project was set with **Let this project resume** on a
+task's row; **Every project but those held** lets every project resume but those set with **Hold this
+project for me**. Hold this project for me under the default also switches to the second. A task of any
+other project - or of one whose project cannot be read - waits for you when it is detected, as Only
+notify me does, and is never dropped: **Let it continue** lets it go. Holding a project from a row also
+holds what that project has waiting; letting one resume lets nothing go that already waits for you.
+A project is the one Codex files the conversation under, or else the folder it works in, and only a
+64-digit digest of it is kept in the settings: never a name or a path. At the default Codex's project
+is not even read for this.
 
 ### Languages
 

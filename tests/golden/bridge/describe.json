@@ -448,6 +448,33 @@
             "min": 1,
             "max": 60,
             "group": "limits"
+          },
+          {
+            "name": "observe_only",
+            "default": false,
+            "type": "boolean",
+            "group": "recovery"
+          },
+          {
+            "name": "new_conversation_policy",
+            "default": "resume",
+            "type": "string",
+            "choices": [
+              "resume",
+              "notify_only"
+            ],
+            "group": "limits"
+          },
+          {
+            "name": "project_policy",
+            "default": "every",
+            "type": "string",
+            "choices": [
+              "every",
+              "only_listed",
+              "except_listed"
+            ],
+            "group": "limits"
           }
         ]
       }

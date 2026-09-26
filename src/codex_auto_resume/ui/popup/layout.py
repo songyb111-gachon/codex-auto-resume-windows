@@ -221,10 +221,11 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
              wrap=True, align="center")
         y += block + px(space["s"])
 
-    if vm["zero_note"]:
-        _, note_h = measure("small", vm["zero_note"], inner, True)
-        text((left, y, right, y + note_h), "small", vm["zero_note"], "muted", wrap=True)
-        y += note_h + px(space["s"])
+    for note in (vm["zero_note"], vm.get("observe_note")):      # v0.6.11: and observe only's
+        if note:
+            _, note_h = measure("small", note, inner, True)
+            text((left, y, right, y + note_h), "small", note, "muted", wrap=True)
+            y += note_h + px(space["s"])
 
     if vm["notice"]:
         inset = px(space["s"])

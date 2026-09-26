@@ -142,6 +142,15 @@ class AnnounceMixin:
         self.store.record_gates(row["interruption_id"], vector, self.clock())
         self.transition(row, row["state"], row.get("last_error"), delay=delay, usage_probe_at=None)
 
+    def _would_send(self, row, vector, now):
+        """Observe only (v0.6.11): every gate but consent passed, so this record would have been sent
+        now. Nothing is claimed and nothing is sent: it is parked at the conservative poll with the
+        vector that says so, and journaled (would_send) the first time it comes to this each time it
+        comes due, never on every poll it spends here."""
+        if self.store.record_would_send(row["interruption_id"], vector, now,
+                                        now + self.options["conservative_poll_seconds"]):
+            self.log(row["thread_id"], "would_send", None)
+
     def _wait(self, row, state, reason, delay, vector):
         """Park a record that was due but is not claimable, with the reason recorded."""
         self.store.record_gates(row["interruption_id"], vector, self.clock())

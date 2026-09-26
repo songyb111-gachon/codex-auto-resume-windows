@@ -227,11 +227,13 @@ class DescribeTests(unittest.TestCase):
     def test_describes_every_field_exactly_once(self):
         # Every field but those held back until something reads them (NOT_YET_OFFERED): a
         # surface draws whatever is described, and a switch that changes nothing must not be drawn.
-        offered = set(settings.FIELDS) - settings.NOT_YET_OFFERED
+        # Nor (v0.6.11) the two lists of projects a task's row writes, which no editor draws.
+        offered = set(settings.FIELDS) - settings.NOT_YET_OFFERED - settings.ROW_ACTION_FIELDS
         self.assertEqual(sorted(self.by_name), sorted(offered))
         self.assertEqual(len(self.described), len(offered))
         self.assertLessEqual(settings.NOT_YET_OFFERED, set(settings.FIELDS), "held back, not unknown")
-        with patch.object(settings, "NOT_YET_OFFERED", frozenset()):
+        self.assertLessEqual(settings.ROW_ACTION_FIELDS, set(settings.FIELDS), "a row's, not unknown")
+        with patch.object(settings, "NOT_YET_OFFERED", frozenset()),                 patch.object(settings, "ROW_ACTION_FIELDS", frozenset()):
             self.assertEqual(sorted(entry["name"] for entry in settings.describe()), sorted(settings.FIELDS))
 
     def test_every_entry_carries_a_group_the_interfaces_understand(self):

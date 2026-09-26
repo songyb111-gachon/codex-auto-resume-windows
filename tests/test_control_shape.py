@@ -61,6 +61,8 @@ METHODS = {
     "launch_ends_with_job",
     # v0.6.11: a task's row menu - postpone it, let a held one continue, a conversation's tier.
     "_postpone_until", "postpone", "release_hold", "set_thread_tier",
+    # and Always or Never for its project, and observe only written into the state.
+    "set_project_rule", "_bound_record", "_project_of", "_observe_only",
     "list_pending", "preview_continuation", "request_retry_now", "reset_recovery_budget",
     "restore_defaults", "set_enabled", "set_interruption_recovery", "set_startup_enabled",
     "set_thread_enabled", "settings_path", "start_for_codex", "start_watcher",

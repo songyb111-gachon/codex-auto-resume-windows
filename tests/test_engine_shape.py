@@ -42,6 +42,9 @@ METHODS = {
     # v0.6.11: quiet hours and a conversation's tier as the policy says them, a record parked in
     # quiet hours, and the objection window before a first send.
     "quiet_until", "tier", "_quiet", "_objection",
+    # v0.6.11: observe only - the switch, whether a refused consent is only observed, and the record
+    # that would have been sent; and the hold an interruption is detected with.
+    "observing", "observes", "_would_send", "admission",
 }
 
 # What `from codex_auto_resume.engine import ...` has to keep answering (app.py, the tests).

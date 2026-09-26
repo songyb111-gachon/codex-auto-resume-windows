@@ -61,8 +61,8 @@ LISTS = {
     "machine.ACTORS": ("set", 5, "eaf35d06c4c2b568"),
     "machine.REASONS": ("set", 63, "05852eb344a83206"),
     # v0.6.11: postponed, held, hold_released and tier_set - a person's (or the objection window's)
-    # later time, a hold, letting it go, and a conversation's tier.
-    "machine.EVENT_CODES": ("set", 25, "954df88e378ccc92"),
+    # later time, a hold, letting it go, and a conversation's tier - and observe only's would_send.
+    "machine.EVENT_CODES": ("set", 26, "c824a4566dd1c011"),
     "machine.WAITING_CODES": ("set", 5, "aef153e5808afe46"),
     "machine.PUBLIC_CODES": ("set", 22, "33761768f9d99cd0"),
     "machine.PAGES": ("tuple", 6, "ffad1c9f0521398d"),
@@ -95,8 +95,9 @@ LISTS = {
     "store.ENGINE_STATES": ("set", 6, "a40ef34f9adea697"),
     "codex.KNOWN_STATUSES": ("set", 4, "23d2734c27812d29"),
     "logbook.STATE_CODES": ("set", 27, "5cac947c5c3bb648"),
-    # v0.6.11: a postponement's three refusals, a record that is not held, a tier that is none.
-    "control.ERROR_CODES": ("set", 28, "9c3b40f5242f0b71"),
+    # v0.6.11: a postponement's three refusals, a record that is not held, a tier that is none, and
+    # a project that cannot be read or one too many.
+    "control.ERROR_CODES": ("set", 30, "c37c66e11585ffd0"),
     "control.FALLBACK_CODE": "request_failed",
     "continuation.STYLES": ("tuple", 4, "a390c91bf5107f3f"),
     "continuation.CUSTOM_MODES": ("tuple", 2, "a4a918de1aaec837"),
@@ -112,6 +113,10 @@ LISTS = {
     # v0.6.11: the days quiet hours start on, and the tiers a conversation may have by default.
     "settings.QUIET_DAYS": ("tuple", 3, "b7883f3f9fa3397d"),
     "settings.TIERS": ("tuple", 4, "1020c428556c4555"),
+    # v0.6.11: what a conversation first seen gets, and which projects may resume without a person.
+    "settings.NEW_CONVERSATION_POLICIES": ("tuple", 2, "472d79c55b2067ec"),
+    "settings.PROJECT_POLICIES": ("tuple", 3, "db754fee43e7f8d8"),
+    "projects.POLICIES": ("tuple", 3, "db754fee43e7f8d8"),
     "l10n.LOCALES": ("tuple", 9, "0d5c5b962a6ec666"),
     "l10n.CHOICES": ("tuple", 10, "8a44c689a27e4025"),
     "l10n.SYSTEM": "system",
@@ -292,6 +297,8 @@ HOMES = {
     v.Design: ("list", "settings.DESIGNS", "brand.DESIGNS"),
     v.RetryTiming: ("keys", "settings.RETRY_TIMING"),
     v.QuietDays: ("list", "settings.QUIET_DAYS"),
+    v.NewConversationPolicy: ("list", "settings.NEW_CONVERSATION_POLICIES"),
+    v.ProjectPolicy: ("list", "settings.PROJECT_POLICIES", "projects.POLICIES"),
     v.NotifyEvent: ("list", "settings.NOTIFICATION_EVENTS"),
     v.Locale: ("list", "l10n.LOCALES"),
     v.SendOutcome: ("returned", ("Backend.send", "outcome")),

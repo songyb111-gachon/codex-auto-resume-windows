@@ -232,6 +232,9 @@ namespace CodexAutoResume
             if (overlays != null)
                 foreach (object overlay in overlays)
                     parts.Add(S("overlay." + overlay, Convert.ToString(overlay).Replace('_', ' ')));
+            // v0.6.11: observe only, and every other check passed - when it would have been sent.
+            double would = Number(row, "would_send_at");
+            if (would > 0) parts.Add(S("code.would_send", "would have been sent {time}", "time", ClockTime(would)));
             return string.Join(" · ", parts.ToArray());
         }
 
@@ -271,7 +274,10 @@ namespace CodexAutoResume
                 bool enabled = Equals(Get(status, "enabled"), true);
                 shownEnabled = enabled;
                 bool upgrade = Equals(Get(status, "upgrade_pending"), true);
-                string recovery = enabled ? S("overview.on", "on") : S("overview.off", "paused");
+                // v0.6.11: observe only is on, but nothing is sent - said where on is.
+                string recovery = !enabled ? S("overview.off", "paused")
+                                : Equals(Get(status, "observe_only"), true) ? S("overview.observe_only", "observe only; nothing is sent")
+                                : S("overview.on", "on");
                 object running = Get(status, "watcher_running");
                 string watcherText = running == null ? S("diag.unknown", "unknown")
                                    : !Equals(running, true) ? S("diag.not_running", "not running")

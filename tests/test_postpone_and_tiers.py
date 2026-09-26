@@ -570,7 +570,7 @@ class PopupRowMenuTests(unittest.TestCase):
         return self.popup.model.row_menu(task, self.strings, default)
 
     def test_a_waiting_row_can_be_postponed_and_its_tier_chosen_but_not_released(self):
-        postpone, release, separator, tiers = self.menu(self.row())
+        postpone, release, separator, tiers, *_projects = self.menu(self.row())
         self.assertIsNone(separator)
         self.assertTrue(postpone["enabled"])
         self.assertEqual([item["action"] for item in postpone["items"]],
@@ -588,12 +588,12 @@ class PopupRowMenuTests(unittest.TestCase):
         task = self.popup.task_item(row, self.strings, 1000.0)
         self.assertEqual(task["status"], self.strings["popup.held"])
         self.assertEqual(task["tone"], "paused")
-        _, release, _, tiers = self.menu(row)
+        _, release, _, tiers, *_projects = self.menu(row)
         self.assertTrue(release["enabled"])
         self.assertEqual([item["checked"] for item in tiers["items"]], [False, False, False, True, False])
 
     def test_a_row_being_sent_cannot_be_postponed(self):
-        postpone, release, _, _ = self.menu(self.row(state="submitting"))
+        postpone, release, *_rest = self.menu(self.row(state="submitting"))
         self.assertFalse(postpone["enabled"])
         self.assertFalse(release["enabled"])
 

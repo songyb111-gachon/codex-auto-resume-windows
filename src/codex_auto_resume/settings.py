@@ -20,8 +20,9 @@ import os
 from pathlib import Path
 import tempfile
 
-from . import continuation, failures, l10n, quiet, reasons
-from .domain.vocabulary import Design, ImportanceTier, NotifyEvent, Theme
+from . import continuation, failures, l10n, projects, quiet, reasons
+from .domain.vocabulary import (Design, ImportanceTier, NewConversationPolicy, NotifyEvent,
+                                ProjectPolicy, Theme)
 
 CONFIG_VERSION = 2
 MAX_SETTINGS_BYTES = 256 * 1024
@@ -216,6 +217,24 @@ DEFAULT_TIER = ImportanceTier.AUTOMATIC.value
 FIELDS["default_tier"] = (DEFAULT_TIER, lambda v, d: _choice(v, d, TIERS))
 FIELDS["objection_minutes"] = (5, lambda v, d: _bounded_int(v, d, 1, 60))
 
+# ------------------------------------------------ observe only, and who may resume (v0.6.11)
+# Observe only: every check is made and when a continuation would have gone is recorded, and
+# nothing is sent - the engine refuses it, and the state's own switch, which this one is written
+# into (control/policy.py, runtime/app.py), makes the claim refuse it too. Off by default.
+FIELDS["observe_only"] = (False, _boolean)
+# What a conversation this product has never seen gets: the same as every other (the default), or
+# Only notify me as a tier of its own, so nothing is sent for it until a person says so. And which
+# projects may resume without a person (projects.py): every one, the default. The two lists a task
+# row's Always and Never for this project write are keys, never paths, and no editor draws them
+# (ROW_ACTION_FIELDS). Each of these can only hold a recovery back, and none does at the defaults.
+NEW_CONVERSATION_POLICIES = tuple(NewConversationPolicy)
+PROJECT_POLICIES = tuple(ProjectPolicy)
+FIELDS["new_conversation_policy"] = (NewConversationPolicy.RESUME.value,
+                                     lambda v, d: _choice(v, d, NEW_CONVERSATION_POLICIES))
+FIELDS["project_policy"] = (projects.DEFAULT_POLICY, lambda v, d: _choice(v, d, PROJECT_POLICIES))
+FIELDS[projects.ALWAYS] = ("", projects.coerce_keys)
+FIELDS[projects.NEVER] = ("", projects.coerce_keys)
+
 
 def is_custom_text(name) -> bool:
     """Whether a settings field holds Custom continuation text: the user's own words, which
@@ -259,6 +278,8 @@ RANGES = {
     "quiet_hours_days": {"choices": list(QUIET_DAYS)},
     "default_tier": {"choices": list(TIERS)},
     "objection_minutes": {"min": 1, "max": 60},
+    "new_conversation_policy": {"choices": list(NEW_CONVERSATION_POLICIES)},
+    "project_policy": {"choices": list(PROJECT_POLICIES)},
 }
 
 
@@ -509,6 +530,12 @@ def update(path: Path, changes: dict) -> dict:
 # properly in v0.6.11, where starting a process outside the host's job is a thing a person may turn on.
 NOT_YET_OFFERED = frozenset({"start_with_codex"})
 
+# Fields a task's row writes and no settings editor offers (v0.6.11): the projects set to Always and to
+# Never, each a list of keys a person has no way to read (projects.py). `describe()` leaves them out, so
+# the Dashboard, the panel and the MCP schema draw nothing for them, and update_settings refuses them
+# as it refuses every field its schema does not offer; Restore defaults empties them with the rest.
+ROW_ACTION_FIELDS = frozenset({projects.ALWAYS, projects.NEVER})
+
 
 def describe() -> list:
     """Machine-readable schema for the settings interfaces.
@@ -519,7 +546,7 @@ def describe() -> list:
     """
     described = []
     for name, (default, _coerce) in FIELDS.items():
-        if name in NOT_YET_OFFERED:
+        if name in NOT_YET_OFFERED or name in ROW_ACTION_FIELDS:
             continue
         entry = {"name": name, "default": default, "type": field_type(name)}
         if name in RANGES:
@@ -544,10 +571,15 @@ def describe() -> list:
             entry["group"] = "windows"
         elif name in ("max_recovery_attempts", "max_no_progress", "max_chain_continuations",
                       "retry_timing", "quiet_hours_start", "quiet_hours_end", "quiet_hours_days",
-                      "default_tier", "objection_minutes"):
+                      "default_tier", "objection_minutes", "new_conversation_policy",
+                      "project_policy"):
             # v0.6.11: quiet hours and the tier a conversation has by default join the limits -
-            # how hard, and when, recovery tries - in the window and in the panel alike.
+            # how hard, and when, recovery tries - in the window and in the panel alike; and beside
+            # the tier, what a new conversation gets and which projects resume without a person.
             entry["group"] = "limits"
+        elif name == "observe_only":
+            # v0.6.11: a switch of automatic recovery itself, under the kinds it recovers.
+            entry["group"] = "recovery"
         elif name == "interface_language":
             entry["group"] = "general"
         elif name in ("continuation_language", "continuation_style", "custom_message_mode"):

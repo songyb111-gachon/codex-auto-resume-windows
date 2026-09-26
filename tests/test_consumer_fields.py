@@ -89,6 +89,8 @@ _RECEIVERS = {
         "row": ROW, "chosen": ROW, "fresh": ROW, "Tag": ROW,
         "gates": _under(ROW, ".gates"),
         "item": [("bridge:timeline", "result.events[]")],
+        # v0.6.11: what delivery showed of each continuation, after the journal.
+        "receipt": [("bridge:timeline", "result.receipts[]")],
         "view": COMPAT_VIEW, "live": COMPAT_VIEW, "report": COMPAT_VIEW, "compatLive": COMPAT_VIEW,
         "engine": _under(COMPAT_VIEW, ".engine"),
         "data": _under(COMPAT_VIEW, ".data"),
@@ -209,7 +211,7 @@ _ROW, _COMPAT = wire.PendingRow, wire.CompatView
 _TYPED = {
     "gui/Dashboard.cs": {
         "row": _ROW, "chosen": _ROW, "fresh": _ROW, "Tag": _ROW,
-        "item": wire.TimelineEvent,
+        "item": wire.TimelineEvent, "receipt": wire.Receipt,
         "status": wire.StatusSnapshot, "watcher": wire.WatcherView,
         "view": _COMPAT, "live": _COMPAT, "report": _COMPAT, "compatLive": _COMPAT,
         "engine": wire.CompatEngine, "data": wire.CompatData, "entry": wire.CompatCapability,

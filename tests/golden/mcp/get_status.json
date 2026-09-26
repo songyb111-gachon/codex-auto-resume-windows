@@ -17,6 +17,7 @@
           "structuredContent": {
             "version": "<version>",
             "enabled": true,
+            "observe_only": false,
             "watcher_running": true,
             "watcher": {
               "running": true,
@@ -159,7 +160,12 @@
               "quiet_hours_end": "07:00",
               "quiet_hours_days": "every_day",
               "default_tier": "automatic",
-              "objection_minutes": 5
+              "objection_minutes": 5,
+              "observe_only": false,
+              "new_conversation_policy": "resume",
+              "project_policy": "every",
+              "project_keys_always": "",
+              "project_keys_never": ""
             }
           }
         }

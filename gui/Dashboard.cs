@@ -491,6 +491,8 @@ namespace CodexAutoResume
     {
         private readonly List<string[]> rows = new List<string[]>();   // label, result word, result code
         private string empty = "";
+        // v0.6.11: a sentence under the rows - why the first check that did not pass stops it - or "".
+        private string note = "";
 
         internal GateList()
         {
@@ -505,17 +507,24 @@ namespace CodexAutoResume
 
         internal void SetRows(List<string[]> fresh, string whenEmpty)
         {
+            SetRows(fresh, whenEmpty, null);
+        }
+
+        internal void SetRows(List<string[]> fresh, string whenEmpty, string under)
+        {
             // The snapshot arrives every five seconds and the checks in it rarely move, so the same
             // thirteen rows were rebuilt, given a new accessible description and handed a full parent
             // layout every time - on the window's thread, whether or not this page was the one on
             // screen. Identical rows are now nothing to do.
-            if (Same(fresh, whenEmpty)) return;
+            if (Same(fresh, whenEmpty) && note == (rows.Count == 0 ? "" : under ?? "")) return;
             GateFills++;
             rows.Clear();
             rows.AddRange(fresh);
             empty = whenEmpty ?? "";
+            note = rows.Count == 0 ? "" : under ?? "";
             var spoken = new List<string>();
             foreach (string[] row in rows) spoken.Add(row[0] + ": " + row[1]);
+            if (note.Length > 0) spoken.Add(note);
             AccessibleDescription = rows.Count == 0 ? empty : string.Join(", ", spoken.ToArray());
             if (Parent != null) Parent.PerformLayout();
             Invalidate();
@@ -547,8 +556,16 @@ namespace CodexAutoResume
             int height = rows.Count == 0
                 ? TextRenderer.MeasureText(Soft.Wrap(text, Font, width, EmptyFormat), Font, new Size(width, int.MaxValue),
                                            EmptyFormat).Height
-                : rows.Count * RowHeight;
+                : rows.Count * RowHeight + NoteHeight(width);
             return new Size(width, height);
+        }
+
+        /// The sentence under the rows, wrapped at `width`, with the gap above it; 0 when there is none.
+        private int NoteHeight(int width)
+        {
+            if (note.Length == 0) return 0;
+            return Soft.Px(8) + TextRenderer.MeasureText(Soft.Wrap(note, Font, width, EmptyFormat), Font,
+                                                         new Size(width, int.MaxValue), EmptyFormat).Height;
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -579,6 +596,10 @@ namespace CodexAutoResume
                     Soft.Chip(g, new Rectangle(Math.Max(0, Width - chip.Width), y, chip.Width, height), row[1], Font, tone, ground);
                     y += height;
                 }
+            if (note.Length > 0)
+                TextRenderer.DrawText(g, Soft.Wrap(note, Font, Width, EmptyFormat), Font,
+                                      new Rectangle(0, y + Soft.Px(8), Width, Math.Max(0, Height - y - Soft.Px(8))),
+                                      Palette.Secondary, EmptyFormat);
         }
     }
 

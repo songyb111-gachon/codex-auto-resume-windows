@@ -75,7 +75,9 @@ WITH_ARGUMENT = ("update", "enabled", "startup", "cancel", "reset-budget", "retr
                  "compatibility", "compat-import", "compat-refresh",
                  # v0.6.11: a task's row menu - postpone it, let a held one continue, and how
                  # much its conversation asks first.
-                 "postpone", "release-hold", "thread-tier")
+                 "postpone", "release-hold", "thread-tier",
+                 # and Always or Never for the project of the row's conversation.
+                 "project-rule")
 # Big enough for the largest Save the settings layer accepts: eight Custom messages of 2000
 # characters each, and the window writes every line break as a six-character escape, so a
 # valid Save can come to nearly 100 KiB. At 64 KiB such a Save was refused as "request too
@@ -424,6 +426,12 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
             return {"ok": True, "result": control.set_thread_tier(
                 payload.get("thread_id"), payload.get("tier"),
                 interruption_id=payload.get("interruption_id"))}
+        if command == "project-rule":
+            always = payload.get("always")
+            if not isinstance(always, bool):
+                raise ControlError("always must be true or false", code="invalid_enabled")
+            return {"ok": True, "result": control.set_project_rule(
+                payload.get("interruption_id"), payload.get("thread_id"), always, source=_labels())}
         if command == "compatibility":
             return {"ok": True, "compatibility": _compatibility(control, payload)}
         if command == "compat-import":

@@ -8,8 +8,9 @@ from __future__ import annotations
 
 from contextlib import nullcontext
 import time
-from .. import quiet, settings as policy
+from .. import machine, projects, quiet, settings as policy
 from ..domain.plug import guard
+from ..domain.vocabulary import ImportanceTier, NewConversationPolicy
 
 
 # Bounded exponential backoff for proven "queue process never started" failures.
@@ -216,5 +217,34 @@ class OptionsMixin:
         last look before a send asks again (presend_problem), with a postponement beside it."""
         settings = self.store.settings()
         return (settings["enabled"] and self.store.thread_enabled(row["thread_id"])
-                and not row.get("cancel_requested") and not settings["observe_only"]
+                and not row.get("cancel_requested") and not self.observing(settings)
                 and row.get("hold") is None)
+
+    def observing(self, settings) -> bool:
+        """Observe only (v0.6.11): the state's switch, or the setting it is written from - either is
+        enough, so a switch not yet written, or a setting not yet read, still sends nothing."""
+        return bool(settings["observe_only"] or self.policy_values.get("observe_only"))
+
+    @staticmethod
+    def observes(row, vector) -> bool:
+        """Whether a record whose consent was refused is only observed: every other condition of consent
+        held, so the rest of the gates are asked to learn whether it would have been sent."""
+        return vector["consent"][1] == machine.OBSERVE_ONLY and row.get("hold") is None
+
+    def admission(self, thread_id, now):
+        """The hold an interruption of this conversation is detected with (v0.6.11), or None - at the
+        defaults, always None, and nothing is read or written for it. A conversation this state has
+        never seen may first be given Only notify me as its own tier (new_conversation_policy); then
+        its tier's hold, and failing that its project's (projects.py): one the policy does not allow,
+        or one that cannot be read under either list policy, waits for a person (notify_only)."""
+        values = self.policy_values
+        if values.get("new_conversation_policy") == NewConversationPolicy.NOTIFY_ONLY:
+            self.store.enrol_conversation(thread_id, ImportanceTier.NOTIFY_ONLY.value, now)
+        hold = machine.hold_for_tier(self.tier(thread_id))
+        if hold is not None or not projects.asks(values):
+            return hold
+        try:
+            key = self.source.project_key(thread_id)
+        except Exception:
+            key = None
+        return projects.hold_for(values, key)

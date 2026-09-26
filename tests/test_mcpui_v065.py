@@ -139,7 +139,13 @@ class ComboMarkupTests(unittest.TestCase):
         ids = [drawn["id"] for drawn in observed]
         self.assertEqual(sorted(ids), sorted(["car-interface_language", "car-retry_timing", "car-continuation_language",
                                               "car-custom_message_mode", "car-preview-reason", "car-theme",
-                                              "car-panel_theme"]))
+                                              "car-panel_theme",
+                                              # v0.6.11: the limits' quiet hours and the tier a conversation
+                                              # has by default, what a conversation first seen gets and
+                                              # which projects may resume.
+                                              "car-quiet_hours_start", "car-quiet_hours_end",
+                                              "car-quiet_hours_days", "car-default_tier",
+                                              "car-new_conversation_policy", "car-project_policy"]))
         for drawn in observed:
             with self.subTest(drawn["id"]):
                 name = drawn["id"]

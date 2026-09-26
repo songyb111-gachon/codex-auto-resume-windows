@@ -53,6 +53,18 @@ QUIET_AND_TIERS = {
                     "stop it), ask_first or notify_only (nothing is sent until a person lets it "
                     "continue). Applies to interruptions detected after it is chosen.",
     "objection_minutes": "How long the objection window waits before a continuation is sent.",
+    # And what Observe only does, and which conversations and projects resume without a person.
+    "observe_only": "Observe only: every check still runs and when a continuation would have been "
+                    "sent is recorded, but nothing is sent. false (the default) sends as usual.",
+    "new_conversation_policy": "What a conversation this product has never seen before gets: resume "
+                               "(the default: the same as every other conversation) or notify_only "
+                               "(its own tier becomes Only notify me, so nothing is sent for it until "
+                               "a person lets a task continue).",
+    "project_policy": "Which projects resume without a person: every (the default), only_listed (only "
+                      "projects a person set to Always on a task's row) or except_listed (every "
+                      "project but those set to Never). An interruption of any other project, or of "
+                      "one whose project cannot be read, waits for a person and is never dropped. "
+                      "Applies to interruptions detected after it is chosen.",
 }
 
 

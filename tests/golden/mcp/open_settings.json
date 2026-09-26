@@ -18,6 +18,7 @@
             "status": {
               "version": "<version>",
               "enabled": true,
+              "observe_only": false,
               "watcher_running": true,
               "watcher": {
                 "running": true,
@@ -160,7 +161,12 @@
                 "quiet_hours_end": "07:00",
                 "quiet_hours_days": "every_day",
                 "default_tier": "automatic",
-                "objection_minutes": 5
+                "objection_minutes": 5,
+                "observe_only": false,
+                "new_conversation_policy": "resume",
+                "project_policy": "every",
+                "project_keys_always": "",
+                "project_keys_never": ""
               }
             },
             "schema": [
@@ -605,6 +611,33 @@
                 "min": 1,
                 "max": 60,
                 "group": "limits"
+              },
+              {
+                "name": "observe_only",
+                "default": false,
+                "type": "boolean",
+                "group": "recovery"
+              },
+              {
+                "name": "new_conversation_policy",
+                "default": "resume",
+                "type": "string",
+                "choices": [
+                  "resume",
+                  "notify_only"
+                ],
+                "group": "limits"
+              },
+              {
+                "name": "project_policy",
+                "default": "every",
+                "type": "string",
+                "choices": [
+                  "every",
+                  "only_listed",
+                  "except_listed"
+                ],
+                "group": "limits"
               }
             ],
             "settings": {
@@ -647,7 +680,12 @@
               "quiet_hours_end": "07:00",
               "quiet_hours_days": "every_day",
               "default_tier": "automatic",
-              "objection_minutes": 5
+              "objection_minutes": 5,
+              "observe_only": false,
+              "new_conversation_policy": "resume",
+              "project_policy": "every",
+              "project_keys_always": "",
+              "project_keys_never": ""
             },
             "pending": [
               {
@@ -733,6 +771,7 @@
                 "gates_at": 1799999960.0,
                 "not_before": null,
                 "hold": null,
+                "would_send_at": null,
                 "thread_enabled": true,
                 "tier": null,
                 "name": null,
@@ -822,6 +861,7 @@
                 "gates_at": 1799999960.0,
                 "not_before": null,
                 "hold": null,
+                "would_send_at": null,
                 "thread_enabled": true,
                 "tier": null,
                 "name": null,

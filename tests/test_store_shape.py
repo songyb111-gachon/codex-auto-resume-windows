@@ -50,6 +50,9 @@ METHODS = {
     # window - store/actions.py and store/policy.py.
     "_bound", "_not_waiting", "postpone", "release_hold", "open_objection_window",
     "_thread_tier", "thread_tier", "thread_tiers", "set_thread_tier",
+    # v0.6.11: observe only's switch and its "would have been sent", a conversation first seen given
+    # Only notify me, and a project's waiting records held - store/policy.py and store/claims.py.
+    "set_observe_only", "record_would_send", "enrol_conversation", "hold_waiting",
 }
 
 # Reachable as `store.<name>` before the split, and still.

@@ -550,7 +550,9 @@ class BridgeTests(ControlTestCase):
             # v0.6.11: a task's row menu. A postponement only makes one record later; letting a
             # held one continue sends nothing and skips no gate; a tier only chooses how much a
             # conversation asks first. Each names its exact record or conversation.
-            "postpone", "release-hold", "thread-tier"]))
+            "postpone", "release-hold", "thread-tier",
+        # and Always or Never for the project of a row's conversation, bound to that row.
+        "project-rule"]))
 
     def test_serve_answers_every_line_with_exactly_one_line(self):
         requests = "\n".join([

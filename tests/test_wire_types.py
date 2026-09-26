@@ -40,6 +40,7 @@ COMPAT = [("bridge:compatibility", "compatibility"), ("bridge:compat-refresh", "
 WHERE = {
     wire.PendingRow: ROW,
     wire.TimelineEvent: [("bridge:timeline", "result.events[]")],
+    wire.Receipt: [("bridge:timeline", "result.receipts[]")],
     wire.WatcherView: [("bridge:status", "status.watcher"), ("bridge:dashboard", "status.watcher")],
     wire.StatusSnapshot: [("bridge:status", "status"), ("bridge:dashboard", "status")],
     wire.Statistics: [("bridge:statistics", "result"), ("bridge:dashboard", "week")],

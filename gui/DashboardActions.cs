@@ -234,7 +234,45 @@ namespace CodexAutoResume
             }
             tiers.Enabled = idle && !Equals(Get(row, "terminal"), true);
             pendingMenu.Items.Add(tiers);
+            // Whether the project its conversation is filed under may resume without a person, or is held for one.
+            var always = new ToolStripMenuItem(S("menu.project_always", "Let this project resume"), null,
+                                               delegate { ProjectRule(row, true); });
+            always.Enabled = tiers.Enabled;
+            pendingMenu.Items.Add(always);
+            var never = new ToolStripMenuItem(S("menu.project_never", "Hold this project for me"), null,
+                                              delegate { ProjectRule(row, false); });
+            never.Enabled = tiers.Enabled;
+            pendingMenu.Items.Add(never);
             return true;
+        }
+
+        /// Lets the project of the task's conversation resume, or holds it for a person (v0.6.11). Letting it resume
+        /// can let automation run again, so it asks first, naming the conversation; holding it only holds more back.
+        private void ProjectRule(Dictionary<string, object> row, bool always)
+        {
+            if (always && !Confirm(Named("confirm.project_always",
+                                         "Let the project of \"{name}\" resume? Its tasks may then be sent without asking you, as Settings allow. Nothing is sent now.", row),
+                                   S("menu.project_always", "Let this project resume")))
+                return;
+            string key = Str(row, "interruption_id");
+            CallAsync("project-rule", RowArgument(row, ",\"always\":" + (always ? "true" : "false")),
+                      delegate(Dictionary<string, object> reply)
+            {
+                if (!Ok(reply))
+                {
+                    Report(reply);
+                    RefreshAfterChange();
+                    return;
+                }
+                int held = (int)Number(Map(reply, "result"), "held");
+                pendingNoteFor = key;
+                pendingNoteText = always
+                    ? S("result.project_always", "Tasks of this project may resume without asking you, as Settings allow.")
+                    : S("result.project_never", "Tasks of this project wait for you from now on.") +
+                      (held > 0 ? " " + S("result.tier_held", "Now waiting for you: {n}", "n", held) : "");
+                ShowPendingNote();
+                RefreshAfterChange();
+            });
         }
 
         private string TierLabel(string tier)
@@ -786,7 +824,30 @@ namespace CodexAutoResume
                         word = S("explain.held", "Waiting for you");
                     rows.Add(new[] { S("gate." + name, name.Replace('_', ' ')), word, code });
                 }
-            explainList.SetRows(rows, S("explain.not_checked", "Not checked yet"));
+            explainList.SetRows(rows, S("explain.not_checked", "Not checked yet"), ExplainNote(row, gates));
+        }
+
+        /// v0.6.11: the sentence under the checks. Observe only's "would have been sent", or why the first check that
+        /// did not pass stops it, in words; nothing when every check passed or no words are known for the reason.
+        private string ExplainNote(Dictionary<string, object> row, Dictionary<string, object> gates)
+        {
+            double would = Number(row, "would_send_at");
+            if (would > 0)
+                return S("explain.would_send", "Every check but Observe only passed at {time}: it would have been sent then. Nothing was sent.",
+                         "time", ClockTime(would));
+            if (gates == null) return null;
+            // Under observe only, what else stops it says more than observe only does, and it is said first.
+            string observed = null;
+            foreach (string name in GateOrder)
+            {
+                var result = Items(gates, name);
+                string code = result != null && result.Count > 0 ? Convert.ToString(result[0], CultureInfo.InvariantCulture) : "UNKNOWN";
+                if (code == "PASS") continue;
+                string reason = result != null && result.Count > 1 ? Convert.ToString(result[1], CultureInfo.InvariantCulture) : null;
+                if (reason == "observe_only" && observed == null) { observed = reason; continue; }
+                return reason == null ? null : S("why." + reason, null);
+            }
+            return observed == null ? null : S("why." + observed, null);
         }
 
         private void TogglePause()
@@ -944,18 +1005,18 @@ namespace CodexAutoResume
             CallAsync("timeline", IdArgument(row), delegate(Dictionary<string, object> reply)
             {
                 if (!Ok(reply)) { Report(reply); return; }
-                OpenTimeline(row, Items(Map(reply, "result"), "events"));
+                OpenTimeline(row, Items(Map(reply, "result"), "events"), Items(Map(reply, "result"), "receipts"));
             });
         }
 
-        private void OpenTimeline(Dictionary<string, object> row, List<object> events)
+        private void OpenTimeline(Dictionary<string, object> row, List<object> events, List<object> receipts)
         {
-            using (Form dialog = BuildTimeline(row, events)) dialog.ShowDialog(this);
+            using (Form dialog = BuildTimeline(row, events, receipts)) dialog.ShowDialog(this);
         }
 
-        /// The Timeline dialog for `row`'s `events`, built and not shown - OpenTimeline shows it, LayoutAudit
-        /// measures it.
-        private Form BuildTimeline(Dictionary<string, object> row, List<object> events)
+        /// The Timeline dialog for `row`'s `events`, and after them what delivery showed of each continuation
+        /// (v0.6.11, `receipts`), built and not shown - OpenTimeline shows it, LayoutAudit measures it.
+        private Form BuildTimeline(Dictionary<string, object> row, List<object> events, List<object> receipts)
         {
             {
                 var dialog = new Form();
@@ -987,6 +1048,19 @@ namespace CodexAutoResume
                         // and a translated label for each would say no more than the state does.
                         string to = Str(item, "to_code");
                         line.SubItems.Add(to == null ? "" : S("code." + to, to.Replace('_', ' ')));
+                        view.Items.Add(line);
+                    }
+                }
+                if (receipts != null)
+                {
+                    foreach (object entry in receipts)
+                    {
+                        var receipt = entry as Dictionary<string, object>;
+                        string kind = Str(receipt, "kind");
+                        if (kind != "seen" && kind != "uncertain" && kind != "queued") continue;
+                        var line = new ListViewItem(When(Number(receipt, "at")));
+                        line.SubItems.Add(S("receipt." + kind, kind));
+                        line.SubItems.Add("");
                         view.Items.Add(line);
                     }
                 }

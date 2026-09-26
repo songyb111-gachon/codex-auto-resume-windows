@@ -39,6 +39,11 @@ ADDED: dict = {
     "quiet_hours_days": ("every_day", "inert while quiet_hours_start is off, which is the default"),
     "default_tier": ("automatic", "every conversation is resumed automatically, as v0.6.10 resumed it"),
     "objection_minutes": (5, "read only by the objection-window tier, which nothing has at the defaults"),
+    "observe_only": (False, "off: recovery sends as v0.6.10 sent"),
+    "new_conversation_policy": ("resume", "a conversation first seen is resumed like every other, as in v0.6.10"),
+    "project_policy": ("every", "every project resumes, and no project of Codex's is read for it"),
+    "project_keys_always": ("", "empty, and read only by the only-listed project policy"),
+    "project_keys_never": ("", "empty, and read only by the except-listed project policy"),
 }
 
 

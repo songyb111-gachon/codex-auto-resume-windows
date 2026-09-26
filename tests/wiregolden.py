@@ -189,6 +189,24 @@ def _held(thread):
     return using
 
 
+def _filed(thread, folder):
+    """A conversation the synthetic Codex home files under a folder (v0.6.11), so Let this project
+    resume and Hold this project for me have a project to read. The home's own table, written as
+    Codex writes it, and left as it is for the cases after it."""
+    @contextmanager
+    def using(workspace):
+        import sqlite3
+
+        connection = sqlite3.connect(workspace / "codex" / "state_5.sqlite")
+        try:
+            with connection:
+                connection.execute("UPDATE threads SET cwd=? WHERE id=?", (folder, thread))
+        finally:
+            connection.close()
+        yield
+    return using
+
+
 def _launch_that_comes_up(context):
     """The one start `start_watcher` makes, answered by a "process" that holds the scratch
     installation's watcher mutex from the moment it is made - as a watcher that came up does - with
@@ -435,6 +453,19 @@ BRIDGE_CASES = {
         Case("a row whose task is another conversation's",
              {"thread_id": T2, "tier": "ask_first", "interruption_id": WAITING_RESET}),
         Case("the tier must be named, even to take it away", {"thread_id": T1})],
+    "project-rule": [
+        Case("a project held for a person, with what it has waiting",
+             {"interruption_id": WAITING_RESET, "thread_id": T1, "always": False},
+             using=_filed(T1, r"C:\work\alpha")),
+        Case("the same project let resume again",
+             {"interruption_id": WAITING_RESET, "thread_id": T1, "always": True}),
+        Case("a conversation whose project cannot be read",
+             {"interruption_id": WAITING_BACKOFF, "thread_id": T2, "always": False}),
+        Case("always must be true or false",
+             {"interruption_id": WAITING_RESET, "thread_id": T1, "always": "yes"}),
+        Case("a task that belongs to another conversation",
+             {"interruption_id": WAITING_RESET, "thread_id": T2, "always": False}),
+        Case("a finished task", {"interruption_id": RECOVERED, "thread_id": T3, "always": False})],
     "compat-refresh": [
         Case("the bootstrap refreshed the data", {},
              using=_bootstrap("  Asking...\ncompatibility: refreshed 2\n", 0)),

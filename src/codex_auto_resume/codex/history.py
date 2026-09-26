@@ -14,7 +14,7 @@ import json
 from pathlib import Path, PureWindowsPath
 import re
 import sqlite3
-from .. import failures, machine
+from .. import failures, machine, projects
 from ..domain import ids
 from .errors import SourceError
 from .labels import _label
@@ -160,6 +160,31 @@ class HistoryMixin:
                         "project": project, "cwd_basename": base}
         except (SourceError, sqlite3.Error, OSError, ValueError):
             return blank
+
+    def project_key(self, thread_id: str):
+        """The key of the project a conversation is filed under (projects.key_for), or None when it
+        cannot be read. Codex's project id, or else its folder, is read here and digested here: the
+        key is all that leaves this method, and nothing is ever found by it (B8).
+
+        Asked only when Settings let some projects resume and not others (projects.asks); at the
+        defaults it is never asked. The same two columns the labels are read from, and no other."""
+        if not ids.is_uuid(thread_id):
+            return None
+        try:
+            with self._db("state") as connection:
+                columns = {row[1] for row in connection.execute("PRAGMA table_info(threads)")}
+                wanted = [name for name in ("project_id", "cwd") if name in columns]
+                if not wanted:
+                    return None
+                row = connection.execute(
+                    "SELECT %s FROM threads WHERE id=?" % ",".join(wanted), (thread_id,)).fetchone()
+        except (SourceError, sqlite3.Error, OSError, ValueError):
+            return None
+        if row is None:
+            return None
+        keys = row.keys()
+        return projects.key_for(row["project_id"] if "project_id" in keys else None,
+                                row["cwd"] if "cwd" in keys else None)
 
     def progress(self, thread_id: str, after_ordinal: int) -> dict:
         """Content-free evidence that something happened after a given turn.

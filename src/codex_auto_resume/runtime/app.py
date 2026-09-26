@@ -176,7 +176,18 @@ class App(WatchLoop):
             kwargs["dispatch_lock"] = dispatch_lock
         engine = Engine(store, source, self.backend(), plug=self.plug, **kwargs)
         engine.apply_policy(self.settings)
+        self._observe_only(engine)
         return engine
+
+    def _observe_only(self, engine: Engine) -> None:
+        """Write Observe only into the state as the settings say it (v0.6.11): the claim refuses on
+        the state's switch, the engine on the setting, and this keeps the two saying one thing - a
+        setting edited by hand, or saved while an older watcher held the state, included. A write
+        that fails changes nothing that is sent: the engine still refuses on the setting alone."""
+        try:
+            engine.store.set_observe_only(bool(self.settings.get("observe_only")))
+        except Exception:
+            self._record_failure("observe-only switch")
 
     def _settings_stamp(self):
         """A cheap identity for the settings file, used to notice edits while running."""
@@ -204,6 +215,7 @@ class App(WatchLoop):
         previous = self.settings.get("interface_language")
         self.settings = values
         engine.apply_policy(values)
+        self._observe_only(engine)
         from ..ui import popup
         popup.adopt_settings(values)
         if values.get("interface_language") != previous:
