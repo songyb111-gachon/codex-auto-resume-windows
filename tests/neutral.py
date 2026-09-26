@@ -17,11 +17,17 @@ the test's or the store's reading, never a plug's doing.
 The pairs run in worker processes, a few at once, because every scenario runs twice: `run_all`
 starts them and hands each the next scenario as it finishes one, and `serve` is what a worker
 runs. Not a test module (no `test_` prefix), so discovery does not collect it.
+
+In the advanced lane each scenario runs a third time, with the advanced package's own plug for
+a home of its own where nothing was ever turned on (`real_plug`). The core suite there cannot
+show it: core takes the package only from beside itself, so with advanced/src on the path the
+suite is still the standard edition, and DeferringPlug is only a stand-in for the real one.
 """
 from __future__ import annotations
 
 import contextlib
 import importlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -39,6 +45,10 @@ import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
 HERE = Path(__file__).resolve().parent
+# Where the advanced package is in the repository, and the variable that names a run's edition
+# (tests/editions.py, LEG).
+ADVANCED_SRC = ROOT / "advanced" / "src"
+LEG = "CODEX_AR_EDITION"
 for entry in (str(ROOT / "src"), str(HERE)):
     if entry not in sys.path:
         sys.path.insert(0, entry)
@@ -268,17 +278,40 @@ def _difference(standard: dict, plugged: dict) -> str | None:
     return None
 
 
+def advanced_lane() -> bool:
+    """Whether this run is the advanced lane: it says so, and the package is importable."""
+    if os.environ.get(LEG) != Edition.ADVANCED:
+        return False
+    return importlib.util.find_spec("codex_auto_resume_advanced") is not None
+
+
+def real_plug(home):
+    """The advanced package's own plug for `home`, a scratch home where nothing was turned on."""
+    from codex_auto_resume import config
+    from codex_auto_resume_advanced import plug
+    return plug.create(config.Paths(home))
+
+
 def compare(test_id: str) -> dict:
-    """One scenario with NULL and then with a DeferringPlug, and how the two compare."""
+    """One scenario with NULL and then with a DeferringPlug - and, in the advanced lane, with the
+    advanced package's real plug - and how each compares with NULL."""
     since = time.time()
     standard = run_one(test_id, seed=test_id)
     plug = DeferringPlug()
     plugged = run_one(test_id, plug=plug, seed=test_id)
+    real = None
+    if advanced_lane():
+        with tempfile.TemporaryDirectory() as home:
+            real = run_one(test_id, plug=real_plug(home), seed=test_id)
     until = time.time()
     standard, plugged = steady(standard, since, until), steady(plugged, since, until)
-    return {"id": test_id, "standard_ok": standard["ok"], "plugged_ok": plugged["ok"],
-            "engines": standard["engines"], "difference": _difference(standard, plugged),
-            "asked": sorted(plug.asked)}
+    result = {"id": test_id, "standard_ok": standard["ok"], "plugged_ok": plugged["ok"],
+              "engines": standard["engines"], "difference": _difference(standard, plugged),
+              "asked": sorted(plug.asked)}
+    if real is not None:
+        real = steady(real, since, until)
+        result.update(real_ok=real["ok"], real_difference=_difference(standard, real))
+    return result
 
 
 def serve() -> None:
@@ -313,7 +346,8 @@ def run_all(ids, *, count=None, timeout=1800) -> dict:
         pending.put(test_id)
     results, lock = {}, threading.Lock()
     env = dict(os.environ)
-    env["PYTHONPATH"] = os.pathsep.join((str(ROOT / "src"), str(HERE)))
+    path = [str(ROOT / "src"), str(HERE)] + ([str(ADVANCED_SRC)] if advanced_lane() else [])
+    env["PYTHONPATH"] = os.pathsep.join(path)
     env["PYTHONIOENCODING"] = "utf-8"
     deadline = time.monotonic() + timeout
 
