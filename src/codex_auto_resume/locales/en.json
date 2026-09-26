@@ -346,7 +346,7 @@
   "help.style.standard": "Says why the task stopped, then asks Codex to retry. Recommended.",
   "help.theme": "Light or dark for the Dashboard, the notification-area popup and the notification card, and for the panel in Codex while Theme in Codex is Same as Theme. Use system setting follows Windows for the first three and Codex's own theme for the panel.",
   "help.panel_theme": "Light or dark for the panel in Codex alone. Same as Theme uses the choice above; Codex's theme follows Codex whatever the Theme is.",
-  "help.design": "How the Dashboard, the notification-area popup, the notification card and the panel in Codex are drawn; light or dark is still the Theme's. Soft is raised; Classic (v0.6.2) is flat, with that version's accent bars; Plain is flat and grey. High Contrast replaces every design, and Reduce motion stops the motion in each.",
+  "help.design": "Soft is raised; Classic (v0.6.2) is flat, with accent bars; Plain is flat and grey.",
   "history.col_detected": "Detected",
   "history.col_finished": "Finished",
   "history.col_outcome": "Outcome",

@@ -346,7 +346,7 @@
   "help.style.standard": "Nennt den Grund, warum die Aufgabe gestoppt wurde, und bittet Codex dann um einen neuen Versuch. Empfohlen.",
   "help.theme": "Hell oder dunkel für das Dashboard, das Popup im Infobereich und die Benachrichtigungskarte, und für das Panel in Codex, solange „Design in Codex“ auf „Wie Design“ steht. „Systemeinstellung verwenden“ folgt bei den ersten drei Windows und beim Panel dem Design von Codex.",
   "help.panel_theme": "Hell oder dunkel nur für das Panel in Codex. „Wie Design“ übernimmt die Auswahl oben, „Design von Codex“ folgt Codex, was immer das Design ist.",
-  "help.design": "Wie das Dashboard, das Popup im Infobereich, die Benachrichtigungskarte und das Panel in Codex gezeichnet werden; hell oder dunkel bestimmt weiterhin das Design. „Weich“ ist plastisch, „Klassisch (v0.6.2)“ ist flach, mit den Akzentleisten dieser Version, „Schlicht“ ist flach und grau. Hoher Kontrast ersetzt jeden Stil, und „Bewegung reduzieren“ hält die Bewegung in jedem an.",
+  "help.design": "„Weich“ ist plastisch, „Klassisch (v0.6.2)“ ist flach mit Akzentleisten, „Schlicht“ ist flach und grau.",
   "history.col_detected": "Erkannt",
   "history.col_finished": "Beendet",
   "history.col_outcome": "Ergebnis",
