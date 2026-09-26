@@ -535,6 +535,14 @@ namespace CodexAutoResume
                     if (name == "design")
                         host.Controls.Add(HelpText(S("help.design",
                             "Soft is raised; Classic (v0.6.2) is flat, with accent bars; Plain is flat and grey.")));
+                    // v0.6.11: what quiet hours do, under the last of their three; and what a tier does, under the
+                    // default one.
+                    if (name == "quiet_hours_days")
+                        host.Controls.Add(HelpText(S("help.quiet_hours_days",
+                            "A recovery that falls due during quiet hours waits until they end; nothing else about it changes. Hours that run past midnight belong to the day they start on. Time spent in them does not count toward giving up on a usage limit.")));
+                    if (name == "default_tier")
+                        host.Controls.Add(HelpText(S("help.default_tier",
+                            "For every conversation without a choice of its own, and for interruptions detected from then on; choose for one conversation from its task's row in Pending. After a chance to object shows a notification first and sends only once the time to object has passed. Ask me first and Only notify me send nothing until you let the task continue.")));
                 }
             }
             if (master != null)

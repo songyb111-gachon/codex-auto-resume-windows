@@ -71,7 +71,12 @@
             "custom_message_network_transient": null,
             "custom_message_timeout": null,
             "custom_message_server_5xx": null,
-            "custom_message_stream_interrupted": null
+            "custom_message_stream_interrupted": null,
+            "quiet_hours_start": "off",
+            "quiet_hours_end": "07:00",
+            "quiet_hours_days": "every_day",
+            "default_tier": "automatic",
+            "objection_minutes": 5
           }
         },
         "pending": [
@@ -156,7 +161,10 @@
               ]
             },
             "gates_at": 1799999960.0,
+            "not_before": null,
+            "hold": null,
             "thread_enabled": true,
+            "tier": null,
             "name": "example-project",
             "project": null,
             "cwd_basename": null
@@ -242,7 +250,10 @@
               ]
             },
             "gates_at": 1799999960.0,
+            "not_before": null,
+            "hold": null,
             "thread_enabled": true,
+            "tier": null,
             "name": "example-service",
             "project": null,
             "cwd_basename": null
@@ -330,7 +341,10 @@
               ]
             },
             "gates_at": 1799999960.0,
+            "not_before": null,
+            "hold": null,
             "thread_enabled": true,
+            "tier": null,
             "name": "example-service",
             "project": null,
             "cwd_basename": null
@@ -416,7 +430,10 @@
               ]
             },
             "gates_at": 1799999960.0,
+            "not_before": null,
+            "hold": null,
             "thread_enabled": true,
+            "tier": null,
             "name": "example-project",
             "project": null,
             "cwd_basename": null
@@ -449,7 +466,10 @@
             "first_queued_at": null,
             "gates": null,
             "gates_at": null,
+            "not_before": null,
+            "hold": null,
             "thread_enabled": false,
+            "tier": null,
             "name": null,
             "project": null,
             "cwd_basename": null
@@ -482,7 +502,10 @@
             "first_queued_at": 1799989260.0,
             "gates": null,
             "gates_at": null,
+            "not_before": null,
+            "hold": null,
             "thread_enabled": true,
+            "tier": null,
             "name": "example-docs",
             "project": null,
             "cwd_basename": null
@@ -515,7 +538,10 @@
             "first_queued_at": 1799967660.0,
             "gates": null,
             "gates_at": null,
+            "not_before": null,
+            "hold": null,
             "thread_enabled": true,
+            "tier": null,
             "name": "example-app",
             "project": null,
             "cwd_basename": null
@@ -548,7 +574,10 @@
             "first_queued_at": 1799827260.0,
             "gates": null,
             "gates_at": null,
+            "not_before": null,
+            "hold": null,
             "thread_enabled": true,
+            "tier": null,
             "name": "example-service",
             "project": null,
             "cwd_basename": null
@@ -581,7 +610,10 @@
             "first_queued_at": 1799740860.0,
             "gates": null,
             "gates_at": null,
+            "not_before": null,
+            "hold": null,
             "thread_enabled": true,
+            "tier": null,
             "name": "example-app",
             "project": null,
             "cwd_basename": null
@@ -614,7 +646,10 @@
             "first_queued_at": 1799654460.0,
             "gates": null,
             "gates_at": null,
+            "not_before": null,
+            "hold": null,
             "thread_enabled": true,
+            "tier": null,
             "name": "example-project",
             "project": null,
             "cwd_basename": null
@@ -647,7 +682,10 @@
             "first_queued_at": 1799568060.0,
             "gates": null,
             "gates_at": null,
+            "not_before": null,
+            "hold": null,
             "thread_enabled": true,
+            "tier": null,
             "name": "example-docs",
             "project": null,
             "cwd_basename": null

@@ -34,6 +34,11 @@ _READ = "import json\nfrom codex_auto_resume import settings\nprint(json.dumps(s
 
 # name -> (its default, why that default is what v0.6.10 did). Empty until a setting is added.
 ADDED: dict = {
+    "quiet_hours_start": ("off", "no quiet hours: nothing that falls due waits for a time of day"),
+    "quiet_hours_end": ("07:00", "inert while quiet_hours_start is off, which is the default"),
+    "quiet_hours_days": ("every_day", "inert while quiet_hours_start is off, which is the default"),
+    "default_tier": ("automatic", "every conversation is resumed automatically, as v0.6.10 resumed it"),
+    "objection_minutes": (5, "read only by the objection-window tier, which nothing has at the defaults"),
 }
 
 

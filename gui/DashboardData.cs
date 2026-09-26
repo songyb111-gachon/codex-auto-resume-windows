@@ -200,6 +200,16 @@ namespace CodexAutoResume
             return local.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
         }
 
+        /// A moment later today as the clock shows it, and any other with its date (v0.6.11): when a
+        /// postponement or quiet hours end.
+        private static string ClockTime(double stamp)
+        {
+            if (stamp <= 0) return "";
+            DateTime local = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(stamp).ToLocalTime();
+            return local.Date == DateTime.Now.Date ? local.ToString("HH:mm", CultureInfo.InvariantCulture)
+                                                   : When(stamp);
+        }
+
         private string Ago(double stamp)
         {
             if (stamp <= 0) return S("time.never", "never");
@@ -702,7 +712,29 @@ namespace CodexAutoResume
             // is unknown, is exactly where it helps.
             if (Number(row, "reset_at") > now) return false;
             if (HasOverlay(row, "paused") || HasOverlay(row, "thread_disabled")) return false;
+            // v0.6.11: nor past a hold. A held task waits for a person to let it continue, and a check
+            // brought forward would only find it held again.
+            if (HasOverlay(row, "held")) return false;
             return true;
+        }
+
+        /// Whether a task can be postponed (v0.6.11): it is waiting, and nobody cancelled it. A pause or a
+        /// conversation switched off do not stop it: postponing only ever holds a task back further.
+        internal static bool CanPostpone(Dictionary<string, object> row, bool idle)
+        {
+            if (row == null || !idle) return false;
+            string code = Str(row, "code");
+            bool waiting = code == "waiting_reset" || code == "waiting_usage" || code == "waiting_thread" ||
+                           code == "scheduled" || code == "failed_retryable";
+            return waiting && !Equals(Get(row, "cancel_requested"), true);
+        }
+
+        /// Whether a held task can be let continue (v0.6.11): it is held, not finished and not cancelled.
+        internal static bool CanRelease(Dictionary<string, object> row, bool idle)
+        {
+            if (row == null || !idle) return false;
+            if (string.IsNullOrEmpty(Str(row, "hold"))) return false;
+            return !Equals(Get(row, "terminal"), true) && !Equals(Get(row, "cancel_requested"), true);
         }
 
         /// Whether giving this record its attempts back could succeed. The store allows it a

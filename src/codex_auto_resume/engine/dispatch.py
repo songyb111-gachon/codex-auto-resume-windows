@@ -33,7 +33,8 @@ class DispatchMixin:
             if (row.get("next_retry_at") or 0) <= now and recorded != vector["consent"]:
                 self.store.record_gates(row["interruption_id"], vector, now)
             return
-        vector["schedule"] = machine.gate_schedule(row, now)
+        quiet_until = self.quiet_until(now)     # v0.6.11; None with no quiet hours, the default
+        vector["schedule"] = machine.gate_schedule(row, now, quiet_until=quiet_until)
         if vector["schedule"][0] != machine.PASS:
             if vector["schedule"][1] == "waiting_reset" and (row.get("next_retry_at") or 0) <= now:
                 # A usage reset still ahead is a wait with a reason, never a record that is
@@ -42,6 +43,8 @@ class DispatchMixin:
                            row["reset_at"] + self.options["reset_grace_seconds"] - now, vector)
             elif vector["schedule"][1] == machine.POSTPONED and (row.get("next_retry_at") or 0) <= now:
                 self._wait(row, row["state"], row.get("last_error"), row["not_before"] - now, vector)
+            elif vector["schedule"][1] == machine.QUIET_HOURS:
+                self._quiet(row, vector, quiet_until - now)
             return
         # P7: due by core's schedule, and the plug may say not yet.
         if self._held("schedule", row, vector, self.plug.schedule(row, machine.eligible_at(row))):
@@ -151,6 +154,8 @@ class DispatchMixin:
         vector["usage"] = machine.gate(machine.PASS)
         if self._plugged("usage", row, vector):
             return
+        if self._objection(row, vector, now):
+            return
         self.dispatch(row, app, vector, limits)
 
     def _plugged(self, name, row, vector) -> bool:
@@ -239,8 +244,10 @@ class DispatchMixin:
             carried = frozenset(point for point, taken in ((Point.TEXT, worded),
                                                            (Point.SENDER, sender is not self.backend))
                                 if taken)
+            at = self.clock()
             claimed, gate, reason = self.store.reserve_detailed(
-                key, self.clock(), limits=limits, gates=vector, ledger=self.plug, carried=carried)
+                key, at, limits=limits, gates=vector, ledger=self.plug, carried=carried,
+                quiet_until=self.quiet_until(at))
             if not claimed:
                 self._refused(current, gate, reason)
                 return
@@ -302,22 +309,6 @@ class DispatchMixin:
         else:
             self.transition(reserved, "submission_unknown", "queue_result_unknown_do_not_resend", delay=1)
 
-    def _refused(self, row, gate, reason):
-        """A claim the store refused. Recorded as a wait or a stop, never silently."""
-        if gate in ("chain_budget", "attempt_budget", "no_progress_budget"):
-            self._stop_for_budget(row, gate, reason)
-        elif gate == "schedule" and reason == "waiting_reset" and row.get("reset_at"):
-            self.transition(row, "waiting_reset", "waiting_reset",
-                            delay=max(30, row["reset_at"] + self.options["reset_grace_seconds"] - self.clock()))
-        elif gate == "submission_safe" and reason == "other_recovery_in_flight":
-            self.transition(row, "waiting_retry", "other_recovery_in_flight",
-                            delay=self.options["state_poll_seconds"])
-        elif gate == "submission_safe" and reason == machine.HELD:
-            # The plug's ledger held the claim (P11): the record keeps its state and its reason
-            # for one more poll, as a gate the plug holds does.
-            self.transition(row, row["state"], row.get("last_error"),
-                            delay=self.options["state_poll_seconds"])
-
     def presend_problem(self, claim):
         """The last look before the queue process starts. Returns (target, reason,
         delay) to give the claim back, or None to send.
@@ -331,7 +322,9 @@ class DispatchMixin:
             return "waiting_retry", "released_before_send", poll
         if claim["cancel_requested"]:
             return "cancelled", "user_cancelled", 0
-        if not self.allowed(claim) or (claim.get("not_before") or 0) > self.clock():  # with schema 4's
+        now = self.clock()
+        if (not self.allowed(claim) or (claim.get("not_before") or 0) > now    # schema 4's, and
+                or self.quiet_until(now) is not None):                         # quiet hours
             return self.waiting_state(claim), "released_before_send", poll
         if not self.valid_interruption(claim):
             state, reason = self.supersede_reason(claim)

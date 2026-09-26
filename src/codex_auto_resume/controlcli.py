@@ -72,7 +72,10 @@ WITH_ARGUMENT = ("update", "enabled", "startup", "cancel", "reset-budget", "retr
                  "preview-continuation", "interruption-recovery",
                  # The Compatibility Registry: read the report (or check live), import a
                  # document the bootstrap downloaded, and the Diagnostics refresh.
-                 "compatibility", "compat-import", "compat-refresh")
+                 "compatibility", "compat-import", "compat-refresh",
+                 # v0.6.11: a task's row menu - postpone it, let a held one continue, and how
+                 # much its conversation asks first.
+                 "postpone", "release-hold", "thread-tier")
 # Big enough for the largest Save the settings layer accepts: eight Custom messages of 2000
 # characters each, and the window writes every line break as a six-character escape, so a
 # valid Save can come to nearly 100 KiB. At 64 KiB such a Save was refused as "request too
@@ -406,6 +409,21 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
                 payload.get("interruption_id"), payload.get("thread_id"), _flag(payload))}
         if command == "cancel-all":
             return {"ok": True, "result": control.cancel_all_pending(actor="gui")}
+        if command == "postpone":
+            return {"ok": True, "result": control.postpone(
+                payload.get("interruption_id"), payload.get("thread_id"), until=payload.get("until"),
+                preset=payload.get("preset"), minutes=payload.get("minutes"))}
+        if command == "release-hold":
+            return {"ok": True, "result": control.release_hold(payload.get("interruption_id"),
+                                                               payload.get("thread_id"))}
+        if command == "thread-tier":
+            # The tier is named even to take it away - null, the default in Settings - so a
+            # request that forgot it is refused rather than read as "the default".
+            if "tier" not in payload:
+                raise ControlError("invalid tier", code="invalid_tier")
+            return {"ok": True, "result": control.set_thread_tier(
+                payload.get("thread_id"), payload.get("tier"),
+                interruption_id=payload.get("interruption_id"))}
         if command == "compatibility":
             return {"ok": True, "compatibility": _compatibility(control, payload)}
         if command == "compat-import":

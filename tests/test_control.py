@@ -546,7 +546,11 @@ class BridgeTests(ControlTestCase):
             "dashboard", "serve",
             # v0.6.8: the Dashboard in front has seen a failure. It writes one time into
             # config/failure-seen.json and changes only whether the icon is red.
-            "failure-seen"]))
+            "failure-seen",
+            # v0.6.11: a task's row menu. A postponement only makes one record later; letting a
+            # held one continue sends nothing and skips no gate; a tier only chooses how much a
+            # conversation asks first. Each names its exact record or conversation.
+            "postpone", "release-hold", "thread-tier"]))
 
     def test_serve_answers_every_line_with_exactly_one_line(self):
         requests = "\n".join([

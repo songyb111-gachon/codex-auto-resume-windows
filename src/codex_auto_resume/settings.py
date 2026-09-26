@@ -20,8 +20,8 @@ import os
 from pathlib import Path
 import tempfile
 
-from . import continuation, failures, l10n, reasons
-from .domain.vocabulary import Design, NotifyEvent, Theme
+from . import continuation, failures, l10n, quiet, reasons
+from .domain.vocabulary import Design, ImportanceTier, NotifyEvent, Theme
 
 CONFIG_VERSION = 2
 MAX_SETTINGS_BYTES = 256 * 1024
@@ -199,6 +199,23 @@ FIELDS["custom_message"] = (None, _custom_message)
 for _category in reasons.RECOVERABLE:
     FIELDS["custom_message_" + _category] = (None, _custom_message)
 
+# ------------------------------------------------------------ quiet hours and tiers (v0.6.11)
+# Each defaults to what v0.6.10 did (tests/test_defaults_golden.py, ADDED): no quiet hours - the
+# start is `off`, and the end and the days change nothing until a start is chosen - and every
+# conversation resumed automatically. They can only hold a recovery back: quiet hours make one
+# that falls due wait until they end, and a tier that asks first holds an interruption for a
+# person, or gives them the objection window's minutes to stop it first (quiet.py).
+QUIET_STARTS, QUIET_TIMES, QUIET_DAYS = quiet.STARTS, quiet.TIMES, quiet.DAYS
+FIELDS["quiet_hours_start"] = (quiet.DEFAULT_START, lambda v, d: _choice(v, d, QUIET_STARTS))
+FIELDS["quiet_hours_end"] = (quiet.DEFAULT_END, lambda v, d: _choice(v, d, QUIET_TIMES))
+FIELDS["quiet_hours_days"] = (quiet.DEFAULT_DAYS, lambda v, d: _choice(v, d, QUIET_DAYS))
+# The tier a conversation without one of its own has, least asking first; and how long the
+# objection window gives a person to stop a continuation before it is sent.
+TIERS = tuple(ImportanceTier)
+DEFAULT_TIER = ImportanceTier.AUTOMATIC.value
+FIELDS["default_tier"] = (DEFAULT_TIER, lambda v, d: _choice(v, d, TIERS))
+FIELDS["objection_minutes"] = (5, lambda v, d: _bounded_int(v, d, 1, 60))
+
 
 def is_custom_text(name) -> bool:
     """Whether a settings field holds Custom continuation text: the user's own words, which
@@ -237,6 +254,11 @@ RANGES = {
     "continuation_language": {"choices": list(CONTINUATION_LANGUAGES)},
     "continuation_style": {"choices": list(continuation.STYLES)},
     "custom_message_mode": {"choices": list(continuation.CUSTOM_MODES)},
+    "quiet_hours_start": {"choices": list(QUIET_STARTS)},
+    "quiet_hours_end": {"choices": list(QUIET_TIMES)},
+    "quiet_hours_days": {"choices": list(QUIET_DAYS)},
+    "default_tier": {"choices": list(TIERS)},
+    "objection_minutes": {"min": 1, "max": 60},
 }
 
 
@@ -363,6 +385,14 @@ def design_preference(values) -> str:
     return _choice(raw, DEFAULT_DESIGN, DESIGNS)
 
 
+def tier_of(values, own=None) -> str:
+    """The tier a conversation has: its own (`threads.tier`), or else the default in `values`."""
+    if own in TIERS:
+        return own
+    raw = values.get("default_tier") if isinstance(values, dict) else None
+    return _choice(raw, DEFAULT_TIER, TIERS)
+
+
 def category_enabled(values, category: str) -> bool:
     """Whether automatic recovery is allowed for one failure category.
 
@@ -375,11 +405,16 @@ def category_enabled(values, category: str) -> bool:
     return bool((values or {}).get(key, DEFAULTS[key]))
 
 
+# v0.6.11: a notice about to be acted on - the objection window's "Continuing at 14:07" - is told
+# under the switch of the notice it comes before, Recovery starting.
+GOVERNED_BY = {"objection": NotifyEvent.STARTING.value}
+
+
 def notification_enabled(values, event: str) -> bool:
     values = values or {}
     if not values.get("notifications", DEFAULTS["notifications"]):
         return False
-    key = "notify_" + str(event)
+    key = "notify_" + GOVERNED_BY.get(str(event), str(event))
     return bool(values.get(key, DEFAULTS.get(key, True)))
 
 
@@ -508,7 +543,10 @@ def describe() -> list:
             # outside what the Codex panel and MCP may change (mcpserver.USER_GROUPS).
             entry["group"] = "windows"
         elif name in ("max_recovery_attempts", "max_no_progress", "max_chain_continuations",
-                      "retry_timing"):
+                      "retry_timing", "quiet_hours_start", "quiet_hours_end", "quiet_hours_days",
+                      "default_tier", "objection_minutes"):
+            # v0.6.11: quiet hours and the tier a conversation has by default join the limits -
+            # how hard, and when, recovery tries - in the window and in the panel alike.
             entry["group"] = "limits"
         elif name == "interface_language":
             entry["group"] = "general"

@@ -70,9 +70,13 @@ ITEM = {_q(name): item for item, names in {
                "compat.permits",
                # v0.6.11: what an edition may change about a decision, and which edition this
                # is - the "under which edition" of HOMELESS below, in code
-               "domain.plug", "edition"),
+               "domain.plug", "edition",
+               # v0.6.11: quiet hours and a postponement's times - when, by the local clock.
+               "quiet"),
     "machine": ("machine", "domain", "domain.errors", "domain.ids", "domain.public",
-                "domain.states", "domain.vocabulary"),
+                "domain.states", "domain.vocabulary",
+                # v0.6.11: the registry's vocabularies, out of domain/vocabulary.py.
+                "domain.compat_vocabulary"),
     "scheduler": ("engine.reconcile",),
     "store": ("store", "store.actions", "store.claims", "store.columns", "store.downgrade",
               "store.errors", "store.journal", "store.legacy", "store.migrations", "store.policy",

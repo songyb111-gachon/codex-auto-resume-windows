@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import sqlite3
 from typing import Any
+from .. import machine
+from ..machine import WAITING
 from .errors import StoreError
-from .validate import _flag, _integer, _timestamp, _uuid
+from .validate import _flag, _integer, _timestamp, _uuid, _validated_record, _validated_tier
 
 
 class PolicyMixin:
@@ -73,3 +75,55 @@ class PolicyMixin:
             )
             if enabled and not before:
                 self._event(connection, self._now(at), "thread_enabled", actor=actor)
+
+    # ------------------------------------------------------------ tiers (schema 4)
+    @staticmethod
+    def _thread_tier(connection: sqlite3.Connection, thread_id: str):
+        row = connection.execute("SELECT tier FROM threads WHERE thread_id=?", (thread_id,)).fetchone()
+        return None if row is None else _validated_tier(row[0])
+
+    def thread_tier(self, thread_id: str):
+        """The tier this conversation has of its own, or None: it has the default's."""
+        _uuid(thread_id, "thread_id")
+        with self._read() as connection:
+            return self._thread_tier(connection, thread_id)
+
+    def thread_tiers(self) -> dict:
+        """Every conversation that has a tier of its own, and that tier."""
+        with self._read() as connection:
+            return {row[0]: _validated_tier(row[1]) for row in
+                    connection.execute("SELECT thread_id, tier FROM threads WHERE tier IS NOT NULL")}
+
+    def set_thread_tier(self, thread_id: str, tier, now: float, *, actor: str = "gui") -> dict:
+        """Give one conversation a tier of its own, or take it away (None: the default's again).
+
+        A tier that asks a person first - Ask me first, Only notify me - also holds what this
+        conversation has waiting and not yet sent, in the same transaction, so choosing it can
+        only ever hold more back. Choosing a tier that asks less lets nothing go: a record already
+        held stays held until a person lets it continue (`release_hold`). Returns the tier now
+        stored and how many records it held."""
+        _uuid(thread_id, "thread_id")
+        _timestamp(now, "now")
+        _validated_tier(tier)
+        hold = machine.hold_for_tier(tier)
+        held = 0
+        with self._transaction() as connection:
+            before = self._thread_tier(connection, thread_id)
+            connection.execute(
+                "INSERT INTO threads (thread_id, enabled, tier) VALUES (?,1,?) "
+                "ON CONFLICT(thread_id) DO UPDATE SET tier=excluded.tier", (thread_id, tier))
+            if tier != before:
+                self._event(connection, now, "tier_set", actor=actor)
+            if hold is not None:
+                waiting = sorted(WAITING)
+                for value in connection.execute(
+                        "SELECT * FROM interruptions WHERE thread_id=? AND hold IS NULL "
+                        "AND submitted_at IS NULL AND cancel_requested=0 AND state IN (%s)"
+                        % ",".join("?" for _ in waiting), (thread_id, *waiting)).fetchall():
+                    row = _validated_record(dict(value))
+                    connection.execute("UPDATE interruptions SET hold=? WHERE interruption_id=?",
+                                       (hold, row["interruption_id"]))
+                    self._event(connection, now, "held", record=row, from_state=row["state"],
+                                to_state=row["state"], actor=actor)
+                    held += 1
+        return {"tier": tier, "held": held}

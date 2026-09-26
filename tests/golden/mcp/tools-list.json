@@ -215,6 +215,140 @@
                   "per_reason"
                 ],
                 "description": "See the settings documentation."
+              },
+              "quiet_hours_start": {
+                "type": "string",
+                "enum": [
+                  "off",
+                  "00:00",
+                  "00:30",
+                  "01:00",
+                  "01:30",
+                  "02:00",
+                  "02:30",
+                  "03:00",
+                  "03:30",
+                  "04:00",
+                  "04:30",
+                  "05:00",
+                  "05:30",
+                  "06:00",
+                  "06:30",
+                  "07:00",
+                  "07:30",
+                  "08:00",
+                  "08:30",
+                  "09:00",
+                  "09:30",
+                  "10:00",
+                  "10:30",
+                  "11:00",
+                  "11:30",
+                  "12:00",
+                  "12:30",
+                  "13:00",
+                  "13:30",
+                  "14:00",
+                  "14:30",
+                  "15:00",
+                  "15:30",
+                  "16:00",
+                  "16:30",
+                  "17:00",
+                  "17:30",
+                  "18:00",
+                  "18:30",
+                  "19:00",
+                  "19:30",
+                  "20:00",
+                  "20:30",
+                  "21:00",
+                  "21:30",
+                  "22:00",
+                  "22:30",
+                  "23:00",
+                  "23:30"
+                ],
+                "description": "When quiet hours start, local time, or off (the default: none). A recovery that falls due in them waits until they end; nothing else changes."
+              },
+              "quiet_hours_end": {
+                "type": "string",
+                "enum": [
+                  "00:00",
+                  "00:30",
+                  "01:00",
+                  "01:30",
+                  "02:00",
+                  "02:30",
+                  "03:00",
+                  "03:30",
+                  "04:00",
+                  "04:30",
+                  "05:00",
+                  "05:30",
+                  "06:00",
+                  "06:30",
+                  "07:00",
+                  "07:30",
+                  "08:00",
+                  "08:30",
+                  "09:00",
+                  "09:30",
+                  "10:00",
+                  "10:30",
+                  "11:00",
+                  "11:30",
+                  "12:00",
+                  "12:30",
+                  "13:00",
+                  "13:30",
+                  "14:00",
+                  "14:30",
+                  "15:00",
+                  "15:30",
+                  "16:00",
+                  "16:30",
+                  "17:00",
+                  "17:30",
+                  "18:00",
+                  "18:30",
+                  "19:00",
+                  "19:30",
+                  "20:00",
+                  "20:30",
+                  "21:00",
+                  "21:30",
+                  "22:00",
+                  "22:30",
+                  "23:00",
+                  "23:30"
+                ],
+                "description": "When quiet hours end, local time. Nothing while quiet_hours_start is off."
+              },
+              "quiet_hours_days": {
+                "type": "string",
+                "enum": [
+                  "every_day",
+                  "weekdays",
+                  "weekends"
+                ],
+                "description": "The days quiet hours start on. Nothing while quiet_hours_start is off."
+              },
+              "default_tier": {
+                "type": "string",
+                "enum": [
+                  "automatic",
+                  "objection_window",
+                  "ask_first",
+                  "notify_only"
+                ],
+                "description": "How much a conversation without a tier of its own asks before it is resumed: automatic (the default), objection_window (a card first, objection_minutes to stop it), ask_first or notify_only (nothing is sent until a person lets it continue). Applies to interruptions detected after it is chosen."
+              },
+              "objection_minutes": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 60,
+                "description": "How long the objection window waits before a continuation is sent."
               }
             },
             "additionalProperties": false
@@ -364,6 +498,84 @@
           "annotations": {
             "readOnlyHint": false,
             "destructiveHint": false,
+            "idempotentHint": true,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "postpone_recovery",
+          "title": "Postpone one waiting recovery",
+          "description": "Make one exact waiting recovery wait longer: nothing is sent for it before the time asked for - preset 30_minutes, 1_hour, 3_hours or tomorrow_morning (09:00 local time), or a number of minutes up to a week; give exactly one. Identify it by its interruption id and its thread id, both from the same row of list_pending - never by title, project or recency. It only ever makes a recovery later, sends nothing and skips no check; retry_now brings it forward again.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "interruption_id": {
+                "type": "string",
+                "title": "Interruption id",
+                "description": "The exact interruption id, as listed by list_pending. Never a title, a project name, or 'the most recent one'.",
+                "pattern": "^[0-9a-fA-F]{64}$"
+              },
+              "thread_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                "description": "The conversation's exact thread id, from the same row of list_pending"
+              },
+              "preset": {
+                "type": "string",
+                "enum": [
+                  "30_minutes",
+                  "1_hour",
+                  "3_hours",
+                  "tomorrow_morning"
+                ]
+              },
+              "minutes": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10080
+              }
+            },
+            "required": [
+              "interruption_id",
+              "thread_id"
+            ],
+            "additionalProperties": false
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": false,
+            "idempotentHint": false,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "release_hold",
+          "title": "Let one held recovery continue",
+          "description": "Let one exact recovery that waits for a person continue - one whose conversation asks first or only notifies (its hold in list_pending). Identify it by its interruption id and its thread id from the same row. Nothing is sent by this; the watcher still runs every check, and a postponement or quiet hours still apply. This lets automation run again for that recovery, so Codex asks the user first.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "interruption_id": {
+                "type": "string",
+                "title": "Interruption id",
+                "description": "The exact interruption id, as listed by list_pending. Never a title, a project name, or 'the most recent one'.",
+                "pattern": "^[0-9a-fA-F]{64}$"
+              },
+              "thread_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                "description": "The conversation's exact thread id, from the same row of list_pending"
+              }
+            },
+            "required": [
+              "interruption_id",
+              "thread_id"
+            ],
+            "additionalProperties": false
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": true,
             "idempotentHint": true,
             "openWorldHint": false
           }

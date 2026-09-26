@@ -1236,7 +1236,7 @@ class SafetyTests(unittest.TestCase):
                            if re.search(r"send|submit|queue|dispatch|backend|engine", name, re.I))
         self.assertEqual(offenders, [])
 
-    def test_it_asks_the_control_layer_for_exactly_four_things(self):
+    def test_it_asks_the_control_layer_for_exactly_what_it_lists(self):
         called = set()
         for tree in self.trees.values():
             for node in ast.walk(tree):

@@ -26,6 +26,7 @@ from .win32 import (KEY_WAS_DOWN,
                     WA_INACTIVE,
                     WM_ACTIVATE,
                     WM_CLOSE,
+                    WM_CONTEXTMENU,
                     WM_DPICHANGED,
                     WM_ERASEBKGND,
                     WM_KEYDOWN,
@@ -116,6 +117,9 @@ class PopupMessages:
             if target is not None and target == pressed:
                 self._activate(target)
             self._invalidate()
+            return 0
+        if message == WM_CONTEXTMENU:
+            self._context_menu(lparam)
             return 0
         if message == WM_DPICHANGED:
             dpi = wparam & 0xFFFF

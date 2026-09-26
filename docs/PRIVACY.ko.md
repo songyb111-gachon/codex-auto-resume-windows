@@ -309,7 +309,7 @@ OpenTelemetry exporter(`otel.exporter`, `otel.trace_exporter`, `otel.metrics_exp
 `open_settings`, 그리고 각종 제어 도구(`retry_now`, `cancel_recovery`, `reset_recovery_budget`,
 `pause_auto_recovery`와 `resume_auto_recovery`, `disable_conversation_recovery`와
 `enable_conversation_recovery`, `clear_recovery_history`, `start_watcher`, `update_settings`,
-`restore_default_settings`), 그리고 v0.6.2 다음 릴리스부터 `preview_recovery_message`입니다. 이것들이 Codex 대화 안에서
+`restore_default_settings`, 그리고 이번 릴리스부터 `postpone_recovery`와 `release_hold`), 그리고 v0.6.2 다음 릴리스부터 `preview_recovery_message`입니다. 이것들이 Codex 대화 안에서
 실행되면 돌려준 내용이 그 대화의 일부가 됩니다. 한 줄 요약은 언제나 그렇고, 구조화된 데이터도 그럴 수
 있습니다. Codex는 여느 도구 출력과 마찬가지로 그 대화를 OpenAI로 보냅니다. 그 내용은 다음과 같습니다:
 

@@ -410,6 +410,32 @@ namespace CodexAutoResume
                 ToggleAutoResume(Selected(pendingList));
                 e.Handled = true;
             };
+            // v0.6.11: the row's own menu - postpone it, let a held one continue, how its conversation
+            // resumes - on a right click, Shift+F10 or the menu key. Nothing on the page moves for it, and
+            // each item acts on the row the menu was opened on, whatever the list does while it is open.
+            pendingMenu = new SoftMenu();
+            pendingMenu.Font = Font;
+            pendingMenu.Opening += delegate(object sender, System.ComponentModel.CancelEventArgs e)
+            {
+                Dictionary<string, object> task = null;
+                if (menuByMouse)
+                {
+                    Point at = pendingList.PointToClient(Cursor.Position);
+                    ListViewItem under = pendingList.GetItemAt(at.X, at.Y);
+                    task = under == null ? null : under.Tag as Dictionary<string, object>;
+                }
+                else task = Selected(pendingList);
+                menuByMouse = false;
+                e.Cancel = !FillRowMenu(task);
+            };
+            pendingList.ContextMenuStrip = pendingMenu;
+            pendingList.MouseDown += delegate(object sender, MouseEventArgs e)
+            {
+                if (e.Button != MouseButtons.Right) return;
+                menuByMouse = true;
+                ListViewItem under = pendingList.GetItemAt(e.X, e.Y);
+                if (under != null) under.Selected = true;
+            };
 
             // As tall as the list's card beside it, always: its checks scroll inside it, on the soft bar,
             // below its heading. It used to scroll as a whole and ask the page for its full height, and

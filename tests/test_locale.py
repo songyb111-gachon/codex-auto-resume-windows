@@ -154,8 +154,10 @@ class CatalogTests(unittest.TestCase):
         english = interface.STRINGS["en"]
         raised = set()
         wordings = {}
-        # The two refusal tables, which the raises read rather than spell out.
-        for table in (control._REFUSALS_RESTORE, control._REFUSALS_RETRY):
+        # The refusal tables, which the raises read rather than spell out: every one of them, so
+        # a table added later is held to its sentences as the first two were.
+        for table in (value for name, value in sorted(vars(control).items())
+                      if name.startswith("_REFUSALS_")):
             for message, code in table.values():
                 raised.add(code)
                 # `reset_limit` is the one sentence with a number in it. A catalog string

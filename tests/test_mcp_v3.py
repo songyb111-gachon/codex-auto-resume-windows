@@ -15,6 +15,8 @@ ASKS_FIRST = {
     "update_settings", "restore_default_settings", "resume_auto_recovery", "cancel_recovery",
     "reset_recovery_budget", "start_watcher", "enable_conversation_recovery",
     "clear_recovery_history",
+    # v0.6.11: letting a recovery a person held go again adds automation back.
+    "release_hold",
 }
 READ_ONLY = {"open_settings", "get_status", "list_pending", "get_recovery_statistics",
              "get_recovery_timeline", "preview_recovery_message"}

@@ -77,8 +77,10 @@ anything but its exact id, resends an uncertain submission or forces a send.
 
 ### The tools, and which ones Codex asks about
 
-The table describes the server from v0.6.5. The server runs from the installed release, not from
-the plugin you add. Every installation from v0.6.3 through v0.6.9 also offers, in `update_settings`,
+The table describes the server from v0.6.11. The server runs from the installed release, not from
+the plugin you add. An installation from v0.6.5 through v0.6.10 has seventeen tools, without
+`postpone_recovery` and `release_hold`, and its `update_settings` does not offer quiet hours or how a
+conversation resumes. Every installation from v0.6.3 through v0.6.9 also offers, in `update_settings`,
 a switch for `auth_service_transient` that v0.6.10 no longer has: nothing ever produced that kind, so
 the switch changed nothing. An installation on v0.6.4 has the same seventeen tools, but its `get_status`
 carries no compatibility summary. One on v0.6.3 has the same seventeen tools too, but its
@@ -105,7 +107,8 @@ the installation directory. The last two are described below the table.
 | `get_recovery_timeline` | One interruption and everything that continued it, as codes and times. | no |
 | `preview_recovery_message` | The exact text the watcher would send for one recoverable kind of interruption, under the current settings or with an unsaved Interface language, Continuation language, Message style or Custom mode. Built by the same function the watcher sends with. Accepts no Custom text; saves nothing and sends nothing. | no |
 | `pause_auto_recovery` | Global pause. The watcher sends nothing while paused. A continuation already waiting in Codex's queue is withdrawn when the watcher reaches it; a withdrawal the watcher can confirm returns that recovery to its waiting state with its attempt back, so resuming picks it up again. Only a withdrawal that cannot be confirmed is marked `submission_unknown` and never resent, though Codex's queue may still hold it; if Codex delivers it first, the engine follows the turn that continuation started and records what that turn actually did. | no |
-| `retry_now` | Moves a waiting record's next check to now. | no |
+| `retry_now` | Moves a waiting record's next check to now, and a postponement still ahead of it with it. | no |
+| `postpone_recovery` | From v0.6.11. Holds one exact waiting record back - 30 minutes, an hour, three hours, until 09:00 tomorrow, or a number of minutes up to a week - named by both its interruption id and its conversation id, and only ever later. Sends nothing. | no |
 | `disable_conversation_recovery` | Switches recovery off for one exact conversation, its later interruptions included, and cancels what it has waiting. | no |
 | `resume_auto_recovery` | Undoes a global pause. | yes |
 | `enable_conversation_recovery` | Switches recovery back on for one exact conversation. Nothing is sent; every check still applies. | yes |
@@ -113,6 +116,7 @@ the installation directory. The last two are described below the table.
 | `restore_default_settings` | Puts every setting back to its recommended value - the Design to Soft and Reduce motion off among them, though Codex can set neither. | yes |
 | `cancel_recovery` | Stops the named interruption and every record that continues it. One that was never sent is cancelled outright; one that may already be in Codex is marked, and the watcher takes back whatever is still queued - a turn already running is not stopped. The conversation itself stays switched on. | yes |
 | `reset_recovery_budget` | Returns an exhausted record to waiting, as above. | yes |
+| `release_hold` | From v0.6.11. Lets one exact record that waits for a person - its conversation asks first, or only notifies - continue, named by both its interruption id and its conversation id. Nothing is sent by it; every check still runs, and a postponement or quiet hours still apply. | yes |
 | `clear_recovery_history` | Hides finished recoveries from the history. Deletes nothing and cancels nothing; a recovery that may still change stays visible, and hidden rows still count for every safety check. | yes |
 | `start_watcher` | Starts the watcher the installer starts, if it is not running. Started this way it runs inside Codex. Where Codex ends what its plugins start, as Codex 26.915 was measured to, the reply from v0.6.10 says it stops when Codex closes, if not sooner (`ends_with_codex`, read from the job each time), and names a start that outlives Codex: once Codex has closed, Codex Auto Resume in the Start menu, or Run at Windows sign-in in the Dashboard. A Dashboard opened from that watcher's own icon runs inside Codex too. | yes |
 
@@ -121,16 +125,17 @@ each tool. It requests approval; Codex and your approval settings decide whether
 Actual Codex approval behavior has not been observed for this release; the tests check the
 annotations only. A tool that can add automation is marked.
 Turning recovery back on - globally, or for one conversation - re-arming a record that had
-stopped, changing or restoring settings (either can switch a recovery category back on) and
-starting a watcher you stopped can all add automation. `cancel_recovery` is marked for the
+stopped, changing or restoring settings (either can switch a recovery category back on),
+letting a record a person held continue and starting a watcher you stopped can all add automation. `cancel_recovery` is marked for the
 opposite reason: no tool restarts a record it cancelled, so for that interruption and the
 records that continue it the stop is one-way. Switching a whole conversation off is a separate
 action, `disable_conversation_recovery`, and the switch itself is reversible -
 `enable_conversation_recovery` turns that conversation back on, as does the command line's
 `enable` with that conversation's id - though the records it cancelled stay cancelled.
 `clear_recovery_history` is marked for the same one-way reason: it deletes nothing and cancels
-nothing, but nothing puts a hidden row back in the history. Pause, `retry_now` and the
-read-only tools are not marked: a pause only reduces automation: a continuation already
+nothing, but nothing puts a hidden row back in the history. Pause, `retry_now`,
+`postpone_recovery` and the read-only tools are not marked: a postponement only ever holds a
+record back, and a pause only reduces automation: a continuation already
 waiting in Codex's queue is withdrawn, and a withdrawal the watcher can confirm returns that
 recovery to waiting with its attempt back, so resuming picks it up again - only a withdrawal
 it cannot confirm, or a pause over a submission that was already uncertain, is final, and

@@ -56,11 +56,13 @@ LAYER = {_q(name): layer for layer, names in {
     # docstring called "three layers, kept apart on purpose", said in the tree.
     "domain": ("failures", "reasons", "machine", "domain", "domain.errors", "domain.gates",
                "domain.ids", "domain.public", "domain.states", "domain.vocabulary",
-               # v0.6.11: the plug interface and NULL - pure, like everything else here.
-               "domain.plug"),
+               # v0.6.11: the plug interface and NULL - pure, like everything else here; and the
+               # registry's vocabularies, out of domain/vocabulary.py at its line budget.
+               "domain.plug", "domain.compat_vocabulary"),
     "policy": ("", "settings", "continuation", "l10n", "messages", "interface", "config", "logbook",
-               # v0.6.11: which edition this is, found by looking beside the package.
-               "edition"),
+               # v0.6.11: which edition this is, found by looking beside the package; and quiet
+               # hours and a postponement's times, on the local clock.
+               "edition", "quiet"),
     "adapters": ("store", "openstate", "codex", "windows", "compat", "compatio", "startup", "shortcut",
                  # v0.6.10-alpha: compat.py and compatio.py became compat/.
                  "compat.model", "compat.standing", "compat.report", "compat.permits", "compat.files", "compat.cache", "compat.probes", "compat.views", "compat.evaluator",

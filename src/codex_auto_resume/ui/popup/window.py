@@ -22,7 +22,15 @@ from .placement import focus_order, place
 from .renderer import Renderer
 from . import theme as look                # the three questions below are asked through it
 from .theme import adopt_settings, appearance, design_setting, effective_theme, theme_setting
-from .win32 import (CS_DROPSHADOW,
+from .win32 import (MF_CHECKED,
+                    MF_GRAYED,
+                    MF_POPUP,
+                    MF_SEPARATOR,
+                    MF_STRING,
+                    TPM_NONOTIFY,
+                    TPM_RETURNCMD,
+                    TPM_RIGHTBUTTON,
+                    CS_DROPSHADOW,
                     DWMWA_USE_IMMERSIVE_DARK_MODE,
                     DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1,
                     DWMWA_WINDOW_CORNER_PREFERENCE,
@@ -66,7 +74,7 @@ class Popup(PopupMessages):
     _design = brand.DEFAULT_DESIGN
 
     def __init__(self, *, control=None, source=None, strings=None, on_dashboard=None, log=None,
-                 anchor=None):
+                 anchor=None, theme_menu=None):
         self.model = PopupModel(strings)
         self.locale = locale_of(strings)
         self.control = control
@@ -74,6 +82,9 @@ class Popup(PopupMessages):
         self.on_dashboard = on_dashboard
         self.log = log or (lambda *unused: None)
         self.anchor = anchor
+        # v0.6.11: asks Windows to draw this process's menus in the popup's own light or dark, as the
+        # icon's menu is drawn (ui/tray/menu.py); None where nothing can be asked.
+        self.theme_menu = theme_menu
         self.hwnd = None
         self.visible = False
         self._proc = None
@@ -510,6 +521,67 @@ class Popup(PopupMessages):
             self._present(*self._pending_show)
         elif self.visible:
             self._update()
+
+    # ------------------------------------------------------------ a row's own menu (v0.6.11)
+    def _context_menu(self, lparam):
+        """A task row's own menu: at the pointer on the row under it, or - from the keyboard - on the row
+        whose switch has the focus. Its items are that row's as it was drawn (model.row_menu); what is
+        chosen is done exactly as a click on the row's switch is, bound to the row's identities."""
+        plan = self._painted_plan
+        if plan is None or not self.hwnd:
+            return
+        user32 = _dll("user32")
+        point = W.POINT()
+        if (lparam & 0xFFFFFFFF) == 0xFFFFFFFF:            # the keyboard: the focused row, at its corner
+            key = self.focus[1] if self.focus and self.focus[0] == "check" else None
+            rect = dict(plan.get("rows") or ()).get(key)
+            if rect is None:
+                return
+            point.x, point.y = rect[0], rect[1]
+            user32.ClientToScreen(self.hwnd, C.byref(point))
+        else:
+            point.x = C.c_short(lparam & 0xFFFF).value
+            point.y = C.c_short((lparam >> 16) & 0xFFFF).value
+            inside = W.POINT(point.x, point.y)
+            user32.ScreenToClient(self.hwnd, C.byref(inside))
+            key = next((key for key, (left, top, right, bottom) in plan.get("rows") or ()
+                        if left <= inside.x < right and top <= inside.y < bottom), None)
+        entries = self.model.menu_for(key) if key else []
+        if not entries:
+            return
+        if self.theme_menu is not None:
+            try:
+                self.theme_menu()
+            except Exception as exc:
+                self.log("tray popup menu theme failed (%s)" % type(exc).__name__)
+        actions, menus = {}, []
+
+        def build(items):
+            menu = user32.CreatePopupMenu()
+            menus.append(menu)
+            for entry in items:
+                if entry is None:
+                    user32.AppendMenuW(menu, MF_SEPARATOR, 0, None)
+                    continue
+                flags = MF_STRING | (0 if entry["enabled"] else MF_GRAYED) | (MF_CHECKED if entry["checked"] else 0)
+                if entry["items"]:
+                    user32.AppendMenuW(menu, flags | MF_POPUP, build(entry["items"]), entry["text"])
+                    continue
+                command = len(actions) + 1
+                actions[command] = entry["action"] if entry["enabled"] else None
+                user32.AppendMenuW(menu, flags, command, entry["text"])
+            return menu
+        try:
+            chosen = user32.TrackPopupMenu(build(entries), TPM_RIGHTBUTTON | TPM_RETURNCMD | TPM_NONOTIFY,
+                                           point.x, point.y, 0, self.hwnd, None)
+            user32.PostMessageW(self.hwnd, 0, 0, 0)        # WM_NULL: a click elsewhere closes it (as the icon's)
+        finally:
+            user32.DestroyMenu(menus[0])        # its submenus go with it
+        action = actions.get(chosen)
+        if action is None or not self.model.begin(action):
+            return
+        self._run(action)
+        self._update()
 
     def _activate(self, target):
         action = self.model.action_for(target)

@@ -236,11 +236,39 @@ def show_content(content: dict, *, silent: bool = False) -> bool:
     return show(content["title"], content["body"], **options)
 
 
+# v0.6.11: what the detection notice says of an interruption its conversation holds for a person
+# (machine.hold_for_tier) - never that it will resume - and what the objection window's says.
+HELD_MESSAGES = {"ask": "toast_held", "notify_only": "toast_notify_only"}
+
+
+def held_message(hold) -> str:
+    """The sentence for an interruption that waits for a person, by the kind of hold it has."""
+    return l10n.message(HELD_MESSAGES.get(hold, "toast_held"))
+
+
+def _reason_label(category) -> str:
+    from . import reasons
+    return l10n.text(reasons.label_key(category), l10n.current())
+
+
+def _cancel_button(category) -> str:
+    return l10n.message("toast_button_cancel" if category == "usage_limit" else "toast_button_no_retry")
+
+
 def scheduled_content(thread_id: str, interruption_id: str, reset_at: float | None,
-                      category: str = "usage_limit", identity=None) -> dict:
-    """The detection toast's content. See `scheduled`."""
+                      category: str = "usage_limit", identity=None, hold=None) -> dict:
+    """The detection toast's content. See `scheduled`.
+
+    `hold` (v0.6.11) is the hold the conversation's tier put on it, or None - at the defaults,
+    always. A held interruption is said to wait for the person, under its reason, and keeps the
+    same two buttons: Don't resume, and the Dashboard, where it is let continue."""
     usage = category == "usage_limit"
     title = headline(identity)
+    if hold is not None:
+        return _content(title, _origin_line(identity, title, thread_id),
+                        button=_cancel_button(category), uri=cancel_uri(interruption_id),
+                        extra=[_reason_label(category) + " · " + held_message(hold)],
+                        more=[(l10n.message("toast_button_open"), open_uri("pending"))])
     if usage:
         body = (l10n.message("toast_usage_at").format(time=_local_time(reset_at)) if reset_at
                 else l10n.message("toast_usage_soon"))
@@ -268,6 +296,23 @@ def scheduled(thread_id: str, interruption_id: str, reset_at: float | None,
     else is simply retried. Both carry the same single cancel button.
     """
     return show_content(scheduled_content(thread_id, interruption_id, reset_at, category, identity))
+
+
+def objection_message(until) -> str:
+    """The objection window's sentence: when the continuation goes, unless it is stopped."""
+    return l10n.message("toast_objection").format(time=_local_time(until))
+
+
+def objection_content(thread_id: str, interruption_id: str, until: float,
+                      category: str = "usage_limit", identity=None) -> dict:
+    """The objection window's content (v0.6.11): the continuation is sent at `until` unless the
+    person stops it. The detection notice's two buttons and no other - Don't resume, and the
+    Dashboard - so a button still cannot make anything be sent (A28)."""
+    title = headline(identity)
+    return _content(title, _origin_line(identity, title, thread_id),
+                    button=_cancel_button(category), uri=cancel_uri(interruption_id),
+                    extra=[_reason_label(category) + " · " + objection_message(until)],
+                    more=[(l10n.message("toast_button_open"), open_uri("pending"))])
 
 
 def cancelled_content(thread_id: str) -> dict:

@@ -358,7 +358,7 @@ The plugin gives Codex tools — `get_status`, `list_pending`, `get_recovery_tim
 `get_recovery_statistics`, `open_settings`, and the controls (`retry_now`, `cancel_recovery`,
 `reset_recovery_budget`, `pause_auto_recovery` and `resume_auto_recovery`,
 `disable_conversation_recovery` and `enable_conversation_recovery`, `clear_recovery_history`,
-`start_watcher`, `update_settings`, `restore_default_settings`), and, from v0.6.3, `preview_recovery_message` — and a skill that runs the
+`start_watcher`, `update_settings`, `restore_default_settings`, and from v0.6.11 `postpone_recovery` and `release_hold`), and, from v0.6.3, `preview_recovery_message` — and a skill that runs the
 tool's commands (for example `status`, `pending`, `doctor` and `logs`). When they run inside a
 Codex conversation, what they return becomes part of that conversation. The
 one-line summary always does, and the structured data may as well; Codex sends the

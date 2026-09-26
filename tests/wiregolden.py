@@ -174,6 +174,21 @@ def _launch_that_exits(_workspace):
         yield
 
 
+def _held(thread):
+    """A conversation that asks first (v0.6.11), so what it has waiting is held for a person and
+    "let it continue" has something to let go. Written by the product's own store, as the rest of
+    the installation is, and left as it is for the cases after it."""
+    @contextmanager
+    def using(workspace):
+        from codex_auto_resume import config
+        from codex_auto_resume.store import Store
+
+        with Store(config.Paths(workspace / "home").state_dir) as store:
+            store.set_thread_tier(thread, "ask_first", generator.ENVELOPE_NOW, actor="gui")
+        yield
+    return using
+
+
 def _launch_that_comes_up(context):
     """The one start `start_watcher` makes, answered by a "process" that holds the scratch
     installation's watcher mutex from the moment it is made - as a watcher that came up does - with
@@ -391,6 +406,35 @@ BRIDGE_CASES = {
         Case("no file named", {}),
         Case("an origin that is neither main nor file",
              lambda workspace: {"path": _registry_document(workspace), "origin": "web"})],
+    # v0.6.11: a task's row menu.
+    "postpone": [
+        Case("a waiting recovery postponed by an hour",
+             {"interruption_id": WAITING_RESET, "thread_id": T1, "preset": "1_hour"}),
+        Case("half an hour is earlier than the hour it already waits for",
+             {"interruption_id": WAITING_RESET, "thread_id": T1, "preset": "30_minutes"}),
+        Case("a number of minutes, later still",
+             {"interruption_id": WAITING_RESET, "thread_id": T1, "minutes": 180}),
+        Case("two ways to say the time at once",
+             {"interruption_id": WAITING_RESET, "thread_id": T1, "preset": "3_hours", "minutes": 240}),
+        Case("more than a week ahead", {"interruption_id": WAITING_RESET, "thread_id": T1, "minutes": 10081}),
+        Case("a task that belongs to another conversation",
+             {"interruption_id": WAITING_RESET, "thread_id": T2, "preset": "3_hours"}),
+        Case("a finished task", {"interruption_id": RECOVERED, "thread_id": T3, "preset": "3_hours"})],
+    "release-hold": [
+        Case("a held task let continue", {"interruption_id": WAITING_RESET, "thread_id": T1},
+             using=_held(T1)),
+        Case("the same task again: it is not held", {"interruption_id": WAITING_RESET, "thread_id": T1}),
+        Case("a task that belongs to another conversation",
+             {"interruption_id": WAITING_RESET, "thread_id": T2}),
+        Case("no such interruption", {"interruption_id": NO_SUCH, "thread_id": T1})],
+    "thread-tier": [
+        Case("a conversation that asks first holds what it has waiting",
+             {"thread_id": T1, "tier": "ask_first", "interruption_id": WAITING_RESET}),
+        Case("back to the default in Settings", {"thread_id": T1, "tier": None}),
+        Case("a tier that is not one", {"thread_id": T1, "tier": "sometimes"}),
+        Case("a row whose task is another conversation's",
+             {"thread_id": T2, "tier": "ask_first", "interruption_id": WAITING_RESET}),
+        Case("the tier must be named, even to take it away", {"thread_id": T1})],
     "compat-refresh": [
         Case("the bootstrap refreshed the data", {},
              using=_bootstrap("  Asking...\ncompatibility: refreshed 2\n", 0)),
@@ -451,6 +495,17 @@ MCP_CASES = {
     "retry_now": [
         Case("a usage limit whose reset is still ahead", {"interruption_id": WAITING_RESET}),
         Case("a recovered one has already finished", {"interruption_id": RECOVERED})],
+    # v0.6.11: postpone one recovery (never marked destructive), and let a held one continue.
+    "postpone_recovery": [
+        Case("a waiting recovery postponed by an hour",
+             {"interruption_id": WAITING_RESET, "thread_id": T1, "preset": "1_hour"}),
+        Case("half an hour is earlier than the hour it already waits for",
+             {"interruption_id": WAITING_RESET, "thread_id": T1, "minutes": 30}),
+        Case("the conversation is required", {"interruption_id": WAITING_RESET, "preset": "1_hour"})],
+    "release_hold": [
+        Case("a held recovery let continue", {"interruption_id": WAITING_RESET, "thread_id": T1},
+             using=_held(T1)),
+        Case("the same one again: it is not held", {"interruption_id": WAITING_RESET, "thread_id": T1})],
     "disable_conversation_recovery": [
         Case("one conversation switched off", {"thread_id": T1}),
         Case("not a conversation id", {"thread_id": "not-a-uuid"})],

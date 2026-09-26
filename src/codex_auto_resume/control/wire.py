@@ -55,11 +55,16 @@ class RecordView(TypedDict):
     first_queued_at: float | None
     gates: dict[str, GateVerdict] | None
     gates_at: float | None
+    # v0.6.11 (schema 4): not before this time, and whether it waits for a person.
+    not_before: float | None
+    hold: str | None
 
 
 class PendingRow(RecordView):
     """A row of Pending or History: the record, and what Codex calls its conversation."""
     thread_enabled: bool
+    # v0.6.11: the conversation's own tier, or None for the default in Settings.
+    tier: str | None
     name: str | None
     project: str | None
     cwd_basename: str | None

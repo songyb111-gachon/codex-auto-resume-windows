@@ -140,13 +140,25 @@ def build(event, detail, identity=None):
     state = detail.get("state")
     if event == "interruption":
         category = detail.get("category") or "usage_limit"
+        hold = detail.get("hold")
         content = notify.scheduled_content(thread_id, detail.get("interruption_id"),
-                                           detail.get("reset_at"), category, identity)
+                                           detail.get("reset_at"), category, identity, hold=hold)
         # The card names the reason in its chip, so its line is the sentence without the label
         # the toast has to put in front of it. Both are words the toast already says.
-        line = None if category == "usage_limit" else l10n.message("toast_transient")
+        line = (notify.held_message(hold) if hold is not None
+                else None if category == "usage_limit" else l10n.message("toast_transient"))
         chip = l10n.text(reasons.label_key(category), l10n.current())
         return _notice("interruption", content, key=thread_id, chip=chip, chip_tone="waiting", line=line)
+    if event == "objection":
+        # v0.6.11: the objection window. An interruption's notice in every other way - its chip,
+        # its light, its two buttons - saying when the continuation goes unless it is stopped.
+        category = detail.get("category") or "usage_limit"
+        until = detail.get("until")
+        content = notify.objection_content(thread_id, detail.get("interruption_id"), until, category,
+                                           identity)
+        chip = l10n.text(reasons.label_key(category), l10n.current())
+        return _notice("interruption", content, key=thread_id, chip=chip, chip_tone="waiting",
+                       line=notify.objection_message(until))
     if event == "starting":
         return _notice("starting", notify.starting_content(thread_id, identity), key=thread_id)
     if event == "result":

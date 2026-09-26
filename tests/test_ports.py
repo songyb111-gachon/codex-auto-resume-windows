@@ -78,6 +78,9 @@ ENGINE_TO_STORE = {
     "reserve_detailed", "claimed_on_thread", "others_in_flight", "recent_claims",
     "recent_claim_count", "release_claim", "release_withdrawn", "submission_guard",
     "thread_enabled",
+    # v0.6.11: a conversation's tier, read when a failure is detected and before a first send,
+    # and the objection window that tier opens.
+    "thread_tier", "open_objection_window",
 }
 # What it asks of Codex itself, through the backend: is the app there, what is my usage, send
 # this, take it back, is the thread loaded. Five, and the split must not make it six by accident.
@@ -116,6 +119,8 @@ CONTROL_TO_STORE = {
     "status_counts", "settings", "watcher_status", "failure_marks", "disabled_threads",
     "thread_enabled", "set_thread_enabled", "set_enabled", "cancel_interruption",
     "cancel_thread", "request_retry_now", "restore_budget_detailed",
+    # v0.6.11: postpone one record, let a held one continue, and a conversation's tier.
+    "postpone", "release_hold", "set_thread_tier", "thread_tiers",
 }
 
 

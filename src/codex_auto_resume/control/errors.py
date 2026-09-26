@@ -77,6 +77,28 @@ _REFUSALS_RETRY = {
     "unknown_record": ("no such interruption", "no_such_interruption"),
     None: ("that recovery cannot be checked now", "cannot_check_now"),
 }
+# v0.6.11: what the store says when it refuses to postpone a record or to let a held one continue.
+# Both actions name the record and its conversation, as a person's switch does, so a click on a
+# row a refresh has since moved is refused rather than done to another task.
+_BOUND = {
+    "unknown_record": ("no such interruption", "no_such_interruption"),
+    "thread_mismatch": ("that recovery belongs to a different conversation", "thread_mismatch"),
+    "finished": ("that recovery has already finished", "already_finished"),
+    "cancel_requested": ("that recovery was cancelled", "cancel_requested"),
+}
+_REFUSALS_POSTPONE = {**_BOUND, **{
+    "claimed": ("that recovery is being sent now", "being_sent"),
+    "in_flight": ("that recovery is already in Codex", "in_flight"),
+    "observing": ("that recovery is already running in Codex", "observing"),
+    "invalid_time": ("that is not a time to postpone a recovery to", "invalid_time"),
+    "not_later": ("a recovery can only be postponed to a later time", "not_later"),
+    "too_far": ("a recovery can be postponed by a week at most", "too_far"),
+    None: ("the request could not be completed", "request_failed"),
+}}
+_REFUSALS_RELEASE = {**_BOUND, **{
+    "not_held": ("that recovery is not waiting for you", "not_held"),
+    None: ("that recovery cannot be continued", "cannot_continue"),
+}}
 
 
 def _refusal(table: dict, detail) -> tuple:

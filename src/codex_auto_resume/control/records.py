@@ -53,6 +53,10 @@ def describe_record(row, *, enabled=True, thread_enabled=True, watcher=None) -> 
         "first_queued_at": row["first_queued_at"],
         "gates": {name: list(result) for name, result in gates.items()} if gates else None,
         "gates_at": row["gate_eval_at"],
+        # v0.6.11: not before this time, a person's postponement or an objection window's - and
+        # whether it waits for a person to let it continue. Empty at the defaults.
+        "not_before": row.get("not_before"),
+        "hold": row.get("hold"),
     }
 
 
@@ -63,6 +67,7 @@ class RecordsMixin:
     def _described(self, store, rows, source=None) -> list:
         settings_row = store.settings()
         disabled = store.disabled_threads()
+        tiers = store.thread_tiers()
         watcher = self._watcher(store)
         listed = []
         for row in rows:
@@ -76,6 +81,8 @@ class RecordsMixin:
                                    thread_enabled=row["thread_id"] not in disabled,
                                    watcher=watcher)
             item.update({"thread_enabled": row["thread_id"] not in disabled,
+                         # Its conversation's own tier, or None: the default in Settings.
+                         "tier": tiers.get(row["thread_id"]),
                          "name": identity.get("name"), "project": identity.get("project"),
                          "cwd_basename": identity.get("cwd_basename")})
             listed.append(item)

@@ -55,9 +55,21 @@ RECORDS = {
     # Out of attempts, with resets left and without.
     "exhausted":         ({"code": "exhausted", "budget_resets_left": 2}, False, True),
     "exhausted_spent":   ({"code": "exhausted", "budget_resets_left": 0}, False, False),
+    # v0.6.11: held for a person. Retry now would only find it held again.
+    "held":              ({"code": "scheduled", "overlays": ["held"], "hold": "ask"}, False, False),
     # A code nothing knows. Fail closed: offer nothing.
     "unknown_code":      ({"code": "something_new"}, False, False),
     "empty":             ({}, False, False),
+}
+
+# v0.6.11, a Pending row's own menu: name -> (Postpone offered, Let it continue offered). Postponing
+# only holds a waiting task back further, so a pause or a conversation switched off does not stop it;
+# only a held task can be let continue, and nothing cancelled or finished is offered either.
+ROW_MENU = {
+    "reset_passed": (True, False), "reset_ahead": (True, False), "scheduled": (True, False),
+    "paused": (True, False), "thread_off": (True, False), "held": (True, True),
+    "cancelled": (False, False), "running": (False, False), "recovered": (False, False),
+    "exhausted": (False, False), "unknown_code": (False, False), "empty": (False, False),
 }
 
 # name -> (what the fake setup prints, its exit code, what Repair must call it)
@@ -81,11 +93,14 @@ $flags = [Reflection.BindingFlags]'Static,NonPublic,Public'
 $retry = $form.GetMethod('CanRetryNow', $flags)
 $give = $form.GetMethod('CanGiveAttemptsBack', $flags)
 $repair = $form.GetMethod('RunRepair', $flags)
-foreach ($pair in @(@('CanRetryNow', $retry), @('CanGiveAttemptsBack', $give), @('RunRepair', $repair))) {
+$postpone = $form.GetMethod('CanPostpone', $flags)
+$release = $form.GetMethod('CanRelease', $flags)
+foreach ($pair in @(@('CanRetryNow', $retry), @('CanGiveAttemptsBack', $give), @('RunRepair', $repair),
+                    @('CanPostpone', $postpone), @('CanRelease', $release))) {
     if (-not $pair[1]) { throw ('SettingsForm has no ' + $pair[0]) }
 }
 $work = [string]$env:CAR_WORK
-$out = @{ retry = @{}; give = @{}; busy = @{}; repair = @{} }
+$out = @{ retry = @{}; give = @{}; busy = @{}; repair = @{}; postpone = @{}; release = @{} }
 
 # The window's own dictionary shape: string keys, object values.
 function To-Row {
@@ -125,7 +140,11 @@ foreach ($case in (ConvertFrom-Json $env:CAR_RECORDS).PSObject.Properties) {
     # And with the window busy, which is what stops a second click acting on a row the
     # first click already changed.
     $out.busy[$case.Name] = [bool]$retry.Invoke($null, [object[]]@($row, $false, [double]$env:CAR_NOW)) -or
-                            [bool]$give.Invoke($null, [object[]]@($row, $false))
+                            [bool]$give.Invoke($null, [object[]]@($row, $false)) -or
+                            [bool]$postpone.Invoke($null, [object[]]@($row, $false)) -or
+                            [bool]$release.Invoke($null, [object[]]@($row, $false))
+    $out.postpone[$case.Name] = [bool]$postpone.Invoke($null, [object[]]@($row, $true))
+    $out.release[$case.Name] = [bool]$release.Invoke($null, [object[]]@($row, $true))
 }
 # No record selected at all.
 $out.retry['null'] = [bool]$retry.Invoke($null, [object[]]@($null, $true, [double]$env:CAR_NOW))
@@ -285,6 +304,11 @@ class DecisionTests(unittest.TestCase):
         for name, (_, _, give) in sorted(RECORDS.items()):
             with self.subTest(name):
                 self.assertEqual(self.answer["give"][name], give)
+
+    def test_a_row_menu_offers_postpone_and_continue_only_where_they_could_succeed(self):
+        for name, (postpone, release) in sorted(ROW_MENU.items()):
+            with self.subTest(name):
+                self.assertEqual((self.answer["postpone"][name], self.answer["release"][name]), (postpone, release))
 
     def test_nothing_is_offered_while_the_window_is_busy(self):
         """A second click on a button whose first click has not been answered is how a

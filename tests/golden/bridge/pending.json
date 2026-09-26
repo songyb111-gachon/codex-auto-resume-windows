@@ -88,7 +88,10 @@
               ]
             },
             "gates_at": 1799999960.0,
+            "not_before": null,
+            "hold": null,
             "thread_enabled": true,
+            "tier": null,
             "name": "example-project",
             "project": null,
             "cwd_basename": null
@@ -174,7 +177,10 @@
               ]
             },
             "gates_at": 1799999960.0,
+            "not_before": null,
+            "hold": null,
             "thread_enabled": true,
+            "tier": null,
             "name": "example-service",
             "project": null,
             "cwd_basename": null

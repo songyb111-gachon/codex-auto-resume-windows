@@ -23,6 +23,8 @@ from __future__ import annotations
 from .errors import (ControlError,
                      ERROR_CODES,
                      FALLBACK_CODE,
+                     _REFUSALS_POSTPONE,
+                     _REFUSALS_RELEASE,
                      _REFUSALS_RESTORE,
                      _REFUSALS_RETRY,
                      _identifier,

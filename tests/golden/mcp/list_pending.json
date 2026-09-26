@@ -97,7 +97,10 @@
                   ]
                 },
                 "gates_at": 1799999960.0,
+                "not_before": null,
+                "hold": null,
                 "thread_enabled": true,
+                "tier": null,
                 "name": null,
                 "project": null,
                 "cwd_basename": null
@@ -183,7 +186,10 @@
                   ]
                 },
                 "gates_at": 1799999960.0,
+                "not_before": null,
+                "hold": null,
                 "thread_enabled": true,
+                "tier": null,
                 "name": null,
                 "project": null,
                 "cwd_basename": null
@@ -238,7 +244,10 @@
                 "first_queued_at": 1799568060.0,
                 "gates": null,
                 "gates_at": null,
+                "not_before": null,
+                "hold": null,
                 "thread_enabled": true,
+                "tier": null,
                 "name": null,
                 "project": null,
                 "cwd_basename": null
@@ -271,7 +280,10 @@
                 "first_queued_at": 1799654460.0,
                 "gates": null,
                 "gates_at": null,
+                "not_before": null,
+                "hold": null,
                 "thread_enabled": true,
+                "tier": null,
                 "name": null,
                 "project": null,
                 "cwd_basename": null
@@ -304,7 +316,10 @@
                 "first_queued_at": 1799740860.0,
                 "gates": null,
                 "gates_at": null,
+                "not_before": null,
+                "hold": null,
                 "thread_enabled": true,
+                "tier": null,
                 "name": null,
                 "project": null,
                 "cwd_basename": null
@@ -337,7 +352,10 @@
                 "first_queued_at": 1799827260.0,
                 "gates": null,
                 "gates_at": null,
+                "not_before": null,
+                "hold": null,
                 "thread_enabled": true,
+                "tier": null,
                 "name": null,
                 "project": null,
                 "cwd_basename": null
@@ -370,7 +388,10 @@
                 "first_queued_at": 1799967660.0,
                 "gates": null,
                 "gates_at": null,
+                "not_before": null,
+                "hold": null,
                 "thread_enabled": true,
+                "tier": null,
                 "name": null,
                 "project": null,
                 "cwd_basename": null
@@ -403,7 +424,10 @@
                 "first_queued_at": 1799989260.0,
                 "gates": null,
                 "gates_at": null,
+                "not_before": null,
+                "hold": null,
                 "thread_enabled": true,
+                "tier": null,
                 "name": null,
                 "project": null,
                 "cwd_basename": null
@@ -436,7 +460,10 @@
                 "first_queued_at": null,
                 "gates": null,
                 "gates_at": null,
+                "not_before": null,
+                "hold": null,
                 "thread_enabled": false,
+                "tier": null,
                 "name": null,
                 "project": null,
                 "cwd_basename": null
@@ -522,7 +549,10 @@
                   ]
                 },
                 "gates_at": 1799999960.0,
+                "not_before": null,
+                "hold": null,
                 "thread_enabled": true,
+                "tier": null,
                 "name": null,
                 "project": null,
                 "cwd_basename": null
@@ -608,7 +638,10 @@
                   ]
                 },
                 "gates_at": 1799999960.0,
+                "not_before": null,
+                "hold": null,
                 "thread_enabled": true,
+                "tier": null,
                 "name": null,
                 "project": null,
                 "cwd_basename": null

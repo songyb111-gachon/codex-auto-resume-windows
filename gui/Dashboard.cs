@@ -635,6 +635,17 @@ namespace CodexAutoResume
         private Label explainAsOf;
         // The Pending list's Auto-resume column, a check box for the task on its row.
         private const int ResumeColumn = 5;
+        // v0.6.11: a Pending row's own menu, and whether the right button opened it - then it is the row under
+        // the pointer's, and from the keyboard the chosen row's.
+        private SoftMenu pendingMenu;
+        private bool menuByMouse;
+        // The times a task can be postponed by, and how much a conversation asks before it resumes, least first
+        // (quiet.PRESETS, machine.IMPORTANCE_TIERS).
+        private static readonly string[] PostponePresets = { "30_minutes", "1_hour", "3_hours", "tomorrow_morning" };
+        private static readonly string[] PostponeEnglish = { "30 minutes", "1 hour", "3 hours", "Tomorrow at 09:00" };
+        private static readonly string[] TierOrder = { "automatic", "objection_window", "ask_first", "notify_only" };
+        private static readonly string[] TierEnglish = { "Resume automatically", "After a chance to object",
+                                                         "Ask me first", "Only notify me" };
         // The Pending list's Next check column, which the clock writes (UpdateCountdowns).
         private const int CountdownColumn = 3;
         // The note that belongs to no single record: what Cancel all did.

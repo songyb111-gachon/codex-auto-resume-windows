@@ -195,12 +195,14 @@ write-ahead log를 쓰는 경우, 읽는 동안에도 SQLite가 그 옆의 공�
 - **복구를 다시 켜거나 늘리는 tool에는 MCP 주석으로 승인을 요청합니다.** 이 항목은 v0.6.0에서
   새로 생겼습니다. 플러그인의 MCP tool 중 복구를 다시 켜거나
   늘리거나 설정을 바꿀 수 있는 것 - `resume_auto_recovery`, `enable_conversation_recovery`,
-  `reset_recovery_budget`, `start_watcher`, `update_settings`, `restore_default_settings` - 과
-  `cancel_recovery`, `clear_recovery_history`에는 `destructiveHint: true`를 달아,
+  `reset_recovery_budget`, `start_watcher`, `update_settings`, `restore_default_settings`, 그리고
+  이번 릴리스부터 `release_hold` - 과 `cancel_recovery`, `clear_recovery_history`에는
+  `destructiveHint: true`를 달아,
   승인을 요청합니다. 실제 확인 창은 Codex와 승인 설정에 달려 있으며 이번 릴리스에서 그 동작을
   관찰한 적은 없습니다. `pause_auto_recovery`와
-  `disable_conversation_recovery`, `retry_now`는 그렇지 않습니다. 일시 중지도, 대화 하나를 끄는 것도
-  자동화를 늘리는 일이 없고, `retry_now`는 이미 등록된 시도를 앞당길 뿐 모든 확인을 그대로 거칩니다.
+  `disable_conversation_recovery`, `retry_now`, `postpone_recovery`는 그렇지 않습니다. 일시 중지도, 대화
+  하나를 끄는 것도 자동화를 늘리는 일이 없고, `retry_now`는 이미 등록된 시도를 앞당길 뿐 모든 확인을
+  그대로 거치며, 미루기는 레코드 하나를 더 나중으로만 옮깁니다.
   다만 이 두 스위치의 대가는 같지 않습니다. 일시 중지하면 Codex의 큐에서 이미 기다리고 있던
   continuation이 회수되는데, 워처가 회수를 확인할 수 있으면 그 복구는 대기 상태로 돌아가고 시도 횟수도
   돌려받으므로, 다시 재개하면 이어서 진행됩니다. 회수를 확인할 수 없을 때만 `submission_unknown`이 되고,

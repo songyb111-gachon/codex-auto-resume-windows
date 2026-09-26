@@ -38,7 +38,8 @@ from .domain.public import (ACTORS, EVENT_CODES, FLAG_AFTER_USER_WORK, FLAG_LEGA
                             OVERLAYS, PAGES,
                             PUBLIC_CODES, REASONS, SUPERSEDE_WITHDRAWALS, TURN_STATUSES,
                             WAITING_CODES, WITHDRAW_REASONS, actor_code, describe, eligible_at,
-                            event_code, overlays, public_code, public_reason, reason_code,
+                            event_code, hold_for_tier, overlays, public_code, public_reason,
+                            reason_code,
                             turn_status)
 from .domain.states import (CLAIMED, EPOCH_CODEX, EPOCH_STORE, EPOCH_USAGE, EXHAUSTED,
                             IN_FLIGHT, OBSERVING, OUTCOMES, PLAIN_MOVES, POSSIBLY_SENT, STATES,
@@ -55,6 +56,7 @@ __all__ = ["ACTORS", "BLOCK", "CLAIMED", "EPOCH_CODEX", "EPOCH_STORE", "EPOCH_US
            "WAITING_CODES", "WATCHED",
            "WITHDRAW_REASONS", "actor_code", "decode_gates", "describe", "eligible_at",
            "encode_gates", "epoch", "event_code", "first_refusal", "gate", "gate_budgets",
-           "gate_consent", "gate_schedule", "gate_submission_safe", "may_be_queued", "overlays",
+           "gate_consent", "gate_schedule", "gate_submission_safe", "hold_for_tier", "may_be_queued",
+           "overlays",
            "plain_move_allowed", "public_code", "public_reason", "reason_code", "turn_status",
            "waiting_state"]

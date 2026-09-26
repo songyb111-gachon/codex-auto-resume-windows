@@ -214,13 +214,15 @@ this product's plugin and marketplace).
   points to the planted event.
 - **Tools that turn recovery back up request approval through MCP annotations.** This is new in v0.6.0. The plugin's MCP tools that can turn recovery back on or
   up, or change its settings - `resume_auto_recovery`, `enable_conversation_recovery`,
-  `reset_recovery_budget`, `start_watcher`, `update_settings`, `restore_default_settings` - are
-  annotated `destructiveHint: true`, and so are `cancel_recovery` and `clear_recovery_history`.
+  `reset_recovery_budget`, `start_watcher`, `update_settings`, `restore_default_settings` and,
+  from v0.6.11, `release_hold` - are annotated `destructiveHint: true`, and so are `cancel_recovery`
+  and `clear_recovery_history`.
   This requests approval; actual prompt behavior depends on Codex and its approval settings,
   and has not been observed for this release. `pause_auto_recovery`,
-  `disable_conversation_recovery` and `retry_now` are not: pausing and switching one conversation
-  off never add automation, and `retry_now` only moves an already-registered attempt earlier, with
-  every check still applied. The two switches do not cost the same, though. Pausing withdraws a
+  `disable_conversation_recovery`, `retry_now` and `postpone_recovery` are not: pausing and
+  switching one conversation off never add automation, `retry_now` only moves an already-registered
+  attempt earlier, with every check still applied, and a postponement only ever makes one record
+  later. The two switches do not cost the same, though. Pausing withdraws a
   continuation already waiting in Codex's queue, and a withdrawal the watcher can confirm puts that
   recovery back in its waiting state with its attempt returned, so resuming picks it up again; only
   a withdrawal that cannot be confirmed becomes `submission_unknown`, and only a pause over a

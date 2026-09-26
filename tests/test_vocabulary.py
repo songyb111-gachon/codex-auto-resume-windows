@@ -40,7 +40,7 @@ if _HERE not in sys.path:
     sys.path.insert(0, _HERE)        # srcscan lives next to this file
 
 import srcscan  # noqa: E402
-from codex_auto_resume.domain import plug as p, vocabulary as v  # noqa: E402
+from codex_auto_resume.domain import compat_vocabulary as c, plug as p, vocabulary as v  # noqa: E402
 
 # "module.NAME" -> (kind, length, digest), or the text of a single word.
 LISTS = {
@@ -60,11 +60,14 @@ LISTS = {
     "machine.TURN_STATUSES": ("set", 5, "58aca83cec78ff2b"),
     "machine.ACTORS": ("set", 5, "eaf35d06c4c2b568"),
     "machine.REASONS": ("set", 63, "05852eb344a83206"),
-    "machine.EVENT_CODES": ("set", 21, "09df0cbe0e244464"),
+    # v0.6.11: postponed, held, hold_released and tier_set - a person's (or the objection window's)
+    # later time, a hold, letting it go, and a conversation's tier.
+    "machine.EVENT_CODES": ("set", 25, "954df88e378ccc92"),
     "machine.WAITING_CODES": ("set", 5, "aef153e5808afe46"),
     "machine.PUBLIC_CODES": ("set", 22, "33761768f9d99cd0"),
     "machine.PAGES": ("tuple", 6, "ffad1c9f0521398d"),
-    "machine.OVERLAYS": ("tuple", 7, "ec4b756213ffdd1a"),
+    # v0.6.11: `held`, a record that waits for a person (schema 4's hold).
+    "machine.OVERLAYS": ("tuple", 8, "275fd01184c6c4e3"),
     "machine.GATE_RESULTS": ("set", 4, "9a50f41ff116a706"),
     "machine.GATES": ("tuple", 13, "547089c399324718"),
     # v0.6.11: `held`, a gate core passed and the edition's plug held (domain/plug.py, HOLD);
@@ -92,7 +95,8 @@ LISTS = {
     "store.ENGINE_STATES": ("set", 6, "a40ef34f9adea697"),
     "codex.KNOWN_STATUSES": ("set", 4, "23d2734c27812d29"),
     "logbook.STATE_CODES": ("set", 27, "5cac947c5c3bb648"),
-    "control.ERROR_CODES": ("set", 23, "f5946a4030e69cad"),
+    # v0.6.11: a postponement's three refusals, a record that is not held, a tier that is none.
+    "control.ERROR_CODES": ("set", 28, "9c3b40f5242f0b71"),
     "control.FALLBACK_CODE": "request_failed",
     "continuation.STYLES": ("tuple", 4, "a390c91bf5107f3f"),
     "continuation.CUSTOM_MODES": ("tuple", 2, "a4a918de1aaec837"),
@@ -105,6 +109,9 @@ LISTS = {
     "settings.THEME_SYSTEM": "system",
     "settings.DEFAULT_THEME": "system",
     "settings.CONTINUATION_LANGUAGES": ("tuple", 10, "9207f7f2b9ec65dc"),
+    # v0.6.11: the days quiet hours start on, and the tiers a conversation may have by default.
+    "settings.QUIET_DAYS": ("tuple", 3, "b7883f3f9fa3397d"),
+    "settings.TIERS": ("tuple", 4, "1020c428556c4555"),
     "l10n.LOCALES": ("tuple", 9, "0d5c5b962a6ec666"),
     "l10n.CHOICES": ("tuple", 10, "8a44c689a27e4025"),
     "l10n.SYSTEM": "system",
@@ -271,7 +278,7 @@ HOMES = {
     v.Page: ("list", "machine.PAGES"),
     v.Overlay: ("list", "machine.OVERLAYS"),
     v.HoldKind: ("list", "machine.HOLDS"),
-    v.ImportanceTier: ("list", "machine.IMPORTANCE_TIERS"),
+    v.ImportanceTier: ("list", "machine.IMPORTANCE_TIERS", "settings.TIERS"),
     v.GateName: ("list", "machine.GATES"),
     v.GateResult: ("list", "machine.GATE_RESULTS"),
     v.FailureCategory: ("list", "failures.CATEGORIES"),
@@ -284,6 +291,7 @@ HOMES = {
     v.Theme: ("list", "settings.THEMES"),
     v.Design: ("list", "settings.DESIGNS", "brand.DESIGNS"),
     v.RetryTiming: ("keys", "settings.RETRY_TIMING"),
+    v.QuietDays: ("list", "settings.QUIET_DAYS"),
     v.NotifyEvent: ("list", "settings.NOTIFICATION_EVENTS"),
     v.Locale: ("list", "l10n.LOCALES"),
     v.SendOutcome: ("returned", ("Backend.send", "outcome")),
@@ -320,9 +328,10 @@ HOMES = {
 
 
 def enums():
-    """Every vocabulary the two modules define: `domain/vocabulary.py`, and `domain/plug.py`,
-    whose five are the plug interface's own and are held to every rule here all the same."""
-    return [value for module in (v, p) for value in vars(module).values()
+    """Every vocabulary the three modules define: `domain/vocabulary.py`; `domain/compat_vocabulary.py`,
+    the registry's, out of it since v0.6.11 and named through it still; and `domain/plug.py`, whose five
+    are the plug interface's own. Each is held to every rule here all the same."""
+    return [value for module in (v, c, p) for value in vars(module).values()
             if inspect.isclass(value) and issubclass(value, StrEnum) and value is not StrEnum
             and value.__module__ == module.__name__]
 

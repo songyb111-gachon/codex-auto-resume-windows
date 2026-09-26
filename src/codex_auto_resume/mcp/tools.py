@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import re
 
-from .. import controlcli, reasons as _reasons, settings as policy
+from .. import controlcli, quiet, reasons as _reasons, settings as policy
 from ..domain import ids
 
 SETTINGS_UI = "ui://codex-auto-resume/settings"
@@ -39,6 +39,26 @@ USER_GROUPS = frozenset({"general", "recovery", "limits", "notifications", "cont
 # The panel draws in both, and edits neither: they are written in the Dashboard.
 # restore_default_settings still puts both back, as it puts back every setting.
 PANEL_APPEARANCE = frozenset({"theme", "panel_theme"})
+
+
+# v0.6.11: what the quiet hours and the tiers do, for a model choosing a value. Each can only hold
+# a recovery back, except default_tier towards automatic, which is why update_settings asks first.
+QUIET_AND_TIERS = {
+    "quiet_hours_start": "When quiet hours start, local time, or off (the default: none). A recovery "
+                         "that falls due in them waits until they end; nothing else changes.",
+    "quiet_hours_end": "When quiet hours end, local time. Nothing while quiet_hours_start is off.",
+    "quiet_hours_days": "The days quiet hours start on. Nothing while quiet_hours_start is off.",
+    "default_tier": "How much a conversation without a tier of its own asks before it is resumed: "
+                    "automatic (the default), objection_window (a card first, objection_minutes to "
+                    "stop it), ask_first or notify_only (nothing is sent until a person lets it "
+                    "continue). Applies to interruptions detected after it is chosen.",
+    "objection_minutes": "How long the objection window waits before a continuation is sent.",
+}
+
+
+def _thread_schema() -> dict:
+    return {"type": "string", "pattern": ids.THREAD_ID_SCHEMA,
+            "description": "The conversation's exact thread id, from the same row of list_pending"}
 
 
 def settings_schema() -> dict:
@@ -90,6 +110,8 @@ def settings_schema() -> dict:
                          "while panel_theme is same, the panel. system: Windows there, Codex in the panel.",
                 "panel_theme": "Light or dark for the settings panel in Codex alone: same uses theme's "
                                "choice, system follows Codex whatever theme is. Changes nothing but colours."}[name]
+        elif name in QUIET_AND_TIERS:
+            described["description"] = QUIET_AND_TIERS[name]
         described.setdefault("description", "See the settings documentation.")
         properties[name] = described
     return {"type": "object", "properties": properties, "additionalProperties": False}
@@ -232,6 +254,44 @@ TOOLS = [
                         "properties": {"interruption_id": _identifier_schema("Interruption id")},
                         "required": ["interruption_id"], "additionalProperties": False},
         "annotations": {"readOnlyHint": False, "destructiveHint": False,
+                        "idempotentHint": True, "openWorldHint": False},
+    },
+    {
+        "name": "postpone_recovery",
+        "title": "Postpone one waiting recovery",
+        "description": "Make one exact waiting recovery wait longer: nothing is sent for it before "
+                       "the time asked for - preset 30_minutes, 1_hour, 3_hours or tomorrow_morning "
+                       "(09:00 local time), or a number of minutes up to a week; give exactly one. "
+                       "Identify it by its interruption id and its thread id, both from the same row "
+                       "of list_pending - never by title, project or recency. It only ever makes a "
+                       "recovery later, sends nothing and skips no check; retry_now brings it "
+                       "forward again.",
+        "inputSchema": {"type": "object",
+                        "properties": {"interruption_id": _identifier_schema("Interruption id"),
+                                       "thread_id": _thread_schema(),
+                                       "preset": {"type": "string", "enum": list(quiet.PRESETS)},
+                                       "minutes": {"type": "integer", "minimum": 1,
+                                                   "maximum": quiet.MAX_POSTPONE_SECONDS // 60}},
+                        "required": ["interruption_id", "thread_id"], "additionalProperties": False},
+        # Not destructive: it only ever holds a recovery back, as a pause does (H8).
+        "annotations": {"readOnlyHint": False, "destructiveHint": False,
+                        "idempotentHint": False, "openWorldHint": False},
+    },
+    {
+        "name": "release_hold",
+        "title": "Let one held recovery continue",
+        "description": "Let one exact recovery that waits for a person continue - one whose "
+                       "conversation asks first or only notifies (its hold in list_pending). "
+                       "Identify it by its interruption id and its thread id from the same row. "
+                       "Nothing is sent by this; the watcher still runs every check, and a "
+                       "postponement or quiet hours still apply. This lets automation run again for "
+                       "that recovery, so Codex asks the user first.",
+        "inputSchema": {"type": "object",
+                        "properties": {"interruption_id": _identifier_schema("Interruption id"),
+                                       "thread_id": _thread_schema()},
+                        "required": ["interruption_id", "thread_id"], "additionalProperties": False},
+        # Destructive: it lets a recovery a person held go again, so Codex asks first (H8).
+        "annotations": {"readOnlyHint": False, "destructiveHint": True,
                         "idempotentHint": True, "openWorldHint": False},
     },
     {

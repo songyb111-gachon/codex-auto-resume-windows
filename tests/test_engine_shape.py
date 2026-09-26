@@ -39,6 +39,9 @@ METHODS = {
     # v0.6.11: the plug told of each move the engine writes (P14), and giving a claim back,
     # which is one of them.
     "moved", "_release",
+    # v0.6.11: quiet hours and a conversation's tier as the policy says them, a record parked in
+    # quiet hours, and the objection window before a first send.
+    "quiet_until", "tier", "_quiet", "_objection",
 }
 
 # What `from codex_auto_resume.engine import ...` has to keep answering (app.py, the tests).

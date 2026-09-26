@@ -79,7 +79,7 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
     total = card_width + 2 * margin
     left, right = margin + pad, total - margin - pad
     inner = right - left
-    items, targets = [], []
+    items, targets, rows = [], [], []
     y = margin + pad
 
     def text(rect, role, value, colour, *, wrap=False, align="left", target=None):
@@ -201,6 +201,9 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
         items.extend(contents)
         items.append({"kind": "focusable", "rect": hit, "target": target, "radius": px(brand.RADII["small"]),
                       "corner": "small"})
+        # v0.6.11: the whole row, where a right click opens its own menu. Not a target: nothing is drawn
+        # for it and the keyboard's order is the switches' as it was.
+        rows.append((task["interruption_id"], (left, row_top, right, row_bottom)))
         y = row_bottom + px(space["s"])
 
     if vm["more"]:
@@ -271,4 +274,5 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
     # `radius` is Soft's, and `corner` the role a design rounds it by (v0.6.10: the renderer asks
     # brand.design_radii; the layout, and so every rectangle, is the same in every design).
     items.insert(0, {"kind": "card", "rect": card, "radius": px(brand.RADII["card"]), "corner": "card"})
-    return {"size": (total, y + margin), "card": card, "items": items, "targets": targets, "scale": scale}
+    return {"size": (total, y + margin), "card": card, "items": items, "targets": targets, "scale": scale,
+            "rows": rows}

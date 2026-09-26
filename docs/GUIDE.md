@@ -253,7 +253,13 @@ running in Codex is not stopped, and the confirmation says so. **Cancel all** do
 every waiting recovery, one exact record at a time; there is deliberately no way to retry them
 all at once. **Turn off for this conversation** cancels its waiting recoveries and keeps
 automatic recovery off for that conversation until you turn it back on — the Pending and History
-pages then offer **Turn on for this conversation**:
+pages then offer **Turn on for this conversation**. From v0.6.11 each row also has a menu of its own,
+on a right click, Shift+F10 or the menu key: **Postpone** holds that task back 30 minutes, an hour,
+three hours or until 09:00 tomorrow, and only ever later; **Let it continue** lets a task that waits
+for you go on, after asking; and **How this conversation resumes** chooses one of the four ways
+described under [Quiet hours and how a conversation resumes](#quiet-hours-and-how-a-conversation-resumes)
+for that conversation alone. None of them sends anything, each is refused if its row has since become
+another task, and the notification-area popup offers the same menu on a right click on a task:
 
 <img src="images/dashboard-pending.png" alt="The Pending page of the Dashboard: two conversations waiting, one for the usage reset and one with a retry scheduled, each with a state chip and an Auto-resume switch, the Why it is waiting checklist for the selected task, and Retry now, Cancel, Timeline, Turn off for this conversation and Cancel all buttons" width="680">
 
@@ -492,7 +498,7 @@ task", "show auto resume statistics", "show the timeline for that recovery", "tr
 now", "give that recovery its attempts back", "start the watcher", "clear auto resume history",
 "preview the auto resume message", "uninstall auto resume".
 
-"Preview the auto resume message" uses `preview_recovery_message`, one of the plugin's 17 tools. It
+"Preview the auto resume message" uses `preview_recovery_message`, one of the plugin's 19 tools. It
 is read-only: it shows the exact text the watcher would send for one kind of interruption, under the
 current language and style or under ones named for the preview alone, and it saves nothing and sends
 nothing. Codex can change the interface language, the continuation language, the message style,
@@ -502,9 +508,9 @@ Continuation message. Nor can it change what moves: Reduce motion and, from v0.6
 are set in the Dashboard too. The panel in Codex draws in both.
 
 Nothing that turns automation down is marked as needing your confirmation: pausing recovery, turning
-it off for one conversation, asking for a re-check. Previewing the message is read-only. Turning it back on, changing a setting, starting
-the watcher, cancelling a recovery, giving a recovery its attempts back and clearing the history are
-all marked with MCP's `destructiveHint` to request approval. Codex and your approval settings
+it off for one conversation, asking for a re-check, postponing a recovery. Previewing the message is read-only. Turning it back on, changing a setting, starting
+the watcher, cancelling a recovery, giving a recovery its attempts back, letting a recovery that waits
+for you continue and clearing the history are all marked with MCP's `destructiveHint` to request approval. Codex and your approval settings
 decide whether to show a prompt; this project's tests check the annotations, and actual
 Codex approval behavior has not been observed for this release.
 
@@ -647,6 +653,14 @@ Doing nothing resumes — that is the default. **Don't resume** / **Don't retry*
 auto-resume for that one interruption and whatever continues it, and nothing else. **Open
 Dashboard** opens the Dashboard on its Pending page and does nothing more.
 
+From v0.6.11 a conversation can ask more of you first (see
+[Quiet hours and how a conversation resumes](#quiet-hours-and-how-a-conversation-resumes)), and the
+notification then says so instead of promising a resume: an interruption that waits for you says it
+waits for you to let it continue, from the Dashboard, and one in a conversation that only notifies
+says nothing is resumed automatically. A conversation with a chance to object gets one more
+notification, just before its continuation would be sent: "Continuing at 14:07 unless you stop it",
+with the same two buttons. Neither button can ever make anything be sent.
+
 This is the only point where a control can be offered at the time it matters. By the time a usage
 limit appears in the Codex app, that turn has already failed, so nothing can be added to the app's
 own usage-limit notice; the watcher, however, is running. See [docs/PLUGIN.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/PLUGIN.md) for
@@ -712,7 +726,7 @@ The Settings page is split into five sections:
 | Automatic recovery | Which classified kinds of interruption are recovered, one check box each |
 | Continuation message | The language and style of the message sent to Codex, your own Custom message, and a Preview of the exact text |
 | Appearance | The theme - Use system setting, Light or Dark - the panel's Theme in Codex, the Design - Soft, Classic (v0.6.2) or Plain - and Reduce motion |
-| Advanced | Attempts per interruption, when to give up after recoveries that produce nothing, continuations per task, and retry timing |
+| Advanced | Attempts per interruption, when to give up after recoveries that produce nothing, continuations per task, retry timing, and from v0.6.11 quiet hours and how a conversation resumes |
 
 Every kind of interruption the watcher recovers has a check box, ticked by default. From v0.6.3 to
 v0.6.9 there was one more, **Sign-in service failures**, for a sign-in service that is temporarily
@@ -729,6 +743,31 @@ the same kind in the Dashboard and in the panel.
 You cannot switch off a safety property, because none of them is a setting. There is no option
 that retries an unclassified failure, resolves a conversation by title, resends an uncertain
 submission or forces a send — by design, not by omission.
+
+### Quiet hours and how a conversation resumes
+
+From v0.6.11 two more settings, under Advanced, can hold a recovery back. Both are off by default,
+where the watcher behaves as it always did, and neither can make anything be sent sooner or skip a
+check.
+
+**Quiet hours** - from, until, and on which days they start - make a recovery that falls due in them
+wait until they end. Hours that run past midnight belong to the day they start on, and the times are
+your clock's, across a change to or from summer time. Time spent in quiet hours does not count toward
+giving up on a usage limit that never lifts. *Why it is waiting* says "Quiet hours until 08:00".
+
+**Before resuming a conversation** says how much a conversation without a choice of its own asks
+first, for interruptions detected from then on; a task's row menu chooses for its conversation alone:
+
+| Choice | What happens |
+| --- | --- |
+| Resume automatically | As always: every check, then the continuation. The default. |
+| After a chance to object | When everything else would let the continuation go, a notification says when it will, and it goes only once **Time to object** - 1 to 60 minutes, 5 by default - has passed. Don't resume stops it. A task you postponed goes at the time you chose, with no second wait. |
+| Ask me first | Nothing is sent until you choose **Let it continue** on its row, in the Dashboard or the popup. |
+| Only notify me | The same, and the notification says nothing is resumed automatically. |
+
+Choosing Ask me first or Only notify me for a conversation also holds what it has waiting. Choosing a
+way that asks less lets nothing go that already waits for you: each such task still needs its own
+**Let it continue**. A postponement or quiet hours still apply after it.
 
 ### Languages
 

@@ -26,6 +26,16 @@ WM_MOUSEMOVE, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSELEAVE = 0x0200, 0x0201, 0x02
 WM_DPICHANGED = 0x02E0
 
 
+# v0.6.11: a task row's own menu - asked for by a right click, Shift+F10 or the menu key.
+WM_CONTEXTMENU = 0x007B
+
+
+MF_STRING, MF_GRAYED, MF_CHECKED, MF_POPUP, MF_SEPARATOR = 0x0, 0x1, 0x8, 0x10, 0x800
+
+
+TPM_RIGHTBUTTON, TPM_RETURNCMD, TPM_NONOTIFY = 0x2, 0x100, 0x80
+
+
 WM_APP = 0x8000
 
 
@@ -212,6 +222,12 @@ def _declare():
         _signature(user32.KillTimer, W.BOOL, H, C.c_size_t)
         _signature(user32.PostMessageW, W.BOOL, H, U, W.WPARAM, W.LPARAM)
         _signature(user32.GetCursorPos, W.BOOL, C.POINTER(W.POINT))
+        _signature(user32.ScreenToClient, W.BOOL, H, C.POINTER(W.POINT))
+        _signature(user32.ClientToScreen, W.BOOL, H, C.POINTER(W.POINT))
+        _signature(user32.CreatePopupMenu, H)
+        _signature(user32.DestroyMenu, W.BOOL, H)
+        _signature(user32.AppendMenuW, W.BOOL, H, U, C.c_size_t, W.LPCWSTR)
+        _signature(user32.TrackPopupMenu, I, H, U, I, I, I, H, H)
         _signature(user32.MonitorFromRect, H, C.POINTER(W.RECT), D)
         _signature(user32.GetMonitorInfoW, W.BOOL, H, C.POINTER(MONITORINFO))
         _signature(user32.SystemParametersInfoW, W.BOOL, U, U, H, U)

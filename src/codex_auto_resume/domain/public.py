@@ -22,6 +22,15 @@ ACTORS = frozenset(Actor)
 # hold and a conversation with no tier are what every record and conversation were until then.
 HOLDS = frozenset(HoldKind)
 IMPORTANCE_TIERS = tuple(ImportanceTier)
+# The hold each tier puts on an interruption of its conversation: Ask me first waits for a person to
+# let it continue, and Only notify me as well. Resume automatically and the objection window hold
+# nothing - the window is a time (`not_before`), not a person.
+_TIER_HOLDS = {ImportanceTier.ASK_FIRST: HoldKind.ASK, ImportanceTier.NOTIFY_ONLY: HoldKind.NOTIFY_ONLY}
+
+
+def hold_for_tier(tier):
+    """The hold `tier` puts on an interruption, or None: every tier but the two that ask a person."""
+    return _TIER_HOLDS.get(tier) if isinstance(tier, str) else None
 
 # Every reason the engine or the store writes. The journal stores only these; anything
 # else is recorded as "other" rather than refused, because a journal entry must never
@@ -137,6 +146,11 @@ def overlays(record: dict, *, enabled=True, thread_enabled=True, watcher=None) -
         found.append("paused")
     if not thread_enabled:
         found.append("thread_disabled")
+    # v0.6.11: it waits for a person (schema 4's hold) - its conversation asks first or only
+    # notifies - and nothing is sent for it until one lets it continue. Read from the record, as
+    # the two above are read from the switches: never from a setting or the clock.
+    if record.get("hold") is not None:
+        found.append("held")
     watcher = watcher or {}
     if watcher.get("engine_state") == "incompatible":
         found.append("compatibility_blocked")

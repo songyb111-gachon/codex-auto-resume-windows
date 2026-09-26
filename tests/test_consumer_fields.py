@@ -81,6 +81,8 @@ _RECEIVERS = {
         "envelope": [("bridge:_framing", "cases[].replies[]")],
         "snapshot": [("bridge:dashboard", "")],
         "status": [("bridge:status", "status"), ("bridge:dashboard", "status")],
+        # v0.6.11: the stored settings the status carries, for the tier a conversation has by default.
+        "settings": [("bridge:status", "status.settings"), ("bridge:dashboard", "status.settings")],
         "watcher": [("bridge:status", "status.watcher"), ("bridge:dashboard", "status.watcher")],
         # A pending or history row, however it was reached: the list's own, the one chosen, the
         # one a list item carries in its Tag, the fresh list compared with the shown one.

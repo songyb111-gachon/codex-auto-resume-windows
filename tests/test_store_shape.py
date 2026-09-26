@@ -46,6 +46,10 @@ METHODS = {
     "_ledger_holds",
     # v0.6.11: schema 4, made fresh and reached from schema 3 - store/migrations.py.
     "_add_schema_4", "_migrate_3_to_4",
+    # v0.6.11: a record postponed, held and let go, a conversation's tier, and the objection
+    # window - store/actions.py and store/policy.py.
+    "_bound", "_not_waiting", "postpone", "release_hold", "open_objection_window",
+    "_thread_tier", "thread_tier", "thread_tiers", "set_thread_tier",
 }
 
 # Reachable as `store.<name>` before the split, and still.

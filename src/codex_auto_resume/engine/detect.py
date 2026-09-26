@@ -118,11 +118,15 @@ class DetectMixin:
             owner = self._owner(detection["thread_id"], detection["turn_id"])
             progress = self.source.turn_progress(detection["thread_id"], detection["turn_id"])
             carry = None if owner else self._legacy_carry(detection)
+            # v0.6.11: a conversation that asks first, or only notifies, has what it detects held
+            # for a person from the start - its tier as it stands now (machine.hold_for_tier).
+            # None at the defaults, where every conversation is resumed automatically.
+            hold = machine.hold_for_tier(self.tier(detection["thread_id"]))
             # One transaction: the record can never exist without its real schedule and
             # the counters of the task it continues.
             if not self.store.register(detection, now, state=state, next_retry_at=when,
                                        owner_id=owner, failed_turn_progress=progress,
-                                       legacy_carry=carry, limits=self.limits()):
+                                       legacy_carry=carry, limits=self.limits(), hold=hold):
                 continue
             registered = self.store.get(detection["interruption_id"])
             self.log(detection["thread_id"],
@@ -144,5 +148,7 @@ class DetectMixin:
                 self.log(detection["thread_id"], "blocking_limit_uncertain", None)
             # The only moment a control can be offered at the time it matters: the
             # Codex turn has already failed, so nothing can be added to the app's
-            # own notice, but the watcher is running right now.
-            self.announce("interruption", registered)
+            # own notice, but the watcher is running right now. A held one says it waits for
+            # a person, never that it will resume (notify.scheduled_content).
+            held = {"hold": registered["hold"]} if registered["hold"] is not None else {}
+            self.announce("interruption", registered, **held)

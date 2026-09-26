@@ -21,7 +21,8 @@ class RecordsMixin:
     def register(self, record: dict[str, Any], now: float, *,
                  state: str = "waiting_reset", next_retry_at: float | None = None,
                  owner_id: str | None = None, failed_turn_progress: bool | None = None,
-                 legacy_carry: int | None = None, limits: dict | None = None) -> bool:
+                 legacy_carry: int | None = None, limits: dict | None = None,
+                 hold: str | None = None) -> bool:
         """Create the record WITH its real schedule and its chain, in one transaction.
 
         Writing the schedule, or the counters inherited from the record whose own
@@ -36,6 +37,9 @@ class RecordsMixin:
 
         Returns False, without raising, when this failure is already known - including
         the same turn seen under a different identity, which is journaled instead.
+
+        `hold` (schema 4) is the hold its conversation's tier puts on it (machine.hold_for_tier):
+        None at the defaults, where every conversation is resumed automatically.
         """
         _timestamp(now, "now")
         required = {"thread_id", "turn_id", "completed_at", "started_at", "ordinal",
@@ -63,7 +67,7 @@ class RecordsMixin:
             "chain_origin_id": key, "chain_first_detected_at": now, "chain_continuations": 0,
             "budget_resets": 0, "retry_now_count": 0, "usage_unavailable_seconds": 0.0,
             "usage_probe_at": None, "gate_eval": None, "gate_eval_at": None,
-            "history_hidden_at": None, "not_before": None, "hold": None,
+            "history_hidden_at": None, "not_before": None, "hold": hold,
         }
         _validated_record(dict(row))
         with self._transaction() as connection:

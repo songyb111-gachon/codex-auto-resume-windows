@@ -16,8 +16,9 @@ Windows only.
 This plugin also provides tools (`open_settings`, `get_status`, `list_pending`,
 `update_settings`, `restore_default_settings`, `pause_auto_recovery`, `resume_auto_recovery`,
 `cancel_recovery`, `disable_conversation_recovery`, `enable_conversation_recovery`,
-`reset_recovery_budget`, `start_watcher`, `retry_now`, `get_recovery_statistics`,
-`get_recovery_timeline`, `clear_recovery_history`, `preview_recovery_message`). When they are
+`reset_recovery_budget`, `start_watcher`, `retry_now`, `postpone_recovery`, `release_hold`,
+`get_recovery_statistics`, `get_recovery_timeline`, `clear_recovery_history`,
+`preview_recovery_message`). When they are
 available, use them instead of the commands below: they are typed, they refuse an invalid
 value instead of writing it, and `open_settings` shows the user a panel they can read and
 change directly.
@@ -29,8 +30,9 @@ The user's own Custom message text cannot be written from Codex - not through
 is edited in the Dashboard, under Settings > Continuation message.
 
 `resume_auto_recovery`, `enable_conversation_recovery`, `update_settings`,
-`restore_default_settings`, `cancel_recovery`, `reset_recovery_budget`, `start_watcher` and
-`clear_recovery_history` carry MCP's `destructiveHint` annotation to request approval.
+`restore_default_settings`, `cancel_recovery`, `reset_recovery_budget`, `start_watcher`,
+`clear_recovery_history` and `release_hold` carry MCP's `destructiveHint` annotation to request
+approval.
 Codex and its approval settings decide whether to show a prompt; actual host approval
 behavior has not been observed for v0.6.0. The annotation is not an authorization lock.
 If the user declines one, do not run the matching
@@ -134,7 +136,9 @@ Two kinds of id, and they are not interchangeable. `cancel_recovery`, `reset_rec
 `enable_conversation_recovery` take a `thread_id`, the conversation's UUID, and so does the
 `cancel` command. Never guess either, and never pass one where the other belongs: the wrong
 shape is refused outright, and the right shape would act on something the user did not ask
-about. The `pending` command prints the conversation UUID in full but only the first 16
+about. `postpone_recovery` and `release_hold` take both, the `interruption_id` and the
+`thread_id` from the same `list_pending` entry, and are refused if the two do not belong
+together. The `pending` command prints the conversation UUID in full but only the first 16
 characters of the interruption id, so take the whole interruption id from `list_pending`.
 Never pass `--last`, and never pick "the most recent thread".
 
@@ -172,9 +176,11 @@ Report what the command actually printed. Useful fields from `status` and `pendi
   prints there and what `list_pending` returns as `code`. It never depends on a setting, so
   prefer it to `state` when telling the user what is happening.
 - `overlays`, on a `list_pending` entry — circumstances that change what a waiting recovery
-  will do next: `paused`, `thread_disabled`, `engine_unavailable`, `watcher_not_ticking`,
-  `compatibility_blocked`, `cancel_pending`. A recovery can be waiting exactly as it should
-  and still never run because of one of these, so say which.
+  will do next: `paused`, `thread_disabled`, `held`, `engine_unavailable`,
+  `watcher_not_ticking`, `compatibility_blocked`, `cancel_pending`. A recovery can be waiting
+  exactly as it should and still never run because of one of these, so say which. `held` means
+  its conversation asks the user first, or only notifies: nothing is sent for it until the user
+  lets it continue (`release_hold`, or Let it continue on its row in the Dashboard).
 - `state` on a pending entry — the engine's own name for where that recovery is:
   - `waiting_reset` / `waiting_poll` / `waiting_for_usage` — waiting for the usage limit to
     reset.
@@ -222,7 +228,14 @@ exits. That is not a fault; the setup notes below say what to do.
 
 `retry_now` brings a waiting recovery's next attempt forward. It is not a send: the watcher still
 revalidates the interruption, still needs the conversation open, still waits for usage, and still
-refuses anything uncertain. Do not describe it as making a resume happen.
+refuses anything uncertain. Do not describe it as making a resume happen. It also brings forward a
+postponement that is still ahead.
+
+`postpone_recovery` makes one waiting recovery wait longer - 30 minutes, an hour, three hours,
+tomorrow at 09:00, or a number of minutes up to a week - and only ever later. It sends nothing.
+Quiet hours, a setting, make any recovery that falls due in them wait until they end.
+`release_hold` lets one held recovery continue; it sends nothing either, and every check still
+runs. Offer it only when the user asks for that recovery to go ahead.
 
 `get_status` carries a Codex compatibility summary under `watcher.compatibility`, as codes. Its
 `overall` is one of `verified` (a real recovery on that exact Codex version confirmed it),

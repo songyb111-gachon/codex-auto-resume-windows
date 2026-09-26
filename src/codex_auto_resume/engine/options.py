@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from contextlib import nullcontext
 import time
-from .. import settings as policy
+from .. import quiet, settings as policy
 from ..domain.plug import guard
 
 
@@ -200,6 +200,15 @@ class OptionsMixin:
         if category == "rate_limit_transient":
             return max(60, self.delay_for(1))
         return self.delay_for(1)
+
+    def quiet_until(self, now):
+        """The end of the quiet hours `now` falls in, or None (quiet.py). Asked of the settings
+        alone, so with none set - the default - nothing is read and nothing ever waits."""
+        return quiet.quiet_until(now, self.policy_values)
+
+    def tier(self, thread_id) -> str:
+        """The tier a conversation has: its own, or the default's (settings.tier_of)."""
+        return policy.tier_of(self.policy_values, self.store.thread_tier(thread_id))
 
     def allowed(self, row):
         """Consent: recovery on, the conversation on, no cancel - and, from schema 4, not only
