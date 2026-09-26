@@ -113,7 +113,12 @@ class _LedgerConnection:
     set: a ledger holding it could have taken the authorizer off before it wrote. What ends it
     is the claim's own (`_ledger_holds`), and nothing on this object: its `close` was an
     attribute a ledger could set to a no-op, and the handle it kept then wrote core's tables
-    after the authorizer was gone. Nothing can be set on it at all."""
+    after the authorizer was gone. Nothing can be set on it at all.
+
+    Like the tick's view of the store (engine/options.py, StoreView), this guards against a
+    ledger's mistakes, not its intent: the ledger runs in core's process, where the handle's
+    closure, a failed statement's traceback and state.sqlite itself all reach the connection
+    for code that goes looking."""
     __slots__ = ("_execute",)
 
     def __init__(self, execute):

@@ -803,7 +803,10 @@ class HandedCopiesTests(PluggedCase):
                 self.assertTrue(h.backend.send_calls[0][1].endswith("\n\n" + h.record()["marker"]))
                 self.assertEqual(h.record()["state"], "queued")
 
-    def test_the_view_hands_over_its_reads_and_no_way_to_the_store(self):
+    def test_the_view_hands_over_its_reads_and_no_attribute_leads_to_the_store(self):
+        """Against a hook's mistake, not its intent (engine/options.py, StoreView): no attribute
+        of the view, and no read's `__self__`, is the store. A closure's cells still are, as
+        everything in core's process is to code that goes looking for it."""
         self.due()
         self.h.store.set_thread_enabled(T2, False, at=self.h.now)
         reached = []

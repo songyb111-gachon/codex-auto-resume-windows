@@ -19,6 +19,14 @@ Three rules make an answer safe to take:
   records it goes on to try, the facts a surface shows - is never the object a hook was given, so
   a hook that changes what it was handed and answers DEFER has changed nothing of core's.
 
+These rules are kept against a plug's mistakes, not against its intent. The plug is the
+advanced edition's package - this product's own code, from the same archive - and it runs in
+core's process, where Python keeps nothing from code that goes looking: a closure's cells, a
+traceback's frames and the garbage collector reach every object core has, and the state is a
+file on the same disk. So what is handed over - copies, a view with no writes, a connection
+that writes only the plug's own database, a name for the backend - removes the plain way to a
+side effect a hook did not mean, and no guard here is a sandbox or claims to be.
+
 Core holds a plug only as `Guarded`, which asks every hook through `consult` and checks every
 value a hook hands back before core takes it. The engine, the store's claim, the control layer
 and every surface hold one; none of them calls a hook of a plug itself.
