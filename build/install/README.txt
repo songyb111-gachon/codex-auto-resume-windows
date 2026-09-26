@@ -5,6 +5,8 @@ Double-click Install.cmd.
 
 That is the whole installation. It brings its own Python, so nothing else needs to
 be installed, and it asks no questions - safe recommended settings are already on.
+The one exception: if this archive is the other edition of what is installed
+(standard or advanced), it asks before changing the edition, and no is the default.
 
 Requirements
   - Windows 10 or 11

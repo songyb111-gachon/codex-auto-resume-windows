@@ -66,6 +66,14 @@ It needs nothing installed first: no Python, no administrator rights, no manual 
 It is safe to run again - that is also the repair path and the upgrade path. Add
 `-NoStartup` if the user does not want it to run at Windows sign-in.
 
+The product comes in two editions, standard and advanced, and an installation stays in
+its own: the script repairs and updates standard as standard and advanced as advanced.
+Change the edition only when the user asks for the other one by name, and say first what
+changes. Then add `-Edition Advanced -Force`, or `-Edition Standard -Force` to go back;
+the script says what the change means before it downloads anything, keeps their
+settings and pending recoveries, and starts every advanced capability off. Never add
+`-Edition` on your own, and never together with `-Update`, which refuses it.
+
 Tell the user plainly what it is about to do before running it: it downloads this
 version's release archive from the project's GitHub releases over HTTPS, checks its
 SHA-256, checks the contents are this product at this version, and only then installs,
