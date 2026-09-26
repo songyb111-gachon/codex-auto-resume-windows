@@ -785,6 +785,10 @@ class TickTests(PluggedCase):
 # record rather than moving one, and the plug's view of the store shows it (P2, P8).
 MOVERS = frozenset({"reserve_detailed", "release_claim", "release_withdrawn", "correlate",
                     "update"})
+# The store calls a person's action makes that move a record (store/actions.py): cancelling one,
+# cancelling a conversation, giving the attempts back. The engine never makes them, and no plug
+# is told of them: P14 tells what the engine writes.
+PERSONS = frozenset({"cancel_interruption", "cancel_thread", "restore_budget_detailed"})
 # Where the engine makes those calls today - so a new one is seen, and has to tell the plug too.
 MOVING = frozenset({"AnnounceMixin.transition", "AnnounceMixin._release", "DispatchMixin.dispatch",
                     "ReconcileMixin.withdraw", "ReconcileMixin.settle", "ReconcileMixin.correlate"})
@@ -1035,6 +1039,45 @@ class MovedTests(PluggedCase):
                                                         "moves a record and does not tell the plug")
         self.assertEqual(set(moving), MOVING)
         self.assertEqual(len(moving), 8, "every store call that moves a record, counted")
+
+    def test_a_persons_own_moves_are_not_told_and_the_contract_says_so(self):
+        """P14 tells what the engine writes. A cancel, or the attempts given back, is written by
+        what the person acted through - the Dashboard, MCP, the CLI, a toast - most often in a
+        process that holds no engine: it is journalled as theirs and not told, though a plug is
+        loaded here, and the contract a plug's author reads says so. None of those writes moves
+        a record into or out of submission_unknown, so no tripwire depends on hearing of it."""
+        cases = {"cancel_interruption": ("waiting_reset", "cancelled"),
+                 "restore_budget_detailed": ("retry_budget_exhausted", "waiting_reset")}
+        for name, (before, after) in cases.items():
+            with self.subTest(name):
+                h = self.fresh()
+                h.home.fail_usage(T1)
+                h.tick()
+                key = h.record()["interruption_id"]
+                if name == "restore_budget_detailed":
+                    h.store.update(key, at=h.now, state=before, last_error="recovery_budget")
+                plug = Asked()
+                self.plugged(plug, h)
+                self.assertEqual(h.record()["state"], before)
+                getattr(h.store, name)(key, h.now, actor="gui")
+                h.tick(advance=1)
+                self.assertEqual(self.told(plug, key), [])
+                self.assertIn((before, after, "gui"),
+                              [(event["from_state"], event["to_state"], event["actor"])
+                               for event in h.store.events(key)])
+        persons = set()
+        for name, function in inspect.getmembers(Store, inspect.isfunction):
+            source = inspect.getsource(function)
+            sets = re.findall(r"UPDATE interruptions SET ((?:(?!WHERE)[^\"'])*)", source)
+            if name in MOVERS or not any(re.search(r"\bstate\s*=", assigned) for assigned in sets):
+                continue
+            persons.add(name)
+            self.assertNotIn("submission_unknown", re.findall(
+                r"UPDATE interruptions SET [^\"]*?\bstate\s*=\s*'([a-z_]+)'", source))
+        self.assertEqual(persons, PERSONS, "every store call that moves a record is the engine's "
+                                           "or a person's")
+        for contract in (Point.__doc__, Plug.moved.__doc__):
+            self.assertRegex(" ".join(contract.split()), r"A person's own moves .* are not told")
 
 
 def rewrite(value):
