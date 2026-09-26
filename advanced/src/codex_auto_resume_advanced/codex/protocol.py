@@ -185,9 +185,10 @@ class Session:
         from codex_auto_resume.codex.errors import AdapterError
         self.sequence += 1
         sequence = self.sequence
-        request = {"id": sequence, "method": method}
-        if params is not None:
-            request["params"] = params
+        # Every request carries `params`, an empty object where there are none: codex-cli
+        # 0.158.0-alpha.2.1 refuses thread/loaded/list without it ("missing field `params`",
+        # -32600), which made M1's probe fail on its own malformed call (2026-09-26).
+        request = {"id": sequence, "method": method, "params": {} if params is None else params}
         if method == "thread/resume" and isinstance(params, dict) and params.get("threadId"):
             self._subscribed.append(params["threadId"])
         try:

@@ -152,6 +152,18 @@ class RecordTests(unittest.TestCase):
         # The probe's own call raised, so it never reached a verdict of its own: blocked, not a pass.
         self.assertEqual(summary["verdict"], str(Verdict.BLOCKED))
 
+    def test_every_request_carries_params_even_when_there_are_none(self):
+        """Codex refuses a request without the field; the session always sends one."""
+        session = protocol.Session.__new__(protocol.Session)
+        session.allowed = protocol.methods_for(Measurement.M1)
+        session.sequence, session._subscribed, written = 0, [], []
+        session._write = written.append
+        import queue as queue_module
+        session.responses = queue_module.Queue()
+        session.responses.put({"id": 1, "result": {"data": []}})
+        self.assertEqual(session.call("thread/loaded/list"), {"data": []})
+        self.assertEqual(written[0]["params"], {})
+
     def test_a_call_codex_refuses_is_a_fail_that_names_the_method_and_code(self):
         """What M3 found on codex-cli 0.158.0-alpha.2.1: an empty thread/queue/add is refused
         (-32600, "only user input can be added"). Codex was reached and said no, so the capability's
