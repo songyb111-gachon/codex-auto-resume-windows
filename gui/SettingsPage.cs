@@ -487,7 +487,7 @@ namespace CodexAutoResume
                     editors[name] = check;
                     if (name == "reduce_motion")
                         host.Controls.Add(HelpText(S("help.reduce_motion",
-                            "Stops every animation - the status light's breathing, controls that glide, a notification card sliding in - in the Dashboard, the notification-area popup and icon, the notification card, the taskbar button and the panel in Codex, in every design. Soft, without motion has none to stop. Windows' own Animation effects setting is always honored as well.")));
+                            "Stops every animation - the status light's breathing, controls that glide, a notification card sliding in - in the Dashboard, the notification-area popup and icon, the notification card, the taskbar button and the panel in Codex, in every design. Windows' own Animation effects setting is always honored as well.")));
                     // When the card gives way to Windows' own notification - Do not disturb, full screen, a screen
                     // reader, a locked or remote session - is said under its switch, never left to be found out.
                     if (name == "notification_card")
@@ -534,7 +534,7 @@ namespace CodexAutoResume
                             "Light or dark for the panel in Codex alone. Same as Theme uses the choice above; Codex's theme follows Codex whatever the Theme is.")));
                     if (name == "design")
                         host.Controls.Add(HelpText(S("help.design",
-                            "How the Dashboard, the notification-area popup, the notification card and the panel in Codex are drawn; light or dark is still the Theme's. Soft is raised and moves; Soft, without motion looks the same and holds still; Classic (v0.6.2) is flat, with that version's accent bars; Plain is flat and grey. High Contrast replaces every design, and Reduce motion stops the motion in each.")));
+                            "How the Dashboard, the notification-area popup, the notification card and the panel in Codex are drawn; light or dark is still the Theme's. Soft is raised; Classic (v0.6.2) is flat, with that version's accent bars; Plain is flat and grey. High Contrast replaces every design, and Reduce motion stops the motion in each.")));
                 }
             }
             if (master != null)

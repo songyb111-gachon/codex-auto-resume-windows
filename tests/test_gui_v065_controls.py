@@ -1193,12 +1193,10 @@ class SourceRuleTests(unittest.TestCase):
     def test_motion_is_brands_one_transition_and_stops_when_it_is_reduced(self):
         motion = self.block("internal static class Motion", "\n    }\n")
         self.assertIn("return Brand.TransitionMs;", motion)
-        # v0.6.10: through the controls' gate, which is every stopper Soft.ReduceMotion knows and a design that does not
-        # glide (Still), as Brand.LookOf answers it for the design in effect (Palette.Look).
-        self.assertIn("Soft.ControlsStill", self.block("internal static bool Allowed(Control control)"))
-        still = self.block("internal static bool ControlsStill")
-        self.assertIn("ReduceMotion", still)
-        self.assertIn("Palette.Look.Glides", still)
+        # Every stopper Soft.ReduceMotion knows, and nothing else: v0.6.10 asked the design too, through a gate of its
+        # own, for Still - which is Reduce motion since v0.6.11, so no design holds a control.
+        self.assertIn("Soft.ReduceMotion", self.block("internal static bool Allowed(Control control)"))
+        self.assertNotIn("internal static bool ControlsStill", self.controls)
         transition = self.block("internal sealed class Transition ", "\n    }\n")
         self.assertIn("timer.Stop();", self.block("private void Tick()"), "the timer stops when it arrives")
         self.assertNotIn("PerformLayout", transition, "paint only")

@@ -7,7 +7,6 @@ import ctypes as C
 import os
 import threading
 
-from ... import brand
 from ... import notice_presence
 from ... import win
 from .. import popup
@@ -197,17 +196,15 @@ def screen(anchor=None) -> dict:
 def look() -> dict:
     """How cards are drawn now: theme, design, High Contrast and what may move.
 
-    `reduced` is every stopper - Reduce motion, Windows' animation setting, High Contrast, battery saver.
-    Since v0.6.10 the design splits what they stop in two (brand.light_moves, brand.controls_move): the
-    light, held by `light_still`, and the card's own entrance, exit and slide, held by `controls_still`.
+    `reduced` is every stopper - Reduce motion, Windows' animation setting, High Contrast, battery saver -
+    and it holds the light and the card's own entrance, exit and slide alike, in every design: the design
+    chooses paint, never motion.
     """
     contrast = popup.high_contrast()
     theme = popup.effective_theme(popup.theme_setting(), popup.apps_use_light_theme())
     design = popup.design_setting()
     reduced = bool(popup.reduced_motion() or contrast or notice_presence.battery_saver())
-    return {"theme": theme, "design": design, "contrast": contrast, "reduced": reduced,
-            "light_still": not brand.light_moves(design, stopped=reduced),
-            "controls_still": not brand.controls_move(design, stopped=reduced)}
+    return {"theme": theme, "design": design, "contrast": contrast, "reduced": reduced}
 
 
 # ------------------------------------------------------------------------ one layered window

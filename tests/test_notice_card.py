@@ -1919,13 +1919,12 @@ class WindowsTests(unittest.TestCase):
 
 # ============================================================================ v0.6.10: the design
 class DesignShadowTests(unittest.TestCase):
-    """A design without depth floats no shadow over the wallpaper; Still floats Soft's."""
+    """A design without depth floats no shadow over the wallpaper; Soft floats the shadow it always did."""
 
     def test_only_a_design_with_depth_floats_a_shadow(self):
         for theme in brand.THEMES:
             with self.subTest(theme=theme):
                 self.assertEqual(notice_card.float_shadows(theme, "soft"), notice_card.float_shadows(theme))
-                self.assertEqual(notice_card.float_shadows(theme, "still"), notice_card.float_shadows(theme))
                 self.assertTrue(notice_card.float_shadows(theme))
                 for design in ("classic", "plain"):
                     self.assertEqual(notice_card.float_shadows(theme, design), ())
@@ -1966,15 +1965,25 @@ class CardDesignTests(unittest.TestCase):
         self.assertTrue(card.shadows)
         self.assertTrue(card.breathe(100))
 
-    def test_still_starts_held_and_never_breathes(self):
-        card = self.offscreen(self.breathing(), "still")
+    def test_a_stored_still_starts_held_and_never_breathes_in_soft_s_depth(self):
+        """v0.6.10's Still card: held from the start, its light never breathing, Soft's shadow floated. A Still stored
+        then reaches the card as Soft under Reduce motion (settings._migrate, win32.look), and draws just that."""
+        card = self.offscreen(self.breathing(), "soft", reduced=True)
         self.assertEqual(card.motion.phase, "hold")
         self.assertTrue(card.motion.reduced)
         self.assertFalse(card.breathe(brand.GLOW["monitoring_ms"] // 2))
-        self.assertTrue(card.shadows, "Still keeps Soft's depth")
+        self.assertTrue(card.shadows, "Soft's depth, as Still had")
+        self.assertEqual(card._glow(brand.GLOW["monitoring_ms"] // 2), brand.glow(card.vm["status"], 0, reduced=True))
+
+    def test_reduce_motion_holds_the_card_in_every_design(self):
+        for design in brand.DESIGNS:
+            card = self.offscreen(self.breathing(), design, reduced=True)
+            with self.subTest(design):
+                self.assertEqual(card.motion.phase, "hold")
+                self.assertFalse(card.breathe(brand.GLOW["monitoring_ms"] // 2))
 
     def test_classic_rises_in_floats_no_shadow_and_breathes(self):
-        """Classic comes in as Soft does - only Still takes the entrance away - with no shadow to float."""
+        """Classic comes in as Soft does, with no shadow to float."""
         card = self.offscreen(self.breathing(), "classic")
         self.assertEqual(card.motion.phase, "enter")
         self.assertEqual((card.shadows, card.margin), ((), 0))

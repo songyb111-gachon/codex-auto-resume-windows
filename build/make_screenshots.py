@@ -1065,8 +1065,8 @@ def render_popup(target: Path, locale: str, *, theme: str | None = None, design:
     Its light moves as the popup's own moves (F15): the whole popup drawn by its renderer at the first
     moment of the light's breath, and then, frame by frame, only the light, drawn again by the same
     renderer's `draw_halo` - the call the popup makes for a frame of its light - at each moment of one
-    cycle (`light_timeline`). A design whose light does not move (Still) is one still picture, as is
-    every picture the audit sheets ask for (`moving=False`), with another theme and scale.
+    cycle (`light_timeline`). A light that does not move is one still picture, as is every picture the
+    audit sheets ask for (`moving=False`), with another theme and scale.
     """
     from codex_auto_resume.ui import popup as tray_popup
     strings, view = popup_view(locale)
@@ -1662,8 +1662,8 @@ def card_pixels(locale: str, theme: str, *, design: str | None = None, scale: fl
 def render_card(target: Path, locale: str, theme: str, *, design: str | None = None, moving: bool = True,
                 scale: float = CARD_SCALE, themes: tuple | None = None) -> dict:
     """The card in `theme` and `design`, its light moving as the card's own does (F15); returns the
-    picture's record. Still when its light does not move in the design, or when the audit sheets ask
-    for a still picture (`moving=False`)."""
+    picture's record. Still when its light does not move, or when the audit sheets ask for a still
+    picture (`moving=False`)."""
     design = design or brand.DEFAULT_DESIGN
     settled = _SettledCard(locale, theme, design, scale, themes)
     try:
@@ -1837,11 +1837,11 @@ class Timeline(NamedTuple):
 
 
 def light_timeline(record: dict):
-    """The one cycle a picture's lights move on, or None when none of them moves in its design (Still, or lights that
-    are off). Refuses a picture whose moving lights have different rhythms: it could not loop for both."""
-    design = record["design"]
+    """The one cycle a picture's lights move on, or None when none of them moves (lights that are off). The same
+    in every design: none holds its light still. Refuses a picture whose moving lights have different rhythms: it
+    could not loop for both."""
     moving = tuple(index for index, light in enumerate(record["lights"])
-                   if brand.glow_moves(light["state"], design=design))
+                   if brand.glow_moves(light["state"]))
     if not moving:
         return None
     cycles = sorted({light_cycle(record["lights"][index]["state"]) for index in moving})
@@ -3243,14 +3243,15 @@ LOCALES = ("en", "ko")
 EXTRA_LOCALES = ("ja", "zh-CN", "de")
 EXTRA_PAGES = ("overview", "pending", "settings")
 
-# The four designs (v0.6.10), each pictured on the four surfaces a person meets first - the Dashboard's
+# The designs (v0.6.10), each pictured on the four surfaces a person meets first - the Dashboard's
 # Overview, the panel, the popup and the notification card - in English and the light theme only, as
 # the user asked of every picture ("대부분의 이미지는 화이트모드만 해"); the dark half of each design is held
 # by the property tests instead. Soft's pictures are the set above, under the names they always had;
 # every other design's are `docs/images/design-<design>-<surface>.png`, documentation only and never in
-# assets/, which ships. A design whose light moves in the product moves in its pictures too - Classic's
-# with its glow, Plain's dimming only - and Still's, whose light never moves, are still.
-DESIGNS_PICTURED = ("soft", "still", "classic", "plain")
+# assets/, which ships. Every design's light moves in its pictures as it does in the product - Classic's
+# with its glow, Plain's dimming only. v0.6.10's Still is not pictured since it became Reduce motion
+# (settings._migrate): its pictures were Soft's, held.
+DESIGNS_PICTURED = ("soft", "classic", "plain")
 DESIGN_SURFACES = ("dashboard", "panel", "popup", "card")
 DESIGN_LOCALE = "en"
 
