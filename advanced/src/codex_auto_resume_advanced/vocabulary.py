@@ -130,6 +130,12 @@ class BridgeCommand(StrEnum):
     ADVANCED_DISARM_ALL = "advanced-disarm-all"
     ADVANCED_CEILING = "advanced-ceiling"
     MEASURE = "measure"
+    # After a probe leaves a verdict blocked - it saw what the harness could see and left the
+    # rest to a person to do in the Codex app - the person records the outcome with this. It
+    # appends a pass or a fail, and one closed note code, to the newest blocked record of that
+    # measurement for the same Codex version (measure.py, evidence.complete). Content-free, the
+    # Dashboard's like MEASURE, and reached by no MCP tool.
+    MEASURE_VERDICT = "measure-verdict"
 
 
 class Measurement(StrEnum):
@@ -153,6 +159,27 @@ class Verdict(StrEnum):
     PASS = "pass"
     FAIL = "fail"
     BLOCKED = "blocked"                      # it could not be reached to be measured
+
+
+class NoteCode(StrEnum):
+    """The closed words a person completing a blocked measurement may leave, and no others
+    (evidence.complete). They say what the person saw in the Codex app when they did the step
+    the harness could not do for them, and nothing more - never a sentence, never an id. Which
+    code fits which measurement is in the runbook; the record only ever holds the code.
+
+    A completion is a pass or a fail, so a pass carries AS_EXPECTED and a fail one of the rest.
+    PRECONDITION_UNMET is for a step whose world this machine could set up but did not behave -
+    a step this machine cannot set up at all (no IDE server, no second sign-in) stays blocked
+    with its probe's note, never completed."""
+    AS_EXPECTED = "as_expected"              # it behaved as the capability needs (a pass)
+    NOT_AS_EXPECTED = "not_as_expected"      # it did not (a fail)
+    PARTIAL = "partial"                      # some of it, not all (a fail)
+    PRECONDITION_UNMET = "precondition_unmet"  # the step's world would not come up here (a fail)
+    INCONCLUSIVE = "inconclusive"            # it ran but did not settle the question (a fail)
+
+
+NOTE_FOR_PASS = frozenset({NoteCode.AS_EXPECTED})
+NOTE_FOR_FAIL = frozenset(NoteCode) - NOTE_FOR_PASS
 
 
 class McpTool(StrEnum):

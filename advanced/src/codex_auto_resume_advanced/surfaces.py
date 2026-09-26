@@ -30,7 +30,8 @@ from __future__ import annotations
 from codex_auto_resume import l10n
 from codex_auto_resume.domain.plug import DEFER, Edition, Surface
 
-from .vocabulary import Actor, ArmingState, BridgeCommand, McpTool, Measurement, Refusal
+from .vocabulary import (Actor, ArmingState, BridgeCommand, McpTool, Measurement, NoteCode,
+                         Refusal, Verdict)
 
 # The surfaces that show the version, where the edition badge sits beside it (decision C12).
 # Core adds nothing there in the standard edition, so each stays as it was; this edition puts
@@ -46,7 +47,8 @@ ARGUMENTS = {
     BridgeCommand.ADVANCED_DISARM: frozenset({"capability"}),
     BridgeCommand.ADVANCED_DISARM_ALL: frozenset(),
     BridgeCommand.ADVANCED_CEILING: frozenset({"global_hourly", "generation"}),
-    BridgeCommand.MEASURE: frozenset({"measurement"}),
+    BridgeCommand.MEASURE: frozenset({"measurement", "thread"}),
+    BridgeCommand.MEASURE_VERDICT: frozenset({"measurement", "verdict", "note"}),
 }
 
 _NO_ARGUMENTS = {"type": "object", "properties": {}, "additionalProperties": False}
@@ -133,23 +135,55 @@ def bridge(runtime, command, argument):
     if command == BridgeCommand.ADVANCED_DISARM_ALL:
         return arming.all_off(actor=Actor.DASHBOARD)
     if command == BridgeCommand.MEASURE:
-        return measure(runtime, argument.get("measurement"))
+        return measure(runtime, argument.get("measurement"), argument.get("thread"))
+    if command == BridgeCommand.MEASURE_VERDICT:
+        return measure_verdict(runtime, argument.get("measurement"), argument.get("verdict"),
+                               argument.get("note"))
     return arming.set_global_hourly(argument.get("global_hourly"), generation=argument.get("generation"),
                                     actor=Actor.DASHBOARD)
 
 
-def measure(runtime, measurement):
+def measure(runtime, measurement, thread=None):
     """Run one measurement the person named, and hand back what was recorded (measure.py).
 
     The id has to be one of the M-list, or it is refused as an invalid request; running it opens
     a real one-turn session and writes to the source tree, so it is the person's own action, made
-    from the Dashboard, and never a model's - no MCP tool reaches this."""
+    from the Dashboard, and never a model's - no MCP tool reaches this.
+
+    `thread` is an optional real throwaway conversation the person points it at. It has to be a
+    string when given; whether it is a Codex thread id is checked in the harness, which never
+    writes it into the record."""
     try:
         which = Measurement(measurement)
     except ValueError:
         return {"done": False, "refusal": Refusal.INVALID_REQUEST}
+    if thread is not None and not isinstance(thread, str):
+        return {"done": False, "refusal": Refusal.INVALID_REQUEST}
     try:
-        summary = runtime.run_measurement(which)
+        summary = runtime.run_measurement(which, thread=thread)
+    except Exception:
+        return {"done": False, "refusal": Refusal.STATE_UNAVAILABLE}
+    return dict(summary, done=True)
+
+
+def measure_verdict(runtime, measurement, verdict, note):
+    """Record a person's completion of a blocked measurement (measure-verdict, measure.py).
+
+    After a probe leaves a verdict blocked, the person does the step in the Codex app and records
+    what they saw here: a pass or a fail, and one closed note code. It appends the completion to
+    the newest blocked record of that measurement for this Codex version, and is refused when the
+    id, the verdict or the note is not one of the closed sets, or when there is no such record.
+    The Dashboard's like `measure`, and reached by no MCP tool."""
+    try:
+        which = Measurement(measurement)
+        chosen = Verdict(verdict)
+        code = NoteCode(note)
+    except ValueError:
+        return {"done": False, "refusal": Refusal.INVALID_REQUEST}
+    if chosen not in (Verdict.PASS, Verdict.FAIL):
+        return {"done": False, "refusal": Refusal.INVALID_REQUEST}
+    try:
+        summary = runtime.complete_measurement(which, chosen, code)
     except Exception:
         return {"done": False, "refusal": Refusal.STATE_UNAVAILABLE}
     return dict(summary, done=True)

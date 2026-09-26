@@ -24,7 +24,7 @@ import re
 from codex_auto_resume import failures, machine
 from codex_auto_resume.diagnostics import EMAIL_RE, KEY_RE, PATH_RE, UUID_RE
 
-from .vocabulary import Measurement, Verdict
+from .vocabulary import Measurement, NoteCode, Verdict
 
 # The same tag scripts/live_evidence.py skips these files by; tests/test_advanced_measure.py
 # keeps the two spellings identical, so neither can move without the other.
@@ -108,6 +108,54 @@ def path_for(measurement, *, directory=None) -> Path:
     re-run, so a later reading of a Codex never sits beside an older one that disagrees."""
     directory = DEFAULT_DIRECTORY if directory is None else Path(directory)
     return directory / ("measurement-%s.json" % Measurement(measurement))
+
+
+def complete(measurement, verdict, note, *, codex_version, recorded_at, directory=None) -> Path:
+    """Append a person's completion to the blocked record of `measurement`, and return its file.
+
+    After a probe leaves a verdict blocked - it saw what the harness could see and left the rest
+    for a person to do in the Codex app - the person records what they saw with a pass or a fail
+    and one closed note code (measure-verdict). The completion is added to the record, which
+    keeps its own blocked verdict beside it: the probe found what it found, and the person's
+    reading sits next to it, not over it.
+
+    It is refused unless the record is here, its verdict is blocked, and it was measured on this
+    same Codex version - a completion for another Codex is a different measurement, and there is
+    nothing here for it to complete. The completion is content-free by the same construction the
+    rest of a record is: a verdict, a closed note code, and an ISO-8601 minute, and nothing else.
+    """
+    measurement = Measurement(measurement)
+    verdict = Verdict(verdict)
+    if verdict not in (Verdict.PASS, Verdict.FAIL):
+        raise EvidenceError("a completion is a pass or a fail")
+    try:
+        note = NoteCode(note)
+    except ValueError:
+        raise EvidenceError("a completion's note is one of the closed note codes") from None
+    target = path_for(measurement, directory=directory)
+    if not target.is_file():
+        raise EvidenceError("there is no blocked record of this measurement to complete")
+    try:
+        record = json.loads(target.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        raise EvidenceError("the record could not be read to complete it") from None
+    if not isinstance(record, dict) or record.get("format") != MEASUREMENT_FORMAT:
+        raise EvidenceError("the file is not a measurement record")
+    if record.get("step") != str(measurement):
+        raise EvidenceError("the record is of another measurement")
+    if record.get("verdict") != str(Verdict.BLOCKED):
+        raise EvidenceError("only a blocked record can be completed by hand")
+    if str(record.get("codex_version")) != str(codex_version):
+        raise EvidenceError("the blocked record was measured on another Codex; re-measure first")
+    completion = {"verdict": str(verdict), "note": str(note), "recorded_at": str(recorded_at)}
+    for value in completion.values():
+        if not _no_content(value):
+            raise EvidenceError("a completion field holds something that identifies a person, a "
+                                "path or a conversation; a record never does")
+    record["completion"] = completion
+    text = json.dumps(record, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
+    target.write_text(text, encoding="utf-8")
+    return target
 
 
 def write(record, *, directory=None) -> Path:

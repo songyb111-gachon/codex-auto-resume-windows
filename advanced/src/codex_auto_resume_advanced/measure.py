@@ -25,10 +25,11 @@ import time
 from codex_auto_resume import config
 from codex_auto_resume.codex.errors import AdapterError
 from codex_auto_resume.diagnostics import Redactor
+from codex_auto_resume.domain.ids import is_uuid
 
 from . import evidence
 from .codex.protocol import Session, SessionRefused, methods_for
-from .vocabulary import Measurement, Verdict
+from .vocabulary import Measurement, NoteCode, Verdict
 
 MEASUREMENTS = tuple(Measurement)
 
@@ -47,13 +48,20 @@ class Context:
     no test opens a real Codex or starts a real process.
     """
     def __init__(self, measurement, *, session_factory=None, launcher=None, backend=None,
-                 versions=None, redactor=None):
+                 versions=None, redactor=None, thread=None):
         self.measurement = Measurement(measurement)
         self._session_factory = session_factory
         self.launcher = launcher
         self.backend = backend
         self.versions = versions or {}
         self.redactor = redactor or Redactor()
+        # An optional real throwaway conversation the owner pointed this measurement at. It is
+        # validated as a Codex thread id and used in the calls the probe makes, so a measurement
+        # can run against a real conversation instead of the placeholder. It is never written
+        # into the record: the record holds only that one was given (`thread_given`), because a
+        # conversation id is exactly the kind of content this whole edition keeps out of state.
+        self.thread_given = bool(thread)
+        self.probe_thread = thread if thread else _SAMPLE_THREAD
 
     def open(self):
         """The one-turn session for this measurement, restricted to the methods it declared. A
@@ -64,8 +72,10 @@ class Context:
             raise EvidenceUnavailable("no session was provided")
         return self._session_factory(self.measurement)
 
-    def thread(self, thread_id):
-        return self.redactor.alias(thread_id, "thread") if thread_id else None
+    def given(self, observed) -> dict:
+        """The probe's observation, with whether a real thread was given added - a boolean, and
+        never the id itself."""
+        return dict(observed, thread_given=self.thread_given)
 
 
 class EvidenceUnavailable(RuntimeError):
@@ -87,7 +97,7 @@ def _m1(ctx):
     a queue item is waiting; whether opening it delivers the item is what the person then does."""
     with ctx.open() as session:
         loaded = session.call("thread/loaded/list")
-        queued = session.call("thread/queue/list", {"threadId": _SAMPLE_THREAD})
+        queued = session.call("thread/queue/list", {"threadId": ctx.probe_thread})
     observed = {"loaded_listed": isinstance(loaded, dict),
                 "queue_listed": isinstance(queued, dict)}
     return _blocked("open the notLoaded thread in the Desktop and confirm the queued item is "
@@ -97,10 +107,10 @@ def _m1(ctx):
 def _m2(ctx):
     """thread/goal/set reaches a Desktop-loaded goal."""
     with ctx.open() as session:
-        before = session.call("thread/goal/get", {"threadId": _SAMPLE_THREAD})
-        session.call("thread/goal/set", {"threadId": _SAMPLE_THREAD, "objective": None,
+        before = session.call("thread/goal/get", {"threadId": ctx.probe_thread})
+        session.call("thread/goal/set", {"threadId": ctx.probe_thread, "objective": None,
                                          "status": "active"})
-        after = session.call("thread/goal/get", {"threadId": _SAMPLE_THREAD})
+        after = session.call("thread/goal/get", {"threadId": ctx.probe_thread})
     observed = {"goal_read": isinstance(before, dict), "goal_set": isinstance(after, dict)}
     return _blocked("confirm the Desktop continued the goal at its next idle, then set the "
                     "verdict", **observed)
@@ -109,10 +119,10 @@ def _m2(ctx):
 def _m3(ctx):
     """An empty thread/queue/add is dispatched and correlatable."""
     with ctx.open() as session:
-        added = session.call("thread/queue/add", {"threadId": _SAMPLE_THREAD,
+        added = session.call("thread/queue/add", {"threadId": ctx.probe_thread,
                                                   "clientUserMessageId": _SAMPLE_CLIENT_ID,
                                                   "input": []})
-        listed = session.call("thread/queue/list", {"threadId": _SAMPLE_THREAD})
+        listed = session.call("thread/queue/list", {"threadId": ctx.probe_thread})
     observed = {"queue_add_accepted": isinstance(added, dict),
                 "correlatable": isinstance(listed, dict)}
     verdict = Verdict.PASS if all(observed.values()) else Verdict.FAIL
@@ -134,7 +144,7 @@ def _m5(ctx):
     """TUI and IDE servers dispatch codex queue items. The two servers are the person's to
     start; the harness only confirms the queue is readable from here."""
     with ctx.open() as session:
-        listed = session.call("thread/queue/list", {"threadId": _SAMPLE_THREAD})
+        listed = session.call("thread/queue/list", {"threadId": ctx.probe_thread})
     observed = {"queue_listed": isinstance(listed, dict)}
     return _blocked("with a TUI server and an IDE server each holding a thread, confirm each "
                     "dispatches a codex queue item, then set the verdict", **observed)
@@ -144,11 +154,11 @@ def _m6(ctx):
     """A headless turn with declined approvals. The session declines every request Codex makes;
     the harness records how many it declined and how the turn ended."""
     with ctx.open() as session:
-        session.call("thread/resume", {"threadId": _SAMPLE_THREAD})
-        session.call("turn/start", {"threadId": _SAMPLE_THREAD})
+        session.call("thread/resume", {"threadId": ctx.probe_thread})
+        session.call("turn/start", {"threadId": ctx.probe_thread})
         time.sleep(0)                      # the reader thread collects notifications as they come
         events = session.drain_events()
-        session.call("turn/interrupt", {"threadId": _SAMPLE_THREAD})
+        session.call("turn/interrupt", {"threadId": ctx.probe_thread})
         declined = len(session.declined)
     status = _turn_status(events)
     observed = {"approvals_declined": declined}
@@ -161,7 +171,7 @@ def _m6(ctx):
 def _m7(ctx):
     """Queued '/compact' text stays plain text (it is not run as a command)."""
     with ctx.open() as session:
-        added = session.call("thread/queue/add", {"threadId": _SAMPLE_THREAD,
+        added = session.call("thread/queue/add", {"threadId": ctx.probe_thread,
                                                   "clientUserMessageId": _SAMPLE_CLIENT_ID,
                                                   "input": [{"type": "text", "text": "/compact"}]})
     observed = {"queue_add_accepted": isinstance(added, dict)}
@@ -238,31 +248,40 @@ def _turn_status(events) -> str | None:
 
 def probe(ctx) -> tuple:
     """Run one measurement's probe, turning a protocol that could not be reached into a blocked
-    verdict with a coded note rather than an exception."""
+    verdict with a coded note rather than an exception. Whether the owner pointed it at a real
+    conversation is added to the observation here, as a boolean, so every probe records it the
+    same way and none has to carry the thread through."""
     try:
-        return PROBES[ctx.measurement](ctx)
+        verdict, observed, note = PROBES[ctx.measurement](ctx)
     except (EvidenceUnavailable, SessionRefused, AdapterError) as exc:
-        return Verdict.BLOCKED, {}, "not reached: %s" % type(exc).__name__
+        return Verdict.BLOCKED, {"thread_given": ctx.thread_given}, "not reached: %s" % type(exc).__name__
+    return verdict, ctx.given(observed), note
 
 
 def run(measurement, *, session_factory=None, launcher=None, backend=None, versions=None,
-        clock=time.time, directory=None) -> dict:
+        clock=time.time, directory=None, thread=None) -> dict:
     """Run one measurement and write its record. Returns a small summary of what was recorded.
 
     `versions` is the build, Codex and Windows the record belongs to; when it is not given they
     are read here (the product's manifest, the backend's engine version, this Windows). Every
     external effect is a factory the caller passes, so a test drives this with fakes.
 
+    `thread` is an optional real throwaway conversation the owner points the measurement at. It
+    is validated as a Codex thread id and used in the calls the probe makes; it is never written
+    into the record, which keeps only whether one was given.
+
     A record that cannot say which Codex it measured is not written, and nothing is run for it:
     a measurement decides, per Codex version, whether a capability ships (C7), and "unknown"
     would decide it for every version at once.
     """
     measurement = Measurement(measurement)
+    if thread is not None and not is_uuid(thread):
+        raise EvidenceUnavailable("the conversation id is not a Codex thread id")
     versions = dict(versions or _versions(backend))
     if versions.get("codex_version") in (None, "", "unknown"):
         raise EvidenceUnavailable("the Codex version this would measure could not be read")
     ctx = Context(measurement, session_factory=session_factory, launcher=launcher,
-                  backend=backend, versions=versions)
+                  backend=backend, versions=versions, thread=thread)
     verdict, observed, note = probe(ctx)
     record = evidence.build(measurement, verdict, observed,
                             product_version=versions.get("product_version", "0.0.0"),
@@ -316,3 +335,40 @@ def live_session_factory(paths, backend=None):
         return Session(backend if backend is not None else live_backend(), measurement)
 
     return factory
+
+
+def live_launcher(paths):
+    """The real MW launcher: the WMI job-escape chain (codex/wmi_escape.py), wired for the owner's
+    own run. It starts a helper inside a kill-on-close job with no breakaway - the shape Codex
+    gives its MCP servers - has it start a heartbeat through WMI that lands outside the job, closes
+    the job, and reports whether the heartbeat survived and stood outside a job. Every process it
+    starts is windowless (the console rules). A test wires a fake instead and this is never
+    reached."""
+    from .codex import wmi_escape
+
+    def launcher():
+        return wmi_escape.probe(paths)
+
+    return launcher
+
+
+def complete(measurement, verdict, note, *, backend=None, versions=None, clock=time.time,
+             directory=None) -> dict:
+    """Append a person's completion to the blocked record of `measurement` (measure-verdict).
+
+    The completion is a pass or a fail and one closed note code (vocabulary.NoteCode), added to
+    the newest blocked record for this same Codex version and refused when there is none. The
+    Codex version is read the same way `run` reads it, so a completion and the record it completes
+    are of the same Codex; a run that cannot say which Codex it is on completes nothing.
+    """
+    measurement = Measurement(measurement)
+    verdict = Verdict(verdict)
+    note = NoteCode(note)
+    versions = dict(versions or _versions(backend))
+    codex_version = versions.get("codex_version")
+    if codex_version in (None, "", "unknown"):
+        raise EvidenceUnavailable("the Codex version this would complete could not be read")
+    written = evidence.complete(measurement, verdict, note, codex_version=codex_version,
+                                recorded_at=_iso(clock()), directory=directory)
+    return {"measurement": str(measurement), "verdict": str(verdict), "note": str(note),
+            "recorded": str(written)}
