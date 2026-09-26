@@ -1,0 +1,19 @@
+{
+  "format": "codex-auto-resume-measurement/1",
+  "step": "m4",
+  "verdict": "blocked",
+  "recorded_at": "2026-09-26T14:29Z",
+  "product_version": "0.6.11-alpha",
+  "codex_version": "codex-cli 0.158.0-alpha.2.1",
+  "windows_build": "10.0.26200",
+  "observed": {
+    "hooks_listed": true,
+    "thread_given": true
+  },
+  "note": "cause a turn to fail and confirm the plugin Stop hook ran and the failed row was persisted by then, then set the verdict",
+  "completion": {
+    "verdict": "fail",
+    "note": "precondition_unmet",
+    "recorded_at": "2026-09-26T14:30Z"
+  }
+}
