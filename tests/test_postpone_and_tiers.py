@@ -20,6 +20,7 @@ from pathlib import Path
 import sys
 import time
 import unittest
+from unittest.mock import patch
 
 _HERE = str(Path(__file__).resolve().parent)
 if _HERE not in sys.path:
@@ -463,6 +464,26 @@ class ControlTests(ControlTestCase):
         rows = self.control.list_pending()
         self.assertEqual(rows[0]["not_before"], later + 60)
         self.assertEqual(rows[0]["eligible_at"], later + 60)
+
+    def test_a_held_task_has_no_time_and_no_header_says_it_is_checked(self):
+        """A held record's schedule passes and nothing sends it: only a person letting it continue does.
+        It had a time in the past, so every header said checking, the light breathed and its row said due
+        now for as long as it was held (J7). It has none; the headers say waiting."""
+        from codex_auto_resume.ui.popup import model
+        from codex_auto_resume.ui.tray import model as tray_model
+        with Store(self.paths.state_dir) as store:
+            store.set_enabled(True, 100.0)
+            store.register(detection(), 100.0, hold="ask")
+            self.assertIsNone(tray_model.snapshot_from(store, time.time())["next_at"])
+        with patch.object(control.Control, "watcher_running", return_value=True):
+            rows = self.control.list_pending()
+        self.assertEqual(rows[0]["overlays"], ["held"])
+        self.assertIsNone(rows[0]["eligible_at"])
+        status = {"watcher_running": True, "enabled": True, "codes": {}, "pending": 1}
+        self.assertEqual(model.activity(status, rows, time.time()), "waiting")
+        # Let it continue, and it has its time again.
+        self.control.release_hold(KEY, THREAD)
+        self.assertIsNotNone(self.control.list_pending()[0]["eligible_at"])
 
     def test_postponing_refuses_what_is_not_one_later_time(self):
         self.register()

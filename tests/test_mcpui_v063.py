@@ -1074,6 +1074,16 @@ class HeroLightTests(unittest.TestCase):
         self.assertEqual(observed, [[state, "halo " + light, ENGLISH["activity." + state]]
                                     for _, state, light in self.CASES])
 
+    def test_a_task_held_for_a_person_has_no_next_check(self):
+        """v0.6.11: it has no time (domain/public.eligible_at) - only a person lets it go - so its row says it
+        waits for them rather than 'not known yet', and it never makes the page say checking."""
+        observed = run_javascript(["t", "nextCheck", "due", "checkingRow"], """
+          var held = {code: 'scheduled', eligible_at: null, overlays: ['held']};
+          process.stdout.write(JSON.stringify([nextCheck(held), nextCheck({eligible_at: null}),
+                                               checkingRow(held, 1800000000, 1800000000)]));
+        """, prelude=self.PRELUDE)
+        self.assertEqual(observed, [ENGLISH["overlay.held"], ENGLISH["panel.next_unknown"], False])
+
     def test_amber_is_for_a_watcher_that_runs(self):
         observed = run_javascript(["lightFor"], "process.stdout.write(JSON.stringify(["
                                   "lightFor({watcher_running: true}, 'attention'),"

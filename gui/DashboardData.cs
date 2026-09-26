@@ -652,23 +652,9 @@ namespace CodexAutoResume
                 }
                 return;
             }
-            int waiting = 0, running = 0;
-            double next = 0;
-            if (pending != null)
-            {
-                foreach (object entry in pending)
-                {
-                    var row = entry as Dictionary<string, object>;
-                    if (row == null) continue;
-                    double eligible = Number(row, "eligible_at");
-                    if (eligible > 0)
-                    {
-                        waiting++;
-                        if (next == 0 || eligible < next) next = eligible;
-                    }
-                    else running++;
-                }
-            }
+            double[] counts = PendingCounts(pending);
+            int waiting = (int)counts[0], running = (int)counts[1];
+            double next = counts[2];
             bool enabled = Equals(Get(status, "enabled"), true);
             if (waitingLine != null)
             {
@@ -684,6 +670,29 @@ namespace CodexAutoResume
             // per waiting row per second for nobody. ShowPage writes them once when it comes back.
             if (pendingList == null || currentPage != "pending") return;
             WriteCountdowns(now);
+        }
+
+        /// The Overview's counts from a pending list: {waiting, in Codex, the soonest time a waiting one is looked at, or
+        /// 0}. Waiting by its code (WaitingCode), not by having a time: a task held for a person (v0.6.11) has none,
+        /// since no time sends it, and is still waiting - never "running in Codex".
+        internal static double[] PendingCounts(List<object> pending)
+        {
+            double waiting = 0, running = 0, next = 0;
+            if (pending != null)
+                foreach (object entry in pending)
+                {
+                    var row = entry as Dictionary<string, object>;
+                    if (row == null) continue;
+                    if (!WaitingCode(Str(row, "code")))
+                    {
+                        running++;
+                        continue;
+                    }
+                    waiting++;
+                    double eligible = Number(row, "eligible_at");
+                    if (eligible > 0 && (next == 0 || eligible < next)) next = eligible;
+                }
+            return new[] { waiting, running, next };
         }
 
         /// Each waiting row's Next check, written only where it differs from what the row already shows.

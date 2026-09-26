@@ -105,8 +105,12 @@ def public_code(record: dict) -> str:
 
 def eligible_at(record: dict):
     """When a waiting record is next looked at: its schedule, or a later usage reset, or a
-    later time a person postponed it to (`not_before`, schema 4), whichever is last."""
-    if record.get("state") not in WAITING:
+    later time a person postponed it to (`not_before`, schema 4), whichever is last.
+
+    None for a record held for a person (`hold`, schema 4) as for one that is not waiting: no
+    time will send it, only a person letting it continue, so no surface may say its time has
+    come or that it is being checked (J7)."""
+    if record.get("state") not in WAITING or record.get("hold") is not None:
         return None
     return max(record.get("next_retry_at") or 0, record.get("reset_at") or 0,
                record.get("not_before") or 0) or None

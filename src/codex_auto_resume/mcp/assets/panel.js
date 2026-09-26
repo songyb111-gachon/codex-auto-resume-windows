@@ -996,6 +996,8 @@ function segmented(entry, onChange) {
 // turns to "due now" then (retell, v0.6.10), which is a change the page can know of.
 function nextCheck(row) {
   var at = row.eligible_at;
+  // v0.6.11: a task held for a person has no time - nothing sends it until they let it continue.
+  if ((row.overlays || []).indexOf('held') >= 0) return t('overlay.held', 'waiting for you');
   if (at === null || at === undefined) return t('panel.next_unknown', 'not known yet');
   var when = new Date(at * 1000);
   if (isNaN(when.getTime())) return t('panel.next_unknown', 'not known yet');

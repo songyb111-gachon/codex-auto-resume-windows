@@ -72,6 +72,15 @@ ROW_MENU = {
     "exhausted": (False, False), "unknown_code": (False, False), "empty": (False, False),
 }
 
+# The Overview's pending list (v0.6.11): each row, and whether it counts as waiting. A task held for a
+# person has no time (domain/public.eligible_at) and still waits; only a row in Codex is running.
+COUNTED = (
+    ({"code": "scheduled", "eligible_at": NOW - 5}, True),
+    ({"code": "scheduled", "overlays": ["held"], "hold": "ask"}, True),
+    ({"code": "waiting_reset", "eligible_at": NOW + 600}, True),
+    ({"code": "submitted"}, False),
+)
+
 # name -> (what the fake setup prints, its exit code, what Repair must call it)
 REPAIRS = {
     "done":              ("state: ok", 0, "done"),
@@ -256,6 +265,19 @@ $out.shown = @{
 $list.Dispose()
 $label.Dispose()
 
+# The Overview's counts (v0.6.11): waiting by a row's code, so a task held for a person, which has
+# no time, is still waiting and never "running in Codex".
+$counts = $form.GetMethod('PendingCounts', $flags)
+if (-not $counts) { throw 'SettingsForm has no PendingCounts' }
+[System.Collections.Generic.List[object]]$pending = New-Object 'System.Collections.Generic.List[object]'
+foreach ($source in (ConvertFrom-Json $env:CAR_COUNTS)) {
+    $pending.Add([Collections.Generic.Dictionary[string,object]](To-Row $source))
+}
+# One argument, the list itself: an array literal would hand it over wrapped, or unrolled.
+$arguments = New-Object 'object[]' 1
+$arguments[0] = $pending
+$out.counts = @($counts.Invoke($null, $arguments) | ForEach-Object { [double]$_ })
+
 $out | ConvertTo-Json -Depth 5 -Compress
 """
 
@@ -283,7 +305,8 @@ class DecisionTests(unittest.TestCase):
                      CAR_RECORDS=json.dumps({name: record
                                              for name, (record, _, _) in RECORDS.items()}),
                      CAR_REPAIRS=json.dumps({name: [printed, code]
-                                             for name, (printed, code, _) in REPAIRS.items()})))
+                                             for name, (printed, code, _) in REPAIRS.items()}),
+                     CAR_COUNTS=json.dumps([row for row, _ in COUNTED])))
         cls.result = result
         cls.answer = json.loads(result.stdout) if result.returncode == 0 and result.stdout.strip() else {}
 
@@ -316,6 +339,11 @@ class DecisionTests(unittest.TestCase):
         for name in sorted(RECORDS):
             with self.subTest(name):
                 self.assertFalse(self.answer["busy"][name])
+
+    def test_the_overview_counts_a_held_task_as_waiting(self):
+        """It counted a row with no time as running in Codex; a held task has none (v0.6.11)."""
+        waiting = sum(1 for _, counted in COUNTED if counted)
+        self.assertEqual(self.answer["counts"], [waiting, len(COUNTED) - waiting, NOW - 5])
 
     def test_nothing_is_offered_with_no_record_selected(self):
         self.assertFalse(self.answer["retry"]["null"])
