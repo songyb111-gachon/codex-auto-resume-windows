@@ -306,7 +306,9 @@ class EditionWordTests(unittest.TestCase):
         cases = {"absent": [], "present": ["%s/__init__.py" % editions.PACKAGE],
                  # A directory of that name with no __init__.py is no package, and no edition.
                  "only_a_cache": ["%s/__pycache__/plug.cpython-313.pyc" % editions.PACKAGE],
-                 "init_is_a_folder": ["%s/__init__.py/placeholder" % editions.PACKAGE]}
+                 "init_is_a_folder": ["%s/__init__.py/placeholder" % editions.PACKAGE],
+                 # Python finds a package by its directory's own name, case and all.
+                 "other_case": ["%s/__init__.py" % editions.PACKAGE.upper()]}
         cls.cases = {}
         for name, files in cases.items():
             src = cls.work / name / "src"
@@ -332,7 +334,8 @@ class EditionWordTests(unittest.TestCase):
     def test_the_bootstrap_the_installer_and_the_product_agree(self):
         product = {name: str(edition.name(src)) for name, src in self.cases.items()}
         self.assertEqual(product, {"absent": "standard", "present": "advanced",
-                                   "only_a_cache": "standard", "init_is_a_folder": "standard"})
+                                   "only_a_cache": "standard", "init_is_a_folder": "standard",
+                                   "other_case": "standard"})
         for script in (BOOTSTRAP, INSTALLER):
             with self.subTest(script.name):
                 self.assertEqual(self.answers(script), product)

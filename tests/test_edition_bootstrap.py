@@ -223,6 +223,13 @@ class ArchiveEditionTests(unittest.TestCase):
             # A name that merely begins like the package's is not the package.
             "look_alike": archive(root / "look_alike.zip",
                                   extra=["payload/app/src/%s_notes.txt" % PACKAGE]),
+            # Names the extraction writes into the package's own directory all the same.
+            "dot": archive(root / "dot.zip", raw=["payload/app/src/./%s/__init__.py" % PACKAGE]),
+            "double_slash": archive(root / "double_slash.zip",
+                                    raw=["payload/app/src//%s/__init__.py" % PACKAGE]),
+            # The package in another case: no package to Python, so no advanced edition either.
+            "shouting": archive(root / "shouting.zip",
+                                extra=["payload/app/src/%s/__init__.py" % PACKAGE.upper()]),
         }
         cases = [[name, str(path), edition] for name, path in cls.archives.items()
                  for edition in ("standard", "advanced", "")]
@@ -252,12 +259,13 @@ ConvertTo-Json $out -Compress
         self.assertEqual(self.verdict("look_alike", "standard"), "accepted")
 
     def test_a_standard_run_refuses_anything_of_the_advanced_edition(self):
-        for name in ("advanced", "skill_only", "other_case", "backslashes", "no_init"):
+        for name in ("advanced", "skill_only", "other_case", "backslashes", "no_init", "dot",
+                     "double_slash", "shouting"):
             with self.subTest(name):
                 self.assertIn("holds the advanced edition", self.verdict(name, "standard"))
 
     def test_an_advanced_run_refuses_an_archive_without_the_package(self):
-        for name in ("standard", "skill_only", "no_init", "look_alike"):
+        for name in ("standard", "skill_only", "no_init", "look_alike", "shouting"):
             with self.subTest(name):
                 self.assertIn("not the advanced edition", self.verdict(name, "advanced"))
 
