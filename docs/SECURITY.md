@@ -332,7 +332,8 @@ this product's plugin and marketplace).
   checks out the base commit with no token left on disk, holds `contents: read` and no secret,
   installs nothing, keeps no cache or artifact, runs for at most five minutes, and reads the
   head's commits with git plumbing only (`build/community_check.py`) - nothing in them is checked
-  out, merged or run. A contributor's pull request may add one new file, at
+  out, merged or run. A contributor's pull request, from a branch whose name starts with
+  `compat-report/`, may add one new file, at
   `docs/evidence/community/<their GitHub login>/codex-cli-<its own version>.json`, of at most 1 MB
   known before it is read, that the report reader (`build/community_report.py`) accepts, and that
   is not a copy of a filed report; anything else is refused. The report's own levels and verdict
@@ -362,7 +363,8 @@ this product's plugin and marketplace).
   versions the project's data does not name - are counted from `main`'s own history and keyed by
   numeric account id, which a rename does not change. The repository variable `COMMUNITY_AUTOFILE`
   pauses it on anything but unset or `on`, `COMMUNITY_BLOCKED` refuses an account, and cancelling a
-  running job stops it at once. `tests/test_workflow_privilege.py` and `tests/test_community_file.py`
+  running job stops it at once. A pull request whose comment the survey's page of recent comments
+  misses is read on its own before anything is decided about it, so none is told twice. `tests/test_workflow_privilege.py` and `tests/test_community_file.py`
   hold each of these, the second by running the write step itself against a stand-in for GitHub.
 
 ## Destructive-operation safety

@@ -216,6 +216,10 @@ class World:
         (self.queue / name).write_text(json.dumps(value) + "\n", encoding="utf-8")
 
     def survey(self):
+        # Every run starts on a fresh runner: nothing a step saved last time is there.
+        for saved in [*self.queue.glob("sticky-*.json"), self.queue / "unseen", self.queue / "look"]:
+            if saved.exists():
+                saved.unlink()
         (self.queue / "pulls-1.jsonl").write_text("".join(json.dumps(p) + "\n" for p in self.pulls), encoding="utf-8")
         (self.queue / "comments-1.jsonl").write_text("".join(json.dumps(c) + "\n" for c in self.comments),
                                                      encoding="utf-8")
@@ -224,12 +228,27 @@ class World:
 
     # ------------------------------------------------------------ the plan job
     def sync(self):
-        """The plan job's checkout: a clone of GitHub's copy, brought up to date."""
+        """The plan job's checkout: a clone of GitHub's copy, brought up to date; then what the
+        survey saved, and the comments it missed, read one by one."""
         self.survey()
         if not self.checkout.exists():
             git(self.root, "clone", "-q", self.origin.resolve().as_uri(), str(self.checkout))
         else:
             git(self.checkout, "fetch", "-q", "--tags", "origin", "+refs/heads/*:refs/remotes/origin/*")
+        self.missed()
+
+    def missed(self):
+        """What "Find what the survey missed" and "Read what the survey missed" save: the filer's
+        comments on each pull request the page of recent comments (self.comments) did not hold, read
+        from GitHub's own (self.github["comments"])."""
+        asked = [pull["number"] for pull in filer.choose_unseen(self.queue)]
+        for number in asked:
+            self.save("sticky-%d.json" % number, [
+                {"id": int(key), "marker": comment["body"].split("\n", 1)[0]}
+                for key, comment in sorted(self.github["comments"].items(), key=lambda item: int(item[0]))
+                if comment["issue"] == str(number) and comment["user"] == filer.BOT
+                and comment["body"].startswith("<!-- community-file ")])
+        return asked
 
     def choose(self, environ=None):
         self.sync()
@@ -395,7 +414,22 @@ class FilingTests(Case):
         self.world.on_main(files, "Community report withdrawn")
         self.world.pr(8, sample(), user_id=507)
         self.world.plan()
-        self.assertTold(8, filer.REFUSED, "not accepted from this account")
+        action = self.assertTold(8, filer.REFUSED, "report for this Codex version was withdrawn")
+        self.assertIn(filer.ACTIONS["withdrawn"], action["text"])
+        self.assertNotIn("not accepted from this account", action["text"])
+        self.assertFalse(self.world.fetched(8))
+
+    def test_a_withdrawal_keeps_out_that_report_and_no_other(self):
+        """CONTRIBUTING says the same report is not filed again; the account's report for another
+        Codex version is judged as anyone's. COMMUNITY_BLOCKED is what refuses an account."""
+        self.world.filed_by_hand(sample(), reporter_id=507, number=7)
+        path = reader.canonical_path("ExampleUser", VERSION)
+        filed = {path: json.loads(git(self.world.origin, "cat-file", "blob", "refs/heads/main:" + path))}
+        self.world.on_main(filer.withdrawal(filed, path, 507, None, NOW), "Community report withdrawn")
+        self.world.pr(8, sample(version="codex-cli 0.153.4"), user_id=507)
+        self.world.plan()
+        self.assertTold(8, filer.FILED)
+        self.assertEqual(len(self.world.chain()), 1)
 
     def test_nothing_is_filed_until_the_folder_is_open(self):
         self.world.on_main({filer.INDEX: None, filer.README: None})
@@ -416,6 +450,24 @@ class FilingTests(Case):
         self.assertTold(7, filer.FILED)
         self.assertTold(8, filer.NEEDS_OWNER, "maintainer has been told", close=False)
         self.assertEqual((self.world.out / "red").read_text(encoding="utf-8"), "tests 8\n")
+
+    def test_a_copy_of_a_filing_the_tests_dropped_is_judged_again(self):
+        """#8 has #7's records, so beside #7 it is a copy; #7 then fails the tests and is dropped.
+        #8 is told nothing this run - not a refusal that rests on a filing that never happened - and
+        is filed on the next, against a main without #7."""
+        self.world.pr(7, sample(login="First"))
+        self.world.pr(8, sample(login="Second"))
+        bad = reader.canonical_path("First", VERSION)
+        planner = self.world.plan(run_tests=lambda tree: not (tree / bad).exists())
+        self.assertEqual(self.world.chain(), [])
+        self.assertTold(7, filer.NEEDS_OWNER, close=False)
+        self.assertNotIn(8, self.world.actions())
+        self.assertTrue(any("judged again on the next run" in line for line in planner.summary))
+        head7 = next(p["head_sha"] for p in self.world.pulls if p["number"] == 7)
+        self.world.sticky(7, filer.NEEDS_OWNER, head7, NOW, why="tests")
+        self.world.plan(run_tests=lambda tree: not (tree / bad).exists())
+        self.assertTold(8, filer.FILED)
+        self.assertEqual(len(self.world.chain()), 1)
 
     def test_the_tests_run_on_the_tree_that_would_become_main(self):
         self.world.pr(7)
@@ -487,16 +539,56 @@ class LimitTests(Case):
         self.world.plan()
         self.assertTold(7, filer.FILED)
 
-    def test_a_blocked_or_withdrawn_account_is_refused(self):
+    def test_a_blocked_account_or_a_withdrawn_report_is_refused(self):
         self.world.on_main({filer.WITHDRAWN: json.dumps({"format": filer.WITHDRAWN_FORMAT, "withdrawn": [
             {"reporter_id": 508, "login": "ExampleUser2", "version": "0.155.0-alpha.9.2",
              "at": "2026-09-24T00:00:00Z"}]}).encode("ascii")})
         self.world.pr(7)
         self.world.pr(8, sample(login="ExampleUser2"))
         self.world.plan(environ={"BLOCKED": "507, 9999"})
+        self.assertTold(7, filer.REFUSED, "not accepted from this account")
+        self.assertTold(8, filer.REFUSED, "was withdrawn")
         for number in (7, 8):
-            self.assertTold(number, filer.REFUSED, "not accepted from this account")
             self.assertFalse(self.world.fetched(number))
+
+    def test_a_blocked_accounts_report_the_maintainer_filed_is_closed_as_filed(self):
+        """codex-compat-admin's `community accept` files a blocked account's report too; the filer then
+        closes the pull request as filed, in its own words - also when its refusal is 14 days old."""
+        for age in (2 * 86400, filer.STALE_DAYS * 86400):
+            with self.subTest(days=age // 86400):
+                world = World(self.world.root.parent / ("blocked-%d" % age), self.template)
+                head = world.pr(7)
+                world.sticky(7, filer.REFUSED, head, NOW - age, why="blocked")
+                filed = world.filed_by_hand(sample(), reporter_id=507, number=7)
+                world.plan(environ={"BLOCKED": "507"})
+                action = world.actions()[7]
+                self.assertEqual((action["state"], action["close"], action["comment"]), (filer.FILED, True, 907))
+                self.assertIn("in %s" % filed, action["text"])
+
+    def test_a_filing_wakes_a_pull_request_once(self):
+        """Told well after main's filing, it is left as it was told. Woken and not found filed - main
+        holds other bytes for it - it is told again with the time, so the next run leaves it."""
+        head = self.world.pr(7)
+        self.world.filed_by_hand(sample(), reporter_id=507, number=7, date=reader.iso(NOW - 3 * 86400))
+        self.world.sticky(7, filer.REFUSED, head, NOW - 2 * 86400, why="blocked")
+        self.world.plan(environ={"BLOCKED": "507"})
+        self.assertEqual(self.world.actions(), {})
+        self.assertFalse(self.world.fetched(7))
+        world = World(self.world.root.parent / "other-bytes", self.template)
+        other = sample()
+        other["records"] = other["records"][:2]
+        head = world.pr(7, other)
+        world.filed_by_hand(sample(), reporter_id=507, number=7)
+        world.sticky(7, filer.REFUSED, head, NOW - 2 * 86400, why="blocked")
+        world.plan(environ={"BLOCKED": "507"})
+        action = world.actions()[7]
+        self.assertEqual((action["state"], action["comment"]), (filer.REFUSED, 907))
+        self.assertIn("at=%s" % reader.iso(NOW), action["text"])
+        world.github["comments"].pop("907")                               # what that run wrote instead
+        world.comments = []
+        world.sticky(7, filer.REFUSED, head, NOW, why="blocked")
+        world.plan(environ={"BLOCKED": "507"})
+        self.assertEqual(world.actions(), {})
 
     def test_the_switch_pauses_on_anything_but_unset_or_on(self):
         """A switch that fails open is not a switch: `OFF`, `false` and `0` pause too."""
@@ -574,6 +666,45 @@ class QueueTests(Case):
         looked = self.world.choose()
         self.assertEqual(len(looked), filer.MAX_LOOKED)
         self.assertEqual([pull["number"] for pull in looked][:4], [14, 15, 16, 17])
+
+    def test_refusals_whose_comments_left_the_page_do_not_starve_a_new_report(self):
+        """The survey's page holds only the repository's latest comments. Eight refused pull requests
+        whose comments fell off it are read one by one first, found refused, and left; the new report
+        behind them is read closer and filed."""
+        for number in range(10, 18):
+            head = self.world.pr(number, sample(login="Old%d" % number), user_id=2000 + number,
+                                 opened="2026-09-15T00:00:00Z")
+            self.world.sticky(number, filer.REFUSED, head, NOW - 3 * 86400, why="copy")
+        self.world.comments = []
+        self.world.pr(30, sample(login="Fresh", version="codex-cli 0.153.4"), user_id=3030)
+        looked = self.world.choose()
+        self.assertEqual([pull["number"] for pull in looked], [30])
+        self.world.plan()
+        self.assertEqual({n: a["state"] for n, a in self.world.actions().items()}, {30: filer.FILED})
+        self.assertEqual(len(self.world.chain()), 1)
+
+    def test_a_comment_off_the_page_is_edited_not_repeated(self):
+        """Paused, a pull request is told it waits: in the comment it already has, found one by one."""
+        head = self.world.pr(7, sample(login="User7"))
+        self.world.sticky(7, filer.QUEUED, head, NOW - 86400, NOW - 60, "reporter", comment_id=950)
+        self.world.comments = []
+        self.world.plan(environ={"AUTOFILE": "off"})
+        self.assertTold(7, filer.QUEUED, "filing is paused")
+        self.assertEqual(self.world.actions()[7]["comment"], 950)
+
+    def test_nothing_is_decided_about_a_pull_request_whose_comments_were_not_read(self):
+        """Past the per-run budget, a pull request is left for a later run, not told blind."""
+        for number in range(10, 10 + filer.MAX_UNSEEN + 1):
+            self.world.pr(number, sample(login="User%d" % number), user_id=1000 + number)
+        self.world.survey()
+        asked = self.world.missed()
+        self.assertEqual(len(asked), filer.MAX_UNSEEN)
+        self.assertEqual(asked[0], 10 + filer.MAX_UNSEEN, "the newest first")
+        self.assertNotIn(10, asked)
+        looked, actions = filer.triage(filer.Survey(self.world.queue), filer.Settings({"AUTOFILE": "off"}), NOW)
+        self.assertEqual(looked, [])
+        self.assertNotIn(10, [action.pull["number"] for action in actions])
+        self.assertEqual(len(actions), filer.MAX_UNSEEN)
 
     def test_members_drafts_other_branches_and_ghosts_are_not_the_filers(self):
         self.world.pr(7, association="OWNER")
@@ -759,6 +890,31 @@ class HostileTests(Case):
     def test_every_fixed_text_is_one_a_comment_may_carry(self):
         for text in list(filer.TEXTS.values()) + list(filer.ACTIONS.values()) + list(filer.WAITING.values()):
             filer.clean(text.replace("%s", "x").replace("%d", "1"))
+
+    def test_every_way_to_send_again_starts_by_closing_this_one(self):
+        """codex-compat-reporter's `submit` sends nothing while a report pull request of the same
+        account is open, the refused one included; a text that said only "submit again" could not be
+        followed."""
+        for code, text in filer.ACTIONS.items():
+            if "submit" in text:
+                with self.subTest(code):
+                    self.assertIn("close this pull request", text)
+                    self.assertLess(text.index("close this pull request"), text.index("submit"), text)
+        self.assertIn("once this one is closed", filer.TEXTS["again"])
+        self.assertEqual(set(check.CODES) - set(filer.ACTIONS), set(), "every refusal says what to do")
+
+    def test_a_refusal_with_a_reason_per_record_still_fits_a_comment(self):
+        """One report with a bad state in each of many records: the comment lists the first reasons
+        and counts the rest, and the run goes on - a comment too long to post would stop it."""
+        lines = [(check.READER, "records[%d].state is not one of the product's own words" % n) for n in range(300)]
+        text = filer.refusal(lines)
+        filer.clean(text)
+        self.assertIn("- and %d more reasons like these" % (300 - filer.MAX_LINES), text)
+        report = sample()
+        report["records"] = [dict(report["records"][0], state="bogus%d" % n) for n in range(60)]
+        self.world.pr(7, report)
+        self.world.plan()
+        self.assertTold(7, filer.REFUSED, "more reasons like these")
 
 
 # ============================================================================== dev
@@ -1101,6 +1257,8 @@ class WorkflowAgreementTests(unittest.TestCase):
     def test_the_numbers_are_the_planners(self):
         read = step_script("Read those closer")
         self.assertIn('[ "$looked" -le %d ] || break' % filer.MAX_LOOKED, read)
+        self.assertIn('[ "$asked" -le %d ] || break' % (filer.MAX_UNSEEN + filer.MAX_CLOSED),
+                      step_script("Read what the survey missed"))
         self.assertIn('[ "${#chain[@]}" -le %d ]' % filer.MAX_LOOKED, self.write)
         for code, said in filer.RED.items():
             self.assertIn('%s) said="%s" ;;' % (code, said), step_script("Tell the maintainer what needs a person"))
@@ -1110,8 +1268,10 @@ class WorkflowAgreementTests(unittest.TestCase):
         for name in ("rate", "pulls-$page.jsonl", "comments-$page.jsonl", "runs.jsonl"):
             self.assertIn('"$q/%s"' % name, queue)
         read = step_script("Read those closer")
-        for name in ("pull-$number.json", "files-$number.json", "user-$user.json", "sticky-$number.json"):
+        for name in ("pull-$number.json", "files-$number.json", "user-$user.json"):
             self.assertIn('"$q/%s"' % name, read)
+        self.assertIn('"$q/sticky-$number.json"', step_script("Read what the survey missed"))
+        self.assertIn('done < "$q/unseen"', step_script("Read what the survey missed"))
 
 
 class PlannerCodeTests(unittest.TestCase):

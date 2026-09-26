@@ -175,7 +175,12 @@ class CommunityReportPrivilegeTests(unittest.TestCase):
         self.assertEqual(len(checkouts), 1)
         refs = re.findall(r"(?m)^\s*ref: (.+)$", self.source)
         self.assertEqual(refs, ["${{ github.event.pull_request.base.sha }}"])
-        for head in ("head.ref", "merge_commit_sha", "refs/pull/${{", "github.head_ref", "/merge"):
+        # The head branch's name reaches the check once, as text in env: to compare, never to fetch.
+        self.assertEqual(re.findall(r"(?m)^.*head\.ref.*$", self.source),
+                         ["          HEAD_REF: ${{ github.event.pull_request.head.ref }}"])
+        judge = self.source[self.source.index("- name: Judge the report"):]
+        self.assertIn("HEAD_REF: ${{ github.event.pull_request.head.ref }}", judge)
+        for head in ("merge_commit_sha", "refs/pull/${{", "github.head_ref", "/merge", "HEAD_REF\"", "$HEAD_REF"):
             self.assertNotIn(head, self.source)
         # The head's SHA reaches the job only through env:, to be compared and handed to the check.
         uses_blocks = re.split(r"(?m)^      - ", self.source)
@@ -248,7 +253,7 @@ class CommunityFilePrivilegeTests(unittest.TestCase):
     git on data it re-derives; nothing is read from the event that woke it; main moves by
     compare-and-swap after the tree check; and the only artifact passes from one job to the other."""
 
-    TOKEN_STEPS = ("Read the queue", "Read those closer", "Write to GitHub")
+    TOKEN_STEPS = ("Read the queue", "Read what the survey missed", "Read those closer", "Write to GitHub")
     EXPRESSIONS = {"secrets.GITHUB_TOKEN", "vars.COMMUNITY_AUTOFILE", "vars.COMMUNITY_BLOCKED",
                    "github.event_name", "inputs.attempt", "runner.temp"}
 
@@ -309,7 +314,7 @@ class CommunityFilePrivilegeTests(unittest.TestCase):
                     self.assertNotIn("GITHUB_TOKEN", block)
 
     def test_the_plan_jobs_token_only_reads(self):
-        for name in ("Read the queue", "Read those closer"):
+        for name in ("Read the queue", "Read what the survey missed", "Read those closer"):
             block = self.plan_steps[name]
             with self.subTest(name):
                 self.assertNotIn("-X ", block)
@@ -324,7 +329,7 @@ class CommunityFilePrivilegeTests(unittest.TestCase):
         for name, block in self.plan_steps.items():
             if "python " in block:
                 with self.subTest(name):
-                    self.assertRegex(block, r"run: python build/community_file\.py (choose|plan) --queue ")
+                    self.assertRegex(block, r"run: python build/community_file\.py (unseen|choose|plan) --queue ")
                     self.assertIn("PYTHONPATH: src", block)
         self.assertNotIn("python", self.write)
         self.assertNotIn("setup-python", self.write)

@@ -311,6 +311,26 @@ class CheckTests(unittest.TestCase):
             with self.subTest(version):
                 self.assertRefused(self.judge(self.report_pr(sample(version=version))), "no leading zero")
 
+    def test_a_report_comes_from_a_compat_report_branch(self):
+        """The filer answers for compat-report/ branches only, so a report opened by hand from another
+        (patch-1, GitHub's name for an edit on the web) is refused here, where the sender sees why,
+        rather than passing and waiting for no one. The name is compared, never printed."""
+        head = self.report_pr()
+        code, printed = self.run_main(head, HEAD_REF="patch-1")
+        self.assertEqual(code, check.REFUSES)
+        self.assertIn("branch named compat-report/<its name>", printed)
+        self.assertNotIn("patch-1", printed)
+        code, printed = self.run_main(head, HEAD_REF=HOSTILE)
+        self.assertEqual(code, check.REFUSES)
+        self.assertNotIn("pwned", printed)
+        self.assertEqual(self.run_main(head)[0], check.ACCEPTED)
+        verdict, coded = check.judge_coded(self.git, base=self.repo.git("rev-parse", "main").strip(), head=head,
+                                           author="ExampleUser", association="CONTRIBUTOR", now=NOW,
+                                           branch="patch-1")
+        self.assertEqual((verdict, coded[0][0]), (check.REFUSES, check.BRANCH))
+        other = self.repo.on("pr", self.repo.start, {"README.md": b"# Tool, better\n"})
+        self.assertEqual(self.run_main(other, HEAD_REF="patch-1")[0], check.ACCEPTED, "not a report: any branch")
+
     def test_every_refusal_carries_a_code_the_filer_can_answer(self):
         import community_file as filer
         self.assertLessEqual(set(check.CODES), set(filer.ACTIONS))
@@ -326,7 +346,8 @@ class CheckTests(unittest.TestCase):
     # ---------------------------------------------------------------- what it prints and touches
     def run_main(self, head, **environ):
         environment = {"BASE_SHA": self.repo.git("rev-parse", "main").strip(), "HEAD_SHA": head,
-                       "PR_AUTHOR": "ExampleUser", "AUTHOR_ASSOCIATION": "CONTRIBUTOR"}
+                       "PR_AUTHOR": "ExampleUser", "AUTHOR_ASSOCIATION": "CONTRIBUTOR",
+                       "HEAD_REF": "compat-report/codex-cli-0.155.0-alpha.9.2"}
         environment.update(environ)
         printed = io.StringIO()
         with contextlib.redirect_stdout(printed), mock.patch.object(check.time, "time", return_value=NOW):
@@ -354,7 +375,7 @@ class CheckTests(unittest.TestCase):
     def test_it_needs_what_the_workflow_hands_it(self):
         head = self.report_pr()
         for broken in ({"BASE_SHA": "main"}, {"HEAD_SHA": "refs/pull/1/head"}, {"PR_AUTHOR": HOSTILE},
-                       {"AUTHOR_ASSOCIATION": "ADMIN"}, {"PR_AUTHOR": ""}):
+                       {"AUTHOR_ASSOCIATION": "ADMIN"}, {"PR_AUTHOR": ""}, {"HEAD_REF": ""}):
             with self.subTest(broken):
                 code, printed = self.run_main(head, **broken)
                 self.assertEqual(code, check.CANNOT)
