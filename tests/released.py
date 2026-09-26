@@ -35,10 +35,12 @@ _EXTRACTED: dict = {}
 
 
 def package(tag: str) -> Path:
-    """The `src` folder holding `tag`'s `codex_auto_resume`, taken out of git once."""
+    """The `src` folder holding `tag`'s `codex_auto_resume`, taken out of git once - with the plugin
+    manifest beside it, where the release reads its own version, so it knows which one it is."""
     if tag in _EXTRACTED:
         return _EXTRACTED[tag]
-    archive = subprocess.run(["git", "-C", str(ROOT), "archive", "--format=tar", tag, "src/codex_auto_resume"],
+    archive = subprocess.run(["git", "-C", str(ROOT), "archive", "--format=tar", tag, "src/codex_auto_resume",
+                              ".codex-plugin/plugin.json"],
                              capture_output=True, creationflags=NO_WINDOW)
     if archive.returncode != 0:
         if os.environ.get("CI"):

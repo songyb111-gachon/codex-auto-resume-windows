@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 import time
 
-from .. import config, machine, startup
+from .. import config, machine, managed, settings, startup
 from ..domain.plug import DEFER, EXTRA, Surface
 from ..store import TERMINAL, LegacyStore, Store, StoreError
 from ..windows import AdapterError, Mutex, StopEvent
@@ -296,7 +296,8 @@ class WatcherMixin:
         return result
 
     def get_status(self) -> dict:
-        values = self.get_settings()
+        held = self.managed()
+        values = managed.clamp(settings.load(self.settings_path()), held)
         with self._open(legacy_ok=True) as store:
             stored = store.settings()
             counts = store.status_counts()
@@ -315,7 +316,9 @@ class WatcherMixin:
                 pending = sum(count for state, count in counts.items() if state not in TERMINAL)
         status = {
             "version": _version(),
-            "enabled": bool(stored["enabled"]),
+            # v0.6.11: an administrator's DisableAutoResume is a pause at once, before the watcher has
+            # written it into the state (runtime/app.py).
+            "enabled": bool(stored["enabled"]) and not held.disable_auto_resume,
             # v0.6.11: observe only - the state's switch or the setting it is written from, either of
             # which the watcher obeys - so every surface says nothing will be sent. False at the defaults.
             "observe_only": bool(stored.get("observe_only") or values.get("observe_only")),
@@ -330,6 +333,10 @@ class WatcherMixin:
             "failure_unseen": self.failure_unseen(marks),
             "settings": values,
         }
+        # v0.6.11: the policy keys in force, by name (managed.py) - only while there is one, so a PC
+        # no administrator manages is told exactly what it was told before.
+        if held.active:
+            status["managed"] = held.codes()
         # P10: what the edition's plug shows beside this, under its one key - on the Dashboard,
         # the panel and get_status alike. The standard edition adds nothing.
         added = self.plug.surface(Surface.STATUS, dict(status))

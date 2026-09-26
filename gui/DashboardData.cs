@@ -280,10 +280,21 @@ namespace CodexAutoResume
                 bool enabled = Equals(Get(status, "enabled"), true);
                 shownEnabled = enabled;
                 bool upgrade = Equals(Get(status, "upgrade_pending"), true);
+                // v0.6.11: the administrator's policy keys in force, by name (managed.py); none, and
+                // the status carries no list and nothing below says anything it did not.
+                var managed = new List<string>();
+                foreach (object code in Items(status, "managed") ?? new List<object>())
+                    if (code is string) managed.Add((string)code);
+                updatesManaged = managed.Contains("DisableUpdateCheck");
                 // v0.6.11: observe only is on, but nothing is sent - said where on is.
-                string recovery = !enabled ? S("overview.off", "paused")
+                string recovery = !enabled ? (managed.Contains("DisableAutoResume")
+                                              ? S("overview.off_managed", "paused by your administrator")
+                                              : S("overview.off", "paused"))
                                 : Equals(Get(status, "observe_only"), true) ? S("overview.observe_only", "observe only; nothing is sent")
                                 : S("overview.on", "on");
+                // and that some settings are an administrator's, said after whatever the state is.
+                if (managed.Count > 0 && !(!enabled && managed.Contains("DisableAutoResume")))
+                    recovery = S("overview.managed", "{state} - some settings are set by your administrator", "state", recovery);
                 object running = Get(status, "watcher_running");
                 string watcherText = running == null ? S("diag.unknown", "unknown")
                                    : !Equals(running, true) ? S("diag.not_running", "not running")
@@ -305,7 +316,10 @@ namespace CodexAutoResume
                     diagWatcher.Text = watcherText;
                     diagEngine.Text = engineText;
                     diagLastCheck.Text = Ago(last);
-                    diagRecovery.Text = recovery;
+                    // Diagnostics names the keys themselves, as a person reads them in the registry.
+                    diagRecovery.Text = managed.Count > 0 ? recovery + " (" + string.Join(", ", managed.ToArray()) + ")" : recovery;
+                    if (updateButton != null) updateButton.Enabled = busy == 0 && !updatesManaged;
+                    if (updatesManaged) diagUpdate.Text = S("diag.update_managed", "turned off by your administrator");
                     diagStartup.Text = Equals(Get(status, "startup_enabled"), true) ? S("diag.yes", "yes") : S("diag.no", "no");
                     diagUpgrade.Text = upgrade ? S("diag.upgrade_pending", "An older watcher still owns the state") : "";
                 }
@@ -825,7 +839,7 @@ namespace CodexAutoResume
             UpdateToggle();
             if (exportButton != null) exportButton.Enabled = busy == 0;
             if (repairButton != null) repairButton.Enabled = busy == 0;
-            if (updateButton != null) updateButton.Enabled = busy == 0;
+            if (updateButton != null) updateButton.Enabled = busy == 0 && !updatesManaged;
             if (stopButton != null) stopButton.Enabled = busy == 0;
             if (compatButton != null) compatButton.Enabled = busy == 0;
             if (saveButton != null) saveButton.Enabled = busy == 0;

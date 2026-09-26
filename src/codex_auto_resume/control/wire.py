@@ -127,6 +127,8 @@ class StatusSnapshot(TypedDict):
     codes: dict[str, int]
     states: dict[str, int]
     settings: dict[str, object]
+    # v0.6.11: the administrator's policy keys in force, by name - only while one is (managed.py).
+    managed: NotRequired[list[str]]
 
 
 class Outcomes(TypedDict):
@@ -238,6 +240,8 @@ class SchemaField(TypedDict):
     high: NotRequired[int]
     waits: NotRequired[dict[str, list[int]]]
     seconds: NotRequired[dict[str, int]]
+    # v0.6.11: an administrator's policy key decides it, so it is drawn greyed (managed.py).
+    managed: NotRequired[bool]
 
 
 # Every contract, by name, for the test that holds each to the goldens.

@@ -724,5 +724,10 @@
   "why.workspace_changed": "Der Branch ihres Ordners, ihr Modell oder ihr Genehmigungsmodus hat sich seit dem Anhalten geändert: Es wird nichts gesendet, bis Sie sie fortfahren lassen.",
   "why.context_cost": "Ihre Unterhaltung hat mehr Tokens verbraucht, als die Einstellungen erlauben: Es wird nichts gesendet, bis Sie sie fortfahren lassen.",
   "why.chain_time_cap": "Diese Aufgabe ist länger fehlgeschlagen, als die Einstellungen erlauben.",
-  "msg.toast_time_cap_body": "Sie ist länger fehlgeschlagen, als die Einstellungen erlauben, daher wurde die automatische Wiederherstellung für diese Aufgabe gestoppt."
+  "msg.toast_time_cap_body": "Sie ist länger fehlgeschlagen, als die Einstellungen erlauben, daher wurde die automatische Wiederherstellung für diese Aufgabe gestoppt.",
+  "error.managed_by_policy": "das hat Ihr Administrator festgelegt",
+  "settings.managed": "Von Ihrem Administrator festgelegt.",
+  "overview.off_managed": "von Ihrem Administrator pausiert",
+  "overview.managed": "{state} - einige Einstellungen hat Ihr Administrator festgelegt",
+  "diag.update_managed": "von Ihrem Administrator abgeschaltet"
 }

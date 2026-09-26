@@ -634,6 +634,8 @@ namespace CodexAutoResume
         private bool loadingStats, statsAgain;
         // What the pause button currently stands for; null until a status has been read.
         private bool? shownEnabled;
+        // v0.6.11: whether an administrator's DisableUpdateCheck is in force (the status's `managed`).
+        private bool updatesManaged;
         private Dictionary<string, object> snapshot;
         // Lists whose first row has already been preselected once (see Preselect).
         private readonly Dictionary<ListView, bool> preselected = new Dictionary<ListView, bool>();

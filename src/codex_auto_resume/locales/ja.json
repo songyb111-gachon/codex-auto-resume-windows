@@ -724,5 +724,10 @@
   "why.workspace_changed": "停止してからフォルダーのブランチ、モデル、または承認モードが変わりました。続行を許可するまで何も送信されません。",
   "why.context_cost": "会話が設定で許可された以上のトークンを使用しました。続行を許可するまで何も送信されません。",
   "why.chain_time_cap": "このタスクは、設定で許可された時間より長く失敗し続けました。",
-  "msg.toast_time_cap_body": "設定で許可された時間より長く失敗し続けたため、このタスクの自動復旧を停止しました。"
+  "msg.toast_time_cap_body": "設定で許可された時間より長く失敗し続けたため、このタスクの自動復旧を停止しました。",
+  "error.managed_by_policy": "管理者が設定しています",
+  "settings.managed": "管理者によって設定されています。",
+  "overview.off_managed": "管理者により一時停止中",
+  "overview.managed": "{state} - 一部の設定は管理者が決めています",
+  "diag.update_managed": "管理者によりオフ"
 }

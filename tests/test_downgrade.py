@@ -168,6 +168,9 @@ class DowngradeToV3Tests(unittest.TestCase):
                      1 if state == "cancelled" else 0,
                      turn(200 + index) if state in ("queued", "submission_unknown") else None, key))
             db.execute("UPDATE interruptions SET hold='ask' WHERE interruption_id=?", (released.key(50),))
+            # What the two guards keep of a record (v0.6.11, step D): a digest and a token count.
+            db.execute("UPDATE interruptions SET task_print=?, context_tokens=? WHERE interruption_id=?",
+                       ("c" * 64, 123456, released.key(51)))
             db.execute("UPDATE threads SET tier='ask_first' WHERE thread_id=?", (TIERED,))
             db.execute("UPDATE interruptions SET not_before=5000 WHERE interruption_id=?", (released.key(52),))
             db.execute("INSERT INTO notices VALUES (?,?,?,?,?)",
@@ -215,6 +218,10 @@ class DowngradeToV3Tests(unittest.TestCase):
         self.assertEqual(read["disabled"], sorted({OTHER, HELD, TIERED}))
         self.assertEqual(records[released.key(52)]["next_retry_at"], 5000)
         self.assertTrue(read["settings"]["enabled"])
+        # Every column schema 4 added is gone, the guards' two with the rest, and the file is schema 3's.
+        with closing(sqlite3.connect(self.state / "state.sqlite")) as db:
+            columns = {row[1] for row in db.execute("PRAGMA table_info(interruptions)")}
+        self.assertFalse(columns & {"not_before", "hold", "task_print", "context_tokens"})
 
     def test_observe_only_becomes_a_pause(self):
         self.v4_state(observe_only=True)

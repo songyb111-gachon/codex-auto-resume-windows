@@ -9,7 +9,7 @@ from __future__ import annotations
 from contextlib import nullcontext
 import random
 import time
-from .. import ladder, machine, projects, quiet, settings as policy
+from .. import ladder, machine, managed as admin, projects, quiet, settings as policy
 from ..domain.plug import guard
 from ..domain.vocabulary import ImportanceTier, NewConversationPolicy
 
@@ -104,6 +104,12 @@ class OptionsMixin:
         # the moment of sending, so a style or language changed while a recovery waits
         # applies to that recovery rather than to the next one.
         self.policy_values = policy.defaults()
+        # v0.6.11: an administrator's policy keys, as last adopted (managed.py) - none until told -
+        # and the windows quiet hours are asked of besides the settings': each administrator's, and
+        # a person's own that the first of those stands in for in the settings. None at all unless
+        # a key sets quiet hours.
+        self.managed = admin.NONE
+        self._more_quiet = ()
         # Whether this watcher holds the lock on its Codex home, and what the Codex
         # engine compatibility check concluded. Both are owned by the process.
         self.home_lock = home_lock or (lambda: True)
@@ -160,7 +166,7 @@ class OptionsMixin:
         self._watch_offset = 0
 
     # ------------------------------------------------------------------ policy
-    def apply_policy(self, values) -> None:
+    def apply_policy(self, values, managed=None) -> None:
         """Adopt the user's configurable policy.
 
         Policy only. Nothing here can widen what the classifier treats as recoverable,
@@ -168,9 +174,15 @@ class OptionsMixin:
         gate - those are properties of the engine, not preferences. The worst a bad
         settings file can do through this method is make recovery more conservative,
         because every value it reads has already been coerced to a sane default.
+
+        v0.6.11: `managed` is what an administrator's policy keys hold (managed.py), applied after
+        the coercion, so it can only hold back; with none, the values are the ones adopted.
         """
-        values = policy.coerce(values)
+        own = policy.coerce(values)
+        self.managed = managed if isinstance(managed, admin.Managed) else admin.NONE
+        values = admin.clamp(own, self.managed)
         self.policy_values = values
+        self._more_quiet = admin.quiet_sources(own, self.managed) if self.managed.quiet_hours else ()
         self.options["max_recovery_attempts"] = values["max_recovery_attempts"]
         self.options["max_no_progress"] = values["max_no_progress"]
         self.options["max_chain_continuations"] = values["max_chain_continuations"]
@@ -215,8 +227,14 @@ class OptionsMixin:
 
     def quiet_until(self, now):
         """The end of the quiet hours `now` falls in, or None (quiet.py). Asked of the settings
-        alone, so with none set - the default - nothing is read and nothing ever waits."""
-        return quiet.quiet_until(now, self.policy_values)
+        alone, so with none set - the default - nothing is read and nothing ever waits; and, from
+        v0.6.11, of each window an administrator set too, a person's own still among them, the
+        latest end of any being when a recovery may go."""
+        if not self._more_quiet:
+            return quiet.quiet_until(now, self.policy_values)
+        ends = [end for end in (quiet.quiet_until(now, source)
+                                for source in (self.policy_values,) + self._more_quiet) if end is not None]
+        return max(ends) if ends else None
 
     def tier(self, thread_id) -> str:
         """The tier a conversation has: its own, or the default's (settings.tier_of)."""

@@ -214,6 +214,9 @@ namespace CodexAutoResume
 
         private void CheckForUpdates()
         {
+            // v0.6.11: an administrator's DisableUpdateCheck (managed.py) - the button is greyed, and
+            // nothing is asked however this is reached.
+            if (updatesManaged) return;
             string root = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
             string script = Path.Combine(root, "app", "scripts", "bootstrap.ps1");
             if (!File.Exists(script))

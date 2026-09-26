@@ -724,5 +724,10 @@
   "why.workspace_changed": "Its folder's branch, its model or its approval mode changed since it stopped: nothing is sent until you let it continue.",
   "why.context_cost": "Its conversation has used more tokens than Settings allow: nothing is sent until you let it continue.",
   "why.chain_time_cap": "This task kept failing for longer than Settings allow.",
-  "msg.toast_time_cap_body": "It kept failing for longer than Settings allow, so automatic recovery stopped for this task."
+  "msg.toast_time_cap_body": "It kept failing for longer than Settings allow, so automatic recovery stopped for this task.",
+  "error.managed_by_policy": "your administrator has set this",
+  "settings.managed": "Set by your administrator.",
+  "overview.off_managed": "paused by your administrator",
+  "overview.managed": "{state} - some settings are set by your administrator",
+  "diag.update_managed": "turned off by your administrator"
 }

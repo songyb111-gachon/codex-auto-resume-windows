@@ -96,8 +96,8 @@ LISTS = {
     "codex.KNOWN_STATUSES": ("set", 4, "23d2734c27812d29"),
     "logbook.STATE_CODES": ("set", 27, "5cac947c5c3bb648"),
     # v0.6.11: a postponement's three refusals, a record that is not held, a tier that is none, and
-    # a project that cannot be read or one too many.
-    "control.ERROR_CODES": ("set", 30, "c37c66e11585ffd0"),
+    # a project that cannot be read or one too many; and what an administrator's policy key decides.
+    "control.ERROR_CODES": ("set", 31, "a32fecd05f80f1c9"),
     "control.FALLBACK_CODE": "request_failed",
     "continuation.STYLES": ("tuple", 4, "a390c91bf5107f3f"),
     "continuation.CUSTOM_MODES": ("tuple", 2, "a4a918de1aaec837"),

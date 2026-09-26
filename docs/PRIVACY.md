@@ -253,7 +253,11 @@ apps light or dark - the per-user `AppsUseLightTheme` value, which it reads and 
 the Dashboard, the popup and its menu can be drawn to match; and the integrity level of the
 watcher's single-instance mutex and stop event, a check that is new in v0.6.0. From v0.6.5 the
 notification card and the icon's motion ask a few more, all content-free and described under
-[Notifications](#notifications).
+[Notifications](#notifications). From v0.6.11 an installed copy also reads, and never writes, the six
+values an administrator may set under `Software\Policies\CodexAutoResume` in `HKEY_LOCAL_MACHINE` and
+`HKEY_CURRENT_USER` - four switches, a number and a span of hours (the guide's *Settings an
+administrator manages*) - each time it reads its settings. Nothing else under that key is read, and a
+PC nobody manages has none.
 
 From v0.6.5, for the Codex Compatibility Registry, the watcher also reads the shape of Codex's
 databases - which tables they have and which columns those tables have, by name only, through the

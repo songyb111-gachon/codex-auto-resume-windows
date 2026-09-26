@@ -44,6 +44,17 @@
         "error": "enabled must be true or false",
         "error_code": "invalid_enabled"
       }
+    },
+    {
+      "case": "an administrator's pause cannot be resumed",
+      "argument": {
+        "enabled": true
+      },
+      "reply": {
+        "ok": false,
+        "error": "recovery is paused by your administrator",
+        "error_code": "managed_by_policy"
+      }
     }
   ]
 }

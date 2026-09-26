@@ -724,5 +724,10 @@
   "why.workspace_changed": "La branche de son dossier, son modèle ou son mode d'approbation a changé depuis l'arrêt : rien n'est envoyé tant que vous ne la laissez pas continuer.",
   "why.context_cost": "Sa conversation a utilisé plus de jetons que les Paramètres ne le permettent : rien n'est envoyé tant que vous ne la laissez pas continuer.",
   "why.chain_time_cap": "Cette tâche a continué d'échouer plus longtemps que les Paramètres ne le permettent.",
-  "msg.toast_time_cap_body": "Elle a continué d'échouer plus longtemps que les Paramètres ne le permettent : récupération automatique arrêtée pour cette tâche."
+  "msg.toast_time_cap_body": "Elle a continué d'échouer plus longtemps que les Paramètres ne le permettent : récupération automatique arrêtée pour cette tâche.",
+  "error.managed_by_policy": "votre administrateur a défini ce paramètre",
+  "settings.managed": "Défini par votre administrateur.",
+  "overview.off_managed": "suspendue par votre administrateur",
+  "overview.managed": "{state} - certains paramètres sont définis par votre administrateur",
+  "diag.update_managed": "désactivée par votre administrateur"
 }

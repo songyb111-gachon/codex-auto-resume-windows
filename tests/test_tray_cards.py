@@ -132,7 +132,7 @@ class AppWiringTests(unittest.TestCase):
         self.assertEqual(tray_popup.theme_setting(), "light")
         settings.update(self.paths.settings_file, {"theme": "dark"})
         instance._settings_stamp_seen = None
-        engine = types.SimpleNamespace(apply_policy=lambda values: None)
+        engine = types.SimpleNamespace(apply_policy=lambda values, managed=None: None)
         self.assertTrue(instance.refresh_settings(engine))
         self.assertEqual(tray_popup.theme_setting(), "dark")
 

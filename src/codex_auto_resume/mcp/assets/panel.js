@@ -847,12 +847,13 @@ function toggle(entry, onChange) {
   var row = element('label', 'setting toggle');
   var text = element('span', 'setting-text');
   text.appendChild(element('span', 'setting-label', label(entry.name)));
+  managedNote(text, entry);
   row.appendChild(text);
   var input = element('input', 'switch');
   input.type = 'checkbox';
   input.setAttribute('role', 'switch');
   input.checked = !!value(entry.name);
-  input.disabled = !HOST;
+  input.disabled = !HOST || !!entry.managed;
   input.addEventListener('change', function () {
     DRAFT[entry.name] = input.checked;
     edited(entry.name);
@@ -880,7 +881,7 @@ function checkItem(entry) {
   var input = element('input', 'check');
   input.type = 'checkbox';
   input.checked = !!value(entry.name);
-  input.disabled = !HOST;
+  input.disabled = !HOST || !!entry.managed;
   input.addEventListener('change', function () {
     DRAFT[entry.name] = input.checked;
     edited(entry.name);
@@ -888,9 +889,17 @@ function checkItem(entry) {
   row.appendChild(input);
   var text = element('span', 'setting-text');
   text.appendChild(element('span', 'setting-label', label(entry.name)));
+  managedNote(text, entry);
   row.appendChild(text);
   EDITORS[entry.name] = function () { return input.checked; };
   return row;
+}
+
+// v0.6.11: a setting an administrator's policy key decides (its schema says `managed`) is drawn as it
+// stands, greyed, with one line saying who set it - as the Dashboard draws it. Saving sends what it
+// shows, which is never written over the person's own (managed.admit).
+function managedNote(text, entry) {
+  if (entry && entry.managed) text.appendChild(element('span', 'help', t('settings.managed', 'Set by your administrator.')));
 }
 
 function onOff(entry, onChange) {
@@ -904,14 +913,14 @@ function numberField(entry, onChange) {
   if (entry.min !== undefined) input.min = entry.min;
   if (entry.max !== undefined) input.max = entry.max;
   input.value = value(entry.name);
-  input.disabled = !HOST;
+  input.disabled = !HOST || !!entry.managed;
   input.addEventListener('input', function () {
     DRAFT[entry.name] = Number(input.value);
     edited(entry.name);
     if (onChange) onChange();
   });
   EDITORS[entry.name] = function () { return Number(input.value); };
-  return settingRow(label(entry.name), '', input).row;
+  return settingRow(label(entry.name), entry.managed ? t('settings.managed', 'Set by your administrator.') : '', input).row;
 }
 
 // A select whose stored value is the untranslated choice and whose label is whatever the
@@ -927,7 +936,8 @@ function choiceField(entry, options, help, onChange) {
     if (option.value === chosen) node.selected = true;
     input.appendChild(node);
   });
-  input.disabled = !HOST;
+  input.disabled = !HOST || !!entry.managed;
+  if (entry.managed) help = t('settings.managed', 'Set by your administrator.') + (help ? ' ' + help : '');
   input.addEventListener('change', function () {
     DRAFT[entry.name] = input.value;
     edited(entry.name);
@@ -1414,11 +1424,14 @@ function renderRecovery(status, schema, now) {
   body.appendChild(text);
   var note = element('p', 'note');
   note.setAttribute('role', 'status');
+  // v0.6.11: a pause an administrator's DisableAutoResume holds says who set it, and cannot be undone here.
+  var heldPause = !status.enabled && (status.managed || []).indexOf('DisableAutoResume') >= 0;
+  if (heldPause) note.textContent = t('settings.managed', 'Set by your administrator.');
   body.appendChild(note);
   master.appendChild(body);
   var pause = element('button', null, status.enabled
     ? t('action.pause', 'Pause recovery') : t('action.resume', 'Resume recovery'));
-  pause.disabled = !HOST;
+  pause.disabled = !HOST || heldPause;
   master.appendChild(pause);
   node.appendChild(master);
   if (HOST) {

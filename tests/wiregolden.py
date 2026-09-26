@@ -207,6 +207,23 @@ def _filed(thread, folder):
     return using
 
 
+def _managed(**values):
+    """An administrator's policy keys in force for this one case (v0.6.11, managed.py): a stand-in for
+    the one function that asks Windows for them, so what the window is sent while they are set is held
+    here too. Nothing is read from the registry."""
+    @contextmanager
+    def using(_workspace):
+        from codex_auto_resume import managed
+        from codex_auto_resume.control import policy
+
+        with patch.object(policy, "managed_policy", return_value=managed.Managed(**values)):
+            yield
+    return using
+
+
+NIGHT = {"quiet_hours_start": "22:00", "quiet_hours_end": "07:00", "quiet_hours_days": "weekdays"}
+
+
 def _launch_that_comes_up(context):
     """The one start `start_watcher` makes, answered by a "process" that holds the scratch
     installation's watcher mutex from the moment it is made - as a watcher that came up does - with
@@ -309,9 +326,15 @@ KOREAN_CUSTOM = "중단된 작업을 이어서 진행해 주세요."
 
 # Every bridge command, and what each golden asks it, in order.
 BRIDGE_CASES = {
-    "status": [Case("the status line of a watched installation")],
+    "status": [Case("the status line of a watched installation"),
+               # v0.6.11: paused by an administrator, with the keys in force named.
+               Case("while an administrator's policy keys pause recovery and hold two settings",
+                    using=_managed(disable_auto_resume=True, disable_update_check=True,
+                                   max_recovery_attempts=2, quiet_hours=(NIGHT,)))],
     "settings": [Case("the stored settings")],
-    "describe": [Case("the settings schema the Settings page is built from")],
+    "describe": [Case("the settings schema the Settings page is built from"),
+                 Case("greyed where an administrator's policy key decides",
+                      using=_managed(max_recovery_attempts=2, force_observe_only=True, quiet_hours=(NIGHT,)))],
     "defaults": [Case("every setting back to its default")],
     "pending": [Case("what is waiting, with the names Codex gives the conversations")],
     "pending-all": [Case("every record, finished ones too, without names")],
@@ -338,12 +361,20 @@ BRIDGE_CASES = {
              {"continuation_style": "custom", "custom_message_mode": "global",
               "custom_message": KOREAN_CUSTOM}),
         Case("a value out of range is refused", {"max_recovery_attempts": 0}),
-        Case("a setting that does not exist is refused", {"no_such_setting": True})],
+        Case("a setting that does not exist is refused", {"no_such_setting": True}),
+        # v0.6.11: what a policy key already says is kept out of the file; a loosening is refused.
+        Case("what an administrator's key already says is answered and not written",
+             {"observe_only": True, "notifications": True}, using=_managed(force_observe_only=True)),
+        Case("a change an administrator's key forbids is refused", {"max_recovery_attempts": 9},
+             using=_managed(max_recovery_attempts=2))],
     "enabled": [
         Case("paused", {"enabled": False}),
         Case("on again", {"enabled": True}),
         Case("the string \"false\" is refused, not read as true", {"enabled": "false"}),
-        Case("a missing flag is refused", {})],
+        Case("a missing flag is refused", {}),
+        # v0.6.11: a pause an administrator's DisableAutoResume holds is not lifted here.
+        Case("an administrator's pause cannot be resumed", {"enabled": True},
+             using=_managed(disable_auto_resume=True))],
     "startup": [
         Case("registered to start at sign-in", {"enabled": True}, using=_startup_in_memory),
         Case("unregistered", {"enabled": False}, using=_startup_in_memory),
@@ -494,7 +525,10 @@ FRAMING_CASES = [
 # Every MCP tool, and what each golden asks it, in order.
 MCP_CASES = {
     "open_settings": [Case("the panel's snapshot", {})],
-    "get_status": [Case("the status, with the registry's summary under watcher", {})],
+    "get_status": [Case("the status, with the registry's summary under watcher", {}),
+                   # v0.6.11: an administrator's policy keys in force, named.
+                   Case("while an administrator's policy keys force observe only and cap the attempts", {},
+                        using=_managed(force_observe_only=True, max_recovery_attempts=2))],
     "list_pending": [
         Case("what is waiting", {}),
         Case("finished ones too", {"include_finished": True}),

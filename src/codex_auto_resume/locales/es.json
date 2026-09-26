@@ -724,5 +724,10 @@
   "why.workspace_changed": "La rama de su carpeta, su modelo o su modo de aprobación cambiaron desde que se detuvo: no se envía nada hasta que la dejes continuar.",
   "why.context_cost": "Su conversación ha usado más tokens de los que permite la Configuración: no se envía nada hasta que la dejes continuar.",
   "why.chain_time_cap": "Esta tarea siguió fallando durante más tiempo del que permite la Configuración.",
-  "msg.toast_time_cap_body": "Siguió fallando durante más tiempo del que permite la Configuración, así que la recuperación automática se detuvo para esta tarea."
+  "msg.toast_time_cap_body": "Siguió fallando durante más tiempo del que permite la Configuración, así que la recuperación automática se detuvo para esta tarea.",
+  "error.managed_by_policy": "lo ha establecido tu administrador",
+  "settings.managed": "Establecido por tu administrador.",
+  "overview.off_managed": "en pausa por tu administrador",
+  "overview.managed": "{state} - tu administrador ha establecido parte de la configuración",
+  "diag.update_managed": "desactivada por tu administrador"
 }

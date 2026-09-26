@@ -724,5 +724,10 @@
   "why.workspace_changed": "멈춘 뒤 폴더의 브랜치, 모델 또는 승인 모드가 바뀌어, 이어 가도록 허용하기 전까지 아무것도 보내지 않습니다.",
   "why.context_cost": "대화가 설정에서 허용한 것보다 많은 토큰을 사용해, 이어 가도록 허용하기 전까지 아무것도 보내지 않습니다.",
   "why.chain_time_cap": "이 작업은 설정에서 허용한 것보다 오래 계속 실패했습니다.",
-  "msg.toast_time_cap_body": "설정에서 허용한 것보다 오래 계속 실패해, 이 작업의 자동 복구를 중단했습니다."
+  "msg.toast_time_cap_body": "설정에서 허용한 것보다 오래 계속 실패해, 이 작업의 자동 복구를 중단했습니다.",
+  "error.managed_by_policy": "관리자가 정해 둔 설정입니다",
+  "settings.managed": "관리자가 정한 설정입니다.",
+  "overview.off_managed": "관리자가 일시 정지함",
+  "overview.managed": "{state} - 일부 설정은 관리자가 정했습니다",
+  "diag.update_managed": "관리자가 꺼 둠"
 }

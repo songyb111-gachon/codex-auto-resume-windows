@@ -724,5 +724,10 @@
   "why.workspace_changed": "O branch da pasta, o modelo ou o modo de aprovação dela mudou desde que parou: nada é enviado até você deixá-la continuar.",
   "why.context_cost": "A conversa dela usou mais tokens do que as Configurações permitem: nada é enviado até você deixá-la continuar.",
   "why.chain_time_cap": "Esta tarefa continuou falhando por mais tempo do que as Configurações permitem.",
-  "msg.toast_time_cap_body": "Ela continuou falhando por mais tempo do que as Configurações permitem, então a recuperação automática foi interrompida para esta tarefa."
+  "msg.toast_time_cap_body": "Ela continuou falhando por mais tempo do que as Configurações permitem, então a recuperação automática foi interrompida para esta tarefa.",
+  "error.managed_by_policy": "isso foi definido pelo seu administrador",
+  "settings.managed": "Definido pelo seu administrador.",
+  "overview.off_managed": "pausada pelo seu administrador",
+  "overview.managed": "{state} - algumas configurações foram definidas pelo seu administrador",
+  "diag.update_managed": "desativada pelo seu administrador"
 }

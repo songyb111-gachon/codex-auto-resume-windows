@@ -183,7 +183,16 @@ class ButtonTests(unittest.TestCase):
         self.assertIn("delegate { CheckForUpdates(); }", self.source)
 
     def test_it_is_disabled_while_something_else_is_in_flight(self):
-        self.assertIn("if (updateButton != null) updateButton.Enabled = busy == 0;", self.source)
+        # v0.6.11: and while an administrator's DisableUpdateCheck is in force (managed.py).
+        self.assertIn("if (updateButton != null) updateButton.Enabled = busy == 0 && !updatesManaged;", self.source)
+
+    def test_an_administrators_key_turns_it_off_and_nothing_is_asked(self):
+        """v0.6.11: DisableUpdateCheck, read from the status's `managed`, greys the button, says so on
+        the page, and stops the check before anything is started however it is reached."""
+        self.assertIn('updatesManaged = managed.Contains("DisableUpdateCheck");', self.source)
+        check = self.source[self.source.index("private void CheckForUpdates()"):]
+        self.assertLess(check.index("if (updatesManaged) return;"), check.index("RunBootstrap("))
+        self.assertIn('S("diag.update_managed", "turned off by your administrator")', self.source)
 
     def test_nothing_asks_without_being_asked(self):
         """No timer, no first-open check: the only caller is the button."""

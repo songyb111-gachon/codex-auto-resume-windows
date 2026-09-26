@@ -36,6 +36,9 @@ class ActionsMixin:
         Pending records are preserved either way."""
         if not isinstance(enabled, bool):
             raise ControlError("enabled must be true or false", code="invalid_enabled")
+        # v0.6.11: DisableAutoResume keeps recovery paused (managed.py); a pause is always taken.
+        if enabled and self.managed().disable_auto_resume:
+            raise ControlError("recovery is paused by your administrator", code="managed_by_policy")
         with self._open(legacy_ok=True) as store:
             store.set_enabled(enabled, time.time())
             return {"enabled": bool(store.settings()["enabled"])}

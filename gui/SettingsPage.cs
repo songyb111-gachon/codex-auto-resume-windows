@@ -487,6 +487,7 @@ namespace CodexAutoResume
                     }
                     host.Controls.Add(check);
                     editors[name] = check;
+                    Managed(field, check, host);
                     if (name == "reduce_motion")
                         host.Controls.Add(HelpText(S("help.reduce_motion",
                             "Stops every animation - the status light's breathing, controls that glide, a notification card sliding in - in the Dashboard, the notification-area popup and icon, the notification card, the taskbar button and the panel in Codex, in every design. Windows' own Animation effects setting is always honored as well.")));
@@ -526,6 +527,7 @@ namespace CodexAutoResume
                     IgnoreWheel(spin);
                     host.Controls.Add(NewRow(Humanise(name), number));
                     editors[name] = spin;
+                    Managed(field, number, host);
                     // v0.6.11: a limit above its "high" is warned of, under the three limits, while it is.
                     if (field.ContainsKey("high")) spin.ValueChanged += delegate { UpdateHighLimits(); };
                     if (name == "max_chain_continuations")
@@ -550,6 +552,7 @@ namespace CodexAutoResume
                     SoftCombo combo = ChoiceCombo(field, current, themed ? "choice." + name + "." : "choice.");
                     host.Controls.Add(NewRow(Humanise(name), combo));
                     editors[name] = combo;
+                    Managed(field, combo, host);
                     if (name == "theme")
                         host.Controls.Add(HelpText(S("help.theme",
                             "Light or dark for the Dashboard, the notification-area popup and the notification card, and for the panel in Codex while Theme in Codex is Same as Theme. Use system setting follows Windows for the first three and Codex's own theme for the panel.")));
@@ -883,6 +886,16 @@ namespace CodexAutoResume
             }
             bool high = AnyHigh(limitSchema, values);
             if (Soft.OwnVisible(highLimits) != high) highLimits.Visible = high;
+        }
+
+        /// v0.6.11: a setting an administrator's policy key decides ("managed" in its schema) is drawn as it
+        /// stands, greyed, with one line under it saying who set it. Save still sends what it shows, which the
+        /// bridge keeps out of the file (managed.admit), so the person's own choice is there when the key goes.
+        private void Managed(Dictionary<string, object> field, Control editor, TableLayoutPanel host)
+        {
+            if (!Equals(Get(field, "managed"), true)) return;
+            editor.Enabled = false;
+            host.Controls.Add(HelpText(S("settings.managed", "Set by your administrator.")));
         }
 
         private SoftCombo ChoiceCombo(Dictionary<string, object> field, Dictionary<string, object> current, string prefix)

@@ -76,7 +76,9 @@ ITEM = {_q(name): item for item, names in {
                # v0.6.11: quiet hours and a postponement's times - when, by the local clock - and
                # which projects may resume without a person; the retry ladders, which a person
                # chooses; and the two guards that may hold a waiting recovery.
-               "quiet", "projects", "ladder", "guards"),
+               "quiet", "projects", "ladder", "guards",
+               # v0.6.11: what an administrator's policy keys hold, and how they hold the settings.
+               "managed"),
     "machine": ("machine", "domain", "domain.errors", "domain.ids", "domain.public",
                 "domain.states", "domain.vocabulary",
                 # v0.6.11: the registry's vocabularies, out of domain/vocabulary.py.
@@ -116,6 +118,8 @@ ITEM = {_q(name): item for item, names in {
     "brand": ("brand", "brand.checkbox", "brand.colour", "brand.css", "brand.design", "brand.elevation",
               "brand.light", "brand.mark", "brand.motion", "brand.scale", "brand.tokens"),
     "platform": ("win", "win.dll", "win.homelock", "win.inventory", "win.kernel", "win.sync",
+                 # v0.6.11: the administrator's policy keys, read from the registry.
+                 "win.policykeys",
                  "pwsh", "shortcut", "startup"),
     "config": ("", "config", "logbook"),
 }.items() for name in names}

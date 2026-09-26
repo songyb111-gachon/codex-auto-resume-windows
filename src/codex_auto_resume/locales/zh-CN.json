@@ -724,5 +724,10 @@
   "why.workspace_changed": "停止后，其文件夹的分支、模型或批准模式已发生变化：在你允许它继续之前，不会发送任何内容。",
   "why.context_cost": "其对话使用的 Token 超过了设置允许的数量：在你允许它继续之前，不会发送任何内容。",
   "why.chain_time_cap": "此任务持续失败的时间超过了设置允许的时长。",
-  "msg.toast_time_cap_body": "持续失败的时间超过了设置允许的时长，此任务的自动恢复已停止。"
+  "msg.toast_time_cap_body": "持续失败的时间超过了设置允许的时长，此任务的自动恢复已停止。",
+  "error.managed_by_policy": "此项由管理员设置",
+  "settings.managed": "由管理员设置。",
+  "overview.off_managed": "已被管理员暂停",
+  "overview.managed": "{state} - 部分设置由管理员设置",
+  "diag.update_managed": "已被管理员关闭"
 }

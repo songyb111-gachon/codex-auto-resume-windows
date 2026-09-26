@@ -724,5 +724,10 @@
   "why.workspace_changed": "停止後，其資料夾的分支、模型或核准模式已變更：在您允許它接續之前，不會傳送任何內容。",
   "why.context_cost": "其對話使用的 Token 超過設定允許的數量：在您允許它接續之前，不會傳送任何內容。",
   "why.chain_time_cap": "此任務持續失敗的時間超過設定允許的長度。",
-  "msg.toast_time_cap_body": "持續失敗的時間超過設定允許的長度，已停止此任務的自動復原。"
+  "msg.toast_time_cap_body": "持續失敗的時間超過設定允許的長度，已停止此任務的自動復原。",
+  "error.managed_by_policy": "此項由系統管理員設定",
+  "settings.managed": "由系統管理員設定。",
+  "overview.off_managed": "已被系統管理員暫停",
+  "overview.managed": "{state} - 部分設定由系統管理員設定",
+  "diag.update_managed": "已被系統管理員關閉"
 }

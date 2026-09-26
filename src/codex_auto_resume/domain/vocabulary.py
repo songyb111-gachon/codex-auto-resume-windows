@@ -395,6 +395,8 @@ class ErrorCode(StrEnum):
     # than a list of projects holds.
     PROJECT_UNREADABLE = "project_unreadable"
     TOO_MANY_PROJECTS = "too_many_projects"
+    # v0.6.11: what an administrator's policy key decides - resuming recovery, or a setting it holds.
+    MANAGED_BY_POLICY = "managed_by_policy"
 
 
 # ---------------------------------------------------------------- settings and language

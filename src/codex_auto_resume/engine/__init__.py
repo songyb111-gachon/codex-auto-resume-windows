@@ -44,7 +44,9 @@ class Engine(OptionsMixin, AnnounceMixin, FreshnessMixin, DetectMixin, Reconcile
             self.log(None, "projection_check_unavailable", None)
         self.watch()
         self.observe_all()
-        if not self.store.settings()["enabled"]:
+        # v0.6.11: an administrator's DisableAutoResume is a Pause here too, even before the watcher
+        # has written it into the state (runtime/app.py), so a write that failed sends nothing.
+        if not self.store.settings()["enabled"] or self.managed.disable_auto_resume:
             return
         # The plug is asked nothing more while recovery is paused: a Pause beats every
         # capability, as it beats core. P8 is once a tick, after everything is observed.

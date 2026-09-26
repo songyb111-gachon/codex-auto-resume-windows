@@ -852,6 +852,40 @@ When **Attempts per interruption**, **Stop after this many turns without progres
 the panel: a task that keeps failing can then be continued many times, and every continuation uses
 your Codex usage.
 
+### Settings an administrator manages
+
+From v0.6.11 an administrator can set six values under `Software\Policies\CodexAutoResume` - in
+`HKEY_LOCAL_MACHINE` for everyone who uses the PC, or in `HKEY_CURRENT_USER` for one person. This
+product reads them and never writes them, and each can only hold recovery back. A PC nobody manages
+has none, and then nothing is different.
+
+| Value | Type | What it does |
+| --- | --- | --- |
+| `DisableAutoResume` | DWORD, not 0 | Recovery is paused, and Resume is refused while the value is set. |
+| `ForceObserveOnly` | DWORD, not 0 | Observe only is on: every check runs, and nothing is sent. |
+| `DisableUpdateCheck` | DWORD, not 0 | The Dashboard's **Check for updates** is greyed and asks nothing. |
+| `DisableStatusFile` | DWORD, not 0 | Keeps the status file for other tools off. This version writes no status file yet, so it holds nothing back until one exists. |
+| `MaxRecoveryAttempts` | DWORD, 1 to 20 | The most attempts per interruption: a ceiling on that setting. |
+| `QuietHours` | String | Quiet hours that hold whatever else is set, as `22:00-07:00`, or with the days they start on: `22:00-07:00 weekdays` (or `weekends`, `every_day`). Times are on the hour or the half hour. |
+
+Both places are read, and every restriction either one makes holds: a switch set in either is set, the
+lower ceiling is the ceiling, and quiet hours set in either place hold, beside any quiet hours of your
+own. A value of the wrong type, out of its range or not in its form is ignored, as if it were not there.
+The watcher reads them at every check, the Dashboard and the panel whenever they read the settings.
+
+What a value decides is drawn greyed, with **Set by your administrator** under it, in the Dashboard's
+Settings and in the panel in Codex. The Overview says **some settings are set by your administrator**
+beside Automatic recovery - or **paused by your administrator** - and Diagnostics names the values in
+force. A change to a setting a value decides is refused, except a number of attempts within the
+ceiling. Your own choices stay in the settings file: nothing a value holds is written there, and they
+apply again once the value is removed. A pause is the one exception: removing `DisableAutoResume` does
+not resume recovery on its own - resuming is yours to do, as after an upgrade.
+
+These values are a statement this product obeys, not a lock. It is installed for one person, in their
+own folder, and someone who can change its program files can change what it does; a copy run from a
+source checkout reads no values at all. `DisableUpdateCheck` turns off the Dashboard's check, not a
+`bootstrap.ps1` you run yourself.
+
 ### Languages
 
 The interface speaks English, 한국어, 日本語, 简体中文, 繁體中文, Español, Deutsch, Français and

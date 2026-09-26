@@ -65,7 +65,9 @@ LAYER = {_q(name): layer for layer, names in {
                "edition", "quiet",
                # and which projects may resume without a person, by a key that is only a digest;
                # and the retry ladders and the two guards of a waiting recovery.
-               "projects", "ladder", "guards"),
+               "projects", "ladder", "guards",
+               # and what an administrator's policy keys hold, applied after the settings are read.
+               "managed"),
     "adapters": ("store", "openstate", "codex", "windows", "compat", "compatio", "startup", "shortcut",
                  # v0.6.10-alpha: compat.py and compatio.py became compat/.
                  "compat.model", "compat.standing", "compat.report", "compat.permits", "compat.files", "compat.cache", "compat.probes", "compat.views", "compat.evaluator",
@@ -82,6 +84,8 @@ LAYER = {_q(name): layer for layer, names in {
                  "store.ledger",
                  # v0.6.10-alpha: the Win32 the product calls, which windows.py was half of.
                  "win", "win.dll", "win.homelock", "win.inventory", "win.kernel", "win.sync",
+                 # v0.6.11: the administrator's policy keys, read and never written.
+                 "win.policykeys",
                  # v0.6.10-alpha: source.py became source/, and every part of it reads Codex;
                  # windows.py's other half - the CLI, the App Server, the pairing - joined it.
                  "codex.appserver", "codex.errors", "codex.history", "codex.labels",
@@ -192,6 +196,8 @@ LAZY_CYCLES = {}
 LAZY_IMPORTS = {(_q(importer), _q(imported)): (kind, reason) for (importer, imported), (kind, reason) in {
     ("", "config"): ("cost", "__version__ is resolved on demand, so importing the package reads no manifest"),
     ("runtime.app", "control"): ("cost", "only a card's button and the icon's thread use the control layer"),
+    ("runtime.app", "control.policy"): ("cost", "the administrator's policy keys, asked where the control "
+                                                "layer asks them, when the settings are read"),
     ("runtime.loop", "control"): ("cost", "only a card's button and the icon's thread use the control layer"),
     ("runtime.app", "interface"): ("cost", "the icon's catalogue, when the icon starts or the language changes"),
     ("runtime.app", "ui.tray"): ("cost", "the notification-area icon, only in a watcher that shows one"),

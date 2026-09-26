@@ -206,6 +206,15 @@ this product's plugin and marketplace).
   digest; the context-cost guard reads one number of Codex's, and only where it is a numeric column.
   A guard's hold is a hold like any other: the claim and the last look before the send refuse it, and
   only Let it continue, bound to the exact record, lets it go. Each is off by default.
+- **An administrator's policy keys only hold back.** From v0.6.11 six values under
+  `Software\Policies\CodexAutoResume`, in `HKEY_LOCAL_MACHINE` or `HKEY_CURRENT_USER`, are read and
+  never written - `startup.py` is still the only code that writes the registry - and applied after the
+  settings are read, never to the file: they can pause recovery, force Observe only, turn off the update
+  check or the status file, lower the attempts' ceiling and add quiet hours, and nothing else. Both
+  places' restrictions hold, a malformed value is ignored, and a write that would loosen one is refused.
+  `DisableAutoResume` is written into the state as a Pause before every check and refused by the engine
+  on the key as well. They are what a cooperating installation obeys, not a lock: the program is the
+  person's own, in their own folder, and a copy run from a source checkout reads none.
 - **Path confinement.** Owned directories are rejected if they are links, or if they resolve outside the
   configured home. The resolve-based check also catches NTFS junctions, which `is_symlink()` does not.
 - **No contention with the app's thread lock.** There is no byte-lock API anywhere in the adapter.

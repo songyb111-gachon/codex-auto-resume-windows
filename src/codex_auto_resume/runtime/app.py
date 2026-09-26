@@ -18,7 +18,7 @@ import time
 import traceback
 import uuid
 
-from .. import compatio, config, edition, l10n, notifier, settings as policy
+from .. import compatio, config, edition, l10n, managed, notifier, settings as policy
 from ..codex import LocalSource
 from ..domain.plug import DEFER, EXTRA, Surface, guard
 from ..engine import Engine
@@ -58,7 +58,12 @@ class App(WatchLoop):
             self.logger = logging.getLogger(LOGGER_NAME + ".silent")
             self.logger.handlers = [logging.NullHandler()]
             self.logger.propagate = False
-        self.settings = config.load_settings(paths)
+        # v0.6.11: what an administrator's policy keys hold (managed.py), and the settings as they
+        # leave them - which is what every part of this process works from - kept apart from the
+        # stored ones the engine is handed with them.
+        self.managed = self._read_managed()
+        self._stored = config.load_settings(paths)
+        self.settings = managed.clamp(self._stored, self.managed)
         # Everything this process says - the icon, its menu, every notification - is in the
         # Interface language the user stored, which is `system` until they choose.
         from ..ui import popup
@@ -175,9 +180,31 @@ class App(WatchLoop):
         if dispatch_lock is not None:
             kwargs["dispatch_lock"] = dispatch_lock
         engine = Engine(store, source, self.backend(), plug=self.plug, **kwargs)
-        engine.apply_policy(self.settings)
+        engine.apply_policy(self._stored, self.managed)
         self._observe_only(engine)
+        self._managed_pause(engine)
         return engine
+
+    @staticmethod
+    def _read_managed():
+        """The policy keys in force (control/policy.py asks Windows, for an installed copy alone)."""
+        from ..control import policy as settings_policy
+        return settings_policy.managed_policy()
+
+    def _managed_pause(self, engine: Engine) -> None:
+        """An administrator's DisableAutoResume (v0.6.11), written into the state as a Pause before
+        any tick - where the engine, the claim and every surface read it, and a queued continuation
+        is taken back as a Pause takes it. The engine refuses on the key as well, so a write that
+        fails sends nothing. Nothing here switches recovery back on when the key goes: that is a
+        person's to do, as after an upgrade."""
+        if not self.managed.disable_auto_resume:
+            return
+        try:
+            if engine.store.settings()["enabled"]:
+                engine.store.set_enabled(False, time.time())
+                self.logger.info("auto-resume paused: an administrator's policy key says so (DisableAutoResume)")
+        except Exception:
+            self._record_failure("administrator's pause")
 
     def _observe_only(self, engine: Engine) -> None:
         """Write Observe only into the state as the settings say it (v0.6.11): the claim refuses on
@@ -205,17 +232,27 @@ class App(WatchLoop):
         goes through the same validator as every other path, so an edit made with a text
         editor cannot do anything an edit made in the window could not.
         """
+        # v0.6.11: the policy keys are asked every tick, the way the file's stamp is, and a Pause one
+        # holds is made good before the tick whatever else changed.
+        held = self._read_managed()
         stamp = self._settings_stamp()
-        if stamp == self._settings_stamp_seen:
+        if stamp == self._settings_stamp_seen and held == self.managed:
+            self._managed_pause(engine)
             return False
         self._settings_stamp_seen = stamp
-        values = config.load_settings(self.paths)
-        if values == self.settings:
+        keys_changed = held != self.managed
+        if keys_changed:
+            self.logger.info("administrator's policy keys: %s", ", ".join(held.codes()) or "none")
+            self.managed = held
+        self._stored = config.load_settings(self.paths)
+        values = managed.clamp(self._stored, held)
+        if values == self.settings and not keys_changed:
             return False
         previous = self.settings.get("interface_language")
         self.settings = values
-        engine.apply_policy(values)
+        engine.apply_policy(self._stored, held)
         self._observe_only(engine)
+        self._managed_pause(engine)
         from ..ui import popup
         popup.adopt_settings(values)
         if values.get("interface_language") != previous:

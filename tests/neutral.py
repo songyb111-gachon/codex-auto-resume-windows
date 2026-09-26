@@ -68,6 +68,8 @@ NOT_SCENARIOS = {
     "test_source": "reads a Codex home through the source alone; it builds no engine",
     "test_screenshots": "draws the settings window's pictures, one GUI module at a time",
     "test_plug_points": "gives every engine a plug of its own, to hold each point where it stands",
+    "test_released_calls": "runs the scenarios above against v0.6.10's tagged package and this one, "
+                           "in workers of its own; it builds no engine itself",
 }
 # The module whose scenarios simulate days of ticks, handed out first (run_all).
 FIRST = ("test_outcomes",)
