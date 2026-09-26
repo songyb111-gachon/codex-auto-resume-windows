@@ -460,6 +460,31 @@ class UninstallSafetyTests(unittest.TestCase):
         self.assertTrue((self.home / config.OWNER_MARKER).exists())
         self.assertTrue(config.is_link(paths.advanced_dir))
 
+    def test_a_junction_in_place_of_config_or_logs_is_not_followed_even_inside_the_home(self):
+        """The same, one level up. owns() - the gate on purging config/ and logs/ - still asked
+        is_symlink(), so either as a junction to the home root was owned by the root's own
+        marker, and the purge listed the root's marker and any file at the root named like a
+        log or like settings.json. None of it is ours."""
+        paths = config.Paths(self.home)
+        self.assertTrue(paths.claim_home())
+        victims = [self.home / "auto-resume.log", self.home / "settings.json",
+                   self.home / config.OWNER_MARKER]
+        for victim in victims[:2]:
+            victim.write_text("the person's own", encoding="utf-8")
+        for directory in (paths.logs_dir, paths.state_dir):
+            made = (subprocess.run(["cmd", "/c", "mklink", "/J", str(directory), str(self.home)],
+                                   capture_output=True, text=True) if sys.platform == "win32" else None)
+            if made is None or made.returncode != 0:
+                self.skipTest("could not create a junction here")
+        for directory in (paths.logs_dir, paths.state_dir):
+            self.assertTrue(config.is_link(directory))
+            self.assertFalse(paths.owns(directory))
+        self.assertEqual((paths.owned_log_files(), paths.owned_state_files()), ([], []))
+        code, _, _ = self.cli("uninstall")
+        self.assertEqual(code, 0)
+        for victim in victims:
+            self.assertTrue(victim.exists(), victim.name)
+
     def test_uninstall_removes_only_marked_directories_contents(self):
         self.cli("install")
         paths = config.Paths(self.home)
