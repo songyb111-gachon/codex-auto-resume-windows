@@ -29,16 +29,24 @@ from .validate import (_claim_cost, _finite, _timestamp, _uuid, _validated_recor
 _CORE_SCHEMAS = (None, "main", "temp")
 _LEDGER_READS = frozenset({sqlite3.SQLITE_SELECT, sqlite3.SQLITE_READ, sqlite3.SQLITE_FUNCTION,
                            sqlite3.SQLITE_RECURSIVE, sqlite3.SQLITE_ATTACH})
-_LEDGER_PRAGMAS = frozenset({"database_list", "table_info", "table_xinfo", "index_list",
-                             "index_info", "index_xinfo", "foreign_key_list", "user_version",
-                             "schema_version", "data_version", "application_id"})
+# A pragma is read and never set, whatever schema it names. Most are settings of the whole
+# connection - query_only, busy_timeout, trusted_schema, writable_schema - which a schema's name
+# in front of them does not confine, and core's connection lives as long as the watcher: one
+# set through the ledger's own schema outlived the claim, and query_only left every later write
+# of core's failing until a restart. These are read with no argument, which would set them...
+_LEDGER_PRAGMAS = frozenset({"database_list", "user_version", "schema_version", "data_version",
+                             "application_id"})
+# ...and these take one that names the table or index they read.
+_LEDGER_NAMED_PRAGMAS = frozenset({"table_info", "table_xinfo", "index_list", "index_info",
+                                   "index_xinfo", "foreign_key_list"})
 
 
 def _ledger_authorizer(action, first, second, schema, _trigger):
     if action in _LEDGER_READS:
         return sqlite3.SQLITE_OK
-    if action == sqlite3.SQLITE_PRAGMA and second is None and first in _LEDGER_PRAGMAS:
-        return sqlite3.SQLITE_OK
+    if action == sqlite3.SQLITE_PRAGMA:
+        read = first in _LEDGER_NAMED_PRAGMAS or (first in _LEDGER_PRAGMAS and second is None)
+        return sqlite3.SQLITE_OK if read else sqlite3.SQLITE_DENY
     if action in (sqlite3.SQLITE_TRANSACTION, sqlite3.SQLITE_SAVEPOINT, sqlite3.SQLITE_DETACH):
         return sqlite3.SQLITE_DENY
     return sqlite3.SQLITE_DENY if schema in _CORE_SCHEMAS else sqlite3.SQLITE_OK
