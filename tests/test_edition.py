@@ -229,7 +229,7 @@ class GuardTests(unittest.TestCase):
         failing = guard(RecordingPlug(**{hook: RuntimeError("x") for hook in plug.HOOKS.values()}))
         self.assertIs(failing.sender(object(), backend), backend)
         self.assertIs(failing.gate("usage", {}, {}), DEFER)
-        self.assertIs(failing.claim_ledger(object(), {}, 1.0), DEFER)
+        self.assertIs(failing.claim_ledger(object(), {}, 1.0, frozenset()), DEFER)
         self.assertIsNone(failing.tick(object()))
         self.assertIs(failing.surface(Surface.STATUS, {}), DEFER)
         self.assertEqual(failing.failures, 5)

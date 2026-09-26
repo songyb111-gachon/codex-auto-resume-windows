@@ -196,20 +196,21 @@ class ClaimsMixin:
         return self.reserve_detailed(interruption_id, now, **options)[0]
 
     def reserve_detailed(self, interruption_id: str, now: float, *, limits: dict | None = None,
-                         gates: dict | None = None, ledger=None, carried: bool = False) -> tuple:
+                         gates: dict | None = None, ledger=None, carried=frozenset()) -> tuple:
         """Claim a record for sending, re-checking every store-side gate in the claim.
 
         Returns (claimed, refusing_gate, reason). The gate vector - the engine's view of
         Codex plus the store's own checks made here - is persisted whether the claim is
         granted or refused, so an interface can show exactly why a record is waiting.
         `ledger` is the engine's plug (domain/plug.py), asked last (P11); None is NULL's.
-        `carried` says the send this claim leads to carries an answer the plug gave - its words
-        or its channel - which its ledger pays for (`_ledger_holds`).
+        `carried` is the points whose answers of the plug's the send this claim leads to
+        carries - Point.TEXT for its words, Point.SENDER for its channel - which its ledger pays
+        for (`_ledger_holds`).
         """
         _timestamp(now, "now")
         if gates is not None and limits is None:
             raise StoreError("A gate vector needs the budget limits it was evaluated with")
-        ledger = guard(ledger)
+        ledger, carried = guard(ledger), frozenset(carried)   # the ledger's to read, not to change
         with self._transaction() as connection:
             settings = self._read_settings(connection)
             row = self._row(connection, interruption_id)
@@ -257,7 +258,7 @@ class ClaimsMixin:
             return True, None, None
 
     @staticmethod
-    def _ledger_holds(connection, ledger, row, now, carried=False) -> bool:
+    def _ledger_holds(connection, ledger, row, now, carried=frozenset()) -> bool:
         """P11: whether the plug's ledger holds a claim every check of core's has granted.
 
         Asked inside the claim's transaction and on its connection, so what the plug counts -
@@ -269,10 +270,12 @@ class ClaimsMixin:
         statement (`_ledger_authorizer`). A ledger that deferred after switching a conversation
         back on would otherwise have granted what the person had refused.
 
-        A hook that raised costs its own answer, and on a claim of core's own that is all: the
-        claim is granted as with no plug. On a claim that `carried` an answer of the plug's, the
-        failure is what that answer was to be paid with, so the claim is held and nothing the
-        plug chose goes out unpaid and uncounted. Whether this call raised is asked of this
+        The ledger is told which of the plug's answers the send carries (`carried`), as core
+        decided them, so it pays for those and for nothing core dropped. A hook that raised
+        costs its own answer, and on a claim of core's own that is all: the claim is granted as
+        with no plug. On a claim that `carried` an answer of the plug's, the failure is what
+        that answer was to be paid with, so the claim is held and nothing the plug chose goes
+        out unpaid and uncounted. Whether this call raised is asked of this
         call (`claim_ledger_checked`), not read from `failures`, which every thread holding the
         plug adds to.
         """
@@ -288,11 +291,12 @@ class ClaimsMixin:
         attached = [listed[2] for listed in connection.execute("PRAGMA database_list") if listed[2]]
         connection.set_authorizer(_ledger_authorizer(attached))
         try:
-            answer, broke = ledger.claim_ledger_checked(_LedgerConnection(execute), row, now)
+            answer, broke = ledger.claim_ledger_checked(_LedgerConnection(execute), row, now,
+                                                        carried)
         finally:
             connection.set_authorizer(None)
             live.clear()
-        held = answer is Alternative.HOLD or (broke and carried)
+        held = answer is Alternative.HOLD or (broke and bool(carried))
         if held or broke:
             connection.execute("ROLLBACK TO claim_ledger")
         connection.execute("RELEASE claim_ledger")

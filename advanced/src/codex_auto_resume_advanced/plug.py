@@ -71,8 +71,8 @@ class AdvancedPlug(Plug):
         from . import surfaces
         return surfaces.answer(self.runtime, name, facts)
 
-    def claim_ledger(self, connection, record, now):
-        return self.runtime.claim(connection, record, now)
+    def claim_ledger(self, connection, record, now, carried):
+        return self.runtime.claim(connection, record, now, carried)
 
     def partition(self, records):
         return self.runtime.ask(Point.CONCURRENCY, records)

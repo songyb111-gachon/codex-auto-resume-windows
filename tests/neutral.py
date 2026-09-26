@@ -130,10 +130,10 @@ class DeferringPlug(Plug):
         self.asked.add(Point.SURFACES)
         return super().surface(name, facts)
 
-    def claim_ledger(self, connection, record, now):
+    def claim_ledger(self, connection, record, now, carried):
         self.asked.add(Point.CLAIM_LEDGER)
         connection.execute("SELECT count(*) FROM interruptions").fetchone()
-        return super().claim_ledger(connection, record, now)
+        return super().claim_ledger(connection, record, now, carried)
 
     def partition(self, records):
         self.asked.add(Point.CONCURRENCY)
