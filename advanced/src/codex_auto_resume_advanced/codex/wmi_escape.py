@@ -156,7 +156,8 @@ def probe(paths=None) -> dict:
     `in_job` is its own IsProcessInJob, `kill_on_close` is that the job we built killed its in-job
     helper (the shape held), and `survived` is that the heartbeat outlived the job's close. MW is
     a pass only when the heartbeat started, stood outside a job, and survived (measure._mw)."""
-    facts = {"started": False, "in_job": None, "kill_on_close": False, "survived": False}
+    facts = {"started": False, "in_job": None, "job_kills_on_close": None, "kill_on_close": False,
+             "survived": False}
     if os.name != "nt":
         return facts
     from codex_auto_resume import startup
@@ -199,6 +200,9 @@ def probe(paths=None) -> dict:
         facts["started"] = True
         heartbeat_pid = heartbeat.get("pid")
         facts["in_job"] = bool(heartbeat.get("in_job"))
+        # The job the heartbeat is in now, if any, and whether it would end it: Windows keeps a
+        # WMI-started process in a job of its own, which is harmless only while that job does not.
+        facts["job_kills_on_close"] = bool(heartbeat.get("kill_on_close"))
         helper_alive_before = _alive(k, helper.pid)
         k.CloseHandle(job)                                    # the job closes: its members die
         job = None

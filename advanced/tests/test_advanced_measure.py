@@ -152,6 +152,20 @@ class RecordTests(unittest.TestCase):
         # The probe's own call raised, so it never reached a verdict of its own: blocked, not a pass.
         self.assertEqual(summary["verdict"], str(Verdict.BLOCKED))
 
+    def test_a_call_codex_refuses_is_a_fail_that_names_the_method_and_code(self):
+        """What M3 found on codex-cli 0.158.0-alpha.2.1: an empty thread/queue/add is refused
+        (-32600, "only user input can be added"). Codex was reached and said no, so the capability's
+        premise fails - a fail, not "not reached" - and its words are never recorded."""
+        refusal = protocol._refused_by_codex("thread/queue/add", -32600)
+        self.assertIsInstance(refusal, AdapterError)
+        summary = self.run_one(Measurement.M3, session_factory=factory(
+            {"thread/queue/add": refusal, "thread/queue/list": {"items": []}}))
+        self.assertEqual(summary["verdict"], str(Verdict.FAIL))
+        record = json.loads(Path(summary["recorded"]).read_text(encoding="utf-8"))
+        self.assertEqual((record["observed"]["refused_method"], record["observed"]["refusal_code"]),
+                         ("thread/queue/add", -32600))
+        self.assertNotIn("only user input", json.dumps(record))
+
     def test_a_protocol_that_cannot_be_reached_is_blocked_not_a_pass(self):
         def broken(_measurement):
             raise AdapterError("unavailable")
@@ -160,13 +174,21 @@ class RecordTests(unittest.TestCase):
         record = json.loads(Path(summary["recorded"]).read_text(encoding="utf-8"))
         self.assertIn("note", record)
 
-    def test_the_wmi_escape_is_a_pass_only_when_it_left_the_job_and_survived(self):
-        escaped = self.run_one(Measurement.MW,
-                               launcher=lambda: {"started": True, "in_job": False, "survived": True})
-        self.assertEqual(escaped["verdict"], str(Verdict.PASS))
-        caught = self.run_one(Measurement.MW,
-                              launcher=lambda: {"started": True, "in_job": True, "survived": False})
-        self.assertEqual(caught["verdict"], str(Verdict.BLOCKED))
+    def test_the_wmi_escape_is_a_pass_only_when_nothing_can_end_the_watcher(self):
+        held = {"started": True, "kill_on_close": True, "survived": True}
+        # In a job of Windows' own with no KILL_ON_JOB_CLOSE - what WMI really gives - is a pass;
+        # the first version asked for no job at all and blocked a working escape.
+        for in_job in (False, True):
+            with self.subTest(in_job=in_job):
+                escaped = self.run_one(Measurement.MW, launcher=lambda: dict(
+                    held, in_job=in_job, job_kills_on_close=False))
+                self.assertEqual(escaped["verdict"], str(Verdict.PASS))
+        for broken in ({"job_kills_on_close": True, "in_job": True}, {"survived": False},
+                       {"kill_on_close": False}, {"started": False}):
+            with self.subTest(broken):
+                caught = self.run_one(Measurement.MW, launcher=lambda: {
+                    **held, "in_job": True, "job_kills_on_close": False, **broken})
+                self.assertEqual(caught["verdict"], str(Verdict.BLOCKED))
 
     def test_the_wmi_measurement_without_a_launcher_is_blocked(self):
         self.assertEqual(self.run_one(Measurement.MW)["verdict"], str(Verdict.BLOCKED))
@@ -398,15 +420,16 @@ class WmiEscapeTests(unittest.TestCase):
         from codex_auto_resume import startup
         with patch.object(startup, "python_launcher", side_effect=startup.StartupError("none")):
             facts = wmi_escape.probe()
-        self.assertEqual(facts, {"started": False, "in_job": None, "kill_on_close": False,
-                                 "survived": False})
+        self.assertEqual(facts, {"started": False, "in_job": None, "job_kills_on_close": None,
+                                 "kill_on_close": False, "survived": False})
 
     @unittest.skipUnless(os.environ.get("CODEX_AR_LIVE_WMI") == "1" and sys.platform == "win32",
                          "opt-in: CODEX_AR_LIVE_WMI=1 runs the real WMI escape")
     def test_live_the_wmi_started_heartbeat_leaves_the_job_and_survives(self):
         facts = wmi_escape.probe()
         self.assertTrue(facts["started"], facts)
-        self.assertFalse(facts["in_job"], facts)
+        self.assertFalse(facts["job_kills_on_close"], facts)
+        self.assertTrue(facts["kill_on_close"], facts)
         self.assertTrue(facts["survived"], facts)
 
 

@@ -43,6 +43,15 @@ CLOSED_WORDS = (frozenset(str(word) for word in machine.TURN_STATUSES)
                 | frozenset(str(word) for word in Verdict))
 
 
+def _closed(value: str) -> bool:
+    """A closed word, or one of the protocol methods a measurement declares: the product's own
+    fixed names, which is what a refusal records (`refused_method`), never anything Codex wrote."""
+    if value in CLOSED_WORDS:
+        return True
+    from .codex.protocol import ADVANCED_METHODS
+    return value in ADVANCED_METHODS
+
+
 class EvidenceError(RuntimeError):
     """A record that may not be written, or a directory it may not be written to. A static
     reason only - never the value that was refused."""
@@ -56,7 +65,7 @@ def _content_free(value) -> bool:
     if isinstance(value, int):
         return True
     if isinstance(value, str):
-        return bool(ALIAS_RE.match(value)) or value in CLOSED_WORDS
+        return bool(ALIAS_RE.match(value)) or _closed(value)
     return False
 
 
