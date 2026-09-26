@@ -64,7 +64,9 @@ footnote. There are four kinds, and they are genuinely different:
   [codex-compat-reporter](https://github.com/songyb111-gachon/codex-compat-reporter), reads the
   file it wrote, and opens the pull request on GitHub themselves;
   [CONTRIBUTING.md](CONTRIBUTING.md#sending-a-compatibility-report) says what that pull request may
-  add and how it is checked.
+  add and how it is checked. One that passes is filed by the repository's own workflow, whose
+  commit names the author's GitHub login and account number in its message, and the pull request
+  and the comment it is answered with stay public on GitHub, as every pull request does.
 
 **There is no automatic update check, and no automatic compatibility refresh.** Nothing polls,
 nothing checks on a schedule, and nothing checks when the window opens or when the watcher starts.

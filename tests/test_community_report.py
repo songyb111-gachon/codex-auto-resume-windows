@@ -6,8 +6,9 @@ one case for every rule, each refused with fixed text that never repeats a value
 What it only recomputes - the levels and the verdict a sender claims - is tested as a property:
 recomputing never raises a level and changes nothing the second time.
 
-The counting rule is a truth table in tests/fixtures/reported_cases.json, which the maintainer's
-tool runs too: worked, failed, neither (which includes nothing delivered) and both.
+The counting rule is a truth table in tests/fixtures/reported_cases.json: worked, failed, neither
+(which includes nothing delivered) and both. graded() is the one function that counts; the filer
+(build/community_file.py) and the maintainer's tool, which imports this file from main, both use it.
 """
 from __future__ import annotations
 
@@ -254,6 +255,30 @@ class RefusalTests(unittest.TestCase):
                 with self.subTest(fragment):
                     self.assertRefused(refusals(change), fragment)
 
+    def test_a_version_has_one_spelling(self):
+        """The product orders these as the version on the right, so each would file it again under
+        another name: 0.1.0 three times from one login, beside the one-per-version rule."""
+        for spelling, canonical in (("codex-cli 00.155.0", "codex-cli 0.155.0"),
+                                    ("codex-cli 0.0155.0", "codex-cli 0.155.0"),
+                                    ("codex-cli 0.155.0-alpha.09.2", "codex-cli 0.155.0-alpha.9.2"),
+                                    ("codex-cli 0.155.0-alpha.9.0", "codex-cli 0.155.0-alpha.9")):
+            with self.subTest(spelling):
+                self.assertEqual(reader.canonical_version(spelling), canonical)
+                self.assertFalse(reader.engine_version(spelling))
+                self.assertTrue(reader.engine_version(canonical))
+                self.assertRefused(refusals(lambda r: r.update(codex_version=spelling)), "no leading zero")
+        self.assertIsNone(reader.canonical_version("codex-cli latest"))
+        self.assertEqual(reader.canonical_version("codex-cli 0.155.0-alpha.0"), "codex-cli 0.155.0-alpha.0")
+
+    def test_a_login_windows_keeps_for_a_device_is_refused(self):
+        for login in ("nul", "NUL", "Con", "aux", "prn", "com0", "COM9", "lpt1"):
+            with self.subTest(login):
+                self.assertFalse(reader.login_name(login))
+                self.assertRefused(refusals(lambda r: r["reporter"].update(github_login=login), author=login),
+                                   "a name Windows keeps for a device")
+        for login in ("com10", "nul0", "console", "lpt", "ExampleUser"):
+            self.assertTrue(reader.login_name(login), login)
+
     def test_the_release_rule_is_only_skipped_when_no_releases_are_given(self):
         change = lambda r: r["reporter"].update(product_version="0.6.99")  # noqa: E731
         self.assertEqual(refusals(change, releases=None), [])
@@ -368,6 +393,17 @@ class IndexTests(unittest.TestCase):
         self.assertEqual(list(projected), ["_comment", "format", "versions"])
         self.assertEqual(reader.project(None)["versions"], [])
         self.assertEqual(product_reported.parse(json.dumps(reader.project(None)).encode("ascii")), {})
+
+    def test_the_readme_is_written_from_the_index_alone(self):
+        index = reader.build_index(self.reports(), generated_at=NOW)
+        text = reader.build_readme(index)
+        self.assertEqual(text, reader.build_readme(json.loads(json.dumps(index))))
+        self.assertTrue(text.isascii() and text.endswith("\n"))
+        self.assertIn("| `codex-cli 0.153.4` | 1 | 0 | 1 | 0 | 0 |", text)
+        self.assertIn("| `codex-cli 0.155.0-alpha.9.2` | 3 | 2 | 1 | 1 | 1 |", text)
+        self.assertIn("| `codex-cli 0.155.0-alpha.9.2` | [ExampleUser3](ExampleUser3/) | neither | 0 | 0 |", text)
+        self.assertNotIn("machine ", text.split("|", 1)[1], "reports are counted, not machines")
+        self.assertIn("| - | none yet | - | - | - | - |", reader.build_readme(reader.build_index({}, generated_at=NOW)))
 
     def test_a_report_path_is_its_login_and_version(self):
         self.assertEqual(reader.canonical_path("ExampleUser", "codex-cli 0.155.0-alpha.9.2"),

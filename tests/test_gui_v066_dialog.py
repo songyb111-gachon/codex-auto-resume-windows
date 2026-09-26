@@ -27,6 +27,24 @@ POWERSHELL = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
 EXE = ROOT / "build" / "CodexAutoResumeSettings.exe"
 STRINGS = ROOT / "src" / "codex_auto_resume" / "locales" / "en.json"
 
+
+def stale_build():
+    """Why the built window cannot be the one these sources make, or None.
+
+    This is the one test that loads the built exe rather than compiling the sources, and the exe is
+    not tracked: a checkout keeps whichever one was built last. One built on 2026-09-19 lacked a
+    method the probe looks up, and the failure read "You cannot call a method on a null-valued
+    expression" - true, and no help. A source file newer than the exe says what to do instead."""
+    built = EXE.stat().st_mtime
+    sources = sorted((ROOT / "gui").glob("*.cs")) + [ROOT / "gui" / "window.sources",
+                                                      ROOT / "build" / "make_gui.ps1"]
+    newer = [path.relative_to(ROOT).as_posix() for path in sources
+             if path.is_file() and path.stat().st_mtime > built]
+    if newer:
+        return ("build/CodexAutoResumeSettings.exe is older than %s%s: run build/make_gui.ps1 first"
+                % (newer[0], " and %d more" % (len(newer) - 1) if len(newer) > 1 else ""))
+    return None
+
 QUESTION = 'Stop recovering "Refactor the payment retries"? A continuation already running is not stopped.'
 NOTICE = "Diagnostics saved."
 # What a refusal can carry under its translated sentence: whatever the local service raised.
@@ -145,6 +163,9 @@ class DialogTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        stale = stale_build()
+        if stale:
+            raise AssertionError(stale)
         with tempfile.TemporaryDirectory() as work:
             environment = dict(os.environ)
             environment.update({"CAR_EXE": str(EXE), "CAR_STRINGS": str(STRINGS), "CAR_WORK": work,
@@ -357,6 +378,9 @@ class DialogFitTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        stale = stale_build()
+        if stale:
+            raise AssertionError(stale)
         catalogs = ROOT / "src" / "codex_auto_resume" / "locales"
         cases = {}
         for path in sorted(catalogs.glob("*.json")):

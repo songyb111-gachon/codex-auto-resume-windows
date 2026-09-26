@@ -378,8 +378,9 @@ beside a version. None of it can be made up without it showing:
 - **A report arrives as a pull request, and is checked as data.** A check that runs on every such pull
   request reads the files without running anything in them, accepts only new files under the
   contributor's own GitHub name (the one who opened it), rejects a report whose version, fingerprint
-  or dates are not plausible, and refuses a duplicate. A maintainer still reviews and merges each one,
-  and a report found to be wrong can be withdrawn, in the open.
+  or dates are not plausible, and refuses a duplicate. A report found to be wrong can be withdrawn,
+  in the open. v0.6.10 still had a maintainer merge each one; since it was released, one that passes
+  is filed with no step by the maintainer, by the rules below.
 
   The fingerprint is the setup that measured: the product's own version, the reporting program's and
   Windows'. Each has to be one that could have written the report - a Codex version the product
@@ -420,6 +421,16 @@ one.
 
 This is honest about its limit: nothing can prove a report was not fabricated on the contributor's
 own machine. So what others report informs, and only the maintainer's own evidence decides.
+
+Filing needs no maintainer. After v0.6.10 was released the repository took over the last step a
+person was taking: `.github/workflows/community-file.yml` files what the check accepts, judged
+again against `main` as it is by then, as `main`'s own regeneration of the report, and tells the
+sender in one comment. The judgement a maintainer applied is written down as rules instead - how
+old the sending account is, one open report per account, how many reports per account and per
+Codex version in a week, how many Codex versions the project's data does not name, a failure on a
+verified version held for the maintainer - and every number they count comes from `main`'s own
+history. It is the repository's work, not a release's: the counts still reach a machine only with
+the next release.
 
 The management program stays a program of its own, and its features also come into the advanced
 edition, so a person using that edition can record and submit a report without a second tool. The
