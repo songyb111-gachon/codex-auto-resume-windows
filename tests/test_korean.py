@@ -268,6 +268,24 @@ class GeneratorTests(unittest.TestCase):
         changed = set(ko_sync.build(ROOT, check=True))
         self.assertTrue(set(mapping()["documents"].values()) <= changed)
 
+    def test_the_tree_it_generates_has_no_dead_link(self):
+        """The sync itself builds ko and checks every link in it, but only on main, after a
+        release: a link dev broke was found there first (v0.6.11-alpha, an anchor BRAND.ko.md kept
+        as `<a id>`). So the same build runs here, on a copy of this commit."""
+        import ko_sync
+        import tempfile
+        with tempfile.TemporaryDirectory() as folder:
+            copy = Path(folder)
+            tar = subprocess.run(["git", "-C", str(ROOT), "archive", "--format=tar", "HEAD"],
+                                 capture_output=True, check=True).stdout
+            subprocess.run(["tar", "-x", "-C", str(copy)], input=tar, check=True)
+            subprocess.run(["git", "init", "-q", str(copy)], check=True)
+            subprocess.run(["git", "-C", str(copy), "add", "-A"], check=True)
+            try:
+                ko_sync.build(copy)
+            except SystemExit as refused:
+                self.fail(str(refused))
+
 
 
 class LinkRuleTests(unittest.TestCase):
@@ -318,6 +336,16 @@ class LinkRuleTests(unittest.TestCase):
         out = ko_sync.relink(fenced + '<a href="README.md">E</a>', "README.md", base)
         self.assertTrue(out.startswith(fenced), "prose in a code block must survive")
         self.assertIn('href="%sREADME.md"' % base, out)
+
+    def test_an_anchor_written_out_is_an_anchor(self):
+        import ko_sync
+        import tempfile
+        with tempfile.TemporaryDirectory() as folder:
+            page = Path(folder, "BRAND.md")
+            page.write_text('<a id="네-가지-디자인"></a>\n\n## 세 가지 디자인\n', encoding="utf-8")
+            self.assertTrue(ko_sync.anchor_exists(page, "네-가지-디자인"))
+            self.assertTrue(ko_sync.anchor_exists(page, "세-가지-디자인"))
+            self.assertFalse(ko_sync.anchor_exists(page, "다섯-가지-디자인"))
 
     def test_an_anchored_link_between_korean_documents_keeps_its_anchor(self):
         # README.ko.md links `docs/GUIDE.ko.md#언어`; the first pattern wanted `)` right after
