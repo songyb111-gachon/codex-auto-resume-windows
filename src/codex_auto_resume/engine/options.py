@@ -51,6 +51,12 @@ class StoreView:
     The store is kept in a closure, not on an attribute, and a read is handed over as a function
     of its own rather than the store's bound method: `view._store`, or a read's `__self__`, would
     have been every write the store has.
+
+    That keeps a plug from writing by accident, and it is all this can do. The plug is this
+    product's own advanced package, running in core's process, and Python keeps nothing there
+    from code that means to find it: a closure's cells, a frame's locals, the garbage collector
+    and the store's file on disk all lead to the store. What is taken away is the plain way to
+    a write a hook did not mean to make, not every way.
     """
     __slots__ = ("now", "_read")
 
