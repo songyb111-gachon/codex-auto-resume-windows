@@ -79,7 +79,7 @@ off - and a second pass found 10 more; each is fixed, with a test that failed be
 - **The Design called Still is gone; Reduce motion does what it did.** It drew exactly what Soft
   with Reduce motion draws, so there were two ways to one picture. A stored Still opens as Soft with
   Reduce motion on, the same picture from the window's first frame. Reduce motion is the one way to
-  stop the motion now, in every design.
+  stop the motion now, in every design. And the Design's description says only what each look is.
 - **`-NoStartup` works again.** Since v0.5.2 the bootstrap handed the installer its switches by
   position, so a switch landed on the wrong parameter and the sign-in start was registered anyway.
   The bootstrap passes them by name now, and the installer reads an older bootstrap's switch as
