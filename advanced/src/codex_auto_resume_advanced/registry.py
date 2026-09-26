@@ -47,8 +47,9 @@ CORE_COOLDOWN_SECONDS = 900
 
 # Points a capability's code may answer at. The claim ledger (P11) and the surfaces (P10) are the
 # plug's own: a capability is counted there, and shown there, but never handed core's connection
-# or a surface to write into.
-CAPABILITY_POINTS = frozenset(Point) - {Point.CLAIM_LEDGER, Point.SURFACES}
+# or a surface to write into. So are the moves core tells of (P14), which the tripwires read
+# (arming.py): what turns a capability off is never the capability's to hear first.
+CAPABILITY_POINTS = frozenset(Point) - {Point.CLAIM_LEDGER, Point.SURFACES, Point.MOVED}
 
 ID_SHAPE = re.compile(r"[a-z][a-z0-9_]{2,47}")
 PREFIX_SHAPE = re.compile(r"[a-z]{2,8}")

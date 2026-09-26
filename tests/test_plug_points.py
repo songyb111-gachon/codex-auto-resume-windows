@@ -1,4 +1,4 @@
-"""Where core asks the edition's plug, and what it does with each answer (v0.6.11, P2-P13).
+"""Where core asks the edition's plug, and what it does with each answer (v0.6.11, P2-P14).
 
 tests/test_edition.py holds the interface - NULL, the closed sets, the guard core holds a plug
 in - and tests/test_neutral_plug.py holds that a plug which always defers changes nothing in any
@@ -13,18 +13,23 @@ and simulated backend the engine's scenarios use (tests/codexsim.py):
   send, after the one claim and the pre-send look, inside the launch guard;
 * its ledger is asked inside the claim, can refuse one and never grant one, and what it writes
   there commits with the claim or not at all - and the standard edition's is never asked;
+* every move of a record the engine writes is told to it once written, a Pause's too, and
+  never to NULL - so it learns what became of a record from core, not from the journal;
 * a surface shows what it adds under one key, and nothing when it adds nothing; MCP offers its
   well-declared tools after core's and hands it the calls to them, checked as core's are; the start
   route's refusal and the launcher's exit code are what they were, whatever it answers.
 """
 from __future__ import annotations
 
+import ast
 import contextlib
 import importlib.util
+import inspect
 import io
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import sqlite3
 import sys
@@ -38,16 +43,20 @@ if _HERE not in sys.path:
     sys.path.insert(0, _HERE)        # codexsim and the engine's harness live next to this file
 
 from codexsim import RESET  # noqa: E402
+import srcscan  # noqa: E402
 from test_control import ControlTestCase  # noqa: E402
 from test_engine import T1, T2, TURN_A, EngineCase  # noqa: E402
+from test_ports import ENGINE_TO_STORE  # noqa: E402
 from codex_auto_resume import (config, continuation, control, controlcli, diagnostics,  # noqa: E402
                                edition, mcpserver, settings, windows)
-from codex_auto_resume.domain.plug import (DEFER, EXTRA, Alternative, Plug, Point,  # noqa: E402
-                                           Surface, guard)
+from codex_auto_resume.domain.plug import (DEFER, EXTRA, Alternative, Guarded, Plug,  # noqa: E402
+                                           Point, Surface, guard)
 from codex_auto_resume.engine import Engine  # noqa: E402
 from codex_auto_resume.engine.options import VIEW_READS  # noqa: E402
+from codex_auto_resume.machine import STATES  # noqa: E402
 from codex_auto_resume.mcp.tools import TOOLS as MCP_TOOLS  # noqa: E402
 from codex_auto_resume.runtime.app import App  # noqa: E402
+from codex_auto_resume.store import Store  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 POLL = 60
@@ -108,6 +117,9 @@ class Asked(Plug):
 
     def supervise(self, facts):
         return self._answer("supervise", facts)
+
+    def moved(self, record, state):
+        return self._answer("moved", record, state)
 
     def hooks(self):
         return [hook for hook, _ in self.asked]
@@ -217,7 +229,7 @@ class GateTests(PluggedCase):
         sent = []
         for plug in (None, Asked(**{hook: RuntimeError("broken") for hook in (
                 "records", "gate", "text", "sender", "outcome", "schedule", "tick",
-                "claim_ledger", "partition")})):
+                "claim_ledger", "partition", "moved")})):
             h = self.fresh()
             self.due(h)
             engine = self.plugged(plug, h)
@@ -768,6 +780,263 @@ class TickTests(PluggedCase):
         self.assertNotIn("outcome", plug.hooks())
 
 
+# The store calls the engine makes that move a record (P14): the caller of each tells the plug.
+# `update` moves one only when it is handed a state. `register` is not among them: it makes a
+# record rather than moving one, and the plug's view of the store shows it (P2, P8).
+MOVERS = frozenset({"reserve_detailed", "release_claim", "release_withdrawn", "correlate",
+                    "update"})
+# Where the engine makes those calls today - so a new one is seen, and has to tell the plug too.
+MOVING = frozenset({"AnnounceMixin.transition", "AnnounceMixin._release", "DispatchMixin.dispatch",
+                    "ReconcileMixin.withdraw", "ReconcileMixin.settle", "ReconcileMixin.correlate"})
+
+
+def _moves_a_record(function, call) -> bool:
+    """Whether `call`, a store call in `function`, may write a record's state."""
+    if call.func.attr != "update":
+        return True
+    if any(keyword.arg == "state" for keyword in call.keywords):
+        return True
+    spread = {keyword.value.id for keyword in call.keywords
+              if keyword.arg is None and isinstance(keyword.value, ast.Name)}
+    for node in ast.walk(function):
+        if (isinstance(node, ast.Assign) and isinstance(node.value, ast.Dict)
+                and any(isinstance(target, ast.Name) and target.id in spread for target in node.targets)
+                and any(isinstance(key, ast.Constant) and key.value == "state" for key in node.value.keys)):
+            return True
+        if (isinstance(node, ast.Subscript) and isinstance(node.ctx, ast.Store)
+                and isinstance(node.value, ast.Name) and node.value.id in spread
+                and isinstance(node.slice, ast.Constant) and node.slice.value == "state"):
+            return True
+    return False
+
+
+def _store_calls(statement) -> list:
+    """The `self.store.<name>(...)` calls a statement makes itself - an `if`'s in its test, not
+    in its branches, which are statements of their own."""
+    if isinstance(statement, ast.If):
+        parts = [statement.test]
+    elif isinstance(statement, (ast.Expr, ast.Assign, ast.AugAssign, ast.AnnAssign, ast.Return)):
+        parts = [statement]
+    else:
+        parts = []
+    return [node for part in parts for node in ast.walk(part)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Attribute) and node.func.value.attr == "store"
+            and isinstance(node.func.value.value, ast.Name) and node.func.value.value.id == "self"]
+
+
+def _tells(statement) -> bool:
+    """Whether `statement` is `self.moved(...)`."""
+    return (isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Call)
+            and isinstance(statement.value.func, ast.Attribute)
+            and statement.value.func.attr == "moved"
+            and isinstance(statement.value.func.value, ast.Name)
+            and statement.value.func.value.id == "self")
+
+
+def _told_after(block, index) -> bool:
+    """Whether the move written by `block[index]` is told at once: by the first statement of
+    the `if` it is the test of, or by the statement after it - past only the `if`s that return
+    when the write was refused."""
+    statement = block[index]
+    if isinstance(statement, ast.If) and not (isinstance(statement.test, ast.UnaryOp)
+                                              and isinstance(statement.test.op, ast.Not)):
+        return bool(statement.body) and _tells(statement.body[0])
+    after = index + 1
+    while (after < len(block) and isinstance(block[after], ast.If) and block[after].body
+           and isinstance(block[after].body[-1], ast.Return)):
+        after += 1
+    return after < len(block) and _tells(block[after])
+
+
+class MovedTests(PluggedCase):
+    """P14: every move the engine writes is told to the plug once it is written - the record as
+    core held it, a copy, and the state it moved to - and nothing is told to NULL.
+
+    The journal is the witness here, and only here: a test may read it, a decision may not
+    (tests/test_surface_properties.py). Every move it recorded of the engine's is a move the
+    plug was told of, in the same order."""
+
+    @staticmethod
+    def told(plug, key):
+        return [(arguments[0]["state"], arguments[1]) for hook, arguments in plug.asked
+                if hook == "moved" and arguments[0]["interruption_id"] == key]
+
+    @staticmethod
+    def journalled(h, key):
+        return [(event["from_state"], event["to_state"]) for event in h.store.events(key)
+                if event["actor"] == "engine" and event["from_state"] is not None
+                and event["from_state"] != event["to_state"]]
+
+    def scenario(self, name, h):
+        """Drive `h` through one of the ways a record moves, with its plug already in place."""
+        if name == "sent and followed":
+            h.tick()
+            self.follow(h)
+        elif name == "unknown, then delivered late":
+            self.unknown_but_queued(h)
+            h.home.dispatch(T1)
+            self.follow(h)
+        elif name == "withdrawn by a Pause and released":
+            h.backend.after_accept = "queue"
+            h.tick()
+            h.store.set_enabled(False, h.now)
+            h.tick(advance=1)
+            h.tick(advance=181)
+        elif name == "given back before the send":
+            original = h.store.reserve_detailed
+
+            def claim_then_cancel(*args, **kwargs):
+                result = original(*args, **kwargs)
+                if result[0]:
+                    h.store.cancel_interruption(h.record()["interruption_id"], h.now)
+                return result
+            h.store.reserve_detailed = claim_then_cancel
+            h.tick()
+        elif name == "refused at the launch guard":
+            original = h.engine.presend_problem
+
+            def look_then_pause(claim):
+                found = original(claim)
+                h.store.set_enabled(False, h.now)
+                return found
+            h.engine.presend_problem = look_then_pause
+            h.tick()
+        elif name == "sent into another's turn":
+            h.backend.after_accept = "queue"
+            h.tick()
+            row = h.record()
+            theirs = h.home.add_turn(T1, status="inProgress", user_text="their own message")
+            h.home.remove_queued(row["queue_id"])
+            h.home.add_item(T1, theirs, "userMessage", self.prompt(h))
+            h.tick(advance=1)
+
+    def test_every_move_the_engine_writes_is_told_in_the_order_it_was_written(self):
+        ends = {"sent and followed": "recovered", "unknown, then delivered late": "recovered",
+                "withdrawn by a Pause and released": "waiting_poll",
+                "given back before the send": "cancelled",
+                "refused at the launch guard": "waiting_poll",
+                "sent into another's turn": "handed_over"}
+        for name, end in ends.items():
+            with self.subTest(name):
+                h = self.fresh()
+                plug = Asked()
+                if name != "unknown, then delivered late":
+                    self.due(h)
+                self.plugged(plug, h)
+                self.scenario(name, h)
+                key = h.record()["interruption_id"]
+                self.assertEqual(h.record()["state"], end)
+                told = self.told(plug, key)
+                self.assertGreater(len(told), 1)
+                self.assertEqual(told, self.journalled(h, key))
+
+    def test_a_paid_send_that_went_unknown_is_told_though_the_watch_settled_it_before_p8(self):
+        """The queue's answer was unknown, and Codex had the item all the same. The next watch
+        settles it before P8 is asked, so at P8 the record's state says nothing of the unknown
+        send - and the journal, which no decision reads, is not asked. The move was told as it
+        was written."""
+        seen = []
+        plug = Asked(tick=lambda view: seen.append(
+            {row["interruption_id"]: row["state"] for row in view.records_in(STATES)}))
+        self.plugged(plug)
+        self.unknown_but_queued()
+        key = self.h.record()["interruption_id"]
+        self.h.home.dispatch(T1)
+        self.h.tick(advance=1)
+        self.assertEqual(seen[-1], {key: "turn_completed"}, "P8 no longer sees the unknown send")
+        told = self.told(plug, key)
+        self.assertEqual(told[-3:], [("submitting", "submission_unknown"),
+                                     ("submission_unknown", "turn_started"),
+                                     ("turn_started", "turn_completed")])
+        last_tick = len(plug.asked) - 1 - plug.hooks()[::-1].index("tick")
+        (unknown,) = [index for index, (hook, arguments) in enumerate(plug.asked)
+                      if hook == "moved" and arguments[1] == "submission_unknown"]
+        self.assertLess(unknown, last_tick, "told before the P8 that no longer sees it was asked")
+
+    def test_a_move_made_while_paused_is_told_and_nothing_is_asked(self):
+        """A Pause beats every capability, so nothing is asked; a move is not a question, and a
+        plug that missed the moves a Pause made would not know what core did."""
+        self.due()
+        plug = Asked()
+        self.plugged(plug)
+        self.h.backend.after_accept = "queue"
+        self.h.tick()
+        self.h.store.set_enabled(False, self.h.now)
+        before = len(plug.asked)
+        self.h.tick(advance=1)
+        self.h.tick(advance=181)
+        self.assertEqual({hook for hook, _ in plug.asked[before:]}, {"moved"})
+        key = self.h.record()["interruption_id"]
+        self.assertEqual(self.told(plug, key)[-2:], [("queued", "withdrawn_unconfirmed"),
+                                                     ("withdrawn_unconfirmed", "waiting_poll")])
+
+    def test_the_plug_is_handed_a_copy_and_its_answer_is_not_read(self):
+        def rewriting(record, state):
+            record.update(state="recovered", thread_id=T2)
+            return Alternative.HOLD
+        self.due()
+        self.plugged(Asked(moved=rewriting))
+        self.h.tick()
+        self.follow()
+        self.assertEqual(self.h.record()["state"], "recovered")
+        self.assertEqual([call[0] for call in self.h.backend.send_calls], [T1])
+
+    def test_null_is_never_told(self):
+        """NULL is not asked, as at P6: the standard edition makes no call it did not make and
+        copies no record for nobody."""
+        calls = []
+        real = Guarded.moved
+
+        def moved(guarded, record, state):
+            calls.append(guarded.null)
+            return real(guarded, record, state)
+        for plug in (None, Asked()):
+            h = self.fresh()
+            self.due(h)
+            self.plugged(plug, h)
+            with patch.object(Guarded, "moved", moved):
+                h.tick()
+                self.follow(h)
+            self.assertEqual(h.record()["state"], "recovered")
+        self.assertTrue(calls)
+        self.assertNotIn(True, calls)
+
+    def test_every_store_call_that_moves_a_record_tells_the_plug(self):
+        """Found in the source, not in a run: a move made on a path no scenario takes is told too.
+        The store calls that write a record's state are the ones in MOVERS, read off the store's
+        own statements; each function of the engine that makes one tells the plug."""
+        for name in sorted(ENGINE_TO_STORE):
+            source = inspect.getsource(getattr(Store, name))
+            sets = re.findall(r"UPDATE interruptions SET ((?:(?!WHERE)[^\"'])*)", source)
+            with self.subTest(store=name):
+                if name == "update" or any(re.search(r"\bstate\s*=", assigned) for assigned in sets):
+                    self.assertIn(name, MOVERS, "a store call that moves a record")
+                else:
+                    self.assertNotIn(name, MOVERS)
+        moving = []
+        for path in srcscan.files_of("codex_auto_resume.engine"):
+            tree = ast.parse(srcscan.read(path))
+            names = srcscan.qualnames(tree)
+            for function in ast.walk(tree):
+                if not isinstance(function, ast.FunctionDef):
+                    continue
+                for node in ast.walk(function):
+                    for block in (getattr(node, field, None) for field in ("body", "orelse", "finalbody")):
+                        if not isinstance(block, list):
+                            continue
+                        for index, statement in enumerate(block):
+                            for call in _store_calls(statement):
+                                if call.func.attr in MOVERS and _moves_a_record(function, call):
+                                    where = "%s:%d" % (names[function], call.lineno)
+                                    moving.append(names[function])
+                                    with self.subTest(where):
+                                        self.assertTrue(_told_after(block, index),
+                                                        "moves a record and does not tell the plug")
+        self.assertEqual(set(moving), MOVING)
+        self.assertEqual(len(moving), 8, "every store call that moves a record, counted")
+
+
 def rewrite(value):
     """What a careless or hostile hook does to what it is handed: every record pointed at another
     conversation and another marker, every list emptied, every nested dict cleared."""
@@ -787,7 +1056,7 @@ class HandedCopiesTests(PluggedCase):
     and answers DEFER has changed nothing core does: DEFER cannot relax a gate by a side effect."""
 
     def test_a_hook_that_rewrites_its_record_and_defers_sends_what_null_sends(self):
-        for hook in ("schedule", "gate", "text", "sender", "claim_ledger", "partition"):
+        for hook in ("schedule", "gate", "text", "sender", "claim_ledger", "partition", "moved"):
             with self.subTest(hook):
                 h = self.fresh()
                 self.due(h)

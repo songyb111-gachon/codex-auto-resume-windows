@@ -33,12 +33,12 @@ def transient_delay(attempt: int) -> int:
     return TRANSIENT_BACKOFF[index]
 
 
-# What a plug is shown of the store, at P2 and P8: the reads the engine itself makes, the
-# journal of what became of each record, and none of its writes. The journal is how a plug
-# learns a record passed through a state the watch has already moved it on from by the time P8
-# is asked - submission_unknown, above all, which a late delivery resolves in the same tick.
+# What a plug is shown of the store, at P2 and P8: the reads the engine itself makes, and none
+# of its writes. Not the journal, which no decision reads (tests/test_surface_properties.py): a
+# plug learns what became of a record from the moves core tells it of as it writes them (P14,
+# engine/announce.py), not from a history a pruned entry or a retention bound would change.
 VIEW_READS = frozenset({"get", "records_in", "settings", "thread_enabled", "others_in_flight",
-                        "recent_claims", "recent_claim_count", "claimed_on_thread", "events"})
+                        "recent_claims", "recent_claim_count", "claimed_on_thread"})
 
 
 class StoreView:
@@ -74,7 +74,6 @@ class StoreView:
             "recent_claims": lambda *a, **k: store.recent_claims(*a, **k),
             "recent_claim_count": lambda *a, **k: store.recent_claim_count(*a, **k),
             "claimed_on_thread": lambda *a, **k: store.claimed_on_thread(*a, **k),
-            "events": lambda *a, **k: store.events(*a, **k),
         }
         for name, call in reads.items():
             call.__name__ = call.__qualname__ = name

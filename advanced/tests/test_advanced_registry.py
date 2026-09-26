@@ -88,7 +88,9 @@ class DefinitionTests(unittest.TestCase):
         self.assertEqual(problems("not a definition"), ["not a definition"])
 
     def test_a_capability_never_holds_the_claim_ledger_or_a_surface(self):
-        self.assertEqual(CAPABILITY_POINTS, frozenset(Point) - {Point.CLAIM_LEDGER, Point.SURFACES})
+        """Nor the moves core tells of, which the tripwires read (P14)."""
+        self.assertEqual(CAPABILITY_POINTS,
+                         frozenset(Point) - {Point.CLAIM_LEDGER, Point.SURFACES, Point.MOVED})
 
     def test_two_capabilities_never_share_an_id_or_a_prefix(self):
         with self.assertRaises(RegistryError):

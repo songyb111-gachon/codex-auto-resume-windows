@@ -100,22 +100,14 @@ def standing(definition, row, policy, view) -> tuple:
     return stored, None, None
 
 
-def _was_unknown(core_view, key, since) -> bool:
-    """Whether core holds record `key` as submission_unknown, or moved it there at or after
-    `since`. A view that cannot answer says nothing either way."""
+def _holds_unknown(core_view, key) -> bool:
+    """Whether core holds record `key` as submission_unknown now. A view that cannot answer
+    says nothing either way."""
     try:
         record = core_view.get(key)
     except Exception:
-        record = None
-    if isinstance(record, dict) and record.get("state") == SUBMISSION_UNKNOWN:
-        return True
-    try:
-        history = core_view.events(key)
-    except Exception:
         return False
-    return any(isinstance(event, dict) and event.get("to_state") == SUBMISSION_UNKNOWN
-               and isinstance(event.get("at"), (int, float)) and event["at"] >= since
-               for event in history or ())
+    return isinstance(record, dict) and record.get("state") == SUBMISSION_UNKNOWN
 
 
 def _view_of(paths):
@@ -184,18 +176,9 @@ class Arming:
             raise ValueError("not a tripwire")
         return self._off(capability, reason)
 
-    def sweep(self, core_view) -> None:
-        """Once a tick: every trip and reset `standing` finds, and the one it cannot find alone -
-        a send a capability paid for, since it was last turned on, that core holds or held as
-        submission_unknown.
-
-        Held, not only holds: the tick observes before it asks P8, and core's own late-delivery
-        case - the queue's answer unknown, the item in Codex's queue all the same - moves the
-        record on in that same watch. Its state now would say nothing, so its journal is read
-        (engine/options.py, VIEW_READS)."""
-        self.current()
-        if not len(self.registry):
-            return
+    def _paid(self):
+        """(capability, the records it paid a send of since it was last turned on), for each
+        capability that is on. Nothing, where the state cannot be read."""
         try:
             rows = self.state.arming()
         except StateError:
@@ -204,13 +187,41 @@ class Arming:
             if row["state"] != ArmingState.ARMED or row["since"] is None:
                 continue
             try:
-                spent_on = self.state.spends_since(capability, row["since"])
+                yield capability, self.state.spends_since(capability, row["since"])
             except StateError:
                 return
-            for key in spent_on:
-                if _was_unknown(core_view, key, row["since"]):
-                    self.trip(capability, OffReason.SUBMISSION_UNKNOWN)
-                    break
+
+    def sweep(self, core_view) -> None:
+        """Once a tick: every trip and reset `standing` finds, and a send a capability paid for,
+        since it was last turned on, that core holds as submission_unknown now - one that was
+        so before this plug was told of any move, say, the watcher having started again since.
+
+        A send that became unknown while this plug was loaded has tripped its capability
+        already, as core wrote the move (`moved`): by P8 the watch that runs before it may have
+        settled a late delivery, and the record's state now would say nothing."""
+        self.current()
+        if not len(self.registry):
+            return
+        for capability, spent_on in self._paid():
+            if any(_holds_unknown(core_view, key) for key in spent_on):
+                self.trip(capability, OffReason.SUBMISSION_UNKNOWN)
+
+    def moved(self, record, state) -> bool:
+        """P14: core has just moved `record` to `state`. Into submission_unknown, every capability
+        that paid for its send since it was last turned on is turned off - the tripwire's word
+        for "it may be in Codex, and nothing proves where". Whether any was.
+
+        Told by core as it writes the move, so nothing that settles the record afterwards - in
+        the same watch or the same tick - can hide it, and nothing is read back from core's
+        journal, which no decision reads."""
+        key = record.get("interruption_id") if isinstance(record, dict) else None
+        if state != SUBMISSION_UNKNOWN or not isinstance(key, str) or not len(self.registry):
+            return False
+        tripped = False
+        for capability, spent_on in list(self._paid()):
+            if key in spent_on:
+                tripped = self.trip(capability, OffReason.SUBMISSION_UNKNOWN) or tripped
+        return tripped
 
     # ------------------------------------------------------------------ on
     def arm(self, capability, *, state, revision, generation, acknowledged_version=None,

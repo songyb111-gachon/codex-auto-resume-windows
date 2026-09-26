@@ -210,8 +210,8 @@ class GuardTests(unittest.TestCase):
                 answer = getattr(guarded, plug.HOOKS[point])(*given)
                 if point is Point.SENDER:
                     self.assertIs(answer, given[-1])
-                elif point is Point.TICK:
-                    self.assertIsNone(answer, "a tick's answer is not read")
+                elif point in (Point.TICK, Point.MOVED):
+                    self.assertIsNone(answer, "a tick's answer, and a move's, are not read")
                 else:
                     self.assertIs(answer, DEFER)
         self.assertEqual(guarded.failures, 0)

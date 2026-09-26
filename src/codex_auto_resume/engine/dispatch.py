@@ -243,12 +243,12 @@ class DispatchMixin:
             if not claimed:
                 self._refused(current, gate, reason)
                 return
+            self.moved(current, "submitting")
             claim = self.store.get(key)
             problem = self.presend_problem(claim)
             if problem is not None:
                 target, why, delay = problem
-                self.store.release_claim(key, target, why, self.clock(),
-                                         next_retry_at=self.clock() + delay)
+                self._release(key, claim, target, why, delay)
                 self.log(current["thread_id"], target, why)
                 return
             self.log(current["thread_id"], "queue_submission_started", None)
@@ -285,8 +285,8 @@ class DispatchMixin:
             if response.get("error_code") == "queue_consent_refused":
                 target = "cancelled" if reserved["cancel_requested"] else self.waiting_state(reserved)
                 reason = "user_cancelled" if reserved["cancel_requested"] else "released_before_send"
-                self.store.release_claim(row["interruption_id"], target, reason, self.clock(),
-                                         next_retry_at=self.clock() + self.options["state_poll_seconds"])
+                self._release(row["interruption_id"], reserved, target, reason,
+                              self.options["state_poll_seconds"])
                 self.log(row["thread_id"], target, reason)
                 return
             retry = reserved["retry_count"] + 1

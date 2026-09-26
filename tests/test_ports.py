@@ -78,10 +78,6 @@ ENGINE_TO_STORE = {
     "reserve_detailed", "claimed_on_thread", "others_in_flight", "recent_claims",
     "recent_claim_count", "release_claim", "release_withdrawn", "submission_guard",
     "thread_enabled",
-    # v0.6.11: the journal, read only for the plug's view of the store (engine/options.py
-    # StoreView), so a plug at P8 learns a paid send went through submission_unknown even when
-    # the watch resolved it in the same tick. The engine itself decides nothing by it.
-    "events",
 }
 # What it asks of Codex itself, through the backend: is the app there, what is my usage, send
 # this, take it back, is the thread loaded. Five, and the split must not make it six by accident.
@@ -103,8 +99,12 @@ ENGINE_TO_SOURCE = {
 # adds and for a start route.
 # `null` is not a point: it is how the engine skips the two consent reads P6 needs when there is
 # no plug to ask (engine/announce.py), so the standard edition reads what v0.6.10 read.
-ENGINE_TO_PLUG = {"gate", "null", "outcome", "partition", "records", "schedule", "sender", "text",
-                  "tick"}
+# `moved` is P14: core tells the plug of each move of a record as it writes it, so a plug learns
+# what became of a record from core itself - a paid send that went through submission_unknown
+# included, though the watch settled it before P8 looked - and never by reading the journal
+# back, which no decision may (tests/test_surface_properties.py). Never told to NULL.
+ENGINE_TO_PLUG = {"gate", "moved", "null", "outcome", "partition", "records", "schedule", "sender",
+                  "text", "tick"}
 # `claim_ledger_checked` is how the claim asks: it says whether that one call raised, so a
 # failure on another thread holding the same plug is not read as this claim's (domain/plug.py).
 STORE_TO_LEDGER = {"claim_ledger_checked", "null"}
