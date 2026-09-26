@@ -375,7 +375,7 @@ class Guarded:
     names is held to the launch guard.
     `failures` counts the hooks that raised, over every caller of this plug on every thread; the
     claim asks through `claim_ledger_checked` instead, which says whether that one call raised
-    (store/claims.py).
+    (store/ledger.py).
     """
     __slots__ = ("plug", "failures")
 
