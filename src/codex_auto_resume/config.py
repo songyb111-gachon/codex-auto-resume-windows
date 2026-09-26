@@ -134,11 +134,16 @@ class Paths:
                 pass    # A missing marker only makes uninstall MORE conservative.
 
     def owns(self, directory: Path) -> bool:
-        """Uninstall may only delete inside a directory carrying our provenance marker."""
+        """Uninstall may only delete inside a directory carrying our provenance marker.
+
+        Never one that is a link or a junction (`is_link`): `is_symlink()` is False for a
+        junction, and `confined()` accepts one whose target is in the home - config/ or logs/
+        as a junction to the home root was owned by the root's own marker, and a purge listed
+        the root's files."""
         marker = directory / OWNER_MARKER
         try:
-            return (directory.is_dir() and self.confined(directory)
-                    and marker.is_file() and not marker.is_symlink() and self.confined(marker))
+            return (directory.is_dir() and not is_link(directory) and self.confined(directory)
+                    and marker.is_file() and not is_link(marker) and self.confined(marker))
         except OSError:
             return False
 
@@ -215,7 +220,7 @@ class Paths:
         files = [self.state_dir / name for name in names]
         for pattern in ("settings.*.tmp", "compatibility.*.tmp", "compat-cache.*.tmp", "failure-seen.*.tmp"):
             files += [p for p in sorted(self.state_dir.glob(pattern))
-                      if not p.is_symlink() and self.confined(p)]
+                      if not is_link(p) and self.confined(p)]
         return files + self.owned_advanced_files() + [self.state_dir / OWNER_MARKER]
 
     def owned_advanced_files(self) -> list[Path]:
@@ -247,7 +252,7 @@ class Paths:
         for path in sorted(self.logs_dir.iterdir()):
             name = path.name
             if (re.fullmatch(r"(auto-resume|errors)\.log(\.\d+)?", name)
-                    and not path.is_symlink() and self.confined(path)):
+                    and not is_link(path) and self.confined(path)):
                 result.append(path)
         return result + [self.logs_dir / OWNER_MARKER]
 

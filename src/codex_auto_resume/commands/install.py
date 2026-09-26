@@ -196,7 +196,7 @@ def cmd_uninstall(args) -> int:
     for path in targets:
         try:
             # Never follow a link/junction out of the owned home when deleting.
-            if path.is_file() and not path.is_symlink() and paths.confined(path):
+            if path.is_file() and not config.is_link(path) and paths.confined(path):
                 path.unlink()
                 removed.append(str(path))
         except OSError:
