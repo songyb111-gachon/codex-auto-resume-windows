@@ -311,7 +311,7 @@ class FakeAppServer:
     answered it sends turn/completed - or, with `completes=False`, only when interrupted. It keeps
     everything the client wrote, and each answer by the id it asked with."""
 
-    TURN = "019a0000-0000-7000-8000-00000000beef"
+    TURN = "deadbeef-0000-7000-8000-00000000beef"
 
     def __init__(self, home, requests=(), *, completes=True, delay=0.0):
         self.home, self.requests, self.completes, self.delay = home, list(requests), completes, delay
