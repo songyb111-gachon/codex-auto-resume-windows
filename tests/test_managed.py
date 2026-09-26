@@ -103,6 +103,24 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(policykeys.NAMES, managed.VALUES)
         self.assertEqual(policykeys.KEY, managed.KEY)
         self.assertEqual(managed.KEY, r"Software\Policies\CodexAutoResume")
+        self.assertEqual(policykeys.UNREADABLE, (None, managed.REG_UNREADABLE))
+
+    def test_a_value_that_could_not_be_read_holds_the_most_it_could(self):
+        """Never as if it were not there, which would lift what an administrator set: a switch is
+        set, the ceiling is the lowest a key may give, and quiet hours whose times are unknown send
+        nothing at any hour, as Observe only."""
+        for name, expected in ((managed.DISABLE_AUTO_RESUME, held(disable_auto_resume=True)),
+                               (managed.FORCE_OBSERVE_ONLY, held(force_observe_only=True)),
+                               (managed.DISABLE_UPDATE_CHECK, held(disable_update_check=True)),
+                               (managed.DISABLE_STATUS_FILE, held(disable_status_file=True)),
+                               (managed.MAX_RECOVERY_ATTEMPTS, held(max_recovery_attempts=1)),
+                               (managed.QUIET_HOURS, held(force_observe_only=True))):
+            for places in ([{name: policykeys.UNREADABLE}, {}], [{}, {name: policykeys.UNREADABLE}]):
+                with self.subTest(name=name, places=places):
+                    self.assertEqual(managed.parse(places), expected)
+        # Beside a readable ceiling, the lower of the two still holds.
+        self.assertEqual(managed.parse([{managed.MAX_RECOVERY_ATTEMPTS: (5, DWORD)},
+                                        {managed.MAX_RECOVERY_ATTEMPTS: policykeys.UNREADABLE}]).max_recovery_attempts, 1)
 
 
 # ---------------------------------------------------------------------------------- clamping
@@ -246,6 +264,39 @@ class ReaderTests(unittest.TestCase):
             self.assertEqual(policykeys.read(), [{}, {}])
         with patch.object(policykeys, "_winreg", return_value=None):
             self.assertEqual(policykeys.read(), [])
+
+    def test_a_place_or_a_value_there_but_unreadable_is_never_taken_for_absent(self):
+        """Access denied - on the key, or on one value - holds everything it could have held, where
+        it used to be an empty answer that lifted every restriction on the next check."""
+        class Denied(FakeRegistry):
+            def OpenKey(self, root, path, reserved, access):
+                if root == "HKLM":
+                    self.opened.append((root, path, access))
+                    raise PermissionError(13, "Access is denied")
+                return super().OpenKey(root, path, reserved, access)
+
+        registry = Denied({"HKLM": {managed.KEY: {"ForceObserveOnly": (1, DWORD)}}})
+        with patch.object(policykeys, "_winreg", return_value=registry):
+            places = policykeys.read()
+        self.assertEqual(places, [dict.fromkeys(managed.VALUES, policykeys.UNREADABLE), {}])
+        self.assertEqual(managed.parse(places), held(
+            disable_auto_resume=True, force_observe_only=True, disable_update_check=True,
+            disable_status_file=True, max_recovery_attempts=1))
+
+        class ValueDenied(FakeRegistry):
+            @staticmethod
+            def QueryValueEx(values, name):
+                if name == "ForceObserveOnly":
+                    raise OSError(5, "Access is denied")
+                return FakeRegistry.QueryValueEx(values, name)
+
+        registry = ValueDenied({"HKLM": {managed.KEY: {"ForceObserveOnly": (1, DWORD),
+                                                       "DisableUpdateCheck": (1, DWORD)}}})
+        with patch.object(policykeys, "_winreg", return_value=registry):
+            places = policykeys.read()
+        self.assertEqual(places, [{"ForceObserveOnly": policykeys.UNREADABLE,
+                                   "DisableUpdateCheck": (1, DWORD)}, {}])
+        self.assertEqual(managed.parse(places), held(force_observe_only=True, disable_update_check=True))
 
     def test_a_checkout_never_asks_this_machines_registry(self):
         """What keeps the suite off the registry: the reader is asked by an installed copy only."""

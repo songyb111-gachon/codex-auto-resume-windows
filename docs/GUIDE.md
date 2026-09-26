@@ -871,6 +871,9 @@ has none, and then nothing is different.
 Both places are read, and every restriction either one makes holds: a switch set in either is set, the
 lower ceiling is the ceiling, and quiet hours set in either place hold, beside any quiet hours of your
 own. A value of the wrong type, out of its range or not in its form is ignored, as if it were not there.
+A value that is there and cannot be read - access is denied, say, to it or to the whole key - is never
+taken for one that is not there: it holds the most it could. A switch is set, the ceiling is 1, and quiet
+hours whose times cannot be read send nothing at any hour, as `ForceObserveOnly` does.
 The watcher reads them at every check, the Dashboard and the panel whenever they read the settings.
 
 What a value decides is drawn greyed, with **Set by your administrator** under it, in the Dashboard's

@@ -19,6 +19,12 @@ of its range or not in its form is ignored, as if it were not there; nothing her
 restriction lifted, because there is no value that lifts one. Times are on the hour or the half hour,
 as the settings' own quiet hours are.
 
+A value that is there and could not be read (REG_UNREADABLE: access denied, say) is never taken for
+one that is not there - that would lift what an administrator set. It holds the most it could: a
+switch is set, the ceiling is the lowest a key may give, and quiet hours whose times cannot be read
+could be any hours, so nothing is sent at any of them, as ForceObserveOnly says. A place that is
+there and cannot be opened is six such values.
+
 They are applied after the settings are read and coerced (`clamp`), to the settings every part of
 the product works from - never to the file, so a person's own choices are kept and are what applies
 again once the key is gone. A write that would loosen what a key holds is refused (`admit`), and a
@@ -51,6 +57,9 @@ _SWITCHES = (DISABLE_AUTO_RESUME, FORCE_OBSERVE_ONLY, DISABLE_UPDATE_CHECK, DISA
 
 # The registry's own type numbers (winreg.REG_*), so this module needs no Windows module to read them.
 REG_SZ, REG_EXPAND_SZ, REG_DWORD, REG_QWORD = 1, 2, 4, 11
+# Not a registry type: what the reader hands on for a value that is there and could not be read
+# (win/policykeys.UNREADABLE).
+REG_UNREADABLE = -1
 
 # The settings a status file for other tools will be switched by (stage 2's item 17). None of them is
 # a setting yet, and until one is, DisableStatusFile holds nothing back; the day one is, it is held at
@@ -115,22 +124,31 @@ def quiet_window(text):
     return {"quiet_hours_start": start, "quiet_hours_end": end, "quiet_hours_days": days}
 
 
+def _unreadable(entry) -> bool:
+    return isinstance(entry, tuple) and len(entry) == 2 and entry[1] == REG_UNREADABLE
+
+
 def parse(places) -> Managed:
     """What `places` hold - one mapping for each place read, HKEY_LOCAL_MACHINE's first, each of a
-    value's name to its (data, registry type) - with every restriction of either kept."""
+    value's name to its (data, registry type) - with every restriction of either kept, and the most
+    a value could hold kept for one that could not be read."""
     switches, ceilings, windows = set(), [], []
     for place in places or ():
         if not isinstance(place, dict):
             continue
         for name in _SWITCHES:
             entry = place.get(name)
-            if isinstance(entry, tuple) and len(entry) == 2 and _switch(entry):
+            if _unreadable(entry) or (isinstance(entry, tuple) and len(entry) == 2 and _switch(entry)):
                 switches.add(name)
         entry = place.get(MAX_RECOVERY_ATTEMPTS)
-        if isinstance(entry, tuple) and len(entry) == 2 and _ceiling(entry) is not None:
+        if _unreadable(entry):
+            ceilings.append(settings.RANGES["max_recovery_attempts"]["min"])
+        elif isinstance(entry, tuple) and len(entry) == 2 and _ceiling(entry) is not None:
             ceilings.append(_ceiling(entry))
         entry = place.get(QUIET_HOURS)
-        if isinstance(entry, tuple) and len(entry) == 2 and entry[1] in (REG_SZ, REG_EXPAND_SZ):
+        if _unreadable(entry):
+            switches.add(FORCE_OBSERVE_ONLY)
+        elif isinstance(entry, tuple) and len(entry) == 2 and entry[1] in (REG_SZ, REG_EXPAND_SZ):
             window = quiet_window(entry[0])
             if window is not None and window not in windows:
                 windows.append(window)

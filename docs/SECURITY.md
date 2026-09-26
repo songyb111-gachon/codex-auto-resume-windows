@@ -211,7 +211,8 @@ this product's plugin and marketplace).
   never written - `startup.py` is still the only code that writes the registry - and applied after the
   settings are read, never to the file: they can pause recovery, force Observe only, turn off the update
   check or the status file, lower the attempts' ceiling and add quiet hours, and nothing else. Both
-  places' restrictions hold, a malformed value is ignored, and a write that would loosen one is refused.
+  places' restrictions hold, a malformed value is ignored, one that is there and cannot be read holds the
+  most it could, and a write that would loosen one is refused.
   `DisableAutoResume` is written into the state as a Pause before every check and refused by the engine
   on the key as well. They are what a cooperating installation obeys, not a lock: the program is the
   person's own, in their own folder, and a copy run from a source checkout reads none.
