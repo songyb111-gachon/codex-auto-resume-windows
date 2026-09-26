@@ -21,6 +21,7 @@ from codex_auto_resume import edition  # noqa: E402
 from codex_auto_resume.domain.plug import DEFER, Alternative, Edition, Point  # noqa: E402
 from codex_auto_resume_advanced import policy  # noqa: E402
 from codex_auto_resume_advanced.arming import standing  # noqa: E402
+from codex_auto_resume_advanced.state import StateError  # noqa: E402
 from codex_auto_resume_advanced.vocabulary import (Actor, ArmingState, OffReason,  # noqa: E402
                                                    Refusal)
 
@@ -361,6 +362,32 @@ class TripwireTests(ArmingCase):
         self.armed()
         self.rt.moved(dict(RECORD, state="queued"), "submission_unknown")
         self.assertEqual(self.stored()["state"], ArmingState.ARMED)
+
+    def test_a_trip_that_could_not_be_written_as_core_told_it_is_written_at_the_next_tick(self):
+        """Core tells a move once. Where the trip cannot be written then - the state locked past
+        its timeout, or not to be opened - it is owed, and the next tick writes it though the
+        record has settled and its state says nothing any more. Once written it is not owed."""
+        class CoreView:
+            def get(self, key):
+                return {"interruption_id": key, "state": "turn_started"}
+
+        for failing in ("move", "arming"):
+            with self.subTest(failing):
+                self.setUp()
+                self.armed()
+                self.now += 10
+                with self.rt.state._transaction() as connection:
+                    self.rt.state.record_spend(connection, "main", "test_wake", ac.THREAD, ac.KEY,
+                                               self.now)
+                with patch.object(self.rt.state, failing, side_effect=StateError("locked")):
+                    self.rt.moved(dict(RECORD, state="submitting"), "submission_unknown")
+                self.assertEqual(self.stored()["state"], ArmingState.ARMED, "not written")
+                self.rt.tick(CoreView())
+                self.assert_tripped(OffReason.SUBMISSION_UNKNOWN)
+                self.now += 10
+                self.armed()
+                self.rt.tick(CoreView())
+                self.assertEqual(self.stored()["state"], ArmingState.ARMED, "owed no longer")
 
     def test_a_move_is_read_only_when_it_is_into_submission_unknown(self):
         """Every other move is told too, and costs nothing: no state is read for it."""

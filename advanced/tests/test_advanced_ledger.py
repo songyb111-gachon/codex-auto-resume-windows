@@ -26,7 +26,7 @@ from codex_auto_resume.store.schema import _TABLES_V3  # noqa: E402
 from codex_auto_resume_advanced import arming  # noqa: E402
 from codex_auto_resume_advanced import ledger as ledger_module  # noqa: E402
 from codex_auto_resume_advanced.registry import Ceilings  # noqa: E402
-from codex_auto_resume_advanced.state import ATTACHED  # noqa: E402
+from codex_auto_resume_advanced.state import ATTACHED, StateError  # noqa: E402
 from codex_auto_resume_advanced.vocabulary import Actor, ArmingState, RecordState  # noqa: E402
 from test_engine import T1, TURN_A  # noqa: E402
 from test_plug_points import POLL, PluggedCase  # noqa: E402
@@ -404,11 +404,13 @@ class SubmissionUnknownTests(LedgerCase):
     """A send a capability paid for that became submission_unknown turns it off - the tripwire's
     word for "it may be in Codex, and nothing proves where"."""
 
-    def paid_send_with_an_unknown_result(self):
+    def paid_send_with_an_unknown_result(self, prepare=None):
         self.due()
         plug = self.advanced()
         self.arm(plug).answers["text"] = "Please go on."
         self.plugged(plug)
+        if prepare is not None:
+            prepare(plug)
         h = self.h
         h.backend.after_accept = "queue"
         h.backend.default_outcome = "unknown"
@@ -434,6 +436,30 @@ class SubmissionUnknownTests(LedgerCase):
         submission_unknown as it wrote it (P14), so the send that was unknown is still found -
         and nothing is read back from core's journal."""
         plug = self.paid_send_with_an_unknown_result()
+        self.h.home.dispatch(self.h.record()["thread_id"])      # Codex runs the queued item
+        self.h.tick(advance=1)
+        self.assertNotEqual(self.h.record()["state"], "submission_unknown")
+        self.assert_tripped(plug)
+
+    def test_a_trip_whose_write_failed_is_written_though_core_resolved_the_record(self):
+        """Core tells the plug of the move once. Where the trip cannot be written then - the
+        advanced state locked past its busy timeout, say - it is not lost: the next tick writes
+        it, though the watch has settled the record by then and its state says nothing."""
+        failed = []
+
+        def failing_once(plug):
+            state = plug.runtime.state
+            real = state.move
+
+            def move(capability, target, **kwargs):
+                if kwargs.get("reason") == "submission_unknown" and not failed:
+                    failed.append(capability)
+                    raise StateError("the advanced state is locked")
+                return real(capability, target, **kwargs)
+            state.move = move
+        plug = self.paid_send_with_an_unknown_result(failing_once)
+        self.assertEqual(failed, ["test_wake"])
+        self.assertEqual(plug.runtime.state.arming()["test_wake"]["state"], ArmingState.ARMED)
         self.h.home.dispatch(self.h.record()["thread_id"])      # Codex runs the queued item
         self.h.tick(advance=1)
         self.assertNotEqual(self.h.record()["state"], "submission_unknown")
