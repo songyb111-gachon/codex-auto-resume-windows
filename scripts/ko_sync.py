@@ -334,6 +334,13 @@ def slug(heading: str) -> str:
     return re.sub(r"\s+", "-", text).strip("-")
 
 
+# An anchor written out rather than made from a heading. A document keeps one where a heading was
+# renamed, so a link from a page that is history - a changelog entry - still lands: BRAND.ko.md
+# keeps `<a id="네-가지-디자인">` for the section that was "네 가지 디자인" until Still went, and
+# GitHub takes a link to it. This check knew only headings, and stopped the ko sync on that link.
+EXPLICIT_ANCHOR = re.compile(r'<a\s+(?:id|name)\s*=\s*"([^"]+)"', re.IGNORECASE)
+
+
 def anchor_exists(path: Path, fragment: str) -> bool:
     try:
         body = path.read_text(encoding="utf-8")
@@ -344,7 +351,7 @@ def anchor_exists(path: Path, fragment: str) -> bool:
         found = re.match(r"#{1,6}\s+(.*)$", line)
         if found and slug(found.group(1)) == wanted:
             return True
-    return False
+    return any(name.strip().lower() == wanted for name in EXPLICIT_ANCHOR.findall(body))
 
 
 def dead_links(root: Path, expected_missing=()) -> list[str]:
