@@ -227,6 +227,11 @@ class ArchiveEditionTests(unittest.TestCase):
             "dot": archive(root / "dot.zip", raw=["payload/app/src/./%s/__init__.py" % PACKAGE]),
             "double_slash": archive(root / "double_slash.zip",
                                     raw=["payload/app/src//%s/__init__.py" % PACKAGE]),
+            # Windows drops a segment's trailing dots and spaces, so these land there too.
+            "trailing_dot": archive(root / "trailing_dot.zip",
+                                    raw=["payload/app/src/%s./__init__.py" % PACKAGE]),
+            "trailing_space": archive(root / "trailing_space.zip",
+                                      raw=["payload/app/skills/%s . /SKILL.md" % SKILL]),
             # The package in another case: no package to Python, so no advanced edition either.
             "shouting": archive(root / "shouting.zip",
                                 extra=["payload/app/src/%s/__init__.py" % PACKAGE.upper()]),
@@ -260,7 +265,7 @@ ConvertTo-Json $out -Compress
 
     def test_a_standard_run_refuses_anything_of_the_advanced_edition(self):
         for name in ("advanced", "skill_only", "other_case", "backslashes", "no_init", "dot",
-                     "double_slash", "shouting"):
+                     "double_slash", "trailing_dot", "trailing_space", "shouting"):
             with self.subTest(name):
                 self.assertIn("holds the advanced edition", self.verdict(name, "standard"))
 
