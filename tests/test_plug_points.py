@@ -527,7 +527,8 @@ class LedgerTests(PluggedCase):
                     (attach(main, "again"), ()), (attach(main.upper(), "shouting"), ()),
                     (attach(linked, "linked"), ()), (attach(path, "twice"), ()),
                     ("ATTACH DATABASE ? AS bound", (str(Path(self.root).parent / "other.sqlite"),)),
-                    ("ATTACH DATABASE 'other' || '.sqlite' AS computed", ())):
+                    ("ATTACH DATABASE ? || '.sqlite' AS computed",
+                     (str(Path(self.root).parent / "other"),))):
                 try:
                     connection.execute(statement, parameters)
                     done.append(statement)
