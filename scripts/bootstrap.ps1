@@ -509,21 +509,25 @@ function Test-Archive {
         # And the edition this run asked for. The advanced package in app\src is what makes an
         # installation advanced (Get-Edition below), so an advanced archive has to carry it, and a
         # standard one may carry nothing of that edition: not the package, and not its skill,
-        # which Codex would read from the plugin tree. Names are compared without regard to case
-        # or separator, as the extraction will treat them. An archive named for one edition and
-        # holding the other is refused here, before anything of it is unpacked.
+        # which Codex would read from the plugin tree. Names are compared as the extraction will
+        # write them: either separator, and no '.' or empty segment - the extraction below puts
+        # 'src/./x' and 'src//x' into src\x, which the raw name hid from this check. A standard
+        # archive holds nothing there in any case; an advanced one holds the package in exactly
+        # its case, which is the one Python imports (Get-Edition). An archive named for one
+        # edition and holding the other is refused here, before anything of it is unpacked.
         $package = 'payload/app/src/codex_auto_resume_advanced/'
         $skill = 'payload/app/skills/codex-auto-resume-advanced/'
+        $written = @($names | ForEach-Object { @($_ -split '[\\/]' | Where-Object { $_ -ne '' -and $_ -ne '.' }) -join '/' })
         if ($Edition -eq 'advanced') {
-            if ($names -notcontains ($package + '__init__.py')) {
+            if ($written -cnotcontains ($package + '__init__.py')) {
                 throw ('The archive is not the advanced edition: it has no ' + $package + '__init__.py.')
             }
         } else {
-            foreach ($name in $names) {
-                $path = $name.Replace('\', '/')
+            for ($index = 0; $index -lt $written.Count; $index++) {
+                $path = $written[$index] + '/'
                 if ($path.StartsWith($package, [StringComparison]::OrdinalIgnoreCase) -or
                     $path.StartsWith($skill, [StringComparison]::OrdinalIgnoreCase)) {
-                    throw ('The archive holds the advanced edition (' + $name + '), and the standard edition was asked for.')
+                    throw ('The archive holds the advanced edition (' + $names[$index] + '), and the standard edition was asked for.')
                 }
             }
         }
@@ -536,8 +540,15 @@ function Test-Archive {
 # the three agree about an installation - even one whose advanced package would not load.
 function Get-Edition {
     param([string]$Src)
-    $package = Join-Path (Join-Path $Src 'codex_auto_resume_advanced') '__init__.py'
-    if (Test-Path -LiteralPath $package -PathType Leaf) { return 'advanced' }
+    # The package's directory in exactly this case. Python's import finds a package by its
+    # directory's own name, case and all, so a tree that spells it otherwise is the standard
+    # edition to the product; Test-Path, which ignores case, called it advanced. Its __init__.py
+    # may be in any case, as it may for Python, which asks the file system for that file.
+    $package = @(Get-ChildItem -LiteralPath $Src -Directory -Force -ErrorAction SilentlyContinue |
+                 Where-Object { $_.Name -ceq 'codex_auto_resume_advanced' })
+    if ($package.Count -and (Test-Path -LiteralPath (Join-Path $package[0].FullName '__init__.py') -PathType Leaf)) {
+        return 'advanced'
+    }
     return 'standard'
 }
 

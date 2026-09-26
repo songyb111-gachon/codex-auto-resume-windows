@@ -192,8 +192,15 @@ function Get-Edition {
         even about an installation whose advanced package would not load.
     #>
     param([string]$Src)
-    $package = Join-Path (Join-Path $Src 'codex_auto_resume_advanced') '__init__.py'
-    if (Test-Path -LiteralPath $package -PathType Leaf) { return 'advanced' }
+    # The package's directory in exactly this case. Python's import finds a package by its
+    # directory's own name, case and all, so a tree that spells it otherwise is the standard
+    # edition to the product; Test-Path, which ignores case, called it advanced. Its __init__.py
+    # may be in any case, as it may for Python, which asks the file system for that file.
+    $package = @(Get-ChildItem -LiteralPath $Src -Directory -Force -ErrorAction SilentlyContinue |
+                 Where-Object { $_.Name -ceq 'codex_auto_resume_advanced' })
+    if ($package.Count -and (Test-Path -LiteralPath (Join-Path $package[0].FullName '__init__.py') -PathType Leaf)) {
+        return 'advanced'
+    }
     return 'standard'
 }
 

@@ -25,6 +25,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import re
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -619,6 +621,27 @@ class EditionReleaseTests(unittest.TestCase):
             with self.subTest(name):
                 self.assertIsNone(refused.search(name))
         self.assertIn("grep -qx '%s__init__.py' <<<\"$advanced\"" % self.package, check)
+
+    def test_the_publish_job_reads_each_name_as_the_extraction_writes_it(self):
+        """ExtractToDirectory writes 'src/./x' and 'src//x' into src/x, so the grep has to read
+        them there too - as the bootstrap's Test-Archive does."""
+        check = self.step(self.publish, "Check each archive is its own edition")
+        written = re.search(r"written='([^']+)'", check)
+        self.assertIsNotNone(written, "the listing is not normalised")
+        for zip_ in ("$STANDARD_ZIP", "$ADVANCED_ZIP"):
+            self.assertIn('unzip -Z1 "%s" | tr \'\\\\\' \'/\' | sed -E "$written"' % zip_, check)
+        sed = shutil.which("sed")
+        if sed is None:
+            self.skipTest("no sed here to run the job's program with")
+        package = self.package.rstrip("/").rsplit("/", 1)[-1]
+        names = ["payload/app/src/./%s/__init__.py" % package, "payload/app/src//%s/__init__.py" % package,
+                 "./payload/app/src/././%s/plug.py" % package, "payload/runtime/python.exe"]
+        done = subprocess.run([sed, "-E", written.group(1)], input="\n".join(names) + "\n",
+                              capture_output=True, text=True, encoding="utf-8", timeout=60)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(done.stdout.splitlines(),
+                         [self.package + "__init__.py"] * 2
+                         + [self.package + "plug.py", "payload/runtime/python.exe"])
 
     def test_both_editions_are_built_audited_and_checked_before_anything_is_kept(self):
         order = [self.build.index(marker) for marker in (
