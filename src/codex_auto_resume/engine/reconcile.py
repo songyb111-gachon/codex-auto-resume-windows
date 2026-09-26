@@ -194,6 +194,7 @@ class ReconcileMixin:
                               state="withdrawn_unconfirmed", withdraw_reason=reason,
                               withdrawn_at=now, withdraw_deleted=True, queue_id=queue_ids[0],
                               last_error=reason, next_retry_at=now + 1)
+            self.moved(row, "withdrawn_unconfirmed")
             self.log(thread, "withdrawn_unconfirmed", reason)
             return
         remaining = self.source.queued_rows(thread, marker)
@@ -213,6 +214,7 @@ class ReconcileMixin:
         self.store.update(row["interruption_id"], at=now, event="withdraw",
                           state="withdrawn_unconfirmed", withdraw_reason=reason, withdrawn_at=now,
                           withdraw_deleted=False, last_error=reason, next_retry_at=now + 1)
+        self.moved(row, "withdrawn_unconfirmed")
         self.log(thread, "withdrawn_unconfirmed", reason)
 
     def settle(self, row):
@@ -243,10 +245,12 @@ class ReconcileMixin:
             return
         if reason == "paused":
             later = bool(self.source.later_turns(thread, row["ordinal"], marker))
+            target = self.waiting_state(row)
             if self.store.release_withdrawn(
                     row["interruption_id"], now, window=self.options["delivery_timeout_seconds"],
                     later_turn=later, marker_rows=0, row_present=False, fresh=fresh,
-                    target=self.waiting_state(row), next_retry_at=now):
+                    target=target, next_retry_at=now):
+                self.moved(row, target)
                 self.log(thread, "released_after_withdrawal", "paused")
                 return
             self.transition(row, "submission_unknown", "withdraw_unconfirmed",
@@ -282,6 +286,7 @@ class ReconcileMixin:
             if self.store.correlate(row["interruption_id"], found["turn_id"], now, client_id=client,
                                     status=found["status"], state="handed_over",
                                     reason="marker_not_turn_initiator", user_joined=True):
+                self.moved(row, "handed_over")
                 self.log(row["thread_id"], "handed_over", "marker_not_turn_initiator")
             else:
                 self.transition(row, "submission_unknown", "ambiguous_receipt", delay=900)
@@ -303,5 +308,6 @@ class ReconcileMixin:
                                     extra_event=extra):
             self.transition(row, "submission_unknown", "ambiguous_receipt", delay=900)
             return
+        self.moved(row, "turn_started")
         self.log(row["thread_id"], "turn_started", extra)
         self.announce("result", row, state="turn_started", reason=None)

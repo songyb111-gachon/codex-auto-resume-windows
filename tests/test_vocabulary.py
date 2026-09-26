@@ -145,7 +145,8 @@ LISTS = {
     # v0.6.11: the two editions, and the plug that is the whole difference between them.
     "edition.EDITIONS": ("tuple", 2, "49cc206af3867704"),
     "edition.PLUG_FAILURES": ("tuple", 4, "4414d548d1f8f251"),
-    "domain.plug.POINTS": ("tuple", 12, "da5e7ad28dca308c"),
+    # P14 joined the twelve: core tells the plug of each move of a record as it writes it.
+    "domain.plug.POINTS": ("tuple", 13, "2d6643b1732de1ca"),
     "domain.plug.ANSWERS": ("set", 1, "b4686ae67262ac33"),
     "domain.plug.SURFACES": ("tuple", 5, "d41ac5a6d67be21b"),
     "domain.plug.EXTRA": "advanced",

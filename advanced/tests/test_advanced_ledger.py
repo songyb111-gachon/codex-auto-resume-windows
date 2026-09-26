@@ -23,6 +23,7 @@ from codex_auto_resume import config  # noqa: E402
 from codex_auto_resume.domain.plug import DEFER, Alternative, Point, guard  # noqa: E402
 from codex_auto_resume.store import Store  # noqa: E402
 from codex_auto_resume.store.schema import _TABLES_V3  # noqa: E402
+from codex_auto_resume_advanced import arming  # noqa: E402
 from codex_auto_resume_advanced import ledger as ledger_module  # noqa: E402
 from codex_auto_resume_advanced.registry import Ceilings  # noqa: E402
 from codex_auto_resume_advanced.state import ATTACHED  # noqa: E402
@@ -418,21 +419,40 @@ class SubmissionUnknownTests(LedgerCase):
         self.assertEqual(len(self.spends(plug)), 1, "the capability paid for this send")
         return plug
 
+    def assert_tripped(self, plug):
+        row = plug.runtime.state.arming()["test_wake"]
+        self.assertEqual((row["state"], row["reason"]), (ArmingState.OFF, "submission_unknown"))
+
     def test_it_trips_while_core_still_holds_the_record_unknown(self):
         plug = self.paid_send_with_an_unknown_result()
         self.h.tick(advance=1)
-        self.assertEqual(plug.runtime.state.arming()["test_wake"]["state"], ArmingState.OFF)
+        self.assert_tripped(plug)
 
     def test_it_trips_though_core_resolves_the_record_before_the_sweep_looks(self):
         """The watch pass runs before P8 in the same tick, and core's own late-delivery case
-        moves the record on before the sweep sees it: read from the record's history, not its
-        state now, the send that was unknown is still found."""
+        moves the record on before the sweep sees it. Core told the plug of the move into
+        submission_unknown as it wrote it (P14), so the send that was unknown is still found -
+        and nothing is read back from core's journal."""
         plug = self.paid_send_with_an_unknown_result()
         self.h.home.dispatch(self.h.record()["thread_id"])      # Codex runs the queued item
         self.h.tick(advance=1)
         self.assertNotEqual(self.h.record()["state"], "submission_unknown")
-        self.assertEqual(plug.runtime.state.arming()["test_wake"]["state"], ArmingState.OFF)
-        self.assertEqual(plug.runtime.state.arming()["test_wake"]["reason"], "submission_unknown")
+        self.assert_tripped(plug)
+
+    def test_it_trips_on_the_move_though_unknown_and_resolved_with_no_sweep_between(self):
+        """Unknown and resolved inside one stretch the sweep never looks at: the watch that runs
+        every second while something may be queued finds the item, and settles it once Codex
+        runs it, all before the next tick's P8. With the sweep doing nothing at all, the
+        capability is off all the same - by the move core told the plug of as it wrote it."""
+        with patch.object(arming.Arming, "sweep", lambda self, view: None):
+            plug = self.paid_send_with_an_unknown_result()
+            self.assert_tripped(plug)
+            self.h.watch(advance=1)                             # the item is found in the queue
+            self.h.home.dispatch(self.h.record()["thread_id"])  # Codex runs it
+            self.h.watch(advance=1)
+            self.assertEqual(self.h.record()["state"], "turn_started")
+            self.h.tick(advance=1)
+        self.assert_tripped(plug)
 
 
 if __name__ == "__main__":

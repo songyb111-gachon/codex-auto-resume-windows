@@ -340,6 +340,35 @@ class TripwireTests(ArmingCase):
         self.rt.tick(CoreView("submission_unknown"))
         self.assertEqual(self.stored()["state"], ArmingState.ARMED)
 
+    def test_core_moving_a_send_it_paid_for_into_submission_unknown_turns_it_off(self):
+        """P14: told as core writes the move, whatever the record's state is by the next tick."""
+        self.armed()
+        self.now += 10
+        with self.rt.state._transaction() as connection:
+            self.rt.state.record_spend(connection, "main", "test_wake", ac.THREAD, ac.KEY, self.now)
+        unpaid = dict(RECORD, interruption_id="b" * 64, state="submitting")
+        for record, state in ((dict(RECORD, state="submitting"), "queued"),
+                              (unpaid, "submission_unknown")):
+            with self.subTest(record=record["interruption_id"][:4], state=state):
+                self.assertIs(self.rt.moved(record, state), DEFER)
+                self.assertEqual(self.stored()["state"], ArmingState.ARMED,
+                                 "not a move into submission_unknown, or not a send it paid for")
+        self.assertIs(self.rt.moved(dict(RECORD, state="submitting"), "submission_unknown"), DEFER)
+        self.assert_tripped(OffReason.SUBMISSION_UNKNOWN)
+        self.assertEqual(self.rt.states()["test_wake"], ArmingState.OFF, "off from here, not next tick")
+        # Turned on again afterwards, an older send moving again does not turn it off a second time.
+        self.now += 10
+        self.armed()
+        self.rt.moved(dict(RECORD, state="queued"), "submission_unknown")
+        self.assertEqual(self.stored()["state"], ArmingState.ARMED)
+
+    def test_a_move_is_read_only_when_it_is_into_submission_unknown(self):
+        """Every other move is told too, and costs nothing: no state is read for it."""
+        self.armed()
+        with patch.object(self.rt.state, "arming", side_effect=AssertionError("read")):
+            for state in ("submitting", "queued", "turn_started", "recovered", "cancelled"):
+                self.assertIs(self.rt.moved(RECORD, state), DEFER)
+
     def test_a_new_codex_version_turns_on_off_and_leaves_watching_alone(self):
         self.armed()
         self.compat = ac.view(version="0.156.0")

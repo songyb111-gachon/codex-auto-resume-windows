@@ -67,11 +67,17 @@ class PlugFailure(StrEnum):
 
 
 class Point(StrEnum):
-    """Where core asks the plug (POINTS), numbered P2-P13 as the v0.6.11 plan numbers them.
+    """Where core asks the plug (POINTS), numbered P2-P13 as the v0.6.11 plan numbers them, and
+    P14, which the plan did not have.
 
     There is no P1. Classifying a turn into a core category would write a category that does
     not describe it, so an advanced record stays in the advanced store and reaches core through
-    RECORDS instead."""
+    RECORDS instead.
+
+    P14 is not a question: core tells the plug a record it holds has moved, as it writes the
+    move. A plug that read the moves back instead - out of the journal - would decide by a second
+    source of truth, which a pruned entry or a retention bound changes; and the record's state
+    alone, read at P8, has already moved on when the watch that runs before P8 settled it."""
     RECORDS = "records"                      # P2  records of the advanced store, due now
     GATES = "gates"                          # P3  the gates a record passes before it is sent
     TEXT = "text"                            # P4  what the continuation says
@@ -84,6 +90,7 @@ class Point(StrEnum):
     CLAIM_LEDGER = "claim_ledger"            # P11 the caps counted inside the one claim
     CONCURRENCY = "concurrency"              # P12 how due records are divided for dispatch
     SUPERVISION = "supervision"              # P13 how the launcher keeps the watcher running
+    MOVED = "moved"                          # P14 a record core holds moved to another state
 
 
 class Alternative(StrEnum):
@@ -207,6 +214,13 @@ class Plug:
         """What the launcher does about a watcher that is not running."""
         return DEFER
 
+    def moved(self, record, state):                   # P14
+        """A record core holds has just moved to `state`: told once the move is written, with
+        the record as core held it before - so its `state` is the one it left. Every move the
+        engine makes is told, a Pause's included, because this decides nothing: it is how a
+        plug learns what core did, as it happened. Its answer is not read."""
+        return DEFER
+
     def edition_changed(self, previous):
         """The installer has just replaced an installation of edition `previous` with this one.
 
@@ -220,7 +234,7 @@ HOOKS = {
     Point.OUTCOME: "outcome", Point.SCHEDULE: "schedule", Point.TICK: "tick",
     Point.START_ROUTE: "start_route", Point.SURFACES: "surface",
     Point.CLAIM_LEDGER: "claim_ledger", Point.CONCURRENCY: "partition",
-    Point.SUPERVISION: "supervise",
+    Point.SUPERVISION: "supervise", Point.MOVED: "moved",
 }
 
 # A hook may always restrict. HOLD keeps a record waiting, exactly as a gate that says WAIT
@@ -468,6 +482,10 @@ class Guarded:
 
     def supervise(self, facts):
         return self._ask(Point.SUPERVISION, facts)
+
+    def moved(self, record, state):
+        """P14. The record goes as a copy (`consult`), and the answer is not read."""
+        self._ask(Point.MOVED, record, state)
 
 
 def guard(plug) -> Guarded:

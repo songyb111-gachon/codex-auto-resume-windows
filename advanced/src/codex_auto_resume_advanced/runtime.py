@@ -197,6 +197,15 @@ class Runtime:
         self.states(fresh=True)
         return self.ask(Point.TICK, view)
 
+    def moved(self, record, state):
+        """P14: core has moved `record` to `state`. Its one use is a tripwire's (arming.py): a
+        capability that tripped is off from here on, not from the next tick."""
+        if not len(self.registry):
+            return DEFER
+        if self.arming.moved(record, state):
+            self.states(fresh=True)
+        return DEFER
+
     def claim(self, connection, record, now, carried):
         """P11: the ledger, told which capabilities' answers this claim carries.
 

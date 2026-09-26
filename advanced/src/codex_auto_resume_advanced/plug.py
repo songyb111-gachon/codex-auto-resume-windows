@@ -80,6 +80,9 @@ class AdvancedPlug(Plug):
     def supervise(self, facts):
         return self.runtime.ask(Point.SUPERVISION, facts)
 
+    def moved(self, record, state):
+        return self.runtime.moved(record, state)
+
     def edition_changed(self, previous):
         """Entering from the standard edition turns every capability off, whatever an earlier
         advanced installation of this home left on - arming never carries across an edition
