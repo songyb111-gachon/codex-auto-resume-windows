@@ -233,8 +233,8 @@ exits. That is not a fault; the setup notes below say what to do.
 
 `retry_now` brings a waiting recovery's next attempt forward. It is not a send: the watcher still
 revalidates the interruption, still needs the conversation open, still waits for usage, and still
-refuses anything uncertain. Do not describe it as making a resume happen. It also brings forward a
-postponement that is still ahead.
+refuses anything uncertain. Do not describe it as making a resume happen. It never shortens a
+postponement or an objection window that is still ahead; its reply gives that later time.
 
 `postpone_recovery` makes one waiting recovery wait longer - 30 minutes, an hour, three hours,
 tomorrow at 09:00, or a number of minutes up to a week - and only ever later. It sends nothing.

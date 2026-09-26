@@ -293,8 +293,8 @@ TOOLS = [
                        "(09:00 local time), or a number of minutes up to a week; give exactly one. "
                        "Identify it by its interruption id and its thread id, both from the same row "
                        "of list_pending - never by title, project or recency. It only ever makes a "
-                       "recovery later, sends nothing and skips no check; retry_now brings it "
-                       "forward again.",
+                       "recovery later, sends nothing and skips no check; retry_now does not bring "
+                       "it forward.",
         "inputSchema": {"type": "object",
                         "properties": {"interruption_id": _identifier_schema("Interruption id"),
                                        "thread_id": _thread_schema(),

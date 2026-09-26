@@ -141,7 +141,9 @@ class ActionsMixin:
         A schedule change and nothing else: it never touches a stored usage reset or
         any gate, and it never sends. On refusal `detail` names why; on acceptance it is
         the earliest time the watcher can actually act, which is later than now when a
-        usage reset is still ahead.
+        usage reset is still ahead - or, from v0.6.11, a postponement or an objection
+        window, which it never shortens: each only ever holds a record back, and ending
+        one early would be a check skipped (A25) by a request not marked as one (H8).
         """
         _timestamp(now, "now")
         with self._transaction() as connection:
@@ -154,16 +156,12 @@ class ActionsMixin:
             if state not in WAITING:
                 return False, ("finished" if state in TERMINAL else "observing" if state in OBSERVING
                                else "in_flight" if state in IN_FLIGHT else "claimed")
-            # A postponement still ahead is brought forward with the check (schema 4): the person
-            # asks for now, and now is what they chose. A hold is not a time and stays; so does
-            # a postponement already behind, which keeps saying the record had its wait.
             connection.execute(
-                "UPDATE interruptions SET next_retry_at=?, retry_now_count=retry_now_count+1, "
-                "not_before=CASE WHEN not_before > ? THEN ? ELSE not_before END "
-                "WHERE interruption_id=?", (now, now, now, interruption_id))
+                "UPDATE interruptions SET next_retry_at=?, retry_now_count=retry_now_count+1 "
+                "WHERE interruption_id=?", (now, interruption_id))
             self._event(connection, now, "retry_now", record=row, from_state=state, to_state=state,
                         reason="retry_now", actor=actor)
-            return True, max(now, row["reset_at"] or 0)
+            return True, max(now, row["reset_at"] or 0, row["not_before"] or 0)
 
     @staticmethod
     def _not_waiting(row) -> str:
@@ -216,17 +214,21 @@ class ActionsMixin:
     def open_objection_window(self, interruption_id: str, until: float, now: float) -> bool:
         """The engine's: an objection-window tier's minutes before a record's first send.
 
-        Written only where no postponement has been - a record a person postponed already has
-        the time they chose - and only while the record waits unsent. False when it was not."""
+        Opened once (`objection_at`), and only while the record waits unsent - also after a
+        postponement a person made before it, which only ever held the record back and never took
+        the window's place. It is written as a postponement to `until`, or kept at a later one a
+        person chose in the meantime, so every check that asks about a postponement asks about it
+        too. False when it was not opened."""
         _timestamp(now, "now")
         _timestamp(until, "until")
         with self._transaction() as connection:
             row = self._row(connection, interruption_id)
-            if (row is None or row["state"] not in WAITING or row["not_before"] is not None
+            if (row is None or row["state"] not in WAITING or row["objection_at"] is not None
                     or row["submitted_at"] is not None or until <= now):
                 return False
-            connection.execute("UPDATE interruptions SET not_before=? WHERE interruption_id=?",
-                               (until, interruption_id))
+            until = max(until, row["not_before"] or 0)
+            connection.execute("UPDATE interruptions SET not_before=?, objection_at=? "
+                               "WHERE interruption_id=?", (until, now, interruption_id))
             self._event(connection, now, "postponed", record=row, from_state=row["state"],
                         to_state=row["state"], value=until)
             return True

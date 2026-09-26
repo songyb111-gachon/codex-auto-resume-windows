@@ -146,9 +146,13 @@ class ActionsMixin:
         except Exception:
             woke = False
         now = time.time()
-        if detail > now + 1:
+        if detail > now + 1 and (record["reset_at"] or 0) >= detail:
             note = ("the usage reset is at a later time; the watcher checks then, and every "
                     "safety check still applies")
+        elif detail > now + 1:
+            # v0.6.11: a postponement, or an objection window, which Retry now never shortens.
+            note = ("it is postponed to a later time, which this does not shorten; the watcher "
+                    "checks then, and every safety check still applies")
         elif woke:
             note = "checking now; every safety check still applies"
         else:

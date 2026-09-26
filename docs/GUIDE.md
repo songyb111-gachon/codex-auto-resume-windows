@@ -771,7 +771,7 @@ first, for interruptions detected from then on; a task's row menu chooses for it
 | Choice | What happens |
 | --- | --- |
 | Resume automatically | As always: every check, then the continuation. The default. |
-| After a chance to object | When everything else would let the continuation go, a notification says when it will, and it goes only once **Time to object** - 1 to 60 minutes, 5 by default - has passed. Don't resume stops it. A task you postponed goes at the time you chose, with no second wait. |
+| After a chance to object | When everything else would let the continuation go, a notification says when it will, and it goes only once **Time to object** - 1 to 60 minutes, 5 by default - has passed. Don't resume stops it. Postponing a task before its window opens only holds it back - the window still opens after - and one postponed while its window is open goes at the time you chose. |
 | Ask me first | Nothing is sent until you choose **Let it continue** on its row, in the Dashboard or the popup. |
 | Only notify me | The same, and the notification says nothing is resumed automatically. |
 

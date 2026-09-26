@@ -103,11 +103,14 @@ class AnnounceMixin:
 
         Asked once every gate has passed - when it would otherwise be sent now - so the minutes
         are the last before a send, not minutes spent waiting for a reset or for the conversation
-        to be opened. Opened once per record: one a person postponed has the time they chose
-        (`not_before`), and one whose window has passed goes when every gate passes again. The
-        card it raises offers what an interruption's card offers: Don't resume, and the Dashboard.
-        No tier asks this at the defaults, where every conversation is resumed automatically."""
-        if row.get("not_before") is not None or self.tier(row["thread_id"]) != "objection_window":
+        to be opened. Opened once per record (`objection_at`): one whose window has passed goes
+        when every gate passes again, and one a person postponed before it opened has it once the
+        postponement is over - a postponement only ever holds a record back, and never makes one
+        go sooner than it would have. One made while it is open is later than its end, and goes at
+        the time chosen. The card it raises offers what an interruption's card offers: Don't
+        resume, and the Dashboard. No tier asks this at the defaults, where every conversation is
+        resumed automatically."""
+        if row.get("objection_at") is not None or self.tier(row["thread_id"]) != "objection_window":
             return False
         until = now + 60 * self.policy_values["objection_minutes"]
         if self.store.open_objection_window(row["interruption_id"], until, now):

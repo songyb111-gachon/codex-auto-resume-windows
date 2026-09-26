@@ -464,6 +464,13 @@
             "notnull": false,
             "default": null,
             "primary_key": 0
+          },
+          {
+            "name": "objection_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
           }
         ],
         "indexes": {
@@ -1132,6 +1139,13 @@
           {
             "name": "context_tokens",
             "type": "INTEGER",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "objection_at",
+            "type": "REAL",
             "notnull": false,
             "default": null,
             "primary_key": 0
@@ -1806,6 +1820,13 @@
             "notnull": false,
             "default": null,
             "primary_key": 0
+          },
+          {
+            "name": "objection_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
           }
         ],
         "indexes": {
@@ -2474,6 +2495,13 @@
           {
             "name": "context_tokens",
             "type": "INTEGER",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "objection_at",
+            "type": "REAL",
             "notnull": false,
             "default": null,
             "primary_key": 0

@@ -77,7 +77,8 @@ def _validated_record(row: dict[str, Any]) -> dict[str, Any]:
         _timestamp(row[field], field)
     for field in ("started_at", "reset_at", "resumed_at", "submitted_at", "withdrawn_at",
                   "turn_started_at", "outcome_at", "first_queued_at", "last_claim_at",
-                  "usage_probe_at", "gate_eval_at", "history_hidden_at", "not_before"):
+                  "usage_probe_at", "gate_eval_at", "history_hidden_at", "not_before",
+                  "objection_at"):
         _timestamp(row[field], field, nullable=True)
     for field in ("ordinal", "retry_count", "attempt_count", "recovery_attempts",
                   "no_progress_count", "withdraw_failures", "chain_continuations",

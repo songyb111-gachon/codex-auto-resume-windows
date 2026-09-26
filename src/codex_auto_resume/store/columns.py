@@ -69,6 +69,10 @@ _SCHEMA_4_COLUMNS = (
     # and its conversation's token count. Empty unless a guard was on when it was detected.
     ("interruptions", "task_print", "TEXT"),
     ("interruptions", "context_tokens", "INTEGER"),
+    # When a record's objection window opened (engine/announce.py), which happens once, before its
+    # first send: a postponement made before then only holds it back, and the window still opens
+    # after it. Empty unless its conversation's tier is the objection window.
+    ("interruptions", "objection_at", "REAL"),
 )
 
 _RECORD_COLUMNS = _V3_COLUMNS + tuple(name for table, name, _ in _SCHEMA_4_COLUMNS

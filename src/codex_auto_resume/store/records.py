@@ -70,7 +70,7 @@ class RecordsMixin:
             "budget_resets": 0, "retry_now_count": 0, "usage_unavailable_seconds": 0.0,
             "usage_probe_at": None, "gate_eval": None, "gate_eval_at": None,
             "history_hidden_at": None, "not_before": None, "hold": hold,
-            "task_print": task_print, "context_tokens": context_tokens,
+            "task_print": task_print, "context_tokens": context_tokens, "objection_at": None,
         }
         _validated_record(dict(row))
         with self._transaction() as connection:

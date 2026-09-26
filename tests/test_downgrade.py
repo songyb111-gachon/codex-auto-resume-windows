@@ -221,7 +221,7 @@ class DowngradeToV3Tests(unittest.TestCase):
         # Every column schema 4 added is gone, the guards' two with the rest, and the file is schema 3's.
         with closing(sqlite3.connect(self.state / "state.sqlite")) as db:
             columns = {row[1] for row in db.execute("PRAGMA table_info(interruptions)")}
-        self.assertFalse(columns & {"not_before", "hold", "task_print", "context_tokens"})
+        self.assertFalse(columns & {"not_before", "hold", "task_print", "context_tokens", "objection_at"})
 
     def test_observe_only_becomes_a_pause(self):
         self.v4_state(observe_only=True)

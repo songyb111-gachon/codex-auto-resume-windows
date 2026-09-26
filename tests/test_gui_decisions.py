@@ -57,6 +57,10 @@ RECORDS = {
     "exhausted_spent":   ({"code": "exhausted", "budget_resets_left": 0}, False, False),
     # v0.6.11: held for a person. Retry now would only find it held again.
     "held":              ({"code": "scheduled", "overlays": ["held"], "hold": "ask"}, False, False),
+    # v0.6.11: a postponement, or an objection window, still ahead - which Retry now never shortens -
+    # and one that has passed, which holds nothing back any more.
+    "postponed":         ({"code": "scheduled", "not_before": NOW + 600}, False, False),
+    "postponement_over": ({"code": "scheduled", "not_before": NOW - 60}, True, False),
     # A code nothing knows. Fail closed: offer nothing.
     "unknown_code":      ({"code": "something_new"}, False, False),
     "empty":             ({}, False, False),

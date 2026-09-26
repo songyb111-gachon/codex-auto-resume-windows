@@ -629,7 +629,7 @@
         {
           "name": "postpone_recovery",
           "title": "Postpone one waiting recovery",
-          "description": "Make one exact waiting recovery wait longer: nothing is sent for it before the time asked for - preset 30_minutes, 1_hour, 3_hours or tomorrow_morning (09:00 local time), or a number of minutes up to a week; give exactly one. Identify it by its interruption id and its thread id, both from the same row of list_pending - never by title, project or recency. It only ever makes a recovery later, sends nothing and skips no check; retry_now brings it forward again.",
+          "description": "Make one exact waiting recovery wait longer: nothing is sent for it before the time asked for - preset 30_minutes, 1_hour, 3_hours or tomorrow_morning (09:00 local time), or a number of minutes up to a week; give exactly one. Identify it by its interruption id and its thread id, both from the same row of list_pending - never by title, project or recency. It only ever makes a recovery later, sends nothing and skips no check; retry_now does not bring it forward.",
           "inputSchema": {
             "type": "object",
             "properties": {

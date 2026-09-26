@@ -758,6 +758,9 @@ namespace CodexAutoResume
             // v0.6.11: nor past a hold. A held task waits for a person to let it continue, and a check
             // brought forward would only find it held again.
             if (HasOverlay(row, "held")) return false;
+            // Nor past a postponement or an objection window still ahead, which it never shortens: each
+            // only ever holds a task back (store.request_retry_now).
+            if (Number(row, "not_before") > now) return false;
             return true;
         }
 

@@ -201,13 +201,19 @@ class StoreTests(unittest.TestCase):
         self.assertTrue(self.store.reserve(KEY, 200.0))
         self.assertEqual(self.store.postpone(KEY, THREAD, 5000.0, 250.0), (False, "claimed"))
 
-    def test_retry_now_brings_a_postponement_forward_and_leaves_none_alone(self):
+    def test_retry_now_never_shortens_a_postponement_or_an_objection_window(self):
+        """Each only ever holds a record back; Retry now is not marked as a request that loosens
+        anything (H8) and skips no check (A25). It moves the schedule alone, and says the later time."""
         self.store.register(detection(), 100.0)
-        self.store.request_retry_now(KEY, 150.0)
+        self.assertEqual(self.store.request_retry_now(KEY, 150.0), (True, 150.0))
         self.assertIsNone(self.store.get(KEY)["not_before"], "nothing postponed stays nothing")
         self.store.postpone(KEY, THREAD, 5000.0, 200.0)
-        self.store.request_retry_now(KEY, 300.0)
-        self.assertEqual(self.store.get(KEY)["not_before"], 300.0)
+        self.assertEqual(self.store.request_retry_now(KEY, 300.0), (True, 5000.0))
+        self.assertEqual((self.store.get(KEY)["not_before"], self.store.get(KEY)["next_retry_at"]), (5000.0, 300.0))
+        self.store.register(detection(key=OTHER_KEY, thread_id=OTHER_THREAD), 100.0)
+        self.assertTrue(self.store.open_objection_window(OTHER_KEY, 3700.0, 100.0))
+        self.assertEqual(self.store.request_retry_now(OTHER_KEY, 110.0), (True, 3700.0))
+        self.assertEqual(self.store.get(OTHER_KEY)["not_before"], 3700.0)
 
     def test_a_tier_that_asks_holds_what_waits_and_one_that_asks_less_lets_nothing_go(self):
         self.store.register(detection(), 100.0)
@@ -239,15 +245,19 @@ class StoreTests(unittest.TestCase):
         self.store.cancel_interruption(KEY, 150.0)
         self.assertEqual(self.store.release_hold(KEY, THREAD, 160.0), (False, "finished"))
 
-    def test_the_objection_window_opens_once_and_never_over_a_postponement(self):
+    def test_the_objection_window_opens_once_and_a_postponement_never_takes_its_place(self):
         self.store.register(detection(), 100.0)
         self.assertTrue(self.store.open_objection_window(KEY, 500.0, 200.0))
+        self.assertEqual(self.store.get(KEY)["objection_at"], 200.0)
         self.assertFalse(self.store.open_objection_window(KEY, 900.0, 600.0), "once per record")
         self.assertEqual(self.store.get(KEY)["not_before"], 500.0)
+        # One a person postponed before it opened still gets it, and a postponement still ahead - a
+        # person's in the meantime - is kept, never shortened by it.
         self.store.register(detection(key=OTHER_KEY, thread_id=OTHER_THREAD), 100.0)
         self.store.postpone(OTHER_KEY, OTHER_THREAD, 5000.0, 200.0)
-        self.assertFalse(self.store.open_objection_window(OTHER_KEY, 800.0, 300.0))
+        self.assertTrue(self.store.open_objection_window(OTHER_KEY, 800.0, 300.0))
         self.assertEqual(self.store.get(OTHER_KEY)["not_before"], 5000.0)
+        self.assertEqual(self.store.get(OTHER_KEY)["objection_at"], 300.0)
 
     def test_a_hold_given_at_detection_is_kept_and_checked(self):
         from codex_auto_resume.store import StoreError
@@ -363,6 +373,48 @@ class TierEngineTests(EngineCase):
         self.assertEqual(len([event for event, _ in self.h.notifications if event == "objection"]), 1,
                          "one window per record")
 
+    def test_postponing_before_the_window_only_holds_it_back(self):
+        """A postponement of a minute, made before the window opened, used to take its place: the record
+        went a minute later instead of the window's hour later, and no card said so. It opens when the
+        postponement is over, as it would have with none."""
+        self.policy(default_tier="objection_window", objection_minutes=60)
+        self.ready_after_reset()
+        key = self.h.record()["interruption_id"]
+        self.assertEqual(self.h.store.postpone(key, T1, self.h.now + 60, self.h.now, actor="mcp"),
+                         (True, self.h.now + 60))
+        self.h.tick()
+        self.h.tick(advance=61)
+        self.assert_no_send()
+        cards = [detail for event, detail in self.h.notifications if event == "objection"]
+        self.assertEqual(len(cards), 1, "the window opened, with its card")
+        self.assertEqual(cards[0]["until"], self.h.now + 3600)
+        self.h.tick(advance=3599)
+        self.assert_no_send()
+        self.h.tick(advance=2)
+        self.assertEqual(len(self.h.backend.send_calls), 1)
+
+    def test_a_postponement_inside_the_window_goes_at_the_time_chosen(self):
+        self.policy(default_tier="objection_window", objection_minutes=5)
+        self.ready_after_reset()
+        self.h.tick()
+        key = self.h.record()["interruption_id"]
+        self.h.store.postpone(key, T1, self.h.now + 3600, self.h.now)
+        self.h.tick(advance=301)
+        self.assert_no_send()
+        self.h.tick(advance=3300)
+        self.assertEqual(len(self.h.backend.send_calls), 1, "no second window after it")
+
+    def test_retry_now_never_ends_the_window(self):
+        self.policy(default_tier="objection_window", objection_minutes=60)
+        self.ready_after_reset()
+        self.h.tick()
+        key = self.h.record()["interruption_id"]
+        self.assertEqual(self.h.store.request_retry_now(key, self.h.now + 5), (True, self.h.now + 3600))
+        self.h.tick(advance=10)
+        self.assert_no_send()
+        self.h.tick(advance=3600)
+        self.assertEqual(len(self.h.backend.send_calls), 1)
+
     def test_a_cancel_inside_the_window_stops_the_send(self):
         self.policy(default_tier="objection_window", objection_minutes=5)
         self.ready_after_reset()
@@ -413,7 +465,7 @@ class TierEngineTests(EngineCase):
         self.ready_after_reset()
         self.h.tick()
         record = self.h.record()
-        self.assertEqual((record["hold"], record["not_before"]), (None, None))
+        self.assertEqual((record["hold"], record["not_before"], record["objection_at"]), (None, None, None))
         self.assertIsNone(self.h.engine.quiet_until(self.h.now))
         self.assertEqual(len(self.h.backend.send_calls), 1)
         self.assertNotIn("objection", [event for event, _ in self.h.notifications])
@@ -484,6 +536,14 @@ class ControlTests(ControlTestCase):
         # Let it continue, and it has its time again.
         self.control.release_hold(KEY, THREAD)
         self.assertIsNotNone(self.control.list_pending()[0]["eligible_at"])
+
+    def test_retry_now_says_a_postponement_still_holds_it(self):
+        self.register()
+        until = self.control.postpone(KEY, THREAD, minutes=120)["not_before"]
+        reply = self.control.request_retry_now(KEY)
+        self.assertEqual(reply["eligible_at"], until)
+        self.assertIn("postponed to a later time", reply["note"])
+        self.assertEqual(self.control.list_pending()[0]["not_before"], until)
 
     def test_postponing_refuses_what_is_not_one_later_time(self):
         self.register()
