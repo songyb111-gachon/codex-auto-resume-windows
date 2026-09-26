@@ -48,12 +48,13 @@ later release's archive.
 Nothing here can be switched on yet: the list of advanced capabilities is empty. What is here is
 what every one of them will go through.
 
-- **Twelve places where core asks.** At each, the standard edition asks nobody. An advanced
-  capability may always hold something back there; it can never send by itself - the one send is
+- **Thirteen places where core asks or tells.** At each, the standard edition asks and tells
+  nobody. An advanced capability may always hold something back there; it can never send by itself - the one send is
   still core's, after core's own consent check, claim and pre-send look. A plug is handed copies,
   cannot write core's tables, and a channel it names is held to core's launch guard. The claim
   counts both editions' sends under one lock, so the five-a-day and fifteen-minute limits hold
-  across them.
+  across them. Core tells the plug each move of a record as it writes it, so what turns a
+  capability off is read from the records, never from the journal, which only a person reads.
 - **Its own state, kept apart.** Advanced state lives in `config/advanced/advanced.sqlite`. Nothing
   is added to the product's state or settings files, and a purge removes it.
 - **Who turns a capability on, and what turns it off.** Each capability will carry a statement, in
