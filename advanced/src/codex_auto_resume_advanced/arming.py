@@ -125,6 +125,11 @@ class Arming:
         self._policy = policy or _policy.read
         self._view = view or (lambda: _view_of(state.paths))
         self.clock = clock
+        # {record: when core told of its move into submission_unknown} for each such move whose
+        # trips are not all written yet: core tells a move once, so one whose trip could not be
+        # written then - the state locked past its timeout, or not to be opened - is tried again
+        # at every sweep until it is, though the record has settled by then (`_settle`).
+        self._owed = {}
 
     def policy(self):
         try:
@@ -163,12 +168,16 @@ class Arming:
         return states
 
     def _off(self, capability, reason) -> bool:
-        actor = Actor.TRIPWIRE if reason in TRIPWIRES else Actor.ENGINE_CHANGE
         try:
-            return self.state.move(capability, ArmingState.OFF, actor=actor, reason=reason,
-                                   at=self.clock())[0]
+            return self._write_off(capability, reason)
         except StateError:
             return False                   # it reads as off either way
+
+    def _write_off(self, capability, reason) -> bool:
+        """`capability` off, with why; StateError where that cannot be written."""
+        actor = Actor.TRIPWIRE if reason in TRIPWIRES else Actor.ENGINE_CHANGE
+        return self.state.move(capability, ArmingState.OFF, actor=actor, reason=reason,
+                               at=self.clock())[0]
 
     def trip(self, capability, reason) -> bool:
         """A tripwire: `capability` off, with why. Only a tripwire's reason is one."""
@@ -177,19 +186,40 @@ class Arming:
         return self._off(capability, reason)
 
     def _paid(self):
-        """(capability, the records it paid a send of since it was last turned on), for each
-        capability that is on. Nothing, where the state cannot be read."""
+        """{capability: (since when it is on, the records it paid a send of since then)} for each
+        capability that is on, or None where the state cannot be read."""
         try:
             rows = self.state.arming()
+            return {capability: (row["since"], self.state.spends_since(capability, row["since"]))
+                    for capability, row in rows.items()
+                    if row["state"] == ArmingState.ARMED and row["since"] is not None}
         except StateError:
-            return
-        for capability, row in rows.items():
-            if row["state"] != ArmingState.ARMED or row["since"] is None:
+            return None
+
+    def _settle(self, core_view=None) -> bool:
+        """Turn off every capability that is on and paid for a send core told this plug went
+        into submission_unknown while it was on - and, with `core_view`, one core holds so now.
+        Whether any was turned off.
+
+        What was told stays owed until a pass has read the state and written every trip it
+        called for: a trip whose write failed is not lost with the one telling of it, and a
+        capability turned on again since is not turned off by a move from before."""
+        paid = self._paid()
+        if paid is None:
+            return False
+        tripped = failed = False
+        for capability, (since, spent_on) in paid.items():
+            if not (any(key in spent_on and at >= since for key, at in self._owed.items())
+                    or (core_view is not None
+                        and any(_holds_unknown(core_view, key) for key in spent_on))):
                 continue
             try:
-                yield capability, self.state.spends_since(capability, row["since"])
+                tripped = self._write_off(capability, OffReason.SUBMISSION_UNKNOWN) or tripped
             except StateError:
-                return
+                failed = True
+        if not failed:
+            self._owed.clear()
+        return tripped
 
     def sweep(self, core_view) -> None:
         """Once a tick: every trip and reset `standing` finds, and a send a capability paid for,
@@ -198,13 +228,12 @@ class Arming:
 
         A send that became unknown while this plug was loaded has tripped its capability
         already, as core wrote the move (`moved`): by P8 the watch that runs before it may have
-        settled a late delivery, and the record's state now would say nothing."""
+        settled a late delivery, and the record's state now would say nothing. Where that trip
+        could not be written, it is written here."""
         self.current()
         if not len(self.registry):
             return
-        for capability, spent_on in self._paid():
-            if any(_holds_unknown(core_view, key) for key in spent_on):
-                self.trip(capability, OffReason.SUBMISSION_UNKNOWN)
+        self._settle(core_view)
 
     def moved(self, record, state) -> bool:
         """P14: core has just moved `record` to `state`. Into submission_unknown, every capability
@@ -213,15 +242,13 @@ class Arming:
 
         Told by core as it writes the move, so nothing that settles the record afterwards - in
         the same watch or the same tick - can hide it, and nothing is read back from core's
-        journal, which no decision reads."""
+        journal, which no decision reads. Told once: what cannot be written now is owed, and
+        every sweep tries it again (`_settle`)."""
         key = record.get("interruption_id") if isinstance(record, dict) else None
         if state != SUBMISSION_UNKNOWN or not isinstance(key, str) or not len(self.registry):
             return False
-        tripped = False
-        for capability, spent_on in list(self._paid()):
-            if key in spent_on:
-                tripped = self.trip(capability, OffReason.SUBMISSION_UNKNOWN) or tripped
-        return tripped
+        self._owed[key] = self.clock()
+        return self._settle()
 
     # ------------------------------------------------------------------ on
     def arm(self, capability, *, state, revision, generation, acknowledged_version=None,
