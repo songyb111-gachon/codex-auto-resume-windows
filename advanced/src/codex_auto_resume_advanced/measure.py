@@ -151,21 +151,68 @@ def _m5(ctx):
 
 
 def _m6(ctx):
-    """A headless turn with declined approvals. The session declines every request Codex makes;
-    the harness records how many it declined and how the turn ended."""
+    """A headless turn with declined approvals. The thread is resumed without its history, one
+    turn is started that asks for a harmless command under the strictest approval policy and a
+    read-only sandbox, and the harness follows it until Codex says it completed - declining, in
+    the session's reader, every approval it asks for with that request's own refusal - or until
+    the bound, when it interrupts the turn itself. It records how many it declined, the turn's
+    closed status word, and whether the turn ended by itself; whether any window or prompt
+    appeared is what the person watching confirms."""
     with ctx.open() as session:
-        session.call("thread/resume", {"threadId": ctx.probe_thread})
-        session.call("turn/start", {"threadId": ctx.probe_thread})
-        time.sleep(0)                      # the reader thread collects notifications as they come
-        events = session.drain_events()
-        session.call("turn/interrupt", {"threadId": ctx.probe_thread})
-        declined = len(session.declined)
-    status = _turn_status(events)
-    observed = {"approvals_declined": declined}
+        session.call("thread/resume", {"threadId": ctx.probe_thread, "excludeTurns": True})
+        started = session.call("turn/start", {
+            "threadId": ctx.probe_thread,
+            "input": [{"type": "text", "text": _M6_PROMPT}],
+            "approvalPolicy": "untrusted",
+            # Approvals come to this client, not to an automatic reviewer that might grant them.
+            "approvalsReviewer": "user",
+            "sandboxPolicy": {"type": "readOnly", "networkAccess": False},
+        })
+        turn = started.get("turn") if isinstance(started, dict) else None
+        turn_id = turn.get("id") if isinstance(turn, dict) and isinstance(turn.get("id"), str) else None
+        status = _await_turn(session, ctx.probe_thread, turn_id, _M6_TURN_SECONDS)
+        ended = status is not None
+        if not ended and turn_id is not None:
+            # It did not end within the bound: stop it, and read how it ended if it says so.
+            try:
+                session.call("turn/interrupt", {"threadId": ctx.probe_thread, "turnId": turn_id})
+                status = _await_turn(session, ctx.probe_thread, turn_id, _M6_INTERRUPT_SECONDS)
+            except AdapterError:
+                pass
+        try:
+            session.call("thread/unsubscribe", {"threadId": ctx.probe_thread})
+            unsubscribed = True
+        except AdapterError:
+            unsubscribed = False              # the session's exit tries once more
+        declined = session.declined_count()
+    observed = {"approvals_declined": declined, "turn_ended_by_itself": ended,
+                "unsubscribed": unsubscribed}
     if status is not None:
         observed["turn_status"] = status
-    return _blocked("confirm the headless turn behaved as expected with its approvals declined, "
-                    "then set the verdict", **observed)
+    return _blocked("confirm no window or prompt appeared and the headless turn behaved as "
+                    "expected with its approvals declined, then set the verdict", **observed)
+
+
+# M6's turn: one harmless command, so a turn under the "untrusted" policy has something to ask
+# approval for. What it prints is never read: the harness follows only the turn's status.
+_M6_PROMPT = ("Run the harmless command `whoami` and report what it prints. If running it is "
+              "not approved, say so and stop.")
+_M6_TURN_SECONDS = 180.0         # how long the turn may take before the harness interrupts it
+_M6_INTERRUPT_SECONDS = 15.0     # how long an interrupted turn has to say how it ended
+_M6_POLL_SECONDS = 0.25
+
+
+def _await_turn(session, thread, turn_id, seconds):
+    """Follow the session's notifications until the turn completes or `seconds` pass. Returns
+    the turn's closed status word, or None when it did not say it ended."""
+    deadline = time.monotonic() + seconds
+    while True:
+        status = _completed_status(session.drain_events(), thread, turn_id)
+        if status is not None:
+            return status
+        if time.monotonic() >= deadline:
+            return None
+        time.sleep(_M6_POLL_SECONDS)
 
 
 def _m7(ctx):
@@ -239,18 +286,22 @@ _SAMPLE_THREAD = "00000000-0000-7000-8000-000000000000"
 _SAMPLE_CLIENT_ID = "00000000-0000-7000-8000-000000000001"
 
 
-def _turn_status(events) -> str | None:
-    """The turn status the notifications reported, if any, in the engine's own word - never any
-    text a turn carried."""
+def _completed_status(events, thread, turn_id) -> str | None:
+    """The status a `turn/completed` for this thread's turn reported, if one is among `events`,
+    in the engine's own closed word (TurnCompletedNotification: `params.turn.status`) - never any
+    text the turn carried. With no turn id known, any turn of this thread counts."""
     from codex_auto_resume.codex.values import _turn_status as core_status
-    for event in reversed(events):
-        if isinstance(event, dict) and event.get("method") in ("turn/completed", "turn/failed",
-                                                                "thread/status/changed"):
-            params = event.get("params")
-            status = params.get("status") if isinstance(params, dict) else None
-            word = core_status(status) if isinstance(status, str) else None
-            if word is not None:
-                return word
+    for event in events:
+        if not isinstance(event, dict) or event.get("method") != "turn/completed":
+            continue
+        params = event.get("params")
+        if not isinstance(params, dict) or params.get("threadId") != thread:
+            continue
+        turn = params.get("turn")
+        if not isinstance(turn, dict) or (turn_id is not None and turn.get("id") != turn_id):
+            continue
+        status = turn.get("status")
+        return core_status(status) if isinstance(status, str) else "other"
     return None
 
 
