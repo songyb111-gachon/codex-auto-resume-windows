@@ -297,7 +297,7 @@ write-ahead log를 쓰는 경우, 읽는 동안에도 SQLite가 그 옆의 공�
   않고 기준 커밋을 체크아웃하며, `contents: read` 권한만 갖고 비밀은 갖지 않으며, 아무것도 설치하지 않고, 캐시도
   아티팩트도 남기지 않으며, 최대 5분 동안만 실행되고, 헤드의 커밋은 git 배관 명령으로만 읽습니다
   (`build/community_check.py`). 그 안의 어떤 것도 체크아웃되거나 병합되거나 실행되지 않습니다. 기여자의 풀
-  리퀘스트는 새 파일 하나만 더할 수 있습니다. 그 파일은
+  리퀘스트는 이름이 `compat-report/`로 시작하는 브랜치에서 와야 하고, 새 파일 하나만 더할 수 있습니다. 그 파일은
   `docs/evidence/community/<그 사람의 GitHub 로그인>/codex-cli-<그 파일 자신의 버전>.json`에 있어야 하고, 읽기
   전에 알 수 있는 크기가 1 MB 이하여야 하며, 보고서 판독기(`build/community_report.py`)가 받아들여야 하고,
   이미 접수된 보고서의 사본이 아니어야 합니다. 그 밖의 것은 모두 거부합니다. 보고서가 스스로 주장하는 수준과
@@ -322,7 +322,8 @@ write-ahead log를 쓰는 경우, 읽는 동안에도 SQLite가 그 옆의 공�
   계정마다와 Codex 버전마다의 보고서 수, 프로젝트의 데이터가 이름을 대지 않는 Codex 버전의 예산 - 는 `main`
   자신의 기록에서 세며, 이름을 바꿔도 변하지 않는 계정의 숫자 id로 셉니다. 저장소 변수 `COMMUNITY_AUTOFILE`은
   비어 있거나 `on`이 아니면 무엇이든 접수를 멈추고, `COMMUNITY_BLOCKED`는 계정을 거부하며, 실행 중인 작업을
-  취소하면 곧바로 멈춥니다. `tests/test_workflow_privilege.py`와 `tests/test_community_file.py`가 이 모두를
+  취소하면 곧바로 멈춥니다. 최근 댓글 목록에서 댓글이 빠진 풀 리퀘스트는 무엇을 정하기 전에 하나씩 따로 읽으므로,
+  어느 풀 리퀘스트에도 같은 말을 두 번 하지 않습니다. `tests/test_workflow_privilege.py`와 `tests/test_community_file.py`가 이 모두를
   붙잡으며, 뒤의 것은 쓰기 단계 자체를 GitHub을 대신하는 것에 대고 실행합니다.
 
 ## 파괴적 동작의 안전성

@@ -9,6 +9,9 @@ A pull request that changes nothing under docs/evidence/community/ is not a repo
 so the check can be required on every pull request. One that does, from anyone but the owner,
 passes only when:
 
+* it comes from a branch whose name starts with compat-report/, as codex-compat-reporter's `submit`
+  makes it: the filer answers for those pull requests only, so one from another branch (patch-1,
+  GitHub's name for an edit on the web) would pass here and then wait for no one;
 * it changes exactly one path, and adds it, as an ordinary file (mode 100644: no link, no
   submodule);
 * that path is docs/evidence/community/<the login that opened it>/codex-cli-<version>.json, where
@@ -72,9 +75,12 @@ OWNER_FILES = (PREFIX + "index.json", PREFIX + "README.md", PREFIX + "withdrawn.
 # What each line is, as a word the filer turns into what the sender can do about it
 # (build/community_file.py TEXTS). Every line judge_coded() gives carries one; CODES are refusals.
 NOT_A_REPORT, ACCEPTED_LINE, RECOMPUTED, OWNER_LINE = "not-a-report", "accepted", "recomputed", "owner"
-PATHS, CHANGED, MODE, FOLDER, RESERVED_NAME, CASE, FILED, SIZE, READER, NAME, COPY = (
-    "paths", "changed", "mode", "folder", "reserved", "case", "filed", "size", "reader", "name", "copy")
-CODES = (PATHS, CHANGED, MODE, FOLDER, RESERVED_NAME, CASE, FILED, SIZE, READER, NAME, COPY)
+PATHS, CHANGED, MODE, FOLDER, RESERVED_NAME, CASE, FILED, SIZE, READER, NAME, COPY, BRANCH = (
+    "paths", "changed", "mode", "folder", "reserved", "case", "filed", "size", "reader", "name", "copy", "branch")
+CODES = (PATHS, CHANGED, MODE, FOLDER, RESERVED_NAME, CASE, FILED, SIZE, READER, NAME, COPY, BRANCH)
+# The branch codex-compat-reporter's `submit` sends a report from; the filer answers for those only,
+# so a report from any other branch would pass here and then wait for no one.
+BRANCH_PREFIX = "compat-report/"
 # docs/evidence/community/<login>/codex-cli-<version>.json, and nothing else, is a report's path.
 REPORT_PATH = re.compile(r"%s(%s)/codex-cli-(\d[0-9A-Za-z.\-]{0,39})\.json"
                          % (re.escape(PREFIX), reader.LOGIN.pattern))
@@ -193,14 +199,18 @@ def sequence(report):
             for record in report.get("records", []) if isinstance(record, dict)]
 
 
-def judge(git, *, base, head, author, association, now=None):
+def judge(git, *, base, head, author, association, now=None, branch=None):
     """(verdict, lines): verdict is ACCEPTED, REFUSES or CANNOT; lines are what to print."""
-    verdict, coded = judge_coded(git, base=base, head=head, author=author, association=association, now=now)
+    verdict, coded = judge_coded(git, base=base, head=head, author=author, association=association, now=now,
+                                 branch=branch)
     return verdict, [text for _code, text in coded]
 
 
-def judge_coded(git, *, base, head, author, association, now=None):
-    """(verdict, [(code, line)]): judge(), with each line's code - one of CODES for a refusal."""
+def judge_coded(git, *, base, head, author, association, now=None, branch=None):
+    """(verdict, [(code, line)]): judge(), with each line's code - one of CODES for a refusal.
+
+    `branch` is the name of the pull request's head branch, compared and never shown; None skips
+    that one rule (the filer, which answers for BRANCH_PREFIX branches only)."""
     now = time.time() if now is None else now
     changes = git.changes(base, head)
     ours = [change for change in changes if touches(change[3])]
@@ -218,6 +228,9 @@ def judge_coded(git, *, base, head, author, association, now=None):
     for ref in filed_on:
         filed.update(git.filed(ref))
     refused = []
+    if branch is not None and not branch.startswith(BRANCH_PREFIX):
+        refused.append((BRANCH, "a report is sent from a branch named %s<its name>, as codex-compat-reporter's "
+                                "submit makes it; this pull request's branch is another" % BRANCH_PREFIX))
     status, mode, blob, path = changes[0]
     if len(changes) != 1:
         refused.append((PATHS, "a report adds exactly one file, and this pull request changes %d paths"
@@ -309,12 +322,13 @@ def main(environ=None, git=None) -> int:
     git = git or Git(ROOT)
     base, head = environ.get("BASE_SHA", ""), environ.get("HEAD_SHA", "")
     author, association = environ.get("PR_AUTHOR", ""), environ.get("AUTHOR_ASSOCIATION", "")
+    branch = environ.get("HEAD_REF", "")
     if not (SHA.fullmatch(base) and SHA.fullmatch(head) and reader.LOGIN.fullmatch(author)
-            and association in ASSOCIATIONS):
+            and association in ASSOCIATIONS and branch):
         print("community report: the check was started without what it needs")
         return CANNOT
     try:
-        verdict, lines = judge(git, base=base, head=head, author=author, association=association)
+        verdict, lines = judge(git, base=base, head=head, author=author, association=association, branch=branch)
     except (CheckError, OSError, ValueError, subprocess.SubprocessError):
         print("community report: the check could not read this pull request")
         return CANNOT

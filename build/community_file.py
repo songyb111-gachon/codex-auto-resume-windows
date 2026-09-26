@@ -8,6 +8,7 @@ ones, the comment each sender is owed, and a git bundle of those commits. A seco
 runner with no Python and no repository code, reads that bundle as data, re-derives every commit
 from git, and is the only thing that writes to GitHub (community-file.yml says how).
 
+    python build/community_file.py unseen --queue DIR
     python build/community_file.py choose --queue DIR
     python build/community_file.py plan --queue DIR --out DIR --work DIR
 
@@ -27,19 +28,24 @@ main's own history, never from what a pull request says:
   that data names and fewer than MAX_UNLISTED such versions are filed; so one sender cannot fill
   the counts file with invented versions, and the counts file keeps at least half its room;
 * a failure reported on a version this project's own evidence verifies waits for the maintainer;
-* the repository variable COMMUNITY_AUTOFILE pauses everything unless it is unset or `on`, and
-  COMMUNITY_BLOCKED (numeric account ids) and docs/evidence/community/withdrawn.json refuse an
-  account;
+* the repository variable COMMUNITY_AUTOFILE pauses everything unless it is unset or `on`,
+  COMMUNITY_BLOCKED (numeric account ids) refuses an account, and docs/evidence/community/
+  withdrawn.json refuses a withdrawn report sent again: that account, that Codex version;
 * nothing is filed while main's own tests are red, or while fewer than MIN_RATE requests of the
   hour's budget are left.
 
 Accounts are keyed by their numeric id, which a rename does not change. A pull request is looked at
-again only when its head moves, the reason it waits has passed, or main says the maintainer's tool
-filed it; at most MAX_LOOKED of them per run, so a thousand pull requests from one account cost
-what one does.
+again only when its head moves, the reason it waits has passed, or main says it was filed since it
+was last told (the maintainer's tool files one the filer holds back, even a blocked account's, and
+this closes it as filed); at most MAX_LOOKED of them per run, so a thousand pull requests from one
+account cost what one does. Nothing is decided about a pull request whose comments were not read:
+the survey's page of recent comments misses older ones, so those are read one by one first
+(`unseen`, at most MAX_UNSEEN and MAX_CLOSED of them), and a pull request is never told twice.
 
 Before anything is written the tests that read the files being written (FIXED_MODULES) run on the
-tree that would become main; a filing that fails them is dropped and the maintainer is told. dev
+tree that would become main; a filing that fails them is dropped and the maintainer is told, and a
+refusal or a wait decided while it was on the tip is not said: that pull request is judged again
+on the next run, against a main without it. dev
 takes main's filings too, keeping its Korean documents, when dev has not changed those files
 itself and its own tests pass on the result; otherwise dev is left for the next run or the
 maintainer's promote.py into-dev.
@@ -73,18 +79,21 @@ import community_report as reader  # noqa: E402
 DAY = 86400
 MAX_LOOKED = 8                  # pull requests read closer, and so filed, per run
 MAX_CLOSED = 10                 # closed without a closer look per run: extra and stale ones
+MAX_UNSEEN = 20                 # accounts' oldest pull requests whose comments are read one by one per run
 MAX_COMMITS = 20                # a pull request with more is refused from its metadata alone
 MIN_AGE_DAYS = 30
 PER_REPORTER, PER_VERSION, WINDOW_DAYS = 3, 5, 7
 MAX_UNLISTED = 5
 STALE_DAYS = 14
+SEEN_MARGIN = 3600              # a run that read main before a filing reached it may speak after it
 UNLISTED_AGAIN_DAYS = 7
 MIN_RATE = 300
 MAX_TEXT = 4096
+MAX_LINES = 8                   # reasons a refusal lists; the rest are counted
 GHOST = 10137                   # what GitHub shows for a deleted account
 BOT = "github-actions[bot]"
 MEMBERS = ("OWNER", "MEMBER", "COLLABORATOR")
-BRANCH_PREFIX = "compat-report/"
+BRANCH_PREFIX = check.BRANCH_PREFIX   # the branches the filer answers for, and the check requires
 MAIN = "refs/remotes/origin/main"
 DEV = "refs/remotes/origin/dev"
 COMPAT_DATA = "src/codex_auto_resume/data/codex_compat.json"
@@ -150,20 +159,26 @@ WAITING = {
     "full": "the counts file a release carries has no room for another version until the maintainer makes some",
 }
 # What a sender can do about each refusal, by its code (community_check.CODES, and the filer's own).
-AGAIN = "run `submit --yes` again, which resets the branch to main and adds only the file"
-REGENERATE = "write it again with the latest codex-compat-reporter, do not edit it, and submit again"
+# codex-compat-reporter's `submit` sends nothing while a report pull request of the same account is
+# open, this one included, so every step that sends again starts by closing this one.
+AGAIN = "close this pull request, then run `submit --yes` again: it resets the branch to main and adds only the file"
+REGENERATE = ("close this pull request, write the report again with the latest codex-compat-reporter, do not "
+              "edit it, and run `submit --yes`")
 ISSUE = "open an issue"
 ACTIONS = {
     check.PATHS: AGAIN, check.CHANGED: AGAIN, check.MODE: AGAIN, "commits": AGAIN,
-    check.FOLDER: "submit from the account whose login was given to `report --login`",
+    check.FOLDER: "close this pull request, then submit from the account whose login was given to `report --login`",
     check.RESERVED_NAME: ISSUE, check.CASE: ISSUE,
-    check.FILED: "nothing to do; a newer Codex version can be reported",
+    check.FILED: "nothing to do; close this pull request to report a newer Codex version",
     check.SIZE: REGENERATE, check.READER: REGENERATE, check.NAME: REGENERATE,
-    check.COPY: "send this machine's own records, or " + ISSUE,
-    check.NOT_A_REPORT: "a report adds one file under docs/evidence/community/, and is sent with "
-                        "codex-compat-reporter's `submit`",
+    check.COPY: "close this pull request, then send this machine's own records, or " + ISSUE,
+    check.NOT_A_REPORT: "close this pull request; a report adds one file under docs/evidence/community/, and "
+                        "is sent with codex-compat-reporter's `submit`",
+    check.BRANCH: "close this pull request, and send the report with codex-compat-reporter's `submit`",
     "cannot": "it could not be read; " + AGAIN,
     "blocked": "not accepted from this account; " + ISSUE,
+    "withdrawn": "close this pull request; a report for another Codex version is welcome, and about this one, "
+                 + ISSUE,
 }
 TEXTS = {
     FILED: ("Filed as `%s` in %s, thank you. The kept file was written by this project's own code from what "
@@ -179,8 +194,8 @@ TEXTS = {
                     "project's own evidence verifies, and a person looks at that first. Nothing is known to be "
                     "wrong with your file."),
     REFUSED: "Not filed.",
-    "again": ("A new commit here is judged again. Unchanged, this closes in %d days; a new report is welcome "
-              "any time." % STALE_DAYS),
+    "again": ("A new commit here is judged again; unchanged, this closes in %d days. One report pull request "
+              "per account is open at a time, so `submit` sends another once this one is closed." % STALE_DAYS),
     "young": ("Closed, and nothing is wrong with your file: reports are filed from accounts at least %d days "
               "old, and this one is on %%s. Send it again then with `submit --yes`; nothing was filed."
               % MIN_AGE_DAYS),
@@ -327,14 +342,20 @@ class Repo(check.Git):
                 kept[path] = report
         return kept
 
-    def filed_numbers(self, ref) -> frozenset:
-        """Every pull request main's history says was filed, from the `Pull-request: #N` trailer the
-        filer and the maintainer's tool both write."""
-        code, out = self.run("log", "--first-parent", "--format=%B", ref, timeout=600)
+    def filed_numbers(self, ref) -> dict:
+        """{pull request number: when it was last filed} for every one main's history says was filed,
+        from the `Pull-request: #N` trailer the filer and the maintainer's tool both write."""
+        code, out = self.run("log", "--first-parent", "--format=%x01%ct%x02%B", ref, timeout=600)
         if code:
-            return frozenset()
-        return frozenset(int(number) for number in
-                         re.findall(r"(?m)^Pull-request: #(\d{1,7})$", out.decode("utf-8", errors="replace")))
+            return {}
+        found = {}
+        for entry in out.decode("utf-8", errors="replace").split("\x01"):
+            stamp, _sep, body = entry.partition("\x02")
+            if not stamp.strip().isdigit():
+                continue
+            for number in re.findall(r"(?m)^Pull-request: #(\d{1,7})$", body):
+                found[int(number)] = max(found.get(int(number), 0), int(stamp.strip()))
+        return found
 
     def filings_since(self, ref, since):
         """[(when, reporter id, version)] for every filing on `ref`'s first-parent history since then,
@@ -475,7 +496,7 @@ class Survey:
                 if pull is not None:
                     pulls[pull["number"]] = pull
         self.pulls = [pulls[number] for number in sorted(pulls)]
-        self.stickies = {}
+        self.stickies, self.read = {}, set()
         for page in sorted(self.queue.glob("comments-*.jsonl")):
             for entry in _json_lines(page):
                 self._sticky(entry, entry.get("issue") if isinstance(entry, dict) else None)
@@ -483,6 +504,7 @@ class Survey:
             number = saved.stem[len("sticky-"):]
             comments = _json_file(saved)
             if number.isdigit() and isinstance(comments, list):
+                self.read.add(int(number))
                 for entry in comments:
                     self._sticky(entry, int(number))
         self.runs = [run for run in _json_lines(self.queue / "runs.jsonl") if isinstance(run, dict)]
@@ -503,6 +525,11 @@ class Survey:
         held = self.stickies.get(number)
         if held is None or comment < held["id"]:          # the first one is the sticky one
             self.stickies[number] = dict(found, id=comment)
+
+    def known(self, number) -> bool:
+        """Whether what the filer last told this pull request is known: its comment is on the page of
+        recent comments, or its comments were read one by one (`unseen`) and hold one or none."""
+        return number in self.stickies or number in self.read
 
     def look(self, number):
         """What the second read-only step saved about one pull request, or None."""
@@ -537,34 +564,77 @@ class Settings:
         self.repository = environ.get("GITHUB_REPOSITORY") or ""
 
 
-def triage(survey, settings, now, filed_numbers=frozenset()):
-    """(to_look, actions): which open pull requests to read closer, and what to do about the rest now.
-
-    Cheap: nothing here asks GitHub or fetches anything. `actions` are closes and waits decided from
-    the survey alone; the rest are left as they are. `filed_numbers` are the pull requests main's
-    history says were filed (`Pull-request: #N`): one waiting for the maintainer that the maintainer's
-    tool has filed is looked at again, found filed, and closed as filed."""
-    if survey.rate < MIN_RATE:
-        return [], []
-    red = survey.main_is_red(settings.repository)
+def _reports(survey):
+    """(ours, first): the open pull requests the filer answers for, and each account's oldest of them."""
     ours = [pull for pull in survey.pulls
             if not pull["draft"] and pull["association"] not in MEMBERS and pull["type"] == "User"
             and pull["user_id"] != GHOST and pull["branch"].startswith(BRANCH_PREFIX)]
     first = {}
-    for pull in sorted(ours, key=lambda one: (one["created"], one["number"])):
+    for pull in sorted(ours, key=_opened):
         first.setdefault(pull["user_id"], pull)
+    return ours, first
+
+
+def _opened(pull):
+    return pull["created"], pull["number"]
+
+
+def unseen(survey):
+    """The pull requests whose comments are read one by one before anything is decided about them.
+
+    The survey's page of comments holds only the repository's most recently changed ones, so a
+    filer comment of some days ago can be missing from it. Decided without it, that pull request
+    would be read closer ahead of every other, only to be skipped, and told again what it was
+    already told. So each one the page misses is read on its own: every account's oldest, newest
+    first (a new report is never behind old refusals), at most MAX_UNSEEN; then the others, which
+    are closed, at most MAX_CLOSED. The rest wait for a later run."""
+    if survey.rate < MIN_RATE:
+        return []
+    ours, first = _reports(survey)
+    missing = [pull for pull in ours if not survey.known(pull["number"])]
+    leads = sorted((pull for pull in missing if first[pull["user_id"]] is pull), key=_opened, reverse=True)
+    others = sorted((pull for pull in missing if first[pull["user_id"]] is not pull), key=_opened)
+    return leads[:MAX_UNSEEN] + others[:MAX_CLOSED]
+
+
+def filed_since(filed, pull, sticky) -> bool:
+    """Whether main's history says this pull request was filed after its comment last spoke: by the
+    maintainer's tool, most often, which files what the filer holds back - even a blocked account's.
+    Such a pull request is looked at again, found filed, and closed as filed. A run reads main when
+    it starts and speaks when it plans, so a comment up to SEEN_MARGIN after the filing may not have
+    seen it; one that is looked at again and not closed is told again, with the time it was
+    (Action.again), so it wakes once, not on every run."""
+    when = filed.get(pull["number"])
+    return when is not None and (sticky is None or when + SEEN_MARGIN >= sticky["at"])
+
+
+def triage(survey, settings, now, filed=None):
+    """(to_look, actions): which open pull requests to read closer, and what to do about the rest now.
+
+    Cheap: nothing here asks GitHub or fetches anything. `actions` are closes and waits decided from
+    the survey alone; the rest are left as they are. Nothing is decided about a pull request whose
+    comments are not known (`unseen`). `filed` is {number: when} for the pull requests main's
+    history says were filed (`Pull-request: #N`); see filed_since()."""
+    filed = filed or {}
+    if survey.rate < MIN_RATE:
+        return [], []
+    red = survey.main_is_red(settings.repository)
+    ours, first = _reports(survey)
     actions, candidates, closed = [], [], 0
     for pull in ours:
+        if not survey.known(pull["number"]):
+            continue                          # its comments are read first, on a later run
         sticky = survey.stickies.get(pull["number"])
         same = sticky is not None and sticky["head"] == pull["head"]
         oldest = first[pull["user_id"]]
-        if oldest is not pull:
+        since = filed_since(filed, pull, sticky)
+        if oldest is not pull and not since:
             if closed < MAX_CLOSED:
                 closed += 1
                 actions.append(Action(pull, CLOSED, "one", now, close=True,
                                       text=TEXTS["one"] % oldest["number"], sticky=sticky))
             continue
-        if same and sticky["state"] == REFUSED and sticky["at"] + STALE_DAYS * DAY <= now:
+        if same and sticky["state"] == REFUSED and sticky["at"] + STALE_DAYS * DAY <= now and not since:
             if closed < MAX_CLOSED:
                 closed += 1
                 actions.append(Action(pull, CLOSED, "stale", now, close=True, text=TEXTS["stale"], sticky=sticky))
@@ -573,11 +643,10 @@ def triage(survey, settings, now, filed_numbers=frozenset()):
             # Filed or closed before, and still open: the close did not happen. Close it again.
             actions.append(Action(pull, sticky["state"], sticky["why"], now, close=True, text=None, sticky=sticky))
             continue
-        filed_since = pull["number"] in filed_numbers
-        if same and sticky["state"] in (REFUSED, NEEDS_OWNER) and not filed_since:
+        if same and sticky["state"] in (REFUSED, NEEDS_OWNER) and not since:
             continue
         if same and sticky["state"] == QUEUED and sticky["why"] not in ("paused", "red") \
-                and sticky["until"] is not None and sticky["until"] > now and not filed_since:
+                and sticky["until"] is not None and sticky["until"] > now and not since:
             continue
         if settings.paused or red:
             why = "paused" if settings.paused else "red"
@@ -602,6 +671,8 @@ class Action:
         self.pull, self.state, self.why, self.close = pull, state, why, close
         self.until, self.now, self.sticky, self.text = until, now, sticky, text
         self.red = None
+        self.after = 0                        # filings made in this run before it was decided
+        self.again = False                    # said again even when unchanged, to move its time
 
     def comment(self):
         """(comment id or 0, body) to post, or None when the sticky comment already says this."""
@@ -609,19 +680,23 @@ class Action:
             return None
         sticky = self.sticky
         if (sticky is not None and sticky["state"] == self.state and sticky["head"] == self.pull["head"]
-                and sticky["why"] == self.why and sticky["until"] == self.until):
+                and sticky["why"] == self.why and sticky["until"] == self.until and not self.again):
             return None
         body = marker(self.state, self.pull["head"], self.now, self.until, self.why) + "\n" + clean(self.text) + "\n"
         return (sticky["id"] if sticky else 0), body
 
 
 def refusal(lines) -> str:
-    """Not filed: each of the check's lines with what to do about it. The check writes a placeholder
-    as <version>; here it is (version), since no text a sender is shown holds an angle bracket."""
+    """Not filed: each of the check's lines with what to do about it, the first MAX_LINES of them - a
+    report can have a reason per record, and a comment too long to post would stop the whole run.
+    The check writes a placeholder as <version>; here it is (version), since no text a sender is
+    shown holds an angle bracket."""
     said = [TEXTS[REFUSED], ""]
-    for code, text in lines:
+    for code, text in lines[:MAX_LINES]:
         text = text.replace("<", "(").replace(">", ")")
         said.append("- %s: %s" % (text, ACTIONS.get(code, ACTIONS[check.READER])))
+    if len(lines) > MAX_LINES:
+        said.append("- and %d more reasons like these" % (len(lines) - MAX_LINES))
     said += ["", TEXTS["again"]]
     return "\n".join(said)
 
@@ -636,6 +711,7 @@ class Planner:
         self.tip = self.main
         self.actions, self.filings, self.summary = [], [], []
         self.releases = repo.releases() if self.main else {}
+        self.filed_at = repo.filed_numbers(self.main) if self.main else {}
         self._reports = (None, {})
         self.listed, self.verified = self._compat_data()
         self.withdrawn = self._withdrawn()
@@ -655,16 +731,19 @@ class Planner:
         return listed, verified
 
     def _withdrawn(self):
-        """The accounts whose reports the maintainer withdrew (docs/evidence/community/withdrawn.json):
-        a withdrawal sticks, so a pull request sent again from that account is not filed again."""
+        """{(account id, version)} for the reports the maintainer withdrew (docs/evidence/community/
+        withdrawn.json): a withdrawal sticks, so that report sent again from that account is not filed
+        again. The account's reports for other Codex versions are judged as anyone's; an account is
+        refused as a whole by COMMUNITY_BLOCKED."""
         raw = self.git.show(MAIN, WITHDRAWN) if self.main else None
         document = _decoded(raw) if raw else None
-        ids = set()
+        pairs = set()
         if isinstance(document, dict) and document.get("format") == WITHDRAWN_FORMAT:
             for entry in document.get("withdrawn", []) if isinstance(document.get("withdrawn"), list) else []:
-                if isinstance(entry, dict) and _int(entry.get("reporter_id")):
-                    ids.add(entry["reporter_id"])
-        return ids
+                if (isinstance(entry, dict) and _int(entry.get("reporter_id")) and isinstance(entry.get("version"), str)
+                        and reader.engine_version("codex-cli " + entry["version"])):
+                    pairs.add((entry["reporter_id"], entry["version"]))
+        return pairs
 
     def reports(self) -> dict:
         """{path: report} filed on the tip as it is now, read once per tip."""
@@ -685,19 +764,31 @@ class Planner:
             return None                       # it moved since the survey; the move wakes another run
         number, login = pull["number"], pull["login"]
 
-        def refused(lines):
-            return Action(pull, REFUSED, lines[0][0], self.now, text=refusal(lines), sticky=sticky)
-
         if user.get("id") != pull["user_id"] or user.get("type") != "User":
             return None
-        if pull["user_id"] in self.settings.blocked or pull["user_id"] in self.withdrawn:
-            return refused([("blocked", "this account's reports are not filed here")])
+        # What is about the account, or about a withdrawn report, is said without fetching anything -
+        # unless main says this pull request was filed since it was last told (the maintainer's tool
+        # files what the filer holds back, a blocked account's included). Then it is read, closed as
+        # filed if main holds what it regenerates to, and told this reason otherwise.
+        filed_here = filed_since(self.filed_at, pull, sticky)
         created = moment(user.get("created_at"))
-        if created is None:
+        account = None
+        if pull["user_id"] in self.settings.blocked:
+            account = Action(pull, REFUSED, "blocked", self.now, sticky=sticky,
+                             text=refusal([("blocked", "this account's reports are not filed here")]))
+        elif created is None:
             return None
-        if created + MIN_AGE_DAYS * DAY > self.now:
-            return Action(pull, CLOSED, "young", self.now, close=True,
-                          text=TEXTS["young"] % day(created + MIN_AGE_DAYS * DAY), sticky=sticky)
+        elif created + MIN_AGE_DAYS * DAY > self.now:
+            account = Action(pull, CLOSED, "young", self.now, close=True,
+                             text=TEXTS["young"] % day(created + MIN_AGE_DAYS * DAY), sticky=sticky)
+        if account is not None and not filed_here:
+            return account
+
+        def refused(lines):
+            if account is not None:
+                return account
+            return Action(pull, REFUSED, lines[0][0], self.now, text=refusal(lines), sticky=sticky)
+
         # The metadata first: a pull request that cannot be a report is refused without fetching it.
         commits, changed = _int(meta.get("commits")), _int(meta.get("changed_files"), low=0)
         if commits is None or commits > MAX_COMMITS:
@@ -718,6 +809,11 @@ class Planner:
                              % (reader.COMMUNITY, check.shown(login, reader.LOGIN.pattern)))])
         if not reader.login_name(login):
             return refused([(check.RESERVED_NAME, "a report's folder cannot be a name Windows keeps for a device")])
+        if account is None and (pull["user_id"], shape.group(2)) in self.withdrawn:
+            account = refused([("withdrawn", "this account's report for this Codex version was withdrawn, and "
+                                             "is not filed again")])
+            if not filed_here:
+                return account
 
         if not self.git.fetch_head(number):
             return refused([("cannot", "the pull request's commits could not be fetched")])
@@ -731,6 +827,8 @@ class Planner:
         already = self.already_filed(pull, head, path)
         if already is not None:
             return already
+        if account is not None:
+            return account
         try:
             verdict, lines = check.judge_coded(self.git, base=self.tip, head=head, author=login,
                                                association=pull["association"], now=self.now)
@@ -827,15 +925,18 @@ class Planner:
             self.summary.append("main could not be read; nothing was planned")
             return self
         folder_open = self.git.run("cat-file", "-e", "%s:%s" % (self.main, INDEX))[0] == 0
-        looked, self.actions = triage(self.survey, self.settings, self.now, self.git.filed_numbers(self.main))
+        looked, self.actions = triage(self.survey, self.settings, self.now, self.filed_at)
         if self.survey.rate < MIN_RATE:
             self.summary.append("fewer than %d GitHub requests are left this hour; nothing was looked at" % MIN_RATE)
         if not folder_open:
             self.summary.append("the folder %s/ is not on main; nothing is filed until it is" % reader.COMMUNITY)
             looked = []
         for pull in looked:
+            made = len(self.filings)
             action = self.examine(pull)
             if action is not None:
+                action.after = made
+                action.again = action.state != FILED and filed_since(self.filed_at, pull, action.sticky)
                 self.actions.append(action)
         self.test_filings()
         if not (self.settings.paused or self.survey.main_is_red(self.settings.repository)):
@@ -846,14 +947,16 @@ class Planner:
 
     def test_filings(self):
         """The tests that read what is written, on the tree that would become main; a filing that fails
-        them is dropped, and the maintainer told."""
+        them is dropped, and the maintainer told. A refusal or a wait decided while a dropped filing
+        was on the tip may rest on it - a copy of it, a limit it filled - so it is not said: that
+        pull request keeps what it was told before, and is judged again on the next run."""
         self.dev_plan = None
         if not self.filings:
             return
         if self._passes(self.tip):
             return
-        kept, self.tip = [], self.main
-        for filing in self.filings:
+        kept, self.tip, dropped = [], self.main, None
+        for index, filing in enumerate(self.filings):
             path, report, pull = filing["path"], filing["report"], filing["pull"]
             files = self.filing_files(self.reports(), path, report)
             commit = self.git.commit(self.tip, files, filing["message"], self.now)
@@ -861,11 +964,19 @@ class Planner:
                 self.tip = commit
                 kept.append(dict(filing, commit=commit))
                 continue
+            dropped = index if dropped is None else dropped
             for action in self.actions:
                 if action.pull is pull:
                     action.state, action.why, action.close = NEEDS_OWNER, "tests", False
                     action.text, action.red = TEXTS[NEEDS_OWNER], "tests"
         self.filings = kept
+        if dropped is not None:
+            again = [action for action in self.actions
+                     if action.state in (REFUSED, QUEUED) and action.after > dropped]
+            self.actions = [action for action in self.actions if action not in again]
+            if again:
+                self.summary.append("%d pull request(s) judged beside a filing the tests dropped are judged "
+                                    "again on the next run" % len(again))
 
     def _passes(self, commit) -> bool:
         place = self.git.worktree(self.work, "tree", commit)
@@ -966,6 +1077,13 @@ def _write(folder: Path, name: str, text):
 
 
 # ---------------------------------------------------------------------------------------- commands
+def choose_unseen(queue):
+    """Whose comments the job reads one by one before choosing (`unseen`): `unseen`, a number a line."""
+    pulls = unseen(Survey(Path(queue)))
+    _write(Path(queue), "unseen", "".join("%d\n" % pull["number"] for pull in pulls))
+    return pulls
+
+
 def choose(queue, environ=None, now=None, root=None):
     """Which pull requests the job's second read-only step reads closer: `look`, as `NUMBER USER_ID`."""
     survey = Survey(Path(queue))
@@ -973,7 +1091,7 @@ def choose(queue, environ=None, now=None, root=None):
     main = repo.sha(MAIN)
     looked, _actions = triage(survey, Settings(os.environ if environ is None else environ),
                               int(time.time() if now is None else now),
-                              repo.filed_numbers(main) if main else frozenset())
+                              repo.filed_numbers(main) if main else {})
     _write(Path(queue), "look", "".join("%d %d\n" % (pull["number"], pull["user_id"]) for pull in looked))
     return looked
 
@@ -989,11 +1107,15 @@ def plan(queue, out, work, *, environ=None, now=None, root=None, run_tests=run_f
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("command", choices=("choose", "plan"))
+    parser.add_argument("command", choices=("unseen", "choose", "plan"))
     parser.add_argument("--queue", required=True)
     parser.add_argument("--out")
     parser.add_argument("--work")
     arguments = parser.parse_args(argv)
+    if arguments.command == "unseen":
+        missed = choose_unseen(arguments.queue)
+        print("community file: %d pull request(s) whose comments are read one by one" % len(missed))
+        return 0
     if arguments.command == "choose":
         looked = choose(arguments.queue)
         print("community file: %d pull request(s) to read closer" % len(looked))

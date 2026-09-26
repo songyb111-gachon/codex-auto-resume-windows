@@ -55,12 +55,15 @@ jobs:
           git fetch --no-tags --no-recurse-submodules origin "refs/pull/$PR_NUMBER/head"
           test "$(git rev-parse FETCH_HEAD)" = "$HEAD_SHA"
 
+      # The head branch's name reaches the check only as text to compare: a report comes from a
+      # compat-report/ branch, the only ones the filer answers for. It is never fetched or shown.
       - name: Judge the report
         env:
           PYTHONPATH: src
           PYTHONDONTWRITEBYTECODE: "1"
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           AUTHOR_ASSOCIATION: ${{ github.event.pull_request.author_association }}
         run: python build/community_check.py

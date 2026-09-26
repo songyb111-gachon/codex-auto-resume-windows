@@ -519,13 +519,16 @@ what you are trying to achieve — there is usually a way to get there that keep
 A report about a Codex version is written on your own machine by
 [codex-compat-reporter](https://github.com/songyb111-gachon/codex-compat-reporter), from this
 installation's own records: counts, states and times, no conversation text and no identifiers. Read
-the file before you send it. It reaches GitHub only as a pull request you open, and that pull
-request adds exactly one new file, at
+the file before you send it. It reaches GitHub only as a pull request you open, from a branch whose
+name starts with `compat-report/` - the reporter's `submit` opens it from
+`compat-report/codex-cli-<version>` - and that pull request adds exactly one new file, at
 
     docs/evidence/community/<your GitHub login>/codex-cli-<version>.json
 
 where `<version>` is the report's own `codex_version` and the login is the one that opens the pull
-request (and the report's `reporter.github_login`). Reports are add-only: one per GitHub login per
+request (and the report's `reporter.github_login`). One opened by hand from another branch
+(`patch-1`, say, GitHub's name for an edit on the web) is refused by the check: the filer below
+answers for `compat-report/` branches only. Reports are add-only: one per GitHub login per
 Codex version, and a filed report is never edited. A pull request that changes anything else, adds
 a second file, or adds one at a path already filed on the base or on `main` is refused, and so is a
 folder that differs from a filed one only in letter case, since Windows opens the two as one.
@@ -570,10 +573,13 @@ report that meets one waits rather than being refused:
 
 A waiting pull request's comment gives the reason and when it is looked at again; there is nothing
 for you to do. A refused one's says, line by line, what to do about each reason; a new commit on
-it is judged again, and one refused and left unchanged for 14 days is closed. Filing is paused by
-the repository variable `COMMUNITY_AUTOFILE` (anything but unset or `on`), an account's reports are
+it is judged again, and one refused and left unchanged for 14 days is closed. One report pull
+request per account is open at a time, and the reporter's `submit` keeps to that, so sending the
+report again starts by closing the refused one - its comment says so. Filing is paused by the
+repository variable `COMMUNITY_AUTOFILE` (anything but unset or `on`), an account's reports are
 refused by listing its numeric id in `COMMUNITY_BLOCKED`, and the maintainer's own tool can still
-file a report that waits, or withdraw one.
+file a report that waits or is refused that way, or withdraw one; the pull request of a report it
+files is then closed as filed, with the same one comment.
 
 Once filed, a report counts towards *Reported by others* beside its Codex version on the
 Dashboard's Diagnostics page ([GUIDE.md](GUIDE.md#requirements) says how it is counted), from the
@@ -584,8 +590,9 @@ files, the index, the README and the shipped counts to each other. The commit na
 your account's numeric id, which is what the weekly limits count. A report file the index does not
 list counts nowhere, which is why your pull request stays green under the ordinary tests. A report
 found to be wrong is withdrawn in the open, by removing its file and its index entry together, and
-the account is listed in `docs/evidence/community/withdrawn.json`, so the same report is not filed
-again. No report enters the compatibility data, and none changes a tier.
+the account and that Codex version are listed in `docs/evidence/community/withdrawn.json`, so the
+same report is not filed again; the account's reports on other Codex versions are judged like any
+other. No report enters the compatibility data, and none changes a tier.
 
 ## How the code is layered
 

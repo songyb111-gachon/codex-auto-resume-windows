@@ -18,9 +18,15 @@ into that release's when it is opened.
   3 filings per account and 5 per Codex version in any 7 days, a budget of Codex versions the
   project's data does not name, half the counts file's room kept free, and a failure on a version
   this project verifies held for the maintainer. A report that meets a limit waits, with the date
-  it is looked at again. The repository variable `COMMUNITY_AUTOFILE` pauses filing on anything but
-  unset or `on`, `COMMUNITY_BLOCKED` refuses an account, and a withdrawn report's account is listed
-  in `docs/evidence/community/withdrawn.json` so it is not filed again.
+  it is looked at again; a younger account's, or a second open one from the same account, is closed
+  with when to send it again. The repository variable `COMMUNITY_AUTOFILE` pauses filing on anything
+  but unset or `on`, `COMMUNITY_BLOCKED` refuses an account, and a withdrawn report's account and
+  Codex version are listed in `docs/evidence/community/withdrawn.json` so that report is not filed
+  again.
+- **A report comes from a `compat-report/` branch**, as the reporter's `submit` opens it. The check
+  refuses one opened by hand from another branch, which the filer would never have answered, and a
+  refusal's comment says to close the pull request before sending again, since `submit` sends
+  nothing while one of the same account is open.
 - **Nothing a stranger sends can reach the write access.** The job that reads their files holds no
   write access and no token while Python runs; the job that writes starts on a fresh runner, runs
   no Python and no repository code, re-derives every commit from git, and moves `main` only
