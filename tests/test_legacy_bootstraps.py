@@ -80,8 +80,22 @@ class PublishedBootstrapTests(unittest.TestCase):
                 raise AssertionError("no tag from v0.5.2 on is in this checkout; CI must fetch the tags")
             raise unittest.SkipTest("no tag from v0.5.2 on is in this checkout")
         cls.bootstraps = [legacy.lift(ROOT, tag) for tag in cls.tags]
+        # From v0.6.11-alpha a published bootstrap knows the advanced edition too, and is asked
+        # about both archives: each (tag, edition) is a case of its own. Until that tag existed
+        # every case here was a tag's standard one, and these tests counted tags - which is how
+        # the release of v0.6.11-alpha, the first run to see its own tag, failed on them.
+        cls.cases = [(bootstrap.tag, edition) for bootstrap in cls.bootstraps
+                     for edition in (("standard", "advanced") if bootstrap.knows_advanced()
+                                     else ("standard",))]
         cls.folder = tempfile.TemporaryDirectory()
         cls.work = Path(cls.folder.name)
+
+    def both(self, name, **shape):
+        """The archive of each edition, built to one shape."""
+        return (archive(self.work / (name + ".zip"), **shape),
+                archive(self.work / (name + "-advanced.zip"),
+                        extra=list(shape.pop("extra", ())) + ["payload/app/src/%s/__init__.py" % PACKAGE],
+                        **shape))
 
     @classmethod
     def tearDownClass(cls):
@@ -94,28 +108,28 @@ class PublishedBootstrapTests(unittest.TestCase):
         self.assertEqual(legacy.published(ROOT, "0.6.9"), self.tags[:self.tags.index("v0.6.9")])
 
     def test_every_published_bootstrap_takes_an_archive_shaped_like_this_release(self):
-        standard = archive(self.work / "standard.zip")
-        self.assertEqual(legacy.check(self.bootstraps, VERSION, standard), [])
+        self.assertEqual(legacy.check(self.bootstraps, VERSION, *self.both("standard")), [])
 
     def test_an_entry_every_bootstrap_requires_is_missed_by_every_one(self):
-        broken = archive(self.work / "no_mcp_json.zip", omit=["payload/app/.mcp.json"])
-        found = legacy.check(self.bootstraps, VERSION, broken)
-        self.assertEqual(len(found), len(self.tags), found)
-        for tag, finding in zip(self.tags, found):
-            self.assertTrue(finding.startswith(tag + " refuses no_mcp_json.zip: "), finding)
+        found = legacy.check(self.bootstraps, VERSION, *self.both("no_mcp_json", omit=["payload/app/.mcp.json"]))
+        self.assertEqual(len(found), len(self.cases), found)
+        for (tag, edition), finding in zip(self.cases, found):
+            name = "no_mcp_json.zip" if edition == "standard" else "no_mcp_json-advanced.zip"
+            self.assertTrue(finding.startswith("%s refuses %s: " % (tag, name)), finding)
             self.assertIn("missing payload/app/.mcp.json", finding)
 
     def test_each_bootstrap_is_judged_by_its_own_code(self):
         """A stray file at the payload root is refused from v0.6.0, when the check came in, and
         not before - which only the tags' own Test-Archive can know."""
-        stray = archive(self.work / "stray.zip", extra=["payload/stray.txt"])
-        refusing = {finding.split(" ", 1)[0] for finding in legacy.check(self.bootstraps, VERSION, stray)}
+        stray = self.both("stray", extra=["payload/stray.txt"])
+        refusing = {finding.split(" ", 1)[0] for finding in legacy.check(self.bootstraps, VERSION, *stray)}
         self.assertEqual(refusing, {tag for tag in self.tags if legacy.order(tag[1:]) >= (0, 6, 0)})
 
     def test_a_name_the_old_template_cannot_build_is_found(self):
         renamed = [legacy.Bootstrap(tag.tag, tag.script, tag.release.replace(
             b"CodexAutoResume-v{version}", b"CodexAutoResume-Renamed-v{version}")) for tag in self.bootstraps]
-        found = legacy.check(renamed, VERSION, archive(self.work / "renamed.zip"))
+        # Only the standard template is renamed, so an advanced case still names its archive.
+        found = legacy.check(renamed, VERSION, *self.both("renamed"))
         self.assertEqual(len(found), len(self.tags), found)
         self.assertTrue(all("would download CodexAutoResume-Renamed-v9.9.9-win-x64.zip" in line
                             for line in found), found)
