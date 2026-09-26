@@ -14,8 +14,9 @@ list that offered it would show a person a wait the watcher never keeps (`previe
 Three more things only ever lengthen a wait. A wait Codex names in a structured error (a Retry-After)
 is the least the first wait may be (failures.retry_after). Jitter, off by default, adds up to a fifth
 to each wait. And the time ceiling, off by default, stops a task whose temporary failures have gone on
-for longer than it, measured from its first failure to its latest - so a postponement, quiet hours or
-a closed app never count against it.
+for longer than it, measured from its first failure to its latest less every wait aside - a person's,
+a postponement or an objection window, quiet hours, a closed app - which never count against it
+(domain/gates.py, chain_span). The retry waits and the engine's floor between two continuations do.
 
 Pure: nothing here reads a clock, a file or Codex. The engine asks it (engine/options.py), the settings
 publish what the surfaces draw from it (settings.describe), and the preview is the same function for

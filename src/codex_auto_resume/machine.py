@@ -33,7 +33,7 @@ from .domain.gates import (BLOCK, GATE_REASONS, GATE_RESULTS, GATES, HELD, NOT_C
                            OBSERVE_ONLY, PASS, POSTPONED, QUIET_HOURS, UNKNOWN, WAIT,
                            decode_gates, encode_gates, first_refusal, gate, gate_budgets,
                            gate_consent, gate_schedule, gate_submission_safe, over_ceiling,
-                           would_send_at)
+                           waited_aside, would_send_at)
 from .domain.public import (ACTORS, EVENT_CODES, FLAG_AFTER_USER_WORK, FLAG_LEGACY,
                             FLAG_USER_JOINED, FLAG_WITHDRAW_DELETED, HOLDS, IMPORTANCE_TIERS,
                             OVERLAYS, PAGES,
@@ -60,4 +60,4 @@ __all__ = ["ACTORS", "BLOCK", "CLAIMED", "EPOCH_CODEX", "EPOCH_STORE", "EPOCH_US
            "gate_consent", "gate_schedule", "gate_submission_safe", "hold_for_tier", "may_be_queued",
            "over_ceiling", "overlays",
            "plain_move_allowed", "public_code", "public_reason", "reason_code", "turn_status",
-           "waiting_state", "would_send_at"]
+           "waited_aside", "waiting_state", "would_send_at"]

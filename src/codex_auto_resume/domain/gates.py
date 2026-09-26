@@ -82,10 +82,39 @@ def gate_submission_safe(record, others_in_flight: int) -> tuple:
 
 
 def chain_span(record) -> float:
-    """How long a task has kept failing: from its first failure to this, its latest one. Waiting - a
-    postponement, quiet hours, a closed app - is never in it (v0.6.11, ladder.py)."""
+    """How long a task has kept failing: from its first failure to this, its latest one, less the
+    time it waited aside (`waited_aside`) - for a person, a postponement or an objection window,
+    quiet hours, the app. The store moves the start of that time (`chain_first_detected_at`) later
+    by each such wait as it ends, and a record of the chain begun after it inherits the moved start,
+    so no wait aside is ever in it (v0.6.11, ladder.py). The retry waits themselves - the ladder's,
+    and the engine's floor between two continuations - are what failing again and again is made
+    of, and count."""
     span = (record.get("detected_at") or 0) - (record.get("chain_first_detected_at") or 0)
     return span if span > 0 else 0.0
+
+
+# What a due record waits for that is its retries' own pacing rather than a wait aside: its schedule
+# (a retry's wait, a usage reset) and the engine's floor for one conversation (A20).
+_PACING = frozenset({("schedule", "not_due"), ("schedule", "waiting_reset"),
+                     ("attempt_budget", "daily_submission_cap"),
+                     ("attempt_budget", "thread_submission_cooldown")})
+
+
+def waited_aside(vector) -> bool:
+    """Whether a record the stored `vector` held back was waiting aside (v0.6.11): for anything but
+    its retries' own pacing (_PACING) - a person (a Pause, a conversation off, a cancel, a hold,
+    Observe only), a postponement or an objection window, quiet hours, the app or Codex, another
+    recovery, a person's own queued input, usage, a plug's hold. A budget spent stops the record and
+    is none. A time ceiling never counts a wait aside (chain_span). A gate never evaluated says
+    nothing, and neither does an empty vector."""
+    for name in GATES:
+        result, reason = (vector or {}).get(name, (UNKNOWN, NOT_CHECKED))
+        if result == PASS or reason == NOT_CHECKED or (name, reason) in _PACING:
+            continue
+        if result == BLOCK and name in ("chain_budget", "attempt_budget", "no_progress_budget"):
+            continue
+        return True
+    return False
 
 
 def over_ceiling(record, limits: dict, usage_category: bool) -> bool:

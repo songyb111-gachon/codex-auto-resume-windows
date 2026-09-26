@@ -33,7 +33,7 @@ from codex_auto_resume.store import Store  # noqa: E402
 from test_control import THREAD, ControlTestCase, detection  # noqa: E402
 from test_engine import T1  # noqa: E402
 from test_observe_and_admission import Spy  # noqa: E402
-from test_recovery import Base, ChainBase  # noqa: E402
+from test_recovery import Base, ChainBase, dispatch_and_fail  # noqa: E402
 
 
 class Fixed:
@@ -159,6 +159,33 @@ class CeilingGateTests(unittest.TestCase):
         self.assertEqual(machine.gate_budgets(self.record, limits, False)["chain_budget"], ("PASS", "ok"),
                          "no ceiling at the defaults")
 
+    def test_what_is_a_wait_aside(self):
+        """Its retries' own pacing - a retry's wait, a usage reset, the engine's floor - is what failing
+        again and again is made of and counts; anything else a due record waits for is aside and never
+        counts, and a vector that says nothing is none."""
+        def vector(**gates):
+            return machine.decode_gates(machine.encode_gates(gates))
+        passed = {name: ("PASS", "ok") for name in machine.GATES}
+        for gates, aside in (
+                ({"consent": ("BLOCK", "paused")}, True),
+                ({"consent": ("BLOCK", "observe_only")}, True),
+                ({"consent": ("WAIT", "held")}, True),
+                ({"consent": ("PASS", "ok"), "schedule": ("WAIT", "postponed")}, True),
+                ({"consent": ("PASS", "ok"), "schedule": ("WAIT", "quiet_hours")}, True),
+                ({"consent": ("PASS", "ok"), "schedule": ("WAIT", "not_due")}, False),
+                ({"consent": ("PASS", "ok"), "schedule": ("WAIT", "waiting_reset")}, False),
+                (dict(passed, thread_available=("WAIT", "notLoaded")), True),
+                (dict(passed, engine_compatible=("UNKNOWN", "engine_unknown")), True),
+                (dict(passed, attempt_budget=("WAIT", "thread_submission_cooldown")), False),
+                (dict(passed, attempt_budget=("WAIT", "daily_submission_cap")), False),
+                (dict(passed, chain_budget=("BLOCK", "chain_time_cap")), False),
+                (dict(passed, usage=("WAIT", "usage_unavailable")), True),
+                (passed, False),
+                ({}, False)):
+            with self.subTest(gates=gates):
+                self.assertEqual(machine.waited_aside(vector(**gates)), aside)
+        self.assertFalse(machine.waited_aside(machine.decode_gates(None)))
+
     def test_the_count_cap_is_said_first(self):
         limits = {"max_chain_continuations": 1, "max_recovery_attempts": 4, "max_no_progress": 3,
                   "max_chain_seconds": 60}
@@ -248,6 +275,37 @@ class LadderEngineTests(ChainBase):
         notice = notifier.build("stopped", stopped[0])
         self.assertEqual(notice.line, notify.l10n.message("toast_time_cap_body"),
                          "said as the time it took, not as attempts it had to spare")
+
+    def test_a_postponement_never_counts_toward_the_ceiling(self):
+        """A task postponed three hours, whose one continuation then fails: the three hours were counted
+        against a ceiling of one, and it stopped - after a single failure of its own."""
+        h = self.harness()
+        policy(h, chain_time_ceiling="h1", max_no_progress=10, max_recovery_attempts=10)
+        first = self.start(h)
+        self.assertTrue(h.store.postpone(first["interruption_id"], T1, h.now + 3 * 3600, h.now)[0])
+        for _ in range(30):
+            h.tick(advance=600)
+            if h.backend.send_calls:
+                break
+        self.assertEqual(len(h.backend.send_calls), 1)
+        dispatch_and_fail(h.home, T1, progress=False)
+        h.tick(advance=1)
+        child = h.records(T1)[-1]
+        self.assertEqual(child["parent_interruption_id"], first["interruption_id"])
+        self.assertNotEqual(child["last_error"], "chain_time_cap")
+        self.assertIn(child["state"], machine.WAITING)
+        self.assertLess(child["detected_at"] - child["chain_first_detected_at"], 3600)
+
+    def test_an_objection_window_never_counts_toward_the_ceiling(self):
+        """An hour's window to object before each send, under a ceiling of an hour: every task stopped at
+        its first failed continuation, the window counted as failing."""
+        h = self.harness()
+        policy(h, chain_time_ceiling="h1", default_tier="objection_window", objection_minutes=60,
+               max_no_progress=10, max_recovery_attempts=10)
+        self.start(h)
+        child = self.continuation_fails(h)
+        self.assertNotEqual(child["last_error"], "chain_time_cap")
+        self.assertLess(child["detected_at"] - child["chain_first_detected_at"], 3600)
 
     def test_without_a_ceiling_the_same_chain_goes_on(self):
         h = self.harness()

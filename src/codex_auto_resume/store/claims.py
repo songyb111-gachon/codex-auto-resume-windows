@@ -58,6 +58,18 @@ class ClaimsMixin:
                 "OR submitted_at IS NOT NULL OR legacy=1) ORDER BY detected_at", (thread_id,))]
 
     @staticmethod
+    def _counted_from(row, now) -> float:
+        """Where a waiting record's chain's counted time starts once `now` ends what its stored vector
+        said it waited for (v0.6.11): later by that wait, when it was one aside (gates.waited_aside),
+        which a time ceiling never counts - and the start the record already had otherwise. Written
+        with every new vector and with the claim, so each wait aside is taken off once, and a record
+        of the chain begun after this one inherits the start (chain_span)."""
+        start, at = row["chain_first_detected_at"], row["gate_eval_at"]
+        if at is None or now <= at or not machine.waited_aside(machine.decode_gates(row["gate_eval"])):
+            return start
+        return start + (now - at)
+
+    @staticmethod
     def _others_in_flight(connection, thread_id, exclude) -> int:
         return sum(machine.may_be_queued(state, queue_id) for state, queue_id in connection.execute(
             "SELECT state, queue_id FROM interruptions WHERE thread_id=? AND interruption_id<>?",
@@ -145,27 +157,32 @@ class ClaimsMixin:
             if refusal is not None:
                 if encoded is not None and row["state"] in WAITING:
                     connection.execute(
-                        "UPDATE interruptions SET gate_eval=?, gate_eval_at=? WHERE interruption_id=?",
-                        (encoded, now, interruption_id))
+                        "UPDATE interruptions SET gate_eval=?, gate_eval_at=?, chain_first_detected_at=? "
+                        "WHERE interruption_id=?", (encoded, now, self._counted_from(row, now), interruption_id))
                 return False, refusal[0], refusal[1]
             connection.execute(
                 "UPDATE interruptions SET state='submitting', attempt_count=attempt_count+1, %s, "
                 "submitted_at=?, last_claim_at=?, last_error=NULL, gate_eval=coalesce(?, gate_eval), "
-                "gate_eval_at=coalesce(?, gate_eval_at) WHERE interruption_id=?" % _claim_cost(row),
-                (now, now, encoded, now if encoded is not None else None, interruption_id))
+                "gate_eval_at=coalesce(?, gate_eval_at), chain_first_detected_at=? WHERE interruption_id=?"
+                % _claim_cost(row),
+                (now, now, encoded, now if encoded is not None else None, self._counted_from(row, now),
+                 interruption_id))
             self._event(connection, now, "claim", record=row, from_state=row["state"],
                         to_state="submitting")
             return True, None, None
 
     def record_gates(self, interruption_id: str, gates: dict, now: float) -> None:
-        """Persist a gate vector for a waiting record that was due but not claimable."""
+        """Persist a gate vector for a waiting record that was due but not claimable - and end the
+        wait the one before it said, for its chain's time ceiling (`_counted_from`)."""
         _timestamp(now, "now")
         encoded = machine.encode_gates(gates)
         with self._transaction() as connection:
+            row = self._row(connection, interruption_id)
+            if row is None or row["state"] not in WAITING:
+                return
             connection.execute(
-                "UPDATE interruptions SET gate_eval=?, gate_eval_at=? WHERE interruption_id=? "
-                "AND state IN (%s)" % ",".join("?" for _ in WAITING),
-                (encoded, now, interruption_id, *sorted(WAITING)))
+                "UPDATE interruptions SET gate_eval=?, gate_eval_at=?, chain_first_detected_at=? "
+                "WHERE interruption_id=?", (encoded, now, self._counted_from(row, now), interruption_id))
 
     def record_would_send(self, interruption_id: str, gates: dict, now: float, next_retry_at: float) -> bool:
         """Observe only (v0.6.11): a waiting record every gate but consent passed, parked until
@@ -180,8 +197,9 @@ class ClaimsMixin:
             if row is None or row["state"] not in WAITING or row["submitted_at"] is not None:
                 return False
             fresh = row["gate_eval"] != encoded
-            connection.execute("UPDATE interruptions SET gate_eval=?, gate_eval_at=?, next_retry_at=? "
-                               "WHERE interruption_id=?", (encoded, now, next_retry_at, interruption_id))
+            connection.execute("UPDATE interruptions SET gate_eval=?, gate_eval_at=?, next_retry_at=?, "
+                               "chain_first_detected_at=? WHERE interruption_id=?",
+                               (encoded, now, next_retry_at, self._counted_from(row, now), interruption_id))
             if fresh:
                 self._event(connection, now, "would_send", record=row, from_state=row["state"],
                             to_state=row["state"], value=now)

@@ -828,8 +828,10 @@ in Codex says the same. **Add up to a fifth to each wait** (jitter) lengthens ev
 failure by a random amount of up to a fifth, and never shortens one.
 
 **Stop a task that keeps failing after** is off by default. From 1 to 24 hours, it stops a task whose
-temporary failures have gone on for longer than that, measured from its first failure to its latest,
-so time spent postponed, in quiet hours or waiting for the app never counts. It stops the task the way
+temporary failures have gone on for longer than that, measured from its first failure to its latest
+less the time it waited for anything but its own retries: time spent paused, postponed, in an
+objection window, in quiet hours or waiting for the app never counts, while the retry waits and the
+15 minutes between two continuations do. It stops the task the way
 running out of attempts does - **Give attempts back** gives the time back too - and does not touch
 usage limits.
 
