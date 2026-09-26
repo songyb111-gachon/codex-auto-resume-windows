@@ -118,7 +118,7 @@ class Asked(Plug):
 
 def attach(path, name):
     """An ATTACH of the file at `path` as `name`, which the statement names: the claim lets a
-    ledger's ATTACH on only once it has read which file it is (store/claims.py)."""
+    ledger's ATTACH on only once it has read which file it is (store/ledger.py)."""
     return "ATTACH DATABASE '%s' AS %s" % (str(path).replace("'", "''"), name)
 
 

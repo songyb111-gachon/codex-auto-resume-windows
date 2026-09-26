@@ -245,7 +245,7 @@ class SessionMixin:
         refused is never attached; one that is not there is not made, and False says so.
 
         The statement names the file rather than binding it: core's claim lets an ATTACH on
-        only once it has read which file it is (store/claims.py, `_attachable`), and a bound
+        only once it has read which file it is (store/ledger.py, `_attachable`), and a bound
         name is not there to read."""
         if self._open(create=False) is None:
             return False

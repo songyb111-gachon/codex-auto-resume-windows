@@ -73,6 +73,8 @@ LAYER = {_q(name): layer for layer, names in {
                  "store.errors", "store.journal", "store.legacy", "store.migrations",
                  "store.policy", "store.records", "store.reporting", "store.schema",
                  "store.session", "store.validate", "store.watcher",
+                 # v0.6.11: the claim ledger's machinery (P11), out of store/claims.py.
+                 "store.ledger",
                  # v0.6.10-alpha: the Win32 the product calls, which windows.py was half of.
                  "win", "win.dll", "win.homelock", "win.inventory", "win.kernel", "win.sync",
                  # v0.6.10-alpha: source.py became source/, and every part of it reads Codex;

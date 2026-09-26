@@ -77,7 +77,9 @@ ITEM = {_q(name): item for item, names in {
     "store": ("store", "store.actions", "store.claims", "store.columns", "store.downgrade",
               "store.errors", "store.journal", "store.legacy", "store.migrations", "store.policy",
               "store.records", "store.reporting", "store.schema", "store.session",
-              "store.validate", "store.watcher"),
+              "store.validate", "store.watcher",
+              # v0.6.11: the claim ledger's machinery (P11), out of store/claims.py.
+              "store.ledger"),
     "codex": ("codex", "codex.appserver", "codex.errors", "codex.history", "codex.labels",
               "codex.pairing", "codex.paths", "codex.payload", "codex.schema", "codex.transport",
               "codex.usage", "codex.values", "compat", "compatio", "windows",
