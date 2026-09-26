@@ -140,6 +140,34 @@ class InventoryTests(unittest.TestCase):
         for name in ("CapabilityRegistry", "VALUE_WORDS", "Stage2"):
             self.assertIn(name, tree.names)
 
+    def test_a_capitalised_word_is_looked_for_among_codes_identifiers_and_nowhere_else(self):
+        """Such a word is English as often as a name, so no text is searched for it - but the
+        advanced tree's vocabulary enums and its tables are declared by such words, and one of
+        them copied alone into core source had no joined name to be found by. It is found where
+        code uses it as an identifier, in Python or PowerShell, and not in their comments,
+        strings or docstrings, nor in a document."""
+        declared = ("# %s\nclass Verdict:\n    VERIFIED = 'verified'\n\nFAMILIES = (1, 2)\n"
+                    "create = records = 1\n" % SENTINEL).encode("utf-8")
+        tree = audit.Inventory.build({"advanced/src/%s/vocabulary.py" % PACKAGE: declared},
+                                     CORE_PYTHON, CORE_CSHARP)
+        self.assertEqual({name for _, name in tree.words}, {"Verdict", "VERIFIED", "FAMILIES"})
+        copied = {"payload/app/src/codex_auto_resume/verdicts.py":
+                  b"class Verdict:\n    VERIFIED = 'verified'\n",
+                  "payload/app/src/codex_auto_resume/families.py": b"FAMILIES = (1, 2)\n",
+                  "payload/app/scripts/families.ps1": b"$FAMILIES = @(1, 2)\r\n"}
+        found, _ = audit.check_names(copied, tree)
+        self.assertEqual(sorted(found), [
+            "(c) payload/app/scripts/families.ps1 spells FAMILIES",
+            "(c) payload/app/src/codex_auto_resume/families.py spells FAMILIES",
+            "(c) payload/app/src/codex_auto_resume/verdicts.py spells VERIFIED",
+            "(c) payload/app/src/codex_auto_resume/verdicts.py spells Verdict"])
+        said = {"payload/app/src/codex_auto_resume/said.py":
+                b'"""The Verdict of a probe."""\n# FAMILIES of standards\nword = "VERIFIED"\n',
+                "payload/app/scripts/said.ps1": b"<# The Verdict #>\r\n# FAMILIES\r\n$x = 'VERIFIED'\r\n",
+                "payload/app/README.md": b"The Verdict is VERIFIED for these FAMILIES.\n",
+                "payload/app/.mcp.json": b'{"Verdict": "VERIFIED"}\n'}
+        self.assertEqual(audit.check_names(said, tree)[0], [])
+
     def test_the_window_is_read_for_its_own_names_and_strings(self):
         self.assertEqual(self.tree.window, {PACKAGE, SKILL, SENTINEL, "ArmingPage"})
         self.assertEqual(self.tree.literals, {"Watch first, then turn on"})

@@ -9,7 +9,8 @@ the repository they were built from, and nothing else, and fails the build on an
   (b) an entry of the standard archive is, byte for byte, a file of the advanced tree;
   (c) a text entry of the standard archive spells an identifier the advanced tree declares, or
       the line every shipped advanced file begins with - except the few lines of edition
-      machinery in ALLOWED, each with its reason;
+      machinery in ALLOWED, each with its reason. A name that is one English word, capitalised
+      or in capitals, is looked for only as an identifier in code (`identifiers`);
   (d) one of our own executables in the standard archive holds a name or a string literal of
       the advanced window's C#;
   (e) the standard archive built again from `git archive HEAD`, with `advanced/` deleted before
@@ -49,6 +50,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import tokenize
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -92,7 +94,8 @@ ALLOWED = {
 }
 # Shorter names and plain words - `create`, `Registry`, `VALUES` - are English (or SQL) as often
 # as they are code, and would be found in any text; the checks look for the ones that can only be
-# ours (`distinctive`).
+# ours (`distinctive`) everywhere, and a capitalised word only among code's identifiers
+# (`one_word`).
 MIN_LENGTH = 6
 _WORD = rb"[A-Za-z0-9_]"
 
@@ -103,14 +106,15 @@ class Inventory:
     """What the audit looks for: the advanced tree, as the standard archive must not hold it."""
     digests: frozenset          # SHA-256 of every shipped advanced file, in either line ending
     names: frozenset            # what no text entry may spell (c)
+    words: frozenset            # (language, name): what no code entry may use as an identifier (c)
     window: frozenset           # what no executable of ours may hold (d)
     literals: frozenset         # the advanced window's string literals, also for (d)
 
     @classmethod
-    def build(cls, advanced: dict, core_python=(), core_csharp=()) -> "Inventory":
+    def build(cls, advanced: dict, core_python=(), core_csharp=(), core_powershell=()) -> "Inventory":
         """From the shipped advanced files (repository path -> bytes) and the text of the core's
-        Python and C#. A name the core uses too is the core's word, not a sign of the advanced
-        edition, so it is left out; so is a literal the core's own contains."""
+        Python, C# and PowerShell. A name the core uses too is the core's word, not a sign of the
+        advanced edition, so it is left out; so is a literal the core's own contains."""
         core_words = set()
         for text in core_python:
             core_words |= python_words(text)
@@ -119,6 +123,9 @@ class Inventory:
             words, literals = csharp(text)
             core_cs |= words
             core_literals |= literals
+        core_ps = set()
+        for text in core_powershell:
+            core_ps |= powershell(text)
         digests, declared, cs_words, cs_literals = set(), set(), set(), set()
         for name, data in advanced.items():
             if not data.strip():
@@ -138,11 +145,18 @@ class Inventory:
                 cs_literals |= literals
         strong = {PACKAGE, SKILL, SENTINEL}
         names = strong | {name for name in declared - core_words if distinctive(name)}
+        # A one-word name is the core's own in the language whose core code uses it: `Verdict`
+        # is a property of the bootstrap's, and in PowerShell it is no sign of anything.
+        plain = {name for name in declared if one_word(name)}
+        words = ({("python", name) for name in plain - core_words}
+                 | {("csharp", name) for name in plain - core_cs}
+                 | {("powershell", name) for name in plain - core_ps})
         window = strong | {name for name in cs_words - core_cs if distinctive(name)}
         literals = {literal for literal in cs_literals
                     if len(literal) >= MIN_LENGTH and literal not in core_cs
                     and not any(literal in other for other in core_literals)}
-        return cls(frozenset(digests), frozenset(names), frozenset(window), frozenset(literals))
+        return cls(frozenset(digests), frozenset(names), frozenset(words), frozenset(window),
+                   frozenset(literals))
 
 
 def distinctive(name: str) -> bool:
@@ -152,11 +166,24 @@ def distinctive(name: str) -> bool:
     begin sentences in the standard edition's documents and comments, and `VALUES` is in every
     SQL insert its store makes; the advanced tree declaring a class or a constant by such a word
     does not make every sentence that says it a leak. A file of the advanced tree carried across
-    whole is still found by the sentinel it begins with and the joined names it declares."""
+    whole is still found by the sentinel it begins with and the joined names it declares, and
+    such a word is looked for where a sentence is not: among the identifiers of code (`one_word`)."""
     if len(name) < MIN_LENGTH:
         return False
     joined = any(c.isupper() for c in name[1:]) and any(c.islower() for c in name)
     return joined or "_" in name or any(c.isdigit() for c in name)
+
+
+def one_word(name: str) -> bool:
+    """A name that is one word, capitalised or in capitals - `Verdict`, `FAMILIES`, `TABLES`.
+
+    Too plain for (c) to look for in any text, and too much to let go: the advanced tree's
+    vocabulary enums and its tables of standards, schema and probes are declared by such names,
+    and one of them copied alone into core source had no joined name to be found by. It is
+    looked for only as an identifier in code (`identifiers`), where a sentence does not reach -
+    not in a comment, a docstring, a string or a document. Plain lowercase words are left out
+    even there: `create` and `records` are every program's."""
+    return len(name) >= MIN_LENGTH and not distinctive(name) and not name.islower()
 
 
 def python_words(text: str) -> set:
@@ -227,6 +254,44 @@ def csharp(text: str) -> tuple[set, set]:
     return words, literals
 
 
+_POWERSHELL = re.compile(r"""
+      (?P<comment><\#.*?\#>|\#[^\n]*)
+    | (?P<here>@"[ \t]*\r?\n.*?\r?\n"@|@'[ \t]*\r?\n.*?\r?\n'@)
+    | (?P<string>"(?:`.|""|[^"`])*"|'(?:''|[^'])*')
+    | (?P<word>[A-Za-z_][A-Za-z0-9_]*)
+""", re.S | re.X)
+_CODE = {".py": "python", ".pyw": "python", ".cs": "csharp", ".ps1": "powershell",
+         ".psm1": "powershell", ".psd1": "powershell"}
+
+
+def powershell(text: str) -> set:
+    """A PowerShell script's identifiers - its variables, properties, commands and types - and
+    none of what its comments and strings say."""
+    return {match.group() for match in _POWERSHELL.finditer(text) if match.lastgroup == "word"}
+
+
+def language(entry: str) -> str | None:
+    """The language a code entry is written in, by its extension, or None for one that is not."""
+    return _CODE.get(Path(entry).suffix.lower())
+
+
+def identifiers(kind: str | None, content: str) -> set:
+    """The identifiers a code entry in language `kind` uses - none of what its comments,
+    strings and docstrings say - or nothing for an entry that is not code. Python that does not
+    tokenize is read for every word in it, which finds more, never less."""
+    if kind == "csharp":
+        return csharp(content)[0]
+    if kind == "powershell":
+        return powershell(content)
+    if kind == "python":
+        try:
+            return {token.string for token in tokenize.generate_tokens(io.StringIO(content).readline)
+                    if token.type == tokenize.NAME}
+        except (tokenize.TokenError, SyntaxError):
+            return set(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", content))
+    return set()
+
+
 def _git(root: Path, *arguments: str) -> bytes:
     done = subprocess.run(["git", "-C", str(root), *arguments], capture_output=True, timeout=300)
     if done.returncode != 0:
@@ -252,7 +317,9 @@ def inventory(root: Path = ROOT) -> Inventory:
               if name.endswith(".py")]
     csharp_sources = [(root / name).read_text(encoding="utf-8") for name in tracked(root, "gui")
                       if name.endswith(".cs")]
-    return Inventory.build(advanced, python, csharp_sources)
+    scripts = [(root / name).read_text(encoding="utf-8-sig")
+               for name in tracked(root, "scripts", "build/install") if name.endswith(".ps1")]
+    return Inventory.build(advanced, python, csharp_sources, scripts)
 
 
 # --------------------------------------------------------------------------------- the checks
@@ -297,15 +364,19 @@ def _spells(haystack: str, name: str) -> bool:
 
 
 def check_names(standard: dict, advanced: Inventory) -> tuple[list, set]:
-    """(c) No text entry spells an advanced name, outside the edition machinery. Returns the
-    findings and the allowances that were needed, so a caller can see none has gone stale."""
+    """(c) No text entry spells an advanced name, and no code entry uses one of its one-word
+    names as an identifier, outside the edition machinery. Returns the findings and the
+    allowances that were needed, so a caller can see none has gone stale."""
     found, used = [], set()
     for entry, data in standard.items():
         content = text(data)
         if content is None:
             continue
-        for name in sorted(advanced.names):
-            if not _spells(content, name):
+        kind = language(entry)
+        wanted = {name for spoken, name in advanced.words if spoken == kind}
+        used_here = identifiers(kind, content) & wanted if wanted else set()
+        for name in sorted(advanced.names | used_here):
+            if name in advanced.names and not _spells(content, name):
                 continue
             if (entry, name) in ALLOWED:
                 used.add((entry, name))
