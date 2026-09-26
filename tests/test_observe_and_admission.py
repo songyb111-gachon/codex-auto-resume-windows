@@ -26,7 +26,7 @@ _HERE = str(Path(__file__).resolve().parent)
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
-from codex_auto_resume import control, machine, mcpserver, projects, settings  # noqa: E402
+from codex_auto_resume import control, machine, managed, mcpserver, projects, settings  # noqa: E402
 from codex_auto_resume.control.records import receipts  # noqa: E402
 from codex_auto_resume.store import Store, StoreError  # noqa: E402
 from test_control import KEY, OTHER_KEY, THREAD, ControlTestCase, detection  # noqa: E402
@@ -183,6 +183,36 @@ class ObserveOnlyEngineTests(EngineCase):
         self.h.tick(advance=61)
         self.assert_no_send()
         self.assertEqual(self.h.events(self.h.record()["interruption_id"]).count("would_send"), 2)
+
+    def test_a_continuation_already_queued_is_taken_back_as_a_pause_takes_it(self):
+        """Observe only promises nothing goes to Codex; one left in its queue would be delivered. The
+        switch, the setting and an administrator's ForceObserveOnly each take it back, and it goes
+        back to waiting with its attempt, as after a Pause (H4)."""
+        for how in ("switch", "setting", "key"):
+            with self.subTest(how=how):
+                h = self.fresh()
+                self.send_and_hold(h)
+                if how == "key":
+                    h.engine.apply_policy(settings.defaults(), managed.Managed(force_observe_only=True))
+                else:
+                    self.observe(h, switch=how == "switch", setting=how == "setting")
+                h.tick(advance=1)
+                withdrawn = h.record()
+                self.assertEqual((withdrawn["state"], withdrawn["withdraw_reason"]),
+                                 ("withdrawn_unconfirmed", "paused"))
+                self.assertEqual(h.home.queued(T1), [], "nothing of ours is left in Codex's queue")
+                h.tick(advance=181)
+                row = h.record()
+                self.assertIn(row["state"], machine.WAITING)
+                self.assertIsNone(row["submitted_at"])
+                self.assertEqual(len(h.backend.send_calls), 1)
+
+    def test_an_uncertain_submission_still_queued_is_taken_back_and_ends_final(self):
+        self.unknown_but_queued()
+        self.observe()
+        self.h.watch(advance=1)
+        self.assertEqual(self.h.record()["withdraw_reason"], "paused_unknown")
+        self.assertEqual(self.h.home.queued(T1), [])
 
     def test_the_setting_alone_is_enough_for_the_engine(self):
         self.observe(switch=False, setting=True)

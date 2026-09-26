@@ -790,7 +790,8 @@ runs, and a recovery that would have been sent is shown as such: its row in Pend
 timeline records it once each time it comes to that. The Overview says observe only where it says
 recovery is on, and so does the popup. Nothing is claimed and nothing is sent: the watcher refuses on
 the setting, and the recovery state it keeps has a switch of its own, written from the setting, that
-refuses every send by itself. Turn it off to let recovery send again.
+refuses every send by itself. A continuation already in Codex's queue when it is turned on is taken
+back, as a Pause takes it. Turn it off to let recovery send again.
 
 **A conversation seen for the first time**, under Advanced, is resumed like the others by default.
 **Only notify me** gives a conversation this product has never seen that choice as its own when its

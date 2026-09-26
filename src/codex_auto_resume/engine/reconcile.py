@@ -150,6 +150,11 @@ class ReconcileMixin:
         A submission already known to be uncertain is still withdrawn by a Pause, but
         under its own reason: a paused withdrawal can be released back to waiting, and
         an uncertain submission is never sent again, so this one settles as final.
+
+        Observe only (v0.6.11) - the setting, the state's switch, or an administrator's
+        ForceObserveOnly - takes it back as a Pause does and under a Pause's reasons: it
+        makes the same promise, that nothing goes to Codex while it is on, and a queued
+        item left there would be delivered by Codex regardless.
         """
         now = self.clock()
         thread, marker = row["thread_id"], row["marker"]
@@ -165,7 +170,8 @@ class ReconcileMixin:
             return "user_queued_input"
         if not turns and not self.valid_interruption(row):
             return "superseded"
-        if not self.store.settings()["enabled"]:
+        settings = self.store.settings()
+        if not settings["enabled"] or self.observing(settings):
             return "paused_unknown" if row["state"] == "submission_unknown" else "paused"
         if self.loaded(thread) == "notLoaded":
             return "not_loaded"
