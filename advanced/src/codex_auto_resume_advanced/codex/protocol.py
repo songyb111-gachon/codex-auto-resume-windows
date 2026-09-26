@@ -11,15 +11,19 @@ is their union, the whole of what this edition may ever ask beyond core's three.
 
 `Session` is the helper the design calls SessionProtocol: opened for one turn against a Codex
 whose thread no process is holding, it follows that turn's notifications, answers every request
-Codex makes of it - approvals, elicitations, input - with an explicit decline, refuses the
-methods that touch authentication or attestation whatever the allow-list says, and always ends
-with `thread/unsubscribe`. It is a thin client over `codex app-server --stdio`; the harness
-drives it through an injected factory, so the tests use a fake and no test opens a real Codex.
+Codex makes of it - approvals, elicitations, input - with that request's own refusal from Codex's
+schema (`DECLINE_ANSWERS`), never an accepting one, answers the requests that touch
+authentication or attestation with an error and never with what they ask, refuses to call those
+methods whatever the allow-list says, and always ends with `thread/unsubscribe`. It is a thin
+client over `codex app-server --stdio`; the harness drives it through an injected factory, so
+the tests use a fake and no test opens a real Codex.
 Its own correctness against a live engine is what the owner proves by running the measurements
 (that is what M6 records) - the alpha exists for exactly that.
 """
 from __future__ import annotations
 
+from collections import Counter
+import copy
 import json
 from pathlib import Path
 import queue
@@ -62,13 +66,81 @@ FORBIDDEN_METHODS = frozenset({
     "item/tool/call",
 })
 
-# The requests Codex may make of a client, every one of which this session declines. Core's
-# transport already answers a server request with "unsupported"; this names them so a decline
-# is a decision, not an accident, and so M6 can say what it declined.
-DECLINED_REQUESTS = frozenset({
-    "exec/command/approval", "applyPatch/approval", "fileChange/approval",
-    "commandExecution/approval", "input/request", "elicitation",
+# The requests Codex may make of a client that this session answers, each with the refusal Codex's
+# own schema gives it (codex-cli 0.158.0-alpha.2.1, `app-server generate-json-schema`: the
+# ServerRequest methods and each one's *Response type). Answering one with a JSON-RPC error, as the
+# first version did, is not a decline Codex knows - and the method names it listed
+# ("commandExecution/approval", ...) were never ones Codex sends, so M6 counted nothing.
+# A refusal is a constant: nothing Codex sends chooses it or shapes it, and `_grants_nothing` is
+# checked again before one is written.
+_REJECTION = "declined by codex-auto-resume"
+DECLINE_ANSWERS = {
+    # v2 CommandExecutionApprovalDecision / FileChangeApprovalDecision: "decline" - the agent is
+    # told no and continues the turn ("cancel" would also interrupt it).
+    "item/commandExecution/requestApproval": {"decision": "decline"},
+    "item/fileChange/requestApproval": {"decision": "decline"},
+    # v2 PermissionsRequestApprovalResponse: a GrantedPermissionProfile - granting nothing, for
+    # this turn only, is the refusal (the schema has no decision word for it).
+    "item/permissions/requestApproval": {"permissions": {}, "scope": "turn"},
+    # v1 ReviewDecision: "denied" - not run, and the session continues and tries something else.
+    "execCommandApproval": {"decision": {"denied": {"rejection": _REJECTION}}},
+    "applyPatchApproval": {"decision": {"denied": {"rejection": _REJECTION}}},
+    # ToolRequestUserInputResponse: no answer to any question.
+    "item/tool/requestUserInput": {"answers": {}},
+    # McpServerElicitationAction: "decline", with no content.
+    "mcpServer/elicitation/request": {"action": "decline", "content": None},
+}
+DECLINED_REQUESTS = frozenset(DECLINE_ANSWERS)
+
+# Every word the schema's response types grant something with: a decision that runs, allows,
+# persists a rule or widens a policy. None of them is ever in anything this session sends.
+ACCEPTING_WORDS = frozenset({
+    "accept", "acceptForSession", "acceptWithExecpolicyAmendment", "applyNetworkPolicyAmendment",
+    "approved", "approved_for_session", "approved_execpolicy_amendment",
+    "approved_mcp_policy_amendment", "network_policy_amendment", "allow", "session",
 })
+
+# A request this session answers with nothing but an error: every method not named above, and
+# above all those it must never answer - a token refresh, an attestation, a dynamic tool call -
+# which stay refused as they always were.
+_NOT_ANSWERED = {"code": -32601, "message": "declined by codex-auto-resume"}
+
+
+def _words(value):
+    """Every key and every string inside `value`."""
+    if isinstance(value, dict):
+        for key, item in value.items():
+            yield key
+            yield from _words(item)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            yield from _words(item)
+    elif isinstance(value, str):
+        yield value
+
+
+def _grants_nothing(refusal) -> bool:
+    """Whether a reply grants nothing: no accepting word anywhere in it, no permission, no answer,
+    no elicited content, and no scope wider than this turn."""
+    if not isinstance(refusal, dict):
+        return False
+    if any(word in ACCEPTING_WORDS for word in _words(refusal)):
+        return False
+    return (refusal.get("permissions", {}) == {} and refusal.get("answers", {}) == {}
+            and refusal.get("content") is None and refusal.get("scope", "turn") == "turn")
+
+
+def reply_to(request) -> dict:
+    """The one reply this client sends to a request Codex makes of it: the schema's own refusal
+    for an approval, a permission, an input or an elicitation request, and an error for anything
+    else. Only the method's name chooses between them; nothing else in the request is read."""
+    ident = request.get("id") if isinstance(request, dict) else None
+    method = request.get("method") if isinstance(request, dict) else None
+    if isinstance(method, str) and method not in FORBIDDEN_METHODS and method in DECLINE_ANSWERS:
+        refusal = copy.deepcopy(DECLINE_ANSWERS[method])
+        if _grants_nothing(refusal):
+            return {"id": ident, "result": refusal}
+    return {"id": ident, "error": dict(_NOT_ANSWERED)}
 
 
 class SessionRefused(RuntimeError):
@@ -117,9 +189,13 @@ class Session:
         self.sequence = 0
         self.responses = queue.Queue(maxsize=128)
         self.events = queue.Queue(maxsize=1024)
-        self.declined = []
+        # What was declined with a refusal and what was refused with an error, counted by the
+        # method Codex asked - in memory only; a record keeps the total and never the names.
+        self.declined = Counter()
+        self.refused = Counter()
         self._subscribed = []
         self.write_lock = threading.Lock()
+        self.count_lock = threading.Lock()
 
     def __enter__(self):
         self.backend._compatible()
@@ -162,10 +238,14 @@ class Session:
                 if not isinstance(value, dict):
                     continue
                 if "id" in value and "method" in value:
-                    # A request from Codex. Decline it, and remember what kind it was.
-                    self.declined.append(value.get("method"))
-                    self._write({"id": value["id"],
-                                 "error": {"code": -32601, "message": "declined by codex-auto-resume"}})
+                    # A request from Codex: answer it with its refusal (or an error), then count
+                    # it by what it asked.
+                    reply = reply_to(value)
+                    self._write(reply)
+                    method = value.get("method")
+                    with self.count_lock:
+                        (self.declined if "result" in reply else self.refused)[
+                            method if isinstance(method, str) else "?"] += 1
                 elif "id" in value and ("result" in value or "error" in value):
                     try:
                         self.responses.put_nowait(value)
@@ -201,10 +281,19 @@ class Session:
                 if "error" in response:
                     error = response.get("error")
                     raise _refused_by_codex(method, error.get("code") if isinstance(error, dict) else None)
+                if method == "thread/unsubscribe" and isinstance(params, dict):
+                    # Unsubscribed by the caller: the exit need not do it again.
+                    self._subscribed = [thread for thread in self._subscribed
+                                        if thread != params.get("threadId")]
                 return response.get("result")
         except (queue.Empty, OSError, ValueError):
             raise AdapterError("protocol_unavailable") from None
         raise AdapterError("protocol_timeout")
+
+    def declined_count(self) -> int:
+        """How many requests were answered with their refusal so far."""
+        with self.count_lock:
+            return sum(self.declined.values())
 
     def drain_events(self) -> list:
         """Every notification seen so far, taken from the queue. Codes and shapes only - the
