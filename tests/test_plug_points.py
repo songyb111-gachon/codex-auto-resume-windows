@@ -502,6 +502,43 @@ class LedgerTests(PluggedCase):
         self.h.store.set_thread_enabled(T2, True, at=self.h.now)
         self.assertTrue(self.h.store.thread_enabled(T2))
 
+    def test_a_ledger_sets_no_pragma_even_through_its_own_schema(self):
+        """`PRAGMA ledger.query_only=1` was judged by the schema it names, but query_only, like
+        busy_timeout, trusted_schema and writable_schema, is the whole connection's - core's,
+        which lives as long as the watcher. Set through the ledger's own schema it outlived the
+        claim: query_only failed the claim and every later write of core's. It reads them."""
+        self.due()
+        path = str(Path(self.root).parent / "ledger.sqlite")
+        flags = ("query_only", "ignore_check_constraints", "trusted_schema", "recursive_triggers",
+                 "reverse_unordered_selects", "busy_timeout", "writable_schema", "foreign_keys")
+        connection = self.h.store._connection
+        before = {flag: connection.execute("PRAGMA %s" % flag).fetchone()[0] for flag in flags}
+        done, read = [], []
+
+        def claim_ledger(connection, record, now):
+            connection.execute("ATTACH DATABASE ? AS ledger", (path,))
+            for statement in ["PRAGMA ledger.%s=%d" % (flag, 0 if flag == "busy_timeout" else 1)
+                              for flag in flags if flag != "query_only"] + [
+                              "PRAGMA ledger.case_sensitive_like=1", "PRAGMA ledger.user_version=7",
+                              "PRAGMA ledger.journal_mode=OFF", "PRAGMA ledger.query_only=1"]:
+                try:
+                    connection.execute(statement)
+                    done.append(statement)
+                except sqlite3.DatabaseError:
+                    pass
+            read.append(connection.execute("PRAGMA ledger.user_version").fetchone()[0])
+            read.append(len(connection.execute("PRAGMA table_info(threads)").fetchall()) > 0)
+            return DEFER
+        self.plugged(Asked(claim_ledger=claim_ledger))
+        self.h.tick()
+        self.assertEqual(done, [])
+        self.assertEqual(read, [0, True])
+        self.assertEqual({flag: connection.execute("PRAGMA %s" % flag).fetchone()[0] for flag in flags},
+                         before)
+        self.assertEqual(len(self.h.backend.send_calls), 1)
+        self.h.store.set_thread_enabled(T2, False, at=self.h.now)
+        self.assertFalse(self.h.store.thread_enabled(T2))
+
     def test_a_ledger_cannot_keep_what_it_was_handed_alive(self):
         """The handle's `close` was an attribute of the handle, so a ledger that set it to a
         no-op kept a live connection past its answer - with the authorizer gone - and wrote
