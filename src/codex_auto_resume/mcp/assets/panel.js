@@ -137,13 +137,14 @@ function applyTheme(root, settings, pinned) {
   else root.removeAttribute('data-theme');
 }
 
-// The design the surfaces are drawn in (v0.6.10), stamped for Still, Classic and Plain; Soft is the
+// The design the surfaces are drawn in (v0.6.10), stamped for Classic and Plain; Soft is the
 // stylesheet's own blocks and stamps nothing, as does any other value - from a watcher older than the
 // setting, or newer than this page. And the product's own Reduce motion, which the panel follows from
-// this release as well as the host's reduced-motion preference: `data-motion="reduced"` holds everything
-// in every design. Both on the root, where the stylesheet's design blocks are declared (panel.css).
+// v0.6.10 as well as the host's reduced-motion preference: `data-motion="reduced"` holds everything
+// in every design, and nothing else does - no design holds motion of its own. Both on the root, where
+// the stylesheet's design blocks are declared (panel.css).
 function designStamp(preference) {
-  return (preference === 'still' || preference === 'classic' || preference === 'plain') ? preference : '';
+  return (preference === 'classic' || preference === 'plain') ? preference : '';
 }
 
 function applyDesign(root, settings, pinned) {
@@ -281,8 +282,8 @@ function editable(entry) {
   var groups = ['general', 'recovery', 'limits', 'notifications', 'continuation'];
   // Of the appearance settings only the two themes, which the panel is drawn in. Reduce motion
   // and the notification-area icon are Windows' own and stay in the Dashboard, and so does the
-  // design (v0.6.10): it decides what moves, as Reduce motion does, and that is not Codex's to
-  // change (standard H3). The panel draws in both (applyDesign) and sends neither.
+  // design (v0.6.10) - mcp.tools.PANEL_APPEARANCE says why. The panel draws in both
+  // (applyDesign) and sends neither.
   var appearance = ['theme', 'panel_theme'];
   if (!entry || typeof entry.name !== 'string') return false;
   if (entry.group === 'appearance') return appearance.indexOf(entry.name) >= 0 && !entry.multiline;

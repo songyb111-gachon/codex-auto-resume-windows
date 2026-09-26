@@ -66,6 +66,14 @@ It needs nothing installed first: no Python, no administrator rights, no manual 
 It is safe to run again - that is also the repair path and the upgrade path. Add
 `-NoStartup` if the user does not want it to run at Windows sign-in.
 
+The product comes in two editions, standard and advanced, and an installation stays in
+its own: the script repairs and updates standard as standard and advanced as advanced.
+Change the edition only when the user asks for the other one by name, and say first what
+changes. Then add `-Edition Advanced -Force`, or `-Edition Standard -Force` to go back;
+the script says what the change means before it downloads anything, keeps their
+settings and pending recoveries, and starts every advanced capability off. Never add
+`-Edition` on your own, and never together with `-Update`, which refuses it.
+
 Tell the user plainly what it is about to do before running it: it downloads this
 version's release archive from the project's GitHub releases over HTTPS, checks its
 SHA-256, checks the contents are this product at this version, and only then installs,
@@ -269,8 +277,8 @@ panel's own theme in Codex (`panel_theme`: the same as the theme, Codex's, light
 continuation language, the message style
 (Minimal, Standard, Detailed or Custom), and whether a Custom message is one message for every
 interruption or one per kind. The window has five things `update_settings` does not offer: the
-notification-area icon, Reduce motion, the Design (Soft, Soft without motion, Classic or Plain: it
-decides what moves, as Reduce motion does), the notification card, and the Custom message text itself.
+notification-area icon, Reduce motion (the one way to stop the animations), the Design (Soft, Classic
+or Plain), the notification card, and the Custom message text itself.
 If the user asks for any of them, say it is changed in the Dashboard, under Settings. If the user wants to
 change what a Custom message says, tell them it is written in the Dashboard, under Settings >
 Continuation message.

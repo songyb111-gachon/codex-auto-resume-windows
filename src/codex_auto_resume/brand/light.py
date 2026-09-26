@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import math
 
-from .design import design_breathes, design_glow
+from .design import design_glow
 from .tokens import palette
 
 
@@ -115,10 +115,9 @@ def glow(state, elapsed_ms, since_entered_ms=None, *, reduced=False, design="sof
     `elapsed_ms`, and the argument is still taken so the surfaces that pass it are unchanged. High Contrast neither
     dims the dot nor draws a glow, which is the caller's check.
 
-    v0.6.10: `design` too. A design whose light does not breathe (Still) holds it as `reduced` does, and one with no
-    glow (Plain) dims the dot on the same breath with nothing round it - opacity and spread 0 at every frame.
+    v0.6.10: `design` too. A design with no glow (Plain) dims the dot on the same breath with nothing round it -
+    opacity and spread 0 at every frame. Whether it moves is `reduced`'s alone: every design breathes.
     """
-    reduced = reduced or not design_breathes(design)
     fraction = arc = None
     if state in GLOW_BREATHES:
         fraction = None if reduced else (elapsed_ms % GLOW[state + "_ms"]) / GLOW[state + "_ms"]
@@ -132,11 +131,11 @@ def glow(state, elapsed_ms, since_entered_ms=None, *, reduced=False, design="sof
     return {"dim": dim, "opacity": GLOW["peak"] * spread, "spread": spread, "arc": arc}
 
 
-def glow_moves(state, since_entered_ms=None, *, reduced=False, design="soft") -> bool:
+def glow_moves(state, since_entered_ms=None, *, reduced=False) -> bool:
     """Whether a frame timer has anything to draw for this state: every breathing state and checking's arc, for as
-    long as the state lasts, in a design whose light breathes. `since_entered_ms` is taken and read by nothing since
-    v0.6.8 (see glow)."""
-    return not reduced and design_breathes(design) and (state in GLOW_BREATHES or state == "checking")
+    long as the state lasts, in every design. `since_entered_ms` is taken and read by nothing since v0.6.8 (see
+    glow)."""
+    return not reduced and (state in GLOW_BREATHES or state == "checking")
 
 
 def glow_reach(dot_radius: float) -> float:

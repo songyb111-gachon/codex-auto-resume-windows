@@ -6,6 +6,7 @@ import logging
 import os
 from pathlib import Path
 import re
+import stat
 
 # The plugin manifest, relative to the installation it describes. It is the one place the
 # product version is written, and the one file every layout has at its root: a checkout, the
@@ -55,6 +56,23 @@ class ConfigError(RuntimeError):
     """Static reason only; never includes file contents."""
 
 
+def is_link(path: Path) -> bool:
+    """Whether `path` is a symbolic link or any other reparse point - an NTFS junction above all.
+
+    `Path.is_symlink()` is False for a junction on Windows, and `confined()` resolves one and
+    accepts it whenever its target is in the home. A junction at config/advanced to the home
+    root passed both, and a purge then deleted every plain file at the root, its marker too.
+    Where a directory is ours by its marker alone, a reparse point in its place is never ours.
+    False for a path that is not there."""
+    try:
+        if os.path.islink(path) or os.path.isjunction(path):
+            return True
+        attributes = getattr(os.lstat(path), "st_file_attributes", 0)
+    except (OSError, ValueError):
+        return False
+    return bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
+
+
 def installed_home() -> str | None:
     """The runtime home of an installed copy: the directory above `app/`, which holds its
     state, settings and logs. None for a checkout, which is its own home (Paths decides).
@@ -78,6 +96,10 @@ class Paths:
         self.compat_cache_file = self.state_dir / "compat-cache.json"
         # v0.6.8: when a person last saw a failure on the icon or the Dashboard (control.acknowledge_failure).
         self.failure_seen_file = self.state_dir / "failure-seen.json"
+        # v0.6.11: the advanced edition's own state, in one directory of its own under config/,
+        # carrying the same marker config/ does. Core never writes there and the standard edition
+        # never creates it; it is named here only so a purge can take it (owned_state_files).
+        self.advanced_dir = self.state_dir / "advanced"
         self.log_file = self.logs_dir / "auto-resume.log"
         self.error_log = self.logs_dir / "errors.log"
         # v0.6.9: one line each time Codex starts the MCP server and it considers starting the
@@ -112,11 +134,16 @@ class Paths:
                 pass    # A missing marker only makes uninstall MORE conservative.
 
     def owns(self, directory: Path) -> bool:
-        """Uninstall may only delete inside a directory carrying our provenance marker."""
+        """Uninstall may only delete inside a directory carrying our provenance marker.
+
+        Never one that is a link or a junction (`is_link`): `is_symlink()` is False for a
+        junction, and `confined()` accepts one whose target is in the home - config/ or logs/
+        as a junction to the home root was owned by the root's own marker, and a purge listed
+        the root's files."""
         marker = directory / OWNER_MARKER
         try:
-            return (directory.is_dir() and self.confined(directory)
-                    and marker.is_file() and not marker.is_symlink() and self.confined(marker))
+            return (directory.is_dir() and not is_link(directory) and self.confined(directory)
+                    and marker.is_file() and not is_link(marker) and self.confined(marker))
         except OSError:
             return False
 
@@ -193,8 +220,30 @@ class Paths:
         files = [self.state_dir / name for name in names]
         for pattern in ("settings.*.tmp", "compatibility.*.tmp", "compat-cache.*.tmp", "failure-seen.*.tmp"):
             files += [p for p in sorted(self.state_dir.glob(pattern))
-                      if not p.is_symlink() and self.confined(p)]
-        return files + [self.state_dir / OWNER_MARKER]
+                      if not is_link(p) and self.confined(p)]
+        return files + self.owned_advanced_files() + [self.state_dir / OWNER_MARKER]
+
+    def owned_advanced_files(self) -> list[Path]:
+        """What a purge takes from `advanced_dir`: every file directly in it, its marker last,
+        and only while that marker is there.
+
+        The one rule core has for the advanced edition's state, and a generic one. Core does
+        not know that edition's files and must not spell them, so it cannot delete by name, as
+        it does everywhere else; the marker is what vouches for them instead. It is written by
+        the advanced edition when it makes the directory, and it says the whole directory is
+        ours - so a directory without it, or one that is a link or a junction (`is_link`), or
+        one whose files resolve outside the home, is left exactly as it is. Nothing below it is
+        followed."""
+        directory = self.advanced_dir
+        try:
+            if is_link(directory) or not self.owns(directory):
+                return []
+            found = [path for path in sorted(directory.iterdir())
+                     if path.name != OWNER_MARKER and path.is_file() and not is_link(path)
+                     and self.confined(path)]
+        except OSError:
+            return []
+        return found + [directory / OWNER_MARKER]
 
     def owned_log_files(self) -> list[Path]:
         if not self.owns(self.logs_dir):
@@ -203,7 +252,7 @@ class Paths:
         for path in sorted(self.logs_dir.iterdir()):
             name = path.name
             if (re.fullmatch(r"(auto-resume|errors)\.log(\.\d+)?", name)
-                    and not path.is_symlink() and self.confined(path)):
+                    and not is_link(path) and self.confined(path)):
                 result.append(path)
         return result + [self.logs_dir / OWNER_MARKER]
 

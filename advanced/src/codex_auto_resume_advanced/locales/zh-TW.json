@@ -1,0 +1,15 @@
+{
+  "_edition": "ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.",
+  "edition.badge": "進階版",
+  "edition.not_loaded": "進階版 - 未載入",
+  "edition.summary": "進階版 · 已開啟 {n} 項",
+  "all_off": "關閉所有進階功能",
+  "field.departs": "偏離的標準",
+  "field.does": "它做什麼",
+  "field.instead": "標準版改為怎麼做",
+  "field.risks": "可能出什麼問題",
+  "field.stop": "如何停止",
+  "state.armed": "開啟",
+  "state.off": "關閉",
+  "state.shadow": "觀察中"
+}

@@ -6,6 +6,7 @@ import io
 import logging
 import os
 from pathlib import Path
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -414,6 +415,75 @@ class UninstallSafetyTests(unittest.TestCase):
         self.assertTrue(victim_state.exists(), "a file we never created must never be deleted")
         self.assertTrue(victim_log.exists())
         self.assertIn("no provenance marker", out)
+
+    def test_a_purge_takes_the_advanced_editions_directory_only_while_it_carries_the_marker(self):
+        """v0.6.11: config/advanced/ is the advanced edition's own, and core knows none of its
+        files, so the marker in it vouches for them all (config.owned_advanced_files). A purge
+        takes it whole; --keep-state keeps it; without the marker nothing in it is touched.
+        No advanced package is needed for any of it: a standard installation that was once
+        advanced purges it too."""
+        for marked, flags, kept in ((True, (), False), (True, ("--keep-state",), True),
+                                    (False, (), True)):
+            with self.subTest(marked=marked, flags=flags):
+                shutil.rmtree(self.home, ignore_errors=True)
+                self.cli("install")
+                paths = config.Paths(self.home)
+                paths.advanced_dir.mkdir()
+                left = paths.advanced_dir / "anything-it-wrote.sqlite"
+                left.write_bytes(b"x")
+                if marked:
+                    (paths.advanced_dir / config.OWNER_MARKER).write_text(config.OWNER_TEXT, encoding="utf-8")
+                code, out, _ = self.cli("uninstall", *flags)
+                self.assertEqual(code, 0)
+                self.assertEqual(left.exists(), kept)
+                self.assertEqual(paths.advanced_dir.exists(), kept)
+                if not marked:
+                    self.assertIn("skipped %s" % paths.advanced_dir, out)
+
+    def test_a_junction_in_place_of_the_advanced_directory_is_not_followed_even_inside_the_home(self):
+        """A junction is no symbolic link to `is_symlink`, and one whose target is in the home
+        is confined: to the home root, which claim_home marks, a purge took every file there,
+        the root's own marker included. Any reparse point is a link here (config.is_link)."""
+        self.cli("install")
+        paths = config.Paths(self.home)
+        self.assertTrue(paths.claim_home())
+        notes = self.home / "users-notes.txt"
+        notes.write_text("the person's own", encoding="utf-8")
+        made = (subprocess.run(["cmd", "/c", "mklink", "/J", str(paths.advanced_dir), str(self.home)],
+                               capture_output=True, text=True) if sys.platform == "win32" else None)
+        if made is None or made.returncode != 0:
+            self.skipTest("could not create a junction here")
+        self.assertEqual(paths.owned_advanced_files(), [])
+        code, _, _ = self.cli("uninstall")
+        self.assertEqual(code, 0)
+        self.assertTrue(notes.exists(), "a file beside the home's marker is not the advanced state's")
+        self.assertTrue((self.home / config.OWNER_MARKER).exists())
+        self.assertTrue(config.is_link(paths.advanced_dir))
+
+    def test_a_junction_in_place_of_config_or_logs_is_not_followed_even_inside_the_home(self):
+        """The same, one level up. owns() - the gate on purging config/ and logs/ - still asked
+        is_symlink(), so either as a junction to the home root was owned by the root's own
+        marker, and the purge listed the root's marker and any file at the root named like a
+        log or like settings.json. None of it is ours."""
+        paths = config.Paths(self.home)
+        self.assertTrue(paths.claim_home())
+        victims = [self.home / "auto-resume.log", self.home / "settings.json",
+                   self.home / config.OWNER_MARKER]
+        for victim in victims[:2]:
+            victim.write_text("the person's own", encoding="utf-8")
+        for directory in (paths.logs_dir, paths.state_dir):
+            made = (subprocess.run(["cmd", "/c", "mklink", "/J", str(directory), str(self.home)],
+                                   capture_output=True, text=True) if sys.platform == "win32" else None)
+            if made is None or made.returncode != 0:
+                self.skipTest("could not create a junction here")
+        for directory in (paths.logs_dir, paths.state_dir):
+            self.assertTrue(config.is_link(directory))
+            self.assertFalse(paths.owns(directory))
+        self.assertEqual((paths.owned_log_files(), paths.owned_state_files()), ([], []))
+        code, _, _ = self.cli("uninstall")
+        self.assertEqual(code, 0)
+        for victim in victims:
+            self.assertTrue(victim.exists(), victim.name)
 
     def test_uninstall_removes_only_marked_directories_contents(self):
         self.cli("install")

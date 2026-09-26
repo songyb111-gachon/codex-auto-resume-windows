@@ -215,16 +215,30 @@ class BuildScriptTests(unittest.TestCase):
                           "AssemblyInformationalVersion", "AssemblyCopyright"):
             self.assertIn(attribute, script)
         self.assertIn(r".codex-plugin\plugin.json", script)
-        self.assertEqual(script.count("-Description '"), 2, "both executables are described")
+        # Both executables are described; the window by edition, since each edition has its own.
+        self.assertEqual(script.count("-Description "), 2, "both executables are described")
+        self.assertIn("-Description ('Codex Auto Resume settings (' + $EditionWord + ' edition)')", script)
 
     def test_the_release_build_proves_it_twice(self):
         workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
         self.assertIn("Check the executables are reproducible", workflow)
-        build = workflow.index("Build the settings window and the MCP launcher")
+        build = workflow.index("Build each edition's settings window and the MCP launcher")
         check = workflow.index("Check the executables are reproducible")
         archive = workflow.index("Build the release archive")
         self.assertLess(build, check)
         self.assertLess(check, archive)
+
+    def test_the_release_build_proves_both_editions_executables_twice(self):
+        """Each edition builds its own window, so each is built twice and compared: three
+        executables, known by folder as well as name, since the two windows share one."""
+        workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+        start = workflow.index("- name: Build each edition's settings window and the MCP launcher")
+        steps = workflow[start:workflow.index("- name: Build the release archive")]
+        self.assertEqual(steps.count("./build/make_gui.ps1 -Edition advanced"), 2, "built once, then again")
+        self.assertEqual(len(re.findall(r"\./build/make_gui\.ps1(?! -Edition)", steps)), 2)
+        self.assertIn("Get-ChildItem build/advanced -Filter *.exe", steps)
+        self.assertIn("if ($first.Count -ne 3)", steps)
+        self.assertIn('"$($exe.Directory.Name)/$($exe.Name)"', steps)
 
 
 @unittest.skipUnless(CSC.is_file() and POWERSHELL.is_file(),
@@ -293,10 +307,14 @@ class VersionResourceTests(unittest.TestCase):
                 self.assertIn("MIT", found["LegalCopyright"])
 
     def test_each_executable_describes_itself(self):
-        """Two files with one description is how a launcher ends up labelled as the window."""
+        """Two files with one description is how a launcher ends up labelled as the window.
+
+        The window names its edition, as the Dashboard does beside the version (v0.6.11); the
+        launcher is one file in both editions and names none. tests/test_edition_window.py
+        reads the advanced window's."""
         descriptions = {name: found["FileDescription"] for name, found in self.fields.items()}
         self.assertEqual(descriptions, {
-            "CodexAutoResumeSettings.exe": "Codex Auto Resume settings",
+            "CodexAutoResumeSettings.exe": "Codex Auto Resume settings (Standard edition)",
             "codex-auto-resume-mcp.exe": "Codex Auto Resume MCP launcher",
         })
 

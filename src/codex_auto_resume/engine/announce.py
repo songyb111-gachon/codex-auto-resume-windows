@@ -1,12 +1,14 @@
 """Moving a record, and saying so.
 
 One place writes a transition and decides whether it is worth telling somebody about: a
-notification is a state a person would want to know they are in, not every step between.
+notification is a state a person would want to know they are in, not every step between. The
+same place is where a recovery turn is seen to end, so it is where the edition's plug is asked
+what follows one (P6), and where it is told of every move the engine writes (P14).
 """
 from __future__ import annotations
 
 from .. import machine
-from ..machine import OBSERVING, TERMINAL, WAITING, WATCHED
+from ..machine import OBSERVING, OUTCOMES, TERMINAL, WAITING, WATCHED
 
 
 # States worth telling a person about, and which notification setting governs each.
@@ -31,6 +33,7 @@ class AnnounceMixin:
         if state in TERMINAL and state != row.get("state") and "outcome_at" not in extra:
             values["outcome_at"] = self.clock()
         self.store.update(row["interruption_id"], at=self.clock(), event=event, **values)
+        self.moved(row, state)
         changed = row.get("state") != state
         if changed or row.get("last_error") != reason:
             self.log(row["thread_id"], state, reason)
@@ -39,6 +42,35 @@ class AnnounceMixin:
         # re-entering the same state says nothing new.
         if changed and state in NOTIFY_ON_STATE:
             self.announce(NOTIFY_ON_STATE[state], row, state=state, reason=reason)
+        # P6: a record that was following its recovery turn has an outcome, which is what
+        # `observe` (engine/outcome.py) moves it to when that turn ends. Asked only while its
+        # consent holds - recovery on, its conversation on, no cancel - and nothing that follows
+        # a turn is carried out yet, so nothing is taken from the answer (domain/plug.py).
+        # NULL is never asked, so it is looked at first: the consent reads are two transactions
+        # on every recovery turn that settles, which the standard edition never made - and one
+        # that failed would raise out of a transition whose state is already written.
+        if (changed and not self.plug.null and row.get("state") in OBSERVING and state in OUTCOMES
+                and self.allowed(row)):
+            self.plug.outcome(dict(row, state=state, last_error=reason), state)
+
+    def moved(self, row, state):
+        """P14: tell the plug that `row`, as core held it, has just moved to `state`.
+
+        Called once the move is written, wherever the engine writes one: here for every
+        `transition`, and beside each store call that moves a record itself - the claim, giving
+        a claim back, a withdrawal, a correlation (tests/test_plug_points.py finds them all).
+        Only a real move is told, and told whether or not recovery is paused: this decides
+        nothing, and a plug that heard of a move only while consent held would not know what
+        core did. NULL is never told, as P6 never asks it, so the standard edition makes no
+        call and copies no record it did not."""
+        if not self.plug.null and row.get("state") != state:
+            self.plug.moved(row, state)
+
+    def _release(self, key, claim, target, reason, delay):
+        """Give back the claim on record `key` whose send never started, and tell the plug."""
+        if self.store.release_claim(key, target, reason, self.clock(),
+                                    next_retry_at=self.clock() + delay):
+            self.moved(claim, target)
 
     def announce(self, event, row, **detail):
         """Tell the user something happened. Never affects what happens.

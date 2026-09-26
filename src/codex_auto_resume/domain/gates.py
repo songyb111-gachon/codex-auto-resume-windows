@@ -18,11 +18,14 @@ PASS, WAIT, BLOCK, UNKNOWN = "PASS", "WAIT", "BLOCK", "UNKNOWN"
 GATE_RESULTS = frozenset(GateResult)
 GATES = tuple(GateName)
 NOT_CHECKED = "not_checked"
+# v0.6.11: a gate core passed and the edition's plug held (domain/plug.py, HOLD). The standard
+# edition's plug holds nothing, so no standard record is ever stored with it.
+HELD = "held"
 GATE_REASONS = REASONS | frozenset({
     NOT_CHECKED, "paused", "thread_disabled", "cancel_requested", "not_due", "possibly_sent",
     "engine_incompatible", "engine_unknown", "projection_table_missing",
     "home_lock_unavailable", "identity_unreadable", "not_recoverable", "usage_available",
-    "ok",
+    "ok", HELD,
 })
 
 

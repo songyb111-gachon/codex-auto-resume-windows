@@ -3,6 +3,11 @@
 A claim is the only way into `submitting`, and it re-checks every store-side gate inside the
 transaction that grants it - because the engine's view was taken a moment earlier. The order
 the refusals come in is the sentence a person reads when they ask why a recovery is waiting.
+
+The edition's plug has one point in here, its claim ledger (P11): asked last, inside the same
+transaction, it can refuse a claim every check of core's has granted, and nothing else. How it
+is asked, and what it may do while it is, is ledger.py's. The standard edition's plug is not
+asked at all, so its claim is the one there always was.
 """
 from __future__ import annotations
 
@@ -11,6 +16,7 @@ import sqlite3
 from typing import Any
 from .. import machine
 from ..domain import ids
+from ..domain.plug import guard
 from ..machine import WAITING, WATCHED
 from .errors import StoreError
 from .validate import (_claim_cost, _finite, _timestamp, _uuid, _validated_record,
@@ -84,16 +90,21 @@ class ClaimsMixin:
         return self.reserve_detailed(interruption_id, now, **options)[0]
 
     def reserve_detailed(self, interruption_id: str, now: float, *, limits: dict | None = None,
-                         gates: dict | None = None) -> tuple:
+                         gates: dict | None = None, ledger=None, carried=frozenset()) -> tuple:
         """Claim a record for sending, re-checking every store-side gate in the claim.
 
         Returns (claimed, refusing_gate, reason). The gate vector - the engine's view of
         Codex plus the store's own checks made here - is persisted whether the claim is
         granted or refused, so an interface can show exactly why a record is waiting.
+        `ledger` is the engine's plug (domain/plug.py), asked last (P11); None is NULL's.
+        `carried` is the points whose answers of the plug's the send this claim leads to
+        carries - Point.TEXT for its words, Point.SENDER for its channel - which its ledger pays
+        for (`_ledger_holds`).
         """
         _timestamp(now, "now")
         if gates is not None and limits is None:
             raise StoreError("A gate vector needs the budget limits it was evaluated with")
+        ledger, carried = guard(ledger), frozenset(carried)   # the ledger's to read, not to change
         with self._transaction() as connection:
             settings = self._read_settings(connection)
             row = self._row(connection, interruption_id)
@@ -118,6 +129,12 @@ class ClaimsMixin:
                 found = machine.first_refusal(vector)
                 if found is not None:
                     refusal = (found[0], found[1][1])
+            if (refusal is None and not ledger.null
+                    and self._ledger_holds(connection, ledger, row, now, carried)):
+                # The edition counts a claim of its own on this conversation - one in flight, or
+                # the day's or the cooldown's - and the record waits, as behind one of core's.
+                vector["submission_safe"] = machine.gate(machine.WAIT, machine.HELD)
+                refusal = ("submission_safe", machine.HELD)
             encoded = machine.encode_gates(vector) if gates is not None else None
             if refusal is not None:
                 if encoded is not None and row["state"] in WAITING:
@@ -133,6 +150,7 @@ class ClaimsMixin:
             self._event(connection, now, "claim", record=row, from_state=row["state"],
                         to_state="submitting")
             return True, None, None
+
 
     def record_gates(self, interruption_id: str, gates: dict, now: float) -> None:
         """Persist a gate vector for a waiting record that was due but not claimable."""

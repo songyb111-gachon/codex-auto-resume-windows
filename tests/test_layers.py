@@ -55,8 +55,12 @@ LAYER = {_q(name): layer for layer, names in {
     # v0.6.10-alpha: machine.py became domain/{states,gates,public}.py, which is what its own
     # docstring called "three layers, kept apart on purpose", said in the tree.
     "domain": ("failures", "reasons", "machine", "domain", "domain.errors", "domain.gates",
-               "domain.ids", "domain.public", "domain.states", "domain.vocabulary"),
-    "policy": ("", "settings", "continuation", "l10n", "messages", "interface", "config", "logbook"),
+               "domain.ids", "domain.public", "domain.states", "domain.vocabulary",
+               # v0.6.11: the plug interface and NULL - pure, like everything else here.
+               "domain.plug"),
+    "policy": ("", "settings", "continuation", "l10n", "messages", "interface", "config", "logbook",
+               # v0.6.11: which edition this is, found by looking beside the package.
+               "edition"),
     "adapters": ("store", "openstate", "codex", "windows", "compat", "compatio", "startup", "shortcut",
                  # v0.6.10-alpha: compat.py and compatio.py became compat/.
                  "compat.model", "compat.standing", "compat.report", "compat.permits", "compat.files", "compat.cache", "compat.probes", "compat.views", "compat.evaluator",
@@ -69,6 +73,8 @@ LAYER = {_q(name): layer for layer, names in {
                  "store.errors", "store.journal", "store.legacy", "store.migrations",
                  "store.policy", "store.records", "store.reporting", "store.schema",
                  "store.session", "store.validate", "store.watcher",
+                 # v0.6.11: the claim ledger's machinery (P11), out of store/claims.py.
+                 "store.ledger",
                  # v0.6.10-alpha: the Win32 the product calls, which windows.py was half of.
                  "win", "win.dll", "win.homelock", "win.inventory", "win.kernel", "win.sync",
                  # v0.6.10-alpha: source.py became source/, and every part of it reads Codex;
@@ -132,9 +138,12 @@ MCP = {_q("mcpserver"), _q("mcp")}
 # the icon used to own and the other two imported out of it - the cycle that is now gone.
 UI_MAY_IMPORT = ({_q("control"), _q("machine"), _q("domain.public"), _q("l10n"), _q("interface"),
                   _q("win"), _q("win.dll")} | UI)
-PURE_STDLIB = {"__future__", "abc", "collections", "dataclasses", "decimal", "enum", "fractions", "functools",
-               "hashlib", "itertools", "json", "math", "numbers", "operator", "re", "string", "textwrap",
-               "types", "typing", "uuid"}
+# v0.6.11 adds `copy` and `contextlib` for domain/plug.py: a hook is handed deep copies, and a
+# channel that is given no launch guard is given `nullcontext(True)`. Neither reads a clock,
+# touches a file or reaches Windows.
+PURE_STDLIB = {"__future__", "abc", "collections", "contextlib", "copy", "dataclasses", "decimal", "enum",
+               "fractions", "functools", "hashlib", "itertools", "json", "math", "numbers", "operator", "re",
+               "string", "textwrap", "types", "typing", "uuid"}
 
 # Target rules that do not hold yet: the real edges that break them. Each fails the test the
 # day it no longer exists, so these only shrink.

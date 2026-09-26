@@ -15,6 +15,7 @@ to hold in your head:
     policy      recovery on or off, per conversation
     records     registering, reading, and the rules a change obeys
     claims      the right to send, taken and let go
+    ledger      the edition's say in a claim (P11), and what it may do there
     actions     what a person asks for
     watcher     the heartbeat
     reporting   counts, and the last seven days
@@ -42,6 +43,7 @@ from .downgrade import downgrade_to_v2  # noqa: F401
 from .errors import (RecordSchemaMismatch, StateFromNewerVersion,  # noqa: F401
                      StoreError, UpgradePending)
 from .journal import EVENT_LIMIT, EVENT_MAX_AGE, JournalMixin, _PRUNE_EVERY  # noqa: F401
+from .ledger import LedgerMixin
 from .legacy import LegacyStore  # noqa: F401
 from .migrations import MigrationsMixin
 from .policy import PolicyMixin
@@ -56,7 +58,7 @@ from .watcher import WatcherMixin
 
 
 class Store(SessionMixin, SchemaMixin, MigrationsMixin, JournalMixin, PolicyMixin,
-            RecordsMixin, ClaimsMixin, ActionsMixin, WatcherMixin, ReportingMixin):
+            RecordsMixin, ClaimsMixin, LedgerMixin, ActionsMixin, WatcherMixin, ReportingMixin):
     """One connection to our own state database.
 
     ``migrate`` must be passed explicitly: only the watcher, or a caller holding the

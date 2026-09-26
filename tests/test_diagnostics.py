@@ -99,10 +99,10 @@ class DiagnosticsTests(unittest.TestCase):
             sorted(found),
             ["bundled_runtime", "language", "mcp_launcher", "mcp_manifest",
              "notification_identity", "owner_marker", "protocol_handler", "runtime_record",
-             "settings_window", "startup_entry"])
+             "settings_window", "startup_entry", "windowless_runtime"])
         # This home is a temporary directory with nothing installed into it.
         for name in ("owner_marker", "runtime_record", "mcp_manifest", "mcp_launcher",
-                     "settings_window", "bundled_runtime"):
+                     "settings_window", "bundled_runtime", "windowless_runtime"):
             self.assertIs(found[name], False, name)
         for name in ("startup_entry", "protocol_handler", "notification_identity"):
             self.assertIn(found[name], ("ours", "another", "absent", "unreadable"), name)

@@ -16,10 +16,10 @@
 // Brand.Mark (v0.6.5) is the notification-area icon's motion for the window's taskbar button: the
 // icon's states, rhythms and frames from src/codex_auto_resume/tray.py, the frames as its own pixels.
 //
-// v0.6.10: the four designs (src/codex_auto_resume/brand/design.py). Brand and Brand.Dark are Soft's,
-// which Still draws in too; Brand.Classic and Brand.Plain, each with its own Dark, carry the colours,
-// the card's ground and the check box of the designs that have their own, under the same names. The
-// Design rules below say what else each design draws and what moves in it, by the design's name, and
+// v0.6.10: the designs (src/codex_auto_resume/brand/design.py). Brand and Brand.Dark are Soft's;
+// Brand.Classic and Brand.Plain, each with its own Dark, carry the colours, the card's ground and the
+// check box of the designs that have their own, under the same names. The Design rules below say what
+// else each design draws, by the design's name - never what moves, which no design decides - and
 // LookOf answers all of it for one design in one theme (Brand.Look): what the window adopts, so the
 // window's own code never names a design.
 
@@ -459,12 +459,12 @@ namespace CodexAutoResume
             return false;
         }
 
-        /// A stored Design (v0.6.10) as the settings layer reads it: "soft", "still", "classic", "plain" exactly, and "soft" for
+        /// A stored Design (v0.6.10) as the settings layer reads it: "soft", "classic", "plain" exactly, and "soft" for
         /// anything else - a missing value, another case, another type.
         internal static string DesignOf(object value)
         {
             string text = value as string;
-            if (text == "soft" || text == "still" || text == "classic" || text == "plain") return text;
+            if (text == "soft" || text == "classic" || text == "plain") return text;
             return DesignDefault;
         }
 
@@ -486,21 +486,7 @@ namespace CodexAutoResume
         /// Whether a design draws the glow round the status light while the light moves (brand.DESIGN's glow).
         internal static bool DesignGlow(string design)
         {
-            if (design == "still" || design == "plain") return false;
-            return true;
-        }
-
-        /// Whether a design moves the status light at all - its breath, and checking's arc (brand.DESIGN's breathes).
-        internal static bool DesignBreathes(string design)
-        {
-            if (design == "still") return false;
-            return true;
-        }
-
-        /// Whether a design moves a control when it changes - a switch, a check box, a list rising open, the scroll (brand.DESIGN's glides).
-        internal static bool DesignGlides(string design)
-        {
-            if (design == "still") return false;
+            if (design == "plain") return false;
             return true;
         }
 
@@ -924,8 +910,6 @@ namespace CodexAutoResume
             internal readonly Color CardGround;     // a card's own ground: surface lifted toward raised
             internal readonly bool Depth;           // DesignDepth: shadows, sunken wells and a lifted card
             internal readonly bool Glow;            // DesignGlow: the glow round the status light
-            internal readonly bool Breathes;        // DesignBreathes: the status light moves at all
-            internal readonly bool Glides;          // DesignGlides: the controls move when they change
             internal readonly bool AccentBar;       // DesignAccentBar: v0.6.2's accent bar and underlined tab
             internal readonly int RadiusCard;       // DesignRadius, card
             internal readonly int RadiusControl;    // DesignRadius, control
@@ -939,8 +923,6 @@ namespace CodexAutoResume
                 Colours = DesignColours(Design);
                 Depth = DesignDepth(Design);
                 Glow = DesignGlow(Design);
-                Breathes = DesignBreathes(Design);
-                Glides = DesignGlides(Design);
                 AccentBar = DesignAccentBar(Design);
                 RadiusCard = DesignRadius(Design, "card");
                 RadiusControl = DesignRadius(Design, "control");

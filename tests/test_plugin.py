@@ -541,6 +541,24 @@ class BridgeTests(unittest.TestCase):
         install.assert_called_once_with(self.bridge.watcher_command(self.home))
         self.assertIn(l10n.message("setup_autostart"), text)
 
+    def test_an_edition_change_is_carried_to_install_and_nowhere_else(self):
+        """The installer names the edition it replaced; setup hands that to the product's own
+        `install`, where the new edition acts on it (tests/test_edition.py), and to nothing
+        else. Without it, setup runs exactly the commands it always ran."""
+        self.pretend_installed()
+        for argv, expected in ((["setup", "--keep-state", "--edition-from", "advanced"],
+                                [["--quiet", "install", "--edition-from", "advanced"]]),
+                               (["setup", "--keep-state"], [["--quiet", "install"]])):
+            args = self.bridge.build_parser().parse_args(argv)
+            with self.subTest(argv=argv), \
+                    patch.object(self.bridge, "runtime_home", return_value=self.home), \
+                    patch.object(self.bridge, "_cli_silent", return_value=self.bridge.EXIT_OK) as core, \
+                    patch.object(self.bridge, "start_watcher", return_value="running"):
+                self.assertEqual(self.bridge.cmd_setup(args), self.bridge.EXIT_OK)
+                self.assertEqual([call.args[1] for call in core.call_args_list], expected)
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            self.bridge.build_parser().parse_args(["setup", "--edition-from", "premium"])
+
 
 class ReleaseNotesTests(unittest.TestCase):
     """The published release notes come from the changelog, so they cannot drift.

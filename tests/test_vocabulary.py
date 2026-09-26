@@ -40,7 +40,7 @@ if _HERE not in sys.path:
     sys.path.insert(0, _HERE)        # srcscan lives next to this file
 
 import srcscan  # noqa: E402
-from codex_auto_resume.domain import vocabulary as v  # noqa: E402
+from codex_auto_resume.domain import plug as p, vocabulary as v  # noqa: E402
 
 # "module.NAME" -> (kind, length, digest), or the text of a single word.
 LISTS = {
@@ -67,12 +67,14 @@ LISTS = {
     "machine.OVERLAYS": ("tuple", 7, "ec4b756213ffdd1a"),
     "machine.GATE_RESULTS": ("set", 4, "9a50f41ff116a706"),
     "machine.GATES": ("tuple", 13, "547089c399324718"),
-    "machine.GATE_REASONS": ("set", 75, "bb52a0048f24986e"),
+    # v0.6.11: `held`, a gate core passed and the edition's plug held (domain/plug.py, HOLD).
+    "machine.GATE_REASONS": ("set", 76, "ba3953d7dffacbdc"),
     "machine.PASS": "PASS",
     "machine.WAIT": "WAIT",
     "machine.BLOCK": "BLOCK",
     "machine.UNKNOWN": "UNKNOWN",
     "machine.NOT_CHECKED": "not_checked",
+    "machine.HELD": "held",
     "failures.CATEGORIES": ("set", 14, "05e7b8e16f528bde"),
     # v0.6.10: auth_service_transient, which nothing produces, left TRANSIENT for RESERVED.
     "failures.TRANSIENT": ("set", 5, "7c4f1306a8dcfc48"),
@@ -140,6 +142,14 @@ LISTS = {
     "ui.popup.ATTENTION_OVERLAYS": ("set", 4, "a707a2b300127033"),
     "notifier.STATUS": ("dict", 7, "ed71f4ec9cabc7bc"),
     "mcpserver.Server.START_WORDING": ("dict", 4, "f15e04a780f57870"),
+    # v0.6.11: the two editions, and the plug that is the whole difference between them.
+    "edition.EDITIONS": ("tuple", 2, "49cc206af3867704"),
+    "edition.PLUG_FAILURES": ("tuple", 4, "4414d548d1f8f251"),
+    # P14 joined the twelve: core tells the plug of each move of a record as it writes it.
+    "domain.plug.POINTS": ("tuple", 13, "2d6643b1732de1ca"),
+    "domain.plug.ANSWERS": ("set", 1, "b4686ae67262ac33"),
+    "domain.plug.SURFACES": ("tuple", 5, "d41ac5a6d67be21b"),
+    "domain.plug.EXTRA": "advanced",
 }
 
 # The words a function hands back: (qualified name, the key of the dict it returns - or None
@@ -291,13 +301,21 @@ HOMES = {
     v.CacheOrigin: ("list", "compat.CACHE_ORIGINS"),
     v.RefreshAnswer: ("list", "compatio.REFRESH_ANSWERS"),
     v.ReportedState: ("list", "compat.reported.STATES"),
+    # v0.6.11: the plug interface's own words, which live beside it in domain/plug.py.
+    p.Edition: ("list", "edition.EDITIONS"),
+    p.PlugFailure: ("list", "edition.PLUG_FAILURES"),
+    p.Point: ("list", "domain.plug.POINTS"),
+    p.Alternative: ("list", "domain.plug.ANSWERS"),
+    p.Surface: ("list", "domain.plug.SURFACES"),
 }
 
 
 def enums():
-    """Every vocabulary the module defines."""
-    return [value for value in vars(v).values()
-            if inspect.isclass(value) and issubclass(value, StrEnum) and value is not StrEnum]
+    """Every vocabulary the two modules define: `domain/vocabulary.py`, and `domain/plug.py`,
+    whose five are the plug interface's own and are held to every rule here all the same."""
+    return [value for module in (v, p) for value in vars(module).values()
+            if inspect.isclass(value) and issubclass(value, StrEnum) and value is not StrEnum
+            and value.__module__ == module.__name__]
 
 
 def members():

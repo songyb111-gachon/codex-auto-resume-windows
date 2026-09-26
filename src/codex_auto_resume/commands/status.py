@@ -11,11 +11,28 @@ from pathlib import Path
 
 from .. import compat, compatio, config, machine, startup
 from ..app import EXIT_ERROR, EXIT_OK
+from ..domain.plug import Surface
 from ..logbook import format_local
 from ..store import StoreError
 from ..windows import AdapterError, WakeEvent, resource_users
 from .base import _app, _now, _print
 from .records import _record_view
+
+
+def _edition_line(plug):
+    """The edition badge for the status line, or None in the standard edition.
+
+    The standard edition's plug is NULL, so this returns None and the status prints no edition
+    line at all - it is exactly what it was. An advanced installation shows its badge and, when
+    its package loaded, how many capabilities are armed, read from the plug's own status surface
+    (the `on` field get_status carries under `advanced`); one whose package could not be loaded
+    shows only its badge, which already says so.
+    """
+    if plug.null:
+        return None
+    fields = plug.surface(Surface.STATUS, {})
+    on = fields.get("on") if isinstance(fields, dict) else None
+    return "%s (%d armed)" % (plug.badge, on) if isinstance(on, int) else plug.badge
 
 
 def cmd_status(args) -> int:
@@ -29,6 +46,11 @@ def cmd_status(args) -> int:
     if settings["enabled"]:
         _print("enabled since    : %s" % format_local(settings["armed_at"]))
     _print("watcher          : %s" % {True: "running", False: "not running", None: "unknown"}[running])
+    # The edition badge, only where it says something: the standard edition's plug is NULL and
+    # adds no line, so a standard status is exactly what it always was (decision C12).
+    edition_line = _edition_line(app.plug)
+    if edition_line is not None:
+        _print("edition          : %s" % edition_line)
     try:
         value = startup.current_value()
         _print("login autostart  : %s" % ("registered" if value else "not registered"))

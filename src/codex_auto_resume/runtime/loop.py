@@ -193,6 +193,12 @@ class WatchLoop:
 
     def _loop(self, mutex: Mutex, stop: StopEvent, wake=None, *, once: bool, poll: int | None) -> int:
         self.logger.info("watcher started (pid %d, state %s)", os.getpid(), self.paths.state_dir)
+        # The edition, once, at the start - only where it says something. The standard edition's
+        # plug is NULL and writes no line, so a standard watcher's log is what it always was
+        # (decision C12).
+        plug = getattr(self, "plug", None)
+        if plug is not None and not plug.null:
+            self.logger.info("edition %s", plug.badge)
         if mutex.abandoned:
             self.logger.info("previous watcher exited without releasing the mutex; reconciling before any send")
         store = self._open_for_watcher(stop)

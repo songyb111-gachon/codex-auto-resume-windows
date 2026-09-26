@@ -34,7 +34,15 @@
     "",
     "`prerelease` names the version under development once it is tagged and published as a",
     "GitHub pre-release. `latest` never answers with one and it carries no digest, so the",
-    "pin test excuses it; it may name that version alone, which empties it at the next bump."
+    "pin test excuses it; it may name that version alone, which empties it at the next bump.",
+    "",
+    "`advanced` is the advanced edition's archive and its digests, from the version in",
+    "`since` on. The keys above stay the standard edition's, because every published",
+    "bootstrap reads `archive` and `sha256` from its own copy of this file and has to go on",
+    "finding the standard archive under the name it has always built. The advanced name is",
+    "a second constant rather than a variation of the first, so which edition is fetched",
+    "only ever chooses between two fixed templates; its `sha256` is kept exactly as the one",
+    "above is, and a version is pinned in both in the same commit."
   ],
   "owner": "songyb111-gachon",
   "repo": "codex-auto-resume-windows",
@@ -60,5 +68,12 @@
     "0.6.9": "cf9c7d72114c0c423a383ce658f05ea7d35be2c1e74b69e5a974de28efc7adab",
     "0.6.10": "472f835380fad99afa21e4fadc6c626a0b4ff662dbc0541473b2d7f842f080a1"
   },
-  "prerelease": []
+  "prerelease": [
+    "0.6.11-alpha"
+  ],
+  "advanced": {
+    "archive": "CodexAutoResume-Advanced-v{version}-win-x64.zip",
+    "sha256": {},
+    "since": "0.6.11"
+  }
 }

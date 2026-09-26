@@ -1,14 +1,18 @@
 """The filed reports, their index and the counts a release carries agree, read from the files up.
 
-docs/evidence/community/<login>/*.json are the reports the maintainer filed; index.json lists
-them; src/codex_auto_resume/data/reported.json is the index's counts, which the product shows.
-This holds the chain from the files to what is shown, so a hand edit anywhere along it fails:
+docs/evidence/community/<login>/*.json are the reports filed - by the filer
+(.github/workflows/community-file.yml) or the maintainer's tool; index.json lists them; README.md
+says what the index says; src/codex_auto_resume/data/reported.json is the index's counts, which the
+product shows. This holds the chain from the files to what is shown, so a hand edit anywhere along
+it fails:
 
 * every filed report is read by the same reader as the pull-request check, and is kept as its
   recomputed reading with our sentences, so a hand-edited conclusion does not survive;
 * every index entry's file exists under its own login and re-derives exactly that entry - worked
   and failed from the records, verified and checked from the recomputed levels;
 * each version's counts re-derive from its entries, and the counts file equals the index's;
+* the folder's README is exactly what build/community_report.py build_readme() writes for the
+  index, and withdrawn.json, when there is one, is the list the filer reads it as;
 * a report file the index does not list is waiting - in a pull request, or not accepted yet - and
   counts nowhere. So a contributor's pull request that adds one file stays green here, and a
   withdrawal removes the file and its entry together.
@@ -32,6 +36,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "build"))
 
 import community_check as check  # noqa: E402
+import community_file as filer  # noqa: E402
 import community_report as reader  # noqa: E402
 
 FIXTURE = ROOT / "tests" / "fixtures" / "community" / "codex-cli-0.155.0-alpha.9.2.json"
@@ -51,6 +56,10 @@ def held(root: Path, *, releases=None, now=None) -> list:
             return ["the folder has no index.json"]
         index = json.loads(index_path.read_text(encoding="utf-8"))
         problems += _index(root, index, releases, now)
+        readme = community / "README.md"
+        if not readme.is_file() or readme.read_text(encoding="utf-8") != reader.build_readme(index):
+            problems.append("README.md is not what build_readme writes for the index")
+        problems += _withdrawn(community / "withdrawn.json")
     shipped = json.loads((root / COUNTS).read_text(encoding="utf-8"))
     if shipped != reader.project(index):
         problems.append("data/reported.json is not the index's counts")
@@ -96,6 +105,28 @@ def _index(root, index, releases, now):
     return problems
 
 
+def _withdrawn(path):
+    """withdrawn.json, when there is one: the filer's own format, each entry an account and a version."""
+    if not path.exists():
+        return []
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except ValueError:
+        return ["withdrawn.json is not JSON"]
+    entries = document.get("withdrawn") if isinstance(document, dict) else None
+    if (not isinstance(document, dict) or set(document) != {"format", "withdrawn"}
+            or document["format"] != filer.WITHDRAWN_FORMAT or not isinstance(entries, list)):
+        return ["withdrawn.json is not the list the filer reads"]
+    for entry in entries:
+        if (not isinstance(entry, dict) or set(entry) != {"reporter_id", "login", "version", "at"}
+                or not isinstance(entry["reporter_id"], int) or isinstance(entry["reporter_id"], bool)
+                or not reader.LOGIN.fullmatch(str(entry["login"]))
+                or not reader.engine_version("codex-cli " + str(entry["version"]))
+                or reader.moment(entry["at"]) is None):
+            return ["withdrawn.json holds an entry that is not an account, a version and a time"]
+    return []
+
+
 def releases_here():
     try:
         found = check.Git(ROOT).releases()
@@ -138,6 +169,7 @@ class ScratchTests(unittest.TestCase):
         index = reader.build_index(reports, generated_at=NOW) if index is None else index
         (self.root / reader.COMMUNITY).mkdir(parents=True, exist_ok=True)
         (self.root / reader.COMMUNITY / "index.json").write_text(json.dumps(index, indent=2), encoding="utf-8")
+        (self.root / reader.COMMUNITY / "README.md").write_text(reader.build_readme(index), encoding="utf-8")
         (self.root / COUNTS).parent.mkdir(parents=True, exist_ok=True)
         (self.root / COUNTS).write_text(json.dumps(reader.project(index) if counts is None else counts),
                                         encoding="utf-8")
@@ -209,6 +241,26 @@ class ScratchTests(unittest.TestCase):
         self.assertEqual(self.problems(), [])
         self.write(reports=kept, index=reader.build_index(self.reports, generated_at=NOW))
         self.assertTrue(any("listed and not there" in problem for problem in self.problems()))
+
+    def test_a_hand_edited_readme_does_not_survive(self):
+        readme = self.root / reader.COMMUNITY / "README.md"
+        readme.write_text(readme.read_text(encoding="utf-8").replace("| 2 |", "| 20 |"), encoding="utf-8")
+        self.assertEqual(self.problems(), ["README.md is not what build_readme writes for the index"])
+
+    def test_the_readme_says_what_the_index_says(self):
+        text = (self.root / reader.COMMUNITY / "README.md").read_text(encoding="utf-8")
+        self.assertIn("| `codex-cli 0.155.0-alpha.9.2` | 2 | 2 | 1 | 0 | 1 |", text)
+        self.assertIn("[ExampleUser2](ExampleUser2/)", text)
+        self.assertTrue(text.isascii())
+
+    def test_a_withdrawn_list_is_the_one_the_filer_reads(self):
+        path = self.root / reader.COMMUNITY / "withdrawn.json"
+        entry = {"reporter_id": 7, "login": "ExampleUser", "version": "0.155.0-alpha.9.2", "at": "2026-09-24T00:00:00Z"}
+        path.write_text(json.dumps({"format": filer.WITHDRAWN_FORMAT, "withdrawn": [entry]}), encoding="utf-8")
+        self.assertEqual(self.problems(), [])
+        path.write_text(json.dumps({"format": filer.WITHDRAWN_FORMAT, "withdrawn": [dict(entry, reporter_id="7")]}),
+                        encoding="utf-8")
+        self.assertEqual(self.problems(), ["withdrawn.json holds an entry that is not an account, a version and a time"])
 
     def test_an_empty_folder_needs_its_index(self):
         shutil.rmtree(self.root / reader.COMMUNITY)
