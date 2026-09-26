@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 from pathlib import Path
 import shutil
 import sys
@@ -28,8 +29,8 @@ from codex_auto_resume.codex.appserver import PROTOCOL_METHODS  # noqa: E402
 from codex_auto_resume.codex.errors import AdapterError  # noqa: E402
 from codex_auto_resume.domain.plug import Surface  # noqa: E402
 from codex_auto_resume_advanced import evidence, measure, plug as advanced  # noqa: E402
-from codex_auto_resume_advanced.codex import protocol  # noqa: E402
-from codex_auto_resume_advanced.vocabulary import McpTool, Measurement, Verdict  # noqa: E402
+from codex_auto_resume_advanced.codex import protocol, wmi_escape  # noqa: E402
+from codex_auto_resume_advanced.vocabulary import McpTool, Measurement, NoteCode, Verdict  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -47,6 +48,7 @@ class FakeSession:
         self._events = list(events or [])
         self.declined = list(declined)
         self.calls = []
+        self.params = []
 
     def __enter__(self):
         return self
@@ -58,6 +60,7 @@ class FakeSession:
         if method not in self.allowed:
             raise protocol.SessionRefused("not permitted for this measurement")
         self.calls.append(method)
+        self.params.append((method, params))
         reply = self.replies.get(method, {})
         if isinstance(reply, Exception):
             raise reply
@@ -65,6 +68,11 @@ class FakeSession:
 
     def drain_events(self):
         return list(self._events)
+
+
+# A UUID a person might type as the throwaway conversation. It is a Codex thread id in shape, and
+# the tests hold that it never reaches the record.
+SAMPLE_THREAD = "0a1b2c3d-0001-7000-8000-0000000000aa"
 
 
 def factory(replies=None, events=None):
@@ -175,6 +183,231 @@ class RecordTests(unittest.TestCase):
         self.assertEqual(result["refusals"], [])
         self.assertEqual(result["files"], [])            # not counted towards acceptance
         self.assertEqual(len(result["measurements"]), 1)
+
+
+class ThreadTests(unittest.TestCase):
+    """A measurement can be pointed at a real throwaway conversation, and the record still holds
+    only that one was given - never the id."""
+
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: shutil.rmtree(self.dir, ignore_errors=True))
+
+    def run_one(self, measurement, *, thread=None, session_factory=None):
+        return measure.run(measurement, session_factory=session_factory or factory(), thread=thread,
+                           versions={"product_version": "0.6.11-alpha", "codex_version": "0.155.0",
+                                     "windows_build": "10.0.26200"},
+                           clock=lambda: 1_800_000_000.0, directory=self.dir)
+
+    def test_a_given_thread_is_recorded_only_as_a_boolean_never_the_id(self):
+        summary = self.run_one(Measurement.M3, thread=SAMPLE_THREAD)
+        self.assertIs(summary["observed"]["thread_given"], True)
+        text = Path(summary["recorded"]).read_text(encoding="utf-8")
+        self.assertNotIn(SAMPLE_THREAD, text)
+        self.assertNotIn(SAMPLE_THREAD[:8], text)
+        record = json.loads(text)
+        self.assertIs(record["observed"]["thread_given"], True)
+        self.assertEqual(live_evidence.content_refusals(record), [])
+
+    def test_no_thread_records_that_none_was_given(self):
+        summary = self.run_one(Measurement.M3)
+        self.assertIs(summary["observed"]["thread_given"], False)
+
+    def test_a_given_thread_is_the_one_the_probe_calls_with(self):
+        seen = []
+
+        def capturing(measurement):
+            session = FakeSession(measurement,
+                                  replies={"thread/queue/add": {}, "thread/queue/list": {}})
+            seen.append(session)
+            return session
+
+        self.run_one(Measurement.M3, thread=SAMPLE_THREAD, session_factory=capturing)
+        threads = {params.get("threadId") for _method, params in seen[0].params
+                   if isinstance(params, dict) and "threadId" in params}
+        self.assertEqual(threads, {SAMPLE_THREAD})
+
+    def test_a_conversation_id_that_is_not_a_thread_id_is_refused_and_nothing_is_written(self):
+        with self.assertRaises(measure.EvidenceUnavailable):
+            self.run_one(Measurement.M3, thread="not-a-thread-id")
+        self.assertEqual(sorted(self.dir.iterdir()), [])
+
+    def test_the_bridge_refuses_a_non_string_thread(self):
+        # A structural guard in the surface, before the harness: a thread that is not even text.
+        from codex_auto_resume_advanced import surfaces
+        result = surfaces.measure(_UnusedRuntime(), "m3", {"nested": "object"})
+        self.assertFalse(result["done"])
+
+
+class _UnusedRuntime:
+    def run_measurement(self, *a, **k):     # pragma: no cover - a bad request never reaches this
+        raise AssertionError("a bad request must not reach the runtime")
+
+
+class VerdictTests(unittest.TestCase):
+    """After a probe leaves a verdict blocked, a person completes it with measure-verdict: a pass
+    or a fail and one closed note code, appended to the blocked record for this Codex version."""
+
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: shutil.rmtree(self.dir, ignore_errors=True))
+
+    def _blocked(self, measurement=Measurement.M1, codex_version="0.155.0"):
+        record = evidence.build(measurement, Verdict.BLOCKED, {"thread_given": False},
+                                product_version="0.6.11-alpha", codex_version=codex_version,
+                                windows_build="10.0.26200", recorded_at="2026-09-26T09:00Z",
+                                note="open the thread and confirm, then set the verdict")
+        return evidence.write(record, directory=self.dir)
+
+    def test_a_completion_is_appended_to_the_blocked_record(self):
+        self._blocked()
+        target = evidence.complete(Measurement.M1, Verdict.PASS, NoteCode.AS_EXPECTED,
+                                   codex_version="0.155.0", recorded_at="2026-09-26T09:05Z",
+                                   directory=self.dir)
+        record = json.loads(target.read_text(encoding="utf-8"))
+        self.assertEqual(record["verdict"], str(Verdict.BLOCKED))       # the probe's finding stays
+        self.assertEqual(record["completion"],
+                         {"verdict": "pass", "note": "as_expected", "recorded_at": "2026-09-26T09:05Z"})
+        self.assertEqual(live_evidence.content_refusals(record), [])
+
+    def test_a_completion_for_another_codex_is_refused(self):
+        self._blocked(codex_version="0.155.0")
+        with self.assertRaises(evidence.EvidenceError):
+            evidence.complete(Measurement.M1, Verdict.FAIL, NoteCode.NOT_AS_EXPECTED,
+                              codex_version="0.156.0", recorded_at="2026-09-26T09:05Z",
+                              directory=self.dir)
+
+    def test_only_a_blocked_record_can_be_completed(self):
+        record = evidence.build(Measurement.M3, Verdict.PASS, {"thread_given": False},
+                                product_version="0.6.11-alpha", codex_version="0.155.0",
+                                windows_build="10.0.26200", recorded_at="2026-09-26T09:00Z")
+        evidence.write(record, directory=self.dir)
+        with self.assertRaises(evidence.EvidenceError):
+            evidence.complete(Measurement.M3, Verdict.PASS, NoteCode.AS_EXPECTED,
+                              codex_version="0.155.0", recorded_at="2026-09-26T09:05Z",
+                              directory=self.dir)
+
+    def test_a_completion_with_no_record_is_refused(self):
+        with self.assertRaises(evidence.EvidenceError):
+            evidence.complete(Measurement.M2, Verdict.PASS, NoteCode.AS_EXPECTED,
+                              codex_version="0.155.0", recorded_at="2026-09-26T09:05Z",
+                              directory=self.dir)
+
+    def test_a_completion_is_a_pass_or_a_fail_only(self):
+        self._blocked()
+        with self.assertRaises(evidence.EvidenceError):
+            evidence.complete(Measurement.M1, Verdict.BLOCKED, NoteCode.AS_EXPECTED,
+                              codex_version="0.155.0", recorded_at="2026-09-26T09:05Z",
+                              directory=self.dir)
+
+
+class VerdictBridgeTests(ac.AdvancedCase):
+    """measure-verdict is the Dashboard's, reachable from the long-lived bridge like measure, and
+    reached by no MCP tool."""
+
+    def setUp(self):
+        super().setUp()
+        self.paths.ensure()
+        self.evidence_dir = Path(self.home).parent / "evidence"
+        self.evidence_dir.mkdir(parents=True, exist_ok=True)
+        self.plug_obj = advanced.AdvancedPlug(self.paths, measure_session_factory=factory(),
+                                              measure_backend=FakeBackend("0.155.0"),
+                                              evidence_dir=self.evidence_dir, **self.options())
+        self.control = control.Control(self.paths, plug=self.plug_obj)
+
+    def bridge(self, command, argument):
+        request = {"id": 1, "command": command, "argument": argument}
+        out = io.StringIO()
+        controlcli.serve(self.control, io.StringIO(json.dumps(request) + "\n"), out)
+        return json.loads(out.getvalue())["reply"]
+
+    def test_a_blocked_measurement_is_completed_from_the_bridge(self):
+        self.assertTrue(self.bridge("measure", {"measurement": "m1"})["ok"])
+        reply = self.bridge("measure-verdict",
+                            {"measurement": "m1", "verdict": "pass", "note": "as_expected"})
+        self.assertTrue(reply["ok"], reply)
+        self.assertTrue(reply["result"]["done"])
+        record = json.loads((self.evidence_dir / "measurement-m1.json").read_text(encoding="utf-8"))
+        self.assertEqual(record["completion"]["verdict"], "pass")
+
+    def test_a_verdict_for_a_measurement_with_no_record_is_refused(self):
+        reply = self.bridge("measure-verdict",
+                            {"measurement": "m2", "verdict": "fail", "note": "not_as_expected"})
+        self.assertFalse(reply["result"]["done"])
+
+    def test_an_unknown_note_code_is_refused(self):
+        self.bridge("measure", {"measurement": "m1"})
+        reply = self.bridge("measure-verdict",
+                            {"measurement": "m1", "verdict": "pass", "note": "looked fine to me"})
+        self.assertFalse(reply["result"]["done"])
+
+    def test_an_unexpected_argument_is_refused(self):
+        reply = self.bridge("measure-verdict",
+                            {"measurement": "m1", "verdict": "pass", "note": "as_expected",
+                             "thread": SAMPLE_THREAD})
+        self.assertFalse(reply["result"]["done"])
+
+    def test_no_mcp_tool_completes_a_measurement(self):
+        self.assertNotIn("measure-verdict", {str(tool) for tool in McpTool})
+        tools = self.plug_obj.surface(Surface.MCP, {"request": "tools"})["tools"]
+        self.assertTrue(all("verdict" not in tool["name"] for tool in tools))
+
+
+class WmiEscapeTests(unittest.TestCase):
+    """MW's launcher, driven with fakes: nothing here starts a real process or touches product
+    state. The one real chain is the opt-in live test below."""
+
+    def test_the_heartbeat_writes_only_its_job_words(self):
+        with tempfile.TemporaryDirectory() as folder:
+            out = Path(folder) / "heartbeat.json"
+            with patch.object(wmi_escape, "_HEARTBEAT_SECONDS", 0.0), \
+                    patch("codex_auto_resume.win.kernel.process_context",
+                          return_value={"in_job": False, "kill_on_close": False}):
+                wmi_escape._heartbeat_main(str(out))
+            data = json.loads(out.read_text(encoding="utf-8"))
+        self.assertEqual(set(data), {"pid", "in_job", "kill_on_close"})
+        self.assertIs(data["in_job"], False)
+        self.assertIsInstance(data["pid"], int)
+
+    def test_the_helper_asks_wmi_with_showwindow_zero_and_never_createflags(self):
+        seen = {}
+
+        def fake_run(script, values, *, timeout):
+            seen["script"], seen["values"] = script, values
+            return 0
+
+        with patch.object(wmi_escape, "_HELPER_SECONDS", 0.0), \
+                patch("codex_auto_resume.pwsh.run", fake_run):
+            wmi_escape._helper_main("srcpaths", "C:\\tmp\\work", "C:\\py\\pythonw.exe",
+                                    "C:\\tmp\\work\\bootstrap.py")
+        self.assertIn("ShowWindow", seen["script"])
+        self.assertNotIn("CreateFlags", seen["script"])
+        self.assertIn("heartbeat", seen["values"]["HEARTBEAT_CMD"])
+        self.assertIn("heartbeat.json", seen["values"]["HEARTBEAT_CMD"])
+
+    def test_the_role_dispatcher_routes_to_each_hand(self):
+        calls = []
+        with patch.object(wmi_escape, "_helper_main", lambda *a: calls.append(("helper", a))), \
+                patch.object(wmi_escape, "_heartbeat_main", lambda *a: calls.append(("heartbeat", a))):
+            wmi_escape._role("helper", "srcpaths", ["work", "pythonw", "bootstrap"])
+            wmi_escape._role("heartbeat", "srcpaths", ["out.json"])
+        self.assertEqual(calls[0], ("helper", ("srcpaths", "work", "pythonw", "bootstrap")))
+        self.assertEqual(calls[1], ("heartbeat", ("out.json",)))
+
+    def test_without_a_windowless_interpreter_nothing_is_started(self):
+        from codex_auto_resume import startup
+        with patch.object(startup, "python_launcher", side_effect=startup.StartupError("none")):
+            facts = wmi_escape.probe()
+        self.assertEqual(facts, {"started": False, "in_job": None, "kill_on_close": False,
+                                 "survived": False})
+
+    @unittest.skipUnless(os.environ.get("CODEX_AR_LIVE_WMI") == "1" and sys.platform == "win32",
+                         "opt-in: CODEX_AR_LIVE_WMI=1 runs the real WMI escape")
+    def test_live_the_wmi_started_heartbeat_leaves_the_job_and_survives(self):
+        facts = wmi_escape.probe()
+        self.assertTrue(facts["started"], facts)
+        self.assertFalse(facts["in_job"], facts)
+        self.assertTrue(facts["survived"], facts)
 
 
 class InvocationTests(ac.AdvancedCase):

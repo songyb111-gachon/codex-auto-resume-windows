@@ -213,7 +213,7 @@ class Runtime:
             raise
 
     # ------------------------------------------------------------------ the measurement harness
-    def run_measurement(self, measurement):
+    def run_measurement(self, measurement, thread=None):
         """Run one measurement the person asked for, and record what it found (measure.py).
 
         The session and the launcher are the runtime's own seams: production opens a real
@@ -221,13 +221,36 @@ class Runtime:
         directory, and a test gives fakes and a temporary directory. Nothing here runs unless a
         surface was asked for it by a person.
 
+        `thread` is an optional real throwaway conversation the owner points a measurement at,
+        validated as a Codex thread id and used in the calls the probe makes, never written into
+        the record.
+
         The backend is the one the session opens, so the record says which Codex it measured:
-        without it every record said "unknown", and a measurement decides per Codex version."""
+        without it every record said "unknown", and a measurement decides per Codex version. The
+        launcher is MW's real WMI chain when a test wired none; only MW ever calls it, so it is
+        built lazily and never touched by the other measurements."""
         from . import measure
         session_factory, backend = self._measure_session_factory, self._measure_backend
         if session_factory is None:
             backend = backend if backend is not None else measure.live_backend()
             session_factory = measure.live_session_factory(self.paths, backend)
+        launcher = self._measure_launcher
+        if launcher is None:
+            launcher = measure.live_launcher(self.paths)
         return measure.run(measurement, session_factory=session_factory,
-                           launcher=self._measure_launcher, backend=backend,
+                           launcher=launcher, backend=backend, thread=thread,
                            directory=self._evidence_dir, clock=self.clock)
+
+    def complete_measurement(self, measurement, verdict, note):
+        """Record a person's completion of a blocked measurement (measure-verdict, measure.py).
+
+        The backend is the one whose Codex version the record was measured on, so a completion
+        only ever lands on a record of the same Codex; a run that cannot say which Codex it is on
+        completes nothing. Nothing here opens a session or starts a process: the person has
+        already done the step in the Codex app, and this only writes what they saw."""
+        from . import measure
+        backend = self._measure_backend
+        if backend is None and self._measure_session_factory is None:
+            backend = measure.live_backend()
+        return measure.complete(measurement, verdict, note, backend=backend,
+                                directory=self._evidence_dir, clock=self.clock)
