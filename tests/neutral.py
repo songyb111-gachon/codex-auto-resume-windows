@@ -70,6 +70,9 @@ NOT_SCENARIOS = {
     "test_plug_points": "gives every engine a plug of its own, to hold each point where it stands",
     "test_released_calls": "runs the scenarios above against v0.6.10's tagged package and this one, "
                            "in workers of its own; it builds no engine itself",
+    "test_downgrade": "sends one continuation with this version's engine only to leave it queued, then "
+                      "downgrades the state and runs v0.6.10's tagged watcher on it in a process of its "
+                      "own, which no plug of this version reaches",
 }
 # The module whose scenarios simulate days of ticks, handed out first (run_all).
 FIRST = ("test_outcomes",)
