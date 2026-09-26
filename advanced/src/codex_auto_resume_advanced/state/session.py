@@ -242,9 +242,13 @@ class SessionMixin:
         a file the transaction has used, so it stays attached for the connection's life, and
         from then on every write transaction core begins on it holds this file's lock too.
         The file is opened and checked on its own connection first, so a file that would be
-        refused is never attached; one that is not there is not made, and False says so."""
+        refused is never attached; one that is not there is not made, and False says so.
+
+        The statement names the file rather than binding it: core's claim lets an ATTACH on
+        only once it has read which file it is (store/claims.py, `_attachable`), and a bound
+        name is not there to read."""
         if self._open(create=False) is None:
             return False
         if ATTACHED not in [row[1] for row in connection.execute("PRAGMA database_list")]:
-            connection.execute("ATTACH DATABASE ? AS %s" % ATTACHED, (str(self.path),))
+            connection.execute("ATTACH DATABASE '%s' AS %s" % (str(self.path).replace("'", "''"), ATTACHED))
         return True

@@ -11,6 +11,7 @@ standard edition's plug is not asked at all, so its claim is the one there alway
 from __future__ import annotations
 
 from contextlib import contextmanager
+import os
 import sqlite3
 from typing import Any
 from .. import machine
@@ -28,7 +29,7 @@ from .validate import (_claim_cost, _finite, _timestamp, _uuid, _validated_recor
 # to judge it by, other than the reads below, is refused.
 _CORE_SCHEMAS = (None, "main", "temp")
 _LEDGER_READS = frozenset({sqlite3.SQLITE_SELECT, sqlite3.SQLITE_READ, sqlite3.SQLITE_FUNCTION,
-                           sqlite3.SQLITE_RECURSIVE, sqlite3.SQLITE_ATTACH})
+                           sqlite3.SQLITE_RECURSIVE})
 # A pragma is read and never set, whatever schema it names. Most are settings of the whole
 # connection - query_only, busy_timeout, trusted_schema, writable_schema - which a schema's name
 # in front of them does not confine, and core's connection lives as long as the watcher: one
@@ -41,15 +42,50 @@ _LEDGER_NAMED_PRAGMAS = frozenset({"table_info", "table_xinfo", "index_list", "i
                                    "index_xinfo", "foreign_key_list"})
 
 
-def _ledger_authorizer(action, first, second, schema, _trigger):
-    if action in _LEDGER_READS:
-        return sqlite3.SQLITE_OK
-    if action == sqlite3.SQLITE_PRAGMA:
-        read = first in _LEDGER_NAMED_PRAGMAS or (first in _LEDGER_PRAGMAS and second is None)
-        return sqlite3.SQLITE_OK if read else sqlite3.SQLITE_DENY
-    if action in (sqlite3.SQLITE_TRANSACTION, sqlite3.SQLITE_SAVEPOINT, sqlite3.SQLITE_DETACH):
-        return sqlite3.SQLITE_DENY
-    return sqlite3.SQLITE_DENY if schema in _CORE_SCHEMAS else sqlite3.SQLITE_OK
+def _ledger_authorizer(attached):
+    """What a ledger may do while it is asked. `attached` is every file the claim's connection
+    has attached, main's first; a file an ATTACH lets on is added to it."""
+    def authorize(action, first, second, schema, _trigger):
+        if action in _LEDGER_READS:
+            return sqlite3.SQLITE_OK
+        if action == sqlite3.SQLITE_ATTACH:
+            if not _attachable(first, attached):
+                return sqlite3.SQLITE_DENY
+            attached.append(first)
+            return sqlite3.SQLITE_OK
+        if action == sqlite3.SQLITE_PRAGMA:
+            read = first in _LEDGER_NAMED_PRAGMAS or (first in _LEDGER_PRAGMAS and second is None)
+            return sqlite3.SQLITE_OK if read else sqlite3.SQLITE_DENY
+        if action in (sqlite3.SQLITE_TRANSACTION, sqlite3.SQLITE_SAVEPOINT, sqlite3.SQLITE_DETACH):
+            return sqlite3.SQLITE_DENY
+        return sqlite3.SQLITE_DENY if schema in _CORE_SCHEMAS else sqlite3.SQLITE_OK
+    return authorize
+
+
+def _attachable(name, attached) -> bool:
+    """Whether a ledger may attach the file `name` to the claim's connection.
+
+    Nothing a ledger attaches can be detached - it stays for the life of core's connection - so
+    a second name for a file already there stays too: under it, core's own state.sqlite needed a
+    second write lock on its own file, and every write transaction core began afterwards waited
+    ten seconds and failed, from the claim just granted onwards. So the file is one not attached
+    already, under any spelling, a link or another path to it included, and the statement names
+    it: a bound or computed name reaches this as None, and says nothing of which file it is."""
+    if not isinstance(name, str) or name[:5].lower() == "file:":
+        return False
+    if name in ("", ":memory:"):
+        return True                                  # a database of its own, with no file
+    try:
+        return not any(_same_file(name, other) for other in attached)
+    except ValueError:                               # a NUL, say: no file anyone can name
+        return False
+
+
+def _same_file(first, second) -> bool:
+    try:
+        return os.path.samefile(first, second)
+    except OSError:                                  # one is not there yet: compare the paths
+        return os.path.normcase(os.path.abspath(first)) == os.path.normcase(os.path.abspath(second))
 
 
 class _Rows:
@@ -249,7 +285,8 @@ class ClaimsMixin:
             if not live:
                 raise sqlite3.ProgrammingError("the claim this connection was handed for is over")
             return _Rows(live[0].execute(statement, parameters).fetchall())
-        connection.set_authorizer(_ledger_authorizer)
+        attached = [listed[2] for listed in connection.execute("PRAGMA database_list") if listed[2]]
+        connection.set_authorizer(_ledger_authorizer(attached))
         try:
             answer, broke = ledger.claim_ledger_checked(_LedgerConnection(execute), row, now)
         finally:
