@@ -510,14 +510,15 @@ function Test-Archive {
         # installation advanced (Get-Edition below), so an advanced archive has to carry it, and a
         # standard one may carry nothing of that edition: not the package, and not its skill,
         # which Codex would read from the plugin tree. Names are compared as the extraction will
-        # write them: either separator, and no '.' or empty segment - the extraction below puts
-        # 'src/./x' and 'src//x' into src\x, which the raw name hid from this check. A standard
+        # write them: either separator, no '.' or empty segment, and no '.' or ' ' at the end of
+        # a segment, which Windows drops - the extraction below puts 'src/./x', 'src//x' and
+        # 'src/x./y' into src\x, which the raw name hid from this check. A standard
         # archive holds nothing there in any case; an advanced one holds the package in exactly
         # its case, which is the one Python imports (Get-Edition). An archive named for one
         # edition and holding the other is refused here, before anything of it is unpacked.
         $package = 'payload/app/src/codex_auto_resume_advanced/'
         $skill = 'payload/app/skills/codex-auto-resume-advanced/'
-        $written = @($names | ForEach-Object { @($_ -split '[\\/]' | Where-Object { $_ -ne '' -and $_ -ne '.' }) -join '/' })
+        $written = @($names | ForEach-Object { @($_ -split '[\\/]' | ForEach-Object { $_.TrimEnd('.', ' ') } | Where-Object { $_ -ne '' }) -join '/' })
         if ($Edition -eq 'advanced') {
             if ($written -cnotcontains ($package + '__init__.py')) {
                 throw ('The archive is not the advanced edition: it has no ' + $package + '__init__.py.')

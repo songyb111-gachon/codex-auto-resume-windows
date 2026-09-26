@@ -322,13 +322,14 @@ jobs:
       # archive holds nothing under the advanced package or skill, whatever the case or the
       # separator, and the advanced one holds the package. Two archives swapped or mixed would
       # publish the advanced code under the name every installed copy updates to. Each name is
-      # read as the extraction writes it, with no '.' or empty segment: 'src/./x' and 'src//x'
-      # both land in src/x, and the raw name hid them from the grep.
+      # read as the extraction writes it, with no '.' or empty segment and no '.' or ' ' at the
+      # end of a segment, which Windows drops: 'src/./x', 'src//x' and 'src/x./y' all land in
+      # src/x, and the raw name hid them from the grep.
       - name: Check each archive is its own edition
         shell: bash
         run: |
           set -euo pipefail
-          written='s#/+#/#g; :a; s#(^|/)\./#\1#; ta'
+          written='s#[. ]+(/|$)#\1#g; s#/+#/#g; s#^/##'
           standard="$(unzip -Z1 "$STANDARD_ZIP" | tr '\\' '/' | sed -E "$written")"
           advanced="$(unzip -Z1 "$ADVANCED_ZIP" | tr '\\' '/' | sed -E "$written")"
           # A listing of nothing holds nothing of the advanced edition, and proves nothing.
