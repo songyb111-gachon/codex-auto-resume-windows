@@ -1,426 +1,402 @@
-# The look of it
+# 이 제품의 겉모습
 
-One palette, one scale, one mark, five surfaces. This is where the decisions are written down
-so a future change can argue with them rather than guess at them.
+> 🌐 한국어 문서입니다. English version: [`main` 브랜치의 docs/BRAND.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/BRAND.md)
 
-## The idea
+팔레트 하나, 스케일 하나, 마크 하나, 표면 다섯. 나중에 바꿀 일이 생겼을 때 추측하는 대신 여기 적힌
+결정과 따져 볼 수 있도록, 그 결정들을 이 문서에 적어 둡니다.
 
-The product waits, and then it acts. That is the whole behaviour, so it is the whole
-palette: **deep blue at rest, cyan at the moment it does something.** The ramp is not
-decoration — a reader who learns that bright means active has learned what the tool does.
+## 발상
 
-Until v0.5.2 the product was green, and each surface carried its own copy of the colours:
-the settings window in C# literals, the Codex panel in a stylesheet, the icon renderer,
-the plugin manifest. They had already drifted — the manifest's brand colour and the panel's
-accent agreed with each other and with nothing else.
+이 제품은 기다렸다가 행동합니다. 그것이 동작의 전부이므로 팔레트의 전부이기도 합니다.
+**쉴 때는 짙은 파랑, 무언가를 하는 순간에는 시안.** 이 색의 단계는 장식이 아닙니다. 밝으면
+활성이라는 것을 익힌 사람은 이 도구가 무엇을 하는지를 익힌 것입니다.
 
-v0.6.3 kept the palette's idea and changed its material. The Dashboard, the notification-area
-popup and the panel in Codex share one soft visual language: a card is the same material as the
-window behind it, lifted by a small shadow rather than laid on it as a white sheet; a control
-rests on the card; a value sits in a shallow well; a state is a word on a tinted chip; and the
-state dot breathes while the watcher is watching. The flat cards with an accent rail that came
-before are gone.
+v0.5.2까지 이 제품은 초록색이었고, 표면마다 색을 각자 복사해 들고 있었습니다. 설정 창은 C#
+리터럴로, Codex 패널은 스타일시트로, 아이콘 렌더러가 하나, 플러그인 매니페스트가 하나. 그리고
+이미 어긋나 있었습니다. 매니페스트의 브랜드 색과 패널의 accent는 서로 일치했을 뿐 나머지 어느
+것과도 일치하지 않았습니다.
 
-v0.6.4 made them one material rather than three similar ones. The panel in Codex was the
-reference: its shadows, sizes and control recipes moved into `brand.py` as data, and the
-Dashboard and the popup now draw the same lifted cards, the same shallow wells and the same
-switches from those numbers. Each surface kept its own text sizes and its own layout. The state
-light kept its shape and got back the colour it had before v0.6.3: cyan whenever the watcher is
-running, with a soft glow, and grey when it is paused or stopped.
+v0.6.3은 팔레트의 발상은 그대로 두고 재질을 바꿨습니다. 대시보드, 알림 영역 팝업, Codex 안의
+패널은 하나의 부드러운 시각 언어를 함께 씁니다. 카드는 흰 종이처럼 창 위에 얹힌 것이 아니라, 뒤의
+창과 같은 재질이 작은 그림자로 떠오른 것입니다. 컨트롤은 카드 위에 놓이고, 값은 얕은 우물 안에
+앉습니다. 상태는 자기 색을 옅게 깐 칩 위의 단어이고, 상태 점은 워처가 지켜보는 동안 숨을 쉽니다.
+v0.6.2까지의 평평한 카드와 accent 레일은 사라졌습니다.
 
-v0.6.4 also made them one material in both themes. The panel had always followed Codex into dark;
-the Dashboard and the popup now draw the panel's dark theme as well, from the same recipes, when
-Windows or the **Theme** setting asks for it. And it added the two controls the surfaces did not
-yet share: a check box, for picking the items of a list, and a soft scroll bar for the window's
-pages and lists.
+v0.6.4는 셋을 비슷한 재질 세 가지가 아니라 하나의 재질로 만들었습니다. 기준은 Codex 안의
+패널이었습니다. 패널의 그림자, 크기, 컨트롤을 그리는 방식이 데이터로 `brand.py`에 옮겨졌고, 대시보드와
+팝업은 이제 그 숫자로 같은 떠오른 카드, 같은 얕은 우물, 같은 스위치를 그립니다. 글자 크기와 배치는
+표면마다 제 것을 그대로 두었습니다. 상태 불빛은 모양을 그대로 두고 v0.6.3 전에 쓰던 색을 되찾았습니다.
+워처가 실행 중이면 늘 시안이고 은은한 빛을 두르며, 일시 정지되었거나 멈추면 회색입니다.
 
-v0.6.5 let the material move and gave the popup depth. The state light blinks as the icon's head
-does and spreads a little once it is lit, the notification-area icon moves in its own smaller language, switches glide and check
-boxes fade on one curve (`MOTION`), what stands on the popup's card is raised and what holds a
-value is sunken, and the drop-down's open list is drawn in the cards' material rather than by
-Windows. A notification can appear as the popup's own card beside the notification area. The
-mark's geometry moved into `brand.py` (`ICON_SHAPE`), because the watcher now draws the icon's
-frames from it.
+v0.6.4는 두 테마 모두에서도 셋을 하나의 재질로 만들었습니다. 패널은 늘 Codex를 따라 어두워졌고,
+이제 대시보드와 팝업도 Windows나 **테마** 설정이 요청하면 같은 레시피로 패널의 어두운 테마를 그립니다.
+그리고 세 표면이 아직 함께 쓰지 않던 컨트롤 두 가지를 더했습니다. 목록의 항목을 고르는 체크박스와,
+창의 페이지와 목록을 위한 부드러운 스크롤 막대입니다.
 
-v0.6.10 settled that look and then drew it more than one way. The audit gave every header one light rule, the
-buttons and chips one size, the notices one callout and the window one name, and left each header its
-own composition and words; and the **Design** setting draws the whole product as Soft (all of the above),
-Classic (v0.6.2's flat cards with their accent bar) or Plain. The designs are data, so the audit's
-decisions hold in all three (see [Three designs](#three-designs)).
+v0.6.5는 재질을 움직이게 하고 팝업에 입체감을 주었습니다. 상태 불빛은 아이콘의 머리처럼
+깜빡이고 다 켜진 뒤에만 살짝 번지며, 알림 영역 아이콘은 자기만의 더 작은 언어로 움직이며, 스위치는 미끄러지고 체크박스는 곡선
+하나(`MOTION`)로 서서히 바뀌고, 팝업의 카드 위에 놓인 것은 떠오르고 값을 담는 것은 들어가며, 드롭다운의
+펼친 목록은 Windows가 아니라 카드의 재질로 그립니다. 알림은 알림 영역 옆에 팝업 자신의 카드로 나타날 수
+있습니다. 워처가 이제 그 숫자로 아이콘의 프레임을 그리기 때문에, 마크의 도형은 `brand.py`(`ICON_SHAPE`)로
+옮겨졌습니다.
 
-## Where a colour comes from
+이번 릴리스는 그 모습을 매듭짓고, 그것을 여러 가지로 그립니다. 점검은 모든 머리글에 불빛의 규칙 하나,
+버튼과 칩에 크기 하나, 알림에 콜아웃 하나, 창에 이름 하나를 정했고, 머리글마다 제 짜임과 제 말은 그대로
+두었습니다. 그리고 **디자인** 설정은 제품 전체를 부드럽게(위의 모든 것), 클래식(v0.6.2의 강조 막대가 있는
+평평한 카드), 단순하게 가운데 하나로 그립니다. 디자인은 데이터이므로 점검에서 정한 것은 세 디자인 모두에
+그대로 적용됩니다([세 가지 디자인](#세-가지-디자인) 참고).
 
-`src/codex_auto_resume/brand/` and nowhere else — and since v0.6.3, every size, radius and
-duration as well.
+## 색은 어디에서 오는가
 
-| Surface | How it gets the palette |
+`src/codex_auto_resume/brand/`, 그리고 그 밖에는 어디에도 없습니다. v0.6.3부터는 모든 크기,
+반경, 지속 시간도 마찬가지입니다.
+
+| 표면 | 팔레트를 가져오는 방법 |
 | --- | --- |
-| The Codex panel | `mcpui.py` builds its `:root` block at import from `brand.LIGHT` and `brand.DARK`, `brand.css_scale()` - which also writes the check box's colours for each of its states - and `brand.css_elevation()`, which writes the shadow recipes of both themes as CSS. |
-| The Dashboard | `build/make_brand.py` generates `gui/Brand.cs`: every light token as a `Color`, and in the nested class `Brand.Dark` the dark twin of everything that changes with the theme, under the same name - and since v0.6.10 `Brand.Classic` and `Brand.Plain`, each with its own `Dark`, for the two designs with colours of their own, and the design's rules (`Brand.DesignDepth`, `DesignGlow`, `DesignAccentBar`, `DesignRadius`), all of which `Brand.LookOf(design, dark)` answers at once for one design in one theme; the scale, the layout sizes, the shadow recipes and the state light's numbers as constants; and the per-state rules of the state light, the shadows and the check box as small generated methods. `gui/SoftTheme.cs` adopts one theme before the first control is made and reads the brand's colours through one `Tokens` class, the only place a colour is read, from what `Brand.LookOf` answers - so the window's own code never chooses a design's colours by its name, and `tests/test_gui_theme.py` fails if any of it names a design; its `Palette` class is also the one place High Contrast is honoured, and the other soft-control sources draw through both. The generated file is committed, so a contributor with no Python can still read what the window will look like. |
-| The notification-area popup | `tray_popup/` imports `brand` and draws with `brand.palette(theme)`, `brand.card_ground(theme)`, `brand.shadows(recipe, theme)`, the scale, `brand.glow()` and `brand.ease()` directly, in the theme it resolved when it opened - and since v0.6.10 in the design it read with it, which every one of those takes as `design`. The notification card is the popup's card, drawn by the popup's own renderer. |
-| The icon | `assets/make_icon.py` imports the four icon colours and `brand.ICON_SHAPE`, and rasterises with `brand.icon_render()`; the notification-area icon's motion frames come from the same geometry and rasteriser inside the watcher (`tray.py`). |
-| The plugin card | `.codex-plugin/plugin.json` carries `brandColor`, checked against `brand.BRAND`. |
+| Codex 패널 | `mcpui.py`가 import 시점에 `brand.LIGHT`와 `brand.DARK`, 체크박스의 상태별 색까지 써 주는 `brand.css_scale()`, 그리고 두 테마의 그림자 레시피를 CSS로 써 주는 `brand.css_elevation()`으로 `:root` 블록을 만듭니다. |
+| 대시보드 | `build/make_brand.py`가 `gui/Brand.cs`를 생성합니다. 밝은 테마의 모든 토큰은 `Color`로, 테마에 따라 바뀌는 모든 것의 어두운 짝은 중첩 클래스 `Brand.Dark`에 같은 이름으로(이번 릴리스부터는 자기 색이 있는 두 디자인을 위한 `Brand.Classic`과 `Brand.Plain`도 각자의 `Dark`와 함께, 디자인의 규칙 `Brand.DesignDepth`, `DesignGlow`, `DesignAccentBar`, `DesignRadius`도, 그리고 디자인 하나를 테마 하나에서 이 모두로 한 번에 답하는 `Brand.LookOf(design, dark)`도), 스케일과 레이아웃 크기와 그림자 레시피와 상태 불빛의 숫자는 상수로, 상태 불빛과 그림자와 체크박스의 상태별 규칙은 생성된 작은 메서드로 들어갑니다. `gui/SoftTheme.cs`는 첫 컨트롤을 만들기 전에 테마 하나를 정하고, 브랜드 색은 색을 읽는 유일한 곳인 `Tokens` 클래스 하나를 거쳐, `Brand.LookOf`가 답한 것에서 읽습니다. 그래서 창 자신의 코드는 디자인의 색을 그 이름으로 고르지 않고, 그 코드 어디든 디자인 이름을 쓰면 `tests/test_gui_theme.py`가 실패합니다. 고대비 모드를 반영하는 곳은 `Palette` 클래스 한 곳이고, 나머지 부드러운 컨트롤 소스는 모두 그 둘을 거쳐 그립니다. 생성된 파일을 커밋해 두므로, Python이 없는 기여자도 창이 어떤 모습일지 읽어 볼 수 있습니다. |
+| 알림 영역 팝업 | `tray_popup/`가 `brand`를 import해, 열릴 때 정한 테마로 `brand.palette(theme)`, `brand.card_ground(theme)`, `brand.shadows(recipe, theme)`, 스케일, `brand.glow()`, `brand.ease()`를 써서 직접 그립니다. 이번 릴리스부터는 테마와 함께 읽은 디자인으로도 그리며, 이 함수들은 모두 그것을 `design`으로 받습니다. 알림 카드는 팝업의 카드이고, 팝업 자신의 렌더러가 그립니다. |
+| 아이콘 | `assets/make_icon.py`가 아이콘 색 네 개와 `brand.ICON_SHAPE`를 import하고 `brand.icon_render()`로 래스터화합니다. 알림 영역 아이콘의 움직임 프레임은 워처 안(`tray.py`)에서 같은 도형과 같은 래스터화기로 만듭니다. |
+| 플러그인 카드 | `.codex-plugin/plugin.json`이 `brandColor`를 담고 있으며, `brand.BRAND`와 대조해 검사합니다. |
 
-`tests/test_brand.py` regenerates both generated files and compares, so a hand-edit fails
-the suite instead of shipping. It also sweeps every tracked text file for the retired
-green, because the way a colour survives a rebrand is in a document nobody reopened.
+`tests/test_brand.py`는 생성 파일 두 개를 다시 만들어 비교하므로, 손으로 고친 값은 배포되는
+대신 테스트를 실패시킵니다. 또한 추적되는 모든 텍스트 파일에서 폐기된 초록색을 훑습니다.
+리브랜딩에서 색이 살아남는 경로는 아무도 다시 열어 보지 않은 문서이기 때문입니다.
 
-## The tokens
+## 토큰
 
-`LIGHT` and `DARK` hold the same key set — a token defined in one theme and not the other
-renders one theme's text on the other theme's ground, which is the classic unreadable-panel
-bug, and there is a test for it.
+`LIGHT`와 `DARK`는 같은 키 집합을 가집니다. 한쪽 테마에만 정의된 토큰은 한 테마의 텍스트를
+다른 테마의 바탕 위에 그리게 되고, 이것이 패널을 읽을 수 없게 만드는 전형적인 버그이며, 이를
+검사하는 테스트가 있습니다.
 
-| Token | Light | Dark | Used for |
+| 토큰 | Light | Dark | 쓰임 |
 | --- | --- | --- | --- |
-| `ink` | `#0F1B2D` | `#E8EEF6` | Text. A near-black carrying the same blue bias. |
-| `muted` | `#536477` | `#9AACBF` | Secondary text, readable on the canvas as well as on a card. |
-| `line` | `#D3DCE7` | `#2E3A4B` | Hairlines and card edges. |
-| `surface` | `#F6F8FB` | `#191F29` | Cards. |
-| `canvas` | `#E9EEF4` | `#0C1118` | The window behind them. |
-| `raised` | `#FBFCFE` | `#212835` | A control resting on a card: a button, a chip, a toggle. |
-| `inset` | `#E2E8F0` | `#121820` | Pressed, selected, or a well a value sits in. |
-| `shadow_dark` | `#B7C4D4` | `#05080C` | The shadow below and right of a raised surface. |
-| `shadow_light` | `#FFFFFF` | `#27303D` | The highlight above and left of it. |
-| `accent` | `#1257B8` | `#5CA2EE` | Anything to read or to click. |
-| `accent_hover` | `#135DC5` | `#62ADFF` | A primary button under the pointer: the accent brightened by 7%. |
-| `accent_pressed` | `#1250A7` | `#5290D3` | A primary button being pressed: the accent mixed 12% toward the ink (light) or the dark shadow (dark). |
-| `accent_soft` | `#DCE8F8` | `#1B2D45` | A quiet accent ground: a selected row, the active tab. |
-| `on_accent` | `#FFFFFF` | `#08111C` | Text drawn *on* the accent. |
-| `focus` | `#2F7DE1` | `#7DB6F5` | The keyboard focus ring. |
-| `active` | `#06B6D4` | `#35B5CC` | Fill only: the state light while the watcher is running and recovery is on. |
-| `idle` | `#94A3B8` | `#5F6E80` | Fill only: a stopped watcher's light. |
-| `attention` | `#B45309` | `#E09B57` | Fill only: needs a person. |
-| `success` | `#157045` | `#5CC98E` | State text: recovered. |
-| `waiting` | `#1A5FA8` | `#7DB6F5` | State text: waiting for a reset or a retry. |
-| `warning` | `#9A4A06` | `#E8A765` | State text: needs a decision soon. |
-| `danger` | `#B42318` | `#F2877C` | State text: stopped, failed. |
-| `paused` | `#55657A` | `#9AACBF` | State text: deliberately quiet. |
+| `ink` | `#0F1B2D` | `#E8EEF6` | 텍스트. 같은 파랑 기운을 담은 거의 검정. |
+| `muted` | `#536477` | `#9AACBF` | 보조 텍스트. 카드뿐 아니라 바탕 위에서도 읽힙니다. |
+| `line` | `#D3DCE7` | `#2E3A4B` | 헤어라인과 카드 테두리. |
+| `surface` | `#F6F8FB` | `#191F29` | 카드. |
+| `canvas` | `#E9EEF4` | `#0C1118` | 그 뒤의 창. |
+| `raised` | `#FBFCFE` | `#212835` | 카드 위에 놓인 컨트롤: 버튼, 칩, 토글. |
+| `inset` | `#E2E8F0` | `#121820` | 눌림, 선택됨, 또는 값이 앉는 우물. |
+| `shadow_dark` | `#B7C4D4` | `#05080C` | 떠오른 표면의 오른쪽 아래 그림자. |
+| `shadow_light` | `#FFFFFF` | `#27303D` | 그 왼쪽 위의 하이라이트. |
+| `accent` | `#1257B8` | `#5CA2EE` | 읽거나 클릭할 모든 것. |
+| `accent_hover` | `#135DC5` | `#62ADFF` | 포인터가 올라간 기본 버튼: accent를 7% 밝게 한 색. |
+| `accent_pressed` | `#1250A7` | `#5290D3` | 누르고 있는 기본 버튼: accent를 12%만큼 ink 쪽(밝은 테마)이나 어두운 그림자 쪽(어두운 테마)으로 섞은 색. |
+| `accent_soft` | `#DCE8F8` | `#1B2D45` | 조용한 accent 바탕: 선택된 행, 활성 탭. |
+| `on_accent` | `#FFFFFF` | `#08111C` | accent *위에* 그리는 텍스트. |
+| `focus` | `#2F7DE1` | `#7DB6F5` | 키보드 포커스 링. |
+| `active` | `#06B6D4` | `#35B5CC` | 채움 전용: 워처가 실행 중이고 자동 복구가 켜져 있는 동안의 상태 불빛. |
+| `idle` | `#94A3B8` | `#5F6E80` | 채움 전용: 멈춘 워처의 불빛. |
+| `attention` | `#B45309` | `#E09B57` | 채움 전용: 사람이 필요함. |
+| `success` | `#157045` | `#5CC98E` | 상태 텍스트: 복구됨. |
+| `waiting` | `#1A5FA8` | `#7DB6F5` | 상태 텍스트: 초기화나 재시도를 기다림. |
+| `warning` | `#9A4A06` | `#E8A765` | 상태 텍스트: 곧 결정이 필요함. |
+| `danger` | `#B42318` | `#F2877C` | 상태 텍스트: 멈춤, 실패. |
+| `paused` | `#55657A` | `#9AACBF` | 상태 텍스트: 일부러 조용함. |
 
-**The surfaces moved toward each other in v0.6.3.** The card came down from pure white and the
-canvas down a step, because a raised card in a soft interface is the window's own material
-lifted by light and shadow. The hairline stayed: a shadow alone is not an edge for everybody.
+**v0.6.3에서 표면들이 서로 가까워졌습니다.** 카드는 순백에서 내려오고 바탕도 한 단계
+내려왔습니다. 부드러운 인터페이스에서 떠오른 카드는 빛과 그림자로 들어 올린 창 자신의 재질이기
+때문입니다. 헤어라인은 남겼습니다. 그림자만으로는 누구에게나 테두리가 되지는 않습니다.
 
-**`active` is a fill-only token.** Against white it measures 2.4:1, which is right for a
-status dot and not enough for text. The five state colours are the other way round: each one
-carries a word, so each is readable on a card, at 5.6:1 or better in the light theme and 6.7:1
-or better in the dark. The tests assert contrast for text, secondary text, the accent and the
-text on it, so a later adjustment "for looks" cannot quietly make the panel unreadable. Since
-v0.6.4 they do it in both themes on every ground a word is drawn on - the canvas, a card, a raised
-control, a well and `accent_soft` - and hold the focus ring to 3:1 against each.
+**`active`는 채움 전용 토큰입니다.** 흰 바탕에서 2.4:1로 측정되는데, 상태 점에는 맞고
+텍스트에는 모자랍니다. 상태 색 다섯 개는 그 반대입니다. 저마다 단어를 싣기 때문에 카드 위에서
+읽혀야 하고, 밝은 테마에서 5.6:1 이상, 어두운 테마에서 6.7:1 이상입니다. 테스트는 텍스트, 보조
+텍스트, accent, accent 위의 텍스트에 대비 assertion을 걸어 두므로, 나중에 "보기 좋으라고" 손댄
+값이 조용히 패널을 읽을 수 없게 만들 수는 없습니다. v0.6.4부터는 두 테마 모두에서, 글자가
+그려지는 모든 바탕(바탕, 카드, 떠오른 컨트롤, 우물, `accent_soft`) 위에서 그렇게 하고, 포커스 링도
+각 바탕에 대해 3:1 이상으로 붙들어 둡니다.
 
-**In dark, a card is not its surface.** On a near-black canvas a card that is only `surface`
-reads as a hole, so a dark card's ground is `surface` moved 22% of the way toward `raised`,
-`#1B212C`. The panel writes it as `color-mix()`, and the window and the popup fill with
-`brand.card_ground()`, which is the same colour (`CARD_LIFT`). A light card is its surface.
+**어두운 테마에서 카드는 자기 표면색이 아닙니다.** 거의 검은 바탕 위에서 `surface`만으로 칠한 카드는
+구멍처럼 읽힙니다. 그래서 어두운 카드의 바탕은 `surface`를 `raised` 쪽으로 22% 옮긴 `#1B212C`입니다.
+패널은 이를 `color-mix()`로 쓰고, 창과 팝업은 같은 색인 `brand.card_ground()`로 칠합니다(`CARD_LIFT`).
+밝은 카드는 자기 표면색 그대로입니다.
 
-**`on_accent` exists because of a bug the tests found.** A dark theme needs a bright accent
-to stand off its surface, and a bright accent cannot then carry white text: white on
-`#5AA5F5` is 2.6:1. So the text on the accent is a token that goes dark exactly when the
-accent goes light. Nobody noticed by looking; the assertion did.
+**`on_accent`는 테스트가 찾아낸 버그 때문에 존재합니다.** 다크 테마에서 accent가 자기 표면에서
+떠 보이려면 밝아야 하고, 그렇게 밝아진 accent는 흰 텍스트를 담을 수 없습니다. `#5AA5F5` 위의
+흰색은 2.6:1입니다. 그래서 accent 위의 텍스트는 accent가 밝아지는 바로 그 순간에 어두워지는
+토큰입니다. 눈으로 보고 알아챈 사람은 없었고, assertion이 알아챘습니다.
 
-## The scale
+## 스케일
 
-Everything that is not a colour, in device-independent pixels at 96 DPI, so a card in the
-window and a card in Codex round their corners by the same amount.
+색이 아닌 모든 것이며, 96 DPI 기준의 장치 독립 픽셀입니다. 그래서 창 안의 카드와 Codex 안의
+카드가 같은 만큼 모서리를 둥글립니다.
 
-| Table | Values | Used for |
+| 테이블 | 값 | 쓰임 |
 | --- | --- | --- |
-| `RADII` | card 16, control 11, chip 999, small 7, check 5 | Corners. A chip is a pill. |
-| `SPACING` | 4, 8, 12, 16, 24, 32 (`xs` to `xxl`) | Padding and gaps. |
-| `TYPE` | title 20, heading 14, body 12, small 11 | The popup's and the notification card's type sizes. The Dashboard keeps Windows' message font at its own sizes. |
-| `TYPE_SCALE`, `LINE_HEIGHT`, `TYPE_ROLES` | display 21, title 15, body 14, small 12.5, mono 13 | The panel's type. The native surfaces keep `TYPE`: a notification-area popup and a fixed-size window read better with smaller text than a panel inside Codex. |
-| `LAYOUT` | button 34 high, field 35, switch 40 × 22, check box 18 with 10 to its label, chip 22, a callout padded 10 × 12 with an 18 badge, card padding 16 × 18, page gap 14, and the rest | The sizes of the shared control recipes, taken from the panel. |
-| `SHADOWS` | light card: offset (4, 4), blur 14, `shadow_dark` at 0.55, and offset (−4, −4), blur 14, `shadow_light` at 0.90; control: the same at offset 2, blur 6; inset: offset 2, blur 6, inside the edge. Dark card: offset (0, 1), blur 2, `shadow_dark` at 0.70, offset (0, 6), blur 18, at 0.35, and a one-pixel `shadow_light` line at 0.45 inside the top edge; control: offset (0, 1), blur 2, at 0.60; inset: the same inside the edge, at 0.55 | A lifted card, a raised control and a well. Small on purpose: exaggerated embossing is what makes soft interfaces unreadable. |
-| `STATUS_DOT`, `STATUS_FILL`, `GLOW` | dot radius: window 5, popup 4.5, panel 6; one cosine a cycle, taken in light and drawn through gamma 2.2; the dot keeps 35% of its light at the bottom; the glow rides it, reaching 0.6 of the radius at opacity 0.50 | The state light: its size, its colour for each state, its blink and its glow. |
-| `MOTION` | transition 160 ms on one curve, `ease` = cubic-bezier(0.33, 1, 0.68, 1), an ease-out | A switch's glide and a check box's fade on every surface, the rise of an open drop-down list, and since v0.6.10 the notification card's rise, return and slide, which had a curve of their own. |
-| `ICON_SHAPE` | ring 0.34 to 0.53 of the half-size; sweep from 125° round to 55°, leaving a 70° opening at the top; head radius 0.155; corners 0.30, or 0.24 below 32 px; 4 × 4 samples a pixel (`ICON_SUPERSAMPLE`) | The mark's geometry, in a square whose half-size is 1. |
+| `RADII` | card 16, control 11, chip 999, small 7, check 5 | 모서리. 칩은 알약 모양입니다. |
+| `SPACING` | 4, 8, 12, 16, 24, 32 (`xs`부터 `xxl`까지) | 안쪽 여백과 간격. |
+| `TYPE` | title 20, heading 14, body 12, small 11 | 팝업과 알림 카드의 글자 크기. 대시보드는 Windows의 메시지 글꼴을 자기 크기로 씁니다. |
+| `TYPE_SCALE`, `LINE_HEIGHT`, `TYPE_ROLES` | display 21, title 15, body 14, small 12.5, mono 13 | 패널의 글자. 네이티브 표면은 `TYPE`을 그대로 씁니다. 알림 영역 팝업과 크기가 정해진 창에서는 Codex 안의 패널보다 작은 글자가 더 잘 읽힙니다. |
+| `LAYOUT` | button 높이 34, field 35, switch 40 × 22, 이름표까지 10을 띄운 체크박스 18, chip 22, 10 × 12로 여백을 두고 18짜리 배지를 단 콜아웃, card padding 16 × 18, page gap 14 등 | 패널에서 가져온, 함께 쓰는 컨트롤 레시피의 크기. |
+| `SHADOWS` | 밝은 테마의 card: offset (4, 4), blur 14, `shadow_dark` 0.55, 그리고 offset (−4, −4), blur 14, `shadow_light` 0.90; control: 같은 구성에 offset 2, blur 6; inset: offset 2, blur 6, 테두리 안쪽. 어두운 테마의 card: offset (0, 1), blur 2, `shadow_dark` 0.70, offset (0, 6), blur 18, 0.35, 그리고 위쪽 테두리 안쪽의 1픽셀 `shadow_light` 선 0.45; control: offset (0, 1), blur 2, 0.60; inset: 같은 구성을 테두리 안쪽에 0.55 | 떠오른 카드, 떠오른 컨트롤, 우물. 일부러 작습니다. 과장된 엠보싱이 부드러운 인터페이스를 읽을 수 없게 만듭니다. |
+| `STATUS_DOT`, `STATUS_FILL`, `GLOW` | 점 반경: 창 5, 팝업 4.5, 패널 6; 한 주기가 코사인 하나, 빛에서 그려 감마 2.2로 변환; 점은 바닥에서 빛의 35%를 남김; 번짐은 밝기를 따라 반지름의 0.6배까지, 불투명도 0.50 | 상태 불빛: 그 크기, 상태마다의 색, 깜빡임, 그리고 빛. |
+| `MOTION` | 곡선 하나로 transition 160 ms, `ease` = cubic-bezier(0.33, 1, 0.68, 1), 감속 곡선 | 모든 표면에서 스위치가 미끄러지고 체크박스가 서서히 바뀌는 것, 펼친 드롭다운 목록이 떠오르는 것, 그리고 이번 릴리스부터는 알림 카드가 떠오르고 돌아오고 미끄러지는 것. 예전에는 카드에만 따로 곡선이 있었습니다. |
+| `ICON_SHAPE` | 고리는 반폭의 0.34에서 0.53; 호는 125°에서 돌아 55°까지, 위쪽에 70°의 틈을 남김; 머리 반경 0.155; 모서리 0.30, 32 px 아래에서는 0.24; 픽셀마다 4 × 4 표본(`ICON_SUPERSAMPLE`) | 반폭이 1인 정사각형 안에 둔 마크의 도형. |
 
-The window gets these as constants in `gui/Brand.cs` - `RadiusCard`, `SpaceM`, `TypeBody`,
-`ButtonHeight`, `FieldHeight`, the shadow recipes and the glow's numbers - and multiplies them
-by its own scale factor. The popup reads the same tables from `brand.py`. The panel gets CSS
-custom properties from `brand.css_scale()`: `--radius-*`, `--space-*`, `--type-*`, `--lh-*`,
-`--size-*`, `--glow-*`, `--transition` and `--transition-ease`. The curve is solved the way
-browsers solve a cubic-bezier - `brand.ease()` in the popup, `Brand.Ease` in the window - so all
-three surfaces move a switch along the same path.
+창은 이 값을 `gui/Brand.cs`의 상수 — `RadiusCard`, `SpaceM`, `TypeBody`, `ButtonHeight`,
+`FieldHeight`, 그림자 레시피, 빛의 숫자 — 로 받아 자기 배율을 곱합니다. 팝업은 같은 테이블을
+`brand.py`에서 읽습니다. 패널은 `brand.css_scale()`이 만든 CSS 사용자 정의 속성 `--radius-*`,
+`--space-*`, `--type-*`, `--lh-*`, `--size-*`, `--glow-*`, `--transition`, `--transition-ease`를
+받습니다. 곡선은 브라우저가 cubic-bezier를 푸는 방식 그대로 풉니다. 팝업에서는 `brand.ease()`, 창에서는
+`Brand.Ease`이므로, 세 표면이 스위치를 같은 길로 움직입니다.
 
-A button and a chip are the same size on every surface since v0.6.10: `LAYOUT`'s 34-pixel button
-and 22-pixel chip padded 9 either side. Until then the popup's and the notification card's buttons
-were 32 high and their chips tighter. Their words keep each surface's own weight: bold (600) in the
-popup and on the card, as they always were, and `TYPE_ROLES`' 500 in the window and the panel - a
-weight Windows draws regular, which v0.6.10 tried on the popup and the card and gave back. A notice
-set apart is a callout on every surface: the `accent_soft` ground with the control's corners, an "i"
-badge in the accent, and the notice in ink, `callout_pad`, `callout_gap` and `callout_badge` apart.
-The window said the same notices in accent-coloured help text until v0.6.10, and the callout's
-numbers generated for it were used by nothing.
+이번 릴리스부터 버튼과 칩은 모든 표면에서 크기가 같습니다. `LAYOUT`의 34픽셀 버튼과 양옆에 9씩
+여백을 둔 22픽셀 칩입니다. 그 전에는 팝업과 알림 카드의 버튼이 높이 32였고 칩이 더 빠듯했습니다. 그
+글자는 표면마다 제 굵기를 지킵니다. 팝업과 카드에서는 늘 그랬듯 굵은 글자(600)이고, 창과 패널에서는
+`TYPE_ROLES`의 500이며 Windows는 이를 보통 굵기로 그립니다. 이번 릴리스에 팝업과 카드에도 500을 써
+보았다가 되돌렸습니다. 따로 짚어 둔 알림은 모든 표면에서 콜아웃입니다. `accent_soft` 바탕에 컨트롤의
+모서리, 강조색 원 안의 "i" 배지, 그리고 잉크색 알림 글이며, 그 사이는 `callout_pad`, `callout_gap`,
+`callout_badge`만큼입니다. 창은 이번 릴리스 전까지 같은 알림을 강조색 도움말 글로 말했고, 창을 위해
+생성해 둔 콜아웃의 숫자는 아무도 쓰지 않았습니다.
 
-Attention's breath is `--glow-attention-ms`, never `--attention`, because the
-palette already declares `--attention` as a colour on the same `:root`. Two custom properties
-with one name raise nothing: the later declaration wins, the dark theme declares the colour
-again, and an animation handed a colour for its duration simply does not run. v0.6.3 met this
-and named the duration `--pulse`.
+attention 숨의 길이에는 `--attention`이라는 이름을 절대 쓰지 않고 `--glow-attention-ms`를
+씁니다. 팔레트가 같은 `:root`에 이미 `--attention`을 색으로 선언하기 때문입니다. 이름이 같은 사용자
+정의 속성 두 개는 아무 오류도 내지 않습니다. 나중 선언이 이기고, 어두운 테마가 색을 다시 선언하며,
+지속 시간 자리에 색을 받은 애니메이션은 그냥 돌지 않습니다. v0.6.3도 이 문제를 만났고, 그때는 지속
+시간에 `--pulse`라는 이름을 붙였습니다.
 
-A shadow is data, not a stylesheet. `brand.shadow_alpha()` is the model - a CSS blur is a
-Gaussian with a standard deviation of half the blur - and `brand.css_elevation()` writes the
-recipes as the panel's `box-shadow` values. The Dashboard and the popup render the same recipes
-into cached images and stamp them around each card and control, and tests hold what they draw to
-the model within two levels of 255 at 100%, 150% and 200%. In the dark theme a lift is mostly the
-hairline and a one-pixel top light, because a shadow on a near-black ground is invisible at best
-and muddy at worst. That makes a dark card's recipe a different shape from a light one's - three
-shadows, one of them inside the edge - so every surface reads each shadow's own `inset` flag
-rather than guessing it from the recipe's name.
+그림자는 스타일시트가 아니라 데이터입니다. `brand.shadow_alpha()`가 그 모델이고(CSS의 blur는
+표준편차가 blur의 절반인 가우스 분포입니다), `brand.css_elevation()`이 그 레시피를 패널의
+`box-shadow` 값으로 씁니다. 대시보드와 팝업은 같은 레시피를 캐시한 이미지로 렌더링해 카드와 컨트롤마다
+그 둘레에 찍고, 테스트는 그렇게 그린 것이 100%, 150%, 200%에서 255단계 중 2단계 안으로 모델과 맞도록
+붙들어 둡니다. 어두운 테마에서 떠오름은 대부분 헤어라인과 위쪽 1픽셀 빛입니다. 거의 검은 바탕 위의
+그림자는 잘해야 안 보이고 못하면 탁해지기 때문입니다. 그래서 어두운 카드의 레시피는 밝은 카드와
+모양이 다릅니다. 그림자가 셋이고 그중 하나는 테두리 안쪽입니다. 그러므로 모든 표면은 레시피 이름으로
+짐작하지 않고 그림자마다의 `inset` 표시를 읽습니다.
 
-## Motion is a state
+## 움직임은 상태다
 
-The state light says whether the watcher is alive, in the Dashboard's header, at the top of the
-popup and at the top of the panel, and since v0.6.5 it says what a notification card is about.
-Since v0.6.10 the panel's Automatic recovery tile carries it too, smaller, where a dot that never
-moved used to be: every light that says the product is running moves.
-It is a flat dot that breathes, with a glow that rides its brightness. `brand.glow()` defines it
-once - its numbers are `GLOW`, generated into the window's `gui/Brand.cs` and the panel's
-stylesheet - and every surface is tested against that one function. Since v0.6.6 the shape is the
-ordinary one a status light of this size is built from, and nothing of ours:
+상태 불빛은 대시보드 머리글, 팝업 맨 위, 패널 맨 위에서 워처가 살아 있는지를 말하고, v0.6.5부터는
+알림 카드가 무엇에 관한 것인지도 말합니다. 이번 릴리스부터는 패널의 자동 복구 타일에도 같은 불빛이
+작게 있습니다. 전에는 거기에 움직이지 않는 점이 있었습니다. 제품이 돌고 있다고 말하는 불빛은 모두
+움직입니다. 숨 쉬는 평평한 점이고, 번짐이 그 밝기를 따라갑니다.
+`brand.glow()`가 그 불빛을 한 번 정의하고(그 숫자는 `GLOW`이며, 창의 `gui/Brand.cs`와 패널의
+스타일시트로 생성됩니다), 모든 표면을 그 하나의 함수에 비추어 테스트합니다. v0.6.6부터 그 모양은 이
+크기의 상태 불빛을 만드는 정석 그대로이고, 우리만의 것은 없습니다.
 
-1. **One cycle, near a resting breath.** 4.4 seconds, about fourteen a minute. Quicker reads as a
-   blink; much slower reads as a light that has stopped.
-2. **One symmetric cosine across the whole cycle.** The light is never not moving, and has a
-   corner nowhere. Half of it goes down, half comes back.
-3. **A deep swing.** The dot keeps 35% of its light at the bottom, which is 62% of its colour as
-   drawn. What makes a breath gentle is its speed and its curve, not a small swing.
-4. **Taken in light, drawn through the screen's gamma.** A cosine walked straight along an alpha
-   bunches at the top and rushes at the bottom; raised to 1/2.2 it is even to look at.
-5. **A glow that rides the brightness.** Out at the top of the breath at opacity 0.50, gone at the
-   bottom, and reaching 0.6 of the dot's radius past its edge - a share of the dot, so the
-   window's 10-pixel light and the panel's 12-pixel one are the same light at two sizes, and so is
-   the panel tile's 8-pixel one. The dot dims toward the ground under it and the glow is drawn
-   apart from it, so the dot's dimming never dims the glow; until v0.6.10 the panel faded the two
-   together, and its glow was a fifth weaker than the window's halfway down a breath.
-6. **A dot whose size never changes.** A 10-pixel disc that scales reads as jitter.
+1. **한 주기는 쉬는 호흡에 가깝게.** 4.4초, 분당 열네 번쯤입니다. 더 빠르면 깜빡임으로, 훨씬
+   느리면 멈춘 불빛으로 읽힙니다.
+2. **주기 전체가 하나의 대칭 코사인.** 불빛은 멈추는 순간이 없고 어디에도 모서리가 없습니다.
+   절반은 내려가고 절반은 돌아옵니다.
+3. **진폭은 깊게.** 점은 바닥에서 제 빛의 35%를 남기며, 그려지는 색으로는 62%입니다. 숨을 부드럽게
+   만드는 것은 속도와 곡선이지 작은 진폭이 아닙니다.
+4. **빛에서 그리고, 화면의 감마로 그린다.** 코사인을 알파에 그대로 태우면 위쪽에서 뭉치고 아래쪽에서
+   급해집니다. 1/2.2로 올려 그리면 고르게 보입니다.
+5. **번짐은 밝기를 따라간다.** 호흡의 꼭대기에서 불투명도 0.50으로 나왔다가 바닥에서는 사라지고,
+   점 반지름의 0.6배만큼 바깥까지 갑니다. 픽셀 수가 아니라 점에 대한 비율이라, 창의 10픽셀 불빛과
+   패널의 12픽셀 불빛, 패널 타일의 8픽셀 불빛이 같은 불빛이 됩니다. 점은 아래 바탕 쪽으로 흐려지고
+   번짐은 점과 따로 그리므로, 점이 흐려져도 번짐은 흐려지지 않습니다. 이번 릴리스 전에는 패널이 둘을
+   함께 흐리게 해서, 호흡의 중간쯤에서 번짐이 창의 것보다 5분의 1가량 약했습니다.
+6. **점의 크기는 바뀌지 않는다.** 10픽셀 원이 커졌다 작아지면 흔들림으로 읽힙니다.
 
-A cycle begins and ends at the top, where a still light also sits, so a light that starts moving
-does not jump in brightness; the glow is the one thing that arrives with the motion. A light keeps
-its place in the cycle for as long as its state holds: redrawing it does not send it back to the
-top - in the panel since v0.6.10, whose two lights share one cycle.
+주기는 꼭대기에서 시작하고 꼭대기에서 끝납니다. 멈춘 불빛도 그 자리에 있으므로 움직이기 시작해도
+밝기가 튀지 않고, 움직임과 함께 새로 나타나는 것은 번짐뿐입니다. 불빛은 상태가 이어지는 동안 주기의
+제자리를 지킵니다. 다시 그린다고 꼭대기로 돌아가지 않으며, 패널에서는 이번 릴리스부터 그렇고 두
+불빛이 한 주기를 나눕니다.
 
-| State | Colour | Light |
+| 상태 | 색 | 불빛 |
 | --- | --- | --- |
-| Monitoring | `active` | The cycle, every 4.4 s |
-| Waiting | `active` | The cycle, every 4.4 s, as monitoring (since v0.6.9; until then lit and still, while the notification-area icon kept moving) |
-| Checking a task that has come due | `active` | Lit, with no glow, and a thin arc turning once every 1.6 s (in the Dashboard and the popup, and since v0.6.10 in the panel, for one watcher pass at most - below) |
-| Recovering | `active` | The cycle, every 2.8 s |
-| Needs a person | `attention` | The cycle, every 5.6 s, the slowest there is (since v0.6.8; until then once, over 1.4 s, then still) |
-| Failed | `danger` | The cycle, every 1.2 s, the quickest there is, so a red light never sits still (since v0.6.8) |
-| Paused, stopped | `paused`, `idle` | A grey dot that never moves |
+| 감시 중 | `active` | 4.4초마다 한 주기 |
+| 대기 중 | `active` | 감시 중처럼 4.4초마다 한 주기(v0.6.8 다음 릴리스부터. 그 전에는 알림 영역 아이콘이 움직이는 동안에도 켜진 채 멈춰 있었습니다) |
+| 기한이 된 작업을 확인하는 중 | `active` | 빛 없이 켜져 있고, 가는 호가 1.6초에 한 바퀴 돕니다(대시보드와 팝업, 이번 릴리스부터는 패널에서도. 패널에서는 워처가 한 번 확인하는 간격까지만이며, 아래에 적었습니다) |
+| 복구 중 | `active` | 2.8초마다 한 주기 |
+| 사람이 필요함 | `attention` | 5.6초마다 한 주기. 가장 느린 숨입니다(예전에는 처음 보일 때 1.4초에 걸쳐 한 번 돈 뒤 멈춰 있었습니다) |
+| 실패 | `danger` | 1.2초마다 한 주기. 가장 빠른 숨이라, 빨간 불빛은 멈춰 있는 법이 없습니다 |
+| 일시 정지, 멈춤 | `paused`, `idle` | 움직이지 않는 회색 점 |
 
-Which light a header shows is one rule, the same in the Dashboard, the popup and the panel, and so is
-the word the popup and the panel say beside it. The Dashboard keeps its own words, as it always has:
-its headline says *Watching for interruptions*, *Automatic recovery paused*, *Watcher not running* or
-*Watcher status unknown*, and the line under it *Automatic recovery is on · 2 recoveries pending* and
-the like - except that for a watcher that runs and is not well its first fact names the cause the
-panel names, never that recovery is on. Since v0.6.10 the rule is written down as test vectors, `tests/data/light_states.json`, and
-`tests/test_light_parity.py` runs each surface's own code against them; until then three copies
-told one moment three ways. In order: a watcher that is not running, or that nothing has confirmed
-is running - a record held for a watcher not running counts, whatever the status read a moment
-apart said - asks for attention beside a grey `idle` light that does not move; one that runs but is
-not well - an older watcher still owns the state, it has stopped ticking, or the engine is not
-supported or failed its checks here - is amber, and the line under the word says which; then
-paused; then recovering, for anything sent into Codex or being taken back out of it; then
-checking, once a task's time has come; then waiting; then monitoring. The panel is drawn once, from
-one reading, and until v0.6.10 it had no clock: where the other two said checking it said waiting.
-It reads the page's clock by the same rule now, and wakes when a time a row carries comes, which
-turns it to checking and the row to *due now*. It is not quite the other two's checking: they read
-the record every second and leave checking at the watcher's next pass, and the panel never sees that
-pass. So it says checking for one pass at most - 30 seconds, the watcher's own pace - after the
-later of the task's time and the panel's reading, and then waiting again, the row still *due now*;
-past that, what it read no longer says what the watcher is doing. A watcher run slower than its own
-pace is still checking when the panel stops saying so, which says less than is true and never more,
-and a reading Codex keeps and draws again later is known to be old by the watcher's last pass, and
-says waiting from the start. What the watcher did arrives with the next reading, as everything on
-the panel does. The notification-area icon and the window's taskbar button keep their own rule, in
-which a failure nobody has seen yet is red; no header shows red.
+머리글이 어떤 불빛을 보이는지는 대시보드, 팝업, 패널이 모두 같은 하나의 규칙을 따르며, 팝업과 패널이
+그 옆에 말하는 단어도 그렇습니다. 대시보드는 늘 그랬듯 제 말을 지킵니다. 제목 줄은 *중단을 감시하는 중*,
+*자동 복구 일시 중지됨*, *워처가 실행 중이 아님*, *워처 상태를 알 수 없음* 가운데 하나이고, 그 아래 줄은
+*자동 복구가 켜져 있습니다 · 복구 2건 대기 중* 같은 식입니다. 다만 실행 중이지만 상태가 좋지 않은 워처라면
+첫 사실이 패널이 드는 까닭을 말하며, 복구가 켜져 있다고는 결코 하지 않습니다. 이번 릴리스부터 그 규칙은 테스트 벡터 `tests/data/light_states.json`으로 적혀 있고,
+`tests/test_light_parity.py`가 각 화면의 코드를 그 벡터에 그대로 돌려 봅니다. 그 전에는 세 벌의 사본이
+같은 순간을 세 가지로 말했습니다. 순서대로, 실행 중이 아니거나 실행 중인지 확인되지 않은 워처는
+움직이지 않는 회색 `idle` 불빛 옆에서 확인을 요청합니다. 잠깐 사이를 두고 읽은 상태가 무엇이라 했든,
+실행 중이 아닌 워처 때문에 붙잡힌 레코드가 있으면 여기에 듭니다. 실행 중이지만 상태가 좋지 않은 워처, 곧 이전
+워처가 아직 상태를 쥐고 있거나, 응답하지 않거나, 엔진이 지원되지 않거나 이 컴퓨터에서 확인에 실패한
+워처는 주황색이고, 단어 아래 줄이 그 까닭을 말합니다. 그다음은 일시 정지, Codex에 보냈거나 거둬들이는
+중인 것이 있으면 복구 중, 작업의 시각이 되면 확인 중, 그다음 대기 중, 마지막으로 감시 중입니다. 패널은
+한 번의 읽기로 한 번 그려지고, 이번 릴리스 전에는 시계가 없어서 다른 두 곳이 확인 중이라고 할 때 대기
+중이라고 했습니다. 이제는 같은 규칙으로 패널의 시계를 읽고 행에 적힌 시각이 오면 깨어나, 확인 중이라고
+하고 그 행에 *지금*이라고 적습니다. 다만 다른 두 곳의 확인 중과 꼭 같지는 않습니다. 두 곳은 레코드를 매초
+다시 읽다가 워처의 다음 확인 때 확인 중을 벗어나지만, 패널은 그 확인을 보지 못합니다. 그래서 패널은 작업의
+시각과 패널이 읽은 때 가운데 늦은 때부터 워처가 한 번 확인하는 간격(워처 자신의 간격인 30초)까지만 확인
+중이라고 하고, 그 뒤에는 다시 대기 중이라고 하며 그 행에는 여전히 *지금*이라고 적습니다. 그때가 지나면 패널이
+읽은 것은 워처가 무엇을 하는지 더는 말해 주지 않기 때문입니다. 워처를 제 간격보다 느리게 돌리면 워처가
+아직 확인하는 중에 패널이 먼저 그 말을 그치므로, 패널은 실제보다 덜 말할 수는 있어도 더 말하지는 않습니다.
+Codex가 간직해 두었다가 나중에 다시 그리는 읽기는 워처가 마지막으로 확인한 때를 보고 오래된 것임을 알아,
+처음부터 대기 중이라고 합니다. 워처가 무엇을 했는지는, 패널의 다른 모든 것처럼 다음 읽기와 함께 옵니다.
+알림 영역 아이콘과 창의 작업 표시줄 단추는 자기 규칙을 따르며, 그 규칙에서는 아직 아무도 보지
+않은 실패가 빨갛습니다. 머리글에는 빨간 불빛이 없습니다.
 
-Three cuts were wrong in three directions before this one, and the user named each: the first
-breathed a glow round a dot that never changed, 7 pixels of it ("너무 많이 커지는거 같아"); v0.6.5
-made the dot itself blink, deep and quick ("너무 빠르게 깜빡이는거 같아 / 은은한 느낌이 있어야해
-부드럽고"); v0.6.6's first answer shrank the swing, which is the wrong lever ("지금은 너무 안
-보여"). The fourth is the ordinary one above, chosen against the other three side by side. The glow
-is a falloff, never a disc: at its peak its alpha is 0.50 times 0.67 at the dot's edge, 0.58 at 0.14 of the reach, 0.50 at 0.66 and nothing at
-the reach, in straight lines between, so it holds near half strength and then fades; it never dips
-and rises again, because a gap between a dot and a ring reads as a target. A smaller spread is the
-same falloff drawn smaller about the centre, so the glow grows out from under the dot. The largest
-reaches 8 pixels from the window's dot centre, well inside the 28-pixel box the window keeps
-for it at every scaling. Since v0.6.7 the notification card's light breathes on this same table
-too, and Reduce motion and High Contrast keep it still; v0.6.6 drew it once, lit and still, on
-purpose. Since v0.6.10 it is drawn as the popup draws its own: only the band of rows the light
-stands in is drawn again, at the popup's frame rate, where the whole card was drawn again at most
-every 80 ms. Timed through the card's own frame path at the 15.6 ms tick Windows' timers fire on
-by default, that is about 21 frames a second where there were about 11, for between a quarter and
-a third of the processor time. The light always has its word beside it.
+이 모양 전에 세 번의 시안이 세 방향으로 틀렸고, 사용자가 하나하나 짚었습니다. 첫 시안은 변하지 않는
+점 둘레에서 7픽셀짜리 빛이 숨 쉬었고("너무 많이 커지는거 같아"), v0.6.5는 점 자체를 깊고 빠르게
+깜빡이게 했으며("너무 빠르게 깜빡이는거 같아 / 은은한 느낌이 있어야해 부드럽고"), v0.6.6의 첫 답은
+진폭을 줄였는데 그것은 잘못된 손잡이였습니다("지금은 너무 안 보여"). 네 번째가 위의 정석이고, 나머지
+셋과 나란히 놓고 골랐습니다. 빛은 원판이 아니라 흐려지는 빛입니다. 가장 밝을 때 알파는 점 가장자리에서
+0.50 곱하기 0.67, 닿는 거리의 0.14 지점에서 0.58, 0.66 지점에서 0.50, 닿는 거리 끝에서 0이고 그 사이는
+직선이므로, 절반쯤의 세기를 유지하다가 사라집니다. 한 번 어두워졌다가 다시 밝아지는 일은 없습니다. 점과
+고리 사이의 틈은 과녁으로 읽히기 때문입니다. 덜 번진 빛은 같은 흐려짐을 중심 쪽으로 작게 그린 것이어서, 빛은 점 아래에서
+자라 나옵니다. 가장 큰 빛은 창의 점 중심에서 8픽셀까지 닿고, 이는 창이 모든 배율에서 그 빛에 내어 주는
+28픽셀 상자 안에 넉넉히 들어갑니다. v0.6.7부터는 알림 카드의 불빛도 같은 표를 따라 숨 쉬고, 움직임
+줄이기와 고대비 모드에서는 멈춰 있습니다. v0.6.6은 일부러 한 번만 그려 켜진 채 멈춰 두었습니다. 이번
+릴리스부터는 팝업이 자기 불빛을 그리듯 그립니다. 불빛이 선 줄들의 띠만 팝업의 프레임 속도로 다시
+그리며, 예전에는 카드 전체를 많아야 80ms마다 다시 그렸습니다. Windows 타이머가 기본으로 울리는
+15.6ms 간격에서 카드 자신의 그리기 경로로 재어 보면, 1초에 약 11번이던 프레임이 약 21번이 되고
+프로세서 시간은 4분의 1에서 3분의 1 사이가 됩니다. 불빛 옆에는 늘 그 단어가 있습니다.
 
-All of it stops on request. The Dashboard and the popup stop every animation when **Reduce
-motion** is on (Settings > Appearance) or when Windows' own animation-effects switch is off, and
-the Dashboard also stops it in High Contrast; a light that holds still is lit, with no glow. The panel
-follows the host's `prefers-reduced-motion`, and since v0.6.10 the stored Reduce motion as well,
-which it reads and never offers. The notification-area icon and the notification card stop under
-battery saver as well. These are the only things that hold motion: every design moves alike, and
-none holds anything of its own (see [Three designs](#three-designs)).
+요청하면 모두 멈춥니다. 대시보드와 팝업은 **움직임 줄이기**(설정 > 모양)가 켜져 있거나 Windows
+자체의 애니메이션 효과 스위치가 꺼져 있으면 모든 애니메이션을 멈추고, 대시보드는 고대비 모드에서도
+멈춥니다. 멈춘 불빛은 빛 없이 켜져 있습니다. 패널은 호스트의 `prefers-reduced-motion`을 따르고,
+이번 릴리스부터는 저장된 움직임 줄이기도 따릅니다. 패널은 그것을 읽기만 하고 내놓지는 않습니다. 알림
+영역 아이콘과 알림 카드는 배터리 절약 모드에서도 멈춥니다. 움직임을 멈추는 것은 이것들뿐입니다. 모든
+디자인이 똑같이 움직이고, 어떤 디자인도 스스로 무엇을 멈추지 않습니다([세 가지 디자인](#세-가지-디자인)
+참고).
 
-### Controls move, briefly
+### 컨트롤은 잠깐 움직인다
 
-A switch glides when it changes - the knob slides and the track cross-fades between the grey well
-and the accent - and a check box fades its fill and its mark, in `MOTION`'s 160 ms on its one
-curve. The curve is an ease-out (easeOutCubic, `cubic-bezier(0.33, 1, 0.68, 1)`): the knob
-leaves at once and settles, so a switch answers the moment a change is confirmed and still comes
-to rest softly. A change that waits for a confirmation - the panel's per-conversation switch asks
-you first; the Pending page's switch and the popup's wait for the control layer - moves once, when
-it is confirmed, and never slides and snaps back. At rest a switch and a box are exactly what they
-were before, and nothing slides under Reduce motion, Windows' animation setting or High Contrast.
+스위치는 바뀔 때 미끄러집니다. 손잡이가 미끄러지고, 트랙은 회색 우물과 accent 사이에서 색이 바뀝니다.
+체크박스는 채움과 표시가 서서히 바뀝니다. 모두 `MOTION`의 160ms 동안 곡선 하나로 움직입니다. 곡선은
+감속 곡선(easeOutCubic, `cubic-bezier(0.33, 1, 0.68, 1)`)입니다. 손잡이가 곧바로 떠나서 차분히 자리를
+잡으므로, 스위치는 변경이 확인되는 순간 답하면서도 부드럽게 멈춥니다. 확인을 기다리는 변경 - 패널의 대화별
+스위치는 먼저 사용자에게 묻고, 대기 중 쪽의 스위치와 팝업의 스위치는 제어 계층을 기다립니다 - 은 확인되는
+순간 한 번만 움직이며, 미끄러졌다가 되돌아가는 일이 없습니다. 쉬고 있을 때 스위치와 상자는 전과 정확히
+같고, 움직임 줄이기, Windows의 애니메이션 설정, 고대비에서는 아무것도 미끄러지지 않습니다.
 
-### The icon's motion
+### 아이콘의 움직임
 
-The notification-area icon is sixteen pixels across and glanced at, so it does not copy the
-six-state light; it speaks a smaller language with the mark it already has. The head - the bright
-dot at the leading end of the ring - is what moves. While the watcher watches it breathes three
-times, dimming toward the badge's deep blue and back on `GLOW`'s monitoring rhythm, and then sweeps
-along the ring's white stroke and back in a slot of two more breaths, at full brightness, eased in
-and out: 3.52 s out, a moment held at the stroke's far end, 3.52 s back and 1.54 s at home - a loop
-of five slots, each one breath long. It leaves its place clockwise and stays on the stroke, never
-crossing the gap at the top of the ring, so the head is always somewhere the ring is drawn. It never
-breathes while it travels, and every hand-over is at full brightness, where a breath and the sweep's
-slot both begin and end. While a recovery is in progress it sweeps out and back over and over, twice
-as quickly - 1.76 s out, a moment at the far end, 1.76 s back and 0.33 s at home, a sweep every
-3.96 s - at full brightness and without breathing; paused it is grey and still; needing a person it
-is amber and breathes in its place on `GLOW`'s attention rhythm, 5.6 s, for as long as it lasts; failed
-it is red and sweeps recovering's shape twice as quickly - 0.88 s out, a moment at the far end, 0.88 s
-back and 0.17 s at home, a sweep every 1.98 s - and blinks as it goes, on the red light's own 1.2 s
-breath: the one state whose head breathes while it travels, at the user's word ("실패시에는 깜빡이면서
-움직이면 좋겠는데"); watching and recovering keep the rule that it never does. So it stays until somebody
-has seen the failure (the popup opened, the Dashboard in front) or a new recovery has started. Nothing
-pulses once since v0.6.8. The motion adds no shape and no colour:
-the frames are the mark itself, drawn from `ICON_SHAPE` by the same rasteriser as the `.ico`, with
-the head moved - 24 positions round the ring, fifteen degrees apart, of which the 20 from its own
-place clockwise to the stroke's far end are the ones a sweep uses - and recoloured - 24 levels of
-brightness, a tint of the head and never a stored frame - and at rest the icon is exactly the icon
-it has always been. Of `GLOW` the icon reads two rhythms and nothing else: the monitoring breath,
-which is every slot of its loop and of recovering's and a failure's sweeps, and attention's slow
-breath. Since v0.6.8 nothing is drawn on top of the mark - no status badge in its corner - so the
-notification-area icon and the window's taskbar button are one picture. Its own few
-numbers - how many breaths come before a sweep, how long its slot is and how that slot is spent, the
-head's positions, the breath's levels and the frame rates - are `tray.py`'s `ICON_MOTION`,
-deliberately not `brand.py`'s, because every `GLOW` key is generated into the window's status light,
-and the window's taskbar button reads the icon's own from `Brand.Mark`. The README shows the motion
-as an animated PNG drawn from the icon's own frames (`docs/images/icon-motion.png`, made by
-`build/make_screenshots.py`). It holds still under Reduce motion, Windows' animation setting, High
-Contrast, battery saver, a locked session, and while Windows' own settings for the icon say it sits
-in the overflow area (`tray_place.IconPlacement`, which reads them and writes nothing): the icon's
-rectangle cannot say, because Windows 11 build 26200 gives an icon in the overflow area the overflow
-button's own rectangle rather than none, and the icon moved there unseen.
+알림 영역 아이콘은 16픽셀 너비이고 사람이 흘끗 보는 것이라, 여섯 상태의 불빛을 흉내 내지 않고 이미 가진
+마크로 더 작은 언어를 씁니다. 움직이는 것은 머리, 곧 고리 앞쪽 끝의 밝은 점입니다. 워처가 감시하는 동안
+머리는 `GLOW`의 감시 리듬으로 배지의 짙은 파랑 쪽으로 흐려졌다 돌아오며 세 번 숨 쉬고, 그다음 숨 두 번
+길이의 칸에서 가장 밝은 채로 고리의 흰 획을 따라 쓸고 갔다가 돌아옵니다(천천히 출발해 천천히 멈춥니다).
+3.52초 나가고, 획의 끝에서 잠깐 머물고, 3.52초 돌아오고, 1.54초 제자리에 있습니다. 숨 한 번 길이의 칸
+다섯 개가 한 주기입니다. 제자리에서 시계 방향으로 떠나 획 위에만 있고 고리 위쪽의 틈은 결코 건너지
+않으므로, 머리는 언제나 고리가 그려진 자리에 있습니다. 움직이는 동안에는 숨 쉬지 않고, 숨과 쓰는 칸이
+넘어가는 자리는 언제나 가장 밝을 때입니다. 복구가 진행되는 동안에는 두 배 빠르게 나갔다 돌아오기를
+되풀이합니다. 1.76초 나가고, 끝에서 잠깐 머물고, 1.76초 돌아오고, 0.33초 제자리에 있어 3.96초마다 한
+번씩이며, 가장 밝은 채로 숨 쉬지 않습니다. 일시 정지되면 회색이고 멈춰 있습니다. 사람이 필요하면 주황색이
+되어, 그동안 `GLOW`의 attention 리듬인 5.6초마다 제자리에서 숨 쉽니다. 실패하면 빨간색이 되어 복구 중의
+모양을 두 배 빠르게 되풀이합니다. 0.88초 나가고, 끝에서 잠깐 머물고, 0.88초 돌아오고, 0.17초 제자리에
+있어 1.98초마다 한 번씩이며, 가는 동안 빨간 불빛 자신의 1.2초 숨으로 깜빡입니다. 움직이면서 숨 쉬는 유일한
+상태이고, 사용자의 말("실패시에는 깜빡이면서 움직이면 좋겠는데")을 따른 것이며, 감시 중과 복구 중은 움직이는
+동안 숨 쉬지 않는다는 규칙을 그대로 지킵니다. 누군가 그 실패를 보거나(팝업을 열거나
+대시보드를 앞으로 가져오거나) 새 복구가 시작될 때까지 그렇습니다. 이제 한 번만 맥박치는 것은 없습니다. 움직임은 모양도 색도 더하지 않습니다. 프레임은
+`.ico`와 같은 래스터화기로 `ICON_SHAPE`에서 그린 마크 자체이고, 머리만 옮기고(고리를 15도씩 24자리, 그중
+제자리에서 시계 방향으로 획의 끝까지인 20자리를 쓸고 갑니다) 다시 칠할 뿐이며(저장한 프레임이 아니라
+머리에 입히는 색조인 밝기 24단계), 쉬고 있는 아이콘은 늘 그랬던 그 아이콘 그대로입니다. 아이콘이 `GLOW`에서
+읽는 것은 두 리듬뿐입니다. 한 주기의 칸과 복구 중·실패 중 쓸고 오는 한 번의 길이가 되는 감시 숨, 그리고
+attention의 느린 숨입니다. 마크 위에는 아무것도 덧그리지 않으므로(모서리의 상태 배지가 없습니다) 알림 영역
+아이콘과 창의 작업 표시줄 단추는 같은 그림입니다. 아이콘 자신의 몇 가지 숫자 - 쓸고 가기 전에 몇 번 숨 쉬는지, 그 칸이 얼마나 길고 어떻게
+쓰이는지, 머리의 자리 수, 숨의 밝기 단계, 프레임 빠르기 - 는 `tray.py`의 `ICON_MOTION`에 있고, 일부러
+`brand.py`에 두지 않았습니다. `GLOW`의 키는 모두 창의 상태 불빛으로 생성되고, 창의 작업 표시줄 단추는 아이콘의 숫자를
+`Brand.Mark`에서 읽기 때문입니다. README는 이 움직임을 아이콘 자신의 프레임으로 그린 움직이는 PNG로
+보여 줍니다(움직이는 PNG, `docs/images/icon-motion.png`, `build/make_screenshots.py`가 만듭니다). 움직임
+줄이기, Windows의 애니메이션 설정, 고대비, 배터리 절약 모드에서, 세션이 잠겨 있을 때, 그리고 Windows가
+아이콘에 대해 가진 자신의 설정이 넘침 영역에 있다고 말하는 동안에는 멈춰 있습니다(`tray_place.IconPlacement`는
+그 설정을 읽기만 하고 아무것도 쓰지 않습니다). 아이콘의 사각형으로는 알 수 없습니다. Windows 11 빌드
+26200은 넘침 영역의 아이콘에 사각형이 없다고 하지 않고 넘침 단추의 사각형을 주므로, 거기서 아이콘은 보이지
+않는 채로 움직였습니다.
 
-## Light, dark and High Contrast
+## 밝게, 어둡게, 그리고 고대비
 
-**Theme**, under Settings > Appearance, is *Use system setting*, *Light* or *Dark*. For the
-Dashboard and the popup, *Use system setting* means the app mode Windows is set to - the
-`AppsUseLightTheme` value under `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize`,
-where 0 is dark and a missing value is light. For the panel it means Codex's own theme: the page
-carries no theme of its own and follows `prefers-color-scheme`, while *Light* and *Dark* stamp its
-root with `data-theme`.
+**테마**(설정 > 모양)는 *시스템 설정 따르기*, *밝게*, *어둡게* 중 하나입니다. 대시보드와 팝업에서
+*시스템 설정 따르기*는 Windows에 설정된 앱 모드, 곧
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize` 아래의 `AppsUseLightTheme` 값을
+뜻합니다. 0이면 어둡게이고, 값이 없으면 밝게입니다. 패널에서는 Codex 자신의 테마를 뜻합니다. 그때
+페이지는 자기 테마를 갖지 않고 `prefers-color-scheme`을 따르며, *밝게*와 *어둡게*는 페이지 루트에
+`data-theme`을 찍습니다.
 
-Since v0.6.6 the panel has a theme of its own beside that one, **Theme in Codex**: *Same as Theme*,
-*Codex's theme*, *Light* or *Dark*. *Same as Theme* is the default and is the paragraph above, word
-for word - so the Theme draws the panel only while the panel's own says so, and draws the Dashboard,
-the popup and the notification card always. Only the panel reads it, so the resolution is one
-function, the panel's `applyTheme`, and anything it does not know is *Same as Theme*.
+v0.6.6부터 패널은 그 옆에 자기 테마를 하나 더 갖습니다. **Codex 안의 테마**로, *테마와 같게*,
+*Codex 테마 따르기*, *밝게*, *어둡게* 가운데 고릅니다. *테마와 같게*가 기본값이고 위 문단 그대로입니다.
+그래서 테마는 패널 자신의 설정이 그렇게 말할 때에만 패널을 그리고, 대시보드와 팝업과 알림 카드는
+항상 그립니다. 이 설정을 읽는 것은 패널뿐이므로 해석도 패널의 `applyTheme` 함수 하나가 맡으며,
+그 함수가 모르는 값은 *테마와 같게*로 봅니다.
 
-The notification-area icon does not change with either setting;
-they sit on the taskbar, not on any of the three surfaces. When the icon's head takes a state's
-colour it is the one made to read on the icon's own deep-blue badge: the dark palette's
-`attention` and `danger`, and the light palette's `idle` grey, whose dark value all but vanishes
-into the badge.
+알림 영역 아이콘은 어느 설정에도 따라 바뀌지 않습니다. 세 표면 어디에도
+속하지 않고 작업 표시줄 위에 놓이기 때문입니다. 아이콘의 머리가 상태의 색을 띨 때는 아이콘 자신의 짙은
+파랑 배지 위에서 읽히도록 만든 색을 씁니다. 어두운 팔레트의 `attention`과 `danger`, 그리고 어두운 값은
+배지에 거의 묻혀 버리는 `idle` 회색은 밝은 팔레트의 것입니다.
 
-Dark is the panel's dark theme on all three surfaces, from one set of numbers: `DARK`, the dark
-shadow recipes and the dark card ground. The window adopts its theme once, before its first
-control exists, and a test walks every control on every page of the dark window and finds no
-light colour; its title bar goes dark through `DWMWA_USE_IMMERSIVE_DARK_MODE`, and a text box's
-own scroll bars through Windows' dark style. The window builds its colours when it opens, so a
-changed theme reopens it rather than repainting it. The popup resolves its theme each time it
-opens, and while it is dark the watcher asks Windows for dark context menus too. What Windows
-draws itself stays Windows' own: message boxes, the file dialog, a text box's context menu, and
-Windows' own notifications. Since v0.6.5 the open drop-down list and the notification card are
-ours, so both are dark in dark.
+어둡게는 세 표면 모두에서 패널의 어두운 테마이며, 하나의 숫자 묶음에서 옵니다. `DARK`, 어두운 그림자
+레시피, 어두운 카드 바탕입니다. 창은 첫 컨트롤이 생기기 전에 테마를 한 번 정하고, 테스트가 어두운 창의
+모든 페이지에 있는 모든 컨트롤을 훑어 밝은 색이 하나도 없음을 확인합니다. 제목 표시줄은
+`DWMWA_USE_IMMERSIVE_DARK_MODE`로, 텍스트 상자 자체의 스크롤 막대는 Windows의 어두운 스타일로
+어두워집니다. 창은 열릴 때 색을 만들기 때문에, 테마가 바뀌면 다시 칠하는 대신 창을 다시 엽니다.
+팝업은 열릴 때마다 테마를 정하고, 팝업이 어두운 동안에는 워처가 Windows에 어두운 컨텍스트 메뉴도
+요청합니다. Windows가 직접 그리는 것은 Windows의 모습 그대로 남습니다. 메시지 상자, 파일 대화 상자,
+텍스트 상자의 컨텍스트 메뉴, 그리고 Windows 자신의 알림입니다. v0.6.5부터 펼친 드롭다운
+목록과 알림 카드는 우리 것이므로, 둘 다 어둡게에서 어둡습니다.
 
-The Dashboard was light-only until v0.6.4, and that was a measurement rather than an opinion. A
-probe built for v0.5.6 painted a card, a spin box, a drop-down, a check box and a button in the
-dark palette and photographed the result. The body went dark; the parts Windows draws itself -
-the spinner's buttons, the drop-down's arrow, the check-box glyph - stayed light, which is worse
-than an honestly light window and not fixable without owner-drawing every native control.
-v0.6.3's soft controls painted over the standard controls rather than replacing those parts.
-v0.6.4 draws each of them: the spin buttons are two wedges on the well, the drop-down's closed
-face is ours, a switch and a check box are drawn whole, and the scroll bar is our own. That is
-what made a dark window honest, and why it arrived with them rather than before.
+대시보드는 v0.6.4 전까지 밝은 테마 전용이었고, 그것은 취향이 아니라 측정의 결과였습니다. v0.5.6을
+위해 만든 시험 창이 카드, 스핀 상자, 드롭다운, 체크박스, 버튼을 어두운 팔레트로 칠해 사진을 찍었습니다.
+본체는 어두워졌지만 Windows가 직접 그리는 부분 — 스핀 상자의 단추, 드롭다운의 화살표, 체크박스
+글리프 — 은 밝은 채로 남았습니다. 정직하게 밝은 창보다 나쁘고, 모든 네이티브 컨트롤을 직접 그리지
+않고는 고칠 수 없습니다. v0.6.3의 부드러운 컨트롤은 표준 컨트롤 위에 칠했을 뿐 그 부분을 대체하지는
+않았습니다. v0.6.4는 그 하나하나를 직접 그립니다. 스핀 단추는 우물 위의 쐐기 두 개이고, 드롭다운의
+닫힌 모습은 우리가 그리며, 스위치와 체크박스는 통째로 그리고, 스크롤 막대는 우리 것입니다. 어두운
+창이 정직해진 것은 그 덕분이고, 그래서 어두운 테마는 그보다 먼저가 아니라 그것들과 함께 왔습니다.
 
-High Contrast wins over any theme. In it the Dashboard drops its shadows and tints, stops its
-motion and draws with system colours throughout; `Palette` in `gui/SoftTheme.cs` is where that swap
-happens. The popup makes the same swap, with the same mapping, and the panel has a forced-colors
-style, so its lights, switch knobs, check boxes and drop-down arrows stay visible. In all three the
-state light becomes a solid dot in a system colour, with no glow.
+고대비 모드는 어떤 테마보다도 앞섭니다. 고대비에서 대시보드는 그림자와 옅은 색을 버리고, 움직임을
+멈추고, 전체를 시스템 색으로 그립니다. 그 교체가 일어나는 곳이 `gui/SoftTheme.cs`의 `Palette`입니다.
+팝업도 같은 대응으로 같은 교체를 하고, 패널에는 강제 색상(forced-colors) 스타일이 있어 불빛, 스위치
+손잡이, 체크박스, 드롭다운 화살표가 보이는 채로 남습니다. 세 표면 모두에서 상태 불빛은 빛 없이 시스템
+색의 단색 점이 됩니다.
 
-<a id="four-designs"></a>
+<a id="네-가지-디자인"></a>
 
-## Three designs
+## 세 가지 디자인
 
-Since v0.6.10 the **Design** setting draws the same product three ways: **Soft**, what every surface
-drew until then and the default; **Classic (v0.6.2)**; and **Plain**. It sits in the Dashboard's
-Settings > Appearance, after the two themes and before Reduce motion, and it is independent of the
-theme, so each design comes in light and dark. It is data in
-`brand/design.py` and `brand/tokens.py`, generated into `gui/Brand.cs` and into the panel's
-stylesheet (`brand.css_design_blocks`, the panel's `design_rules`), and every surface reads the
-difference from there rather than deciding it:
+이번 릴리스부터 **디자인** 설정은 같은 제품을 세 가지로 그립니다. 그때까지 모든 표면이 그리던 기본값
+**부드럽게**, **클래식 (v0.6.2)**, **단순하게**입니다. 대시보드의
+설정 > 모양에서 두 테마 다음, 움직임 줄이기 앞에 있고, 테마와 따로 정하므로 디자인마다 밝은 모양과 어두운
+모양이 있습니다. 디자인은 `brand/design.py`와 `brand/tokens.py`의 데이터이고, `gui/Brand.cs`와 패널의
+스타일시트(`brand.css_design_blocks`, 패널의 `design_rules`)로 생성되며, 모든 표면은 차이를 스스로 정하지
+않고 거기서 읽습니다.
 
-| Design | Colours | Depth | Glow | v0.6.2's marks | Corners: card, control, small, check |
+| 디자인 | 색 | 입체감 | 번짐 | v0.6.2의 표시 | 모서리: 카드, 컨트롤, 작은 것, 체크 |
 | --- | --- | --- | --- | --- | --- |
-| Soft | `LIGHT`, `DARK` | yes | yes | no | 16, 11, 7, 5 |
-| Classic (v0.6.2) | `CLASSIC_LIGHT`, `CLASSIC_DARK` | no | yes | yes | 8, 7, 6, 4 |
-| Plain | `PLAIN_LIGHT`, `PLAIN_DARK` | no | no | no | 8, 4, 4, 4 |
+| 부드럽게 | `LIGHT`, `DARK` | 예 | 예 | 아니요 | 16, 11, 7, 5 |
+| 클래식 (v0.6.2) | `CLASSIC_LIGHT`, `CLASSIC_DARK` | 아니요 | 예 | 예 | 8, 7, 6, 4 |
+| 단순하게 | `PLAIN_LIGHT`, `PLAIN_DARK` | 아니요 | 아니요 | 아니요 | 8, 4, 4, 4 |
 
-- **Depth** is the shadows, the sunken wells and the dark card lifted a step off its surface. Without
-  it a surface is its fill and its hairline, as v0.6.2's were, and the notification card floats no
-  shadow.
-- **Glow** is the falloff round the status light while it breathes. Plain has none, because the glow
-  is the only gradient on any surface: its light dims on the same breath with nothing round it.
-- **What moves is the same in every design**: the status light's breath and checking's arc, a switch
-  or a check box moving as it changes, a list rising open, the scroll glide, and the notification
-  card's entrance, exit and slide. Classic is v0.6.2's look with today's status light and today's
-  motion, and Plain moves as Soft does too. v0.6.10 had a fourth design, Soft, without motion
-  (`still`): Soft with nothing moving, which is every frame Reduce motion draws, chosen as a look. Two
-  ways to one picture only confused, so since v0.6.11 Reduce motion is the one way. A settings file
-  that stored it opens as Soft with Reduce motion on - the same picture - and a request to set it is
-  refused with the choices there are.
-- **v0.6.2's marks** are Classic's: a 3 px accent bar inside each card's left hairline - an inset
-  shadow in the panel, so nothing moves by its width - and the current tab underlined in the accent.
-- Chips are pills in every design.
+- **입체감**은 그림자와 들어간 우물, 그리고 어두운 테마에서 표면보다 한 단계 떠오른 카드입니다. 없으면
+  표면은 v0.6.2처럼 채움과 가는 선뿐이고, 알림 카드는 그림자를 띄우지 않습니다.
+- **번짐**은 불빛이 숨 쉬는 동안 그 둘레에 퍼지는 빛입니다. 번짐이 어느 표면에서나 유일한 그라데이션이므로
+  단순하게에는 없고, 그 불빛은 같은 호흡으로 둘레에 아무것도 없이 흐려집니다.
+- **움직이는 것은 모든 디자인에서 같습니다.** 상태 불빛의 호흡과 확인 중의 호, 스위치나 체크박스가 바뀔 때
+  움직이는 것, 목록이 떠오르며 열리는 것, 스크롤이 미끄러지는 것, 알림 카드가 들어오고 나가고 미끄러지는
+  것입니다. 클래식은 v0.6.2의 모양에 지금의 상태 불빛과 지금의 움직임이고, 단순하게도 부드럽게처럼
+  움직입니다. 디자인 설정이 처음 생긴 릴리스에는 네 번째 디자인 부드럽게, 움직임 없이(`still`)가
+  있었습니다. 부드럽게를 멈춰 둔 것, 곧 움직임 줄이기가 그리는 모든 프레임을 모양으로 고른 것이었습니다.
+  같은 그림에 이르는 길이 둘이면 헷갈리기만 하므로, 이제 움직임을 멈추는 길은 움직임 줄이기 하나입니다.
+  그 디자인을 저장한 설정 파일은 움직임 줄이기가 켜진 부드럽게로 열려 같은 그림을 그리고, 그 디자인으로
+  바꾸라는 요청은 있는 선택지를 알려 주며 거부됩니다.
+- **v0.6.2의 표시**는 클래식의 것입니다. 카드마다 왼쪽 가는 선 안쪽의 3px 강조 막대(패널에서는 안쪽
+  그림자이므로 그 너비만큼 무엇도 밀리지 않습니다)와, 강조색 밑줄이 그어진 지금의 탭입니다.
+- 칩은 모든 디자인에서 알약 모양입니다.
 
-**The rules are one line each, on every surface.** The colours are the design's, or the system's in
-High Contrast, which replaces every design and draws one look whichever is chosen, with Soft's
-corners. Depth is the design's and never High Contrast's. What moves is no design's: the light and
-the controls move unless a stopper holds them, and the stoppers are each surface's own and the same
-in every design - Reduce motion, Windows' animation effects and High Contrast everywhere, and battery
-saver, a locked session, the overflow area or a hidden surface where they apply. Each design's light
-keeps its word beside it.
+**규칙은 모든 표면에서 한 줄씩입니다.** 색은 디자인의 것이고, 고대비 모드에서는 시스템의 것입니다.
+고대비는 모든 디자인을 대신해, 무엇을 고르든 부드럽게의 모서리로 한 모습을 그립니다. 입체감은 디자인의
+것이되 고대비에서는 결코 없습니다. 무엇이 움직이는지는 디자인이 정하지 않습니다. 불빛과 컨트롤은
+멈추게 하는 것이 없으면 움직이고, 멈추게 하는 것은 표면마다 원래 있던 것이며 모든 디자인에서 같습니다.
+움직임 줄이기, Windows의 애니메이션 효과, 고대비는 어디서나, 배터리 절약 모드, 잠긴 세션, 오버플로 영역,
+보이지 않는 표면은 해당하는 곳에서입니다. 어느 디자인에서나 불빛 옆에는 그 단어가 있습니다.
 
-**A design changes paint, never layout.** Every size, padding, dot and reserved shadow margin is the
-same in all three, and a corner is only ever smaller than Soft's, so nothing measured for Soft can
-overflow in another design; `tests/test_gui_v0610_designs.py` runs the window's layout audit in each
-and holds what it records to Soft's byte for byte. The window's Pending and History rows are flat
-hairline rows in every design.
+**디자인은 칠을 바꾸고 배치는 바꾸지 않습니다.** 모든 크기, 여백, 점, 그림자를 위해 비워 두는 여백이 세
+디자인에서 같고, 모서리는 부드럽게의 것보다 작기만 하므로, 부드럽게에 맞춰 잰 것은 다른 디자인에서
+넘치지 않습니다. `tests/test_gui_v0610_designs.py`는 디자인마다 창의 배치 점검을 돌리고 그 기록이
+부드럽게의 것과 바이트 하나까지 같기를 요구합니다. 창의 대기 중과 기록 줄은 모든 디자인에서 평평한 가는
+선의 줄입니다.
 
-**Classic is v0.6.2, read from the tag.** v0.6.2 was light-only, with native controls and flat white
-cards on a blue-grey canvas, a hairline round each and a 3 px accent bar at its left, and its current
-tab underlined. There was no popup (it came in v0.6.3) and no notification card (v0.6.5), so Classic's
-popup and card are v0.6.2's card language laid on today's layout. Its ten colours in each theme are
-what `git show v0.6.2:src/codex_auto_resume/brand.py` holds, and `tests/test_brand.py` holds them to
-that release, so no later change to Soft can move them:
+**클래식은 태그에서 읽은 v0.6.2입니다.** v0.6.2는 밝은 테마뿐이었고, 기본 컨트롤과, 푸른 회색 바탕
+위의 평평한 흰 카드, 카드마다 둘레의 가는 선과 왼쪽의 3px 강조 막대, 밑줄이 그어진 지금의 탭이
+있었습니다. 팝업(v0.6.3에 생겼습니다)도 알림 카드(v0.6.5)도 없었으므로, 클래식의 팝업과 카드는 v0.6.2의
+카드 언어를 지금의 배치에 입힌 것입니다. 테마마다 열 가지 색은 `git show
+v0.6.2:src/codex_auto_resume/brand.py`에 있는 그대로이고, `tests/test_brand.py`가 그 릴리스의 값으로
+붙잡으므로 나중에 부드럽게를 바꿔도 이 값은 움직이지 않습니다.
 
-| Token | Classic light (v0.6.2's `LIGHT`) | Classic dark (v0.6.2's `DARK`, today's on these keys) |
+| 토큰 | 클래식 밝게(v0.6.2의 `LIGHT`) | 클래식 어둡게(v0.6.2의 `DARK`, 이 키들에서는 지금과 같음) |
 | --- | --- | --- |
 | `ink` | `#0F1B2D` | `#E8EEF6` |
 | `muted` | `#5A6B7F` | `#9AACBF` |
@@ -433,254 +409,232 @@ that release, so no later change to Soft can move them:
 | `idle` | `#94A3B8` | `#5F6E80` |
 | `attention` | `#B45309` | `#E09B57` |
 
-v0.6.2 filled a button with `surface` and a field with `canvas` and ringed the keyboard's focus in
-the accent, so Classic's `raised`, `inset` and `focus` are those. It had no quiet accent ground, and
-Soft's carries v0.6.2's `muted` at 4.4:1, under the 4.5:1 every ground is held to, so Classic's
-`accent_soft` is the accent a tenth of the way from white, `#E7EEF8`. The hover and pressed accents
-and the five state colours are Soft's. Its corners are v0.6.2's: an 8 px card, 7 px buttons and 6 px
-fields.
+v0.6.2는 버튼을 `surface`로, 입력란을 `canvas`로 채우고 키보드 초점을 강조색으로 둘렀으므로, 클래식의
+`raised`, `inset`, `focus`는 그 색입니다. v0.6.2에는 옅은 강조 바탕이 없었고, 부드럽게의 것 위에서는
+v0.6.2의 `muted`가 모든 바탕에 요구하는 4.5:1에 못 미치는 4.4:1이므로, 클래식의 `accent_soft`는 흰색에서
+강조색 쪽으로 10분의 1 간 `#E7EEF8`입니다. 마우스를 올렸을 때와 누를 때의 강조색, 그리고 상태 색 다섯은
+부드럽게의 것입니다. 모서리는 v0.6.2의 것으로, 카드 8px, 버튼 7px, 입력란 6px입니다.
 
-**Plain is flat and grey, and still this product.** Its neutral greys are fixed values and never
-Windows' own - `#1B1B1B` ink, `#5E5E5E` muted, a `#E0E0E0` hairline, white cards on `#F3F3F3` in
-light; `#F3F3F3` ink on `#2B2B2B` cards and a `#202020` canvas in dark - with the product's accent,
-its state colours and its words, which are what make it this product rather than any window. The
-keyboard's focus is ringed in the ink, and its corners are Windows 11's: 8 px for what stands alone,
-4 px for a control.
+**단순하게는 평평하고 회색이며, 그래도 이 제품입니다.** 중립 회색은 고정된 값이고 Windows의 것을 읽지
+않습니다. 밝은 테마에서는 `#1B1B1B` 글자, `#5E5E5E` 흐린 글자, `#E0E0E0` 가는 선, `#F3F3F3` 위의 흰
+카드이고, 어두운 테마에서는 `#2B2B2B` 카드와 `#202020` 바탕 위의 `#F3F3F3` 글자입니다. 강조색, 상태 색,
+그리고 단어는 제품의 것이며, 그것이 아무 창이 아니라 이 제품이게 합니다. 키보드 초점은 글자색으로
+두르고, 모서리는 Windows 11의 것으로 홀로 선 것은 8px, 컨트롤은 4px입니다.
 
-**Codex cannot change it.** Like Reduce motion, the Design is set in the Dashboard only:
-`update_settings` neither offers nor accepts it, the panel draws in it and never sends it, and
-`restore_default_settings` puts it back to Soft as it puts back every setting. The panel is stamped
-with it (`data-design`) as it is with a theme, and with the stored Reduce motion (`data-motion`). An
-older or newer watcher's value it does not know is drawn as Soft.
+**Codex는 바꿀 수 없습니다.** 디자인은 움직임 줄이기처럼 대시보드에서만 정합니다. `update_settings`는 그것을 내놓지도 받지도 않고, 패널은 그것으로 그리되 보내지
+않으며, `restore_default_settings`는 모든 설정을 되돌리듯 그것을 부드럽게로 되돌립니다. 패널에는 테마처럼
+디자인(`data-design`)이 찍히고, 저장된 움직임 줄이기(`data-motion`)도 찍힙니다. 더 오래되었거나 더
+새로운 워처의 값처럼 모르는 값은 부드럽게로 그립니다.
 
-Every design is pictured, in the light theme and in English: the Dashboard's Overview, the panel,
-the popup and the notification card, `docs/images/design-<design>-<surface>.png` beside Soft's own
-pictures (see [Redrawing anything](#redrawing-anything)). The dark half of each design is held by
-the property tests - each design's colours on every ground, and High Contrast identical in all three -
-rather than pictured.
+모든 디자인은 밝은 테마와 영어로 그림에 담깁니다. 대시보드의 개요, 패널, 팝업, 알림 카드이고, 부드럽게의
+그림 옆에 `docs/images/design-<디자인>-<표면>.png`로 있습니다([다시 그리기](#다시-그리기) 참고). 디자인마다
+어두운 절반은 그림 대신 속성 테스트가 붙잡습니다. 모든 바탕 위의 디자인별 색, 그리고 세 디자인 모두에서
+똑같은 고대비입니다.
 
-## Switches and check boxes
+## 스위치와 체크박스
 
-A switch turns something that runs on or off: notifications, the notification-area icon, Reduce
-motion, Run at Windows sign-in, and automatic recovery for one conversation. A check box picks
-which items of a list apply: which kinds of interruption are recovered (`recover_<kind>`) and,
-under the notifications switch, which events notify (`notify_<event>`). A setting is the same kind
-on every surface that shows it, and a check box sits to the left of its label everywhere. A switch
-sits where its surface puts switches: at the bottom right of its row in the panel and the popup,
-level with the last line of its label, and before its label in the Dashboard.
+스위치는 동작하는 무언가를 켜고 끕니다. 알림, 알림 영역 아이콘, 움직임 줄이기, Windows 로그인 시 실행,
+그리고 대화 하나의 자동 복구입니다. 체크박스는 목록에서 어떤 항목을 적용할지 고릅니다. 어떤 종류의
+중단을 복구할지(`recover_<kind>`), 그리고 알림 스위치 아래에서 어떤 일을 알릴지(`notify_<event>`)입니다.
+같은 설정은 그것을 보여 주는 모든 표면에서 같은 종류이고, 체크박스는 어디서나 이름표 왼쪽에 놓입니다.
+스위치는 표면마다 스위치를 두는 자리에 놓입니다. 패널과 팝업에서는 행의 오른쪽 아래, 이름표 마지막 줄과
+나란한 자리이고, 대시보드에서는 이름표 앞입니다.
 
-The check box is the switch's material, written down in `brand.CHECKBOX`:
+체크박스는 스위치와 같은 재질이며, `brand.CHECKBOX`에 적혀 있습니다.
 
-| State | Fill | Edge | Mark |
+| 상태 | 채움 | 테두리 | 표시 |
 | --- | --- | --- | --- |
-| Unchecked | `inset`, with the inset shadow inside the edge | `muted` | - |
-| Checked | `accent` | `accent` | `on_accent` |
-| Unchecked, disabled | `surface` | `line` | - |
-| Checked, disabled | `surface` | `line` | `muted` |
+| 체크 안 됨 | `inset`, 테두리 안쪽에 inset 그림자 | `muted` | - |
+| 체크됨 | `accent` | `accent` | `on_accent` |
+| 체크 안 됨, 비활성 | `surface` | `line` | - |
+| 체크됨, 비활성 | `surface` | `line` | `muted` |
 
-The box is 18 pixels - the switch's 16-pixel knob in a one-pixel frame - with corners of 5 and 10
-pixels to its label, so a row of check boxes is never taller than a row with a switch. Its edge
-unchecked is `muted`, not the `line` a field has: a switch that is off is still told apart by its
-knob, an empty box has nothing inside it, and a `line` hairline on a card measures 1.3:1, well
-under the 3:1 a control's outline needs. The tick is one polyline, `brand.CHECK_MARK`: two arms
-at 45 degrees meeting at a right angle, the long arm twice the short one, stroked 2 pixels wide
-with flat ends and a mitred corner. The window strokes it; the panel clips a layer to the same
-outline (`--check-mark-shape`). In High Contrast the box is `brand.CHECKBOX_SYSTEM` - a Window box
-with a WindowText edge, Highlight with a HighlightText tick when checked, GrayText when disabled -
-and never has a shadow. Its focus ring is every control's.
+상자는 18픽셀입니다. 스위치의 16픽셀 손잡이에 1픽셀 테두리를 두른 크기이고, 모서리는 5, 이름표까지는
+10픽셀이라 체크박스가 놓인 줄은 스위치가 놓인 줄보다 높아지지 않습니다. 체크 안 된 상자의 테두리는 입력
+칸의 `line`이 아니라 `muted`입니다. 꺼진 스위치는 손잡이로 구별되지만 빈 상자에는 안에 아무것도 없고,
+카드 위의 `line` 헤어라인은 1.3:1이라 컨트롤 윤곽에 필요한 3:1에 한참 못 미칩니다. 체크 표시는 꺾은선
+하나인 `brand.CHECK_MARK`입니다. 45도로 뻗은 두 팔이 직각으로 만나고, 긴 팔은 짧은 팔의 두 배이며,
+끝은 평평하고 모서리는 뾰족하게 2픽셀 굵기로 긋습니다. 창은 그 선을 긋고, 패널은 같은 윤곽으로 레이어를
+잘라 냅니다(`--check-mark-shape`). 고대비에서 상자는 `brand.CHECKBOX_SYSTEM`을 따릅니다. WindowText
+테두리의 Window 상자, 체크되면 HighlightText 표시가 있는 Highlight, 비활성이면 GrayText이며, 그림자는
+절대 없습니다. 포커스 링은 모든 컨트롤과 같습니다.
 
-## The scroll bar
+## 스크롤 막대
 
-The window's pages, its Settings sections, Pending's **Why it is waiting** and every list scroll on
-a soft bar of the window's own rather than on Windows' scroll bar. The track is a pill 12 pixels
-wide in a 3-pixel margin, drawn as a well - `inset` with a `line` edge - and the thumb is a
-`raised` pill resting in it, with a control's lift kept inside the groove; its edge moves a step
-toward `muted` under the pointer and another while it is dragged. The thumb is as long as the
-share of the page that shows, and never shorter than 32 pixels. A wheel notch moves three lines
-of 33 pixels, which is what the panel's page moves; a press on the track moves a page; and a
-control the keyboard moves to is brought into view with 16 pixels around it, moving as little as
-it can. The bar shows only while there is more than fits, and glides unless motion is reduced. In
-High Contrast the track is Window with a WindowFrame edge and the thumb GrayText, Highlight under
-the pointer, with no shadow. A list's own scroll bar is clipped away behind the soft one. The bar
-is the Dashboard's alone: the popup does not scroll, and the panel scrolls in the page Codex shows
-it in.
+창의 페이지, 설정 부분, 대기 중 페이지의 **기다리는 이유**, 그리고 모든 목록은 Windows의 스크롤 막대가
+아니라 창 자신의 부드러운 막대로 스크롤됩니다. 트랙은 3픽셀 여백 안의 폭 12픽셀짜리 알약으로,
+우물(`inset`에 `line` 테두리)처럼 그립니다. 손잡이는 그 안에 놓인 `raised` 알약이며, 컨트롤의 떠오름을
+홈 안에만 둡니다. 포인터가 올라가면 테두리가 `muted` 쪽으로 한 단계, 끄는 동안에는 한 단계 더
+옮겨 갑니다. 손잡이의 길이는 보이는 부분의 비율만큼이고 32픽셀보다 짧아지지 않습니다. 휠 한 칸은 33픽셀
+줄 세 개, 곧 패널의 페이지가 움직이는 만큼 움직이고, 트랙을 누르면 한 페이지씩 움직이며, 키보드로
+옮겨 간 컨트롤은 둘레에 16픽셀을 두고 되도록 조금만 움직여 보이는 곳으로 가져옵니다. 막대는 넘치는
+내용이 있을 때만 보이고, 움직임을 줄이지 않았다면 미끄러지듯 움직입니다. 고대비에서 트랙은 WindowFrame
+테두리의 Window이고 손잡이는 GrayText, 포인터가 올라가면 Highlight이며, 그림자는 없습니다. 목록 자체의
+스크롤 막대는 부드러운 막대 뒤로 잘려 보이지 않습니다. 이 막대는 대시보드에만 있습니다. 팝업은
+스크롤되지 않고, 패널은 Codex가 보여 주는 페이지 안에서 스크롤됩니다.
 
-Since v0.6.5 the same holds across a list's bottom. A list's columns share its width at every
-ordinary size, what cannot fit ending in an ellipsis, so a list overflows sideways only in a window
-narrower than its columns can shrink to; then, and only then, the soft bar lies along its bottom,
-and Windows' own horizontal bar - which showed white on a dark card - is clipped away too.
+v0.6.5부터는 목록의 아래쪽에서도 마찬가지입니다. 목록의 열은 보통 크기라면 어디서나 목록의
+너비를 나눠 갖고 들어가지 않는 것은 말줄임표로 끝나므로, 목록은 열이 줄어들 수 있는 것보다 좁은 창에서만
+옆으로 넘칩니다. 그때에만 부드러운 막대가 아래쪽을 따라 놓이고, 어두운 카드 위에 하얗게 보이던 Windows
+자신의 가로 막대도 잘려 보이지 않습니다.
 
-Since v0.6.6 it is every bar, wherever one appears and on either axis, in the window and in the
-panel alike: a bar that arrives in Windows' or the browser's grey is a hole in the design, and it
-arrives by default, so the rule has to be the default too. The panel's stylesheet says it for the
-document rather than for one class, corner included, with `scrollbar-width` behind it for a browser
-that draws no `::-webkit-scrollbar`. The window's message box was the last control still scrolling
-on Windows' bar: it keeps that bar - it is what actually scrolls the text, and what the wheel and
-the keys talk to - and hides it outside a clip, while the soft bar is drawn in the gutter that
-leaves, from the box's own scroll position.
+v0.6.5 다음 릴리스부터는 어디에 생기든, 가로든 세로든, 창에서든 패널에서든 모든 막대가 그렇습니다. Windows나
+브라우저의 회색으로 나타나는 막대는 디자인에 뚫린 구멍이고, 아무것도 안 하면 그렇게 나타나므로 규칙 쪽이
+기본이어야 합니다. 패널의 스타일시트는 이를 한 클래스가 아니라 문서 전체에 대해 말하고, 모서리 칸도 함께
+두며, `::-webkit-scrollbar`를 그리지 않는 브라우저를 위해 `scrollbar-width`를 뒤에 둡니다. 창에서는
+메시지 상자가 Windows 막대로 스크롤되는 마지막 컨트롤이었습니다. 그 막대는 남겨 둡니다. 글을 실제로
+움직이는 것이 그것이고 휠과 키가 말을 거는 상대도 그것입니다. 대신 잘라내기 바깥으로 감추고, 남는 홈에
+그 상자의 스크롤 위치에서 부드러운 막대를 그립니다.
 
-And the track takes its colour from the ground it runs over. Over a card the groove is `inset`, as
-above; in a well that is itself `inset` - the message box - an inset track would *be* the ground
-and the thumb would float on nothing, so there the track is `surface`. A groove is a step away from
-what surrounds it, and which way that step goes depends on what surrounds it.
+그리고 홈의 색은 그것이 놓인 바닥을 따릅니다. 카드 위에서는 위에 적은 대로 `inset`이고, 바닥 자체가
+`inset`인 우물 — 메시지 상자 — 에서는 홈이 곧 바닥이 되어 손잡이가 허공에 뜨므로 거기서는 `surface`입니다.
+홈은 둘레에서 한 걸음 떨어진 것이고, 그 걸음이 어느 쪽인지는 둘레가 정합니다.
 
-## Asking, and telling
+## 묻기와 알리기
 
-Windows' message box was the window's last native control, and it broke three rules at once: a
-square grey sheet in nobody's material, a system font in a window with its own, and a title bar
-that ignores the theme - in dark, a white card in the middle of a dark window. Since v0.6.6 a
-question and a notice are both a dialog of the window's own: canvas, the window's font, its title
-bar, a sentence at a 420-pixel measure inset 16 on every side, and a button row inset the same.
+Windows의 메시지 상자는 이 창에 마지막으로 남아 있던 기본 컨트롤이었고, 한 번에 세 가지를 어겼습니다.
+아무 재질도 아닌 각진 회색 판, 자기 글꼴을 가진 창 안의 시스템 글꼴, 그리고 테마를 무시하는 제목 표시줄.
+어두운 테마에서는 어두운 창 한가운데의 흰 카드였습니다. v0.6.5 다음 릴리스부터 물음과 알림은 모두 창 자신의
+대화창입니다. 캔버스 바탕, 창의 글꼴, 창의 제목 표시줄, 420픽셀 폭으로 재는 한 문장을 사방 16 들여
+놓고, 단추 줄도 같은 만큼 들여 놓습니다.
 
-Its buttons say what will happen. "Yes" and "No" name nothing, so the affirming button carries the
-words of the button that was pressed to ask - *Clear history*, *Stop watcher*, *Install* - beside
-`action.cancel`, or `action.close` where the action itself is called Cancel and the two words would
-be the same. It is the accent button, and the only one; it is the rightmost; Enter presses it and
-Escape presses the other. A notice has one button, *Close*, and Enter and Escape both press it.
-The panel settled this first, on the pending row that asks before it switches a conversation off,
-and the window follows the panel rather than the other way round.
+단추는 무슨 일이 일어날지를 말합니다. "예"와 "아니요"는 아무것도 가리키지 못하므로, 실행하는 단추가 그
+물음을 부른 단추의 말을 그대로 답니다 — *기록 지우기*, *워처 중지*, *설치* — 그 옆은 `action.cancel`,
+실행 자체가 취소여서 두 말이 같아질 때는 `action.close`입니다. 그것이 강조 단추이며 유일한 강조
+단추이고, 가장 오른쪽에 있습니다. Enter가 그것을 누르고 Esc가 다른 쪽을 누릅니다. 알림은 단추가 하나,
+*닫기*이며 Enter와 Esc 둘 다 그것을 누릅니다. 이 방식은 대화를 끄기 전에 묻는 대기 행에서 패널이 먼저
+정했고, 창이 패널을 따른 것입니다.
 
-One message box is left, and deliberately: the one raised before there is a window, a theme or a
-catalog, to say that nothing is installed in that location.
+메시지 상자 하나는 일부러 남겨 두었습니다. 창도 테마도 말 모음도 아직 없을 때, 그 위치에는 설치된 것이
+없다고 말하는 상자입니다.
 
-## Depth in the popup
+## 팝업의 입체감
 
-v0.6.5 gave the inside of the popup's card the depth its outside had. What stands on the card is
-raised and what holds a value is sunken, and every part of it is one of `brand.py`'s recipes -
-the popup adds no number of its own:
+v0.6.5는 팝업 카드의 바깥에 있던 입체감을 그 안에도 주었습니다. 카드 위에 놓인 것은 떠오르고
+값을 담는 것은 들어가며, 그 모든 부분이 `brand.py`의 레시피 가운데 하나입니다. 팝업은 자기 숫자를 하나도
+더하지 않습니다.
 
-| What | How it is drawn |
+| 무엇 | 어떻게 그리는가 |
 | --- | --- |
-| A waiting task | A tile on `raised`, the ground the panel's rows and a resting button stand on, with a `line` hairline. Light: `SHADOWS["light"]["control"]`, a short drop down and right and the white highlight up and left. Dark, where a drop alone does not show at a tile's size: the dark `control` drop plus the one-pixel top light of the dark `card` recipe, inside the hairline. |
-| The three counts | One well - the `inset` fill with the `inset` recipe inside its border - with a hairline between the counts. |
-| Nothing to list, and a failed read | Said from a well, as an empty field is. |
-| A button | Stands with the `control` lift, and sinks into a well (`inset`) while it is pressed. |
-| A switch that is off | A well on its raised tile, as the panel's is. |
+| 기다리는 작업 | 패널의 행과 쉬고 있는 단추가 놓이는 바탕인 `raised` 위의 타일이며, `line` 헤어라인을 두릅니다. 밝게: `SHADOWS["light"]["control"]`, 곧 오른쪽 아래로 짧은 그림자와 왼쪽 위로 흰 하이라이트. 어둡게, 곧 그림자만으로는 타일 크기에서 보이지 않는 곳: 어두운 `control` 그림자에 어두운 `card` 레시피의 1픽셀 위쪽 빛을 헤어라인 안쪽에 더합니다. |
+| 숫자 세 개 | 우물 하나 - 테두리 안쪽에 `inset` 레시피를 둔 `inset` 채움 - 안에 놓이고, 숫자 사이에 헤어라인이 있습니다. |
+| 늘어놓을 것이 없음, 읽기 실패 | 빈 입력 칸처럼 우물 안에서 말합니다. |
+| 단추 | `control` 떠오름으로 서 있다가, 누르는 동안 우물(`inset`)로 들어갑니다. |
+| 꺼진 스위치 | 패널처럼, 떠오른 타일 위의 우물입니다. |
 
-The card's own recipe does not transfer: at its 14-pixel blur a tile eight pixels from the next
-would share one grey smear with it, where the `control` recipe keeps each tile its own. The panel's
-tiles - a waiting conversation's row and the Automatic recovery switch's - take the same lift
-(`--elev-tile`), and so does the notification card's tile. The Dashboard's Pending and History
-lists stay flat rows closed by a hairline, the chosen row filled softly: raised tiles were tried
-there during v0.6.5 and taken out again, because the flat rows read better. High Contrast draws
-none of it - system colours, hairlines, no shadow.
+카드 자신의 레시피는 옮겨 오지 않습니다. 14픽셀 blur라면 옆 타일과 8픽셀 떨어진 타일이 회색 번짐 하나를
+함께 쓰게 되지만, `control` 레시피는 타일마다 제 것을 지켜 줍니다. 패널의 타일, 곧 기다리는 대화의 행과
+자동 복구 스위치의 칸도 같은 떠오름(`--elev-tile`)을 쓰고, 알림 카드의 타일도 그렇습니다. 대시보드의 대기
+중과 기록 목록은 헤어라인으로 닫힌 평평한 행으로 남고, 고른 행은 부드럽게 채웁니다. 그곳에도 떠오른 타일을
+시도했다가 평평한 행이 더 낫게 읽혀서 다시 뺐습니다. 고대비에서는 이 가운데 아무것도 그리지 않습니다.
+시스템 색, 헤어라인, 그림자 없음입니다.
 
-## The drop-down list
+## 드롭다운 목록
 
-Closed, a drop-down is a well a value sits in, as in v0.6.4: `LAYOUT`'s `field_height` of 35 with
-`select_pad`, and the chevron a `muted` wedge `chevron_width` 10 by `chevron_height` 5, set
-`chevron_right` 13 from the well's inside edge. Since v0.6.5 the list it opens is drawn by the
-product too, in the window and in the panel, where it used to be Windows' - square corners, a thin
-grey border, no shadow, a flat blue band, and light even in dark:
+닫혀 있을 때 드롭다운은 v0.6.4처럼 값이 앉는 우물입니다. `LAYOUT`의 `field_height` 35에 `select_pad`를
+두고, 꺾쇠는 `muted` 쐐기로 `chevron_width` 10에 `chevron_height` 5이며, 우물 안쪽 오른쪽 가장자리에서
+`chevron_right` 13만큼 떨어져 있습니다. v0.6.5부터는 여는 목록도 창과 패널 모두에서 제품이
+그립니다. 전에는 Windows의 것이었고, 모서리는 각지고 테두리는 가는 회색이었으며 그림자는 없고 선택은
+평평한 파란 띠였고, 어둡게에서도 밝았습니다.
 
-- **The list is a card.** The cards' own ground (`card_ground`), their `RADII` corner and hairline
-  and, in dark, their one-pixel top light, lifted by the `card` recipe of `SHADOWS`, whose shadow
-  spills outside it over whatever is behind. It floats just under the field, its words starting
-  under the field's own, and opens above instead where the screen has no room below.
-- **The items are pills**, set in the field's font with the field's padding, `SPACING`'s `xs`
-  apart. The item chosen now is a sunken pill - a well with the `inset` recipe - with its words in
-  `accent`; the item under the pointer rises with the `control` lift; the item the keyboard is on
-  has the focus ring every control has (`focus`, `focus_width`, `focus_offset`).
-- **It moves once.** It fades in and rises `SPACING`'s `xs` into place over `MOTION`'s time on its
-  curve, and closes at once; with motion reduced it is simply there.
-- **High Contrast** draws it in system colours with no shadow anywhere: in the window a `Window`
-  card with a `WindowFrame` edge, the chosen item in `Highlight` with `HighlightText` and the item
-  under the pointer with a `Highlight` edge.
+- **목록은 카드입니다.** 카드 자신의 바탕(`card_ground`), `RADII`의 모서리와 헤어라인, 어둡게에서는 1픽셀
+  위쪽 빛을 두르고, `SHADOWS`의 `card` 레시피로 떠오르며, 그 그림자는 카드 바깥으로 번져 뒤에 있는 것 위에
+  드리웁니다. 칸 바로 아래에 떠서 항목의 글자가 칸 자신의 글자 아래에서 시작하고, 화면 아래에 자리가 없으면
+  대신 위로 열립니다.
+- **항목은 알약입니다.** 칸의 글꼴과 칸의 안쪽 여백으로, `SPACING`의 `xs`만큼 떨어져 놓입니다. 지금 고른
+  항목은 들어간 알약 - `inset` 레시피를 둔 우물 - 이고 글자는 `accent`입니다. 포인터 아래의 항목은 `control`
+  떠오름으로 떠오르고, 키보드가 있는 항목에는 모든 컨트롤과 같은 포커스 링(`focus`, `focus_width`,
+  `focus_offset`)이 둘립니다.
+- **한 번 움직입니다.** `MOTION`의 시간 동안 그 곡선으로 서서히 나타나며 `SPACING`의 `xs`만큼 떠올라 자리를
+  잡고, 닫힐 때는 곧바로 닫힙니다. 움직임을 줄이면 그냥 거기 있습니다.
+- **고대비**에서는 그림자 없이 시스템 색으로 그립니다. 창에서는 `WindowFrame` 테두리의 `Window` 카드이고,
+  고른 항목은 `HighlightText`를 얹은 `Highlight`, 포인터 아래의 항목은 `Highlight` 테두리입니다.
 
-Under the paint it is still the drop-down it was: the keys are Windows' - it opens on a click, F4,
-Alt+Down, Alt+Up or Space, the arrows, Home, End, Page Up and Page Down move, typing finds, Enter
-or Tab takes an item, Escape closes it as it was - the focus never leaves the field, and a screen
-reader hears a combo box with its choice and the item the keyboard is on.
+칠한 것 밑은 여전히 전과 같은 드롭다운입니다. 키는 Windows 그대로입니다. 클릭, F4, Alt+아래, Alt+위,
+스페이스로 열고, 화살표, Home, End, Page Up, Page Down으로 옮기며, 글자를 치면 찾고, Enter나 Tab으로 고르며,
+Esc는 전 그대로 닫습니다. 포커스는 칸을 떠나지 않고, 화면 읽기 프로그램에는 선택 값이 있는 콤보 상자와
+키보드가 있는 항목으로 들립니다.
 
-## The mark
+## 마크
 
-A rounded-square badge in deep blue carrying an open ring with a bright head at its leading
-end. The ring is the wait; the gap at the top is the interruption; the cyan head is the
-moment it resumes.
+짙은 파랑의 둥근 사각형 배지 안에, 앞쪽 끝에 밝은 머리가 달린 열린 고리가 들어 있습니다.
+고리는 기다림이고, 위쪽의 틈은 중단이며, 시안색 머리는 다시 이어지는 순간입니다.
 
-`assets/brand/icon.svg` is the vector master and `assets/codex-auto-resume.ico` the Windows
-raster set, both generated by `assets/make_icon.py` from the same numbers — one geometry, not a
-drawing and a copy of it. Until v0.6.5 those numbers lived in `make_icon.py`; now they are
-`brand.ICON_SHAPE`, with the rasteriser beside them (`brand.icon_render()`), because the watcher
-draws the notification-area icon's motion frames from them, and `make_icon.py` imports them.
+`assets/brand/icon.svg`가 벡터 원본이고 `assets/codex-auto-resume.ico`가 Windows 래스터
+세트이며, 둘 다 `assets/make_icon.py`가 같은 숫자에서 생성합니다. 도형 하나이지, 그림 하나와 그
+사본이 아닙니다. v0.6.4까지 그 숫자는 `make_icon.py`에 있었고, 이제는 래스터화기(`brand.icon_render()`)와
+함께 `brand.ICON_SHAPE`에 있습니다. 워처가 그 숫자로 알림 영역 아이콘의 움직임 프레임을 그리기 때문이며,
+`make_icon.py`는 그것을 import합니다.
 
-**Why this shape and not the other three.** Four concepts were built and rendered at all
-nine icon sizes on both a light and a dark ground; `build/icon_concepts.py` still renders
-the sheet, so the comparison can be repeated rather than believed.
+**왜 나머지 셋이 아니라 이 모양인가.** 후보 네 가지를 만들어, 아홉 가지 아이콘 크기 전부에서
+밝은 바탕과 어두운 바탕 양쪽에 렌더링했습니다. `build/icon_concepts.py`가 지금도 그 시트를
+렌더링하므로, 이 비교는 믿는 대신 다시 해 볼 수 있습니다.
 
-| Concept | Why not |
+| 후보 | 채택하지 않은 이유 |
 | --- | --- |
-| A **pause-then-play** pair | The most legible at 16px and the least distinctive anywhere. It is the most common glyph pair in software and it says "media player". |
-| A **chevron inside a ring** | Handsome at 256 and gone by 24: the chevron and the ring merged into one blob. |
-| An **arrowhead on an open arc** (the mark up to v0.5.1) | Reads as a flag at large sizes. A triangle joined to a curve at an angle stops looking joined. |
-| An **open ring with a round head** | Chosen. It survives sixteen pixels *and* stays specific — a circle is the one shape that cannot lose its silhouette when it is four pixels across. |
+| **일시정지 다음 재생** 한 쌍 | 16px에서 가장 잘 읽히고, 어디서든 가장 특징이 없습니다. 소프트웨어에서 가장 흔한 글리프 쌍이고, "미디어 플레이어"라고 말합니다. |
+| **고리 안의 꺾쇠** | 256에서는 보기 좋고 24에서는 사라집니다. 꺾쇠와 고리가 한 덩어리로 뭉쳤습니다. |
+| **열린 호에 붙은 화살촉** (v0.5.1까지의 마크) | 큰 크기에서는 깃발로 읽힙니다. 곡선에 비스듬히 붙인 삼각형은 붙어 있는 것으로 보이지 않게 됩니다. |
+| **둥근 머리가 달린 열린 고리** | 채택했습니다. 16픽셀에서도 살아남고 *동시에* 고유합니다. 원은 폭이 4픽셀이 되어도 실루엣을 잃지 않는 유일한 도형입니다. |
 
-The head sits at the end of the sweep rather than inside the gap, so it reads as leading
-the ring rather than floating beside it.
+머리는 틈 안이 아니라 호가 끝나는 자리에 놓입니다. 그래서 고리 옆에 떠 있는 것이 아니라 고리를
+이끄는 것으로 읽힙니다.
 
-## Rules that are not about colour
+## 색에 관한 것이 아닌 규칙들
 
-- **State leads.** In the Dashboard and the panel, what the watcher is doing is the first thing
-  and the largest type. In the popup it is the line directly under the product's name, at the
-  top of the card, in its state's own colour. It used to be a muted sentence along the bottom of
-  the window, under sixteen checkboxes — which put the one thing a person opens the window to
-  check below everything they did not come for.
-- **No colour without a word.** A state is a word on a chip tinted with its own colour, and the
-  dot always has its word beside it. `active` never carries text, which is why the popup keeps
-  separate tables for a dot's fill and its word's ink. The Statistics chart draws every bar in the
-  one accent colour, and the outcome's word beside each bar is what tells them apart.
-- **Reported beside the version, never a state.** Since v0.6.10 the Dashboard's Codex
-  compatibility card says what other people report about the Codex version in one line directly
-  under *Codex version*: *Reported by others*, then *worked 3 · failed 1 · neither 1*, the words
-  before the numbers so no language needs a plural. The line and its name are both in `muted`, the
-  secondary text colour a fact's name has, held to the same 4.5:1 - no chip, no light, no tile, and
-  never `success` or `danger`. On that card a chip is a state of the ladder - verified, checked,
-  compatible, failed here, incompatible, unknown - and a count of other people's reports is not
-  one, so drawn as one it would read as a tier. Its meaning is one legend line after the ladder's,
-  shown only while counts are. The panel is handed no counts and points to the row by the same
-  name; the popup, the notification card and the icon never show it, because it asks nothing of
-  anybody and must never draw attention.
-- **One name for the window.** The window is the Dashboard wherever it is named: in the icon's menu,
-  the popup, the card, the notifications, the panel in Codex and the help under a setting. A
-  sentence shown in the Dashboard and in the panel names the surfaces it means rather than saying
-  "this window", which is right only where the window is the one saying it; the title bar and the
-  Start Menu entry keep the product's name. Until v0.6.10 it was also the Windows Dashboard, the
-  Codex Auto Resume window and the settings window, and the icon's menu said Open Codex Auto
-  Resume. A task's switch is **Auto-resume** in the Dashboard, the panel and the popup, which
-  offered it as two longer sentences of its own; the popup's rows count down to the Next check
-  its summary names, where they said Next try. That is as far as the words were made one: each
-  surface keeps its own words for what the watcher is doing - the Dashboard's headline says
-  *Watching for interruptions* where the popup and the panel say *Monitoring* - and **Why it is
-  waiting** reads OK, Waiting, Blocked and Unknown, as it always has.
-- **Nothing depends on seeing a shadow.** Every card and control keeps a hairline edge, and the
-  keyboard focus ring has its own token, `focus`.
-- **Order is an argument.** The panel runs: the state; then what is waiting, because it is the
-  part that changes; then what is configured, general to particular; then what that
-  configuration will say; then how it looks. The Dashboard's Settings is split into General,
-  Automatic recovery, Continuation message, Appearance and Advanced.
-- **What a card leads to closes it.** A button or a switch at the right of a card or a row is
-  pinned to its bottom-right corner: the heading and the text come first, from the top left, and
-  the control ends the block - beside the last line where there is room, and under it, still on
-  the right, where there is not. A card taller than what it holds - the Overview's, whose two rows
-  share the page's height - keeps the text at its top and the control in its corner. Text wraps
-  rather than running under a control, and the keyboard reaches the control after the text.
-  Buttons already along the bottom, drop-downs, chips and check boxes keep their places, and so do
-  the Dashboard's switches that sit before their labels.
-- **Every status fact is its own label in its own cell.** A single concatenated string
-  wraps or truncates as the window narrows, and what disappears first is the version — the
-  part people are asked for when reporting a problem.
-- **The card is one object, repeated.** Same ground, same hairline, same radius and the same
-  lift on all three surfaces, so the eye reads a list of sections rather than a pile of boxes.
-- **A standard control underneath.** In the Dashboard a button is still a `Button`, a switch and
-  a check box are each a `CheckBox` drawn as one, and a drop-down is a `ComboBox` whose closed face
-  and, since v0.6.5, open list we draw; only the painting is ours, so the keyboard, focus and screen
-  readers behave as they always did, and the list answers every way Windows' list could be opened
-  and every question a screen reader asks it. In the panel a check box is an
-  `<input type="checkbox">`, a switch the same input with `role="switch"`, and a drop-down a
-  combobox over a hidden `<select>`. The soft scroll bar is the one part with no standard control
-  under it, and it takes no focus: the keyboard goes to what it scrolls, which comes into view.
+- **상태가 앞선다.** 대시보드와 패널에서는 워처가 무엇을 하고 있는지가 가장 먼저 나오고 가장
+  큰 글자입니다. 팝업에서는 카드 맨 위, 제품 이름 바로 아래 줄에 그 상태의 색으로 나옵니다.
+  예전에는 체크박스 열여섯 개 아래, 창 맨 밑에 흐린 한 문장으로 있었습니다. 사람이 창을 여는
+  단 하나의 이유를, 보러 온 것이 아닌 모든 것 아래에 둔 셈입니다.
+- **단어 없는 색은 없다.** 상태는 자기 색을 옅게 깐 칩 위의 단어이고, 점 옆에는 늘 그 단어가
+  있습니다. `active`는 텍스트를 싣지 않으며, 그래서 팝업은 점의 채움과 단어의 색을 따로 둔 표를
+  씁니다. 통계 그래프는 막대를 모두 강조색 하나로 그리고, 막대마다 옆에 있는 결과의 단어가 그것들을
+  가려 줍니다.
+- **보고됨은 버전 옆에 있고, 상태가 아니다.** 이번 릴리스부터 대시보드의 Codex 호환성 카드는 다른
+  사람들이 그 Codex 버전에 대해 보고한 것을 *Codex 버전* 바로 아래 한 줄로 말합니다. *다른 사람들의 보고*,
+  그다음 *성공 3 · 실패 1 · 둘 다 아님 1*처럼, 어떤 언어에도 복수형이 필요 없도록 낱말을 숫자 앞에 둡니다.
+  그 줄과 이름은 모두 사실 항목의 이름과 같은 보조 글자색 `muted`이며, 같은 4.5:1을 지킵니다. 칩도, 불빛도,
+  타일도 없고, `success`나 `danger`는 결코 쓰지 않습니다. 그 카드에서 칩은 사다리의 상태, 곧 검증됨, 점검됨,
+  호환됨, 이 PC에서 실패, 호환되지 않음, 알 수 없음이며, 다른 사람들의 보고서 수는 그중 하나가 아니므로, 칩으로
+  그리면 등급처럼 읽힙니다. 그 뜻은 사다리의 설명 뒤에 설명 한 줄로, 횟수가 보일 때만 붙습니다. 패널에는
+  횟수를 건네지 않으며, 패널은 같은 이름으로 그 줄을 가리킵니다. 팝업, 알림 카드, 아이콘은 이것을 보여 주지
+  않습니다. 누구에게도 무엇을 요구하지 않으므로, 결코 주의를 끌어서는 안 되기 때문입니다.
+- **창의 이름은 하나.** 창은 이름이 불리는 곳마다 대시보드입니다. 아이콘 메뉴, 팝업, 카드, 알림,
+  Codex 안의 패널, 설정 아래의 도움말이 모두 그렇습니다. 대시보드와 패널 양쪽에 보이는 문장은 '이 창'이라고
+  하지 않고 가리키는 화면을 이름으로 부릅니다. '이 창'은 창이 자기 자신을 두고 말할 때만 맞기 때문입니다.
+  제목 표시줄과 시작 메뉴 항목만 제품 이름을 씁니다. 이번 릴리스 전까지는 Windows 대시보드, Codex Auto
+  Resume 창, 설정 창이라고도 불렸고, 아이콘 메뉴는 Codex Auto Resume 열기라고 했습니다. 작업의 스위치는
+  대시보드, 패널, 팝업에서 모두 **자동 이어 가기**입니다. 팝업은 그것을 자기만의 더 긴 문장 두 개로
+  내놓았습니다. 팝업의 행은 팝업의 요약이 부르는 다음 확인까지 셉니다. 예전에는 다음 시도라고 했습니다.
+  말을 하나로 맞춘 것은 거기까지입니다. 워처가 무엇을 하는지는 화면마다 제 말로 합니다. 팝업과 패널이
+  *감시 중*이라고 할 때 대시보드의 제목 줄은 *중단을 감시하는 중*이라고 합니다. **기다리는 이유**의
+  결과는 늘 그랬듯 영어로 OK, Waiting, Blocked, Unknown이라고 읽힙니다.
+- **그림자를 봐야 알 수 있는 것은 없다.** 모든 카드와 컨트롤에 헤어라인 테두리가 남아 있고, 키보드
+  포커스 링은 자기 토큰 `focus`를 가집니다.
+- **순서는 주장이다.** 패널은 이 순서입니다. 상태, 그다음 바뀌는 부분인 기다리는 작업, 그다음
+  일반에서 구체로 가는 설정, 그다음 그 설정이 무엇을 말할지, 그다음 어떻게 보일지. 대시보드의 설정은
+  일반, 자동 복구, 이어서 하기 메시지, 모양, 고급으로 나뉩니다.
+- **카드가 이끄는 곳이 카드를 맺는다.** 카드나 행의 오른쪽에 있는 단추나 스위치는 그 오른쪽 아래
+  모서리에 고정됩니다. 제목과 글이 왼쪽 위에서부터 먼저 오고, 컨트롤이 그 블록을 맺습니다. 자리가
+  있으면 마지막 줄 옆에, 없으면 그 아래에 여전히 오른쪽으로 놓입니다. 두 줄이 쪽의 높이를 나눠 갖는
+  개요의 카드처럼 담은 것보다 높은 카드는 글을 위에, 컨트롤을 모서리에 둡니다. 글은 컨트롤 밑으로 들어가지
+  않고 줄을 바꾸며, 키보드는 글 다음에 컨트롤에 닿습니다. 이미 아래쪽에 있던 단추, 드롭다운, 칩,
+  체크박스는 제자리에 있고, 대시보드에서 이름표 앞에 놓인 스위치도 그렇습니다.
+- **상태에 관한 사실은 하나하나가 자기 셀에 놓인 자기 레이블이다.** 하나로 이어 붙인 문자열은
+  창이 좁아지면 줄바꿈되거나 잘리는데, 가장 먼저 사라지는 것이 버전입니다. 문제를 신고할 때
+  사람들이 요구받는 바로 그 부분입니다.
+- **카드는 하나의 객체를 반복한 것이다.** 세 표면에 걸쳐 바탕도, 헤어라인도, 반경도, 떠오름도
+  같습니다. 그래야 눈이 상자 더미가 아니라 섹션의 목록으로 읽습니다.
+- **밑에는 표준 컨트롤이 있다.** 대시보드에서 버튼은 여전히 `Button`이고, 스위치와 체크박스는 저마다
+  그 모양으로 그린 `CheckBox`이며, 드롭다운은 닫힌 모습과, v0.6.5부터는 펼친 목록도 우리가
+  그리는 `ComboBox`입니다. 칠하는 것만 우리 몫이므로, 키보드, 포커스, 화면 낭독기는 늘 그랬던 대로
+  동작하고, 목록은 Windows의 목록이 열릴 수 있던 모든 방법과 화면 낭독기가 묻는 모든 질문에 답합니다.
+  패널에서 체크박스는 `<input type="checkbox">`이고, 스위치는 같은 입력에 `role="switch"`를 단 것이며,
+  드롭다운은 숨긴 `<select>` 위의 콤보 상자입니다. 부드러운 스크롤
+  막대는 밑에 표준 컨트롤이 없는 유일한 부분이며 포커스를 받지 않습니다. 키보드는 막대가 스크롤하는
+  내용으로 가고, 그 내용이 보이는 곳으로 옵니다.
 
-## Redrawing anything
+## 다시 그리기
 
 ```bash
 python assets/make_icon.py     # icon, logos, vector master
@@ -688,21 +642,20 @@ python build/make_brand.py     # gui/Brand.cs: the palette and the scale
 python build/icon_concepts.py  # the concept comparison sheet
 ```
 
-The documentation's pictures are made by `build/make_screenshots.py`, from PowerShell on Windows,
-in two steps: the whole set, then `--breathe`. A picture of a light that moves moves: every light
-a surface moves is animated as an APNG, whose first frame is what a viewer without animation shows.
-Since v0.6.10 each surface declares its lights - where each one is, its radius, its state and
-the ground it stands on, kept in `assets/screenshots.json` under `lights`: the popup and the card
-from their own layout, the panel from the page itself, the window from its capture. The popup and
-the card are drawn moving by their own renderers, their light alone drawn again frame by frame as
-they draw it; the panel and the window are captured still at the top of the breath and `--breathe`
-draws every light they declare, each on its own ground, at every moment of one cycle. A picture's
-lights move on one rhythm, and a frame lasts exactly its share of it - a 4.4-second breath is 132
-frames of 1/30 s, where 33 ms made it 4.356 s until v0.6.10. The panel's two lights are drawn a
-frame each in turn, so each frame stays a small rectangle. Classic's pictures move with their glow,
-and Plain's dim with none.
+문서의 그림은 Windows의 PowerShell에서 `build/make_screenshots.py`가 두 단계로 만듭니다. 먼저 전체
+모음을, 그다음 `--breathe`를 돌립니다. 움직이는 불빛의 그림은 움직입니다. 표면이 움직이는 불빛은 모두
+APNG로 움직이고, 그 첫 프레임이 애니메이션을 보여 주지 않는 뷰어에 보이는 그림입니다. 이번
+릴리스부터 표면마다 자기 불빛을 알립니다. 불빛마다 위치, 반지름, 상태, 그리고 그 아래의 바탕이며,
+`assets/screenshots.json`의 `lights`에 남습니다. 팝업과 카드는 자기 배치에서, 패널은 페이지 자신에게서,
+창은 캡처에서 알립니다. 팝업과 카드는 자기 렌더러가 움직이는 모습으로 그리며, 그들이 그리듯 불빛만
+프레임마다 다시 그립니다. 패널과 창은 호흡의 꼭대기에서 멈춘 채 찍고, `--breathe`가 그들이 알린 불빛을
+하나하나 자기 바탕 위에 한 주기의 모든 순간으로 그립니다. 한 그림의 불빛들은 한 박자로 움직이고, 프레임
+하나는 그 박자에서 자기 몫만큼 정확히 머뭅니다. 4.4초의 호흡은 1/30초짜리 프레임 132개이고, 이번 릴리스
+전에는 33ms씩이라 4.356초였습니다. 패널의 불빛 둘은 프레임마다 번갈아 하나씩 그리므로, 프레임마다
+작은 사각형 하나로 남습니다. 클래식의 그림은 번짐과 함께, 단순하게의 그림은 번짐 없이 흐려지며
+움직입니다.
 
-Screenshots are captured with `build/capture_window.ps1`, which declares itself DPI aware
-before measuring. A DPI-unaware capture is told a scaled-down window rectangle, allocates a
-bitmap that size and returns a picture of the window's top-left corner — which looks
-exactly like a window whose layout is broken, and cost an afternoon once.
+스크린샷은 `build/capture_window.ps1`로 찍으며, 이 스크립트는 측정 전에 자신을 DPI aware로
+선언합니다. DPI를 인식하지 못하는 캡처는 축소된 창 사각형을 전달받아 그 크기의 비트맵을
+할당하고, 창의 좌측 상단 귀퉁이만 담긴 그림을 돌려줍니다. 레이아웃이 깨진 창과 정확히 똑같아
+보이고, 한 번은 오후 하루를 잡아먹었습니다.

@@ -1,763 +1,723 @@
-# Codex Auto Resume roadmap: v0.6.7 → v0.6.14
+# Codex Auto Resume 로드맵: v0.6.7부터 v0.6.14까지
 
-This is the current development direction for Codex Auto Resume after v0.6.6.
+> 🌐 한국어 문서입니다. English version: [`main` 브랜치의 docs/ROADMAP.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/ROADMAP.md)
 
-This is a **planned roadmap, not a promise**. Details may change as Codex evolves or as testing
-reveals better or safer implementation paths.
+v0.6.6 이후 Codex Auto Resume가 나아가려는 개발 방향입니다.
 
-The overall direction is:
+이 문서는 **계획한 로드맵이지 약속이 아닙니다**. Codex가 달라지거나, 테스트하다가 더 낫거나 더
+안전한 구현 방법이 보이면 세부 사항은 바뀔 수 있습니다.
 
-**finish the UI → add compatibility intelligence → fix the window's lag → clean up Python → add
-advanced features, more than any program like this, in two editions → stabilize Python → replace the
-core with Rust and make it Rust-native → stabilize Rust**
+전체 방향은 다음과 같습니다.
 
-The default recovery behavior stays as conservative as it has always been, through every release
-here: what v0.6.11 adds is there for a person to turn on, never on by itself.
+**UI 마무리 → 호환성 판단 추가 → 창의 렉 개선 → Python 정리 → 비슷한 어떤 프로그램보다 많은 고급 기능을
+두 판으로 추가 → Python 안정화 → 코어를 Rust로 교체하고 Rust다운 구조로 재편 → Rust 안정화**
 
----
-
-## v0.6.3 — Released ✅
-
-v0.6.3 was the major feature and UX expansion release.
-
-It added, among other things:
-
-- nine interface languages,
-- separate interface and continuation-message languages,
-- reason-aware continuation messages,
-- Minimal / Standard / Detailed / Custom message styles,
-- global and per-reason Custom messages,
-- richer Dashboard and Tray controls,
-- improved notifications,
-- broader Python CI coverage.
-
-The recovery safety model remained deliberately conservative.
+기본 복구 동작은 여기의 모든 릴리스 내내 늘 그랬듯 보수적으로 유지합니다. v0.6.11이 더하는 것은 사람이 켜는
+것이고, 스스로 켜지는 일은 없습니다.
 
 ---
 
-## v0.6.4 — Design consistency, neumorphic refinement, and responsiveness ✅
+## v0.6.3 — 출시됨 ✅
 
-**Released.**
+v0.6.3은 기능과 사용 경험을 크게 넓힌 릴리스였습니다.
 
-v0.6.4 finished the UI introduced in v0.6.3 rather than expanding the recovery engine:
+무엇보다 다음을 더했습니다.
 
-- one neumorphic design across the Dashboard and Settings window, the notification-area popup
-  and the panel in Codex, taken from the panel,
-- light and dark themes that follow Windows by default, with a choice in Settings,
-- a window that opens at 1000 × 632 with a first screen that never scrolls,
-- soft scroll bars in place of Windows' own,
-- switches for things that run, check boxes for picking items from a list,
-- language and theme changes applied at once, with the window reopening itself where it has to,
-- page switches from about 100 ms to about 22 ms, and a usable window about 3 seconds sooner,
-- the status light back in its pre-v0.6.3 colour, with a gentle glow.
+- 아홉 개의 화면 언어
+- 화면 언어와 이어서 하기 메시지 언어의 분리
+- 중단 이유에 맞춘 이어서 하기 메시지
+- 간단히 / 기본 / 자세히 / 직접 입력 메시지 스타일
+- 모든 이유에 쓰는 직접 입력 메시지와 이유별 직접 입력 메시지
+- 더 풍부해진 대시보드와 알림 영역 컨트롤
+- 나아진 알림
+- 더 넓어진 Python CI 범위
 
-Recovery decides exactly what it decided in v0.6.3.
-
-### Screenshots
-
-#### Dashboard — Overview
-
-<img src="images/dashboard-overview.png" alt="The Dashboard's Overview page" width="680">
-
-#### Dashboard — Pending
-
-<img src="images/dashboard-pending.png" alt="The Dashboard's Pending page" width="680">
-
-#### Notification-area popup
-
-<img src="images/tray-popup.png" alt="The notification-area popup" width="360">
-
-#### Settings — Korean
-
-<img src="images/settings-window-ko.png" alt="The Dashboard's Settings page in Korean" width="680">
+복구의 안전 모델은 일부러 보수적으로 두었습니다.
 
 ---
 
-## v0.6.5 — Codex Compatibility Registry, interface polish, and groundwork for the split ✅
+## v0.6.4 — 디자인 일관성, 뉴모피즘 다듬기, 반응성 ✅
 
-**Released.**
+**출시되었습니다.**
 
-v0.6.5 carries the Codex Compatibility Registry and the interface work that came out of using
-v0.6.4, and lays the groundwork for splitting the Python implementation, which moved to v0.6.10's alpha.
+v0.6.4는 복구 엔진을 넓히기보다 v0.6.3에서 선보인 UI를 마무리했습니다.
 
-### Codex Compatibility Registry
+- 대시보드와 설정 창, 알림 영역 팝업, Codex 안의 패널이 패널에서 가져온 하나의 뉴모피즘 디자인을
+  씁니다.
+- 기본으로 Windows를 따르고 설정에서 고를 수 있는 밝은 테마와 어두운 테마가 생겼습니다.
+- 창이 1000 × 632로 열리고, 첫 화면은 스크롤되지 않습니다.
+- Windows의 스크롤 막대 대신 부드러운 막대를 씁니다.
+- 켜고 끄는 것은 스위치, 목록에서 고르는 것은 체크박스입니다.
+- 언어와 테마를 바꾸면 곧바로 적용되고, 필요하면 창이 스스로 다시 열립니다.
+- 페이지 전환이 약 100ms에서 약 22ms로, 쓸 수 있는 화면이 약 3초 빨라졌습니다.
+- 상태 불빛이 v0.6.3 이전의 색으로 돌아와 은은하게 빛납니다.
 
-This release is also planned to introduce explicit Codex compatibility states:
+복구가 내리는 결정은 v0.6.3과 똑같습니다.
 
-- **VERIFIED** — maintainer-tested
-- **COMPATIBLE** — local structural checks pass, but not yet formally verified
-- **INCOMPATIBLE** — known unsafe or incompatible
-- **UNKNOWN** — compatibility cannot be established
+### 스크린샷
 
-Where useful, compatibility should be tracked per capability rather than only per whole Codex
-version.
+#### 대시보드 — 개요
 
-For example:
+<img src="images/dashboard-overview-ko.png" alt="대시보드의 개요 페이지" width="680">
+
+#### 대시보드 — 대기 중
+
+<img src="images/dashboard-pending-ko.png" alt="대시보드의 대기 중 페이지" width="680">
+
+#### 알림 영역 팝업
+
+<img src="images/tray-popup-ko.png" alt="알림 영역 팝업" width="360">
+
+#### 설정 — 한국어
+
+<img src="images/settings-window-ko.png" alt="한국어로 본 대시보드의 설정 페이지" width="680">
+
+---
+
+## v0.6.5 — Codex 호환성 레지스트리, 화면 다듬기, 구조 정리의 기반 ✅
+
+**출시되었습니다.**
+
+v0.6.5에는 Codex 호환성 레지스트리와 v0.6.4를 써 보며 나온 화면 작업이 들어가고, Python 구현을
+나누기 위한 기반을 마련합니다. 실제로 나누는 작업은 v0.6.10의 알파로 옮겼습니다.
+
+### Codex 호환성 레지스트리
+
+이 릴리스에서는 Codex 호환성 상태도 명시적으로 도입할 계획입니다.
+
+- **VERIFIED** — 메인테이너가 직접 테스트함
+- **COMPATIBLE** — 로컬 구조 검사는 통과했지만 아직 정식으로 검증하지 않음
+- **INCOMPATIBLE** — 안전하지 않거나 호환되지 않는다고 알려짐
+- **UNKNOWN** — 호환성을 확인할 수 없음
+
+쓸모가 있는 곳에서는 호환성을 Codex 버전 전체 단위로만 따지지 않고 기능 단위로도 추적합니다.
+
+예를 들면 다음과 같습니다.
 
 ```text
 Codex x.y.z
 
-Usage-limit detection   ✓ Verified
-Exact-thread recovery   ✓ Verified
-Recovery-turn tracking  ✓ Verified
-Empty-response recovery ? Unverified
-notLoaded recovery      — Unsupported
+사용량 한도 감지        ✓ 검증됨
+정확한 스레드 복구      ✓ 검증됨
+복구 턴 추적            ✓ 검증됨
+빈 응답 복구            ? 미검증
+notLoaded 복구          — 지원 안 함
 ```
 
-Remote compatibility data must **never override failed local safety checks**.
+원격 호환성 데이터는 **실패한 로컬 안전 검사를 절대 뒤집지 못합니다**.
 
-If the registry cannot be reached, the intended fallback is:
+레지스트리에 연결할 수 없을 때 의도한 대체 순서는 다음과 같습니다.
 
 ```text
-validated cache
+검증된 캐시
     ↓
-local structural checks
+로컬 구조 검사
     ↓
-UNKNOWN / fail closed if still uncertain
+그래도 불확실하면 UNKNOWN / 보내지 않고 멈춤(fail closed)
 ```
 
-No telemetry is required for this system.
+이 체계에는 텔레메트리가 필요하지 않습니다.
 
-The Compatibility Registry's data ships inside each release and is refreshed only when you ask -
-from Diagnostics, or when you check for updates. There is no background traffic. The first
-release that carries it lists no capability as VERIFIED: that state needs recorded evidence.
+호환성 레지스트리의 데이터는 릴리스마다 함께 들어가고, 요청할 때만 새로 받습니다. 진단 화면에서
+새로 고치거나 업데이트를 확인할 때입니다. 평소에 오가는 통신은 없습니다. 이 기능이 처음 들어가는
+릴리스에서는 VERIFIED로 표시되는 기능이 하나도 없습니다. 그 상태에는 기록된 증거가 필요하기
+때문입니다.
 
-### Interface
+### 화면
 
-Interface work that came out of using v0.6.4:
+v0.6.4를 써 보며 나온 화면 작업입니다.
 
-- a status light you can actually see breathing,
-- motion on the notification-area icon itself: a slow breathe with an occasional slow turn while
-  watching, and a turning arc while a recovery is being sent,
-- a notification card in the product's own design, with a silent copy in Action Center, and
-  Windows' own notification wherever a card must not appear (a locked session, a full-screen
-  app, Do Not Disturb, a running screen reader),
-- real depth inside the notification-area popup,
-- the first screen's card buttons back at the bottom-left, with its proportions redone,
-- drop-down lists drawn in the same neumorphic material as the cards, in the window and in the panel,
-- switches that glide when they change,
-- lists that never overflow sideways.
+- 숨 쉬는 것이 실제로 보이는 상태 불빛
+- 알림 영역 아이콘 자체의 움직임: 감시하는 동안에는 천천히 숨 쉬다 가끔 천천히 한 바퀴 돌고,
+  복구를 보내는 동안에는 호가 돕니다
+- 제품의 디자인으로 그린 알림 카드. 같은 알림이 알림 센터에 조용히 남고, 카드를 띄우면 안 되는
+  때(잠긴 화면, 전체 화면 앱, 방해 금지, 화면 낭독기 사용 중)에는 Windows의 알림이 대신 뜹니다
+- 알림 영역 팝업 안쪽의 입체감
+- 첫 화면 카드 버튼을 다시 왼쪽 아래로, 그에 맞춘 비율
+- 카드와 같은 뉴모피즘 재질로 그린 선택 목록(창과 패널 모두)
+- 켜고 끌 때 미끄러지듯 움직이는 스위치
+- 옆으로 넘치지 않는 목록
 
-### Fixes and groundwork for the split
+### 수정과 구조 정리의 기반
 
-- three fixes found while planning the refactor,
-- tests that keep every safety check reading the whole package, so that moving code can never
-  quietly take it out of a check's sight,
-- screenshot checks keyed on what the window is shown rather than on which files changed.
-
----
-
-## v0.6.6 — The ordinary breath, a taskbar button that moves where it is installed, and the last native controls ✅
-
-**Released.**
-
-What a day of real use turned up. Nothing about recovery changed.
-
-The status light is the ordinary breath now: one symmetric cosine over 4.4 seconds, taken in
-light and drawn through the screen's gamma, with a deep swing and a glow that rides the
-brightness and reaches a share of the dot rather than a count of pixels. One table serves the
-window, the notification-area popup, the panel in Codex and the notification card, so all four
-breathe alike, and the icon's own breath and sweep read the same rhythm.
-
-v0.6.5 moved the mark on the window's taskbar button, and it never moved on an installed one: an
-installed window is resolved to the application the installer registered, and such a button wears
-the icon that identity carries rather than the window's own. The window now takes a taskbar
-identity of its own, and the button moves where people actually have it.
-
-And the controls that were still Windows' or the browser's are the product's: every scroll bar,
-on either axis and wherever one appears, with its track coloured against the ground it runs over;
-and the message box, which is now a dialog in the window's own material whose buttons say what
-will happen rather than Yes and No. The documentation's pictures move, and they no longer carry
-the black frame `PrintWindow` never drew - they are cut to the window and the corners Windows
-rounds are rounded in them.
-
-The panel in Codex gets a theme of its own, Theme in Codex, right under the Theme: Same as Theme,
-which is the default and what every panel did before, Codex's theme, Light or Dark. The window,
-the popup and the notification card keep the Theme.
+- 구조 정리를 계획하며 찾은 수정 세 가지
+- 코드를 옮겨도 안전 검사가 모르는 사이에 그 코드를 놓치지 않도록, 패키지 전체를 읽는 테스트
+- 어떤 파일이 바뀌었는지가 아니라 창에 무엇이 전달되는지로 확인하는 스크린샷 검사
 
 ---
 
-## v0.6.7 — Compatibility in tiers, Failed here, and a notification card that breathes ✅
+## v0.6.6 — 정석대로의 숨쉬기, 설치된 곳에서도 움직이는 작업 표시줄 단추, 그리고 마지막 기본 컨트롤들 ✅
 
-**Released.**
+**공개되었습니다.**
 
-The Compatibility Registry learns to say how much stands behind its word, and the notification
-card's light joins the others. For a Codex version the data says nothing about, recovery decides
-exactly what it decided in v0.6.6.
+하루 써 보고 드러난 것들입니다. 복구에 대한 것은 아무것도 바뀌지 않았습니다.
 
-Each capability, on each exact Codex version, now resolves to one of six states, in this order:
+상태등은 이제 보통의 숨쉬기입니다. 4.4초에 걸친 대칭 코사인 하나를 빛에서 그려 화면의 감마로
+변환하고, 진폭은 깊게 두며, 번짐은 밝기를 따라가고 픽셀 수가 아니라 점 크기의 일정 비율까지
+퍼집니다. 창과 알림 영역 팝업, Codex 안의 패널, 알림 카드가 표 하나를 함께 읽으므로 네 곳이 같이
+숨 쉬고, 같은 리듬을 읽는 아이콘의 숨쉬기와 회전도 그에 맞춥니다.
 
-- **VERIFIED** — a real recovery on this exact version exercised it, and none failed
-- **CHECKED** — new: the maintainer's local checks passed on this exact version, and nothing
-  confirmed more
-- **COMPATIBLE** — the data makes no claim, and the checks on this computer pass
-- **FAILED_HERE** — new: the data checked or verified this exact version, but a check on this
-  computer failed, so the cause is most likely this computer rather than the Codex version
-- **INCOMPATIBLE** — a check on this computer failed on a version nobody checked, or the data says
-  it does not work
-- **UNKNOWN** — compatibility cannot be established
+v0.6.5는 창의 작업 표시줄 단추에서 마크를 움직이게 했지만, 설치된 창에서는 한 번도 움직이지
+않았습니다. 설치된 창은 설치 프로그램이 등록한 애플리케이션으로 인식되고, 그런 단추는 창 자신의
+아이콘이 아니라 그 정체성이 지닌 아이콘을 입기 때문입니다. 이제 창이 자기만의 작업 표시줄 정체성을
+가지므로, 실제로 쓰는 자리에서 단추가 움직입니다.
 
-The rules stay as they were: a failed local check always wins, and is now INCOMPATIBLE or
-FAILED_HERE; data can only restrict, or raise a local pass - to CHECKED or VERIFIED - for an exact
-version. CHECKED sends exactly as COMPATIBLE and VERIFIED do; like VERIFIED, it needs recorded
-evidence and expires with the fetched data. FAILED_HERE blocks every send exactly as INCOMPATIBLE
-does, and says so: a recovery it holds says *Codex checks failed on this computer*, and the
-notification-area popup and its icon ask for attention. The advanced tier planned then stayed
-VERIFIED-only; v0.6.11's own plan, below, lifts that for what it adds.
+그리고 아직 Windows나 브라우저의 것이던 컨트롤이 제품의 것이 되었습니다. 어디에 생기든, 가로든
+세로든 모든 스크롤바가 그러하며, 홈 색은 그것이 놓인 바닥에 맞춰 정해집니다. 메시지 상자도 창 자신의
+재질로 된 대화창이 되어, 예/아니요 대신 무슨 일이 일어날지를 단추에 적습니다. 문서의 그림은
+움직이고, `PrintWindow`가 그리지 않던 검은 창틀도 더는 달고 있지 않습니다. 창에 맞춰 잘라내고,
+Windows가 둥글리는 모서리도 그림에서 둥급니다.
 
-The data on main is fetched by every installed release, so each must take the newest whole, with
-its own validator: v0.6.5 and v0.6.6 skip CHECKED, a state they do not know, and nothing they decide
-moves. And new data can be published between releases without turning main red: the behaviour
-tests and the pictures read a frozen copy of v0.6.6's data, while the live file is still held to its
-evidence rules.
-
-The notification card's status light breathes on the same table as the window, the popup and the
-panel in Codex, where v0.6.6 drew it lit and still on purpose. Reduce motion and High Contrast keep
-it still.
+Codex 안의 패널은 테마 바로 아래에 자기 테마인 Codex 안의 테마를 갖습니다. 기본값이자 지금까지 모든
+패널이 하던 테마와 같게, Codex 테마 따르기, 밝게, 어둡게 가운데 고릅니다. 창, 팝업, 알림 카드는 테마를
+그대로 따릅니다.
 
 ---
 
-## v0.6.8 — A tray icon without its badge, and lights that never stop ✅
+## v0.6.7 — 단계로 나눈 호환성, 이 PC에서 실패, 그리고 숨 쉬는 알림 카드 ✅
 
-**Released.**
+**공개되었습니다.**
 
-The notification-area icon wore a small status dot in its corner that the window's taskbar button
-never had, so during a recovery the tray showed a second light the taskbar did not. The dot is gone:
-the head of the mark says the state on its own, and the tray icon and the taskbar button are one
-picture.
+호환성 레지스트리가 자기 말 뒤에 근거가 얼마나 있는지를 말하게 되고, 알림 카드의 불빛도 다른 곳들과
+함께 숨 쉽니다. 데이터가 아무 말도 하지 않는 Codex 버전에서는 복구가 v0.6.6과 똑같이 결정합니다.
 
-Needing attention and a failure pulsed once and then held still. Now neither stops for as long as
-it lasts: attention's amber light breathes slowly, every 5.6 seconds - slower than monitoring's
-4.4 - and a failure's red light quickly, every 1.2 seconds. The tray icon and the taskbar button,
-which nothing put in the failed state before, now turn red when a recovery fails, their head
-sweeping along the ring twice as quickly as a recovery's and blinking as it goes, and stay red until
-you have seen it.
-Reduce motion and High Contrast still hold every light still.
+이제 기능마다, 정확한 Codex 버전마다 여섯 상태 가운데 하나로 정해집니다. 순서는 다음과 같습니다.
 
----
+- **VERIFIED**(검증됨) — 바로 이 버전에서 실제 복구가 그 기능을 거쳤고, 실패한 것이 없음
+- **CHECKED**(점검됨) — 새 상태. 바로 이 버전에서 메인테이너의 로컬 검사가 통과했고, 그 이상
+  확인된 것은 없음
+- **COMPATIBLE**(호환됨) — 데이터에 아무 주장이 없고, 이 컴퓨터의 검사가 통과함
+- **FAILED_HERE**(이 PC에서 실패) — 새 상태. 데이터는 바로 이 버전을 점검했거나 검증했지만 이
+  컴퓨터에서 검사가 실패함. 원인은 Codex 버전보다 이 컴퓨터일 가능성이 큼
+- **INCOMPATIBLE**(호환되지 않음) — 아무도 점검하지 않은 버전에서 이 컴퓨터의 검사가 실패했거나,
+  데이터에 작동하지 않는다고 되어 있음
+- **UNKNOWN**(알 수 없음) — 호환성을 확인할 수 없음
 
-## v0.6.9 — The window's lag, and starting with Codex ✅
+규칙은 그대로입니다. 실패한 로컬 검사가 언제나 이기며, 그 결과는 이제 INCOMPATIBLE 또는
+FAILED_HERE입니다. 데이터는 제한하거나, 정확한 버전에 한해 로컬 통과를 CHECKED나 VERIFIED로 올릴
+수만 있습니다. CHECKED는 COMPATIBLE, VERIFIED와 똑같이 보냅니다. VERIFIED처럼 기록된 증거가 필요하고,
+받아 온 데이터와 함께 만료됩니다. FAILED_HERE는 INCOMPATIBLE과 똑같이 모든 보내기를 막고, 그렇다고
+알립니다. 그 상태가 붙잡은 복구에는 *이 PC에서 Codex 검사 실패*라고 나오고, 알림 영역 팝업과 그
+아이콘은 확인이 필요하다고 알립니다. 그때 계획한 고급 단계는 VERIFIED에만 열렸고, 아래 v0.6.11의 계획이 새로 더하는 것에 대해서는 그것을 풉니다.
 
-**Released.**
+main의 데이터는 설치된 모든 릴리스가 받아 가므로, 각 릴리스는 가장 새 데이터를 자기 검증기로 통째로
+받아들여야 합니다. v0.6.5와 v0.6.6은 자기가 모르는 상태인 CHECKED를 건너뛰고, 그 릴리스들이 내리는
+결정은 하나도 움직이지 않습니다. 그리고 새 데이터를 릴리스 사이에 게시해도 main이 빨갛게 되지
+않습니다. 동작 테스트와 그림은 v0.6.6 데이터의 고정된 사본을 읽고, 실제 파일은 여전히 증거 규칙에
+붙잡혀 있습니다.
 
-First, and on its own terms: the window's responsiveness - the lag it still has, worst on some pages,
-and the loading that feels slower in every language but English (reported with v0.6.8). Each is
-measured where it happens, its cause found and fixed, and the measurement kept as a test. Before the
-split rather than after it: the split's golden copies then hold the faster window, and the split
-carries it, instead of the fix being made again on code that has just moved. It changes how fast the
-window is, and that is worth a release of its own, so it is one.
-
-### v0.6.9-alpha ✅ — starting with Codex, measured (a pre-release)
-
-Two facts about starting with Codex cannot be read out of any source: when Codex starts a plugin's
-MCP server, and what becomes of a watcher that server started when Codex closes. Both are answers
-only a machine running the real thing can give, so the switch and the measurement it needs were
-built first and published as **v0.6.9-alpha**, a pre-release, for exactly that: it is a stage the
-work had to be split into, not a release of its own. Nothing is served it - `releases/latest` never
-answers with a pre-release - and it is not on main, so the plugin's own route never offers it. It
-also carries the lights and the pictures below, which arrived with it.
-
-### Starting with Codex: measured, and not shipped
-
-Today the watcher starts when you sign in to Windows. The other choice - start it when Codex starts -
-was built for v0.6.9-alpha and measured on a real machine, because two facts about it cannot be read
-out of any source. Both now have answers, from Codex 26.915 on 2026-09-23:
-
-- **When does Codex start a plugin's MCP server?** About 22 seconds after the app opens, several
-  times, and it cancels each one a few seconds after it has listed its tools.
-- **What becomes of a watcher that server starts?** It is killed with the server. Codex runs each
-  MCP server in a Windows job object with `KILL_ON_JOB_CLOSE` and without `BREAKAWAY_OK`, so a
-  process started there cannot leave the job and dies when the job closes. Six starts were measured;
-  six watchers, each gone within about six seconds.
-
-A watcher killed a few seconds after it starts, over and over, is the opposite of what this product
-is: one that is stopped mid-tick cannot prove whether it sent a continuation. So the switch is not
-offered. `Control.start_for_codex` refuses where the job would end the watcher and writes what the
-job said to `logs/codex-start.log`, so the next Codex is one line away from being measured again, and
-the advanced edition builds it properly in v0.6.11 - starting a process outside the host's job is
-exactly the kind of thing that edition exists to let a person turn on.
-
-### A shorter README
-
-The README had grown to a thousand lines. It becomes the short version - what the product does, how
-to install it, the one limitation to know, where everything else is - and the full text moves, as it
-was, to [the guide](GUIDE.md), in both languages.
+알림 카드의 상태등이 창, 팝업, Codex 안의 패널과 같은 표로 숨 쉽니다. v0.6.6에서는 일부러 켜진 채
+멈춰 그렸습니다. 움직임 줄이기와 고대비에서는 멈춰 있습니다.
 
 ---
 
-## v0.6.10 — Python modularization, then the design settled and a grade for what others report ✅
+## v0.6.8 — 배지 없는 트레이 아이콘, 그리고 멈추지 않는 불빛 ✅
 
-**Released.**
+**공개되었습니다.**
 
+알림 영역 아이콘은 창의 작업 표시줄 단추에는 없는 작은 상태 점을 모서리에 달고 있어서, 복구 중에는
+트레이에만 불빛이 하나 더 보였습니다. 그 점을 없앴습니다. 이제 마크의 머리 혼자 상태를 말하고, 트레이
+아이콘과 작업 표시줄 단추는 같은 그림입니다.
 
-v0.6.10 arrives in two stages: **v0.6.10-alpha**, a pre-release, is the modularization and nothing
-else; the final **v0.6.10** is the design audit, the choice of appearance and the new Reported grade,
-built on the boundaries the alpha leaves. A pre-release is for a stage the work has to be split into that is not a release on
-its own, and the modularization is that: it changes nothing anybody could see, so it is not worth a
-release by itself, and it has to be finished and published before what is built on it. The design is
-the opposite - it changes what everything looks like - so it is a release.
-
-### v0.6.10-alpha ✅ — Python modularization (a pre-release)
-
-The alpha is the major structural cleanup of the Python implementation. It was the main part of
-v0.6.5 in the earlier plan, and then of v0.6.8 and v0.6.9; v0.6.5 shipped its groundwork, and the
-split itself is here. The line ceilings hold again from the alpha on, and no module is over them.
-
-Before anything moves:
-
-- golden copies of the replies the window and the panel in Codex receive, so a split that changes
-  a single byte of them fails,
-- one implementation of rules that were written more than once, shared identifiers and
-  vocabularies, and typed contracts between the layers.
-
-Main goals:
-
-- split oversized modules,
-- separate responsibilities more clearly,
-- clarify boundaries between engine, state, store, adapters, and control layers,
-- remove duplication,
-- strengthen typed contracts,
-- isolate more pure/testable logic,
-- prepare clean boundaries for the later Rust migration.
-
-The window's largest C# files may be split the same way, behind the same kind of safety net.
-
-The repository's landing page on GitHub is tidied in the same stage, while paths are moving
-anyway, so that fewer files sit at its root.
-
-Bugs discovered during this refactor will be fixed with regression tests, but the alpha is
-**not intended to be the full repository-wide bug hunt**; v0.6.12 is. It is the modularization and
-nothing else: no feature, and no change anybody could see.
-
-What it carries: the modules that were over their ceiling are packages in the plan's layout -
-`codex/`, `win/`, `domain/`, `runtime/`, `commands/`, `compat/` and `ui/card/` among them - each old
-module kept as a front that still answers every name it had, and no import cycle is left. The
-replies the window and the panel receive are written down as types and held to the golden copies
-both ways. The window's three hand-written C# files are eighteen, grouped by half in
-`gui/window.sources`, and the contributor documents moved into `docs/`. `tests/test_stack.py` names
-the Rust part every module becomes, and fails when a placement stops being true.
-
-
-### v0.6.10 ✅ — The design audit, and a choice of appearance
-
-The final v0.6.10 is the design, settled, and the one new word that comes with it - Reported, below.
-It is a release of its own because it is worth one: it changes what every surface looks like, which is exactly what a person sees. It sits
-here and not elsewhere for four reasons. After the alpha, because four looks in light and dark are
-only safe to build once the drawing lives in modules. Before the two editions, so both inherit one
-settled design instead of being audited twice. Before Rust, so the port copies a finished look. And
-the audit before the choice, because the other looks are derived from today's, so today's has to be
-right first.
-
-- a design audit of the panel in Codex, the app, the notification-area popup and the notification
-  card, side by side in light and dark, fixing everything that does not yet look like one product -
-  among them every light that says a state and does not move: the panel's 8 px dot on the Automatic
-  recovery tile is still while the status light above it breathes, and the user's rule is that a
-  light which says the product is running does not sit still. The pictures follow: the generator
-  animates one light per picture today, and will animate every light a surface moves,
-- a choice of appearance: today's design, the same without motion, v0.6.2's plainer look (with
-  today's status light), and a fully plain one - each in light and dark,
-- then the advanced features and the two editions above.
+확인 필요와 실패는 한 번 맥박친 뒤 멈춰 있었습니다. 이제 둘 다 그 상태가 이어지는 동안 멈추지 않습니다.
+확인 필요의 주황 불빛은 감시 중의 4.4초보다 느린 5.6초마다 천천히, 실패의 빨간 불빛은 1.2초마다 빠르게
+숨 쉽니다. 전에는 무엇도 실패 상태로 바꾸지 않던 트레이 아이콘과 작업 표시줄 단추가, 이제 복구가 실패하면
+빨개져 머리가 복구 중보다 두 배 빠르게 고리를 따라 쓸고 가면서 깜빡이고, 사용자가 볼 때까지 그대로 있습니다. 움직임 줄이기와 고대비에서는 여전히 모든 불빛이 멈춰 있습니다.
 
 ---
 
-### Compatibility reports from others
+## v0.6.9 — 창의 렉, 그리고 Codex와 함께 시작하기 ✅
 
-The two programs that carry this now exist, outside the product and outside its releases: the
-maintainer's own management program, and
-[codex-compat-reporter](https://github.com/songyb111-gachon/codex-compat-reporter), which anyone can
-run on their own machine to write one report and send it. What is left for v0.6.10 is this
-repository's side of it - the check that reads such a pull request as data, and showing what arrives
-beside a version. None of it can be made up without it showing:
+**공개되었습니다.**
 
-- **A report is what the program measured, not what a person typed.** The program runs the checks on
-  the contributor's own machine and writes the report itself: the Codex version the product read from
-  the engine, the fingerprint of the setup that measured it, each check it ran and its result. The
-  fields a person might be tempted to choose - which tier a version earns, whether a check counts as
-  exercised - are derived from the measurements, and the repository derives them again when the
-  report arrives, so a hand-edited conclusion does not survive.
-- **A report arrives as a pull request, and is checked as data.** A check that runs on every such pull
-  request reads the files without running anything in them, accepts only new files under the
-  contributor's own GitHub name (the one who opened it), rejects a report whose version, fingerprint
-  or dates are not plausible, and refuses a duplicate. A report found to be wrong can be withdrawn,
-  in the open. v0.6.10 still had a maintainer merge each one; since it was released, one that passes
-  is filed with no step by the maintainer, by the rules below.
+먼저, 따로 다룰 만큼의 무게로: 창의 반응성, 곧 창에 아직 남아 있는 렉(몇몇 쪽에서 특히 심합니다)과 영어가
+아닌 모든 언어에서 더 느리게 느껴지는 로딩(v0.6.8 때 알려졌습니다)입니다. 일어나는 곳에서 재고, 원인을 찾아
+고치고, 잰 것은 테스트로 남깁니다. 나누기 뒤가 아니라 앞에 하는 까닭은, 그래야 나누기의 기준 사본이 빨라진
+창을 붙잡고 나누기가 그것을 그대로 옮기기 때문입니다. 뒤에 하면 막 옮긴 코드에서 다시 고쳐야 합니다. 창이
+얼마나 빠른지를 바꾸고, 그것만으로도 릴리스로 낼 만합니다.
 
-  The fingerprint is the setup that measured: the product's own version, the reporting program's and
-  Windows'. Each has to be one that could have written the report - a Codex version the product
-  itself names engines by, a product version that is one of this repository's releases and was out
-  before the report was written, a plain release of the reporting program (three numbers, nothing
-  after them) from 1.0.0 on, Windows 10 or later - and the times have to be ones the machine could
-  have recorded: none before the project existed, none after the report was written, and each
-  record's delivery and outcome after its detection. It names the setup, not the binary. A digest of
-  codex.exe itself, the same on every machine with that build and naming nobody, would tie a report
-  to the exact binary; the report format carries none yet, and adding one needs a new format in both
-  programs, which is this check's next step. The product's own digest is of codex.exe's path, which
-  holds the Windows user name, so it never leaves the machine. A duplicate is a second report for the
-  same GitHub name and Codex version, or a copy: a report with at least one record whose records -
-  their times and states, in order - are those of a report already filed for the same version. A
-  report with no records has nothing to copy and is never refused as one.
-- **What others report is shown, and changes nothing.** It has a grade of its own, *Reported*, which
-  stands beside the ladder of Verified, Checked, Compatible and Failed here and never becomes one of
-  them. It is listed beside the version, with the number of reports that said the same thing - one
-  per GitHub name per Codex version, so a number of reports and not of machines: N reported it
-  working, M reported a failure, K reported nothing either way. A report is counted as worked when at
-  least one of its records was delivered and ended in the state `recovered`; as failed when at least
-  one delivered record ended in `recovery_turn_failed`, `failed` or `terminal_failure`; and as
-  neither when no delivered record ended in either, which includes a report with nothing delivered at
-  all. One report can be counted in both columns when different records say different things, and
-  that is shown rather than resolved, so worked, failed and neither, less the reports counted twice,
-  add up to the reports. Only a filed report counts - one still waiting in a pull request counts
-  nowhere - and a report's own levels and verdict never do. Reported never raises a
-  version to Verified or Checked - a version whose own evidence says nothing stays Compatible however
-  many reports arrive - and it never changes what the product lets itself do: those tiers stay the
-  maintainer's own, earned the way they are today.
+### v0.6.9-alpha ✅ — Codex와 함께 시작하기, 직접 재기 (프리 릴리스)
 
-The reports stay in their own folder, `docs/evidence/community/`, and never enter the compatibility
-data. Only their counts travel, in a file of their own that each release carries beside the
-compatibility data and never inside it: the product reads it to show the counts, and nothing that
-decides reads it at all. No request fetches it - the refresh a person asks for still fetches the
-compatibility data and nothing else - so a count newer than the installed release waits for the next
-one.
+Codex와 함께 시작하기에는 어떤 소스 코드에서도 읽어 낼 수 없는 사실이 두 가지 있습니다. Codex가 플러그인의
+MCP 서버를 언제 시작하는지, 그리고 그 서버가 시작한 워처가 Codex가 닫힐 때 어떻게 되는지입니다. 둘 다 실제
+제품이 도는 컴퓨터만 답할 수 있어서, 스위치와 그것을 재는 장치를 먼저 만들어 **v0.6.9-alpha** 프리 릴리스로
+냈습니다. 그것만으로 릴리스로 낼 만한 단계가 아니라, 개발을 나누어야 해서 생긴 단계입니다. 아무에게도 배달되지
+않습니다. `releases/latest`는 프리 릴리스를 답하지 않고, main에도 없으므로 플러그인 경로로도 오지 않습니다.
+아래의 불빛과 그림 수정도 함께 들어 있습니다.
 
-This is honest about its limit: nothing can prove a report was not fabricated on the contributor's
-own machine. So what others report informs, and only the maintainer's own evidence decides.
+### Codex와 함께 시작하기: 재어 보았고, 내지 않습니다
 
-Filing needs no maintainer. After v0.6.10 was released the repository took over the last step a
-person was taking: `.github/workflows/community-file.yml` files what the check accepts, judged
-again against `main` as it is by then, as `main`'s own regeneration of the report, and tells the
-sender in one comment. The judgement a maintainer applied is written down as rules instead - how
-old the sending account is, one open report per account, how many reports per account and per
-Codex version in a week, how many Codex versions the project's data does not name, a failure on a
-verified version held for the maintainer - and every number they count comes from `main`'s own
-history. It is the repository's work, not a release's: the counts still reach a machine only with
-the next release.
+지금은 Windows에 로그인할 때 워처가 시작됩니다. 다른 선택지, 곧 Codex가 시작될 때 함께 시작하는 것은
+v0.6.9-alpha로 만들어 실제 기계에서 재었습니다. 어떤 소스 코드에서도 읽어 낼 수 없는 사실이 두 가지 있었기
+때문입니다. 2026-09-23, Codex 26.915에서 둘 다 답이 나왔습니다.
 
-The management program stays a program of its own, and its features also come into the advanced
-edition, so a person using that edition can record and submit a report without a second tool. The
-standard edition sends nothing and gains nothing here: a report goes to GitHub only when its author
-opens the pull request.
+- **Codex는 플러그인의 MCP 서버를 언제 시작하는가?** 앱이 열린 뒤 약 22초, 여러 번이고, 도구 목록을 읽은 뒤
+  몇 초 만에 각각을 취소합니다.
+- **그 서버가 시작한 워처는 어떻게 되는가?** 서버와 함께 죽습니다. Codex는 MCP 서버를 `KILL_ON_JOB_CLOSE`가
+  걸려 있고 `BREAKAWAY_OK`는 없는 Windows 작업 개체 안에서 돌립니다. 그래서 거기서 시작된 프로세스는 작업
+  개체를 떠날 수 없고, 작업 개체가 닫힐 때 함께 끝납니다. 여섯 번 시작했고, 여섯 워처 모두 약 6초 안에
+  사라졌습니다.
+
+시작한 지 몇 초 만에 죽는 워처가 계속 되풀이되는 것은 이 제품이 지향하는 것의 정반대입니다. 한 틱 중간에 멈춘
+워처는 이어가기를 보냈는지 증명할 수 없기 때문입니다. 그래서 이 스위치는 제공하지 않습니다.
+`Control.start_for_codex`는 작업 개체가 워처를 끝낼 상황이면 시작하지 않고, 작업 개체가 무엇이라고 했는지를
+`logs/codex-start.log`에 적습니다. 다음 Codex는 그 한 줄로 다시 잴 수 있고, 고급판은 v0.6.11에서 이것을 제대로
+만듭니다. 호스트의 작업 개체 밖에서 프로세스를 시작하는 일이야말로 그 판이 사람에게 켜게 해 주려는 것입니다.
+
+### 더 짧은 README
+
+README가 천 줄 가까이 길어졌습니다. README는 짧은 안내 - 이 제품이 하는 일, 설치 방법, 알아야 할 제한 하나,
+나머지가 있는 곳 - 가 되고, 전체 내용은 그대로 [안내서](GUIDE.md)로 옮깁니다. 두 언어 모두 그렇습니다.
 
 ---
 
-## v0.6.11 — Advanced features in two editions
+## v0.6.10 — Python 모듈화, 매듭지은 디자인, 그리고 남의 보고를 위한 등급 ✅
 
-**Next.**
+**공개되었습니다.**
 
 
-v0.6.11 arrives in stages. **v0.6.11-alpha**, a pre-release, is the ground both editions stand on
-and nothing else: the two editions built, audited and published together, updates that stay in
-their edition, the places where core asks, and the advanced edition's own state, switches and
-measurements - with no capability yet to switch on. That is not a release on its own, and
-everything after it is built on it. The final **v0.6.11** is the capabilities themselves.
+v0.6.10은 두 단계로 나옵니다. 프리 릴리스인 **v0.6.10-alpha**는 모듈화뿐이고, 최종 **v0.6.10**은 알파가
+남긴 경계 위에서 하는 디자인 점검과 모양 고르기, 그리고 새 등급 보고됨입니다. 프리 릴리스는 정식 버전으로 내기에는 애매하지만 개발을
+단계로 나누어야 할 때 씁니다. 모듈화가 그렇습니다. 누가 볼 수 있는 변화가 없어 그것만으로는 릴리스로 낼 만하지
+않지만, 그 위에 올릴 것보다 먼저 끝내고 내야 합니다. 디자인은 그 반대입니다. 모든 것의 생김새를 바꾸므로
+릴리스입니다.
 
-### v0.6.11-alpha 🚧 — The ground both editions stand on (a pre-release)
+### v0.6.10-alpha ✅ — Python 모듈화 (프리 릴리스)
 
-In development; what it carries is in [CHANGELOG.md](CHANGELOG.md). Its release asks the owner's
-machine two things no test can: an install from standard to advanced and back, keeping state and
-turning every capability off, and the measurements that decide which capabilities can be offered
-as built.
+알파는 Python 구현의 구조를 크게 정리하는 단계입니다. 앞선 계획에서는 v0.6.5의 중심이었고, 그다음에는
+v0.6.8과 v0.6.9의 중심이었습니다. v0.6.5에 그 기반이 들어갔고, 실제로 나누는 작업은 여기서 했습니다. 알파부터는
+다시 줄 수 한도를 지키며, 한도를 넘는 모듈은 없습니다.
 
-v0.6.11 goes further than every release so far. It is planned to offer, aggressively, as many
-capabilities as any comparable program does, and more: before it is built, the tools that do anything
-like this are surveyed, and everything any of them offers goes on the list.
+무엇이든 옮기기 전에:
 
-Two rules, the user's own:
+- 창과 Codex 안의 패널이 받는 응답의 기준 사본. 나누는 작업이 한 바이트라도 바꾸면 실패합니다
+- 여러 번 적혀 있던 규칙을 하나로 모으기, 공통 식별자와 용어, 계층 사이의 타입이 정해진 계약
 
-- **Everything the product does today keeps today's constraints.** Nothing it already does is
-  loosened, and the default does not change - it never sends a continuation again when the first
-  may already have been delivered, as it never has.
-- **Everything those constraints made impossible is built, and only those who want it use it.** Each
-  such capability is off until a person turns it on, one by one, and says plainly what it does before
-  they do - sending again when the first may have been delivered included. The limits the earlier
-  plan put on what may be offered this way - only what is proven safe, availability for VERIFIED
-  Codex versions only, "candidates, not guaranteed" - no longer bind it.
+주요 목표:
 
-### Two editions, released together
+- 너무 커진 모듈 나누기
+- 책임을 더 분명하게 가르기
+- 엔진, 상태, 저장소, 어댑터, 제어 계층 사이의 경계 분명히 하기
+- 중복 없애기
+- 타입이 정해진 계약 강화하기
+- 순수하고 테스트하기 쉬운 로직을 더 많이 떼어 내기
+- 뒤에 올 Rust 이전을 위해 깔끔한 경계 마련하기
 
-A switch that is off is still code that is there. If the new capabilities shipped inside the one
-product, what has set it apart from the start - that it never sends a continuation twice, that it
-reads and sends through exactly one conversation, that it fails closed - would hold only while a
-setting said so, not in the code. So from v0.6.11 there are two editions, built from one repository
-and released at the same time, with the same version:
+창의 가장 큰 C# 파일들도 같은 방식의 안전망을 먼저 두고 나눌 수 있습니다.
 
-- **Standard** is the product as it is. The new capabilities are not in it at all: their code is
-  left out of its archive, and a test proves the archive it builds holds none of it.
-- **Advanced** is everything, each new capability off until its user turns it on.
+GitHub에서 저장소의 첫 화면도 같은 단계에서 정리합니다. 어차피 경로가 옮겨지는 때에, 최상위에 놓인
+파일을 줄입니다.
 
-Each has its own archive, pinned digest and build attestation. An installation updates within its
-edition only; moving between them is a deliberate reinstall, never an update. The Rust core carries
-both (v0.6.13).
+이 리팩터링 중에 발견한 버그는 회귀 테스트와 함께 고치지만, 알파는 **저장소 전체를 샅샅이
+뒤지는 버그 찾기를 목표로 하지 않습니다**. 그것은 v0.6.12가 합니다. 알파는 모듈화뿐이고, 기능도, 누가 볼 수
+있는 변화도 없습니다.
 
-Where the list starts, from the earlier plan:
+알파에 들어간 것: 한도를 넘던 모듈은 계획한 배치의 패키지가 되었습니다. `codex/`, `win/`, `domain/`,
+`runtime/`, `commands/`, `compat/`, `ui/card/` 등이며, 옛 모듈은 앞면으로 남아 가지고 있던 이름을 모두 그대로
+내보내고, 남은 import 순환은 없습니다. 창과 패널이 받는 응답은 타입으로 적어 두고 기준 사본과 양쪽으로 맞춰
+봅니다. 창의 손으로 쓴 C# 파일 세 개는 열여덟 개가 되어 `gui/window.sources`에 반쪽별로 묶였고, 기여 문서는
+`docs/`로 옮겼습니다. `tests/test_stack.py`는 모든 모듈이 어느 Rust 부분이 되는지 적어 두고, 그 자리가 더는
+맞지 않으면 실패합니다.
 
-- notLoaded recovery,
-- empty-response recovery,
-- Goal-like continuation,
-- subagent recovery,
-- every further failure category that can be recovered,
-- broader recovery wherever Codex allows it.
 
-### Compatibility reports from others
+### v0.6.10 ✅ — 디자인 점검과 모양 고르기
 
-The grade itself, and everything this repository does with a report, is v0.6.10's, above.
-What belongs here is the advanced edition's own half of it: that edition records and sends a
-report without a second program, so a person using it needs no separate tool. The standard
-edition sends nothing and gains nothing here - a report goes to GitHub only when its author
-opens the pull request.
+최종 v0.6.10은 디자인을 매듭짓는 일과, 그와 함께 오는 낱말 하나(아래의 보고됨)입니다. 릴리스로 낼 만하니 릴리스로 냅니다. 모든 화면의 생김새를
+바꾸는 일이고, 그것이야말로 사람이 보는 것이기 때문입니다. 여기에 두는 까닭은 넷입니다. 알파 뒤인 것은 네 가지
+모양을 밝게·어둡게 만드는 일이 그리기 코드가 모듈로 나뉜 뒤라야 안전해서입니다. 두 판보다 앞인 것은 두 판이
+하나의 매듭지어진 디자인을 물려받게 하기 위해서이고, 그래야 같은 점검을 두 번 하지 않습니다. Rust보다 앞인 것은
+이전이 완성된 모양을 그대로 옮기게 하기 위해서입니다. 그리고 점검이 고르기보다 먼저인 것은, 다른 모양들을 지금
+디자인에서 끌어내므로 지금 디자인이 먼저 옳아야 하기 때문입니다.
 
----
-
-## v0.6.12 — The final Python audit, both editions
-
-v0.6.12 is the last Python release: the whole repository, both editions, through its bug hunt, and
-the Python reference implementation the Rust migration reproduces.
-
-v0.6.12 is planned as the final comprehensive audit of the Python implementation, in both editions.
-
-Unlike v0.6.10-alpha's refactoring, it is intentionally a broad bug hunt.
-
-Expected areas include:
-
-- state machine behavior,
-- race conditions and concurrency,
-- retry and recovery-chain accounting,
-- SQLite and schema migration,
-- crash and restart behavior,
-- installer / update / repair / uninstall,
-- MCP / Tray / Dashboard / CLI,
-- Windows process lifecycle,
-- sleep / resume,
-- malformed, stale, or corrupted state,
-- fault injection,
-- real Codex integration,
-- Advanced / Experimental recovery paths,
-- responsiveness, in every language: whatever lag v0.6.9 left,
-- both editions, and that the standard one still holds none of the advanced code.
-
-Confirmed bugs should receive regression tests.
-
-The resulting behavior becomes the:
-
-> **final Python reference implementation**
-
-for the Rust migration.
+- Codex 안의 패널, 앱, 알림 영역 팝업, 알림 카드를 밝게·어둡게 나란히 놓고 하나의 제품처럼 보이지 않는
+  곳을 모두 고치는 디자인 점검. 상태를 말하면서 움직이지 않는 불빛도 여기에 들어갑니다. 패널의 자동 복구
+  타일에 있는 8px 점은 그 위의 상태등이 숨 쉬는 동안 멈춰 있는데, 제품이 돌고 있다고 말하는 불빛은 가만히
+  있지 않는다는 것이 사용자의 규칙입니다. 그림도 따라갑니다. 생성기는 지금 한 화면에 불빛 하나만
+  움직이지만, 그 화면이 움직이는 모든 불빛을 움직이게 합니다
+- 모양 고르기: 지금 디자인, 같은 디자인에서 움직임 없이, v0.6.2의 단순한 모양(상태 불빛은 지금
+  방식), 완전히 단순한 모양. 모두 밝게와 어둡게 지원
+- 그다음에 위의 고급 기능과 두 판
 
 ---
 
-## v0.6.13 — Rust: the core replaced as it is, then made Rust-native
+### 다른 사람의 호환성 보고
 
-v0.6.13 arrives in two stages too: **v0.6.13-alpha**, a pre-release, replaces the production Python
-core with Rust as it is; the final **v0.6.13** is that core made naturally Rust-oriented. The alpha is
-a pre-release because the core swapped as it is is a stage on the way to the Rust-native one, not a
-release worth having on its own.
+이 일을 맡을 프로그램 두 개는 이미 있습니다. 제품 바깥, 릴리스 바깥입니다. 하나는 관리자 자신의 관리용
+프로그램이고, 다른 하나는 누구나 자기 컴퓨터에서 돌려 보고 하나를 쓰고 보낼 수 있는
+[codex-compat-reporter](https://github.com/songyb111-gachon/codex-compat-reporter)입니다. 이번 릴리스에 남은 것은
+이 저장소 쪽입니다. 그런 풀 리퀘스트를 데이터로만 읽는 검사와, 도착한 것을 버전 옆에 보여 주는 일입니다.
+어느 보고도 티 나지 않게 지어낼 수는 없습니다.
 
-### v0.6.13-alpha — Complete Rust core replacement (a pre-release)
+- **보고는 사람이 적은 것이 아니라 프로그램이 잰 것입니다.** 프로그램이 기여자의 컴퓨터에서 직접 점검을 돌리고
+  보고를 스스로 씁니다. 제품이 엔진에서 읽어 낸 Codex 버전, 그것을 잰 환경의 지문, 돌린 점검 하나하나와 그
+  결과입니다. 사람이 고르고 싶어질 만한 항목 - 그 버전이 어느 등급을 받는지, 점검이 실제로 실행된 것으로
+  치는지 - 은 측정에서 끌어내며, 보고가 도착하면 저장소가 그것을 다시 끌어내므로 손으로 고친 결론은 남지
+  않습니다.
+- **보고는 풀 리퀘스트로 오고, 데이터로만 검사합니다.** 그런 풀 리퀘스트마다 도는 검사는 파일 안의 어떤 것도
+  실행하지 않고 읽기만 하며, 기여자 자신의 GitHub 이름(풀 리퀘스트를 연 사람) 아래의 새 파일만 받고, 버전·지문·
+  날짜가 그럴듯하지 않은 보고와 중복된 보고는 거절합니다. 틀린 것으로 드러난 보고는 공개적으로 철회할 수
+  있습니다. v0.6.10까지는 관리자가 하나하나 합쳤고, 그 릴리스가 나온 뒤로는 통과한 보고를 관리자의 손 없이
+  아래 규칙대로 접수합니다.
 
-The alpha is planned to replace the production Python core with Rust, as it is.
+  지문은 잰 환경입니다. 제품 자신의 버전, 보고 프로그램의 버전, Windows의 버전입니다. 각각이 그 보고를 쓸 수
+  있었던 것이어야 합니다. Codex 버전은 제품이 엔진 이름을 붙일 때 쓰는 형식이어야 하고, 제품 버전은 이 저장소의
+  릴리스 가운데 하나이면서 보고를 쓰기 전에 나와 있었어야 하며, 보고 프로그램의 버전은 1.0.0 이상의 정식
+  릴리스 번호(숫자 셋, 뒤에 아무것도 붙지 않음)여야 하고, Windows는 10 이상이어야 합니다. 시각도 그
+  컴퓨터가 기록할 수 있었던 것이어야 합니다. 프로젝트가 생기기 전의 시각도, 보고를 쓴 뒤의 시각도 안 되며, 각
+  기록의 전달과 결과는 감지보다 뒤여야 합니다. 지문은 환경을 가리킬 뿐 실행 파일 자체를 가리키지는 않습니다.
+  codex.exe 자체의 다이제스트는 같은 빌드라면 어느 컴퓨터에서나 같고 누구도 가리키지 않으므로 보고를 바로 그
+  실행 파일에 묶어 줄 수 있지만, 보고 형식에는 아직 그것이 없고 넣으려면 두 프로그램 모두에 새 형식이 필요합니다.
+  그것이 이 검사의 다음 단계입니다. 제품이 스스로 만드는 다이제스트는 codex.exe 경로의 것이고, 경로에는 Windows
+  사용자 이름이 들어 있으므로 컴퓨터 밖으로 나가지 않습니다. 중복이란 같은 GitHub 이름과 같은 Codex 버전의 두 번째
+  보고이거나 복사본입니다. 복사본은 기록이 하나 이상 있고, 그 기록들 - 시각과 상태, 그 순서까지 - 이 같은 버전으로
+  이미 접수된 보고의 것과 같은 보고입니다. 기록이 없는 보고는 복사할 것이 없으므로 복사본으로 거절되지 않습니다.
+- **다른 사람의 보고는 보여 주기만 하고, 아무것도 바꾸지 않습니다.** 보고는 자기 등급인 *보고됨*을 가지며,
+  검증됨·점검됨·호환됨·이 PC에서 실패의 사다리 옆에 서고 어떤 경우에도 그중 하나가 되지 않습니다. 버전 옆에,
+  같은 말을 한 보고가 몇 건인지와 함께 놓입니다. 보고는 GitHub 이름 하나와 Codex 버전 하나마다 한 건이므로, 이
+  숫자는 컴퓨터의 수가 아니라 보고의 수입니다. N건이 동작을, M건이 실패를, K건이 어느 쪽도 보이지 않음을
+  보고했다는 식입니다. 보고 하나는 전달된 기록 가운데 하나라도 `recovered` 상태로 끝났으면 동작으로 세고,
+  전달된 기록 가운데 하나라도 `recovery_turn_failed`·`failed`·`terminal_failure`로 끝났으면 실패로 세며,
+  전달된 기록 가운데 그 어느 쪽으로도 끝난 것이 없으면 어느 쪽도 아님으로 셉니다. 아무것도 전달되지 않은 보고도
+  여기에 듭니다. 한 보고 안에서 기록들이 서로 다른 말을 하면 그 보고는 두 칸 모두에 셀 수 있고, 그것은 정리하지
+  않고 그대로 보여 줍니다. 그래서 동작·실패·어느 쪽도 아님을 더하고 두 번 센 보고를 빼면 보고의 수가 됩니다.
+  접수된 보고만 셉니다. 아직 풀 리퀘스트에서 기다리는 보고는 어디에도 세지 않고, 보고가 스스로 적은 등급과
+  판정도 세지 않습니다. 보고됨은 어떤 버전도 검증됨이나 점검됨으로 올리지 않고 - 그 버전의 자체 근거가 아무 말도
+  하지 않으면 보고가 몇 건 오든 호환됨으로 남습니다 - 제품이 스스로 할 수 있는 일도 바꾸지 않습니다. 그 등급은
+  지금처럼 관리자가 직접 얻은 근거로만 매깁니다.
 
-The migration may happen incrementally during development, but the release itself is intended
-to switch to the completed Rust core rather than ship a long-lived mixed Python/Rust product.
+보고는 자기 폴더인 `docs/evidence/community/`에 머물고 호환성 데이터에는 들어가지 않습니다. 옮겨 가는 것은 그
+수뿐이며, 그것도 릴리스마다 들어 있는 별도의 파일로 호환성 데이터 옆에 있을 뿐 그 안에 있지 않습니다. 제품은 그
+수를 보여 주려고만 그 파일을 읽고, 무언가를 결정하는 부분은 전혀 읽지 않습니다. 그 파일을 가져오는 요청은
+없습니다. 사람이 요청하는 새로 고침은 여전히 호환성 데이터만 가져오므로, 설치된 릴리스보다 새로운 수는 다음
+릴리스를 기다립니다.
 
-The rule is:
+한계도 솔직하게 적습니다. 기여자 자신의 컴퓨터에서 보고를 지어내지 않았다는 것까지 증명할 방법은 없습니다.
+그래서 다른 사람의 보고는 참고가 되고, 결정은 관리자 자신의 근거만 합니다.
 
-> **Replace the implementation, not the behavior.**
+접수에는 관리자가 필요 없습니다. v0.6.10이 나온 뒤 저장소가 사람이 하던 마지막 단계를 넘겨받았습니다.
+`.github/workflows/community-file.yml`이 확인을 통과한 것을 그때의 `main`을 기준으로 다시 판정해, `main`이
+스스로 다시 만든 보고서로 접수하고, 보낸 사람에게 댓글 하나로 알립니다. 관리자가 하던 판단은 대신 규칙으로
+적었습니다. 보낸 계정이 얼마나 오래되었는지, 계정마다 열린 보고 하나, 한 주에 계정마다와 Codex 버전마다 몇 건,
+프로젝트의 데이터가 이름을 대지 않는 Codex 버전이 몇 개인지, 그리고 검증된 버전의 실패는 관리자에게 맡기는
+것입니다. 이 규칙들이 세는 모든 수는 `main` 자신의 기록에서 나옵니다. 이것은 릴리스가 아니라 저장소의
+일이므로, 그 수가 컴퓨터에 닿는 것은 여전히 다음 릴리스와 함께입니다.
 
-The Rust implementation should reproduce the final v0.6.12 as closely as practical.
+관리용 프로그램은 따로 된 프로그램으로 남고, 그 기능은 고급판에도 들어갑니다. 고급판을 쓰는 사람은 두 번째 도구
+없이 보고를 기록하고 낼 수 있습니다. 기본판은 여기서 보내는 것도 더해지는 것도 없습니다. 보고는 작성자가 풀
+리퀘스트를 열 때만 GitHub로 갑니다.
 
-Goals include:
+---
 
-- Python/Rust differential testing,
-- existing database compatibility,
-- existing settings compatibility,
-- preservation of Conservative and Advanced behavior, and of the two editions: the standard one
-  built without the advanced code at all,
-- preservation of Compatibility Registry semantics,
-- preservation of exact-thread and fail-closed safety guarantees,
-- removal of the production Python core/runtime when ready.
+## v0.6.11 — 두 판의 고급 기능
 
-The Windows UI is **not** planned to move to Rust.
+**다음 릴리스입니다.**
 
-The intended stack is:
+
+v0.6.11은 단계로 나뉘어 나옵니다. 프리 릴리스인 **v0.6.11-alpha**는 두 판이 딛고 설 바탕이고 그
+밖의 것은 없습니다. 두 판을 함께 빌드하고 감사하고 게시하는 것, 업데이트가 제 판 안에 머무는 것, 코어가
+묻는 자리들, 그리고 고급판 자신의 상태와 스위치와 측정입니다. 아직 켤 수 있는 기능은 없습니다. 그 자체로는
+릴리스가 아니고, 그 뒤의 모든 것이 이 위에 지어집니다. 최종 **v0.6.11**이 기능 자체입니다.
+
+### v0.6.11-alpha 🚧 — 두 판이 딛고 설 바탕 (프리 릴리스)
+
+개발 중입니다. 무엇이 들어 있는지는 [CHANGELOG.md](CHANGELOG.md)에 있습니다. 이 릴리스는 어떤
+테스트도 할 수 없는 두 가지를 관리자의 컴퓨터에서 확인합니다. 표준판에서 고급판으로 갔다가 돌아오는 설치가
+상태를 지키고 모든 기능을 끈 채로 되는지, 그리고 어떤 기능을 만든 그대로 내놓을 수 있는지 정하는
+측정입니다.
+
+v0.6.11은 지금까지의 어느 릴리스보다 멀리 갑니다. 비슷한 프로그램들이 제공하는 기능을 모두, 그리고 그
+이상을 공격적으로 제공할 계획입니다. 만들기 전에 이런 일을 하는 도구들을 살펴보고, 그중 어느 하나라도 제공하는
+기능은 모두 목록에 올립니다.
+
+사용자가 정한 두 원칙을 따릅니다.
+
+- **지금까지의 기능은 지금의 제약을 그대로 지킵니다.** 이미 하고 있는 일은 하나도 느슨해지지 않고, 기본값도
+  바뀌지 않습니다. 처음 보낸 이어가기가 이미 전달됐을 수도 있으면 다시 보내지 않는 것도 늘 그랬듯 그대로입니다.
+- **지금의 제약에서는 만들 수 없었던 기능은 모두 만들되, 원하는 사용자만 씁니다.** 그런 기능은 사람이 하나씩
+  켜기 전까지 꺼져 있고, 켜기 전에 무엇을 하는지 분명히 말합니다. 이미 전달됐을 수도 있을 때 다시 보내는 것도
+  그렇게 켤 수 있습니다. 앞선 계획이 이렇게 제공할 수 있는 것에 두었던 제약 - 안전이 증명된 것만, VERIFIED인
+  Codex 버전에서만, "후보일 뿐 보장하지 않음" - 은 더 이상 이 릴리스를 묶지 않습니다.
+
+### 두 판을 함께 냅니다
+
+꺼 둔 스위치도 코드는 거기 있습니다. 새 기능을 한 제품 안에 넣어 내면, 처음부터 이 제품을 다르게 만든 것 -
+이어가기를 두 번 보내지 않고, 정확히 한 대화로만 읽고 보내며, 실패하면 닫힌다는 것 - 이 코드가 아니라 설정 하나로만
+지켜지게 됩니다. 그래서 v0.6.11부터는 한 저장소에서 두 판을 만들어, 같은 버전으로 동시에 냅니다.
+
+- **기본판**은 지금의 제품 그대로입니다. 새 기능은 아예 들어 있지 않습니다. 그 코드는 이 판의 압축 파일에서
+  빠지고, 만들어진 압축 파일에 그것이 하나도 없음을 테스트가 증명합니다.
+- **고급판**에는 모두 들어 있고, 새 기능은 사용자가 하나씩 켜기 전까지 꺼져 있습니다.
+
+판마다 압축 파일, 고정된 해시, 빌드 증명이 따로 있습니다. 설치본은 같은 판 안에서만 업데이트되고, 다른 판으로
+옮기는 것은 업데이트가 아니라 일부러 하는 재설치입니다. Rust 코어도 두 판을 그대로 이어받습니다(v0.6.13).
+
+목록은 앞선 계획의 후보에서 시작합니다.
+
+- notLoaded 복구
+- 빈 응답 복구
+- Goal과 비슷한 이어서 하기
+- 하위 에이전트 복구
+- 복구할 수 있는 모든 장애 종류
+- Codex가 허락하는 모든 곳에서의 더 넓은 복구
+
+### 다른 사람의 호환성 보고
+
+등급 자체와, 이 저장소가 보고로 하는 일은 모두 위의 v0.6.10에 있습니다. 여기에 남는 것은 고급판의
+몫입니다. 고급판은 두 번째 프로그램 없이 스스로 보고를 기록하고 보내므로, 그 판을 쓰는 사람은 별도
+도구가 필요하지 않습니다. 기본판은 여기서 아무것도 보내지 않고 아무것도 얻지 않습니다. 보고는 그것을
+쓴 사람이 풀 리퀘스트를 열 때에만 깃허브로 갑니다.
+
+---
+
+## v0.6.12 — Python 최종 감사, 두 판 모두
+
+v0.6.12는 마지막 Python 릴리스입니다. 저장소 전체를 두 판 모두 버그 찾기에 거치게 하고, Rust 이전이 그대로
+재현할 Python 참조 구현이 됩니다.
+
+v0.6.12는 두 판 모두에 걸쳐 Python 구현을 마지막으로 종합 감사하는 릴리스로 계획하고 있습니다.
+
+v0.6.10-alpha의 리팩터링과 달리 이 릴리스는 일부러 넓게 버그를 찾습니다.
+
+살펴볼 영역은 다음과 같습니다.
+
+- 상태 기계 동작
+- 경합 조건과 동시성
+- 재시도와 연쇄 복구 횟수 계산
+- SQLite와 스키마 마이그레이션
+- 충돌과 재시작 때의 동작
+- 설치 / 업데이트 / 설치 고치기 / 제거
+- MCP / 알림 영역 / 대시보드 / CLI
+- Windows 프로세스 수명 주기
+- 절전 / 절전 해제
+- 형식이 잘못되었거나, 낡았거나, 손상된 상태
+- 결함 주입
+- 실제 Codex와의 연동
+- 고급 / 실험적 복구 경로
+- 모든 언어에서의 반응성: v0.6.9가 남긴 렉이 있다면 그것
+- 두 판 모두, 그리고 기본판에 여전히 고급 코드가 하나도 없는지
+
+확인된 버그에는 회귀 테스트를 붙입니다.
+
+그렇게 다듬어진 동작이 Rust 이전의 기준이 되는
+
+> **최종 Python 참조 구현**
+
+이 됩니다.
+
+---
+
+## v0.6.13 — Rust: 코어를 그대로 교체하고, 그다음 Rust답게
+
+v0.6.13도 두 단계로 나옵니다. 프리 릴리스인 **v0.6.13-alpha**는 제품의 Python 코어를 그대로 Rust로 바꾸고,
+최종 **v0.6.13**은 그 코어를 자연스럽게 Rust다운 모습으로 만듭니다. 알파를 프리 릴리스로 내는 까닭은, 그대로 옮긴
+코어가 Rust다운 코어로 가는 길의 한 단계일 뿐 그것만으로 낼 만한 릴리스가 아니기 때문입니다.
+
+### v0.6.13-alpha — Rust 코어로 완전히 교체 (프리 릴리스)
+
+알파에서는 제품에 들어가는 Python 코어를 그대로 Rust로 바꿀 계획입니다.
+
+개발하는 동안에는 조금씩 옮길 수 있지만, 릴리스 자체는 Python과 Rust가 오래 섞인 제품을 내놓는 대신
+완성된 Rust 코어로 한 번에 넘어가는 것을 목표로 합니다.
+
+규칙은 하나입니다.
+
+> **동작이 아니라 구현을 바꾼다.**
+
+Rust 구현은 최종 v0.6.12의 동작을 현실적으로 가능한 한 그대로 재현해야 합니다.
+
+목표:
+
+- Python/Rust 차등 테스트
+- 기존 데이터베이스와의 호환
+- 기존 설정과의 호환
+- Conservative와 Advanced 동작 보존, 그리고 두 판의 보존. 기본판은 고급 코드 없이 만들어집니다
+- 호환성 레지스트리의 의미 보존
+- 정확한 스레드와 실패하면 닫힘(fail closed)이라는 안전 보장 보존
+- 준비가 되면 제품에서 Python 코어와 런타임 제거
+
+Windows UI는 Rust로 옮길 **계획이 없습니다**.
+
+의도한 구성은 다음과 같습니다.
 
 ```text
 C# / .NET
-- Dashboard
-- Settings
-- Tray
-- Notifications
-- Native Windows UI
+- 대시보드
+- 설정
+- 알림 영역
+- 알림
+- 네이티브 Windows UI
 
         │
         ▼
 
 Rust
-- Watcher
-- Recovery engine
-- Classifier / Policy
-- State machine
-- Scheduler / Reconciliation
-- Persistence
-- Codex adapters
-- Control / MCP backend
+- 워처
+- 복구 엔진
+- 분류기 / 정책
+- 상태 기계
+- 스케줄러 / 상태 맞추기
+- 영속 저장
+- Codex 어댑터
+- 제어 / MCP 백엔드
 ```
 
-PowerShell may remain as a thin layer for bootstrap, installation, updating, or similar Windows
-deployment work.
+PowerShell은 부트스트랩, 설치, 업데이트 같은 Windows 배포 작업을 맡는 얇은 계층으로 남을 수
+있습니다.
 
-### v0.6.13 — Rust-native restructuring and optimization
+### v0.6.13 — Rust다운 구조 재편과 최적화
 
-The alpha prioritizes behavioral parity.
+알파는 동작을 똑같이 맞추는 것을 먼저 챙깁니다.
 
-That may leave some Python-shaped architecture inside the first Rust implementation.
+그래서 첫 Rust 구현에는 Python 모양 그대로인 구조가 어느 정도 남을 수 있습니다.
 
-The final v0.6.13 is planned to make the codebase more naturally Rust-oriented.
+최종 v0.6.13에서는 코드베이스를 더 자연스럽게 Rust다운 모습으로 바꿀 계획입니다.
 
-Potential work includes:
+해 볼 만한 작업:
 
-- ownership-oriented data flow,
-- stronger enums and newtypes,
-- clearer error types,
-- improved concurrency architecture,
-- cleaner module / crate boundaries,
-- removing unnecessary cloning and serialization,
-- cleaner SQLite / IPC / process abstractions,
-- removal of Python-era structural assumptions,
-- startup, memory, and performance improvements.
+- 소유권 중심의 데이터 흐름
+- 더 강한 enum과 newtype
+- 더 분명한 오류 타입
+- 더 나은 동시성 구조
+- 더 깔끔한 모듈 / crate 경계
+- 불필요한 복제와 직렬화 없애기
+- 더 깔끔한 SQLite / IPC / 프로세스 추상화
+- Python 시절 구조에서 온 가정 걷어 내기
+- 시작 속도, 메모리, 성능 개선
 
-Bugs found during this restructuring will be fixed with regression tests.
+이 재편 중에 발견한 버그는 회귀 테스트와 함께 고칩니다.
 
-This is not intended to be the final full-system bug hunt.
-
----
-
-## v0.6.14 — Final Rust audit and stabilization: the Rust bug hunt
-
-v0.6.14 is planned as the final comprehensive stabilization pass.
-
-Expected focus includes:
-
-- race conditions and deadlocks,
-- panic paths,
-- thread / handle / memory / resource leaks,
-- process lifecycle,
-- SQLite transaction behavior,
-- IPC and control protocol,
-- long-running watcher stability,
-- restart and sleep / resume,
-- Explorer restart,
-- installer / update / repair / uninstall,
-- malformed or corrupted state,
-- Compatibility Registry cache/offline/failure behavior,
-- Advanced / Experimental capabilities,
-- real Codex recovery,
-- fuzz or property testing where useful.
-
-The intended result is the:
-
-> **final stable Rust baseline**
-
-for the project.
+시스템 전체를 대상으로 하는 마지막 버그 찾기는 이 릴리스의 목표가 아닙니다.
 
 ---
 
-## Long-term direction
+## v0.6.14 — Rust 최종 감사와 안정화: Rust 버그 찾기
 
-The intended final stack is:
+v0.6.14는 마지막 종합 안정화 작업으로 계획하고 있습니다.
 
-- **Rust** — recovery core and backend
-- **C# / .NET** — native Windows UI
-- **minimal PowerShell** — deployment-related work where it remains useful
+중점적으로 볼 것은 다음과 같습니다.
 
-There is currently **no planned v0.7.0 feature cycle**.
+- 경합 조건과 교착 상태
+- panic 경로
+- 스레드 / 핸들 / 메모리 / 리소스 누수
+- 프로세스 수명 주기
+- SQLite 트랜잭션 동작
+- IPC와 제어 프로토콜
+- 오래 실행되는 워처의 안정성
+- 재시작과 절전 / 절전 해제
+- 탐색기(Explorer) 재시작
+- 설치 / 업데이트 / 설치 고치기 / 제거
+- 형식이 잘못되었거나 손상된 상태
+- 호환성 레지스트리의 캐시 / 오프라인 / 실패 시 동작
+- 고급 / 실험적 기능
+- 실제 Codex 복구
+- 쓸모가 있는 곳에서는 퍼징이나 속성 기반 테스트
 
-After v0.6.14, the project is expected to move primarily into maintenance:
+그 결과가 이 프로젝트의
 
-- Codex compatibility updates,
-- Compatibility Registry updates,
-- bug fixes,
-- security fixes,
-- changes required by future Codex behavior.
+> **최종 안정 Rust 기준선**
+
+이 됩니다.
 
 ---
 
-## Summary
+## 장기 방향
+
+의도한 최종 구성은 다음과 같습니다.
+
+- **Rust** — 복구 코어와 백엔드
+- **C# / .NET** — 네이티브 Windows UI
+- **최소한의 PowerShell** — 여전히 쓸모 있는 배포 관련 작업
+
+지금은 **v0.7.0 기능 개발 주기를 계획하고 있지 않습니다**.
+
+v0.6.14 이후에는 주로 유지 보수 단계로 넘어갈 것으로 봅니다.
+
+- Codex 호환성 업데이트
+- 호환성 레지스트리 업데이트
+- 버그 수정
+- 보안 수정
+- 앞으로 Codex 동작이 바뀌면서 필요해지는 변경
+
+---
+
+## 요약
 
 ```text
-v0.6.3  ✅ Released
-Feature / UX expansion
+v0.6.3  ✅ 출시됨
+기능 / UX 확장
 
         ↓
 
-v0.6.4  ✅ Released
-UI design consistency
-Light and dark themes
-Settings / Tray / MCP unification
-UI lag reduction
+v0.6.4  ✅ 출시됨
+UI 디자인 일관성
+밝은 테마와 어두운 테마
+설정 / 알림 영역 / MCP 통일
+UI 지연 줄이기
 
         ↓
 
-v0.6.5  ✅ Released
-Codex Compatibility Registry
-+ icon motion, notification card, UI polish
-+ groundwork for the Python split
+v0.6.5  ✅ 출시됨
+Codex 호환성 레지스트리
++ 아이콘 움직임, 알림 카드, 화면 다듬기
++ Python 구조 정리의 기반
 
         ↓
 
-v0.6.6  ✅ Released
-The light softened
-+ a taskbar button that moves where it is installed
+v0.6.6  ✅ 공개됨
+은은해진 상태등
++ 설치된 곳에서도 움직이는 작업 표시줄 단추
 
         ↓
 
-v0.6.7  ✅ Released
-Compatibility in tiers: Verified, Checked, Compatible
-+ Failed here, and a notification card that breathes
+v0.6.7  ✅ 공개됨
+단계로 나눈 호환성: 검증됨, 점검됨, 호환됨
++ 이 PC에서 실패, 숨 쉬는 알림 카드
 
         ↓
 
-v0.6.8  ✅ Released
-The tray icon without its badge
-+ attention breathing slowly, a failure moving quickly
+v0.6.8  ✅ 공개됨
+배지 없는 트레이 아이콘
++ 천천히 숨 쉬는 확인 필요, 빠르게 움직이는 실패
 
         ↓
 
-v0.6.9  ✅ Released
-The window's lag, measured
-+ starting with Codex: measured and not shipped, and a shorter README
+v0.6.9  ✅ 공개됨
+창의 렉, 재어서 고침
++ Codex와 함께 시작하기: 재어 보고 내지 않음, 더 짧은 README
 
         ↓
 
-v0.6.10-alpha → v0.6.10  ✅ Released
-Python modularization and a tidier landing page on GitHub, in a pre-release
-+ the design settled, four designs and the Reported grade, in the final
+v0.6.10-alpha → v0.6.10  ✅ 공개됨
+Python 모듈화와 GitHub 첫 화면 정리, 프리 릴리스로
++ 매듭지은 디자인, 네 가지 모양, 보고됨 등급, 최종판으로
 
         ↓
 
 v0.6.11-alpha → v0.6.11
-The ground both editions stand on, in a pre-release
-+ advanced features, more than any program like this, and compatibility reports from others, in the final
+두 판이 딛고 설 바탕, 프리 릴리스로
++ 비슷한 어떤 프로그램보다 많은 고급 기능과 다른 사람의 호환성 보고, 최종판으로
 
         ↓
 
 v0.6.12
-The final Python audit, both editions
-→ freeze Python reference behavior
+Python 최종 감사, 두 판 모두
+→ Python 참조 동작 고정
 
         ↓
 
 v0.6.13-alpha → v0.6.13
-Complete Rust core replacement, in a pre-release
-+ Rust-native restructuring and optimization, in the final
+Rust 코어로 완전히 교체, 프리 릴리스로
++ Rust다운 구조 재편과 최적화, 최종판으로
 
         ↓
 
 v0.6.14
-Final Rust audit and stabilization: the Rust bug hunt
-→ final stable Rust baseline
+Rust 최종 감사와 안정화: Rust 버그 찾기
+→ 최종 안정 Rust 기준선
 
         ↓
 
-Maintenance
+유지 보수
 ```
 
-This document records the current direction; v0.6.10 is out, and v0.6.11 is next.
+이 문서는 지금의 방향을 기록합니다. 이번 릴리스는 공개되었고, 다음은 v0.6.11입니다.

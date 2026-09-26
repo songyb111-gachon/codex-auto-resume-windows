@@ -1,2977 +1,2713 @@
-# Changelog
+# 변경 이력
 
-## v0.6.11-alpha — Two editions, and the ground the advanced one stands on
+## v0.6.11-alpha — 두 판, 그리고 고급판이 딛고 설 바탕
 
-[The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.10...v0.6.11-alpha)
+[이 사전 릴리스의 커밋](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.10...v0.6.11-alpha)
 
-**A pre-release, published from `main`.** It is a GitHub pre-release, so `releases/latest` never
-answers with it and an installed copy's update check never offers it. It is on `main`, though, and
-the plugin's own route installs what `main`'s manifest says, so an installation made that way gets
-it. It is here because v0.6.11 adds features in two editions and has to be built in stages, and
-this one - the ground both editions stand on - is not a release on its own: there is no advanced
-feature in it to switch on yet. The standard edition behaves as v0.6.10 did, apart from what
-[In the standard edition](#in-the-standard-edition) lists. To leave it, run `Install.cmd` from any
-later release's archive.
+**사전 릴리스이며, `main`에서 게시됩니다.** GitHub 사전 릴리스이므로 `releases/latest`는 이것을
+답하지 않고, 설치된 사본의 업데이트 확인도 이것을 제안하지 않습니다. 다만 `main`에 있고, 플러그인의
+설치 경로는 `main`의 매니페스트가 말하는 것을 설치하므로, 그 경로로 설치하면 이것이 설치됩니다. 이
+릴리스가 있는 이유는 v0.6.11이 두 판(edition)으로 기능을 더하고 그 작업을 단계로 나눠야 하는데, 두 판이
+모두 딛고 설 바탕인 이 단계는 그 자체로는 릴리스가 아니기 때문입니다. 아직 켤 수 있는 고급 기능이 하나도
+없습니다. 표준판은 [표준판에서](#표준판에서)에 적은 것 말고는 v0.6.10과 똑같이 동작합니다. 여기서
+벗어나려면 이후 릴리스 압축 파일의 `Install.cmd`를 실행하세요.
 
-### Two editions, from one repository
+### 한 저장소에서 두 판
 
-- **The standard edition is what every release so far has been.** The advanced edition is the
-  standard one plus one Python package, one skill and some window code of its own; every other
-  file in its archive is the standard archive's, byte for byte, apart from the settings window and
-  one display name. Which edition a copy is, is decided by whether that package sits beside the
-  product's code, and by nothing written anywhere - there is no edition file to get wrong.
-- **The standard archive provably holds none of the advanced code.** `build/edition_audit.py`
-  checks that no advanced path, file, name or marker is in it - in a text file, a binary or a zip
-  inside the zip - that the standard archive rebuilt from `git archive` with `advanced/` deleted is
-  byte-identical, and that every standard entry is in the advanced archive unchanged. It runs in CI
-  and before anything is published.
-- **A release is four files and one proof.** Both archives and their `.sha256` sidecars are
-  published together, and one provenance attestation names both. CI tests each edition in lanes of
-  its own.
+- **표준판은 지금까지의 모든 릴리스 그대로입니다.** 고급판은 표준판에 Python 패키지 하나, 스킬 하나,
+  자기 창 코드를 더한 것입니다. 고급판 압축 파일의 나머지 파일은 설정 창과 표시 이름 하나 말고는 표준판
+  압축 파일의 것과 바이트까지 같습니다. 어느 판인지는 그 패키지가 제품 코드 옆에 있는지로만 정해지고, 어디에도
+  적어 두지 않습니다. 잘못 적힐 판 파일이 없습니다.
+- **표준판 압축 파일에 고급 코드가 하나도 없음을 증명합니다.** `build/edition_audit.py`는 그 안에 - 텍스트
+  파일에도, 바이너리에도, 압축 파일 안의 압축 파일에도 - 고급판의 경로, 파일, 이름, 표시가 없는지, `advanced/`를
+  지우고 `git archive`에서 다시 만든 표준판 압축 파일이 바이트까지 같은지, 표준판의 모든 항목이 고급판 압축
+  파일에 그대로 있는지 확인합니다. CI에서, 그리고 무엇이든 게시하기 전에 돌아갑니다.
+- **릴리스는 파일 넷과 증명 하나입니다.** 두 압축 파일과 각각의 `.sha256` 파일이 함께 게시되고, 출처 증명
+  하나가 둘을 모두 가리킵니다. CI는 판마다 따로 테스트합니다.
 
-### Staying in an edition
+### 판 안에 머물기
 
-- **An update stays in the edition that is installed.** `bootstrap.ps1 -Update` keeps it and
-  refuses `-Edition` (exit 12). Asking for the other edition needs `-Edition` and `-Force`;
-  without both it stops with exit 14 before anything is downloaded, and says what changing means.
-- **The installer asks before it changes the edition.** It reads the installed edition before it
-  touches anything, and goes on only with `-AllowEditionChange` or a yes to `Install.cmd`'s
-  question (no is the default). Settings and pending recoveries are kept, every advanced capability
-  starts off, and moving back to standard replaces the app folder whole, so no advanced code stays
-  behind.
-- **Every published bootstrap still updates.** `build/legacy_bootstraps.py` takes each tag's own
-  bootstrap, from v0.5.2 on, out of git, and checks with its own code that it accepts the new
-  archive.
+- **업데이트는 설치된 판 안에서 합니다.** `bootstrap.ps1 -Update`는 설치된 판을 그대로 두고 `-Edition`을
+  거부합니다(종료 코드 12). 다른 판을 원하면 `-Edition`과 `-Force`가 둘 다 있어야 하고, 없으면 아무것도 받기
+  전에 판을 바꾸면 무엇이 달라지는지 알리고 종료 코드 14로 멈춥니다.
+- **설치 프로그램은 판을 바꾸기 전에 묻습니다.** 무엇이든 건드리기 전에 설치된 판을 읽고,
+  `-AllowEditionChange`가 있거나 `Install.cmd`의 질문에 예라고 답했을 때만 계속합니다(기본은 아니요). 설정과
+  기다리는 복구는 그대로 두고, 고급 기능은 모두 꺼진 채로 시작하며, 표준판으로 돌아갈 때는 앱 폴더를 통째로
+  바꾸므로 고급 코드가 남지 않습니다.
+- **공개된 모든 부트스트랩이 계속 업데이트됩니다.** `build/legacy_bootstraps.py`는 v0.5.2부터 각 태그의
+  부트스트랩을 git에서 꺼내, 그 부트스트랩 자신의 코드로 새 압축 파일을 받아들이는지 확인합니다.
 
-### What the advanced edition stands on
+### 고급판이 딛고 서는 것
 
-Nothing here can be switched on yet: the list of advanced capabilities is empty. What is here is
-what every one of them will go through.
+아직 켤 수 있는 것은 없습니다. 고급 기능 목록이 비어 있습니다. 여기 있는 것은 앞으로 모든 고급 기능이 거쳐
+갈 길입니다.
 
-- **Thirteen places where core asks or tells.** At each, the standard edition asks and tells
-  nobody. An advanced capability may always hold something back there; it can never send by itself - the one send is
-  still core's, after core's own consent check, claim and pre-send look. A plug is handed copies,
-  cannot write core's tables, and a channel it names is held to core's launch guard. The claim
-  counts both editions' sends under one lock, so the five-a-day and fifteen-minute limits hold
-  across them. Core tells the plug each move of a record as it writes it, so what turns a
-  capability off is read from the records, never from the journal, which only a person reads.
-- **Its own state, kept apart.** Advanced state lives in `config/advanced/advanced.sqlite`. Nothing
-  is added to the product's state or settings files, and a purge removes it.
-- **Who turns a capability on, and what turns it off.** Each capability will carry a statement, in
-  nine languages, naming the standards it departs from. It is off, watched without acting, or on,
-  and only the Dashboard can turn one on. It can be turned off from anywhere, including from inside
-  Codex, and "All advanced features off" is one action. A capability turns itself off when a
-  submission's result is unknown, a local check fails, the Codex version changes, its statement
-  changes or its code fails. Read-only Windows policy keys can forbid the edition, force it to
-  watch only, or allow only named capabilities.
-- **Measuring before building.** Some capabilities depend on what only a live machine can show.
-  `measure <id>` and `measure-verdict` record, content-free, what a person saw on a throwaway
-  conversation, in `docs/evidence/live/`.
+- **코어가 묻거나 알리는 자리 열세 곳.** 표준판은 그 어디에서도 누구에게도 묻거나 알리지 않습니다. 고급 기능은 그 자리에서
+  언제나 무언가를 붙잡아 둘 수는 있지만, 스스로 보낼 수는 없습니다. 보내는 것은 여전히 코어 하나뿐이고,
+  코어 자신의 동의 확인, 차지, 보내기 전 확인을 거친 뒤입니다. 플러그인은 사본을 받고, 코어의 표에 쓸 수
+  없으며, 플러그인이 지목한 경로도 코어의 실행 관문을 지납니다. 차지는 두 판이 보낸 것을 한 잠금 안에서
+  함께 세므로, 하루 다섯 번과 15분 간격 한도가 두 판에 걸쳐 지켜집니다. 코어는 기록이 움직일 때마다
+  쓰는 그 순간 플러그인에 알리므로, 기능을 끄는 판단은 기록에서 읽고, 사람만 읽는 이력에서는 읽지
+  않습니다.
+- **따로 두는 자기 상태.** 고급판의 상태는 `config/advanced/advanced.sqlite`에 있습니다. 제품의 상태 파일이나
+  설정 파일에는 아무것도 더하지 않고, 지우기(purge)는 이것도 지웁니다.
+- **누가 켜고, 무엇이 끄는가.** 각 고급 기능은 자신이 벗어나는 표준을 이름으로 밝힌 설명을 아홉 언어로
+  지닙니다. 꺼짐, 행동 없이 지켜보기, 켜짐 셋 중 하나이며, 켜는 것은 대시보드에서만 됩니다. 끄는 것은 Codex
+  안에서를 포함해 어디서나 되고, "고급 기능 모두 끄기"는 한 번의 동작입니다. 제출 결과를 알 수 없을 때, 로컬
+  확인이 실패할 때, Codex 버전이나 설명이 바뀔 때, 그 코드가 실패할 때 고급 기능은 스스로 꺼집니다. 읽기
+  전용인 Windows 정책 키로 고급판을 금지하거나, 지켜보기만 하게 하거나, 이름을 댄 기능만 허용할 수 있습니다.
+- **만들기 전에 재기.** 어떤 기능은 실제 컴퓨터에서만 보이는 것에 달려 있습니다. `measure <id>`와
+  `measure-verdict`는 버리는 대화에서 사람이 본 것을 내용 없이 `docs/evidence/live/`에 기록합니다.
 
-How it was checked: every one of the 283 simulated scenarios gives identical records and identical
-calls to Codex with a plug that defers everywhere, and in the advanced lane with the advanced
-package's own plug. A review from three sides reproduced 21 problems before this was released -
-among them, a plug could change a conversation it was handed and send to one the person had turned
-off - and a second pass found 10 more; each is fixed, with a test that failed before.
+어떻게 확인했는지: 시뮬레이션 시나리오 283개가 모두, 어디서나 판단을 미루는 플러그인으로 돌려도, 고급
+레인에서는 고급 패키지 자신의 플러그인으로 돌려도 기록과 Codex 호출이 똑같습니다. 공개 전에 세 방향에서
+검토해 문제 21개를 재현했고 - 그중에는 플러그인이 넘겨받은 대화를 바꿔, 사람이 꺼 둔 대화로 보내게 할 수
+있던 것도 있었습니다 - 두 번째 검토에서 10개를 더 찾았습니다. 모두 고쳤고, 각각 고치기 전에는 실패하던
+테스트가 있습니다.
 
-### In the standard edition
+### 표준판에서
 
-- **The Design called Still is gone; Reduce motion does what it did.** It drew exactly what Soft
-  with Reduce motion draws, so there were two ways to one picture. A stored Still opens as Soft with
-  Reduce motion on, the same picture from the window's first frame. Reduce motion is the one way to
-  stop the motion now, in every design. And the Design's description says only what each look is.
-- **`-NoStartup` works again.** Since v0.5.2 the bootstrap handed the installer its switches by
-  position, so a switch landed on the wrong parameter and the sign-in start was registered anyway.
-  The bootstrap passes them by name now, and the installer reads an older bootstrap's switch as
-  the one it meant.
-- **Nothing the product starts can flash a console window.** Nothing did in v0.6.10 either. Now a
-  test covers everything either edition ships, and the ways one could have appeared are closed: the
-  sign-in start refuses an interpreter that would open one, the watcher restarts itself only
-  windowless, and diagnostics reads the Windows build without starting a program.
-- The installer says which edition it installed, and the settings window's file description names
-  its edition.
+- **"부드럽게, 움직임 없이" 디자인이 빠졌고, 그 일은 움직임 줄이기가 합니다.** 그 디자인은 부드럽게에 움직임
+  줄이기를 켠 것과 똑같이 그려서, 한 그림에 이르는 길이 둘이었습니다. 저장된 "움직임 없이"는 부드럽게에 움직임
+  줄이기를 켠 것으로 열리며, 창의 첫 화면부터 같은 그림입니다. 이제 움직임을 멈추는 길은 어느 디자인에서나
+  움직임 줄이기 하나입니다. 그리고 디자인의 설명은 각 모양이 어떤지만 말합니다.
+- **`-NoStartup`이 다시 동작합니다.** v0.5.2부터 부트스트랩이 설치 프로그램에 스위치를 위치로 넘겨서, 스위치가
+  엉뚱한 매개변수에 들어가고 로그인할 때 시작하기가 그래도 등록되었습니다. 이제 부트스트랩은 이름으로 넘기고,
+  설치 프로그램은 예전 부트스트랩이 넘긴 것을 원래 뜻한 스위치로 읽습니다.
+- **제품이 시작하는 어떤 것도 콘솔 창을 띄울 수 없습니다.** v0.6.10에서도 띄운 것은 없었습니다. 이제는 테스트가
+  두 판이 싣는 모든 것을 살피고, 창이 뜰 수 있던 길을 닫았습니다. 로그인할 때 시작하기는 창을 열 인터프리터를
+  거부하고, 워처는 창 없이만 스스로 다시 시작하며, 진단은 프로그램을 시작하지 않고 Windows 빌드를 읽습니다.
+- 설치 프로그램은 어느 판을 설치했는지 말하고, 설정 창의 파일 설명에는 판 이름이 들어갑니다.
 
-### Around the product
+### 제품 주변
 
-- **A compatibility report that passes is filed with no step by the maintainer.**
-  `.github/workflows/community-file.yml` wakes when a report's check finishes, and once a day. It
-  judges each open report pull request again, against `main` as it is by then, and files this
-  project's own regeneration of the report - never the sender's bytes - in one commit that adds
-  exactly that report and writes the index, the folder's README and the counts again. The pull
-  request is closed, not merged, with one comment saying where the report went, or why it waits,
-  or what to do about a refusal. A report used to wait for the maintainer to run their tool.
-- **What the maintainer judged is written down as rules**, counted from `main`'s own history and
-  keyed by numeric account id: accounts at least 30 days old, one open report per account, at most
-  3 filings per account and 5 per Codex version in any 7 days, a budget of Codex versions the
-  project's data does not name, half the counts file's room kept free, and a failure on a version
-  this project verifies held for the maintainer. A report that meets a limit waits, with the date
-  it is looked at again; a younger account's, or a second open one from the same account, is closed
-  with when to send it again. The repository variable `COMMUNITY_AUTOFILE` pauses filing on anything
-  but unset or `on`, `COMMUNITY_BLOCKED` refuses an account, and a withdrawn report's account and
-  Codex version are listed in `docs/evidence/community/withdrawn.json` so that report is not filed
-  again.
-- **A report comes from a `compat-report/` branch**, as the reporter's `submit` opens it. The check
-  refuses one opened by hand from another branch, which the filer would never have answered, and a
-  refusal's comment says to close the pull request before sending again, since `submit` sends
-  nothing while one of the same account is open.
-- **Nothing a stranger sends can reach the write access.** The job that reads their files holds no
-  write access and no token while Python runs; the job that writes starts on a fresh runner, runs
-  no Python and no repository code, re-derives every commit from git, and moves `main` only
-  forward, only from the commit the plan was made on and only onto the tree that was tested - hash
-  for hash. [SECURITY.md](SECURITY.md) has the whole list.
-- **Two holes the review found are closed for good.** A login Windows keeps for a device (`nul`,
-  `con`, `com1`...) is refused as a report's folder: one such file on `main` would have stopped
-  every Windows checkout of it. And a Codex version has one spelling: `0.1.0`, `00.1.0` and
-  `0.01.0` are one engine to the product, and a report now has to write it the product's way.
-- The folder's README is written by `build/community_report.py` from the index, and
-  `tests/test_reported_data.py` holds it to that; the maintainer's tool imports that code from
-  `main` instead of keeping a copy of its own, which had drifted.
+- **통과한 호환성 보고서는 관리자의 손 없이 접수합니다.** `.github/workflows/community-file.yml`은 보고서의
+  확인이 끝날 때와 하루 한 번 깨어납니다. 열린 보고서 풀 리퀘스트를 그때의 `main`을 기준으로 하나하나 다시
+  판정하고, 이 프로젝트가 스스로 다시 만든 보고서를 접수합니다. 보낸 사람의 바이트는 쓰지 않습니다. 그 보고서만
+  더하고 색인과 폴더의 README와 횟수를 다시 쓰는 커밋 하나입니다. 풀 리퀘스트는 병합하지 않고 닫으며, 보고서가
+  어디로 갔는지, 왜 기다리는지, 거부라면 무엇을 하면 되는지 알려 주는 댓글 하나를 남깁니다. 전에는 관리자가
+  도구를 돌릴 때까지 보고서가 기다렸습니다.
+- **관리자가 판단하던 것은 규칙으로 적었습니다.** `main` 자신의 기록에서 세고 계정의 숫자 id로 묶습니다. 만든
+  지 30일이 지난 계정, 계정마다 열린 보고서 하나, 어느 7일에도 계정마다 3건과 Codex 버전마다 5건까지, 프로젝트의
+  데이터가 이름을 대지 않는 Codex 버전의 예산, 횟수 파일 자리의 절반은 비워 두기, 이 프로젝트가 검증한 버전의
+  실패는 관리자에게 맡기기입니다. 한도에 걸린 보고서는 다시 살펴볼 날짜와 함께 기다리고, 30일이 안 된 계정의
+  것이나 같은 계정의 두 번째 열린 것은 언제 다시 보내면 되는지와 함께 닫습니다. 저장소 변수
+  `COMMUNITY_AUTOFILE`은 비어 있거나 `on`이 아니면 무엇이든 접수를 멈추고, `COMMUNITY_BLOCKED`는 계정을
+  거부하며, 거둬들인 보고서는 그 계정과 Codex 버전을 `docs/evidence/community/withdrawn.json`에 적어 그 보고서를
+  다시 접수하지 않습니다.
+- **보고서는 `compat-report/` 브랜치에서 옵니다.** 보고 도구의 `submit`이 그렇게 엽니다. 다른 브랜치에서 손으로
+  연 것은 확인이 거부합니다. 접수 도구가 결코 맡지 않았을 것이기 때문입니다. 그리고 거부의 댓글은 다시 보내기
+  전에 그 풀 리퀘스트를 닫으라고 알려 줍니다. 같은 계정의 것이 열려 있는 동안 `submit`은 아무것도 보내지 않기
+  때문입니다.
+- **낯선 사람이 보낸 어떤 것도 쓰기 권한에 닿지 않습니다.** 그 파일을 읽는 작업은 Python이 도는 동안 쓰기
+  권한도 토큰도 갖지 않습니다. 쓰는 작업은 새 러너에서 시작하고, Python도 저장소의 코드도 실행하지 않으며,
+  모든 커밋을 git에서 다시 끌어내고, `main`을 앞으로만, 계획을 세운 커밋에서만, 테스트한 트리 위로만 해시까지
+  같게 옮깁니다. 전체 목록은 [SECURITY.md](SECURITY.md)에 있습니다.
+- **검토에서 찾은 구멍 둘을 막았습니다.** Windows가 장치 이름으로 남겨 둔 로그인(`nul`, `con`, `com1` 같은 것)은
+  보고서의 폴더로 받지 않습니다. 그런 파일이 `main`에 하나라도 있으면 Windows의 모든 체크아웃이 멈췄을 것입니다.
+  그리고 Codex 버전은 적는 방식이 하나뿐입니다. 제품에게 `0.1.0`, `00.1.0`, `0.01.0`은 한 엔진이므로, 보고서는
+  이제 제품이 적는 방식대로 적어야 합니다.
+- 폴더의 README는 `build/community_report.py`가 색인에서 쓰며, `tests/test_reported_data.py`가 그것에 맞춰
+  붙잡습니다. 관리자의 도구는 자기 사본을 두지 않고 그 코드를 `main`에서 가져다 씁니다. 그 사본은 이미 어긋나
+  있었습니다.
 
-## v0.6.10 — The design settled, and what others report
+## v0.6.10 — 매듭지은 디자인, 그리고 남들이 보고하는 것
 
-[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.10-alpha...v0.6.10)
+[이 릴리스의 커밋](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.10-alpha...v0.6.10)
 
-### The repository's front page, in one language
+### 저장소 첫 화면은 한 언어로
 
-- `main` - the front page, the plugin's install route, where releases are tagged - is English only.
-  `dev` keeps every document in English and Korean, written and reviewed together, and a
-  promotion (`scripts/promote.py`) brings dev to main without the Korean files; the generated `ko`
-  branch is built from main's code and the Korean sources of the dev commit it came from.
-- The front page lists sixteen entries: `CHANGELOG`, `PRIVACY` and `CONTRIBUTORS` are in `docs/`,
-  the installer's source in `build/install/`, and the MCP declaration's in `build/plugin-mcp.json`.
-  In the release archive the installer and the MCP declaration stand where they stood, so no
-  published bootstrap sees a difference. The archive carries `CHANGELOG`, `PRIVACY` and
-  `CONTRIBUTORS` in `docs/`, where its README links them, and, built on English-only `main`, no
-  longer the Korean `README`, `SECURITY` and `CONTRIBUTORS`.
-- A section-by-section review of all sixteen document pairs found 62 places where the English and
-  the Korean said different things; each is fixed in the language that was wrong, and the Korean
-  guide now has every section the English one has.
+- `main`(저장소 첫 화면이자 플러그인이 설치해 가는 곳이고, 릴리스 태그가 붙는 곳)은 영어만 담습니다.
+  `dev`는 모든 문서를 영어와 한국어로 함께 쓰고 검토하며 담고, 승격(`scripts/promote.py`)은 한국어
+  파일을 뺀 채로 dev를 main에 들여보냅니다. 생성되는 `ko` 브랜치는 main의 코드와, main이 올라온 dev
+  커밋의 한국어 원본으로 만들어집니다.
+- 첫 화면에는 열여섯 항목만 보입니다. `CHANGELOG`, `PRIVACY`, `CONTRIBUTORS`는 `docs/`에, 설치기의 원본은
+  `build/install/`에, MCP 선언의 원본은 `build/plugin-mcp.json`에 있습니다. 릴리스 압축 파일 안에서 설치기와
+  MCP 선언은 전과 같은 자리에 있으므로, 이미 배포된 부트스트랩이 보기에는 달라진 것이 없습니다. 압축 파일은
+  `CHANGELOG`, `PRIVACY`, `CONTRIBUTORS`를 그 README가 링크하는 `docs/`에 담고, 영어만 있는 `main`에서
+  만들어지므로 한국어 `README`, `SECURITY`, `CONTRIBUTORS`는 더 담지 않습니다.
+- 문서 열여섯 쌍을 절마다 맞춰 본 검토에서 영어와 한국어가 서로 다른 말을 하던 곳 62군데를 찾아, 틀린
+  쪽 언어에서 모두 고쳤습니다. 한국어 안내서에는 이제 영어 안내서에 있는 절이 모두 있습니다.
 
-### The design settled
+### 매듭지은 디자인
 
-The look was audited as one product, with the Codex panel as the reference, from light and dark
-contact sheets of all four surfaces side by side. What people know stays. Each header keeps its
-composition, its words and its places: the popup is titled *Codex Auto Resume* over its state, written
-in the state's colour; the Dashboard's light spans its headline and the line under it; and every light
-stands where it stood beside its words. The popup's and the card's buttons and chips stay bold, and the
-Pending page's check results still read *OK*, *Waiting*, *Blocked* and *Unknown*. What changed:
+Codex 패널을 기준으로 삼아, 네 표면을 밝은 테마와 어두운 테마의 대조 시트에 나란히 놓고 하나의 제품으로
+모양을 점검했습니다. 사람들이 아는 것은 그대로입니다. 머리글마다 제 짜임과 제 말과 제 자리를 지킵니다.
+팝업은 *Codex Auto Resume*이라는 제목 아래에 상태를 그 상태의 색으로 쓰고, 대시보드의 불빛은 제목과 그 아래
+줄에 걸쳐 서며, 모든 불빛은 제 말 옆 원래 자리에 있습니다. 팝업과 카드의 버튼과 칩은 굵은 글자 그대로이고,
+대기 중 페이지의 확인 결과는 여전히 *통과*, *대기*, *막힘*, *알 수 없음*입니다. 바뀐 것은 이렇습니다.
 
-- **One rule for a header's light.** The Dashboard, the popup and the panel light the same moment the
-  same way, and the popup and the panel say the same word beside it, by one rule written down as 40
-  test vectors that each surface's own code is run against. A watcher that is not running, or not
-  known to be, is a grey light that does not move - the popup used to breathe amber for a stopped
-  watcher - and a record held for a watcher that has stopped counts as one; a watcher that runs but is
-  not well is amber and breathing. The notification-area icon and the taskbar button keep their own
-  rule, in which a failure nobody has seen yet is red.
-- **Never "recovery is on" for a watcher that is not well.** Where the watcher runs but has stopped
-  responding, an older watcher still owns the state, or the Codex version is not supported or failed
-  its checks here, the Dashboard's line under its headline and the panel's facts name that cause -
-  *Watcher not responding* is new - where they said *Automatic recovery is on*. The Dashboard keeps its
-  own words around it: *Watching for interruptions* over *… · 2 recoveries pending*.
-- **A state nobody confirmed is not called fine.** The popup read a status it could not read, or one
-  that did not say the watcher runs, as *Monitoring* or *Waiting*; it says *Needs your attention*
-  now, beside the grey light. The panel asks for attention, ranked above a pause, for a watcher that
-  runs but is not well, where it said *Monitoring*, *Waiting*, *Recovering* or *Paused*, and both it
-  and the popup do for an older watcher still owning the state. Where the status did not say whether
-  recovery is on, the popup took it as on; it says *Paused* now, and its button offers to resume. And
-  it says *Recovering* when the status counts records in Codex, not only when its list shows one.
-- **Every light that says the product is running moves.** The panel's Automatic recovery tile carries
-  the state's light at a smaller size, where a dot that never moved used to be, and it breathes with the
-  one above it, on one cycle that a redraw no longer sends back to the top. The panel's light dims
-  toward the ground it stands on, so its glow is no longer a fifth weaker than the Dashboard's halfway
-  down a breath. While the panel is open, a clock of its own turns it to *Checking*, with its turning
-  arc, when a waiting task's time comes, and that task's row to *due now*; since the panel reads its
-  records once and never sees the watcher's next pass, it says so for one pass and then *Waiting*
-  again.
-- **One button size, one chip size, one callout.** Buttons are 34 px high on every surface, where the
-  popup's and the card's were 32 px, and chips have one height and one padding; the popup's and the
-  card's keep their bold words. The Diagnostics page's compatibility notices are the panel's callouts,
-  where they were a block of accent-coloured text.
-- **One name for the window.** The window is the Dashboard wherever it is named - the icon's menu
-  says *Open Dashboard*, as the popup and the card do - the popup's switch is *Auto-resume*, as the
-  Pending page's column is, and its rows count down to the *Next check*, in all nine languages. The
-  Settings help that the panel shows as well says *the Dashboard* where it said *this window* and
-  *here*, which in the panel meant the panel, and Reduce motion's help names everything it stops, the
-  panel in Codex included.
-- **The card's light costs less.** It is drawn as the popup draws its own, only the band of rows it
-  stands in, at about twice the frames for between a quarter and a third of the processor time.
-  Hovering over it no longer sends its breath back to the top, and it rises in, comes back from a fade
-  and slides on the popup's own easing curve.
+- **머리글의 불빛을 정하는 규칙은 하나입니다.** 대시보드, 팝업, 패널은 같은 순간을 같은 불빛으로 보이고,
+  팝업과 패널은 그 옆에 같은 단어를 말합니다. 그 규칙은 표면마다 자기 코드로 돌려 보는 테스트 벡터 40개로
+  적혀 있습니다. 실행 중이 아니거나 실행 중인지 알 수 없는 워처는 움직이지 않는 회색 불빛입니다. 예전에는
+  팝업이 멈춘 워처를 주황색으로 숨 쉬게 그렸습니다. 멈춘 워처 때문에 붙잡힌 기록도 그렇게 셉니다. 실행
+  중이지만 상태가 좋지 않은 워처는 주황색으로 숨 쉽니다. 알림 영역 아이콘과 작업 표시줄 단추는 자기 규칙을
+  지키며, 거기서는 아무도 보지 않은 실패가 빨간색입니다.
+- **상태가 좋지 않은 워처에 "복구가 켜져 있다"고 하지 않습니다.** 워처가 실행 중이지만 응답하지 않거나,
+  이전 워처가 아직 상태를 쥐고 있거나, Codex 버전이 지원되지 않거나 이 컴퓨터에서 확인에 실패했으면,
+  대시보드의 제목 아래 줄과 패널의 사실은 *자동 복구가 켜져 있습니다* 대신 그 까닭을 말합니다. *워처가
+  응답하지 않음*은 새 문구입니다. 대시보드는 그 둘레에서 제 말을 지킵니다. *중단을 감시하는 중* 아래
+  *… · 복구 2건 대기 중* 같은 식입니다.
+- **아무도 확인하지 않은 상태를 괜찮다고 하지 않습니다.** 팝업은 읽지 못한 상태나 워처가 실행 중이라고
+  말하지 않는 상태를 *감시 중*이나 *기다리는 중*으로 읽었습니다. 이제는 회색 불빛 옆에 *확인이
+  필요합니다*라고 말합니다. 패널은 실행 중이지만 상태가 좋지 않은 워처에 대해 *감시 중*, *기다리는 중*,
+  *복구 중*, *일시 중지됨* 대신 일시 중지보다 앞서 확인을 요청하고, 이전 워처가 아직 상태를 쥐고 있을 때는
+  패널과 팝업이 모두 그렇게 합니다. 상태가 자동 복구가 켜져 있는지 말하지 않으면 팝업은 켜져 있다고
+  여겼습니다. 이제는 *일시 중지됨*이라고 말하고, 그 버튼은 다시 켜기를 내놓습니다. 그리고 목록에 보일 때만이
+  아니라 상태가 Codex 안의 기록을 셀 때도 *복구 중*이라고 말합니다.
+- **제품이 돌고 있다고 말하는 불빛은 모두 움직입니다.** 패널의 자동 복구 타일에는 움직이지 않던 점 대신
+  상태의 불빛이 작은 크기로 있고, 위의 불빛과 한 주기로 함께 숨 쉬며, 다시 그려도 꼭대기로 돌아가지
+  않습니다. 패널의 불빛은 그 아래 바탕 쪽으로 흐려지므로, 호흡의 중간에서 번짐이 대시보드보다 5분의 1
+  약하던 일이 없어졌습니다. 패널이 열려 있는 동안에는 패널 자신의 시계가, 대기 중인 작업의 시간이 오면
+  패널을 도는 호와 함께 *확인 중*으로, 그 작업의 줄을 *지금*으로 바꿉니다. 패널은 기록을 한 번 읽고 워처의
+  다음 확인을 보지 못하므로, 워처가 한 번 확인하는 동안만 그렇게 말한 뒤 다시 *기다리는 중*이라고 말합니다.
+- **버튼 크기, 칩 크기, 콜아웃은 하나씩입니다.** 버튼은 어느 표면에서나 높이 34px입니다. 팝업과 카드의
+  버튼은 32px였습니다. 칩도 높이와 여백이 하나입니다. 팝업과 카드의 글자는 굵은 그대로입니다. 진단
+  페이지의 호환성 알림은 강조색 글 한 덩어리 대신 패널의 콜아웃입니다.
+- **창의 이름은 하나입니다.** 창은 이름이 나오는 곳마다 대시보드입니다. 아이콘의 메뉴도 팝업과 카드처럼
+  *대시보드 열기*라고 말합니다. 팝업의 스위치는 대기 중 페이지의 열처럼 *자동 이어 가기*이고, 줄은
+  *다음 확인*까지 셉니다. 아홉 언어 모두 그렇습니다. 패널에도 나오는 설정 도움말은 *이 창*과 *여기*
+  대신 *대시보드*라고 말합니다. 패널에서는 그 말이 패널을 가리켰기 때문입니다. 움직임 줄이기의 도움말은
+  그것이 멈추는 것을 Codex 안의 패널까지 모두 댑니다.
+- **카드의 불빛은 덜 듭니다.** 팝업이 자기 불빛을 그리듯 불빛이 선 줄의 띠만 다시 그리므로, 프레임은
+  두 배쯤이고 프로세서 시간은 4분의 1에서 3분의 1 사이입니다. 포인터를 올려도 호흡이 처음으로 돌아가지
+  않고, 떠오르며 들어올 때와 흐려졌다 돌아올 때와 자리를 옮길 때 팝업과 같은 가속 곡선을 따릅니다.
 
-### Four designs
+### 네 가지 디자인
 
-- **Design**, under Settings > Appearance in the Dashboard, draws the Dashboard, the popup, the
-  notification card and the panel in Codex one of four ways, each in light or dark as the Theme says:
-  *Soft*, the default and everything above; *Soft, without motion*, the same look held still - what
-  Reduce motion draws, chosen as a look; *Classic (v0.6.2)*, v0.6.2's flat cards with a hairline and a
-  3 px accent bar down their left edge, its colours read from that release's tag, the current tab
-  underlined, and the light breathing with its glow; and *Plain*, flat and neutral grey with the
-  product's accent, whose light dims with no glow. Classic and Plain move as Soft does - switches
-  glide and the notification card rises in; only *Soft, without motion* takes motion away. [BRAND.md](BRAND.md#four-designs) sets them out and
-  the [guide](GUIDE.md) shows the popup in each.
-- **A design changes paint, never layout.** Sizes, paddings, the light and the room kept for shadows
-  are the same in all four, and corners are only ever smaller than Soft's; the Dashboard's layout
-  audit finds every control where Soft's is in every design. The Pending and History lists stay flat
-  rows in each.
-- **No design can loosen a stopper.** High Contrast replaces every design, and Reduce motion, Windows'
-  animation setting and every other reason something holds still hold it in every design: a design
-  can take motion away, never add it. The notification-area icon holds still within a second of
-  *Soft, without motion* being saved, as it does for Reduce motion, and the panel now follows the
-  product's own Reduce motion as well as Codex's reduced-motion preference.
-- **Set in the Dashboard only.** Like Reduce motion, the Design decides what moves, so Codex cannot
-  change it: `update_settings` neither offers nor accepts it, and the panel draws in it and never sends
-  it. `restore_default_settings` puts it back to Soft. An upgrade changes nothing anyone can see: a
-  settings file without it reads as Soft. It is in all nine languages; in German it is *Stil*, since
-  *Design* is German's word for the Theme.
-- **On the wire.** Every reply that carries the settings carries `design`, and the wire goldens were
-  regenerated on purpose for it. The tool list did not change.
-- **Kept in step from one table.** What a design draws in the Dashboard - its colours and check box
-  in each theme, its depth, glow, motion and corners - is generated from the same design table and
-  colours the panel and the popup read (`Brand.LookOf` in `gui/Brand.cs`), where the Dashboard's own
-  code chose them in ten branches by the design's name; a test now fails if any of its own code names
-  a design. It draws exactly what it drew.
+- 대시보드의 설정 > 모양에 있는 **디자인**은 대시보드, 팝업, 알림 카드, Codex 안의 패널을 네 가지 가운데
+  하나로 그리며, 밝게나 어둡게는 테마를 따릅니다. 기본값이고 위의 모든 것인 *부드럽게*, 같은 모양을
+  멈춰 둔 *부드럽게, 움직임 없이*(움직임 줄이기가 그리는 것을 모양으로 고른 것), 가는 선과 왼쪽 가장자리의
+  3px 강조 막대가 있는 v0.6.2의 평평한 카드에 그 릴리스의 태그에서 읽은 색, 밑줄 친 지금의 탭, 번짐과 함께
+  숨 쉬는 불빛의 *클래식 (v0.6.2)*, 제품의 강조색을 쓴 평평한 중립 회색에 불빛이 번짐 없이 흐려지는
+  *단순하게*입니다. 클래식과 단순하게는 부드럽게처럼 움직입니다. 스위치는 미끄러지고 알림 카드는 떠오르며
+  들어옵니다. 움직임을 거두는 것은 *부드럽게, 움직임 없이*뿐입니다. [BRAND.md](BRAND.md#네-가지-디자인)에 정리했고,
+  [안내서](GUIDE.md)에 디자인별 팝업이 있습니다.
+- **디자인은 칠을 바꾸고 배치는 바꾸지 않습니다.** 크기, 여백, 불빛, 그림자를 위해 비워 두는 자리는 네
+  디자인에서 같고, 모서리는 부드럽게의 것보다 작기만 합니다. 대시보드의 배치 점검은 모든 디자인에서 모든
+  컨트롤을 부드럽게의 자리에서 찾습니다. 대기 중과 기록 목록은 어느 디자인에서나 평평한 줄입니다.
+- **어떤 디자인도 멈추게 하는 것을 느슨하게 하지 못합니다.** 고대비는 모든 디자인을 대신하고, 움직임
+  줄이기, Windows의 애니메이션 설정, 그 밖에 무언가를 멈추게 하는 모든 이유는 어느 디자인에서나 그것을
+  멈춥니다. 디자인은 움직임을 뺄 수만 있고 더할 수는 없습니다. 알림 영역 아이콘은 움직임 줄이기처럼
+  *부드럽게, 움직임 없이*를 저장하고 1초 안에 멈추고, 패널은 이제 Codex의 움직임 줄이기 설정과 함께 제품
+  자신의 움직임 줄이기도 따릅니다.
+- **대시보드에서만 정합니다.** 디자인은 움직임 줄이기처럼 무엇이 움직일지를 정하므로 Codex는 바꿀 수
+  없습니다. `update_settings`는 그것을 내놓지도 받지도 않고, 패널은 그것으로 그리되 보내지 않습니다.
+  `restore_default_settings`는 부드럽게로 되돌립니다. 업그레이드해도 눈에 보이는 것은 아무것도 바뀌지
+  않습니다. 이 설정이 없는 설정 파일은 부드럽게로 읽습니다. 아홉 언어 모두에 있고, 독일어에서는
+  *Design*이 테마를 가리키는 말이므로 *Stil*이라고 합니다.
+- **와이어에서.** 설정을 담는 모든 응답이 `design`을 담고, 와이어 골든은 그 때문에 일부러 다시
+  만들었습니다. 도구 목록은 바뀌지 않았습니다.
+- **한 표에서 함께 맞춥니다.** 대시보드에서 디자인이 그리는 것 - 테마마다의 색과 체크박스, 깊이, 번짐,
+  움직임, 모서리 - 은 패널과 팝업이 읽는 것과 같은 디자인 표와 색에서 생성됩니다(`gui/Brand.cs`의
+  `Brand.LookOf`). 전에는 대시보드 자신의 코드가 디자인 이름으로 가르는 열 갈래에서 골랐습니다. 이제
+  그 코드 어디든 디자인 이름을 쓰면 테스트가 실패합니다. 그리는 것은 전과 똑같습니다.
 
-### The pictures
+### 그림
 
-- **One set of records, one moment.** The panel, the popup, the card and the Dashboard are pictured
-  from one set of records at one set of offsets, so a countdown, a chip and a count say the same on
-  all four; until now the panel's rows both said *due now* and the popup had a row the others did not.
-- **The same window, the same picture.** The Dashboard is photographed with Windows' keyboard cues
-  hidden, as it looks to a person using the mouse. A new window takes the focus ring's state from how
-  the last input reached the machine, so the Settings picture had a ring round the Overview tab in some
-  releases and none in others, with nothing in the source changed.
-- **Every light that moves, moving.** A picture's status lights move as the product moves them: the
-  popup and the card frame by frame by their own renderers, and the panel's two lights and the
-  Dashboard's drawn over the capture, each on the ground it stands on, for exactly one cycle - a
-  4.4-second breath takes 4.4 seconds, where it took 4.356. Until now one light a picture moved, and
-  in the panel's pictures not the one that moves in the product.
-- **Each design, pictured.** The Dashboard's Overview, the panel, the popup and the card in Soft,
-  without motion, Classic and Plain, in English and the light theme, beside Soft's own pictures.
-- **Before and after, light and dark.** `build/make_screenshots.py --audit` draws, for developers,
-  light and dark contact sheets of the four surfaces, and a before-and-after sheet of each, without
-  touching anything published.
+- **기록 한 벌, 순간 하나.** 패널, 팝업, 카드, 대시보드를 기록 한 벌과 같은 시간 간격으로 그리므로, 카운트다운과
+  칩과 개수가 네 그림에서 같은 말을 합니다. 지금까지는 패널의 줄이 둘 다 *지금*이었고, 팝업에는 다른
+  그림에 없는 줄이 있었습니다.
+- **같은 창이면 같은 그림.** 대시보드는 Windows의 키보드 표시를 숨긴 채, 마우스를 쓰는 사람에게 보이는
+  모습으로 찍습니다. 새 창은 포커스 링을 보일지를 마지막 입력이 어떻게 들어왔는지로 정하므로, 소스는 그대로인데도
+  설정 그림에는 어떤 릴리스에서는 개요 탭 둘레에 링이 있고 어떤 릴리스에서는 없었습니다.
+- **움직이는 불빛은 모두 움직입니다.** 그림의 상태 불빛은 제품이 움직이는 대로 움직입니다. 팝업과 카드는
+  자기 렌더러가 프레임마다 그리고, 패널의 불빛 둘과 대시보드의 불빛은 캡처 위에 각자 서 있는 바탕으로 정확히
+  한 주기만큼 그립니다. 4.4초의 호흡은 4.356초가 아니라 4.4초가 걸립니다. 지금까지는 그림마다 불빛 하나만
+  움직였고, 패널의 그림에서는 제품에서 움직이는 불빛이 아니었습니다.
+- **디자인마다 그림이 있습니다.** 대시보드의 개요, 패널, 팝업, 카드를 부드럽게, 움직임 없이, 클래식,
+  단순하게로, 영어와 밝은 테마로 부드럽게의 그림 옆에 두었습니다.
+- **전과 후, 밝게와 어둡게.** `build/make_screenshots.py --audit`는 개발자를 위해 네 표면의 밝은 테마와
+  어두운 테마 대조 시트, 그리고 표면마다 전과 후를 나란히 놓은 시트를 그리며, 공개된 것은 건드리지
+  않습니다.
 
-### What others report
+### 남들이 보고하는 것
 
-- **Reported, beside the version.** The Dashboard's Diagnostics page says, in one muted line
-  directly under *Codex version*, what other people report about that exact version: *Reported by
-  others: worked 3 · failed 1 · neither 1*, with *counted in both* when a report saw both and *none
-  yet* when nobody has filed one. It is a grade of its own beside Verified, Checked, Compatible and
-  Failed here, and never one of them: no chip, never the success or danger colour, and a version
-  whose own evidence says nothing stays Compatible however many reports say it works. `doctor` and
-  `compat` print the same counts. The Codex panel points to the row, because the summary a model
-  reads stays codes only, and the popup, the notification card and the icon never show it.
-- **Counts of reports, not machines.** One report per GitHub login per Codex version. A report
-  counts as worked when a record it delivered ended recovered, as failed when one ended in a failed
-  recovery, as neither when none ended either way - a report that delivered nothing included - and
-  in both columns when its records say both, so worked + failed - both + neither = reports. Only
-  filed reports count.
-- **Shipped with the release, never fetched, and deciding nothing.** The counts are
-  `src/codex_auto_resume/data/reported.json`, a file of their own beside the compatibility data and
-  never inside it, read by a hardened reader of their own. No request fetches it: the refresh a
-  person asks for still fetches the compatibility data alone, so a report filed later waits for the
-  next release. Only the view a person reads imports it, and a test grid holds that no counts - a
-  thousand reports that worked, a thousand that failed, a broken file - move any state, permit or
-  anything the watcher writes. No compatibility claim may cite someone else's report.
-- **A report arrives as a pull request, and is read as data.** `build/community_report.py` is the
-  one reader of a report: capped, exact about its keys, its times and its fingerprint - the setup
-  that measured it - and recomputing the levels and verdict it claims, which can only go down.
-  `.github/workflows/community-report.yml` judges a report's pull request with `main`'s own check,
-  under a read-only token, reading the head with git plumbing only: one new file at
-  `docs/evidence/community/<login>/codex-cli-<version>.json`, add-only, at most 1 MB, and not a
-  copy of a filed report. Tests hold the filed reports, their index and the shipped counts to each
-  other. [CONTRIBUTING.md](CONTRIBUTING.md#sending-a-compatibility-report) says how to send one.
-- **On the wire.** The bridge's `compatibility` and `compat-refresh` views carry `reported` - its
-  state and five counts, every key always there - and `control/wire.py` names it
-  (`CompatReported`). The MCP replies do not change.
+- **버전 옆의 보고됨.** 대시보드의 진단 페이지는 *Codex 버전* 바로 아래 흐린 글자 한 줄로, 다른 사람들이
+  바로 그 버전에 대해 보고한 것을 말합니다. *다른 사람들의 보고: 성공 3 · 실패 1 · 둘 다 아님 1*처럼 쓰며,
+  어떤 보고서가 둘 다 보았으면 *양쪽에 모두 셈*을, 아무도 접수하지 않았으면 *아직 없음*을 씁니다. 검증됨,
+  점검됨, 호환됨, 이 PC에서 실패 옆에 서는 자기 등급이며, 결코 그중 하나가 되지 않습니다. 칩도 없고, 성공이나
+  위험의 색도 쓰지 않으며, 자체 근거가 아무 말도 하지 않는 버전은 동작한다는 보고가 몇 건이든 호환됨으로
+  남습니다. `doctor`와 `compat`도 같은 횟수를 출력합니다. 모델이 읽는 요약은 여전히 코드뿐이므로 Codex 패널은
+  그 줄을 가리키기만 하고, 팝업과 알림 카드와 아이콘은 이것을 보여 주지 않습니다.
+- **컴퓨터가 아니라 보고서의 수.** GitHub 로그인 하나와 Codex 버전 하나에 보고서 하나입니다. 보고서가 전달한
+  기록 하나가 복구로 끝났으면 성공, 실패한 복구로 끝났으면 실패, 어느 쪽으로도 끝난 기록이 없으면(아무것도
+  전달하지 않은 보고서도 포함) 둘 다 아님으로 세고, 기록이 두 가지를 다 말하면 양쪽에 모두 셉니다. 그래서
+  성공 + 실패 - 둘 다 + 둘 다 아님 = 보고서 수입니다. 접수된 보고서만 셉니다.
+- **릴리스와 함께 오고, 받아 오지 않으며, 아무것도 결정하지 않습니다.** 횟수는
+  `src/codex_auto_resume/data/reported.json`에 있습니다. 호환성 데이터 옆에 있는 따로 된 파일이며 그 안에
+  들어가지 않고, 자기만의 강화된 판독기가 읽습니다. 그것을 받아 오는 요청은 없습니다. 사람이 요청하는
+  새로 받기는 여전히 호환성 데이터만 받아 오므로, 나중에 접수된 보고서는 다음 릴리스를 기다립니다. 그 파일을
+  가져오는 것은 사람이 읽는 보기뿐이며, 어떤 횟수도(동작했다는 보고서 천 건, 실패했다는 보고서 천 건, 망가진
+  파일도) 어떤 상태나 허가나 워처가 쓰는 것을 움직이지 않는다는 것을 테스트 격자가 붙잡습니다. 어떤 호환성
+  주장도 다른 사람의 보고서를 인용할 수 없습니다.
+- **보고서는 풀 리퀘스트로 오고, 데이터로 읽힙니다.** `build/community_report.py`가 보고서의 유일한
+  판독기입니다. 크기를 자르고, 키와 시각과 지문(그것을 측정한 환경)을 엄격히 보며, 보고서가 주장하는 수준과
+  판정을 다시 계산하는데, 그것은 낮아질 수만 있습니다. `.github/workflows/community-report.yml`은 보고서의 풀
+  리퀘스트를 `main` 자신의 확인으로, 읽기 전용 토큰 아래에서, 헤드를 git 배관 명령으로만 읽어 판정합니다.
+  `docs/evidence/community/<로그인>/codex-cli-<버전>.json`에 새 파일 하나, 더하기만, 1 MB 이하, 접수된
+  보고서의 사본이 아니어야 합니다. 접수된 보고서와 그 색인과 함께 나가는 횟수는 테스트가 서로 맞춰
+  붙잡습니다. 보내는 방법은 [CONTRIBUTING.md](CONTRIBUTING.md#호환성-보고서-보내기)에 있습니다.
+- **와이어에서.** 브리지의 `compatibility`와 `compat-refresh` 보기는 `reported`(상태와 다섯 횟수, 모든 키가
+  언제나 있음)를 싣고, `control/wire.py`가 그것에 이름을 붙입니다(`CompatReported`). MCP 응답은 바뀌지
+  않습니다.
 
-### Two claims corrected
+### 바로잡은 두 가지 주장
 
-- **A check box that could never do anything is gone.** *Sign-in service failures*
-  (`auth_service_transient`) sat under Automatic recovery from v0.6.3, with a Custom message and a
-  place in the Preview, for a kind of interruption nothing produced: no error code, HTTP status or
-  message Codex records was ever classified as it. v0.6.3's entry below and the guide said it had been
-  recovered through v0.6.2 with no way to turn it off; it never was. The check box, its Custom message,
-  its place in the Preview and its switch in `update_settings` are gone from the Dashboard, the panel
-  and the MCP schema. The word stays, so a record that names it still reads, and a settings file that
-  carries `recover_auth_service_transient` or its Custom message loads as before, the two keys dropped;
-  a write that names either is refused. A test now fails if a kind nothing produces is made
-  recoverable again, and this one comes back only when a real Codex error is seen to carry it. On the
-  wire, every reply that carries the settings or their schema has the two fields fewer, the Preview's
-  kinds one fewer, and the two continuation sentences for it left the nine catalogs; the wire goldens
-  were regenerated on purpose.
-- **Start watcher, asked from Codex, says how long the watcher will run.** A watcher started with
-  the panel's Start watcher or the `start_watcher` tool runs in the job Codex runs this plugin's
-  server in, and Codex 26.915 ends everything in that job when it ends the server - measured for
-  v0.6.9-alpha. The reply said *The watcher is running.* as though it would stay. Now, where the job
-  ends what it holds, it adds that the watcher stops when Codex closes, if not sooner, and how to get
-  one that outlives Codex: once Codex has closed, open Codex Auto Resume from the Start menu and start
-  it there, or turn on Run at Windows sign-in in the Dashboard. (Not the Dashboard opened from that
-  watcher's own icon: it runs inside Codex's job too, and while the watcher runs it has nothing to
-  start.) Where Windows will not describe the job, it says the watcher may stop, with the same way
-  out. The panel says the same in all nine languages, after a start that is running or not yet
-  confirmed, and the tool's description says it too. The reply carries `ends_with_codex` - true,
-  false or null, read from the job each time - whenever it started a watcher, and the MCP wire golden
-  now holds a start in such a job and one in no job. The job is read by the one function the start
-  with Codex refuses by.
+- **아무것도 할 수 없던 체크박스가 없어졌습니다.** 자동 복구 아래의 *로그인 서비스 오류*
+  (`auth_service_transient`)는 v0.6.3부터 직접 입력 메시지와 미리보기 항목까지 갖추고 있었지만, 그 종류를
+  만들어 내는 것은 아무것도 없었습니다. Codex가 기록하는 어떤 오류 코드, HTTP 상태, 메시지도 그 종류로 분류된
+  적이 없습니다. 아래 v0.6.3 항목과 안내서는 그것이 v0.6.2까지 끌 방법 없이 복구되었다고 적었지만, 그런 적은
+  없습니다. 이제 대시보드, 패널, MCP 스키마 어디에도 그 체크박스, 직접 입력 메시지, 미리보기 항목,
+  `update_settings`의 스위치가 없습니다. 낱말은 남아 있어서 그 이름이 적힌 레코드도 그대로 읽히고,
+  `recover_auth_service_transient`나 그 직접 입력 메시지가 든 설정 파일도 두 키만 버린 채 전처럼 읽힙니다. 그
+  둘 가운데 하나라도 쓰려는 요청은 거절됩니다. 아무것도 만들어 내지 않는 종류를 다시 복구 대상으로 만들면
+  실패하는 테스트가 생겼고, 이 종류는 실제 Codex 오류가 그것을 담고 있는 것이 확인되어야만 돌아옵니다.
+  와이어에서는 설정이나 그 스키마를 싣는 모든 응답에서 두 필드가, 미리보기의 종류에서 하나가 빠졌고, 그 종류의
+  이어서 하기 문장 두 개가 아홉 카탈로그에서 빠졌습니다. 와이어 골든은 일부러 다시 만들었습니다.
+- **Codex에서 요청한 워처 시작은 워처가 얼마나 돌지 말합니다.** 패널의 워처 시작이나 `start_watcher` tool로
+  시작한 워처는 Codex가 이 플러그인의 서버를 돌리는 작업 개체 안에서 돌고, Codex 26.915는 서버를 끝낼 때 그
+  작업 개체 안의 모든 것을 끝냅니다. v0.6.9-alpha를 위해 잰 것입니다. 응답은 워처가 계속 있을 것처럼
+  *The watcher is running.*이라고만 했습니다. 이제 작업 개체가 담고 있는 것을 끝내는 곳에서는, 워처가 Codex를
+  닫을 때(그보다 일찍일 수도 있음) 멈춘다는 말과 함께 Codex보다 오래 도는 워처를 얻는 방법을 덧붙입니다.
+  Codex를 닫은 뒤 시작 메뉴에서 Codex Auto Resume을 열어 거기서 시작하거나, 대시보드에서 Windows 로그인 시
+  실행을 켜는 것입니다. (그 워처의 아이콘에서 연 대시보드는 아닙니다. 그것도 Codex의 작업 개체 안에서 돌고,
+  워처가 도는 동안에는 시작할 것이 없습니다.) Windows가 작업 개체를 알려 주지 않는 곳에서는 멈출 수 있다고
+  말하고 같은 방법을 알려 줍니다. 패널도 워처가 돌고 있을 때와 아직 확인되지 않았을 때 아홉 언어로 같은 말을
+  하고, tool 설명에도 적었습니다. 워처를 시작했을 때 응답에는 매번 작업 개체를 읽어 정한
+  `ends_with_codex`(true, false, null)가 실리고, MCP 와이어 골든은 이제 그런 작업 개체 안에서의 시작과 작업
+  개체 밖에서의 시작을 붙잡습니다. 작업 개체는 Codex가 시작될 때 워처를 시작하는 기능이 거절할 때 쓰는 바로 그
+  함수 하나로 읽습니다.
 
-## v0.6.10-alpha — Where every file goes when the core is Rust
+## v0.6.10-alpha — 코어가 Rust가 될 때 모든 파일이 갈 자리
 
-[The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.9...v0.6.10-alpha)
+[이 사전 릴리스의 커밋](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.9...v0.6.10-alpha)
 
-**A pre-release, published from `main`.** It is a GitHub pre-release, so `releases/latest` never
-answers with it and an installed copy's update check never offers it. It is on `main`, though, and
-the plugin's own route installs what `main`'s manifest says, so an installation made that way gets
-it - and behaves as v0.6.9 did. It is here because it is a stage the v0.6.10 work has to be split
-into and is not a release on its own: nothing a person can see changes but the version it names. The window draws what it drew, the popup renders the same pixels, the panel serves the
-same script, and every reply on the wire carries the same fields - `tests/golden/` holds each one
-to the byte. To leave it, run `Install.cmd` from any later release's archive.
+**사전 릴리스이며, `main`에서 게시됩니다.** GitHub 사전 릴리스이므로 `releases/latest`는 이것을
+답하지 않고, 설치된 사본의 업데이트 확인도 이것을 제안하지 않습니다. 다만 `main`에 있고, 플러그인의
+설치 경로는 `main`의 매니페스트가 말하는 것을 설치하므로, 그 경로로 설치하면 이것이 설치되며 v0.6.9와
+똑같이 동작합니다. 이 릴리스가 있는 이유는 v0.6.10 작업을 나눠야 하는 한 단계이고 그 자체로는 릴리스가
+아니기 때문입니다. 사람이 볼 수 있는 것은 표시되는 버전 말고는 아무것도 바뀌지 않습니다. 창은 그리던 것을 그리고, 팝업은 같은 픽셀을 렌더링하고, 패널은 같은 스크립트를
+내보내고, 전송되는 모든 응답은 같은 필드를 담습니다. `tests/golden/`이 그 하나하나를 바이트 단위로
+붙잡아 둡니다. 여기서 벗어나려면 이후 릴리스 압축 파일의 `Install.cmd`를 실행하세요.
 
-`docs/ROADMAP.md` says v0.6.13 replaces the Python core with Rust under one rule - **replace the
-implementation, not the behavior** - and names the eight parts it is built from. That rule can only
-be kept if each part's behaviour is in one place first: a file that does two parts' work is read
-twice, ported twice and kept in step twice, and the second port is where behaviour quietly changes.
-This release is that groundwork.
+`docs/ROADMAP.md`는 v0.6.13이 Python 코어를 Rust로 바꾼다고 하고, 그 규칙을 하나로 정해 둡니다 —
+**동작이 아니라 구현을 바꾼다** — 그리고 그것을 이루는 여덟 부분을 적어 둡니다. 이 규칙은 각 부분의
+동작이 먼저 한 곳에 있어야만 지킬 수 있습니다. 두 부분의 일을 하는 파일은 두 번 읽히고, 두 번
+옮겨지고, 두 번 맞춰져야 하며, 동작이 소리 없이 바뀌는 것은 그 두 번째 옮김에서입니다. 이 릴리스가 그
+바탕 작업입니다.
 
-### The map
+### 지도
 
-`tests/test_stack.py` places every module on exactly one of the eight Rust parts, on one of the
-parts the Windows interface keeps, or on the few that are neither, and holds the placement four
-ways, each of which only ever shrinks: parts with no package of their own, packages that hold two
-parts, single modules that do two parts' work, and the graph of which part calls which. An entry
-that stops being true fails the test, so the lists cannot go stale while the tree moves.
-`tests/test_layers.py` has held the direction of every import since v0.6.5; this is the other
-question - not which way a call points, but which binary the code ends up inside.
+`tests/test_stack.py`는 모든 모듈을 Rust의 여덟 부분 중 정확히 하나에, 또는 Windows 화면이 계속
+가지는 부분이나 둘 다 아닌 몇 부분 중 하나에 배치하고, 그 배치를 네 가지로 붙잡아 둡니다. 넷 모두
+줄어들기만 합니다. 자기 패키지가 없는 부분, 두 부분을 담은 패키지, 두 부분의 일을 하는 모듈 하나하나,
+그리고 어느 부분이 어느 부분을 호출하는지의 그래프입니다. 더는 참이 아닌 항목은 테스트를 실패시키므로,
+트리가 옮겨 가는 동안 목록이 낡을 수 없습니다. `tests/test_layers.py`는 v0.6.5부터 모든 import의
+방향을 붙잡아 왔습니다. 이것은 다른 질문입니다. 호출이 어느 쪽을 향하느냐가 아니라, 그 코드가 어느
+실행 파일 안에 들어가느냐입니다.
 
-### The Python package, in the plan's layout
+### 계획대로 놓인 Python 패키지
 
-The layout the v0.6.5 plan drew is the tree now: `domain/ store/ codex/ compat/ win/ engine/
-control/ mcp/ commands/ runtime/ ui/`. What moved in this release, each by line range and never
-retyped, each old module kept as a front that re-exports every name it had:
+v0.6.5의 계획이 그린 배치가 이제 트리입니다. `domain/ store/ codex/ compat/ win/ engine/ control/
+mcp/ commands/ runtime/ ui/`. 이번 릴리스에서 옮겨진 것은 모두 줄 범위로 옮겼고 다시 타이핑하지
+않았으며, 원래 모듈은 그것이 가졌던 모든 이름을 다시 내보내는 앞면으로 남았습니다.
 
-- `windows.py` (989 lines, two parts at once) is the Codex adapter in `codex/` - `transport.py`,
-  `appserver.py`, `pairing.py`, `usage.py` - and the Windows platform in `win/` - `kernel.py`,
-  `sync.py`, `homelock.py`, `inventory.py`.
-- `machine.py` is `domain/states.py`, `domain/gates.py` and `domain/public.py`: the stored states,
-  the gates a record passes before anything is sent, and what a person is shown. Its docstring had
-  always called them "three layers, kept apart on purpose".
-- `app.py` is `runtime/`: the composition root, the watcher's loop, and the toasts it raises. The
-  watcher has a package of its own for the first time.
-- `cli.py` is the parser and the command table; the fifteen command bodies are `commands/`.
-- `compat.py` and `compatio.py` are `compat/`, nine files: the registry's model, what a document
-  says about a version, the report, what may be done at a tier, and the io half.
-- `notice_window.py`, the notification card's window code, is `ui/card/`, beside the icon and the
-  popup.
-- Before this: `store/`, `engine/`, `control/`, `brand/`, `codex/`, `ui/popup/`, `ui/tray/` and
-  `mcp/`, and the popup's, panel's and server's large files.
+- `windows.py`(989줄, 두 부분을 한꺼번에)는 `codex/`의 Codex 어댑터 — `transport.py`,
+  `appserver.py`, `pairing.py`, `usage.py` — 와 `win/`의 Windows 플랫폼 — `kernel.py`, `sync.py`,
+  `homelock.py`, `inventory.py` — 입니다.
+- `machine.py`는 `domain/states.py`, `domain/gates.py`, `domain/public.py`입니다. 저장되는 상태,
+  무언가 보내기 전에 기록이 통과해야 하는 게이트, 사람에게 보이는 것입니다. 이 모듈의 설명 문서는 늘
+  이것들을 "일부러 떼어 둔 세 층"이라고 불러 왔습니다.
+- `app.py`는 `runtime/`입니다. 구성의 뿌리, 워처의 루프, 그리고 그것이 띄우는 알림입니다. 워처가
+  처음으로 자기 패키지를 가졌습니다.
+- `cli.py`는 파서와 명령 표이고, 열다섯 명령의 본문은 `commands/`입니다.
+- `compat.py`와 `compatio.py`는 `compat/`의 아홉 파일입니다. 레지스트리의 모델, 문서가 한 버전에
+  대해 하는 말, 보고서, 한 단계에서 무엇을 해도 되는지, 그리고 입출력 쪽입니다.
+- 알림 카드의 창 코드인 `notice_window.py`는 아이콘과 팝업 옆의 `ui/card/`입니다.
+- 그보다 앞서: `store/`, `engine/`, `control/`, `brand/`, `codex/`, `ui/popup/`, `ui/tray/`,
+  `mcp/`, 그리고 팝업과 패널과 서버의 큰 파일들.
 
-No module is over the 700-line budget now, down from ten, and none does two parts' work. And the
-product has no import cycle left: the last one ran through the registry, and closed when the adapter began
-reading the bundled registry from the file that holds it rather than through a front that loaded
-all of it.
+700줄 예산을 넘는 모듈은 이제 하나도 없고(열 개에서 줄었습니다), 두 부분의 일을 하는 모듈도 없습니다. 그리고 제품에는
+import 순환이 하나도 남지 않았습니다. 마지막 순환은 레지스트리를 지나갔고, 어댑터가 번들된 레지스트리를
+그것을 모두 불러오는 앞면이 아니라 그것을 담은 파일에서 직접 읽기 시작하면서 닫혔습니다.
 
-### The window, in nineteen files
+### 열아홉 파일이 된 창
 
-`gui/Controls.cs` was 6,753 lines; `gui/SettingsApp.cs` and `gui/Dashboard.cs` were 4,150 and
-4,353, holding one `partial class` in four declarations. They are nineteen sources now: the
-Settings half, the Dashboard half, the soft controls both are drawn with, and the generated
-palette. Every type and member moved as its own text; the compiler is handed the same code, and
-the pictures are byte for byte what they were. `gui/window.sources` is the compile list and the only
-place it is written, divided into `[settings]`, `[dashboard]`, `[controls]` and `[generated]`, and
-every rule the suite holds the window's code to asks for a group rather than a file.
+`gui/Controls.cs`는 6,753줄이었고, `gui/SettingsApp.cs`와 `gui/Dashboard.cs`는 4,150줄과
+4,353줄이었으며 하나의 `partial class`를 네 선언으로 나눠 담고 있었습니다. 이제 소스는 열아홉
+개입니다. 설정 쪽, 대시보드 쪽, 두 쪽이 그리는 데 쓰는 부드러운 컨트롤, 그리고 생성되는 팔레트입니다.
+모든 타입과 멤버는 그 텍스트 그대로 옮겨졌습니다. 컴파일러는 같은 코드를 받고, 그림은 바이트 하나까지
+예전과 같습니다. `gui/window.sources`가 컴파일 목록이자 그것이 적힌 유일한 곳이며, `[settings]`,
+`[dashboard]`, `[controls]`, `[generated]`로 나뉩니다. suite가 창의 코드에 거는 모든 규칙은 파일이
+아니라 그룹을 묻습니다.
 
-### The wire, as types
+### 타입으로 적은 전송 형식
 
-`control/wire.py` writes down the shapes the control layer hands every surface - a record, a row of
-Pending or History, the watcher, the status, the statistics, the Compatibility card's view, a
-setting as `describe` publishes it - as twelve typed contracts. `tests/test_wire_types.py` holds each
-one to the golden replies both ways: every key on the wire is declared, every declared key is on the
-wire, and every value fits its type. 144 fields the window reads are held to a declared key. These
-are what a Rust port declares as structs, and they keep what a port would be tempted to lose:
-"cannot tell" as its own value where a question can go unanswered, and not as false.
+`control/wire.py`는 제어 계층이 모든 화면에 넘기는 모양 — 기록 하나, 대기 중이나 기록의 행 하나,
+워처, 상태, 통계, 호환성 카드의 보기, `describe`가 내보내는 설정 하나 — 을 열두 개의 타입 계약으로
+적어 둡니다. `tests/test_wire_types.py`는 각 계약을 골든 응답에 양쪽으로 붙잡아 둡니다. 전송되는
+모든 키는 선언되어 있고, 선언된 모든 키는 전송되며, 모든 값이 그 타입에 맞습니다. 창이 읽는 필드
+144개가 선언된 키에 붙잡혀 있습니다. 이것들이 Rust로 옮길 때 구조체로 선언할 것들이며, 옮기는 쪽이
+잃기 쉬운 것을 지킵니다. 답이 없을 수 있는 질문에서 "알 수 없음"은 거짓이 아니라 그 자체의 값입니다.
 
-### Found while doing it
+### 하면서 찾은 것
 
-Splitting a module into a package fails in ways that say nothing at the time, and this release
-built a test for each before moving anything - `tests/test_names.py`, `tests/test_reexports.py`,
-`tests/guiscan.py` - and then an adversarial review of the result. What they found before any of
-it reached anyone:
+모듈을 패키지로 나누면 그 순간에는 아무 말도 하지 않는 방식으로 실패합니다. 이 릴리스는 무엇이든
+옮기기 전에 그 하나하나를 잡는 테스트를 만들었고 — `tests/test_names.py`, `tests/test_reexports.py`,
+`tests/guiscan.py` — 그 결과를 적대적으로 검토했습니다. 누구에게 닿기 전에 찾아낸 것들입니다.
 
-- A relative import inside a moved function means something else one package level down. In the
-  Codex adapter it made the list of versions the bundled registry verifies silently empty; in the
-  watcher's composition root it would have started the watcher without its notification-area icon.
-  Every in-function import in moved code is now rewritten a level up, and `tests/test_names.py`
-  fails on one that names a module that is not there.
-- A test patch aimed at a front reaches nothing. Five tests had been checking the real thing instead
-  of the stand-in they named - the installer's lock among them - and are aimed at the module that
-  looks each name up.
-- The release build would have failed copying the moved documents, and the picture generator's
-  fake Codex reached no process.
-- The wire goldens read the live compatibility data, so any data publish broke the suite; the first
-  one since they were made did. They read the frozen copy now. (This one is also on `main`.)
+- 옮겨진 함수 안의 상대 import는 패키지 한 단계 아래에서 다른 것을 뜻합니다. Codex 어댑터에서는 번들된
+  레지스트리가 검증하는 버전 목록을 소리 없이 비게 만들었고, 워처의 구성 뿌리에서는 알림 영역 아이콘
+  없이 워처를 시작하게 했을 것입니다. 옮겨진 코드 안의 모든 함수 내 import는 이제 한 단계 위로 고쳐
+  쓰이며, `tests/test_names.py`는 없는 모듈을 가리키는 import에서 실패합니다.
+- 앞면을 겨눈 테스트 패치는 아무것에도 닿지 않습니다. 테스트 다섯 개가 이름으로 부른 대역 대신 실제를
+  확인하고 있었고 — 설치 프로그램의 잠금도 그중 하나입니다 — 이제 각 이름을 찾는 모듈을 겨눕니다.
+- 릴리스 빌드는 옮겨진 문서를 복사하다 실패했을 것이고, 그림 생성기의 가짜 Codex는 어떤 프로세스에도
+  닿지 않았습니다.
+- 전송 골든은 실제 호환성 데이터를 읽고 있어서, 데이터를 게시할 때마다 suite가 깨졌습니다. 골든이 만들어진
+  뒤 첫 게시에서 실제로 그랬습니다. 이제 고정된 사본을 읽습니다. (이것은 `main`에도 들어갔습니다.)
 
-### The repository's front page
+### 저장소 첫 화면
 
-`CONTRIBUTING`, `SECURITY` and `SUPPORT` moved to `docs/`, in both languages. GitHub reads all three
-from there, so its security policy tab and the contributing link on a new issue are unchanged, and
-the list of files above the README is thirteen instead of nineteen.
+`CONTRIBUTING`, `SECURITY`, `SUPPORT`가 두 언어 모두 `docs/`로 옮겨졌습니다. GitHub는 세 파일을
+거기서도 읽으므로 보안 정책 탭과 새 이슈의 기여 안내 링크는 그대로이고, README 위의 파일 목록은
+열아홉 개에서 열세 개가 되었습니다.
 
-## v0.6.9 — The window stops making you wait, and a question answered by measuring
+## v0.6.9 — 창이 기다리게 하지 않습니다, 그리고 재어서 답한 질문 하나
 
-[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.8...v0.6.9)
+[이 릴리스의 커밋](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.8...v0.6.9)
 
-### The window is faster, and looks exactly the same
+### 창이 빨라졌고, 생김새는 그대로입니다
 
-The window lagged, worst on some pages, and it was worse in every language but English. It was not
-drawing too much - it was doing the same work again and again:
+창에 렉이 있었고, 몇몇 쪽에서 특히 심했으며, 영어가 아닌 언어에서 더 심했습니다. 너무 많이 그려서가 아니라,
+같은 일을 계속 다시 했기 때문입니다.
 
-- The watcher's snapshot arrives every five seconds whether or not anything moved, and every time it
-  did, both lists rewrote every cell, invalidated themselves and re-measured up to 200 rows across
-  six columns - on pages nobody was looking at, because a snapshot is applied to every page that has
-  been built. The thirteen safety checks on Pending were rebuilt the same way, each rebuild handing
-  its card a full layout. Now each keeps a signature of what it drew, and identical rows and checks
-  are nothing to do.
-- Text was measured over and over: a label that wraps Korean never reached Windows' own measurement
-  cache, so every layout pass measured it again, and the cache that holds a wrapped line was smaller
-  than the Korean catalog, so it emptied itself in the middle of a page. Measurements are cached now,
-  and the wrap cache is eight times larger.
-- The countdowns were written into the Pending list every second whether or not that page was in
-  front; they are written where they can be seen, and once when it comes back.
-- Saving any setting - a theme, a limit - threw away the cache of the window's own words, so the next
-  open waited on a fresh interpreter. Only the Interface language does that now.
-- The shadow templates dropped all 128 of them on overflow and re-blurred everything; the oldest half
-  goes instead. A visibility check on a dozen hot paths went through reflection on every call; it is
-  bound once. A list drew two new brushes for every cell of every row, on every repaint; one brush
-  per colour is kept.
+- 워처의 스냅숏은 무엇이 움직였든 아니든 5초마다 옵니다. 그때마다 두 목록이 모든 칸을 다시 쓰고, 스스로를
+  무효화하고, 최대 200행 × 6열을 다시 쟀습니다. 스냅숏은 한 번이라도 만들어진 모든 쪽에 적용되므로, 아무도 보고
+  있지 않은 쪽에서도 그렇게 했습니다. 대기 중 쪽의 안전 점검 13줄도 같은 식으로 다시 만들어졌고, 만들 때마다
+  카드에 전체 레이아웃을 시켰습니다. 이제 각자 자기가 그린 것의 서명을 기억하고, 같은 행과 같은 점검은 할 일이
+  없습니다.
+- 글자를 재고 또 쟀습니다. 한국어를 줄바꿈하는 라벨은 Windows 자신의 측정 캐시에 닿지 못해 레이아웃을 돌 때마다
+  다시 재었고, 줄바꿈 결과를 담는 캐시는 한국어 카탈로그보다 작아서 한 쪽을 그리는 도중에 스스로 비워졌습니다.
+  이제 측정을 캐시하고, 줄바꿈 캐시는 여덟 배가 되었습니다.
+- 남은 시간은 대기 중 쪽이 앞에 있든 없든 1초마다 목록에 쓰였습니다. 이제 보이는 곳에만 쓰고, 돌아올 때 한 번
+  씁니다.
+- 설정을 저장하면(테마든, 한도든) 창이 쓰는 낱말의 캐시가 버려져서, 다음에 열 때 새 인터프리터를 기다렸습니다.
+  이제는 화면 언어만 그렇게 합니다.
+- 그림자 틀은 128개가 차면 전부 버리고 다시 흐렸습니다. 이제 오래된 절반만 버립니다. 열두 곳의 바쁜 경로에서
+  쓰이는 표시 여부 확인은 호출마다 리플렉션을 거쳤습니다. 이제 한 번만 묶습니다. 목록은 모든 행의 모든 칸마다
+  새 브러시를 두 개씩 만들었습니다. 이제 색마다 하나만 두고 씁니다.
 
-Measured on the real compiled window, laying out every page and section, median of three runs:
+실제로 컴파일된 창에서, 모든 쪽과 모든 구역을 배치하며 잰 값입니다(세 번의 중앙값).
 
-| | before | after |
+| | 이전 | 이후 |
 | --- | --- | --- |
-| English, 100% | 5.6 s | 2.8 s |
-| English, 150% | 6.4 s | 2.8 s |
-| Korean, 100% | 17.3 s | 3.5 s |
-| Korean, 150% | 13.3 s | 3.7 s |
+| 영어, 100% | 5.6초 | 2.8초 |
+| 영어, 150% | 6.4초 | 2.8초 |
+| 한국어, 100% | 17.3초 | 3.5초 |
+| 한국어, 150% | 13.3초 | 3.7초 |
 
-Korean was three times English; it is about a fifth slower now. **Nothing about the design changed.**
-Not a shadow, not a radius, not a light: the speed comes from doing the work once, not from drawing
-less. The pictures in this repository are made again from the same window, and the suite reads their
-pixels - the cards, the hairlines, the status light - as it always has.
-
-### Starting with Codex: asked, built, measured, and not shipped
-
-Starting the watcher when Codex starts - rather than only at Windows sign-in - was built for
-v0.6.9-alpha and measured on a real machine, because two things about it cannot be read out of any
-source. Codex 26.915 answered both: it starts a plugin's MCP server about 22 seconds after the app
-opens, several times, and cancels each within seconds; and it runs each one inside a Windows job
-object that ends everything that server started and forbids leaving it. Six starts were measured; six
-watchers, each dead within about six seconds.
-
-A watcher that is killed seconds after it starts, again and again, is the opposite of what this
-product is - one stopped mid-tick cannot prove whether it sent a continuation. So the switch is not
-offered. The code refuses where the job would end the watcher, and writes what the job said to
-`logs\codex-start.log`, so the next Codex is one line away from being measured again. The advanced
-edition (v0.6.11) is where starting a process outside the host's job belongs, for a person who turns
-it on.
-
-### The waiting light breathes, and the pictures show the right light
+한국어는 영어의 세 배였고, 이제 5분의 1쯤 더 걸립니다. **디자인은 아무것도 바뀌지 않았습니다.** 그림자도,
+모서리도, 불빛도 그대로입니다. 빨라진 것은 같은 일을 한 번만 하기 때문이지 덜 그려서가 아닙니다. 저장소의
+그림은 같은 창에서 다시 만들었고, 스위트는 늘 그랬듯 그 픽셀을 읽습니다. 카드도, 머리카락 같은 선도, 상태
+불빛도 그대로입니다.
 
-A light that says the watcher is waiting for a reset held lit and still, while the notification-area
-icon - which draws that same state as watching - kept moving. It breathes now, on watching's rhythm,
-in the Dashboard, the panel in Codex, the notification-area popup and the notification card. And the
-animated pictures breathed the wrong dot: in the panel's they moved the small dot in the Automatic
-recovery tile, which never moves in the product, while the status light at the top stayed still. The
-generator takes the topmost light now, at any point of its breath, and the notification card's
-picture breathes with the rest.
-
-### Also here
-
-- Codex ignores a plugin's suggested prompts entirely when there are more than three, and this one
-  offered four, so none of them ever appeared. It offers three.
-- The README is the short version - what it does, how to install it, the one limitation, where
-  everything else is - and everything it used to hold is in [the guide](GUIDE.md).
-- The roadmap gives the design audit and the choice of appearance a release of their own (v0.6.10's
-  final), which moves the advanced features and the two editions to v0.6.11 and everything after it
-  one number on.
-
-## v0.6.9-alpha — Starting with Codex, measured
-
-[The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.8...v0.6.9-alpha)
-
-**A pre-release, and nothing is served it.** It is published from the `dev` branch as a GitHub
-pre-release, so `releases/latest` never answers with it and no installation is offered it; the
-plugin's own route installs what `main` says, which is still v0.6.8. It is here because two facts
-about starting with Codex can only be measured on a machine running the real thing. To leave it,
-run `Install.cmd` from any later release's archive.
-
-### Start when Codex starts
-
-The watcher has always started when you sign in to Windows. This adds the other choice: start it
-when Codex starts. Codex starts this plugin's MCP server whenever it opens, so that server starts
-the watcher when none is running - through the same launcher sign-in uses, only while the switch is
-on and never while an installation holds its lock. Codex starts the server more than once as it
-opens, so two of them can ask at the same moment; the watcher's own single-instance mutex answers
-that, and the second one exits without doing anything. Nothing new is registered with Windows for
-it: no scheduled task, no subscription, no process left resident to wait for Codex.
-The switch is off until you turn it on, in the Dashboard under Settings > Windows; it is not offered
-to Codex, so nothing a model does can turn it on.
-
-Each time Codex starts the server, one line goes into `logs\codex-start.log`: what Windows wrapped
-that process in, and what was decided. It carries no path, no name and nothing from a conversation.
-
-### The waiting light breathes
-
-A light that says the watcher is waiting for a reset held lit and still, while the notification-area
-icon - which draws that same state as watching - kept moving. It breathes now, on watching's rhythm,
-in the Dashboard, the panel in Codex, the notification-area popup and the notification card. Only the
-word beside it tells waiting and watching apart, as the icon has always had it.
-
-### The panel's picture shows the right light
-
-The animated pictures of the panel breathed the small dot in the Automatic recovery tile - which does
-not move in the product - and left the status light at the top still. The generator now animates the
-topmost status light on each surface, which is the one the product moves.
-
-### Also here
-
-- Codex accepts at most three suggested prompts and ignores the lot when there are more; this plugin
-  offered four, so none of them ever appeared. It offers three.
-- The README is the short version, and everything it used to hold is in `docs/GUIDE.md`.
-
-The archive's digest is in the release notes on GitHub; a pre-release is not pinned in
-`scripts/release.json`, so the bootstrap checks it against the published `.sha256` beside it and
-says so.
-
-## v0.6.8 — A tray icon without its badge, and lights that never stop
-
-[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.7...v0.6.8)
-
-Three things about lights, each asked for by name, and nothing about what recovery does.
-
-### One icon, not two
-
-The notification-area icon wore a small status dot in its bottom-right corner - cyan while a
-recovery ran, amber for attention, grey when paused - that the settings window's taskbar button
-never had. So during a recovery the tray showed a second light beside the mark's own moving head,
-and the two icons looked as if they said different things. The dot is gone. The head of the mark
-alone says the state, as it already did on the taskbar button, and the tray icon and the taskbar
-button are the same picture, frame for frame. The states are still told apart by the head: its
-colour, its breath and its sweep.
-
-### Lights that never stop
-
-Needing attention and a failure each pulsed once when they appeared and then held still. Now neither
-stops for as long as it lasts, with the same curve and glow as every other light:
-
-- **Needing attention** breathes slowly - every 5.6 seconds, slower than monitoring's 4.4 - in amber.
-- **A failure** breathes quickly - every 1.2 seconds, quicker than a recovery's 2.8 - in red. On the
-  tray icon and the taskbar button its head sweeps out along the ring and back as a recovery's does,
-  twice as quickly - once every 1.98 seconds - and blinks as it goes, on that same 1.2-second breath:
-  the one state whose head breathes while it travels.
-
-The window, the notification-area popup, the panel in Codex, the notification card, the tray icon
-and the taskbar button all take it from one table. Reduce motion, Windows' animation setting and High
-Contrast still hold every light still.
-
-### Red until you have seen it
-
-Until now nothing ever put the tray icon or the taskbar button in the failed state: a failed
-recovery was red on its notification card and in the lists' state chips, and never on either icon. Now a recovery that ends in a certain failure
-turns both red, sweeping, and they stay red until you have seen it - click the icon to open the
-popup, or bring the Dashboard to the front - or until a recovery is on its way afterwards (one that
-is handed back before anything is sent does not count). Hovering over
-the icon says *A recovery failed*, in all nine languages. When you last saw a failure is kept as one
-time in `config/failure-seen.json`, which the watcher sets when it starts, so failures from before
-this update never turn the icon red; PRIVACY.md lists what it holds.
-
-### Also
-
-- The README's picture of the icon's motion has a fifth column, the failed icon sweeping, and no
-  badges.
-- The roadmap: **v0.6.9** is the window's lag, on its own. **v0.6.10-alpha**, a pre-release, is the
-  Python modularization and nothing else; the final **v0.6.10** is advanced features - as many as any
-  program like this offers, and more: everything the product does today keeps today's constraints,
-  and everything they made impossible is built, off until you turn it on - in an advanced edition
-  released beside the standard one, which does not contain that code at all. **v0.6.11** is the bug
-  hunt over both editions, the last Python release. **v0.6.12-alpha** replaces the core with Rust as it
-  is, the final **v0.6.12** makes it Rust-native, and **v0.6.13** is the Rust bug hunt. A pre-release
-  is only ever a stage the work has to be split into that is not a release on its own.
-
-## v0.6.7 — Compatibility in tiers, Failed here, and a notification card that breathes
-
-[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.6...v0.6.7)
-
-What the compatibility data can say grew by one word, what a failure can say grew by one more, and the
-notification card's light now does what every other light does. Nothing about recovery changed: the
-same classifier, the same gates, the same one watcher that is the only thing allowed to send.
-
-### Verified, Checked, Compatible
-
-Each capability, for the exact Codex version on this computer, is now one of six states rather than
-four, in this order:
-
-- **Verified** - a real recovery on this exact Codex version exercised the capability, and none failed it.
-- **Checked** - new: the maintainer's local checks passed on this exact version, and nothing confirmed more.
-- **Compatible** - the data says nothing about this version, and this computer's own checks pass.
-- **Failed here**, **Incompatible** and **Unknown**, below.
-
-The two rules are the ones v0.6.5 introduced. A failed local check always wins, and the data can only
-restrict, or raise a local pass - now to Checked or to Verified - for an exact version. A Checked
-capability needs a cited recording, as a Verified one does, and stops counting when a fetched copy
-expires. It sends exactly as a Compatible or a Verified one does; only the advanced tier, which nothing
-offers yet, still asks for Verified alone. The window's Diagnostics card, the panel in Codex, `status`,
-`doctor` and the watcher's log say the new word in all nine languages, and the word the watcher's gate
-reads for an engine can now be `checked`.
-
-### Failed here
-
-A local check that fails on a version the data checked or verified used to read as Incompatible, the
-same word as a Codex version that does not work. It reads **Failed here** now: the data vouches for
-that version, so the cause is most likely this computer - where Codex is installed, a file it is
-missing - and not the Codex version. It holds every send and refuses every capability exactly as
-Incompatible does, the watcher's engine state reads `failed_here`, the Diagnostics card shows the part
-in the blocking tone, and a waiting interruption carries its own overlay, *Codex checks failed on this
-computer*, which makes the popup and the notification-area icon ask for attention. A local failure on
-a version nobody has checked, and a version the data marks incompatible, are still Incompatible.
-
-### Older releases take the newer data
-
-The data on `main` is fetched by every installation, whichever release it runs. v0.6.5 and v0.6.6 take
-data carrying Checked claims whole: their validator passes over a state it does not know, so nothing
-they decide moves, and a Verified claim reaches them as it always did. The suite now proves it with
-their own code rather than by reading it: `OlderReleasesTests` loads each release's `compat.py` from
-its tag and runs it on the data. The tool that publishes the data checks the same way before it opens
-anything.
-
-### The notification card breathes
-
-The card's status light is the popup's now: it breathes on the one table the window, the popup and the
-panel breathe on - a breath every 4.4 s while monitoring and every 2.8 s while recovering - a problem
-pulses once and then holds lit, and an interruption waiting for its reset holds lit and still, as it
-does everywhere. The card's face is drawn again for the light at most every 80 ms. Reduce motion and
-High Contrast hold it lit and still with no glow, which is what v0.6.6 drew for every card on purpose.
-`notice_window.py` grew by seven lines for it, and its line ceiling was raised to match: the split that
-brings those ceilings down is v0.6.8.
-
-### Compatibility data between releases
-
-The data file on `main` is live: it changes whenever compatibility data is published, between releases.
-The behaviour tests and the documentation's pictures read v0.6.6's bundled document, frozen beside them
-(`tests/fixtures/codex_compat_frozen.json`), so a publication cannot turn `main` red or mark a picture
-stale; `BundledBaselineTests` still hold the live file to its rules. The first publication since v0.6.6
-verified codex-cli 0.153.4, 0.154.0-alpha.6.2 and 0.155.0-alpha.9.2 and checked 0.155.0-alpha.2.6,
-each from one machine's own records of real recoveries, with the recordings under `docs/evidence/compat/`.
-
-### Fixed
-
-- **Main went red once on the commit a release is tagged at.** The check that a tagged version's digest
-  is pinned now skips the commit the tag points at, which cannot carry its own digest; a later commit
-  without the pin still fails.
-
-### Documents
-
-- The roadmap's planned releases each move one number on: the Python modularization that was v0.6.7 is
-  v0.6.8, the GitHub landing-page tidy goes with it, and everything after follows.
-- The feature matrix, the security and support notes, the brand document, the README and the plugin,
-  live-acceptance and verification guides say the six states and the breathing card, in English and Korean.
-
-### Evidence
-
-Everything below was run on one Windows 11 machine (Home, build 26200, Korean system language). The
-suite passes on this tree; the tests named above are the ones that hold each change: `ResolveTests`,
-`PermitTests`, `EvaluatorTests`, `CardTests`, `OlderReleasesTests`, `BundledBaselineTests` and the
-card's two light tests. The pictures were made again for this version.
-
-Not verified, and not claimed: a real Codex showing Checked or Failed here, which needs a version the
-data checks on a computer whose check fails; the card's light breathing on a real desktop, which is
-drawn off-screen and read at single moments; and the Failed here overlay asked for by a test.
-
-## v0.6.6 — A status light that breathes, a taskbar button that moves where it is installed, a theme of the panel's own, and pictures that show it
-
-[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.5...v0.6.6)
-
-What a day of real use turned up. Nothing about recovery changed: the same classifier, the same
-gates, the same one watcher that is the only thing allowed to send. One new setting, the panel's
-own theme, whose default changes nothing.
-
-### The status light is the ordinary breath now
-
-Three cuts were wrong in three directions, and each was named: v0.6.4's glow was too big, v0.6.5's
-blink too quick and too hard, and this release's first answer - a smaller swing - too faint to see.
-The fourth is how a status light of this size is ordinarily built, and nothing of ours:
-
-- **One cycle near a resting breath**, 4.4 s, about fourteen a minute. Recovering runs it every
-  2.8 s; a problem runs it once, over 1.4 s, and then holds lit.
-- **One symmetric cosine across the whole cycle**, so the light is never not moving and has a
-  corner nowhere - half of it down, half back.
-- **A deep swing**: the dot keeps 35% of its light at the bottom, 62% of its colour as drawn.
-  Gentleness comes from the speed and the curve, not from a small swing, which is what the first
-  answer got backwards.
-- **Taken in light and drawn through the screen's gamma**, because a cosine walked straight along
-  an alpha bunches at the top and rushes at the bottom.
-- **A glow that rides the brightness** rather than taking a turn of its own: out at the top at
-  opacity 0.50, gone at the bottom.
-- **A reach that is a share of the dot**, 0.6 of its radius, rather than the flat 3 px it had been
-  - which was two thirds of the popup's radius and half of the panel's, the same light in two
-  strengths. The window's is unchanged at 3 px; the panel's is 3.6 and the popup's 2.7.
-
-One table serves every surface, so the window, the notification-area popup and the panel in Codex
-breathe alike; the notification card draws its light from the same table at one moment of the
-breath, because a card that is on the screen for a few seconds does not breathe at all. The
-notification-area icon and the window's taskbar button read the same rhythm, so the mark's head
-breathes with it and its sweep comes every 22 s rather than every 16 s; the head keeps its own
-deeper fall, because sixteen pixels need it.
-
-### The last controls that were not ours
-
-Two native controls were still showing through the design, and a third was ours only where somebody
-had remembered to ask for it.
-
-- **Every scroll bar is the product's own**, wherever one appears and on either axis. The panel's
-  rules had been written for one class - the drop-down's list - so a wide table, a long page or any
-  box added later got the browser's grey; they are global now, with a corner and a Firefox
-  fallback. In the window the message box was the last control still scrolling on Windows' bar: it
-  keeps that bar, because that is what scrolls the text and what the wheel and the keys talk to,
-  and hides it outside a clip, while ours is drawn in the gutter that leaves, from the box's own
-  scroll position, exactly as a list's is.
-- **A scroll bar's track takes its colour from the ground it runs over.** Over a card the groove is
-  `inset`, as it always was; in a well that is itself `inset` - the message box - an inset track
-  would be the ground and the pill would float on nothing, so there it is `surface`. High Contrast
-  keeps its system colours either way.
-- **Windows' message box is gone from the window.** Fourteen of the fifteen are now a dialog in the
-  material the rest of the window is made of, and they say what will happen: instead of "Yes" and
-  "No", which name nothing, the affirming button carries the words of the button that was pressed
-  to ask - *Clear history*, *Stop watcher*, *Install* - beside Cancel, which is the pattern the
-  panel settled first. The fifteenth is kept on purpose: it is raised before there is a window, a
-  theme or a catalog, to say that nothing is installed in that location.
-- **Every drop-down the panel makes is the panel's own**, which was true and is now held to by a
-  test that reads each one by name rather than counting them.
-
-Deliberately unchanged: the notification area's right-click menu, which Windows draws and which
-already follows the theme, and the file picker the diagnostics export opens, which is the one every
-other application opens.
-
-### The panel in Codex has a theme of its own
-
-The panel sits inside Codex and everything else sits on Windows. *Use system setting* already let
-each follow its own host, but a Light or Dark Theme drew them all alike: nobody could keep the window
-dark and let the panel follow Codex, or pin the panel whatever Codex does. **Theme in Codex**, under
-Settings > Appearance right under the Theme, is the panel's own: *Same as Theme*, *Codex's theme*,
-*Light* or *Dark*.
-
-- *Same as Theme* is the default, and it is exactly what every panel did before: the Theme's choice,
-  with *Use system setting* following Codex there as it always has. An upgrade changes nothing
-  anybody can see; the new setting only matters once somebody chooses it.
-- The Theme itself now draws the window, the popup and the notification card, and draws the panel
-  only while Theme in Codex is Same as Theme. Its help in both places says so.
-- It is offered in the window and in the panel, and Codex may change it too (`panel_theme` in the
-  settings tool). A save sends it only when it was changed where the save was made, as the Theme and
-  the Interface language are sent, so one changed elsewhere is not put back.
-- A watcher too old to know the setting sends none, and the panel draws itself in the Theme's choice,
-  as it did. A value it does not know is Same as Theme.
-- Its words are in all nine languages, and the Theme's help is rewritten in all nine, because it no
-  longer colours the panel outright.
-
-### The documentation moves
-
-- The pictures a reader meets first are animated PNGs now: every dashboard page, the settings
-  window, the panel in Codex and the notification-area popup, in each language, with their status
-  light redrawn from `brand.glow` at the rate the window itself repaints. Nothing else in them
-  moves, they keep every colour they had, and a viewer without animation sees the still picture
-  that was always there.
-- The icon's motion and the light's own picture are animated PNGs too, in place of the GIFs they
-  were: a GIF holds 256 colours, which is not enough for the badge's gradient or the card's
-  ground.
-- The pictures are the light theme's only. The dark theme is described rather than pictured, which
-  halves what a reader scrolls past.
-- **Every window picture had a black band down each side and along its bottom** - 11 px at 100%,
-  16 at 150% - and nobody had looked at the edge of a 1522-pixel picture. It was not the window:
-  `PrintWindow` returns the window without its frame, because the frame is Windows' to draw, and
-  the bitmap it is drawn into starts black. The picture is now cut to what was actually drawn,
-  measured from the window's own client rectangle.
-- **And the corners Windows rounds are rounded in the picture**, at the system's own radius for
-  this window's DPI, left transparent so the page behind shows through them. A screenshot of a
-  Windows 11 window with square corners is a screenshot of a window nobody has.
-
-### The taskbar button moves where it is installed
-
-- v0.6.5 moved the mark on the window's taskbar button, and on an installed window it never moved
-  once. Measured here: the published executable, byte for byte, moved the button from a scratch
-  folder and did not move it from the installed one, where an instrumented build showed the window
-  setting frame after frame into a button that stayed pixel-identical for twenty-four seconds.
-  What decides it is where the window is installed, not what it does: Windows files an installed
-  window under the application registered at that location and paints its button from that
-  application's icon, which no window can change. A Start Menu shortcut alone does not do it - one
-  written for a scratch folder, with the same identity and the same icon, left the button moving.
-- The window now asks Windows to file it under an identity of its own, which nothing registers, and
-  the button falls back to the icon the window itself sets. With that one call the same build moved
-  74 of 163 filmed frames in the installed location. Notifications are unaffected: they are raised
-  by the watcher under the watcher's own AppUserModelID, which is what makes them attributable.
-- The notification-area icon is unchanged, including where it holds still on purpose: an icon
-  Windows keeps in the overflow flyout does not move, because nobody sees it there. Dragging it onto
-  the taskbar brings its motion back within a second.
-
-### Documents
-
-- The changelog, the roadmap, the brand notes and the feature matrix carry the new numbers, in
-  English and Korean. The roadmap's planned releases each move one number on: the Python
-  modularization that was v0.6.6 is v0.6.7, and everything after it follows.
-
-### Two builds before this one
-
-v0.6.6 was published twice before this, and both builds are kept as pre-releases, each on a release
-page of its own and with an entry of its own right after this one in the changelog:
-[`v0.6.6-beta`](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/tag/v0.6.6-beta), the build announced as `v0.6.6` on 2026-09-20, and
-[`v0.6.6-alpha`](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/tag/v0.6.6-alpha), the first candidate. All three archives are called `CodexAutoResume-v0.6.6-win-x64.zip`, because
-renaming a tag does not rename what is already attached to a release - the same name for different
-bytes. The digest pinned in `scripts/release.json` is this release's, and it is the one to check
-against.
-
-### Evidence
-
-Everything below was run on one Windows 11 machine (Home, build 26200, 3840 x 2160 at 150%, Korean
-system language, Windows' apps set to dark and the product's Theme set to Light). The suite, the
-build, the archive, the light, the pictures, the dialog and the panel's own theme were measured on
-this tree. Two things were measured on the first candidate, `v0.6.6-alpha`, and not again: the
-taskbar button filmed in the installed location, whose code has not changed since by a byte, and
-the upgrade over v0.6.5, which this release made over the beta instead.
-
-- **The suite.** 2,580 tests, no failures, under Python 3.13 here (900 s, 8 skipped), and green on
-  GitHub's Windows runners for 3.12, 3.13, 3.14 and 3.15. The skips are the opt-in live checks and
-  the pin check that waits for the tag.
-- **The window, built here and on GitHub.** The `CodexAutoResumeSettings.exe` built from these
-  sources on this machine and the one GitHub's runner built into the published archive are
-  byte-identical (`db7257ee…`, 388,096 bytes). The archive's own digest is not written here - this
-  file ships inside the archive, so naming it would change it - it is published beside the release
-  and pinned in `scripts/release.json` afterwards, which is what `docs/VERIFY.md` compares.
-- **The taskbar button, in the installed location.** This is the claim v0.6.5 could not make. With
-  v0.6.6 installed over v0.6.5 here, the window's button was filmed at ten frames a second for
-  twenty-four seconds: 92 of 198 frames differ from the one before, and the mark's head is at
-  different places and brightnesses through the loop. The same measurement on the published v0.6.5
-  build, in the same place, found not one changed pixel in twenty-four seconds; the same executable
-  moved the button from a scratch folder. An instrumented build showed the window setting frames
-  throughout (state=watching, allowed=True, interval 156 then 62) - the frames simply never reached
-  the button.
-- **Installed on this machine.** The first candidate was installed over v0.6.5: the installer
-  answered *Updated. Your settings and pending recoveries were kept.*; `config\settings.json` was
-  byte for byte what it had been; the watcher restarted and reported 0.6.6. This release was
-  installed over the beta from its own archive's `Install.cmd`, with the same answer; the 154
-  files it installed are byte for byte the archive's, and the watcher restarted on them.
-- **The archive.** `build/smoke_archive.py` passed every check on the published archive, including that both
-  executables report 0.6.6 and that this machine's registrations and state were left as they were.
-- **The light.** Its numbers are held by the suite on the drawn pixels of every surface - the
-  window, the popup, the panel and the card - and every picture in the documentation was drawn
-  again from the new table by the product's own code, in the five languages they are made in, in the light theme.
-- **The icon's motion.** The animated PNG in the documentation is composed from the icon's own
-  frames at the new rhythm, and the suite holds every frame of it against the icon's table.
-- **The pictures' edges.** Every window picture is 22 px narrower and 11 shorter than it was: the
-  frame Windows draws and PrintWindow does not is gone, measured away rather than trimmed by eye,
-  and the four corners Windows rounds are rounded and clear, which the suite reads off the pixels.
-- **The dialog.** It is opened for real by the suite - the compiled window, a dialog asked for, a
-  timer that reads it while it is up and presses one of its buttons - and what is read back is where
-  the buttons are, which one Enter and Escape press, that it belongs to the window and carries no
-  second button on the taskbar, and the answer each press gave. Nobody has yet used it with a screen
-  reader, and no capture shows it.
-- **Theme in Codex.** The panel's own `applyTheme` is run in Node over thirteen pairs of the two
-  themes, and the panel's row is driven there: its four choices, a save that sends it alone, and
-  the stamp changing in place. The compiled window is driven too - it sends the setting only when
-  it was changed there, and its drop-down follows a change made in the panel or by Codex. The
-  settings panel's picture shows the row, in the five languages the pictures are made in.
-
-Not verified, and not claimed: the notification-area icon's own motion on this machine (Windows
-keeps it in the overflow flyout, where this release still holds it still on purpose); High Contrast
-on a real system; a real Codex interruption recovered by this build; the panel drawn in a theme of
-its own inside a real Codex; any machine but this one, and
-any scaling but 150 per cent.
-
-## v0.6.6-beta — The build announced as v0.6.6, before the panel had a theme of its own
-
-**A pre-release, kept on [its own page](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/tag/v0.6.6-beta).** Built from `b17076d`, published and
-announced as `v0.6.6` on 2026-09-20 and renamed `v0.6.6-beta` on 2026-09-21. It went out without the panel's own
-theme, which was asked for the same day, so v0.6.6 was cut a third time. Its notes are v0.6.6's
-above less *The panel in Codex has a theme of its own*: the ordinary breath, the taskbar button that
-moves where it is installed, the product's own scroll bars and dialog, and the pictures cut to the
-window. Its evidence was measured on its own tree: 2,572 tests, and a window built twice to
-`c572844e…`, 387,072 bytes.
-
-- It was announced, so it is said plainly: **the tag `v0.6.6` has named three archives**, and this
-  was the first announced under it. Its digest is
-  `e620280bd5b40ad354d767fe22dd65ec8ed3eefe6b2f0af20d20759fca7e81a3`; `scripts/release.json` pins v0.6.6's, so a copy taken from the beta's page fails the
-  comparison, which is the comparison doing its job.
-- Nothing is served it: the update check reads the tag out of the URL `releases/latest` ends at and
-  accepts `vMAJOR.MINOR.PATCH` alone. A machine running it keeps it and is not moved back to v0.6.5.
-  Because the number is the same, the update check does not offer it v0.6.6 either: the v0.6.6
-  archive's `Install.cmd` installs over it, and so does the setup script given `-Force`.
-
-## v0.6.6-alpha — The first candidate, set aside before it was announced
-
-**A pre-release, kept on [its own page](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/tag/v0.6.6-alpha).** Built from `f63d904`, tagged
-`v0.6.6` and published on 2026-09-20, then stopped before it was announced: its gentler light - a
-smaller swing - was too faint to see, and the scroll bars, the dialog and the pictures' edges had not
-been made the product's own yet. It carried two things: a slower, shallower status light (a 4.4 s
-cycle, the dot dimming 38% of the way rather than 60%, the glow peaking at 0.30), and the taskbar
-button that moves where it is installed, which v0.6.6 carries too.
-
-- Its archive is called `CodexAutoResume-v0.6.6-win-x64.zip` as well, and its digest is
-  `3b99217b084148111d07cfc51c9ad8f5bddb6fd50029979ed1b1b6796be0b956`. Nothing is served it, for the same reason as the beta.
-
-## v0.6.5 — A light you can see, notifications in the product's own card, and a Codex Compatibility Registry
-
-[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.4...v0.6.5)
-
-A design and safety release. With the compatibility data this release ships, recovery decides
-what it decided in v0.6.4: the same classifier, the same gates, the same one watcher that is the
-only thing allowed to send. The one difference is a check: codex-cli 0.153.4, which v0.6.4 trusted
-by its version, now has to show that `codex queue` still takes a conversation and a message, as
-every other build always had to (below). What changed is how much of it you can see - a status light and an
-icon that visibly move, notifications drawn in the product's own design, controls that answer as
-they change - and a Codex Compatibility Registry, whose data can only ever make the watcher more
-careful. The one new setting, **Show notifications as a card beside the notification area**, is on
-by default and changes where a notification appears, never whether there is one or what it says.
-
-### The status light
-
-- v0.6.4's light was too quiet to be seen. It now blinks the way the notification-area icon's head
-  does: while the watcher is watching, every 3.2 s the dot itself dims to 60% of the way toward the
-  card it sits on and comes back, with nothing spreading, and only once it is fully lit does a small
-  glow spread from its edge - opacity 0.34, 3 px past the dot at most - and draw back in. A first cut
-  breathed a glow reaching 7 px round a dot that never changed; this one was chosen after it, from
-  previews at 2, 3 and 4 px. While a recovery is being sent the same cycle runs every 2 s.
-- Waiting and checking hold lit with no glow, and a problem runs the cycle once, over 1.4 s, then
-  holds lit. The colours, the words beside the light and its size are unchanged, and it is the same
-  light in the Dashboard, the popup and the panel; the notification card shows it lit and still.
-- Reduce motion and Windows' animation setting hold it lit and still with no glow, and High Contrast
-  still draws a solid dot with no glow.
-
-### The notification-area icon moves
-
-- While the watcher is watching, the bright head of the mark breathes on the status light's 3.2 s
-  rhythm - dimming toward the badge's deep blue and back - three times, and then sweeps along the
-  ring's white stroke and back in a slot of two more breaths, at full brightness: 2.56 s out,
-  a moment at the stroke's far end, 2.56 s back, and 1.12 s at home - a loop of five 3.2 s slots,
-  16 s in all. It leaves its place clockwise and stays on the stroke, never crossing the gap at the
-  top of the ring. It never breathes while it travels, and a breath and the sweep's slot both begin
-  and end at full brightness, so nothing jumps where one gives way to the other.
-- While a recovery is in progress - a continuation being sent, or the turn it started still being
-  followed - the head sweeps out and back over and over, twice as quickly: 1.28 s out, a moment at
-  the far end, 1.28 s back and 0.24 s at home, a sweep every 2.88 s, at full brightness and without
-  breathing.
-- Paused, the head is grey and still. When something needs you it turns amber - the danger colour
-  for a failure - pulses once and holds.
-- The head moves in 24 steps of 15 degrees round the ring - the 20 of them from its own place
-  clockwise to the stroke's far end - and breathes through 24 levels of brightness, a tint of the
-  head rather than stored frames: about 16 frames a second while it travels, one for each step of
-  watching's sweep, and about 6 while it breathes. Each frame costs explorer.exe the work of drawing
-  the icon again, so the rates were chosen by measuring that - each candidate for 60 s against 60 s at
-  rest, on one machine (Windows 11 build 26200, 3840 x 2160 at 150%). While it watches, the
-  notification-area icon - measured where Windows had put it, in the overflow area - costs
-  explorer.exe about 1.3 points of one core above rest at these rates, against 1.1 at the 3 and 5
-  frames a second it had before and 2.2 with a breath of 11 a second; the taskbar button costs about
-  2 at every rate tried, and was seen redrawn no more than about eight times a second whatever it
-  was sent. Travelling all the time, while a recovery is in progress, each costs about 2.5 to 3.
-  These were measured while watching turned a whole way round in the last slot of five; it now
-  travels in two of them, so what watching costs sits a little nearer the travelling figure.
-- It holds still under Reduce motion, Windows' animation setting, High Contrast and battery saver,
-  while the session is locked, and while the icon sits in the overflow area where nobody sees it.
-  Where the icon is cannot be asked of the shell: Windows 11 build 26200 gives an icon in the
-  overflow area the overflow button's own place rather than none, and the icon moved there unseen,
-  at explorer.exe's cost. What Windows itself wrote about this icon says it instead - its own
-  per-icon setting, read and never written - and an icon it says nothing about is left to the
-  shell's answer, as before. At rest it is exactly the icon it has always been; the badge and the
-  shape are unchanged.
-- While the settings window is open, its taskbar button moves the same way, with the same rhythms
-  and frames. Its state is the icon's for the same watcher, as the icon has it while the popup is
-  open: the window, like the popup, reads the watcher as it is now. It holds still under the same
-  settings, while the session is locked or disconnected - which it asks Windows once a second, where
-  the icon hears Windows say it - and while the window is hidden. The title bar's icon does not move, and at
-  rest the button is the icon it has always been.
-
-### Notifications in the product's own card
-
-- A notification now appears as a card in the product's own design beside the notification area:
-  the popup's card, with the product's name, a status light and, for a detected interruption, the
-  kind of interruption on a chip. It says exactly what the Windows notification says - the same
-  three lines, in the Interface language - and offers exactly its buttons: **Don't resume** and
-  **Open Dashboard** for a detected interruption, none for anything else. A button does what the
-  notification's button does, and nothing more: it cancels that one recovery or opens that one page.
-- The card rises out of the corner the notification area is in, fading in and growing from 98% to
-  full size in about a third of a second, and never takes the keyboard focus. It stays at least 6
-  seconds - longer if Windows is set to keep notifications longer - and while the pointer is over
-  it, then fades. Up to three stack, the newest nearest the corner, and a newer card about the same
-  conversation replaces the older one. Under Reduce motion, Windows' animation setting, battery
-  saver or High Contrast it appears and disappears in place.
-- Once the card has been on screen, the same Windows notification is added to Windows'
-  notification center silently, with no banner and no sound, so the history is what it always was.
-  If a card cannot be drawn, Windows' own notification is raised instead.
-- Windows' own notification, exactly as before, is used whenever a card must not show: the setting
-  is off; the notification-area icon is off; Do not disturb or Focus is on; an app is full screen or
-  presenting; the session is locked or remote; a screen reader is running, because Windows'
-  notification is announced and a card that never takes the focus is not; or Codex Auto Resume's
-  notifications are switched off in Windows' Settings, in which case Windows shows nothing, as it
-  always did.
-- The setting is under Settings > General > Windows in the Dashboard, beside the notification-area
-  icon, with a line saying what it does. Codex cannot change it.
-- Which events notify and their wording did not change: the **Notifications** switch and the event
-  check boxes still decide whether there is a notification at all.
-
-### Depth in the popup
-
-- What stands on the popup's card is now raised and what holds a value is sunken: each waiting
-  task is a tile lifted off the card - a soft drop and highlight in light; in dark, a faint drop and
-  a one-pixel light along its top edge on a slightly brighter ground - the three counts sit in one
-  sunken well with a hairline between them, "nothing waiting" and a failed read are said from a well
-  too, and a button sinks into a well while it is pressed. High Contrast draws none of it.
-- In the panel in Codex, each waiting conversation's row and the Automatic recovery switch's tile
-  are lifted the same way.
-- The Dashboard's Pending and History lists stay flat rows with a hairline between them, as in
-  v0.6.4.
-- A count's label is never cut inside a word: a column whose longest word needs more room gets it.
-
-### The window's first screen
-
-- The Overview's **Pause recovery** or **Resume recovery**, **Pending** and **History** are back at
-  the bottom left of their cards, in a row of their own under what the card says, as in v0.6.2. The
-  header's **Start watcher** and the Custom messages' **Clear** buttons stay at the bottom right.
-- The window opens at 1000 × 664 instead of 1000 × 632. The Overview's rows are as tall as their
-  cards need and a little more, never more than 24 px past it, with the page's own 14 px gap under
-  the last row rather than cards stretched to the footer. On a screen whose work area is shorter -
-  1920 × 1080 at 150% with the taskbar, for one - it opens as tall as the work area, and the
-  Overview still fits there in every language.
-
-### Lists, drop-down lists and switches
-
-- Lists in the window no longer overflow sideways at ordinary sizes. As a list narrows, a
-  conversation's name gives way first, then what a column holds past a readable width, then
-  headings wider than what they head, the widest first, and last the cells, the widest first; what
-  no longer fits ends in an ellipsis, so a time or a count stays whole while a long name or state is
-  shortened. Only a list narrower than its columns can shrink to scrolls sideways, on the window's
-  own soft bar; Windows' white horizontal bar no longer shows.
-- Drop-down lists are drawn by the product, in the window and in the panel: a card of the cards'
-  own material floating under the field with the soft shadow, its items pills - the chosen one
-  sunken, the one under the pointer raised, the one the keyboard is on ringed. It opens where there
-  is room, shows up to twelve rows and scrolls the rest, rises into place unless motion is reduced,
-  and is drawn in system colours with no shadow in High Contrast. The keys are Windows': it opens on
-  a click, F4, Alt+Up, Alt+Down or Space, the arrows, Home, End, Page Up and Page Down move, typing
-  finds the next item that starts with what was typed, Enter or Tab takes an item and Escape closes
-  it unchanged. A screen reader hears it as a combo box with its choice and the item the keyboard is
-  on. In dark the open list is dark: v0.6.4 left it in Windows' light frame.
-- Switches glide when they change - the knob slides and the track cross-fades in 160 ms, on one
-  ease-out curve - in the window, the popup and the panel, and check boxes fade in the window and
-  the panel. A switch whose change has to be confirmed first - by you, or by the watcher - moves once,
-  when it is confirmed, and never slides and snaps back. Nothing moves under Reduce motion, Windows'
-  animation setting or High Contrast.
-
-### Words
-
-- The panel in Codex keeps Korean words whole when it wraps a line, and Japanese phrases; the
-  window breaks Korean lines only at spaces, where Windows used to break them inside a word.
-- The popup and the notification card set Latin text in Windows' UI font, as the window and the
-  panel do.
-- Everything new is in all nine languages.
-
-### Codex Compatibility Registry
-
-- For the Codex engine on this machine, the product now says which of the things it does can be
-  relied on, in four words: **verified** - the maintainer tested this exact Codex version, with
-  recorded evidence; **compatible** - the checks on this computer pass, and nobody has verified this
-  exact version; **incompatible** - a check on this computer failed, or the compatibility data says
-  this version does not work; **unknown** - it could not be established, because a check could not
-  run. It is on a new **Codex compatibility** card on the Diagnostics page, read-only in a card in
-  the panel, in `status` and `doctor`, in a new `compat` command, and in the diagnostics export.
-- The watcher does the checking as it runs: the checks the engine it drives has already passed,
-  the column names of Codex's databases (never a row), the folders recovery reads and the Windows
-  interface that tells whether a conversation is open. It writes what it found to
-  `config\compatibility.json`. Everything that shows it checks the file again as it reads it, and
-  shows unknown, saying why, for one that is damaged, too old, or about a Codex binary that has
-  since changed.
-- The data ships inside the release. The data this release ships marks no capability verified: a
-  verified entry has to cite a recording made on that exact Codex version, and none of the
-  repository's recordings says which version it was made on yet. So every capability is decided by
-  the checks on this computer - compatible where they pass - which is what the product did before
-  the registry existed. Its one restriction, for codex-cli 0.153.4, is on recovering a conversation
-  that is not open in the app, which this product does not do.
-- The one build v0.6.4 called verified, codex-cli 0.153.4, is now shown as compatible, and like
-  every other build it has to show that `codex queue` still offers `--thread` and `--message` before
-  anything is sent to it; v0.6.4 skipped that check for it.
-- The data is refreshed only when you ask: **Refresh compatibility data** on the Diagnostics card,
-  or **Check for updates** once github.com has answered it, whether or not an update exists. The
-  update check skips the refresh when github.com could not be reached and when too little of its
-  time is left, and its answer about updates is the same either way. Nothing polls, the watcher
-  never asks, and neither the panel nor Codex can ask. A refresh is one HTTPS GET to one fixed
-  address on raw.githubusercontent.com - this repository's own data file on its main branch - with
-  no query string and nothing about this machine in it.
-- What arrives is handed to this installation's own validator, which keeps it, as
-  `config\compat-cache.json`, only if it is compatibility data this version can read and no older
-  than what is in force; anything else is refused, and a refresh that fails or is refused changes
-  nothing. The card says what happened: refreshed with the data's number, refused and why, could
-  not be fetched, or busy while an installation or a repair is running.
-- Refreshed data can only make the watcher more careful. It can mark a Codex version incompatible,
-  and then nothing is sent while it is in force. It can mark something verified only for an exact
-  version whose checks on this computer already pass, which changes the word and not what is sent.
-  A check that fails on this computer always wins. Refreshed data past its expiry, about 90 days,
-  keeps its restrictions and loses its verifications.
-- Codex sees a summary: `get_status`, and `open_settings` with it, now carries the compatibility
-  summary as codes only - the overall result and the one the watcher acts on, whether the report
-  could be used, which data is in force and its number, the refreshed data's standing, when it was
-  checked, and each capability's state and reason. No version string, no path, no free text. No
-  tool can refresh or import the data.
-
-### Fixed
-
-- **`"enabled": "false"` turned automatic recovery on.** The window's bridge read its switches'
-  value with a plain truth test, so any non-empty text counted as yes: a request carrying `"false"`
-  switched recovery on and, for Run at Windows sign-in, wrote this product's sign-in autostart value;
-  a request with no value switched them off. The settings window always sends a real true or false,
-  so its own switches were not affected. Anything else is now refused, with the message and code
-  the control layer gives.
-- **Settings accepted or refused a value of the wrong type depending on the default.** An update
-  was compared with what it coerced to, so `{"notifications": 1}` was accepted and
-  `{"notifications": 0}` refused, and `{"reduce_motion": 0}` was accepted. A value is now checked
-  for the type the settings schema publishes first and refused if it is the wrong one, whatever it
-  equals. A settings file with such a value is still read as the default rather than refused.
-- **The log left out the reason for 14 of the 27 states a recovery can be in**, every outcome of a
-  recovery turn among them, and wrote the bare state name. Every state line now carries its reason
-  code, and still codes only.
-- **The release job did not check three things every installed copy requires of an update**:
-  `.codex-plugin/plugin.json`, `scripts/plugin_setup.py` and the icon at the payload's root. An
-  archive missing one would have been published and then refused by every installed copy. It checks
-  all ten entries now, and tests hold its list to what the bootstrap requires in both directions.
-- **A damaged plugin manifest passed as version "unknown", with nothing said.** The installation's
-  root is now found by its manifest rather than by counting folders, and a manifest that is there
-  but cannot be read logs a warning saying why, once, before the version reads unknown. A missing
-  manifest still reads unknown quietly.
-
-### Groundwork for splitting the Python code
-
-Nothing a user sees. Every safety scan in the tests now reads the whole package, recursively, so
-moving code into a subpackage can never take it out of a check's sight; the package's layers, each
-module's size and its structural invariants are held by tests; and the screenshot checks are keyed
-on what the window is shown rather than on which files changed. The split itself, and the golden
-replies, gathered rules and typed contracts that come before it, are v0.6.7.
-
-### Documents
-
-- `PRIVACY.md` and `SECURITY.md` describe the compatibility refresh - when it happens, its one
-  address, what is and is not sent, which file holds what and who writes it - the summary
-  `get_status` carries, and the notification card. The feature matrix, the brand document and the
-  roadmap describe the rest.
-- The README pictures a notification as the card it now is, in the light and the dark theme, in
-  place of a capture of Windows' notification taken before Open Dashboard existed, which no
-  manifest pinned. The card's pictures are drawn off-screen by the card's own code and pinned as
-  the popup's are, so a change to what the card says or how it is drawn fails the suite until they
-  are made again. The old capture is gone.
-
-### Evidence
-
-Everything below was run on the release candidate built from this tree, on one Windows 11 machine
-(Home, build 26200, 3840 x 2160 at 150%, Korean system language, Windows' apps set to dark and the
-product's Theme set to Light).
-
-- **The suite.** 2,555 tests, no failures, under Python 3.13 (966 s, 8 skipped) and 3.12 (952 s, 7
-  skipped) here, and green on GitHub's Windows runners for 3.12, 3.13, 3.14 and 3.15. The skips are
-  the opt-in live checks, the pin check that waits for the tag, and, on one interpreter here, the
-  workflow parser that wants PyYAML.
-- **The window, built twice.** Two builds of `CodexAutoResumeSettings.exe` from these sources are
-  byte-identical (`e634e921…`, 382,976 bytes), and `build/normalize_pe.py` accepts both.
-- **Clipping.** The layout audit builds the window hidden in all nine languages at 100, 125, 150,
-  175 and 200 per cent, in every watcher state, and reports anything cut off, any pinned button away
-  from its corner, any text under one, and an Overview that scrolls. It reports nothing.
-- **Installed over v0.6.4 on this machine.** The installer answered *Updated. Your settings and
-  pending recoveries were kept.*; `config\settings.json` held every value it had before, byte for
-  byte on the first install and with only this release's new setting added afterwards; the watcher
-  restarted and the plugin manifest read 0.6.5. The installed MCP server introduced itself as 0.6.5
-  with its seventeen tools, previewed a continuation in Korean, still refused to let
-  `update_settings` write a Custom message, and carried the compatibility summary as codes only,
-  with no tool that could refresh or import data.
-- **The compatibility card and its refresh, for real.** The watcher checked the Codex on this
-  machine - `codex-cli 0.155.0-alpha.9.2` - found every local check passing and the bundled data
-  verifying nothing, called it compatible and wrote `config\compatibility.json`. **Refresh
-  compatibility data** then fetched the published file: `compatibility: refreshed 1`, written to
-  `config\compat-cache.json` by this installation's own validator.
-- **Check for updates, and the refresh that rides on it.** With v0.6.5 installed and v0.6.4 the
-  newest published release, the check answered `update: newer-local 0.6.5 0.6.4` and still refreshed
-  the compatibility data on the way (`compatibility: refreshed 1`) - the refresh happens whether or
-  not there is an update, and it never changes the update's own answer.
-- **The notification card, on a real desktop.** Three cards stacked in the notification area's
-  corner, drawn by the installed build's own code in dark and in light: the product's name, the
-  status light, the reason chip, the three lines and the two buttons, with the entrance and the
-  stack as designed.
-- **The icon's motion.** On this machine the notification-area icon sits in Windows 11's overflow
-  flyout, where this release holds it still on purpose: the watcher used 1.1 s of processor time in
-  its first 40 minutes. The motion itself - the breath, the clockwise sweep along the mark's stroke
-  and back, and the states - was captured from a real taskbar button with the window built into a
-  scratch folder, and is held by tests frame for frame against the icon's own table.
-- **The status light.** Drawn through a whole cycle on every surface - the window, the popup, the
-  panel in Codex and the notification card - in light and dark at 100% and 150%, and compared side
-  by side with the design it was approved from; the suite also reads the drawn pixels for the dot's
-  dimming and the glow's three-pixel reach.
-- **Drop-down lists, switches and a screen reader.** The probes open the real drop-down list, walk
-  it with the keys, type to find, close it on an outside click, glide the switches and read the list
-  and its highlighted item through Windows' own UI Automation. No screen reader was run.
-- **Korean and Latin text.** The window breaks Korean at spaces only (71 strings across four widths
-  and three scalings), the panel keeps Korean words whole, and the popup and the card set Latin text
-  in Windows' UI font, as the window and the panel do; the Korean pictures show it.
-
-Not verified, and not claimed: High Contrast on a real system (it is rendered and asserted, never
-switched on here); a real Codex interruption recovered by this build; the card's fallbacks on a
-locked, full-screen or Do Not Disturb desktop, or with a screen reader running (the rule is held by
-tests only); the taskbar button's motion in the installed window (the window open on this machine
-was opened before the update; the motion was captured from a scratch build instead); any machine but
-this one, and any scaling but 150 per cent.
-
-## v0.6.4 — One look in light and dark, a quieter status light, and a window that arrives ready
-
-[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.3...v0.6.4)
-
-A design and speed release. Recovery decides exactly what it decided in v0.6.3: the same
-classifier, the same gates, the same one watcher that is the only thing allowed to send. The one
-new setting, **Theme**, changes how the product looks and nothing it does.
-
-### One design
-
-- The Dashboard and the notification-area popup now use the materials of the panel in Codex:
-  the same raised cards and sunken fields, the same soft shadows, corner radii and controls.
-  State chips have no border, and buttons stand out and sink when pressed. The text sizes, the
-  Dashboard's pages and Settings sections, and the popup's layout - apart from where buttons and
-  switches sit, below - are unchanged, and so are the notification-area icon and its badge.
-- The Dashboard's header and footer are floating cards, and the page tabs sit on the canvas.
-- High Contrast: the popup follows it now too - system colours, no shadows, no motion - and
-  the panel has a forced-colors style, so its lights, switch knobs and select arrows no longer
-  disappear.
-
-### Light and dark
-
-- A new **Theme** setting, first under Settings > Appearance in the Dashboard and in a new
-  Appearance card at the end of the panel: **Use system setting**, the default, **Light** or
-  **Dark**. In the Dashboard and the popup, *Use system setting* follows the app mode Windows is
-  set to (Settings > Personalization > Colors); in the panel it follows Codex's own theme, as the
-  panel always has. **Light** and **Dark** hold on every surface, whatever Windows or Codex use.
-- Because the default follows Windows, on a PC whose apps are set to dark the Dashboard and the
-  popup are dark after this update. Choose **Light** to keep them as they were.
-- Dark is the panel's dark theme, now on all three surfaces: the same palette, cards lifted a
-  step off a near-black canvas by a faint drop shadow and a one-pixel light along their top edge,
-  and the same wells, switches, check boxes, buttons and scroll bars. The Dashboard's title bar
-  goes dark with it, and so does the notification-area icon's right-click menu whenever the popup
-  is dark, on Windows 10 version 1903 and later.
-- High Contrast wins over any theme, on every surface.
-- Some things Windows draws itself stay light in dark: the Dashboard's message boxes - its
-  confirmations and reports - the file dialog of **Export diagnostics...**, a text box's
-  right-click menu and the frame of an open drop-down list. Windows notifications look as Windows
-  draws them, and the notification-area icon and its badge do not change with the theme.
-- Codex can change the theme too: `update_settings` accepts `theme`. The notification-area icon and
-  Reduce motion are still not offered to Codex.
-
-### Changing the language or the theme
-
-- The Dashboard builds its words and colours when it opens. When a Save changes the Interface
-  language or the theme, the window now closes and opens again by itself, in the new language or
-  theme, on the same page and Settings section, in the same place and at the same size - maximized
-  if it was - with the keyboard where it was. It used to say that the change would show the next
-  time it opened.
-- It does the same when either is changed somewhere else while it is open - in the panel, through
-  Codex, on the command line or in another Dashboard window - when Windows switches its apps
-  between light and dark while the theme follows Windows, and when High Contrast is turned on or
-  off.
-- It never reopens over changes that are not saved. A note in the save card then says the window
-  will reopen once you save or discard them, and it reopens as soon as you do. If the new window
-  cannot start, the old one stays open and goes on working.
-- A Save sends the Interface language and the theme only when they were changed on that page, in
-  the Dashboard and in the panel, so saving something else cannot put back a language or a theme
-  that was changed elsewhere in the meantime.
-- The popup and the right-click menu use a new language or theme the next time they open, without
-  a restart of the watcher, and an open popup redraws when Windows switches between light and dark.
-- The panel applies a saved language or theme at once, where it is. To speak any of the nine
-  languages without asking again, it now carries all of their words, which takes the page Codex is
-  served from about 105 KB to about 205 KB.
-
-### Switches and check boxes
-
-- A switch now always turns something that runs on or off: notifications, the notification-area
-  icon, Reduce motion, Run at Windows sign-in, and automatic recovery for one conversation. A check
-  box picks which items of a list apply: which kinds of interruption are recovered and, under the
-  notifications switch, which events notify. A setting is the same kind in the Dashboard and in the
-  panel, and a check box sits to the left of its label everywhere.
-- The check box is new, in the same material: empty, it is a sunken well; ticked, it is filled
-  with the accent and carries a tick; disabled, it is muted; in High Contrast it is drawn in system
-  colours.
-
-### Buttons and switches at the bottom right
-
-- A button or an on/off switch at the right of a card or a row is now pinned to its bottom-right
-  corner, in the Dashboard, the popup and the panel. What the card or row says comes first, from
-  the top left, and the control closes it. Text beside a control wraps, or the control moves under
-  the text and stays on the right, so nothing runs underneath it; in the Dashboard and the panel
-  the keyboard and screen readers reach the control after the text. Buttons that were already
-  along the bottom, drop-downs, chips, check boxes and the Dashboard's switches - before their
-  labels in Settings, in their column on Pending - stay where they were.
-- In the Dashboard, **Pause recovery** or **Resume recovery**, **Pending** and **History** sit at
-  the bottom right of their Overview cards rather than at the left under the cards' content, and
-  **Start watcher** sits at the bottom right of the header. **History** stands under the finished
-  conversations when their outcomes reach the card's edge.
-- **Right now** keeps its order - automatic recovery, the watcher, the Codex engine, the last
-  check - with the button that pauses and resumes recovery under them at the card's bottom right.
-  The card is laid out for the longest words it can show, so it does not move when the watcher's
-  state changes or its last check grows older, and the Overview still fits the window whatever
-  state the watcher is in.
-- In the popup, each task's switch has moved to the right end of its row, level with the last line
-  of its label however far the label wraps, and the label wraps in the room left of it.
-- In the panel, the **Pause recovery** or **Resume recovery** button at the top of the Automatic
-  recovery card sits at the bottom right of its tile, beside the state and, when a pause fails,
-  the message under it. The **Show notifications** switch sits beside the last line of its label,
-  and each waiting conversation's **Auto-resume** switch beside the line with its next check and
-  attempts. In a narrow panel each moves under its text and stays on the right.
-
-### The status light
-
-- While the watcher is running and recovery is on, the light is cyan again - the colour it had
-  before v0.6.3 - whether the watcher is watching, waiting, checking a task or recovering; the
-  word beside it says which. It glows softly and breathes slowly.
-- A paused or stopped watcher shows the same grey as before, with no glow. A stopped watcher
-  is grey again rather than amber; amber is for a running watcher that needs you.
-- Reduce motion, Windows' animation setting and High Contrast still hold it still.
-
-### The window
-
-- It opens at 1000 × 632 instead of growing to fit the longest Settings section: as tall as fits
-  a 1920 × 1080 screen at 150% with the taskbar, less a few pixels, and a size the Overview fits
-  without scrolling in all nine languages at scalings from 100% to 200%. A Settings section taller
-  than the window scrolls. On a screen with less room, it opens no larger than the screen's work
-  area.
-- The Overview's four cards share the height of the page: its two rows reach from under the tabs
-  to just above the footer, both rows are the same height and so are the cards in each, so the
-  cards are taller and no empty band is left above the footer. What a card says stays at its top,
-  and a card's button moves down with its bottom-right corner. In a window too short for rows of
-  one height, each row keeps what its own cards need, and the Overview scrolls only when they need
-  more than the window has.
-- On Pending, **Why it is waiting** is as tall as the list beside it and scrolls inside its own
-  card, so the page does not.
-- Pages, Settings sections and lists scroll on a soft bar made of the same material instead of
-  Windows' own scroll bar. It shows only while there is more than fits, darkens a step under the
-  pointer, glides unless motion is reduced, brings a control the keyboard moves to into view, and
-  is drawn in system colours in High Contrast.
-- It waits until it has a page to show, and it gets there sooner. Measured at 150% scaling on an
-  empty installation during development, inside the window: the first painted header went from
-  1.46-1.54 s to 0.44-0.45 s, later page switches from a median of about 100 ms (at most 203 ms)
-  to 22 ms (at most 59 ms), the Continuation message section from 222-241 ms to 74-82 ms, and the
-  bridge's status check from 341 ms to 168 ms. Measured from outside on a real installation with
-  real history, the window is on screen about 0.3 s later than v0.6.3's empty frame was - and
-  holds a page people can use about 3 s sooner. The Evidence section gives the numbers.
-- To get there, pages and Settings sections are built when they are first shown, a page that
-  was refreshed in the last two seconds is not asked again, and the window keeps its interface
-  text in `config\strings-cache.json`, beside the settings. That file is used only when the product version,
-  the stored interface language and the Windows language all still match; otherwise the window
-  asks, as it always did, before it shows a word.
-- The bridge's status check no longer loads the watcher to find out whether one is running.
-
-### Fixed
-
-- **Combo boxes lost their bottom edge.** Continuation language, Preview for, Use the message
-  for, Message for, Retry timing and the Statistics period were drawn with the bottom border
-  cut off. A settings row measured its height before the window's font reached it, and the box
-  grew afterwards. Rows now measure again when the box or the font changes, and a test builds
-  the window at five scalings in all nine languages and reports anything cut off.
-- In the panel, a primary button pressed from the keyboard showed white text on a light
-  field, and disabled controls used half-transparent text; they now use readable muted text.
-
-### Documents
-
-- A roadmap, `docs/ROADMAP.md` and its Korean translation, says where the project is heading
-  release by release: a direction, not a promise.
-
-### Evidence
-
-Everything below was run on the release candidate built from this tree, on one Windows 11 machine
-(24H2 build 26200, 3840 x 2160 at 150%, Korean system language, dark app mode).
-
-- **The suite.** 1,820 tests, no failures, under Python 3.13 (710 s, 8 skipped) and 3.12 (715 s,
-  7 skipped) here, and green on GitHub's Windows runners for 3.12, 3.13, 3.14 and 3.15. The skips
-  are the six opt-in live checks, the pin check that waits for the tag, and, on 3.13 here, the
-  workflow parser that wants PyYAML.
-- **The window, built twice.** Two builds of `CodexAutoResumeSettings.exe` from the same sources are
-  byte-identical, and `build/normalize_pe.py` accepts both.
-- **Clipping.** The layout audit builds the window hidden in all nine languages at 100, 125, 150,
-  175 and 200 per cent, in every watcher state, and reports anything cut off, any pinned button away
-  from its corner, any text under one, and an Overview that scrolls. It reports nothing.
-- **Installed over v0.6.3 on this machine.** The installer answered *Updated. Your settings and
-  pending recoveries were kept.*; `config\settings.json` was byte-identical afterwards, the watcher
-  kept running, and the plugin manifest read 0.6.4. The installed MCP server introduced itself as
-  0.6.4 with its seventeen tools, previewed a continuation in Korean, and still refused to let
-  `update_settings` write a Custom message.
-- **A theme change, on the real window.** Settings > Appearance > Theme from *Use system setting* to
-  *Light*, then Save: the window closed and came back by itself in light, on the same page, at the
-  same size and place. Setting it back returned it to dark.
-- **The popup, from a real click.** Clicking the notification-area icon opened the popup in dark:
-  the state line, the three counts, the empty-state note and its two buttons, 564 x 438 device px.
-- **First-window timing, from outside.** Process start until the window is on screen, then until it
-  has drawn its page, no input sent, warm, on a copy of a real installation: v0.6.3 830-1035 ms and
-  5.1-7.6 s; v0.6.4 1.2-1.3 s and 1.8-2.0 s. Inside v0.6.4 the largest costs are the process's first
-  font (215 ms on this machine's 610 font files), building and laying out the Overview (600 ms) and
-  Windows showing the finished window (333 ms).
-
-Not verified, and not claimed: High Contrast on a real system (it is rendered and asserted, never
-switched on here), a real Codex interruption recovered by this build, any machine but this one, and
-any scaling but 150 per cent.
-
-## v0.6.3 — Nine languages, your own words, and a window that shows it is alive
-
-[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.2...v0.6.3)
-
-A feature and design release. Recovery itself decides exactly what it decided in v0.6.2:
-the same classifier, the same gates, the same one watcher that is the only thing allowed to
-send. What changed is what it says, in which language, and how much of what it is doing
-you can see.
-
-### Languages
-
-- **Nine interface languages**: English, 한국어, 日本語, 简体中文, 繁體中文, Español, Deutsch,
-  Français and Português (Brasil). The Dashboard, the notification-area popup and menu,
-  Windows notifications and the panel in Codex all speak the same one.
-- **Interface language setting** (Settings > General). The default, *System*, follows the
-  first language Windows lists, as before; a language this product does not ship is English.
-  An explicit choice wins over Windows and survives restarts, repairs and updates.
-  `CODEX_AUTO_RESUME_LANG` still replaces what Windows reports, so it decides the language
-  only while the setting is *System*.
-- Catalogs are plain JSON, one per language, with English as the source and the fallback
-  for any key a translation has not reached. Nothing is fetched from the network. The
-  translations are tracked against the English they were made from, so a sentence changed
-  in English shows up as stale in every language until it is looked at again.
-
-### The continuation message
-
-- **Continuation language** (default: the interface language) and **Message style**:
-  *Minimal* only asks Codex to retry; *Standard* (the default) says why the task stopped;
-  *Detailed* also asks Codex to check the work so far and not repeat what is done.
-- **Custom** sends your own words, exactly as typed - one message for every interruption,
-  or one per kind of interruption, falling back to the message for every interruption and
-  then to Standard. It may use `{reason}`, `{category}`, `{attempt}`, `{max_attempts}` and
-  `{reset_time}` and nothing else; a placeholder that would put your prompt, the reply, a
-  title, a path, an account or a token into the message is refused by name. At most 2000
-  characters. Nothing about the text can make a failure recoverable, skip a check, or
-  choose a different conversation. A placeholder with no value for that interruption is
-  left out, closing only the gap it leaves; a message left with nothing to say falls back
-  as if it were empty, rather than sending Codex a turn with nothing in it. `{attempt}` and
-  `{max_attempts}` count what the attempt budget counts, and a usage limit, which spends no
-  attempts, has neither.
-- **Preview** shows the exact text that would be sent, built by the same function the
-  watcher sends with, for each kind of interruption and for choices not yet saved.
-- Custom text is written only in the Windows Dashboard. It cannot be set from Codex - not
-  through `update_settings` and not through the new read-only `preview_recovery_message`
-  tool - because text sent automatically into your conversations must not be something a
-  model can be talked into changing. It can be *read* there: the panel shows it, and
-  `get_status` and `open_settings` return it with the other settings, so whatever it says
-  becomes part of that conversation. A diagnostics export records only whether each
-  Custom message is set, never its text.
-- **Changed default:** the continuation used to be one fixed English sentence per kind of
-  interruption. It is now the Standard message in the continuation language, which on an
-  English system reads almost the same.
-
-### The Dashboard
-
-- A new visual language shared with the popup and the panel: soft raised cards, rounded
-  controls, state words on tinted chips, a keyboard focus ring, and no colour without a
-  word beside it. High Contrast mode drops shadows and tints and uses system colours.
-  Light theme; the panel in Codex follows Codex's own theme.
-- The header's status dot shows what the watcher is doing - monitoring (a slow breath),
-  waiting, checking a task that has come due, recovering, paused, or needing you (one
-  pulse). **Reduce motion** (Settings > Appearance) stops every animation, and Windows'
-  own animation setting is always honoured.
-- **Settings** is split into General, Automatic recovery, Continuation message, Appearance
-  and Advanced.
-- **Pending** gains an **Auto-resume** check box for each task, bound to that task's exact
-  interruption and conversation. A click that reaches a record which has since finished,
-  disappeared or turned out to belong to another conversation is refused and changes
-  nothing. It changes policy only; the watcher still decides, and still sends.
-- **Why it is waiting** lists the watcher's safety checks for the chosen task as it last
-  recorded them.
-- **Cancel all** stops every pending recovery, one exact record at a time. There is
-  deliberately no "retry all".
-
-### Notifications
-
-- A transient interruption's notification names the kind of interruption.
-- Both interruption notifications gain **Open Dashboard**, which opens the Pending page and
-  can do nothing else.
-
-### Fixed
-
-- **A recoverable kind of interruption had no switch.** `auth_service_transient` (a
-  sign-in service that is temporarily unavailable) became recoverable after the settings'
-  list of switchable categories was last changed, so it was recovered with no way to turn
-  it off and no name in any window. It now has a switch, on by default, and a test holds
-  the classifier and the list of switches to each other in both directions.
+### Codex와 함께 시작하기: 요청받아 만들고, 재어 보고, 내지 않습니다
+
+Windows 로그인 때만이 아니라 Codex가 시작될 때 워처를 시작하는 일은 v0.6.9-alpha로 만들어 실제 기계에서
+재었습니다. 어떤 소스 코드에서도 읽어 낼 수 없는 사실이 두 가지 있었기 때문입니다. Codex 26.915가 둘 다
+답했습니다. 앱이 열린 뒤 약 22초에 플러그인의 MCP 서버를 여러 번 시작하고 각각을 몇 초 만에 취소하며, 그 서버를
+그 서버가 시작한 모든 것을 함께 끝내고 떠나는 것도 허락하지 않는 Windows 작업 개체 안에서 돌립니다. 여섯 번
+시작했고, 여섯 워처 모두 약 6초 안에 죽었습니다.
+
+시작한 지 몇 초 만에 죽는 워처가 되풀이되는 것은 이 제품이 지향하는 것의 정반대입니다. 한 틱 중간에 멈춘 워처는
+이어가기를 보냈는지 증명할 수 없기 때문입니다. 그래서 이 스위치는 제공하지 않습니다. 작업 개체가 워처를 끝낼
+상황이면 시작하지 않고, 작업 개체가 무엇이라고 했는지를 `logs\codex-start.log`에 적습니다. 다음 Codex는 그 한
+줄로 다시 잴 수 있습니다. 호스트의 작업 개체 밖에서 프로세스를 시작하는 일은 고급판(v0.6.11)의 몫이고, 그것을
+켜는 것은 사람입니다.
+
+### 기다리는 불빛이 숨 쉬고, 그림이 맞는 불빛을 보여 줍니다
+
+초기화를 기다리는 중이라고 말하는 불빛은 켜진 채 멈춰 있었습니다. 같은 상태를 감시 중으로 그리는 알림 영역
+아이콘은 그동안에도 움직이고 있었는데 말입니다. 이제는 감시 중과 같은 주기로 숨 쉽니다. 대시보드, Codex 안의
+패널, 알림 영역 팝업, 알림 카드 모두 그렇습니다. 그리고 움직이는 그림은 엉뚱한 점을 숨 쉬게 하고 있었습니다.
+패널 그림에서는 제품에서는 움직이지 않는 자동 복구 타일의 작은 점을 움직이고, 정작 맨 위의 상태 불빛은 멈춰
+있었습니다. 이제 생성기는 숨의 어느 지점에 있든 가장 위의 불빛을 잡고, 알림 카드 그림도 함께 숨 쉽니다.
+
+### 그 밖에
+
+- Codex는 플러그인의 추천 프롬프트가 세 개를 넘으면 전부 무시합니다. 이 플러그인은 네 개를 내고 있었으므로
+  하나도 보이지 않았습니다. 이제 세 개입니다.
+- README는 짧은 안내가 되었습니다. 무엇을 하는지, 어떻게 설치하는지, 알아야 할 제한 하나, 나머지가 어디
+  있는지입니다. 담고 있던 내용은 모두 [안내서](GUIDE.md)에 있습니다.
+- 로드맵은 디자인 점검과 모양 고르기에 릴리스 하나(v0.6.10의 최종판)를 주었고, 그래서 고급 기능과 두 판은
+  v0.6.11로, 그 뒤의 모든 것은 한 번호씩 뒤로 갑니다.
+
+## v0.6.9-alpha — Codex와 함께 시작하기, 직접 재기
+
+[이 프리 릴리스의 커밋](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.8...v0.6.9-alpha)
+
+**프리 릴리스이고, 아무에게도 배달되지 않습니다.** `dev` 브랜치에서 GitHub 프리 릴리스로 냈습니다. 그래서
+`releases/latest`는 이것을 답하지 않고 어떤 설치본에도 제안되지 않으며, 플러그인 경로는 `main`이 말하는
+버전, 곧 v0.6.8을 설치합니다. Codex와 함께 시작하기에 대한 두 가지 사실은 실제 제품이 도는 컴퓨터에서만 잴
+수 있어서 이렇게 냈습니다. 여기서 벗어나려면 이후 릴리스 압축 파일의 `Install.cmd`를 실행하면 됩니다.
+
+### Codex가 시작될 때 함께 시작
+
+워처는 여태 Windows에 로그인할 때 시작했습니다. 여기에 다른 선택지가 더해집니다. Codex가 시작될 때 함께
+시작하는 것입니다. Codex는 열릴 때마다 이 플러그인의 MCP 서버를 시작하므로, 그 서버가 워처가 돌고 있지 않을
+때 워처를 시작합니다. 로그인 때와 같은 실행기를 거치고, 스위치가 켜져 있을 때만, 설치가 잠금을 쥐고 있는
+동안에는 하지 않습니다. Codex는 열리면서 서버를 여러 번 시작하므로 둘이 같은 순간에 물어볼 수 있는데, 그때는
+워처 자신의 단일 인스턴스 뮤텍스가 답하고 두 번째는 아무것도 하지 않고 끝납니다. 이를 위해 Windows에 새로
+등록하는 것은 없습니다.
+예약 작업도, 구독도, Codex를 기다리며 상주하는 프로세스도 없습니다. 스위치는 켜기 전까지 꺼져 있고,
+대시보드의 설정 > Windows에 있습니다. Codex에는 제공하지 않으므로 모델이 켤 수 있는 길은 없습니다.
+
+Codex가 서버를 시작할 때마다 `logs\codex-start.log`에 한 줄이 남습니다. Windows가 그 프로세스를 무엇으로
+감쌌는지와 무엇을 결정했는지만 적습니다. 경로도, 이름도, 대화의 내용도 들어가지 않습니다.
+
+### 기다리는 불빛이 숨 쉽니다
+
+초기화를 기다리는 중이라고 말하는 불빛은 켜진 채 멈춰 있었습니다. 같은 상태를 감시 중으로 그리는 알림 영역
+아이콘은 그동안에도 움직이고 있었는데 말입니다. 이제는 감시 중과 같은 주기로 숨 쉽니다. 대시보드, Codex 안의
+패널, 알림 영역 팝업, 알림 카드 모두 그렇습니다. 기다리는 중과 감시 중은 옆의 낱말로만 구별합니다. 아이콘이
+처음부터 그래 왔던 방식입니다.
+
+### 패널 그림이 맞는 불빛을 보여 줍니다
+
+움직이는 패널 그림은 자동 복구 타일의 작은 점을 숨 쉬게 하고 있었습니다. 제품에서는 움직이지 않는 점인데도
+그랬고, 정작 맨 위의 상태 불빛은 멈춰 있었습니다. 이제 생성기는 각 화면에서 가장 위의 상태 불빛을 움직입니다.
+제품이 실제로 움직이는 바로 그 불빛입니다.
+
+### 그 밖에
+
+- Codex는 추천 프롬프트를 최대 세 개까지 받고, 그보다 많으면 전부 무시합니다. 이 플러그인은 네 개를 내고
+  있었으므로 하나도 보이지 않았습니다. 이제 세 개입니다.
+- README는 짧은 안내가 되었고, 담고 있던 내용은 모두 `docs/GUIDE.ko.md`로 옮겼습니다.
+
+압축 파일의 digest는 GitHub 릴리스 노트에 있습니다. 프리 릴리스는 `scripts/release.json`에 고정하지 않으므로,
+부트스트랩은 옆에 게시된 `.sha256`과 대조하고 그렇게 했다고 말합니다.
+
+## v0.6.8 — 배지 없는 트레이 아이콘, 그리고 멈추지 않는 불빛
+
+[이 릴리스의 커밋](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.7...v0.6.8)
+
+불빛에 관한 세 가지이고, 모두 콕 집어 요청받은 것입니다. 복구가 하는 일은 바뀌지 않았습니다.
+
+### 아이콘 둘이 아니라 하나
+
+알림 영역 아이콘은 오른쪽 아래 모서리에 작은 상태 점을 달고 있었습니다. 복구 중에는 청록색, 확인이
+필요하면 주황색, 일시 정지면 회색이었는데, 설정 창의 작업 표시줄 단추에는 그런 점이 없었습니다. 그래서
+복구 중에는 트레이에만 마크의 움직이는 머리 옆에 불빛이 하나 더 보였고, 두 아이콘이 서로 다른 말을
+하는 것처럼 보였습니다. 그 점을 없앴습니다. 작업 표시줄 단추에서 이미 그랬듯이 이제 마크의 머리 혼자
+상태를 말하고, 트레이 아이콘과 작업 표시줄 단추는 프레임 하나하나까지 같은 그림입니다. 상태는 여전히
+머리의 색, 숨, 쓸고 가는 움직임으로 구별됩니다.
+
+### 멈추지 않는 불빛
+
+확인 필요와 실패는 나타날 때 한 번 맥박친 뒤 멈춰 있었습니다. 이제 둘 다 그 상태가 이어지는 동안
+멈추지 않고, 곡선과 번짐은 다른 불빛과 같습니다.
+
+- **확인 필요**는 주황색으로 천천히 숨 쉽니다. 5.6초마다 한 번으로, 감시 중의 4.4초보다 느립니다.
+- **실패**는 빨간색으로 빠르게 숨 쉽니다. 1.2초마다 한 번으로, 복구 중의 2.8초보다 빠릅니다. 트레이
+  아이콘과 작업 표시줄 단추에서는 머리가 복구 중처럼 고리를 따라 나갔다 돌아오되, 두 배 빠르게 1.98초마다
+  한 번씩 움직이면서 같은 1.2초 숨으로 깜빡입니다. 움직이면서 숨 쉬는 유일한 상태입니다.
+
+창, 알림 영역 팝업, Codex 안의 패널, 알림 카드, 트레이 아이콘, 작업 표시줄 단추가 모두 한 표를 따릅니다.
+움직임 줄이기, Windows의 애니메이션 설정, 고대비에서는 여전히 모든 불빛이 멈춰 있습니다.
+
+### 볼 때까지 빨강
+
+지금까지는 트레이 아이콘과 작업 표시줄 단추를 실패 상태로 바꾸는 것이 없어서, 실패한 복구는 알림 카드와 목록의
+상태 칩에서만 빨갛게 보이고 두 아이콘에서는 보이지 않았습니다. 이제 확실한 실패로 끝난 복구는 둘 다 빨갛게 하고 쓸고 가게 하며, 사용자가 볼 때까지 - 아이콘을
+클릭해 팝업을 열거나 대시보드를 앞으로 가져올 때까지 - 또는 그 뒤에 새 복구가 보내질 때까지(아무것도 보내지 않고 돌려준 요청은 치지 않습니다) 빨간 채로 둡니다.
+아이콘에 마우스를 올리면 아홉 언어 모두로 *복구에 실패했습니다*라고 말합니다. 실패를 마지막으로 본 때는
+`config/failure-seen.json`에 시각 하나로 남고, 워처가 시작할 때 이 시각을 정하므로 이번 업데이트 전의 실패가
+아이콘을 빨갛게 하는 일은 없습니다. 무엇이 들어 있는지는 PRIVACY.ko.md에 있습니다.
+
+### 그 밖에
+
+- README의 아이콘 움직임 그림에 다섯 번째 칸, 쓸고 가는 실패 아이콘이 생겼고 배지는 없어졌습니다.
+- 로드맵: **v0.6.9**는 창의 렉 개선 하나만 합니다. 프리 릴리스인 **v0.6.10-alpha**는 Python 모듈화뿐이고,
+  최종 **v0.6.10**은 고급 기능이며, 비슷한 어떤 프로그램이 제공하는 것보다도 많이 제공합니다. 지금까지의 기능은
+  지금의 제약을 그대로 지키고, 그 제약에서는 만들 수 없었던 기능은 모두 만들되 사용자가 켜기 전까지 꺼져 있습니다.
+  이 기능들은 기본판과 함께 나오는 고급판에만 들어가고, 기본판에는 그 코드가 아예 없습니다. **v0.6.11**은 두 판
+  모두의 버그 찾기이자 마지막 Python 릴리스입니다. **v0.6.12-alpha**는 코어를 그대로 Rust로 바꾸고, 최종
+  **v0.6.12**는 그것을 Rust답게 만들며, **v0.6.13**은 Rust 버그 찾기입니다. 프리 릴리스는 정식으로 내기에는
+  애매하지만 개발을 단계로 나누어야 할 때만 씁니다.
+
+## v0.6.7 — 단계로 나눈 호환성, 이 PC에서 실패, 그리고 숨 쉬는 알림 카드
+
+[이 릴리스의 커밋](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.6...v0.6.7)
+
+호환성 데이터가 말할 수 있는 말이 하나 늘었고, 실패가 말할 수 있는 말도 하나 더 늘었으며, 알림 카드의
+불빛이 다른 모든 불빛처럼 움직입니다. 복구에 대한 것은 아무것도 바뀌지 않았습니다. 같은 분류기, 같은
+관문, 보낼 수 있는 것은 여전히 워처 하나뿐입니다.
+
+### 검증됨, 점검됨, 호환됨
+
+이 컴퓨터에 있는 바로 그 Codex 버전에 대해, 기능마다의 답이 네 상태가 아니라 여섯 상태 가운데 하나가
+되었습니다. 순서는 이렇습니다.
+
+- **검증됨** - 바로 이 Codex 버전에서 실제 복구가 그 기능을 썼고, 실패한 적이 없습니다.
+- **점검됨** - 새로 생긴 상태입니다. 제작자의 로컬 점검이 바로 이 버전에서 통과했고, 그 이상은 확인되지 않았습니다.
+- **호환됨** - 데이터에 이 버전에 대한 말이 없고, 이 컴퓨터의 점검이 통과합니다.
+- **이 PC에서 실패**, **호환되지 않음**, **알 수 없음**은 아래에 있습니다.
+
+규칙은 v0.6.5가 들여온 둘 그대로입니다. 로컬 점검의 실패가 언제나 이기고, 데이터는 제한하거나, 로컬에서
+통과한 것을 - 이제 점검됨이나 검증됨으로 - 정확한 버전에 대해서만 높일 수 있습니다. 점검됨도 검증됨처럼
+인용한 기록이 있어야 하고, 받아 온 사본이 만료되면 힘을 잃습니다. 점검된 기능은 호환되거나 검증된 기능과
+똑같이 보냅니다. 아직 아무것도 내놓지 않은 advanced 층만 여전히 검증됨을 요구합니다. 창의 진단 카드,
+Codex 안의 패널, `status`, `doctor`, 워처의 로그가 새 말을 아홉 언어로 말하고, 워처의 관문이 엔진에 대해
+읽는 말은 이제 `checked`일 수 있습니다.
+
+### 이 PC에서 실패
+
+데이터가 점검했거나 검증한 버전에서 로컬 점검이 실패하면, 전에는 작동하지 않는 Codex 버전과 같은 말인
+호환되지 않음으로 읽혔습니다. 이제는 **이 PC에서 실패**로 읽힙니다. 데이터가 그 버전을 보증하므로 원인은
+Codex 버전보다 이 컴퓨터 - Codex가 설치된 위치나 빠진 파일 같은 것 - 일 가능성이 크기 때문입니다. 호환되지
+않음과 똑같이 모든 보내기를 막고 모든 기능을 거절하며, 워처의 엔진 상태는 `failed_here`로 읽히고, 진단
+카드는 그 부분을 막는 색조로 보여 주며, 기다리는 중단은 *이 PC에서 Codex 검사 실패*라는 자기 오버레이를
+달아 팝업과 알림 영역 아이콘이 확인을 요청하게 합니다. 아무도 점검하지 않은 버전에서의 로컬 실패와,
+데이터가 호환되지 않는다고 적은 버전은 여전히 호환되지 않음입니다.
+
+### 이전 릴리스도 더 새 데이터를 받습니다
+
+`main`의 데이터는 어느 릴리스를 쓰든 모든 설치가 받아 옵니다. v0.6.5와 v0.6.6은 점검됨 주장이 담긴 데이터를
+통째로 받습니다. 그 검증기는 모르는 상태를 건너뛰므로 그들이 결정하는 것은 아무것도 움직이지 않고, 검증됨
+주장은 늘 그랬듯 그대로 닿습니다. 이제 스위트가 그것을 코드를 읽어서가 아니라 그 릴리스들 자신의 코드로
+증명합니다. `OlderReleasesTests`가 릴리스마다 `compat.py`를 태그에서 불러와 데이터에 돌립니다. 데이터를
+올리는 도구도 무엇이든 열기 전에 같은 방법으로 확인합니다.
+
+### 알림 카드가 숨 쉽니다
+
+카드의 상태등이 이제 팝업의 것입니다. 창, 팝업, 패널이 숨 쉬는 하나의 표로 숨 쉽니다 - 감시 중에는 4.4초,
+복구 중에는 2.8초마다 한 번 - 문제가 있으면 한 번 깜빡인 뒤 켜진 채로 있고, 초기화를 기다리는 중단은 어디서나
+그렇듯 켜진 채 멈춰 있습니다. 카드의 얼굴은 불빛을 위해 많아야 80 ms마다 다시 그립니다. 움직임 줄이기와
+고대비에서는 빛무리 없이 켜진 채 멈추며, v0.6.6은 모든 카드를 일부러 그렇게 그렸습니다. 이를 위해
+`notice_window.py`가 일곱 줄 늘었고 그 줄 수 상한도 그만큼 올렸습니다. 상한을 내리는 코드 나누기는 v0.6.8입니다.
+
+### 릴리스 사이의 호환성 데이터
+
+`main`의 데이터 파일은 살아 있는 데이터입니다. 호환성 데이터를 올릴 때마다, 릴리스 사이에도 바뀝니다. 동작
+테스트와 문서의 그림은 옆에 얼려 둔 v0.6.6의 데이터(`tests/fixtures/codex_compat_frozen.json`)를 읽으므로,
+데이터를 올려도 `main`이 빨개지거나 그림이 낡은 것이 되지 않습니다. 살아 있는 파일은 여전히
+`BundledBaselineTests`가 규칙대로 붙잡습니다. v0.6.6 이후 처음 올린 데이터는 codex-cli 0.153.4,
+0.154.0-alpha.6.2, 0.155.0-alpha.9.2를 검증했고 0.155.0-alpha.2.6을 점검했습니다. 모두 한 기계의 실제 복구
+기록으로 만들었고, 기록은 `docs/evidence/compat/`에 있습니다.
+
+### 고쳤습니다
+
+- **릴리스 태그가 가리키는 커밋에서 main이 한 번 빨개졌습니다.** 태그가 붙은 버전의 해시가 고정되었는지
+  보는 검사가, 자기 해시를 담을 수 없는 그 커밋은 건너뜁니다. 고정 없이 그 뒤에 온 커밋은 여전히 실패합니다.
+
+### 문서
+
+- 로드맵의 계획된 릴리스가 각각 한 칸씩 밀렸습니다. v0.6.7이던 Python 모듈화는 v0.6.8이 되고, GitHub 첫 화면
+  정리도 함께 가며, 그 뒤도 따라 밀립니다.
+- 기능 표, 보안과 지원 안내, 브랜드 문서, README, 플러그인·라이브 인수·검증 안내가 여섯 상태와 숨 쉬는 카드를
+  영어와 한국어로 말합니다.
+
+### 확인한 것
+
+아래는 Windows 11 기계 한 대에서 실행한 것입니다(Home, 빌드 26200, 한국어 시스템 언어). 이 나무에서
+스위트가 통과하며, 위에 적은 테스트들이 각 변경을 붙잡습니다. `ResolveTests`, `PermitTests`,
+`EvaluatorTests`, `CardTests`, `OlderReleasesTests`, `BundledBaselineTests`, 그리고 카드 불빛의 테스트 둘입니다.
+그림은 이 버전으로 다시 만들었습니다.
+
+확인하지 않았고 주장하지도 않는 것: 실제 Codex가 점검됨이나 이 PC에서 실패를 보여 주는 것(데이터가 점검한
+버전이 있고 점검이 실패하는 컴퓨터가 있어야 합니다), 실제 화면에서 숨 쉬는 카드의 불빛(화면 밖에서 그리고
+한 순간씩 읽었습니다), 그리고 이 PC에서 실패 오버레이를 묻는 테스트.
+
+## v0.6.6 — 숨 쉬는 상태등, 설치된 곳에서도 움직이는 작업 표시줄 단추, 패널 자신의 테마, 그리고 그것을 보여 주는 그림
+
+[이 릴리스의 커밋](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.5...v0.6.6)
+
+하루 써 보고 드러난 것들입니다. 복구에 대한 것은 아무것도 바뀌지 않았습니다. 같은 분류기, 같은
+관문, 보낼 수 있는 것은 여전히 워처 하나뿐입니다. 새 설정은 하나, 패널 자신의 테마이고,
+그 기본값은 아무것도 바꾸지 않습니다.
+
+### 상태등을 정석대로 다시 잡았습니다
+
+세 번의 시안이 세 방향으로 틀렸고, 매번 그 이유가 지적됐습니다. v0.6.4는 번짐이 너무 컸고, v0.6.5는
+너무 빠르고 세게 깜빡였으며, 이번 릴리스의 첫 답이었던 "진폭 줄이기"는 아예 보이지 않았습니다. 네
+번째가 이 크기의 상태등을 만드는 보통의 방식이고, 저희만의 것은 하나도 없습니다.
+
+- **쉬는 호흡에 가까운 한 주기** — 4.4초, 분당 열네 번쯤입니다. 복구 중에는 2.8초마다, 사람이
+  필요할 때는 1.4초에 한 번만 돌고 켜진 채 멈춥니다.
+- **주기 전체가 하나의 대칭 코사인** — 멈추는 순간이 없고 어디에도 모서리가 없습니다. 절반은
+  내려가고 절반은 돌아옵니다.
+- **깊은 진폭** — 점은 바닥에서 제 빛의 35%를 남기며, 그려지는 색으로는 62%입니다. 부드러움은
+  속도와 곡선이 만드는 것이지 작은 진폭이 아닙니다. 첫 답이 거꾸로 짚었던 부분입니다.
+- **빛에서 그리고 화면의 감마로 변환** — 코사인을 알파에 그대로 태우면 위쪽에서 뭉치고 아래쪽에서
+  급해집니다.
+- **밝기를 따라가는 번짐** — 꼭대기에서 불투명도 0.50으로 나왔다가 바닥에서는 사라집니다.
+- **점 크기에 비례하는 반경** — 반지름의 0.6배입니다. 이전의 3px 고정은 팝업 반지름의 3분의 2,
+  패널의 2분의 1이라 같은 불빛이 두 세기로 보였습니다. 창은 3px 그대로, 패널은 3.6px, 팝업은
+  2.7px입니다.
+
+표 하나를 모든 표면이 함께 읽으므로 창과 팝업, Codex 안의 패널이 같이 숨 쉽니다. 알림 카드는 같은
+표에서 호흡의 한 순간을 가져다 그립니다. 몇 초 떴다 사라지는 카드는 숨을 쉬지 않기 때문입니다. 알림
+영역 아이콘과 창의 작업 표시줄 단추도 같은 리듬을 읽어 머리가 함께 숨 쉬고, 회전은 16초가 아니라
+22초마다 옵니다. 머리 자체는 더 깊은 진폭을 유지합니다. 열여섯 픽셀에서는 그래야 읽히기 때문입니다.
+
+### 아직 저희 것이 아니던 컨트롤들
+
+디자인 사이로 윈도우의 컨트롤이 두 개 비쳐 보였고, 하나는 누가 기억해서 부를 때만 저희 것이었습니다.
+
+- **어디에 생기든, 가로든 세로든 스크롤바는 저희 것입니다.** 패널의 규칙은 드롭다운 목록 하나를 보고
+  쓰여 있어서, 넓은 표나 긴 페이지, 나중에 추가된 상자에는 브라우저의 회색이 나왔습니다. 이제 전역이며
+  모서리 칸과 파이어폭스용 대비도 함께 둡니다. 창에서는 메시지 상자가 윈도우 스크롤바로 스크롤되는
+  마지막 컨트롤이었습니다. 그 스크롤바는 남겨 둡니다. 글을 실제로 움직이는 것이 그것이고 휠과 키가
+  말을 거는 상대도 그것이기 때문입니다. 대신 잘라내기 바깥으로 밀어 감추고, 남는 홈에 목록과 똑같은
+  방식으로 저희 스크롤바를 그 상자의 스크롤 위치에서 그립니다.
+- **스크롤바의 홈 색은 그것이 놓인 바닥을 따라갑니다.** 카드 위에서는 여느 때처럼 `inset`이고,
+  바닥 자체가 `inset`인 우물 — 메시지 상자 — 에서는 홈이 바닥과 같아져 알약이 허공에 뜨므로 거기서는
+  `surface`입니다. 고대비에서는 어느 쪽이든 시스템 색 그대로입니다.
+- **창에서 윈도우 메시지 상자가 사라졌습니다.** 열다섯 곳 중 열넷이 창의 나머지와 같은 재질의
+  대화창이 되었고, 무엇이 일어날지를 말합니다. 아무것도 가리키지 못하는 "예/아니요" 대신, 실행하는
+  단추가 그 물음을 부른 단추의 말을 그대로 답니다 — *기록 지우기*, *워처 중지*, *설치* — 그 옆이
+  취소입니다. 패널이 먼저 정한 방식입니다. 남은 하나는 일부러 둡니다. 창도 테마도 말 모음도 아직 없는
+  때에, 그 위치에는 설치된 것이 없다고 말하는 상자입니다.
+- **패널이 만드는 드롭다운은 모두 패널의 것입니다.** 원래도 그랬지만, 이제는 개수를 세는 대신 하나씩
+  이름으로 확인하는 테스트가 그것을 지킵니다.
+
+일부러 그대로 둔 것: 윈도우가 직접 그리고 이미 테마를 따르는 알림 영역 오른쪽 클릭 메뉴와, 진단
+내보내기가 여는 파일 선택 창입니다. 다른 모든 프로그램이 여는 바로 그 창입니다.
+
+### Codex 안의 패널이 자기 테마를 갖습니다
+
+패널은 Codex 안에 있고 나머지는 모두 Windows 위에 있습니다. *시스템 설정 따르기*로도 각자가 자기 호스트를
+따르게 할 수는 있었지만, 테마를 밝게나 어둡게로 고르면 그 전부가 똑같이 그려졌습니다. 창은 어둡게 두고 패널은
+Codex를 따르게 하거나, Codex가 어떻든 패널을 한 테마로 고정할 방법이 없었습니다. 설정 > 모양에서 테마 바로
+아래에 있는 **Codex 안의 테마**가 패널만의 설정입니다. *테마와 같게*, *Codex 테마 따르기*, *밝게*,
+*어둡게* 가운데 고릅니다.
+
+- 기본값은 *테마와 같게*이고, 이전의 모든 패널이 하던 그대로입니다. 테마의 선택을 따르며, 거기서
+  *시스템 설정 따르기*는 여느 때처럼 Codex를 따릅니다. 업그레이드해도 눈에 보이는 것은 아무것도
+  바뀌지 않고, 새 설정은 누군가 고를 때에만 의미가 생깁니다.
+- 테마 자체는 이제 창, 팝업, 알림 카드를 그리고, 패널은 Codex 안의 테마가 테마와 같게일 때에만
+  그립니다. 두 곳의 도움말이 모두 그렇게 말합니다.
+- 창과 패널 모두에서 제시되며, Codex도 바꿀 수 있습니다(설정 tool의 `panel_theme`). 저장은 테마와
+  화면 언어처럼, 저장하는 곳에서 바꾼 경우에만 이것을 보냅니다. 그래서 다른 곳에서 바꾼 값을 되돌려
+  놓지 않습니다.
+- 이 설정을 모르는 오래된 워처는 아무것도 보내지 않고, 패널은 예전처럼 테마의 선택으로 그려집니다.
+  모르는 값은 테마와 같게로 봅니다.
+- 그 단어들은 아홉 언어 모두에 있고, 테마의 도움말도 아홉 언어 모두 다시 썼습니다. 이제 테마가 패널을
+  곧바로 칠하지 않기 때문입니다.
+
+### 문서가 움직입니다
+
+- 먼저 보게 되는 그림들이 이제 움직이는 PNG입니다. 대시보드 각 페이지, 설정 창, Codex 안의 패널,
+  알림 영역 팝업이 언어별로 모두 해당하며, 상태 불빛을 `brand.glow`로 다시 그려 창이 실제로 다시
+  그리는 속도로 움직입니다. 그림의 나머지는 전혀 움직이지 않고, 색도 그대로이며, 애니메이션을 못 보는
+  곳에서는 원래의 정지 그림이 보입니다.
+- 아이콘의 움직임과 상태등 자체의 그림도 GIF 대신 움직이는 PNG입니다. GIF는 256색이라 배지의
+  그라데이션이나 카드 바탕에는 모자랍니다.
+- 그림은 밝은 테마만 담습니다. 어두운 테마는 그림 대신 글로 설명하며, 그만큼 읽는 사람이 스크롤할
+  분량이 줄어듭니다.
+- **창을 찍은 그림은 모두 좌우와 아래에 검은 띠를 달고 있었습니다.** 100%에서 11px, 150%에서
+  16px이고, 가로 1522픽셀짜리 그림의 가장자리를 아무도 들여다보지 않았습니다. 창의 문제가
+  아니었습니다. 창틀은 윈도우가 그리는 것이라 `PrintWindow`는 창틀 없이 돌려주고, 그려 넣을 비트맵은
+  검정에서 시작합니다. 이제 실제로 그려진 만큼만 남깁니다. 어림이 아니라 창 자신의 클라이언트 사각형을
+  재서 자릅니다.
+- **윈도우가 둥글리는 모서리도 그림에 둥글게 담깁니다.** 이 창의 DPI에 맞는 시스템 반경 그대로이며,
+  네 모서리는 투명하게 두어 뒤의 페이지가 비칩니다. 모서리가 각진 윈도우 11 창 스크린샷은 아무도 갖고
+  있지 않은 창의 스크린샷입니다.
+
+### 설치된 곳에서도 작업 표시줄 단추가 움직입니다
+
+- v0.6.5는 창의 작업 표시줄 단추에서 마크를 움직이게 했지만, 설치된 창에서는 한 번도 움직이지
+  않았습니다. 여기에서 확인한 것: 공개된 실행 파일을 바이트까지 그대로 두고, 임시 폴더에서 띄우면
+  단추가 움직였고 설치된 자리에서 띄우면 움직이지 않았습니다. 계측용 빌드로 보니 창은 프레임을 계속
+  바꾸고 있었는데도 단추는 24초 동안 픽셀 하나 바뀌지 않았습니다. 가르는 것은 창이 무엇을 하느냐가
+  아니라 어디에 설치되어 있느냐였습니다. Windows는 설치된 창을 그 자리에 등록된 애플리케이션으로 묶고,
+  단추를 그 애플리케이션의 아이콘으로 그립니다. 창은 그 그림을 바꿀 수 없습니다. 시작 메뉴
+  바로가기만으로는 그렇게 되지 않습니다. 같은 정체성과 같은 아이콘으로 임시 폴더에 바로가기를
+  만들어 보았지만 단추는 계속 움직였습니다.
+- 이제 창은 아무 곳에도 등록되지 않은 자기만의 정체성으로 자신을 등록해 달라고 Windows에 요청하고,
+  단추는 창이 설정한 아이콘으로 돌아옵니다. 이 호출 하나로 같은 빌드가 설치된 자리에서 촬영한 163
+  프레임 중 74프레임을 움직였습니다. 알림은 영향을 받지 않습니다. 알림은 워처가 워처 자신의
+  AppUserModelID로 올리며, 그것이 알림을 이 제품의 것으로 만들어 주는 근거이기 때문입니다.
+- 알림 영역 아이콘은 그대로입니다. 일부러 멈춰 두는 자리도 그대로입니다. Windows가 숨겨진 아이콘
+  영역에 두는 아이콘은 아무도 보지 못하므로 움직이지 않습니다. 작업 표시줄로 끌어내면 1초 안에
+  다시 움직입니다.
+
+### 문서
+
+- 변경 기록과 로드맵, 브랜드 문서, 기능 표가 새 숫자를 담았습니다. 영어와 한국어 모두입니다.
+  로드맵의 계획된 릴리스는 각각 한 칸씩 밀렸습니다. v0.6.6이던 Python 모듈화는 v0.6.7이 되고,
+  그 뒤도 따라 밀립니다.
+
+### 이보다 앞선 두 빌드
+
+v0.6.6은 이번 전에 두 번 게시되었고, 두 빌드 모두 프리 릴리스로 남겨 두었습니다. 각자 릴리스 페이지가
+있고, 변경 이력에서는 이 항목 바로 뒤에 각자의 항목이 있습니다. 2026-09-20에 `v0.6.6`으로 알린 빌드인
+[`v0.6.6-beta`](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/tag/v0.6.6-beta)와, 첫 후보인
+[`v0.6.6-alpha`](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/tag/v0.6.6-alpha)입니다. 세
+압축 파일의 이름은 모두 `CodexAutoResume-v0.6.6-win-x64.zip`입니다. 태그 이름을 바꾸어도 릴리스에 이미
+붙어 있는 파일의 이름은 바뀌지 않기 때문입니다. 이름은 같고 바이트는 다릅니다. `scripts/release.json`에
+고정된 다이제스트는 이 릴리스의 것이고, 대조하실 값도 그것입니다.
+
+### 확인한 것
+
+아래는 Windows 11 기계 한 대에서 실행한 것입니다(Home, 빌드 26200, 3840 x 2160, 150% 배율, 한국어
+시스템 언어, Windows 앱 모드는 어둡게, 제품의 테마 설정은 밝게). 테스트, 빌드, 아카이브, 불빛, 그림,
+대화창, 패널 자신의 테마는 이 나무에서 쟀습니다. 두 가지는 첫 후보인 `v0.6.6-alpha`에서 재고 다시 재지
+않았습니다. 설치된 자리에서 찍은 작업 표시줄 단추는 그 뒤로 코드가 한 바이트도 바뀌지 않았고, v0.6.5 위
+업그레이드는 이번 릴리스에서는 베타 위에 설치하는 것으로 대신했습니다.
+
+- **테스트.** 2,580개, 실패 없음. 여기에서 Python 3.13(900초, 8개 건너뜀), 그리고 GitHub의 Windows
+  러너에서 3.12, 3.13, 3.14, 3.15 모두 초록불이었습니다. 건너뛴 것은 직접 켜야 하는 실사용 점검과
+  태그를 기다리는 고정 검사입니다.
+- **여기와 GitHub에서 빌드한 창.** 이 기계에서 이 소스로 빌드한 `CodexAutoResumeSettings.exe`와 GitHub의
+  러너가 빌드해 공개된 아카이브에 넣은 것이 바이트까지 같았습니다(`db7257ee…`, 388,096바이트). 아카이브 자신의 digest는 여기에 적지 않습니다. 이 파일이 아카이브 안에
+  들어가므로 적는 순간 값이 달라지기 때문입니다. 그 값은 릴리스 옆에 게시되고 그 뒤 `scripts/release.json`에
+  고정되며, `docs/VERIFY.ko.md`가 견주는 것이 그 값입니다.
+- **설치된 자리에서의 작업 표시줄 단추.** v0.6.5가 할 수 없었던 주장입니다. 여기에 v0.6.6을 v0.6.5
+  위로 설치한 뒤 창의 단추를 초당 열 장으로 24초 동안 찍었습니다. 198프레임 중 92프레임이 직전과
+  다르고, 마크의 머리가 주기 동안 여러 자리와 밝기로 나타납니다. 같은 측정을 같은 자리의 공개된
+  v0.6.5 빌드로 하면 24초 동안 바뀐 픽셀이 하나도 없었고, 같은 실행 파일이 임시 폴더에서는 단추를
+  움직였습니다. 계측용 빌드로 보면 창은 내내 프레임을 바꾸고 있었습니다(state=watching,
+  allowed=True, interval 156 그다음 62). 그 프레임이 단추에 닿지 않았을 뿐입니다.
+- **이 기계에 설치.** 첫 후보를 v0.6.5 위로 설치했을 때 설치 프로그램이 *업데이트했습니다. 설정과 대기
+  중인 복구는 그대로 있습니다.*라고 답했고, `config\settings.json`은 이전과 바이트까지 같았으며, 워처가
+  다시 시작해 0.6.6을 보고했습니다. 이번 릴리스는 자기 아카이브의 `Install.cmd`로 베타 위에 설치했고
+  같은 답을 받았습니다. 설치된 파일 154개는 아카이브의 것과 바이트까지 같고, 워처는 그 파일로 다시
+  시작했습니다.
+- **아카이브.** `build/smoke_archive.py`의 모든 검사를 공개된 아카이브에서 통과했습니다. 두 실행 파일이 0.6.6을 보고하는
+  것과, 이 기계의 등록과 상태가 그대로 남는 것을 포함합니다.
+- **불빛.** 숫자는 창·팝업·패널·카드 네 표면에서 실제로 그려진 픽셀로 테스트가 붙잡고 있고, 문서의
+  모든 그림은 제품 자신의 코드로 새 표에서 다시 그렸습니다. 그림을 만드는 다섯 언어, 밝은 테마로 그렸습니다.
+- **아이콘의 움직임.** 문서의 움직이는 PNG는 새 리듬의 아이콘 프레임으로 만들었고, 테스트가 그 프레임
+  하나하나를 아이콘 자신의 표와 맞춥니다.
+- **그림의 가장자리.** 창을 찍은 그림은 모두 가로 22px, 세로 11px 줄었습니다. 윈도우가 그리고
+  PrintWindow가 주지 않던 창틀이 사라졌고, 눈대중이 아니라 재서 잘라냈습니다. 윈도우가 둥글리는 네
+  모서리는 둥글고 투명하며, 테스트가 그것을 픽셀에서 읽습니다.
+- **대화창.** 테스트가 실제로 엽니다. 컴파일된 창을 띄우고, 대화창을 부르고, 떠 있는 동안 타이머가
+  읽고 단추 하나를 누릅니다. 읽어 오는 것은 단추의 위치, Enter와 Esc가 누르는 단추, 창에 속하며 작업
+  표시줄에 단추를 하나 더 만들지 않는다는 것, 그리고 각 누름이 준 답입니다. 화면 낭독기로 써 본 사람은
+  아직 없고, 화면을 담은 기록도 없습니다.
+- **Codex 안의 테마.** 패널 자신의 `applyTheme`을 두 테마의 열세 쌍에 대해 Node에서 돌리고, 패널의 행도
+  그곳에서 움직여 봅니다. 네 선택지, 그것만 보내는 저장, 그 자리에서 바뀌는 표시입니다. 컴파일된 창도
+  움직여 봅니다. 창은 그곳에서 바꾼 경우에만 그 설정을 보내고, 패널이나 Codex에서 바꾼 값을 선택 칸이
+  따라갑니다. 설정 패널의 그림은 그림을 만드는 다섯 언어로 그 행을 보여 줍니다.
+
+확인하지 않았고 주장하지도 않는 것: 이 기계에서 알림 영역 아이콘 자체의 움직임(Windows가 숨겨진
+아이콘 영역에 두고 있고, 이번 릴리스도 그곳에서는 일부러 멈춰 둡니다), 실제 시스템에서의 고대비, 이
+빌드가 실제 Codex 중단을 복구하는 것, 실제 Codex 안에서 자기 테마로 그려진 패널, 이 기계가 아닌 다른 기계, 150%가 아닌 다른 배율.
+
+## v0.6.6-beta — 패널 자신의 테마가 생기기 전, v0.6.6으로 알린 빌드
+
+**프리 릴리스이며, [자기 페이지](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/tag/v0.6.6-beta)에 남겨 두었습니다.** `b17076d`에서 빌드해
+2026-09-20에 `v0.6.6`으로 게시하고 알렸으며, 2026-09-21에 `v0.6.6-beta`로 이름을 바꾸었습니다. 같은 날 요청된
+패널 자신의 테마 없이 나갔기 때문에 v0.6.6을 세 번째로 잘랐습니다. 내용은 위 v0.6.6에서 *Codex 안의
+패널이 자기 테마를 갖습니다*를 뺀 것입니다. 정석대로의 숨쉬기, 설치된 곳에서도 움직이는 작업 표시줄
+단추, 제품 자신의 스크롤 막대와 대화창, 창에 맞춰 잘라낸 그림입니다. 확인한 것은 그 빌드 자신의 나무에서
+쟀습니다. 테스트 2,572개, 두 번 빌드해 `c572844e…`(387,072바이트)로 같았던 창입니다.
+
+- 알린 적이 있으므로 분명히 적습니다. **`v0.6.6` 태그는 세 개의 압축 파일을 가리킨 적이 있고**, 그
+  이름으로 처음 알린 것이 이 빌드입니다. 이 빌드의 다이제스트는 `e620280bd5b40ad354d767fe22dd65ec8ed3eefe6b2f0af20d20759fca7e81a3`입니다. `scripts/release.json`은 v0.6.6의 값을 고정하므로, 베타의
+  페이지에서 받은 파일은 비교에서 어긋나며, 그것이 비교가 제 일을 하는 모습입니다.
+- 아무에게도 제공되지 않습니다. 업데이트 확인은 `releases/latest`가 끝나는 URL에서 태그를 읽어
+  `vMAJOR.MINOR.PATCH` 형식만 받아들입니다. 이 빌드를 쓰는 기계는 그대로 두고 v0.6.5로 되돌리지 않습니다.
+  번호가 같으므로 업데이트 확인은 v0.6.6도 권하지 않습니다. v0.6.6 압축 파일의 `Install.cmd`는 그 위에
+  그대로 설치하고, 설치 스크립트는 `-Force`를 주면 그 위에 설치합니다.
+
+## v0.6.6-alpha — 알리기 전에 접어 둔 첫 후보
+
+**프리 릴리스이며, [자기 페이지](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/tag/v0.6.6-alpha)에 남겨 두었습니다.** `f63d904`에서 빌드해
+2026-09-20에 `v0.6.6`으로 태그하고 게시했다가, 알리기 전에 멈췄습니다. 더 은은하게 한 불빛 - 더 작은
+흔들림 - 은 너무 희미해 잘 보이지 않았고, 스크롤 막대와 대화창과 그림의 가장자리가 아직 제품의 것이
+되기 전이었습니다. 담긴 것은 두 가지입니다. 더 느리고 얕아진 상태등(4.4초 주기, 점이 60%가 아니라
+38%만 어두워지고, 빛무리는 0.30에서 정점)과, 설치된 곳에서도 움직이는 작업 표시줄 단추이며, 뒤의 것은
+v0.6.6에도 들어 있습니다.
+
+- 이 압축 파일의 이름도 `CodexAutoResume-v0.6.6-win-x64.zip`이고, 다이제스트는 `3b99217b084148111d07cfc51c9ad8f5bddb6fd50029979ed1b1b6796be0b956`입니다.
+  베타와 같은 이유로 아무에게도 제공되지 않습니다.
+
+## v0.6.5 — 눈에 보이는 불빛, 제품 자신의 모습으로 뜨는 알림, Codex 호환성 레지스트리
+
+[이 릴리스에 담긴 커밋](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.4...v0.6.5)
+
+디자인과 안전에 관한 릴리스입니다. 이 릴리스에 함께 담긴 호환성 데이터로는 복구가 내리는 결정이
+v0.6.4와 같습니다. 같은 분류기, 같은 안전 확인, 그리고 보낼 수 있는 유일한 구성 요소인 같은 워처
+하나입니다. 다른 점은 확인 하나입니다. v0.6.4가 버전만 보고 믿었던 codex-cli 0.153.4도 이제 다른 모든
+빌드처럼 `codex queue`가 여전히 대화와 메시지를 받는지 보여 주어야 합니다(아래 참고). 달라진 것은 그 일이 얼마나 눈에 보이는가입니다. 눈에 띄게 움직이는 상태 불빛과 아이콘,
+제품 자신의 디자인으로 그린 알림, 바뀌는 동안 반응하는 컨트롤이 생겼고, 그 데이터가 워처를 더 조심스럽게
+만들 수만 있는 Codex 호환성 레지스트리가 들어왔습니다. 새 설정 **알림 영역 옆에 알림을 카드로 표시**는
+기본으로 켜져 있으며, 알림이 어디에 나타나는지만 바꾸고 알림이 뜨는지, 무엇이라고 말하는지는 바꾸지
+않습니다.
+
+### 상태 불빛
+
+- v0.6.4의 불빛은 너무 조용해서 잘 보이지 않았습니다. 이제 불빛은 알림 영역 아이콘의 머리처럼
+  깜빡입니다. 워처가 감시하는 동안 3.2초마다 점 자체가 놓인 카드 쪽으로 60%까지 흐려졌다가 번지는 것
+  없이 돌아오고, 다 켜진 뒤에만 가장자리에서 작은 빛이 번졌다가(불투명도 0.34, 점 바깥으로 많아야
+  3px) 거두어집니다. 처음에는 변하지 않는 점 둘레에서 7px까지 닿는 빛무리가 숨 쉬게 했는데, 그 뒤
+  2, 3, 4px 미리보기에서 이것을 골랐습니다. 복구를 보내는 동안에는 같은 주기가 2초마다 돕니다.
+- 기다리는 중과 확인하는 중에는 빛 없이 켜진 채 머물고, 문제가 생기면 1.4초에 걸쳐 그 주기를 한 번
+  돈 뒤 켜진 채 머뭅니다. 색, 불빛 옆의 단어, 크기는 그대로이고, 대시보드와 팝업과 패널에서 같은
+  불빛입니다. 알림 카드에서는 켜진 채 멈춰 있습니다.
+- 움직임 줄이기와 Windows의 애니메이션 설정에서는 빛 없이 켜진 채 멈춰 있고, 고대비에서는 여전히
+  빛무리 없는 단색 점으로 그립니다.
+
+### 알림 영역 아이콘이 움직입니다
+
+- 워처가 감시하는 동안 표시 안의 밝은 머리가 상태 불빛과 같은 3.2초 리듬으로 세 번 숨 쉬고(배지의 짙은
+  파랑 쪽으로 흐려졌다가 돌아옵니다), 그다음 숨 두 번 길이의 칸에서 가장 밝은 채로 고리의 흰 획을 따라
+  쓸고 갔다가 돌아옵니다. 2.56초 나가고, 획의 끝에서 잠깐 머물고, 2.56초 돌아오고, 1.12초 제자리에
+  있습니다. 3.2초짜리 칸 다섯 개, 모두 16초가 한 주기입니다. 제자리에서 시계 방향으로 떠나 획 위에만
+  있고, 고리 위쪽의 틈은 결코 건너지 않습니다. 움직이는 동안에는 숨 쉬지 않고, 숨도 쓰는 칸도 모두 가장
+  밝을 때 시작하고 끝나므로 하나가 다른 하나로 넘어가는 자리에서 튀는 것이 없습니다.
+- 복구가 진행되는 동안, 즉 continuation을 보내거나 그것이 시작한 턴을 계속 따라가는 동안에는 머리가 가장
+  밝은 채로, 숨 쉬지 않고, 두 배 빠르게 나갔다 돌아오기를 되풀이합니다. 1.28초 나가고, 끝에서 잠깐
+  머물고, 1.28초 돌아오고, 0.24초 제자리에 있어, 2.88초마다 한 번씩 쓸고 옵니다.
+- 일시 정지되면 머리는 회색이고 멈춰 있습니다. 사람이 봐야 할 일이 생기면 주황색으로(실패라면 위험을
+  뜻하는 색으로) 바뀌어 한 번 맥박친 뒤 그대로 머뭅니다.
+- 머리는 고리를 15도씩 24단계로 움직이고(그중 제자리에서 시계 방향으로 획의 끝까지가 20단계입니다),
+  저장한 프레임이 아니라 머리에 입히는 색조인 밝기 24단계로 숨 쉽니다. 움직이는 동안에는 감시 중 쓸고
+  가는 단계마다 하나씩 초당 16프레임쯤, 숨 쉬는 동안에는 6프레임쯤입니다.
+  프레임마다 explorer.exe가 아이콘을 다시 그려야 하므로, 빠르기는 그 일을 재어 골랐습니다. 기계 한
+  대(Windows 11 빌드 26200, 3840 x 2160, 150%)에서 후보마다 60초씩, 쉬는 때의 60초와 견주었습니다. 감시하는
+  동안 알림 영역 아이콘(Windows가 넣어 둔 넘침 영역에서 잰 값)에 explorer.exe가 쉴 때보다 더 쓰는 시간은 이
+  빠르기에서 코어 하나의 1.3%포인트쯤으로, 전의 초당 3프레임과 5프레임에서는 1.1, 숨을 초당 11프레임으로
+  하면 2.2였습니다. 작업 표시줄 단추는 어느 빠르기에서나 2%포인트쯤이었고, 무엇을 보내든 초당 여덟 번쯤보다
+  자주 다시 그려지지 않았습니다. 복구가 진행되는 동안처럼 계속 움직일 때는 각각 2.5에서 3%포인트쯤입니다.
+  이 값들은 감시 중에 다섯 칸 가운데 마지막 한 칸에서 한 바퀴 돌던 때에 잰 것입니다. 지금은 두 칸에서
+  움직이므로, 감시 중의 값은 계속 움직일 때의 값에 조금 더 가깝습니다.
+- 움직임 줄이기, Windows의 애니메이션 설정, 고대비, 배터리 절약 모드에서, 세션이 잠겨 있는 동안, 그리고
+  아이콘이 아무도 보지 않는 넘침 영역에 있는 동안에는 움직이지 않습니다. 아이콘이 어디 있는지는 셸에 물어서
+  알 수 없습니다. Windows 11 빌드 26200은 넘침 영역의 아이콘에 자리가 없다고 하지 않고 넘침 단추의 자리를
+  주므로, 거기서 아이콘은 explorer.exe의 시간을 쓰며 보이지 않는 채로 움직였습니다. 대신 Windows가 이
+  아이콘에 대해 직접 적어 둔 것 - 아이콘마다 갖는 Windows 자신의 설정으로, 읽기만 하고 쓰지 않습니다 - 이
+  알려 주고, Windows가 아무 말도 하지 않는 아이콘은 전처럼 셸의 답에 맡깁니다. 쉬고 있을 때는 늘 그랬던 그
+  아이콘 그대로이고, 배지와 모양도 그대로입니다.
+- 설정 창이 열려 있는 동안에는 작업 표시줄 단추도 같은 리듬, 같은 프레임으로 똑같이 움직입니다.
+  단추의 상태는 같은 워처에 대한 아이콘의 상태이고, 팝업이 열려 있을 때 아이콘이 갖는 상태입니다.
+  창도 팝업처럼 워처를 지금 그대로 읽기 때문입니다. 같은 설정에서, 세션이 잠기거나 연결이 끊긴 동안
+  (아이콘이 그것을 듣듯 단추는 자기 1초마다 Windows에 묻습니다), 그리고 창이 숨겨져 있을 때 멈춥니다.
+  제목 표시줄의 아이콘은 움직이지 않고, 쉬고 있을 때 단추는 늘 그랬던 그 아이콘입니다.
+
+### 제품 자신의 카드로 뜨는 알림
+
+- 이제 알림이 알림 영역 옆에 제품 자신의 디자인으로 된 카드로 나타납니다. 팝업의 카드이고, 제품 이름과
+  상태 불빛, 그리고 감지된 중단이라면 중단의 종류를 적은 칩이 붙습니다. 카드는 Windows 알림과 정확히 같은
+  말(같은 세 줄, 화면 언어로)을 하고, 정확히 같은 단추를 내놓습니다. 감지된 중단이면 **재개하지 않음**과
+  **대시보드 열기**, 그 밖의 알림이면 단추가 없습니다. 단추는 알림의 단추가 하는 일만 합니다. 그 복구
+  하나를 취소하거나 그 페이지 하나를 엽니다.
+- 카드는 알림 영역이 있는 모서리에서 솟아오르며, 3분의 1초쯤 동안 서서히 나타나고 98%에서 제 크기로
+  커집니다. 키보드 포커스는 절대 가져가지 않습니다. 적어도 6초(Windows가 알림을 더 오래 두도록 설정되어
+  있으면 그만큼), 그리고 포인터가 올라가 있는 동안 머물렀다가 사라집니다. 세 개까지 쌓이고 가장 새것이
+  모서리에 가장 가까우며, 같은 대화에 관한 새 카드는 이전 카드를 대신합니다. 움직임 줄이기, Windows의
+  애니메이션 설정, 배터리 절약 모드, 고대비에서는 그 자리에서 나타나고 사라집니다.
+- 카드가 화면에 한 번 온전히 나타나면, 같은 Windows 알림이 배너도 소리도 없이 조용히 Windows 알림 센터에
+  더해지므로 알림 기록은 전과 같습니다. 카드를 그릴 수 없으면 대신 Windows 자체 알림을 띄웁니다.
+- 카드가 나타나면 안 되는 때에는 언제나 전과 똑같은 Windows 자체 알림을 씁니다. 설정이 꺼져 있을 때,
+  알림 영역 아이콘이 꺼져 있을 때, 방해 금지나 집중 모드가 켜져 있을 때, 앱이 전체 화면이거나 발표 중일 때,
+  세션이 잠겨 있거나 원격일 때, 화면 읽기 프로그램이 실행 중일 때(Windows 알림은 소리 내어 읽히지만
+  포커스를 가져가지 않는 카드는 읽히지 않습니다), 그리고 Windows 설정에서 Codex Auto Resume의 알림을 꺼 둔
+  때입니다. 마지막 경우에는 늘 그랬듯이 Windows가 아무것도 보여 주지 않습니다.
+- 이 설정은 대시보드의 설정 > 일반 > Windows에 알림 영역 아이콘과 나란히 있고, 무엇을 하는지 적은 설명이
+  붙어 있습니다. Codex는 이 설정을 바꿀 수 없습니다.
+- 어떤 일을 알리는지와 그 문구는 바뀌지 않았습니다. 알림이 뜨는지 자체는 여전히 **알림 표시** 스위치와
+  알릴 일을 고르는 체크박스가 정합니다.
+
+### 팝업의 입체감
+
+- 팝업의 카드 위에 놓인 것은 이제 떠올라 있고, 값을 담는 것은 안으로 들어가 있습니다. 기다리는 작업마다
+  카드에서 떠오른 타일이 됩니다(밝게에서는 부드러운 그림자와 밝은 가장자리, 어둡게에서는 옅은 그림자와
+  위쪽 가장자리의 1픽셀 빛, 조금 더 밝은 바탕). 숫자 세 개는 사이에 가는 선을 둔 하나의 우물 안에 놓이고,
+  기다리는 것이 없다는 말과 읽기 실패도 우물 안에서 전하며, 단추는 누르는 동안 우물 안으로 들어갑니다.
+  고대비에서는 이 가운데 아무것도 그리지 않습니다.
+- Codex 안의 패널에서도 기다리는 대화마다의 행과 자동 복구 스위치의 칸이 같은 방식으로 떠오릅니다.
+- 대시보드의 대기 중과 기록 목록은 v0.6.4처럼 가는 선으로 나뉜 평평한 행으로 남습니다.
+- 숫자 이름표는 낱말 가운데에서 잘리지 않습니다. 가장 긴 낱말에 자리가 더 필요한 열은 그만큼 받습니다.
+
+### 창의 첫 화면
+
+- 개요의 **자동 복구 일시 정지** 또는 **자동 복구 다시 켜기**, **대기 중**, **기록** 단추가 v0.6.2처럼 다시
+  카드의 왼쪽 아래, 카드가 하는 말 아래의 자기 줄에 놓입니다. 머리글의 **워처 시작**과 직접 입력 메시지의
+  지우기 단추는 오른쪽 아래에 그대로 있습니다.
+- 창이 1000 × 632 대신 1000 × 664로 열립니다. 개요의 두 줄은 카드에 필요한 높이보다 조금 더 높을 뿐 그보다
+  24px 넘게 높아지지 않고, 마지막 줄 아래에는 카드를 바닥글까지 늘이는 대신 페이지 자신의 14px 간격이
+  남습니다. 작업 영역이 이보다 낮은 화면, 이를테면 작업 표시줄이 있는 150% 배율의 1920 × 1080 화면에서는
+  작업 영역만큼 높게 열리며, 거기서도 모든 언어에서 개요가 다 들어갑니다.
+
+### 목록, 드롭다운 목록, 스위치
+
+- 창의 목록이 보통 크기에서는 더 이상 옆으로 넘치지 않습니다. 목록이 좁아지면 먼저 대화 이름이 자리를
+  내주고, 다음으로 읽을 만한 너비를 넘는 열의 내용, 그다음 담은 내용보다 넓은 제목이 가장 넓은 것부터, 마지막으로
+  칸이 가장 넓은 것부터 줄어듭니다. 들어가지 않는 것은 말줄임표로 끝나므로, 시각이나 숫자는 온전히 남고
+  긴 이름이나 상태가 줄어듭니다. 열이 줄어들 수 있는 것보다 좁은 목록만 창 자신의 부드러운 막대로 옆으로
+  스크롤되고, Windows의 흰 가로 막대는 더 이상 보이지 않습니다.
+- 드롭다운 목록을 창과 패널 모두에서 제품이 직접 그립니다. 칸 아래에 떠 있는 카드와 같은 재질의 카드에
+  부드러운 그림자가 지고, 항목은 알약 모양입니다. 고른 항목은 들어가 있고, 포인터 아래의 항목은 떠오르며,
+  키보드가 있는 항목에는 초점 고리가 둘립니다. 자리가 있는 쪽으로 열리고, 열두 줄까지 보여 준 뒤 나머지는
+  스크롤하며, 움직임을 줄이지 않았다면 제자리로 떠오르고, 고대비에서는 그림자 없이 시스템 색으로
+  그립니다. 키는 Windows 그대로입니다. 클릭, F4, Alt+위, Alt+아래, 스페이스로 열고, 화살표와 Home, End,
+  Page Up, Page Down으로 옮기며, 글자를 치면 그 글자로 시작하는 다음 항목을 찾고, Enter나 Tab으로 고르며,
+  Esc는 바꾸지 않고 닫습니다. 화면 읽기 프로그램에는 선택 값이 있는 콤보 상자로, 그리고 키보드가 있는
+  항목으로 들립니다. 어둡게에서는 펼친 목록도 어둡습니다. v0.6.4는 이것을 Windows의 밝은 테두리에 남겨
+  두었습니다.
+- 스위치는 바뀔 때 미끄러지듯 움직입니다. 창, 팝업, 패널에서 손잡이가 미끄러지고 트랙의 색이 160ms 동안
+  하나의 감속 곡선으로 바뀌며, 창과 패널의 체크박스는 서서히 바뀝니다. 먼저 확인을 받아야 하는
+  스위치(사용자에게든 워처에게든)는 확인되는 순간 한 번만 움직이고, 미끄러졌다가 되돌아가는 일이 없습니다.
+  움직임 줄이기, Windows의 애니메이션 설정, 고대비에서는 아무것도 움직이지 않습니다.
+
+### 글자
+
+- Codex 안의 패널은 줄을 바꿀 때 한국어 낱말과 일본어 구절을 쪼개지 않습니다. 창은 한국어 줄을 띄어쓰기
+  자리에서만 바꿉니다. 전에는 Windows가 낱말 한가운데에서 줄을 바꿨습니다.
+- 팝업과 알림 카드는 라틴 문자를 창과 패널처럼 Windows의 UI 글꼴로 씁니다.
+- 새로 생긴 문구는 모두 아홉 개 언어로 있습니다.
+
+### Codex 호환성 레지스트리
+
+- 이제 이 PC의 Codex 엔진에 대해, 제품이 하는 일 가운데 무엇을 믿어도 되는지를 네 단어로 알려 줍니다.
+  **검증됨**은 유지 관리자가 바로 이 Codex 버전을 기록된 증거와 함께 시험했다는 뜻이고, **호환됨**은 이 PC의
+  확인을 통과했지만 바로 이 버전을 검증한 사람은 없다는 뜻이며, **호환되지 않음**은 이 PC의 확인이 실패했거나
+  호환성 데이터가 이 버전에서는 동작하지 않는다고 한다는 뜻이고, **알 수 없음**은 확인을 실행할 수 없어서
+  정할 수 없다는 뜻입니다. 진단 페이지의 새 **Codex 호환성** 카드에, 패널의 읽기 전용 카드에, `status`와
+  `doctor`에, 새 `compat` 명령에, 그리고 진단 정보 내보내기에 나옵니다.
+- 확인은 워처가 실행하면서 합니다. 워처가 움직이는 엔진이 이미 통과한 확인, Codex 데이터베이스의 열
+  이름(행은 절대 읽지 않습니다), 복구가 읽는 폴더, 그리고 대화가 열려 있는지 알려 주는 Windows 인터페이스를
+  봅니다. 찾은 결과는 `config\compatibility.json`에 씁니다. 이것을 보여 주는 곳은 모두 읽을 때 파일을 다시
+  확인하고, 손상되었거나 너무 오래되었거나 그 뒤로 바뀐 Codex 바이너리에 관한 것이면 알 수 없음으로
+  보여 주며 이유를 말합니다.
+- 데이터는 릴리스 안에 함께 담겨 옵니다. 이 릴리스에 담긴 데이터는 어떤 기능도 검증됨으로 표시하지
+  않습니다. 검증됨 항목은 바로 그 Codex 버전에서 만든 기록을 인용해야 하는데, 저장소의 기록 가운데 어느
+  버전에서 만들었는지 적힌 것이 아직 없기 때문입니다. 그래서 모든 기능은 이 PC의 확인으로 정해지고(통과하면
+  호환됨), 이는 레지스트리가 생기기 전에 제품이 하던 그대로입니다. 이 데이터가 담은 제한은 하나뿐이며,
+  codex-cli 0.153.4에서 앱에 열려 있지 않은 대화를 복구하는 일에 관한 것입니다. 이 제품은 그 일을 하지
+  않습니다.
+- v0.6.4가 검증됨이라고 부르던 유일한 빌드인 codex-cli 0.153.4는 이제 호환됨으로 나오며, 다른 모든 빌드처럼
+  무엇이든 보내기 전에 `codex queue`가 여전히 `--thread`와 `--message`를 제공한다는 것을 보여야 합니다.
+  v0.6.4는 이 빌드에 대해서는 그 확인을 건너뛰었습니다.
+- 데이터는 사용자가 요청할 때만 새로 받습니다. 진단 카드의 **호환성 데이터 새로 받기**, 또는 github.com이
+  **업데이트 확인...**에 답한 뒤입니다. 업데이트가 있든 없든 그렇습니다. 업데이트 확인은 github.com에 닿지
+  못했을 때와 확인에 쓸 시간이 너무 적게 남았을 때 새로 받기를 건너뛰며, 업데이트에 관한 답은 어느 쪽이든
+  같습니다. 주기적으로 묻는 것은 없고, 워처는 결코 묻지 않으며, 패널도 Codex도 요청할 수 없습니다. 새로
+  받기는 raw.githubusercontent.com의 고정된 주소 하나, 곧 이 저장소 main 브랜치의 데이터 파일로 보내는
+  HTTPS GET 한 번이며, 쿼리 문자열도 이 PC에 관한 어떤 것도 들어 있지 않습니다.
+- 받은 것은 이 설치본 자신의 검증기로 넘어가며, 검증기는 이 버전이 읽을 수 있는 호환성 데이터이고 지금
+  적용 중인 것보다 오래되지 않았을 때만 그것을 `config\compat-cache.json`으로 보관합니다. 그 밖의 것은
+  거부되고, 실패하거나 거부된 새로 받기는 아무것도 바꾸지 않습니다. 카드는 무슨 일이 있었는지 알려 줍니다.
+  데이터 번호와 함께 새로 받았는지, 거부되었고 왜인지, 받아 오지 못했는지, 또는 설치나 설치 복구가 진행
+  중이라 기다려야 하는지입니다.
+- 새로 받은 데이터는 워처를 더 조심스럽게 만들 수만 있습니다. 어떤 Codex 버전을 호환되지 않음으로 표시할
+  수 있고, 그러면 그 데이터가 적용되는 동안 아무것도 보내지 않습니다. 무언가를 검증됨으로 표시하는 것은 이
+  PC의 확인을 이미 통과한 정확한 버전에만 할 수 있고, 그것은 단어를 바꿀 뿐 무엇을 보내는지는 바꾸지
+  않습니다. 이 PC에서 실패한 확인이 언제나 우선합니다. 유효 기간(약 90일)이 지난 새로 받은 데이터는 제한은
+  그대로 두고 검증은 잃습니다.
+- Codex는 요약을 봅니다. `get_status`(그리고 그것을 함께 돌려주는 `open_settings`)가 이제 호환성 요약을
+  코드로만 담습니다. 전체 결과와 워처가 실제로 따르는 결과, 보고서를 쓸 수 있었는지, 적용 중인 데이터와 그
+  번호, 새로 받은 데이터의 상태, 확인한 시각, 기능마다의 상태와 사유입니다. 버전 문자열도, 경로도, 자유
+  문구도 없습니다. 어떤 도구도 데이터를 새로 받거나 가져올 수 없습니다.
+
+### 수정
+
+- **`"enabled": "false"`가 자동 복구를 켰습니다.** 창의 브리지가 스위치 값을 단순한 참·거짓 판정으로 읽어서,
+  비어 있지 않은 글자는 모두 예로 쳤습니다. `"false"`를 담은 요청이 복구를 켰고, Windows 로그인 시 실행에서는
+  이 제품의 로그인 자동 시작 값을 썼습니다. 값이 없는 요청은 둘 다 껐습니다. 설정 창은 언제나 진짜
+  true나 false를 보내므로 창 자신의 스위치는 영향을 받지 않았습니다. 이제 그 밖의 값은 제어 계층이 주는 것과
+  같은 메시지와 코드로 거부됩니다.
+- **설정이 잘못된 형식의 값을 기본값에 따라 받아들이거나 거부했습니다.** 변경 요청을 강제로 변환한 결과와
+  견주었기 때문에 `{"notifications": 1}`은 받아들이고 `{"notifications": 0}`은 거부했으며,
+  `{"reduce_motion": 0}`은 받아들였습니다. 이제 값은 먼저 설정 스키마가 밝힌 형식인지 확인하고, 형식이
+  틀리면 무엇과 같든 거부합니다. 그런 값이 든 설정 파일은 여전히 거부하지 않고 기본값으로 읽습니다.
+- **로그가 복구가 놓일 수 있는 27개 상태 가운데 14개에서 사유를 빠뜨렸습니다.** 복구 턴의 모든 결과가
+  여기에 들어 있었고, 상태 이름만 덩그러니 적혔습니다. 이제 모든 상태 줄에 사유 코드가 붙고, 여전히
+  코드뿐입니다.
+- **릴리스 작업이 설치된 모든 사본이 업데이트에 요구하는 것 세 가지를 확인하지 않았습니다.**
+  `.codex-plugin/plugin.json`, `scripts/plugin_setup.py`, 그리고 payload 루트의 아이콘입니다. 하나라도
+  빠진 압축 파일은 게시된 뒤 설치된 모든 사본에게 거부되었을 것입니다. 이제 열 가지를 모두 확인하고,
+  테스트가 그 목록을 bootstrap이 요구하는 목록과 양쪽 방향으로 맞춥니다.
+- **손상된 플러그인 매니페스트가 아무 말 없이 버전 "unknown"으로 넘어갔습니다.** 이제 설치 루트를 폴더
+  개수를 세지 않고 매니페스트로 찾으며, 매니페스트가 있는데 읽을 수 없으면 버전이 unknown으로 읽히기 전에
+  이유를 적은 경고를 한 번 로그에 남깁니다. 매니페스트가 없으면 여전히 조용히 unknown입니다.
+
+### Python 코드를 나누기 위한 기반
+
+사용자에게 보이는 것은 없습니다. 테스트의 모든 안전 검사가 이제 패키지 전체를 재귀적으로 읽으므로,
+코드를 하위 패키지로 옮겨도 검사의 눈에서 벗어날 수 없습니다. 패키지의 계층, 모듈마다의 크기, 구조적
+불변 조건을 테스트가 붙잡고 있으며, 스크린숏 검사는 어떤 파일이 바뀌었는지가 아니라 창에 무엇을 보여
+주라고 하는지를 기준으로 합니다. 실제로 나누는 일과 그 앞에 올 골든 응답, 한곳에 모은 규칙, 형식이 있는 계약은
+v0.6.7입니다.
+
+### 문서
+
+- `PRIVACY.md`와 `SECURITY.md`가 호환성 새로 받기(언제 일어나는지, 하나뿐인 주소, 무엇을 보내고 무엇을
+  보내지 않는지, 어느 파일에 무엇이 있고 누가 쓰는지), `get_status`가 담는 요약, 알림 카드를 설명합니다.
+  나머지는 기능 표, 브랜드 문서, 로드맵이 설명합니다.
+- README는 알림을 지금의 카드 그대로, 밝은 테마와 어두운 테마로 보여 줍니다. 전에는 대시보드 열기가
+  생기기 전에 찍었고 어떤 매니페스트도 고정하지 않은 Windows 알림 캡처였습니다. 카드 그림은 카드 자신의
+  코드가 화면 밖에서 그리고 팝업 그림처럼 고정하므로, 카드가 하는 말이나 그리는 방식이 바뀌면 그림을 다시
+  만들 때까지 스위트가 실패합니다. 예전 캡처는 지웠습니다.
+
+### 검증
+
+아래는 모두 이 나무에서 만든 릴리스 후보로, Windows 11 기계 한 대에서 실행한 것입니다(Home, 빌드
+26200, 3840 x 2160, 150% 배율, 한국어 시스템 언어, Windows 앱 모드는 어둡게, 제품의 테마 설정은 밝게).
+
+- **테스트.** 2,555개, 실패 없음. 여기에서 Python 3.13(966초, 8개 건너뜀)과 3.12(952초, 7개 건너뜀),
+  그리고 GitHub의 Windows 러너에서 3.12, 3.13, 3.14, 3.15 모두 초록불이었습니다. 건너뛴 것은 직접 켜야
+  하는 실사용 점검, 태그를 기다리는 고정 검사, 그리고 여기 한쪽 해석기에서 PyYAML이 없는 워크플로 파서입니다.
+- **창을 두 번 빌드.** 같은 소스에서 만든 `CodexAutoResumeSettings.exe` 두 개가 바이트까지 같았고
+  (`e634e921…`, 382,976바이트), `build/normalize_pe.py`가 둘 다 받아들였습니다.
+- **잘림.** 레이아웃 점검이 아홉 개 언어와 100, 125, 150, 175, 200% 배율에서, 워처의 모든 상태로 창을
+  숨긴 채 만들어 잘린 곳, 모서리에서 벗어난 단추, 단추 밑에 깔린 글자, 스크롤되는 개요를 찾습니다. 하나도
+  나오지 않았습니다.
+- **v0.6.4 위로 설치.** 설치 프로그램이 *업데이트했습니다. 설정과 대기 중인 복구는 그대로 있습니다.*라고
+  답했고, `config\settings.json`은 가지고 있던 값을 모두 유지했습니다(첫 설치에서는 바이트까지 같았고,
+  그 뒤에는 이번 릴리스의 새 설정만 늘었습니다). 워처가 다시 시작했고 플러그인 매니페스트는 0.6.5를
+  가리켰습니다. 설치된 MCP 서버는 자신을 0.6.5로 소개하며 도구 열일곱 개를 내놓았고, 한국어로 이어서 할
+  말을 미리 보여 주었으며, `update_settings`로 사용자 지정 메시지를 쓰는 것은 여전히 거부했고, 호환성
+  요약을 코드로만 실어 보냈습니다. 데이터를 새로 받거나 가져올 수 있는 도구는 없었습니다.
+- **실제로 본 호환성 카드와 새로 받기.** 워처가 이 기계의 Codex(`codex-cli 0.155.0-alpha.9.2`)를 확인해
+  로컬 검사가 모두 통과했고 함께 담긴 데이터는 아무것도 검증하지 않는다고 판단해 "호환"으로 적고
+  `config\compatibility.json`을 썼습니다. 이어서 **호환성 데이터 새로 받기**가 공개된 파일을 받아
+  `compatibility: refreshed 1`을 답했고, 이 설치본 자신의 검증기가 `config\compat-cache.json`에
+  적었습니다.
+- **업데이트 확인과 그에 딸린 새로 받기.** v0.6.5가 설치된 상태에서 공개된 최신 릴리스가 v0.6.4일 때,
+  확인은 `update: newer-local 0.6.5 0.6.4`라고 답하면서도 호환성 데이터를 새로 받았습니다
+  (`compatibility: refreshed 1`). 새로 받기는 업데이트가 있든 없든 일어나며, 업데이트에 대한 답은 바꾸지
+  않습니다.
+- **실제 바탕 화면의 알림 카드.** 알림 영역 모서리에 카드 세 장이 쌓였고, 설치된 빌드 자신의 코드로
+  어둡게와 밝게 그려졌습니다. 제품 이름, 상태 불빛, 이유 칩, 세 줄의 글과 단추 두 개가 설계한 등장과
+  쌓임 그대로였습니다.
+- **아이콘의 움직임.** 이 기계에서는 알림 영역 아이콘이 Windows 11의 숨겨진 아이콘 영역에 있고, 이번
+  릴리스는 그곳에서 일부러 멈춰 둡니다. 워처가 처음 40분 동안 쓴 처리 시간은 1.1초였습니다. 움직임
+  자체(숨, 표시의 획을 따라 시계 방향으로 쓸고 갔다가 돌아오는 것, 그리고 각 상태)는 창을 별도 폴더에
+  빌드해 실제 작업 표시줄 단추에서 찍어 확인했고, 테스트가 아이콘 자신의 표와 프레임 하나하나를 맞춰
+  고정합니다.
+- **상태 불빛.** 창, 팝업, Codex 안의 패널, 알림 카드 네 곳에서 한 주기를 모두 그려, 밝게와 어둡게,
+  100%와 150%로 승인된 설계와 나란히 비교했습니다. 테스트도 그려진 픽셀에서 점이 어두워지는 정도와 빛이
+  3픽셀까지 번지는 것을 읽습니다.
+- **드롭다운 목록, 스위치, 화면 읽기 프로그램.** 검사 도구가 실제 드롭다운 목록을 열어 키로 옮겨 다니고,
+  글자를 입력해 찾고, 바깥을 눌러 닫고, 스위치를 미끄러뜨리고, 목록과 선택된 항목을 Windows 자체 UI
+  자동화로 읽습니다. 실제 화면 읽기 프로그램은 실행하지 않았습니다.
+- **한국어와 라틴 문자.** 창은 한국어를 공백에서만 끊고(문자열 71개 × 너비 4가지 × 배율 3가지), 패널은
+  한국어 단어를 통째로 유지하며, 팝업과 카드는 라틴 문자를 창·패널과 같은 Windows UI 글꼴로 그립니다.
+  한국어 그림에서 확인할 수 있습니다.
+
+확인하지 않았고 주장하지도 않는 것: 실제 시스템에서의 고대비(그려서 검사할 뿐, 여기에서 켜 보지는
+않았습니다), 이 빌드가 실제 Codex 중단을 복구하는 것, 잠긴 화면·전체 화면·방해 금지 상태나 화면 읽기
+프로그램이 켜진 상태에서의 카드 대체 동작(규칙은 테스트로만 확인), 설치된 창에서의 작업 표시줄 단추
+움직임(이 기계에 열려 있던 창은 업데이트 이전에 연 것이라, 별도로 빌드한 창에서 찍어 확인했습니다),
+이 기계가 아닌 다른 기계, 150%가 아닌 다른 배율.
+
+## v0.6.4 — 밝게도 어둡게도 하나의 모습, 차분해진 상태 불빛, 다 갖추고 열리는 창
+
+[이 릴리스에 담긴 커밋](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.3...v0.6.4)
+
+디자인과 속도에 관한 릴리스입니다. 복구 자체가 내리는 결정은 v0.6.3과 똑같습니다. 같은 분류기,
+같은 안전 확인, 그리고 보낼 수 있는 유일한 구성 요소인 같은 워처 하나입니다. 새 설정은 **테마**
+하나뿐이며, 제품이 어떻게 보이는지만 바꾸고 무엇을 하는지는 바꾸지 않습니다.
+
+### 하나의 디자인
+
+- 대시보드와 알림 영역 팝업이 Codex 안의 패널과 같은 재질을 씁니다. 떠 있는 카드와 안으로 들어간
+  입력 칸, 부드러운 그림자, 모서리 둥글기, 컨트롤이 모두 같습니다. 상태 칩에는 테두리가 없고, 버튼은
+  도드라져 있다가 누르면 들어갑니다. 글자 크기, 대시보드의 페이지와 설정 부분, 팝업의 구성은
+  (아래에 적은 단추와 스위치 자리를 빼면) 그대로이고, 알림 영역 아이콘과 그 배지도 그대로입니다.
+- 대시보드의 머리글과 바닥글이 떠 있는 카드가 되었고, 페이지 탭은 바탕 위에 놓입니다.
+- 고대비: 이제 팝업도 고대비를 따릅니다(시스템 색, 그림자 없음, 움직임 없음). 패널에는 강제 색상
+  스타일이 생겨, 불빛과 스위치 손잡이와 선택 칸 화살표가 더 이상 사라지지 않습니다.
+
+### 밝게와 어둡게
+
+- 새 설정 **테마**가 대시보드의 설정 > 모양 맨 위와, 패널 끝에 새로 생긴 모양 카드에 있습니다.
+  **시스템 설정 따르기**(기본값), **밝게**, **어둡게** 중에서 고릅니다. 대시보드와 팝업에서
+  *시스템 설정 따르기*는 Windows에 설정된 앱 모드(설정 > 개인 설정 > 색)를 따르고, 패널에서는 늘
+  그랬듯이 Codex 자신의 테마를 따릅니다. **밝게**와 **어둡게**는 Windows나 Codex가 무엇을 쓰든 모든
+  표면에서 그대로 유지됩니다.
+- 기본값이 Windows를 따르므로, 앱이 어둡게 설정된 PC에서는 이번 업데이트 뒤 대시보드와 팝업이
+  어둡게 보입니다. 이전 모습을 유지하려면 **밝게**를 고르세요.
+- 어둡게는 패널의 어두운 테마이며, 이제 세 표면 모두에 쓰입니다. 같은 팔레트에, 카드는 옅은
+  그림자와 위쪽 가장자리의 1픽셀 빛으로 거의 검은 바탕에서 한 단계 떠오르고, 우물, 스위치,
+  체크박스, 버튼, 스크롤 막대도 같습니다. 대시보드의 제목 표시줄도 함께 어두워지고, 알림 영역
+  아이콘의 오른쪽 클릭 메뉴도 팝업이 어두울 때는 어둡게 그려집니다(Windows 10 버전 1903 이상).
+- 어떤 테마든 모든 표면에서 고대비가 우선합니다.
+- Windows가 직접 그리는 몇 가지는 어둡게에서도 밝게 남습니다. 대시보드의 메시지 상자(확인 창과 결과
+  알림), **진단 정보 내보내기...**의 파일 대화 상자, 텍스트 상자의 오른쪽 클릭 메뉴, 펼친 드롭다운 목록의
+  테두리입니다. Windows 알림은 Windows가 그리는 모습 그대로이고, 알림 영역 아이콘과 그 배지는 테마에 따라
+  바뀌지 않습니다.
+- Codex도 테마를 바꿀 수 있습니다. `update_settings`가 `theme`을 받습니다. 알림 영역 아이콘과 움직임
+  줄이기는 여전히 Codex에 제공하지 않습니다.
+
+### 언어나 테마를 바꿀 때
+
+- 대시보드는 열릴 때 문구와 색을 만듭니다. 저장으로 화면 언어나 테마가 바뀌면, 이제 창이 스스로
+  닫혔다가 새 언어나 테마로 다시 열립니다. 같은 페이지와 설정 부분에서, 같은 위치와 크기로(최대화되어
+  있었다면 최대화된 채로), 키보드 포커스도 있던 자리에 둔 채입니다. 예전에는 다음에 열 때 바뀐다고만
+  알렸습니다.
+- 창이 열려 있는 동안 다른 곳에서 둘 중 하나가 바뀌어도 똑같이 합니다. 패널에서, Codex를 통해,
+  명령줄에서, 또는 다른 대시보드 창에서 바뀐 경우입니다. 테마가 Windows를 따르는 동안 Windows가 앱을
+  밝게와 어둡게 사이에서 바꿀 때, 그리고 고대비가 켜지거나 꺼질 때도 그렇습니다.
+- 저장하지 않은 변경 사항이 있으면 절대 다시 열지 않습니다. 그때는 저장 카드에 변경 사항을 저장하거나
+  취소하면 창이 다시 열린다는 안내가 나오고, 그렇게 하는 즉시 다시 열립니다. 새 창이 시작되지 못하면
+  원래 창이 그대로 남아 계속 동작합니다.
+- 대시보드와 패널 모두에서, 저장은 화면 언어와 테마를 그 페이지에서 바꾼 경우에만 보냅니다. 그래서
+  다른 설정을 저장하더라도 그사이 다른 곳에서 바꾼 언어나 테마를 되돌려 놓지 않습니다.
+- 팝업과 오른쪽 클릭 메뉴는 워처를 다시 시작하지 않아도 다음에 열릴 때 새 언어나 테마를 씁니다.
+  열려 있는 팝업은 Windows가 밝게와 어둡게 사이에서 바뀌면 다시 그려집니다.
+- 패널은 저장한 언어나 테마를 그 자리에서 곧바로 적용합니다. 다시 묻지 않고 아홉 언어 중 어느
+  것으로든 말할 수 있도록 모든 언어의 문구를 함께 담으므로, Codex가 받는 페이지가 약 105KB에서 약
+  205KB로 커졌습니다.
+
+### 스위치와 체크박스
+
+- 이제 스위치는 늘 동작하는 무언가를 켜고 끕니다. 알림, 알림 영역 아이콘, 움직임 줄이기, Windows
+  로그인 시 실행, 그리고 대화 하나의 자동 복구입니다. 체크박스는 목록에서 어떤 항목을 적용할지
+  고릅니다. 어떤 종류의 중단을 복구할지, 그리고 알림 스위치 아래에서 어떤 일을 알릴지입니다. 같은
+  설정은 대시보드와 패널에서 같은 종류이고, 체크박스는 어디서나 이름표 왼쪽에 놓입니다.
+- 체크박스는 새로 만들었고 같은 재질입니다. 비어 있으면 안으로 들어간 우물이고, 체크하면 accent로
+  채워지고 체크 표시가 들어가며, 비활성이면 흐려지고, 고대비에서는 시스템 색으로 그려집니다.
+
+### 오른쪽 아래의 단추와 스위치
+
+- 카드나 행의 오른쪽에 있는 단추와 켜고 끄는 스위치가 이제 대시보드, 팝업, 패널 모두에서 그 카드나
+  행의 오른쪽 아래 모서리에 고정됩니다. 카드나 행이 하는 말이 왼쪽 위에서부터 먼저 오고, 컨트롤이 그
+  끝을 맺습니다. 컨트롤 옆의 글은 줄을 바꾸거나, 컨트롤이 글 아래로 내려가 오른쪽에 머무르므로 어떤
+  글도 컨트롤 밑으로 들어가지 않습니다. 대시보드와 패널에서는 키보드와 화면 낭독기도 글 다음에
+  컨트롤에 닿습니다. 이미 아래쪽에 있던 단추, 드롭다운, 칩, 체크박스, 그리고 대시보드의 스위치(설정에서는
+  이름표 앞, 대기 중 페이지에서는 자기 열)는 제자리에 있습니다.
+- 대시보드에서는 **자동 복구 일시 정지** 또는 **자동 복구 다시 켜기**, **대기 중**, **기록** 단추가 카드
+  내용 아래 왼쪽이 아니라 개요 카드의 오른쪽 아래에 놓이고, **워처 시작**은 머리글의 오른쪽 아래에
+  놓입니다. 끝난 대화의 결과가 카드 끝까지 닿으면 **기록**은 그 대화들 아래에 섭니다.
+- **지금** 카드는 자동 복구, 워처, Codex 엔진, 마지막 확인이라는 순서를 그대로 지키고, 복구를 일시
+  정지하고 다시 켜는 단추는 그 아래, 카드의 오른쪽 아래에 놓입니다. 이 카드는 보일 수 있는 가장 긴 낱말에
+  맞춰 배치되므로 워처의 상태가 바뀌거나 마지막 확인이 오래되어도 움직이지 않고, 워처가 어떤 상태이든
+  개요는 여전히 창 안에 다 들어갑니다.
+- 팝업에서는 작업마다의 스위치가 행의 오른쪽 끝, 이름표가 몇 줄로 바뀌든 그 마지막 줄과 나란한 자리로
+  옮겨졌고, 이름표는 그 왼쪽에 남은 자리에서 줄을 바꿉니다.
+- 패널에서는 자동 복구 카드 맨 위의 **자동 복구 일시 정지** 또는 **자동 복구 다시 켜기** 단추가 그 칸의
+  오른쪽 아래에 놓이고, 그 옆에 상태와, 일시 정지가 실패하면 그 아래의 안내가 옵니다. **알림 표시**
+  스위치는 이름표 마지막 줄 옆에, 기다리는 대화마다의 **자동 이어 가기** 스위치는 다음 확인과 시도가
+  적힌 줄 옆에 놓입니다. 패널이 좁으면 각각 글 아래로 내려가 오른쪽에 머무릅니다.
+
+### 상태 불빛
+
+- 워처가 실행 중이고 자동 복구가 켜져 있으면, 감시 중이든 기다리는 중이든 작업을 확인하는 중이든
+  복구 중이든 불빛은 다시 청록색입니다. v0.6.3 이전에 쓰던 색이며, 어느 상태인지는 옆의 단어가
+  알려 줍니다. 불빛은 은은하게 빛나고 천천히 숨 쉬듯 밝아졌다 어두워집니다.
+- 일시 정지되었거나 멈춘 워처는 이전과 같은 회색이고 빛나지 않습니다. 멈춘 워처는 주황색이 아니라
+  다시 회색이며, 주황색은 실행 중이지만 확인이 필요한 워처에만 씁니다.
+- 움직임 줄이기, Windows의 애니메이션 설정, 고대비에서는 여전히 멈춰 있습니다.
+
+### 창
+
+- 가장 긴 설정 부분에 맞춰 커지는 대신 1000 × 632로 열립니다. 작업 표시줄이 있는 150% 배율의
+  1920 × 1080 화면에 몇 픽셀을 남기고 들어가는 가장 높은 창이며, 아홉 개 언어 모두에서 100%부터
+  200%까지의 배율로 개요가 스크롤 없이 다 들어갑니다. 창보다 긴 설정 부분은 스크롤됩니다. 자리가
+  더 좁은 화면에서는 화면의 작업 영역보다 크게 열리지 않습니다.
+- 개요의 네 카드가 페이지의 높이를 나눠 가집니다. 두 줄의 카드가 탭 아래에서 바닥글 바로 위까지 닿고,
+  두 줄의 높이가 같으며 한 줄의 카드끼리도 높이가 같으므로, 카드가 더 높아지고 바닥글 위에 빈 띠가 남지
+  않습니다. 카드가 하는 말은 위에 머물고, 단추는 카드의 오른쪽 아래 모서리와 함께 내려갑니다. 두 줄의
+  높이를 같게 할 수 없을 만큼 낮은 창에서는 각 줄이 자기 카드에 필요한 높이를 지키고, 카드에 필요한
+  높이가 창보다 클 때만 개요가 스크롤됩니다.
+- 대기 중 페이지의 **기다리는 이유**는 옆의 목록만큼 높고 자기 카드 안에서 스크롤되므로, 페이지가
+  스크롤되지 않습니다.
+- 페이지, 설정 부분, 목록이 Windows의 스크롤 막대 대신 같은 재질로 만든 부드러운 막대로 스크롤됩니다.
+  넘치는 내용이 있을 때만 보이고, 포인터가 올라가면 한 단계 진해지며, 움직임을 줄이지 않았다면 미끄러지듯
+  움직이고, 키보드로 옮겨 간 컨트롤을 보이는 곳으로 가져오며, 고대비에서는 시스템 색으로 그려집니다.
+- 보여 줄 화면을 갖춘 뒤에 열리고, 그 시점이 앞당겨졌습니다. 개발 중에 배율 150%, 빈 설치에서 창 안쪽을
+  재어 보니 머리글이 처음 그려질 때까지 1.46–1.54초에서 0.44–0.45초로, 이후 페이지 전환은 중앙값 약
+  100ms(최대 203ms)에서 22ms(최대 59ms)로, 이어서 하기 메시지 부분은 222–241ms에서 74–82ms로, 브리지의
+  상태 확인은 341ms에서 168ms로 줄었습니다. 실제 기록이 쌓인 설치본을 바깥에서 재면, 창이 화면에 나타나는
+  시각은 이전 릴리스의 빈 창보다 0.3초쯤 늦고, 사람이 쓸 수 있는 화면이 되기까지는 3초쯤 빠릅니다.
+  숫자는 검증 항목에 적었습니다.
+- 이를 위해 페이지와 설정 부분은 처음 보일 때 만들고, 2초 안에 새로 고친 페이지는 다시 묻지 않으며,
+  창은 화면 문구를 설정 옆의 `config\strings-cache.json`에 보관합니다. 이 파일은 제품 버전, 저장된 화면 언어,
+  Windows 언어가 모두 그대로일 때만 쓰고, 하나라도 다르면 이전처럼 글자를 보이기 전에 먼저 묻습니다.
+- 브리지의 상태 확인이 워처가 실행 중인지 알아보려고 워처 코드 전체를 불러오지 않습니다.
+
+### 수정
+
+- **선택 칸의 아래쪽 테두리가 잘렸습니다.** 이어서 하기 언어, 미리보기 대상, 사용할 메시지, 메시지
+  대상, 재시도 간격, 통계 기간의 선택 칸이 아래 테두리가 잘린 채 그려졌습니다. 설정 줄이 창의 글꼴을
+  받기 전에 높이를 재고, 선택 칸은 그 뒤에 커졌기 때문입니다. 이제 선택 칸이나 글꼴이 바뀌면 줄이 다시
+  재며, 창을 다섯 가지 배율과 아홉 개 언어로 만들어 잘린 것을 찾는 테스트가 생겼습니다.
+- 패널에서 키보드로 누른 기본 버튼이 밝은 칸 위에 흰 글자로 보였고, 비활성 컨트롤은 반투명 글자를
+  썼습니다. 이제 읽을 수 있는 흐린 글자를 씁니다.
+
+### 문서
+
+- 로드맵 `docs/ROADMAP.md`와 그 한국어 번역이 생겼습니다. 프로젝트가 릴리스마다 어디로 가는지를
+  적은 것으로, 약속이 아니라 방향입니다.
+
+### 검증
+
+아래는 모두 이 나무에서 만든 릴리스 후보를 Windows 11 기계 한 대에서 실행한 결과입니다(24H2 빌드
+26200, 3840 × 2160, 배율 150%, 한국어, 어두운 앱 모드).
+
+- **테스트.** 여기서 Python 3.13(710초, 8개 건너뜀)과 3.12(715초, 7개 건너뜀)로 1,820개가 실패 없이
+  통과했고, GitHub의 Windows 실행기에서도 3.12·3.13·3.14·3.15가 모두 초록불이었습니다. 건너뛴 것은
+  선택 참여 라이브 검사 여섯 개, 태그를 기다리는 고정 확인 하나, 그리고 3.13에서 PyYAML이 필요한
+  워크플로 파서 하나입니다.
+- **창을 두 번 빌드.** 같은 소스에서 만든 `CodexAutoResumeSettings.exe` 두 개가 바이트까지 같고,
+  `build/normalize_pe.py`가 둘 다 받아들입니다.
+- **잘림.** 레이아웃 검사가 아홉 개 언어를 100·125·150·175·200%에서, 워처의 모든 상태로 창을 숨긴 채
+  만들어 잘린 글자, 제자리를 벗어난 버튼, 버튼 밑으로 들어간 글자, 스크롤되는 개요를 찾습니다. 아무것도
+  보고하지 않았습니다.
+- **이 기계에 이전 릴리스 위로 설치.** 설치기가 *설정과 대기 중인 복구를 그대로 두었습니다*라고 답했고,
+  `config\settings.json`은 설치 뒤에도 바이트까지 같았으며, 워처는 계속 실행 중이었고, 플러그인 매니페스트는
+  0.6.4를 가리켰습니다. 설치된 MCP 서버는 0.6.4로 자신을 밝히고 도구 열일곱 개를 내놓았으며, 이어서 하기
+  메시지를 한국어로 미리 보여 주었고, `update_settings`로 직접 쓴 메시지를 쓰려는 시도는 여전히 거절했습니다.
+- **실제 창에서 테마 바꾸기.** 설정 > 모양 > 테마를 *시스템 설정 따르기*에서 *밝게*로 바꾸고 저장하니,
+  창이 스스로 닫혔다가 같은 페이지, 같은 크기와 자리에서 밝게 다시 열렸습니다. 되돌리니 다시 어둡게
+  열렸습니다.
+- **실제 클릭으로 연 팝업.** 알림 영역 아이콘을 클릭하자 팝업이 어둡게 열렸습니다. 상태 줄, 숫자 세 개,
+  기다리는 작업이 없다는 문구, 버튼 두 개가 564 × 438 픽셀로 나왔습니다.
+- **창이 처음 열리는 시간(바깥에서 측정).** 프로세스 시작부터 창이 화면에 나타날 때까지, 그리고 화면을 다
+  그릴 때까지를 입력 없이 따뜻한 상태에서 실제 설치본 사본으로 쟀습니다. 이전 릴리스는 830~1,035ms와
+  5.1~7.6초, 이번 릴리스는 1.2~1.3초와 1.8~2.0초입니다. 이번 릴리스 안에서 가장 큰 몫은 프로세스의 첫
+  글꼴(이 기계의 글꼴 610개 기준 215ms), 개요를 만들고 배치하는 일(600ms), Windows가 완성된 창을 띄우는
+  일(333ms)입니다.
+
+확인하지 않았고 주장하지도 않는 것: 실제 시스템에서 켠 고대비(그려서 확인했을 뿐 실제로 켜 보지는
+않았습니다), 이 빌드로 복구한 실제 Codex 중단, 이 기계가 아닌 다른 기계, 150%가 아닌 다른 배율.
+
+## v0.6.3 — 아홉 개 언어, 직접 쓴 메시지, 살아 있음을 보여 주는 창
+
+[이 릴리스에 담긴 커밋](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.2...v0.6.3)
+
+기능과 디자인 릴리스입니다. 복구 자체가 내리는 결정은 v0.6.2와 똑같습니다. 같은 분류기,
+같은 안전 확인, 그리고 보낼 수 있는 유일한 구성 요소인 같은 워처 하나입니다. 바뀐 것은
+무엇을 말하는지, 어떤 언어로 말하는지, 그리고 지금 무엇을 하고 있는지를 얼마나 볼 수
+있는지입니다.
+
+### 언어
+
+- **화면 언어 아홉 개**: English, 한국어, 日本語, 简体中文, 繁體中文, Español, Deutsch,
+  Français, Português (Brasil). 대시보드, 알림 영역 팝업과 메뉴, Windows 알림, Codex 안의
+  패널이 모두 같은 언어를 씁니다.
+- **화면 언어 설정**(설정 > 일반). 기본값인 *시스템*은 이전처럼 Windows가 첫 번째로 꼽는
+  언어를 따르며, 이 제품에 없는 언어면 영어입니다. 직접 고른 언어는 Windows보다 우선하고,
+  재시작·복구·업데이트 뒤에도 유지됩니다. `CODEX_AUTO_RESUME_LANG`은 여전히 Windows가 알려 주는
+  언어를 대신하므로, 설정이 *시스템*일 때만 언어를 정합니다.
+- 카탈로그는 언어마다 하나인 JSON 파일이며, 영어가 원문이자 번역이 아직 닿지 않은 키의
+  대체 문장입니다. 네트워크에서 가져오는 것은 없습니다. 각 번역이 어떤 영어 문장으로
+  만들어졌는지 기록해 두므로, 영어가 바뀐 문장은 다시 확인할 때까지 모든 언어에서 오래된
+  번역으로 표시됩니다.
+
+### 이어서 하기 메시지
+
+- **이어서 하기 언어**(기본값: 화면 언어)와 **메시지 스타일**: *간단히*는 다시 시도해
+  달라고만 하고, *기본*(기본값)은 작업이 멈춘 이유를 말하며, *자세히*는 지금까지의 작업을
+  확인하고 이미 끝난 일은 반복하지 말라고도 요청합니다.
+- **직접 입력**은 쓴 문장을 쓴 그대로 보냅니다. 모든 중단에 하나를 쓰거나, 중단 종류마다
+  따로 쓸 수 있고, 비어 있으면 모든 중단에 쓰는 메시지로, 그다음 기본 메시지로 대신합니다.
+  `{reason}`, `{category}`, `{attempt}`, `{max_attempts}`, `{reset_time}`만 쓸 수 있으며,
+  프롬프트·답변·제목·경로·계정·토큰을 메시지에 넣게 되는 자리표시자는 이름을 밝혀
+  거절합니다. 최대 2000자입니다. 문장이 무엇이든 실패를 복구 대상으로 만들거나, 확인을
+  건너뛰거나, 다른 대화를 고를 수는 없습니다. 그 중단에 값이 없는 자리표시자는 빠지고, 빠진
+  자리의 빈칸만 정리합니다. 채우고 나니 할 말이 남지 않은 메시지는 빈 메시지처럼 대신하며,
+  아무 내용 없는 턴을 Codex에 보내지 않습니다. `{attempt}`와 `{max_attempts}`는 시도 한도가
+  세는 것을 세며, 시도를 쓰지 않는 사용량 한도에는 둘 다 없습니다.
+- **미리보기**는 워처가 보낼 때 쓰는 바로 그 함수로 만든, 실제로 보내질 문장을 중단
+  종류별로, 아직 저장하지 않은 선택까지 반영해 보여 줍니다.
+- 직접 입력 문장은 Windows 대시보드에서만 씁니다. Codex에서는 `update_settings`로도, 새로
+  추가된 읽기 전용 `preview_recovery_message` 도구로도 바꿀 수 없습니다. 대화에 자동으로
+  보내지는 문장은 모델이 설득당해 바꿀 수 있는 것이어서는 안 되기 때문입니다. 읽는 것은
+  가능합니다. 패널이 보여 주고, `get_status`와 `open_settings`가 다른 설정과 함께 돌려주므로
+  그 내용은 해당 대화의 일부가 됩니다. 진단 내보내기에는 각 직접 입력 메시지가 설정되어
+  있는지만 기록하고 문장 자체는 담지 않습니다.
+- **바뀐 기본값:** 이전에는 중단 종류마다 고정된 영어 문장 하나를 보냈습니다. 이제는
+  이어서 하기 언어로 된 기본 메시지를 보내며, 영어 시스템에서는 거의 같은 문장입니다.
+
+### 대시보드
+
+- 팝업·패널과 함께 쓰는 새 디자인: 부드럽게 떠 있는 카드, 둥근 컨트롤, 옅은 색 칩 위의
+  상태 단어, 키보드 포커스 표시, 그리고 단어 없이 색만으로 나타내는 상태는 없습니다.
+  고대비 모드에서는 그림자와 색조를 빼고 시스템 색을 씁니다. 밝은 테마이며, Codex 안의
+  패널은 Codex 자체 테마를 따릅니다.
+- 머리글의 상태 점이 워처가 하는 일을 보여 줍니다. 감시 중(느린 숨쉬기), 기다리는 중,
+  때가 된 작업 확인 중, 복구 중, 일시 중지됨, 확인이 필요함(한 번 깜박임). **움직임
+  줄이기**(설정 > 모양)는 모든 애니메이션을 멈추며, Windows 자체 애니메이션 설정도 항상
+  따릅니다.
+- **설정**을 일반, 자동 복구, 이어서 하기 메시지, 모양, 고급으로 나눴습니다.
+- **대기 중** 목록에 작업마다 **자동 이어 가기** 체크박스가 생겼습니다. 그 작업의 정확한
+  중단 기록과 대화에 묶여 있으며, 누르는 사이에 끝났거나 사라졌거나 다른 대화의 것으로
+  밝혀진 기록에 대한 클릭은 거절되고 아무것도 바꾸지 않습니다. 정책만 바꿀 뿐, 결정하고
+  보내는 것은 여전히 워처입니다.
+- **기다리는 이유**가 선택한 작업에 대해 워처가 마지막으로 기록한 안전 확인 목록을
+  보여 줍니다.
+- **모두 취소**는 기다리는 복구를 정확한 기록 하나씩 모두 멈춥니다. "모두 다시 시도"는
+  일부러 두지 않았습니다.
+
+### 알림
+
+- 일시적인 중단 알림에 중단 종류가 표시됩니다.
+- 두 중단 알림 모두에 **대시보드 열기** 버튼이 생겼습니다. 대기 중 페이지를 여는 것 말고는
+  아무것도 할 수 없습니다.
+
+### 수정
+
+- **복구 대상인 중단 종류 하나에 스위치가 없었습니다.** `auth_service_transient`(로그인
+  서비스가 일시적으로 쓸 수 없는 경우)는 설정의 켜고 끌 수 있는 종류 목록이 마지막으로
+  바뀐 뒤에 복구 대상이 되어, 끌 방법도 어느 창에도 이름도 없이 복구되고 있었습니다. 이제
+  기본으로 켜진 스위치가 있으며, 분류기와 스위치 목록을 양방향으로 맞추는 테스트가
+  생겼습니다.
 
 ### Python
 
-- CI now runs every non-live test on Python 3.12, 3.13 and 3.14 as blocking jobs, and on
-  the 3.15 pre-release as an advisory job whose result is shown but does not block. 3.11
-  and older are not supported. The release still bundles Python 3.13.15, so installing it
-  needs no Python at all.
-
-### Evidence
-
-What was run for this release, and what was not. Unless it says otherwise, everything below
-was run on the code this tag was made from, with one exception: three `switch` statements in
-the window's code were rewritten as plain comparisons, with no change in behaviour, after the
-local test runs and the Windows checks below (see the first release run, below); CI ran the
-whole suite again on the tagged commit. The other later commits changed only documents - this
-section and the feature matrix's record of the run - and one test, so that it reads the
-Korean documents where the generated `ko` branch keeps them.
-
-- **The first release run stopped itself.** Tagging this version started a release run that
-  builds the settings window twice and compares the two, and they differed, so nothing was
-  published. The in-box C# compiler names one class with a fresh random GUID when a string
-  `switch` has six or more cases, and three written for this release did. They are now plain
-  comparisons. `build/normalize_pe.py` refuses an executable that still holds such a class, so
-  the build fails on the machine that made it rather than in a release run, and a test compiles
-  a program with one and checks the refusal. The tag was then placed on the fixed commit;
-  nothing had been published under it.
-
-- **Tests.** The whole non-live suite passed on Windows 11 under Python 3.12 and 3.13
-  (1,508 tests each), and in CI on 3.12, 3.13 and 3.14 as blocking jobs; the advisory 3.15
-  pre-release job passed too. The icon test used to compare compressed bytes and failed on
-  3.14 and 3.15 with identical pixels, because those Pythons deflate with a different zlib;
-  it now compares what each icon decodes to.
-- **A pre-release review.** Every change in this release was reviewed adversarially by
-  area, and each finding was checked by a second reviewer who tried to refute it. Eighteen
-  findings; one was refuted, and the other seventeen - fourteen distinct - are fixed here,
-  each with a test. The ones that could change what is sent or what a switch does:
-  - Custom text made only of placeholders - `{reset_time}` for an interruption with no
-    reset time - was sent as a turn holding nothing but the marker, and spent an attempt.
-  - A right-click on a task's Auto-resume box switched automatic recovery off for that
-    conversation.
-  - Holding Space or Enter on a switch in the notification-area popup flipped it back and
-    forth, and where it stopped was chance.
-  - A closed popup kept the icon's badge on "needs attention" after the problem cleared.
-  - The one-shot bridge put Custom message text on a `python.exe` command line.
-
-  The rest were wording and display defects: `{attempt}` counting claims rather than
-  attempts, filling a placeholder reflowing the whole message, High Contrast text drawn on
-  a Highlight fill, an alarm that pulsed again every refresh, a halo that stayed frozen
-  after a restore, a card that measured its text wider than it drew it, a counter that
-  counted emoji twice, the diagnostics export recording the wrong language, and the
-  translation export's own output refused by its import. Reviewing the fixes found one
-  more: the long-lived bridge refused a valid Save of long Custom messages as too large.
-- **On a real Windows 11 machine** (150% scaling). A release candidate built from this code
-  passed `build/smoke_archive.py` and was installed over an earlier candidate: the installer
-  reported the update and did not rewrite the settings file, the installed files matched the
-  archive, the installed MCP server reported 0.6.3 and 17 tools, `preview_recovery_message`
-  returned the Standard message in Korean, and `update_settings` refused `custom_message`.
-  The upgrade from v0.6.2 was performed with that earlier candidate, built before the review
-  fixes: it kept the settings file byte for byte and every pending and history record, and
-  its Dashboard showed the preserved history in Korean.
-- **The popup, by hand**, on the earlier candidate. A person clicked the notification-area
-  icon and the popup opened. With their permission Claude then drove the mouse and keyboard:
-  a click opened it, Open Dashboard opened the Pending page and closed it, and a click
-  elsewhere closed it. In a copy of the popup running against a stand-in control layer, real
-  Tab, Shift+Tab and Space presses moved the focus ring and switched the focused button.
-  Escape could not be pressed for real: while Claude's computer control was active, another
-  process held plain Escape as a global hotkey, so no window received its key-down. The
-  popup's Escape handling is covered by a test that delivers the key to the real window.
-- **Not verified.** The popup was not driven by hand again on the final candidate. The High
-  Contrast, right-click and minimize-and-restore fixes were not seen in a running window;
-  they are covered by the build, by tests that run the window's own code, and by checks on
-  its source. No Windows notification with Open Dashboard was raised, because no real
-  interruption happened and none was made up. No Codex conversation was continued with the
-  new messages, and the panel was not opened inside Codex. No real Codex visual recovery is
-  claimed. The screenshots are rendered from sample data, not from anyone's conversations.
-
-## v0.6.2 — The update could not check what it had downloaded
-
-[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.1...v0.6.2)
-
-One fix, in the step that decides whether anything gets installed.
-
-- **Fixed: the Dashboard's update downloaded the archive and then could not verify it.**
-  The verification step used `Get-FileHash`, and on a real machine that cmdlet did not
-  resolve in the process the update button starts, so the run ended with "'Get-FileHash'
-  is not recognized as a cmdlet" and installed nothing. Refusing to install something it
-  could not verify was right; naming a cmdlet as the reason was not, and the feature was
-  unusable either way. The digest is now computed with the SHA-256 in the runtime
-  PowerShell is already hosted in, so there is nothing left to autoload. `make_gui.ps1`
-  had already moved off that cmdlet after meeting the same thing under the release
-  runner's module path; the shipped script had not, and this is the second time it has
-  cost something. Tests lift the function out of the shipped script and run it with
-  `Get-FileHash` removed from the session.
-
-  This does not repair an installation that already has the old script: the copy doing the
-  updating is the one with the defect. Reaching a build with the fix means installing it
-  the ordinary way rather than through the button.
-
-## v0.6.1 — What running it for real found
-
-[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.0...v0.6.1)
-
-Every change here came from the first live acceptance of v0.6.0: installing the published
-archive on a machine somebody uses and watching it work. The published v0.6.0 archive and
-tag are untouched - a correction gets a new version, which is what this is.
-
-- **Fixed: a recovery that worked was recorded as a failure.** The engine read the status
-  Codex puts on the recovery turn and nothing else. But the commonest way a recovery turn
-  ends is the *next* usage limit, and Codex records the turn a limit interrupted as
-  `failed` - so a continuation that was delivered, ran, and carried the task forward was
-  filed as `recovery_failed`. Three real recoveries in a row, two of them recorded as
-  failures, in the History, the statistics and the success rate. The outcome now asks the
-  question the completed branch already asked - did this turn do anything? - and a turn
-  that made progress is `recovered` whatever ended it. The raw status stays on the record
-  and in the journal, so nothing is lost by calling the recovery what it was. Recovery
-  itself was never affected: the chain continued correctly throughout, which is why only
-  the reporting was wrong, and why the numbers a person reads were the part that lied.
-- Require current, readable Codex projection data before a new continuation; never use
-  an older database after a newer unsupported generation appears.
-- Recheck pause, cancellation and conversation consent under the state write lock through
-  queue-process launch. Release that lock before waiting for a receipt.
-- Count repeated claims of one interruption toward the daily cap. Schema 3 retains only
-  the latest claim timestamp, so the count deliberately errs toward waiting longer.
-- Refuse unreadable or malformed installation journals before restoring or sweeping files.
-  Keep an uninstall retryable after plugin removal fails or a root program file is locked.
-- Reject malformed MCP envelopes and arguments before invoking controls. Do not show a
-  successful save or pause change after a refused call; preserve acknowledged settings.
-- Show the Dashboard's budget-reset explanation when the conversation is still disabled.
-- Correct release wording, approval-hint claims and the English/Korean live procedure.
-
-Live acceptance is incomplete, and the evidence for v0.6.0 does not carry over: evidence
-belongs to one build, so the records that described v0.6.0 are kept as history under
-`docs/evidence/live-0.6.0/` rather than inherited by this one. Of the fifteen steps there,
-one passed and fourteen were blocked, because no genuine interruption was exercised in the
-disposable acceptance conversation and no failure was fabricated to make one. The defect at
-the top of this list was found outside that procedure, in ordinary use, which is its own
-argument for running the procedure. No real Codex visual recovery is claimed.
-
-## v0.6.0 — It follows its own turn, and it shows you the work
-
-[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.5.7...v0.6.0)
-
-Two changes, and most of the rest follows from them. The engine no longer reads the
-conversation for signs that a recovery worked: it follows the continuation it sent to the
-exact Codex turn that continuation started, and reads the outcome from that turn alone. And
-the window from the Start Menu, which was a settings page, now shows what the watcher has
-seen and done — Overview, Pending, History, Statistics and Diagnostics, beside the settings
-that were already there.
-
-In short, and each of these has its own section below:
-
-- **It follows its own turn.** A turn you started yourself can no longer be read as the
-  recovery working, and an outcome that could not be established is called unverified
-  rather than a success.
-- **A Dashboard, not a settings page.** Six pages, and every one of them is now captured
-  from the real window in both languages.
-- **An icon in the notification area**, owned by the watcher itself, with a live countdown
-  to the next check — and a route from its menu to the exact work that is waiting.
-- **Safety gates and a timeline.** Why a recovery is waiting, in the same 22 public words
-  everywhere, over a content-free journal that nothing reads back to decide anything.
-- **History, statistics and a redacted diagnostics export**, none of which can carry a
-  prompt, a reply, a path or an account.
-- **It can tell you a new version exists** — when you ask it, never on its own — and
-  install one through the same checksum-verified installer, keeping your pause, your
-  per-conversation decisions and everything waiting.
-- **Installing and repairing are harder to break**: a crash journal, a payload root copied
-  by name, an upgrade that repairs without deciding anything, and a watcher handover that
-  is checked rather than assumed.
-- **The supply chain is checkable**: every Action pinned to a commit, the build split from
-  the publish, reproducible executables, and a feature matrix that says for every capability
-  what evidence it has actually earned.
-
-The state file moves to schema 3 the first time the new watcher opens it. The last section
-says what works in between.
-
-### Recovery follows the continuation it sent
-
-- **Fixed: a turn you started yourself could be read as the recovery working.** The engine
-  called a recovery delivered once its message appeared anywhere in the conversation, and
-  judged progress from any later turn — which can be a turn you started yourself. Each
-  continuation carries a marker built from the interruption's own id; the turn it started is
-  the turn of the history row that holds that marker, and a unique index in the state file
-  makes it impossible for two records to own one Codex turn. The outcome is read from that
-  turn and no other: recovered, no progress, failed, stopped by the user, handed over — a
-  person started or joined that turn, or edited the queued message before it ran — or
-  unverified, which is what an outcome that could not be established is called, rather
-  than a success.
-- **A failure of our own recovery turn is the same task failing again.** The record that
-  follows continues its parent's chain instead of starting a new one: it inherits every
-  counter in the one transaction that creates it, and is created already stopped when the
-  parent was cancelled, was taken over by a person, or had used up a budget. By default one
-  task gets at most six continuations; the setting that governs it accepts one to ten and
-  nothing outside that.
-- **Stable words for what a recovery is doing.** The engine's own vocabulary is 27 stored
-  states in five classes, and the window and the Codex panel never show one of them: they
-  read the same 22 public codes, and those never depend on a setting — a recovery that
-  failed stays failed even if you raise the attempt limit afterwards. The command line
-  still prints the stored state beside the code, for whoever is debugging a recovery.
-  Facts about the surroundings that change what a waiting recovery will do next — recovery
-  is paused, the conversation is switched off, the watcher is not ticking — are shown
-  beside the code
-  instead of folded into it, and never on a record that may already have been sent.
-- **A journal, and a timeline that reads it.** What happened to a recovery is written down
-  as codes, ids, counters and times; no prompt, no reply, no error text can reach it. The
-  timeline shows one recovery's whole chain in the same words the lists use, rather than in
-  the engine's state names. The journal is bounded at 5,000 entries and 90 days and never
-  drops an entry belonging to a recovery that is still running, and nothing reads it back
-  to decide anything — the decisions are made from the records.
-- **Clear history hides and never deletes.** It changes the History view and nothing else.
-  Anything that may still change stays visible — a recovery still running, an unconfirmed
-  submission still being reconciled — and hidden rows still count for every cap, cooldown
-  and duplicate check, which is what stops a finished failure from being detected all over
-  again.
-- **Cancel stops one task and everything that continues it.** A record that was never sent
-  is cancelled outright; anything that may already be in Codex is marked, and the watcher
-  takes back whatever is still queued. A turn already running in Codex is not stopped, and
-  the confirmation says so. A record that has already finished is marked too, so no later
-  failure of that task can start a new chain from it. Cancelling only ever reduces
-  automation, so it does not need Codex to be running, and it is retried for up to thirty
-  seconds rather than refused when the watcher happens to be writing.
-- **Giving attempts back is explicit, limited, and not a send.** An exhausted recovery
-  re-enters the wait its kind of failure needs, and every check runs again from the top. It
-  does not switch a conversation back on: if that conversation is off, it says so and
-  nothing will run until you switch it on. It can be done three times for one task, after
-  which the window says to continue that task in Codex yourself.
-- **Retry now is a re-check.** It brings the schedule forward and wakes the watcher. It
-  does not send, does not skip the loaded-thread requirement, does not open a usage window
-  and does not skip revalidation; a recovery whose usage limit has not lifted simply goes
-  back to waiting.
-- **Statistics, over the last 7 days, the last 30 or all of it**: how many interruptions
-  were detected, how many continuations were sent, how they ended, the median wait before
-  sending and the median time to recover, a count by kind, and how many times Retry now was
-  used. One final outcome per record, so a late receipt moves a record from unknown to what
-  really happened instead of counting it twice. The success rate appears only once five
-  recoveries have ended in one of the outcomes it counts; below that it says there is not
-  enough data yet.
-
-### The window shows the work
-
-- **Six pages instead of one.** Overview, Pending, History, Statistics, Diagnostics and the
-  settings that were already there. They read the same control layer the Codex panel and
-  the tools read, and the same state machine the command line reads, so the surfaces cannot
-  disagree about what a recovery is doing.
-- **No local web server, and nothing opens in a browser.** The pages are native controls,
-  and the window talks to one long-lived bridge process — one JSON line per request — in
-  place of a process per call. The whole Overview arrives in one round trip, with each part
-  failing on its own: a state that cannot be read must not take the status away with it.
-- **Every action names the conversation it acts on.** The lists refresh every five seconds,
-  so a confirmation that named nothing could be answered about a record that had moved
-  underneath it. Each action addresses a recovery by its exact interruption id, and each
-  confirmation names the conversation.
-- **Retry now is offered only where it can do something.** Not on a recovery whose usage
-  reset is still ahead, not while recovery is paused, and not on a conversation that is
-  switched off. Giving attempts back is gated differently, and deliberately: it is offered
-  on a recovery that stopped at its limit, was not cancelled, and still has resets left,
-  including while
-  recovery is paused and on a conversation that is switched off, because it sends nothing
-  — and where that conversation is off it says so, and that nothing will run until you
-  switch it on. Once a task has had its three the button goes quiet and a note says to
-  continue that task in Codex yourself.
-- **A part that cannot be read is shown as unreadable, not as empty.** "Nothing is waiting"
-  over a list that failed to load is the one wrong answer this page must not give:
-  recoveries may well be waiting. Nothing that talks to the bridge runs on the window's
-  thread, so a slow read cannot stop the window painting.
-- **Diagnostics writes a file you can read before you send it.** Export diagnostics... on
-  the Diagnostics page writes one JSON file where you choose. It holds the versions, the
-  watcher's health, your settings, every record's state, reason and gates, the content-free
-  journal and the last 300 lines of each log — enough to explain a recovery that went
-  wrong. Conversation and interruption ids become aliases that hold together inside that one
-  file and lead nowhere outside it, because the key is random and thrown away with the
-  bundle; file-system paths, your Windows user name and anything shaped like an e-mail
-  address are replaced. It sends nothing, and it refuses to overwrite an existing file. The
-  exception is `errors.log`: it carries exception messages this product did not write, so
-  they are redacted the same way but not filtered, and the file says so at the top. Once the
-  file is saved, the window says so too: "Diagnostics saved. Ids are aliases and paths are
-  removed; read the file before sharing it." `auto_resume diagnostics` writes the same
-  bundle from the command line.
-
-### Codex can turn automation down on its own; turning it up asks you first
-
-- **Pause and resume are two tools, and only resume asks.** They were one tool,
-  `set_auto_recovery`, that took the direction as an argument — and Codex runs a tool
-  without asking unless it is marked destructive, so a conversation carrying someone else's
-  instructions could undo your pause in silence. `pause_auto_recovery` still runs without a
-  prompt, because pausing only ever reduces automation; `resume_auto_recovery` is marked
-  destructive, and so now are `reset_recovery_budget`, `start_watcher` and
-  `update_settings`. The prompt is Codex's to show, though: the mark is a request, not a
-  lock. That is why `update_settings` offers only the settings the window and the panel
-  offer, and refuses the advanced ones — which engine binary to run, how far back to
-  look — even from a client that ignores the schema.
-- **`get_status` no longer returns where this is installed.** It returned the installation
-  directory, which normally contains your Windows user name, into a conversation Codex
-  sends to OpenAI. Everything else it returns still goes there, and the skill's commands
-  still print local paths; PRIVACY.md lists what each one says.
-
-### Names, caches and replies that came from somewhere else
-
-- **A mutex or stop event created by a lower-integrity process is refused.** Both have
-  predictable names in the session namespace, where a Low-integrity process — a browser
-  renderer, say — may create objects, and getting there first was enough: a planted mutex
-  made every status read say a watcher was running when none was and made the real one exit
-  as a duplicate, and a planted stop event made a real watcher quit at startup, silently. An
-  object that already exists is now checked, and one labelled below Medium is refused: the
-  status reads unknown rather than running, and the watcher refuses to run and writes why in
-  its log. What it cannot do is recover anyway — while such a process holds the name,
-  nothing at this level can — but it is no longer invisible.
-- **The watcher launcher accepts only this product's marketplace.** With no installed
-  application it fell back to the newest plugin of the same name in any marketplace's cache:
-  another publisher's code, started at sign-in. It now fails closed and reports that it found
-  no engine — which means someone who installed from a renamed marketplace has to
-  reinstall, rather than have it quietly keep working.
-- **The installer no longer upgrades every marketplace on the machine.** It ran `codex plugin
-  marketplace upgrade` with no name, and without a name Codex refreshes every Git marketplace
-  you have configured and reinstalls those vendors' plugins — other people's software,
-  changed by an install that promised to touch only its own. It now names its own
-  marketplace, which for the local one it registers does nothing at all.
-- **A malformed reply can no longer end the window.** Its JSON reader had no depth limit, so
-  a deeply nested document ended the process with a StackOverflowException, which .NET cannot
-  catch and which leaves no message behind. It now fails at 64 levels as an ordinary format
-  error, and so does truncated input.
-
-### Both programs say which version they are
-
-- **The two executables carry a version resource.** They reported 0.0.0.0, with no product
-  and no publisher, in Explorer's Properties and in the SmartScreen and Smart App Control
-  prompts — which is exactly where someone decides whether to trust a file they have just
-  downloaded. Product, publisher, description, file and product version and copyright are now
-  generated from `.codex-plugin/plugin.json`, so they cannot drift from the release, and
-  because they are a pure function of the manifest they cost the build nothing that had been
-  measured: two builds from fresh clones of one commit, on one machine with the same compiler,
-  produced a byte-identical archive. That is all that has been shown - another machine has not
-  been compared, and no archive published up to v0.5.7 is reproducible at all. The files are still unsigned: this is what a signature
-  would have displayed, not a substitute for one.
-- **The App Server client tells Codex its real version.** It introduced itself as
-  `codex_auto_resume` version "0.1" in every release since the first, and now sends the version from the
-  manifest. Codex reports `clientInfo` to OpenAI as the client's identity, so this changes
-  what leaves the machine: the name was already going, and the number beside it is now true
-  rather than wrong.
-
-### The notification area shows it without opening anything
-
-- **An icon is there while the watcher runs.** It belongs to the watcher process itself, so it
-  cannot show a watcher that is not there: it appears when one starts and goes when it stops.
-  Its tooltip says whether recovery is paused, how many recoveries are waiting, how many are
-  running in Codex, and how long until the next check - counted down on your machine, and
-  reaching zero only means the watcher looks again, not that anything is sent. Its menu opens
-  the window, pauses or resumes recovery, and stops the watcher. It decides nothing itself:
-  everything it offers goes through the same control layer every other interface uses. It is
-  on by default and can be switched off in the settings.
-
-### Pause and resume say one thing in Korean
-
-- The Korean labels of pause and resume are now 자동 복구 일시 정지 and 자동 복구 다시 켜기
-  everywhere. The window's and the Codex panel's buttons said 복구 일시 중지 and
-  복구 다시 시작; both were brought to the words the notification-area menu already used.
-  English is unchanged.
-
-### An upgrade repairs; it does not decide
-
-- **Fixed: an upgrade switched automatic recovery back on.** Plain `setup` runs the engine's
-  `enable`, so upgrading over an installation whose owner had paused recovery switched it
-  back on, silently, under the name of an update. The installer now runs setup with
-  `--keep-state` whenever the program directory is already there, and the bootstrap does the
-  same on the branch that skips the download because the installed version already matches.
-  A first install still enables recovery: there is no decision to preserve, and it has to
-  end up watching or nothing is.
-- **Fixed: an upgrade put back a sign-in start that had been removed.** With `--keep-state`,
-  setup re-registers the sign-in entry only when the entry registered is already this
-  installation's — which still repairs its path after the runtime moves — and adds none
-  where there is none.
-- **Fixed: an interrupted copy was swept away by the next run.** The installer moves the old
-  `app\` and `runtime\` aside before copying the new ones over, and the first thing the next
-  run does is delete every `*.old-*` directory it finds. A power cut between the two left
-  the only complete copy under exactly that name, so the recovery attempt was what destroyed
-  the installation. The names every tree will be moved to are now decided before the first
-  move and written to a small JSON journal at the installation root — written to a temporary
-  name and moved over the real one, so a crash during the write leaves either the previous
-  journal or none. The next run reads it before it sweeps anything: it puts back a tree
-  whose target is missing, checks both ends of every move against the installation it has
-  already proved is its own, and keeps the aside copies the journal still accounts for until
-  this run has written a complete one. The journal is deleted once both trees are in place,
-  and deliberately left behind when a run fails, because the roll-back is best effort and
-  that file is then the only record of where a tree went.
-- **Fixed: whatever sat at the payload root was copied into the installation home.** It was
-  a wildcard copy, so a stray file in a release went straight into the home, including names
-  this product reads as proof that the home is its own (`runtime.json`,
-  `.owned-by-codex-auto-resume`) or as state. The two files that belong there — the settings
-  window and its icon — are now copied by name, and a payload missing either fails the
-  install before anything is moved. The bootstrap's archive check refuses an archive that
-  carries anything else at that root.
-- **Repair in the window says which of five things happened**: it finished, it is still
-  working, another installation or repair is already running, this installation is missing
-  the files setup is made of, or it failed — and only the failure carries the last few lines
-  setup printed, with the line that is a path dropped. It takes the installer's own lock, so
-  two processes cannot rewrite the same registrations at once, and a setup still working
-  after two minutes is left to finish in the background rather than killed halfway. It runs
-  setup with `--keep-state`, so a repair never undoes a pause or re-adds a sign-in start.
-- **Stop watcher is now in the window and on the bridge.** The upgrade-pending message tells
-  you to use Stop watcher and then Start watcher; Start was there and Stop lived only in the
-  command line, which is the one place a person who uses the window never goes. It is the
-  same named stop event the watcher already waits on, signalled once. It asks and never
-  kills: a watcher stopped in the middle of submitting a continuation could not prove
-  afterwards whether it sent, and a continuation that may have been sent is never sent
-  again. It then waits ten seconds for the single-instance mutex — the same probe everything
-  else calls "running" — and reports what that said: stopped, still finishing the check it
-  is in, not running, or unknown. Unknown is its own answer and is not rounded up to
-  stopped.
-
-### It can tell you a new version exists, when you ask it
-
-- **New: Check for updates, in Diagnostics.** Until now nothing in the product knew a newer
-  release existed; a person found out by visiting the repository. The Diagnostics page now
-  has a button, and `scripts/bootstrap.ps1 -CheckOnly` does the same from a command line.
-  Nothing checks on its own: there is no timer, no check when the window opens and no check
-  when the watcher starts, because a request to github.com is a request the person's machine
-  makes and it should be one they asked for.
-- **The answer comes out of a URL, not out of a page.** The check is a `HEAD` request to
-  this repository's `releases/latest`, so no page is transferred and none is parsed. The
-  version is read from the address the redirect ends at, whose path has to begin with this
-  exact owner and repository — a fork, a mirror, or an owner whose name merely starts with
-  this one is refused — and is then rebuilt from its three numbers, so what reaches a
-  download URL is arithmetic rather than text somebody else chose.
-- **Four answers, and four exit codes.** Up to date, an update is available, this build is
-  ahead of everything published, or the question could not be asked. The last one is its own
-  answer and never becomes "up to date": a machine with no network being told it is current
-  is the one wrong thing an update check can say. The window believes an answer only when
-  the exit code and the printed line agree.
-- **Update reuses the installer rather than adding a second one.** It fetches that release's
-  archive, checks it against the checksum published beside it, checks the archive really is
-  this product at that version and that no entry escapes the extraction directory, and then
-  runs the same `install.ps1` every install runs — which moves the old trees aside, keeps its
-  journal, and runs setup with `--keep-state`, so a pause, a per-conversation decision, the
-  pending recoveries, the history and the sign-in choice all survive it. A release published
-  after this plugin was written cannot have been pinned before it existed, so an update is
-  normally verified against the published checksum rather than a pinned digest, and the
-  script says which of the two it did.
-- **Fixed, before it could ship: an ordinary run after an update installed the older
-  version back over it.** An update leaves the machine ahead of the plugin tree it was
-  started from, because Codex's copy of the plugin is still whatever version it fetched.
-  The next ordinary run of the setup script - which Codex may make on its own - saw a
-  version the machine did not have and installed it, over a newer one, silently. An
-  installation at the same version or a newer one is now converged rather than replaced,
-  and going back happens only when `-Force` asks for it.
-- **Whether the watcher actually changed hands is checked, and said.** A still-running old
-  watcher reads its version out of the files underneath it, so it starts reporting the new
-  version the moment they are replaced. The window compares the watcher's process identity
-  and start time across the update instead, and says plainly when the watcher running
-  afterwards is the one from before.
-
-### The notification area points at the work, and does not act on it
-
-- **The menu offers a route to what is waiting.** While something is waiting, the icon's
-  menu has an item that opens the window on its Pending page, where Retry now, Cancel,
-  the timeline and the per-conversation switch are, each naming the conversation it is
-  about. Retry now and Cancel are deliberately not in the menu itself: a context menu
-  built from a list the watcher is still changing acts on whichever record an id meant
-  when the menu was drawn, and a menu item has nowhere to put the name of the
-  conversation - which is the thing that stops somebody cancelling the wrong task.
-- **The window is only ever opened on a page it has.** The page name reaches a command
-  line, so the list of pages it may be is closed, whatever a caller passes.
-
-### The release workflow, the first time a tag actually reached it
-
-- **Fixed: the job that builds a release checked out no tags, and the suite it runs reads
-  them.** Four tests build a database with the store code of a real tagged release - the
-  upgrade and downgrade paths are tested against the bytes those releases actually shipped,
-  not against a description of them - so a checkout without tags makes eight tests fail,
-  with the message "CI must fetch the tags". `test.yml` and `sync-ko.yml` had fetched them
-  since those tests were written; `release.yml` had not, and nothing noticed for two
-  releases because a dispatch stops before publishing and no tag had ever reached the job.
-  The first real tag push failed there. Nothing was published: the build job failed, the
-  publish job never ran, and the release did not exist to be half-made. The workflow now
-  fetches the history, which costs history and not privilege - the token is still not left
-  on disk and the job still holds read access only - and a test requires every workflow
-  that runs the suite to check out the tags the suite reads.
-
-### Between the old watcher and the new one
-
-- The state file is migrated 1 → 2 → 3 in one transaction, only by the watcher or by a
-  caller holding the watcher's mutex, and a copy of the old file is taken first for
-  forensics rather than as a restore path.
-- Until that happens — between an upgrade and the moment the old watcher exits — the
-  interfaces still do the things that only reduce automation: pause, switch a conversation
-  off, and cancel a conversation's recoveries the way v0.5 did, thread-wide. Everything else
-  says an older watcher still owns the state, and the window shows that sentence where a
-  list would be rather than an empty list.
-- `downgrade-state --to 2` rewrites the state for a v0.5 release with every interruption
-  row kept — cancelled, exhausted, unknown and hidden ones included, because those rows
-  are what stop an old failure from being detected and recovered a second time. It keeps
-  the rows, not everything about them: the journal and the watcher's own status table are
-  dropped outright, and the columns schema 3 added — which Codex turn a recovery started,
-  what it inherited from its parent, when history hid it — go with them, because schema 2
-  has nowhere to put them. The schema-3 file is copied first, and that copy is the only way
-  back.
-
-## v0.5.7 — Security fix
-
-[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.5.6...v0.5.7)
-
-A security release, shipped on its own rather than held for v0.6.0, because it closes
-a code injection present in v0.4.0 through v0.5.6. Recovery, settings, state and the
-install layout are exactly v0.5.6's. Upgrading is the whole remedy - and, as of this
-release, an upgrade replaces the running watcher, which is what makes that true.
-
-### Security
-
-- **Fixed: a folder or conversation name could run PowerShell commands.** Affects
-  v0.4.0 through v0.5.6; earlier releases put only fixed text, a time and a short id into
-  that script. Notifications and the Start Menu shortcut are
-  written with a short Windows PowerShell script, and each value - the conversation's
-  name, its project folder, the install path - was placed in that script as a quoted
-  string with ASCII apostrophes doubled. PowerShell also treats `‘` `’` `‚` `‛` as
-  single quotes, so a name containing one of them ended the string early and the rest
-  of the name ran as PowerShell, from the watcher, under your account. An ordinary name
-  such as `Bob’s project` was enough to stop the notification appearing; a crafted one
-  was enough to run a command. Confirmed against the real interpreter before the fix.
-
-  Values no longer become script text at all. They are handed to a constant script as
-  environment variables and read with `$env:`, which PowerShell never parses as code,
-  so there is no character a name could contain that changes what runs. The tests raise
-  every quote-like and interpolation character through the real interpreter and fail
-  on the previous code.
-
-- **Fixed: an upgrade left the old watcher running the old code.** The installer renamed
-  the program folders under the running watcher - Windows allows that - and the old
-  process carried on from the renamed copy until the next sign-in, while setup saw it
-  running and started nothing. For this release that would have meant the fix was
-  installed and not in effect. The installer now asks the running watcher to stop
-  through its own stop request, waits for it, and only then replaces the files; the new
-  watcher starts at the end as before. It asks and never kills: a watcher stopped in
-  the middle of sending a continuation could not prove afterwards whether it was sent.
-  If it does not stop within a minute, the upgrade still completes and says plainly that
-  the previous version is still running and how to switch. Measured on real Windows: a
-  running watcher is handed over in under two seconds.
-- **Fixed: Install.cmd and Uninstall.cmd could run a program planted next to them.** They
-  started `chcp` and `powershell.exe` by bare name, and Windows looks in the current
-  folder first - so a release extracted into a Downloads folder that already held a
-  file called `chcp.bat` ran that file before the installer. Both are now started by
-  their full path under `%SystemRoot%\System32`.
-
-## v0.5.6 — Finished, not just working
-
-[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.5.5...v0.5.6)
-
-The last v0.5 release, and a quality pass rather than a feature one. **Recovery is
-untouched**: the same failure categories, the same refusals, the same exact-thread
-identity rule, the same bounded retries, the same database. What changed is everything
-around it — the two settings surfaces speak the user's language, the pictures show the
-product as it is, and the Korean branch is a Korean branch.
-
-It is also the first release to carry the fixes found after v0.5.5 was published. Those
-were deliberately not used to mutate a released artefact; they ship here.
-
-### The settings surfaces speak the language the rest of the product speaks
-
-- **Fixed: the settings window and the Codex panel were English on a Korean machine.**
-  The plugin layer resolved a language and used it for notifications and setup output,
-  while the window carried its own English literals in C# and the panel carried a third
-  set in JavaScript. Three copies of one vocabulary is how "Retry timing" becomes three
-  different words. There is one catalog now — 79 keys, both languages — and neither
-  surface chooses: the window asks the bridge it already uses, and the panel is handed
-  its strings in the page it is already seeded with. Nothing consults
-  `navigator.language`, because the four surfaces have to agree and only one of them can
-  decide.
-- **Fixed: with the window translated, the Korean arrived as mojibake.** The translation
-  was correct and the bytes were not. Both front ends run the control bridge with its
-  output redirected, and Python encodes a redirected stdout on Windows with the machine's
-  ANSI code page — CP949 on a Korean install — while the window decoded UTF-8. The MCP
-  server had always reconfigured its streams, which is why the Codex panel was right
-  throughout and the window alone was wrong. The bridge now states UTF-8 rather than
-  inheriting an encoding, so the protocol's contract belongs to the protocol. What made
-  this worth tests rather than a one-line fix is that it hides: a machine with
-  `PYTHONIOENCODING=utf-8` set runs the broken code perfectly, so it reproduces for users
-  and not for whoever is looking for it — which is exactly what happened here. The round
-  trip is checked under a deliberately hostile code page, in six scripts, because the
-  contract is Unicode and not Korean.
-- The language rule is unchanged and now has tests for the case it exists for: Korean
-  when, and only when, the *most preferred* Windows UI language is Korean. Somebody whose
-  interface is English and who has also added Korean is a person who reads Korean, not a
-  person asking for a Korean interface.
-- Retry timing's options are translated where they are shown and stored untranslated. A
-  settings file whose meaning changed with the display language would be a bug the user
-  could not see until the watcher read it back.
-
-### The bottom row of buttons is drawn in full
-
-- **Fixed: Restore defaults, Save and Close lost their bottom borders.** Reported by a
-  user, reproduced, and it was not the buttons. The strip's height was a text measurement
-  plus a constant, and the row inside it carries WinForms' default 3px margin, which does
-  not scale with the display — so the arithmetic came out two pixels short and the last
-  thing living in those two rows was every button's own border. Measured from a layout
-  dump of the running window: strip 94 tall, 42 of padding, 52 given to a grid that
-  wanted 54. The strip is measured from its content now.
-- This is the same shape as the v0.5.5 Retry timing fix, one level up the tree. That fix
-  is intact and re-checked.
-- The two numbers under Limits no longer sit against the left edge of their boxes. A
-  NumericUpDown paints its value hard against the frame, which reads as a number pushed
-  up against the box rather than placed in it. WinForms offers the control no inner
-  padding, so the space comes from the native edit underneath, through the message an
-  edit control has always had for this — the value, its alignment, its range and what
-  Save writes are all untouched, and the inset scales with the display like every other
-  size in the window.
-
-### The Codex panel looks like the product
-
-- **Fixed: the panel screenshot was malformed, and the panel was why.** 550×494 collapsed
-  the card grid to a single narrow column and was shorter than the content, so the image
-  ended in the middle of a card with two cards and the entire footer missing. The height
-  is measured from the rendered page now, the three cards flow in one grid instead of two
-  hand-assigned columns that left one ending a third of the way up, and the pending table
-  no longer spreads three short rows across the full width.
-- The preview is given a host. Without one the panel correctly renders its read-only
-  fallback — every control greyed, and a notice telling the reader to go elsewhere —
-  which is a state nobody sees inside Codex. Nothing else about the render changed: it is
-  still the exact resource Codex is served, and it is still described that way rather
-  than as a photograph of Codex.
-
-### One screenshot set, in the reader's language
-
-- Screenshots are generated per locale and pinned to light. A light settings window above
-  a dark panel did not look like one product, and a build on a machine in dark mode should
-  not produce different bytes from a build on one in light mode. The runtime still follows
-  the user's Windows and Codex themes; only the pictures are fixed.
-- One picture is not pinned and cannot be: the notification is a real Windows toast, drawn
-  by the shell in the machine's theme, so it is dark in a gallery that is otherwise light.
-  The alternatives were to change somebody's Windows theme to take a photograph, or to
-  draw a convincing toast in HTML and present it as one — a screenshot that is not a
-  screenshot is worse than a mismatched one. `CONTRIBUTING.md` says how to retake it
-  on a machine already in light mode.
-- The Korean README shows the Korean interface. Korean prose over English screenshots was
-  the documentation version of the settings window that would not translate.
-- The panel gained the three theme states a themable page needs, so the capture can pin
-  one without changing how the served page behaves anywhere else.
-
-### The dark theme was rebalanced, and one part of it was declined
-
-- The canvas and the surface were four points of lightness apart, so a card did not read
-  as a card; the hairline was darker than what it enclosed, which is the wrong direction
-  on a dark ground; and the cyan sat at full saturation on an 11px dot that was the
-  brightest thing on screen. Same brand, less of the loudest part of it visible at once.
-- **The standalone window stays light, and that is a measurement.** A probe painted a
-  card, a NumericUpDown, a ComboBox, a CheckBox and a Button in the dark palette: the body
-  went dark and the parts Windows draws did not, leaving three white rectangles in an
-  otherwise dark window. Fixing that means owner-drawing every native control, and a
-  half-dark window is worse than an honestly light one.
-
-### The Korean branch is Korean
-
-- **Every human-facing document is translated.** `CHANGELOG`, `CONTRIBUTING`, `PRIVACY`,
-  `SUPPORT`, `docs/BRAND` and `docs/PLUGIN` join the six that were already there. The
-  `not_yet_translated` list is gone, because a list of documents nobody has got to is
-  indistinguishable from a list of documents nobody will. What stays English is named with
-  its reason: the licence, because a translated licence is a second licence, and the Codex
-  skill, because it instructs Codex rather than a person.
-- **A translation cannot go stale quietly.** The English source each Korean document was
-  translated from is recorded, and CI fails naming both files when the English moves.
-  Nothing is machine-translated — a person decides what the Korean says, then records it.
-  This is the documentation half of the screenshot freshness check, and it exists because
-  ko told Korean readers the tool made no network request for three releases after it
-  started making one.
-
-### Around the repository
-
-- The five issues opened against earlier versions are closed, each re-verified against shipped
-  code rather than against the changelog. The repository has a description, topics and
-  Discussions; `SUPPORT.md` now names the second door, because a question that is not a bug was
-  previously only offered a bug tracker.
-
-### Carried from after v0.5.5
-
-- The installer no longer ends with "Installed and running." whatever the watcher did.
-  Setup returns a third result for "everything was done, but the watcher was not seen
-  running", which is neither success nor failure.
-- The screenshot freshness check now covers the whole read path the window renders from,
-  and hashes text after newline normalisation so a clone can reproduce the digest.
-- The Korean sync no longer rewrites inside code fences, checks anchors as well as paths,
-  lists files in a way that survives spaces and non-ASCII names, and cannot be disarmed by
-  a stray local run.
-
-## v0.5.5 — Say only what you checked
-
-[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.5.4...v0.5.5)
-
-The last corrective release before v0.6. **Recovery is untouched** again: the same failure
-categories, the same refusals, the same identity rules, the same bounded retries, the same
-database. What changes is that several things which had been quietly asserting rather than
-checking now check - and that the Korean branch stops being a second copy of the product.
-
-### The watcher is reported as running only when it is
-
-- **Fixed: starting the watcher claimed success it had not verified.** `start_watcher`
-  returned as soon as Windows created a process, which proves nothing about whether the
-  watcher survived its imports, took the single-instance mutex or stayed alive. Four
-  surfaces turned that into a statement of fact, and the contradiction showed: the MCP
-  tool said "The watcher is running." and the very next status said it was not. It now
-  waits for the same probe the status line reads — on a monotonic deadline, in several
-  short looks — and reports which of four things actually happened: running, already
-  running, started but not confirmed, or started and exited. Only the first two are
-  allowed to mention a running watcher, and a test enforces it. Measured here, the
-  ordinary case now answers in about a third of a second, where the settings window used
-  to sleep a fixed 1.2 s and hope.
-- The watcher also now retries a momentarily busy mutex once before concluding another
-  watcher owns the machine. Every status read takes that mutex for microseconds to test
-  it, and a check must not be able to convince a starting watcher that it lost a race to
-  itself. A real second watcher holds it for its whole life, so single-instance safety is
-  unchanged.
-- The settings window makes that wait somewhere other than the UI thread. Removing the
-  fixed sleep had moved the wait into the bridge call rather than removing it, and a
-  six-second block on a click handler is a window Windows greys out and retitles. It now
-  dispatches to a worker and comes back through `BeginInvoke`; measured by forcing the
-  full window, 11 of 24 samples were unresponsive before and 0 of 48 after.
-
-### Screenshots that cannot go stale quietly
-
-- **Fixed: every screenshot showed v0.5.2**, three releases behind, because there was no
-  script that made them — only a sequence somebody had to remember. `build/make_screenshots.py`
-  now renders both from the working tree: the settings window from a scratch installation
-  assembled out of `src/` and the manifest, and the Codex panel from the panel's own
-  source with sample data built by the real control surface. There is no version number
-  in the generator and no mock JSON on disk; change `.codex-plugin/plugin.json` and both
-  images say the new version.
-- The same picture is no longer *captured* twice. There is one canonical asset per
-  screenshot and the documentation copy is generated from it — both files are still
-  committed, and a test now requires them to be byte-identical, which is the point.
-  `assets/screenshots.json` records what they were rendered from, so the suite fails when
-  the sources move and the images do not.
-- What "rendered from" means was itself wrong at first: a hand-written list of seven files
-  that missed five which visibly change the pictures, and that fired on edits which cannot
-  change a pixel. The panel is no longer hashed from a file list at all — it is hashed
-  from the markup it renders, so the version, the schema, the fields a row carries and the
-  palette all reach it wherever they live, and a comment cannot fire it. Text inputs are
-  hashed after newline normalisation, because `.gitattributes` gives `*.ps1` a different
-  byte sequence on checkout than the repository stores.
-
-### The Retry timing control is drawn in full
-
-- **Fixed: the Retry timing box lost its bottom border at every display scaling above
-  100%.** Not a drawing bug: a ComboBox under-reports its height until it is shown, then
-  resizes itself to fit the font while keeping the position it was given, so it hung past
-  the bottom of its own row — by 2 px at 125% and 9 px at 250% — and a child is clipped to
-  its parent. The editor is now anchored to the top, and the row reserves the editor's
-  measured height, which also puts the label back on its centre line.
-
-### The Korean branch is generated, not maintained
-
-- **Fixed: `ko` was three releases behind, and wrong in the ways that matter.** It was an
-  independent fork carrying its own engine, installer, workflows and tests, kept in step
-  by someone remembering to merge. It still told Korean readers the tool made no network
-  request, still led installation with "download the release archive", still said there
-  was no third party to report a security issue to, and still described an uninstall that
-  predated every ownership rule v0.5.4 added. Its README linked to itself for the English
-  version.
-- There is no second copy now. `ko` is main's tree at a commit whose tests passed, with
-  each Korean document put in place of its English sibling. `.github/workflows/sync-ko.yml`
-  does it automatically, from the SHA that was actually tested rather than whatever main's
-  head is by then, and it refuses a run from a fork or from a red main.
-- The Korean text moved to main where it can be reviewed. `SECURITY.ko.md` had its three
-  false claims corrected and its six-line uninstall section replaced with the current
-  ownership rules before it was carried; `README.ko.md` gained the requirements, the
-  two-watchers refusal, the safety model and the known limitations, so a Korean-only
-  reader is no longer sent to the English page for them. `docs/PLUGIN.md` and the
-  changelog are listed as untranslated rather than shipped stale — an English page is
-  accurate, and a stale translation is not.
-- The tests reach `ko` and now run there. They were carried unchanged, which was true of
-  the files and false of the outcome: the sync deletes the Korean sources twelve of them
-  read, so the suite errored on the branch it ships to and a pull request opened against
-  `ko` was answered with failures about the wrong thing. Those tests skip on a generated
-  checkout, and the workflow runs the suite against the tree before publishing it.
-- Links to a Korean document are rewritten in both halves, target and visible label, and
-  across every page rather than only the five that are translated — `CHANGELOG.md` had
-  been shipping to `ko` with a live link to a file the same sync had just deleted. The
-  generated tree is now checked for relative links to files it does not contain.
-
-### Housekeeping
-
-- **Fixed: 83 tests were skipped for anyone running a test file directly.** Six files kept
-  their `unittest.main()` guard in the middle, so the classes below it never existed by
-  the time it ran. `unittest discover` was never affected, which is why nothing said so.
-- Both workflows now declare a concurrency group. The release workflow's refusal to
-  republish a version reads the release's assets and then uploads, which two runs of the
-  same tag could both pass; serialising by tag closes that window.
-- Bumping the product version no longer turns the suite red for a reason that is not about
-  the product: `scripts/release.json` no longer needs a placeholder entry added by hand.
-  What it does check now is the direction that matters — that a version which was released
-  did not stay unpinned.
-
-## v0.5.4 — Prove it before you delete it
-
-[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.5.3...v0.5.4)
-
-The final v0.5 hardening release. **Recovery is untouched**: the same failure categories,
-the same refusals, the same identity rules, the same bounded retries, the same database.
-What changes is that installing, updating and removing this product now act only on things
-they can prove belong to them.
-
-Four of the five issues this closes were the same mistake in different places — a *name*
-being taken as evidence of ownership. Reviewing the fix for one of them found the same
-mistake, unreported, on the install path, where it was worse.
-
-### Nothing is destroyed without proof of ownership
-
-- **Fixed: installing had no ownership check at all.** Issue #1 was reported against the
-  uninstaller, and fixing only that left the more dangerous half in place: the install
-  path also sweeps `*.old-*`, moves `app` and `runtime` aside and then deletes what it
-  moved — under the same environment-variable root, with no check. The uninstaller would
-  refuse a stranger's directory while an install into that same directory deleted their
-  files and finished with "Installed and running." (Reproduced, on a directory holding
-  real files, before and after the fix.) The install path cannot ask the uninstaller's
-  question — the first install of all happens into a directory that is not ours yet — so
-  it asks the other half: a directory already holding `app`, `runtime`, `config`, `logs`
-  or a set-aside copy, with no proof any of it is ours, is refused and left untouched; a
-  directory holding none of them has nothing to destroy and is claimed *before* the first
-  file is written. Every deletion in the installer now goes through the one gate, and
-  there is a test that fails if a new one does not.
-- **Fixed: the uninstaller could delete directories it never created.**
-  ([#1](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/1)) The
-  installation root comes from an environment variable, and the PowerShell uninstaller
-  removed `app`, `runtime`, every `*.old-*` and — with `-Purge` — `config` and `logs`
-  beneath it, with no check at all. Pointed at a directory that merely *contained* folders
-  with those names, it would have deleted them. Now the root has to be one we created, and
-  the answer comes from the engine's own provenance rule rather than a second
-  implementation in PowerShell that could drift from it. Every path is then re-checked
-  against the canonical root before deletion, resolving each component, so a junction
-  inside the installation cannot redirect a recursive delete out of it.
-- **Fixed: the installer force-stopped any process named `codex-auto-resume-mcp.exe`.**
-  ([#2](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/2)) A
-  filename is not ownership: another installation, a build, or a test fixture running under
-  that name was killed by an unrelated install. The executable's resolved path now has to
-  lie inside this installation or this plugin's own Codex cache, and a process whose path
-  cannot be read is skipped — not being able to tell is not permission to kill.
-- **Fixed: uninstall removed the Codex marketplace by name.**
-  ([#5](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/5)) If you had
-  repointed `codex-auto-resume-windows` at a fork of your own, removing this product took
-  your configuration with it. Both the marketplace and the installed plugin are now checked
-  against where they currently point, read from `codex plugin marketplace list --json` and
-  `codex plugin list --json`, and left alone with an explanation when they are no longer
-  ours.
-- The same rule already covered the sign-in entry, the notification identity, the Start
-  Menu shortcut and the notification handler as of v0.5.3.
-  [SECURITY.md](SECURITY.md) now states it once, for every kind of resource.
-
-### Removing says what actually happened
-
-- **Fixed: a removal Codex refused was reported as a removal.** The plugin and marketplace
-  removals threw their exit codes away, so when Codex declined — it holds the plugin cache
-  open while the app is running, the same refusal the install path handles by name — the
-  uninstaller deleted the program files anyway and printed "Removed." over the top, leaving
-  Codex pointing at a directory that no longer exists. Both are now checked, and the branch
-  no longer ends on an unqualified success.
-- **Fixed: a purge that could not finish could not be retried.** When files were still in
-  use, uninstall correctly stopped and asked you to close Codex and run it again — but it
-  had already deleted the proof of ownership the retry needs, so the second run refused the
-  half-removed installation and there was no way forward. The proof is now the last thing
-  to go, after the step that can still stop the run.
-- **Fixed: `powershell -File build/make_gui.ps1`, the command `CONTRIBUTING.md` gives, did
-  not work.** `$PSScriptRoot` is empty while parameter defaults are bound, so the two
-  defaults derived from it threw. Invoked the other way — which is how CI does it — it
-  happened to work, so only the documented route was broken.
-
-### A published version is immutable
-
-- **Fixed: a published release asset could be replaced.**
-  ([#4](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/4)) The
-  workflow had a path that rebuilt an existing tag and re-uploaded over its assets. Since
-  the plugin's bootstrap pins that version's SHA-256, a replacement would make every
-  install of that version fail — or, worse, succeed with bytes the digest does not
-  describe. Publishing now refuses outright if the version already has assets; a
-  correction needs a new version. What remains of the manual dispatch is a dry run that
-  builds and verifies but cannot touch a release.
-- Published archives now carry **build provenance**, attested before publication, so a
-  download can be traced to the workflow run and commit that produced it.
-
-### Already fixed, now proven
-
-- **[#3](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/3) was fixed
-  in v0.5.3** by explicit Windows argument quoting. It now has regression evidence rather
-  than a claim: every case the issue lists — a home with a space, a folder like
-  `OneDrive - Company`, a trailing backslash, an embedded quote, a non-ASCII path — is
-  round-tripped through `CommandLineToArgvW`, the function Windows itself uses to split a
-  command line.
-
-### Settings at high DPI
-
-- **Fixed: the settings window clipped its own labels at 200% scaling.** Windows Forms
-  scales the font and leaves explicit pixel sizes exactly as written, so the window kept
-  its width while its text doubled. Every fixed size now scales with the display, and the
-  window is additionally clamped to the working area, because 780 units at 250% is wider
-  than a 1920-pixel screen. The DPI comes from Windows rather than from `DeviceDpi`, which
-  reports 96 on a 192-DPI screen unless a .NET Framework opt-in this product does not ship
-  is present — a fix written against it changes nothing, and there is a test saying so.
-
-## v0.5.3 — Say what the network does, and close the v0.5 line
-
-[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.5.2...v0.5.3)
-
-The last v0.5 release. **Nothing about recovery changes** — same failure categories, same
-refusals, same identity rules, same database, same bounded retries. What changes is that the
-documentation now matches the product v0.5.2 turned it into.
-
-### The privacy wording was left behind by plugin-first install
-
-Until v0.5.2 this project made no outbound request at all, and said so in the strongest terms
-available. Then the Codex plugin became the recommended way in, and the plugin installs the
-product by downloading its release. Those sentences became false on the same day, in five
-files and two languages.
-
-- **[PRIVACY.md](PRIVACY.md) is restructured** around the distinction that now matters: what
-  the running watcher does, and what installing it does. The watcher's promise is unchanged
-  and is still the strong one — nothing under `src/` imports a networking module, so it
-  cannot open a connection even by accident. Installing from the plugin fetches one archive
-  (and its checksum, when no digest is pinned) from github.com and nowhere else. It uploads
-  nothing, but GitHub sees the request and counts the download, and this release stops
-  implying otherwise. The release-archive route still touches no network at all.
-- **Fixed: "Third parties: none."** GitHub is one, at install time.
-- **Fixed: "the fact that you installed it at all" never leaves your computer.** On the
-  recommended route it does.
-- **Fixed: the tool launches more than `codex queue`.** It also runs `codex app-server
-  --stdio`, two short interface probes, and PowerShell for the Restart Manager and toasts.
-- **Fixed: it keeps state outside its own directory.** The sign-in value, the notification
-  sender identity, the notification button's URL handler and the Start Menu entry are all
-  per-user Windows registrations, and they are now listed where the storage is described.
-- **Fixed: [SUPPORT.md](SUPPORT.md) pointed at a private security channel** that
-  [SECURITY.md](SECURITY.md) says does not exist.
-- **Fixed: `docs/PLUGIN.md` claimed nothing downloaded is passed to a shell** — while the
-  bootstrap runs the installer out of the archive it has just unpacked. The claim that holds
-  is narrower: nothing from the network is *piped into* a shell.
-- **Fixed: the bootstrap's own header overstated what `-ArchivePath` checks.** A local file
-  has no sidecar to fetch, so without a pinned digest for that version only the contents
-  checks stand behind it. It now says which of the three cases it took.
-
-### Install and uninstall bugs an adversarial re-audit turned up
-
-None of these change recovery. All of them are cases where the product did something
-other than what it said.
-
-- **Fixed: the plugin was never registered for anyone whose user folder has a space in
-  it.** `Start-Process -ArgumentList` joins its arguments with spaces and quotes nothing,
-  so a marketplace path under `C:\Users\Example User\` arrived at `codex` as two
-  arguments. Registration failed, the failure was only a warning, and the installer still
-  ended with "Installed and running." The watcher and the settings window worked; the
-  skill and the panel the user had asked for were simply absent. The installer now quotes
-  the way `CommandLineToArgvW` reads back — the same rule the sign-in entry has used since
-  v0.5.0 — verified by round-tripping through that function.
-- **Fixed: "uninstall aborted before deleting any state" was true only of state.** The
-  fail-closed check for a running watcher ran *after* the autostart value, the
-  notification identity, the Start Menu entry and the toast handler had already been
-  removed. Refusing therefore left an installation that still ran and still had pending
-  recoveries, but no longer started at sign-in and could no longer show a notification.
-  The check is now the first thing the command does.
-- **Fixed: uninstalling one copy silenced another copy's notifications.** The Start Menu
-  shortcut and the notification identity are per-user singletons at fixed locations, so a
-  second installation overwrites them rather than adding its own — and they were removed
-  with no ownership check, unlike the autostart and the URL handler beside them. They now
-  get the same check, and say whose they were when they keep them.
-- **Fixed: `Uninstall.cmd` threw away the exit code of the step that refuses to remove a
-  running installation**, then deleted the engine and the interpreter anyway and reported
-  success.
-- **Fixed: uninstall reported "Removed." after a removal that half-failed.** With Codex
-  open, its MCP server holds the bundled interpreter's images open and they cannot be
-  deleted. The install path has stopped those launchers first since v0.5.1; the uninstall
-  path now does too, and checks afterwards rather than swallowing the error.
-- **Fixed: the plugin's setup script failed every download on PowerShell 7.** The check
-  on where a redirect finally landed read a property that only exists on Windows
-  PowerShell 5.1, and under `Set-StrictMode` reading the other one throws. It now reads
-  either, and refuses if it can read neither.
-- **Fixed: the repair path took no lock.** Re-running setup on an already-installed
-  version skips the installer, so it skipped the installer's lock as well and could run
-  beside one.
-- **Fixed: the MCP launcher was the one component that ignored the install-home
-  override**, so moving the installation left the panel unable to find it.
-- **Fixed: running the test suite wrote a real registry entry.** One test class guarded
-  the registry function by function and had missed `install_protocol`, so every run left
-  a `codex-auto-resume:` handler in the user's own HKCU pointing at a temporary directory
-  that no longer existed. It was found by an uninstall correctly refusing to remove a
-  handler that belonged to "a different installation" — which it did. The class now fakes
-  the registry module itself, the way the other test modules already did.
-- Smaller hardening in the same script: the file the install actually executes is now in
-  the required-contents list; an archive whose manifest differs only in letter case is
-  refused rather than crashing; a manifest with no version at all gets the intended
-  message; and the case where nothing could be compared no longer prints a tick and a
-  hash beside it.
-
-### One property was undocumented rather than overstated
-
-Every `codex` subprocess this tool starts already runs with analytics off, every
-OpenTelemetry exporter off, prompt logging off, and the ChatGPT base URL pinned so a stray
-local configuration cannot send a continuation somewhere else. That has been true for
-several releases and appeared in no document. It does now, and a test keeps it.
-
-### Tests that stop this happening again
-
-`tests/test_privacy_claims.py` asserts the code property the wording rests on — which files
-may reach the network, and that the watcher's cannot — and then that no absolute network
-claim stands without its qualifier nearby. The checks are shape-based rather than exact
-strings, so a rewrite that is still true keeps passing. It guards the other direction too:
-the changelog must keep a section for every released tag, so a future sweep for a retired
-phrase cannot take the history with it.
-
-### Smaller corrections
-
-- The README no longer implies a screenshot of the Codex panel was photographed inside
-  Codex; it is a render of the exact resource the plugin serves, and now says so.
-- `watcher_launcher.py` still described the engine-resolution order from before v0.5.2.
-- `make_release.py` called the archive byte-identical across builds, three lines from its own
-  docstring explaining why it is not.
-- The README claimed Python was needed to install the plugin from a marketplace. It is not —
-  the setup script is PowerShell — and a duplicated sentence left over from v0.5.2 is gone.
-
-## v0.5.2 — Install it from Codex, and look like one product
-
-[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.5.1...v0.5.2)
-
-A patch release. Recovery is unchanged: the same failure categories, the same refusals, the
-same identity rules, the same database. What changed is how you install it and what it looks
-like once you have.
-
-### Installing it from Codex actually installs it
-
-Adding this plugin from a marketplace used to hand you a source tree and a skill whose first
-instruction was to find any Python that would run. That produced a **second, lesser
-installation**: a watcher registered against whatever interpreter answered, no settings
-window, no panel, an engine loaded from the plugin cache — and if the machine already had a
-real installation, both of them sharing one state directory.
-
-- **The plugin now installs the product.** Ask Codex to *set up auto resume* and it runs
-  `scripts/bootstrap.ps1`, which downloads the matching release, verifies it and installs it.
-  Nothing has to be installed first: no Python, no administrator rights, no manual download.
-- **What it is allowed to fetch is narrow on purpose.** One URL shape, built from constants
-  and this plugin's own version — no "latest", and no input that reaches a URL, so a v0.5.2
-  plugin can ask for the v0.5.2 archive and nothing else. HTTPS with TLS 1.2 minimum, and the
-  final response has to come from GitHub.
-- **It verifies before it runs anything.** SHA-256 against a digest pinned in the plugin when
-  there is one and the published `.sha256` otherwise — it prints which of the two it used
-  rather than implying the stronger one — then that the archive contains what a release is
-  defined to contain, that its manifest declares this product at this version, and that no
-  entry escapes extraction. Any failure deletes the download and stops. Checked against a
-  file that is not an archive, a genuine archive declaring the wrong version, and a correct
-  archive against a wrong pinned digest.
-- The README now leads with the Codex route and keeps the archive route for anyone who would
-  rather nothing downloaded on their behalf. Both end at the same installation.
-
-### One installation, whichever way you arrive
-
-- **Fixed: a plugin update could swap the engine underneath an installation.** The watcher
-  resolved its code from the newest copy in the Codex plugin cache, by modification time, so
-  installing a newer plugin from a marketplace silently replaced the running engine while the
-  settings window still talked to the installed one. The installed application now wins.
-- **Fixed: setup would configure a watcher with nothing to run it.** It now refuses unless the
-  bundled runtime and the application are both present, and prints the command that installs
-  them, instead of improvising a lesser installation.
-- **Fixed: the sign-in entry could name a different interpreter from the installed one.** Every
-  registration setup writes — autostart, the notification handler, the watcher itself — now
-  names the interpreter the installer deployed.
-- **Fixed: the installer ignored the state-directory override the Python side honours**, so
-  setting it deployed to one place and configured another.
-- **Two installers can no longer run at once.** A double-clicked `Install.cmd` and a plugin
-  bootstrap used to be able to copy over each other's half-written payload.
-
-### A new look
-
-- **The green is retired.** The identity is a deep-blue to cyan ramp that carries the product's
-  own behaviour: deep blue while it waits, cyan the moment it acts.
-- **A new mark.** Four concepts were built and compared at all nine icon sizes on light and
-  dark grounds — `build/icon_concepts.py` still renders the sheet — and the winner is an open
-  ring with a bright head at its leading end: the ring is the wait, the gap is the
-  interruption, the head is the resume. There is a vector master at `assets/brand/icon.svg`.
-- **The settings window and the Codex panel were redesigned together.** State leads on both
-  now: what the watcher is doing is the first thing and the largest type, where it used to be a
-  muted sentence along the bottom under sixteen checkboxes. What is waiting to resume comes
-  before what is configured, and the cards run in the order the argument does — what may be
-  recovered, how hard it will try, what it will tell you, when it starts.
-- **The plugin card has artwork.** Codex has always validated an icon, a light and dark logo
-  and screenshots; this project never supplied any of them.
-- **Fixed: white text on the panel's dark-theme accent measured 2.6:1.** Found by a contrast
-  assertion, not by looking at it. Text drawn on the accent is now its own colour, and it goes
-  dark exactly when the accent goes light.
-- **Fixed: the panel asked for a colour variable the generator never emitted.** That is not an
-  error in CSS — the declaration is dropped and the text quietly inherits.
-
-### One palette instead of four
-
-Four surfaces carried their own copies of the colours — the settings window in C# literals,
-the panel in a stylesheet, the icon renderer, the plugin manifest — and they had already
-drifted. The palette now lives in one module; `gui/Brand.cs` and the panel's stylesheet are
-generated from it, and tests regenerate both and compare, so a hand-edit fails the suite
-instead of shipping. A test also sweeps every tracked file for the retired colours, because
-that is how a colour survives a rebrand: in a document nobody reopened.
-[`docs/BRAND.md`](BRAND.md) records the decisions.
-
-## v0.5.1 — Say what the product actually is
-
-[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.5.0...v0.5.1)
-
-A patch release. No change to how recovery works, what it will retry, or what it refuses to
-retry. What changed is everything around that: the documentation was describing a version of
-this project that no longer exists, and the install instructions contradicted the installer.
-
-### Documentation that matches the product
-
-- **Fixed: the one-click install told you to put Python on your PATH.** That archive exists
-  precisely so you do not need Python — it carries its own runtime. The recommended install is
-  now three steps at the top of the README, with no prerequisites, and Python appears only where
-  it is genuinely needed: a source checkout, or installing the plugin straight from the
-  marketplace.
-- **Fixed: "there is no tray icon, no settings window, no management web UI".** Two of those
-  stopped being true in v0.5. The project direction now says what is deliberately built — a
-  Windows settings window, a panel inside Codex, the command line, notifications — and what is
-  still deliberately refused: a tray controller, a management web UI, a supervisor, a service, a
-  second recovery engine, a second database.
-- **Fixed: the supported Python version was never the tested one.** Setup refused anything below
-  3.10 while CI only ever ran 3.12 and 3.13, so two Python releases were accepted by the
-  installer and never tested. The floor is now the lowest version that is actually tested, and a
-  test ties the installer, the message the user sees, the skill and the bundled runtime together
-  so they cannot drift apart again.
-- The README opens with the problem and the download instead of the implementation, and states
-  the loaded-conversation limitation in the same breath rather than further down.
-
-### New public documentation
-
-- **[PRIVACY.md](PRIVACY.md)** — what is read, what is stored, and the short answer to what is
-  sent anywhere: nothing. No telemetry, no analytics, no update check, no outbound requests.
-- **[SUPPORT.md](SUPPORT.md)** — where to report each kind of problem, what to include, and what
-  not to paste into a public issue.
-- **[CONTRIBUTING.md](CONTRIBUTING.md)** — how to run the tests and build a release, the fixture
-  conventions, and the safety properties a change has to keep.
-- **[README.ko.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/ko/README.md)** — a Korean
-  README, linked from the English one.
-
-### Repository hygiene
-
-- A new check keeps local development environment out of the repository: home directories in
-  examples must be placeholders, UUIDs in tracked files must be recognisably synthetic, and
-  runtime state is never tracked. The rules describe what a fixture may look like rather than
-  listing values, so the check cannot itself become a place where such values live.
-- Test and documentation fixtures use the documented placeholders throughout.
-
-### Packaging
-
-- Plugin metadata describes the product in the words people actually search for, and the
-  manifest, the skill and the release now agree on the version.
-
-### Unchanged on purpose
-
-Recovery is exactly as conservative as it was in v0.5.0. Same failure classification, same
-bounded attempts, same fail-closed behaviour on anything unrecognised, same exact-conversation
-identity, same refusal to resend a submission whose outcome is unknown. Codex still has to have
-the conversation open for a recovery to be delivered; that limitation is unchanged and still
-documented.
-
-## v0.5.0 — Settings you can find, and a notification that says who it is from
-
-[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.4.1...v0.5.0)
-
-### Settings, in three places, meaning one thing
-
-- **A standalone Windows settings window**, on the Start Menu. It works with Codex closed, the
-  plugin unloaded, the MCP server unavailable, no network, no sign-in and no system Python -
-  because configuration matters most exactly when the thing it configures is unavailable.
-- **A settings panel inside Codex**, over a plugin-declared MCP server. Ask to open auto resume
-  settings and it renders in the conversation.
-- **The command line**, unchanged.
-
-All three read and write through one validated layer, so a value set in any of them is the value
-the others show. That layer is also the fix for a real bug: the watcher used to have its own
-settings reader that understood three of the sixteen fields, and a matching writer that persisted
-only those three - so `enable --lookback-hours 8` silently erased every recovery category and
-notification preference. There is now one reader and one writer.
-
-### The settings finally govern the watcher
-
-The schema described policy that nothing read. Now the engine adopts it: categories switched off
-are never recorded, so nothing is scheduled, attempted or announced for them; the transient
-backoff follows the chosen timing preset; and the attempt and no-progress budgets come from the
-settings. Changes are picked up on the next poll, without restarting anything.
-
-Policy stays policy. Everything a settings file can touch runs through the same coercion, so the
-worst a hand-edited or hostile one can do is make recovery *more* conservative - and the engine's
-safety limits are not in the schema at all. There is still no setting that retries an unclassified
-failure, resolves a conversation by title, resends an uncertain submission or forces a send.
-
-### Notifications that say who they are from, across the whole lifecycle
-
-- **Fixed: Windows attributed our notifications to PowerShell.** They now show **Codex Auto
-  Resume** with this project's own icon. That needs two registrations, not one: an
-  AppUserModelID supplies the name and icon, and a Start Menu shortcut carrying the same id is
-  what makes Windows *draw* the toast. Without the shortcut the platform accepts it, logs it, and
-  files it in the notification centre without ever showing it. Found by looking at the screen
-  rather than at the event log, which had said "delivered".
-- Three more notifications join the first: recovery starting, how it turned out, and recovery
-  stopping for good. Each is raised once, from the state change itself, so the notification and
-  the record cannot disagree. An uncertain submission is reported as uncertain, never as a
-  failure that will be retried.
-- Each event has its own switch, plus a master switch, read at the moment of the event.
-
-### Recovery
-
-- **Fixed: an exhausted recovery could not be given its attempts back.** Running out of attempts
-  leaves a record in a terminal state, and terminal records may not be reactivated - the guard
-  that stops a finished, cancelled or uncertainly-submitted recovery from being restarted by a
-  stray write. Resetting the budget therefore raised instead of resetting. Rather than widen that
-  guard, the one stop a person may undo now has its own operation: it accepts only the two
-  exhausted states, refuses anything cancelled or carrying any sign of a submission, and clears
-  the budget and nothing else. The record re-enters the queue as a candidate and every gate runs
-  again.
-- **Retry now** brings a waiting recovery's next attempt forward. It is not a send: the watcher
-  still revalidates, still needs the conversation open, still waits for usage, and still refuses
-  anything uncertain.
-
-### The usage-limit checkbox, re-investigated from scratch
-
-Re-checked against `codex-cli 0.153.4` and ChatGPT desktop `26.901.5280.0`. The answer has not
-changed: the notice is assembled from compiled message ids inside the Electron bundle, and no
-manifest field, MCP surface or hook can address it. A Codex-native form at the moment of the
-interruption is now technically possible and is still not shipped, for a stated reason rather
-than a technical one - it would push a form into whatever conversation happens to be open, about
-a different one that failed, only when Codex is running, and only where a remote feature gate is
-on. Nothing was faked in its place. See [docs/PLUGIN.md](PLUGIN.md).
-
-### Three ways an install could quietly stop working
-
-All three were found by using the product on a real machine after a reboot, not by reading
-the code. The watcher was not running, and the settings panel was the only thing that said so.
-
-- **Fixed: the autostart command was never quoted.** `subprocess.list2cmdline` quotes only a
-  token that contains a space, so an installation under a path without one produced a completely
-  unquoted Run value. Under `C:\Users\Example User\...` Windows reads that as the program
-  `C:\Users\Example`, and the watcher never starts at sign-in - whether the product works at all
-  depended on what the user is called. Every command written to the registry is now quoted by the
-  documented CommandLineToArgvW rules, including the notification button's protocol handler and
-  the Start Menu entry.
-- **Fixed: an upgrade could not replace an installation that was in use.** Codex keeps this
-  plugin's MCP server running, which holds the bundled interpreter's DLLs open, and a loaded DLL
-  cannot be deleted - so removing the runtime directory failed part-way and left the application
-  updated with the interpreter gone. Windows does allow renaming a directory that contains an
-  open file, so the old copy is moved aside and swept up later. Everything is moved before
-  anything is copied, and a failure at either step puts the installation back exactly as it was.
-- **Fixed: Codex could not update the plugin while it was running the plugin.** `plugin add`
-  backs up the cache directory and failed with an access error, because the open file is our own
-  MCP launcher, which lives inside the plugin - it has to, since Codex accepts only a contained
-  command path. The installer now stops just its own launchers and retries once; Codex starts a
-  fresh one when it next needs the server.
-- The watcher launcher records that it ran before anything can fail, and catches everything on
-  the way out. Under `pythonw.exe` there is no stderr, so an early failure left no log line, no
-  event and no trace - which is why "did Windows start it and it died, or did Windows never start
-  it" could not be answered at all.
-- The settings window and the Codex panel offer to **start the watcher** when it is stopped,
-  rather than reporting a dead end. It starts the same process the installer starts.
-
-### Packaging
-
-- The plugin now ships a small launcher so its MCP server can start from the bundled interpreter:
-  Codex accepts a plugin command only as a bare name or a contained path, and a bare `python`
-  would put back the system-Python requirement this product removed.
-- That launcher relays the standard streams rather than letting the child inherit them. A child
-  started with `CREATE_NO_WINDOW` and no explicit handles gets no usable standard handles, so the
-  server waits for input that never arrives and the host waits for a handshake that never comes.
-
-## v0.4.1 — Put the reason back in the notification
-
-[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.4.0...v0.4.1)
-
-- **Fixed: the notification never said why it appeared.** Windows renders at most three
-  `<text>` elements in a toast and silently drops a fourth, so the four-line layout lost its
-  body line: the toast showed the task name, the project and the thread id, but not
-  "Codex usage limit reached" or "Codex was temporarily interrupted".
-  It now fits three lines - name, reason, then project and the exact thread id together -
-  with the reason ordered before the identifiers, because a line that does not fit is lost
-  and losing the reason makes the notification pointless. The thread id is still always shown.
-  Found by looking at the actual notification, not the generated markup.
-
-## v0.4.0 — Recover more, guess less, install in one step
-
-[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.3.2...v0.4.0)
-
-### Recovery beyond usage limits
-
-- **Clearly temporary failures are now recovered too**, on a policy of their own. The two
-  are deliberately not merged: a usage limit waits for its real reset timestamp, a dropped
-  connection waits on a bounded ladder (5s, 15s, 30s, 60s, 120s) and never longer.
-- Classification is **structural, not textual**. It reads the `codexErrorInfo` variant Codex
-  itself writes, then an HTTP status carried by that variant. A message is consulted only
-  when there is no structured code at all, and only for transport failures that have no code
-  (timeouts, DNS, TLS, broken pipe). A structured code is never overridden by message text.
-- **Recovered:** usage limit, connection failure, timeout (408/425), transient rate limit
-  (429), server errors (500-599, `serverOverloaded`, `internalServerError`), stream
-  disconnection.
-- **Not recovered:** user cancellation, permission, approval, policy, invalid request,
-  context length, permanent authentication (401/403/`unauthorized`), `badRequest`,
-  `sandboxError`, `responseTooManyFailedAttempts` (Codex already retried and gave up),
-  and anything unrecognised.
-- **Unknown is never retried.** An error this tool cannot place is never registered at all,
-  so no later stage can act on it. This is the opposite of retrying by default, and it is
-  the point: a missed recovery is cheaper than a wrong one.
-- **Bounded budgets.** A transient chain stops after 4 recovery attempts
-  (`retry_budget_exhausted`), and after 3 consecutive recoveries that produced nothing
-  (`no_progress_exhausted`). Progress is judged from lifecycle metadata only: whether a
-  later turn completed, and whether it recorded a final agent item. No message text is read.
-- **The user always wins.** If a later turn exists on that exact thread - because the user
-  carried on, or because Codex did - the old interruption becomes `superseded_by_user` and
-  is never resumed on top of the newer work.
-- Existing state upgrades in place. Pending recoveries survive the update.
-
-### Notifications that say which task
-
-- The notification now leads with a name a person recognises: the conversation title, else
-  the project, else the working directory's name, else "Codex task". The **exact thread UUID
-  is always shown** on its own line, because titles repeat and identity must not.
-- Wording follows the failure: a usage limit says when it will resume; a temporary failure
-  says it is retrying. One cancel button either way.
-- Display names are read from `threads.name` only. On this schema `title`, `preview` and
-  `first_user_message` all hold the raw first prompt (observed at 67 KB, multi-line), so they
-  are never read. Labels are capped and must be single-line, so a schema change cannot turn a
-  prompt into a notification.
-- **Names are for display only.** Recovery still resolves nothing by title, project or
-  recency; the exact UUID remains the sole identity.
-
-### One-click installation
-
-- `install/Install.cmd` registers the marketplace, installs or updates the plugin, checks for
-  Python, and hands over to the plugin's own setup. It is a bootstrapper, not a runtime: no
-  administrator rights, no service, no scheduled task, HKCU only, and it never deletes state.
-  Re-running it upgrades in place. `Uninstall.cmd` reverses it, watcher first.
-- Python is never downloaded or installed automatically; a missing interpreter is reported
-  with a link and the installer stops without leaving anything running.
-- Checked first and not available: this Codex build has no plugin install deep-link, and
-  `codex plugin add` requires a registered marketplace, so the two commands cannot be reduced
-  to one officially.
-- Fixed while testing the installer for real: a single-result PowerShell pipeline is a scalar,
-  so indexing it took the first character of the engine path; an already-registered marketplace
-  kept a stale snapshot, so updates never arrived; the Python version probe's quoting did not
-  survive argument passing; and setup compared the registered autostart by exact string, so
-  upgrading Python made one installation look like two and setup refused forever.
-
-## v0.3.2 — Make the login autostart actually start
-
-[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.3.1...v0.3.2)
-
-- **Fixed: the registered sign-in autostart could never run.** The Run value ended in `run`, and
-  the launcher appended `run` again, so the command died with an argument error at every login.
-  It went unnoticed because starting the watcher from setup passes no arguments and worked fine.
-  The launcher now treats its arguments as the command to run, defaulting to the watcher.
-- **Fixed: the notification button broke on the next plugin update.** It was registered against
-  the plugin's own directory, which is named after its version. It now goes through the same
-  stable launcher as the autostart, so neither registration can be orphaned by an update.
-- Both registrations are now checked by tests that parse the exact command that gets registered
-  and feed it to the real argument parser.
-
-## v0.3.1 — Keep the state out of somebody else's sandbox
-
-[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.3.0...v0.3.1)
-
-- **Runtime state moved from `%LOCALAPPDATA%` to `%USERPROFILE%\.codex-auto-resume\`.**
-  Setup may be run from a packaged (MSIX) host, and Windows silently redirects such a host's
-  AppData writes into its own private `LocalCache`: the environment variable still reads as the
-  normal path while the files land inside an unrelated application. Installing this way put the
-  state, the logs and the autostart launcher inside another app's sandbox, where uninstalling
-  that app would have taken them with it. The user profile root is not redirected, which is why
-  Codex keeps its own state in `~/.codex`.
-  Found by installing the plugin for real and reading back where the files actually went.
-
-## v0.3.0 — A control at the moment it matters
-
-[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.2.0...v0.3.0)
-
-- **Windows notification when an interruption is detected.** The watcher is running at that
-  moment, so this is the one place a control can be offered in time; the Codex turn has already
-  failed by then, so nothing can be added to the app's own usage-limit notice.
-  The toast says when the conversation will continue and carries a single **Don't resume**
-  button. Doing nothing resumes, which is the default.
-- The button is handled through a per-user `codex-auto-resume:` URL protocol registered under
-  `HKCU\Software\Classes`. It accepts exactly one action — cancelling — so a hostile URI can
-  only ever stop a resume, never cause one. The interruption id is validated as opaque hex and
-  must match a real record; nothing is resolved by thread name or recency.
-- The toast shows only a shortened conversation id and a local time. Never prompt text, error
-  text or account data. PowerShell is invoked with `-EncodedCommand`, so no message text can be
-  reinterpreted as script.
-- Delivery is best effort. A notification that cannot be shown, times out, or raises is logged
-  and ignored; it never changes whether a resume happens.
-- Turn it off with `"notifications": false` in `config/settings.json`.
-- Fixed before release: the toast document was escaped as if it were an XML *attribute*, which
-  turned its own angle brackets into entities and made every notification fail silently. The
-  document is now embedded as a PowerShell string literal, and a test parses the document out of
-  the command that is actually sent.
-
-## v0.2.0 — Install and control it from inside Codex
-
-[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.1.0...v0.2.0)
-
-- **Codex plugin.** The repository root is now also a Codex plugin root, with a marketplace index
-  (`.agents/plugins/marketplace.json`), a manifest (`.codex-plugin/plugin.json`) and one skill.
-  Install with `codex plugin marketplace add songyb111-gachon/codex-auto-resume-windows` followed by
-  `codex plugin add codex-auto-resume@codex-auto-resume-windows`, then ask Codex to set it up.
-  There is exactly one copy of `src/`; the engine ships with the plugin rather than being duplicated.
-- The plugin is a thin front end over the existing command-line interface. It adds no MCP server, no
-  second engine, no recovery logic of its own, and never queues a message to a thread.
-- **Runtime state moved out of the plugin directory** for plugin installs, to
-  `%USERPROFILE%\.codex-auto-resume\`. Plugin updates and removals no longer risk pending resumes.
-  Autostart points at a small stable launcher that re-resolves the current plugin version at every
-  launch, so an update needs no re-registration. Manual installations are unchanged.
-- **Two installations are refused rather than merged.** A manual checkout and a plugin install keep
-  separate state and separate single-instance locks, so both watchers would run and could each resume
-  the same interruption. Setup stops when a different installation already owns the sign-in autostart.
-- English by default; Korean only when Korean is the most preferred UI language, read from the same
-  source the ChatGPT desktop app uses for its own display language. No language is inferred from an IP
-  address, time zone, user name, country or keyboard layout.
-
-### Fixed
-
-- **`uninstall` deleted the Windows sign-in autostart value even when it belonged to a different
-  installation**, silently disabling a watcher it did not own. It now unregisters only a value that
-  starts the installation being uninstalled, and reports anything else as kept. Found by running the
-  plugin's uninstall against an isolated home while a manual installation was registered.
-- Setup no longer crashes on a legacy-code-page console: the check mark falls back to ASCII when the
-  console cannot encode it.
-
-### Not implemented, on purpose
-
-- A checkbox inside the Codex usage-limit notice. There is no official plugin API that can place a
-  control there, and the alternatives are all forms of injection or GUI automation this project does
-  not use. No substitute GUI was built. See [docs/PLUGIN.md](PLUGIN.md) for the evidence.
-
-### Also
-
-- Survive Codex app updates instead of stopping at the first version change.
-  - Local databases are discovered by schema generation (`state_5`, `thread_history_1`, ...) and
-    validated by the columns actually read, so a generation bump no longer breaks detection. Extra
-    columns are fine; a missing required column still refuses.
-  - The exact engine-version equality check is replaced by a capability probe: a verified version is
-    trusted, and an unrecognised one is accepted only when `codex queue` still offers `--thread` and
-    `--message`. `status`, `doctor` and the watcher log say plainly when the engine is unverified.
-- Report the engine pin actually in force in error messages instead of a hardcoded version.
-
-## v0.1.0 — first public release
-
-[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/commits/v0.1.0)
-
-First public release of `codex-auto-resume-windows`, a local-only Windows watcher that resumes Codex
-tasks interrupted by a usage limit.
-
-### Included
-
-- Usage-limit detection that fires only on `status=failed` together with
-  `codexErrorInfo=usageLimitExceeded`. Completed, interrupted, ordinary failed, tool-error, malformed,
-  and unknown states are never resumed.
-- Exact-thread tracking by UUID. `--last` is never used, and one thread's failure can never resume another.
-- Reset-aware waiting that uses the real reset timestamp when one is available, with conservative polling
-  when it is not, and a live usage re-check immediately before sending.
-- A loaded-thread safety guard: the thread must be verifiably loaded in the desktop app, determined from
-  the Windows Restart Manager without ever locking the app's own files. Unknown state never sends.
-- Safe waiting for unloaded threads instead of any attempt to force them open.
-- Duplicate-resume protection that survives process crashes and watcher restarts.
-- Durable pending state in SQLite, with support for several interrupted threads at once.
-- Bounded retry backoff, a global kill switch, and per-thread enable/disable/cancel.
-- CLI: `doctor`, `enable`, `disable`, `status`, `pending`, `cancel`, `logs`, `run`, `stop`, `install`,
-  `uninstall`.
-- Single-instance protection via a per-user named mutex.
-- Optional per-user Windows login autostart, requiring no administrator rights.
-- Conservative uninstall that only deletes inside directories it created, and aborts if a watcher may be
-  running.
-- Rotating logs that never record prompt text, error text, or account identifiers.
-- Automated test suite plus an opt-in, read-only live environment check.
-
-### Known limitations
-
-- Only threads already loaded in the Windows ChatGPT/Codex desktop app can be auto-resumed. After an app
-  restart an unloaded thread is resumed only once the user opens that conversation again. This is a
-  measured limitation, not an oversight.
-- The blocking usage bucket cannot always be identified from local history with certainty.
-- Pinned to a verified Codex engine version and local schema; other versions are refused.
-- The complete end-to-end unattended path has had limited real-world exercise so far.
-
-### Credits
-
-Created by Youngbin Song, with AI-assisted development by OpenAI Codex (investigation, proof of concept,
-initial implementation) and Anthropic Claude Code (completion, testing, security and adversarial audit).
-See `CONTRIBUTORS.md`.
+- CI가 라이브가 아닌 모든 테스트를 Python 3.12, 3.13, 3.14에서 차단 작업으로, 3.15
+  사전 릴리스에서는 결과를 보여 주되 막지는 않는 참고 작업으로 실행합니다. 3.11 이하는
+  지원하지 않습니다. 릴리스는 여전히 Python 3.13.15를 함께 담고 있어 설치에 Python이
+  필요하지 않습니다.
+
+### 검증
+
+v0.6.3을 위해 실제로 실행한 것과 실행하지 않은 것입니다. 따로 적지 않은 것은 모두 이
+태그를 만든 코드에서 실행했습니다. 예외가 하나 있습니다. 창 코드의 `switch` 세 개를 동작은 그대로
+둔 채 단순 비교로 바꾼 것은 아래의 로컬 테스트 실행과 Windows 확인 뒤에 들어갔고(아래 첫 릴리스
+실행 참고), CI가 태그된 커밋에서 전체 테스트를 다시 돌렸습니다. 그 밖의 이후 커밋은 문서 - 이
+절과 기능 대조표의 실행 기록 - 와, 생성된 `ko` 브랜치에서 한국어 문서가 있는 자리를 읽도록 고친
+테스트 하나만 바꿨습니다.
+
+- **첫 릴리스 실행이 스스로 멈췄습니다.** v0.6.3에 태그를 달자 시작된 릴리스 실행은 설정 창을 두 번
+  빌드해 비교하는데, 두 결과가 달라서 아무것도 게시하지 않았습니다. 기본 제공 C# 컴파일러는 문자열
+  `switch`에 `case`가 여섯 개 이상이면 클래스 하나에 새로 만든 무작위 GUID로 이름을 붙이는데, v0.6.3에서
+  쓴 세 곳이 그랬습니다. 이제 단순 비교입니다. `build/normalize_pe.py`는 그런 클래스가
+  남은 실행 파일을 거절하므로 릴리스 실행이 아니라 빌드한 컴퓨터에서 바로 실패하며, 그런 프로그램을
+  실제로 컴파일해 거절을 확인하는 테스트가 있습니다. 태그는 그 뒤 고친 커밋으로 옮겼고, 그 태그로
+  게시된 것은 없었습니다.
+
+- **테스트.** 라이브가 아닌 테스트 전체가 Windows 11의 Python 3.12와 3.13에서(각 1,508개)
+  통과했고, CI에서는 3.12, 3.13, 3.14 차단 작업으로 통과했으며 참고 작업인 3.15 사전
+  릴리스도 통과했습니다. 아이콘 테스트는 압축된 바이트를 비교하던 탓에, 픽셀은 같은데도
+  다른 zlib으로 압축하는 3.14와 3.15에서 실패했습니다. 이제 각 아이콘을 풀었을 때의 내용을
+  비교합니다.
+- **릴리스 전 검토.** v0.6.3의 모든 변경을 영역별로 반박하려는 관점에서 검토했고, 발견한
+  문제마다 두 번째 검토자가 반박을 시도해 확인했습니다. 발견은 열여덟 건이었고, 한 건은
+  반박되었으며, 나머지 열일곱 건(중복을 빼면 열네 건)을 v0.6.3에서 테스트와 함께
+  고쳤습니다. 보내는 내용이나 스위치의 동작을 바꿀 수 있었던 것은 다음과 같습니다.
+  - 자리표시자만으로 된 직접 입력 문장 - 초기화 시각이 없는 중단에 쓴 `{reset_time}` - 이
+    표식만 담은 턴으로 보내지고 시도 한 번을 써 버렸습니다.
+  - 작업의 자동 이어 가기 칸을 오른쪽 클릭하면 그 대화의 자동 복구가 꺼졌습니다.
+  - 알림 영역 팝업에서 스위치에 스페이스나 Enter를 누르고 있으면 켜짐과 꺼짐이 번갈아
+    바뀌었고, 어디서 멈출지는 우연이었습니다.
+  - 팝업을 닫아도, 문제가 사라진 뒤까지 아이콘 배지가 "확인이 필요함"에 머물렀습니다.
+  - 한 번 실행하는 브리지가 직접 입력 문장을 `python.exe` 명령줄에 실었습니다.
+
+  나머지는 문구와 표시의 결함이었습니다. `{attempt}`가 시도가 아니라 예약 횟수를 셌고,
+  자리표시자를 채우면 메시지 전체의 줄바꿈과 공백이 바뀌었고, 고대비에서 Highlight 바탕 위
+  글자가 거의 보이지 않았고, 경고 점이 새로 고칠 때마다 다시 깜박였고, 창을 복원한 뒤
+  점의 움직임이 멈춰 있었고, 카드가 글자를 그리는 폭보다 넓게 재어 마지막 줄이 잘릴 수
+  있었고, 글자 수 표시가 이모지를 두 번 셌고, 진단 내보내기가 엉뚱한 언어를 기록했고, 번역
+  내보내기 결과를 가져오기가 거절했습니다. 고친 것을 검토하다 하나를 더 찾았습니다. 오래
+  실행되는 브리지가 긴 직접 입력 문장을 담은 올바른 저장 요청을 너무 크다며 거절했습니다.
+- **실제 Windows 11 컴퓨터에서**(배율 150%). 이 코드로 빌드한 릴리스 후보가
+  `build/smoke_archive.py`를 통과했고, 그보다 앞선 후보 위에 설치했습니다. 설치 프로그램은
+  업데이트했다고 알렸고 설정 파일을 다시 쓰지 않았으며, 설치된 파일은 보관 파일과 같았고,
+  설치된 MCP 서버는 0.6.3과 도구 17개를 알렸고, `preview_recovery_message`는 한국어 기본
+  메시지를 돌려주었으며, `update_settings`는 `custom_message`를 거절했습니다. v0.6.2에서의
+  업그레이드는 검토 수정 전에 빌드한 그 앞선 후보로 했습니다. 설정 파일이 한 바이트도 바뀌지
+  않았고 대기 중 기록과 기록이 모두 남았으며, 대시보드가 남아 있던 기록을 한국어로 보여
+  주었습니다.
+- **팝업을 직접 조작해서**, 앞선 후보로. 사람이 알림 영역 아이콘을 클릭해 팝업이 열리는 것을
+  봤습니다. 그 사람의 허락을 받아 Claude가 마우스와 키보드를 조작했습니다. 클릭하자 팝업이
+  열렸고, 대시보드 열기를 누르자 대기 중 페이지가 열리며 팝업이 닫혔고, 다른 곳을 클릭하자
+  팝업이 닫혔습니다. 대신 쓰는 제어 계층에 연결한 팝업 사본에서, 실제로 누른 Tab,
+  Shift+Tab, 스페이스가 포커스 표시를 옮기고 포커스된 버튼을 눌렀습니다. Esc는 실제로 누르는
+  것으로는 확인하지 못했습니다. Claude의 컴퓨터 제어가 켜져 있는 동안 다른 프로세스가 Esc를
+  전역 단축키로 잡고 있어, 어느 창도 키가 눌린 신호를 받지 못했기 때문입니다. 팝업의 Esc
+  처리는 실제 창에 그 키를 전달하는 테스트로 확인합니다.
+- **확인하지 않은 것.** 최종 후보에서는 팝업을 다시 직접 조작하지 않았습니다. 고대비, 오른쪽
+  클릭, 최소화 후 복원에 대한 수정은 실행 중인 창에서 보지 못했고, 빌드, 창의 코드를 실제로
+  실행하는 테스트, 소스에 대한 검사로만 확인했습니다. 대시보드 열기가 붙은 Windows 알림은
+  띄우지 않았습니다. 실제 중단이 없었고 꾸며 내지도 않았기 때문입니다. 새 메시지로 이어 간
+  Codex 대화는 없으며, Codex 안에서 패널을 열어 보지도 않았습니다. 실제 Codex에서 눈으로 본
+  복구는 주장하지 않습니다. 스크린샷은 누군가의 대화가 아니라 예시 데이터로 그린 것입니다.
+
+## v0.6.2 — 업데이트가 내려받은 것을 확인하지 못했습니다
+
+[이 릴리스에 담긴 커밋](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.1...v0.6.2)
+
+고침 하나입니다. 무엇이든 설치될지를 결정하는 그 단계에 있습니다.
+
+- **고쳤습니다: 대시보드의 업데이트가 압축 파일을 내려받고도 검증하지 못했습니다.** 검증 단계가
+  `Get-FileHash`를 썼는데, 실제 기계에서 업데이트 단추가 띄우는 프로세스에서는 그 cmdlet이
+  해석되지 않았습니다. 그래서 "'Get-FileHash' 용어가 cmdlet으로 인식되지 않습니다"로 끝나고 아무것도
+  설치하지 않았습니다. 검증하지 못한 것을 설치하지 않은 것은 옳았지만, 그 이유로 cmdlet 이름을
+  내민 것은 옳지 않았고, 어느 쪽이든 기능은 쓸 수 없었습니다. 이제 다이제스트는 PowerShell이 이미
+  올라타 있는 런타임의 SHA-256으로 계산합니다. 더 불러올 것이 없습니다. `make_gui.ps1`은 릴리스
+  러너의 모듈 경로에서 같은 일을 겪고 이미 그 cmdlet에서 벗어나 있었는데 배포되는 스크립트는
+  그러지 않았고, 이번이 그 대가를 치른 두 번째입니다. 테스트는 배포되는 스크립트에서 그 함수를
+  들어내어, `Get-FileHash`를 세션에서 지운 채로 돌립니다.
+
+  이 수정은 이미 예전 스크립트를 가진 설치를 되살리지는 못합니다. 업데이트를 수행하는 사본이 바로
+  결함을 가진 그 사본이기 때문입니다. 고쳐진 빌드에 닿으려면 단추가 아니라 보통의 방법으로
+  설치해야 합니다.
+
+## v0.6.1 — 실제로 돌려 보니 나온 것들
+
+[이 릴리스에 담긴 커밋](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.0...v0.6.1)
+
+여기 있는 변경은 모두 v0.6.0의 첫 실제 수락 검사에서 나왔습니다. 게시된 압축 파일을 사람이
+쓰는 기계에 설치하고 동작을 지켜본 것입니다. 게시된 v0.6.0 압축 파일과 태그는 그대로입니다.
+고침에는 새 버전을 주는 것이 이 프로젝트의 규칙이고, 이것이 그 새 버전입니다.
+
+- **고쳤습니다: 성공한 복구가 실패로 기록되었습니다.** 엔진이 복구 턴에 Codex가 붙인 상태만
+  읽었습니다. 그런데 복구 턴이 끝나는 가장 흔한 방식은 *다음* 사용량 제한이고, Codex는 제한이
+  끊은 턴을 `failed`로 적습니다. 그래서 전달되어 실제로 돌고 일을 진척시킨 이어서 하기가
+  `recovery_failed`로 분류되었습니다. 연달아 성공한 실제 복구 세 건 중 두 건이 기록과 통계와
+  성공률에서 실패가 되었습니다. 이제 결과 판정은 완료된 턴에 이미 묻던 질문을 똑같이 묻습니다.
+  이 턴이 무언가를 했는가. 진행을 만든 턴은 무엇으로 끝났든 복구된 것으로 적습니다. 원래
+  상태는 기록과 일지에 그대로 남으므로, 복구를 복구라고 불러도 잃는 것이 없습니다. 복구 동작
+  자체는 처음부터 영향을 받지 않았습니다. 연쇄는 내내 올바르게 이어졌고, 그래서 틀린 것은
+  보고뿐이었으며, 하필 사람이 읽는 숫자가 거짓말을 하고 있었습니다.
+- 새 이어서 하기를 보내기 전에 Codex 투영 데이터가 최신이며 읽을 수 있는지 확인합니다.
+  지원하지 않는 새 데이터베이스 세대가 나타나면 예전 데이터베이스로 돌아가지 않습니다.
+- 대기열 프로세스를 시작할 때까지 상태 쓰기 잠금 아래에서 일시 정지, 취소, 대화 허용 상태를
+  다시 확인합니다. 접수 결과를 기다리기 전에 잠금을 풉니다.
+- 같은 중단을 여러 번 예약한 횟수도 일일 한도에 포함합니다. 스키마 3에는 마지막 예약 시각만
+  남으므로 불확실할 때에는 더 오래 기다리는 쪽으로 계산합니다.
+- 읽을 수 없거나 형식이 잘못된 설치 일지는 파일 복원·정리 전에 거부합니다. 플러그인 제거가
+  실패하거나 프로그램 파일이 잠겨 있으면 재시도에 필요한 런타임을 보존합니다.
+- 잘못된 MCP 요청과 인수는 제어 동작 전에 거부합니다. 거부된 호출을 저장·일시 정지 성공으로
+  표시하지 않고, 확인된 설정 값을 유지합니다.
+- 대화의 복구가 꺼진 상태에서 시도 횟수를 돌려주면 대시보드에 그 설명을 표시합니다.
+- 릴리스 상태, 승인 힌트에 관한 주장, 영어·한국어 실제 수락 절차를 바로잡습니다.
+
+실제 수락 검사는 아직 끝나지 않았고, v0.6.0의 증거는 이 버전으로 넘어오지 않습니다. 증거는
+하나의 빌드에 속하므로, v0.6.0을 설명하던 기록은 이 버전이 물려받는 대신 `docs/evidence/live-0.6.0/`에
+지난 기록으로 남겨 두었습니다. 거기 열다섯 단계 중 하나는 통과했고 열넷은 막혔습니다. 일회용
+수락 검사 대화에서 진짜 중단을 겪지 않았고, 그것을 만들려고 실패를 조작하지도 않았기 때문입니다.
+이 목록 맨 위의 결함은 그 절차 바깥, 평범한 사용 중에 나왔는데, 그것이야말로 절차를 돌려야 할
+이유입니다. 실제 Codex 화면에서 복구를 확인했다고 주장하지 않습니다.
+
+## v0.6.0 — 자기가 시작한 턴을 따라가고, 무엇을 했는지 보여 줍니다
+
+[이 릴리스에 담긴 커밋](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.5.7...v0.6.0)
+
+두 가지가 바뀌었고 나머지 대부분은 거기에서 따라옵니다. 엔진은 복구가 잘 되었는지를 대화 전체에서
+찾지 않습니다. 자기가 보낸 이어서 하기가 시작한 Codex 턴을 정확히 따라가고, 결과는 그 턴에서만
+읽습니다. 그리고 시작 메뉴에서 여는 창은 설정 페이지였지만, 이제 워처가 무엇을 보고 무엇을 했는지
+보여 줍니다. 원래 있던 설정 옆에 개요, 대기 중, 기록, 통계, 진단이 함께 있습니다.
+
+간추리면 이렇고, 아래에 각각의 절이 있습니다.
+
+- **자기가 시작한 턴을 따라갑니다.** 사용자가 직접 시작한 턴이 복구 성공으로 읽히는 일은 이제
+  없고, 확정할 수 없었던 결과는 성공이 아니라 "확인되지 않음"이라고 부릅니다.
+- **설정 페이지가 아니라 대시보드입니다.** 여섯 쪽이고, 이제 여섯 쪽 모두 실제 창에서 두 언어로
+  찍은 그림이 있습니다.
+- **알림 영역 아이콘**은 워처 자신의 것이며, 다음 확인까지의 실시간 카운트다운을 보여 주고,
+  메뉴에서 기다리는 바로 그 일로 가는 길을 내줍니다.
+- **관문과 타임라인.** 왜 기다리는지를 어디서나 같은 22개의 공개 어휘로 말하며, 그 바탕은 내용이
+  없는 일지이고, 그 일지를 다시 읽어 무엇을 결정하는 곳은 없습니다.
+- **기록과 통계, 그리고 가려 낸 진단 내보내기.** 어느 것도 프롬프트나 답변, 경로, 계정을 싣지
+  않습니다.
+- **새 버전이 나왔는지 알려 줍니다.** 물어볼 때만이고 스스로는 결코 하지 않으며, 설치도 체크섬을
+  대조하는 같은 설치기를 지납니다. 일시 정지도, 대화별 결정도, 기다리던 것도 그대로 남습니다.
+- **설치와 복구가 더 잘 버팁니다.** 크래시 저널, 이름으로 복사하는 꾸러미 뿌리, 아무것도 결정하지
+  않고 고치기만 하는 업그레이드, 그리고 짐작이 아니라 확인하는 워처 넘겨주기가 있습니다.
+- **공급망을 확인할 수 있습니다.** 모든 Action을 커밋으로 고정했고, 빌드와 발행을 나눴으며, 실행
+  파일은 재현 가능하고, 기능 표는 각 능력이 실제로 얻어 낸 근거가 무엇인지 말합니다.
+
+상태 파일은 새 워처가 처음 열 때 스키마 3이 됩니다. 그 사이에 무엇이 되고 무엇이 안 되는지는
+마지막 절에 있습니다.
+
+### 복구는 자기가 보낸 이어서 하기를 따라갑니다
+
+- **고침: 사용자가 직접 시작한 턴이 복구가 된 것으로 읽힐 수 있었습니다.** 엔진은 자기 메시지가
+  대화 어딘가에 나타나기만 하면 전달되었다고 보았고, 그 뒤의 아무 턴에서나 진행 여부를
+  판단했습니다. 그 턴은 사용자가 직접 시작한 턴일 수도 있습니다. 이제 이어서 하기마다
+  중단 자신의 ID로 만든 마커가 붙고, 그것이 시작한 턴은 그 마커를 담은 기록 행의 턴이며, 상태 파일의
+  유니크 인덱스가 두 레코드가 같은 Codex 턴을 갖는 일을 불가능하게 만듭니다. 결과는 오직 그 턴에서만
+  읽습니다. 창이 쓰는 말 그대로 복구됨, 진전 없이 끝남, 복구 턴 실패, 사용자가 중지함, 사용자에게
+  넘김(사람이 그 턴을 시작했거나 도중에 끼어들었거나, 큐에 있던 메시지를 실행 전에 고친 경우), 그리고
+  결과 확인 안 됨입니다. 확인하지 못한 결과는 성공이 아니라 "결과 확인 안 됨"이라고 부릅니다.
+- **우리가 보낸 복구 턴이 실패한 것은 같은 작업이 다시 실패한 것입니다.** 그래서 뒤따르는 레코드는
+  새 사슬을 시작하지 않고 부모의 사슬을 이어받습니다. 레코드를 만드는 그 한 트랜잭션 안에서 모든
+  카운터를 물려받고, 부모가 취소되었거나 사람이 이어받았거나 예산을 다 쓴 상태였다면 처음부터 멈춘
+  상태로 만들어집니다. 한 작업이 받는 이어서 하기는 기본값으로 최대 6번이고, 이 값을 정하는 설정은
+  1에서 10까지만 받습니다.
+- **복구가 지금 무엇을 하고 있는지를 가리키는 말이 고정되어 있습니다.** 엔진 자신의 어휘는 다섯 갈래
+  27개 상태이지만, 창과 Codex 패널은 그중 어느 것도 보여 주지 않습니다. 둘 다 같은 22개의 공개 코드를
+  읽고, 이 코드는 설정에 따라 달라지지 않습니다. 실패로 끝난 복구는 나중에 시도 한도를 올려도 실패인
+  채로 남습니다. 명령줄은 복구를 들여다보는 사람을 위해 공개 코드 옆에 저장된 상태 이름을 그대로 함께
+  찍습니다. 대기 중인 복구가 다음에 무엇을 할지를 바꾸는 주변 사정 — 자동 복구가 일시 정지됨,
+  이 대화가 꺼져 있음, 워처가 돌지 않음 — 은 코드 안에 섞이지 않고 코드 옆에 따로 표시되며, 이미
+  보내졌을 수 있는 레코드에는 붙지 않습니다.
+- **내용 없는 일지와, 그것을 읽는 진행 기록.** 복구에 무슨 일이 있었는지는 코드, ID, 카운터, 시각으로
+  적힙니다. 프롬프트도, 답변도, 오류 문구도 들어갈 수 없습니다. 진행 기록은 한 복구의 사슬 전체를
+  엔진의 상태 이름이 아니라 목록이 쓰는 말 그대로 보여 줍니다. 일지는 5,000개와 90일로 제한되지만
+  아직 진행 중인 복구의 항목은 그 제한으로 지워지지 않으며, 어떤 판단도 일지를 다시 읽어서 내리지
+  않습니다. 판단의 근거는 레코드입니다.
+- **기록 지우기는 숨길 뿐 지우지 않습니다.** 바뀌는 것은 기록 화면뿐입니다. 아직 달라질 수 있는 것 —
+  실행 중인 복구, 아직 대조 중인 불확실한 전송 — 은 계속 보이고, 숨긴 행도 모든 상한, 대기 시간,
+  중복 검사에 그대로 셈해집니다. 그것이 이미 끝난 실패가 다시 감지되는 일을 막아 주는 장치입니다.
+- **취소는 한 작업과 그것을 잇는 모든 것을 멈춥니다.** 아직 보내지 않은 레코드는 그 자리에서
+  취소되고, 이미 Codex에 들어갔을 수 있는 것은 표시만 해 두었다가 아직 큐에 있으면 워처가 도로
+  가져옵니다. 이미 Codex에서 실행 중인 턴은 멈추지 않으며, 확인 창이 그렇게 말합니다. 이미 끝난
+  레코드에도 표시를 남겨서, 그 작업이 나중에 다시 실패해도 거기에서 새 사슬이 시작되지 않습니다.
+  취소는 언제나 자동화를 줄이기만 하므로 Codex가 실행 중이 아니어도 되고, 마침 워처가 쓰고 있을
+  때에는 거부하지 않고 30초 동안 다시 시도합니다.
+- **시도 횟수 되돌리기는 분명한 동작이고, 횟수가 제한되며, 전송이 아닙니다.** 예산을 다 쓴 복구는 그
+  장애 종류에 맞는 대기로 다시 들어가고 모든 검사가 처음부터 다시 걸립니다. 대화를 다시 켜 주지는
+  않습니다. 그 대화가 꺼져 있다면 그렇게 알려 주고, 켜기 전에는 아무것도 실행되지 않습니다. 한 작업에
+  세 번까지 할 수 있고, 그 뒤에는 그 작업은 Codex에서 직접 이어서 하라고 안내합니다.
+- **지금 다시 확인은 다시 확인하는 것입니다.** 일정을 앞당기고 워처를 깨울 뿐입니다. 보내지 않고,
+  스레드가 열려 있어야 한다는 조건을 건너뛰지 않으며, 사용량 한도를 열어 주지도, 재검증을 생략하지도
+  않습니다. 사용량 한도가 아직 풀리지 않았다면 그 복구는 그냥 다시 대기로 돌아갑니다.
+- **통계는 최근 7일, 최근 30일, 전체 기간으로 봅니다.** 감지한 중단 수, 보낸 이어서 하기 수, 어떻게
+  끝났는지, 보내기까지의 중앙값 대기 시간과 복구까지의 중앙값 시간, 종류별 건수, 지금 다시 확인을
+  누른 횟수입니다. 레코드 하나당 최종 결과는 하나여서, 늦게 도착한 확인은 그 레코드를 알 수 없음에서
+  실제로 일어난 일로 옮길 뿐 두 번 세지 않습니다. 성공률은 통계가 세는 결과로 끝난 복구가 다섯 건이
+  되어야 나오고, 그 전까지는 아직 데이터가 부족하다고 적습니다.
+
+### 창이 한 일을 보여 줍니다
+
+- **한 페이지가 아니라 여섯 페이지입니다.** 개요, 대기 중, 기록, 통계, 진단, 그리고 원래 있던 설정.
+  모두 Codex 패널과 도구가 읽는 것과 같은 제어 계층을, 그리고 명령줄이 읽는 것과 같은 상태 기계를
+  읽으므로, 어느 화면이 복구 상태를 다르게 말하는 일이 생기지 않습니다.
+- **로컬 웹 서버가 없고, 브라우저로 열리는 것도 없습니다.** 페이지는 네이티브 컨트롤이고, 창은 호출마다
+  프로세스를 띄우는 대신 오래 살아 있는 브리지 프로세스 하나와 요청 한 줄씩 주고받습니다. 개요는 한 번의
+  왕복으로 다 받아 오며, 각 부분은 따로 실패합니다. 상태를 읽지 못한 것이 화면 전체를 빼앗아 가서는 안
+  되기 때문입니다.
+- **모든 동작은 어느 대화에 대한 것인지 이름을 댑니다.** 목록은 5초마다 새로 읽으므로, 아무 이름도 대지
+  않는 확인 창은 그 사이에 자리가 바뀐 레코드에 대해 "예"를 받을 수 있습니다. 각 동작은 복구를 정확한
+  중단 ID로 지목하고, 확인 창은 그 대화의 이름을 말합니다.
+- **지금 다시 확인은 할 일이 있을 때만 제공됩니다.** 사용량 초기화 시각이 아직 남은 복구에는, 자동 복구가
+  일시 정지된 동안에는, 꺼 둔 대화에는 제공되지 않습니다. 시도 횟수 되돌리기는 기준이 다르고, 일부러
+  다릅니다. 취소하지 않은 채 한도에 도달해 중지된 복구에 되돌릴 횟수가 남아 있으면, 자동 복구가 일시 정지된 동안에도 꺼 둔
+  대화에서도 그대로 제공됩니다. 아무것도 보내지 않기 때문이고, 그 대화가 꺼져 있으면 켜기 전에는 아무것도
+  실행되지 않는다고 함께 알려 줍니다. 한 작업이 세 번을 다 쓰면 버튼은 더 눌리지 않고 그 작업은 Codex에서
+  직접 이어서 하라는 안내가 붙습니다.
+- **읽지 못한 부분은 비어 있는 것이 아니라 읽을 수 없다고 표시합니다.** 읽지 못한 목록 위에 "대기 중인
+  작업이 없습니다"라고 적는 것이 이 화면이 절대 하면 안 되는 한 가지 대답입니다. 실제로는 기다리는
+  복구가 있을 수 있기 때문입니다. 브리지와 이야기하는 일은 창의 스레드에서 돌지 않으므로, 읽기가 느려도
+  창이 그리기를 멈추지 않습니다.
+- **진단 정보는 보내기 전에 읽어 볼 수 있는 파일로 나갑니다.** 진단 화면의 "진단 정보 내보내기..."는
+  사용자가 고른 자리에 JSON 파일 하나를 씁니다. 버전, 워처의 건강 상태, 설정, 모든 레코드의 상태와 사유와
+  관문, 내용 없는 일지, 그리고 각 로그의 마지막 300줄이 들어갑니다. 잘못된 복구 하나를 설명하는 데 필요한
+  만큼입니다. 대화 id와 중단 id는 그 파일 안에서만 서로 들어맞는 별칭이 되고, 파일 밖으로는 이어지지
+  않습니다. 별칭을 만드는 키는 무작위이고 파일과 함께 버려집니다. 파일 경로와 Windows 사용자 이름,
+  전자우편 주소처럼 생긴 것은 지워집니다. 아무것도 보내지 않고, 이미 있는 파일을 덮어쓰지도 않습니다.
+  예외는 `errors.log`입니다. 이 제품이 쓰지 않은 예외 메시지가 들어 있어서 같은 방식으로 지우기는 하지만
+  걸러내지는 않으며, 파일 첫머리가 그렇게 적어 둡니다. 저장을 마친 창도 "진단 정보를 저장했습니다. ID는
+  별칭으로 바뀌고 경로는 지워졌습니다. 공유하기 전에 파일을 읽어 보세요."라고 말합니다. 명령줄에서는
+  `auto_resume diagnostics`가 같은 번들을 씁니다.
+
+### Codex는 자동화를 줄일 때는 묻지 않고, 늘릴 때만 먼저 묻습니다
+
+- **일시 정지와 다시 켜기가 두 개의 도구가 되었고, 묻는 쪽은 다시 켜기뿐입니다.** 원래는
+  `set_auto_recovery` 하나가 방향을 인자로 받았습니다. Codex는 파괴적이라고 표시된 도구가 아니면 묻지 않고
+  실행하므로, 남의 지시가 섞인 대화가 사용자의 일시 정지를 소리 없이 되돌릴 수 있었습니다.
+  `pause_auto_recovery`는 지금도 묻지 않고 실행됩니다. 일시 정지는 자동화를 줄이기만 하기 때문입니다.
+  `resume_auto_recovery`는 파괴적이라고 표시했고, `reset_recovery_budget`과 `start_watcher`,
+  `update_settings`도 이제 그렇습니다. 다만 실제로 묻는 것은 Codex이고, 이 표시는 부탁이지 잠금이
+  아닙니다. 그래서 `update_settings`는 창과 패널이 보여 주는 설정만 받고, 고급 설정 — 어떤 엔진 실행
+  파일을 쓸지, 얼마나 거슬러 올라가 볼지 — 은 스키마를 무시하는 클라이언트가 보내와도 거부합니다.
+- **`get_status`는 이 제품이 어디에 설치되어 있는지를 더 이상 돌려주지 않습니다.** 보통 Windows 사용자
+  이름이 들어 있는 설치 디렉터리 경로가, Codex가 OpenAI로 보내는 대화 안으로 들어갔습니다. 나머지 내용은
+  여전히 그 대화에 들어가고, 스킬이 실행하는 명령은 아직 로컬 경로를 출력합니다. 무엇이 무엇을 말하는지는
+  개인정보 문서에 적어 두었습니다.
+
+### 이름과 캐시, 그리고 다른 데서 온 답
+
+- **더 낮은 무결성 수준의 프로세스가 먼저 만든 뮤텍스나 중지 이벤트는 거부합니다.** 둘 다 세션 이름
+  공간에서 예측할 수 있는 이름을 쓰는데, 그곳은 무결성 수준이 낮은 프로세스 — 예를 들면 브라우저의
+  렌더러 — 도 객체를 만들 수 있는 곳입니다. 먼저 만들어 두기만 하면 되었습니다. 뮤텍스를 심어 두면 워처가
+  하나도 없는데 모든 상태 조회가 실행 중이라고 답했고 진짜 워처는 중복이라며 끝났으며, 중지 이벤트를 심어
+  두면 진짜 워처가 시작하자마자 소리 없이 끝났습니다. 이제 이미 있는 객체는 검사하고, Medium보다 낮게
+  표시된 객체는 거부합니다. 상태는 "실행 중"이 아니라 "워처 상태를 알 수 없음"이 되고, 워처는 실행을
+  거부하며 그 이유를 로그에 적습니다. 그렇다고 복구가 되는 것은 아닙니다. 그런 프로세스가 그 이름을 쥐고
+  있는 동안에는 이 수준에서 할 수 있는 일이 없습니다. 다만 보이지 않는 채로 당하지는 않습니다.
+- **워처 런처는 이 제품의 마켓플레이스만 받아들입니다.** 설치된 애플리케이션이 없을 때, 어느
+  마켓플레이스든 캐시에 있는 같은 이름의 플러그인 중 가장 새것으로 넘어갔습니다. 다른 게시자의 코드가
+  로그인할 때 실행된다는 뜻입니다. 이제는 닫는 쪽으로 실패해서 엔진을 찾지 못했다고 알립니다. 이름이 다른
+  마켓플레이스에서 설치한 사람은 그것이 조용히 동작하는 대신 다시 설치해야 합니다.
+- **설치기가 이 PC의 모든 마켓플레이스를 업그레이드하지 않습니다.** 이름 없이 `codex plugin marketplace
+  upgrade`를 실행했는데, 이름이 없으면 Codex는 사용자가 등록해 둔 모든 Git 마켓플레이스를 새로 받고 그
+  게시자들의 플러그인을 다시 설치합니다. 자기 것만 건드리겠다고 한 설치가 남의 소프트웨어를 바꾸는
+  일입니다. 이제는 자기 마켓플레이스의 이름을 대고 실행하며, 설치기가 등록하는 로컬 마켓플레이스에
+  대해서는 아무 일도 하지 않습니다.
+- **형식이 깨진 답이 창을 끝내는 일은 이제 없습니다.** 창의 JSON 읽기에는 깊이 제한이 없어서, 깊이 중첩된
+  문서 하나가 .NET이 잡을 수 없는 StackOverflowException으로 프로세스를 끝냈습니다. 아무 메시지도 남지
+  않습니다. 이제는 64단계에서 평범한 형식 오류로 실패하고, 중간에 잘린 입력도 그렇습니다.
+
+### 두 프로그램이 자기 버전을 말합니다
+
+- **두 실행 파일에 버전 리소스가 들어갔습니다.** 탐색기의 속성 창과 SmartScreen, 스마트 앱 제어 안내에서
+  제품 이름도 게시자도 없이 0.0.0.0이라고 말했습니다. 내려받은 파일을 믿을지 말지 사람이 정하는 바로 그
+  자리입니다. 제품, 게시자, 설명, 파일 버전과 제품 버전, 저작권은 이제 `.codex-plugin/plugin.json`에서
+  만들어지므로 릴리스와 어긋날 수 없습니다. 매니페스트만으로 정해지는 값이라 지금까지 확인한 재현성도
+  그대로입니다. 한 커밋을 새로 복제해 같은 PC에서 같은 컴파일러로 두 번 빌드하면 압축 파일이 바이트까지
+  같았습니다. 확인한 것은 거기까지입니다. 다른 PC와 비교한 적은 없고, 지금까지 내보낸 압축 파일은 애초에
+  재현할 수 없습니다. 파일은 여전히
+  서명되어 있지 않습니다. 이것은 서명이 있었다면 보여 주었을 내용이지, 서명을 대신하는 것이 아닙니다.
+- **App Server 클라이언트가 Codex에게 진짜 버전을 알려 줍니다.** 첫 릴리스 이후 줄곧 자기를
+  `codex_auto_resume` 버전 "0.1"이라고 소개했고, 이제는 매니페스트의 버전을 보냅니다. Codex는
+  `clientInfo`를 클라이언트의 신원으로 OpenAI에 보고하므로, 이것은 이 PC를 떠나는 내용이 달라지는
+  변경입니다. 이름은 원래도 나가고 있었고, 그 옆의 숫자가 이제 틀리지 않을 뿐입니다.
+
+### 창을 열지 않아도 알림 영역에서 보입니다
+
+- **워처가 실행 중이면 알림 영역에 아이콘이 있습니다.** 아이콘은 워처 프로세스 자신의 것이라, 실행 중이
+  아닌 워처를 보여 주는 일이 없습니다. 워처가 시작되면 나타나고 멈추면 사라집니다. 툴팁은 자동 복구가 일시
+  정지됐는지, 몇 건이 대기 중인지, 몇 건이 Codex에서 실행 중인지, 다음 확인까지 얼마나 남았는지를 보여
+  줍니다. 남은 시간은 이 PC에서 세어 내려가며, 0이 되었다는 것은 워처가 다시 살펴본다는 뜻일 뿐 무언가를
+  보낸다는 뜻이 아닙니다. 메뉴에서는 창 열기, 자동 복구 일시 정지와 다시 켜기, 워처 중지를 할 수 있습니다.
+  스스로 판단하는 것은 없고, 제공하는 동작은 모두 다른 화면과 같은 제어 계층을 거칩니다. 기본값은 켜짐이고
+  설정에서 끌 수 있습니다.
+
+### 한국어에서 일시 정지와 다시 켜기가 한 가지로 말합니다
+
+- 일시 정지와 다시 켜기의 한국어 문구가 어디에서나 "자동 복구 일시 정지"와 "자동 복구 다시 켜기"입니다.
+  설정 창과 Codex 패널의 버튼은 "복구 일시 중지"와 "복구 다시 시작"이라고 했는데, 둘 다 알림 영역
+  메뉴가 이미 쓰던 문구에 맞췄습니다. 영어는 그대로입니다.
+
+### 업그레이드는 고칠 뿐, 대신 결정하지 않습니다
+
+- **고침: 업그레이드가 자동 복구를 도로 켰습니다.** 그냥 `setup`을 실행하면 엔진의 `enable`이 함께
+  돌기 때문에, 자동 복구를 일시 정지해 둔 설치본 위로 업그레이드하면 업데이트라는 이름 아래 조용히 다시
+  켜졌습니다. 이제 설치기는 프로그램 디렉터리가 이미 있으면 setup을 `--keep-state`로 실행하고,
+  bootstrap도 설치된 버전이 이미 같아서 다운로드를 건너뛰는 갈래에서 똑같이 합니다. 첫 설치는 여전히
+  자동 복구를 켭니다. 지킬 결정이 아직 없고, 켜지지 않으면 아무것도 지켜보지 않기 때문입니다.
+- **고침: 업그레이드가 지워 둔 로그인 시 시작을 되살렸습니다.** `--keep-state`로 실행한 setup은 등록된
+  항목이 이미 이 설치본의 것일 때에만 다시 등록합니다. 런타임이 옮겨 간 뒤의 낡은 경로는 그대로 고쳐
+  주고, 없던 항목을 새로 만들지는 않습니다.
+- **고침: 중간에 끊긴 복사를 다음 실행이 쓸어 갔습니다.** 설치기는 새 `app\`과 `runtime\`을 덮어쓰기
+  전에 옛 것을 옆으로 밀어 두는데, 다음 실행이 가장 먼저 하는 일이 `*.old-*` 디렉터리를 모두 지우는
+  것입니다. 그 사이에 전원이 끊기면 온전한 사본은 바로 그 이름 아래에만 남고, 복구하려던 실행이 설치본을
+  없애 버리는 일이 됩니다. 이제 각 트리를 어떤 이름으로 옮길지는 첫 이동 전에 정해서 설치 루트의 작은
+  JSON 일지에 적습니다. 임시 이름으로 쓴 다음 실제 이름으로 옮기므로, 쓰는 도중에 멈춰도 남는 것은 이전
+  일지이거나 아무것도 아닙니다. 다음 실행은 무엇을 쓸어 내기 전에 이 일지를 먼저 읽어서, 목적지가 비어
+  있는 트리를 제자리로 되돌리고, 모든 이동의 양쪽 경로를 이미 자기 것이라고 증명한 설치본 안인지 다시
+  확인하고, 일지가 아직 붙들고 있는 사본은 이번 실행이 온전한 복사를 마칠 때까지 그대로 둡니다. 일지는
+  두 트리가 모두 제자리에 놓이면 지워지고, 실패했을 때는 일부러 남깁니다. 되돌리기는 최선을 다할 뿐이고,
+  그때는 그 파일만이 트리가 어디로 갔는지 아는 유일한 기록이기 때문입니다.
+- **고침: payload 루트에 있던 것이 무엇이든 설치 폴더로 복사되었습니다.** 와일드카드로 복사했기 때문에,
+  릴리스에 딸려 온 엉뚱한 파일이 그대로 설치 폴더에 들어갔습니다. 이 제품이 이 폴더가 자기 것이라는
+  증거로 읽는 이름(`runtime.json`, `.owned-by-codex-auto-resume`)이나 상태로 읽는 이름까지 포함해서요.
+  이제 거기에 있어야 할 두 파일 — 설정 창과 그 아이콘 — 만 이름을 지정해 복사하고, 둘 중 하나라도 없는
+  payload는 아무것도 옮기기 전에 설치를 멈춥니다. bootstrap의 압축 파일 검사도 그 루트에 다른 것이 있는
+  압축 파일은 거부합니다.
+- **창의 설치 복구는 다섯 가지 중 무엇이 일어났는지 말합니다.** 끝났음, 아직 진행 중임, 다른 설치나 복구가
+  이미 실행 중임, 이 설치본에 setup을 이루는 파일이 없음, 실패함입니다. setup이 출력한 마지막 몇 줄은
+  실패했을 때만 함께 보여 주고, 그중 경로인 줄은 뺍니다. 설치기가 쓰는 락을 그대로 잡으므로 두 프로세스가
+  같은 등록을 동시에 고쳐 쓰는 일이 없고, 2분이 지나도 계속 일하고 있는 setup은 중간에 죽이지 않고
+  백그라운드에서 마치게 둡니다. 여기에서도 setup은 `--keep-state`로 실행합니다. 복구는 고치는 일이지
+  결정하는 일이 아니기 때문입니다.
+- **워처 중지가 창과 브리지에 생겼습니다.** 업그레이드가 남아 있다는 안내는 워처 중지를 누른 다음 워처
+  시작을 누르라고 말하는데, 시작은 있었고 중지는 명령줄에만 있었습니다. 창을 쓰는 사람이 결코 가지 않는
+  곳입니다. 이것은 워처가 원래부터 기다리고 있던 그 중지 이벤트를 한 번 보내는 것이고, 부탁일 뿐 강제로
+  끝내지 않습니다. 이어서 하기를 보내는 도중에 끊긴 워처는 그것이 전송되었는지 나중에 증명할 수 없고,
+  보내졌을 수도 있는 이어서 하기는 다시 보내지 않기 때문입니다. 그런 다음 단일 인스턴스 뮤텍스 — 제품의
+  다른 모든 곳이 "실행 중"이라고 말할 때 보는 그 뮤텍스 — 를 10초 동안 지켜보고, 거기에서 본 것을
+  그대로 알려 줍니다. 중지됨, 진행 중인 확인을 마치는 중, 실행 중이 아니었음, 또는 알 수 없음입니다.
+  알 수 없음은 그 자체로 하나의 답이고, 중지됨으로 반올림하지 않습니다.
+
+### 새 버전이 있는지, 물어보면 알려 줍니다
+
+- **새로 생김: 진단 쪽의 업데이트 확인.** 지금까지는 새 릴리스가 나왔는지 제품 안에서 알 길이
+  없었고, 저장소에 들러야 알 수 있었습니다. 이제 진단 쪽에 단추가 있고, 명령줄에서는
+  `scripts/bootstrap.ps1 -CheckOnly`가 같은 일을 합니다. 스스로 확인하는 일은 없습니다.
+  타이머도, 창을 열 때의 확인도, 워처가 시작할 때의 확인도 없습니다. github.com에 보내는 요청은
+  사용자의 기계가 보내는 요청이고, 사용자가 청한 것이어야 하기 때문입니다.
+- **답은 쪽이 아니라 주소에서 옵니다.** 이 저장소의 `releases/latest`로 보내는 `HEAD` 요청이라
+  페이지는 오가지도 않고 해석되지도 않습니다. 버전은 리디렉션이 끝난 주소에서 읽으며, 그 경로는
+  이 소유자와 저장소로 시작해야 합니다. 포크도, 미러도, 이름이 이것으로 시작할 뿐인 소유자도
+  거부합니다. 그다음 세 숫자로 다시 만들기 때문에 내려받기 주소에 닿는 것은 남이 고른 글자가
+  아니라 계산 결과입니다.
+- **네 가지 답과 네 가지 종료 코드.** 최신, 업데이트 있음, 이 빌드가 발행본보다 앞섬, 물어보지
+  못함. 마지막 것은 그 자체로 하나의 답이며 결코 "최신"이 되지 않습니다. 네트워크가 없는 기계에
+  최신이라고 말하는 것이 업데이트 확인이 저지를 수 있는 단 하나의 잘못이기 때문입니다. 창은
+  종료 코드와 출력된 줄이 서로 맞을 때만 답을 믿습니다.
+- **업데이트는 설치기를 다시 쓰며, 두 번째 설치기를 만들지 않습니다.** 해당 릴리스의 보관
+  파일을 가져와 옆에 발행된 체크섬과 대조하고, 그 보관 파일이 정말 이 제품의 그 버전인지와 어떤
+  항목도 풀어 놓을 디렉터리를 벗어나지 않는지 확인한 뒤, 여느 설치와 같은 `install.ps1`을
+  실행합니다. 예전 나무를 옆으로 옮기고 저널을 남기며 `--keep-state`로 설정을 실행하므로 일시
+  정지도, 대화별 결정도, 대기 중인 복구도, 기록도, 로그인 시 시작 선택도 모두 그대로 남습니다.
+  이 플러그인이 쓰인 뒤에 발행된 릴리스는 존재하기도 전에 고정될 수 없으므로, 업데이트는 보통
+  고정된 다이제스트가 아니라 발행된 체크섬으로 검증하며 스크립트가 둘 중 무엇을 했는지 밝힙니다.
+- **발행 전에 고쳤습니다: 업데이트 뒤의 평범한 실행이 예전 버전을 그 위에 다시 깔았습니다.**
+  업데이트를 하면 기계가 그것을 시작한 플러그인 나무보다 앞서게 됩니다. Codex가 가진 플러그인
+  사본은 여전히 그것이 받아 둔 버전이기 때문입니다. 그러면 설정 스크립트의 다음 평범한 실행이,
+  그것도 Codex가 스스로 할 수 있는 실행이, 기계에 없는 버전을 보고 그것을 더 새로운 것 위에
+  조용히 깔았습니다. 이제 설치된 것이 같은 버전이거나 더 새로우면 바꾸지 않고 맞추기만 하며,
+  뒤로 가는 것은 `-Force`가 청할 때만 일어납니다.
+- **워처가 실제로 넘어갔는지 확인하고 말해 줍니다.** 계속 돌던 예전 워처는 자기 밑의 파일에서
+  버전을 읽기 때문에, 파일이 바뀌는 순간부터 새 버전을 보고하기 시작합니다. 그래서 창은 대신
+  워처의 프로세스 신원과 시작 시각을 업데이트 앞뒤로 견주고, 업데이트 뒤에 도는 워처가 이전의
+  그 워처이면 그렇다고 분명히 말합니다.
+
+### 알림 영역은 일을 가리키고, 일에 손대지 않습니다
+
+- **메뉴가 기다리는 것으로 가는 길을 내줍니다.** 기다리는 것이 있는 동안 아이콘 메뉴에는 창을
+  대기 중 쪽으로 여는 항목이 생깁니다. 그 쪽에 지금 다시 확인, 취소, 타임라인, 대화별 스위치가
+  있고, 각각 어떤 대화에 관한 것인지 이름을 댑니다. 지금 다시 확인과 취소를 메뉴에 직접 두지
+  않은 것은 일부러입니다. 워처가 계속 바꾸고 있는 목록으로 만든 문맥 메뉴는 그 id가 메뉴를 그릴
+  때 가리키던 레코드에 대고 동작하고, 메뉴 항목에는 대화 이름을 적을 자리가 없습니다. 엉뚱한
+  작업을 취소하지 않게 막아 주는 것이 바로 그 이름입니다.
+- **창은 실제로 있는 쪽으로만 열립니다.** 쪽 이름이 명령줄에 닿으므로, 무엇이 건네지든 될 수
+  있는 쪽의 목록은 닫혀 있습니다.
+
+### 태그가 처음으로 실제로 닿았을 때의 릴리스 워크플로
+
+- **고쳤습니다: 릴리스를 빌드하는 작업이 태그를 하나도 받아 오지 않았고, 그 작업이 돌리는
+  스위트는 태그를 읽습니다.** 네 개의 테스트가 실제로 태그된 릴리스의 저장소 코드로 데이터베이스를
+  만듭니다. 업그레이드와 다운그레이드 경로를 그 릴리스들이 실제로 내보낸 바이트에 대고 시험하는
+  것이지 그에 대한 설명에 대고 하는 것이 아닙니다. 그래서 태그 없는 체크아웃에서는 여덟 개가
+  실패하며, 그 메시지가 "CI must fetch the tags"입니다. `test.yml`과 `sync-ko.yml`은 그
+  테스트들이 쓰인 날부터 태그를 받아 왔고 `release.yml`은 그러지 않았는데, 두 릴리스 동안 아무도
+  알아채지 못한 이유는 디스패치가 발행 전에 멈추고 태그가 그 작업에 닿은 적이 없었기 때문입니다.
+  실제 태그 푸시가 처음으로 거기서 실패했습니다. 발행된 것은 없습니다. 빌드 작업이 실패했고 발행
+  작업은 아예 돌지 않았으며, 릴리스는 반쯤 만들어질 기회조차 없었습니다. 이제 워크플로는 이력을
+  받아 옵니다. 그것이 치르는 값은 이력이지 권한이 아닙니다. 토큰은 여전히 디스크에 남지 않고
+  작업은 여전히 읽기 권한만 가집니다. 그리고 스위트를 돌리는 모든 워크플로가 스위트가 읽는 태그를
+  체크아웃하도록 테스트가 요구합니다.
+
+### 옛 워처와 새 워처 사이
+
+- 상태 파일은 1 → 2 → 3으로 한 트랜잭션 안에서 올라가며, 워처나 워처의 뮤텍스를 쥔 호출자만 할 수
+  있습니다. 그 전에 옛 파일의 사본을 한 부 떠 두는데, 이는 원인을 살피기 위한 것이지 되돌리기 위한 것이
+  아닙니다.
+- 그 전까지 — 업그레이드한 시점부터 옛 워처가 끝날 때까지 — 화면들은 자동화를 줄이기만 하는 일은 그대로
+  합니다. 일시 정지, 대화 하나 끄기, 그리고 v0.5가 하던 방식대로 대화 단위로 취소하기입니다. 나머지는
+  이전 버전 워처가 아직 상태를 갖고 있다고 말하고, 창은 목록이 있어야 할 자리에 빈 목록 대신 그 문장을
+  보여 줍니다.
+- `downgrade-state --to 2`는 v0.5 릴리스로 돌아갈 수 있도록 상태를 다시 씁니다. 중단 기록은 취소됨,
+  한도에 도달해 중지, 알 수 없음, 숨긴 행까지 한 행도 빠뜨리지 않습니다. 그 행들이 바로 옛 실패가 다시
+  감지되어 두 번째로 복구되는 일을 막아 주기 때문입니다. 다만 행을 남길 뿐, 그 행에 딸린 모든 것을
+  남기지는 않습니다. 일지와 워처 상태 표는 통째로 지우고, 스키마 3이 더한 열 — 어느 Codex 턴에서
+  시작했는지, 부모에게서 무엇을 물려받았는지, 기록에서 언제 숨겼는지 — 도 함께 사라집니다. 스키마 2에는
+  그것들을 둘 자리가 없기 때문입니다. 스키마 3 파일은 먼저 한 부 복사해 두며, 돌아올 길은 그 사본뿐입니다.
+
+## v0.5.7 — 보안 수정
+
+[이 릴리스에 담긴 커밋](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.5.6...v0.5.7)
+
+v0.6.0까지 기다리지 않고 따로 내보내는 보안 릴리스입니다. v0.4.0부터 v0.5.6까지 있던 코드 주입
+문제를 막기 때문입니다. 복구 동작, 설정, 상태, 설치 구조는 v0.5.6과 똑같습니다. 업그레이드만 하면
+해결됩니다. 그리고 이번 릴리스부터는 업그레이드가 실행 중인 워처까지 교체하므로, 이 말이 실제로
+사실이 됩니다.
+
+### 보안
+
+- **고침: 폴더나 대화 이름으로 PowerShell 명령을 실행할 수 있었습니다.** v0.4.0부터 v0.5.6까지
+  해당합니다. 그 이전 릴리스는 이 스크립트에 고정 문구, 시각, 짧은 ID만 넣었습니다. 알림과 시작 메뉴 바로 가기는 짧은 Windows PowerShell 스크립트로
+  만드는데, 대화 이름, 프로젝트 폴더, 설치 경로 같은 값을 그 스크립트 안에 따옴표 문자열로
+  넣으면서 ASCII 아포스트로피만 두 번 써서 이스케이프했습니다. 그런데 PowerShell은 `‘` `’` `‚` `‛`도
+  작은따옴표로 취급합니다. 그래서 이 문자가 들어간 이름은 문자열을 일찍 끝내 버리고, 이름의 나머지
+  부분이 워처에서, 사용자 계정 권한으로 PowerShell 코드로 실행되었습니다. `Bob’s project` 같은
+  평범한 이름만으로도 알림이 뜨지 않았고, 조작된 이름이라면 명령을 실행할 수 있었습니다. 고치기 전에
+  실제 인터프리터로 확인했습니다.
+
+  이제 값은 스크립트 텍스트가 되지 않습니다. 고정된 스크립트에 환경 변수로 전달되고 `$env:`로
+  읽히는데, PowerShell은 환경 변수의 값을 어떤 경우에도 코드로 해석하지 않습니다. 따라서 이름에
+  어떤 문자가 들어가도 실행되는 내용은 바뀌지 않습니다. 테스트는 따옴표와 비슷한 문자와 보간 문자를
+  전부 실제 인터프리터에 통과시키며, 이전 코드에서는 실패합니다.
+
+- **고침: 업그레이드한 뒤에도 이전 워처가 이전 코드로 계속 실행되었습니다.** 설치 프로그램은 실행 중인
+  워처 아래에서 프로그램 폴더의 이름을 바꿨는데(Windows는 이를 허용합니다), 이전 프로세스는 이름이
+  바뀐 사본에서 다음 로그인 때까지 계속 실행되었고, 설정 단계는 워처가 실행 중인 것을 보고 아무것도
+  시작하지 않았습니다. 이번 릴리스로 말하자면, 수정은 설치되었지만 적용되지는 않은 상태가 되었을
+  것입니다. 이제 설치 프로그램은 실행 중인 워처에게 워처 자신의 중지 요청으로 멈춰 달라고 요청하고,
+  멈출 때까지 기다린 다음에야 파일을 교체합니다. 새 워처는 이전처럼 마지막에 시작됩니다. 요청만 하고
+  강제로 끝내지는 않습니다. 이어서 보내기를 전송하는 도중에 멈춘 워처는 나중에 그것이 전송되었는지
+  증명할 수 없기 때문입니다. 1분 안에 멈추지 않으면 업그레이드는 그대로 끝나고, 이전 버전이 아직
+  실행 중이라는 사실과 전환하는 방법을 분명히 알려 줍니다. 실제 Windows에서 측정한 결과, 실행 중인
+  워처는 2초 안에 교체됩니다.
+- **고침: Install.cmd와 Uninstall.cmd가 옆에 심어진 프로그램을 실행할 수 있었습니다.** 두 파일은
+  `chcp`와 `powershell.exe`를 이름만으로 실행했는데, Windows는 현재 폴더를 먼저 찾습니다. 그래서
+  `chcp.bat`라는 파일이 이미 있는 다운로드 폴더에 릴리스를 풀면 설치 프로그램보다 그 파일이 먼저
+  실행되었습니다. 이제 둘 다 `%SystemRoot%\System32` 아래의 전체 경로로 실행합니다.
+
+## v0.5.6 — 동작하는 것을 넘어, 완성된 것으로
+
+[이 릴리스에 담긴 커밋](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.5.5...v0.5.6)
+
+v0.5의 마지막 릴리스이며, 기능이 아니라 품질을 다듬는 릴리스입니다. **복구 동작은 그대로입니다.**
+같은 장애 분류, 같은 거부 규칙, 같은 정확한 스레드 식별 규칙, 같은 시도 상한, 같은 데이터베이스를
+씁니다. 바뀐 것은 그 주변 전부입니다 — 두 설정 화면이 사용자의 언어로 말하고, 스크린샷이 제품을
+있는 그대로 보여주며, 한국어 브랜치가 실제로 한국어 브랜치가 되었습니다.
+
+v0.5.5가 게시된 뒤에 발견된 수정들을 담은 첫 릴리스이기도 합니다. 그 수정들로 이미 게시된 산출물을
+바꾸지 않기로 했고, 여기에서 처음 나갑니다.
+
+### 설정 화면이 제품의 나머지와 같은 언어로 말합니다
+
+- **고침: 한국어 환경에서도 설정 창과 Codex 패널이 영어였습니다.** 플러그인 계층은 언어를 정해서
+  알림과 설치 출력에 썼지만, 설정 창은 C#에 자기 영어 문구를 따로 갖고 있었고 Codex 패널은
+  JavaScript에 세 번째 사본을 갖고 있었습니다. 같은 어휘를 세 벌 두면 "재시도 간격"이 세 가지
+  표현으로 갈라집니다. 이제 카탈로그는 하나(79개 키, 두 언어)이고, 어느 화면도 스스로 언어를
+  고르지 않습니다. 설정 창은 이미 쓰던 브리지에 물어보고, 패널은 이미 받던 페이지에 문구를 함께
+  받습니다. `navigator.language`는 보지 않습니다. 네 화면이 서로 어긋나면 안 되고, 결정은 한 곳에서만
+  내려야 하기 때문입니다.
+- **고침: 창을 번역하고 나니 한국어가 깨져서 나왔습니다.** 번역은 맞았고 바이트가 틀렸습니다. 두 화면
+  모두 제어 브리지를 출력 리디렉션 상태로 실행하는데, Windows에서 리디렉션된 stdout은 Python이 기계의
+  ANSI 코드 페이지로 인코딩합니다 — 한국어 설치에서는 CP949입니다 — 그런데 창은 UTF-8로 디코딩하고
+  있었습니다. MCP 서버는 예전부터 스트림을 명시적으로 설정해 왔고, 그래서 Codex 패널은 내내 멀쩡했고
+  창만 틀렸습니다. 이제 브리지는 인코딩을 물려받지 않고 UTF-8이라고 말합니다. 프로토콜의 약속은
+  프로토콜이 지고 있어야 하기 때문입니다. 한 줄 수정이 아니라 테스트까지 붙인 이유는 이 버그가 숨기
+  때문입니다. `PYTHONIOENCODING=utf-8`이 설정된 기계에서는 고장난 코드도 완벽하게 동작합니다. 사용자
+  에게는 재현되고 찾는 사람에게는 재현되지 않는다는 뜻이고, 여기서 실제로 그 일이 벌어졌습니다. 왕복
+  검사는 일부러 적대적인 코드 페이지 아래에서, 여섯 개 문자 체계로 합니다. 약속은 유니코드이지 한국어가
+  아니기 때문입니다.
+- 언어 규칙 자체는 그대로이고, 규칙이 존재하는 이유가 되는 경우에 대한 테스트가 생겼습니다. Windows의
+  **가장 선호하는** UI 언어가 한국어일 때만 한국어입니다. 인터페이스는 영어로 쓰면서 한국어도 추가해 둔
+  사람은 한국어를 읽을 줄 아는 사람이지, 한국어 인터페이스를 요청한 사람이 아닙니다.
+- 재시도 간격 선택지는 보이는 곳에서만 번역되고 저장은 번역하지 않은 값으로 합니다. 표시 언어에 따라
+  설정 파일의 의미가 달라진다면, 워처가 그 값을 다시 읽기 전까지 사용자가 알아챌 수 없는 버그입니다.
+
+### 아래쪽 버튼이 온전히 그려집니다
+
+- **고침: 기본값으로·저장·닫기 버튼의 아래쪽 테두리가 잘렸습니다.** 사용자가 신고했고, 재현했고,
+  원인은 버튼이 아니었습니다. 아래쪽 띠의 높이를 글자 크기 측정값에 상수를 더해 계산했는데, 그 안의
+  버튼 줄은 화면 배율을 따라가지 않는 WinForms 기본 여백 3px를 갖고 있었습니다. 계산이 2픽셀 모자랐고,
+  그 2픽셀 안에 있던 것이 바로 각 버튼의 테두리였습니다. 실행 중인 창의 레이아웃을 덤프해서 측정한
+  값: 띠 94, 패딩 42, 남은 52를 54가 필요한 그리드에 준 것입니다. 이제 띠는 자기가 담은 것에서
+  높이를 재서 정합니다.
+- v0.5.5의 재시도 간격 수정과 같은 형태가 한 단계 위에서 반복된 것입니다. 그 수정은 그대로 있고 다시
+  확인했습니다.
+- 제한 항목의 두 숫자가 더 이상 상자 왼쪽 테두리에 붙어 있지 않습니다. NumericUpDown은 값을 테두리에
+  딱 붙여 그리는데, 이는 상자 안에 놓인 숫자가 아니라 상자에 밀려 있는 숫자로 읽힙니다. WinForms는 이
+  컨트롤에 안쪽 여백을 제공하지 않으므로, 그 공간은 아래에 있는 네이티브 편집 컨트롤에서, 편집 컨트롤이
+  원래부터 이 용도로 갖고 있던 메시지로 받아 옵니다 — 값도, 정렬도, 범위도, 저장이 쓰는 내용도 그대로
+  이고, 여백은 이 창의 다른 모든 치수와 마찬가지로 화면 배율을 따라갑니다.
+
+### Codex 패널이 제품처럼 보입니다
+
+- **고침: 패널 스크린샷이 망가져 보였고, 원인은 패널이었습니다.** 550×494는 카드 그리드를 좁은 한 열로
+  무너뜨렸고 내용보다 짧아서, 이미지가 카드 중간에서 끊기며 카드 두 개와 푸터 전체가 빠져 있었습니다.
+  이제 높이는 렌더링된 페이지에서 측정하고, 카드 세 개는 손으로 나눈 두 열 대신 하나의 그리드에
+  배치되며(예전에는 한 열이 화면 3분의 1 지점에서 끝났습니다), 대기 목록 표도 짧은 세 줄을 전체 너비에
+  펼치지 않습니다.
+- 미리보기에는 호스트를 줍니다. 호스트가 없으면 패널은 읽기 전용 대체 화면을 올바르게 그리는데 — 모든
+  컨트롤이 비활성이고 다른 곳을 쓰라는 안내가 붙습니다 — 그것은 Codex 안에서는 아무도 보지 않는
+  상태입니다. 나머지는 그대로입니다. 여전히 Codex에 제공되는 바로 그 리소스이고, 문서에서도 Codex 창을
+  찍은 사진이 아니라 그렇게 설명합니다.
+
+### 읽는 사람의 언어로 된 하나의 스크린샷 모음
+
+- 스크린샷은 언어별로 생성하고 라이트 테마로 고정합니다. 밝은 설정 창 아래에 어두운 패널이 놓인 모음은
+  하나의 제품처럼 보이지 않았고, 다크 모드인 PC에서 만든 결과가 라이트 모드인 PC에서 만든 결과와
+  달라서도 안 됩니다. 실행 중인 제품은 여전히 Windows와 Codex의 테마를 따릅니다. 고정되는 것은 문서용
+  그림뿐입니다.
+- 고정하지 못하는 그림이 하나 있고, 고정할 수도 없습니다. 알림은 실제 Windows 토스트이고 셸이 시스템
+  테마로 그리므로, 나머지가 밝은 모음 안에서 혼자 어둡습니다. 다른 선택지는 사진 한 장을 찍자고 남의
+  Windows 테마를 바꾸는 것, 또는 그럴듯한 토스트를 HTML로 그려서 스크린샷인 척하는 것뿐이었습니다.
+  스크린샷이 아닌 스크린샷은 톤이 어긋난 스크린샷보다 나쁩니다. 이미 라이트 모드인 PC에서 다시 찍는
+  방법은 `CONTRIBUTING.md`에 있습니다.
+- 한국어 README는 한국어 화면을 보여줍니다. 한국어 본문 아래 영어 스크린샷은, 번역되지 않던 설정 창의
+  문서판이었습니다.
+- 패널에는 테마를 다루는 페이지가 갖춰야 할 세 가지 상태가 생겼습니다. 덕분에 문서 촬영에서 하나로
+  고정하더라도 실제로 제공되는 페이지의 동작은 어디서도 달라지지 않습니다.
+
+### 다크 테마를 다시 맞췄고, 한 부분은 넣지 않기로 했습니다
+
+- 캔버스와 표면의 밝기 차이가 4밖에 나지 않아 카드가 카드로 읽히지 않았고, 실선이 자기가 감싼 면보다
+  어두웠는데 어두운 바탕에서는 반대여야 합니다. 그리고 시안이 채도 최대치로 11px 점에 찍혀 화면에서 가장
+  밝은 요소가 되어 있었습니다. 브랜드는 그대로 두고, 가장 시끄러운 부분이 한 번에 보이는 양을 줄였습니다.
+- **설정 창은 라이트로 남습니다. 그리고 이것은 측정 결과입니다.** 카드, NumericUpDown, ComboBox,
+  CheckBox, Button을 다크 팔레트로 칠한 프로브를 만들어 찍어 봤습니다. 본문은 어두워졌지만 Windows가
+  그리는 부분은 그대로였습니다 — 어두운 창 안에 흰 사각형 세 개가 남습니다. 이를 고치려면 네이티브
+  컨트롤을 전부 직접 그려야 하고, 어중간하게 어두운 창은 정직하게 밝은 창보다 나쁩니다.
+
+### 한국어 브랜치가 한국어입니다
+
+- **사람이 읽는 문서를 전부 번역했습니다.** `CHANGELOG`, `CONTRIBUTING`, `PRIVACY`, `SUPPORT`,
+  `docs/BRAND`, `docs/PLUGIN`이 이미 있던 여섯 개에 합류했습니다. `not_yet_translated` 목록은
+  없앴습니다. 아무도 손대지 않은 문서 목록과 아무도 손대지 않을 문서 목록은 구별되지 않기 때문입니다.
+  영어로 남는 것은 이유와 함께 적었습니다. 라이선스는 번역하면 두 번째 라이선스가 되기 때문이고, Codex
+  스킬은 사람이 아니라 Codex에게 지시하는 문서이기 때문입니다.
+- **번역이 조용히 낡을 수 없습니다.** 각 한국어 문서가 어떤 영어 원문에서 번역되었는지 기록해 두고,
+  영어가 바뀌면 CI가 두 파일 이름을 대며 실패합니다. 기계 번역은 하지 않습니다. 한국어를 어떻게 쓸지는
+  사람이 정하고, 그 뒤에 기록합니다. 스크린샷 신선도 검사의 문서판이며, ko가 네트워크 요청을 하지
+  않는다고 한국어 사용자에게 세 릴리스 동안 계속 말하고 있었기 때문에 생긴 장치입니다.
+
+### 저장소 주변
+
+- 이전 버전을 대상으로 열려 있던 이슈 다섯 개를 닫았습니다. 각각 변경 이력이 아니라 실제로 게시된
+  코드에 대고 다시 확인했습니다. 저장소에 설명과 토픽이 생겼고 디스커션이 열렸으며, `SUPPORT.md`가
+  그 두 번째 문을 안내합니다. 버그가 아닌 질문에게 그동안 버그 트래커만 내밀고 있었기 때문입니다.
+
+### v0.5.5 이후에서 가져온 것들
+
+- 설치 프로그램은 워처가 어떻게 되었든 "Installed and running."으로 끝나지 않습니다. 설치는 "할 일은
+  모두 했지만 워처가 실행 중인 것은 확인하지 못함"이라는 세 번째 결과를 돌려주며, 이는 성공도 실패도
+  아닙니다.
+- 스크린샷 신선도 검사가 설정 창이 값을 읽어오는 경로 전체를 포함하고, 줄바꿈을 정규화한 뒤 해시하므로
+  새로 클론한 저장소에서도 같은 값이 나옵니다.
+- 한국어 동기화는 코드 블록 안을 고치지 않고, 경로뿐 아니라 앵커도 확인하며, 공백이나 비ASCII 문자가
+  들어간 파일 이름도 놓치지 않고, 로컬에서 실수로 한 번 실행한 것 때문에 무력화되지 않습니다.
+
+## v0.5.5 — 확인한 것만 말하기
+
+[이 릴리스에 담긴 커밋](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.5.4...v0.5.5)
+
+v0.6 이전의 마지막 교정 릴리스입니다. **복구는 이번에도 그대로입니다.** 같은 장애 분류, 같은
+거부, 같은 식별 규칙, 같은 상한 있는 재시도, 같은 데이터베이스입니다. 바뀐 것은 확인하지 않고
+조용히 단언하기만 하던 몇 가지가 이제 확인한다는 점, 그리고 한국어 브랜치가 제품의 두 번째
+사본이기를 그만두었다는 점입니다.
+
+### 워처는 실제로 실행 중일 때만 실행 중이라고 보고합니다
+
+- **고침: 워처를 시작하는 쪽이 확인하지 않은 성공을 단언했습니다.** `start_watcher`는 Windows가
+  프로세스를 만들자마자 반환했는데, 그것만으로는 워처가 import를 통과했는지, 단일 인스턴스
+  뮤텍스를 잡았는지, 계속 살아 있는지 아무것도 증명하지 못합니다. 네 개의 표면이 그것을 사실
+  진술로 바꿔 놓았고, 모순이 드러났습니다. MCP 도구가 "The watcher is running."이라고 말한 바로
+  다음 status는 실행 중이 아니라고 답했습니다. 이제는 상태 줄이 읽는 것과 같은 프로브를
+  기다리고 — monotonic 데드라인 안에서 짧게 여러 번 봅니다 — 실제로 일어난 일이 넷 중
+  무엇인지 보고합니다. 실행 중, 이미 실행 중, 시작했으나 확인되지 않음, 시작했다가 종료됨입니다.
+  앞의 둘만 실행 중인 워처를 언급할 수 있고, 테스트가 이를 강제합니다. 여기서 측정한 결과 보통의
+  경우 이제 약 3분의 1초 만에 답하며, 이전의 설정 창은 1.2초를 고정으로 기다리며
+  잘되기를 바라는 방식이었습니다.
+- 워처는 또한 뮤텍스가 순간적으로 사용 중일 때, 다른 워처가 이 컴퓨터를 차지하고 있다고
+  결론짓기 전에 한 번 다시 시도합니다. 상태를 읽을 때마다 그 뮤텍스를 마이크로초 동안 잡아
+  확인하는데, 확인 동작이 시작 중인 워처에게 자기 자신과의 경쟁에서 졌다고 믿게 만들 수
+  있어서는 안 됩니다. 진짜 두 번째 워처는 살아 있는 내내 뮤텍스를 쥐고 있으므로, 단일 인스턴스
+  안전성은 그대로입니다.
+- 설정 창은 그 대기를 UI 스레드가 아닌 곳에서 합니다. 고정 sleep을 없앤 것은 대기를 없앤 것이
+  아니라 브리지 호출 안으로 옮긴 것이었고, 클릭 핸들러에서 6초를 막고 있으면 Windows가 창을
+  흐리게 만들고 제목을 바꿔 버립니다. 이제는 작업자 스레드로 넘긴 뒤 `BeginInvoke`로
+  돌아옵니다. 전체 대기 시간을 강제해 측정했을 때, 이전에는 24개 표본 중 11개가 응답 없음이었고
+  이후에는 48개 중 0개였습니다.
+
+### 조용히 낡을 수 없는 스크린샷
+
+- **고침: 모든 스크린샷이 세 릴리스 뒤진 v0.5.2를 보여 주고 있었습니다.** 스크린샷을 만드는
+  스크립트가 없었고 누군가 기억해야 하는 절차만 있었기 때문입니다. 이제
+  `build/make_screenshots.py`가 작업 트리에서 둘 다 렌더링합니다. 설정 창은 `src/`와 매니페스트로
+  조립한 새 설치본에서, Codex 패널은 패널 자체의 소스에서 실제 제어 표면이 만든 샘플 데이터와
+  함께 렌더링합니다. 생성기 안에 버전 번호가 없고 디스크에 mock JSON도 없습니다.
+  `.codex-plugin/plugin.json`을 바꾸면 두 이미지 모두 새 버전을 말합니다.
+- 같은 그림을 이제 두 번 *촬영하지* 않습니다. 스크린샷마다 정본 자산이 하나 있고 문서용 사본은
+  거기서 생성됩니다 — 두 파일 모두 여전히 커밋되며, 이제 테스트가 둘이 바이트 단위로 같기를
+  요구합니다. 그것이 요점입니다. `assets/screenshots.json`은 무엇으로부터 렌더링한 것인지를
+  기록하므로, 소스가 바뀌었는데 이미지가 그대로면 테스트 묶음이 실패합니다.
+- "무엇으로부터 렌더링했는지"가 무엇을 뜻하는지부터가 처음에는 틀려 있었습니다. 손으로 적은
+  일곱 개짜리 파일 목록이었는데, 그림을 눈에 띄게 바꾸는 파일 다섯 개를 빠뜨렸고, 픽셀 하나
+  바꿀 수 없는 편집에는 반응했습니다. 패널은 이제 파일 목록으로 해시하지 않습니다 — 렌더링하는
+  마크업 자체를 해시하므로 버전, 스키마, 행이 담는 필드, 팔레트가 어디에 있든 해시에 닿고,
+  주석은 해시를 건드리지 못합니다. 텍스트 입력은 줄바꿈을 정규화한 뒤에 해시합니다.
+  `.gitattributes` 때문에 `*.ps1`은 체크아웃될 때 저장소가 담고 있는 것과 다른 바이트 열이 되기
+  때문입니다.
+
+### 재시도 간격 컨트롤이 온전히 그려집니다
+
+- **고침: 100%를 넘는 모든 디스플레이 배율에서 재시도 간격 상자가 아래쪽 테두리를
+  잃었습니다.** 그리기 버그가 아닙니다. ComboBox는 화면에 표시되기 전까지 자기 높이를 실제보다
+  작게 보고하고, 표시된 뒤에는 지정받은 위치는 유지한 채 글꼴에 맞춰 스스로 크기를 늘립니다.
+  그래서 자기 행의 아래쪽을 넘어가 버렸고 — 125%에서 2 px, 250%에서 9 px — 자식은 부모 영역에서
+  잘립니다. 이제 편집기는 위쪽에 고정되고, 행은 편집기의 측정된 높이를 확보합니다. 덕분에
+  레이블도 다시 중앙선에 놓입니다.
+
+### 한국어 브랜치는 관리하는 것이 아니라 생성하는 것입니다
+
+- **고침: `ko`가 세 릴리스 뒤져 있었고, 중요한 지점에서 틀려 있었습니다.** 자체 엔진, 설치
+  프로그램, 워크플로, 테스트를 담은 독립 fork였고, 누군가 병합을 기억해 주는 것으로 보조를
+  맞추고 있었습니다. 한국어 독자에게는 여전히 이 도구가 네트워크 요청을 하지 않는다고 말했고,
+  설치는 여전히 "릴리스 압축 파일을 내려받으세요"로 시작했으며, 보안 문제를 신고할 제3자가
+  없다고 여전히 말했고, v0.5.4가 추가한 소유권 규칙이 하나도 없던 시절의 제거 절차를 여전히
+  설명했습니다. 그 README는 영어판 링크로 자기 자신을 가리키고 있었습니다.
+- 이제 두 번째 사본은 없습니다. `ko`는 테스트가 통과한 커밋에서의 main 트리이고, 한국어 문서
+  각각이 자기 영어 형제 파일 자리에 놓인 것뿐입니다. `.github/workflows/sync-ko.yml`이 이를
+  자동으로 수행하며, 그때 main의 head가 무엇이든 상관없이 실제로 테스트된 SHA에서 만듭니다.
+  fork에서의 실행이나 빨간 main에서의 실행은 거부합니다.
+- 한국어 텍스트는 검토할 수 있는 곳인 main으로 옮겼습니다. `SECURITY.ko.md`는 옮기기 전에 거짓
+  주장 세 건을 바로잡고 여섯 줄짜리 제거 절을 현재의 소유권 규칙으로 교체했습니다.
+  `README.ko.md`에는 요구 사항, 워처 두 개에 대한 거부, 안전 모델, 알려진 제한이 추가되어,
+  한국어만 읽는 독자가 그것들을 보려고 영어 문서로 보내지지 않습니다. `docs/PLUGIN.md`와 변경
+  이력은 낡은 채로 내보내는 대신 미번역으로 표시했습니다 — 영어 문서는 정확하고, 낡은 번역은
+  정확하지 않기 때문입니다.
+- 테스트도 `ko`까지 따라가며 이제 거기서 실제로 돕니다. 테스트는 그대로 옮겨졌는데, 이는 파일에
+  대해서는 사실이고 결과에 대해서는 거짓이었습니다. sync가 그중 열두 개가 읽는 한국어 소스를
+  지우기 때문에, 테스트 묶음은 자신이 실려 가는 브랜치에서 오류를 냈고 `ko`를 대상으로 연 풀
+  리퀘스트는 엉뚱한 것에 대한 실패로 답을 받았습니다. 그 테스트들은 생성된 체크아웃에서는
+  건너뛰며, 워크플로는 트리를 게시하기 전에 그 트리를 대상으로 테스트 묶음을 실행합니다.
+- 한국어 문서로 향하는 링크는 목표와 눈에 보이는 레이블 양쪽 모두, 그리고 번역된 다섯 개
+  문서만이 아니라 모든 문서에서 다시 씁니다 — `CHANGELOG.md`가 같은 sync가 방금 지운 파일로
+  향하는 살아 있는 링크를 단 채 `ko`로 실려 가고 있었습니다. 이제 생성된 트리에 대해 그 트리가
+  담고 있지 않은 파일을 가리키는 상대 링크가 있는지 검사합니다.
+
+### 정리 작업
+
+- **고침: 테스트 파일을 직접 실행하면 테스트 83개가 건너뛰어졌습니다.** 파일 여섯 개가
+  `unittest.main()` 가드를 파일 중간에 두고 있어서, 그것이 실행되는 시점에는 그 아래의 클래스가
+  아직 존재하지 않았습니다. `unittest discover`는 전혀 영향을 받지 않았고, 그래서 아무것도 이를
+  알려 주지 않았습니다.
+- 이제 두 워크플로 모두 concurrency 그룹을 선언합니다. 릴리스 워크플로가 같은 버전을 다시
+  게시하기를 거부하는 검사는 릴리스의 자산을 읽은 다음 업로드하는 구조라, 같은 태그에 대한 두
+  실행이 둘 다 통과할 수 있었습니다. 태그 단위로 직렬화해 그 틈을 닫았습니다.
+- 제품 버전을 올렸다는, 제품과 무관한 이유로 테스트 묶음이 빨개지는 일은 이제 없습니다.
+  `scripts/release.json`에 손으로 placeholder 항목을 넣어 줄 필요가 없어졌습니다. 대신 이제
+  검사하는 것은 정말 중요한 방향입니다. 게시된 버전이 고정되지 않은 채로 남아 있지 않은가입니다.
+
+## v0.5.4 — 지우기 전에 증명하기
+
+[이 릴리스에 담긴 커밋](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.5.3...v0.5.4)
+
+v0.5의 마지막 강화 릴리스입니다. **복구는 그대로입니다.** 같은 장애 분류, 같은 거부, 같은 식별
+규칙, 같은 상한 있는 재시도, 같은 데이터베이스입니다. 바뀐 것은 이 제품의 설치와 업데이트와
+제거가 이제 자기 것임을 증명할 수 있는 대상에만 동작한다는 점입니다.
+
+이 릴리스가 닫는 다섯 건 중 넷은 같은 실수가 다른 자리에서 반복된 것이었습니다 — *이름*을
+소유의 증거로 받아들인 것입니다. 그중 하나의 수정을 검토하다가, 신고되지 않은 같은 실수를 설치
+경로에서 발견했고, 거기서는 더 나빴습니다.
+
+### 소유 증명 없이는 아무것도 파괴하지 않습니다
+
+- **고침: 설치에는 소유권 검사가 아예 없었습니다.** 이슈 #1은 제거 프로그램에 대해
+  신고되었는데, 그쪽만 고치면 더 위험한 절반이 그대로 남습니다. 설치 경로도 `*.old-*`를
+  청소하고, `app`과 `runtime`을 옆으로 옮긴 다음 옮긴 것을 지웁니다 — 같은 환경 변수 루트
+  아래에서, 아무 검사 없이 말입니다. 제거 프로그램은 남의 디렉터리를 거부하는데, 같은
+  디렉터리로 들어간 설치는 그 사람의 파일을 지우고 "Installed and running."으로 끝났습니다.
+  (수정 전과 후 모두, 실제 파일이 든 디렉터리에서 재현했습니다.) 설치 경로는 제거 프로그램의
+  질문을 던질 수 없습니다 — 최초 설치는 아직 우리 것이 아닌 디렉터리에서 일어나기 때문입니다 —
+  그래서 반대쪽 절반을 묻습니다. `app`, `runtime`, `config`, `logs` 또는 밀쳐둔 사본이 이미
+  있는데 그중 무엇도 우리 것이라는 증거가 없는 디렉터리는 거부하고 손대지 않습니다. 그중
+  아무것도 없는 디렉터리는 파괴할 것이 없으므로 첫 파일을 쓰기 *전에* 우리 것으로 표시합니다.
+  이제 설치 프로그램의 모든 삭제는 그 하나의 관문을 지나며, 새로 생긴 삭제가 그러지 않으면
+  실패하는 테스트가 있습니다.
+- **고침: 제거 프로그램이 자기가 만들지 않은 디렉터리를 지울 수 있었습니다.**
+  ([#1](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/1)) 설치 루트는
+  환경 변수에서 오는데, PowerShell 제거 프로그램은 그 아래의 `app`, `runtime`, 모든 `*.old-*`,
+  그리고 `-Purge`를 주면 `config`와 `logs`까지 아무 검사 없이 지웠습니다. 그런 이름의 폴더를
+  *담고 있기만* 한 디렉터리를 가리키게 했다면 그것들을 지웠을 것입니다. 이제 루트는 우리가 만든
+  것이어야 하고, 그 답은 PowerShell로 다시 구현해 어긋날 수 있는 두 번째 구현이 아니라 엔진
+  자신의 provenance 규칙에서 나옵니다. 이후 삭제하는 모든 경로는 각 구성 요소를 resolve해 정규
+  루트에 대해 다시 검사하므로, 설치본 안의 junction이 재귀 삭제를 바깥으로 돌릴 수 없습니다.
+- **고침: 설치 프로그램이 `codex-auto-resume-mcp.exe`라는 이름의 프로세스는 무엇이든 강제
+  종료했습니다.**
+  ([#2](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/2)) 파일 이름은
+  소유가 아닙니다. 그 이름으로 실행 중인 다른 설치본, 빌드, 테스트 픽스처가 무관한 설치 때문에
+  죽었습니다. 이제 실행 파일의 resolve된 경로가 이 설치본 안이나 이 플러그인 자신의 Codex 캐시
+  안에 있어야 하며, 경로를 읽을 수 없는 프로세스는 건너뜁니다 — 판단할 수 없다는 것은 죽여도
+  된다는 허가가 아닙니다.
+- **고침: 제거가 Codex 마켓플레이스를 이름만 보고 지웠습니다.**
+  ([#5](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/5))
+  `codex-auto-resume-windows`를 직접 만든 fork로 돌려놓으셨다면, 이 제품을 제거하면서 그 설정도
+  함께 사라졌습니다. 이제 마켓플레이스와 설치된 플러그인 모두 현재 무엇을 가리키고 있는지를
+  `codex plugin marketplace list --json`과 `codex plugin list --json`으로 읽어 확인하며, 더
+  이상 우리 것이 아니면 설명과 함께 그대로 둡니다.
+- 같은 규칙은 v0.5.3 시점에 이미 로그인 항목, 알림 식별자, 시작 메뉴 바로 가기, 알림 핸들러를
+  덮고 있었습니다. 이제 [SECURITY.md](SECURITY.md)가 모든 종류의 자원에 대해 그것을 한 번에
+  서술합니다.
+
+### 제거는 실제로 일어난 일을 말합니다
+
+- **고침: Codex가 거부한 제거가 제거된 것으로 보고되었습니다.** 플러그인 제거와 마켓플레이스
+  제거가 종료 코드를 버렸기 때문에, Codex가 거절하면 — 앱이 실행 중인 동안 플러그인 캐시를
+  열어 두고 있으며, 설치 경로가 이름을 붙여 처리하는 바로 그 거부입니다 — 제거 프로그램은
+  그래도 프로그램 파일을 지우고 그 위에 "Removed."를 출력했고, Codex는 더 이상 존재하지 않는
+  디렉터리를 가리킨 채 남았습니다. 이제 둘 다 확인하며, 그 분기는 더 이상 조건 없는 성공으로
+  끝나지 않습니다.
+- **고침: 끝까지 가지 못한 purge를 다시 시도할 수 없었습니다.** 파일이 아직 사용 중이면 제거는
+  올바르게 멈추고 Codex를 닫은 뒤 다시 실행해 달라고 요청했습니다 — 그런데 다시 시도할 때
+  필요한 소유 증거를 이미 지운 뒤였기 때문에, 두 번째 실행은 반쯤 제거된 설치본을 거부했고
+  앞으로 나아갈 길이 없었습니다. 이제 소유 증거는 실행을 아직 멈출 수 있는 단계보다 나중에,
+  가장 마지막으로 지웁니다.
+- **고침: `CONTRIBUTING.md`가 알려 주는 명령인 `powershell -File build/make_gui.ps1`이 동작하지
+  않았습니다.** 매개변수 기본값을 바인딩하는 동안에는 `$PSScriptRoot`가 비어 있어서, 거기서
+  유도한 기본값 두 개가 예외를 냈습니다. 다른 방식으로 호출하면 — CI가 하는 방식입니다 —
+  우연히 동작했으므로, 망가진 것은 문서에 적힌 경로뿐이었습니다.
+
+### 게시된 버전은 불변입니다
+
+- **고침: 게시된 릴리스 자산을 교체할 수 있었습니다.**
+  ([#4](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/4)) 워크플로에 기존
+  태그를 다시 빌드해 그 자산 위에 다시 업로드하는 경로가 있었습니다. 플러그인의 bootstrap이
+  해당 버전의 SHA-256을 고정해 두므로, 교체가 일어나면 그 버전의 모든 설치가 실패하게 됩니다 —
+  더 나쁘게는, 다이제스트가 설명하지 않는 바이트로 성공하게 됩니다. 이제 게시는 그 버전에 이미
+  자산이 있으면 곧바로 거부하며, 정정하려면 새 버전이 필요합니다. 수동 실행으로 남은 것은
+  빌드하고 검증하되 릴리스는 건드릴 수 없는 dry run뿐입니다.
+- 게시되는 압축 파일은 이제 게시 전에 증명된 **build provenance**를 함께 담으므로, 내려받은
+  파일을 그것을 만들어 낸 워크플로 실행과 커밋까지 추적할 수 있습니다.
+
+### 이미 고쳤고, 이제 증명했습니다
+
+- **[#3](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/3)은 v0.5.3에서
+  고쳤습니다.** Windows 인수 인용을 명시적으로 처리한 것이었습니다. 이제 주장이 아니라 회귀
+  증거가 있습니다. 그 이슈가 나열한 모든 경우 — 공백이 든 home, `OneDrive - Company` 같은 폴더,
+  끝의 역슬래시, 안에 든 따옴표, 비 ASCII 경로 — 를 Windows 자신이 명령줄을 나눌 때 쓰는 함수인
+  `CommandLineToArgvW`로 왕복시킵니다.
+
+### 높은 DPI에서의 설정 창
+
+- **고침: 200% 배율에서 설정 창이 자기 레이블을 잘라 먹었습니다.** Windows Forms는 글꼴은
+  배율에 맞춰 키우면서 명시된 픽셀 크기는 적힌 그대로 두므로, 텍스트가 두 배가 되는 동안 창은
+  너비를 유지했습니다. 이제 고정 크기는 모두 디스플레이에 맞춰 확대되며, 창은 추가로 작업 영역
+  안으로 제한됩니다. 250%에서 780 단위는 1920픽셀 화면보다 넓기 때문입니다. DPI는 `DeviceDpi`가
+  아니라 Windows에서 가져옵니다. `DeviceDpi`는 이 제품이 함께 내보내지 않는 .NET Framework
+  opt-in이 없으면 192 DPI 화면에서도 96을 보고하므로, 그것에 기대어 작성한 수정은 아무것도
+  바꾸지 못합니다 — 그리고 그 사실을 말하는 테스트가 있습니다.
+
+## v0.5.3 — 네트워크가 무엇을 하는지 말하고, v0.5 계열을 닫기
+
+[이 릴리스에 담긴 커밋](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.5.2...v0.5.3)
+
+마지막 v0.5 릴리스입니다. **복구에 대해서는 아무것도 바뀌지 않습니다** — 같은 장애 분류, 같은
+거부, 같은 식별 규칙, 같은 데이터베이스, 같은 상한 있는 재시도입니다. 바뀐 것은 이제 문서가
+v0.5.2가 만들어 놓은 제품과 일치한다는 점입니다.
+
+### 플러그인 우선 설치가 개인정보 문구를 뒤에 남겨 두었습니다
+
+v0.5.2 이전까지 이 프로젝트는 바깥으로 나가는 요청을 전혀 하지 않았고, 쓸 수 있는 가장 강한
+표현으로 그렇게 말했습니다. 그러다 Codex 플러그인이 권장 경로가 되었고, 플러그인은 릴리스를
+내려받아 제품을 설치합니다. 그 문장들은 같은 날 파일 다섯 개, 언어 두 개에서 거짓이 되었습니다.
+
+- **[PRIVACY.md](PRIVACY.md)를 재구성했습니다.** 이제 중요해진 구분을 축으로 삼았습니다.
+  실행 중인 워처가 하는 일과, 설치가 하는 일입니다. 워처의 약속은 그대로이고 여전히 강한
+  쪽입니다 — `src/` 아래의 무엇도 네트워킹 모듈을 import하지 않으므로 실수로도 연결을 열 수
+  없습니다. 플러그인으로 설치하면 압축 파일 하나를(그리고 다이제스트가 고정되어 있지 않을 때는
+  그 체크섬을) github.com에서 가져오고 다른 어디에서도 가져오지 않습니다. 올려 보내는 것은
+  없지만 GitHub는 그 요청을 보고 다운로드 수를 셉니다. 이번 릴리스부터는 그렇지 않은 것처럼
+  암시하기를 그만둡니다. 릴리스 압축 파일 경로는 여전히 네트워크를 전혀 건드리지 않습니다.
+- **고침: "제3자: 없음."** 설치 시점의 GitHub가 제3자입니다.
+- **고침: "설치했다는 사실 자체"가 이 PC를 떠나지 않는다는 문구.** 권장 경로에서는 떠납니다.
+- **고침: 이 도구가 실행하는 것은 `codex queue`만이 아닙니다.** `codex app-server --stdio`,
+  짧은 인터페이스 프로브 두 개, 그리고 재시작 관리자와 토스트를 위한 PowerShell도 실행합니다.
+- **고침: 이 도구는 자기 디렉터리 바깥에도 상태를 남깁니다.** 로그인 값, 알림 발신자 식별자,
+  알림 버튼의 URL 핸들러, 시작 메뉴 항목은 모두 사용자 단위 Windows 등록이며, 이제 저장 위치를
+  설명하는 곳에 함께 적혀 있습니다.
+- **고침: [SUPPORT.md](SUPPORT.md)가 비공개 보안 창구를 가리키고 있었습니다.**
+  [SECURITY.md](SECURITY.md)는 그런 창구가 없다고 말하는데도 말입니다.
+- **고침: `docs/PLUGIN.md`가 내려받은 것은 무엇도 셸에 넘기지 않는다고 주장했습니다** —
+  bootstrap이 방금 푼 압축 파일 안의 설치 프로그램을 실행하는데도 말입니다. 성립하는 주장은 더
+  좁습니다. 네트워크에서 온 것이 셸로 *파이프되지* 않는다는 것입니다.
+- **고침: bootstrap 자신의 헤더가 `-ArchivePath`가 무엇을 검사하는지 과장했습니다.** 로컬
+  파일에는 가져올 sidecar가 없으므로, 그 버전의 다이제스트가 고정되어 있지 않으면 뒤를 받쳐
+  주는 것은 내용 검사뿐입니다. 이제 세 경우 중 어느 쪽이었는지 말해 줍니다.
+
+### 적대적 재감사에서 나온 설치·제거 버그
+
+이 중 복구를 바꾸는 것은 없습니다. 전부 제품이 말한 것과 다른 일을 한 경우입니다.
+
+- **고침: 사용자 폴더 이름에 공백이 있는 분에게는 플러그인이 아예 등록되지 않았습니다.**
+  `Start-Process -ArgumentList`는 인수를 공백으로 이어 붙이고 아무것도 인용하지 않으므로,
+  `C:\Users\Example User\` 아래의 마켓플레이스 경로가 `codex`에는 인수 두 개로 도착했습니다.
+  등록은 실패했고, 그 실패는 경고에 그쳤으며, 설치 프로그램은 그래도 "Installed and
+  running."으로 끝났습니다. 워처와 설정 창은 동작했지만, 사용자가 요청했던 스킬과 패널은 그냥
+  없었습니다. 이제 설치 프로그램은 `CommandLineToArgvW`가 되읽는 방식으로 인용하며 —
+  v0.5.0부터 로그인 항목이 써 온 것과 같은 규칙입니다 — 그 함수로 왕복시켜 검증합니다.
+- **고침: "제거는 어떤 상태도 지우기 전에 중단한다"는 상태에 대해서만 참이었습니다.** 워처가
+  실행 중인지 보는 fail-closed 검사는 자동 시작 값, 알림 식별자, 시작 메뉴 항목, 토스트 핸들러가
+  이미 제거된 *뒤에* 실행되었습니다. 그래서 거부하고 나면 여전히 실행되고 대기 중인 복구도
+  그대로인데, 로그인할 때 시작되지 않고 알림도 더 이상 띄우지 못하는 설치본이 남았습니다. 이제
+  그 검사는 명령이 가장 먼저 하는 일입니다.
+- **고침: 한 사본을 제거하면 다른 사본의 알림이 꺼졌습니다.** 시작 메뉴 바로 가기와 알림
+  식별자는 고정된 위치에 있는 사용자 단위 단일 항목이라, 두 번째 설치본은 자기 것을 따로
+  추가하는 대신 그것들을 덮어씁니다 — 그리고 옆에 있던 자동 시작이나 URL 핸들러와 달리 소유권
+  검사 없이 제거되었습니다. 이제 그것들도 같은 검사를 받으며, 남겨 둘 때는 그것이 누구의
+  것인지 말해 줍니다.
+- **고침: `Uninstall.cmd`가 실행 중인 설치본의 제거를 거부하는 단계의 종료 코드를 버렸습니다.**
+  그러고는 엔진과 인터프리터를 그대로 지우고 성공했다고 보고했습니다.
+- **고침: 절반만 실패한 제거 뒤에도 제거가 "Removed."라고 보고했습니다.** Codex가 열려 있으면 그
+  MCP 서버가 번들 인터프리터의 이미지를 열어 두고 있어서 지울 수 없습니다. 설치 경로는
+  v0.5.1부터 그 런처들을 먼저 중지해 왔고, 이제 제거 경로도 그렇게 하며, 오류를 삼키는 대신
+  이후에 확인합니다.
+- **고침: 플러그인의 설치 스크립트가 PowerShell 7에서 모든 다운로드를 실패시켰습니다.**
+  리다이렉트가 최종적으로 어디에 도착했는지 보는 검사가 Windows PowerShell 5.1에만 있는 속성을
+  읽었고, `Set-StrictMode` 아래에서는 다른 쪽을 읽으면 예외가 납니다. 이제 둘 중 어느 쪽이든
+  읽으며, 어느 쪽도 읽을 수 없으면 거부합니다.
+- **고침: 설치 복구 경로가 락을 잡지 않았습니다.** 이미 설치된 버전에서 설치를 다시 실행하면 설치
+  프로그램을 건너뛰는데, 그러면서 설치 프로그램의 락도 함께 건너뛰어 다른 설치 옆에서 나란히
+  실행될 수 있었습니다.
+- **고침: MCP 런처는 설치 home 재정의를 무시하는 유일한 구성 요소였습니다.** 그래서 설치
+  위치를 옮기면 패널이 그것을 찾지 못했습니다.
+- **고침: 테스트 묶음을 실행하면 실제 레지스트리 항목이 쓰였습니다.** 한 테스트 클래스가
+  레지스트리 함수를 함수 단위로 막다가 `install_protocol`을 빠뜨려서, 실행할 때마다 사용자
+  자신의 HKCU에 이제는 없는 임시 디렉터리를 가리키는 `codex-auto-resume:` 핸들러가 남았습니다.
+  제거가 "다른 설치본"에 속한 핸들러라며 올바르게 제거를 거부하다가 발견되었습니다 — 실제로
+  다른 설치본의 것이 맞았습니다. 이제 그 클래스는 다른 테스트 모듈들이 이미 하던 대로 레지스트리
+  모듈 자체를 가짜로 대체합니다.
+- 같은 스크립트의 더 작은 강화들: 설치가 실제로 실행하는 파일이 이제 필수 내용 목록에 들어
+  있습니다. 매니페스트가 대소문자만 다른 압축 파일은 죽는 대신 거부됩니다. 버전이 아예 없는
+  매니페스트는 의도한 메시지를 받습니다. 그리고 아무것도 비교할 수 없었던 경우에 체크 표시와
+  해시를 나란히 출력하는 일이 없어졌습니다.
+
+### 과장이 아니라 문서화되지 않았던 속성 하나
+
+이 도구가 시작하는 모든 `codex` subprocess는 이미 분석 기능이 꺼진 채로, 모든 OpenTelemetry
+exporter가 꺼진 채로, 프롬프트 로깅이 꺼진 채로, 그리고 엉뚱한 로컬 설정이 continuation을 다른
+곳으로 보낼 수 없도록 ChatGPT base URL이 고정된 채로 실행됩니다. 이는 여러 릴리스 동안
+사실이었지만 어떤 문서에도 나오지 않았습니다. 이제는 나오며, 테스트가 이를 지킵니다.
+
+### 이런 일이 다시 일어나지 않게 막는 테스트
+
+`tests/test_privacy_claims.py`는 그 문구가 기대고 있는 코드 속성을 단언합니다. 어떤 파일이
+네트워크에 닿을 수 있는지, 그리고 워처의 파일은 닿을 수 없다는 것입니다. 그다음으로 네트워크에
+대한 절대적 주장이 가까이에 단서 없이 서 있지 않은지 단언합니다. 검사는 정확한 문자열이 아니라
+형태 기반이므로, 여전히 참인 다시 쓰기는 계속 통과합니다. 반대 방향도 지킵니다. 변경 이력은
+게시된 모든 태그에 대해 절을 유지해야 하므로, 나중에 폐기된 표현을 쓸어 담다가 역사까지 함께
+가져가는 일이 없습니다.
+
+### 더 작은 수정들
+
+- README는 이제 Codex 패널 스크린샷이 Codex 안을 찍은 사진인 것처럼 암시하지 않습니다. 그것은
+  플러그인이 제공하는 바로 그 리소스를 렌더링한 것이고, 이제 그렇게 적혀 있습니다.
+- `watcher_launcher.py`가 여전히 v0.5.2 이전의 엔진 탐색 순서를 설명하고 있었습니다.
+- `make_release.py`는 압축 파일이 빌드 사이에 바이트 단위로 동일하다고 말했습니다. 왜 그렇지
+  않은지 설명하는 자기 docstring에서 세 줄 떨어진 곳에서 말입니다.
+- README는 마켓플레이스에서 플러그인을 설치하려면 Python이 필요하다고 주장했습니다. 필요하지
+  않으며 — 설치 스크립트는 PowerShell입니다 — v0.5.2에서 남은 중복 문장도 없앴습니다.
+
+## v0.5.2 — Codex에서 설치하고, 하나의 제품처럼 보이기
+
+[이 릴리스에 담긴 커밋](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.5.1...v0.5.2)
+
+패치 릴리스입니다. 복구는 그대로입니다. 같은 장애 분류, 같은 거부, 같은 식별 규칙, 같은
+데이터베이스입니다. 바뀐 것은 설치하는 방법과, 설치한 뒤의 겉모습입니다.
+
+### Codex에서 설치하면 실제로 설치됩니다
+
+마켓플레이스에서 이 플러그인을 추가하면 예전에는 소스 트리 하나와, 첫 지시가 실행되는 Python을
+아무거나 찾으라는 것이었던 스킬 하나가 손에 쥐어졌습니다. 그 결과는 **두 번째의, 더 못한
+설치본**이었습니다. 응답한 아무 인터프리터에나 등록된 워처, 설정 창 없음, 패널 없음, 플러그인
+캐시에서 로드되는 엔진 — 게다가 그 컴퓨터에 이미 진짜 설치본이 있었다면 둘이 상태 디렉터리
+하나를 함께 쓰게 됩니다.
+
+- **이제 플러그인이 제품을 설치합니다.** Codex에게 *auto resume 설정해줘* 라고 하면
+  `scripts/bootstrap.ps1`을 실행하고, 이 스크립트가 맞는 릴리스를 내려받아 검증하고 설치합니다.
+  미리 설치해 둘 것은 없습니다. Python도, 관리자 권한도, 직접 하는 다운로드도 필요 없습니다.
+- **무엇을 가져올 수 있는지는 의도적으로 좁습니다.** URL 모양은 하나뿐이고 상수와 이 플러그인
+  자신의 버전으로 만듭니다 — "latest"도 없고, URL에 닿는 입력도 없으므로 v0.5.2 플러그인은
+  v0.5.2 압축 파일만 요청할 수 있고 그 밖의 것은 요청할 수 없습니다. HTTPS에 TLS 1.2
+  이상이어야 하고, 최종 응답은 GitHub에서 와야 합니다.
+- **무엇이든 실행하기 전에 검증합니다.** 플러그인에 고정된 다이제스트가 있으면 그것으로, 없으면
+  게시된 `.sha256`으로 SHA-256을 대조하며 — 둘 중 어느 쪽을 썼는지 출력하고 더 강한 쪽인 척하지
+  않습니다 — 그다음으로 압축 파일이 릴리스가 담기로 정의된 것을 담고 있는지, 매니페스트가 이
+  제품의 이 버전이라고 선언하는지, 그리고 압축을 풀 때 밖으로 빠져나가는 항목이 없는지를
+  확인합니다. 하나라도 실패하면 내려받은 파일을 지우고 멈춥니다. 압축 파일이 아닌 파일, 틀린
+  버전을 선언하는 진짜 압축 파일, 잘못 고정된 다이제스트에 대조한 올바른 압축 파일로
+  검사했습니다.
+- README는 이제 Codex 경로를 앞세우고, 무언가가 대신 내려받는 것이 마음에 들지 않는 분을 위해
+  압축 파일 경로를 남겨 둡니다. 두 경로 모두 같은 설치본에서 끝납니다.
+
+### 어느 길로 오든 설치본은 하나
+
+- **고침: 플러그인 업데이트가 설치본 아래의 엔진을 바꿔 끼울 수 있었습니다.** 워처는 자기
+  코드를 Codex 플러그인 캐시 안에서 수정 시각이 가장 최근인 사본으로 결정했으므로,
+  마켓플레이스에서 더 새 플러그인을 설치하면 실행 중인 엔진이 조용히 교체되는 동안 설정 창은
+  여전히 설치된 쪽과 이야기했습니다. 이제는 설치된 애플리케이션이 이깁니다.
+- **고침: 설치가 실행해 줄 것이 없는 워처를 구성했습니다.** 이제 번들 런타임과 애플리케이션이
+  모두 있지 않으면 거부하고, 더 못한 설치본을 즉석에서 만들어 내는 대신 그것들을 설치하는
+  명령을 출력합니다.
+- **고침: 로그인 항목이 설치된 것과 다른 인터프리터를 가리킬 수 있었습니다.** 설치가 쓰는 모든
+  등록 — 자동 시작, 알림 핸들러, 워처 자신 — 이 이제 설치 프로그램이 배치한 인터프리터를
+  가리킵니다.
+- **고침: 설치 프로그램이 Python 쪽은 존중하는 상태 디렉터리 재정의를 무시했습니다.** 그래서
+  그것을 설정하면 한 곳에 배치하고 다른 곳을 구성했습니다.
+- **이제 설치 프로그램 두 개가 동시에 실행될 수 없습니다.** 더블 클릭한 `Install.cmd`와
+  플러그인 bootstrap이 서로 절반만 쓴 payload 위에 덮어쓸 수 있었습니다.
+
+### 새로운 겉모습
+
+- **초록은 은퇴했습니다.** 아이덴티티는 짙은 파랑에서 청록으로 가는 그러데이션이며, 제품 자신의
+  동작을 담고 있습니다. 기다리는 동안은 짙은 파랑, 움직이는 순간은 청록입니다.
+- **새 마크.** 컨셉 네 개를 만들어 밝은 바탕과 어두운 바탕에서 아홉 개 아이콘 크기 전부로
+  비교했고 — `build/icon_concepts.py`가 그 시트를 여전히 렌더링합니다 — 선택된 것은 앞쪽 끝에
+  밝은 머리가 달린 열린 고리입니다. 고리는 기다림, 끊긴 자리는 중단, 머리는 재개입니다. 벡터
+  원본은 `assets/brand/icon.svg`에 있습니다.
+- **설정 창과 Codex 패널을 함께 다시 디자인했습니다.** 이제 둘 다 상태가 앞에 옵니다. 워처가
+  무엇을 하고 있는지가 가장 먼저, 가장 큰 글자로 나옵니다. 예전에는 체크박스 열여섯 개 아래 맨
+  밑에 흐릿한 한 문장으로 있던 것입니다. 무엇이 재개를 기다리는지가 무엇이 설정되어 있는지보다
+  앞에 오고, 카드는 논지가 흐르는 순서대로 놓입니다. 무엇을 복구할 수 있는지, 얼마나 애쓸
+  것인지, 무엇을 알려 줄 것인지, 언제 시작하는지입니다.
+- **플러그인 카드에 이미지가 생겼습니다.** Codex는 아이콘, 밝은 로고와 어두운 로고, 스크린샷을
+  늘 검증해 왔는데 이 프로젝트는 그중 무엇도 제공한 적이 없었습니다.
+- **고침: 패널 어두운 테마의 강조색 위에 놓인 흰 글자가 2.6:1로 측정되었습니다.** 눈으로 본
+  것이 아니라 대비 단언이 찾아냈습니다. 강조색 위에 그리는 글자는 이제 자기 색을 가지며,
+  강조색이 밝아지는 바로 그때 어두워집니다.
+- **고침: 패널이 생성기가 한 번도 내보낸 적 없는 색 변수를 요청했습니다.** CSS에서 이것은
+  오류가 아닙니다 — 그 선언은 버려지고 글자는 조용히 상속받습니다.
+
+### 팔레트 네 벌 대신 한 벌
+
+네 개의 표면이 색을 각자 복사해 들고 있었고 — 설정 창은 C# 리터럴로, 패널은 스타일시트로,
+아이콘 렌더러, 플러그인 매니페스트 — 이미 서로 어긋나 있었습니다. 이제 팔레트는 모듈 하나에
+있습니다. `gui/Brand.cs`와 패널의 스타일시트는 거기서 생성되며, 테스트가 둘 다 다시 생성해
+비교하므로 손으로 고친 것은 배포되는 대신 테스트 묶음을 실패시킵니다. 또 다른 테스트는 추적되는
+모든 파일에서 은퇴한 색을 훑습니다. 색이 리브랜딩에서 살아남는 방식이 바로 그것이기
+때문입니다. 아무도 다시 열어 보지 않은 문서 안에서 말입니다.
+[`docs/BRAND.md`](BRAND.md)에 그 결정들이 기록되어 있습니다.
+
+## v0.5.1 — 제품이 실제로 무엇인지 말하기
+
+[이 릴리스에 담긴 커밋](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.5.0...v0.5.1)
+
+패치 릴리스입니다. 복구가 동작하는 방식, 무엇을 재시도하는지, 무엇을 재시도하지 않는지는
+바뀌지 않았습니다. 바뀐 것은 그 주변 전부입니다. 문서는 더 이상 존재하지 않는 버전의 이
+프로젝트를 설명하고 있었고, 설치 안내는 설치 프로그램과 모순되었습니다.
+
+### 제품과 일치하는 문서
+
+- **고침: 원클릭 설치가 Python을 PATH에 올리라고 안내했습니다.** 그 압축 파일은 바로 Python이
+  필요 없게 하려고 존재하며, 자체 런타임을 담고 있습니다. 권장 설치는 이제 README 맨 위의 세
+  단계이고 사전 준비가 없으며, Python은 정말로 필요한 곳에만 나옵니다. 소스 체크아웃, 그리고
+  마켓플레이스에서 플러그인을 바로 설치하는 경우입니다.
+- **고침: "tray 아이콘도, 설정 창도, 관리용 웹 UI도 없습니다".** 그중 둘은 v0.5에서 사실이기를
+  그만두었습니다. 이제 프로젝트 방향은 의도적으로 만든 것 — Windows 설정 창, Codex 안의 패널,
+  명령줄, 알림 — 과 여전히 의도적으로 거부하는 것 — tray 컨트롤러, 관리용 웹 UI, supervisor,
+  서비스, 두 번째 복구 엔진, 두 번째 데이터베이스 — 을 말합니다.
+- **고침: 지원한다고 한 Python 버전이 실제로 테스트한 버전이었던 적이 없습니다.** 설치는 3.10
+  미만을 거부했는데 CI는 3.12와 3.13만 돌렸으므로, Python 릴리스 두 개가 설치 프로그램에는
+  받아들여지면서 한 번도 테스트되지 않았습니다. 이제 하한은 실제로 테스트하는 가장 낮은
+  버전이며, 테스트가 설치 프로그램과 사용자가 보는 메시지와 스킬과 번들 런타임을 함께 묶어 다시
+  어긋날 수 없게 합니다.
+- README는 구현 대신 문제와 다운로드로 시작하며, 대화가 로드되어 있어야 한다는 제한을 한참
+  아래가 아니라 같은 자리에서 함께 말합니다.
+
+### 새로 공개한 문서
+
+- **[PRIVACY.md](PRIVACY.md)** — 무엇을 읽고, 무엇을 저장하며, 어딘가로 무엇을 보내는지에 대한
+  짧은 답. 아무것도 보내지 않습니다. 텔레메트리 없음, 분석 없음, 업데이트 확인 없음, 바깥으로
+  나가는 요청 없음.
+- **[SUPPORT.md](SUPPORT.md)** — 어떤 종류의 문제를 어디에 신고할지, 무엇을 담을지, 공개 이슈에
+  무엇을 붙여넣지 말아야 할지.
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** — 테스트를 실행하고 릴리스를 빌드하는 방법, 픽스처
+  규약, 그리고 변경이 지켜야 하는 안전 속성.
+- **[README.md](../README.md)** — 한국어 README. 영어 README에서 링크합니다.
+
+### 저장소 위생
+
+- 새 검사가 로컬 개발 환경이 저장소에 들어오지 않게 막습니다. 예제의 home 디렉터리는
+  placeholder여야 하고, 추적되는 파일의 UUID는 한눈에 합성된 것이어야 하며, 런타임 상태는 절대
+  추적하지 않습니다. 규칙은 값을 나열하는 대신 픽스처가 어떤 모양일 수 있는지를 서술하므로,
+  검사 자체가 그런 값이 사는 자리가 될 수 없습니다.
+- 테스트와 문서의 픽스처는 전부 문서화된 placeholder를 씁니다.
+
+### 패키징
+
+- 플러그인 메타데이터는 사람들이 실제로 검색하는 단어로 제품을 설명하며, 매니페스트와 스킬과
+  릴리스가 이제 버전에 대해 서로 일치합니다.
+
+### 의도적으로 그대로 둔 것
+
+복구는 v0.5.0에서와 정확히 똑같이 보수적입니다. 같은 장애 분류, 같은 상한 있는 시도, 처음 보는
+것에 대한 같은 fail-closed 동작, 같은 정확한 대화 식별, 결과를 알 수 없는 전송을 다시 보내지
+않는 같은 거부입니다. 복구가 전달되려면 여전히 Codex가 그 대화를 열어 두고 있어야 하며, 그
+제한은 그대로이고 여전히 문서화되어 있습니다.
+
+## v0.5.0 — 찾을 수 있는 설정, 그리고 보낸 이가 누구인지 말하는 알림
+
+[이 릴리스에 담긴 커밋](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.4.1...v0.5.0)
+
+### 세 곳에 있지만 하나를 뜻하는 설정
+
+- **독립 실행되는 Windows 설정 창.** 시작 메뉴에 있습니다. Codex가 닫혀 있어도, 플러그인이
+  언로드되어 있어도, MCP 서버를 쓸 수 없어도, 네트워크가 없어도, 로그인하지 않았어도, 시스템
+  Python이 없어도 동작합니다 - 설정이 가장 중요한 순간은 바로 설정 대상을 쓸 수 없을 때이기
+  때문입니다.
+- **Codex 안의 설정 패널.** 플러그인이 선언한 MCP 서버 위에 올라갑니다. auto resume 설정을 열어
+  달라고 하면 대화 안에 그려집니다.
+- **명령줄.** 그대로입니다.
+
+셋 다 검증되는 하나의 계층을 통해 읽고 씁니다. 그래서 어느 한쪽에서 설정한 값이 다른 쪽에서
+보이는 값입니다. 그 계층은 실제 버그의 수정이기도 합니다. 워처는 열여섯 개 필드 중 세 개만
+이해하는 자기 설정 리더와, 그 세 개만 저장하는 짝 writer를 갖고 있었습니다 - 그래서
+`enable --lookback-hours 8`이 모든 복구 분류와 알림 설정을 조용히 지웠습니다. 이제 리더도 하나,
+writer도 하나입니다.
+
+### 이제 설정이 실제로 워처를 다스립니다
+
+스키마는 아무도 읽지 않는 정책을 서술하고 있었습니다. 이제 엔진이 그것을 따릅니다. 꺼 둔 분류는
+아예 기록되지 않으므로 그에 대해서는 예약도, 시도도, 알림도 없습니다. 일시적 장애의 backoff는
+선택한 타이밍 preset을 따릅니다. 그리고 시도 상한과 무진전 상한은 설정에서 옵니다. 변경은 다음
+폴링에서 반영되며, 아무것도 재시작할 필요가 없습니다.
+
+정책은 정책으로 남습니다. 설정 파일이 닿을 수 있는 모든 것은 같은 강제 변환을 거치므로, 손으로
+고쳤거나 악의적인 설정 파일이 할 수 있는 최악은 복구를 *더* 보수적으로 만드는 것뿐입니다 -
+그리고 엔진의 안전 한계는 스키마에 아예 없습니다. 분류되지 않은 장애를 재시도하거나, 제목으로
+대화를 찾거나, 결과가 불확실한 전송을 다시 보내거나, 강제로 전송하는 설정은 여전히 없습니다.
+
+### 수명 주기 전체에 걸쳐 보낸 이가 누구인지 말하는 알림
+
+- **고침: Windows가 우리 알림을 PowerShell이 보낸 것으로 표시했습니다.** 이제 이 프로젝트
+  자신의 아이콘과 함께 **Codex Auto Resume**로 표시됩니다. 여기에는 등록이 하나가 아니라 둘
+  필요합니다. AppUserModelID가 이름과 아이콘을 공급하고, 같은 id를 담은 시작 메뉴 바로 가기가
+  있어야 Windows가 토스트를 *그립니다*. 바로 가기가 없으면 플랫폼은 토스트를 받아들이고
+  기록하고 알림 센터에 넣어 두면서 한 번도 보여 주지 않습니다. 이벤트 로그가 아니라 화면을 보고
+  발견했습니다. 이벤트 로그는 "delivered"라고 말하고 있었습니다.
+- 첫 알림에 세 가지가 더해집니다. 복구 시작, 그 결과, 그리고 복구를 완전히 중단할 때입니다.
+  각각은 상태 변화 자체에서 한 번만 발생하므로 알림과 기록이 어긋날 수 없습니다. 결과가
+  불확실한 전송은 불확실하다고 보고되며, 재시도될 실패로 보고되는 일은 없습니다.
+- 각 이벤트는 자기 스위치를 가지며, 그 위에 마스터 스위치가 있습니다. 둘 다 이벤트가 일어나는
+  순간에 읽습니다.
+
+### 복구
+
+- **고침: 시도를 소진한 복구에 시도 횟수를 되돌려 줄 수 없었습니다.** 시도를 다 쓰면 레코드는
+  종료 상태로 남고, 종료 상태 레코드는 다시 활성화할 수 없습니다 - 끝났거나 취소되었거나 전송
+  결과가 불확실한 복구가 엉뚱한 쓰기 때문에 다시 시작되는 것을 막는 가드입니다. 그래서 상한을
+  되돌리려 하면 되돌리는 대신 예외가 났습니다. 그 가드를 넓히는 대신, 사람이 되돌릴 수 있는
+  유일한 정지 상태에 자기 연산을 주었습니다. 이 연산은 소진 상태 두 가지만 받아들이고,
+  취소되었거나 전송의 흔적이 조금이라도 있는 것은 거부하며, 상한만 지우고 그 외에는 아무것도
+  건드리지 않습니다. 레코드는 후보로 다시 큐에 들어가고 모든 관문이 처음부터 다시 동작합니다.
+- **지금 재시도**는 대기 중인 복구의 다음 시도를 앞당깁니다. 전송이 아닙니다. 워처는 여전히
+  다시 검증하고, 여전히 대화가 열려 있어야 하며, 여전히 사용량을 기다리고, 여전히 불확실한
+  것은 거부합니다.
+
+### 사용량 한도 체크박스, 처음부터 다시 조사
+
+`codex-cli 0.153.4`와 ChatGPT 데스크톱 `26.901.5280.0`을 대상으로 다시 확인했습니다. 답은
+달라지지 않았습니다. 그 안내는 Electron 번들 안의 컴파일된 메시지 id로 조립되며, 어떤 매니페스트
+필드도, MCP 표면도, 훅도 거기에 닿을 수 없습니다. 중단이 일어나는 순간에 Codex 네이티브 폼을
+띄우는 것은 이제 기술적으로 가능하지만 여전히 내보내지 않으며, 그것은 기술적인 이유가 아니라
+밝혀 둔 이유 때문입니다 - 그렇게 하면 실패한 대화가 아니라 그때 마침 열려 있는 아무 대화에 폼을 밀어
+넣게 되고, Codex가 실행 중일 때만, 그리고 원격 기능 게이트가 켜진 곳에서만 동작합니다. 그 자리에
+흉내 낸 것을 넣지도 않았습니다. [docs/PLUGIN.md](PLUGIN.md)를 참고하세요.
+
+### 설치본이 조용히 동작을 멈출 수 있었던 세 가지 경로
+
+셋 다 코드를 읽어서가 아니라, 재부팅한 실제 컴퓨터에서 제품을 써 보다가 발견했습니다. 워처는
+실행되고 있지 않았고, 그 사실을 말해 주는 것은 설정 패널뿐이었습니다.
+
+- **고침: 자동 시작 명령이 인용된 적이 없었습니다.** `subprocess.list2cmdline`은 공백이 든
+  토큰만 인용하므로, 공백이 없는 경로에 설치하면 전혀 인용되지 않은 Run 값이 만들어졌습니다.
+  `C:\Users\Example User\...` 아래에서 Windows는 그것을 `C:\Users\Example`이라는 프로그램으로
+  읽고, 워처는 로그인할 때 시작되지 않습니다 - 제품이 동작하는지 아닌지가 사용자 이름에 달려
+  있었던 것입니다. 이제 레지스트리에 쓰는 모든 명령은 문서화된 CommandLineToArgvW 규칙으로
+  인용하며, 알림 버튼의 프로토콜 핸들러와 시작 메뉴 항목도 포함합니다.
+- **고침: 업그레이드가 사용 중인 설치본을 교체하지 못했습니다.** Codex는 이 플러그인의 MCP
+  서버를 계속 실행해 두고, 그 서버가 번들 인터프리터의 DLL을 열어 두는데, 로드된 DLL은 지울 수
+  없습니다 - 그래서 런타임 디렉터리를 지우는 일이 도중에 실패했고, 애플리케이션은 업데이트되고
+  인터프리터는 사라진 상태가 남았습니다. Windows는 열린 파일이 든 디렉터리의 이름을 바꾸는 것은
+  허용하므로, 옛 사본을 옆으로 옮겨 두었다가 나중에 청소합니다. 무엇을 복사하기 전에 모든 것을
+  먼저 옮기며, 둘 중 어느 단계에서 실패하더라도 설치본은 정확히 이전 상태로 되돌아갑니다.
+- **고침: Codex가 플러그인을 실행하고 있는 동안에는 그 플러그인을 업데이트할 수 없었습니다.**
+  `plugin add`는 캐시 디렉터리를 백업하는데 접근 오류로 실패했습니다. 열려 있는 파일이 플러그인
+  안에 있는 우리 자신의 MCP 런처였기 때문입니다 - Codex는 플러그인 안에 담긴 명령 경로만
+  받아들이므로 그 안에 있을 수밖에 없습니다. 이제 설치 프로그램은 자기 런처만 중지하고 한 번
+  다시 시도합니다. Codex는 다음에 서버가 필요할 때 새로 하나를 시작합니다.
+- 워처 런처는 무엇이든 실패할 수 있게 되기 전에 자신이 실행되었다는 사실부터 기록하고,
+  빠져나가는 길에서 모든 예외를 잡습니다. `pythonw.exe` 아래에는 stderr가 없어서 초기 실패는
+  로그 줄도, 이벤트도, 흔적도 남기지 않았습니다 - "Windows가 시작했는데 죽은 것인가, 아니면
+  Windows가 아예 시작하지 않은 것인가"에 전혀 답할 수 없었던 이유입니다.
+- 설정 창과 Codex 패널은 워처가 멈춰 있을 때 막다른 길을 알리는 대신 **워처 시작**을
+  제안합니다. 설치 프로그램이 시작하는 것과 같은 프로세스를 시작합니다.
+
+### 패키징
+
+- 이제 플러그인은 MCP 서버가 번들 인터프리터에서 시작될 수 있도록 작은 런처를 함께 내보냅니다.
+  Codex는 플러그인 명령을 맨 이름이나 플러그인 안에 담긴 경로로만 받아들이는데, 맨 `python`은
+  이 제품이 없앤 시스템 Python 요구 사항을 되살려 놓기 때문입니다.
+- 그 런처는 자식이 표준 스트림을 상속받게 두는 대신 직접 중계합니다. `CREATE_NO_WINDOW`로
+  시작되고 핸들을 명시적으로 받지 못한 자식은 쓸 수 있는 표준 핸들을 얻지 못하므로, 서버는 오지
+  않는 입력을 기다리고 호스트는 오지 않는 handshake를 기다립니다.
+
+## v0.4.1 — 알림에 이유를 되돌려 놓기
+
+[이 릴리스에 담긴 커밋](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.4.0...v0.4.1)
+
+- **고침: 알림이 왜 나타났는지 한 번도 말해 주지 않았습니다.** Windows는 토스트에서 `<text>`
+  요소를 최대 세 개까지만 그리고 네 번째는 조용히 버리므로, 네 줄짜리 배치는 본문 줄을
+  잃었습니다. 토스트에는 작업 이름, 프로젝트, 스레드 id가 보였고 "Codex usage limit reached"나
+  "Codex was temporarily interrupted"는 보이지 않았습니다.
+  이제는 세 줄에 맞춥니다 - 이름, 이유, 그다음 프로젝트와 정확한 스레드 id를 함께 - 이유를
+  식별자보다 앞에 둡니다. 들어가지 못한 줄은 사라지는데, 이유를 잃으면 알림 자체가 무의미해지기
+  때문입니다. 스레드 id는 여전히 항상 표시됩니다.
+  생성된 마크업이 아니라 실제 알림을 보고 발견했습니다.
+
+## v0.4.0 — 더 많이 복구하고, 덜 추측하고, 한 단계로 설치하기
+
+[이 릴리스에 담긴 커밋](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.3.2...v0.4.0)
+
+### 사용량 한도를 넘어선 복구
+
+- **명백히 일시적인 장애도 이제 복구합니다.** 자기 정책을 따로 두고서입니다. 둘은 의도적으로
+  합치지 않았습니다. 사용량 한도는 실제 리셋 타임스탬프까지 기다리고, 끊긴 연결은 상한 있는
+  사다리(5s, 15s, 30s, 60s, 120s)를 따라 기다리며 그보다 오래 기다리지 않습니다.
+- 분류는 **문구가 아니라 구조로** 합니다. Codex 자신이 기록하는 `codexErrorInfo` variant를 읽고,
+  그다음 그 variant가 담은 HTTP status를 읽습니다. 메시지는 구조화된 코드가 아예 없을 때만,
+  그리고 코드가 없는 전송 계층 장애(타임아웃, DNS, TLS, broken pipe)에 한해서만 참고합니다.
+  구조화된 코드를 메시지 문구가 뒤집는 일은 없습니다.
+- **복구합니다:** 사용량 한도, 연결 실패, 타임아웃(408/425), 일시적 rate limit(429), 서버
+  오류(500-599, `serverOverloaded`, `internalServerError`), 스트림 끊김.
+- **복구하지 않습니다:** 사용자 취소, 권한, 승인, 정책, 잘못된 요청, 컨텍스트 길이, 영구 인증
+  실패(401/403/`unauthorized`), `badRequest`, `sandboxError`,
+  `responseTooManyFailedAttempts`(Codex가 이미 재시도하고 포기한 것), 그리고 분류되지 않은 모든
+  것.
+- **모르는 것은 절대 재시도하지 않습니다.** 이 도구가 분류할 수 없는 오류는 아예
+  등록되지 않으므로, 이후의 어떤 단계도 그것에 대해 동작할 수 없습니다. 이는 기본적으로
+  재시도하는 것의 정반대이며, 그것이 요점입니다. 놓친 복구가 잘못된 복구보다 쌉니다.
+- **상한 있는 예산.** 일시적 장애의 연쇄는 복구 시도 4회 뒤에 멈추고(`retry_budget_exhausted`),
+  아무것도 만들어 내지 못한 복구가 3회 연속되면 멈춥니다(`no_progress_exhausted`). 진전 여부는
+  수명 주기 메타데이터만으로 판단합니다. 이후의 턴이 완료되었는지, 그리고 최종 에이전트 항목을
+  기록했는지입니다. 메시지 문구는 읽지 않습니다.
+- **언제나 사용자가 이깁니다.** 바로 그 스레드에 이후의 턴이 있으면 - 사용자가 이어서
+  진행했든, Codex가 그랬든 - 오래된 중단은 `superseded_by_user`가 되고 더 새로운 작업 위에
+  재개되는 일은 없습니다.
+- 기존 상태는 그 자리에서 업그레이드됩니다. 대기 중인 복구는 업데이트를 넘어 살아남습니다.
+
+### 어떤 작업인지 말해 주는 알림
+
+- 이제 알림은 사람이 알아보는 이름으로 시작합니다. 대화 제목, 없으면 프로젝트, 없으면 작업
+  디렉터리 이름, 없으면 "Codex task"입니다. **정확한 스레드 UUID는 항상** 자기 줄에
+  **표시됩니다.** 제목은 겹치지만 식별자는 겹쳐서는 안 되기 때문입니다.
+- 문구는 장애를 따릅니다. 사용량 한도는 언제 재개할지 말하고, 일시적 장애는 재시도 중이라고
+  말합니다. 어느 쪽이든 취소 버튼은 하나입니다.
+- 표시용 이름은 `threads.name`에서만 읽습니다. 이 스키마에서 `title`, `preview`,
+  `first_user_message`는 모두 가공되지 않은 첫 프롬프트를 담고 있으므로(여러 줄에 67 KB인 것을
+  관측했습니다) 절대 읽지 않습니다. 레이블에는 길이 상한이 있고 한 줄이어야 하므로, 스키마가
+  바뀌어도 프롬프트가 알림이 될 수는 없습니다.
+- **이름은 표시용일 뿐입니다.** 복구는 여전히 제목이나 프로젝트나 최근 순으로 무엇도 찾지
+  않으며, 정확한 UUID가 유일한 식별자로 남습니다.
+
+### 원클릭 설치
+
+- `install/Install.cmd`는 마켓플레이스를 등록하고, 플러그인을 설치하거나 업데이트하고, Python이
+  있는지 확인한 뒤, 플러그인 자신의 설치 절차로 넘깁니다. 런타임이 아니라 bootstrapper입니다.
+  관리자 권한 없음, 서비스 없음, 예약 작업 없음, HKCU만 사용, 상태는 절대 지우지 않습니다.
+  다시 실행하면 그 자리에서 업그레이드합니다. `Uninstall.cmd`는 워처부터 시작해 이를 되돌립니다.
+- Python을 자동으로 내려받거나 설치하는 일은 절대 없습니다. 인터프리터가 없으면 링크와 함께
+  알리고, 설치 프로그램은 아무것도 실행 중인 채로 남기지 않고 멈춥니다.
+- 먼저 확인했고 쓸 수 없었던 것: 이 Codex 빌드에는 플러그인 설치 딥링크가 없고
+  `codex plugin add`는 등록된 마켓플레이스를 요구하므로, 두 명령을 공식적으로 하나로 줄일 수
+  없습니다.
+- 설치 프로그램을 실제로 시험하다가 고친 것들: 결과가 하나뿐인 PowerShell 파이프라인은
+  스칼라이므로, 거기에 인덱스를 걸면 엔진 경로의 첫 글자가 나왔습니다. 이미 등록된
+  마켓플레이스는 낡은 스냅샷을 유지해서 업데이트가 도착하지 않았습니다. Python 버전 프로브의
+  인용이 인수 전달을 넘어가지 못했습니다. 그리고 설치가 등록된 자동 시작을 문자열 완전 일치로
+  비교해서, Python을 업그레이드하면 설치본 하나가 둘처럼 보이고 설치가 영원히 거부했습니다.
+
+## v0.3.2 — 로그인 자동 시작이 실제로 시작되게 하기
+
+[이 릴리스에 담긴 커밋](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.3.1...v0.3.2)
+
+- **고침: 등록된 로그인 자동 시작이 실행될 수 없었습니다.** Run 값이 `run`으로 끝나는데 런처가
+  `run`을 한 번 더 붙여서, 로그인할 때마다 명령이 인수 오류로 죽었습니다. 설치에서 워처를
+  시작할 때는 인수를 넘기지 않아 잘 동작했기 때문에 눈에 띄지 않았습니다. 이제 런처는 자기
+  인수를 실행할 명령으로 취급하며, 기본값은 워처입니다.
+- **고침: 알림 버튼이 다음 플러그인 업데이트에서 망가졌습니다.** 버전 이름이 붙은 플러그인
+  자신의 디렉터리를 가리키도록 등록되어 있었기 때문입니다. 이제는 자동 시작과 같은 안정적인
+  런처를 거치므로, 두 등록 중 어느 것도 업데이트 때문에 고아가 될 수 없습니다.
+- 두 등록 모두 이제 실제로 등록되는 명령을 파싱해 진짜 인수 파서에 넣어 보는 테스트가
+  검사합니다.
+
+## v0.3.1 — 상태를 남의 샌드박스 밖에 두기
+
+[이 릴리스에 담긴 커밋](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.3.0...v0.3.1)
+
+- **런타임 상태를 `%LOCALAPPDATA%`에서 `%USERPROFILE%\.codex-auto-resume\`로 옮겼습니다.**
+  설치는 패키지된(MSIX) 호스트에서 실행될 수 있고, Windows는 그런 호스트의 AppData 쓰기를 자기
+  전용 `LocalCache`로 조용히 리디렉션합니다. 환경 변수는 여전히 평범한 경로로 읽히는데 파일은
+  무관한 애플리케이션 안에 떨어지는 것입니다. 이렇게 설치하면 상태와 로그와 자동 시작 런처가
+  다른 앱의 샌드박스 안에 놓이고, 그 앱을 제거하면 그것들도 함께 사라졌을 것입니다. 사용자
+  프로필 루트는 리디렉션되지 않으며, Codex가 자기 상태를 `~/.codex`에 두는 이유도 그것입니다.
+  플러그인을 실제로 설치해 보고 파일이 실제로 어디로 갔는지 되읽어서 발견했습니다.
+
+## v0.3.0 — 중요한 순간에 놓이는 컨트롤
+
+[이 릴리스에 담긴 커밋](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.2.0...v0.3.0)
+
+- **중단을 감지하면 Windows 알림이 뜹니다.** 그 순간에는 워처가 실행 중이므로, 여기가 컨트롤을
+  제때 제시할 수 있는 유일한 자리입니다. 그때 Codex 턴은 이미 실패한 뒤이므로 앱 자신의 사용량
+  한도 안내에는 무엇도 추가할 수 없습니다.
+  토스트는 대화가 언제 이어질지 알려 주고 **Don't resume** 버튼 하나를 답니다. 아무것도 하지
+  않으면 재개되며, 그것이 기본값입니다.
+- 그 버튼은 `HKCU\Software\Classes` 아래에 등록되는 사용자 단위 `codex-auto-resume:` URL
+  프로토콜로 처리합니다. 이 프로토콜이 받아들이는 동작은 정확히 하나 — 취소 — 이므로 악의적인
+  URI는 재개를 멈추게 할 수만 있고 일으킬 수는 없습니다. 중단 id는 불투명한 16진수인지 검증하고
+  실제 레코드와 일치해야 합니다. 스레드 이름이나 최근 순으로 찾는 것은 아무것도 없습니다.
+- 토스트는 짧게 줄인 대화 id와 로컬 시각만 보여 줍니다. 프롬프트 내용, 오류 내용, 계정 데이터는
+  절대 보여 주지 않습니다. PowerShell은 `-EncodedCommand`로 호출하므로 어떤 메시지 문구도
+  스크립트로 재해석될 수 없습니다.
+- 전달은 최선 노력입니다. 표시할 수 없거나, 시간이 초과되거나, 예외를 내는 알림은 기록하고
+  무시합니다. 알림이 재개 여부를 바꾸는 일은 절대 없습니다.
+- 끄려면 `config/settings.json`에서 `"notifications": false`로 설정하세요.
+- 릴리스 전에 고친 것: 토스트 문서를 XML *속성*인 것처럼 이스케이프해서, 자기 꺾쇠괄호가
+  엔티티로 바뀌고 모든 알림이 조용히 실패했습니다. 이제 문서는 PowerShell 문자열 리터럴로
+  삽입되며, 테스트가 실제로 보내지는 명령에서 그 문서를 파싱해 냅니다.
+
+## v0.2.0 — Codex 안에서 설치하고 제어하기
+
+[이 릴리스에 담긴 커밋](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.1.0...v0.2.0)
+
+- **Codex 플러그인.** 이제 저장소 루트가 Codex 플러그인 루트이기도 하며, 마켓플레이스
+  인덱스(`.agents/plugins/marketplace.json`), 매니페스트(`.codex-plugin/plugin.json`), 스킬
+  하나를 담고 있습니다. `codex plugin marketplace add songyb111-gachon/codex-auto-resume-windows`에
+  이어 `codex plugin add codex-auto-resume@codex-auto-resume-windows`로 설치한 뒤, Codex에게
+  설정해 달라고 하면 됩니다.
+  `src/` 사본은 정확히 하나이며, 엔진은 복제되는 대신 플러그인과 함께 나갑니다.
+- 플러그인은 기존 명령줄 인터페이스 위에 놓인 얇은 앞단입니다. MCP 서버도, 두 번째 엔진도, 자체
+  복구 로직도 추가하지 않으며, 스레드에 메시지를 큐에 넣는 일도 절대 없습니다.
+- 플러그인 설치의 경우 **런타임 상태를 플러그인 디렉터리 밖으로** 옮겨
+  `%USERPROFILE%\.codex-auto-resume\`에 둡니다. 플러그인을 업데이트하거나 제거해도 더 이상 대기
+  중인 재개가 위험해지지 않습니다. 자동 시작은 실행할 때마다 현재 플러그인 버전을 다시 찾아내는
+  작고 안정적인 런처를 가리키므로, 업데이트해도 다시 등록할 필요가 없습니다. 수동 설치는
+  그대로입니다.
+- **설치본이 두 개면 합치는 대신 거부합니다.** 수동 체크아웃과 플러그인 설치는 상태도 단일
+  인스턴스 락도 따로 갖기 때문에, 워처 둘이 모두 실행되어 같은 중단을 각자 재개할 수 있습니다.
+  다른 설치본이 이미 로그인 자동 시작을 소유하고 있으면 설치가 멈춥니다.
+- 기본은 영어이고, 한국어는 UI 선호 언어 1순위가 한국어일 때만 씁니다. 이는 ChatGPT 데스크톱
+  앱이 자기 표시 언어를 정할 때 쓰는 것과 같은 출처에서 읽습니다. IP 주소, 시간대, 사용자 이름,
+  국가, 키보드 배열로 언어를 추측하지 않습니다.
+
+### 고친 것
+
+- **`uninstall`이 다른 설치본에 속한 Windows 로그인 자동 시작 값까지 지웠고**, 자기 것이 아닌
+  워처를 조용히 무력화했습니다. 이제는 제거 대상 설치본을 시작하는 값만 등록 해제하며, 그 밖의
+  것은 남겨 두었다고 보고합니다. 수동 설치본이 등록된 상태에서 격리된 home을 대상으로 플러그인의
+  제거를 실행해 보다가 발견했습니다.
+- 이제 설치는 레거시 코드 페이지 콘솔에서 죽지 않습니다. 콘솔이 체크 표시를 인코딩할 수 없으면
+  ASCII로 대체합니다.
+
+### 의도적으로 구현하지 않은 것
+
+- Codex 사용량 한도 안내 안의 체크박스입니다. 거기에 컨트롤을 놓을 수 있는 공식 플러그인 API가
+  없고, 대안은 전부 이 프로젝트가 쓰지 않는 주입이나 GUI 자동화의 형태입니다. 대체 GUI를 만들지도
+  않았습니다. 근거는 [docs/PLUGIN.md](PLUGIN.md)를 참고하세요.
+
+### 그 밖에
+
+- 첫 버전 변경에서 멈추는 대신 Codex 앱 업데이트를 넘어 살아남습니다.
+  - 로컬 데이터베이스는 스키마 세대(`state_5`, `thread_history_1`, ...)로 찾아내고 실제로 읽는
+    컬럼으로 검증하므로, 세대가 올라가도 더 이상 감지가 깨지지 않습니다. 컬럼이 더 있는 것은
+    괜찮지만, 필요한 컬럼이 없으면 여전히 거부합니다.
+  - 엔진 버전 완전 일치 검사를 능력 프로브로 바꿨습니다. 검증된 버전은 신뢰하고, 처음 보는
+    버전은 `codex queue`가 여전히 `--thread`와 `--message`를 제공할 때만 받아들입니다. 엔진이
+    검증되지 않았을 때는 `status`와 `doctor`와 워처 로그가 그 사실을 분명히 말합니다.
+- 오류 메시지에 하드코딩된 버전 대신 실제로 적용 중인 엔진 고정 값을 표시합니다.
+
+## v0.1.0 — 첫 공개 릴리스
+
+[이 릴리스에 담긴 커밋](https://github.com/songyb111-gachon/codex-auto-resume-windows/commits/v0.1.0)
+
+사용량 한도로 중단된 Codex 작업을 재개하는 로컬 전용 Windows 워처 `codex-auto-resume-windows`의
+첫 공개 릴리스입니다.
+
+### 포함된 것
+
+- `status=failed`와 `codexErrorInfo=usageLimitExceeded`가 함께 있을 때만 발동하는 사용량 한도
+  감지. 완료, 중단, 일반 실패, 도구 오류, 형식 오류, 알 수 없는 상태는 절대 재개하지 않습니다.
+- UUID로 하는 정확한 스레드 추적. `--last`는 절대 쓰지 않으며, 한 스레드의 실패가 다른 스레드를
+  재개하는 일은 있을 수 없습니다.
+- 리셋 시각을 아는 대기. 실제 리셋 타임스탬프가 있으면 그것을 쓰고, 없으면 보수적으로
+  폴링하며, 전송 직전에 실시간 사용량을 다시 확인합니다.
+- 로드된 스레드 안전 가드. 스레드가 데스크톱 앱에 로드되어 있음이 검증 가능해야 하며, 이는 앱
+  자신의 파일을 한 번도 잠그지 않고 Windows 재시작 관리자로 판정합니다. 상태를 알 수 없으면
+  절대 전송하지 않습니다.
+- 미로드 스레드는 강제로 열려는 어떤 시도도 하지 않고 안전하게 기다립니다.
+- 프로세스 크래시와 워처 재시작을 넘어 살아남는 중복 재개 방지.
+- SQLite에 저장하는 durable한 대기 상태. 여러 중단 스레드를 동시에 지원합니다.
+- 상한 있는 재시도 backoff, 전역 kill switch, 그리고 스레드별 활성화/비활성화/취소.
+- CLI: `doctor`, `enable`, `disable`, `status`, `pending`, `cancel`, `logs`, `run`, `stop`,
+  `install`, `uninstall`.
+- 사용자 단위 named mutex로 하는 단일 인스턴스 보호.
+- 관리자 권한이 필요 없는, 선택적인 사용자 단위 Windows 로그인 자동 시작.
+- 자기가 만든 디렉터리 안에서만 지우고, 워처가 실행 중일 수 있으면 중단하는 보수적인 제거.
+- 프롬프트 내용, 오류 내용, 계정 식별자를 절대 기록하지 않는 회전 로그.
+- 자동 테스트 묶음, 그리고 선택적으로 켜는 읽기 전용 실환경 점검.
+
+### 알려진 제한
+
+- Windows ChatGPT/Codex 데스크톱 앱에 이미 로드된 스레드만 자동 재개할 수 있습니다. 앱을
+  재시작한 뒤에는 사용자가 그 대화를 다시 열어야만 미로드 스레드가 재개됩니다. 이는 빠뜨린 것이
+  아니라 실측한 제한입니다.
+- 실제로 차단한 사용량 버킷을 로컬 기록만으로 항상 확실하게 특정할 수는 없습니다.
+- 검증된 Codex 엔진 버전과 로컬 스키마에 고정되어 있으며, 다른 버전은 거부합니다.
+- 완전한 종단간 무인 경로는 지금까지 실제 환경에서 제한적으로만 시험되었습니다.
+
+### 크레딧
+
+Youngbin Song이 만들었고, OpenAI Codex(조사, 개념 증명, 초기 구현)와 Anthropic Claude
+Code(완성, 테스트, 보안 및 적대적 감사)의 AI 지원 개발이 함께했습니다. `CONTRIBUTORS.md`를
+참고하세요.

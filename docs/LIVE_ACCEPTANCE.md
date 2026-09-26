@@ -1,649 +1,569 @@
-# Accepting a release on a real machine
+# 실제 기기에서 릴리스 인수하기
 
-The automated suite proves that the engine does what its tests say, against a Codex-shaped
-SQLite home the tests build themselves. It never starts the desktop app, never sends a
-continuation and never watches one arrive. Everything in this document is the other half:
-what a person does on a real Windows machine, against a real Codex installation, before a
-release is published — and what they write down afterwards, so that months later anyone
-can tell a step that was performed from a step that was described.
+> 🌐 한국어 문서입니다. English version: [`main` 브랜치의 docs/LIVE_ACCEPTANCE.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/LIVE_ACCEPTANCE.md)
 
-Each step below says what it proves, exactly what to do, what a pass looks like, and what
-to record. Each one ends in a single JSON file under `docs/evidence/live/`, in the schema
-this document defines, and `python scripts/live_evidence.py` refuses the shapes that make
-a record of a procedure indistinguishable from a record of nothing.
+자동 테스트 모음은 테스트가 직접 만든 Codex 모양의 SQLite 홈을 상대로, 엔진이 자기 테스트가 말하는
+대로 동작한다는 것까지를 증명합니다. 데스크톱 앱을 띄우지 않고, 연속 메시지를 보내지 않으며, 그것이
+도착하는 장면을 보지 않습니다. 이 문서에 적힌 것은 나머지 절반입니다. 릴리스를 게시하기 전에, 실제
+Windows 기기에서 실제 Codex 설치를 상대로 사람이 직접 하는 일, 그리고 그 뒤에 남기는 기록입니다.
+몇 달이 지난 뒤에도 "실제로 해 본 단계"와 "해 봤다고 적어 둔 단계"를 구별할 수 있어야 하기
+때문입니다.
 
-An empty `docs/evidence/live/` is not a pass. It means nothing has been accepted yet.
+각 단계는 무엇을 증명하는지, 정확히 무엇을 하는지, 통과란 어떤 모습인지, 무엇을 기록하는지를
+적습니다. 각 단계는 `docs/evidence/live/` 아래의 JSON 파일 하나로 끝나고, 그 스키마는 이 문서가
+정의합니다. `python scripts/live_evidence.py`는 "절차를 수행한 기록"과 "아무것도 수행하지 않은 기록"을
+구별할 수 없게 만드는 모양들을 거부합니다.
 
-## Before you start
+`docs/evidence/live/`가 비어 있는 것은 통과가 아닙니다. 아직 아무것도 인수되지 않았다는 뜻입니다.
 
-- **A real machine and a real Codex.** A Windows machine you are willing to install on,
-  the ChatGPT/Codex desktop app signed in, and the `codex` CLI on `PATH`. A virtual
-  machine is fine and is the better choice, because the last step here uninstalls the
-  product and the one before it installs over an existing copy.
-- **A disposable conversation.** This procedure makes the product send real messages into
-  a real conversation. Start a new conversation in the desktop app, do the whole
-  acceptance in it, and never point any of it at work you care about.
-- **The release candidate.** The archive built for the version you are accepting, and the
-  `.sha256` published beside it. The version in `.codex-plugin/plugin.json` is the version
-  every evidence file has to claim, so accept a build whose manifest already says the
-  number that is about to be released. The installation step 13 upgrades from is the last
-  published release that is not a pre-release - the one `releases/latest` answers with.
-- **What v0.6.3 adds is checked inside these steps.** [What v0.6.3 adds, and where to write
-  it down](#what-v063-adds-and-where-to-write-it-down) names the step each check belongs to
-  and the file whose note records it; read it before step 3.
-- **Time.** One step waits for a usage reset that may be hours away, and one step cannot
-  be reached at all until a usage limit really happens to you. Both are described below.
-- **Write each file as you finish its step**, not at the end. The whole reason this
-  document exists is that evidence written from memory is a description of what should
-  have happened.
+## 시작하기 전에
 
-Nothing here asks you to record what a conversation said. The schema has no field for a
-prompt, a reply, a title, a project, a path or a person, the validator refuses a field
-that looks like one, and ids are written only as the aliases the diagnostics export uses.
-A step that seems to need conversation content is a step that has been misread: what is
-being accepted is that the product moved a record through the states it claims, not what
-anybody was working on.
+- **실제 기기와 실제 Codex.** 설치해도 괜찮은 Windows 기기, 로그인된 ChatGPT/Codex 데스크톱 앱,
+  `PATH`에 있는 `codex` CLI. 가상 머신이어도 되고, 오히려 낫습니다. 여기의 두 단계는 무언가를
+  제거하기 때문입니다.
+- **버려도 되는 대화 하나.** 이 절차는 제품이 실제 대화에 실제 메시지를 보내게 만듭니다. 데스크톱
+  앱에서 새 대화를 하나 만들어 인수 전체를 그 안에서 하고, 아끼는 작업에는 절대 겨누지 마세요.
+- **인수할 릴리스 후보.** 인수하려는 버전으로 빌드된 압축 파일과 그 옆에 게시된 `.sha256`.
+  `.codex-plugin/plugin.json`의 버전이 모든 증거 파일이 적어야 하는 버전이므로, 매니페스트가 이미
+  게시될 번호를 말하고 있는 빌드를 인수하세요. 13단계에서 올리기 전의 설치본은 마지막으로 게시된
+  정식 릴리스, 곧 `releases/latest`가 답하는 릴리스입니다. 프리 릴리스는 치지 않습니다.
+- **v0.6.3에서 더해진 것은 단계 안에서 확인합니다.** 아래의 **v0.6.3에서 더해진 확인** 절이
+  확인마다 어느 단계에서 하고 어느 파일의 메모에 적는지 말합니다. 3단계 전에 읽어 두세요.
+- **시간.** 한 단계는 몇 시간 뒤일 수도 있는 사용량 재설정을 기다리고, 한 단계는 사용량 한도가 실제로
+  걸리기 전에는 도달할 수 없습니다. 둘 다 아래에 적어 둡니다.
+- **각 단계를 끝낼 때마다 그 자리에서 파일을 쓰세요.** 마지막에 몰아서 쓰지 마세요. 이 문서가 있는
+  이유 자체가, 기억을 더듬어 쓴 증거는 일어난 일이 아니라 일어났어야 할 일의 서술이기 때문입니다.
 
-## What needs a real interruption, and what does not
+여기서 대화의 내용을 적으라고 하는 곳은 한 군데도 없습니다. 스키마에는 프롬프트, 답변, 제목,
+프로젝트, 경로, 사람을 담을 필드가 없고, 검증기는 그런 이름의 필드를 거부하며, 식별자는 진단 내보내기가
+쓰는 별칭으로만 적습니다. 대화 내용이 필요해 보이는 단계가 있다면 잘못 읽은 것입니다. 인수되는 것은
+제품이 스스로 주장하는 상태들을 기록 하나를 통해 실제로 지나갔다는 사실이지, 그때 누가 무슨 작업을
+하고 있었는지가 아닙니다.
 
-Three different answers, and the difference is the honest part of this document.
+## 실제 중단이 필요한 단계와 그렇지 않은 단계
 
-**A usage limit cannot be summoned.** There is no way to ask OpenAI to say you are out of
-quota, and manufacturing one — editing Codex's database, or pointing the watcher at a
-home we wrote ourselves — would test our reading of a file we had just written. So
-`interruption-detected` is accepted with `category` recorded as `usage_limit` only when a
-usage limit really happened to you. Until then, run the rest of the acceptance on an
-induced transient failure and record the usage-limit half as `blocked`, with a note. It
-is better to ship a release saying the usage-limit path was last watched working on a
-named earlier date than to ship one saying it passed because a fixture said so.
+답이 셋이고, 그 차이가 이 문서의 정직한 부분입니다.
 
-**A transient interruption can be induced, and that is the one you can make happen.**
-Start a long turn in the disposable conversation and take the network away while it is
-running — flight mode, or disabling the adapter — for long enough that the turn fails,
-then put it back. Codex records the failure with its own `codexErrorInfo`, and what
-category the watcher gives it is part of the evidence rather than something to assume: a
-transport failure normally lands in the transient family, and if this one classifies as
-`unknown` the watcher will correctly refuse to retry it, which is a pass for the engine
-and a `blocked` for every step downstream of it. Try again, or wait for a real one.
+**사용량 한도는 불러낼 수 없습니다.** OpenAI에게 "지금 내 할당량이 끝났다고 말해 달라"고 할 방법은
+없고, 억지로 만들어 내는 것(Codex의 데이터베이스를 고치거나, 우리가 직접 쓴 홈을 워처에게 보여 주는
+것)은 방금 우리가 쓴 파일을 우리가 읽는지를 시험하는 일입니다. 그래서 `interruption-detected`의
+`category`가 `usage_limit`으로 기록된 인수는 사용량 한도가 실제로 걸렸을 때만 가능합니다. 그전까지는
+일부러 만든 일시적 실패로 나머지를 진행하고, 사용량 한도 쪽은 `blocked`으로, 이유를 적어 기록하세요.
+"사용량 한도 경로는 며칠자 기록이 마지막"이라고 말하는 릴리스가, 픽스처가 그렇다고 해서 통과했다고
+말하는 릴리스보다 낫습니다.
 
-**Everything else needs no interruption at all**, or needs only the record the induced
-failure produced. Install, the watcher and its icon, the Dashboard, cancel, retry now,
-giving attempts back, pause and resume, the upgrade path, repair and uninstall are all
-reachable in one sitting. Two of them need a little arranging, said where they come up:
-giving attempts back needs a record that has used up its budget, which is why **Attempts
-per interruption** is set to 1 before the failure is induced, and seeing a pause *withdraw*
-something needs a continuation that is queued at the moment you pause.
+**일시적 중단은 일부러 만들 수 있고, 만들 수 있는 것은 그것뿐입니다.** 버려도 되는 대화에서 오래
+걸리는 턴을 시작한 뒤 실행 중에 네트워크를 끊습니다(비행기 모드나 어댑터 사용 안 함). 턴이 실패할
+만큼 두었다가 다시 연결합니다. Codex는 자기 `codexErrorInfo`와 함께 실패를 기록하고, 워처가 거기에
+어떤 분류를 주는지는 가정할 것이 아니라 증거의 일부입니다. 전송 계열 실패는 보통 일시적 부류에
+들어가지만, 이번 것이 `unknown`으로 분류되면 워처는 올바르게 재시도를 거부합니다. 그것은 엔진에게는
+통과이고, 그 뒤에 오는 모든 단계에게는 `blocked`입니다. 다시 시도하거나, 진짜가 올 때까지 기다리세요.
 
-## The steps at a glance
+**나머지는 중단이 아예 필요 없거나**, 일부러 만든 실패가 남긴 기록 하나만 있으면 됩니다. 설치, 워처와
+알림 영역 아이콘, 대시보드, 취소, 지금 다시 확인, 시도 횟수 되돌리기, 일시 정지와 다시 켜기, 업그레이드
+경로, 복구, 제거는 모두 한자리에서 도달할 수 있습니다. 그중 둘은 약간의 준비가 필요하고 해당 단계에
+적어 두었습니다. 시도 횟수 되돌리기는 예산을 다 쓴 기록이 필요해서 실패를 만들기 전에 **중단당 시도
+횟수**를 1로 내려 두고, 일시 정지가 무언가를 *회수*하는 장면을 보려면 일시 정지하는 순간에 대기열에 들어가
+있는 연속 메시지가 필요합니다.
 
-| Step | What it proves | `observed` must record | Needs a real interruption |
+## 단계 한눈에 보기
+
+| 단계 | 무엇을 증명하는가 | `observed`에 적어야 하는 값 | 실제 중단이 필요한가 |
 | --- | --- | --- | --- |
-| `install-verify` | The archive is the one this project published, checked before anything is extracted | `archive_sha256_matches_published`, `archive_sha256_matches_pin`, `attestation` | No |
-| `install-run` | Installing ends at one installation, with the plugin registered | `route`, `setup_exit_code`, `install_root`, `plugin_registered` | No |
-| `watcher-starts` | A watcher is running and says so where you can see it | `watcher_running`, `tray_icon_present`, `tooltip_reports` | No |
-| `interruption-detected` | A real failure is seen, classified and scheduled | `category`, `code`, `thread`, `record` | Yes |
-| `continuation-exact-thread` | The continuation reached that conversation and no other | `thread`, `record`, `queue_items_owned`, `other_threads_touched` | Yes |
-| `follows-its-turn` | The engine watched the turn its own continuation started | `record`, `marker_matched_turns`, `turn_status`, `code` | Yes |
-| `outcome-recorded` | The outcome is read from that turn and written down | `record`, `code`, `outcome_at_recorded` | Yes |
-| `dashboard-shows-it` | The window shows that record in the same words everything else uses | `pages_seen`, `code_shown`, `agrees_with_command_line` | Yes |
-| `cancel` | Cancel stops one task and everything that would continue it | `code_before`, `code_after`, `queued_item`, `confirmation_named_the_conversation` | Yes |
-| `retry-now` | Retry now is a re-check and never a send | `code_before`, `code_after`, `continuation_sent` | Yes |
-| `give-attempts-back` | Giving attempts back is explicit, limited, and sends nothing | `code_before`, `code_after`, `budget_resets`, `continuation_sent` | Yes |
-| `pause-resume` | Pause withdraws what is queued; resume picks it up again | `withdrawn_on_pause`, `code_while_paused`, `overlay_while_paused`, `code_after_resume`, `continuation_sent_while_paused` | Yes |
-| `upgrade-keeps-decisions` | An upgrade repairs registrations and decides nothing | `paused_before`, `paused_after`, `startup_entry_before`, `startup_entry_after` | No |
-| `repair` | Repair says which of five things happened and changes no decision | `outcome`, `paused_unchanged`, `startup_entry_unchanged` | No |
-| `uninstall` | Uninstall removes what it owns and keeps what it cannot prove is its | `route`, `watcher_stopped`, `startup_entry`, `state_kept` | No |
+| `install-verify` | 압축 파일이 이 프로젝트가 게시한 그 파일임을, 풀기 전에 확인한다 | `archive_sha256_matches_published`, `archive_sha256_matches_pin`, `attestation` | 아니오 |
+| `install-run` | 설치가 하나의 설치본으로 끝나고 플러그인이 등록된다 | `route`, `setup_exit_code`, `install_root`, `plugin_registered` | 아니오 |
+| `watcher-starts` | 워처가 돌고 있고, 그 사실을 눈에 보이는 곳에서 말한다 | `watcher_running`, `tray_icon_present`, `tooltip_reports` | 아니오 |
+| `interruption-detected` | 실제 실패가 감지되고 분류되고 일정이 잡힌다 | `category`, `code`, `thread`, `record` | 예 |
+| `continuation-exact-thread` | 연속 메시지가 바로 그 대화에만 도착한다 | `thread`, `record`, `queue_items_owned`, `other_threads_touched` | 예 |
+| `follows-its-turn` | 엔진이 자기 연속 메시지가 시작한 턴을 지켜본다 | `record`, `marker_matched_turns`, `turn_status`, `code` | 예 |
+| `outcome-recorded` | 결과를 그 턴에서 읽어 기록한다 | `record`, `code`, `outcome_at_recorded` | 예 |
+| `dashboard-shows-it` | 창이 그 기록을 다른 곳과 같은 말로 보여 준다 | `pages_seen`, `code_shown`, `agrees_with_command_line` | 예 |
+| `cancel` | 취소가 한 작업과 그것을 잇는 모든 것을 멈춘다 | `code_before`, `code_after`, `queued_item`, `confirmation_named_the_conversation` | 예 |
+| `retry-now` | 지금 다시 확인은 다시 확인일 뿐 전송이 아니다 | `code_before`, `code_after`, `continuation_sent` | 예 |
+| `give-attempts-back` | 시도 횟수 되돌리기는 명시적이고, 제한되며, 전송이 아니다 | `code_before`, `code_after`, `budget_resets`, `continuation_sent` | 예 |
+| `pause-resume` | 일시 정지는 대기열의 것을 회수하고, 다시 켜기는 이어받는다 | `withdrawn_on_pause`, `code_while_paused`, `overlay_while_paused`, `code_after_resume`, `continuation_sent_while_paused` | 예 |
+| `upgrade-keeps-decisions` | 업그레이드는 등록을 고칠 뿐 아무것도 결정하지 않는다 | `paused_before`, `paused_after`, `startup_entry_before`, `startup_entry_after` | 아니오 |
+| `repair` | 복구가 다섯 가지 중 어느 일이 있었는지 말하고, 결정은 바꾸지 않는다 | `outcome`, `paused_unchanged`, `startup_entry_unchanged` | 아니오 |
+| `uninstall` | 제거가 자기 것만 지우고, 자기 것임을 증명하지 못한 것은 남긴다 | `route`, `watcher_stopped`, `startup_entry`, `state_kept` | 아니오 |
 
-The nine steps that say **Yes** can share a detected interruption while its state allows it.
-Induce one transient failure with **Attempts per interruption** at 1 and it carries
-`interruption-detected` through `pause-resume`; induce a second when a step consumes the
-first, which `cancel` does.
+**예**라고 적힌 아홉 단계는 기록의 상태가 허용하는 동안 감지된 중단 하나를 나누어
+쓴다는 뜻입니다. **중단당 시도 횟수**를 1로 두고 일시적 실패를 한 번 만들면 `interruption-detected`부터
+`pause-resume`까지가 그 하나로 이어지고, 그 기록을 소진하는 단계(`cancel`이 그렇습니다)에서 한 번 더
+만들면 됩니다.
 
-## The evidence schema
+## 증거 스키마
 
-One file per step, UTF-8 JSON, under `docs/evidence/live/`. Name it after the step —
-`docs/evidence/live/cancel.json` — or add a suffix when a step is recorded more than
-once; the `step` field is what counts, not the file name. `README.md` is skipped, and a
-file whose name begins with `example` is read as an example of the shape and counts
-towards nothing.
+단계당 파일 하나, UTF-8 JSON, 위치는 `docs/evidence/live/`입니다. 이름은 단계에서 따오고
+(`docs/evidence/live/cancel.json`), 한 단계를 두 번 이상 기록할 때는 뒤에 구분을 붙입니다. 판단 기준은
+파일 이름이 아니라 `step` 필드입니다. `README.md`는 건너뛰고, 이름이 `example`로 시작하는 파일은
+모양의 예시로 읽혀 어느 단계에도 세어지지 않습니다.
 
-| Field | Required | What it holds |
+| 필드 | 필수 | 무엇을 담는가 |
 | --- | --- | --- |
-| `format` | Yes | `codex-auto-resume-live-acceptance/1` |
-| `step` | Yes | One of the step ids in the table above |
-| `verdict` | Yes | `pass`, `fail` or `blocked` |
-| `recorded_at` | Yes | ISO-8601 date, or date and time with an offset |
-| `product_version` | Yes | The version in `.codex-plugin/plugin.json`, which must be the version being accepted |
-| `codex_version` | Yes | What `codex --version` printed |
-| `windows_build` | Yes | The Windows build, as `winver` or `[System.Environment]::OSVersion.Version` gives it |
-| `codex_app_version` | No | The desktop app's version, where the step depended on it |
-| `observed` | Yes | An object of machine values: what was seen, in the engine's own vocabulary |
-| `note` | Only when the verdict is not `pass` | What happened instead, or what could not be reached |
+| `format` | 예 | `codex-auto-resume-live-acceptance/1` |
+| `step` | 예 | 위 표의 단계 id 중 하나 |
+| `verdict` | 예 | `pass`, `fail`, `blocked` 중 하나 |
+| `recorded_at` | 예 | ISO-8601 날짜, 또는 오프셋이 붙은 날짜와 시각 |
+| `product_version` | 예 | `.codex-plugin/plugin.json`의 버전. 인수 중인 그 버전이어야 합니다 |
+| `codex_version` | 예 | `codex --version`이 출력한 값 |
+| `windows_build` | 예 | Windows 빌드. `winver`나 `[System.Environment]::OSVersion.Version`이 주는 값 |
+| `codex_app_version` | 아니오 | 그 단계가 데스크톱 앱에 의존했다면 앱의 버전 |
+| `observed` | 예 | 무엇을 보았는지를 엔진의 어휘로 적은 객체 |
+| `note` | `pass`가 아닐 때만 | 대신 무슨 일이 있었는지, 또는 어디까지 도달하지 못했는지 |
 
-The rules the validator enforces, and why each one is there:
+검증기가 강제하는 규칙과 그 이유입니다.
 
-- **A `pass` records the values its step names.** Every key in that step's row of the
-  table above has to be present and not null. A pass that records nothing is a
-  formality, and a formality in a file is worse than an empty directory, because it
-  looks like an answer.
-- **Ids are aliases.** `thread` and `record` take the shape `diagnostics.py` writes —
-  `thread-1a2b3c4d`, `record-9f8e7d6c` — and a raw UUID anywhere in the file is refused.
-  Export diagnostics on the Diagnostics page, or run `auto_resume diagnostics`, and copy
-  the aliases from that bundle: they hold together inside one bundle, which is what lets
-  a reader follow one recovery through several evidence files written from it.
-- **No paths, no addresses, no names.** Where something is installed is recorded as
-  `default` or `custom`. There is no field for who ran the acceptance; a procedure is
-  accepted by a machine and a version, not by a person's name in a public file.
-- **Times are text.** ISO-8601, never an epoch — partly because a reader should not have
-  to convert one, and partly because a long run of digits is exactly what a leaked id
-  looks like.
-- **Digests are recorded as whether they matched**, not as themselves. A SHA-256 and an
-  interruption id are both 64 hexadecimal characters, and no rule can tell them apart by
-  looking.
-- **Codes come from the engine.** `code`, `code_before`, `code_after`, `code_shown`,
-  `code_while_paused` and `code_after_resume` are public codes; `category` is a failure
-  category; `turn_status` is a turn status; `overlay_while_paused` is an overlay. The
-  validator reads all four vocabularies out of the product, so a code that is renamed in
-  the engine stops validating here rather than quietly meaning nothing.
-- **A `fail` or a `blocked` needs a note.** A step that did not pass is only useful if it
-  says what happened instead, or which part of it could not be reached.
+- **`pass`는 그 단계가 지정한 값을 적습니다.** 위 표의 해당 행에 있는 모든 키가 있어야 하고 null이
+  아니어야 합니다. 아무것도 적지 않은 통과는 형식이고, 파일에 담긴 형식은 빈 디렉터리보다 나쁩니다.
+  답처럼 보이기 때문입니다.
+- **식별자는 별칭으로만.** `thread`와 `record`는 `diagnostics.py`가 쓰는 모양(`thread-1a2b3c4d`,
+  `record-9f8e7d6c`)을 따르고, 파일 어디에든 원본 UUID가 있으면 거부됩니다. 진단 페이지의 진단
+  내보내기나 `auto_resume diagnostics`로 번들을 만든 뒤 거기서 별칭을 옮겨 적으세요. 한 번들 안에서는
+  별칭이 서로 들어맞으므로, 한 복구를 여러 증거 파일에 걸쳐 따라갈 수 있습니다.
+- **경로도, 주소도, 이름도 적지 않습니다.** 설치 위치는 `default`나 `custom`으로 적습니다. 누가
+  인수했는지를 적는 필드는 없습니다. 절차를 인수하는 것은 기기와 버전이지, 공개 파일에 적힌 사람
+  이름이 아닙니다.
+- **시각은 글자로.** epoch가 아니라 ISO-8601로 적습니다. 읽는 사람이 변환하지 않아도 되기 때문이기도
+  하고, 긴 숫자 나열이야말로 새어 나온 식별자와 똑같이 생겼기 때문이기도 합니다.
+- **다이제스트는 값이 아니라 일치 여부로** 적습니다. SHA-256과 인터럽션 id는 둘 다 16진수 64자이고,
+  모양만 보고 구별할 수 있는 규칙은 없습니다.
+- **코드는 엔진에서 옵니다.** `code`, `code_before`, `code_after`, `code_shown`, `code_while_paused`,
+  `code_after_resume`은 공개 코드이고, `category`는 실패 분류, `turn_status`는 턴 상태,
+  `overlay_while_paused`는 오버레이입니다. 검증기가 이 네 어휘를 제품에서 직접 읽으므로, 엔진에서
+  이름이 바뀐 코드는 여기서 조용히 무의미해지는 대신 검증에 걸립니다.
+- **`fail`과 `blocked`에는 메모가 필요합니다.** 통과하지 못한 단계는 대신 무슨 일이 있었는지, 또는
+  어느 부분에 도달하지 못했는지를 말할 때만 쓸모가 있습니다.
 
-An example of the shape, which records nothing that happened, is at
-[`evidence/live/example.json`](evidence/live/example.json).
+아무 일도 기록하지 않은 모양의 예시는 [`evidence/live/example.json`](evidence/live/example.json)에
+있습니다.
 
-## The validator
+## 검증기
 
 ```powershell
 python scripts/live_evidence.py
 ```
 
-It reads every file in `docs/evidence/live/` and exits
-
-- **0** when every step has evidence and every verdict is `pass`;
-- **1** when something was refused — it prints each refusal as a sentence naming the file
-  and what is wrong;
-- **2** when nothing is wrong and this is still not a pass: the directory is empty, a step
-  has no evidence yet, or a verdict is `fail` or `blocked`.
-
-Exit 2 is deliberately not exit 0 and deliberately not exit 1. A caller that reads an
-empty directory as success says a release passed a procedure nobody ran; one that reads
-it as failure says somebody ran it badly. Neither is what happened.
-
-What the validator cannot do is check that any of this took place. It was not there. It
-checks that a file is shaped like evidence, written in the product's own vocabulary, free
-of anything that should never be committed, and not contradicted by another file. The
-verdict is yours.
-
-## The steps
-
-### 1. The archive is the one this project published — `install-verify`
-
-**Proves.** That what you are about to run is the published build, checked before it is
-extracted, which is the only moment the check is worth anything.
-
-**Do.** Download `CodexAutoResume-vX.Y.Z-win-x64.zip` and the `.sha256` beside it. Do not
-extract either. Follow [`VERIFY.md`](VERIFY.md): hash the archive, compare it with the
-`.sha256`, compare it with the digest pinned for that version in `scripts/release.json`
-on `main`, and — with the GitHub CLI — verify the build attestation with
-`--signer-workflow` and `--source-ref`, because without them any workflow run in the
-repository is accepted.
-
-**A pass.** Every comparison you made agreed. A version published minutes ago may not
-have its `release.json` pin yet; record that as `not-published-yet` rather than as a
-match, because a pin that does not exist is not a check that passed.
-
-**Record.** `archive_sha256_matches_published` and `archive_sha256_matches_pin` as `true`,
-`false` or `"not-published-yet"`; `attestation` as `"verified"`, `"absent"` or
-`"failed"`. Never the digest itself.
-
-### 2. Installing ends at one installation — `install-run`
-
-**Proves.** That the archive installs, registers the plugin from the files it carries,
-and leaves one installation behind rather than a second one beside an existing install.
-
-**Do.** Extract the archive and run `Install.cmd`. Let it finish. Then open Codex and
-confirm the plugin is registered and its panel opens (*open auto resume settings*).
-
-**A pass.** Setup ended with exit code 0, the installation is in one place — by default
-`%USERPROFILE%\.codex-auto-resume` — and Codex lists the plugin at the version being
-accepted. An exit code of 2 means everything asked for was done but a running watcher
-could not be confirmed; that is its own answer and is not a pass for this step, so record
-it and carry on to the next one, which looks at the watcher directly.
-
-**Record.** `route` as `"Install.cmd"` or `"plugin-bootstrap"`; `setup_exit_code`;
-`install_root` as `"default"` or `"custom"`; `plugin_registered`.
-
-### 3. A watcher is running, and says so where you can see it — `watcher-starts`
-
-**Proves.** That the watcher starts, that the notification-area icon belongs to the
-watcher process itself rather than to a claim about it, and that its tooltip reports the
-four things it promises.
-
-**Do.** Open **Start Menu → Codex Auto Resume**; the Overview says whether a watcher is
-running. Find the icon in the notification area, hover for the tooltip, and right-click it for its menu. From v0.6.3 a single left click opens a small window instead, which is checked under
-[What v0.6.3 adds](#what-v063-adds-and-where-to-write-it-down).
-Then stop the watcher from that menu and watch the icon disappear; start it again from
-the window.
-
-**A pass.** The icon is there while a watcher runs and gone once it is stopped — that is
-the property worth checking, because an icon that survives its watcher is an icon that
-lies. The tooltip says whether recovery is paused, how many recoveries are waiting, how
-many are running in Codex, and how long until the next check. The countdown reaching zero
-means the watcher looks again, and nothing else.
-
-**Record.** `watcher_running`; `tray_icon_present`; `tooltip_reports` as the list of what
-the tooltip actually named, from `"paused"`, `"waiting"`, `"running"` and `"next_check"`.
-
-### 4. A real failure is seen, classified and scheduled — `interruption-detected`
-
-**Proves.** That a real interrupted turn, written by Codex and not by us, is detected,
-given a category, and scheduled — and that the notification names this product rather
-than whatever process raised it.
-
-**Do.** First set **Attempts per interruption** to 1 on the Settings page, so the record
-this produces reaches its budget in one continuation; that setting accepts 1 to 20, and
-**Continuations per task** — 1 to 10, six by default — is the separate cap on a whole
-chain. In the same visit, make the continuation-message checks under
-[What v0.6.3 adds](#what-v063-adds-and-where-to-write-it-down), and leave **Message style**
-on the style you mean to accept with — Standard, the default, unless you are accepting a
-Custom message on purpose. Then, in the disposable conversation, start a turn that will run for a while and
-take the network away until it fails. Put the network back. Watch the Pending page, or
-run `auto_resume pending`.
+`docs/evidence/live/`의 모든 파일을 읽고 다음으로 끝납니다.
 
-If a real usage limit has happened to you instead, that is the stronger evidence and this
-is the step to record it in: everything else follows the same path.
+- **0** — 모든 단계에 증거가 있고 모든 판정이 `pass`일 때.
+- **1** — 무언가를 거부했을 때. 어느 파일의 무엇이 잘못됐는지 문장으로 출력합니다.
+- **2** — 잘못된 것은 없지만 그래도 통과가 아닐 때. 디렉터리가 비어 있거나, 증거가 없는 단계가 있거나,
+  판정이 `fail`이나 `blocked`인 경우입니다.
 
-**A pass.** A recoverable record appears with a category the engine chose from Codex's
-own `codexErrorInfo` and a public code that says what it is waiting for. An `unknown` or
-terminal failure is correctly excluded from registration and retrying, so it produces
-no Pending row. In that case record this step and its downstream steps as `blocked`,
-with the observed classification and a note that no recoverable record was registered.
-Do not invent a record alias for an excluded failure.
+2가 0도 1도 아닌 것은 의도한 것입니다. 빈 디렉터리를 성공으로 읽는 호출자는 아무도 수행하지 않은
+절차를 릴리스가 통과했다고 말하고, 실패로 읽는 호출자는 누군가 수행했는데 잘못했다고 말합니다. 둘 다
+일어난 일이 아닙니다.
 
-**Record.** `category` (a failure category — `usage_limit`, a transient one, a terminal
-one or `unknown`); `code` (the public code shown); `thread` and `record` as aliases from a
-diagnostics export; `notification_shown` if you saw the toast.
+검증기가 할 수 없는 일은 이 중 무엇이라도 실제로 있었는지 확인하는 것입니다. 그 자리에 없었으니까요.
+파일이 증거의 모양인지, 제품의 어휘로 쓰였는지, 커밋되어서는 안 될 것이 없는지, 다른 파일과 모순되지
+않는지를 볼 뿐입니다. 판정은 사람의 몫입니다.
 
-### 5. The continuation reached that conversation and no other — `continuation-exact-thread`
+## 단계
 
-**Proves.** The guarantee the whole product rests on: a conversation is identified by its
-exact UUID, and a continuation is queued to that conversation alone.
+### 1. 압축 파일이 이 프로젝트가 게시한 그것인가 — `install-verify`
 
-**Do.** Leave the disposable conversation loaded in the desktop app — nothing can be
-delivered to a conversation the app does not have loaded — and let the schedule come
-round. Watch the record move to `submitted`. Then look in the desktop app: the
-continuation appears in that conversation. Look at any other conversation you have open
-and confirm nothing arrived there.
+**증명하는 것.** 지금 실행하려는 것이 게시된 빌드라는 사실을, 압축을 풀기 전에 확인합니다. 그 확인이
+의미를 갖는 시점은 그때뿐입니다.
 
-**A pass.** Exactly one queued item belongs to the watcher, in the conversation whose
-alias matches the record, and no other conversation received anything.
+**할 일.** `CodexAutoResume-vX.Y.Z-win-x64.zip`과 그 옆의 `.sha256`을 내려받되 아무것도 풀지 않습니다.
+[`VERIFY.ko.md`](VERIFY.md)를 따라 압축 파일의 해시를 구하고, `.sha256`과 비교하고, `main`의
+`scripts/release.json`에 그 버전으로 고정된 다이제스트와 비교하고, GitHub CLI가 있다면 빌드 증명을
+`--signer-workflow`와 `--source-ref`를 붙여 확인합니다. 이 둘을 빼면 저장소의 아무 워크플로 실행이나
+받아들이게 됩니다.
 
-**Record.** `thread` and `record` as aliases; `queue_items_owned` as the number of queued
-items the watcher owned (1); `other_threads_touched` as the number of other conversations
-that received anything (0); `marker_present` if you confirmed the continuation's marker.
+**통과.** 확인한 비교가 모두 일치했습니다. 방금 게시된 버전은 `release.json` 고정값이 아직 없을 수
+있고, 그럴 때는 일치가 아니라 `not-published-yet`으로 적습니다. 존재하지 않는 고정값은 통과한 확인이
+아닙니다.
 
-### 6. The engine watched the turn its own continuation started — `follows-its-turn`
+**기록.** `archive_sha256_matches_published`와 `archive_sha256_matches_pin`을 `true`, `false` 또는
+`"not-published-yet"`으로, `attestation`을 `"verified"`, `"absent"`, `"failed"` 중 하나로. 다이제스트
+자체는 적지 않습니다.
 
-**Proves.** The change this release is built on. The engine does not read the conversation
-for signs that a recovery worked: each continuation carries a marker built from the
-interruption's own id, the turn it started is the turn of the history row holding that
-marker, and the outcome is read from that turn and no other.
+### 2. 설치가 하나의 설치본으로 끝나는가 — `install-run`
 
-**Do.** While the continuation runs, start a turn of your own in the same conversation —
-type something ordinary and send it. That is the exact situation the old behaviour got
-wrong: a turn you started could be read as the recovery working. Then export diagnostics
-and read the record's `turn_started_at` and `recovery_turn_status`, or run
-`auto_resume pending` and read the state beside the code.
-
-**A pass.** The record names one turn, and it is the turn its own continuation started —
-not yours. The window shows `turn_running` and then `turn_finishing`; your turn changes
-neither. If a person's turn arrived first and the engine calls the record `handed_over`
-without a marker-matched recovery turn, that is correct conservative behavior but does
-not prove correlation. Record this step as `blocked`, including the observed zero
-matches; do not record one match merely to satisfy a pass.
+**증명하는 것.** 압축 파일이 설치되고, 자기가 담고 있는 파일로 플러그인을 등록하며, 기존 설치 옆에
+두 번째 설치본을 만들지 않고 하나로 끝난다는 것.
 
-**Record.** `record` as an alias; `marker_matched_turns` as the number of turns the marker
-matched (1); `turn_status` (a turn status — `inProgress`, `completed`, `failed`,
-`interrupted` or `other`); `code`.
-
-### 7. The outcome is read from that turn and written down — `outcome-recorded`
-
-**Proves.** That the record reaches one of the outcomes this release defines, that the
-outcome is stored with a time, and that an outcome which could not be established is
-called unverified rather than success.
-
-**Do.** Let the recovery turn finish. Read the record on the History page and in a
-diagnostics export.
-
-**A pass.** The public code is one of `recovered`, `no_progress`, `handed_over`,
-`recovery_failed`, `stopped_by_user` or `outcome_unverified`, an outcome time is stored,
-and the History row says the same thing as the export. `outcome_unverified` is a pass for
-this step: it is the product declining to guess.
-
-**Record.** `record` as an alias; `code`; `outcome_at_recorded` as `true` when an outcome
-time is stored; `reason` when the record shows one.
-
-### 8. The window shows it, in the same words — `dashboard-shows-it`
-
-**Proves.** That the Dashboard reads the same control layer as everything else and
-agrees about a stable record — and that a part which cannot be read is shown as
-unreadable rather than as empty. Snapshots taken at different times can differ while
-a recovery changes state; the Codex panel does not refresh automatically.
-
-**Do.** Open the window and visit Overview, Pending, History, Statistics and Diagnostics.
-Find the record from the steps above on History, open its Timeline, and compare its code
-with `auto_resume pending --all` in a terminal. Then, with the window
-open, stop the watcher and look at the pages again.
-
-**A pass.** The same code in the window and on the command line. The Timeline shows the
-chain in the same words the lists use. Stopping the watcher leaves the local store
-readable: existing records remain visible and the watcher is shown as stopped. Only
-an actual read failure should be shown as unreadable; an empty readable list is empty.
-
-**Record.** `pages_seen` as the list of pages you opened; `code_shown`;
-`agrees_with_command_line` as `true` or `false`.
-
-### 9. Cancel stops one task and everything that continues it — `cancel`
-
-**Proves.** That cancelling reduces automation immediately, that it names the conversation
-it is about, and that it is honest about a turn already running in Codex.
-
-**Do.** Induce a second interruption (step 4 again) so there is something waiting, and
-cancel it from the Pending page while it is still waiting. Read the confirmation before
-you accept it. Then check the record on History.
-
-**A pass.** The confirmation names the conversation it is about — the lists refresh every
-five seconds, so a confirmation that named nothing could be answered about a record that
-had moved underneath it. A record that was never sent becomes `cancelled`. If you cancel
-something that may already be in Codex, the confirmation says that a turn already running
-is not stopped, and anything still queued is taken back.
-
-**Record.** `code_before`; `code_after` (`cancelled`); `queued_item` as `"withdrawn"`,
-`"nothing-queued"` or `"already-running"`; `confirmation_named_the_conversation`.
-
-### 10. Retry now is a re-check — `retry-now`
-
-**Proves.** That Retry now brings the schedule forward and wakes the watcher, and does
-nothing else: it does not send, does not skip the loaded-conversation requirement, does
-not open a usage window and does not skip revalidation.
-
-**Do.** On a waiting record, press **Retry now** and read the note the page shows
-afterwards. The button is offered only where it can do something — not on a recovery whose
-usage reset is still ahead, not while recovery is paused, and not on a conversation that
-is switched off; confirm it is disabled in one of those situations too.
-
-**A pass.** The check happens at once and the record either moves on or goes back to
-waiting for the same reason. Nothing is sent because the button was pressed.
-
-**Record.** `code_before`; `code_after`; `continuation_sent` as `false`; `offered_when`
-as a short machine value describing where you found the button disabled, such as
-`"disabled-while-paused"`.
-
-### 11. Giving attempts back is explicit, limited, and not a send — `give-attempts-back`
+**할 일.** 압축을 풀고 `Install.cmd`를 실행해 끝까지 둡니다. 그다음 Codex를 열어 플러그인이 등록됐는지,
+패널이 열리는지(*open auto resume settings*) 확인합니다.
 
-**Proves.** That an exhausted recovery re-enters the wait its kind of failure needs rather
-than being sent again, that it does not switch a conversation back on, and that it stops
-after three.
-
-**Do.** With **Attempts per interruption** at 1, let a record reach `exhausted`. Turn that
-conversation off with **Turn off for this conversation**, then press **Give attempts back**
-on History and read what it says. A successful reset changes `exhausted` to a waiting
-state, so the button becomes disabled immediately; repeatedly clicking it cannot test
-the three-reset limit. That limit requires additional genuine failures and exhaustion
-in the same recovery chain, with the conversation explicitly re-enabled between runs.
-After the third reset, let the same chain genuinely exhaust again and verify a fourth
-reset is refused. Never edit state or fabricate failures to arrange this. If those
-conditions cannot be reached, record the step as `blocked` with the reset count actually
-observed, even if its first-reset behavior worked.
-
-The published v0.6.0 Dashboard discarded the successful reset's explanatory note; v0.6.1
-shows it. If the build you are accepting does not show it while the conversation is off,
-record that missing feedback as a failure; the control result and MCP response still carry
-the note.
-
-**A pass.** The record re-enters waiting and every check runs again from the top. Because
-the conversation is off, the message says so and says that nothing will run until you
-switch it on. After three resets for one task the button is disabled and a note says to
-continue that task in Codex yourself.
-
-**Record.** `code_before` (`exhausted`); `code_after` (the waiting code it re-entered);
-`budget_resets` as the number of resets the record had used when the button went quiet
-(3); `continuation_sent` as `false`; `said_thread_is_off` as `true` when the message said
-the conversation was switched off.
-
-### 12. Pause withdraws, and resume picks up again — `pause-resume`
-
-**Proves.** That pausing takes back what is still queued, that a paused waiting record
-says it is paused rather than being rewritten, and that resuming brings it back into the
-ordinary schedule.
-
-**Do.** Two halves. For the first, watch a record until it becomes `submitted` and pause
-recovery immediately — from the notification-area menu, which is the fastest route — and
-see whether the queued item is taken back. If you cannot catch that moment, say so in the
-note; the withdrawal half is then not accepted, and the rest of the step still stands. For
-the second, with a record waiting and recovery paused, confirm nothing is sent, then
-resume and watch the same record be picked up at the next check.
-
-**A pass.** The waiting record keeps its code and carries the `paused` overlay beside it
-rather than having its state rewritten — a sent record is never shown as paused, because
-that would be a promise nothing can keep. Nothing is sent while paused. After resuming,
-the record is checked again on the next tick.
-
-**Record.** `withdrawn_on_pause` as `"withdrawn"` or `"nothing-queued"`;
-`code_while_paused`; `overlay_while_paused` (`paused`); `code_after_resume`;
-`continuation_sent_while_paused` as `false`.
-
-### 13. An upgrade repairs; it does not decide — `upgrade-keeps-decisions`
-
-**Proves.** The two things an upgrade used to undo: a pause the owner had chosen, and a
-sign-in entry the owner had removed.
-
-**Do.** Pause recovery, and turn off start-at-sign-in on the Settings page. Confirm the
-Run value is gone (`Get-ItemProperty HKCU:\Software\Microsoft\Windows\CurrentVersion\Run`).
-Then install the same or a newer archive over the installation — the ordinary upgrade
-path — and look again.
-
-Start from an installation of the last published release that is not a pre-release (the one
-`releases/latest` answers with) and install the archive you are
-accepting over it. Unless its CHANGELOG entry says otherwise, the release you are accepting
-changes no setting you had and adds none. Read Settings afterwards —
-**Interface language**, **Theme**, **Message style** and any Custom message should be what they
-were before the upgrade — and put anything else in the note. Starting from v0.6.2 or earlier also changes the
-one default v0.6.3 changed on purpose: the continuation used to be one fixed English sentence
-per kind of interruption, and is now the Standard message in the continuation language.
-
-**A pass.** Recovery is still paused after the upgrade, and no sign-in entry was added.
-An entry that is already this installation's is re-registered, which repairs its path
-after the runtime moves; that is not the same as adding one.
-
-**Record.** `paused_before` and `paused_after` as booleans; `startup_entry_before` and
-`startup_entry_after` as `"ours"`, `"other"` or `"absent"`.
-
-### 14. Repair says which of five things happened — `repair`
-
-**Proves.** That **Repair installation** re-registers what is broken, reports one of five
-outcomes rather than a shrug, and changes no decision.
-
-**Do.** On the Diagnostics page, press **Repair installation** and read what it reports.
-Check the pause switch and the sign-in entry afterwards.
-
-**A pass.** It reports exactly one of: it finished; it is still working; another
-installation or repair is already running; this installation is missing the files setup
-is made of; or it failed. The pause switch and the sign-in entry are what they were before.
-
-**Record.** `outcome` as `"done"`, `"running"`, `"busy"`, `"incomplete"` or `"failed"`;
-`paused_unchanged`; `startup_entry_unchanged`.
-
-### 15. Uninstall removes what it owns — `uninstall`
-
-**Proves.** That uninstall stops the watcher first, removes only what it can prove is its
-own, and keeps settings and pending recoveries unless asked to delete them. Do this last:
-after it, the earlier steps need an installation again.
-
-**Do.** Run `Uninstall.cmd` from the release archive. Watch the notification-area icon go.
-Afterwards, check the Run value, the Start Menu entry, and whether `config/` survived.
-If you have time for the refusal as well, point the installation home at a directory that
-merely contains folders called `app`, `runtime`, `config` and `logs` and confirm it is
-refused and reported rather than deleted.
-
-**A pass.** The watcher was asked to stop and stopped — if it cannot be confirmed stopped,
-uninstall aborts before removing anything, which is also a pass and is recorded as such.
-The sign-in entry is removed only while it is this installation's; one that starts another
-copy is reported and kept. Settings and pending recoveries survive a plain uninstall.
-
-**Record.** `route` as `"Uninstall.cmd"`, `"codex"` or `"source"`; `watcher_stopped`;
-`startup_entry` as `"removed"`, `"kept-not-ours"` or `"absent"`; `state_kept`;
-`refused_directories` as the number of directories it refused to delete from.
-
-## What v0.6.3 adds, and where to write it down
-
-v0.6.3 changes what the product says and shows, not what recovery decides: the classifier,
-the gates and the one watcher allowed to send are v0.6.2's. The checks below are for the new
-surfaces. None of them is a step of its own, and the validator knows nothing about them —
-an `observed` value a step does not list is refused, so they cannot be recorded there.
-Write each one instead as a short sentence of plain machine words in the `note` of the step
-named beside it; a `pass` may carry a note. That keeps them out of the count on purpose: a
-step's `pass` says nothing about these checks unless its note does.
-
-Everything above still holds. Use only the disposable conversation. Do not manufacture a
-usage limit, and do not edit Codex's databases or this product's state to reach a
-situation; where one cannot be reached honestly, write that it was not seen. Click and type
-yourself: none of this may be driven by a script, a macro or an accessibility tool, which is
-exactly what this product refuses to do itself. And write down no text a conversation
-contained, no Custom message you typed, and no screenshot.
-
-| Check | Do it during | Note it in |
+**통과.** 설치가 종료 코드 0으로 끝났고, 설치본이 한 곳(기본값은 `%USERPROFILE%\.codex-auto-resume`)에
+있으며, Codex가 인수 중인 버전으로 플러그인을 보여 줍니다. 종료 코드 2는 요청한 일은 모두 했지만
+워처가 돌고 있는지 확인하지 못했다는 뜻으로, 그 자체가 하나의 답이며 이 단계의 통과는 아닙니다.
+그대로 기록하고 워처를 직접 보는 다음 단계로 넘어가세요.
+
+**기록.** `route`를 `"Install.cmd"`나 `"plugin-bootstrap"`으로, `setup_exit_code`, `install_root`를
+`"default"`나 `"custom"`으로, `plugin_registered`.
+
+### 3. 워처가 돌고 있고, 보이는 곳에서 그렇게 말하는가 — `watcher-starts`
+
+**증명하는 것.** 워처가 시작되고, 알림 영역 아이콘이 워처에 대한 주장이 아니라 워처 프로세스 자신의
+것이며, 툴팁이 약속한 네 가지를 말한다는 것.
+
+**할 일.** **시작 메뉴 → Codex Auto Resume**을 엽니다. 개요가 워처가 돌고 있는지를 말합니다. 알림
+영역에서 아이콘을 찾아 툴팁을 보고, 오른쪽 클릭으로 메뉴를 엽니다. v0.6.3부터 왼쪽 한 번 클릭은 메뉴
+대신 작은 창을 여는데, 그 창은 아래의 **v0.6.3에서 더해진 확인** 절에서 봅니다. 그 메뉴에서 워처를 멈추고 아이콘이 사라지는 것을
+본 뒤, 창에서 다시 시작합니다.
+
+**통과.** 워처가 도는 동안 아이콘이 있고 멈추면 없습니다. 확인할 가치가 있는 성질은 이쪽입니다.
+워처보다 오래 남는 아이콘은 거짓말을 하는 아이콘이니까요. 툴팁은 복구가 일시 정지 상태인지, 몇 개가
+기다리는지, 몇 개가 Codex에서 실행 중인지, 다음 확인까지 얼마나 남았는지를 말합니다. 카운트다운이
+0이 된다는 것은 워처가 다시 본다는 뜻이고, 그 이상은 아닙니다.
+
+**기록.** `watcher_running`, `tray_icon_present`, 그리고 툴팁이 실제로 말한 항목을 `"paused"`,
+`"waiting"`, `"running"`, `"next_check"` 중에서 골라 `tooltip_reports` 목록으로.
+
+### 4. 실제 실패가 감지되고 분류되고 일정이 잡히는가 — `interruption-detected`
+
+**증명하는 것.** 우리가 아니라 Codex가 쓴 실제 중단된 턴이 감지되고, 분류를 받고, 일정이 잡힌다는 것.
+그리고 알림이 그것을 띄운 프로세스가 아니라 이 제품의 이름으로 온다는 것.
+
+**할 일.** 먼저 설정 페이지에서 **중단당 시도 횟수**를 1로 내립니다. 그래야 여기서 생기는 기록이
+연속 메시지 한 번으로 예산에 도달합니다. 이 설정은 1에서 20까지 받고, **작업당 이어서 보내기
+횟수**(1~10, 기본값 6)는 체인 전체에 걸리는 별도의 상한입니다. 같은 방문에서 아래 절의 이어서 하기 메시지
+확인을 하고, **메시지 스타일**은 인수하려는 스타일에 두세요. 일부러 직접 입력 메시지를 인수하는 것이
+아니라면 기본값인 **기본**입니다. 그다음 버려도 되는
+대화에서 오래 걸릴 턴을 시작하고, 실패할 때까지 네트워크를 끊었다가 다시 연결합니다. 대기 중 페이지를
+보거나 `auto_resume pending`을 실행합니다.
+
+사용량 한도가 실제로 걸린 상태라면 그쪽이 더 강한 증거이고, 이 단계가 그것을 기록할 자리입니다. 이후
+경로는 같습니다.
+
+**통과.** Codex 자신의 `codexErrorInfo`에서 엔진이 고른 분류와 무엇을 기다리는지 말하는 공개 코드를
+가진 복구 가능한 기록이 나타납니다. `unknown`이나 종단 실패는 등록과 재시도에서 제외되는 것이
+올바르므로 대기 중 행이 생기지 않습니다. 이 경우 이 단계와 이후 단계들을 `blocked`로 기록하고,
+관찰한 분류와 복구 가능한 기록이 등록되지 않았다는 메모를 적으세요. 제외된 실패의 기록 별칭을
+만들어 내지 마세요.
+
+**기록.** `category`(실패 분류. `usage_limit`, 일시적 분류 하나, 종단 분류 하나, 또는 `unknown`),
+`code`(표시된 공개 코드), `thread`와 `record`(진단 내보내기의 별칭), 토스트를 봤다면
+`notification_shown`.
+
+### 5. 연속 메시지가 바로 그 대화에만 갔는가 — `continuation-exact-thread`
+
+**증명하는 것.** 제품 전체가 딛고 선 보장. 대화는 정확한 UUID로만 식별되고, 연속 메시지는 그 대화에만
+대기열로 들어갑니다.
+
+**할 일.** 버려도 되는 그 대화를 데스크톱 앱에 열어 둔 채로(앱이 로드하고 있지 않은 대화에는 아무것도
+전달할 수 없습니다) 일정이 돌아오게 둡니다. 기록이 `submitted`로 가는 것을 봅니다. 그다음 데스크톱
+앱에서 그 대화에 연속 메시지가 들어온 것을 확인하고, 열어 둔 다른 대화에는 아무것도 들어오지 않았음을
+확인합니다.
+
+**통과.** 워처가 소유한 대기열 항목이 정확히 하나이고, 그 대화의 별칭이 기록의 것과 같으며, 다른 어떤
+대화도 아무것도 받지 않았습니다.
+
+**기록.** `thread`와 `record`(별칭), `queue_items_owned`(워처가 소유한 대기열 항목 수. 1),
+`other_threads_touched`(무언가를 받은 다른 대화의 수. 0), 연속 메시지의 마커를 확인했다면
+`marker_present`.
+
+### 6. 엔진이 자기 연속 메시지가 시작한 턴을 지켜봤는가 — `follows-its-turn`
+
+**증명하는 것.** 이번 릴리스가 딛고 선 변경. 엔진은 복구가 통했다는 징후를 찾아 대화를 읽지 않습니다.
+연속 메시지마다 인터럽션 자신의 id로 만든 마커가 실리고, 그것이 시작한 턴은 그 마커를 담은 기록
+행의 턴이며, 결과는 그 턴에서만 읽힙니다.
+
+**할 일.** 연속 메시지가 실행되는 동안 같은 대화에서 직접 턴을 하나 시작합니다. 평범한 내용을 보내면
+됩니다. 예전 동작이 정확히 여기서 틀렸습니다. 사용자가 시작한 턴이 복구가 통한 것으로 읽힐 수
+있었습니다. 그다음 진단을 내보내 기록의 `turn_started_at`과 `recovery_turn_status`를 읽거나,
+`auto_resume pending`으로 코드 옆의 상태를 읽습니다.
+
+**통과.** 기록이 가리키는 턴이 하나이고, 그것이 자기 연속 메시지가 시작한 턴입니다. 사용자의 턴이
+아닙니다. 창은 `turn_running`을 보여 준 뒤 `turn_finishing`을 보여 주고, 사용자의 턴은 둘 중 어느
+것도 바꾸지 않습니다. 사람의 턴이 먼저 도착하여 마커가 맞는 복구 턴 없이 `handed_over`가 됐다면
+보수적으로 올바른 동작이지만 상관관계를 증명하지는 못합니다. 이 단계는 `blocked`로 기록하고
+실제로 관찰한 일치 수 0을 적으세요. 통과 조건을 맞추려고 1을 적지 마세요.
+
+**기록.** `record`(별칭), `marker_matched_turns`(마커가 맞은 턴의 수. 1), `turn_status`(턴 상태.
+`inProgress`, `completed`, `failed`, `interrupted`, `other` 중 하나), `code`.
+
+### 7. 결과를 그 턴에서 읽어 적었는가 — `outcome-recorded`
+
+**증명하는 것.** 기록이 이번 릴리스가 정의한 결과 중 하나에 도달하고, 결과가 시각과 함께 저장되며,
+확정할 수 없었던 결과는 성공이 아니라 미확인이라고 불린다는 것.
+
+**할 일.** 복구 턴이 끝나게 둡니다. 기록 페이지에서, 그리고 진단 내보내기에서 그 기록을 읽습니다.
+
+**통과.** 공개 코드가 `recovered`, `no_progress`, `handed_over`, `recovery_failed`, `stopped_by_user`,
+`outcome_unverified` 중 하나이고, 결과 시각이 저장되어 있으며, 기록 페이지의 행과 내보내기가 같은 말을
+합니다. `outcome_unverified`도 이 단계의 통과입니다. 제품이 추측하지 않겠다고 말한 것이니까요.
+
+**기록.** `record`(별칭), `code`, 결과 시각이 저장됐으면 `outcome_at_recorded`를 `true`로, 기록이
+사유를 보여 주면 `reason`.
+
+### 8. 창이 같은 말로 보여 주는가 — `dashboard-shows-it`
+
+**증명하는 것.** 대시보드가 다른 표면과 같은 제어 계층을 읽고 안정된 기록에 대해 같은 결과를
+보여 준다는 것. 읽을 수 없는 부분은 비어 있는 것이 아니라 읽을 수 없다고 표시된다는 것.
+복구 상태가 바뀌는 동안 서로 다른 시각의 스냅샷은 다를 수 있으며 Codex 패널은 자동으로 갱신되지 않습니다.
+
+**할 일.** 창을 열어 개요, 대기 중, 기록, 통계, 진단을 차례로 봅니다. 앞 단계의 기록을 기록 페이지에서
+찾아 **진행 기록**을 열고, 터미널의 `auto_resume pending --all`과 코드를 비교합니다.
+그다음 창을 열어 둔 채 워처를 멈추고 페이지들을 다시 봅니다.
+
+**통과.** 창과 명령줄의 코드가 같습니다. 진행 기록은 목록이 쓰는 것과 같은 말로 체인을 보여 줍니다.
+워처를 멈춰도 로컬 저장소는 읽을 수 있으므로 기존 기록은 남아 있고 워처는 멈췄다고 표시됩니다.
+실제로 읽기에 실패한 부분만 읽을 수 없다고 표시하고, 읽을 수 있는 빈 목록은 비어 있다고 표시합니다.
+
+**기록.** `pages_seen`(연 페이지 목록), `code_shown`, `agrees_with_command_line`을 `true`나 `false`로.
+
+### 9. 취소가 한 작업과 그것을 잇는 모든 것을 멈추는가 — `cancel`
+
+**증명하는 것.** 취소가 자동화를 즉시 줄이고, 자기가 다루는 대화의 이름을 말하며, Codex에서 이미
+실행 중인 턴에 대해 정직하다는 것.
+
+**할 일.** 중단을 하나 더 만들어(4단계) 기다리는 것을 만든 뒤, 아직 기다리는 동안 대기 중 페이지에서
+취소합니다. 확인 대화를 수락하기 전에 읽으세요. 그다음 기록 페이지에서 그 기록을 확인합니다.
+
+**통과.** 확인 대화가 어느 대화에 대한 것인지 이름을 말합니다. 목록은 5초마다 새로 고쳐지므로, 아무것도
+지목하지 않는 확인은 그사이 다른 기록으로 바뀐 것에 대해 대답하게 될 수 있습니다. 보내진 적 없는
+기록은 `cancelled`이 됩니다. 이미 Codex에 갔을 수 있는 것을 취소하면, 확인 대화가 이미 실행 중인 턴은
+멈추지 않는다고 말하고, 아직 대기열에 있는 것은 회수됩니다.
+
+**기록.** `code_before`, `code_after`(`cancelled`), `queued_item`을 `"withdrawn"`, `"nothing-queued"`,
+`"already-running"` 중 하나로, `confirmation_named_the_conversation`.
+
+### 10. 지금 다시 확인이 정말 다시 확인일 뿐인가 — `retry-now`
+
+**증명하는 것.** 지금 다시 확인이 일정을 앞당기고 워처를 깨우는 것 외에는 아무것도 하지 않는다는 것.
+보내지 않고, 로드된 대화 요구를 건너뛰지 않고, 사용량 창을 열지 않고, 재검증을 건너뛰지 않습니다.
+
+**할 일.** 기다리는 기록에서 **지금 다시 확인**을 누르고 페이지가 보여 주는 메모를 읽습니다. 이 버튼은
+할 수 있는 일이 있는 곳에만 나옵니다. 사용량 재설정이 아직 남은 복구, 복구가 일시 정지된 동안, 꺼 둔
+대화에서는 비활성화됩니다. 그중 한 상황에서 버튼이 비활성화되는 것도 확인하세요.
+
+**통과.** 확인이 즉시 일어나고, 기록은 다음 단계로 가거나 같은 이유로 다시 기다립니다. 버튼을 눌렀다는
+이유로 무언가가 보내지는 일은 없습니다.
+
+**기록.** `code_before`, `code_after`, `continuation_sent`를 `false`로, 버튼이 비활성화된 상황을
+`"disabled-while-paused"`처럼 짧은 기계값으로 `offered_when`에.
+
+### 11. 시도 횟수 되돌리기가 명시적이고 제한되며 전송이 아닌가 — `give-attempts-back`
+
+**증명하는 것.** 예산을 다 쓴 복구가 다시 보내지는 대신 그 실패 종류가 필요로 하는 대기로 되돌아가고,
+대화를 다시 켜지 않으며, 세 번 뒤에는 멈춘다는 것.
+
+**할 일.** **중단당 시도 횟수**를 1로 둔 채 기록이 `exhausted`에 이르게 합니다. **이 대화는 끄기**로 그 대화를 끈 다음
+기록 페이지에서 **시도 횟수 되돌리기**를 누르고 무엇이라 말하는지 읽습니다. 성공하면 `exhausted`가
+대기 상태로 바뀌어 버튼은 즉시 비활성화되므로, 연속으로 눌러 세 번 제한을 시험할 수는 없습니다.
+같은 복구 체인에서 실제 실패와 소진이 추가로 필요하며 각 실행 사이에 대화를 명시적으로 다시 켜야 합니다.
+세 번째 되돌리기 뒤 같은 체인이 실제로 다시 소진되면 네 번째 요청이 거부되는지 확인합니다.
+이를 위해 상태를 편집하거나 실패를 조작하지 마세요. 조건에 도달하지 못하면 첫 되돌리기가 작동했어도
+이 단계는 `blocked`로 기록하고 실제 관찰한 되돌리기 횟수를 적습니다.
+
+게시된 v0.6.0 대시보드는 성공한 되돌리기의 설명 메모를 버렸고, v0.6.1부터는 보여 줍니다. 인수 중인
+빌드가 대화가 꺼져 있는데도 그 메모를 보여 주지 않는다면 그 피드백 누락은 실패로 기록하세요.
+제어 계층 결과와 MCP 응답에는 메모가 있습니다.
+
+**통과.** 기록이 다시 대기로 들어가고 모든 확인이 처음부터 다시 돕니다. 대화가 꺼져 있으므로, 그
+사실과 켜기 전에는 아무것도 실행되지 않는다는 것을 말합니다. 한 작업에 세 번을 쓰고 나면 버튼이
+비활성화되고, 그 작업은 Codex에서 직접 이어 가라는 안내가 붙습니다.
+
+**기록.** `code_before`(`exhausted`), `code_after`(되돌아간 대기 코드), 버튼이 조용해졌을 때 기록이
+쓴 재설정 횟수를 `budget_resets`(3)로, `continuation_sent`를 `false`로, 대화가 꺼져 있다고 말했으면
+`said_thread_is_off`를 `true`로.
+
+### 12. 일시 정지가 회수하고, 다시 켜기가 이어받는가 — `pause-resume`
+
+**증명하는 것.** 일시 정지가 아직 대기열에 있는 것을 회수하고, 기다리는 기록은 상태가 바뀌는 대신
+일시 정지라고 말하며, 다시 켜면 원래 일정으로 돌아온다는 것.
+
+**할 일.** 절반이 둘입니다. 첫째, 기록이 `submitted`가 되는 것을 지켜보다가 즉시 복구를 일시
+정지하고(알림 영역 메뉴의 **자동 복구 일시 정지**가 가장 빠릅니다) 대기열 항목이 회수되는지 봅니다. 그 순간을 잡지 못했다면
+메모에 그렇게 적으세요. 회수 쪽 절반은 그러면 인수되지 않고, 나머지는 그대로 유효합니다. 둘째, 기록이
+기다리는 상태에서 복구를 일시 정지한 채 아무것도 보내지지 않는 것을 확인하고, 다시 켠 뒤 같은 기록이
+다음 확인에서 다뤄지는 것을 봅니다.
+
+**통과.** 기다리는 기록은 자기 코드를 유지한 채 옆에 `paused` 오버레이를 답니다. 상태가 다시 쓰이지
+않습니다. 이미 보내진 기록은 절대 일시 정지로 표시되지 않습니다. 그것은 아무도 지킬 수 없는 약속이기
+때문입니다. 일시 정지 동안에는 아무것도 보내지지 않고, 다시 켜면 다음 틱에 그 기록이 다시 확인됩니다.
+
+**기록.** `withdrawn_on_pause`를 `"withdrawn"`이나 `"nothing-queued"`로, `code_while_paused`,
+`overlay_while_paused`(`paused`), `code_after_resume`, `continuation_sent_while_paused`를 `false`로.
+
+### 13. 업그레이드가 고치기만 하고 결정하지 않는가 — `upgrade-keeps-decisions`
+
+**증명하는 것.** 업그레이드가 예전에 되돌려 버리던 두 가지. 주인이 고른 일시 정지와, 주인이 없앤
+로그인 시작 항목.
+
+**할 일.** 복구를 일시 정지하고, 설정 페이지에서 로그인 시 시작을 끕니다. Run 값이 없어졌는지
+확인합니다(`Get-ItemProperty HKCU:\Software\Microsoft\Windows\CurrentVersion\Run`). 그다음 같은
+압축 파일이나 더 새 압축 파일로 그 설치본 위에 설치합니다. 평범한 업그레이드 경로입니다. 그리고 다시
+봅니다.
+
+마지막으로 게시된 정식 릴리스(프리 릴리스가 아닌 것, `releases/latest`가 답하는 것)의 설치본에서 시작해 그 위에 인수하려는 압축 파일을 설치합니다. 인수하는
+릴리스는, 변경 이력의 자기 항목에 따로 적혀 있지 않다면 있던 설정을 하나도 바꾸지 않고 새로 더하지도
+않습니다. 뒤에 설정을 읽어 보세요. **화면 언어**, **테마**, **메시지 스타일**, 직접
+입력 메시지는 업그레이드 전과 같아야 하고, 그 밖의 것은 메모에 적습니다. v0.6.2나 그 이전에서 시작하면
+v0.6.3이 일부러 바꾼 기본값 하나도 함께 바뀝니다. 연속 메시지는 중단 종류마다 고정된 영어 문장
+하나였다가, 이제 이어서 하기 언어로 쓴 기본 메시지가 됩니다.
+
+**통과.** 업그레이드 뒤에도 복구는 여전히 일시 정지이고, 로그인 시작 항목은 추가되지 않았습니다. 이미
+이 설치본의 것인 항목은 다시 등록되어 런타임이 옮겨진 뒤의 경로를 고칩니다. 그것은 없던 것을 만드는
+일과 다릅니다.
+
+**기록.** `paused_before`와 `paused_after`를 불리언으로, `startup_entry_before`와
+`startup_entry_after`를 `"ours"`, `"other"`, `"absent"` 중 하나로.
+
+### 14. 복구가 다섯 가지 중 어느 일이 있었는지 말하는가 — `repair`
+
+**증명하는 것.** **설치 복구**가 깨진 등록을 다시 하고, 어깨를 으쓱하는 대신 다섯 결과 중 하나를
+보고하며, 아무 결정도 바꾸지 않는다는 것.
+
+**할 일.** 진단 페이지에서 **설치 복구**를 누르고 무엇을 보고하는지 읽습니다. 그다음 일시 정지 스위치와
+로그인 시작 항목을 확인합니다.
+
+**통과.** 정확히 다음 중 하나를 보고합니다. 끝났다, 아직 작업 중이다, 다른 설치나 복구가 이미 실행
+중이다, 이 설치본에 설치가 필요로 하는 파일이 없다, 실패했다. 일시 정지 스위치와 로그인 시작 항목은
+그 전과 같습니다.
+
+**기록.** `outcome`을 `"done"`, `"running"`, `"busy"`, `"incomplete"`, `"failed"` 중 하나로,
+`paused_unchanged`, `startup_entry_unchanged`.
+
+### 15. 제거가 자기 것만 지우는가 — `uninstall`
+
+**증명하는 것.** 제거가 워처를 먼저 멈추고, 자기 것임을 증명할 수 있는 것만 지우며, 지우라고 하지 않는
+한 설정과 대기 중인 복구를 남긴다는 것. 이 단계는 마지막에 하세요. 이 뒤에 앞 단계를 다시 하려면 다시
+설치해야 합니다.
+
+**할 일.** 릴리스 압축 파일의 `Uninstall.cmd`를 실행합니다. 알림 영역 아이콘이 사라지는 것을 봅니다.
+그다음 Run 값, 시작 메뉴 항목, `config/`가 남았는지를 확인합니다. 거부까지 볼 시간이 있다면, 설치 홈을
+`app`, `runtime`, `config`, `logs`라는 이름의 폴더만 들어 있는 디렉터리로 가리켜 두고, 지우는 대신
+거부하고 보고하는지 확인하세요.
+
+**통과.** 워처에게 멈추라고 요청했고 멈췄습니다. 멈춘 것을 확인할 수 없으면 제거는 아무것도 지우기
+전에 중단하며, 그것도 통과이고 그대로 기록합니다. 로그인 시작 항목은 이 설치본의 것일 때만 제거되고,
+다른 복사본을 시작하는 항목은 보고된 채 남습니다. 평범한 제거에서는 설정과 대기 중인 복구가 살아
+남습니다.
+
+**기록.** `route`를 `"Uninstall.cmd"`, `"codex"`, `"source"` 중 하나로, `watcher_stopped`,
+`startup_entry`를 `"removed"`, `"kept-not-ours"`, `"absent"` 중 하나로, `state_kept`, 지우기를 거부한
+디렉터리 수를 `refused_directories`로.
+
+## v0.6.3에서 더해진 확인, 그리고 적을 곳
+
+v0.6.3은 제품이 무엇을 말하고 보여 주는지를 바꿀 뿐, 복구가 무엇을 결정하는지는 바꾸지 않습니다.
+분류기, 관문, 그리고 보낼 수 있는 유일한 워처는 v0.6.2의 것 그대로입니다. 아래는 새 표면에 대한
+확인입니다. 어느 것도 따로 된 단계가 아니고, 검증기는 이것들을 전혀 모릅니다. 단계가 지정하지 않은
+`observed` 값은 거부되므로 거기에 적을 수도 없습니다. 대신 각 확인을 옆에 적힌 단계의 `note`에 짧은
+기계적인 문장으로 적으세요. `pass`에도 메모를 붙일 수 있습니다. 일부러 세지 않는 것입니다. 어떤
+단계의 `pass`도 메모가 말하지 않는 한 이 확인들에 대해서는 아무것도 말하지 않습니다.
+
+앞의 규칙은 모두 그대로입니다. 버려도 되는 대화만 쓰세요. 사용량 한도를 꾸며 내지 말고, 어떤 상황에
+도달하려고 Codex의 데이터베이스나 이 제품의 상태를 고치지 마세요. 정직하게 도달할 수 없으면 보지
+못했다고 적습니다. 클릭과 입력은 직접 하세요. 스크립트나 매크로나 접근성 도구로 조작해서는 안 되고,
+그것은 이 제품 스스로도 거부하는 일입니다. 대화에 있던 글, 직접 입력한 메시지의 문장, 스크린샷은
+적지 않습니다.
+
+| 확인 | 하는 때 | 적는 곳 |
 | --- | --- | --- |
-| Interface language, and that it survives a restart | Step 3 | `watcher-starts` |
-| The notification-area popup | Step 3 | `watcher-starts` |
-| Continuation message styles and Preview | Step 4 | `interruption-detected` |
-| Custom message: refusal and fallback | Step 4 | `interruption-detected` |
-| A notification's Open Dashboard, and the kind of interruption it names | Step 4 | `interruption-detected` |
-| The continuation that arrived is the one Preview showed | Step 5 | `continuation-exact-thread` |
-| The header's activity states, and Reduce motion | Step 8 | `dashboard-shows-it` |
-| The panel in Codex: Preview, and Custom text it cannot change | Step 8 | `dashboard-shows-it` |
-| A stale click refused | Step 9 | `cancel` |
-| Pending's Auto-resume switch | Step 10 | `retry-now` |
-| Cancel all | After step 12 | `upgrade-keeps-decisions` |
-| The window's own dialog, and the scroll bars | Step 9 | `cancel` |
+| 화면 언어, 그리고 재시작 뒤에도 남는지 | 3단계 | `watcher-starts` |
+| 알림 영역 팝업 | 3단계 | `watcher-starts` |
+| 이어서 하기 메시지 스타일과 미리보기 | 4단계 | `interruption-detected` |
+| 직접 입력 메시지의 거절과 대체 | 4단계 | `interruption-detected` |
+| 알림의 대시보드 열기, 그리고 알림이 말하는 중단 종류 | 4단계 | `interruption-detected` |
+| 도착한 연속 메시지가 미리보기와 같은지 | 5단계 | `continuation-exact-thread` |
+| 머리글의 활동 상태와 움직임 줄이기 | 8단계 | `dashboard-shows-it` |
+| Codex 안의 패널: 미리보기, 그리고 바꿀 수 없는 직접 입력 문장 | 8단계 | `dashboard-shows-it` |
+| 낡은 클릭의 거절 | 9단계 | `cancel` |
+| 대기 중의 자동 이어 가기 스위치 | 10단계 | `retry-now` |
+| 모두 취소 | 12단계 뒤 | `upgrade-keeps-decisions` |
+| 창 자신의 대화창과 스크롤 막대 | 9단계 | `cancel` |
 
-**Interface language — step 3, noted in `watcher-starts`.** If `CODEX_AUTO_RESUME_LANG` is
-set in your environment it overrides the setting, so remove it first. On **Settings →
-General**, set **Interface language** to a language Windows is not using and save; the window
-closes and opens again by itself, in that language and on the same section. Open the popup, and
-hover over the icon. Then stop the watcher from the menu, start it again from the window, and
-sign out and back in. Set it back to **System** at the end. *A pass:* the window reopened once,
-in the chosen language, everything opened after the change speaks it, the choice is still there
-after the watcher restart and the sign-in, and **System** brings back the first language
-Windows lists.
+**화면 언어 — 3단계, `watcher-starts`에 메모.** 환경에 `CODEX_AUTO_RESUME_LANG`이 있으면 설정보다
+앞서므로 먼저 지우세요. **설정 → 일반**에서 **화면 언어**를 Windows가 쓰지 않는 언어로 바꾸고 저장합니다.
+창은 스스로 닫혔다가 그 언어로, 같은 설정 부분에서 다시 열립니다. 팝업을 열고, 아이콘 위에 포인터를
+올립니다. 그다음 메뉴에서 워처를 멈추고 창에서 다시 시작한 뒤, 로그아웃했다가 다시 로그인합니다.
+끝나면 **시스템**으로 되돌립니다. *통과:* 창이 고른 언어로 한 번 다시 열리고, 바꾼 뒤에 연 것은 모두 그
+언어로 말하며,
+워처를 다시 시작하고 다시 로그인한 뒤에도 그 선택이 남아 있으며, **시스템**으로 되돌리면 Windows가
+첫째로 꼽는 언어로 돌아옵니다.
 
-**The notification-area popup — step 3, noted in `watcher-starts`.** Click the icon once: a
-small window opens beside it. Click the icon again: it closes. Open it and click somewhere
-else: it closes, and that click does not reopen it. Open it and press Esc: it closes. Press
-its **Open Dashboard**. Then, with the watcher running, restart Windows Explorer from Task
-Manager. *A pass:* each of those behaves as described, **Open Dashboard** opens the window
-and changes nothing, and the icon comes back by itself after Explorer restarts and still
-opens the popup on one click.
+**알림 영역 팝업 — 3단계, `watcher-starts`에 메모.** 아이콘을 한 번 클릭하면 그 옆에 작은 창이
+열립니다. 한 번 더 클릭하면 닫힙니다. 열어 둔 채 다른 곳을 클릭하면 닫히고, 그 클릭이 창을 다시 열지는
+않습니다. 열어 둔 채 Esc를 누르면 닫힙니다. 창의 **대시보드 열기**를 누릅니다. 그다음 워처가 도는
+동안 작업 관리자에서 Windows 탐색기를 다시 시작합니다. *통과:* 모두 적은 대로 동작하고, **대시보드
+열기**는 창을 열 뿐 아무것도 바꾸지 않으며, 탐색기가 다시 시작된 뒤 아이콘이 저절로 돌아와 여전히 한
+번 클릭으로 팝업을 엽니다.
 
-**Continuation message styles and Preview — step 4, noted in `interruption-detected`.** On
-**Settings → Continuation message**, choose **Minimal**, then **Standard**, then
-**Detailed**, and for each one open **Preview** for a usage limit and for one transient
-kind, without saving. Leave the page without saving and open it again. *A pass:* Preview
-changes with each unsaved choice and says the watcher adds one line after the text; leaving
-without saving leaves the stored style as it was. Before you induce the failure, save the
-style you mean to accept with.
+**이어서 하기 메시지 스타일과 미리보기 — 4단계, `interruption-detected`에 메모.** **설정 → 이어서
+하기 메시지**에서 **간단히**, **기본**, **자세히**를 차례로 고르고, 저장하지 않은 채 각각 사용량 한도와
+일시적 중단 한 종류에 대해 **미리보기**를 엽니다. 저장하지 않고 쪽을 떠났다가 다시 엽니다. *통과:*
+미리보기가 저장하지 않은 선택마다 바뀌고, 워처가 문장 뒤에 한 줄을 덧붙인다고 말합니다. 저장하지 않고
+떠나면 저장된 스타일은 그대로입니다. 실패를 만들기 전에, 인수하려는 스타일을 저장하세요.
 
-**Custom message: refusal and fallback — step 4, noted in `interruption-detected`.** Choose
-**Custom**. Type a short, neutral sentence containing `{reason}` and save it. Replace
-`{reason}` with `{title}` and save again. Set **Use the message for** to **Each kind of
-interruption separately**, leave one kind empty and preview that kind; then clear the message
-for every interruption as well and preview it again. *A pass:* the first message is accepted
-and Preview shows it exactly as typed with the reason filled in; the second is refused by
-name, *Not saved*, and the first is still the stored one; Preview names the message for
-every interruption as the first fallback and the Standard message as the second. Note the
-three outcomes, never the words. Restore the style you are accepting with before you induce
-the failure.
+**직접 입력 메시지의 거절과 대체 — 4단계, `interruption-detected`에 메모.** **직접 입력**을 고릅니다.
+`{reason}`이 들어간 짧고 무난한 문장을 입력해 저장합니다. `{reason}`을 `{title}`로 바꿔 다시 저장합니다.
+**메시지 적용 범위**를 **중단 종류마다 따로**로 두고, 한 종류를 비워 둔 채 그 종류를 미리 봅니다. 그다음
+모든 중단에 쓰는 메시지도 지우고 다시 미리 봅니다. *통과:* 첫 메시지는 받아들여지고 미리보기는 사유를
+채운 채 입력한 그대로 보여 줍니다. 두 번째는 이름을 들어 거절되고(*저장하지 않았습니다*) 저장된 것은 첫
+메시지 그대로입니다. 미리보기는 첫 대체로 모든 중단에 쓰는 메시지를, 두 번째 대체로 기본 메시지를
+말합니다. 결과 셋만 적고 문장은 적지 않습니다. 실패를 만들기 전에 인수하려는 스타일로 되돌리세요.
 
-**A notification's Open Dashboard — step 4, noted in `interruption-detected`.** When the
-interruption's notification appears, read it without pressing **Don't retry** or **Don't
-resume**. Press **Open Dashboard**. *A pass:* a transient interruption's notification names
-the kind of interruption, and the button opens the Dashboard on the Pending page with the
-record still waiting and nothing cancelled. If no notification appeared, say so.
+**알림의 대시보드 열기 — 4단계, `interruption-detected`에 메모.** 중단 알림이 뜨면
+**다시 시도하지 않음**이나 **재개하지 않음**은 누르지 말고 읽습니다. **대시보드 열기**를 누릅니다.
+*통과:* 일시적 중단의 알림은 중단의 종류를 말하고, 단추는 대시보드를 대기 중 쪽으로 열며, 기록은 여전히
+기다리고 있고 아무것도 취소되지 않았습니다. 알림이 뜨지 않았다면 그렇게 적습니다.
 
-**The continuation that arrived is the one Preview showed — step 5, noted in
-`continuation-exact-thread`.** Before the schedule comes round, open Preview for this
-record's kind of interruption. When the continuation appears in the conversation, compare
-the two by eye. *A pass:* it reads as Preview showed, followed by the watcher's one line.
-Note whether they matched, never the words.
+**도착한 연속 메시지가 미리보기와 같은지 — 5단계, `continuation-exact-thread`에 메모.** 일정이
+돌아오기 전에 이 기록의 중단 종류로 미리보기를 엽니다. 연속 메시지가 대화에 나타나면 눈으로 견줍니다.
+*통과:* 미리보기가 보여 준 그대로이고, 그 뒤에 워처의 한 줄이 붙어 있습니다. 같았는지만 적고 문장은
+적지 않습니다.
 
-**The header's activity states, and Reduce motion — step 8, noted in
-`dashboard-shows-it`.** Watch the word beside the status dot in the Dashboard's header as the
-steps go by: *Monitoring* with nothing waiting, *Waiting* while a task waits for its time,
-*Checking* as one comes due, *Recovering* while the continuation runs in Codex, *Paused*
-while recovery is paused, and *Needs your attention* once the watcher is stopped in this
-step. Then turn on **Settings → Appearance → Reduce motion**. *A pass:* each word matches
-what Pending and the command line say is happening; with Reduce motion on nothing in the
-window or the popup breathes or pulses, and turning it off brings the motion back. Note the
-states you saw.
+**머리글의 활동 상태와 움직임 줄이기 — 8단계, `dashboard-shows-it`에 메모.** 단계가 진행되는 동안
+대시보드 머리글의 상태 점 옆 낱말을 봅니다. 기다리는 것이 없으면 *감시 중*, 작업이 때를 기다리면
+*기다리는 중*, 때가 되면 *확인 중*, 연속 메시지가 Codex에서 도는 동안 *복구 중*, 복구가 일시 정지되면
+*일시 중지됨*, 이 단계에서 워처를 멈추면 *확인이 필요합니다*입니다. 그다음 **설정 → 모양 → 움직임
+줄이기**를 켭니다. *통과:* 낱말마다 대기 중 쪽과 명령줄이 말하는 상황과 맞고, 움직임 줄이기를 켜면
+창과 팝업 어디에서도 숨쉬기나 깜박임이 없으며, 끄면 움직임이 돌아옵니다. 본 상태를 적습니다.
 
-**The panel in Codex — step 8, noted in `dashboard-shows-it`.** In the disposable
-conversation, open the panel (*open auto resume settings*) and use its Preview for the saved
-style. For the Custom text half, a Custom message has to be saved: if you are accepting with
-Standard, save a neutral one while recovery is paused, and restore Standard afterwards. The
-panel shows the message, offers no way to edit it, and says custom messages are written in
-the Dashboard. Change an ordinary setting in the panel and save, then reopen the
-Dashboard. The panel does not refresh by itself, so reopen it before comparing. *A pass:* the
-panel's Preview matches the Dashboard's, the Custom text cannot be changed there, and saving
-in the panel left the Custom message as it was.
+**Codex 안의 패널 — 8단계, `dashboard-shows-it`에 메모.** 버려도 되는 대화에서 패널을 열고(*open
+auto resume settings*) 저장된 스타일로 패널의 미리보기를 씁니다. 직접 입력 문장 쪽을 보려면 직접 입력
+메시지가 저장되어 있어야 합니다. 기본으로 인수하는 중이라면 복구를 일시 정지한 동안 무난한 메시지를
+저장하고, 끝나면 기본으로 되돌리세요. 패널은 그 메시지를 보여 주되 고칠 방법을 내놓지 않고, 직접 입력
+메시지는 대시보드에서 쓴다고 말합니다. 패널에서 평범한 설정 하나를 바꿔 저장한 뒤 대시보드를
+다시 엽니다. 패널은 스스로 새로 고치지 않으므로 견주기 전에 다시 여세요. *통과:* 패널의 미리보기가
+대시보드의 것과 같고, 직접 입력 문장은 거기서 바꿀 수 없으며, 패널에서 저장해도 직접 입력 메시지는
+그대로입니다.
 
-**The window's own dialog, and the scroll bars — step 9, noted in `cancel`.** Press **Cancel**
-on the Pending page and read the dialog it raises, then press its **Close**; press **Cancel**
-again and take it. Do the same with **Clear history** on the History page, and answer that one
-with Esc. Then make the window narrow enough for a list to need its bar sideways, and tall
-enough for a Settings section to need one down, and scroll both by dragging, by the wheel and
-by the keyboard; open **Settings → Continuation message**, choose **Custom**, and scroll the
-message box with more lines in it than it shows. *A pass:* each dialog is in the window's own
-material, opens in the middle of the window, carries no second button on the taskbar, and has
-the action's own words on the button that takes it - never *Yes* and *No*; Esc leaves it as the
-other button does; and every bar you meet, in either direction and in the message box included,
-is the product's own pill in its groove, never Windows' grey, with nothing left of Windows' bar
-showing beside it.
+**창 자신의 대화창과 스크롤 막대 — 9단계, `cancel`에 메모.** 대기 중 쪽에서 **취소**를 누르고 뜬
+대화창을 읽은 뒤 **닫기**를 누릅니다. 다시 **취소**를 눌러 이번에는 수락합니다. 기록 쪽의 **기록
+지우기**도 같은 식으로 해 보되 이쪽은 Esc로 답합니다. 그다음 목록이 옆으로, 설정 부분이 아래로 막대를
+필요로 할 만큼 창을 좁고 짧게 만들고, 끌어서·휠로·키보드로 양쪽을 모두 스크롤합니다.
+**설정 → 이어서 하기 메시지**에서 **직접 입력**을 고르고, 상자에 보이는 줄보다 많은 줄을 넣어 스크롤해
+봅니다. *통과:*
+대화창이 창과 같은 재질이고, 창 한가운데에 열리며, 작업 표시줄에 단추를 하나 더 만들지 않고, 실행하는
+단추에 그 동작의 이름이 적혀 있습니다. *예*와 *아니요*가 아닙니다. Esc는 다른 단추와 같은 답을 냅니다.
+그리고 어느 방향이든, 메시지 상자를 포함해 만나는 모든 막대가 Windows의 회색이 아니라 홈에 놓인 제품의
+알약이며, 그 옆에 Windows 막대가 비쳐 보이는 곳이 없습니다.
 
-**A stale click refused — step 9, noted in `cancel`.** A click is refused only when its task
-changed between being drawn and being clicked, and that must not be arranged by editing
-anything. The popup reads its list again every few seconds, so the moment is short: open the
-popup on the task step 9 is about, cancel that task on the Pending page as step 9 says, and
-at once click the task's switch in the popup. The Pending page's own switch can show the same
-refusal only when a task changes inside the five seconds between its refreshes, for example
-as its schedule comes round. *A pass:* the popup says *That task changed before the click
-reached it, so nothing was done*, and the record is exactly as the cancel left it. If a
-surface redrew first and the row had gone, write that the refusal was not seen; that is not
-a failure of the step.
+**낡은 클릭의 거절 — 9단계, `cancel`에 메모.** 클릭은 그 작업이 그려진 뒤 클릭되기 전에 바뀌었을 때만
+거절되고, 그 상황을 무엇을 고쳐서 만들어서는 안 됩니다. 팝업은 몇 초마다 목록을 다시 읽으므로 그 순간은
+짧습니다. 9단계가 다루는 작업이 보이도록 팝업을 열고, 9단계대로 대기 중 쪽에서 그 작업을 취소한 뒤, 곧바로
+팝업에서 그 작업의 스위치를 클릭합니다. 대기 중 쪽 자신의 스위치는 새로 고침 사이의 5초 안에 작업이
+바뀔 때만, 예를 들어 일정이 돌아오는 순간에만 같은 거절을 보여 줄 수 있습니다. *통과:* 팝업이 *누르는
+사이에 그 작업이 바뀌어 아무것도 하지 않았습니다*라고 말하고, 기록은 취소가 남긴 그대로입니다. 어느
+표면이 먼저 다시 그려져 행이 사라졌다면 거절을 보지 못했다고 적습니다. 그것은 이 단계의 실패가
+아닙니다.
 
-**Pending's Auto-resume switch — step 10, noted in `retry-now`.** With the record waiting,
-turn its **Auto-resume** switch off on the Pending page, then on again, and look at the same
-task in the popup each time. *A pass:* nothing is sent for that task while the switch is off;
-turning it on again sends nothing because of the click and moves no schedule; the conversation
-is not switched off; and the popup shows the same state once it has read the list again.
-Note the code before and after each click.
+**대기 중의 자동 이어 가기 스위치 — 10단계, `retry-now`에 메모.** 기록이 기다리는 동안 대기 중 쪽에서 그
+작업의 **자동 이어 가기** 스위치를 끄고, 다시 켜고, 그때마다 팝업에서 같은 작업을 봅니다. *통과:*
+스위치가 꺼져 있는 동안 그 작업에 대해 아무것도 보내지지 않습니다. 다시 켜도 클릭 때문에 보내지는
+것은 없고 일정도 옮겨지지 않습니다. 대화가 꺼지지 않으며, 팝업은 목록을 다시 읽은 뒤 같은 상태를
+보여 줍니다. 클릭마다 앞뒤의 코드를 적습니다.
 
-**Cancel all — after step 12, noted in `upgrade-keeps-decisions`, the next file you
-write.** It cancels every waiting record, so do it only when no step still needs one:
-induce one more interruption, or use any still waiting, then press **Cancel all** on Pending
-and read the confirmation before accepting it. *A pass:* the confirmation says anything
-already handed to Codex is withdrawn only if it is still queued; the result counts what was
-waiting; each of those records reads `cancelled` on History; no conversation was switched
-off; and there is no button anywhere that retries everything.
+**모두 취소 — 12단계 뒤, 그다음에 쓰는 파일인 `upgrade-keeps-decisions`에 메모.** 기다리는 기록을 모두
+취소하므로, 더는 기록이 필요한 단계가 없을 때만 하세요. 중단을 하나 더 만들거나 아직 기다리는 것을
+쓰고, 대기 중 쪽에서 **모두 취소**를 누른 뒤 확인 문구를 읽고 수락합니다. *통과:* 확인 문구가 이미
+Codex에 넘긴 것은 아직 대기열에 있을 때만 거둬들인다고 말하고, 결과가 기다리던 수를 세며, 그 기록들이
+기록 쪽에서 모두 `cancelled`이고, 꺼진 대화가 없으며, 어디에도 모두 다시 시도하는 단추가 없습니다.
 
-## What this procedure does not prove
+## 이 절차가 증명하지 않는 것
 
-- **That it works for anyone else.** One machine, one Codex, one Windows build. The
-  evidence files record all three so that a later reader knows exactly how narrow the
-  claim is.
-- **That the usage-limit path works today**, unless a usage limit really happened on the
-  day it was run. Read `interruption-detected`'s `category` before you believe otherwise.
-- **That nothing was misread.** The validator checks the shape of what was written, never
-  its truth. Two people running the acceptance separately is worth more than any check a
-  script can make.
-- **That the release is safe to publish on its own.** This is the live half. The automated
-  suite is the other half, and a release needs both.
+- **다른 사람에게도 된다는 것.** 기기 하나, Codex 하나, Windows 빌드 하나입니다. 증거 파일이 셋을 모두
+  적는 이유는, 나중에 읽는 사람이 이 주장이 얼마나 좁은지 정확히 알 수 있어야 하기 때문입니다.
+- **사용량 한도 경로가 오늘도 된다는 것.** 그날 사용량 한도가 실제로 걸리지 않았다면 아닙니다. 믿기
+  전에 `interruption-detected`의 `category`를 읽으세요.
+- **잘못 본 것이 없다는 것.** 검증기는 적힌 것의 모양을 볼 뿐 그 내용이 참인지는 보지 않습니다. 두
+  사람이 따로 인수해 보는 것이 어떤 스크립트의 확인보다 값집니다.
+- **이것만으로 릴리스를 게시해도 된다는 것.** 이것은 실제 기기 쪽 절반입니다. 나머지 절반은 자동
+  테스트 모음이고, 릴리스에는 둘 다 필요합니다.

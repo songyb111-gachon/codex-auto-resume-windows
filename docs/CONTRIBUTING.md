@@ -1,91 +1,81 @@
-# Contributing
+# 기여
 
-Thanks for looking. This is a small, deliberately conservative tool, so the most useful
-contributions are usually bug reports with a reproduction, and fixes that keep the safety
-properties intact.
+> 🌐 한국어 문서입니다. English version: [`main` 브랜치의 CONTRIBUTING.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/CONTRIBUTING.md)
 
-## Development environment
+들여다봐 주셔서 감사합니다. 이 도구는 작고 의도적으로 보수적으로 만들어져 있어서, 가장 도움이 되는
+기여는 대개 재현 절차가 있는 버그 신고와 안전 속성을 그대로 지키는 수정입니다.
 
-- Windows 10/11. The product is Windows-only, and so is most of the test suite.
-- Python 3.12 or newer, standard library only. There are no third-party runtime dependencies
-  and no build step for the Python side. What that promise covers is decided in one file,
-  `scripts/python_support.json`: CI runs every non-live test on Python 3.12, 3.13 and 3.14 as
-  blocking jobs, and on the 3.15 pre-release as an advisory one whose result is shown but does
-  not block; releases are built with 3.13; and the archive bundles Python 3.13.15, so nobody
-  installing a release needs a Python of their own. Adding a tested version never moves the
-  bundled runtime. `tests/test_python_support.py` fails if the workflows, or the minimum this
-  page and the README state, stop agreeing with that file.
-- The ChatGPT/Codex desktop app, if you want to run anything beyond the unit tests.
-- .NET Framework 4.8 (already on every supported Windows) to build the two small C#
-  executables — the window and the MCP launcher (`gui/McpLauncher.cs`). The window is
-  `gui/SettingsApp.cs` for the form and the Settings page and `gui/Dashboard.cs` for the
-  navigation and the Overview, Pending, History, Statistics and Diagnostics pages; the soft
-  controls both are drawn with are `gui/SoftTheme.cs` (the colours, sizes and motion),
-  `gui/SoftDepth.cs` (the shadows), `gui/SoftLayout.cs` (what holds what), `gui/SoftFields.cs`
-  (buttons, check boxes, choices and text), `gui/SoftCombo.cs` (the drop-down),
-  `gui/SoftCallout.cs` (the callout, a notice set apart), `gui/SoftList.cs` and `gui/Marks.cs`
-  (the status light); and `gui/Brand.cs` is the palette, generated. The compile list is
-  `gui/window.sources` and only there — a new window source is added to that one file, and
-  `build/make_gui.ps1` and every test read it.
+## 개발 환경
 
-Nothing here needs administrator rights.
+- Windows 10/11. 제품이 Windows 전용이고, 테스트 suite 대부분도 그렇습니다.
+- Python 3.12 이상, 표준 라이브러리만 씁니다. 서드파티 런타임 의존성이 없고 Python 쪽에는 빌드
+  단계도 없습니다. 이 약속이 무엇을 뜻하는지는 `scripts/python_support.json` 한 파일이 정합니다. CI는
+  라이브가 아닌 모든 테스트를 Python 3.12, 3.13, 3.14에서 차단 작업으로, 3.15 사전 릴리스에서는 결과를
+  보여 주되 막지는 않는 참고 작업으로 실행합니다. 릴리스는 3.13으로 빌드하며, 압축 파일에는 Python
+  3.13.15가 함께 들어 있어 릴리스를 설치하는 사람에게는 따로 Python이 필요하지 않습니다. 테스트하는 버전을
+  늘려도 함께 담는 런타임은 바뀌지 않습니다. 워크플로나, 이 문서와 README가 밝히는 최소 버전이 그 파일과
+  어긋나면 `tests/test_python_support.py`가 실패합니다.
+- 유닛 테스트 이상을 실행하려면 ChatGPT/Codex 데스크톱 앱.
+- 창과 MCP 런처(`gui/McpLauncher.cs`), 이 작은 C# 실행 파일 두 개를 빌드하려면 .NET Framework
+  4.8(지원되는 모든 Windows에 이미 들어 있습니다). 창 자체는 `gui/SettingsApp.cs`(창과 설정 페이지)와
+  `gui/Dashboard.cs`(페이지 이동과 개요, 대기 중, 기록, 통계, 진단 페이지)이고, 두 파일이 그리는 데 쓰는
+  부드러운 컨트롤은 `gui/SoftTheme.cs`(색과 크기와 모션), `gui/SoftDepth.cs`(그림자),
+  `gui/SoftLayout.cs`(무엇이 무엇을 담는지), `gui/SoftFields.cs`(버튼, 체크박스, 선택, 텍스트),
+  `gui/SoftCombo.cs`(드롭다운), `gui/SoftCallout.cs`(따로 짚어 둔 알림인 콜아웃), `gui/SoftList.cs`,
+  `gui/Marks.cs`(상태 불빛)입니다. `gui/Brand.cs`는 생성된 팔레트입니다. 컴파일 목록은
+  `gui/window.sources` 한 곳에만 있습니다. 창 소스를 새로 만들면 그 파일 하나에만 추가하면 되고,
+  `build/make_gui.ps1`과 모든 테스트가 그 파일을 읽습니다.
 
-## Running the tests
+여기 있는 어느 것도 관리자 권한이 필요하지 않습니다.
+
+## 테스트 실행
 
 ```bash
 python -m unittest discover -s tests
 ```
 
-Set `PYTHONPATH=src` first, or run from a checkout where `src` is importable.
+먼저 `PYTHONPATH=src`를 설정하거나, `src`를 import할 수 있는 체크아웃에서 실행하세요.
 
-The suite uses fakes and temporary directories. It never contacts the ChatGPT app, never
-sends a message to a Codex conversation, and never writes to your real registry. The live
-read-only checks stay skipped unless you set `CODEX_AR_LIVE=1` on Windows.
+이 suite는 가짜 객체와 임시 디렉터리를 씁니다. ChatGPT 앱에 절대 접속하지 않고, Codex 대화에 메시지를
+절대 보내지 않으며, 실제 레지스트리에 절대 쓰지 않습니다. 실제 환경을 읽기 전용으로 확인하는 검사는
+Windows에서 `CODEX_AR_LIVE=1`을 설정하지 않는 한 건너뜁니다.
 
-Other parts skip quietly when the tool they need is missing, so a green run is not always a
-full run. The schema-migration and downgrade tests build their databases from the store
-code of real tagged releases, so those tags have to be in the checkout (`git fetch --tags`;
-a shallow clone has none, which is why CI checks out the full history).
-`tests/test_mcp.py` needs Node to run the panel's own code, and `tests/test_reproducible.py`
-and `tests/test_gui_json.py` need the in-box C# compiler.
+필요한 도구가 없으면 조용히 건너뛰는 부분도 있어서, 초록불이 곧 전부 실행했다는 뜻은 아닙니다. 스키마
+마이그레이션과 다운그레이드 테스트는 실제 태그 릴리스의 store 코드로 데이터베이스를 만들기 때문에 그
+태그가 체크아웃에 있어야 합니다(`git fetch --tags`. shallow clone에는 없으며, CI가 전체 히스토리를
+받아 오는 이유가 이것입니다). `tests/test_mcp.py`는 패널 자신의 코드를 돌리려면 Node가,
+`tests/test_reproducible.py`와 `tests/test_gui_json.py`는 Windows에 내장된 C# 컴파일러가 필요합니다.
 
-What a green run does and does not establish is set out capability by capability in
-[`docs/FEATURE_MATRIX.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/FEATURE_MATRIX.md), and the checks
-no suite can make - a real install, a real interruption, a real send - are the procedure in
-[`docs/LIVE_ACCEPTANCE.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/LIVE_ACCEPTANCE.md).
+초록불이 무엇을 말해 주고 무엇을 말해 주지 않는지는 기능별로 [docs/FEATURE_MATRIX.md](FEATURE_MATRIX.md)에
+정리되어 있고, 어떤 suite도 대신할 수 없는 확인 — 실제 설치, 실제 중단, 실제 전송 — 은
+[docs/LIVE_ACCEPTANCE.md](LIVE_ACCEPTANCE.md)의 절차입니다.
 
-## Measuring the window
+## 창을 재기
 
-Speed is a claim like any other, and `build/measure_window.py` is how it is checked rather than
-believed. It builds `gui/*.cs` into a scratch folder and walks the real window page by page and
-section by section - `SettingsForm.LayoutAudit`, off screen, with no bridge and no timers - at two
-languages and two scales, and prints the medians:
+빠르기도 다른 주장과 같아서, 믿는 대신 확인하는 방법이 `build/measure_window.py`입니다. `gui/*.cs`를 임시
+폴더에 빌드한 뒤 진짜 창을 쪽마다, 구역마다 걷습니다. 화면 밖에서 브리지도 타이머도 없이 도는
+`SettingsForm.LayoutAudit`이며, 두 언어와 두 배율에서 재고 중앙값을 찍습니다.
 
 ```bash
 py build/measure_window.py
-py build/measure_window.py --tree <another checkout>
+py build/measure_window.py --tree <다른 체크아웃>
 ```
 
-Timings belong to a machine, so the suite asserts none of them; what it holds is the behaviour the
-speed comes from, such as `tests/test_gui_v069_idle.py`, which fails if an unchanged snapshot makes
-the window fill a list or rebuild the safety checks again. The v0.6.9 numbers are in that file's
-header and in the changelog.
+시간은 기계의 것이므로 스위트는 그 값을 주장하지 않습니다. 스위트가 붙잡는 것은 그 빠르기가 나오는 동작입니다.
+예를 들어 `tests/test_gui_v069_idle.py`는 바뀌지 않은 스냅숏에 창이 목록을 다시 채우거나 안전 점검을 다시
+만들면 실패합니다. v0.6.8 다음 릴리스의 수치는 그 파일의 머리말과 변경 이력에 있습니다.
 
-## Validating plugin metadata
+## 플러그인 메타데이터 검증
 
-The plugin manifest, the marketplace index and the MCP companion file are covered by
-`tests/test_plugin.py`. Run the suite after touching any of them; it checks the manifest
-against the fields Codex actually accepts, and it fails if the repository manifest starts
-declaring an MCP server (see below).
+플러그인 manifest, 마켓플레이스 인덱스, MCP 동반 파일은 `tests/test_plugin.py`가 다룹니다. 그중
+무엇이든 손댄 뒤에는 suite를 실행하세요. Codex가 실제로 받아들이는 필드에 맞춰 manifest를 검사하고,
+저장소 manifest가 MCP 서버를 선언하기 시작하면 실패합니다(아래 참고).
 
-## Building a release
+## 릴리스 빌드
 
-This section describes the release process as it is from v0.6.0. The split of the release
-workflow into build and publish jobs, the actions pinned to commits, Dependabot, the
-reproducible executables, the CRLF checkout and the executables' version resources are new in
-v0.6.0. Every archive published so far, v0.5.0 through v0.5.7, was built by the earlier
-single-job workflow, which referred to its actions by floating tags, and with executables that
-cannot be reproduced.
+이 절은 v0.6.0부터의 릴리스 과정을 설명합니다. 릴리스 워크플로를 빌드 작업과 게시 작업으로 나눈 것, 커밋으로 고정한 action, Dependabot, 재현
+가능한 실행 파일, CRLF 체크아웃, 실행 파일의 버전 리소스는 v0.6.0에서 새로 생겼습니다. 지금까지 게시된 모든 압축 파일(v0.5.0부터
+v0.5.7까지)은 action을 움직이는 태그로 참조하던 예전의 단일 작업 워크플로가 빌드했고, 그 실행 파일은 재현할 수 없습니다.
 
 ```bash
 powershell -ExecutionPolicy Bypass -File build/make_gui.ps1
@@ -93,78 +83,71 @@ python build/make_release.py
 python build/smoke_archive.py build/dist/CodexAutoResume-v<version>-win-x64.zip <version>
 ```
 
-The first builds `CodexAutoResumeSettings.exe` and `codex-auto-resume-mcp.exe`, makes them
-reproducible (below), and prints the compiler it used and each executable's SHA-256; it
-needs `python` on `PATH` for that step. The second downloads the pinned embeddable Python
-(checksum-verified), assembles the payload, and writes the ZIP and its SHA-256 into
-`build/dist/`.
+첫 번째는 `CodexAutoResumeSettings.exe`와 `codex-auto-resume-mcp.exe`를 빌드해 재현 가능하게
+만들고(아래 참고), 사용한 컴파일러와 각 실행 파일의 SHA-256을 출력합니다. 그 단계 때문에 `PATH`에
+`python`이 있어야 합니다. 두 번째는 고정된 embeddable Python을 내려받아(체크섬을 확인합니다)
+페이로드를 조립한 뒤 ZIP과 그 SHA-256을 `build/dist/`에 씁니다.
 
-The third drives the archive's own bytes: it extracts the ZIP and runs the engine inside
-it with the interpreter inside it, against a state directory that exists only for that run,
-and reads the version resource off both executables. Nothing outside that directory is
-touched - no registration, no watcher, and `plugin_setup.py` is never run, because a smoke
-test that repoints the sign-in entry at a temporary folder and then deletes the folder has
-broken the installation it was checking. Run it again on the **published** archive once the
-release exists: "the build works" and "what people download works" are different sentences,
-and only the second is a promise to anybody.
+세 번째는 압축 파일의 바이트 그 자체를 돌려 봅니다. ZIP을 풀고, 그 실행에만 존재하는 상태
+디렉터리를 대상으로 압축 파일 안의 인터프리터로 압축 파일 안의 엔진을 실행하며, 두 실행 파일의 버전
+리소스를 읽습니다. 그 디렉터리 밖의 것은 아무것도 건드리지 않습니다. 이 컴퓨터에 아무것도 등록하지
+않고, 워처를 띄우지 않으며, `plugin_setup.py`는 실행하지 않습니다. 로그인 항목을 임시 폴더로 돌려
+놓고 그 폴더를 지운 스모크 테스트가, 확인하던 바로 그 설치를 망가뜨린 적이 있기 때문입니다. 릴리스가
+생기면 **게시된** 압축 파일에 대해 한 번 더 실행하세요. "빌드가 된다"와 "사람들이 내려받는 것이
+된다"는 서로 다른 문장이고, 누구에게든 약속이 되는 것은 두 번째뿐입니다.
 
-Releases are published by the tagged GitHub Actions workflow, not from a developer machine.
-From v0.6.0 it has two jobs. `build` runs the repository's code - the tests and the build
-scripts - with a read-only token that checkout does not leave on disk. `publish` holds the
-rights to create the release and attest it, runs none of the repository's scripts or tests, and
-runs only on a tag push. Every action the workflows use is pinned to a full commit SHA.
-Dependabot proposes updates as pull requests; `.github/dependabot.yml` turns on no automatic
-merging, and each one is meant to be reviewed and merged by a person. Nothing in the repository
-checks its own settings on GitHub.
+릴리스는 개발자 PC가 아니라 태그로 실행되는 GitHub Actions 워크플로가 게시합니다. v0.6.0부터 이
+워크플로의 작업(job)은 둘입니다. `build`는 저장소의 코드 - 테스트와 빌드 스크립트 - 를 실행하며, 읽기 전용
+토큰을 쓰고 checkout은 그 토큰을 디스크에 남기지 않습니다. `publish`는 릴리스를 만들고 attestation을
+기록할 권한을 가지지만 저장소의 스크립트나 테스트는 하나도 실행하지 않고, 태그 push일 때만 실행됩니다. 모든
+워크플로가 쓰는 action은 전부 전체 커밋 SHA로 고정되어 있습니다. Dependabot이 업데이트를 pull request로
+제안합니다. `.github/dependabot.yml`은 자동 병합을 켜지 않으며, 각 pull request는 사람이 검토하고
+병합하도록 되어 있습니다. GitHub 쪽 저장소 설정은 저장소 안의 어떤 것으로도 확인되지 않습니다.
 
-### Making the build reproducible
+### 빌드를 재현 가능하게 만들기
 
-The build is designed so that, from a fresh clone, with the same build of the in-box
-compiler and the same Python build, the same source produces the same archive, byte for
-byte, and a rebuild of a tag can be compared with the published digest. How far that has
-been verified is set out below. It applies only to a tag whose source contains
-`build/normalize_pe.py`, and no release from v0.5.0 through v0.5.7 has one. What it
-relies on:
+빌드는, 새로 clone한 사본에서 같은 빌드의 기본 포함 컴파일러와 같은 Python 빌드로 빌드하면 같은
+소스가 바이트 하나까지 같은 압축 파일을 만들고, 그래서 태그를 다시 빌드한 결과를 게시된 다이제스트와
+비교할 수 있도록 설계되어 있습니다. 그것이 어디까지 확인되었는지는 아래에 적어 두었습니다. 이것은
+소스에 `build/normalize_pe.py`가 들어 있는 태그에만 해당하고, v0.5.0부터 v0.5.7까지의 릴리스 중에는
+그런 것이 없습니다. 이것이 기대는 것들은 이렇습니다.
 
-- **The executables.** The in-box C# compiler has no `/deterministic` switch, and two builds
-  of the same source differ, as measured, in exactly two fields: the COFF header's timestamp and the
-  module's random MVID. `build/normalize_pe.py` sets the first to a constant and the second
-  to a GUID derived from the module's own content, as Roslyn's `/deterministic` does for the
-  MVID. It locates both by parsing the PE and CLI metadata, and refuses a file that fails
-  its structural checks, for example one with a debug directory or a PE checksum. One
-  construct adds a third varying value that no after-the-fact edit can fix: a string `switch`
-  with enough cases makes the compiler emit a class named `<PrivateImplementationDetails>{GUID}`
-  with a fresh random GUID (measured: six cases did, four did not). The normaliser refuses any
-  executable that holds such a class, so the build fails on the machine that made it.
-  `make_gui.ps1` runs it on both executables. The version resource they carry is
-  generated from the manifest, so it depends on the source alone.
-- **The archive.** `build/make_release.py` fixes the file order, the entry timestamps and
-  the compression level, and writes no build-host path. The `zipfile` and `zlib` modules
-  that write it still come from the Python that runs it, so for a comparison use the
-  Python line the release workflow uses, 3.13, or at least the same zlib build: on
-  Windows, Python 3.14 and later use zlib-ng, which can compress the same files to
-  different bytes.
-- **Line endings.** The archive packs source files, so their line endings are part of its
-  bytes. `.gitattributes` checks every text file out with CRLF whatever the machine's
-  `core.autocrlf` says; the repository still stores LF.
-- **Checked, not assumed.** The release workflow builds the executables twice and refuses to
-  continue if the digests differ, and `tests/test_reproducible.py` compiles a real program
-  twice with the real compiler and holds the normaliser to the two-field claim. It also
-  compiles a program with a long string `switch` and checks the normaliser refuses it, and
-  holds the window's own source to having no such `switch`. That rule was learned from the
-  first v0.6.3 release run, whose two builds differed and which published nothing.
+- **실행 파일.** Windows에 기본 포함된 C# 컴파일러에는 `/deterministic` 스위치가 없고, 같은 소스를 두
+  번 빌드하면, 측정한 바로는 정확히 두 필드가 다릅니다. COFF 헤더의 타임스탬프와, 모듈에 무작위로 찍히는 MVID입니다.
+  `build/normalize_pe.py`가 앞의 것을 상수로, 뒤의 것을 모듈 자신의 내용에서 얻은 GUID로 바꿉니다.
+  MVID에 대해서는 Roslyn의 `/deterministic`이 하는 것과 같은 방식입니다. 두 필드는 PE와 CLI 메타데이터를
+  파싱해서 찾고, 구조 검사를 통과하지 못한 파일, 예를 들어 디버그 디렉터리나 PE 체크섬이 있는 파일은
+  거부합니다. 나중에 고칠 수 없는, 달라지는 값을 하나 더 만드는 코드가 있습니다. 문자열 `switch`에
+  `case`가 충분히 많으면 컴파일러가 새로 만든 무작위 GUID로 이름 붙인 `<PrivateImplementationDetails>{GUID}`
+  클래스를 만듭니다(측정한 바로는 여섯 개는 만들었고 네 개는 만들지 않았습니다). normalizer는 그런
+  클래스가 든 실행 파일을 거부하므로, 빌드한 컴퓨터에서 바로 실패합니다. `make_gui.ps1`이 두 실행
+  파일 모두에 이것을 실행합니다. 실행 파일에 들어가는 버전
+  리소스는 매니페스트에서 생성되므로 소스에만 의존합니다.
+- **압축 파일.** `build/make_release.py`가 파일 순서, 항목 타임스탬프, 압축 수준을 고정하고, 빌드한
+  기기의 경로를 하나도 넣지 않습니다. 그래도 압축 파일을 쓰는 `zipfile`과 `zlib` 모듈은 그것을 실행하는
+  Python의 것이므로, 비교하려면 릴리스 워크플로가 쓰는 Python 계열인 3.13을 쓰거나, 적어도 같은 zlib
+  빌드를 쓰세요. Windows에서 Python 3.14 이상은 zlib-ng를 쓰고, 이것은 같은 파일들을 다른 바이트로
+  압축할 수 있습니다.
+- **줄 끝.** 압축 파일에는 소스 파일이 들어가므로 그 줄 끝도 압축 파일 바이트의 일부입니다.
+  `.gitattributes`가 기기의 `core.autocrlf` 설정과 상관없이 모든 텍스트 파일을 CRLF로 체크아웃합니다.
+  저장소 자체에는 여전히 LF로 저장됩니다.
+- **가정이 아니라 확인.** 릴리스 워크플로는 실행 파일을 두 번 빌드하고 다이제스트가 다르면 더 진행하지
+  않습니다. `tests/test_reproducible.py`는 실제 컴파일러로 실제 프로그램을 두 번 컴파일해, 다른 곳은
+  두 필드뿐이라는 주장을 normalizer가 지키는지 확인합니다. 긴 문자열 `switch`가 든 프로그램을 컴파일해
+  normalizer가 거부하는지, 창 소스에 그런 `switch`가 없는지도 확인합니다. 이 규칙은 v0.6.3의 첫 릴리스
+  실행에서 배웠습니다. 두 빌드가 달랐고, 그 실행은 아무것도 게시하지 않았습니다.
 
-How far that has been verified: two local builds, and a build from a separate clone,
-produced identical executables; the archive writer reproduced a published archive byte
-for byte from its entries with the same zlib (1.3.1). Whether GitHub's runner produces the
-same bytes as a local build has not been verified. It depends on the build of the in-box
-compiler, which is why `make_gui.ps1` prints it, and on the Python that writes the archive.
+어디까지 확인되었는지도 적어 둡니다. 로컬 빌드 두 번과, 따로 clone한 사본에서 한 빌드가 똑같은 실행
+파일을 만들었습니다. 그리고 압축 파일을 쓰는 코드가 같은 zlib(1.3.1)로, 게시된 압축 파일 하나를 그
+항목들로부터 바이트 하나까지 똑같이 다시 만들어 냈습니다. GitHub의 runner가 로컬 빌드와 같은
+바이트를 만드는지는 확인되지 않았습니다. 그것은 Windows에 기본 포함된 컴파일러의 빌드에 달려
+있고(`make_gui.ps1`이 컴파일러를 출력하는 이유가 그것입니다), 압축 파일을 쓰는 Python에도 달려
+있습니다.
 
-### Rebuilding a tag and comparing digests
+### 태그를 다시 빌드해 다이제스트 비교하기
 
-For a tag whose source contains `build/normalize_pe.py`, start from a fresh clone, so
-`.gitattributes` decides the line endings rather than an old checkout, and build with
-Python 3.13:
+소스에 `build/normalize_pe.py`가 들어 있는 태그라면, 오래된 체크아웃이 아니라 `.gitattributes`가 줄
+끝을 정하도록 새로 clone해서 시작하고, Python 3.13으로 빌드하세요.
 
 ```powershell
 git clone --branch v<version> --depth 1 https://github.com/songyb111-gachon/codex-auto-resume-windows.git
@@ -174,547 +157,496 @@ python build/make_release.py
 Get-Content .\build\dist\CodexAutoResume-v<version>-win-x64.zip.sha256
 ```
 
-Compare the digest with the published `.sha256` and with the version's entry in
-[`scripts/release.json` on `main`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/scripts/release.json).
-If they differ, compare the `compiler` line and the two executable digests `make_gui.ps1`
-printed with the same lines in the release run's log, while GitHub still retains that log,
-and compare the files inside the two archives;
-[`docs/VERIFY.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/VERIFY.md)
-has a snippet that does that without extracting either. If every file matches and the
-archive digest still differs, look at the Python and zlib that wrote the archive. A tag
-whose source has no `build/normalize_pe.py` predates all of this - that is every release
-published so far, v0.5.0 through v0.5.7 - and its executables will not match.
+이 다이제스트를 게시된 `.sha256`, 그리고
+[`main`에 있는 `scripts/release.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/scripts/release.json)의
+해당 버전 항목과 비교합니다. 다르면 `make_gui.ps1`이 출력한 `compiler` 줄과 두 실행 파일의 다이제스트를,
+GitHub가 그 로그를 아직 보관하고 있는 동안 릴리스 실행 로그의 같은 줄과 비교하고, 두 압축 파일 안의
+파일들을 비교하세요. [docs/VERIFY.md](VERIFY.md)에 둘 다 풀지 않고 비교하는 코드가 있습니다.
+안의 파일이 모두 같은데도 압축 파일의 다이제스트가 다르다면, 압축 파일을 쓴 Python과 zlib를 살펴보세요.
+소스에 `build/normalize_pe.py`가 없는 태그는 이 모든 것보다 앞선 것이라서 - 지금까지 게시된 모든
+릴리스, 곧 v0.5.0부터 v0.5.7까지가 그렇습니다 - 그 실행 파일은 일치하지 않습니다.
 
-### After a release is published: pin its digest
+### 릴리스가 게시된 다음: 그 다이제스트를 고정하기
 
-The Codex plugin installs the release by downloading it, so it needs to know what the
-archive should hash to. `scripts/release.json` maps a version to that digest, and a version
-has no entry there until its archive exists (the v0.5.2 to v0.5.4 tags carried a `null`
-placeholder, which the bootstrap treats the same as no entry; v0.5.0 and v0.5.1, published
-before the table existed, have none at all). The archive contains `release.json`
-itself, so it cannot carry its own digest, and the pin is taken from the published file
-rather than from a local rebuild because it has to describe the bytes people download - and
-a runner build matching a local one is the part that has not been verified. Absent and
-`null` mean the same thing to the bootstrap, so there is no placeholder to add before
-tagging and none to find afterwards: publishing adds the key.
+Codex 플러그인은 릴리스를 내려받아 설치하므로, 그 압축 파일의 해시가 무엇이어야 하는지 알아야
+합니다. `scripts/release.json`이 버전과 그 다이제스트를 연결하는데, 압축 파일이 존재하기 전까지 그
+버전은 항목이 없습니다(v0.5.2부터 v0.5.4까지의 태그에는 `null` 자리표시자가 있었고, bootstrap은 이것을 항목이
+없는 것과 똑같이 봅니다. 그 표가 생기기 전에 게시된 v0.5.0과 v0.5.1은 항목이 아예 없습니다). 압축
+파일 안에 `release.json` 자체가 들어 있으므로 압축 파일은 자기
+다이제스트를 담을 수 없습니다. 그리고 고정값은 로컬에서 다시 빌드한 결과가 아니라 게시된 파일에서
+가져옵니다. 사람들이 내려받는 바로 그 바이트를 설명해야 하고, runner 빌드가 로컬 빌드와 일치하는지가
+확인되지 않은 부분이기 때문입니다. bootstrap에게는 항목이 없는 것과 `null`이 같은 뜻이므로,
+태그를 붙이기 전에 넣어 둘 자리표시자도 없고 나중에 찾아야 할 자리표시자도 없습니다. 키는 게시가
+추가합니다.
 
-So, once the release is up:
+그래서 릴리스가 올라가고 나면:
 
-1. Download the published `CodexAutoResume-v<version>-win-x64.zip`.
-2. `Get-FileHash <zip> -Algorithm SHA256` — and check it against the published `.sha256`.
-3. Put that digest in `scripts/release.json` under the version, and commit.
+1. 게시된 `CodexAutoResume-v<version>-win-x64.zip`을 내려받습니다.
+2. `Get-FileHash <zip> -Algorithm SHA256` — 그리고 함께 게시된 `.sha256`과 대조해 확인합니다.
+3. 그 다이제스트를 `scripts/release.json`의 해당 버전 아래에 넣고 커밋합니다.
 
-A planned pre-release - a suffixed tag such as `v0.6.9-alpha` - is not pinned at all. The
-table's keys are releases, `releases/latest` never answers with a pre-release, so nothing is
-served one, and the check that a tagged version carries a pin is told about it by the
-`prerelease` list in `scripts/release.json` instead. That list may name the version under
-development and nothing else, so the next bump has to remove the entry
-(`tests/test_convergence.py` fails until it does).
+계획된 프리 릴리스, 곧 `v0.6.9-alpha`처럼 접미사가 붙은 태그는 아예 고정하지 않습니다. 표의 키는 릴리스이고,
+`releases/latest`가 프리 릴리스를 답하지 않으므로 아무에게도 배달되지 않습니다. 태그가 달린 버전에 고정이
+있는지 보는 검사에는 `scripts/release.json`의 `prerelease` 목록이 그 사실을 알려 줍니다. 이 목록에는 개발 중인
+버전 하나만 들어갈 수 있으므로, 다음 버전으로 올릴 때 그 항목을 지워야 합니다(지우기 전까지
+`tests/test_convergence.py`가 실패합니다).
 
-Until that commit exists, the plugin verifies against the published `.sha256` sidecar
-instead and says so when it runs. That is weaker — the sidecar comes from the same origin
-as the archive — so it is worth closing rather than leaving. The commit does not reach the
-plugin copy an install registers: that copy carries the archive's own `release.json`, so
-for its own version it keeps falling back to the sidecar (or, with `-ArchivePath`, to no
-comparison) and says so.
+그 커밋이 생기기 전까지 플러그인은 대신 게시된 `.sha256` 사이드카로 검증하며, 실행할 때 그 사실을
+알립니다. 이쪽이 더 약합니다 — 사이드카는 압축 파일과 같은 출처에서 옵니다 — 그러니 그대로 두기보다
+이 틈을 메우는 편이 낫습니다. 그 커밋은 설치가 등록한 플러그인 사본에는 닿지 않습니다. 그 사본은
+압축 파일 안의 `release.json`을 가지고 있으므로, 자기 버전에 대해서는 계속 사이드카로 대신
+확인하고(`-ArchivePath`라면 아무것과도 대조하지 않고) 그렇다고 알립니다.
 
-### Do not change a published version
+### 게시된 버전을 바꾸지 마세요
 
-`v0.5.4` is meant to name one archive, with one SHA-256, for as long as the release exists.
-There is no supported way to change the bytes behind a published version, and the release
-workflow, since v0.5.4, refuses to try: publishing stops if the version already has
-assets.
+`v0.5.4`는 릴리스가 존재하는 한 하나의 압축 파일, 하나의 SHA-256을 가리키도록 되어 있습니다.
+게시된 버전 뒤의 바이트를 바꾸는 지원되는 방법은 없으며, 릴리스 워크플로는 v0.5.4부터 시도조차
+거부합니다. 해당 버전에 이미 asset이 있으면 게시가 중단됩니다.
 
-This is not tidiness. The plugin's bootstrap pins a version's digest and refuses anything
-else, so replacing a published archive either breaks every install of that version or -
-worse - succeeds with bytes the pinned digest does not describe. Two people installing
-"v0.5.4" a month apart have to get the same thing.
+깔끔함의 문제가 아닙니다. 플러그인의 bootstrap은 버전의 다이제스트를 고정해 두고 그 밖의 것은
+거부하므로, 게시된 압축 파일을 교체하면 그 버전의 모든 설치가 깨지거나 - 더 나쁘게는 - 고정된
+다이제스트가 설명하지 않는 바이트로 성공합니다. 한 달 간격으로 "v0.5.4"를 설치한 두 사람은 같은 것을
+받아야 합니다.
 
-So a correction gets a new version. If a published archive turns out to be wrong, bump the
-version, tag, and publish that; the mistaken release stays as a record of what was actually
-released, which is the point of a release.
+그래서 수정은 새 버전을 받습니다. 게시된 압축 파일이 잘못된 것으로 드러나면 버전을 올리고, 태그를
+붙이고, 그것을 게시하세요. 잘못된 릴리스는 실제로 무엇이 릴리스되었는지에 대한 기록으로 남고, 그것이
+릴리스의 존재 이유입니다.
 
-That refusal is the workflow's rule, not GitHub's. The releases from v0.5.0 through v0.5.7
-are not GitHub "immutable releases" - a repository setting; GitHub reports each of them as
-not immutable - so someone with write access could still replace an asset by hand. What
-would show it is the digest pinned on `main`, and the build provenance attestation checked
-against the release workflow and the tag, which is why
-[`docs/VERIFY.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/VERIFY.md)
-tells users to check both.
+다만 그 거부는 워크플로의 규칙일 뿐, GitHub가 강제하는 것은 아닙니다. v0.5.0부터 v0.5.7까지의 릴리스는
+GitHub의 "immutable releases"가 아닙니다 - 저장소 설정이며, GitHub는 그 릴리스들을 모두 immutable이
+아니라고 표시합니다. 그래서 쓰기 권한이 있는 사람은 여전히 asset을 손으로 바꿀 수 있습니다. 그런
+일이 있었다면 드러나게 해 주는 것은 `main`에 고정된 다이제스트, 그리고 릴리스 워크플로와 태그를
+지정해 확인한 빌드 provenance attestation이고,
+[docs/VERIFY.md](VERIFY.md)가 사용자에게 둘 다 확인하라고 하는 이유가 그것입니다.
 
-The manual dispatch still exists. From v0.6.0 it is a dry run: point it at any ref and it
-builds, tests and verifies with a read-only token, then keeps the archive as a workflow
-artifact. The publish job runs only on a tag push, so a dispatch of the main-branch workflow
-cannot create or change a release. That is new in v0.6.0. In the earlier single-job workflow,
-which built every archive from v0.5.0 through v0.5.7, a dispatch ran with the workflow's write
-permissions. In its v0.5.2 and v0.5.3 versions, a dispatch given a tag rebuilt that tag and
-replaced the release's assets (`--clobber`). Those copies of the workflow remain at those tags,
-and someone with write access can still dispatch them. Dispatched on its own tag, such a copy
-first tries to create that version's release, which fails because the release exists, so it
-reaches the replace step only when run from a branch that holds it. In its v0.5.0 to v0.5.3
-versions, a dispatch started on a tag with no release yet could also create that release (in
-v0.5.2 and v0.5.3, from a build of the ref named in its `tag` input), with no attestation. In
-its versions from v0.5.4 on, a dispatch started on a tag, while that version had no assets yet,
-could publish and attest a build of any ref whose `plugin.json` declared that tag's version;
-the attestation records which event started the run.
+수동 실행은 여전히 있습니다. v0.6.0부터는 dry run입니다. 아무 ref나 가리키면 읽기 전용 토큰으로 빌드하고, 테스트하고, 검증한 뒤 압축 파일을 워크플로
+artifact로 남깁니다. 게시 작업은 태그 push일 때만 실행되므로, main 브랜치 워크플로를 수동 실행해서는 릴리스를 만들거나 바꿀 수 없습니다. 이것은
+v0.6.0에서 새로 생겼습니다. v0.5.0부터 v0.5.7까지의 모든 압축 파일을 빌드한 예전의 단일 작업 워크플로에서는 수동 실행도 워크플로의 쓰기 권한을
+가지고 실행되었습니다. 그 워크플로의 v0.5.2와 v0.5.3 버전에서는, 태그를 지정한 수동 실행이 그 태그를 다시 빌드해 해당 릴리스의 asset을
+교체했습니다(`--clobber`). 그 워크플로 사본은 지금도 그 태그에 남아 있고, 쓰기 권한이 있는 사람은 여전히 그것을 수동 실행할 수 있습니다. 자기 태그에서
+수동 실행하면 그 사본은 먼저 해당 버전의 릴리스를 만들려고 하고, 릴리스가 이미 있으므로 거기서 실패합니다. 그래서 교체 단계에 이르는 것은 그 사본을 담은 브랜치에서
+실행했을 때뿐입니다. 그 워크플로의 v0.5.0부터 v0.5.3까지의 버전에서는, 아직 릴리스가 없는 태그에 대해 시작한 수동 실행이 그 릴리스를 만들 수도
+있었고(v0.5.2와 v0.5.3에서는 `tag` 입력에 지정한 ref를 빌드해서), attestation은 없었습니다. v0.5.4 이후 버전에서는, 태그에 대해 시작한
+수동 실행이 그 버전에 아직 asset이 없을 때, `plugin.json`에 그 태그의 버전이 적힌 ref라면 어느 것이든 빌드해 게시하고 attestation을 기록할
+수 있었습니다. 어떤 이벤트가 그 실행을 시작했는지는 attestation에 기록됩니다.
 
-> Actions → **release** → Run workflow → optionally set **ref**.
+> Actions → **release** → Run workflow → 필요하면 **ref** 지정.
 
-### Changing anything visual
+### 시각적인 것을 바꿀 때
 
-Colours, the icon and the generated files that carry them are covered in
-[`docs/BRAND.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/BRAND.md).
-The short version: the palette lives in `src/codex_auto_resume/brand/`, `gui/Brand.cs`
-and `assets/brand/icon.svg` are generated from it, and `tests/test_brand.py` regenerates
-both and compares. Do not write a colour literal into the window or the panel stylesheet.
-`tests/test_gui_theme.py` refuses one - a literal, a named colour, or a light brand colour
-drawn directly - in every hand-written source of the window: the `[settings]`, `[dashboard]`
-and `[controls]` groups of `gui/window.sources`, so a file added to a group is covered without
-an edit. The test that catches sizes written in raw pixels (`tests/test_brand.py`) reads the
-`[settings]` half only, so a raw pixel size written in the Dashboard's files is on you. Other
-tests do read those: every Paint handler must sit on a buffered control, every class that
-draws itself must be double-buffered, and the long-lived bridge's command line is executed for
-real.
+색상, 아이콘, 그리고 그것들을 담고 있는 생성 파일은
+[docs/BRAND.md](BRAND.md)에서 다룹니다. 요약하면 이렇습니다. 팔레트는
+`src/codex_auto_resume/brand/`에 있고, `gui/Brand.cs`와 `assets/brand/icon.svg`는 거기서
+생성되며, `tests/test_brand.py`가 둘을 다시 생성해 비교합니다. 창이나 패널 스타일시트에 색상 리터럴을
+직접 쓰지 마세요. `tests/test_gui_theme.py`가 창의 손으로 쓰는 모든 소스, 곧 `gui/window.sources`의
+`[settings]`, `[dashboard]`, `[controls]` 그룹에서 그것 - 리터럴, 이름 있는 색, 직접 그린 밝은 브랜드
+색 - 을 거부하므로, 그룹에 파일을 더해도 따로 고치지 않아도 검사됩니다. 크기를 픽셀로 직접 적은 것을
+잡아내는 테스트(`tests/test_brand.py`)는 `[settings]` 쪽만 읽으므로, 대시보드 파일에 픽셀 크기를 직접
+쓴 것은 직접 챙겨야 합니다. 다른 테스트는 그 파일들도 읽습니다. 모든 Paint 처리기는 버퍼가 있는 컨트롤
+위에 있어야 하고, 스스로 그리는 클래스는 이중 버퍼를 써야 하며, 상주 브리지의 명령줄은 실제로 실행해
+확인합니다.
 
-## The MCP declaration is added at build time
+## MCP 선언은 빌드 시점에 추가됩니다
 
-The repository manifest declares only `skills`. The release build adds `mcpServers` to the
-copy it packs beside the bundled interpreter. That split is deliberate: the MCP server runs
-on the interpreter that ships in the release archive, so declaring it in the repository would
-make a marketplace install from GitHub register a command that is not there. Please do not
-"fix" that by moving the declaration into the manifest — the build refuses to run if both
-declare it.
+저장소 manifest는 `skills`만 선언합니다. 릴리스 빌드가 번들된 인터프리터 옆에 함께 넣는 사본에
+`mcpServers`를 추가합니다. 이렇게 나눈 것은 의도적입니다. MCP 서버는 릴리스 압축 파일에 함께 들어가는
+인터프리터로 실행되므로, 저장소에 선언해 두면 GitHub에서 마켓플레이스로 설치했을 때 존재하지 않는
+명령을 등록하게 됩니다. 선언을 manifest로 옮기는 방식으로 이것을 "고치지" 말아 주세요 — 양쪽 모두가
+선언하면 빌드가 실행을 거부합니다.
 
-## Translations
+## 번역
 
-The interface speaks nine languages, and every word of it - the Dashboard, the popup and
-menu, notifications, the panel in Codex and the continuation message - comes from a catalog:
-`src/codex_auto_resume/locales/<locale>.json`, one per language. English (`en.json`) is the
-source. Every other catalog is a translation of it, and at runtime English fills in any key a
-translation has not reached yet. A new sentence a user will read is a new key in `en.json`.
+화면은 아홉 개 언어로 말하며, 그 모든 문장(대시보드, 팝업과 메뉴, 알림, Codex 안의 패널, continuation
+메시지)은 카탈로그에서 옵니다. 언어마다 하나인 `src/codex_auto_resume/locales/<locale>.json`입니다.
+영어(`en.json`)가 원문이고 나머지 카탈로그는 모두 그 번역이며, 실행 중에는 번역이 아직 닿지 않은 키를
+영어가 채웁니다. 사용자가 읽을 새 문장은 `en.json`의 새 키입니다.
 
-A translation is only as current as the English it was made from, so `build/l10n.py` records,
-key by key, a digest of that English in `build/l10n/<locale>.basis.json`:
+번역은 그것을 만든 영어만큼만 최신이므로, `build/l10n.py`는 키마다 그 영어의 다이제스트를
+`build/l10n/<locale>.basis.json`에 기록합니다.
 
 ```bash
-python build/l10n.py status                 # missing, stale and extra keys, per language
-python build/l10n.py export ja > work.json  # only the keys that need a translator
-python build/l10n.py import ja work.json    # merge, validate, record the basis
-python build/l10n.py mark ja KEY [KEY ...]  # reviewed: still right for the new English
-python build/l10n.py prune ja               # drop keys English no longer has
-python build/l10n.py check                  # exit 1 if anything is incomplete
+python build/l10n.py status                 # 언어별로 빠진 키, 낡은 키, 남는 키
+python build/l10n.py export ja > work.json  # 번역자가 봐야 할 키만
+python build/l10n.py import ja work.json    # 병합하고, 검사하고, 기준을 기록
+python build/l10n.py mark ja KEY [KEY ...]  # 검토함: 바뀐 영어에도 여전히 맞음
+python build/l10n.py prune ja               # 영어에 더 이상 없는 키 제거
+python build/l10n.py check                  # 하나라도 불완전하면 종료 코드 1
 ```
 
-So adding an English string, or changing one, is not finished until every catalog has caught
-up: the key is missing or stale in the other eight, and `tests/test_l10n.py` fails until each
-has been translated and imported, or marked as reviewed. An import that loses or invents a
-placeholder is refused. Nothing here reaches the network, and a test holds the localization
-modules and this tool to that.
+그래서 영어 문장을 추가하거나 바꾸는 일은 모든 카탈로그가 따라올 때까지 끝난 것이 아닙니다. 나머지 여덟
+카탈로그에서 그 키는 빠졌거나 낡은 것이 되고, 각 카탈로그를 번역해 가져오거나(`import`) 검토했다고
+표시할(`mark`) 때까지 `tests/test_l10n.py`가 실패합니다. 자리표시자를 잃거나 없던 것을 만들어 낸 가져오기는
+거부됩니다. 여기 있는 어느 것도 네트워크에 닿지 않으며, 지역화 모듈과 이 도구가 그렇다는 것을 테스트가
+확인합니다.
 
-## Branches and languages
+## 브랜치와 언어
 
-Three branches carry the documents three ways:
+세 브랜치가 문서를 세 가지 방식으로 담습니다.
 
-- **`dev`** holds every document in both languages: `X.md` and its Korean sibling `X.ko.md`,
-  written and reviewed in the same commit. Work happens here, and every Korean check runs here.
-- **`main`** is English only. It is the repository's front page, the branch the plugin
-  installs from and the one releases are tagged on. It receives dev by a *promotion*, never a
-  fast-forward: `python scripts/promote.py to-main --title "..."` merges dev, deletes every
-  `*.ko.md`, and names the dev commit in a `Korean-sources:` trailer. What main receives on its
-  own - the compatibility data, published by pull request - goes back with
-  `python scripts/promote.py into-dev`, which keeps dev's Korean documents exactly as they were.
-- **`ko`** is generated from `main`, by `.github/workflows/sync-ko.yml`, every time main's
-  tests pass - and it is force-updated: main's code, with the Korean sources of the dev commit
-  main was promoted from written over the English pages. A pull request against `ko` cannot be
-  merged and an edit made there is lost at the next sync, so please do not spend an evening on
-  one.
+- **`dev`**는 모든 문서를 두 언어로 담습니다. `X.md`와 그 한국어 짝 `X.ko.md`를 같은 커밋에서 쓰고
+  검토합니다. 작업은 여기서 하고, 한국어 검사도 모두 여기서 돕니다.
+- **`main`**은 영어만 담습니다. 저장소의 첫 화면이고, 플러그인이 설치해 가는 브랜치이며, 릴리스 태그가
+  붙는 곳입니다. dev는 빨리 감기(fast-forward)가 아니라 *승격*으로 main에 들어갑니다.
+  `python scripts/promote.py to-main --title "..."`이 dev를 병합하고, 모든 `*.ko.md`를 지우고, 그 dev 커밋을
+  `Korean-sources:` 트레일러에 적습니다. main이 따로 받는 것, 곧 pull request로 게시되는 호환성 데이터는
+  `python scripts/promote.py into-dev`로 dev에 되돌려 넣으며, 이때 dev의 한국어 문서는 그대로 둡니다.
+- **`ko`**는 main의 테스트가 통과할 때마다 `.github/workflows/sync-ko.yml`이 `main`에서 만들어 내며, 강제로
+  갱신됩니다. main의 코드에, main이 승격되어 온 dev 커밋의 한국어 원본을 영어 페이지 자리에 쓴 것입니다.
+  `ko`를 대상으로 한 pull request는 병합할 수 없고 거기서 한 수정은 다음 sync 때 사라지므로, 거기에 저녁
+  시간을 쓰지 말아 주세요.
 
-CI holds the split: on a push to `main` no `*.ko.md` may exist, and on a push to `dev` every
-mapped one must (`tests/languages.py`, `tests/test_korean.py`), so dev cannot quietly skip its
-Korean checks and main cannot grow a Korean file back.
+CI가 이 나눔을 지킵니다. `main`에 푸시하면 `*.ko.md`가 하나도 없어야 하고, `dev`에 푸시하면 매핑된 것이
+모두 있어야 합니다(`tests/languages.py`, `tests/test_korean.py`). 그래서 dev는 한국어 검사를 조용히 건너뛸 수
+없고, main에는 한국어 파일이 다시 생길 수 없습니다.
 
-`ko` was an independent fork until v0.5.5, with its own copy of the engine, the installer,
-the workflows and the tests. It ended up three releases behind while still telling Korean
-readers that the tool made no network request and that installing meant downloading a
-release archive. That is what a second copy of a codebase does when somebody has to
-remember to merge it.
+v0.5.5까지는 독립적인 fork였고, 엔진, 설치 프로그램, 워크플로, 테스트의 사본을 따로 가지고 있었습니다.
+그러다 세 릴리스 뒤처진 채로, 한국어 독자에게는 여전히 이 도구가 네트워크 요청을 하지 않으며 설치란
+릴리스 압축 파일을 내려받는 것을 뜻한다고 말하고 있었습니다. 누군가 병합을 기억해야 하는 코드베이스의
+두 번째 사본은 그렇게 됩니다.
 
-So the code on `ko` is main's code, and the only difference is the language of the
-documents. To change something there:
+그래서 `ko`의 코드는 main의 코드이고, 유일한 차이는 문서의 언어입니다. 거기 있는 무언가를 바꾸려면:
 
-- **code, installer, workflows, tests** — change them on `dev`; they reach `main` at the
-  next promotion and `ko` at the sync after it.
-- **Korean prose** — change the `.ko.md` file on `dev`, beside its English page.
-  `scripts/ko_branch.json` maps each one to the English page it replaces. What stays English is listed there too, with the
-  reason: the licence, because a translated licence is a second licence, and the Codex
-  skill, because it instructs Codex rather than a person.
+- **코드, 설치 프로그램, 워크플로, 테스트** — `dev`에서 바꾸세요. 다음 승격 때 `main`에, 그 뒤의 sync 때
+  `ko`에 들어갑니다.
+- **한국어 문서** — `dev`에서 영어 페이지 옆의 `.ko.md` 파일을 바꾸세요. `scripts/ko_branch.json`이 각 파일을 그것이
+  대체하는 영어 페이지에 연결합니다. 영어로 남는 문서도 이유와 함께 같은 곳에 적혀 있습니다. 라이선스는
+  번역하면 두 번째 라이선스가 되기 때문이고, Codex 스킬은 사람이 아니라 Codex에게 지시하는 문서이기
+  때문입니다.
 
-`python scripts/ko_sync.py --check` on dev shows what a sync would do without writing anything.
-Adding a Korean page means adding the file and its mapping entry in the same commit;
-`tests/test_korean.py` fails if a Korean page exists that nothing maps.
+dev에서 `python scripts/ko_sync.py --check`를 실행하면 아무것도 쓰지 않고 sync가 무엇을 할지 보여 줍니다. 한국어 페이지를
+추가한다는 것은 파일과 그 매핑 항목을 같은 커밋에 넣는다는 뜻입니다. 아무것도 매핑하지 않는 한국어
+페이지가 있으면 `tests/test_korean.py`가 실패합니다.
 
-The mapping also records which English revision each translation was made from. Change an
-English document and the suite fails naming both files, because a translation that goes
-stale quietly is how `ko` spent three releases describing a tool that no longer existed.
-Update the Korean, then record it:
+매핑에는 각 번역이 어떤 영어 개정판에서 나왔는지도 기록됩니다. 영어 문서를 바꾸면 테스트가 두 파일
+이름을 대며 실패합니다. 조용히 낡는 번역이야말로 `ko`가 세 릴리스 동안 이미 사라진 도구를 설명하고
+있었던 이유이기 때문입니다. 한국어를 고친 뒤 기록하세요.
 
 ```bash
 python scripts/ko_sync.py --reviewed README.md
 ```
 
-Nothing here is machine-translated. A person decides what the Korean says; the digest only
-records that somebody did.
+기계 번역은 하지 않습니다. 한국어를 어떻게 쓸지는 사람이 정하고, 다이제스트는 누군가 그 일을 했다는
+사실만 기록합니다.
 
-## Screenshots
+## 스크린샷
 
-`python build/make_screenshots.py` renders the whole set from the working tree: the Codex
-panel, and the window's Overview, Pending and Settings pages, in English and Korean, into
-`assets/` with copies in `docs/images/`. Nothing is captured by hand and nothing is edited
-afterwards. A whole regeneration is two steps, in this order, both from PowerShell - launched
-from a POSIX shell such as Git Bash, headless Edge exits at once and prints nothing:
+`python build/make_screenshots.py`가 작업 트리에서 전체 모음을 렌더링합니다. Codex 패널과 창의 개요,
+대기 중, 설정 페이지를 영어와 한국어로 만들어 `assets/`에 넣고 `docs/images/`에 복사본을 둡니다. 손으로
+찍는 것도, 찍은 뒤에 손보는 것도 없습니다. 전체를 다시 만드는 일은 두 단계이고, 이 순서로, 둘 다
+PowerShell에서 돌립니다. Git Bash 같은 POSIX 셸에서 띄우면 headless Edge가 곧바로 끝나고 아무것도
+출력하지 않습니다.
 
 ```
 python build/make_screenshots.py
 python build/make_screenshots.py --breathe
 ```
 
-**A picture of a light that moves, moves.** Every surface's status light is animated in its
-pictures as it moves in the product, as an APNG whose first frame is what a viewer without
-animation shows. Each surface declares its lights - where each is, its radius, its state and the
-ground it stands on - and the manifest keeps them under `lights`: the popup and the notification
-card are drawn moving by their own renderers in the first step, and the window and the panel are
-captured still, at the first moment of the breath, so the second step draws every light they
-declare over the capture, on its own ground, for exactly one cycle. It refuses a capture whose
-light does not stand where it says or on the ground it names, rather than paint a box of the wrong
-colour. Forgetting the second step leaves the window's and the panel's pictures still, and the
-suite says so.
+**움직이는 불빛의 그림은 움직입니다.** 모든 표면의 상태 불빛은 제품에서 움직이는 그대로 그림에서도
+APNG로 움직이고, 그 첫 프레임이 애니메이션을 보여 주지 않는 뷰어에 보이는 그림입니다. 표면마다 자기
+불빛을 알리고(불빛마다 위치, 반지름, 상태, 그 아래의 바탕), 매니페스트가 그것을 `lights`에 담습니다.
+팝업과 알림 카드는 첫 단계에서 자기 렌더러가 움직이는 모습으로 그리고, 창과 패널은 호흡의 첫 순간에서
+멈춘 채 찍으므로, 둘째 단계가 그들이 알린 불빛을 하나하나 캡처 위에 자기 바탕으로 정확히 한 주기만큼
+그립니다. 불빛이 알린 자리에 없거나 알린 바탕 위에 서 있지 않은 캡처는 틀린 색의 상자를 칠하는 대신
+거부합니다. 둘째 단계를 잊으면 창과 패널의 그림이 멈춘 채로 남고, 스위트가 그렇다고 알려 줍니다.
 
-**Each design is pictured too.** Besides the set above, the Dashboard's Overview, the panel, the
-popup and the notification card are drawn in each Design other than Soft - Classic and Plain - in
-English and the light theme, as `docs/images/design-<design>-<surface>.png`.
-They are documentation only and never copied into `assets/`.
+**디자인마다 그림도 있습니다.** 위의 모음과 별도로, 대시보드의 개요, 패널, 팝업, 알림 카드를 부드럽게가
+아닌 디자인마다(클래식, 단순하게) 영어와 밝은 테마로
+`docs/images/design-<디자인>-<표면>.png`에 그립니다. 문서에만 쓰며 `assets/`에는 복사하지 않습니다.
 
-It needs Windows, Microsoft Edge (it is what renders the panel), and
-`build/CodexAutoResumeSettings.exe` already built — run
-`powershell -ExecutionPolicy Bypass -File build/make_gui.ps1` first. The first run also
-downloads the pinned embeddable Python into `build/cache/`.
+실행하려면 Windows, Microsoft Edge(패널을 렌더링하는 것이 이것입니다), 그리고 이미 빌드된
+`build/CodexAutoResumeSettings.exe`가 필요합니다. 먼저
+`powershell -ExecutionPolicy Bypass -File build/make_gui.ps1`을 실행하세요. 처음 실행할 때는 고정된
+embeddable Python을 `build/cache/`로 내려받기도 합니다.
 
-They are pinned to light. The product follows the reader's Windows and Codex themes at
-runtime; the pictures do not, so that a gallery looks like one product and a build on a
-machine in dark mode produces the same bytes as a build on one in light mode. Since v0.6.6 that
-holds for the notification card as well, which until then was pictured in both themes. The Design
-is pinned the same way: every picture is Soft's but the designs' own.
+라이트 테마로 고정합니다. 실행 중인 제품은 사용자의 Windows와 Codex 테마를 따르지만 그림은 따르지
+않습니다. 모음이 하나의 제품처럼 보여야 하고, 다크 모드인 PC에서 만든 결과가 라이트 모드인 PC에서 만든
+결과와 같아야 하기 때문입니다. v0.6.6부터는 알림 카드도 그렇습니다. 그 전까지 카드는 두 테마로 그렸습니다.
+디자인도 같은 방식으로 고정합니다. 디자인별 그림이 아니면 모든 그림은 부드럽게입니다.
 
-`assets/screenshots.json` records a digest of every input each image was rendered from.
-The window is recorded in two halves. One is the files it is compiled from — its three
-sources, its palette, its DPI manifest, the plugin manifest, the icon, and the capture and
-build scripts; `WINDOW_INPUTS` in `build/make_screenshots.py` is that list. The other is what
-the bridge tells it: the generator asks the bridge the window's own questions against a
-scratch installation, with the clock, the paths and the machine's answers pinned, and records
-a hash of the replies (`<bridge envelope:*>`). The panel is recorded as its rendered markup,
-and the popup as the view it draws plus a digest of the code that draws it, pooled by
-definition name across the popup's modules and the palette's, and across what those import by
-name from the rest of the package, wherever it is defined. So moving code from one module
-to another leaves the manifest alone, while a change to anything a picture shows — a word, a
-row, a figure, a status, a colour — does not. Change one and `tests/test_screenshots.py`
-fails telling you to re-run the generator. It is the mechanism that stops a screenshot
-describing a version of the product that no longer exists.
+`assets/screenshots.json`에는 각 이미지가 어떤 입력에서 렌더링되었는지 다이제스트가 기록됩니다.
+창은 두 부분으로 나누어 기록합니다. 하나는 창을 컴파일하는 파일들입니다 — 소스 세 개, 팔레트, DPI
+매니페스트, 플러그인 매니페스트, 아이콘, 캡처·빌드 스크립트. 그 목록이 `build/make_screenshots.py`의
+`WINDOW_INPUTS`입니다. 다른 하나는 브리지가 창에 건네는 내용입니다. 생성기가 임시 설치본을 상대로 창이
+묻는 것과 똑같은 질문을 브리지에 던지고, 시계와 경로와 기계마다 달라지는 답은 고정한 채 그 응답의
+해시를 기록합니다(`<bridge envelope:*>`). 패널은 렌더링된 마크업으로 기록하고, 팝업은 그리는 뷰와
+그것을 그리는 코드의 다이제스트로 기록합니다. 이 다이제스트는 팝업 모듈과 팔레트 모듈의 정의를 이름별로
+모으고, 그 모듈들이 패키지의 다른 곳에서 이름으로 가져오는 정의도 지금 정의된 곳을 찾아가 함께 모아
+만듭니다. 그래서 코드를 한 모듈에서 다른 모듈로 옮기기만 해서는 매니페스트가 바뀌지 않고, 그림에
+보이는 것 — 단어, 행, 수치, 상태, 색 — 이 바뀌면 달라집니다. 하나라도 바뀌면
+`tests/test_screenshots.py`가 실패하며 생성기를 다시 돌리라고 알려 줍니다. 스크린샷이 더 이상 존재하지
+않는 버전의 제품을 설명하는 일을 막는 장치입니다.
 
-To see what a `<bridge envelope:*>` entry is made of, run this from the repository root; it
-prints the questions and the replies the digest is taken over:
+`<bridge envelope:*>` 항목이 무엇으로 이루어졌는지 보려면 저장소 루트에서 아래를 실행하세요. 다이제스트를
+만드는 데 쓰인 질문과 응답이 그대로 출력됩니다.
 
 ```
 python -X utf8 -c "import sys; sys.path.insert(0, 'build'); import make_screenshots as m; print(m.bridge_envelope('en'))"
 ```
 
-**The notification card is rendered, not photographed.** The generator draws it off-screen
-the way `tests/test_notice_card.py` does — a `notice_window.Card` with no windows, painted by
-the popup's renderer, with its floating shadow over the theme's canvas — from the notice the
-watcher's own builder makes for the sample's usage limit, with the reset time read on a clock
-pinned to UTC. `<card render:*>` records what it says and a digest of the code that draws it,
-pooled the way the popup's is, across the card's modules, the package they move into and the
-popup's renderer and palette. To make only those pictures and their manifest entries, which
-needs neither Edge nor the window:
+**알림 카드는 찍지 않고 렌더링합니다.** 생성기는 `tests/test_notice_card.py`가 그리는 방식 그대로,
+곧 창이 없는 `notice_window.Card`를 팝업의 렌더러로 칠하고 떠 있는 그림자를 테마의 바탕색 위에 얹어
+화면 밖에서 카드를 그립니다. 내용은 워처가 쓰는 바로 그 빌더가 예시 자료의 사용량 한도에 대해 만드는
+알림이고, 재개 시각은 UTC에 고정한 시계로 읽습니다. `<card render:*>`는 카드가 하는 말과 카드를 그리는
+코드의 다이제스트를 기록합니다. 다이제스트는 팝업과 같은 방식으로, 카드 모듈과 그 모듈이 옮겨 갈
+패키지, 카드를 칠하는 팝업의 렌더러와 팔레트에 걸쳐 모읍니다. 이 그림과 그 매니페스트 항목만 만들려면
+아래를 실행하세요. Edge도 창도 필요 없습니다.
 
 ```
 python build/make_screenshots.py --cards
 ```
 
-Windows' own notification, which appears instead wherever a card must not, is not pictured. The
-shell draws it in the machine's theme, so a capture cannot be pinned, and the one this
-repository carried until v0.6.5 had fallen behind the product — no Open Dashboard button, the
-old identifier line — before anything noticed. If you photograph one for an issue, never
-photograph a real conversation: it shows the conversation's identifier, and a screenshot of a
-real one publishes it permanently.
+카드가 나타나면 안 되는 곳에서 대신 뜨는 Windows 자체 알림은 그림으로 싣지 않습니다. 셸이 기계의
+테마로 그리므로 캡처를 고정할 수 없고, 이 저장소가 v0.6.5 전까지 싣던 캡처는 아무것도 알아채지 못한
+사이에 제품보다 뒤처져 있었습니다. 대시보드 열기 버튼이 없었고 식별자 줄도 예전 것이었습니다. 이슈에
+올리려고 찍는다면 실제 대화는 찍지 마세요. 알림에는 대화 식별자가 보이고, 실제 대화를 찍은 스크린샷은
+그것을 영구히 공개합니다.
 
-**Every surface is pictured from one set of records.** The window's sample records
-(`seed_window_state`) are written once, at the moment the popup and the panel are drawn at, and read
-back the way each surface reads them: the popup's rows and the panel's rows are the window's two
-waiting recoveries, with the same names, states and times, and the panel's page is told that moment
-and reads clock times in UTC, as the card does. The window itself is seeded again when it is
-photographed, with the same offsets, because the bridge behind it runs on the real clock. So a
-countdown, a chip and a count say the same on all four pictures, but a wall-clock time need not: the
-times the window prints, such as History's, are those of the day the pictures were drawn. Compare
-the four by their relative times only.
+**모든 화면은 한 벌의 기록을 그립니다.** 창의 예시 기록(`seed_window_state`)을 팝업과 패널을 그리는
+바로 그 시각에 한 번 써 두고, 화면마다 자기가 읽는 방식 그대로 다시 읽습니다. 팝업의 행과 패널의 행은
+창에 보이는 대기 중인 복구 두 건이고, 이름과 상태와 시각이 같습니다. 패널 페이지에도 그 시각을 알려
+주고, 카드처럼 시계 시각을 UTC로 읽게 합니다. 창은 뒤에서 도는 브리지가 실제 시계로 움직이므로, 찍는
+순간에 같은 간격으로 다시 기록을 씁니다. 그래서 카운트다운과 칩과 개수는 네 그림 모두에서 같은 말을
+하지만, 벽시계 시각은 다를 수 있습니다. 창이 보여 주는 시각(기록 페이지의 시각 등)은 그림을 그린 날의
+것입니다. 네 그림은 상대 시간으로만 비교하세요.
 
-**To audit the look, draw both themes side by side.** The committed pictures are the light theme's
-only. For a change to how the product looks, draw contact sheets of the window's Overview and
-Pending pages, the top of the panel, the popup and the card, in the light and the dark theme, every
-surface at the scale the window is captured at:
+**모양을 점검하려면 두 테마를 나란히 그리세요.** 커밋되는 그림은 라이트 테마뿐입니다. 제품의 모양을
+바꿀 때는 창의 개요와 대기 페이지, 패널의 윗부분, 팝업, 카드를 라이트와 다크 테마로, 모든 화면을 창이
+캡처되는 배율로 그린 모음 시트를 만드세요.
 
 ```
-python build/make_screenshots.py --audit <folder>
-python build/make_screenshots.py --audit <another folder> --before <folder>
+python build/make_screenshots.py --audit <폴더>
+python build/make_screenshots.py --audit <다른 폴더> --before <폴더>
 ```
 
-The second form adds a before-and-after sheet per theme. It needs what a whole run needs - Windows,
-Edge and the compiled window, run from PowerShell - and writes only into the folder it is given: it
-refuses a folder in `docs/` or `assets/` and never touches the manifest. The window is captured from
-a scratch installation, as for the published pictures, so your own installation is never touched.
+두 번째 형태는 테마마다 전후 비교 시트를 더합니다. 전체 실행과 같은 것이 필요합니다. Windows, Edge,
+컴파일한 창이 있어야 하고 PowerShell에서 실행해야 합니다. 그리고 넘겨준 폴더에만 씁니다. `docs/`나
+`assets/` 안의 폴더는 거부하고 매니페스트는 건드리지 않습니다. 창은 공개용 그림과 마찬가지로 임시
+설치본에서 캡처하므로 여러분의 설치본은 건드리지 않습니다.
 
-## Fixtures and privacy
+## 픽스처와 개인정보
 
-Everything committed here is public, including test fixtures and documentation examples. They
-are written on a developer's machine, and that machine's own paths and identifiers leak into
-them very easily. `tests/test_repo_hygiene.py` enforces the conventions below, so please keep
-to them rather than working around it.
+여기 커밋되는 것은 테스트 픽스처와 문서 예제를 포함해 전부 공개됩니다. 그것들은 개발자 PC에서
+작성되고, 그 PC 자신의 경로와 식별자가 아주 쉽게 섞여 들어갑니다. `tests/test_repo_hygiene.py`가 아래
+규칙을 강제하므로, 우회하지 마시고 규칙을 지켜 주세요.
 
-- **Home directories in examples are placeholders.** Use `ExampleUser`, `Example User` (when
-  you need a path containing a space), `someone`, `<user>`, or `%USERPROFILE%`. Never a real
-  account name.
-- **UUIDs in tracked files are obviously synthetic.** Use the project's fixture family,
-  `0a1b2c3d-0001-7000-8000-000000000001` and friends, or a repeated-nibble value such as
-  `22222222-2222-7222-8222-222222222222`. Never a conversation id copied out of real Codex
-  state — real ones are UUIDv7 values with a timestamp prefix and are trivially recognisable.
-- **No copied runtime state.** Databases, logs and `config/` are never tracked. If you need
-  evidence that something behaves a certain way, write a fixture that shows the structure with
-  synthetic values, the way `docs/evidence/` does.
-- **No real process ids, ports or machine-specific paths** in comments, docs or fixtures.
+- **예제의 홈 디렉터리는 자리표시자입니다.** `ExampleUser`, `Example User`(공백이 든 경로가 필요할 때),
+  `someone`, `<user>`, `%USERPROFILE%`를 쓰세요. 실제 계정 이름은 절대 쓰지 마세요.
+- **추적되는 파일의 UUID는 누가 봐도 합성된 값입니다.** 이 프로젝트의 픽스처 계열인
+  `0a1b2c3d-0001-7000-8000-000000000001`과 그 형제들, 또는 `22222222-2222-7222-8222-222222222222`처럼
+  같은 니블이 반복되는 값을 쓰세요. 실제 Codex 상태에서 복사해 온 대화 id는 절대 쓰지 마세요. 실제
+  값은 타임스탬프 접두사가 붙은 UUIDv7이라 알아보기가 아주 쉽습니다.
+- **런타임 상태를 복사해 오지 마세요.** 데이터베이스, 로그, `config/`는 추적하지 않습니다. 무언가가
+  특정 방식으로 동작한다는 증거가 필요하면, `docs/evidence/`가 하는 것처럼 합성된 값으로 구조를 보여
+  주는 픽스처를 작성하세요.
+- **실제 프로세스 id, 포트, 기기에 종속된 경로**는 주석, 문서, 픽스처 어디에도 넣지 마세요.
 
-## Changes that need extra care
+## 특별히 주의해야 할 변경
 
-The recovery engine is small on purpose, and several of its properties are the whole reason
-the tool is safe to leave running. A change that touches any of these needs a test that would
-fail without it:
+복구 엔진은 일부러 작게 만들었고, 그 속성 몇 가지는 이 도구를 켜 둔 채로 두어도 안전한 이유
+그 자체입니다. 아래 중 무엇이든 건드리는 변경에는, 그 변경이 없으면 실패하는 테스트가 필요합니다.
 
-- a conversation is identified by its exact UUID, and by nothing else — never `--last`, never a
-  title, project, working directory or recency;
-- a failure that cannot be classified is never retried;
-- user cancellation, permission, approval, content policy, invalid requests, context length and
-  permanent authentication failures are never retried;
-- a submission whose outcome is unknown is never automatically resent;
-- every gate is re-checked immediately before sending, inside the dispatch lock;
-- settings are policy only. Nothing in the settings schema may reach a safety limit, and the
-  worst a malformed settings file can do is make recovery more conservative;
-- the text of a Custom message is written only through the Dashboard's control layer, never
-  through an MCP tool, and its placeholders stay a whitelist;
-- no front end - the Dashboard, the notification-area popup, the panel in Codex - gains a way
-  to put a continuation into Codex. The watcher is the only thing that sends.
+- 대화는 정확한 UUID로 식별하며, 그 밖의 무엇으로도 식별하지 않습니다. `--last`도, 제목도, 프로젝트도,
+  작업 디렉터리도, 최근 순도 아닙니다;
+- 분류할 수 없는 실패는 절대 재시도하지 않습니다;
+- 사용자 취소, 권한, 승인, 콘텐츠 정책, 잘못된 요청, 컨텍스트 길이, 영구 인증 실패는 절대 재시도하지
+  않습니다;
+- 결과를 알 수 없는 전송은 절대 자동으로 다시 보내지 않습니다;
+- 모든 관문은 전송 직전에, 디스패치 락 안에서 다시 확인합니다;
+- 설정은 정책일 뿐입니다. 설정 스키마의 어떤 값도 안전 한계에 닿을 수 없고, 설정 파일이 잘못되었을 때
+  일어날 수 있는 최악은 복구가 더 보수적으로 동작하는 것입니다;
+- 직접 입력 메시지의 문장은 대시보드의 제어 계층을 통해서만 쓰고 MCP tool로는 절대 쓰지 않으며, 그
+  자리표시자는 허용 목록으로 둡니다;
+- 어떤 화면(대시보드, 알림 영역 팝업, Codex 안의 패널)에도 Codex에 continuation을 넣는 길을 만들지
+  않습니다. 보내는 것은 워처뿐입니다.
 
-If you are unsure whether a change crosses one of those lines, open an issue first and say
-what you are trying to achieve — there is usually a way to get there that keeps the property.
+어떤 변경이 그 선 중 하나를 넘는지 확신이 서지 않으면, 먼저 이슈를 열고 무엇을 하려는지 적어 주세요 —
+대개는 그 속성을 지키면서 목적지에 닿는 방법이 있습니다.
 
-## Sending a compatibility report
+## 호환성 보고서 보내기
 
-A report about a Codex version is written on your own machine by
-[codex-compat-reporter](https://github.com/songyb111-gachon/codex-compat-reporter), from this
-installation's own records: counts, states and times, no conversation text and no identifiers. Read
-the file before you send it. It reaches GitHub only as a pull request you open, from a branch whose
-name starts with `compat-report/` - the reporter's `submit` opens it from
-`compat-report/codex-cli-<version>` - and that pull request adds exactly one new file, at
+어떤 Codex 버전에 관한 보고서는 내 컴퓨터에서
+[codex-compat-reporter](https://github.com/songyb111-gachon/codex-compat-reporter)가 이 설치본의 기록으로
+씁니다. 횟수와 상태와 시각만 담고, 대화 내용도 식별자도 넣지 않습니다. 보내기 전에 그 파일을 읽어 주세요.
+보고서는 내가 여는 풀 리퀘스트로만 GitHub에 갑니다. 그 풀 리퀘스트는 이름이 `compat-report/`로 시작하는
+브랜치에서 열며(보고 도구의 `submit`은 `compat-report/codex-cli-<버전>`에서 엽니다), 새 파일 정확히 하나를
+다음 자리에 더합니다.
 
-    docs/evidence/community/<your GitHub login>/codex-cli-<version>.json
+    docs/evidence/community/<내 GitHub 로그인>/codex-cli-<버전>.json
 
-where `<version>` is the report's own `codex_version` and the login is the one that opens the pull
-request (and the report's `reporter.github_login`). One opened by hand from another branch
-(`patch-1`, say, GitHub's name for an edit on the web) is refused by the check: the filer below
-answers for `compat-report/` branches only. Reports are add-only: one per GitHub login per
-Codex version, and a filed report is never edited. A pull request that changes anything else, adds
-a second file, or adds one at a path already filed on the base or on `main` is refused, and so is a
-folder that differs from a filed one only in letter case, since Windows opens the two as one.
+`<버전>`은 보고서 자신의 `codex_version`이고, 로그인은 풀 리퀘스트를 여는 계정의 것(그리고 보고서의
+`reporter.github_login`)입니다. 다른 브랜치(웹에서 고칠 때 GitHub가 붙이는 `patch-1` 같은 것)에서 손으로
+연 풀 리퀘스트는 확인이 거부합니다. 아래의 접수 도구는 `compat-report/` 브랜치만 맡기 때문입니다. 보고서는
+더하기만 합니다. GitHub 로그인 하나와 Codex 버전 하나에 보고서
+하나이며, 접수된 보고서는 고치지 않습니다. 다른 것을 바꾸거나, 두 번째 파일을 더하거나, 기준 커밋이나
+`main`에 이미 접수된 자리에 더하는 풀 리퀘스트는 거부합니다. 접수된 폴더와 대소문자만 다른 폴더도
+거부합니다. Windows는 그 둘을 한 폴더로 열기 때문입니다.
 
-The pull request is judged by `.github/workflows/community-report.yml`, which runs `main`'s own
-check (`build/community_check.py`) on `pull_request_target`, so no pull request can change the check
-it is judged by. It checks out the base commit under a read-only token and no secret, and reads your
-commits as data with git plumbing only: nothing in them is checked out, merged or run
-([SECURITY.md](SECURITY.md) has the whole list). The file must be at most 1 MB, UTF-8 JSON in the
-report format with exactly its keys, read by `build/community_report.py`, the one reader of a
-report. Its fingerprint has to be a setup that could have written it - the Codex version in the
-grammar the product names engines by, a product version that is one of this repository's releases
-and was out before the report was written, a plain reporter release from 1.0.0 on, Windows 10 or
-later - and its times ones the machine could have recorded. A report with at least one record must
-not repeat the records of a report already filed for the same version; a report with no records is
-never refused as a copy. The levels and verdict a report claims are recomputed from what it
-measured and only ever lowered, so a hand-edited conclusion does not survive. The Codex version
-is written the one way the product writes it (no leading zero, no alpha `.0`), and the login may
-not be a name Windows keeps for a device (`con`, `nul`, `com1` and the rest), since no Windows
-checkout could hold that folder.
+풀 리퀘스트는 `.github/workflows/community-report.yml`이 판정합니다. 이 워크플로는
+`pull_request_target`에서 `main` 자신의 확인(`build/community_check.py`)을 실행하므로, 어떤 풀 리퀘스트도
+자신을 판정할 확인을 바꿀 수 없습니다. 읽기 전용 토큰과 비밀 없이 기준 커밋을 체크아웃하고, 내 커밋은 git
+배관 명령으로 데이터로만 읽습니다. 그 안의 어떤 것도 체크아웃되거나 병합되거나 실행되지 않습니다(전체
+목록은 [SECURITY.md](SECURITY.md)에 있습니다). 파일은 1 MB 이하여야 하고, 보고서 형식의 키만 정확히
+담은 UTF-8 JSON이어야 하며, 보고서의 유일한 판독기인 `build/community_report.py`가 읽습니다. 그 지문은
+그것을 쓸 수 있었던 환경이어야 합니다. 제품이 엔진을 부르는 문법으로 쓴 Codex 버전, 이 저장소의 릴리스
+가운데 하나이면서 보고서를 쓰기 전에 나와 있던 제품 버전, 1.0.0 이상인 보고 도구의 평범한 릴리스, Windows 10
+이상이어야 하고, 시각은 그 컴퓨터가 기록할 수 있었던 것이어야 합니다. 기록이 하나라도 있는 보고서는 같은
+버전에 이미 접수된 보고서의 기록을 되풀이해서는 안 되며, 기록이 없는 보고서는 사본이라는 이유로 거부되지
+않습니다. 보고서가 스스로 주장하는 수준과 판정은 측정한 것에서 다시 계산하며 낮아질 수만 있으므로, 손으로
+고친 결론은 남지 않습니다. Codex 버전은 제품이 쓰는 한 가지 방식으로만 적어야 하고(앞자리 0 없이, alpha의
+`.0` 없이), 로그인은 Windows가 장치 이름으로 남겨 둔 이름(`con`, `nul`, `com1` 같은 것)일 수 없습니다.
+그런 폴더는 어떤 Windows 체크아웃에도 담을 수 없기 때문입니다.
 
-A report that passes is filed with no step by the maintainer, by
-`.github/workflows/community-file.yml`: usually within minutes of the check finishing, and
-otherwise on its daily run. It judges the report again, against `main` as it is by then, with the
-same check, and files this project's own regeneration of it - never your bytes: every conclusion
-recomputed from your records and every sentence replaced by ours. Your pull request is then closed,
-not merged, with one comment that says where the file went. That one comment is edited, never
-repeated, whenever what it says changes. What a maintainer used to decide is now a rule, and a
-report that meets one waits rather than being refused:
+통과한 보고서는 관리자의 손 없이 `.github/workflows/community-file.yml`이 접수합니다. 보통은 확인이 끝나고
+몇 분 안에, 그렇지 않으면 하루 한 번 도는 실행에서 합니다. 이 워크플로는 그때의 `main`을 기준으로 같은
+확인으로 보고서를 다시 판정하고, 이 프로젝트가 스스로 다시 만든 보고서를 접수합니다. 내가 보낸 바이트를
+접수하지 않습니다. 모든 결론은 내 기록에서 다시 계산하고, 모든 문장은 우리 문장으로 바꿉니다. 그런 다음 내
+풀 리퀘스트는 병합하지 않고 닫으며, 파일이 어디로 갔는지 알려 주는 댓글 하나를 남깁니다. 그 댓글은 하는 말이
+바뀔 때마다 고쳐 쓰고, 새로 달지 않습니다. 관리자가 판단하던 것은 이제 규칙이며, 규칙에 걸린 보고서는
+거부되지 않고 기다립니다.
 
-- the account has to be at least 30 days old; a younger one's pull request is closed, with the date
-  it can be sent again;
-- one open report pull request per account at a time; another is closed, and can be sent again
-  once the first is closed;
-- at most 3 reports are filed from one account, and 5 for one Codex version, in any 7 days; more
-  wait, with the date they are looked at again;
-- a Codex version older than those the project's own compatibility data names waits for the
-  maintainer; a newer one is filed while fewer than five such versions have reports;
-- a report that a recovery failed on a version this project's own evidence verifies waits for the
-  maintainer, who looks at that first;
-- nothing is filed while `main`'s own tests are failing, or while filing is paused.
+- 계정은 만든 지 30일이 지나야 합니다. 그보다 새 계정의 풀 리퀘스트는 다시 보낼 수 있는 날짜와 함께
+  닫습니다.
+- 한 계정의 열린 보고서 풀 리퀘스트는 한 번에 하나입니다. 다른 것은 닫으며, 먼저 것이 닫힌 뒤에 다시 보낼
+  수 있습니다.
+- 어느 7일 동안에도 한 계정에서는 3건, 한 Codex 버전에는 5건까지만 접수합니다. 그보다 많으면 다시 살펴볼
+  날짜와 함께 기다립니다.
+- 프로젝트 자신의 호환성 데이터가 이름을 댄 버전보다 오래된 Codex 버전은 관리자를 기다립니다. 더 새 버전은
+  그런 버전의 보고서가 다섯 개보다 적은 동안 접수합니다.
+- 이 프로젝트 자신의 근거가 검증한 버전에서 복구가 실패했다는 보고서는 관리자를 기다리며, 관리자가 먼저
+  살펴봅니다.
+- `main` 자신의 테스트가 실패하는 동안이나 접수를 멈춘 동안에는 아무것도 접수하지 않습니다.
 
-A waiting pull request's comment gives the reason and when it is looked at again; there is nothing
-for you to do. A refused one's says, line by line, what to do about each reason; a new commit on
-it is judged again, and one refused and left unchanged for 14 days is closed. One report pull
-request per account is open at a time, and the reporter's `submit` keeps to that, so sending the
-report again starts by closing the refused one - its comment says so. Filing is paused by the
-repository variable `COMMUNITY_AUTOFILE` (anything but unset or `on`), an account's reports are
-refused by listing its numeric id in `COMMUNITY_BLOCKED`, and the maintainer's own tool can still
-file a report that waits or is refused that way, or withdraw one; the pull request of a report it
-files is then closed as filed, with the same one comment.
+기다리는 풀 리퀘스트의 댓글은 그 이유와 언제 다시 살펴보는지를 알려 주며, 내가 할 일은 없습니다. 거부된 풀
+리퀘스트의 댓글은 이유마다 무엇을 하면 되는지 한 줄씩 알려 줍니다. 새 커밋을 올리면 다시 판정하고, 거부된
+채 14일 동안 바뀌지 않으면 닫습니다. 한 계정의 보고서 풀 리퀘스트는 한 번에 하나만 열려 있고 보고 도구의
+`submit`도 그것을 지키므로, 보고서를 다시 보내려면 먼저 거부된 풀 리퀘스트를 닫아야 합니다. 그 댓글이 그렇게
+알려 줍니다. 저장소 변수 `COMMUNITY_AUTOFILE`로 접수를 멈추고(비어 있거나 `on`이 아니면 무엇이든),
+`COMMUNITY_BLOCKED`에 계정의 숫자 id를 적어 그 계정의 보고서를 거부하며, 관리자 자신의 도구로는 기다리거나
+그렇게 거부된 보고서를 접수하거나 보고서를 거둬들일 수 있습니다. 그 도구가 접수한 보고서의 풀 리퀘스트는
+접수된 것으로, 같은 댓글 하나와 함께 닫힙니다.
 
-Once filed, a report counts towards *Reported by others* beside its Codex version on the
-Dashboard's Diagnostics page ([GUIDE.md](GUIDE.md#requirements) says how it is counted), from the
-next release on: the same commit that files it writes `docs/evidence/community/index.json`, the
-folder's README and the counts in `src/codex_auto_resume/data/reported.json` again, with the same
-code whoever files (`build/community_report.py`), and `tests/test_reported_data.py` holds the
-files, the index, the README and the shipped counts to each other. The commit names your login and
-your account's numeric id, which is what the weekly limits count. A report file the index does not
-list counts nowhere, which is why your pull request stays green under the ordinary tests. A report
-found to be wrong is withdrawn in the open, by removing its file and its index entry together, and
-the account and that Codex version are listed in `docs/evidence/community/withdrawn.json`, so the
-same report is not filed again; the account's reports on other Codex versions are judged like any
-other. No report enters the compatibility data, and none changes a tier.
+접수된 보고서는 다음 릴리스부터 대시보드 진단 페이지의 Codex 버전 옆 *다른 사람들의 보고*에 셈해집니다(어떻게
+세는지는 [GUIDE.md](GUIDE.md#요구-사항)에 있습니다). 그것을 접수하는 커밋이
+`docs/evidence/community/index.json`, 폴더의 README, `src/codex_auto_resume/data/reported.json`의 횟수를
+누가 접수하든 같은 코드(`build/community_report.py`)로 다시 쓰고, `tests/test_reported_data.py`가 파일과 색인과
+README와 함께 나가는 횟수를 서로 맞춰 붙잡습니다. 그 커밋에는 내 로그인과 내 계정의 숫자 id가 적히며, 주마다의
+한도는 그것으로 셉니다. 색인에 없는 보고서 파일은 어디에도 셈해지지 않으므로, 내 풀 리퀘스트는 일반
+테스트에서 초록으로 남습니다. 틀린 것으로 드러난 보고서는 공개적으로, 파일과 그 색인 항목을 함께 지워서
+거둬들이고, 그 계정과 그 Codex 버전을 `docs/evidence/community/withdrawn.json`에 적어 같은 보고서가 다시
+접수되지 않게 합니다. 그 계정이 다른 Codex 버전에 관해 보낸 보고서는 다른 보고서와 똑같이 판정합니다.
+어떤 보고서도 호환성 데이터에 들어가지 않으며, 어떤 보고서도 등급을 바꾸지 않습니다.
 
-## How the code is layered
+## 코드의 계층
 
-The Python package is built in layers, and its imports point one way: down or sideways,
-never up.
+Python 패키지는 계층으로 짜여 있고, import는 한 방향으로만 향합니다. 아래나 옆으로는 향해도 위로는
+절대 향하지 않습니다.
 
-- **Domain** — the rules with no side effects, gathered in `domain/`: the stored states and
-  the legal moves between them (`domain/states.py`), the gates a record passes before
-  anything is sent (`domain/gates.py`), what a person is shown for a record
-  (`domain/public.py`), every identifier (`domain/ids.py`) and every closed list of words
-  (`domain/vocabulary.py`), beside how a failure is classified (`failures.py`) and which
-  reasons are recoverable (`reasons.py`). `machine.py` is the front over the first three.
-  The standard library only, and only the parts of it that touch no clock, file or process.
-- **Policy and translation** — the settings schema, the continuation builder, the catalogs,
-  paths and the product version, and the log.
-- **Adapters** — everything that touches the outside: the store, Codex's files and processes,
-  Windows (the registry, the Start menu shortcut, PowerShell, notifications), and the
-  compatibility registry.
-- **The engine** — decides and schedules. It reaches Codex and the store through what it is
-  given rather than by importing them.
-- **Control** — the one layer a front end calls.
-- **Front ends** — the command line, the bridge the settings window talks to, the MCP server
-  and its panel, the watcher's runtime, the notification-area icon, its popup and the card.
+- **도메인** — 부수 효과가 없는 규칙이고, `domain/`에 모여 있습니다. 저장되는 상태와 그 사이의
+  허용된 이동(`domain/states.py`), 무언가 보내지기 전에 기록이 통과해야 하는 게이트
+  (`domain/gates.py`), 기록 하나가 사람에게 무엇으로 보이는지(`domain/public.py`), 모든
+  식별자(`domain/ids.py`)와 닫힌 단어 목록 전부(`domain/vocabulary.py`), 그리고 그 옆에 실패를
+  어떻게 분류하는지(`failures.py`)와 어떤 이유가 복구 가능한지(`reasons.py`)가 있습니다.
+  `machine.py`는 앞의 셋을 덮는 앞면입니다. 표준 라이브러리만, 그중에서도 시계·파일·프로세스에
+  닿지 않는 부분만 씁니다.
+- **정책과 번역** — 설정 스키마, continuation 작성기, 카탈로그, 경로와 제품 버전, 로그.
+- **어댑터** — 바깥에 닿는 모든 것입니다. store, Codex의 파일과 프로세스, Windows(레지스트리, 시작
+  메뉴 바로 가기, PowerShell, 알림), 호환성 레지스트리.
+- **엔진** — 판단하고 일정을 잡습니다. Codex와 store에는 직접 import해서가 아니라 건네받은 것을 통해
+  닿습니다.
+- **제어** — 화면이 호출하는 유일한 계층입니다.
+- **화면** — 명령줄, 설정 창과 이야기하는 브리지, MCP 서버와 그 패널, 워처의 런타임, 알림 영역
+  아이콘과 그 팝업, 카드.
 
-`tests/test_layers.py` places every module in one of these, and fails an import that points
-up, a module with no layer, and an import cycle. Where the code does not match the map yet,
-the test lists the real exceptions, and each one fails the test once it is gone, so those
-lists only shrink. A rule about a module holds for everything inside it once it is a package,
-and for the packages the split creates (`codex/`, `win/`, `ui/`, `mcp/`) before they exist, so
-moving code under a new name does not take it out of a rule. The same file lists every import
-made inside a function, with its reason; a new one needs a line there. `tests/test_sizes.py`
-gives every module a budget of 700 lines, and holds each module already over it to exactly the
-length it has now: a commit that shrinks one lowers its ceiling, so it cannot grow back.
+`tests/test_layers.py`는 모든 모듈을 이 중 하나에 배치하고, 위를 향하는 import, 계층이 정해지지 않은
+모듈, import 순환을 실패시킵니다. 코드가 아직 이 지도와 맞지 않는 곳은 테스트가 실제 예외를 목록으로
+적어 두는데, 각 예외는 사라지는 순간 테스트를 실패시키므로 그 목록은 줄어들기만 합니다. 모듈에 대한
+규칙은 그 모듈이 패키지가 된 뒤에는 그 안의 모든 것에, 분할이 만드는 패키지(`codex/`, `win/`, `ui/`,
+`mcp/`)에는 생기기 전부터 적용되므로, 코드를 새 이름 아래로 옮긴다고 규칙에서 빠지지 않습니다. 같은
+파일에는 함수 안에서 하는 import가 이유와 함께 모두 적혀 있어, 새로 하나를 더하면 거기에도 한 줄이
+필요합니다. `tests/test_sizes.py`는 모든 모듈에 700줄의 예산을 주고, 이미 그보다 긴 모듈은 정확히 지금
+길이로 묶어 둡니다. 모듈을 줄인 커밋은 그 상한도 함께 낮추므로, 다시 커질 수 없습니다.
 
-`tests/test_stack.py` asks the other question: not which way a call points, but which binary
-the code ends up inside. `docs/ROADMAP.md` names the eight parts the Rust core is planned to be
-built from, and that file places every module on exactly one of them — or on one of the parts
-the Windows interface keeps, or on the few that are neither. It then holds the placement four
-ways, each of which only shrinks: items with no package of their own, packages whose modules
-are not all one item, single modules doing two items' work, and the graph of which item calls
-which. A module can sit in the right layer and still belong to two items, so a new one needs a
-line there as well as in `test_layers.py`.
+`tests/test_stack.py`는 다른 질문을 합니다. 호출이 어느 방향을 향하느냐가 아니라, 그 코드가 어느
+실행 파일 안에 들어가느냐입니다. `docs/ROADMAP.md`는 Rust 코어가 어떤 여덟 부분으로 지어질 계획인지
+적어 두었고, 그 파일은 모든 모듈을 그중 정확히 하나에 — 또는 Windows 화면이 계속 가지는 부분이나 둘 다
+아닌 몇 부분에 — 배치합니다. 그리고 네 가지로 그 배치를 묶어 두며, 네 목록 모두 줄어들기만 합니다.
+자기 패키지가 없는 부분, 모듈이 한 부분으로 모이지 않는 패키지, 두 부분의 일을 함께 하는 모듈, 그리고
+어느 부분이 어느 부분을 호출하는지의 그래프입니다. 계층이 맞으면서도 두 부분에 걸친 모듈이 있을 수
+있으므로, 모듈을 새로 만들면 `test_layers.py`뿐 아니라 거기에도 한 줄이 필요합니다.
 
-The window's C# is held the same way. `gui/window.sources` is the compile list and the only
-place it is written, divided into `[settings]`, `[dashboard]`, `[controls]` and `[generated]`;
-`tests/guiscan.py` reads it, and a rule about the window's code asks for a group rather than
-naming a file, so a file added to a group joins every rule about it. `guiscan.type_body` and `guiscan.member_body`
-find a type or a member by its braces and raise where it is not there — which is what a slice
-that ended at "the next `private void`" did not.
+창의 C#도 같은 방식으로 묶어 둡니다. `gui/window.sources`가 컴파일 목록이고 그것이 적힌 유일한
+곳이며, `[settings]`, `[dashboard]`, `[controls]`, `[generated]`로 나뉩니다. `tests/guiscan.py`가
+그것을 읽고, 창의 코드에 대한 규칙은 파일 이름이 아니라 그룹을 묻습니다. 그래서 그룹에 파일을 더하면
+그 그룹에 대한 모든 규칙이 함께 적용됩니다. `guiscan.type_body`와 `guiscan.member_body`는 타입이나
+멤버를 중괄호로 찾고, 없으면 예외를 올립니다. "다음 `private void`까지"로 자르던 방식은 그러지
+않았습니다.
 
-A test that asserts something about the source itself — that only the watcher sends, that the
-popup reaches nothing that can submit, that no module builds its own PowerShell command —
-reads it through `tests/srcscan.py`: every tracked `.py` file under `src/`, at any depth, and
-for each import also the package `__init__.py` files Python runs to reach its target. Do
-not read one module by name, or glob one directory, to assert that something is absent: when
-the code moves, a test like that keeps passing and stops checking. `tests/test_srcscan.py`
-refuses both shapes, and fails when a `.py` file under `src/` is not tracked, because an
-untracked module is invisible to every scan while the suite still runs it.
+소스 자체에 대해 무언가를 단언하는 테스트 — 보내는 것은 워처뿐이다, 팝업은 제출할 수 있는 어떤 것에도
+닿지 않는다, 어떤 모듈도 자기만의 PowerShell 명령을 만들지 않는다 — 는 `tests/srcscan.py`를 통해
+소스를 읽습니다. `src/` 아래에서 추적되는 모든 `.py` 파일을 깊이와 상관없이 읽고, import마다 Python이
+대상에 닿으려고 실행하는 패키지의 `__init__.py` 파일도 함께 읽습니다. 무언가가 없다는
+것을 단언하려고 모듈 하나를 이름으로 읽거나 디렉터리 하나만 glob하지 마세요. 코드가 옮겨 가면 그런
+테스트는 계속 통과하면서 검사는 멈춥니다. `tests/test_srcscan.py`가 그 두 모양을 거부하며, `src/`
+아래에 추적되지 않는 `.py` 파일이 있으면 실패합니다. 추적되지 않은 모듈은 suite가 실행하는데도 모든
+검사에서는 보이지 않기 때문입니다.
 
-Some paths are contracts with programs outside the package and do not move:
-`src/auto_resume.py` (it is in users' sign-in entries) and `src/codex_auto_resume/cli.py` (an
-older launcher, already installed in a user's home, looks for both), and the module names
-the settings window, the MCP launcher, the bootstrap and the release check call.
-`tests/test_structural_invariants.py` pins them.
+어떤 경로는 패키지 바깥의 프로그램과 맺은 약속이라 옮기지 않습니다. `src/auto_resume.py`(사용자의
+로그인 시 실행 항목에 들어 있습니다)와 `src/codex_auto_resume/cli.py`(사용자 홈에 이미 설치된 예전
+런처가 둘 다 찾습니다), 그리고 설정 창, MCP 런처, bootstrap, 릴리스 검사가 부르는 모듈 이름이 그렇습니다.
+`tests/test_structural_invariants.py`가 이것들을 고정합니다.
 
-What the bridge and the MCP server answer is a contract too: the settings window and the
-panel in Codex read those answers by field name, and nothing else connects them to the Python.
-`tests/golden/` holds one file per bridge command and per MCP tool, made by
-`tests/wiregolden.py` in a scratch installation with the clock, the paths and the machine
-pinned. `tests/test_wire_goldens.py` makes them again on every run and compares them byte for
-byte, and `tests/test_consumer_fields.py` fails when the window or the panel reads a field no
-golden answer carries. Moving code leaves every one of them exactly as it was. A change that
-means to alter an answer regenerates them with `python -X utf8 tests/wiregolden.py --write`,
-and the diff is reviewed with the change.
+브리지와 MCP 서버가 돌려주는 답도 약속입니다. 설정 창과 Codex 안의 패널은 그 답을 필드 이름으로
+읽고, 그 이름 말고는 Python과 이어 주는 것이 없습니다. `tests/golden/`에는 브리지 명령마다, MCP
+도구마다 파일이 하나씩 있으며, `tests/wiregolden.py`가 시계·경로·기계를 고정한 임시 설치본에서
+만듭니다. `tests/test_wire_goldens.py`는 실행할 때마다 이 파일들을 다시 만들어 바이트 단위로 비교하고,
+`tests/test_consumer_fields.py`는 창이나 패널이 어느 골든 답에도 없는 필드를 읽으면 실패합니다. 코드를
+옮겨도 이 파일들은 하나도 달라지지 않아야 합니다. 답을 바꾸려는 변경은
+`python -X utf8 tests/wiregolden.py --write`로 파일들을 다시 만들고, 그 diff도 변경과 함께 리뷰합니다.
 
-Some rules are stated in one place on purpose: which wait a record goes back to, what a claim
-costs its budgets, whether a record may be sitting in Codex's queue, how a command opens the
-state, which settings are the user's own words, and a few more. `tests/test_single_rules.py`
-pins what every caller gets from each of them, and fails when a second implementation of one
-appears anywhere in the package. Call the one that exists - `machine.waiting_state`,
-`machine.may_be_queued`, `openstate.open_state`, `settings.is_custom_text` and the rest the
-test names - rather than writing the rule again. Every JSON writer passes `allow_nan=False`
-and no `default`, which `tests/test_json_writers.py` checks: a value that is not JSON is a bug
-to fix where the value is made, not text to write.
+어떤 규칙은 일부러 한곳에만 둡니다. 레코드가 어느 대기 상태로 돌아가는지, 클레임 하나가 예산을 얼마나
+쓰는지, 레코드가 Codex의 대기열에 들어 있을 수 있는지, 명령이 상태를 어떻게 여는지, 어느 설정이
+사용자가 직접 쓴 글인지 같은 것들입니다. `tests/test_single_rules.py`는 호출하는 곳마다 각 규칙에서
+무엇을 받는지 고정하고, 패키지 어디에든 같은 규칙의 두 번째 구현이 생기면 실패합니다. 규칙을 다시
+쓰지 말고 이미 있는 것을 부르세요. `machine.waiting_state`, `machine.may_be_queued`,
+`openstate.open_state`, `settings.is_custom_text`, 그리고 그 테스트가 이름을 대는 나머지입니다. JSON을
+쓰는 곳은 모두 `allow_nan=False`를 넘기고 `default`는 넘기지 않으며, `tests/test_json_writers.py`가
+이를 검사합니다. JSON이 아닌 값은 글로 적어 보낼 것이 아니라, 그 값을 만드는 곳에서 고칠 버그입니다.
 
-Reading an identifier is one of those rules. A conversation id, an interruption id, the marker
-a continuation carries and a client id are read only through `domain/ids.py`, which also
-computes an interruption's id; where two readers accept different spellings, the parser takes a
-parameter rather than the reader keeping a pattern of its own. `tests/test_domain_vectors.py`
-holds the exact bytes of those ids, the gate vector and `settings.json`, and what each reader
-takes. The closed lists of words - states, codes, reasons, gates, categories, refusals,
-choices - are one `StrEnum` each in `domain/vocabulary.py`. The module that used a list keeps
-it under its old name, made from the enum (`machine.STATES = frozenset(RecordState)`), so a
-word is added in one place; `tests/test_vocabulary.py` holds every list to its members and
-every member to hashing, comparing and being written exactly as its string.
+식별자를 읽는 것도 그런 규칙 가운데 하나입니다. 대화 ID, 중단 ID, continuation이 지니는 마커,
+클라이언트 ID는 `domain/ids.py`를 통해서만 읽으며, 중단 ID를 계산하는 것도 이 모듈입니다. 두 곳이 서로
+다른 표기를 받아들여야 한다면, 각자 패턴을 따로 두지 않고 파서가 매개변수를 받습니다.
+`tests/test_domain_vectors.py`는 그 ID들과 게이트 벡터, `settings.json`의 정확한 바이트, 그리고 읽는
+곳마다 무엇을 받아들이는지를 고정합니다. 상태, 코드, 이유, 게이트, 분류, 거절, 선택지 같은 닫힌 단어
+목록은 `domain/vocabulary.py`에 목록마다 `StrEnum` 하나로 있습니다. 목록을 쓰던 모듈은 그 목록을 예전
+이름 그대로, enum으로 만들어 둡니다(`machine.STATES = frozenset(RecordState)`). 그래서 단어는 한곳에서만
+더합니다. `tests/test_vocabulary.py`는 모든 목록을 그 멤버에, 모든 멤버를 자기 문자열과 똑같이
+해시되고 비교되고 쓰이는 것에 묶어 둡니다.
 
-## Commit and pull requests
+## 커밋과 pull request
 
-- One change per commit, with a message that says what changed and why.
-- Run the full suite before pushing.
-- If you fixed something a user could hit, add the regression test in the same commit.
-- A commit that only moves code — lines moved verbatim into another file, nothing else
-  changed — is listed in `.git-blame-ignore-revs` by a later commit, so that `git blame`
-  credits each line to the change that last really touched it. Run this once in your clone:
+- 커밋 하나에 변경 하나, 그리고 무엇이 왜 바뀌었는지 말하는 메시지.
+- 푸시하기 전에 전체 suite를 실행하세요.
+- 사용자가 겪을 수 있는 문제를 고쳤다면, 같은 커밋에 회귀 테스트를 추가하세요.
+- 코드를 옮기기만 하는 커밋 — 줄을 그대로 다른 파일로 옮기고 그 밖에는 아무것도 바꾸지 않은 커밋 —
+  은 나중 커밋에서 `.git-blame-ignore-revs`에 올립니다. 그래야 `git blame`이 각 줄을 마지막으로 실제로
+  바꾼 변경의 것으로 보여 줍니다. 클론에서 한 번 실행하세요.
 
   ```bash
   git config blame.ignoreRevsFile .git-blame-ignore-revs
   ```
 
-## Reading the history
+## 역사 읽는 법
 
-The full history is kept: every commit that landed is still there, with its own message, so
-`git bisect` finds the commit that changed a behaviour and `git blame` names the change that
-wrote a line.
+역사는 그대로 둡니다. 들어간 커밋은 자기 메시지와 함께 모두 남아 있어서, `git bisect`로 동작을 바꾼
+커밋을 찾을 수 있고 `git blame`이 각 줄을 마지막으로 바꾼 변경을 가리킵니다.
 
-To read it by release instead:
+릴리스 단위로 읽으려면 이렇게 하세요.
 
-- from v0.6.5 on, each release arrives on `main` as one merge commit, so
-  `git log --first-parent main` is one line per release;
-- for every release, including the older ones, the changelog entry links the commits it
-  contains, and `git log --oneline v0.6.3..v0.6.4` shows the same range in a clone;
-- `git tag` lists the releases themselves.
+- v0.6.5부터는 릴리스마다 병합 커밋 하나로 `main`에 올라가므로, `git log --first-parent main`이
+  릴리스마다 한 줄이 됩니다.
+- 예전 릴리스를 포함해 모든 릴리스는 변경 이력 항목에 그 릴리스에 담긴 커밋 링크가 있고, 클론에서는
+  `git log --oneline v0.6.3..v0.6.4`처럼 같은 범위를 볼 수 있습니다.
+- `git tag`는 릴리스 자체를 나열합니다.
 
-Nothing about the history is rewritten to make it shorter: the published tags, the digests
-pinned beside them and anybody's existing clone all point at these commits.
+역사를 짧게 보이려고 다시 쓰지는 않습니다. 공개된 태그와 그 옆에 고정해 둔 해시, 이미 받아 간 클론이
+모두 이 커밋들을 가리키고 있기 때문입니다.

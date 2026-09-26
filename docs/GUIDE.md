@@ -1,532 +1,488 @@
-# Codex Auto Resume — the full guide
+# Codex Auto Resume 전체 안내서
 
-Everything about Codex Auto Resume in one place. The [README](../README.md) is the short version.
+Codex Auto Resume의 모든 내용을 한곳에 모은 안내서입니다. 짧게 보려면 [README](../README.md)를 보세요.
 
-**Automatically resume the exact same Codex task on Windows after a usage limit resets.**
+**Windows에서 사용량 한도가 풀리면 똑같은 그 Codex 작업을 자동으로 이어 갑니다.**
 
-<sub>🇰🇷 <a href="https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/ko/docs/GUIDE.md">한국어 안내서</a> · The app speaks nine languages: English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil)</sub>
+<sub>🇺🇸 <a href="https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/GUIDE.md">English guide</a> · 프로그램은 아홉 개 언어로 표시됩니다: English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil)</sub>
 
-Codex stops mid-task and tells you to try again at 6:34 AM. You are asleep at 6:34 AM, and in
-the morning the task is exactly where it stopped.
+Codex가 작업 도중에 멈추고 오전 6시 34분에 다시 해 보라고 말합니다. 오전 6시 34분에 사용자는
+자고 있고, 아침에 보면 작업은 멈춘 그 자리 그대로입니다.
 
-Codex Auto Resume waits out the reset, checks that continuing is genuinely safe, and then
-continues **that exact conversation** — so you come back to finished work instead of a stopped
-task. It also recovers temporary rate limits, network failures, timeouts, server errors and
-interrupted streams, but only where the failure is one it can name and is safe to retry.
+Codex Auto Resume는 한도가 풀릴 때까지 기다렸다가, 이어 가도 정말 안전한지 확인한 뒤 **바로 그
+대화**를 이어서 진행시킵니다. 돌아왔을 때 멈춰 있는 작업이 아니라 끝난 작업을 보게 됩니다. 일시적인
+rate limit, 네트워크 장애, 시간 초과, 서버 오류, 끊긴 스트림도 복구하지만, 이름을 댈 수 있고 다시
+시도해도 안전한 장애일 때만 그렇게 합니다.
 
-It is a small local watcher for the Windows ChatGPT/Codex desktop app. It reads Codex's own
-state read-only, classifies what actually went wrong, and sends one continuation message
-through the official `codex queue` command. The watcher has no network code of its own, and
-nothing is sent to this project. Before a resume it checks your usage by asking the official
-Codex binary, which gets the answer from OpenAI; the resumed turn then runs in your desktop app
-under your own Codex settings and goes to OpenAI like any turn you start; what this plugin's
-tools and commands return in a Codex conversation goes to OpenAI with that conversation;
-setting it up from Codex downloads the release from GitHub; and installing with v0.5.7 also has
-Codex refresh every Git marketplace you have configured (naming only this one is new in
-v0.6.0).
+Windows ChatGPT/Codex 데스크톱 앱을 위한 작은 로컬 watcher입니다. Codex의 로컬 상태를 읽기 전용으로 관찰하고, 무엇이 실패했는지 분류한 뒤,
+공식 `codex queue` 명령으로 continuation 메시지 한 건을 보냅니다. watcher 자체에는 네트워크 코드가 없고, 이 프로젝트로 전송되는 것도
+없습니다. 재개하기 전의 사용량 확인은 공식 Codex 바이너리에 묻는 것이고 그 답은 OpenAI가 줍니다. 재개된 턴은 직접 시작한 턴과 똑같이 데스크톱 앱 안에서
+사용자의 Codex 설정대로 실행되어 OpenAI로 갑니다. Codex 대화 안에서 이 플러그인의 도구와 명령이 돌려준 결과는 그 대화와 함께 OpenAI로 갑니다.
+Codex에서 설치할 때는 GitHub에서 릴리스를 내려받습니다. 그리고 v0.5.7로 설치하면 Codex가 사용자가 설정해 둔 모든 Git
+마켓플레이스도 새로 고칩니다(이 마켓플레이스만 지정하는 동작은 v0.6.0부터입니다).
 
-**It deliberately does not retry everything.** A failure it cannot name is left alone.
+**모든 실패를 재시도하지는 않습니다.** 이름 붙일 수 없는 실패는 건드리지 않습니다.
 
 |  |  |
 | --- | --- |
-| **Recovers** | Codex usage limits, and these when Codex records a specific error code for them: rate limits (HTTP 429) · network failures · timeouts · temporary server errors (5xx) · dropped response streams. Codex 0.153.4 records many timeouts, dropped streams and 502/503/504 errors with a generic code; one that carries no HTTP status is not retried, and one that carries a status is classified from it (429 a rate limit, 408 and 425 a timeout, 500-599 a server error, any other 4xx permanent). An HTTP 429 it has given up retrying is recorded as `responseTooManyFailedAttempts`, and that one is recovered as a rate limit; the same code with any other status, or none, is not |
-| **Never touches** | user cancellation · permission · approval · content policy · invalid requests · context length · permanent authentication failures · anything unclassified |
-| **Identity** | the exact conversation UUID only — never `--last`, never "the most recent one", never a title or a folder name |
-| **Configure it** | a Windows window from the Start Menu — from v0.6.0, a Dashboard whose settings are one of its six pages — a settings panel inside Codex, or the command line |
-| **Languages** | English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) — in the Dashboard, the notification-area popup, Windows notifications, the panel inside Codex and the continuation message sent to Codex. It follows Windows unless you choose one; see [Languages](#languages) |
-| **Tells you** | Notifications when a task is interrupted, when recovery starts, how it went, and when it gives up - from v0.6.5 as a card of the product's own beside the notification area, with Windows' own notification wherever a card must not show. While the watcher runs it also shows a notification-area icon, whose tooltip says whether recovery is paused, how many recoveries are waiting, how many are running in Codex, and how long until the next check |
-| **Privacy** | no telemetry, no analytics, no automatic update check, never reads your credentials. *Check for updates* in the window asks GitHub which release is newest, and only when you press it; it and *Refresh compatibility data* also fetch the Codex compatibility data from raw.githubusercontent.com, sending nothing about your machine. The watcher has no network code; the usage check, the resumed turn and what the plugin's tools and commands return in a conversation go to OpenAI through Codex, as Codex's traffic always does; setup downloads the release from GitHub; and the v0.5.7 installer has Codex refresh every Git marketplace you have configured (naming only this one is new in v0.6.0) |
+| **복구합니다** | Codex 사용량 한도, 그리고 Codex가 구체적인 오류 코드를 기록한 경우의 다음 장애: rate limit(HTTP 429) · 네트워크 장애 · 타임아웃 · 일시적 서버 오류(5xx) · 스트림 끊김. Codex 0.153.4는 많은 타임아웃, 스트림 끊김, 502/503/504 오류를 일반 코드로 기록합니다. status가 없으면 재시도하지 않지만, status가 함께 오면 그 값으로 분류합니다(429는 rate limit, 408·425는 타임아웃, 500~599는 서버 오류, 그 밖의 4xx는 영구). 자체 재시도를 포기한 HTTP 429는 `responseTooManyFailedAttempts`로 기록하는데, 이것은 rate limit으로 보고 복구합니다. 같은 코드라도 status가 429가 아니거나 없으면 재시도하지 않습니다 |
+| **손대지 않습니다** | 사용자 취소 · 권한 · 승인 필요 · 콘텐츠 정책 · 잘못된 요청 · 컨텍스트 길이 초과 · 영구 인증 실패 · 분류되지 않은 모든 것 |
+| **식별 방식** | 정확한 대화 UUID 하나. `--last`도, "가장 최근 것"도, 제목이나 폴더 이름도 쓰지 않습니다 |
+| **설정 방법** | 시작 메뉴에서 여는 Windows 창(v0.6.0부터 개요·대기 중·기록·통계·진단·설정 여섯 페이지의 대시보드), Codex 안의 설정 패널, 명령줄 |
+| **언어** | English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil). 대시보드, 알림 영역 팝업, Windows 알림, Codex 안의 패널, Codex에 보내는 이어서 하기 메시지가 모두 이 언어들로 표시됩니다. 기본은 Windows 언어를 따르고 직접 고를 수도 있습니다. [언어](#언어) 참고 |
+| **알려줍니다** | 중단 감지 · 복구 시작 · 결과 · 복구 중단 시 알림. v0.6.5부터는 알림 영역 옆에 제품 자신의 카드로 나타나고, 카드가 나타나면 안 될 때는 Windows 자체 알림으로 나타납니다. 워처가 실행 중인 동안에는 알림 영역 아이콘이 자동 복구가 일시 정지 상태인지, 몇 건이 대기 중이고 몇 건이 Codex에서 실행 중인지, 다음 확인까지 얼마나 남았는지를 툴팁으로 보여 줍니다(v0.6.0부터) |
+| **개인정보** | 텔레메트리 없음, 분석 없음, 자동 업데이트 확인 없음, 자격 증명은 읽지 않음. 창의 *업데이트 확인*은 눌렀을 때만 GitHub에 가장 최근 릴리스를 묻고, 그것과 *호환성 데이터 새로 받기*는 이 PC에 관한 것을 아무것도 보내지 않은 채 raw.githubusercontent.com에서 Codex 호환성 데이터도 받아 옵니다. watcher에는 네트워크 코드가 없으며, 사용량 확인과 재개된 턴, 그리고 대화 안에서 이 플러그인의 도구와 명령이 돌려준 결과는 여느 Codex 통신처럼 Codex를 통해 OpenAI로 갑니다. 설치 스크립트는 GitHub에서 릴리스를 내려받고, v0.5.7의 설치기는 Codex가 사용자가 설정해 둔 모든 Git 마켓플레이스를 새로 고치게 합니다(이 마켓플레이스만 지정하는 동작은 v0.6.0부터입니다) |
 
-> **One honest limitation, up front.** Codex has to currently have that conversation open for a
-> recovery to be delivered. If the app restarted since, open the conversation once and recovery
-> continues on its own. [Why this is unavoidable today](#please-read-this-limitation-first).
+> **먼저 알아두실 제한 하나.** 복구 메시지가 전달되려면 Codex가 그 대화를 열어 둔 상태여야 합니다.
+> 앱을 재시작했다면 그 대화를 한 번만 열어 주시면 이후는 알아서 진행됩니다.
+> [왜 그런지](#먼저-읽어야-할-제한-사항)
 
-**Not the only tool in this space, and not the right one for everybody.** If you want the widest
-possible recovery, an agent other than Codex, or a platform other than Windows, one of the
-others will suit you better — [`docs/COMPARISON.md`](COMPARISON.md) is a map of ten of
-them, re-surveyed on 2026-09-12, saying what each does better than this one.
+**이 영역의 도구가 이것 하나뿐인 것도, 모두에게 맞는 도구인 것도 아닙니다.** 최대한 넓게 복구하고
+싶거나, Codex가 아닌 다른 에이전트를 쓰거나, Windows가 아닌 다른 플랫폼을 쓴다면 다른 도구가 더
+잘 맞을 것입니다. [`docs/COMPARISON.ko.md`](COMPARISON.md)는 그런 도구 열 개를 2026-09-12에
+다시 조사해 정리한 지도로, 각각이 이 도구보다 무엇을 더 잘하는지 적어 두었습니다.
 
-## Install
+## 설치
 
-**Windows 10/11. No Python needed. No administrator rights.**
+**Windows 10/11. Python 불필요. 관리자 권한 불필요.**
 
-### From Codex (recommended)
+### Codex에서 설치 (권장)
 
-Add the plugin, then ask Codex to **set up auto resume**.
+플러그인을 추가한 뒤, Codex에게 **auto resume 설정해줘** 라고 말하면 됩니다.
 
 ```
 codex plugin marketplace add songyb111-gachon/codex-auto-resume-windows
 codex plugin add codex-auto-resume@codex-auto-resume-windows
 ```
 
-Codex will run the plugin's setup script, which downloads the matching release from this
-repository's releases over HTTPS and checks its SHA-256 against the digest recorded for that
-version in the plugin's
-[`scripts/release.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/scripts/release.json).
-That digest is committed to this repository after the release is published; it does not come
-from the release itself. A version with no digest in the plugin's copy of `release.json` is
-checked against the `.sha256` published with the release instead, and the script says so. That
-covers a version newer than the last recorded digest, and always the installed plugin's own
-version, because a release cannot contain its own digest and after installation the plugin runs
-from the installed copy. It then checks the contents really are this product at this version,
-and only then installs, for your Windows user only: files in the installation folder (by
-default `%USERPROFILE%\.codex-auto-resume`), a Start Menu entry (when notifications are on, as
-they are by default), per-user registry values, and
-this plugin's marketplace and plugin registration in Codex, pointed at that installation. The
-plugin's instructions have Codex tell you before it does any of that.
+그러면 플러그인의 설치 스크립트가 실행됩니다. 이 저장소의 릴리스에서 해당 버전 압축 파일을
+HTTPS로 내려받아, 플러그인의
+[`scripts/release.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/scripts/release.json)에
+그 버전용으로 기록된 digest와 SHA-256을 대조합니다. 이 digest는 릴리스가 게시된 뒤 이 저장소에
+커밋되는 것으로, 릴리스 자체에서 오는 값이 아닙니다. 플러그인에 들어 있는 `release.json`에
+digest가 없는 버전이면 릴리스에 함께 게시된 `.sha256`과 대조하고, 그렇게 했다고 알려 줍니다.
+digest가 기록된 마지막 버전보다 새로운 버전이 여기에 해당하고, 설치된 플러그인 자신의 버전은
+언제나 여기에 해당합니다. 릴리스는 자기 자신의 digest를 담을 수 없고, 설치한 뒤에는 플러그인이 설치된
+사본에서 실행되기 때문입니다. 이어서 내용이 정말 이 제품의 이 버전인지 확인한 다음에야, 현재
+Windows 사용자에게만 설치합니다. 설치되는 것은 설치 폴더(기본값 `%USERPROFILE%\.codex-auto-resume`)
+안의 파일, 시작 메뉴 항목(알림이 켜져 있을 때이며, 기본값은 켜짐입니다), 사용자 단위 레지스트리 값, 그리고 Codex에 등록되는 이 플러그인과 그
+마켓플레이스(그 설치본을 가리킵니다)입니다. 플러그인의 지침에 따라 Codex가 실행하기 전에 무엇을
+할지 먼저 알려 줍니다.
 
-This route downloads the matching published archive. Archives v0.5.0 through
-v0.5.7 were built by the earlier single-job release workflow, with GitHub Actions referred to
-by floating tags and executables that cannot be rebuilt byte for byte. Step 2 of [From the
-release archive](#from-the-release-archive) lists what replaces that; those changes are new in
-v0.6.0.
+이 경로는 게시된 압축 파일을 내려받으며, v0.5.0부터 v0.5.7까지의 압축 파일은 모두 예전의 단일 작업(single-job) 릴리스
+워크플로가 빌드했습니다. 이 워크플로는 GitHub Actions를 고정되지 않은 태그로 참조했고, 그 실행 파일은 바이트 단위로 똑같이 다시 빌드할 수 없습니다. 무엇이
+이를 대신하는지는 [릴리스 압축 파일로 설치](#릴리스-압축-파일로-설치)의 2단계에 있습니다. 그 변경은 v0.6.0부터입니다.
 
-The plugin as added from GitHub carries the skills, that setup script and the engine's Python
-source, but no interpreter to run that source, and its manifest declares no MCP server (the
-`.mcp.json` it carries points at an executable that only the release contains); the running
-watcher, the settings window, the panel's own server and the Windows runtime all come from
-that release. That is why there is a download, and why it is worth reading
-[`docs/PLUGIN.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/PLUGIN.md)
-if you would rather know exactly what the script will and will not do before running it.
+GitHub에서 추가한 플러그인에는 스킬과 그 설치 스크립트와 엔진의 Python 소스가 들어 있지만, 그
+소스를 실행할 인터프리터가 없고, 매니페스트에는 MCP 서버가 선언되어 있지 않습니다(함께 들어 있는
+`.mcp.json`이 가리키는 실행 파일은 릴리스에만 있습니다). 실제로 실행되는 워처와 설정 창과 패널의
+서버와 Windows 런타임은 모두 그 릴리스에서 옵니다.
+그래서 다운로드가 필요하며, 스크립트가 무엇을 하고 무엇을 하지 않는지 미리 확인하고 싶다면
+[`docs/PLUGIN.ko.md`](PLUGIN.md)를
+읽어 보세요.
 
-### From the release archive
+### 릴리스 압축 파일로 설치
 
-If you would rather download the release yourself instead of having the setup script do it:
+설치 스크립트에 맡기지 않고 릴리스를 직접 내려받고 싶다면:
 
-1. Download `CodexAutoResume-vX.Y.Z-win-x64.zip` from the
-   [latest release](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest).
-2. **Verify it before you extract it.** `Install.cmd` does not verify the archive it came in (no
-   hash, no signature), so this step is the check. In PowerShell, in the folder you downloaded it to:
+1. [최신 릴리스](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest)에서
+   `CodexAutoResume-vX.Y.Z-win-x64.zip`을 받습니다.
+2. **압축을 풀기 전에 확인합니다.** `Install.cmd`는 자신이 들어 있던 압축 파일을 검증하지
+   않으므로(해시도 서명도 확인하지 않습니다), 이 단계가 곧 검증입니다. 내려받은 폴더에서
+   PowerShell로 다음을 실행합니다.
 
    ```powershell
    (Get-FileHash .\CodexAutoResume-vX.Y.Z-win-x64.zip -Algorithm SHA256).Hash
    ```
 
-   The value must match the `.sha256` file published beside the archive, and the digest
-   recorded for that version in
-   [`scripts/release.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/scripts/release.json)
-   on the `main` branch (`Get-FileHash` prints capital letters; the case does not matter). The
-   `.sha256` comes from the same place as the archive, so it shows the download is intact; the
-   `release.json` entry is a commit in this repository, not a release asset, so it is a separate
-   record: changing it takes a new commit on `main`. It is added after a
-   release is published, so a brand-new version may not be listed yet, and anything before
-   v0.5.2 has no entry; the attestation check
-   below does not depend on it. With the GitHub CLI you can check which workflow run and commit
-   built the archive (archives from v0.5.4 on carry an attestation):
+   출력된 값이 압축 파일 옆에 게시된 `.sha256` 파일의 값, 그리고 `main` 브랜치의
+   [`scripts/release.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/scripts/release.json)에
+   그 버전용으로 기록된 digest와 같아야 합니다 (`Get-FileHash`는 대문자로 출력하지만 대소문자는
+   상관없습니다). `.sha256`은 압축 파일과 같은 곳에서 오므로 파일이 온전하다는 것을 보여 줍니다.
+   `release.json`의 값은 릴리스 파일이 아니라 이 저장소의 커밋이므로 별도의 기록이며, 이 값을
+   바꾸려면 `main`에 새 커밋이 필요합니다. 이 값은 릴리스가 게시된 뒤에 추가되므로
+   막 나온 버전은 아직 없을 수 있고 v0.5.1까지의 버전은 항목이 없으며, 아래의 attestation 확인은 이 값과 무관하게 할 수 있습니다.
+   GitHub CLI가 있다면 어느 워크플로 실행과 어느 커밋이 이 파일을 빌드했는지 확인할 수 있습니다
+   (attestation은 v0.5.4 이후의 압축 파일에 있습니다).
 
    ```powershell
    gh attestation verify .\CodexAutoResume-vX.Y.Z-win-x64.zip --repo songyb111-gachon/codex-auto-resume-windows
    ```
 
-   If anything does not match, delete the file and do not run it.
-   [`docs/VERIFY.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/VERIFY.md)
-   explains each check and what it does and does not prove. Archives
-   v0.5.0 through v0.5.7 were built by the earlier single-job release workflow, which referred
-   to its GitHub Actions by floating tags and produced executables that cannot be rebuilt byte
-   for byte. Separate build and publish jobs, actions pinned to exact commits, and reproducible
-   executables are included in the published v0.6.0 release.
-3. Extract it anywhere and double-click **`Install.cmd`**.
+   하나라도 맞지 않으면 파일을 지우고 실행하지 마세요. 각 확인이 무엇을 증명하고 무엇은 증명하지 못하는지는
+   [`docs/VERIFY.ko.md`](VERIFY.md)에
+   있습니다. v0.5.0부터 v0.5.7까지의 압축 파일은 모두 예전의 단일 작업(single-job) 릴리스 워크플로가 빌드했습니다. 이
+   워크플로는 GitHub Actions를 고정되지 않은 태그로 참조했고, 그 실행 파일은 바이트 단위로 똑같이 다시 빌드할 수 없습니다. 빌드와 게시 작업의 분리,
+   정확한 커밋에 고정한 action, 재현 가능한 실행 파일은 게시된 v0.6.0 릴리스에 포함됩니다.
+3. 아무 곳에나 압축을 풀고 **`Install.cmd`**를 더블클릭합니다.
 
-The archive carries its own Python runtime, so there is nothing to install first, and the
-recommended settings are already on when it finishes. `Install.cmd` downloads nothing itself:
-it registers the Codex plugin from the files in the archive, so this route gets the panel too.
-It does ask Codex to refresh marketplaces, though. The installer in v0.5.7 and earlier asks
-Codex to refresh every Git marketplace you have configured. From v0.6.0 the
-installer names only this product's marketplace, which does nothing for the local
-registration it has just made; Codex fetches only if an earlier GitHub registration of that
-marketplace survived the repoint.
+압축 파일이 자체 Python 런타임을 담고 있어서 미리 설치할 것이 없고, 끝나면 권장 설정이 이미 켜져 있습니다. `Install.cmd`는 스스로 아무것도 내려받지
+않습니다. Codex 플러그인도 압축 파일 안의 파일로 등록하므로 이 경로에서도 패널까지 함께 설치됩니다. 다만 Codex에 마켓플레이스 새로 고침은 요청합니다. v0.5.7과 그 이전 설치기는 모든 Git 마켓플레이스의 새로 고침을 요청합니다. v0.6.0부터의 설치기는 이 제품의 마켓플레이스만 지정하므로, 방금 등록한 로컬 마켓플레이스에
+대해서는 아무 일도 일어나지 않습니다. Codex가 무언가를 가져오는 것은 예전에 GitHub에서 등록한 이 마켓플레이스가 재지정 뒤에도 남아 있을 때뿐입니다. 이 변경은
+v0.6.0부터입니다.
 
-Nothing this project builds is Authenticode-signed: not the two executables, not `Install.cmd`
-or `Uninstall.cmd`, and not its PowerShell or Python scripts. The bundled Python interpreter
-keeps the Python Software Foundation's signature (`pythonw.exe`, `python.exe` and the Python
-DLLs; its two Visual C++ runtime DLLs are signed by Microsoft), and the watcher runs under that
-`pythonw.exe`. On either route, Smart App Control, where it is turned on, may block the two
-unsigned executables: the settings window `CodexAutoResumeSettings.exe` and
-`codex-auto-resume-mcp.exe`, which Codex starts for the plugin's tools and panel. On this manual
-route it may also block `Install.cmd` and `Uninstall.cmd`, and SmartScreen may warn of an
-unknown publisher, because Explorer keeps the downloaded-file mark. Such a warning or block means the file is unsigned and has no
-reputation with Microsoft yet (or is a script type downloaded from the internet); it does not
-tell you whether the file is the one this project published. Step 2 does.
+이 프로젝트가 빌드하는 것은 어느 것도 Authenticode 서명이 되어 있지 않습니다. 두 실행 파일도,
+`Install.cmd`와 `Uninstall.cmd`도, PowerShell과 Python 스크립트도 마찬가지입니다. 함께 들어 있는
+Python 인터프리터(`pythonw.exe`, `python.exe`와 Python DLL이며, 인터프리터의 Visual C++ 런타임
+DLL 두 개는 Microsoft가 서명했습니다)는 Python Software Foundation의 서명을 그대로 유지하며,
+워처는 그 `pythonw.exe`로 실행됩니다. 어느 경로로 설치하든 Smart App Control을 켜 두었다면
+서명되지 않은 두 실행 파일, 곧 설정 창 `CodexAutoResumeSettings.exe`와 Codex가 플러그인의 도구와
+패널을 위해 실행하는 `codex-auto-resume-mcp.exe`가 차단될 수 있습니다. 이 수동 경로에서는
+탐색기가 내려받은 파일 표시를 유지하므로 `Install.cmd`와 `Uninstall.cmd`도 차단될 수 있고, 게시자를
+알 수 없다는 SmartScreen 경고가 뜰 수 있습니다. 이런 경고나 차단은 파일에 서명이 없고 Microsoft에서
+아직 평판이 쌓이지 않았다는(또는 인터넷에서 내려받은 스크립트 형식이라는) 뜻일 뿐, 이 프로젝트가
+게시한 그 파일인지는 알려 주지 않습니다. 그것은 2단계가 알려 줍니다.
 
-### Either way
+### 어느 쪽이든
 
-Both routes end at the same installation, by default in `%USERPROFILE%\.codex-auto-resume`: one
-watcher, one database, one settings file, one sign-in entry. Running either again is the
-upgrade and the repair path, and keeps anything already waiting to resume. An upgrade asks the
-running watcher to stop and waits up to a minute so the new version takes over; it never kills
-it, and if the old one is still finishing it leaves it running and says so. If Codex cannot
-replace the plugin because this plugin's own MCP launcher is holding its files open, the
-installer force-stops that launcher and tries again; Codex starts a new one when it next needs
-it. `Uninstall.cmd`, or asking Codex to remove it, removes it; see [Uninstall](#uninstall) for
-what each route leaves behind.
+두 경로 모두 같은 설치본 한 곳(기본값 `%USERPROFILE%\.codex-auto-resume`)에 설치됩니다. 워처 하나,
+데이터베이스 하나, 설정 파일 하나, 로그인 항목 하나입니다. 어느 쪽이든 다시 실행하면 업그레이드이자
+복구 경로이며, 대기 중인 재개를 그대로 유지합니다. 업그레이드할 때는 새 버전이 이어받도록 실행 중인
+워처에 멈춰 달라고 요청하고 최대 1분까지 기다립니다. 강제로 종료하지는 않으며, 이전 워처가 아직
+하던 일을 마치는 중이면 그대로 두고 그렇다고 알려 줍니다. 이 플러그인의 MCP 런처가 파일을 열고
+있어서 Codex가 플러그인을 교체하지 못하면, 설치기는 그 런처를 강제로 종료하고 다시 시도합니다.
+Codex는 다음에 필요할 때 새 런처를 시작합니다. `Uninstall.cmd`를 실행하거나 Codex에게 제거를
+요청하면 제거됩니다. 경로마다 무엇이 남는지는 [제거](#제거)를 참고하세요.
 
-Afterwards, change anything from **Start Menu → Codex Auto Resume**, or by asking Codex to
-*open auto resume settings*.
+설치 후에는 **시작 메뉴 → Codex Auto Resume**에서, 또는 Codex에게 *auto resume 설정 열어줘* 라고
+말해서 설정을 바꿀 수 있습니다.
 
-## What it looks like
+## 화면
 
-When a task is interrupted, a card in the product's own design appears beside the notification
-area, as **Codex Auto Resume**: which task stopped, why, and exactly which conversation it is.
-Doing nothing resumes. **Don't resume** only ever cancels, and **Open Dashboard** only opens the
-Dashboard's Pending page. Where a card must not be shown — the session is locked or remote, an
-app is full screen, Do not disturb or Focus is on, a screen reader is running, or the card or the
-notification-area icon is switched off — Windows' own notification appears instead, with the same
-words and the same two buttons; once a card has been seen, a silent copy of it goes to Windows'
-notification center, so the history is the same either way. Below is the card as the product
-draws it, in the light and the dark theme, rendered off-screen from sample data;
-[The notification](#the-notification) says what each line is.
+작업이 중단되면 알림 영역 옆에 제품 자신의 디자인으로 된 **Codex Auto Resume** 카드가 나타나, 어느
+작업이 왜 멈췄는지와 정확히 어느 대화인지 알려 줍니다. 아무것도 하지 않으면 재개됩니다. **재개하지
+않음**은 취소만 하고, **대시보드 열기**는 대시보드의 대기 중 페이지를 열기만 합니다. 카드가 나타나면
+안 될 때, 곧 세션이 잠겨 있거나 원격일 때, 전체 화면 앱이 떠 있을 때, 방해 금지나 집중 모드가 켜져
+있을 때, 화면 읽기 프로그램이 실행 중일 때, 카드나 알림 영역 아이콘을 꺼 두었을 때는 같은 말과 같은 두
+버튼을 담은 Windows 자체 알림이 대신 뜹니다. 카드가 보인 뒤에는 그 조용한 사본이 Windows 알림 센터에
+들어가므로 어느 쪽이든 기록은 같습니다. 아래는 제품이 그리는 카드 그대로를 예시 자료로 화면 밖에서 밝은
+테마와 어두운 테마로 렌더링한 것입니다. 각 줄이 무엇인지는 [알림](#알림)에 있습니다.
 
-<img src="images/notification-card.png" alt="The notification card in the light theme: Codex Auto Resume with a cyan status light and a Usage limit chip, the task example-project, the line Codex usage limit reached. This task will resume at 08:42., the conversation's exact identifier, and the buttons Don't resume and Open Dashboard" width="388">
+<img src="images/notification-card-ko.png" alt="밝은 테마의 알림 카드. 청록색 상태 불빛과 사용량 제한 칩이 달린 Codex Auto Resume, 작업 이름 example-project, 'Codex 사용량 한도에 도달했습니다. 08:42에 이 작업을 자동으로 재개합니다.'라는 줄, 대화의 정확한 식별자, 재개하지 않음과 대시보드 열기 버튼" width="388">
 
-Inside Codex, ask to *open auto resume settings* and the panel shows what is waiting and lets
-you change most of it, in sections for General, Recovery, Notifications, Continuation message
-and Appearance, with a Preview of the exact message the watcher would send and a switch for each
-waiting conversation. It follows Codex's light or dark theme unless you choose one under
-Appearance, and Codex's reduced-motion preference - and, from v0.6.10, the Reduce motion and the Design
-chosen in the Dashboard, which it draws in but does not offer; a language or theme saved there applies at once.
-A Custom message is shown there but not edited; that happens only in the Dashboard. This is the
-panel's own page, rendered from the exact resource the plugin serves to Codex, rather than a
-photograph of the Codex window around it:
+Codex 안에서 *auto resume 설정 열어줘* 라고 하면, 무엇이 대기 중인지 보여 주고 대부분을 그 자리에서
+바꿀 수 있는 패널이 열립니다. 일반, 복구, 알림, 이어서 하기 메시지, 모양 부분이 있고, 워처가 실제로
+보낼 메시지의 미리보기와 대기 중인 대화마다의 스위치가 있습니다. 패널은 모양에서 테마를 따로 고르지
+않는 한 Codex의 밝은 테마·어두운 테마를 따르고, Codex의 움직임 줄이기 설정도 따릅니다. 이번
+릴리스부터는 대시보드에서 고른 움직임 줄이기와 디자인도 따르는데, 패널은 그것으로 그리기만 하고
+내놓지는 않습니다. 패널에서
+저장한 언어나 테마는 곧바로 적용됩니다. 직접 입력 메시지는 패널에 보이기만 하고 고칠 수는 없으며, 고치는
+곳은 대시보드뿐입니다. 아래 그림은 Codex 창을 찍은 사진이 아니라, 플러그인이 Codex에 제공하는
+바로 그 리소스를 그대로 렌더링한 것입니다.
 
-<img src="images/settings-panel.png" alt="The Codex Auto Resume panel: a status card saying two recoveries are waiting, the two waiting conversations each with an Auto-resume switch, the interface language, the recovered failure categories, Limits and Notifications folded away, the continuation language and message style, and a Preview of the Standard message for a usage limit" width="680">
+<img src="images/settings-panel-ko.png" alt="Codex Auto Resume 패널. 복구 2건이 대기 중이라는 상태 카드, 자동 이어 가기 스위치가 달린 대기 중인 대화 두 개, 화면 언어, 복구할 장애 종류, 접힌 한도와 알림, 이어서 하기 언어와 메시지 스타일, 사용량 한도에 보낼 기본 메시지의 미리보기" width="680">
 
-The Start Menu opens the Dashboard, a standalone window that works with Codex closed: what the
-watcher is doing, what is waiting and when it is next looked at, what finished and how, the
-last week's numbers, the watcher's health, and the settings. The light in its header shows what
-the watcher is doing. While it is running and recovery is on, the light is cyan and blinks the
-way the notification-area icon does: while the watcher watches, the dot slowly dims and comes back,
-and once it is lit a small glow spreads from it and draws back in; it breathes the same way while the
-watcher waits for a task's reset or retry, turns a small arc while it checks a task that has come due, and blinks a little faster
-while it recovers. Paused or stopped, it is plain grey; amber, blinking slowly for as long as it
-lasts, means it needs you. The word beside it
-always says which. **Theme**, under Settings > Appearance, draws the window, the popup and the
-notification card light or dark; its default, *Use system setting*, follows the app mode Windows is
-set to. **Theme in Codex**, beside it, is the panel's own: *Same as Theme* (the default, which is how
-every panel looked before it existed), *Codex's theme*, *Light* or *Dark* - so the window can keep a
-Light or Dark of its own while the panel follows Codex, or the panel can keep one whatever Codex does. When the
-interface language or the theme changes - saved in the window, changed in Codex, or Windows
-switching between light and dark - the window closes and opens again by itself, on the same page
-and in the same place, but never over changes you have not saved. **Reduce motion**, also under
-Appearance, stops those animations, and Windows' own animation setting is always honoured; High
-Contrast mode drops the shadows and tints, whatever the theme. It is a native window; there is no
-local web server and nothing opens in a browser.
+시작 메뉴에서는 대시보드가 열립니다. Codex를 꺼 둔 상태에서도 동작하는 독립 창으로, 워처가 무엇을
+하고 있는지, 무엇이 대기 중이고 언제 다시 확인하는지, 무엇이 어떻게 끝났는지, 최근 일주일 수치, 워처
+상태, 그리고 설정을 한 창에서 보여 줍니다. 머리글의 불빛은 워처가 하는 일을 보여 줍니다. 워처가 실행 중이고 자동 복구가
+켜져 있으면 불빛은 청록색이고 알림 영역 아이콘처럼 깜빡입니다. 감시 중에는 점이 천천히 흐려졌다가
+돌아오고, 다 켜진 뒤에 작은 빛이 번졌다가 거두어집니다. 기다리는 중에도 감시 중과 똑같이 숨 쉬고, 때가 된
+작업을 확인할 때는 작은 호가 돌고, 복구 중에는 조금 더 빠르게 깜빡입니다. 일시 정지되었거나 멈추면
+빛나지 않는 회색이고, 확인이 필요하면 주황색으로 그동안 내내 천천히 깜빡입니다. 옆의 단어가 늘 어느
+상태인지 알려 줍니다.
+설정 > 모양의 **테마**는 창, 팝업, 알림 카드를 밝게 또는 어둡게 그리며, 기본값인 *시스템 설정
+따르기*는 Windows에 설정된 앱 모드를 따릅니다. 그 옆의 **Codex 안의 테마**는 패널만의 설정입니다.
+*테마와 같게*(기본값이며, 이 설정이 생기기 전의 모든 패널이 그랬습니다), *Codex 테마 따르기*, *밝게*,
+*어둡게* 가운데 고르므로, 창은 밝게나 어둡게로 두고 패널은 Codex를 따르게 할 수도, Codex가 어떻든 패널을
+한 테마로 둘 수도 있습니다.
+화면 언어나 테마가 바뀌면(창에서 저장했든, Codex에서 바꿨든,
+Windows가 밝게와 어둡게 사이에서 바뀌었든) 창이 스스로 닫혔다가 같은 페이지, 같은 자리에서 다시
+열립니다. 다만 저장하지 않은 변경 사항이 있을 때는 다시 열지 않습니다. 같은 모양 부분의 **움직임
+줄이기**는 이 애니메이션을 멈추며, Windows 자체의 애니메이션 설정도 항상 따릅니다. 고대비 모드에서는
+테마와 상관없이 그림자와 색조를 뺍니다. 네이티브 창이며, 로컬 웹 서버를 띄우거나 브라우저를 여는
+일은 없습니다.
 
-**Design**, under Appearance from v0.6.10, draws the Dashboard, the popup, the notification card and
-the panel in Codex one of three ways; light or dark is still the Theme's. *Soft*, the default, is
-raised, as described above. *Classic (v0.6.2)* is flat, as v0.6.2 was - white cards with a hairline
-and a thin accent bar down their left edge, the current tab underlined - and its light breathes with
-its glow. *Plain* is flat and grey, with smaller corners, and its light dims without a glow. Every
-design moves alike - switches glide and the notification card rises in - and no design stops motion:
-Reduce motion, above, does that. v0.6.10 also had *Soft, without motion*, which drew exactly what
-Soft draws under Reduce motion; since v0.6.11 it is Reduce motion, and a Dashboard that had it chosen
-opens in Soft with Reduce motion on, looking just as it did. The words, the layout and the sizes are the same in every design,
-and the Pending and History lists stay plain rows in each. High Contrast replaces every design, and Reduce motion stops the
-motion in each. The Design is set in the Dashboard only: Codex draws the panel in it but cannot
-change it, and restoring the recommended settings puts it back to Soft. The popup in each design, in
-the light theme:
+이번 릴리스부터 모양 부분에 있는 **디자인**은 대시보드, 팝업, 알림 카드, Codex 안의 패널을 세 가지
+가운데 하나로 그립니다. 밝게 또는 어둡게는 여전히 테마가 정합니다. 기본값인 *부드럽게*는 위에서 말한
+대로 입체감이 있습니다. *클래식 (v0.6.2)*은 v0.6.2처럼 평평합니다. 가는 선과 왼쪽 가장자리의
+가는 강조 막대가 있는 흰 카드이고, 지금의 탭에는 밑줄이 그어지며, 불빛은 빛과 함께 숨 쉽니다.
+*단순하게*는 모서리가 작은 평평한 회색 모양이고, 불빛은 빛 없이 흐려집니다. 모든 디자인이 똑같이
+움직입니다. 스위치는 미끄러지고 알림 카드는 떠오르며 들어옵니다. 움직임을 멈추는 디자인은 없고, 그 일은
+위의 움직임 줄이기가 합니다. 디자인 설정이 처음 생긴 릴리스에 있던 *부드럽게, 움직임 없이*는 부드럽게가
+움직임 줄이기 아래에서 그리는 것과 똑같았으므로 이제 움직임 줄이기가 되었고, 그것을 골라 두었던 대시보드는
+움직임 줄이기가 켜진 부드럽게로 열려 전과 똑같이 보입니다. 단어와 배치와 크기는 모든 디자인에서 같고, 대기 중과 기록 목록은 어느 디자인에서나 평평한 줄입니다. 고대비는 모든 디자인을
+대신하고, 움직임 줄이기는 어느 디자인에서든 움직임을 멈춥니다. 디자인은 대시보드에서만 정합니다.
+Codex는 패널을 그것으로 그리지만 바꿀 수는 없고, 권장 설정으로 되돌리면 부드럽게로 돌아갑니다. 밝은
+테마에서 디자인별 팝업은 이렇습니다.
 
-| Soft | Classic (v0.6.2) | Plain |
+| 부드럽게 | 클래식 (v0.6.2) | 단순하게 |
 | --- | --- | --- |
-| <img src="images/tray-popup.png" alt="The popup in the Soft design: raised cards on a blue-grey canvas, a well for the counts, and the cyan status light breathing with a soft glow" width="170"> | <img src="images/design-classic-popup.png" alt="The popup in the Classic design: flat white cards with a hairline and a thin accent bar down the card's left edge, and the cyan status light breathing with its glow" width="170"> | <img src="images/design-plain-popup.png" alt="The popup in the Plain design: flat white cards in neutral greys with smaller corners, and the cyan status light dimming and brightening with no glow" width="170"> |
+| <img src="images/tray-popup.png" alt="부드럽게 디자인의 팝업. 푸른 회색 바탕 위에 떠오른 카드, 수치를 담은 우물, 부드러운 빛과 함께 숨 쉬는 청록색 상태 불빛" width="170"> | <img src="images/design-classic-popup.png" alt="클래식 디자인의 팝업. 가는 선과 왼쪽 가장자리의 가는 강조 막대가 있는 평평한 흰 카드, 빛과 함께 숨 쉬는 청록색 상태 불빛" width="170"> | <img src="images/design-plain-popup.png" alt="단순하게 디자인의 팝업. 모서리가 작은 중립 회색의 평평한 흰 카드, 빛 없이 흐려졌다 밝아지는 청록색 상태 불빛" width="170"> |
 
-The Dashboard's Overview, the panel and the notification card are pictured in each design too
-(`docs/images/design-*.png`).
+대시보드의 개요, 패널, 알림 카드도 디자인마다 그림이 있습니다(`docs/images/design-*.png`).
 
-The window pictures on this page are captured from a scratch installation holding synthetic
-records, in the light theme. They show what the windows look like; they do not show a real
-recovery, and they are not evidence that one was observed in Codex.
+이 문서의 창 그림은 합성 기록을 넣은 임시 설치에서 밝은 테마로 찍은 것입니다. 창이 어떻게 보이는지를 보여 줄 뿐
+실제 복구 장면이 아니며, 실제 Codex에서 복구를 관찰했다는 증거도 아닙니다.
 
-<img src="images/dashboard-overview.png" alt="The Codex Auto Resume Dashboard overview: automatic recovery on, the watcher running and the Codex engine compatible, two recoveries waiting with the next check in a minute and a half, the last seven days' interruptions, continuations sent, recoveries and success rate, and the four most recently finished recoveries" width="680">
+<img src="images/dashboard-overview-ko.png" alt="Codex Auto Resume 대시보드 개요. 자동 복구 켜짐, 워처 실행 중, Codex 엔진 호환됨, 복구 2건 대기와 약 1분 30초 뒤 다음 확인, 최근 7일의 중단·보낸 이어서 하기·복구·성공률, 최근에 끝난 복구 4건" width="680">
 
-Each waiting recovery shows why it is waiting and when it is next checked, and **Why it is
-waiting** lists the watcher's safety checks for the selected task as the watcher last recorded
-them. The **Auto-resume** switch on each row turns automatic recovery off or on for that
-task's conversation. The click carries the exact interruption and conversation the row was
-drawn from, and a click that reaches a task which has since finished, disappeared or turned
-out to belong to another conversation is refused and changes nothing; either way the switch sends
-nothing. **Retry now** only asks the watcher to look again now — every check still applies, and
-nothing is sent unless they all pass. **Cancel** stops recovering that interruption and
-everything that continues it: a record that was never sent is cancelled outright, one that may
-already be in Codex is marked and taken back if it is still queued, and a finished one is
-marked too, so no later failure of that task can start a new chain from it. A turn already
-running in Codex is not stopped, and the confirmation says so. **Cancel all** does the same to
-every waiting recovery, one exact record at a time; there is deliberately no way to retry them
-all at once. **Turn off for this conversation** cancels its waiting recoveries and keeps
-automatic recovery off for that conversation until you turn it back on — the Pending and History
-pages then offer **Turn on for this conversation**:
+대기 중인 복구마다 왜 기다리는지와 언제 다시 확인하는지가 보이고, **기다리는 이유**는 선택한 작업에
+대해 워처가 마지막으로 기록한 안전 확인 목록을 보여 줍니다. 줄마다 있는 **자동 이어 가기** 스위치는
+그 작업이 속한 대화의 자동 복구를 끄거나 켭니다. 클릭에는 그 줄을 그릴 때의 정확한 중단과 대화가
+함께 실리며, 누르는 사이에 끝났거나 사라졌거나 다른 대화의 것으로 밝혀진 작업에 대한 클릭은 거절되고
+아무것도 바꾸지 않습니다. 어느 쪽이든 스위치는 아무것도 보내지 않습니다. **지금 다시 확인**은 워처에게
+지금 다시 살펴보라고 요청할 뿐입니다. 모든 확인은 그대로 적용되고, 전부 통과해야만 보냅니다.
+**취소**는 그 중단과 그것을 이어받는 것 전부의 복구를 멈춥니다. 아직 보내지 않은 기록은 그대로
+취소하고, 이미 Codex에 넘어갔을 수 있는 것은 표시만 해 두었다가 아직 큐에 있으면 되가져오며, 이미
+끝난 기록에도 표시를 남겨 그 작업의 이후 실패가 새 연쇄를 시작하지 못하게 합니다. 이미 Codex에서
+실행 중인 이어서 하기는 멈추지 않으며, 확인 문구가 그렇게 말해 줍니다. **모두 취소**는 대기 중인 복구
+전부에 같은 일을 정확한 기록 하나씩 합니다. 한꺼번에 다시 시도하는 기능은 일부러 두지 않았습니다.
+**이 대화는 끄기**는 그 대화에서 대기 중인 복구를 취소하고, 다시 켤 때까지 그 대화의 자동 복구를 꺼
+둡니다. 그러면 대기 중 페이지와 기록 페이지에 **이 대화 다시 켜기**가 나타납니다.
 
-<img src="images/dashboard-pending.png" alt="The Pending page of the Dashboard: two conversations waiting, one for the usage reset and one with a retry scheduled, each with a state chip and an Auto-resume switch, the Why it is waiting checklist for the selected task, and Retry now, Cancel, Timeline, Turn off for this conversation and Cancel all buttons" width="680">
+<img src="images/dashboard-pending-ko.png" alt="대시보드의 대기 중 페이지. 사용량 초기화를 기다리는 대화와 재시도가 예약된 대화가 각각 상태 칩과 자동 이어 가기 스위치와 함께 보이고, 선택한 작업의 기다리는 이유 목록, 지금 다시 확인·취소·진행 기록·이 대화는 끄기·모두 취소 버튼" width="680">
 
-<img src="images/settings-window.png" alt="The Continuation message section of the Dashboard's Settings page: the continuation language, the four message styles with Standard selected, and a Preview of the message sent for a usage limit" width="680">
+<img src="images/settings-window-ko.png" alt="대시보드 설정 페이지의 이어서 하기 메시지 부분. 이어서 하기 언어, 기본이 선택된 네 가지 메시지 스타일, 사용량 한도에 보낼 메시지의 미리보기" width="680">
 
-While the watcher runs it also puts an icon in the notification area. It belongs to the watcher
-process itself, so it appears when one starts and goes when it stops. Its mark alone says what the
-watcher is doing - it wears no badge - so it is the same picture as the Dashboard's taskbar
-button. Its tooltip says whether recovery is paused, how many recoveries
-are waiting, how many are running in Codex and how long until the next check - or, until you have
-seen it, that a recovery failed.
+워처가 실행 중인 동안에는 알림 영역에도 아이콘이 나타납니다. 워처 프로세스 자신의 것이라서 워처가
+시작하면 생기고 멈추면 사라지며, 없는 워처를 있는 것처럼 보여 줄 수 없습니다. 워처 상태는 표시 자체가
+말하고 배지는 붙지 않으므로, 대시보드의 작업 표시줄 단추와 같은 그림입니다. 툴팁은 자동 복구가 일시 정지 상태인지, 몇 건이 대기 중이고 몇 건이
+Codex에서 실행 중인지, 다음 확인까지 얼마나 남았는지를 보여 주고, 실패한 복구가 있으면 사용자가 볼 때까지
+그것을 말합니다.
 
-The icon moves, in the mark it already has. While the watcher watches, the head - the bright dot at
-the end of the ring - breathes, dimming toward the icon's deep blue and back every 4.4 seconds, and
-after three breaths it sweeps along the ring's white stroke and back, clockwise, at full
-brightness: 3.52 seconds out, a moment at the far end, 3.52 seconds back and 1.54 at home. It never
-breathes while it travels, and it never crosses the gap at the top of the ring. While a recovery is
-in progress it sweeps out and back over and over, twice as quickly - once every 3.96 seconds -
-without breathing. Paused, it is grey and still; when something needs you it turns amber and
-breathes slowly in its place, every 5.6 seconds, for as long as it lasts; after a recovery fails it
-turns red and sweeps out and back like a recovery, twice as quickly - once every 1.98 seconds -
-blinking as it goes, every 1.2 seconds, and stays red until you have seen it: click the icon to open the popup, or bring the Dashboard to the
-front. A recovery that starts afterwards clears it as well. Nothing moves under Reduce motion, Windows' animation setting, High Contrast or battery
-saver, while the session is locked, or while Windows keeps the icon in the overflow area, where
-nobody would see it. While the Dashboard is open, its taskbar button moves the same way and
-stops for the same reasons.
+아이콘은 이미 가진 표시 그대로 움직입니다. 워처가 감시하는 동안에는 머리, 곧 고리 끝의 밝은 점이 4.4초마다
+아이콘의 짙은 파랑 쪽으로 흐려졌다가 돌아오며 숨 쉬고, 세 번 숨 쉰 뒤에는 가장 밝은 채로 고리의 흰 획을
+따라 시계 방향으로 쓸고 갔다가 돌아옵니다. 3.52초 나가고, 끝에서 잠깐 머물고, 3.52초 돌아오고, 1.54초
+제자리에 있습니다. 움직이는 동안에는 숨 쉬지 않고, 고리 위쪽의 틈은 결코 건너지 않습니다. 복구가 진행되는
+동안에는 숨 쉬지 않고 두 배 빠르게, 3.96초마다 한 번씩 나갔다 돌아오기를 되풀이합니다. 일시 정지되면 회색이고 멈춰 있고, 사람이 봐야 할 일이 생기면 주황색으로 바뀌어 그동안
+제자리에서 5.6초마다 천천히 숨 쉬고, 복구가 실패하면 빨간색으로 바뀌어 복구 중처럼 나갔다 돌아오기를
+두 배 빠르게, 1.98초마다 한 번씩 되풀이하면서 1.2초마다 깜빡이고, 사용자가 볼 때까지 빨간 채로 있습니다. 아이콘을 클릭해 팝업을
+열거나 대시보드를 앞으로 가져오면 돌아오고, 그 뒤에 새 복구가 시작되어도 돌아옵니다. 움직임 줄이기, Windows의 애니메이션 설정, 고대비, 배터리 절약 모드에서, 세션이 잠겨 있는
+동안, 그리고 Windows가 아이콘을 아무도 보지 않는 넘침 영역에 두는 동안에는 움직이지 않습니다. 대시보드가
+열려 있는 동안에는 작업 표시줄 단추도 같은 방식으로 움직이고, 같은 이유로 멈춥니다.
 
-<img src="images/status-light.png" alt="The status light breathing on a card: a cyan dot that dims to about two thirds of its colour and comes back over 4.4 seconds, with a soft glow that grows out from under it as it brightens and is gone at the bottom of the breath" width="112">
+<img src="images/status-light.png" alt="카드 위에서 숨 쉬는 상태 불빛. 청록색 점이 4.4초에 걸쳐 제 색의 3분의 2 정도까지 어두워졌다가 돌아오고, 밝아질수록 점 아래에서 부드러운 빛이 번져 나왔다가 호흡의 바닥에서는 사라집니다" width="112">
 
-While the watcher is watching, the light breathes: one cycle every 4.4 seconds, the dot dimming to
-62% of its colour and back along a cosine, with a glow that rides that brightness and reaches 0.6 of
-the dot's radius past its edge. It is the same light in the window, in the notification-area popup,
-in the panel in Codex and on the notification card. A recovery in progress breathes it every 2.8
-seconds, attention every 5.6 and a failure every 1.2; waiting breathes as monitoring does and checking holds it lit and still; Reduce motion, Windows' animation setting and
-High Contrast hold it still too.
+워처가 감시하는 동안 불빛은 숨을 쉽니다. 4.4초에 한 주기로, 점이 제 색의 62%까지 코사인을 따라
+어두워졌다 돌아오고, 그 밝기를 따라 번짐이 점 반지름의 0.6배만큼 바깥으로 나옵니다. 창, 알림 영역
+팝업, Codex 안의 패널, 알림 카드가 모두 같은 불빛입니다. 복구가 진행 중이면 2.8초에, 확인이 필요하면 5.6초에,
+실패하면 1.2초에 한 주기로 숨 쉬고, 대기 중에는 감시 중처럼 숨 쉬며, 확인 중에는 켜진 채 멈춰 있고, 움직임 줄이기와 Windows의 애니메이션 설정,
+고대비에서도 멈춥니다.
 
-<img src="images/icon-motion.png" alt="The notification-area icon's motion, drawn from the icon's own frames, on a light taskbar. From the left: watching, whose bright head breathes and then sweeps clockwise along the ring's white stroke and back, at full brightness; recovering, sweeping out and back all the time; needing attention, amber, breathing slowly in its place; failed, red, sweeping out and back twice as quickly as recovering and blinking as it goes; paused, grey and still" width="360">
+<img src="images/icon-motion.png" alt="알림 영역 아이콘의 움직임을 아이콘 자신의 프레임으로 그린 모습(밝은 작업 표시줄). 왼쪽부터 감시 중(밝은 머리가 숨 쉰 뒤 가장 밝은 채로 고리의 흰 획을 따라 시계 방향으로 쓸고 갔다가 돌아옵니다), 복구 중(계속 나갔다 돌아옵니다), 확인 필요(주황색으로 제자리에서 천천히 숨 쉽니다), 실패(빨간색으로 복구 중보다 두 배 빠르게 나갔다 돌아오면서 깜빡입니다), 일시 정지(회색으로 멈춰 있습니다)" width="360">
 
-A single click on the icon opens a small popup beside it, and another click closes it: the
-watcher's state, how many tasks are waiting and recovering, the next check, up to three waiting
-tasks, each with its own **Auto-resume** switch bound to that task's exact interruption and conversation,
-**Pause recovery** or **Resume recovery**, and **Open Dashboard**. A click anywhere else, or Esc,
-closes it too. The popup runs inside the watcher process, on the icon's own thread, and goes
-through the same control layer as every other surface; nothing in it can send a continuation.
-The right-click menu is what it was: it opens the Dashboard, pauses or resumes recovery, and
-stops the watcher; it is drawn dark while the popup is. The popup and the menu take up a new
-language or theme the next time they open, without restarting the watcher. The countdown only means the watcher looks again — nothing is sent because it
-reaches zero. The icon is on by default and can be switched off on the Settings page.
+아이콘을 한 번 클릭하면 옆에 작은 팝업이 열리고, 다시 클릭하면 닫힙니다. 팝업에는 워처 상태, 대기
+중·복구 중인 작업 수, 다음 확인, 대기 중인 작업 최대 세 개(작업마다 그 작업의 정확한 중단과 대화에 묶인
+**자동 이어 가기** 스위치가 있습니다), **자동 복구 일시 정지** 또는 **자동 복구 다시 켜기**, **대시보드 열기**가 있습니다.
+다른 곳을 클릭하거나 Esc를 눌러도 닫힙니다. 팝업은 워처 프로세스 안, 아이콘과 같은 스레드에서 실행되고
+다른 모든 화면과 같은 제어 계층을 거치며, 팝업 안의 어떤 것도 이어서 하기 메시지를 보낼 수 없습니다.
+오른쪽 클릭 메뉴는 그대로입니다. **대시보드 열기**, **자동 복구 일시 정지**(일시 정지 상태라면
+**자동 복구 다시 켜기**), **워처 중지**가 있고, 팝업이 어두울 때는 메뉴도 어둡게 그려집니다. 팝업과
+메뉴는 워처를 다시 시작하지 않아도 다음에 열릴 때 새 언어나 테마를 씁니다. 남은 시간이 0이 되어도 워처가 다시 살펴볼 뿐, 그것
+때문에 무언가를 보내지는 않습니다. 아이콘은 기본으로 켜져 있고 설정 페이지의 **알림 영역에 아이콘
+표시**로 끌 수 있습니다.
 
-<img src="images/tray-popup.png" alt="The notification-area popup: waiting, with the next check in a minute and a half and three waiting tasks, each with its kind of interruption, when it is next checked and its Auto-resume switch, and Pause recovery and Open Dashboard buttons" width="360">
+<img src="images/tray-popup-ko.png" alt="알림 영역 팝업. 대기 중 상태, 약 1분 30초 뒤 다음 확인, 대기 중인 작업 세 개가 각각 중단 종류, 다음 확인 시각, 자동 이어 가기 스위치와 함께 보이고, 자동 복구 일시 정지와 대시보드 열기 버튼" width="360">
 
-Every window, the popup, the notifications and the panel inside Codex follow the interface
-language. The same popup in Korean, Japanese, Simplified Chinese and German:
+모든 창, 팝업, 알림, Codex 안의 패널은 화면 언어를 따릅니다. 같은 팝업을 영어, 일본어,
+중국어(간체), 독일어로 표시한 모습입니다.
 
-<img src="images/tray-popup-ko.png" alt="The notification-area popup in Korean" width="190"> <img src="images/tray-popup-ja.png" alt="The notification-area popup in Japanese" width="190"> <img src="images/tray-popup-zh-CN.png" alt="The notification-area popup in Simplified Chinese" width="190"> <img src="images/tray-popup-de.png" alt="The notification-area popup in German" width="190">
+<img src="images/tray-popup.png" alt="영어로 표시된 알림 영역 팝업" width="190"> <img src="images/tray-popup-ja.png" alt="일본어로 표시된 알림 영역 팝업" width="190"> <img src="images/tray-popup-zh-CN.png" alt="중국어(간체)로 표시된 알림 영역 팝업" width="190"> <img src="images/tray-popup-de.png" alt="독일어로 표시된 알림 영역 팝업" width="190">
 
-## Please read this limitation first
+## 먼저 읽어야 할 제한 사항
 
-This tool can only auto-resume a thread that the Windows ChatGPT/Codex desktop app **currently has
-loaded**.
+이 도구는 Windows ChatGPT/Codex 데스크톱 앱이 **현재 로드하고 있는 스레드만** 자동 재개할 수 있습니다.
 
-After the app restarts, a target thread is `notLoaded`. There is **no verified, supported way to wake an
-unloaded thread programmatically**. When this was measured, a message queued for an unloaded thread
-stayed in the queue and was not delivered as a conversation turn during the 90 seconds the thread
-stayed unloaded; see
-[`docs/evidence/unloaded-thread-delivery.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/evidence/unloaded-thread-delivery.json).
-Codex may still deliver such a message later, when the thread next loads. So this tool queues only
-for a thread it has just confirmed is loaded, and asks Codex to withdraw its own queued message if the
-thread is reported unloaded before the message arrives. If Codex does not confirm the withdrawal, the
-message may stay queued; the record is then marked `submission_unknown` and is never resent.
+앱을 재시작하면 대상 스레드는 `notLoaded` 상태가 됩니다. 그리고 **미로드 스레드를 프로그램적으로 깨우는
+지원된 방식은 확인되지 않았습니다.** 실측했을 때 미로드 스레드에 큐로 넣은 메시지는 스레드가
+미로드 상태로 있던 90초 동안 큐에만 남고 대화 턴으로 전달되지 않았습니다. 증거는
+[`docs/evidence/unloaded-thread-delivery.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/evidence/unloaded-thread-delivery.json)에
+있습니다. 그런 메시지는 나중에 스레드가 다시 로드될 때 Codex가 전달할 수도 있습니다. 그래서 이
+도구는 방금 로드된 것을 확인한 스레드에만 메시지를 큐에 넣고, 메시지가 도착하기 전에 스레드가
+미로드로 보고되면 자기가 넣은 메시지를 거둬 달라고 Codex에 요청합니다. Codex가 회수를 확인해 주지
+않으면 메시지가 큐에 남을 수 있으며, 그 기록은 `submission_unknown`으로 표시되고 다시 보내지
+않습니다.
 
-So an unloaded thread is resumed **only after you open that conversation in the ChatGPT app yourself**.
-Until then the watcher simply waits in its `waiting_for_loaded_thread` state, which the window and
-the Codex panel report as the public code `waiting_thread` and show as "waiting for the
-conversation", and which the command line prints beside the state. It
-will not use GUI automation, will not force the conversation open, and will not queue a message on
-the off chance.
+따라서 미로드 스레드는 **사용자가 ChatGPT 앱에서 그 대화를 직접 열어야만** 이후 자동 재개됩니다.
+그전까지 watcher는 `waiting_for_loaded_thread` 상태로 조용히 기다립니다. 창과 Codex 패널은 이를
+공개 코드 `waiting_thread`로 다루며 화면에는 "대화 열기 대기"로 보여 주고, 명령줄은 상태와
+코드를 나란히 출력합니다. 화면 자동화를 쓰지 않고,
+대화를 강제로 열지 않으며, 혹시나 하는 마음으로 메시지를 큐에 넣지도 않습니다.
 
-This is not fully unattended auto-resume across app restarts, and this guide will not pretend otherwise.
+즉 **앱 재시작을 넘나드는 완전 무인 자동 재개가 아닙니다.** 이 문서는 그렇지 않은 척하지 않습니다.
 
-## Project direction
+## 프로젝트 방향
 
-> Keep the recovery engine small, local, conservative, and fail-closed. Spend complexity on making it
-> easy to install and control, not on making the runtime do more.
+> 복구 엔진은 작고, 로컬이고, 보수적이고, 실패하면 닫히게(fail-closed) 유지합니다. 복잡함은
+> 런타임이 더 많은 일을 하게 만드는 데가 아니라, 설치하고 제어하기 쉽게 만드는 데 씁니다.
 
-The recovery engine is deliberately one small watcher. Everything else exists to see and
-control it: a standalone Windows window — a settings window up to v0.5.7, a Dashboard from
-v0.6.0 — a settings panel inside Codex over MCP, the command line, the watcher's own
-notification-area icon and the popup it opens, and Windows notifications. None of those can
-recover anything by itself, and the watcher keeps running whether or not any of them is open.
+복구 엔진은 일부러 작은 워처 하나로 두었습니다. 나머지는 모두 그 워처를 보고 제어하기 위해 있습니다.
+독립된 Windows 창(v0.5.7까지는 설정 창, v0.6.0부터는 대시보드), MCP로 연결되는 Codex 안의 설정 패널,
+명령줄, 워처 자신의 알림 영역 아이콘과 그 아이콘이 여는 팝업, 그리고 Windows 알림입니다. 이 가운데
+어느 것도 혼자서는 아무것도 복구할 수 없고, 워처는 이것들이 열려 있든 없든 계속 실행됩니다.
 
-What the project still avoids: a separate tray process, a management web UI, a supervisor process, a
-Windows service, a second recovery engine, and a second state database. The notification-area icon and
-its popup are not an exception: the watcher owns both, so they cannot show a watcher that is not
-there, and everything their menus, buttons and switches offer goes through the same control layer
-as the other surfaces.
+이 프로젝트가 여전히 두지 않는 것: 별도의 트레이 프로세스, 관리용 웹 UI, supervisor 프로세스, Windows
+서비스, 두 번째 복구 엔진, 두 번째 상태 데이터베이스. 알림 영역 아이콘과 그 팝업도 예외가 아닙니다.
+둘 다 워처의 것이라서 없는 워처를 있는 것처럼 보여 줄 수 없고, 그 메뉴와 버튼과 스위치가 제공하는
+모든 것은 다른 화면과 같은 제어 계층을 거칩니다.
 
-## Features
+## 기능
 
-- Recovers usage limits and clearly classified temporary failures, on separate policies. Never
-  retries a failure it cannot classify.
-- Tracks the exact thread UUID. Never `--last`, never a guessed thread.
-- Waits for the real reset timestamp when one is available, instead of sleeping a fixed number of hours.
-- Verifies the desktop app is running and the thread is genuinely loaded before sending anything.
-- Never resumes the same interruption twice, including across a crash or a watcher restart.
-- Durable pending state in SQLite that survives reboots.
-- Handles several interrupted threads independently.
-- Bounded retry backoff, a global kill switch, and per-thread control.
-- Single-instance protection, optional per-user Windows autostart, and a conservative uninstall.
-- Three ways to change a setting — the Dashboard from the Start Menu, a panel inside Codex, and
-  the command line — all writing the same file through the same validator, so they cannot disagree.
-- Nine interface languages: English, Korean, Japanese, Simplified and Traditional Chinese,
-  Spanish, German, French and Brazilian Portuguese. It follows Windows unless you choose one.
-- Light and dark themes: the Dashboard and the popup follow Windows, and the panel follows Codex,
-  unless you choose one. High Contrast is always honoured.
-- A continuation message you can shape: its language, a Minimal, Standard or Detailed style, or
-  your own Custom words, with a Preview built by the same code the watcher sends with.
-- A Dashboard that shows what the watcher is doing and why each task is waiting, with an
-  Auto-resume switch per waiting task, and a popup from the notification-area icon with the
-  same state, the next check and up to three waiting tasks.
-- Windows notifications across the lifecycle: interruption detected, recovery starting, how it
-  turned out, and when it stops for good. Each one has its own check box under one switch for
-  them all, and the interruption notification can cancel that recovery or open the Dashboard.
+- 사용량 한도와, 분명하게 분류된 일시적 장애를 서로 다른 정책으로 복구합니다. 분류하지 못한 장애는
+  재시도하지 않습니다.
+- 정확한 스레드 UUID를 추적합니다. `--last`를 쓰지 않고, 스레드를 추측하지 않습니다.
+- 실제 리셋 시각을 알 수 있으면, 정해진 몇 시간을 자는 대신 그 시각까지 기다립니다.
+- 무엇이든 보내기 전에 데스크톱 앱이 실행 중인지, 스레드가 정말 로드되어 있는지 확인합니다.
+- 같은 중단을 두 번 재개하지 않습니다. 크래시나 워처 재시작을 겪어도 마찬가지입니다.
+- 대기 상태를 재부팅에도 남는 SQLite에 영속적으로 저장합니다.
+- 중단된 스레드가 여러 개여도 각각 따로 처리합니다.
+- 상한 있는 재시도 backoff, 전역 kill switch, 스레드별 제어를 제공합니다.
+- 단일 인스턴스 보호, 선택적인 사용자 단위 Windows 자동 시작, 보수적인 제거를 갖췄습니다.
+- 설정을 바꾸는 방법이 세 가지(시작 메뉴의 대시보드, Codex 안의 패널, 명령줄)이고, 모두 같은
+  검증기를 거쳐 같은 파일에 쓰므로 서로 어긋날 수 없습니다.
+- 화면 언어는 아홉 개입니다. 영어, 한국어, 일본어, 중국어 간체·번체, 스페인어, 독일어, 프랑스어,
+  브라질 포르투갈어이며, 직접 고르지 않으면 Windows를 따릅니다.
+- 밝은 테마와 어두운 테마가 있습니다. 직접 고르지 않으면 대시보드와 팝업은 Windows를, 패널은
+  Codex를 따릅니다. 고대비는 언제나 따릅니다.
+- 이어서 하기 메시지를 다듬을 수 있습니다. 언어, 간단히·기본·자세히 스타일, 또는 직접 쓴 문장(직접
+  입력)을 고를 수 있고, 미리보기는 워처가 보낼 때 쓰는 바로 그 코드로 만듭니다.
+- 대시보드는 워처가 무엇을 하는지와 작업마다 왜 기다리는지를 보여 주고, 대기 중인 작업마다 자동 이어
+  가기 스위치를 답니다. 알림 영역 아이콘의 팝업은 같은 상태와 다음 확인, 대기 중인 작업 최대 세 개를
+  보여 줍니다.
+- 전 과정에 걸쳐 Windows 알림을 보냅니다. 중단 감지, 복구 시작, 결과, 그리고 완전히 멈췄을 때입니다.
+  알림마다 체크박스가 있고 전체를 켜고 끄는 스위치가 하나 있으며, 중단 알림에서는 그 복구를 취소하거나
+  대시보드를 열 수 있습니다.
 
-## How it works
+## 동작 방식
 
 ```
-usage limit reached
-  -> watcher reads Codex's local history (read-only) and sees usageLimitExceeded
-  -> records the exact thread UUID in its own SQLite state
-  -> waits until the reset timestamp
-  -> checks the ChatGPT app is running and the thread is loaded
-  -> re-checks live usage availability
-  -> codex queue --thread <UUID> --message "<continuation>"
-  -> the same thread continues the original work
+사용량 한도 도달
+  -> 워처가 Codex의 로컬 기록을 읽기 전용으로 읽고 usageLimitExceeded를 발견
+  -> 정확한 스레드 UUID를 자기 SQLite 상태에 기록
+  -> 리셋 시각까지 대기
+  -> ChatGPT 앱이 실행 중이고 그 스레드가 로드되어 있는지 확인
+  -> 실시간 사용량 가용성을 다시 확인
+  -> codex queue --thread <UUID> --message "<이어서 하기 메시지>"
+  -> 같은 스레드가 원래 작업을 이어서 진행
 ```
 
-What the continuation says depends on two settings: **Continuation language**, which by default
-follows the interface language, and **Message style**. *Standard*, the default, says why the task
-stopped and asks Codex to retry ("The task was interrupted because the usage limit was reached.
-Please retry."); *Minimal* only asks it to retry; *Detailed* also asks it to check the existing
-conversation and the current state of the work and to carry on without repeating what is already
-done; *Custom* sends your own words. Up to v0.6.2 it was one fixed English sentence per kind of
-interruption. The watcher adds one line after the message so it can recognise the exact turn it
-starts. No style changes what is recovered; see [The continuation message](#the-continuation-message).
+이어서 하기 메시지의 내용은 두 설정이 정합니다. 기본값으로 화면 언어를 따르는 **이어서 하기 언어**와
+**메시지 스타일**입니다. 기본값인 *기본*은 작업이 멈춘 이유를 말하고 다시 시도해 달라고 합니다("사용량
+초과로 작업이 중단되었습니다. 다시 시도해주세요."). *간단히*는 다시 시도해 달라고만 하고, *자세히*는
+기존 대화와 지금의 작업 상태를 확인한 뒤 이미 끝난 일은 되풀이하지 말고 이어 가 달라고도 요청하며,
+*직접 입력*은 사용자가 쓴 문장을 보냅니다. v0.6.2까지는 중단 종류마다 고정된 영어 문장 하나였습니다.
+워처는 자기가 시작한 턴을 정확히 알아보려고 메시지 뒤에 한 줄을 덧붙입니다. 어떤 스타일도 무엇을
+복구할지를 바꾸지 않습니다. [이어서 하기 메시지](#이어서-하기-메시지)를 참고하세요.
 
-Loaded state is determined from the Windows Restart Manager: the app's own `codex.exe` engine holds the
-thread's writer lock file open for exactly as long as the thread is loaded. The tool only reads that
-ownership information. It never acquires a lock on the app's file.
+로드 상태는 Windows 재시작 관리자(Restart Manager)로 판정합니다. 앱 자신의 `codex.exe` 엔진은
+스레드가 로드되어 있는 동안, 정확히 그동안만 그 스레드의 writer lock 파일을 열어 둡니다. 이 도구는
+그 소유 정보를 읽기만 하며, 앱의 파일에 잠금을 거는 일은 없습니다.
 
-## Requirements
+## 요구 사항
 
 - Windows 10/11.
-- The official Windows ChatGPT/Codex desktop app, running, with its engine at
-  `%LOCALAPPDATA%\OpenAI\Codex\bin\<hash>\codex.exe`.
-- The engine is located automatically, and no version is trusted by its version string alone:
-  whichever one is found, before a Codex update or after one, is accepted only if `codex queue`
-  still offers `--thread` and `--message`. `status`/`doctor` then name it with one of three words
-  that all send alike - *verified*, where a real recovery on that exact version confirmed it; *checked* (from
-  v0.6.7), where the maintainer's own checks passed on that exact version and nothing confirmed
-  more; *compatible*, where the compatibility data makes no claim about it. A local check that
-  fails on a version the data checked or verified reads as *failed here* - the cause is then most
-  likely this computer rather than that version - and it sends nothing, exactly as *incompatible*
-  does. Anything that cannot prove that interface is refused rather than guessed at.
-- Your own machine can say something about a version too.
-  [codex-compat-reporter](https://github.com/songyb111-gachon/codex-compat-reporter) is a separate,
-  public tool that turns this installation's own records into one report — counts, states and
-  times, no conversation text and no identifiers — which you read before you send it. It reaches
-  GitHub only when you open the pull request yourself, and
-  [CONTRIBUTING.md](CONTRIBUTING.md#sending-a-compatibility-report) says how that pull request is
-  checked and filed: with no step by the maintainer, usually within minutes, after which the pull
-  request is closed with one comment that says where the report went, or why it waits. Reports from other people are kept apart from this project's own evidence and carry a
-  grade of their own, *reported*, which stands beside those words and never becomes one of them.
-  Nothing can prove that a report was not written by hand on the machine that sent it, so a report
-  never moves a version up the ladder, and a version whose own evidence says nothing stays
-  *compatible* however many reports arrive.
+- 공식 Windows ChatGPT/Codex 데스크톱 앱. 실행 중이어야 하며, 엔진이
+  `%LOCALAPPDATA%\OpenAI\Codex\bin\<hash>\codex.exe`에 있어야 합니다.
+- 엔진은 자동으로 찾으며, 어떤 버전도 버전 문자열만으로 신뢰하지 않습니다. Codex 업데이트 전이든
+  뒤든, 찾은 버전은 `codex queue`가 여전히 `--thread`와 `--message`를 제공할 때만 받아들입니다. 그러면
+  `status`와 `doctor`가 그 버전을 세 단어 가운데 하나로 부르며, 셋 모두 똑같이 보냅니다. 그 정확한 버전에서
+  실제 복구가 확인했으면 *검증됨*, v0.6.7부터는 관리자 자신의 점검이 그 정확한 버전에서 통과했고
+  그 이상 확인된 것이 없으면 *점검됨*, 호환성 데이터가 그 버전에 대해 아무 주장도 하지 않으면
+  *호환됨*입니다. 데이터가 점검했거나 검증한 버전에서 로컬 확인이 실패하면 *이 PC에서 실패*로
+  읽습니다. 그때는 원인이 그 버전보다 이 PC일 가능성이 높으며, *호환되지 않음*과 똑같이 아무것도
+  보내지 않습니다. 그 인터페이스를 증명하지 못하는 것은 추측하지 않고 거부합니다.
+- 내 PC도 어떤 버전에 대해 말할 수 있습니다.
+  [codex-compat-reporter](https://github.com/songyb111-gachon/codex-compat-reporter)는 따로 있는
+  공개 도구로, 이 설치본의 기록을 보고서 하나로 만듭니다. 횟수와 상태와 시각만 담고, 대화 내용도
+  식별자도 넣지 않으며, 보내기 전에 내가 먼저 읽습니다. 보고서는 내가 직접 풀 리퀘스트를 열 때만 GitHub에
+  가고, 그 풀 리퀘스트를 어떻게 확인하고 접수하는지는
+  [CONTRIBUTING.md](CONTRIBUTING.md#호환성-보고서-보내기)에 있습니다. 관리자의 손 없이 보통 몇 분 안에
+  접수하며, 그다음 풀 리퀘스트는 보고서가 어디로 갔는지, 또는 왜 기다리는지 알려 주는 댓글 하나와 함께
+  닫힙니다. 다른 사람이 보낸 보고서는 이 프로젝트의 근거와 따로 보관되고, 자기 등급인 *보고됨*을 가집니다.
+  보고됨은 그 낱말들 옆에 서고, 어떤 경우에도 그중 하나가 되지 않습니다. 보낸 사람의 컴퓨터에서 손으로
+  지어내지 않았다는 것을 증명할 방법이 없기 때문에, 보고는 버전을 사다리 위로 올리지 못하며, 그 버전의
+  자체 근거가 아무 말도 하지 않으면 보고가 몇 건 오든 *호환됨*으로 남습니다.
 
-  From v0.6.10 the Dashboard's Diagnostics page shows them in one muted line directly under *Codex
-  version* - *Reported by others: worked 3 · failed 1 · neither 1* - and `doctor` and `compat`
-  print the same counts. They count reports, one per GitHub name per Codex version, not machines.
-  A report counts as *worked* when at least one record it delivered ended recovered, as *failed*
-  when at least one ended in a failed recovery, and as *neither* when no delivered record ended
-  either way, which includes a report that delivered nothing. A report whose records say both is
-  counted in each, and the line then adds *counted in both* and how many, so worked, failed and
-  neither, less those, add up to the reports. Only reports filed in this repository count, and
-  only for your exact version: *none yet* means none is filed for it, and a check that cannot
-  vouch for the version shows *-* there, as it does for the version itself. The counts arrive with
-  each release, in a file of their own beside the compatibility data - no request fetches them, so
-  a report filed later waits for the next release. They change nothing: no capability's state, no
-  check and nothing the watcher sends moves with them, and Codex is never handed them - the
-  compatibility card in the Codex panel points to the Dashboard instead.
+  이번 릴리스부터 대시보드의 진단 페이지는 이것을 *Codex 버전* 바로 아래에 흐린 글자 한 줄로 보여 줍니다.
+  *다른 사람들의 보고: 성공 3 · 실패 1 · 둘 다 아님 1* 같은 식이며, `doctor`와 `compat`도 같은 횟수를
+  출력합니다. 세는 것은 컴퓨터가 아니라 보고서이며, GitHub 이름 하나와 Codex 버전 하나에 보고서
+  하나입니다. 보고서가 전달한 기록 가운데 하나라도 복구로 끝났으면 *성공*, 하나라도 실패한 복구로
+  끝났으면 *실패*, 전달한 기록 가운데 어느 쪽으로도 끝난 것이 없으면 *둘 다 아님*으로 셉니다. 아무것도
+  전달하지 않은 보고서도 *둘 다 아님*입니다. 기록이 두 가지를 다 말하는 보고서는 양쪽에 모두 세며, 그때
+  줄 끝에 *양쪽에 모두 셈*과 그 수를 덧붙입니다. 그래서 성공과 실패와 둘 다 아님을 더하고 그 수를 빼면
+  보고서 수가 됩니다. 이 저장소에 접수된 보고서만, 그리고 내 버전과 정확히 같은 버전의 것만 셉니다.
+  *아직 없음*은 그 버전에 접수된 보고서가 없다는 뜻이고, 버전을 보증할 수 없는 확인일 때는 버전과 마찬가지로
+  그 자리에 *-*가 나옵니다. 횟수는 호환성 데이터 옆에 있는 따로 된 파일에 담겨 릴리스와 함께 옵니다. 그것을
+  받아 오는 요청은 없으므로, 나중에 접수된 보고서는 다음 릴리스를 기다립니다. 이 횟수는 아무것도 바꾸지
+  않습니다. 어떤 기능의 상태도, 어떤 확인도, 워처가 보내는 어떤 것도 이 수를 따라 움직이지 않으며, Codex에는
+  이 수를 건네지 않습니다. Codex 패널의 호환성 카드는 그 대신 대시보드를 가리킵니다.
 
-**Python is not required by either install route** — the installation brings its own runtime
-(Python 3.13.15), and the plugin's setup script is PowerShell. Python 3.12 or newer is needed only if
-you run the engine from a source checkout; see [Testing](#testing) for the versions CI runs.
+**두 설치 경로 모두 Python이 필요하지 않습니다.** 설치본이 자체 런타임(Python 3.13.15)을 함께
+가져오고, 플러그인의 설치 스크립트는 PowerShell입니다. Python 3.12 이상은 소스 체크아웃에서 엔진을
+직접 실행할 때만 필요합니다. CI가 돌리는 버전은 [테스트](#테스트)를 참고하세요.
 
-## What is recovered, and what is not
+## 무엇을 복구하고 무엇을 복구하지 않는가
 
-Automatically recovered:
+자동으로 복구합니다:
 
-| Failure | Policy |
+| 장애 | 정책 |
 | --- | --- |
-| Usage limit (`usageLimitExceeded`) | Waits for the real reset timestamp, then re-checks live usage |
-| Connection failure (`httpConnectionFailed`) | Bounded backoff |
-| Timeout (HTTP 408/425) | Bounded backoff |
-| Transient rate limit (HTTP 429, `rateLimitExceeded`, and `responseTooManyFailedAttempts` carrying a 429) | Bounded backoff, with a first wait of at least a minute |
-| Server error (HTTP 5xx, `serverOverloaded`, `internalServerError`) | Bounded backoff |
-| Stream disconnection (`responseStreamDisconnected`, `responseStreamConnectionFailed`) | Bounded backoff |
+| 사용량 한도 (`usageLimitExceeded`) | 실제 리셋 시각까지 기다린 뒤 실시간 사용량을 다시 확인 |
+| 연결 실패 (`httpConnectionFailed`) | 상한 있는 backoff |
+| 타임아웃 (HTTP 408/425) | 상한 있는 backoff |
+| 일시적 rate limit (HTTP 429, `rateLimitExceeded`, 그리고 429를 달고 온 `responseTooManyFailedAttempts`) | 상한 있는 backoff. 첫 대기는 최소 1분 |
+| 서버 오류 (HTTP 5xx, `serverOverloaded`, `internalServerError`) | 상한 있는 backoff |
+| 스트림 끊김 (`responseStreamDisconnected`, `responseStreamConnectionFailed`) | 상한 있는 backoff |
 
-Never recovered — these need a person, and retrying only wastes attempts:
+절대 복구하지 않습니다. 사람이 판단해야 하고, 재시도는 시도 횟수만 낭비합니다:
 
-user cancellation · permission · approval required · content policy · invalid request ·
-context length exceeded · permanent authentication (401/403, `unauthorized`) · `badRequest` ·
-`sandboxError` · `responseTooManyFailedAttempts` with any status but 429 · **anything unrecognised**.
+사용자 취소 · 권한 · 승인 필요 · 콘텐츠 정책 · 잘못된 요청 · 컨텍스트 길이 초과 ·
+영구 인증 실패 (401/403, `unauthorized`) · `badRequest` · `sandboxError` ·
+status가 429가 아닌 `responseTooManyFailedAttempts` · **분류되지 않은 모든 것**.
 
-Classification is structural: it reads the `codexErrorInfo` variant Codex writes, then an HTTP status
-carried by that variant. Message text is consulted only when there is no structured code at all, and
-only for transport failures that have none. A structured code is never overridden by message text.
+분류는 구조적으로 합니다. Codex가 기록하는 `codexErrorInfo` variant를 먼저 보고, 그 variant가 담은
+HTTP status를 봅니다. 메시지 문구는 구조화된 코드가 아예 없을 때만, 그리고 코드가 없는 전송 계층
+장애에 한해서 참고합니다. 구조화된 코드를 메시지 문구가 뒤집는 일은 없습니다.
 
-Recovery is bounded three times over: at most 4 attempts per interruption, it stops after 3
-consecutive recoveries that produced no visible progress, and one task receives at most 6
-continuations in total across every failure of it — a failure of our own recovery turn continues that
-same chain instead of starting a fresh budget. The per-task limit accepts 1 to 10 and nothing outside
-it. If you carry on in that conversation yourself, the old interruption is dropped rather than
-replayed on top of your work.
+복구에는 세 겹의 상한이 있습니다. 하나의 중단마다 최대 4회, 눈에 보이는 진전 없이 3번 연속 복구되면
+멈춤, 그리고 한 작업이 받을 수 있는 이어서 보내기는 그 작업의 모든 실패를 통틀어 최대 6회입니다.
+복구 턴이 다시 실패하면 새 예산으로 시작하지 않고 같은 연쇄를 이어받습니다. 작업당 상한은 1~10만
+받습니다. 사용자가 그 대화를 직접 이어서 진행했다면 오래된 중단은 그 위에 덮어쓰지 않고 버립니다.
 
-## Managing it from Codex
+## Codex에서 관리하기
 
-Once it is installed, either route gives you the same skill. Just ask, in the app:
+설치하고 나면 어느 경로로 설치했든 같은 스킬을 쓸 수 있습니다. 앱에서 이렇게 말하면 됩니다.
 
-> Set up auto resume
+> 자동 재개 설정해 줘
 
-and afterwards "show auto resume status", "show pending auto resumes", "open auto resume
-settings", "turn auto resume off" and "turn auto resume back on", "cancel auto resume for this
-task", "show auto resume statistics", "show the timeline for that recovery", "try that recovery
-now", "give that recovery its attempts back", "start the watcher", "clear auto resume history",
-"preview the auto resume message", "uninstall auto resume".
+그다음부터는 "자동 재개 상태 보여 줘", "대기 중인 자동 재개 보여 줘", "자동 재개 설정 열어 줘",
+"자동 재개 꺼 줘"와 "자동 재개 다시 켜 줘", "이 작업 자동 재개 취소해 줘", "자동 재개 통계 보여 줘",
+"이 복구 진행 기록 보여 줘", "지금 다시 확인해 줘", "이 복구 시도 횟수 돌려줘", "워처 시작해 줘",
+"복구 기록 지워 줘", "자동 재개 메시지 미리 보여 줘", "자동 재개 제거해 줘"처럼 말하면 됩니다.
 
-"Preview the auto resume message" uses `preview_recovery_message`, one of the plugin's 17 tools. It
-is read-only: it shows the exact text the watcher would send for one kind of interruption, under the
-current language and style or under ones named for the preview alone, and it saves nothing and sends
-nothing. Codex can change the interface language, the continuation language, the message style,
-including switching it to Custom, and the theme, but it cannot write a Custom message: that text is sent into your
-conversations automatically, so it is written only in the Dashboard, under Settings >
-Continuation message. Nor can it change what moves: Reduce motion and, from v0.6.10, the Design
-are set in the Dashboard too. The panel in Codex draws in both.
+"자동 재개 메시지 미리 보여 줘"는 플러그인의 도구 17개 가운데 하나인 `preview_recovery_message`를
+씁니다. 읽기 전용이라 아무것도 저장하거나 보내지 않고, 중단 종류 하나에 대해 워처가 보낼 문장을 지금의
+언어와 스타일로, 또는 미리보기에만 쓸 언어와 스타일로 보여 줍니다. Codex는 화면 언어, 이어서 하기
+언어, 메시지 스타일(직접 입력으로 바꾸는 것까지), 테마를 바꿀 수 있지만 직접 입력 문장은 쓸 수 없습니다. 그
+문장은 대화에 자동으로 보내지므로 대시보드의 설정 > 이어서 하기 메시지에서만 씁니다. 무엇이 움직일지도 바꿀 수
+없습니다. 움직임 줄이기와, 이번 릴리스부터 있는 디자인도 대시보드에서 정합니다. Codex 안의 패널은 둘 다 따라
+그립니다.
 
-Nothing that turns automation down is marked as needing your confirmation: pausing recovery, turning
-it off for one conversation, asking for a re-check. Previewing the message is read-only. Turning it back on, changing a setting, starting
-the watcher, cancelling a recovery, giving a recovery its attempts back and clearing the history are
-all marked with MCP's `destructiveHint` to request approval. Codex and your approval settings
-decide whether to show a prompt; this project's tests check the annotations, and actual
-Codex approval behavior has not been observed for this release.
+자동화를 줄이는 쪽에는 확인을 받으라는 표시가 없습니다. 자동 복구 일시 정지, 대화 하나 끄기, 지금
+다시 확인이 그렇고, 메시지 미리보기는 읽기 전용입니다. 다시 켜기, 설정 변경, 워처 시작, 복구 취소, 시도 횟수 되돌리기, 기록
+지우기는 MCP의 `destructiveHint`로 승인을 요청합니다. 실제 확인 창은 Codex와 승인 설정에 달려 있습니다.
+이 프로젝트의 테스트는 주석만 확인하며, 이번 릴리스에서 실제 Codex의 승인 동작을 관찰한 적은 없습니다.
 
-The plugin is a thin front end over the same validated control layer the command line and the Start
-Menu window use: its tools call that layer directly, and the skill falls back to the commands below
-when the tools are not available. It adds no second engine and no background service. It keeps its
-state in `%USERPROFILE%\.codex-auto-resume\`, outside the plugin directory, so updating or removing
-the plugin never loses a pending resume. The watcher keeps running when the Codex app is closed, and
-starts again at Windows sign-in.
+플러그인은 명령줄과 시작 메뉴 창이 쓰는 것과 같은 검증된 제어 계층 위에 놓인 얇은 앞단입니다. tool은
+그 계층을 직접 호출하고, tool을 쓸 수 없을 때만 스킬이 명령줄로 넘어갑니다. 두 번째 엔진도,
+백그라운드 서비스도 추가하지 않습니다. 상태는 플러그인 디렉터리 바깥의
+`%USERPROFILE%\.codex-auto-resume\`에 두므로, 플러그인을 업데이트하거나 제거해도 대기 중인 재개를
+잃지 않습니다. 워처는 Codex 앱을 닫아도 계속 실행되며, Windows에 로그인할 때 다시 시작됩니다.
 
-See [docs/PLUGIN.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/PLUGIN.md) for the layout, exactly what the setup script will and will
-not do, the update and removal lifecycle, and why the usage-limit notice does **not** get a checkbox.
+플러그인 구조, 설치 스크립트가 무엇을 하고 무엇을 하지 않는지, 업데이트와 제거의 수명 주기, 그리고
+사용량 한도 안내에 왜 체크박스를 넣지 않는지는
+[docs/PLUGIN.md](PLUGIN.md)에
+있습니다.
 
-> There is one installation, and both routes converge on it. If you also run a source checkout,
-> keep only one: separate state means two watchers, and two watchers could resume the same task
-> twice. Setup detects that and refuses rather than creating the second one.
+> 설치본은 하나이며, 두 경로 모두 그 하나로 모입니다. 소스 체크아웃도 함께 돌리신다면 둘 중 하나만
+> 남기세요. 상태가 나뉘면 워처가 둘이 되고, 워처가 둘이면 같은 작업을 두 번 재개할 수 있습니다.
+> 설치 과정이 이를 감지하고, 두 번째를 만드는 대신 거부합니다.
 
-## Running it from source
+## 소스에서 실행하기
 
-For development, or if you would rather run it yourself. This is not a third way to install the
-product — it is the engine on its own, with no settings window, no panel and no bundled runtime,
-and it needs **Python 3.12 or newer** on your PATH (CI runs it on 3.12, 3.13 and 3.14).
+개발용이거나, 직접 돌려 보고 싶을 때를 위한 방법입니다. 제품을 설치하는 세 번째 방법이 아니라 엔진만
+따로 돌리는 것이어서 설정 창도, 패널도, 함께 들어 있는 런타임도 없고, PATH에 **Python 3.12 이상**이
+있어야 합니다(CI는 3.12, 3.13, 3.14에서 돌립니다).
 
 ```bash
 git clone https://github.com/songyb111-gachon/codex-auto-resume-windows.git
@@ -536,18 +492,18 @@ git clone https://github.com/songyb111-gachon/codex-auto-resume-windows.git
 cd codex-auto-resume-windows
 ```
 
-There is nothing to build. Verify your environment first:
+빌드할 것은 없습니다. 먼저 환경을 확인하세요.
 
 ```bash
 python src\auto_resume.py doctor
 ```
 
-`doctor` queues no message and opens none of Codex's files for writing; the only things it may
-create are this tool's own state and log folders, the ownership marker in each, and its log
-file, if they are missing. It reports the discovered engine, whether the app is paired, whether
-the Restart Manager probe works, and whether the local history is readable.
+`doctor`는 메시지를 큐에 넣지 않고 Codex의 파일을 하나도 쓰기 모드로 열지 않습니다. 만들 수 있는 것은
+이 도구 자신의 상태 폴더와 로그 폴더, 각 폴더에 두는 provenance marker, 그리고 로그 파일뿐이며, 그것도
+없을 때만 만듭니다. 찾아낸 엔진, 앱이 페어링되어 있는지, 재시작 관리자 프로브가 동작하는지, 로컬 기록을
+읽을 수 있는지를 알려 줍니다.
 
-## Quick start
+## 빠른 시작
 
 ```bash
 python src\auto_resume.py doctor
@@ -561,9 +517,9 @@ python src\auto_resume.py enable
 python src\auto_resume.py run
 ```
 
-`run` stays in the foreground and polls. Leave it running in a terminal while you work.
+`run`은 포그라운드에 머물며 폴링합니다. 작업하는 동안 터미널에 띄워 두세요.
 
-Check what it is doing:
+무엇을 하고 있는지 확인하기:
 
 ```bash
 python src\auto_resume.py status
@@ -577,7 +533,7 @@ python src\auto_resume.py pending
 python src\auto_resume.py logs
 ```
 
-Stop it:
+멈추기:
 
 ```bash
 python src\auto_resume.py disable
@@ -587,218 +543,210 @@ python src\auto_resume.py disable
 python src\auto_resume.py stop
 ```
 
-`disable` is the kill switch: it immediately prevents any further resume while keeping your pending
-records. `stop` asks a running watcher process to exit.
+`disable`은 kill switch입니다. 대기 중인 기록은 남긴 채 이후의 재개를 모두 즉시 막습니다. `stop`은
+실행 중인 워처 프로세스에 종료를 요청합니다.
 
-## Commands
+## 명령
 
-| Command | What it does |
+| 명령 | 하는 일 |
 |---|---|
-| `doctor` | Environment check that queues nothing: engine, app pairing, Restart Manager, history. |
-| `enable [thread-id]` | Turn auto-resume on globally, or for one thread. |
-| `disable [thread-id]` | Kill switch: stop all automatic resumes, or just one thread. |
-| `status` | Enablement, watcher state, autostart, engine, and record counts. |
-| `pending` | Interruptions waiting to resume (`--all`, `--json`). |
-| `cancel <thread-id>` | Cancel pending resumes for one thread and disable it. |
-| `logs` | Recent log lines (`-n N`). |
-| `run` | Run the watcher in the foreground (`--once`, `--poll N`). |
-| `stop` | Ask a running watcher to exit. |
-| `install` | Create the owned directories and state (`--startup`). |
-| `uninstall` | Remove autostart and owned state/logs (`--keep-logs`, `--keep-state`). |
-| `diagnostics` | Write one redacted diagnostics file, to read before you share it (`--out`). |
-| `downgrade-state --to 2` | Rewrite the state file for a v0.5 release; stop the watcher first. |
-| `compat` | What the Codex Compatibility Registry says about this Codex, from the watcher's last report (`--live` to check now and write nothing, `--json`, `--import FILE` to validate a data file and keep it only if it passes). |
+| `doctor` | 아무것도 큐에 넣지 않는 환경 점검: 엔진, 앱 페어링, 재시작 관리자, 기록 |
+| `enable [thread-id]` | 자동 재개를 전역으로, 또는 스레드 하나에 대해 켭니다 |
+| `disable [thread-id]` | kill switch: 모든 자동 재개를, 또는 스레드 하나만 멈춥니다 |
+| `status` | 활성화 여부, 워처 상태, 자동 시작, 엔진, 기록 수 |
+| `pending` | 재개를 기다리는 중단 (`--all`, `--json`) |
+| `cancel <thread-id>` | 스레드 하나의 대기 중인 재개를 취소하고 그 스레드를 끕니다 |
+| `logs` | 최근 로그 줄 (`-n N`) |
+| `run` | 워처를 포그라운드에서 실행 (`--once`, `--poll N`) |
+| `stop` | 실행 중인 워처에 종료 요청 |
+| `install` | 소유 디렉터리와 상태 생성 (`--startup`) |
+| `uninstall` | 자동 시작과 소유한 상태·로그 제거 (`--keep-logs`, `--keep-state`) |
+| `diagnostics` | 공유하기 전에 읽어 볼, 민감한 값을 가린 진단 파일 하나를 씁니다 (`--out`) |
+| `downgrade-state --to 2` | v0.5 릴리스가 읽을 수 있게 상태 파일을 다시 씁니다. 먼저 워처를 멈추세요 |
+| `compat` | Codex 호환성 레지스트리가 이 Codex에 대해 말하는 것을 워처의 마지막 보고에서 보여 줍니다 (`--live`는 지금 확인하고 아무것도 쓰지 않음, `--json`, `--import FILE`은 데이터 파일을 검증해 통과할 때만 보관) |
 
-Global options: `--home` (where this tool keeps its own state), `--codex-exe`, `--codex-home`, `--quiet`.
+전역 옵션: `--home`(이 도구가 자기 상태를 두는 곳), `--codex-exe`, `--codex-home`, `--quiet`.
 
-By default, failures up to 6 hours old at the moment you run `enable` are still eligible. Change it with
-`enable --lookback-hours N`.
+기본값으로는 `enable`을 실행한 시점에 6시간이 지나지 않은 실패까지 대상이 됩니다.
+`enable --lookback-hours N`으로 바꿀 수 있습니다.
 
-## The notification
+## 알림
 
-When the watcher records an interruption, it shows one notification naming the task. From
-v0.6.5 it appears as a card in the product's own design beside the notification area, with the
-same words and the same buttons as Windows' notification, and the same notification is added to
-Windows' notification center silently once the card has been seen. Windows' own notification is
-shown instead whenever a card must not be: with **Show notifications as a card beside the
-notification area** off (Settings > General > Windows), with Do not disturb or Focus on, over a
-full-screen app, on a locked or remote session, while a screen reader runs, or when the
-notification-area icon is off.
+워처가 중단을 기록하면 작업 이름이 적힌 알림 하나를 보여 줍니다. v0.6.5부터 이 알림은
+알림 영역 옆에 제품 자신의 디자인으로 된 카드로 나타나며, Windows 알림과 같은 말과 같은 단추를 담고,
+카드가 보인 뒤에는 같은 알림이 조용히 Windows 알림 센터에 더해집니다. 카드가 나타나면 안 될 때는 대신
+Windows 자체 알림을 보여 줍니다. **알림 영역 옆에 알림을 카드로 표시**(설정 > 일반 > Windows)가 꺼져
+있을 때, 방해 금지나 집중 모드가 켜져 있을 때, 전체 화면 앱 위에서, 세션이 잠겨 있거나 원격일 때, 화면
+읽기 프로그램이 실행 중일 때, 알림 영역 아이콘이 꺼져 있을 때입니다.
 
 ```
 Payment retry refactor
-Codex usage limit reached. This task will resume at 05:56.
-example-project  ·  Conversation: 0a1b2c3d-0109-7000-8000-000000000109
-                         [Don't resume]   [Open Dashboard]
+Codex 사용량 한도에 도달했습니다. 05:56에 이 작업을 자동으로 재개합니다.
+example-project  ·  대화: 0a1b2c3d-0109-7000-8000-000000000109
+                         [재개하지 않음]   [대시보드 열기]
 ```
 
-The first line is the conversation title, or the project, or the working directory's name, or
-"Codex task". The **exact thread UUID is always shown**: titles repeat, identity must not. A
-temporary failure names what kind it was — "Network problem · Codex was temporarily interrupted.
-Retrying automatically." — with a **Don't retry** button instead.
+첫 줄은 대화 제목, 없으면 프로젝트, 없으면 작업 폴더 이름, 그것도 없으면 "Codex 작업"입니다.
+**정확한 스레드 UUID는 항상 표시합니다.** 제목은 겹칠 수 있지만 식별자는 겹치면 안 되기
+때문입니다. 일시적인 실패일 때는 어떤 종류였는지를 밝혀 "네트워크 문제 · Codex 작업이 일시적으로
+중단되었습니다. 자동으로 다시 시도합니다."라고 적고, **다시 시도하지 않음** 버튼과 함께 보여 줍니다.
 
-Three lines, not four: Windows renders at most three and drops the rest, so the reason comes
-before the identifiers rather than after them.
+Windows는 세 줄까지만 그리고 나머지는 버리므로, 네 줄이 아니라 세 줄이고, 이유가 식별자보다
+앞에 옵니다.
 
-Those names are for display only. Recovery never resolves a thread by title, project or recency.
+이 이름들은 표시용일 뿐입니다. 복구는 제목·프로젝트·최근 여부로 대화를 고르지 않습니다.
 
-Doing nothing resumes — that is the default. **Don't resume** / **Don't retry** cancels the
-auto-resume for that one interruption and whatever continues it, and nothing else. **Open
-Dashboard** opens the Dashboard on its Pending page and does nothing more.
+아무것도 하지 않으면 재개됩니다. 그것이 기본값입니다. **재개하지 않음** / **다시 시도하지 않음**은
+그 중단 하나와 그것을 이어받는 것의 자동 재개를 취소할 뿐, 다른 것은 건드리지 않습니다.
+**대시보드 열기**는 대시보드의 대기 중 페이지를 열고 그 밖의 일은 하지 않습니다.
 
-This is the only point where a control can be offered at the time it matters. By the time a usage
-limit appears in the Codex app, that turn has already failed, so nothing can be added to the app's
-own usage-limit notice; the watcher, however, is running. See [docs/PLUGIN.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/PLUGIN.md) for
-why the notice itself cannot get a checkbox.
+필요한 순간에 제어를 내밀 수 있는 곳은 여기뿐입니다. 사용량 한도가 Codex 앱에 나타날 때는 그 턴이
+이미 실패한 뒤라서 앱 자체의 사용량 한도 안내에는 아무것도 덧붙일 수 없지만, 워처는 그때도 실행
+중입니다. 그 안내 자체에 체크박스를 넣을 수 없는 이유는
+[docs/PLUGIN.md](PLUGIN.md)에
+있습니다.
 
-A related choice is offered in two more places, each bound to the exact interruption and
-conversation it is shown beside: an **Auto-resume** switch on each task in the notification-area popup, and the
-**Auto-resume** column on the Dashboard's Pending page. Rather than cancelling one interruption,
-that switch turns automatic recovery off for the task's conversation until it is switched
-back on. A click that reaches a task which has since finished, disappeared or turned out to belong
-to a different conversation is refused and changes nothing. None of the three sends anything: they
-change whether the watcher may, and the watcher still checks everything before it does.
+비슷한 선택을 두 곳에서 더 할 수 있으며, 둘 다 옆에 표시된 바로 그 중단과 대화에 묶여 있습니다.
+알림 영역 팝업의 작업마다 붙은 **자동 이어 가기** 스위치와, 대시보드 대기 중 페이지의 **자동 이어 가기** 열입니다.
+이 스위치는 그 중단 하나를 취소하는 것이 아니라, 그 작업이 속한 대화의 자동 복구를 다시 켤 때까지
+끄거나 켭니다. 누르는 사이에 끝났거나 사라졌거나 다른 대화의 것으로 밝혀진 작업에 대한 클릭은
+거절되고 아무것도 바꾸지 않습니다. 세 곳 모두 무엇도 보내지 않습니다. 워처가 이어 가도 되는지만
+바꾸고, 보내기 전에는 워처가 여전히 모든 것을 확인합니다.
 
-Details worth knowing:
+알아 둘 점:
 
-- The buttons need a handler, so `install` registers a per-user `codex-auto-resume:` URL protocol
-  under `HKCU\Software\Classes`. `uninstall` removes it again, and only when it points at this
-  installation.
-- That protocol accepts exactly two actions: cancelling one resume, and opening one page of the
-  Dashboard from a fixed list. A hostile or mistyped URI can only ever *stop* a resume or open a
-  window, never cause one, and the interruption id must match a real record.
-- The notification shows labels, a local time and the thread UUID — never prompt text, error text,
-  or account data. The kind of interruption is the product's own label for the classified
-  category, not the error text. Display names come from `threads.name` only; `title`, `preview`
-  and `first_user_message` hold the raw first prompt on this schema and are never read.
-- Notifications are in the interface language.
-- It is best effort. If it cannot be shown, the resume still happens exactly as it would have.
-- They are attributed to **Codex Auto Resume**, with this project's own icon, not to PowerShell
-  or Python. That takes two
-  registrations, not one: an AppUserModelID under `HKCU\Software\Classes\AppUserModelId` supplies
-  the name and icon, and a Start Menu shortcut carrying the same id is what makes Windows draw
-  the toast at all. Without the shortcut the platform accepts the notification, logs it, and
-  files it in the notification centre without ever showing it. That was measured, not assumed.
+- 버튼에는 처리기가 필요하므로 `install`이 사용자별 `codex-auto-resume:` URL 프로토콜을
+  `HKCU\Software\Classes`에 등록합니다. `uninstall`은 그것이 이 설치본을 가리킬 때만 다시 지웁니다.
+- 이 프로토콜이 받는 동작은 정확히 두 가지입니다. 재개 하나를 취소하는 것과, 정해진 목록에 있는
+  대시보드 페이지 하나를 여는 것입니다. 악의적이거나 잘못 입력한 URI가 할 수 있는 일은 재개를
+  *멈추거나* 창을 여는 것뿐이며, 재개를 *발생시킬* 수는 없고, 중단 id는 실제 기록과 맞아야 합니다.
+- 알림에는 표시용 이름, 로컬 시각, 스레드 UUID만 나오고 프롬프트 내용, 오류 본문, 계정 정보는
+  나오지 않습니다. 중단 종류는 분류된 범주에 대한 이 제품의 레이블이지 오류 문장이 아닙니다. 표시
+  이름은 `threads.name`에서만 가져오며, 이 스키마에서 원래의 첫 프롬프트를 담는 `title`, `preview`,
+  `first_user_message`는 읽지 않습니다.
+- 알림은 화면 언어로 표시됩니다.
+- 최선을 다해 보여 줄 뿐입니다. 보여 줄 수 없어도 재개는 원래대로 일어납니다.
+- 보내는 주체는 **Codex Auto Resume**로 표시되고 이 프로젝트의 아이콘이 함께 나옵니다. PowerShell이나
+  Python 이름은 보이지 않습니다. 여기에는 등록이 하나가 아니라 두 가지 필요합니다.
+  `HKCU\Software\Classes\AppUserModelId` 아래의 AppUserModelID가 이름과 아이콘을 정하고, 같은 ID를
+  단 시작 메뉴 바로 가기가 있어야 Windows가 토스트를 화면에 그립니다. 바로 가기가 없으면 Windows는
+  알림을 받아들여 기록하고 알림 센터에 넣기까지 하지만, 화면에는 끝내 보여 주지 않습니다. 추측이
+  아니라 실측한 결과입니다.
 
-Three more notifications follow the first: recovery starting, how it turned out, and recovery
-stopping for good. Each is raised once, from the state change itself, so what the notification
-says and what the record holds can never disagree. An uncertain submission is reported as
-uncertain rather than as a failure that will be retried, because it is the one outcome that is
-deliberately never resent.
+이후 세 가지 알림이 더 있습니다. 복구 시작, 결과, 그리고 복구를 완전히 중단했을 때. 각각 상태 변화
+자체에서 한 번만 발생하므로 알림 내용과 기록된 상태가 어긋날 수 없습니다. 전송 여부가 불확실한 것은
+다시 시도할 실패가 아니라 불확실하다고 알립니다. 일부러 절대 다시 보내지 않는 유일한 결과이기
+때문입니다.
 
-Turn any of them off in the Dashboard, or from Codex, or with `update_settings`. Doing so
-changes nothing about whether a task is recovered.
+어느 알림이든 대시보드에서, Codex에서, 또는 `update_settings`로 끌 수 있습니다. 끄더라도 작업이
+복구되는지는 달라지지 않습니다.
 
-## Settings
+## 설정
 
-Everything configurable lives in one place and is reachable three ways:
+설정할 수 있는 것은 모두 한곳에 있고, 세 가지 방법으로 닿을 수 있습니다.
 
-- **Start Menu → Codex Auto Resume** — the Dashboard's Settings page. It works with Codex
-  closed, the plugin disabled, no network, no sign-in and no system Python, because
-  configuration matters most exactly when the thing it configures is unavailable.
-- **Inside Codex** — ask to open auto resume settings and a panel appears in the conversation.
-- **The command line** — for scripting and for repair.
+- **시작 메뉴 → Codex Auto Resume** — 대시보드의 설정 페이지입니다. Codex가 닫혀 있거나,
+  플러그인이 꺼져 있거나, 네트워크·로그인·시스템 Python이 없어도 동작합니다. 설정은 설정하는
+  대상이 쓸 수 없을 때 가장 필요하기 때문입니다.
+- **Codex 안에서** — auto resume 설정을 열어 달라고 하면 대화 안에 패널이 나타납니다.
+- **명령줄** — 스크립트와 복구용입니다.
 
-All three write the same file through the same validator, so a value set in one is the value the
-others show. Nothing needs hand-editing: a hand-written settings file is validated on read, so a
-bad value is replaced by the safe default rather than half-applied.
+세 곳 모두 같은 검증기를 거쳐 같은 파일에 쓰므로, 한곳에서 정한 값이 다른 곳에도 그대로
+보입니다. 손으로 고칠 필요는 없습니다. 직접 편집한 설정 파일은 읽을 때 검증되어, 잘못된 값은 절반만 적용되는 대신 안전한
+기본값으로 바뀝니다.
 
-The Settings page is split into five sections:
+설정 페이지는 다섯 부분으로 나뉩니다.
 
-| Section | What is in it |
+| 부분 | 들어 있는 것 |
 | --- | --- |
-| General | Interface language, starting at Windows sign-in, the notification-area icon, and which notifications appear |
-| Automatic recovery | Which classified kinds of interruption are recovered, one check box each |
-| Continuation message | The language and style of the message sent to Codex, your own Custom message, and a Preview of the exact text |
-| Appearance | The theme - Use system setting, Light or Dark - the panel's Theme in Codex, the Design - Soft, Classic (v0.6.2) or Plain - and Reduce motion |
-| Advanced | Attempts per interruption, when to give up after recoveries that produce nothing, continuations per task, and retry timing |
+| 일반 | 화면 언어, Windows 로그인 시 시작, 알림 영역 아이콘, 표시할 알림 |
+| 자동 복구 | 분류된 중단 가운데 어떤 종류를 복구할지. 종류마다 체크박스가 하나씩 있습니다 |
+| 이어서 하기 메시지 | Codex에 보내는 메시지의 언어와 스타일, 직접 입력 메시지, 실제 문장 미리보기 |
+| 모양 | 테마(시스템 설정 따르기, 밝게, 어둡게), 패널의 Codex 안의 테마, 디자인(부드럽게, 클래식 (v0.6.2), 단순하게), 움직임 줄이기 |
+| 고급 | 중단당 시도 횟수, 진전 없는 복구 뒤 멈출 시점, 작업당 이어서 하기 횟수, 재시도 간격 |
 
-Every kind of interruption the watcher recovers has a check box, ticked by default. From v0.6.3 to
-v0.6.9 there was one more, **Sign-in service failures**, for a sign-in service that is temporarily
-unavailable (`auth_service_transient`), and this guide said that kind had been recovered with no way to
-turn it off up to v0.6.2. It never was: no error Codex records was ever classified as that kind, so the
-check box could change nothing. From v0.6.10 it is gone, with its Custom message; the kind comes back
-only when a real Codex error is seen to carry it.
+워처가 복구하는 종류에는 모두 체크박스가 있고 기본으로 체크되어 있습니다. v0.6.3부터 v0.6.9까지는
+로그인 서비스를 일시적으로 쓸 수 없는 경우(`auth_service_transient`)의 **로그인 서비스 오류** 체크박스가 하나
+더 있었고, 이 안내서는 그 종류가 v0.6.2까지 끌 방법 없이 복구되었다고 적었습니다. 그런 적은 없습니다.
+Codex가 기록하는 어떤 오류도 그 종류로 분류된 적이 없어서, 그 체크박스는 아무것도 바꿀 수 없었습니다.
+이번 릴리스부터 그 체크박스는 직접 입력 메시지와 함께 없어졌고, 그 종류는 실제 Codex 오류가 그것을 담고
+있는 것이 확인되어야만 돌아옵니다.
 
-A switch turns on or off something that runs - notifications, the notification-area icon, Reduce
-motion, starting at sign-in, automatic recovery for one conversation - and a check box picks which
-items of a list apply: the kinds of interruption above, and which notifications appear. A setting is
-the same kind in the Dashboard and in the panel.
+스위치는 동작하는 무언가를 켜고 끕니다(알림, 알림 영역 아이콘, 움직임 줄이기, 로그인 시 시작, 대화 하나의
+자동 복구). 체크박스는 목록에서 어떤 항목을 적용할지 고릅니다(위의 중단 종류, 표시할 알림).
+같은 설정은 대시보드와 패널에서 같은 종류입니다.
 
-You cannot switch off a safety property, because none of them is a setting. There is no option
-that retries an unclassified failure, resolves a conversation by title, resends an uncertain
-submission or forces a send — by design, not by omission.
+안전 속성은 설정이 아니므로 끌 수 없습니다. 분류되지 않은 실패를 다시 시도하거나, 제목으로
+대화를 고르거나, 전송 여부가 불확실한 것을 다시 보내거나, 강제로 보내는 옵션은 없습니다.
+빠뜨린 것이 아니라 일부러 그렇게 만들었습니다.
 
-### Languages
+### 언어
 
-The interface speaks English, 한국어, 日本語, 简体中文, 繁體中文, Español, Deutsch, Français and
-Português (Brasil). **Interface language** defaults to *System*, which follows the first language
-Windows lists and falls back to English for a language this product does not ship. A language
-you choose wins over Windows and is kept across restarts, repairs and updates. The
-`CODEX_AUTO_RESUME_LANG` environment variable replaces what Windows reports, so it decides the
-language only while the setting is *System*. A new language shows at once: the Dashboard reopens
-itself in it, the panel redraws in it, and the popup, the menu and notifications use it from the
-next time they appear.
+화면은 English, 한국어, 日本語, 简体中文, 繁體中文, Español, Deutsch, Français, Português (Brasil)로
+표시됩니다. **화면 언어**의 기본값은 *시스템*이며, Windows가 첫 번째로 꼽는 언어를 따르고 이
+제품에 없는 언어면 영어로 표시합니다. 직접 고른 언어는 Windows보다 우선하며 재시작·복구·업데이트
+뒤에도 유지됩니다. 환경 변수 `CODEX_AUTO_RESUME_LANG`은 Windows가 알려 주는 언어를 대신하므로,
+설정이 *시스템*일 때만 언어를 정합니다. 새 언어는 곧바로 보입니다. 대시보드는 그 언어로 스스로 다시
+열리고, 패널은 그 언어로 다시 그려지며, 팝업, 메뉴, 알림은 다음에 나타날 때부터 그 언어를 씁니다.
 
-### The continuation message
+### 이어서 하기 메시지
 
-When the watcher resumes a task it sends Codex one short message, followed by one line it uses to
-recognise the exact turn it started. **Continuation language** decides the language of that message
-(by default, the interface language) and **Message style** its words:
+워처는 작업을 이어 갈 때 Codex에 짧은 메시지 하나와, 자기가 시작한 턴을 정확히 알아보기 위한 한
+줄을 보냅니다. **이어서 하기 언어**는 그 메시지의 언어를(기본값은 화면 언어), **메시지 스타일**은
+문장을 정합니다.
 
-| Style | What it says |
+| 스타일 | 말하는 내용 |
 | --- | --- |
-| Minimal | Only asks Codex to retry |
-| Standard (default) | Says why the task stopped, then asks Codex to retry |
-| Detailed | Also asks Codex to check the work so far and not to repeat what is already done |
-| Custom | Your own words |
+| 간단히 | 다시 시도해 달라고만 합니다 |
+| 기본(기본값) | 작업이 멈춘 이유를 말한 뒤 다시 시도해 달라고 합니다 |
+| 자세히 | 지금까지의 작업을 확인하고 이미 끝난 일은 반복하지 말라고도 요청합니다 |
+| 직접 입력 | 직접 쓴 문장 |
 
-A **Custom** message is sent exactly as you typed it and is never translated or reworded. You can
-write one message for every interruption, or one for each kind; an empty one falls back to the
-message for every interruption, then to Standard. It may use `{reason}`, `{category}`,
-`{attempt}`, `{max_attempts}` and `{reset_time}` and nothing else — a placeholder that would put
-your prompt, the reply, a title, a path, your account or a token into the message is refused by
-name — and it is at most 2000 characters. **Preview** shows the exact text that would be sent for
-each kind of interruption, built by the same code the watcher sends with.
+**직접 입력** 메시지는 쓴 그대로 보내며, 번역하거나 고쳐 쓰지 않습니다. 모든 중단에 쓸 메시지
+하나를 쓰거나 중단 종류마다 따로 쓸 수 있고, 비어 있으면 모든 중단에 쓰는 메시지로, 그다음 기본
+메시지로 대신합니다. `{reason}`, `{category}`, `{attempt}`, `{max_attempts}`, `{reset_time}`만 쓸 수
+있으며, 프롬프트·답변·제목·경로·계정·토큰을 메시지에 넣게 되는 자리표시자는 이름을 밝혀 거절하고,
+최대 2000자입니다. **미리보기**는 워처가 보낼 때 쓰는 바로 그 코드로 만든, 중단 종류별로 실제
+보내질 문장을 보여 줍니다.
 
-Custom message text can only be written in the Dashboard. Codex can preview the message and change
-its language or style, but it cannot set the text: words sent automatically into your conversations
-must not be something a model can be talked into changing.
+직접 입력 문장은 대시보드에서만 쓸 수 있습니다. Codex는 메시지를 미리 보고 언어나 스타일을 바꿀
+수 있지만, 문장 자체는 정할 수 없습니다. 대화에 자동으로 보내지는 문장이 모델이 설득당해 바꿀 수
+있는 것이어서는 안 되기 때문입니다.
 
-Nothing about the message changes what is recovered. The style and the text choose words for a
-recovery the watcher has already decided to make.
+메시지는 무엇을 복구할지를 바꾸지 않습니다. 스타일과 문장은 워처가 이미 하기로 결정한 복구에
+쓸 말을 고를 뿐입니다.
 
-## Windows startup
+## Windows 자동 시작
 
-Optional, per-user, and never required:
+선택 사항이고, 사용자 단위이며, 꼭 필요하지 않습니다.
 
 ```bash
 python src\auto_resume.py install --startup
 ```
 
-This writes a single value under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`. It needs no
-administrator rights, touches nothing system-wide, and creates no service or scheduled task. It runs the
-watcher with `pythonw.exe` so no console window appears, and it always pins the home directory that is
-actually in effect so the autostarted watcher uses the same state and the same single-instance lock.
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Run` 아래에 값 하나만 씁니다. 관리자 권한이 필요
+없고, 시스템 전역의 것은 아무것도 건드리지 않으며, 서비스나 예약 작업을 만들지 않습니다. 콘솔 창이
+뜨지 않도록 `pythonw.exe`로 워처를 실행하고, 실제로 적용 중인 home 디렉터리를 언제나 함께 고정해
+두므로 자동 시작된 워처도 같은 상태와 같은 단일 인스턴스 잠금을 씁니다.
 
-Running `install --startup` repeatedly does not create duplicate entries.
+`install --startup`을 여러 번 실행해도 항목이 중복되지 않습니다.
 
-Consider running in the foreground for a while first, and enabling autostart only once you have seen a
-real resume happen.
+처음에는 한동안 포그라운드로 돌려 보고, 실제로 재개되는 것을 본 뒤에 자동 시작을 켜는 것을 권합니다.
 
-## Uninstall
+## 제거
 
-Run `Uninstall.cmd` from a release archive, or ask Codex to uninstall auto resume.
-`Uninstall.cmd` keeps your settings and pending recoveries by default (it deletes its main and
-error logs; `logs\launcher.log` and `logs\codex-start.log` stay), so reinstalling picks them up; `Uninstall.cmd -Purge` deletes those too, or you can delete the installation folder
-(by default `%USERPROFILE%\.codex-auto-resume\`) yourself. Asking Codex stops the watcher,
-removes its Windows registrations and the plugin, and keeps your settings and pending
-recoveries unless you ask it to delete them too; it leaves the installation folder, which still
-holds the program files, for you to delete. `Uninstall.cmd` also removes this product's
-marketplace from Codex while it still points at this installation.
+릴리스 압축 파일의 `Uninstall.cmd`를 실행하거나, Codex에게 auto resume 제거를 요청하면 됩니다.
+`Uninstall.cmd`는 기본적으로 설정과 대기 중인 재개를 남겨 두므로(기본 로그와 오류 로그는 지우고,
+`logs\launcher.log`와 `logs\codex-start.log`는 남습니다) 다시 설치해도 잃지 않습니다.
+이것까지 지우려면 `Uninstall.cmd -Purge`를 실행하거나 설치 폴더(기본값
+`%USERPROFILE%\.codex-auto-resume\`)를 직접 지우면 됩니다. Codex에게 요청하면 워처를 멈추고,
+Windows 등록과 플러그인을 제거하며, 함께 지워 달라고 하지 않는 한 설정과 대기 중인 재개는 남겨
+둡니다. 프로그램 파일이 남아 있는 설치 폴더는 사용자가 직접 지우도록 남겨 둡니다.
+`Uninstall.cmd`는 이 제품의 마켓플레이스가 아직 이 설치본을 가리키고 있으면 그것도 Codex에서
+제거합니다.
 
-From a source checkout, the same command-line tool also deletes this tool's own state and logs
-(`--keep-logs` keeps the logs; `--keep-state` keeps settings and pending recoveries):
+소스 체크아웃에서는 같은 명령줄 도구가 이 도구의 상태와 로그까지 지웁니다(`--keep-logs`를 붙이면
+로그가, `--keep-state`를 붙이면 설정과 대기 중인 복구가 남습니다).
 
 ```bash
 python src\auto_resume.py uninstall
@@ -808,266 +756,238 @@ python src\auto_resume.py uninstall
 python src\auto_resume.py uninstall --keep-logs
 ```
 
-Uninstall is deliberately conservative:
+제거는 의도적으로 보수적입니다.
 
-- It asks the watcher to stop first. If a watcher is still running, **or if it cannot verify
-  whether one is running**, it aborts before removing anything.
-- It removes the sign-in autostart value and the notification identity only while they belong
-  to **this** installation. A value that starts a different copy of the tool is reported and
-  kept, never silently removed. The Start Menu entry is kept while the notification identity
-  belongs to a different installation; if no notification identity is registered at all, the
-  entry at its fixed location is removed without an ownership check.
-- It deletes only inside directories it can prove it owns. The source command requires this
-  tool's provenance marker (`.owned-by-codex-auto-resume`) in each directory it deletes from;
-  `Uninstall.cmd` requires the marker at the installation root or in `config/`, or a
-  `runtime.json` that names that very directory. A directory that merely contains folders called
-  `app`, `runtime`, `config` or `logs` is refused and reported, and nothing in it is deleted.
-- The source command deletes only its own file names inside its own directories, so unrelated
-  files there survive. `Uninstall.cmd` removes the program folders `app\` and `runtime\` whole,
-  and with `-Purge` also the rest of `config\` and `logs\`.
-- `Uninstall.cmd` asks the `codex` CLI to remove this plugin and its marketplace only while they
-  still point at this installation; if either points somewhere else, it leaves it configured and
-  says so. Removing the plugin makes Codex delete its own cached copy of it. The source command
-  does not touch the Codex registration.
-- None of them deletes a ChatGPT or Codex conversation, a Codex file, a user repository or a
-  parent directory itself.
+- 먼저 워처에 멈춰 달라고 요청합니다. 그 뒤에도 워처가 실행 중이거나 **실행 여부를 확인할 수
+  없으면** 아무것도 지우지 않고 중단합니다.
+- 로그인 자동 시작 값과 알림 식별자는 **이** 설치본에 속할 때만 제거합니다. 다른 사본을 시작하는
+  값은 지우지 않고 알립니다. 시작 메뉴 항목은 알림 식별자가 다른 설치본에 속해 있으면 남겨 둡니다.
+  알림 식별자가 아예 등록되어 있지 않으면, 정해진 위치에 있는 시작 메뉴 항목을 누구의 것인지
+  확인하지 않고 제거합니다.
+- 자기 것임을 증명할 수 있는 디렉터리 안에서만 지웁니다. 소스 명령은 지우려는 디렉터리마다 이
+  도구의 provenance marker(`.owned-by-codex-auto-resume`)가 있어야 하고, `Uninstall.cmd`는 설치
+  루트나 `config/`에 그 marker가 있거나 `runtime.json`이 바로 그 디렉터리를 가리켜야 합니다. 단지
+  `app`, `runtime`, `config`, `logs`라는 이름의 폴더가 들어 있을 뿐인 디렉터리는 거부하고 그 사실을
+  알리며, 그 안의 것은 하나도 지우지 않습니다.
+- 소스 명령은 소유한 디렉터리 안에서도 자기 파일 이름만 지우므로 그 안의 관계없는 파일은
+  남습니다. `Uninstall.cmd`는 프로그램 폴더 `app\`과 `runtime\`을 통째로 지우고, `-Purge`를 붙이면
+  `config\`와 `logs\`의 나머지도 지웁니다.
+- `Uninstall.cmd`는 이 플러그인과 마켓플레이스가 아직 이 설치본을 가리키고 있을 때에만 `codex`
+  CLI에 제거를 요청하고, 다른 곳을 가리키고 있으면 그대로 두고 알립니다. 플러그인을 제거하면
+  Codex가 자기 캐시에 있던 플러그인 사본을 지웁니다. 소스 명령은 Codex 등록을 건드리지 않습니다.
+- 어느 방법도 ChatGPT나 Codex 대화, Codex 파일, 사용자 저장소, 상위 디렉터리를 직접 지우지
+  않습니다.
 
-## Safety model
+## 안전 모델
 
-What it writes itself while running: its own `config/` and `logs/` (plus the bytecode cache
-Python writes inside its own program folder). Turning start-at-sign-in on or off from the
-settings changes the per-user Run value, and Windows keeps the notifications it shows in its
-notification history. One thing it writes elsewhere, and only when asked: **Export
-diagnostics...** on the Diagnostics page, and `diagnostics` on the command line, write one
-redacted JSON bundle to a path you choose (ids replaced by aliases; paths, the Windows user name
-and anything shaped like an e-mail address removed); it sends nothing and refuses to overwrite an
-existing file. What it asks Codex to do, through official interfaces: queue one continuation
-message for one exact thread (`codex queue`), and withdraw that same queued message if it has
-to (the App Server's `thread/queue/delete`). Installing asks the `codex` CLI to register this
-plugin and its local marketplace, and a marketplace already registered under this product's
-name (`codex-auto-resume-windows`) is repointed at this installation. Installing also asks
-Codex to refresh marketplaces. The v0.5.7 installer refreshes every Git marketplace you have
-configured. Refreshing only `codex-auto-resume-windows` is new in v0.6.0. `Uninstall.cmd` asks
-the `codex` CLI to unregister the plugin and its marketplace, only while they still point here.
+실행 중에 이 도구가 직접 쓰는 것은 자기 `config/`와 `logs/`(그리고 Python이 이 도구의 프로그램 폴더 안에 쓰는 바이트코드 캐시)입니다. 설정에서
+로그인 시 자동 시작을 켜거나 끄면 사용자 단위 Run 값이 바뀌고, 표시한 알림은 Windows 알림 기록에 남습니다. 자기 폴더 바깥에 쓰는 것은 하나뿐이고, 요청했을
+때만 씁니다. 진단 페이지의 **진단 정보 내보내기...**와 명령줄의 `diagnostics`는 ID를 별칭으로 바꾸고 경로, Windows 사용자 이름, 이메일 주소처럼 생긴 문자열을 지운 JSON 묶음
+하나를 사용자가 고른 경로에 씁니다. 아무것도 전송하지 않으며, 이미 있는 파일은 덮어쓰지 않습니다. 공식 인터페이스로 Codex에 요청하는 것은 정확한 스레드 하나에 continuation
+메시지 한 건을 넣는 것(`codex queue`)과, 필요하면 그 메시지를 거둬들이는 것(App Server의 `thread/queue/delete`)입니다. 설치할
+때는 `codex` CLI에 이 플러그인과 로컬 마켓플레이스 등록을 요청하며, 이 제품의 이름(`codex-auto-resume-windows`)으로 이미 등록된
+마켓플레이스가 있으면 이 설치본을 가리키도록 바꿉니다. 또 설치할 때는 마켓플레이스를 새로 고치라고 Codex에 요청합니다. v0.5.7의 설치기는 사용자가 설정해
+둔 모든 Git 마켓플레이스를 새로 고칩니다. `codex-auto-resume-windows`만 새로 고치는 동작은 v0.6.0부터입니다. `Uninstall.cmd`는
+이 플러그인과 마켓플레이스가 아직 이 설치본을 가리킬 때에만 `codex` CLI에 등록 해제를 요청합니다.
 
-Design rules enforced in code:
+코드로 강제하는 설계 규칙:
 
-- **No network code.** Nothing in the recovery runtime imports a networking module, and a test
-  fails if an import line in a tracked Python file under `src/` or `scripts/` names one of the
-  common networking modules (`socket`, `ssl`, `http`, `urllib.request` and others), so the
-  watcher opens no connection of its own. What does reach the network, and through what, is listed under [Privacy](#privacy).
-- **Opens no Codex file for writing.** Codex databases are opened with `mode=ro` and
-  `query_only`, and no Codex database, rollout or configuration file is opened for writing. For a
-  database in SQLite's WAL mode, a read-only reader may still update the shared-memory index
-  (`-shm`) beside it; whether Codex's databases use WAL has not been checked. Changes to Codex's
-  state are requested from Codex itself, as above. The Codex processes it starts may update
-  Codex's own logs and caches, as any Codex process does.
-- **Fail closed.** Unknown loaded state, unknown usage, an unavailable probe, or any ambiguity results in
-  waiting, never in sending.
-- **Checked again at the last moment.** Immediately before sending, it re-reads the record and
-  checks that it is still valid and allowed, that the same app is running with the thread
-  loaded, and that usage is available (from a usage reading at most 30 seconds old). The
-  reservation is one SQLite write transaction, so only one watcher can reserve a given
-  interruption, and only one watcher at a time can run against the same state directory
-  within a Windows session.
-- **Exact thread only.** Thread ids are validated as canonical UUIDs and passed as separate argv
-  elements. No Python code uses `shell=True`, `os.system`, `eval` or `exec`, and every Python
-  subprocess gets an argument list.
-- **Only what it can classify.** A failure it cannot classify is not retried, and neither is any
-  category listed as never recovered under
-  [What is recovered, and what is not](#what-is-recovered-and-what-is-not).
-- **Values are data, not script.** Windows PowerShell runs the installer, the uninstaller and the
-  plugin's setup script. The tool's own code also uses it, each time with a fixed script, to list
-  the ChatGPT/Codex processes, raise notifications and create the Start Menu shortcut. Values such
-  as a conversation title or a folder name reach those scripts as environment variables, which the
-  scripts read as plain text and do not run. Releases v0.4.0 through v0.5.6 wrote those names into
-  the script text, where a name containing a curly quote could run PowerShell; v0.5.7 and later
-  pass them only as data.
-- **No duplicate resume.** The interruption is durably reserved before any external process can
-  accept a message. If the outcome of a send is uncertain, it is never resent: the watcher keeps
-  checking for up to 24 hours whether the message arrived, and marks it resumed if it did.
-- **Logs are built from codes, not from content.** Engine events are logged from a fixed message
-  table as reason codes, timestamps and identifiers, with any other detail masked, so no prompt
-  text, Codex error text or account identifier is written through it. The main log also records
-  its own state directory, a path that, at the default location, contains your Windows user name,
-  and the engine's version string - through v0.6.4 only for an engine this tool had not been
-  verified against, from v0.6.5 for every engine, beside the Compatibility Registry's codes for it.
-  Tracebacks go to a separate rotating `errors.log`, which also contains local paths. The launcher
-  writes its own exception messages to `logs\launcher.log`.
-- **Settings are policy only.** No setting can switch off a safety property; see
-  [Settings](#settings).
-- **Never used:** GUI automation, mouse or keyboard simulation, OCR, screen scraping, accessibility-API
-  clicking, binary patching, DLL injection, process-memory manipulation, credential extraction.
+- **네트워크 코드 없음.** 복구 런타임은 네트워크 모듈을 import하지 않으며, `src/`나 `scripts/`
+  아래에서 git이 추적하는 Python 파일에 `socket`, `ssl`, `http`, `urllib.request` 같은 흔한
+  네트워킹 모듈을 import하는 줄이 생기면 테스트가 실패합니다. 그래서 워처는 스스로 연결을 열지
+  않습니다.
+  무엇이 무엇을 거쳐 네트워크에 닿는지는 [개인정보](#개인정보)에 있습니다.
+- **Codex 파일을 쓰기 모드로 열지 않음.** Codex 데이터베이스는 `mode=ro`와 `query_only`로 열며,
+  Codex의 데이터베이스, rollout, 설정 파일 중 어느 것도 쓰기 모드로 열지 않습니다. SQLite의 WAL
+  모드 데이터베이스라면 읽기 전용 연결도 그 옆의 공유 메모리 인덱스(`-shm`)를 갱신할 수 있으며,
+  Codex의 데이터베이스가 WAL을 쓰는지는 확인하지 않았습니다. Codex의 상태를 바꿀 때는 위에 적은
+  대로 Codex에 요청합니다. 이 도구가 실행하는 Codex 프로세스는 여느 Codex 프로세스처럼 Codex 자신의
+  로그와 캐시를 갱신할 수 있습니다.
+- **실패하면 닫힘(fail closed).** 로드 상태를 모르거나, 사용량을 모르거나, 확인 수단을 쓸 수
+  없거나, 조금이라도 모호하면 보내지 않고 기다립니다.
+- **마지막 순간에 다시 확인.** 보내기 직전에 기록을 다시 읽어, 그 기록이 여전히 유효하고 허용되어
+  있는지, 같은 앱이 실행 중이고 스레드가 로드되어 있는지, 사용량이 남아 있는지(읽은 지 30초가
+  넘지 않은 사용량 값으로)를 확인합니다. 예약은 SQLite 쓰기 트랜잭션 하나로 이루어지므로 한 중단을
+  예약할 수 있는 워처는 하나뿐이고, 하나의 Windows 세션 안에서는 같은 상태 디렉터리에 대해 한 번에
+  워처 하나만 실행될 수 있습니다.
+- **정확히 그 스레드만.** 스레드 ID는 정규 UUID인지 검증하고 별도의 argv 요소로 넘깁니다. Python
+  코드는 `shell=True`, `os.system`, `eval`, `exec`를 쓰지 않고, 모든 하위 프로세스를 인자 목록으로
+  실행합니다.
+- **분류할 수 있는 것만.** 분류하지 못한 장애는 재시도하지 않으며,
+  [무엇을 복구하고 무엇을 복구하지 않는가](#무엇을-복구하고-무엇을-복구하지-않는가)에서 복구하지
+  않는다고 적은 종류도 재시도하지 않습니다.
+- **값은 데이터일 뿐 스크립트가 아님.** Windows PowerShell은 설치기, 제거기, 플러그인 설치
+  스크립트를 실행하며, 이 도구의 코드도 프로세스 목록 조회, 알림 표시, 시작 메뉴 바로 가기 생성에
+  매번 고정된 스크립트로 PowerShell을 씁니다. 대화 제목이나 폴더 이름 같은 값은 환경 변수로 넘기며,
+  스크립트는 이를 평범한 텍스트로 읽을 뿐 실행하지 않습니다. v0.4.0부터 v0.5.6까지의 릴리스는 그런
+  이름을 스크립트 본문에 넣었기 때문에 곡선 따옴표가 든 이름이 PowerShell 코드를 실행할 수 있었고,
+  v0.5.7부터는 값을 데이터로만 넘깁니다.
+- **중복 재개 없음.** 외부 프로세스가 메시지를 받을 수 있게 되기 전에 중단 기록을 영속적으로
+  예약합니다. 전송 결과가 불확실하면 다시 보내지 않습니다. 워처는 그 메시지가 실제로 도착했는지
+  최대 24시간 동안 계속 확인하고, 도착했다면 재개된 것으로 기록합니다.
+- **로그는 내용이 아니라 코드로.** 엔진 이벤트는 고정된 메시지 표에서 사유 코드, 타임스탬프,
+  식별자로 기록하고 그 밖의 세부 값은 가리므로, 이 경로로는 프롬프트 내용, Codex 오류 본문, 계정
+  식별자가 기록되지 않습니다. 기본 로그에는 이 도구의 상태 디렉터리 경로도 기록되는데, 기본
+  위치라면 이 경로에 Windows 사용자 이름이 들어 있습니다. 엔진의 버전 문자열도 기록되는데, v0.6.4까지는
+  검증되지 않은 엔진일 때만이었고, v0.6.5부터는 어느 엔진이든 호환성 레지스트리의 코드와
+  함께입니다. Traceback은 별도의 순환 로그 `errors.log`에 기록되며, 여기에도 로컬 경로가 들어
+  있습니다. 런처는 자기 예외 메시지를 `logs\launcher.log`에 기록합니다.
+- **설정은 정책일 뿐.** 어떤 설정도 안전 속성을 끌 수 없습니다. [설정](#설정)을 참고하세요.
+- **쓰지 않는 것:** GUI 자동화, 마우스·키보드 시뮬레이션, OCR, 화면 스크래핑, 접근성 API 클릭,
+  바이너리 패치, DLL 주입, 프로세스 메모리 조작, 자격 증명 추출.
 
-## Privacy
+## 개인정보
 
-Nothing is sent to this project: there is no telemetry, analytics, crash reporting, automatic
-update check or automatic compatibility refresh, and no server of this project's to receive
-them. The tool itself transmits none of your prompts, the assistant's replies, tool input or
-output, file contents, account identifiers, credentials or error text anywhere. The recovery runtime (`src/`, `scripts/*.py`) imports no
-networking module, and a test fails if an import line in a tracked Python file under `src/` or
-`scripts/` names one of the common networking modules (`socket`, `ssl`, `http`,
-`urllib.request` and others).
+이 프로젝트로 전송되는 것은 없습니다. 텔레메트리, 분석, 크래시 리포트, 자동 업데이트 확인, 자동 호환성
+데이터 새로 받기가 없으며, 그것을 받을 이 프로젝트의 서버도 없습니다. 이 도구 자체는 프롬프트, 어시스턴트 응답, 도구 입출력,
+파일 내용, 계정 식별자, 자격 증명, 오류 본문 중 어느 것도 어디로도 전송하지 않습니다. 복구
+런타임(`src/`, `scripts/*.py`)은 네트워크 모듈을 import하지 않으며, `src/`나 `scripts/` 아래에서
+git이 추적하는 Python 파일에 `socket`, `ssl`, `http`, `urllib.request` 같은 흔한 네트워킹 모듈을
+import하는 줄이 생기면 테스트가 실패합니다.
 
-What this tool causes to reach the network, as far as has been checked, goes to OpenAI and
-GitHub, and, while the v0.5.7 installer runs,
-to wherever your other Git marketplaces are hosted:
+이 도구 때문에 네트워크에 닿는 것은, 지금까지 확인한 범위에서는, OpenAI와 GitHub, 그리고 v0.5.7의 설치기가 실행되는 동안에는 사용자의 다른 Git 마켓플레이스가 호스팅된 곳으로 갑니다.
 
-- **OpenAI, through Codex.** Before a resume, the official Codex process this tool starts asks
-  OpenAI for your current usage. The resumed turn runs in the desktop app under your own Codex
-  settings and sends that conversation to OpenAI, as any turn you start does. When the plugin's
-  tools or commands run inside a Codex conversation, what they return (status, pending
-  recoveries with their conversation ids, and, from commands such as `status`, `doctor` and
-  `logs`, local paths that at the default location contain your Windows user name) becomes part
-  of that conversation, and Codex sends it to OpenAI like any tool output. In v0.5.7 the
-  `get_status` and `open_settings` tools also return the installation folder's path. Removing
-  it from those tools is new in v0.6.0. The commands
-  still print local paths.
-- **GitHub, when installing.** Installing or updating from the plugin makes the setup script
-  download that version's release archive from GitHub over HTTPS (and its `.sha256` when the
-  plugin has no digest recorded for that version). Nothing is uploaded, but GitHub sees the
-  request, as with any download. Downloading the archive yourself is the same GitHub download;
-  after that, `Install.cmd` downloads nothing itself, but it does ask Codex to refresh
-  marketplaces (next item).
-- **GitHub, when you ask.** *Check for updates* on the Diagnostics page asks github.com which
-  release is newest, with one `HEAD` request that reads no page. From v0.6.5, *Refresh
-  compatibility data* on the same page - and a *Check for updates* that github.com answered -
-  fetches the Codex compatibility data with one `GET` to one fixed address on
-  raw.githubusercontent.com, with nothing about your machine in it; this installation's own
-  validator keeps it only if it is valid, and it can only make the watcher more careful. Neither
-  happens unless you ask for it. What other people report about a Codex version is not fetched at
-  all: its counts come with the release, and your own report reaches GitHub only as a pull request
-  you open with the separate reporter.
-- **Marketplace hosts, while an installer runs.** v0.6.0 names only
-  `codex-auto-resume-windows`; if an earlier Git registration survives the local repoint,
-  Codex fetches it from wherever it points. Installers through v0.5.7 instead ask Codex to
-  refresh every configured Git marketplace, whose hosts may be neither OpenAI nor GitHub.
-  See [From the release archive](#from-the-release-archive).
+- **OpenAI, Codex를 통해서.** 재개하기 전에 이 도구가 실행한 공식 Codex 프로세스가 현재
+  사용량을 OpenAI에 묻습니다. 재개된 턴은 데스크톱 앱 안에서 사용자의 Codex 설정대로 실행되며,
+  직접 시작한 턴과 똑같이 그 대화를 OpenAI로 보냅니다. Codex 대화 안에서 이 플러그인의 도구나
+  명령을 실행하면 그 결과(상태, 대화 ID가 담긴 대기 목록, 그리고 `status`, `doctor`, `logs` 같은
+  명령이 출력하는 로컬 경로. 기본 위치라면 이 경로에 Windows 사용자 이름이 들어 있습니다)도 그
+  대화의 일부가 되어, 여느 도구 출력처럼 Codex가 OpenAI로 보냅니다. v0.5.7에서는
+  `get_status`와 `open_settings` tool도 설치 폴더 경로를 돌려줍니다. 이 두 tool에서 경로를 빼는
+  변경은 v0.6.0부터입니다. 명령은 여전히 로컬 경로를 출력합니다.
+- **GitHub, 설치할 때.** 플러그인으로 설치하거나 업데이트하면 설치 스크립트가 GitHub에서 해당
+  버전의 릴리스 압축 파일을 HTTPS로 내려받습니다(그 버전의 digest가 플러그인에 기록되어 있지 않을
+  때는 `.sha256` 파일도 함께). 올려 보내는 것은 없지만, 여느 다운로드와 마찬가지로 GitHub는 그
+  요청을 보게 됩니다. 압축 파일을 직접 내려받는 것도 같은 GitHub 다운로드이며, 그 뒤
+  `Install.cmd`는 스스로 아무것도 내려받지 않지만 마켓플레이스 새로 고침은 Codex에 요청합니다(다음
+  항목).
+- **GitHub, 사용자가 요청할 때.** 진단 페이지의 *업데이트 확인*은 페이지를 읽지 않는 `HEAD` 요청 한 번으로
+  github.com에 가장 최근 릴리스를 묻습니다. v0.6.5부터는 같은 페이지의 *호환성 데이터 새로
+  받기*와, github.com이 답한 *업데이트 확인*이 raw.githubusercontent.com의 고정된 주소 하나로 `GET`을 한 번
+  보내 Codex 호환성 데이터를 받아 옵니다. 요청에는 사용자의 기계에 관한 것이 들어 있지 않습니다. 이
+  설치본 자신의 검증기가 올바른 데이터일 때만 보관하며, 그 데이터는 워처를 더 조심스럽게 만들 수만
+  있습니다. 둘 다 사용자가 요청하지 않으면 일어나지 않습니다. 다른 사람들이 어떤 Codex 버전에 대해 보고한
+  것은 아예 받아 오지 않습니다. 그 횟수는 릴리스와 함께 오며, 내 보고서는 따로 있는 보고 도구로 내가 직접
+  풀 리퀘스트를 열 때만 GitHub에 갑니다.
+- **설치기가 실행될 때의 마켓플레이스 호스트.** v0.6.0은 `codex-auto-resume-windows`만 지정합니다.
+  로컬 등록으로 바꾼 뒤에도 예전 Git 등록이 남아 있으면 Codex는 그 등록이 가리키는 곳에서 가져옵니다.
+  v0.5.7까지의 설치기는 모든 Git 마켓플레이스를 새로 고치도록 요청하며, 그 호스트는 OpenAI나
+  GitHub가 아닐 수도 있습니다.
+  [릴리스 압축 파일로 설치](#릴리스-압축-파일로-설치)를 참고하세요.
 
-Codex's local state is opened read-only. Recovery decisions come from Codex's structured
-records (and, only where Codex recorded no error code, a short list of transport-failure
-phrases in the error message), not from what was said in the conversation, but some reads do pass over conversation content: for a
-usage limit it parses up to 8 MiB of the conversation's rollout file before the failure to find
-the reset time, keeping only the rate-limit numbers; and to confirm its own message arrived, it
-has SQLite search that conversation's user and queued messages for its own marker. That content
-is handled in memory and discarded; none of it is stored, and the main log does not record it.
+Codex의 로컬 상태는 읽기 전용으로 엽니다. 복구 판단은 Codex의 구조화된 기록(그리고 Codex가 오류
+코드를 기록하지 않은 경우에만 오류 메시지 속 전송 장애 문구의 짧은 목록)으로 하고 대화 내용으로
+하지 않지만, 대화 내용을 지나가는 읽기는 있습니다. 사용량 한도의 리셋 시각을 찾으려고 실패 직전의
+rollout 파일을 최대 8 MiB까지 메모리에서 파싱해 rate limit 숫자만 남기고, 자기 메시지가
+도착했는지 확인하려고 SQLite가 그 대화의 사용자 메시지와 대기 메시지에서 자기 표식을 찾게 합니다.
+그 내용은 메모리에서만 다루고 버리며, 저장하지 않고 기본 로그에도 남기지 않습니다.
 
-Its own records live in the installation folder (by default `%USERPROFILE%\.codex-auto-resume\`).
-Elsewhere it leaves a Start Menu shortcut, a sign-in entry, the Windows registrations its
-notifications need, and this plugin and its marketplace registered in Codex; `Uninstall.cmd`
-removes those that belong to this installation. Separately, Windows' notification history keeps
-the notifications it showed, and each resumed conversation keeps the continuation message and
-its marker as part of the conversation.
+이 도구가 자기 기록으로 남기는 것은 설치 폴더(기본값 `%USERPROFILE%\.codex-auto-resume\`) 아래에
+있습니다. 그 밖에는 시작 메뉴 바로가기, 로그인 시작 항목, 알림에 필요한 Windows 등록, 그리고
+Codex에 등록된 이 플러그인과 마켓플레이스를 남기며, 이 중 이 설치본에 속한 것은 `Uninstall.cmd`가
+정리합니다. 이와 별개로 Windows 알림 기록에는 표시했던 알림이 남고, 재개된 대화에는 continuation
+메시지와 그 표식이 대화의 일부로 남습니다.
 
-A Custom continuation message is stored only in the local settings file in the installation folder.
-Like every continuation, though, what it says is sent into the resumed conversation, becomes part
-of it and reaches OpenAI with it, so do not write anything there you would not put in that
-conversation. The interface translations are local files installed with the product; choosing or
-changing a language makes no network request. [PRIVACY.md](PRIVACY.md) has the details.
+직접 입력 메시지는 설치 폴더 안의 로컬 설정 파일에만 저장됩니다. 다만 다른 모든 이어서 하기 메시지와
+마찬가지로, 그 문장은 재개된 대화에 보내져 대화의 일부가 되고 그 대화와 함께 OpenAI로 갑니다. 그러니
+대화에 넣고 싶지 않은 내용은 쓰지 마세요. 화면 번역은 제품과 함께 설치되는 로컬 파일이며, 언어를
+고르거나 바꾸는 일로 네트워크 요청이 생기지는 않습니다. 자세한 내용은
+[PRIVACY.md](PRIVACY.md)를
+참고하세요.
 
-## Known limitations
+## 알려진 제한
 
-- Only threads already loaded in the app can be auto-resumed. Unloaded threads wait for you to open them.
-- Windows only: it works with the Windows ChatGPT/Codex desktop app, on Windows 10/11.
-- The blocking usage bucket cannot always be identified with certainty, so live availability is
-  re-checked immediately before sending rather than trusted from history.
-- Codex app updates are survivable but not guaranteed. Database files are found by schema generation
-  (`state_5` -> `state_6`) and validated by the columns actually read, and an updated engine is accepted
-  when the `codex queue` interface is unchanged. A change that removes a column this tool reads, or that
-  alters the queue interface, still stops it: it refuses rather than guessing.
-- If the watcher process dies in the narrow window after reserving but before the send result is known,
-  that interruption is deliberately left unresumed rather than risking a duplicate.
-- The full end-to-end path has now been observed once in ordinary use: a real usage limit was detected,
-  the thread was confirmed loaded, the interruption was reserved, one continuation was submitted through
-  `codex queue`, and delivery was independently confirmed 30 seconds later. That is one run, not a
-  track record. Transient-failure recovery has been exercised by tests, not yet by a real outage.
-- The notification-area popup has not been exercised with a real click on its icon in Explorer.
-- The Japanese, Simplified and Traditional Chinese, Spanish, German, French and Brazilian
-  Portuguese translations have not been reviewed by native speakers.
+- 재개하려면 그 대화가 Codex 앱에 열려 있어야 합니다. 맨 위의 제한 사항을 참고하세요.
+- Windows 전용입니다. Windows 10/11의 Windows ChatGPT/Codex 데스크톱 앱과 함께 동작합니다.
+- 사용량을 막은 버킷이 어느 것인지 언제나 확실히 가려낼 수는 없습니다. 그래서 기록을 믿지 않고,
+  보내기 직전에 지금 사용량이 남아 있는지 실시간으로 다시 확인합니다.
+- Codex 앱 업데이트는 대개 견디지만 보장하지는 않습니다. 데이터베이스 파일은 스키마 세대(`state_5` ->
+  `state_6`)로 찾고 실제로 읽는 열로 검증하며, 업데이트된 엔진은 `codex queue` 인터페이스가 그대로면
+  받아들입니다. 이 도구가 읽는 열을 없애거나 queue 인터페이스를 바꾸는 변화는 여전히 이 도구를
+  멈춥니다. 잘못 추측하는 대신 거부합니다.
+- 예약한 뒤 전송 결과를 알기 전의 좁은 구간에서 워처 프로세스가 죽으면, 중복을 무릅쓰는 대신 그
+  중단은 일부러 재개하지 않은 채 남깁니다.
+- 전체 경로는 이제 일상적인 사용에서 한 번 관찰되었습니다. 실제 사용량 한도가 감지되었고, 스레드가
+  로드되어 있음이 확인되었고, 중단이 예약되었고, `codex queue`로 이어서 하기 메시지 한 건이
+  제출되었고, 30초 뒤 전달이 따로 확인되었습니다. 한 번의 실행일 뿐 쌓인 실적은 아닙니다. 일시적
+  장애의 복구는 테스트로만 확인했고, 실제 장애로는 아직 겪어 보지 않았습니다.
+- 알림 영역 팝업은 탐색기에서 실제로 아이콘을 클릭해 여는 방식으로는 아직 확인하지 않았습니다.
+- 일본어, 중국어 간체·번체, 스페인어, 독일어, 프랑스어, 브라질 포르투갈어 번역은 원어민의 검토를
+  거치지 않았습니다.
 
-## Testing
+## 테스트
 
-Run the automated suite:
+자동 테스트 실행:
 
 ```bash
 python -m unittest discover -s tests
 ```
 
-Set `PYTHONPATH=src` first (or use `set PYTHONPATH=src` on Windows).
+먼저 `PYTHONPATH=src`를 설정하세요(Windows에서는 `set PYTHONPATH=src`).
 
-These tests use fakes and temporary directories. They never contact the ChatGPT app and never send a
-message to any conversation, so they are safe to run anywhere and are what CI runs. CI runs every one
-of them on Python 3.12, 3.13 and 3.14, each of which has to pass, and on the 3.15 pre-release as an
-advisory job whose result is shown but does not block.
+이 테스트들은 가짜 객체와 임시 디렉터리를 씁니다. ChatGPT 앱에 접속하지 않고 어떤 대화에도 메시지를
+보내지 않으므로 어디서든 안전하게 실행할 수 있으며, CI가 돌리는 것도 이 테스트입니다. CI는 이 테스트를
+모두 Python 3.12, 3.13, 3.14에서 반드시 통과해야 하는 작업으로 돌리고, 3.15 사전 릴리스에서는 결과를
+보여 주되 막지는 않는 참고 작업으로 돌립니다.
 
-There is also an opt-in live check against your real environment. It verifies binary discovery,
-app pairing, loaded-state classification, and usage reading. It sends no message to any
-conversation; reading usage does ask OpenAI for your current usage through Codex, as the watcher
-does before a resume:
+실제 환경을 상대로 하는 점검도 있으며, 직접 켜야만 실행됩니다. 바이너리 탐색, 앱 페어링, 로드 상태
+분류, 사용량 읽기를 검증합니다. 어떤 대화에도 메시지를 보내지 않지만, 사용량을 읽을 때는 워처가
+재개하기 전에 하듯이 Codex를 통해 OpenAI에 현재 사용량을 묻습니다.
 
 ```bash
 set CODEX_AR_LIVE=1 && python -m unittest tests.test_integration_live
 ```
 
-## Security
+## 보안
 
-See [SECURITY.md](SECURITY.md) for the full model, the review process, and the issues that were
-found and fixed. In short: the recovery runtime has no network code and reads no credentials;
-it reads Codex's state read-only, opens none of Codex's files for writing, and makes its
-changes to Codex's state by asking Codex through official interfaces; what reaches OpenAI is
-Codex's own traffic; it fails closed; and uninstall is conservative. The only download the
-shipped code makes itself is the plugin's setup script fetching the matching release from
-GitHub, which it checks before installing; the v0.5.7 installer also asks Codex to refresh your
-configured Git marketplaces (see [From the release archive](#from-the-release-archive)).
-Release archives from v0.5.4 on also carry a GitHub build provenance attestation, and
-[docs/VERIFY.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/VERIFY.md)
-shows how to check a download yourself. Archives v0.5.0 through v0.5.7
-were built by the earlier single-job release workflow, with GitHub Actions referred to by
-floating tags and executables that cannot be rebuilt byte for byte; the split into build and
-publish jobs, commit-pinned actions and reproducible executables are new in v0.6.0. Nothing
-this project builds is Authenticode-signed; the bundled Python interpreter keeps the Python
-Software Foundation's signature.
+전체 보안 모델, 검토 과정, 발견되어 고친 문제는 [SECURITY.md](SECURITY.md)에 있습니다.
+요약하면, 복구 런타임에는 네트워크 코드가 없고 자격 증명을 읽지 않습니다. Codex의 상태는 읽기 전용으로 읽고, Codex의 파일은 어느 것도 쓰기 모드로 열지
+않으며, Codex의 상태를 바꿀 때는 공식 인터페이스로 Codex에 요청합니다. OpenAI에 닿는 것은 Codex 자신의 통신이고, 불확실하면 보내지 않고 멈추며,
+제거는 보수적입니다. 배포되는 코드가 스스로 하는 다운로드는 플러그인 설치 스크립트가 GitHub에서 해당 릴리스를 가져오는 것뿐이며, 설치하기 전에 그 파일을
+확인합니다. v0.5.7의 설치기는 사용자가 설정한 Git 마켓플레이스를 새로 고치라고 Codex에 요청하기도 합니다 ([릴리스 압축 파일로
+설치](#릴리스-압축-파일로-설치) 참고). v0.5.4 이후의 릴리스 압축 파일에는 GitHub 빌드 출처 증명(attestation)도 있으며, 내려받은 파일을 직접
+확인하는 방법은
+[docs/VERIFY.md](VERIFY.md)에
+있습니다. v0.5.0부터 v0.5.7까지의 압축 파일은 모두 예전의 단일 작업 릴리스 워크플로가 GitHub Actions를 고정되지 않은
+태그로 참조해 빌드했고, 그 실행 파일은 바이트 단위로 똑같이 다시 빌드할 수 없습니다. 빌드와 게시 작업의 분리, 커밋에 고정한 action, 재현 가능한 실행 파일은
+v0.6.0부터입니다. 이 프로젝트가 빌드하는 것은 어느 것도 Authenticode 서명이 되어 있지 않고, 함께 들어 있는 Python 인터프리터는 Python
+Software Foundation의 서명을 유지합니다.
 
-The project went through three adversarial review rounds plus mutation testing, a crash-window matrix,
-and a cross-process race test. Confirmed issues were fixed and covered by regression tests.
+이 프로젝트는 세 차례의 적대적 검토와 뮤테이션 테스트, 크래시 구간 매트릭스, 프로세스 간 경합
+테스트를 거쳤습니다. 확인된 문제는 고쳤고 회귀 테스트로 덮었습니다.
 
-If you find a security issue, please open an issue on this repository. Do not paste
-credentials, tokens, private conversation text or private repository content into a public
-issue; diagnosing a problem does not need them.
+보안 문제를 발견하면 이 저장소에 이슈를 열어 주세요. 공개 이슈에 자격 증명, 토큰, 비공개 대화
+전문, 비공개 저장소 내용을 붙여넣지 말아 주세요. 진단에 필요하지 않습니다.
 
-## Documentation
+## 그 밖의 문서
 
-| | |
-| --- | --- |
-| [docs/PLUGIN.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/PLUGIN.md) | The Codex plugin layer: what the setup script may fetch and what it checks, the update and removal lifecycle, and why the usage-limit notice cannot get a checkbox. |
-| [docs/VERIFY.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/VERIFY.md) | How to check that a downloaded archive is the one this project published, how to rebuild a release, and what those checks do and do not prove. |
-| [docs/FEATURE_MATRIX.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/FEATURE_MATRIX.md) | Every capability this product claims, beside the evidence it has actually earned - what is tested through the real store and engine, what is only implemented, and what nobody has watched work. |
-| [docs/LIVE_ACCEPTANCE.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/LIVE_ACCEPTANCE.md) | The acceptance a person runs on a real Windows machine against a real Codex before a release: each step, what a pass looks like, and what to write down. |
-| [docs/COMPARISON.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/COMPARISON.md) | Other projects in this space, and every feature adopted, adapted, rejected or deferred — with the reason. |
-| [docs/BRAND.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/BRAND.md) | The palette, the mark, and why each is what it is. |
-| [docs/DEVELOPMENT.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/DEVELOPMENT.md) | How it was built, including the measurements behind the loaded/notLoaded limitation. |
-| [docs/ROADMAP.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/ROADMAP.md) | Where the project is heading, release by release: a planned direction, not a promise. |
-| [CHANGELOG.md](CHANGELOG.md) | What each release changed. |
-| [PRIVACY.md](PRIVACY.md) | What is read, what is stored, and what is sent anywhere. |
-| [SECURITY.md](SECURITY.md) | The threat model and how to report a vulnerability. |
-| [SUPPORT.md](SUPPORT.md) | Where to report each kind of problem, and what not to paste into a public issue. |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Tests, the release build, fixture conventions, and the safety properties a change has to keep. |
+- 플러그인 계층, 설치 스크립트가 가져올 수 있는 것과 확인하는 것, 업데이트와 제거의 수명 주기, 사용량 한도 안내에 체크박스를 넣지 못하는 이유: [docs/PLUGIN.md](PLUGIN.md)
+- 내려받은 압축 파일을 확인하고 릴리스를 직접 다시 빌드하는 방법, 그리고 그 확인이 증명하는 것과 증명하지 못하는 것: [docs/VERIFY.md](VERIFY.md)
+- 이 제품이 한다고 말하는 모든 것과, 그 하나하나가 실제로 확보한 근거 등급(실제 저장소와 엔진으로 시험한 것, 구현만 된 것, 아무도 동작을 지켜보지 못한 것): [docs/FEATURE_MATRIX.md](FEATURE_MATRIX.md)
+- 릴리스 전에 사람이 실제 Windows 기계에서 실제 Codex를 상대로 밟는 인수 절차와, 단계마다 통과는 어떤 모습인지, 무엇을 적어 두어야 하는지: [docs/LIVE_ACCEPTANCE.md](LIVE_ACCEPTANCE.md)
+- 같은 영역의 다른 프로젝트들, 그리고 채택·변형·거부·보류한 기능 하나하나와 그 이유: [docs/COMPARISON.md](COMPARISON.md)
+- 팔레트와 마크, 그리고 각각이 왜 그런 모습인지: [docs/BRAND.md](BRAND.md)
+- 어떻게 만들었는지, loaded/notLoaded 제한 뒤의 실측까지: [docs/DEVELOPMENT.md](DEVELOPMENT.md)
+- 앞으로 릴리스마다 나아갈 방향(약속이 아니라 계획): [docs/ROADMAP.md](ROADMAP.md)
+- 릴리스마다 무엇이 바뀌었는지: [CHANGELOG.md](CHANGELOG.md)
+- 무엇을 읽고, 무엇을 저장하고, 무엇이 어디로 가는지: [PRIVACY.md](PRIVACY.md)
+- 위협 모델, 적대적 검토 결과, 취약점을 알리는 방법: [SECURITY.md](SECURITY.md)
+- 문제 종류마다 어디에 알릴지, 공개 이슈에 붙여넣으면 안 되는 것: [SUPPORT.md](SUPPORT.md)
+- 테스트, 릴리스 빌드, fixture 규칙, 그리고 변경이 지켜야 할 안전 속성: [CONTRIBUTING.md](CONTRIBUTING.md)
 
-## Development and credits
+## 개발과 기여
 
-Built by **Youngbin Song** with the assistance of two AI development tools:
+**Youngbin Song**이 두 AI 개발 도구의 도움을 받아 만들었습니다.
 
-- **OpenAI Codex** — initial Windows/Codex architecture and protocol investigation, the exact-thread
-  queue proof of concept, loaded/notLoaded verification, usage-limit and reset research, and the initial
-  implementation.
-- **Anthropic Claude Code** — took over that prototype, completed the watcher, CLI, Windows integration
-  and persistence, expanded the tests, fixed correctness bugs, and ran the security and adversarial audits.
+- **OpenAI Codex** — 초기 Windows/Codex 아키텍처와 프로토콜 조사, exact-thread queue 개념 증명,
+  loaded/notLoaded 검증, 사용량 한도와 리셋 조사, 그리고 초기 구현을 맡았습니다.
+- **Anthropic Claude Code** — 그 프로토타입을 넘겨받아 워처, CLI, Windows 통합, 영속성을 완성하고,
+  테스트를 넓히고, 정확성 버그를 고치고, 보안 감사와 적대적 감사를 했습니다.
 
-OpenAI Codex and Anthropic Claude Code are AI development tools, not human contributors or GitHub
-accounts. See [CONTRIBUTORS.md](CONTRIBUTORS.md) for the full breakdown and
-[docs/DEVELOPMENT.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/DEVELOPMENT.md) for the development history, including the measurements behind
-the loaded/notLoaded limitation.
+OpenAI Codex와 Anthropic Claude Code는 AI 개발 도구이지, 사람 기여자나 GitHub 계정이 아닙니다.
+자세한 역할 구분은 [CONTRIBUTORS.md](CONTRIBUTORS.md)에, loaded/notLoaded 제한 뒤의 실측을
+포함한 개발 과정은 [docs/DEVELOPMENT.md](DEVELOPMENT.md)에 있습니다.
 
-## License
+## 라이선스
 
-MIT. See [LICENSE](../LICENSE).
+MIT. [LICENSE](../LICENSE)를 참고하세요.
