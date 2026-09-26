@@ -519,13 +519,16 @@ what you are trying to achieve — there is usually a way to get there that keep
 A report about a Codex version is written on your own machine by
 [codex-compat-reporter](https://github.com/songyb111-gachon/codex-compat-reporter), from this
 installation's own records: counts, states and times, no conversation text and no identifiers. Read
-the file before you send it. It reaches GitHub only as a pull request you open, and that pull
-request adds exactly one new file, at
+the file before you send it. It reaches GitHub only as a pull request you open, from a branch whose
+name starts with `compat-report/` - the reporter's `submit` opens it from
+`compat-report/codex-cli-<version>` - and that pull request adds exactly one new file, at
 
     docs/evidence/community/<your GitHub login>/codex-cli-<version>.json
 
 where `<version>` is the report's own `codex_version` and the login is the one that opens the pull
-request (and the report's `reporter.github_login`). Reports are add-only: one per GitHub login per
+request (and the report's `reporter.github_login`). One opened by hand from another branch
+(`patch-1`, say, GitHub's name for an edit on the web) is refused by the check: the filer below
+answers for `compat-report/` branches only. Reports are add-only: one per GitHub login per
 Codex version, and a filed report is never edited. A pull request that changes anything else, adds
 a second file, or adds one at a path already filed on the base or on `main` is refused, and so is a
 folder that differs from a filed one only in letter case, since Windows opens the two as one.
@@ -542,17 +545,54 @@ and was out before the report was written, a plain reporter release from 1.0.0 o
 later - and its times ones the machine could have recorded. A report with at least one record must
 not repeat the records of a report already filed for the same version; a report with no records is
 never refused as a copy. The levels and verdict a report claims are recomputed from what it
-measured and only ever lowered, so a hand-edited conclusion does not survive. A maintainer still
-reviews and merges each one.
+measured and only ever lowered, so a hand-edited conclusion does not survive. The Codex version
+is written the one way the product writes it (no leading zero, no alpha `.0`), and the login may
+not be a name Windows keeps for a device (`con`, `nul`, `com1` and the rest), since no Windows
+checkout could hold that folder.
+
+A report that passes is filed with no step by the maintainer, by
+`.github/workflows/community-file.yml`: usually within minutes of the check finishing, and
+otherwise on its daily run. It judges the report again, against `main` as it is by then, with the
+same check, and files this project's own regeneration of it - never your bytes: every conclusion
+recomputed from your records and every sentence replaced by ours. Your pull request is then closed,
+not merged, with one comment that says where the file went. That one comment is edited, never
+repeated, whenever what it says changes. What a maintainer used to decide is now a rule, and a
+report that meets one waits rather than being refused:
+
+- the account has to be at least 30 days old; a younger one's pull request is closed, with the date
+  it can be sent again;
+- one open report pull request per account at a time; another is closed, and can be sent again
+  once the first is closed;
+- at most 3 reports are filed from one account, and 5 for one Codex version, in any 7 days; more
+  wait, with the date they are looked at again;
+- a Codex version older than those the project's own compatibility data names waits for the
+  maintainer; a newer one is filed while fewer than five such versions have reports;
+- a report that a recovery failed on a version this project's own evidence verifies waits for the
+  maintainer, who looks at that first;
+- nothing is filed while `main`'s own tests are failing, or while filing is paused.
+
+A waiting pull request's comment gives the reason and when it is looked at again; there is nothing
+for you to do. A refused one's says, line by line, what to do about each reason; a new commit on
+it is judged again, and one refused and left unchanged for 14 days is closed. One report pull
+request per account is open at a time, and the reporter's `submit` keeps to that, so sending the
+report again starts by closing the refused one - its comment says so. Filing is paused by the
+repository variable `COMMUNITY_AUTOFILE` (anything but unset or `on`), an account's reports are
+refused by listing its numeric id in `COMMUNITY_BLOCKED`, and the maintainer's own tool can still
+file a report that waits or is refused that way, or withdraw one; the pull request of a report it
+files is then closed as filed, with the same one comment.
 
 Once filed, a report counts towards *Reported by others* beside its Codex version on the
 Dashboard's Diagnostics page ([GUIDE.md](GUIDE.md#requirements) says how it is counted), from the
-next release on: the maintainer's tool adds it to `docs/evidence/community/index.json` and writes
-the counts into `src/codex_auto_resume/data/reported.json`, and `tests/test_reported_data.py` holds
-the files, the index and the shipped counts to each other. A report file the index does not list
-counts nowhere, which is why your pull request stays green under the ordinary tests. A report
-found to be wrong is withdrawn in the open, by removing its file and its index entry together. No
-report enters the compatibility data, and none changes a tier.
+next release on: the same commit that files it writes `docs/evidence/community/index.json`, the
+folder's README and the counts in `src/codex_auto_resume/data/reported.json` again, with the same
+code whoever files (`build/community_report.py`), and `tests/test_reported_data.py` holds the
+files, the index, the README and the shipped counts to each other. The commit names your login and
+your account's numeric id, which is what the weekly limits count. A report file the index does not
+list counts nowhere, which is why your pull request stays green under the ordinary tests. A report
+found to be wrong is withdrawn in the open, by removing its file and its index entry together, and
+the account and that Codex version are listed in `docs/evidence/community/withdrawn.json`, so the
+same report is not filed again; the account's reports on other Codex versions are judged like any
+other. No report enters the compatibility data, and none changes a tier.
 
 ## How the code is layered
 

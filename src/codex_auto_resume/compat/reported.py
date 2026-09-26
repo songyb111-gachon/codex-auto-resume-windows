@@ -4,8 +4,9 @@ Reported is a grade of its own beside the ladder - verified, checked, compatible
 and never on it (docs/ROADMAP.md, "Compatibility reports from others"). A report someone else
 sends is kept in docs/evidence/community/<login>/ and never in the compatibility data. What this
 module reads is only their counts per version, from a file of their own that each release
-carries: data/reported.json, written from docs/evidence/community/index.json by the maintainer's
-tool and held equal to it by tests/test_reported_data.py.
+carries: data/reported.json, written from docs/evidence/community/index.json by
+build/community_report.py whenever a report is filed - by .github/workflows/community-file.yml or by
+the maintainer's tool - and held equal to it by tests/test_reported_data.py.
 
 What keeps it from deciding anything is structure, not care:
 

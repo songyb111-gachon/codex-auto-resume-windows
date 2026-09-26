@@ -46,10 +46,14 @@ class AdoptedDesignTests(unittest.TestCase):
 
     def setUp(self):
         keep_preferences(self)
-        windows = unittest.mock.patch.object(popup.theme, "reduced_motion",
-                                             lambda: bool(popup.theme._reduce_motion_setting))
-        windows.start()
-        self.addCleanup(windows.stop)
+        # Windows' own animation setting is this machine's, and a CI runner has it off. Both names are
+        # replaced: the package binds `reduced_motion` at import, so a patch on theme alone never
+        # reached `popup.reduced_motion`, and the test passed only where Windows animates.
+        for owner in (popup.theme, popup):
+            windows = unittest.mock.patch.object(owner, "reduced_motion",
+                                                 lambda: bool(popup.theme._reduce_motion_setting))
+            windows.start()
+            self.addCleanup(windows.stop)
 
     def test_the_stored_design_is_adopted_and_anything_else_is_soft(self):
         for value in brand.DESIGNS:
