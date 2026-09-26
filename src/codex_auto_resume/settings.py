@@ -20,7 +20,7 @@ import os
 from pathlib import Path
 import tempfile
 
-from . import continuation, failures, l10n, projects, quiet, reasons
+from . import continuation, failures, guards, l10n, ladder, projects, quiet, reasons
 from .domain.vocabulary import (Design, ImportanceTier, NewConversationPolicy, NotifyEvent,
                                 ProjectPolicy, Theme)
 
@@ -49,13 +49,11 @@ CONFIGURABLE_CATEGORIES = (
 NOTIFICATION_EVENTS = tuple(NotifyEvent)
 
 # Retry timing presets. Raw ladders are not exposed: a preset cannot produce a zero
-# delay or an unbounded one, which a free-form number could.
-RETRY_TIMING = {
-    "conservative": (15, 45, 120, 300, 600),
-    "normal": (5, 15, 30, 60, 120),
-    "aggressive": (3, 8, 20, 45, 90),
-}
-DEFAULT_TIMING = "normal"
+# delay or an unbounded one, which a free-form number could. v0.6.11 adds Custom, five waits
+# each chosen from a closed list for the same reason (ladder.py); the presets are unchanged.
+RETRY_TIMING = ladder.PRESETS
+RETRY_TIMINGS = ladder.TIMINGS
+DEFAULT_TIMING = ladder.DEFAULT_TIMING
 
 # Light or dark, for the settings window, the notification-area popup and the notification
 # card - and for the panel in Codex too while its own choice is "same". "system" is not a
@@ -121,7 +119,7 @@ FIELDS = {
     # How many continuations one task may receive in total, across every failure of it.
     # Never above 10, whatever the other limits say.
     "max_chain_continuations": (6, lambda v, d: _bounded_int(v, d, 1, 10)),
-    "retry_timing": (DEFAULT_TIMING, lambda v, d: _choice(v, d, RETRY_TIMING)),
+    "retry_timing": (DEFAULT_TIMING, lambda v, d: _choice(v, d, RETRY_TIMINGS)),
     "detection_lookback_hours": (6.0, lambda v, d: _bounded_number(v, d, 0.0, 24 * 7)),
     "notifications": (True, _boolean),
     # The watcher's notification-area icon. Showing it changes nothing about recovery.
@@ -235,6 +233,20 @@ FIELDS["project_policy"] = (projects.DEFAULT_POLICY, lambda v, d: _choice(v, d, 
 FIELDS[projects.ALWAYS] = ("", projects.coerce_keys)
 FIELDS[projects.NEVER] = ("", projects.coerce_keys)
 
+# ------------------------------------------- waits, a time ceiling and two guards (v0.6.11)
+# The Custom ladder's five waits, read only while retry_timing is Custom; jitter, which only ever
+# lengthens a wait; how long a task may keep failing with a temporary error; and the task-changed
+# and context-cost guards (guards.py). Each defaults to what v0.6.10 did: the waits are inert under
+# a preset, jitter and the ceiling are off, and neither guard reads or holds anything.
+for _field, _default in zip(ladder.STEP_FIELDS, ladder.DEFAULT_STEPS):
+    FIELDS[_field] = (_default, lambda v, d, _allowed=ladder.choices_for(_field): _choice(v, d, _allowed))
+FIELDS["retry_jitter"] = (False, _boolean)
+STEP_FIELDS = ladder.STEP_FIELDS
+CHAIN_CEILINGS, TASK_GUARDS, CONTEXT_GUARDS = ladder.CEILINGS, guards.TASK_GUARDS, guards.CONTEXT_GUARDS
+FIELDS["chain_time_ceiling"] = (ladder.DEFAULT_CEILING, lambda v, d: _choice(v, d, CHAIN_CEILINGS))
+FIELDS["task_changed_guard"] = (guards.DEFAULT_TASK_GUARD, lambda v, d: _choice(v, d, TASK_GUARDS))
+FIELDS["context_guard"] = (guards.DEFAULT_CONTEXT_GUARD, lambda v, d: _choice(v, d, CONTEXT_GUARDS))
+
 
 def is_custom_text(name) -> bool:
     """Whether a settings field holds Custom continuation text: the user's own words, which
@@ -260,12 +272,17 @@ DEFAULTS = {name: default for name, (default, _coerce) in FIELDS.items()}
 
 # Ranges published to the user interfaces so a slider or spin box cannot offer a value
 # the validator would reject.
+# v0.6.11: a limit above its "high" gets a warning beside it on every surface that edits it - a
+# task that keeps failing may then be continued many times, each one using the person's Codex usage.
+HIGH_LIMITS = {"max_recovery_attempts": 8, "max_no_progress": 5, "max_chain_continuations": 8}
+
 RANGES = {
-    "max_recovery_attempts": {"min": 1, "max": 20},
-    "max_no_progress": {"min": 1, "max": 10},
-    "max_chain_continuations": {"min": 1, "max": 10},
+    "max_recovery_attempts": {"min": 1, "max": 20, "high": HIGH_LIMITS["max_recovery_attempts"]},
+    "max_no_progress": {"min": 1, "max": 10, "high": HIGH_LIMITS["max_no_progress"]},
+    "max_chain_continuations": {"min": 1, "max": 10, "high": HIGH_LIMITS["max_chain_continuations"]},
     "detection_lookback_hours": {"min": 0.0, "max": float(24 * 7)},
-    "retry_timing": {"choices": list(RETRY_TIMING)},
+    # Each preset's waits as a person is shown them (ladder.preview), for the surfaces to look up.
+    "retry_timing": {"choices": list(RETRY_TIMINGS), "waits": ladder.previews()},
     "theme": {"choices": list(THEMES)},
     "panel_theme": {"choices": list(PANEL_THEMES)},
     "design": {"choices": list(DESIGNS)},
@@ -280,6 +297,12 @@ RANGES = {
     "objection_minutes": {"min": 1, "max": 60},
     "new_conversation_policy": {"choices": list(NEW_CONVERSATION_POLICIES)},
     "project_policy": {"choices": list(PROJECT_POLICIES)},
+    **{field: {"choices": list(ladder.choices_for(field)),
+               "seconds": {wait: ladder.WAIT_SECONDS[wait] for wait in ladder.choices_for(field)}}
+       for field in ladder.STEP_FIELDS},
+    "chain_time_ceiling": {"choices": list(CHAIN_CEILINGS)},
+    "task_changed_guard": {"choices": list(TASK_GUARDS)},
+    "context_guard": {"choices": list(CONTEXT_GUARDS)},
 }
 
 
@@ -380,8 +403,16 @@ def validate_update(changes) -> dict:
 
 
 def timing_ladder(values) -> tuple:
-    name = _choice((values or {}).get("retry_timing"), DEFAULT_TIMING, RETRY_TIMING)
-    return RETRY_TIMING[name]
+    """The five waits in effect: a preset's, or the Custom ones (ladder.py)."""
+    return ladder.ladder(values)
+
+
+def high_limits(values) -> list:
+    """The limits set above their "high", in the order they are shown: each is warned of."""
+    values = values if isinstance(values, dict) else {}
+    return [name for name, high in HIGH_LIMITS.items()
+            if isinstance(values.get(name), int) and not isinstance(values.get(name), bool)
+            and values[name] > high]
 
 
 def theme_preference(values) -> str:
@@ -572,10 +603,12 @@ def describe() -> list:
         elif name in ("max_recovery_attempts", "max_no_progress", "max_chain_continuations",
                       "retry_timing", "quiet_hours_start", "quiet_hours_end", "quiet_hours_days",
                       "default_tier", "objection_minutes", "new_conversation_policy",
-                      "project_policy"):
+                      "project_policy", *ladder.STEP_FIELDS, "retry_jitter", "chain_time_ceiling",
+                      "task_changed_guard", "context_guard"):
             # v0.6.11: quiet hours and the tier a conversation has by default join the limits -
             # how hard, and when, recovery tries - in the window and in the panel alike; and beside
-            # the tier, what a new conversation gets and which projects resume without a person.
+            # the tier, what a new conversation gets and which projects resume without a person;
+            # and after them the Custom waits, jitter, the time ceiling and the two guards.
             entry["group"] = "limits"
         elif name == "observe_only":
             # v0.6.11: a switch of automatic recovery itself, under the kinds it recovers.

@@ -123,9 +123,12 @@ class ActionsMixin:
             if row["budget_resets"] >= max_resets:
                 return False, "reset_limit"
             target = machine.waiting_state(row, now)
+            # Its time as well (v0.6.11): a task's time ceiling is measured from the first failure
+            # of its chain, which is this one from now on. Nothing reads it while there is none.
             connection.execute(
                 "UPDATE interruptions SET state=?, recovery_attempts=0, no_progress_count=0, "
                 "retry_count=0, chain_continuations=0, budget_resets=budget_resets+1, "
+                "chain_first_detected_at=detected_at, "
                 "last_error='budget_restored', next_retry_at=? WHERE interruption_id=?",
                 (target, now, interruption_id))
             self._event(connection, now, "reset_budget", record=row, from_state=row["state"],

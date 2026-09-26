@@ -59,7 +59,7 @@ LISTS = {
     "machine.SUPERSEDE_WITHDRAWALS": ("set", 3, "b63141bdc33260f0"),
     "machine.TURN_STATUSES": ("set", 5, "58aca83cec78ff2b"),
     "machine.ACTORS": ("set", 5, "eaf35d06c4c2b568"),
-    "machine.REASONS": ("set", 63, "05852eb344a83206"),
+    "machine.REASONS": ("set", 64, "6239ed90c572e676"),
     # v0.6.11: postponed, held, hold_released and tier_set - a person's (or the objection window's)
     # later time, a hold, letting it go, and a conversation's tier - and observe only's would_send.
     "machine.EVENT_CODES": ("set", 26, "c824a4566dd1c011"),
@@ -72,7 +72,7 @@ LISTS = {
     "machine.GATES": ("tuple", 13, "547089c399324718"),
     # v0.6.11: `held`, a gate core passed and the edition's plug held (domain/plug.py, HOLD);
     # and schema 4's `postponed`, `quiet_hours` and `observe_only`, reasons of consent and schedule.
-    "machine.GATE_REASONS": ("set", 79, "540193750ec65d3b"),
+    "machine.GATE_REASONS": ("set", 80, "b43c9f31106928e7"),
     "machine.PASS": "PASS",
     "machine.WAIT": "WAIT",
     "machine.BLOCK": "BLOCK",
@@ -83,7 +83,7 @@ LISTS = {
     "machine.QUIET_HOURS": "quiet_hours",
     "machine.OBSERVE_ONLY": "observe_only",
     # v0.6.11, schema 4: a record's hold, and a conversation's tier, least asking first.
-    "machine.HOLDS": ("set", 5, "0467f811b37b122b"),
+    "machine.HOLDS": ("set", 6, "46f978e63d3c05c3"),
     "machine.IMPORTANCE_TIERS": ("tuple", 4, "1020c428556c4555"),
     "failures.CATEGORIES": ("set", 14, "05e7b8e16f528bde"),
     # v0.6.10: auth_service_transient, which nothing produces, left TRANSIENT for RESERVED.
@@ -295,7 +295,12 @@ HOMES = {
     v.CustomMode: ("list", "continuation.CUSTOM_MODES"),
     v.Theme: ("list", "settings.THEMES"),
     v.Design: ("list", "settings.DESIGNS", "brand.DESIGNS"),
-    v.RetryTiming: ("keys", "settings.RETRY_TIMING"),
+    # v0.6.11: the presets, the keys of settings.RETRY_TIMING, and Custom after them.
+    v.RetryTiming: ("list", "settings.RETRY_TIMINGS", "ladder.TIMINGS"),
+    v.RetryWait: ("list", "ladder.WAITS"),
+    v.ChainCeiling: ("list", "ladder.CEILINGS", "settings.CHAIN_CEILINGS"),
+    v.TaskGuard: ("list", "guards.TASK_GUARDS", "settings.TASK_GUARDS"),
+    v.ContextGuard: ("list", "guards.CONTEXT_GUARDS", "settings.CONTEXT_GUARDS"),
     v.QuietDays: ("list", "settings.QUIET_DAYS"),
     v.NewConversationPolicy: ("list", "settings.NEW_CONVERSATION_POLICIES"),
     v.ProjectPolicy: ("list", "settings.PROJECT_POLICIES", "projects.POLICIES"),

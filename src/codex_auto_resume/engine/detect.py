@@ -6,7 +6,7 @@ latest is superseded rather than recovered.
 """
 from __future__ import annotations
 
-from .. import failures, machine
+from .. import failures, guards, machine
 from ..machine import OBSERVING, TERMINAL, WAITING, WATCHED
 from ..codex import detect
 
@@ -108,14 +108,18 @@ class DetectMixin:
             }
             now = self.clock()
             reset = detection["reset_at"]
+            owner = self._owner(detection["thread_id"], detection["turn_id"])
             if usage:
                 state = "waiting_reset" if reset else "waiting_poll"
                 when = (max(now + 30, reset + self.options["reset_grace_seconds"]) if reset
                         else now + self.options["conservative_poll_seconds"])
             else:
+                # The preset's first wait, as in v0.6.10; from v0.6.11 the Custom ladder's step for
+                # this attempt at the task, a Retry-After Codex named, and jitter, each only if set.
                 state = "waiting_backoff"
-                when = now + self.first_delay(category)
-            owner = self._owner(detection["thread_id"], detection["turn_id"])
+                when = now + self.detection_wait(category, thread_id=detection["thread_id"],
+                                                 turn_id=detection["turn_id"], owner=owner,
+                                                 retry_after=record.get("retry_after"))
             progress = self.source.turn_progress(detection["thread_id"], detection["turn_id"])
             carry = None if owner else self._legacy_carry(detection)
             # v0.6.11: a conversation that asks first, or only notifies, has what it detects held
@@ -123,11 +127,17 @@ class DetectMixin:
             # so does one new to this state or in a project not let resume, when Settings say so
             # (admission). None at the defaults, where every conversation is resumed automatically.
             hold = self.admission(detection["thread_id"], now)
+            # And what the two guards keep of it, each only while it is on (engine/guard.py): a
+            # conversation already over the context-cost limit waits for a person from the start.
+            facts = self.detected_facts(detection["thread_id"])
+            if hold is None and guards.over(self.policy_values, facts["context_tokens"]):
+                hold = guards.CONTEXT_HOLD
             # One transaction: the record can never exist without its real schedule and
             # the counters of the task it continues.
             if not self.store.register(detection, now, state=state, next_retry_at=when,
                                        owner_id=owner, failed_turn_progress=progress,
-                                       legacy_carry=carry, limits=self.limits(), hold=hold):
+                                       legacy_carry=carry, limits=self.limits(), hold=hold,
+                                       **facts):
                 continue
             registered = self.store.get(detection["interruption_id"])
             self.log(detection["thread_id"],

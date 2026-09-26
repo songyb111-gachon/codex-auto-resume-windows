@@ -63,8 +63,9 @@ LAYER = {_q(name): layer for layer, names in {
                # v0.6.11: which edition this is, found by looking beside the package; and quiet
                # hours and a postponement's times, on the local clock.
                "edition", "quiet",
-               # and which projects may resume without a person, by a key that is only a digest.
-               "projects"),
+               # and which projects may resume without a person, by a key that is only a digest;
+               # and the retry ladders and the two guards of a waiting recovery.
+               "projects", "ladder", "guards"),
     "adapters": ("store", "openstate", "codex", "windows", "compat", "compatio", "startup", "shortcut",
                  # v0.6.10-alpha: compat.py and compatio.py became compat/.
                  "compat.model", "compat.standing", "compat.report", "compat.permits", "compat.files", "compat.cache", "compat.probes", "compat.views", "compat.evaluator",
@@ -85,9 +86,13 @@ LAYER = {_q(name): layer for layer, names in {
                  # windows.py's other half - the CLI, the App Server, the pairing - joined it.
                  "codex.appserver", "codex.errors", "codex.history", "codex.labels",
                  "codex.pairing", "codex.paths", "codex.payload", "codex.schema",
-                 "codex.transport", "codex.usage", "codex.values"),
+                 "codex.transport", "codex.usage", "codex.values",
+                 # v0.6.11: a conversation's folder's git HEAD, as a digest, for the task-changed guard.
+                 "codex.workspace"),
     "engine": ("engine", "engine.announce", "engine.detect", "engine.dispatch",
-               "engine.freshness", "engine.options", "engine.outcome", "engine.reconcile"),
+               "engine.freshness", "engine.options", "engine.outcome", "engine.reconcile",
+               # v0.6.11: the waits and the two guards, as the engine asks them.
+               "engine.guard"),
     # v0.6.10-alpha: control.py became control/, ten files, `Control` composed from eight
     # mixins. `layer` is where the composition lives, so that the front holds no code.
     "control": ("control", "control.actions", "control.codexstart", "control.errors",

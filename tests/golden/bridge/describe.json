@@ -13,6 +13,7 @@
             "type": "integer",
             "min": 1,
             "max": 20,
+            "high": 8,
             "group": "limits"
           },
           {
@@ -21,6 +22,7 @@
             "type": "integer",
             "min": 1,
             "max": 10,
+            "high": 5,
             "group": "limits"
           },
           {
@@ -29,6 +31,7 @@
             "type": "integer",
             "min": 1,
             "max": 10,
+            "high": 8,
             "group": "limits"
           },
           {
@@ -38,8 +41,32 @@
             "choices": [
               "conservative",
               "normal",
-              "aggressive"
+              "aggressive",
+              "custom"
             ],
+            "waits": {
+              "conservative": [
+                15,
+                915,
+                915,
+                915,
+                915
+              ],
+              "normal": [
+                5,
+                905,
+                905,
+                905,
+                905
+              ],
+              "aggressive": [
+                3,
+                903,
+                903,
+                903,
+                903
+              ]
+            },
             "group": "limits"
           },
           {
@@ -473,6 +500,171 @@
               "every",
               "only_listed",
               "except_listed"
+            ],
+            "group": "limits"
+          },
+          {
+            "name": "retry_wait_1",
+            "default": "s5",
+            "type": "string",
+            "choices": [
+              "s5",
+              "s15",
+              "s30",
+              "m1",
+              "m2",
+              "m5",
+              "m10",
+              "m15",
+              "m30",
+              "h1",
+              "h2"
+            ],
+            "seconds": {
+              "s5": 5,
+              "s15": 15,
+              "s30": 30,
+              "m1": 60,
+              "m2": 120,
+              "m5": 300,
+              "m10": 600,
+              "m15": 900,
+              "m30": 1800,
+              "h1": 3600,
+              "h2": 7200
+            },
+            "group": "limits"
+          },
+          {
+            "name": "retry_wait_2",
+            "default": "m15",
+            "type": "string",
+            "choices": [
+              "m15",
+              "m30",
+              "h1",
+              "h2",
+              "h3",
+              "h6"
+            ],
+            "seconds": {
+              "m15": 900,
+              "m30": 1800,
+              "h1": 3600,
+              "h2": 7200,
+              "h3": 10800,
+              "h6": 21600
+            },
+            "group": "limits"
+          },
+          {
+            "name": "retry_wait_3",
+            "default": "m15",
+            "type": "string",
+            "choices": [
+              "m15",
+              "m30",
+              "h1",
+              "h2",
+              "h3",
+              "h6"
+            ],
+            "seconds": {
+              "m15": 900,
+              "m30": 1800,
+              "h1": 3600,
+              "h2": 7200,
+              "h3": 10800,
+              "h6": 21600
+            },
+            "group": "limits"
+          },
+          {
+            "name": "retry_wait_4",
+            "default": "m15",
+            "type": "string",
+            "choices": [
+              "m15",
+              "m30",
+              "h1",
+              "h2",
+              "h3",
+              "h6"
+            ],
+            "seconds": {
+              "m15": 900,
+              "m30": 1800,
+              "h1": 3600,
+              "h2": 7200,
+              "h3": 10800,
+              "h6": 21600
+            },
+            "group": "limits"
+          },
+          {
+            "name": "retry_wait_5",
+            "default": "m15",
+            "type": "string",
+            "choices": [
+              "m15",
+              "m30",
+              "h1",
+              "h2",
+              "h3",
+              "h6"
+            ],
+            "seconds": {
+              "m15": 900,
+              "m30": 1800,
+              "h1": 3600,
+              "h2": 7200,
+              "h3": 10800,
+              "h6": 21600
+            },
+            "group": "limits"
+          },
+          {
+            "name": "retry_jitter",
+            "default": false,
+            "type": "boolean",
+            "group": "limits"
+          },
+          {
+            "name": "chain_time_ceiling",
+            "default": "off",
+            "type": "string",
+            "choices": [
+              "off",
+              "h1",
+              "h3",
+              "h6",
+              "h12",
+              "h24"
+            ],
+            "group": "limits"
+          },
+          {
+            "name": "task_changed_guard",
+            "default": "off",
+            "type": "string",
+            "choices": [
+              "off",
+              "hold",
+              "tell"
+            ],
+            "group": "limits"
+          },
+          {
+            "name": "context_guard",
+            "default": "off",
+            "type": "string",
+            "choices": [
+              "off",
+              "show",
+              "above_100k",
+              "above_250k",
+              "above_500k",
+              "above_1m"
             ],
             "group": "limits"
           }

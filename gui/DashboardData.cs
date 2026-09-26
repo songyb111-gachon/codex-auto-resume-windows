@@ -242,7 +242,13 @@ namespace CodexAutoResume
         {
             // The reason's own name, as the notifications and the popup say it.
             string category = Str(row, "category") ?? "";
-            return S("reason." + category, S("field.recover_" + category, category.Replace('_', ' ')));
+            string kind = S("reason." + category, S("field.recover_" + category, category.Replace('_', ' ')));
+            // v0.6.11: the tokens its conversation had used, where the context-cost guard read them.
+            object tokens = Get(row, "context_tokens");
+            if (tokens is double)
+                kind += " · " + S("pending.tokens", "{n} tokens used", "n",
+                                  ((long)(double)tokens).ToString("N0", CultureInfo.CurrentCulture));
+            return kind;
         }
 
         private static bool HasOverlay(Dictionary<string, object> row, string name)
@@ -467,10 +473,18 @@ namespace CodexAutoResume
         private string[] Cells(Dictionary<string, object> row, bool pending)
         {
             return pending
-                ? new[] { Conversation(row), CodeLabel(row), KindLabel(row), null,
-                          ((int)Number(row, "recovery_attempts")).ToString(CultureInfo.CurrentCulture), "" }
+                ? new[] { Conversation(row), CodeLabel(row), KindLabel(row), null, Attempts(row), "" }
                 : new[] { Conversation(row), CodeLabel(row), KindLabel(row),
                           When(Number(row, "detected_at")), When(Number(row, "outcome_at")) };
+        }
+
+        /// v0.6.11: the attempts a task has used beside those it may have now - "3/4", and "19/6" after the limit was
+        /// lowered: the count is never cut down to the limit. A usage limit spends none, so it has no limit beside it.
+        private static string Attempts(Dictionary<string, object> row)
+        {
+            string used = ((int)Number(row, "recovery_attempts")).ToString(CultureInfo.CurrentCulture);
+            object limit = Get(row, "attempt_limit");
+            return limit is double ? used + "/" + ((int)(double)limit).ToString(CultureInfo.CurrentCulture) : used;
         }
 
         // What a filled list is made of, per list: every row's cells and the three things a row is

@@ -141,6 +141,8 @@ class ReasonCode(StrEnum):
     RECOVERY_BUDGET = "recovery_budget"
     NO_PROGRESS_BUDGET = "no_progress_budget"
     CHAIN_CAP = "chain_cap"
+    # v0.6.11: a transient task kept failing for longer than its time ceiling (ladder.py).
+    CHAIN_TIME_CAP = "chain_time_cap"
     QUEUE_LAUNCH_RETRY_LIMIT = "queue_launch_retry_limit"
     LATER_TURN_EXISTS = "later_turn_exists"
     LATEST_TURN_CHANGED = "latest_turn_changed"
@@ -272,6 +274,8 @@ class HoldKind(StrEnum):
     AFTER_SLEEP = "after_sleep"
     ACCOUNT_CHANGED = "account_changed"
     WORKSPACE_CHANGED = "workspace_changed"
+    # v0.6.11: its conversation has used more tokens than the context-cost guard allows (guards.py).
+    CONTEXT_COST = "context_cost"
 
 
 class ImportanceTier(StrEnum):
@@ -448,10 +452,60 @@ class ProjectPolicy(StrEnum):
 
 
 class RetryTiming(StrEnum):
-    """The retry ladders a person may choose (the keys of settings.RETRY_TIMING)."""
+    """The retry ladders a person may choose (settings.RETRY_TIMINGS): the three presets - the keys
+    of settings.RETRY_TIMING - and, from v0.6.11, Custom, the five waits a person picks (ladder.py)."""
     CONSERVATIVE = "conservative"
     NORMAL = "normal"
     AGGRESSIVE = "aggressive"
+    CUSTOM = "custom"
+
+
+class RetryWait(StrEnum):
+    """One wait of the Custom ladder, from a closed list (ladder.WAITS): a unit's letter and a number,
+    as a clock says it - never a number a person or a model types (v0.6.11)."""
+    S5 = "s5"
+    S15 = "s15"
+    S30 = "s30"
+    M1 = "m1"
+    M2 = "m2"
+    M5 = "m5"
+    M10 = "m10"
+    M15 = "m15"
+    M30 = "m30"
+    H1 = "h1"
+    H2 = "h2"
+    H3 = "h3"
+    H6 = "h6"
+
+
+class ChainCeiling(StrEnum):
+    """How long a task may keep failing with a temporary error before it stops (ladder.CEILINGS):
+    off, the default and v0.6.10's, or a number of hours (v0.6.11)."""
+    OFF = "off"
+    H1 = "h1"
+    H3 = "h3"
+    H6 = "h6"
+    H12 = "h12"
+    H24 = "h24"
+
+
+class TaskGuard(StrEnum):
+    """What a change to a task's workspace does when its recovery falls due (guards.TASK_GUARDS): nothing,
+    the default; hold it for a person; or say so on the notice of its continuation (v0.6.11)."""
+    OFF = "off"
+    HOLD = "hold"
+    TELL = "tell"
+
+
+class ContextGuard(StrEnum):
+    """The context-cost guard (guards.CONTEXT_GUARDS): off, the default; show how many tokens a
+    conversation has used; or also hold one that has used more than a number of them (v0.6.11)."""
+    OFF = "off"
+    SHOW = "show"
+    ABOVE_100K = "above_100k"
+    ABOVE_250K = "above_250k"
+    ABOVE_500K = "above_500k"
+    ABOVE_1M = "above_1m"
 
 
 class NotifyEvent(StrEnum):

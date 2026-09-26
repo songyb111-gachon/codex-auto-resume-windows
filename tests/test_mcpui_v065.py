@@ -145,7 +145,12 @@ class ComboMarkupTests(unittest.TestCase):
                                               # which projects may resume.
                                               "car-quiet_hours_start", "car-quiet_hours_end",
                                               "car-quiet_hours_days", "car-default_tier",
-                                              "car-new_conversation_policy", "car-project_policy"]))
+                                              "car-new_conversation_policy", "car-project_policy",
+                                              # and the Custom waits, the time ceiling and the two guards.
+                                              "car-retry_wait_1", "car-retry_wait_2", "car-retry_wait_3",
+                                              "car-retry_wait_4", "car-retry_wait_5",
+                                              "car-chain_time_ceiling", "car-task_changed_guard",
+                                              "car-context_guard"]))
         for drawn in observed:
             with self.subTest(drawn["id"]):
                 name = drawn["id"]

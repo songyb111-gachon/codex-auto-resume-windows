@@ -81,10 +81,26 @@ def gate_submission_safe(record, others_in_flight: int) -> tuple:
     return gate(PASS)
 
 
+def chain_span(record) -> float:
+    """How long a task has kept failing: from its first failure to this, its latest one. Waiting - a
+    postponement, quiet hours, a closed app - is never in it (v0.6.11, ladder.py)."""
+    span = (record.get("detected_at") or 0) - (record.get("chain_first_detected_at") or 0)
+    return span if span > 0 else 0.0
+
+
+def over_ceiling(record, limits: dict, usage_category: bool) -> bool:
+    """Whether a temporary task has kept failing past its time ceiling (`max_chain_seconds`, absent
+    at the defaults). A usage limit waits for its reset and has none."""
+    ceiling = limits.get("max_chain_seconds")
+    return not usage_category and ceiling is not None and chain_span(record) >= ceiling
+
+
 def gate_budgets(record, limits: dict, usage_category: bool) -> dict:
     result = {}
     if record.get("chain_continuations", 0) >= limits["max_chain_continuations"]:
         result["chain_budget"] = gate(BLOCK, "chain_cap")
+    elif over_ceiling(record, limits, usage_category):
+        result["chain_budget"] = gate(BLOCK, "chain_time_cap")
     else:
         result["chain_budget"] = gate(PASS)
     if not usage_category and record.get("recovery_attempts", 0) >= limits["max_recovery_attempts"]:

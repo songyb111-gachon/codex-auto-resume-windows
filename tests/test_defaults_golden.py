@@ -44,6 +44,15 @@ ADDED: dict = {
     "project_policy": ("every", "every project resumes, and no project of Codex's is read for it"),
     "project_keys_always": ("", "empty, and read only by the only-listed project policy"),
     "project_keys_never": ("", "empty, and read only by the except-listed project policy"),
+    "retry_wait_1": ("s5", "read only while retry_timing is custom, which it is not by default"),
+    "retry_wait_2": ("m15", "read only while retry_timing is custom, which it is not by default"),
+    "retry_wait_3": ("m15", "read only while retry_timing is custom, which it is not by default"),
+    "retry_wait_4": ("m15", "read only while retry_timing is custom, which it is not by default"),
+    "retry_wait_5": ("m15", "read only while retry_timing is custom, which it is not by default"),
+    "retry_jitter": (False, "off: every wait is exactly the ladder's, as in v0.6.10"),
+    "chain_time_ceiling": ("off", "no time ceiling: a task stops on its budgets alone, as in v0.6.10"),
+    "task_changed_guard": ("off", "off: nothing of a task's workspace is read, and nothing is held for it"),
+    "context_guard": ("off", "off: no token count is read, shown or held for"),
 }
 
 

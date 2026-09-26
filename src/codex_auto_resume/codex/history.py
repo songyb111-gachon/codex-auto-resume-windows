@@ -14,7 +14,7 @@ import json
 from pathlib import Path, PureWindowsPath
 import re
 import sqlite3
-from .. import failures, machine, projects
+from .. import failures, guards, machine, projects
 from ..domain import ids
 from .errors import SourceError
 from .labels import _label
@@ -22,6 +22,7 @@ from .values import (KNOWN_STATUSES, MAX_ITEM_BYTES, MAX_META_BYTES,
                      MAX_SCAN_BYTES, PROGRESS_ITEM_TYPES, _json,
                      _turn_status, epoch, normalize)
 from .paths import _safe_path
+from . import workspace
 from .payload import (_choose_reset, _content_has_marker,
                       _queue_has_marker, detect)
 
@@ -185,6 +186,48 @@ class HistoryMixin:
         keys = row.keys()
         return projects.key_for(row["project_id"] if "project_id" in keys else None,
                                 row["cwd"] if "cwd" in keys else None)
+
+    def task_facts(self, thread_id: str, *, fingerprint: bool = False, tokens: bool = False) -> dict:
+        """What the two guards of v0.6.11 read of a conversation (guards.py), and only what they ask:
+
+        * "print": the digest of its model, its approval mode and its folder's git HEAD
+          (codex/workspace.py) - None when the conversation cannot be read;
+        * "tokens": Codex's own count of the tokens it has used, only where the threads table has
+          a numeric `tokens_used` column - None where it has none, or holds no whole number.
+
+        Each column is read only if it is there (B5); a missing model or approval column is a
+        part of the digest that is always the same, never a change. Nothing but the digest and
+        the count leaves this method, and neither guard is on at the defaults, where it is never
+        asked."""
+        found = {"print": None, "tokens": None}
+        if not ids.is_uuid(thread_id) or not (fingerprint or tokens):
+            return found
+        try:
+            with self._db("state") as connection:
+                columns = {row[1]: str(row[2] or "").upper()
+                           for row in connection.execute("PRAGMA table_info(threads)")}
+                wanted = [name for name in ("cwd", "model", "approval_mode")
+                          if fingerprint and name in columns]
+                counted = tokens and "INT" in columns.get("tokens_used", "")
+                if counted:
+                    wanted.append("tokens_used")
+                if not wanted:
+                    return found
+                row = connection.execute(
+                    "SELECT %s FROM threads WHERE id=?" % ",".join(wanted), (thread_id,)).fetchone()
+        except (SourceError, sqlite3.Error, OSError, ValueError):
+            return found
+        if row is None:
+            return found
+        keys = row.keys()
+        if counted:
+            found["tokens"] = guards.tokens(row["tokens_used"])
+        if fingerprint:
+            text = {name: row[name] if name in keys and isinstance(row[name], str) else None
+                    for name in ("cwd", "model", "approval_mode")}
+            head = workspace.head_digest(text["cwd"]) if text["cwd"] else workspace.UNREADABLE
+            found["print"] = guards.fingerprint(text["model"], text["approval_mode"], head)
+        return found
 
     def progress(self, thread_id: str, after_ordinal: int) -> dict:
         """Content-free evidence that something happened after a given turn.

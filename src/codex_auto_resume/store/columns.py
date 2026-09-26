@@ -65,6 +65,10 @@ _SCHEMA_4_COLUMNS = (
     ("interruptions", "hold", "TEXT"),
     ("threads", "tier", "TEXT"),
     ("settings", "observe_only", "INTEGER NOT NULL DEFAULT 0 CHECK (observe_only IN (0, 1))"),
+    # What the two guards keep of a record (guards.py): a digest of what its task was working with,
+    # and its conversation's token count. Empty unless a guard was on when it was detected.
+    ("interruptions", "task_print", "TEXT"),
+    ("interruptions", "context_tokens", "INTEGER"),
 )
 
 _RECORD_COLUMNS = _V3_COLUMNS + tuple(name for table, name, _ in _SCHEMA_4_COLUMNS

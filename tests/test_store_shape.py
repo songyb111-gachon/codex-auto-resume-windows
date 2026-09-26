@@ -53,6 +53,8 @@ METHODS = {
     # v0.6.11: observe only's switch and its "would have been sent", a conversation first seen given
     # Only notify me, and a project's waiting records held - store/policy.py and store/claims.py.
     "set_observe_only", "record_would_send", "enrol_conversation", "hold_waiting",
+    # v0.6.11: the task-changed guard's hold, which takes the digest it found in the same write.
+    "hold_changed",
 }
 
 # Reachable as `store.<name>` before the split, and still.

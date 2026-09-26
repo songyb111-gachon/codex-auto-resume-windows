@@ -158,7 +158,8 @@ class DispatchMixin:
             return
         if vector["consent"][0] != machine.PASS:
             return self._would_send(row, vector, now)       # observe only: every other gate passed
-        if self._objection(row, vector, now):
+        # v0.6.11: the task-changed guard, which reads nothing at the defaults (engine/guard.py).
+        if self._guarded(row, vector, now) or self._objection(row, vector, now):
             return
         self.dispatch(row, app, vector, limits)
 
@@ -295,7 +296,7 @@ class DispatchMixin:
                             queue_id=response.get("queue_id"),
                             first_queued_at=reserved["first_queued_at"] or now)
             self.log(row["thread_id"], "continuation_submitted", None)
-            self.announce("starting", reserved)
+            self.announce("starting", reserved, **self._told_of(row))   # a Tell's line (engine/guard.py)
         elif outcome == "not_started":
             if response.get("error_code") == "queue_consent_refused":
                 target = "cancelled" if reserved["cancel_requested"] else self.waiting_state(reserved)

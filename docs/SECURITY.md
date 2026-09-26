@@ -198,6 +198,14 @@ this product's plugin and marketplace).
   time gets and which projects may resume only ever hold an interruption for a person when it is
   detected, and a project that cannot be read is held; a project is only a digest, it narrows what
   may be sent and never names a conversation, whose identity stays its exact UUID.
+- **The waits and the guards only hold back.** From v0.6.11 the Custom retry waits are picked from
+  closed lists, the second to fifth starting at the engine's own 15-minute floor, which with the five
+  continuations a day stays a constant of the engine, not a setting; jitter and a named Retry-After only
+  lengthen a wait, and the time ceiling only stops a task sooner. The task-changed guard reads a
+  folder's `.git/HEAD` as a file - git is never started - and never a share path, and keeps only a
+  digest; the context-cost guard reads one number of Codex's, and only where it is a numeric column.
+  A guard's hold is a hold like any other: the claim and the last look before the send refuse it, and
+  only Let it continue, bound to the exact record, lets it go. Each is off by default.
 - **Path confinement.** Owned directories are rejected if they are links, or if they resolve outside the
   configured home. The resolve-based check also catches NTFS junctions, which `is_symlink()` does not.
 - **No contention with the app's thread lock.** There is no byte-lock API anywhere in the adapter.

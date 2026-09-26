@@ -99,7 +99,8 @@
                 "enum": [
                   "conservative",
                   "normal",
-                  "aggressive"
+                  "aggressive",
+                  "custom"
                 ],
                 "description": "See the settings documentation."
               },
@@ -370,6 +371,108 @@
                   "except_listed"
                 ],
                 "description": "Which projects resume without a person: every (the default), only_listed (only projects a person set to Always on a task's row) or except_listed (every project but those set to Never). An interruption of any other project, or of one whose project cannot be read, waits for a person and is never dropped. Applies to interruptions detected after it is chosen."
+              },
+              "retry_wait_1": {
+                "type": "string",
+                "enum": [
+                  "s5",
+                  "s15",
+                  "s30",
+                  "m1",
+                  "m2",
+                  "m5",
+                  "m10",
+                  "m15",
+                  "m30",
+                  "h1",
+                  "h2"
+                ],
+                "description": "Wait 1 of the custom retry timing, read only while retry_timing is custom: the wait before attempt 1 at a task that failed with a temporary error. Whatever is chosen, one conversation gets a continuation at most every 15 minutes and 5 a day."
+              },
+              "retry_wait_2": {
+                "type": "string",
+                "enum": [
+                  "m15",
+                  "m30",
+                  "h1",
+                  "h2",
+                  "h3",
+                  "h6"
+                ],
+                "description": "Wait 2 of the custom retry timing, read only while retry_timing is custom: the wait before attempt 2 at a task that failed with a temporary error. Whatever is chosen, one conversation gets a continuation at most every 15 minutes and 5 a day."
+              },
+              "retry_wait_3": {
+                "type": "string",
+                "enum": [
+                  "m15",
+                  "m30",
+                  "h1",
+                  "h2",
+                  "h3",
+                  "h6"
+                ],
+                "description": "Wait 3 of the custom retry timing, read only while retry_timing is custom: the wait before attempt 3 at a task that failed with a temporary error. Whatever is chosen, one conversation gets a continuation at most every 15 minutes and 5 a day."
+              },
+              "retry_wait_4": {
+                "type": "string",
+                "enum": [
+                  "m15",
+                  "m30",
+                  "h1",
+                  "h2",
+                  "h3",
+                  "h6"
+                ],
+                "description": "Wait 4 of the custom retry timing, read only while retry_timing is custom: the wait before attempt 4 at a task that failed with a temporary error. Whatever is chosen, one conversation gets a continuation at most every 15 minutes and 5 a day."
+              },
+              "retry_wait_5": {
+                "type": "string",
+                "enum": [
+                  "m15",
+                  "m30",
+                  "h1",
+                  "h2",
+                  "h3",
+                  "h6"
+                ],
+                "description": "Wait 5 of the custom retry timing, read only while retry_timing is custom: the wait before attempt 5 at a task that failed with a temporary error. Whatever is chosen, one conversation gets a continuation at most every 15 minutes and 5 a day."
+              },
+              "retry_jitter": {
+                "type": "boolean",
+                "description": "Adds up to a fifth to each wait of a temporary failure, never taking any off. false (the default) waits exactly."
+              },
+              "chain_time_ceiling": {
+                "type": "string",
+                "enum": [
+                  "off",
+                  "h1",
+                  "h3",
+                  "h6",
+                  "h12",
+                  "h24"
+                ],
+                "description": "How long a task may keep failing with temporary errors before it stops: off (the default) or a number of hours, from its first failure to its latest. Waiting for a person, quiet hours or a closed app never count."
+              },
+              "task_changed_guard": {
+                "type": "string",
+                "enum": [
+                  "off",
+                  "hold",
+                  "tell"
+                ],
+                "description": "When a recovery falls due, compare its conversation's model, approval mode and folder's git HEAD with when it stopped: off (the default, nothing is read), hold (a change waits for a person) or tell (it is sent, and its notification says the task changed). Only a digest is kept."
+              },
+              "context_guard": {
+                "type": "string",
+                "enum": [
+                  "off",
+                  "show",
+                  "above_100k",
+                  "above_250k",
+                  "above_500k",
+                  "above_1m"
+                ],
+                "description": "Codex's token count for a conversation, where Codex keeps one: off (the default, nothing is read), show (on Pending), or above_100k to above_1m (also hold a recovery whose conversation has used more, for a person)."
               }
             },
             "additionalProperties": false

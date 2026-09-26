@@ -83,6 +83,9 @@ ENGINE_TO_STORE = {
     "thread_tier", "open_objection_window",
     # and observe only's "would have been sent", and a conversation first seen given Only notify me.
     "record_would_send", "enrol_conversation",
+    # and a record the task-changed guard holds for a person when it falls due (engine/guard.py) -
+    # never at the defaults, where the guard is off.
+    "hold_changed",
 }
 # What it asks of Codex itself, through the backend: is the app there, what is my usage, send
 # this, take it back, is the thread loaded. Five, and the split must not make it six by accident.
@@ -100,6 +103,8 @@ ENGINE_TO_SOURCE = {
     # v0.6.11: the key of a conversation's project, asked only when Settings let some projects
     # resume and not others (projects.asks) - never at the defaults.
     "project_key",
+    # and what the task-changed and context-cost guards read, asked only while one is on.
+    "task_facts",
 }
 # v0.6.11: what core asks the edition's plug, which it holds as `Guarded` (domain/plug.py). The
 # engine asks at the points of a tick, a dispatch and an ended turn; the claim asks the ledger,

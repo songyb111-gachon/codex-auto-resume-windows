@@ -11,6 +11,7 @@ they did:
     reconcile   what became of a continuation that was sent
     outcome     how the recovered turn ended, and what it costs the budgets
     announce    moving a record, and saying so
+    guard       the waits and the two guards of v0.6.11, each asking nothing at the defaults
 
 `tick` is here rather than in any of them: one pass of the loop is the whole of what this
 package does, and reading it should not mean opening seven files.
@@ -21,13 +22,15 @@ from .announce import NOTIFY_ON_STATE, AnnounceMixin  # noqa: F401
 from .detect import DetectMixin
 from .dispatch import DispatchMixin
 from .freshness import FreshnessMixin
+from .guard import GuardMixin
 from .options import (BACKOFF_LADDER, TRANSIENT_BACKOFF, OptionsMixin,  # noqa: F401
                       StoreView, backoff_delay, transient_delay)
 from .outcome import OutcomeMixin
 from .reconcile import SETTLED, UNSENT, ReconcileMixin, _UNDETERMINED  # noqa: F401
 
 
-class Engine(OptionsMixin, AnnounceMixin, FreshnessMixin, DetectMixin, ReconcileMixin, OutcomeMixin, DispatchMixin):
+class Engine(OptionsMixin, AnnounceMixin, FreshnessMixin, DetectMixin, ReconcileMixin, OutcomeMixin, DispatchMixin,
+             GuardMixin):
     """The part that decides.
     """
 

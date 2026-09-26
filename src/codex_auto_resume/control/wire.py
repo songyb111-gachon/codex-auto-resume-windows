@@ -60,6 +60,8 @@ class RecordView(TypedDict):
     hold: str | None
     # v0.6.11: observe only - when every check but consent last passed, or None.
     would_send_at: float | None
+    # v0.6.11: the conversation's token count the context-cost guard read, or None.
+    context_tokens: int | None
 
 
 class PendingRow(RecordView):
@@ -67,6 +69,9 @@ class PendingRow(RecordView):
     thread_enabled: bool
     # v0.6.11: the conversation's own tier, or None for the default in Settings.
     tier: str | None
+    # v0.6.11: the attempts a temporary failure may have now (None for a usage limit), shown beside
+    # recovery_attempts even when that is more.
+    attempt_limit: int | None
     name: str | None
     project: str | None
     cwd_basename: str | None
@@ -228,6 +233,11 @@ class SchemaField(TypedDict):
     max: NotRequired[int | float]
     max_length: NotRequired[int]
     multiline: NotRequired[bool]
+    # v0.6.11: the value above which a limit is warned of; each retry preset's waits as a person is
+    # shown them (ladder.preview); and each Custom wait's choices in seconds.
+    high: NotRequired[int]
+    waits: NotRequired[dict[str, list[int]]]
+    seconds: NotRequired[dict[str, int]]
 
 
 # Every contract, by name, for the test that holds each to the goldens.

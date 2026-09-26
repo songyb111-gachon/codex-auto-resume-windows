@@ -165,7 +165,16 @@
               "new_conversation_policy": "resume",
               "project_policy": "every",
               "project_keys_always": "",
-              "project_keys_never": ""
+              "project_keys_never": "",
+              "retry_wait_1": "s5",
+              "retry_wait_2": "m15",
+              "retry_wait_3": "m15",
+              "retry_wait_4": "m15",
+              "retry_wait_5": "m15",
+              "retry_jitter": false,
+              "chain_time_ceiling": "off",
+              "task_changed_guard": "off",
+              "context_guard": "off"
             }
           }
         }

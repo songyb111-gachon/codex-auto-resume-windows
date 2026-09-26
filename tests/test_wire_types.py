@@ -165,7 +165,8 @@ class ContractTests(unittest.TestCase):
     def test_a_row_is_a_record_and_what_the_listings_add(self):
         added = set(typing.get_type_hints(wire.PendingRow)) - set(typing.get_type_hints(wire.RecordView))
         # v0.6.11: and its conversation's own tier, beside whether it is switched on.
-        self.assertEqual(added, {"thread_enabled", "tier", "name", "project", "cwd_basename"})
+        # v0.6.11: and the attempts a temporary failure may have now, beside what it used.
+        self.assertEqual(added, {"thread_enabled", "tier", "name", "project", "cwd_basename", "attempt_limit"})
 
     def test_describe_record_builds_exactly_a_record_view(self):
         """The producer itself, not only its golden: every key describe_record writes."""

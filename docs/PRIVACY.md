@@ -232,7 +232,16 @@ resuming is safe. Codex's databases are opened read-only (SQLite `mode=ro` with
   default lets every project resume, and then this is never read): the conversation's project id
   and working directory, read to make one SHA-256 digest of the project - the id's, or else the
   directory's - and dropped. The digest decides whether an interruption waits for you when it is
-  detected; nothing is ever found by it.
+  detected; nothing is ever found by it;
+- from v0.6.11, and only while the task-changed guard is on (it is off by default, and then none of
+  this is read): the conversation's model and approval mode from their columns in Codex's thread
+  list, where they are there, its working directory, and that directory's `.git/HEAD` - one small
+  file, read as a file, never by running git, and not read at all for a network share path. The
+  three are made into one SHA-256 digest and dropped; the digest is kept on the recovery to tell,
+  when it falls due, whether the task changed;
+- from v0.6.11, and only while the context-cost guard is on (off by default): Codex's own count of
+  the tokens the conversation has used, from its thread list, where it keeps one as a number. The
+  count is kept on the recovery, shown in Pending and compared with the limit you chose.
 
 It also asks Windows content-free questions, chiefly two: which ChatGPT and Codex processes are
 running (process id, parent and executable path), to find the desktop app; and, through the
@@ -418,7 +427,9 @@ default (or wherever `CODEX_AUTO_RESUME_PLUGIN_HOME`, or failing that
   and the poll interval, and the switch for each conversation. From v0.6.11 it also has room
   for a time a recovery is postponed to, a word for why one waits for you, a word for how much
   a conversation asks first, an observe-only switch, and needs-you notices - each the failure's
-  and the conversation's ids, a failure category and times - all of it empty until you use it.
+  and the conversation's ids, a failure category and times - and, only while a guard is on, a
+  digest of what the task was working with and its conversation's token count; all of it empty
+  until you use it.
   Beside those it holds a bounded
   journal of what happened to each recovery - codes, ids, actor, turn references, counters and
   times, at most 5,000 entries and 90 days, with no prompt, reply or error text - and one row

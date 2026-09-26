@@ -289,7 +289,11 @@ believing they changed something.
 
 What `update_settings` can change: which classified failure categories are recovered, how many
 attempts each interruption gets, how many continuations one task gets in total (six by default,
-one to ten), when to stop after repeated no-progress recoveries, the retry timing preset, which
+one to ten), when to stop after repeated no-progress recoveries, the retry timing (a preset, or
+Custom with its five waits and optional jitter - the watcher still sends to one conversation at most
+every 15 minutes and five times a day, whatever is chosen), a time after which a task that keeps
+failing stops, the task-changed and context-cost guards (off by default; each only holds a recovery
+for the user or adds a line to its notification, and never sends anything sooner), which
 notifications appear, the interface language, the theme (light, dark, or following the system), the
 panel's own theme in Codex (`panel_theme`: the same as the theme, Codex's, light or dark), the
 continuation language, the message style

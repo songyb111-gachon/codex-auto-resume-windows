@@ -219,8 +219,10 @@ class GateVectorTests(unittest.TestCase):
 # v0.6.10 writes no recover_ or custom_message_ key for auth_service_transient, which nothing
 # produces (failures.RESERVED); a file that still has them reads as it did (test_settings).
 DEFAULT_FILE = """{
+  "chain_time_ceiling": "off",
   "codex_exe": null,
   "config_version": 2,
+  "context_guard": "off",
   "continuation_language": "follow",
   "continuation_style": "standard",
   "custom_message": null,
@@ -261,9 +263,16 @@ DEFAULT_FILE = """{
   "recover_timeout": true,
   "recover_usage_limit": true,
   "reduce_motion": false,
+  "retry_jitter": false,
   "retry_timing": "normal",
+  "retry_wait_1": "s5",
+  "retry_wait_2": "m15",
+  "retry_wait_3": "m15",
+  "retry_wait_4": "m15",
+  "retry_wait_5": "m15",
   "show_tray": true,
   "start_with_codex": false,
+  "task_changed_guard": "off",
   "theme": "system"
 }"""
 KOREAN = "\uc5ec\uae30\uc11c \uc774\uc5b4\uc11c \uacc4\uc18d\ud574 \uc8fc\uc138\uc694. {reason}"

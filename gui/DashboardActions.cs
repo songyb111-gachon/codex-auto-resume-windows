@@ -845,6 +845,10 @@ namespace CodexAutoResume
                 if (code == "PASS") continue;
                 string reason = result != null && result.Count > 1 ? Convert.ToString(result[1], CultureInfo.InvariantCulture) : null;
                 if (reason == "observe_only" && observed == null) { observed = reason; continue; }
+                // v0.6.11: a hold a guard put on it says what the guard found, not only that it waits.
+                string hold = Str(row, "hold");
+                if (reason == "held" && (hold == "workspace_changed" || hold == "context_cost"))
+                    return S("why." + hold, null);
                 return reason == null ? null : S("why." + reason, null);
             }
             return observed == null ? null : S("why." + observed, null);

@@ -115,8 +115,10 @@ _RECEIVERS = {
         "map": SETTINGS,
         "field": [("bridge:describe", "schema[]")],
         "styleField": [("bridge:describe", "schema[]")],
-        # The schema by field name, as BuildEditors indexes it.
+        # The schema by field name, as BuildEditors indexes it - and the limits' part of it, which the
+        # retry preview and the high-limit notice read (v0.6.11).
         "fields": [("bridge:describe", "schema{name}")],
+        "limitSchema": [("bridge:describe", "schema{name}")],
         # The Save request, built by setting name: each must be a setting the bridge stores.
         "jsonValues": SETTINGS,
         # LayoutAudit's input: a dashboard reply, with the compatibility reply's view beside it.

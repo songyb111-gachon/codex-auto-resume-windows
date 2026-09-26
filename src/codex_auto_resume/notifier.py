@@ -160,7 +160,9 @@ def build(event, detail, identity=None):
         return _notice("interruption", content, key=thread_id, chip=chip, chip_tone="waiting",
                        line=notify.objection_message(until))
     if event == "starting":
-        return _notice("starting", notify.starting_content(thread_id, identity), key=thread_id)
+        return _notice("starting", notify.starting_content(thread_id, identity,
+                                                           task_changed=detail.get("task_changed") is True),
+                       key=thread_id)
     if event == "result":
         if state in ("turn_started", "resumed"):
             return _notice("resumed", notify.resumed_content(thread_id, identity), key=thread_id)
@@ -171,6 +173,7 @@ def build(event, detail, identity=None):
                        notify.attempt_failed_content(thread_id, identity, certain=certain), key=thread_id)
     if event == "stopped":
         reason = ("no_progress" if state == "no_progress_exhausted"
+                  else "time" if detail.get("reason") == "chain_time_cap"
                   else "attempts" if state == "retry_budget_exhausted" else None)
         return _notice("stopped", notify.stopped_content(thread_id, identity, reason=reason), key=thread_id)
     return None

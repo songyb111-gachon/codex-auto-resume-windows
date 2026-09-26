@@ -897,7 +897,7 @@ function onOff(entry, onChange) {
   return booleanKind(entry) === 'check' ? checkItem(entry) : toggle(entry, onChange);
 }
 
-function numberField(entry) {
+function numberField(entry, onChange) {
   var input = document.createElement('input');
   input.type = 'number';
   input.id = 'car-' + entry.name;
@@ -908,6 +908,7 @@ function numberField(entry) {
   input.addEventListener('input', function () {
     DRAFT[entry.name] = Number(input.value);
     edited(entry.name);
+    if (onChange) onChange();
   });
   EDITORS[entry.name] = function () { return Number(input.value); };
   return settingRow(label(entry.name), '', input).row;
@@ -1134,15 +1135,23 @@ function pendingRow(row) {
   if (row.category && S['reason.' + row.category]) {
     meta.appendChild(element('span', null, t('reason.' + row.category, row.category)));
   }
-  [[t('panel.col_next', 'Next check'), nextCheck(row), row.eligible_at],
-   [t('panel.col_attempts', 'Attempts'), String(row.recovery_attempts === undefined ? 0 : row.recovery_attempts)]
-  ].forEach(function (pair) {
+  // The attempts used beside those it may have now: "19/6" after the limit was lowered (v0.6.11).
+  var attempts = String(row.recovery_attempts === undefined ? 0 : row.recovery_attempts)
+    + (typeof row.attempt_limit === 'number' ? '/' + row.attempt_limit : '');
+  var facts = [[t('panel.col_next', 'Next check'), nextCheck(row), row.eligible_at],
+               [t('panel.col_attempts', 'Attempts'), attempts]];
+  facts.forEach(function (pair) {
     var fact = element('span', null, pair[0] + ' ');
     var said = fact.appendChild(element('b', null, pair[1]));
     // A time that becomes "due now" while the page is open, which retell() says again when it comes.
     if (typeof pair[2] === 'number') said.setAttribute('data-due', String(pair[2]));
     meta.appendChild(fact);
   });
+  // v0.6.11: the tokens its conversation had used, where the context-cost guard read them.
+  if (typeof row.context_tokens === 'number') {
+    meta.appendChild(element('span', null, fill('pending.tokens', '{n} tokens used',
+                                                {n: groupDigits(row.context_tokens)})));
+  }
   main.appendChild(meta);
   item.appendChild(main);
   if (typeof row.thread_enabled === 'boolean' && row.thread_id) {
@@ -1150,6 +1159,11 @@ function pendingRow(row) {
   }
   if (CONFIRM_ROW && CONFIRM_ROW === row.interruption_id) item.appendChild(confirmOff(row, shown));
   return item;
+}
+
+// A count with its thousands apart, the same in every language the page speaks.
+function groupDigits(count) {
+  return String(Math.max(0, Math.floor(count))).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
 function threadSwitch(row, shown) {
@@ -1431,18 +1445,85 @@ function renderRecovery(status, schema, now) {
   if (limits.length) {
     var fold = folding('limits', t('group.limits', 'Limits'), false, 'inner');
     fold.node.style.marginTop = '4px';
+    // v0.6.11: the line that says what the retry timing comes to, and the notice while a limit is high.
+    var waits = element('p', 'help');
+    var high = element('p', 'callout', t('warn.high_limits', 'These limits are high: a task that keeps failing can be continued many times before it stops, and every continuation uses your Codex usage.'));
+    var retell = function () {
+      waits.textContent = retryPreview(limits);
+      high.hidden = !highLimits(limits);
+    };
     limits.forEach(function (entry) {
-      if (entry.choices) {
+      if (entry.type === 'boolean') {
+        fold.body.appendChild(toggle(entry, retell));
+        if (entry.name === 'retry_jitter') fold.body.appendChild(waits);
+      } else if (entry.choices) {
         fold.body.appendChild(choiceField(entry, entry.choices.map(function (choice) {
           return {value: choice, text: t('choice.' + choice, choice)};
-        }), '').row);
+        }), limitHelp(entry.name), retell).row);
       } else {
-        fold.body.appendChild(numberField(entry));
+        fold.body.appendChild(numberField(entry, retell));
+        if (entry.name === 'max_chain_continuations') fold.body.appendChild(high);
       }
     });
+    retell();
     node.appendChild(fold.node);
   }
   return node;
+}
+
+// v0.6.11: the help the new limits carry in the panel, as in the Dashboard; '' for every other limit.
+function limitHelp(name) {
+  if (name === 'retry_wait_5') return t('help.retry_wait_5', '');
+  if (name === 'chain_time_ceiling') return t('help.chain_time_ceiling', '');
+  if (name === 'task_changed_guard') return t('help.task_changed_guard', '');
+  if (name === 'context_guard') return t('help.context_guard', '');
+  return '';
+}
+
+// A wait in the words the rest of the page uses: seconds, minutes and seconds, or hours and minutes.
+function duration(seconds) {
+  var total = Math.max(0, Math.round(Number(seconds) || 0));
+  if (total < 60) return fill('time.seconds', '{n}s', {n: total});
+  if (total < 3600) {
+    return fill('time.minutes', '{n}m', {n: Math.floor(total / 60)})
+      + (total % 60 ? ' ' + fill('time.seconds', '{n}s', {n: total % 60}) : '');
+  }
+  return fill('time.hours', '{n}h', {n: Math.floor(total / 3600)})
+    + ((total % 3600) >= 60 ? ' ' + fill('time.minutes', '{n}m', {n: Math.floor((total % 3600) / 60)}) : '');
+}
+
+// The waits before attempts 1 to 5 as the watcher keeps them (ladder.preview), as the page stands now:
+// a preset's from the table the schema carries on retry_timing, Custom's the five chosen, whose lists
+// already start at the floor. '' when the schema has none of it.
+function retryPreview(limits) {
+  var byName = {};
+  limits.forEach(function (entry) { byName[entry.name] = entry; });
+  var timing = byName.retry_timing;
+  if (!timing) return '';
+  var chosen = read('retry_timing');
+  var seconds = [];
+  if (chosen === 'custom') {
+    for (var step = 1; step <= 5; step++) {
+      var entry = byName['retry_wait_' + step];
+      var table = entry && entry.seconds;
+      if (!table || typeof table[read(entry.name)] !== 'number') return '';
+      seconds.push(table[read(entry.name)]);
+    }
+  } else {
+    seconds = (timing.waits && timing.waits[chosen]) || [];
+  }
+  if (!seconds.length) return '';
+  var line = fill('retry.preview', 'Waits before attempts 1 to 5, if each continuation fails at once: {waits}',
+                  {waits: seconds.map(duration).join(' · ')});
+  if (read('retry_jitter') === true) line += ' ' + t('retry.preview_jitter', 'Each may be up to a fifth longer.');
+  return line;
+}
+
+// Whether any limit is above the "high" its schema gives it.
+function highLimits(limits) {
+  return limits.some(function (entry) {
+    return typeof entry.high === 'number' && Number(read(entry.name)) > entry.high;
+  });
 }
 
 function renderNotifications(schema) {

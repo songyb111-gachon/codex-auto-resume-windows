@@ -77,6 +77,9 @@ def describe_record(row, *, enabled=True, thread_enabled=True, watcher=None) -> 
         # v0.6.11: observe only - when every check but consent last passed, so it would have been
         # sent; None for every record that is not only observed.
         "would_send_at": machine.would_send_at(row),
+        # v0.6.11: its conversation's token count, as the context-cost guard read it (guards.py);
+        # None unless that guard was on.
+        "context_tokens": row.get("context_tokens"),
     }
 
 
@@ -89,6 +92,9 @@ class RecordsMixin:
         disabled = store.disabled_threads()
         tiers = store.thread_tiers()
         watcher = self._watcher(store)
+        # v0.6.11: the attempts a temporary failure may have now, beside what it has used - which may
+        # be more, after the limit was lowered ("19/6"): a count is never cut down to the limit.
+        attempts = self.get_settings().get("max_recovery_attempts")
         listed = []
         for row in rows:
             identity = {}
@@ -103,6 +109,8 @@ class RecordsMixin:
             item.update({"thread_enabled": row["thread_id"] not in disabled,
                          # Its conversation's own tier, or None: the default in Settings.
                          "tier": tiers.get(row["thread_id"]),
+                         # None for a usage limit, which spends no attempt.
+                         "attempt_limit": None if row["category"] == "usage_limit" else attempts,
                          "name": identity.get("name"), "project": identity.get("project"),
                          "cwd_basename": identity.get("cwd_basename")})
             listed.append(item)

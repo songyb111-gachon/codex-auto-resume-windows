@@ -247,6 +247,11 @@ class ControlKindTests(unittest.TestCase):
         self.assertEqual(len(observe), 1)
         self.assertEqual((observe[0]["cls"], observe[0]["role"], observe[0]["first"]), ("switch", "switch", False))
         observed["recovery"] = [i for i in observed["recovery"] if i is not observe[0]]
+        # And jitter, in the limits under them, which lengthens every wait: a switch too.
+        jitter = [i for i in observed["recovery"] if i["text"] == ENGLISH["field.retry_jitter"]]
+        self.assertEqual(len(jitter), 1)
+        self.assertEqual((jitter[0]["cls"], jitter[0]["role"], jitter[0]["first"]), ("switch", "switch", False))
+        observed["recovery"] = [i for i in observed["recovery"] if i is not jitter[0]]
         self.assertEqual(len(observed["recovery"]), len(recover))
         self.assertEqual(sorted(i["text"] for i in observed["recovery"]),
                          sorted(ENGLISH["field." + e["name"]] for e in recover))

@@ -60,10 +60,12 @@ def normalize(row) -> dict | None:
         return None
     if completed is not None and completed < started:
         return None
+    wait = None
     if "category" in row:
         # Already normalized once: keep the decision rather than reclassifying from
         # fields that no longer exist, so normalize() stays idempotent.
         category = row["category"] if row["category"] in failures.CATEGORIES else None
+        wait = failures.wait_seconds(row.get("retry_after"))
     else:
         if "error_json" in row:
             err = _json(row["error_json"])
@@ -75,6 +77,12 @@ def normalize(row) -> dict | None:
         # The raw error is classified here and then dropped: only the category name
         # continues past this point, so no error text can reach state, logs or a toast.
         category = failures.classify(info, text) if status == "failed" else None
-    return {"thread_id": tid, "turn_id": turn, "status": status,
-            "started_at": started, "completed_at": completed,
-            "ordinal": ordinal, "category": category}
+        # v0.6.11: a Retry-After the structured error names, kept as a number of seconds for a
+        # temporary failure only - the least its first wait may be (ladder.py) - and nothing else.
+        wait = failures.retry_after(info) if category in failures.TRANSIENT else None
+    found = {"thread_id": tid, "turn_id": turn, "status": status,
+             "started_at": started, "completed_at": completed,
+             "ordinal": ordinal, "category": category}
+    if wait is not None and category in failures.TRANSIENT:
+        found["retry_after"] = wait
+    return found

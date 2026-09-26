@@ -82,7 +82,16 @@
             "new_conversation_policy": "resume",
             "project_policy": "every",
             "project_keys_always": "",
-            "project_keys_never": ""
+            "project_keys_never": "",
+            "retry_wait_1": "s5",
+            "retry_wait_2": "m15",
+            "retry_wait_3": "m15",
+            "retry_wait_4": "m15",
+            "retry_wait_5": "m15",
+            "retry_jitter": false,
+            "chain_time_ceiling": "off",
+            "task_changed_guard": "off",
+            "context_guard": "off"
           }
         },
         "pending": [
@@ -170,8 +179,10 @@
             "not_before": null,
             "hold": null,
             "would_send_at": null,
+            "context_tokens": null,
             "thread_enabled": true,
             "tier": null,
+            "attempt_limit": null,
             "name": "example-project",
             "project": null,
             "cwd_basename": null
@@ -260,8 +271,10 @@
             "not_before": null,
             "hold": null,
             "would_send_at": null,
+            "context_tokens": null,
             "thread_enabled": true,
             "tier": null,
+            "attempt_limit": 4,
             "name": "example-service",
             "project": null,
             "cwd_basename": null
@@ -352,8 +365,10 @@
             "not_before": null,
             "hold": null,
             "would_send_at": null,
+            "context_tokens": null,
             "thread_enabled": true,
             "tier": null,
+            "attempt_limit": 4,
             "name": "example-service",
             "project": null,
             "cwd_basename": null
@@ -442,8 +457,10 @@
             "not_before": null,
             "hold": null,
             "would_send_at": null,
+            "context_tokens": null,
             "thread_enabled": true,
             "tier": null,
+            "attempt_limit": null,
             "name": "example-project",
             "project": null,
             "cwd_basename": null
@@ -479,8 +496,10 @@
             "not_before": null,
             "hold": null,
             "would_send_at": null,
+            "context_tokens": null,
             "thread_enabled": false,
             "tier": null,
+            "attempt_limit": 4,
             "name": null,
             "project": null,
             "cwd_basename": null
@@ -516,8 +535,10 @@
             "not_before": null,
             "hold": null,
             "would_send_at": null,
+            "context_tokens": null,
             "thread_enabled": true,
             "tier": null,
+            "attempt_limit": null,
             "name": "example-docs",
             "project": null,
             "cwd_basename": null
@@ -553,8 +574,10 @@
             "not_before": null,
             "hold": null,
             "would_send_at": null,
+            "context_tokens": null,
             "thread_enabled": true,
             "tier": null,
+            "attempt_limit": 4,
             "name": "example-app",
             "project": null,
             "cwd_basename": null
@@ -590,8 +613,10 @@
             "not_before": null,
             "hold": null,
             "would_send_at": null,
+            "context_tokens": null,
             "thread_enabled": true,
             "tier": null,
+            "attempt_limit": 4,
             "name": "example-service",
             "project": null,
             "cwd_basename": null
@@ -627,8 +652,10 @@
             "not_before": null,
             "hold": null,
             "would_send_at": null,
+            "context_tokens": null,
             "thread_enabled": true,
             "tier": null,
+            "attempt_limit": 4,
             "name": "example-app",
             "project": null,
             "cwd_basename": null
@@ -664,8 +691,10 @@
             "not_before": null,
             "hold": null,
             "would_send_at": null,
+            "context_tokens": null,
             "thread_enabled": true,
             "tier": null,
+            "attempt_limit": null,
             "name": "example-project",
             "project": null,
             "cwd_basename": null
@@ -701,8 +730,10 @@
             "not_before": null,
             "hold": null,
             "would_send_at": null,
+            "context_tokens": null,
             "thread_enabled": true,
             "tier": null,
+            "attempt_limit": 4,
             "name": "example-docs",
             "project": null,
             "cwd_basename": null

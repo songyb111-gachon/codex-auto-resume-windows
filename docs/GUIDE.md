@@ -244,7 +244,10 @@ them - from v0.6.11 with a sentence under them saying, in words, what the first 
 pass is waiting for: the Codex app, the conversation being opened, the usage reset, and so on. The
 **Timeline** of a recovery lists, after its journal, what delivery showed of each continuation: when
 it was seen starting a turn in its conversation, that it was handed to Codex and not seen yet, or
-that its delivery is uncertain - watched for a day and never sent again. The **Auto-resume** switch on each row turns automatic recovery off or on for that
+that its delivery is uncertain - watched for a day and never sent again. From v0.6.11 the
+**Attempts** column shows what a task has used beside what it may have now - `3/4`, or `19/6` after
+the limit was lowered, never cut down to the limit - and while the context-cost guard is on the kind
+of interruption says how many tokens its conversation had used. The **Auto-resume** switch on each row turns automatic recovery off or on for that
 task's conversation. The click carries the exact interruption and conversation the row was
 drawn from, and a click that reaches a task which has since finished, disappeared or turned
 out to belong to another conversation is refused and changes nothing; either way the switch sends
@@ -733,7 +736,7 @@ The Settings page is split into five sections:
 | Automatic recovery | Which classified kinds of interruption are recovered, one check box each, and from v0.6.11 Observe only |
 | Continuation message | The language and style of the message sent to Codex, your own Custom message, and a Preview of the exact text |
 | Appearance | The theme - Use system setting, Light or Dark - the panel's Theme in Codex, the Design - Soft, Classic (v0.6.2) or Plain - and Reduce motion |
-| Advanced | Attempts per interruption, when to give up after recoveries that produce nothing, continuations per task, retry timing, and from v0.6.11 quiet hours, how a conversation resumes, what a conversation seen for the first time gets and which projects may resume |
+| Advanced | Attempts per interruption, when to give up after recoveries that produce nothing, continuations per task, retry timing, and from v0.6.11 quiet hours, how a conversation resumes, what a conversation seen for the first time gets, which projects may resume, the Custom retry waits and jitter, a time ceiling, and the task-changed and context-cost guards |
 
 Every kind of interruption the watcher recovers has a check box, ticked by default. From v0.6.3 to
 v0.6.9 there was one more, **Sign-in service failures**, for a sign-in service that is temporarily
@@ -804,6 +807,50 @@ holds what that project has waiting; letting one resume lets nothing go that alr
 A project is the one Codex files the conversation under, or else the folder it works in, and only a
 64-digit digest of it is kept in the settings: never a name or a path. At the default Codex's project
 is not even read for this.
+
+### Custom waits, a time ceiling and two guards
+
+From v0.6.11 Advanced has four more things. Each is off, or unused, by default, and then the watcher
+waits and sends exactly as it always did. None can send anything sooner or skip a check: each can only
+make a recovery wait longer, stop sooner or wait for you.
+
+**Retry timing** gains **Custom**: five waits you pick from lists, for a task that fails with a
+temporary error. The first comes before the task's first continuation, the second after a continuation
+of the same task failed again, and so on, and the fifth is used for every attempt after it. The first
+may be as short as 5 seconds; each later one starts at 15 minutes, which is the watcher's own floor
+and not a setting - whatever is chosen, one conversation gets a continuation at most every 15 minutes
+and at most five times in any 24 hours. A rate limit's first wait is still at least a minute, and where
+Codex's structured error names a wait (a Retry-After) the first wait is never shorter than that; no
+Codex build has been seen to write one. A line under the waits says what the chosen timing comes to if
+each continuation fails at once - for Normal, 5 seconds and then about 15 minutes each - and the panel
+in Codex says the same. **Add up to a fifth to each wait** (jitter) lengthens every wait of a temporary
+failure by a random amount of up to a fifth, and never shortens one.
+
+**Stop a task that keeps failing after** is off by default. From 1 to 24 hours, it stops a task whose
+temporary failures have gone on for longer than that, measured from its first failure to its latest,
+so time spent postponed, in quiet hours or waiting for the app never counts. It stops the task the way
+running out of attempts does - **Give attempts back** gives the time back too - and does not touch
+usage limits.
+
+**If the task changed while it waited** - the task-changed guard - compares, just before a
+continuation is sent, the conversation's model and approval mode and the git branch or commit of its
+folder with what they were when it stopped. The branch or commit is the folder's `.git/HEAD`, read as a
+file; git is never run. **Hold it for me** keeps a task that changed waiting for you - **Let it
+continue** lets it go, and only a further change holds it again - and **Resume, and tell me** sends it
+and says on its notification that the task changed. A folder that could be read when the task stopped
+and cannot be read now counts as changed, and a folder given as a network share path is not read at
+all. Only a digest of the three is kept. It applies to interruptions detected after it is chosen.
+
+**Tokens a conversation has used** - the context-cost guard - reads Codex's own count when an
+interruption is detected, where Codex's list of conversations keeps one as a number. **Show them in
+Pending** puts the count beside the task; **Hold above** 100,000 to 1,000,000 also keeps a task whose
+conversation has used more waiting for you from the start. Where Codex keeps no such count, the guard
+does nothing. It applies to interruptions detected after it is chosen.
+
+When **Attempts per interruption**, **Stop after this many turns without progress** or
+**Continuations per task** is set above 8, 5 or 8, a notice under them says so, in the Dashboard and in
+the panel: a task that keeps failing can then be continued many times, and every continuation uses
+your Codex usage.
 
 ### Languages
 

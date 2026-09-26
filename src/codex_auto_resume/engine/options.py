@@ -7,8 +7,9 @@ style or a language changed while a recovery waits applies to that recovery.
 from __future__ import annotations
 
 from contextlib import nullcontext
+import random
 import time
-from .. import machine, projects, quiet, settings as policy
+from .. import ladder, machine, projects, quiet, settings as policy
 from ..domain.plug import guard
 from ..domain.vocabulary import ImportanceTier, NewConversationPolicy
 
@@ -147,6 +148,10 @@ class OptionsMixin:
                         "recoverable_categories": None,
                         **(options or {})}
         self._usage_cache = None
+        # v0.6.11: records whose task changed under the task-changed guard's Tell, said on their
+        # continuation's notice (engine/guard.py); and jitter's draw, asked only while it is on.
+        self._told = set()
+        self._random = random.Random()
         self._declined = set()
         self._announced = set()
         self._stale_since = {}
@@ -174,10 +179,16 @@ class OptionsMixin:
         self.options["recoverable_categories"] = frozenset(
             category for category in policy.CONFIGURABLE_CATEGORIES
             if policy.category_enabled(values, category))
+        # v0.6.11: how long a task may keep failing with a temporary error; None, the default, is no
+        # ceiling, and then the budgets are exactly the three there were.
+        self.options["max_chain_seconds"] = ladder.ceiling(values)
 
     def limits(self) -> dict:
-        return {name: self.options[name] for name in
-                ("max_recovery_attempts", "max_no_progress", "max_chain_continuations")}
+        found = {name: self.options[name] for name in
+                 ("max_recovery_attempts", "max_no_progress", "max_chain_continuations")}
+        if self.options.get("max_chain_seconds") is not None:
+            found["max_chain_seconds"] = self.options["max_chain_seconds"]
+        return found
 
     def recovers(self, category) -> bool:
         """Whether the user has left this category of failure switched on.

@@ -238,7 +238,9 @@ def show_content(content: dict, *, silent: bool = False) -> bool:
 
 # v0.6.11: what the detection notice says of an interruption its conversation holds for a person
 # (machine.hold_for_tier) - never that it will resume - and what the objection window's says.
-HELD_MESSAGES = {"ask": "toast_held", "notify_only": "toast_notify_only"}
+HELD_MESSAGES = {"ask": "toast_held", "notify_only": "toast_notify_only",
+                 # v0.6.11: the two guards' holds (guards.py), said as what changed or grew.
+                 "workspace_changed": "toast_workspace_changed", "context_cost": "toast_context_cost"}
 
 
 def held_message(hold) -> str:
@@ -331,10 +333,15 @@ def cancelled(thread_id: str) -> bool:
 # a message, never an attempt. Only the detection toast carries a button, because
 # cancelling is the one action that fails in the safe direction.
 
-def starting_content(thread_id: str, identity=None) -> dict:
+def starting_content(thread_id: str, identity=None, *, task_changed: bool = False) -> dict:
+    """A continuation being sent now. `task_changed` (v0.6.11, the task-changed guard's Tell) adds to
+    its one line that the task's workspace changed since it stopped - the same three lines (D6)."""
+    body = l10n.message("toast_starting_body")
+    if task_changed is True:
+        body += " · " + l10n.message("toast_task_changed")
     return _content(headline(identity),
                     _origin_line(identity, headline(identity), thread_id),
-                    extra=[l10n.message("toast_starting_body")])
+                    extra=[body])
 
 
 def starting(thread_id: str, identity=None) -> bool:
@@ -373,6 +380,8 @@ def stopped_content(thread_id: str, identity=None, *, reason: str | None = None)
     title = l10n.message("toast_exhausted_title")
     body = (l10n.message("toast_no_progress_body") if reason == "no_progress"
             else l10n.message("toast_exhausted_body") if reason == "attempts"
+            # v0.6.11: the time ceiling, which a task reaches with attempts to spare.
+            else l10n.message("toast_time_cap_body") if reason == "time"
             else l10n.message("toast_stopped_body"))
     return _content(title, _origin_line(identity, title, thread_id), extra=[body])
 

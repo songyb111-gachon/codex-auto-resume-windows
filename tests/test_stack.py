@@ -64,7 +64,9 @@ def _q(name: str) -> str:
 ITEM = {_q(name): item for item, names in {
     "watcher": ("app", "runtime", "runtime.app", "runtime.loop", "runtime.toasts"),
     "engine": ("engine", "engine.announce", "engine.detect", "engine.dispatch", "engine.freshness",
-               "engine.options", "engine.outcome"),
+               "engine.options", "engine.outcome",
+               # v0.6.11: the waits and the two guards, as the engine asks them.
+               "engine.guard"),
     "policy": ("failures", "reasons", "settings", "continuation", "openstate", "domain.gates",
                # what may be done at a tier, and with whose word: policy, not registry data
                "compat.permits",
@@ -72,8 +74,9 @@ ITEM = {_q(name): item for item, names in {
                # is - the "under which edition" of HOMELESS below, in code
                "domain.plug", "edition",
                # v0.6.11: quiet hours and a postponement's times - when, by the local clock - and
-               # which projects may resume without a person.
-               "quiet", "projects"),
+               # which projects may resume without a person; the retry ladders, which a person
+               # chooses; and the two guards that may hold a waiting recovery.
+               "quiet", "projects", "ladder", "guards"),
     "machine": ("machine", "domain", "domain.errors", "domain.ids", "domain.public",
                 "domain.states", "domain.vocabulary",
                 # v0.6.11: the registry's vocabularies, out of domain/vocabulary.py.
@@ -90,7 +93,9 @@ ITEM = {_q(name): item for item, names in {
               "codex.usage", "codex.values", "compat", "compatio", "windows",
               "compat.model", "compat.standing", "compat.report", "compat.files", "compat.cache", "compat.probes", "compat.views", "compat.evaluator",
               # v0.6.10: what others report, read beside the registry and never by it.
-              "compat.reported"),
+              "compat.reported",
+              # v0.6.11: a conversation's folder's git HEAD, as a digest.
+              "codex.workspace"),
     "control": ("control", "control.actions", "control.codexstart", "control.errors",
                 "control.layer", "control.policy", "control.preview", "control.records",
                 "control.seen", "control.state", "control.watcher", "control.wire",

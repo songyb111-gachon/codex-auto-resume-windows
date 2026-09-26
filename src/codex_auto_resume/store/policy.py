@@ -159,6 +159,31 @@ class PolicyMixin:
             self._event(connection, now, "tier_set")
             return True
 
+    def hold_changed(self, interruption_id: str, task_print: str, now: float, *,
+                     actor: str = "engine") -> bool:
+        """The task-changed guard's hold (v0.6.11, guards.py): hold one record for a person
+        (`workspace_changed`) and make `task_print`, what the guard found, its digest - in one
+        transaction, so a person's Let it continue lets it go and only a further change holds it
+        again. Only while it still waits unsent and nothing holds it; False when it was not held."""
+        _timestamp(now, "now")
+        if not (isinstance(task_print, str) and len(task_print) == 64
+                and all(character in "0123456789abcdef" for character in task_print)):
+            raise StoreError("Invalid task_print")
+        waiting = sorted(WAITING)
+        with self._transaction() as connection:
+            value = connection.execute(
+                "SELECT * FROM interruptions WHERE interruption_id=? AND hold IS NULL "
+                "AND submitted_at IS NULL AND cancel_requested=0 AND task_print IS NOT NULL "
+                "AND state IN (%s)" % ",".join("?" for _ in waiting), (interruption_id, *waiting)).fetchone()
+            if value is None:
+                return False
+            row = _validated_record(dict(value))
+            connection.execute("UPDATE interruptions SET hold=?, task_print=? WHERE interruption_id=?",
+                               ("workspace_changed", task_print, interruption_id))
+            self._event(connection, now, "held", record=row, from_state=row["state"],
+                        to_state=row["state"], actor=actor)
+            return True
+
     def hold_waiting(self, interruption_ids, hold: str, now: float, *, actor: str = "gui") -> int:
         """Hold these records for a person (`hold`), each only while it still waits unsent and
         nothing holds it yet - so this can only ever hold more back. Returns how many it held."""

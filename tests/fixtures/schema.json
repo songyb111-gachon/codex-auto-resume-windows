@@ -450,6 +450,20 @@
             "notnull": false,
             "default": null,
             "primary_key": 0
+          },
+          {
+            "name": "task_print",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "context_tokens",
+            "type": "INTEGER",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
           }
         ],
         "indexes": {
@@ -1104,6 +1118,20 @@
           {
             "name": "hold",
             "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "task_print",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "context_tokens",
+            "type": "INTEGER",
             "notnull": false,
             "default": null,
             "primary_key": 0
@@ -1764,6 +1792,20 @@
             "notnull": false,
             "default": null,
             "primary_key": 0
+          },
+          {
+            "name": "task_print",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "context_tokens",
+            "type": "INTEGER",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
           }
         ],
         "indexes": {
@@ -2418,6 +2460,20 @@
           {
             "name": "hold",
             "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "task_print",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "context_tokens",
+            "type": "INTEGER",
             "notnull": false,
             "default": null,
             "primary_key": 0

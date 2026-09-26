@@ -65,6 +65,23 @@ QUIET_AND_TIERS = {
                       "project but those set to Never). An interruption of any other project, or of "
                       "one whose project cannot be read, waits for a person and is never dropped. "
                       "Applies to interruptions detected after it is chosen.",
+    # And the Custom waits, jitter, the time ceiling and the two guards (ladder.py, guards.py).
+    **{field: "Wait %d of the custom retry timing, read only while retry_timing is custom: the "
+              "wait before attempt %d at a task that failed with a temporary error. Whatever is "
+              "chosen, one conversation gets a continuation at most every 15 minutes and 5 a day."
+              % (number, number) for number, field in enumerate(policy.STEP_FIELDS, 1)},
+    "retry_jitter": "Adds up to a fifth to each wait of a temporary failure, never taking any off. "
+                    "false (the default) waits exactly.",
+    "chain_time_ceiling": "How long a task may keep failing with temporary errors before it stops: "
+                          "off (the default) or a number of hours, from its first failure to its "
+                          "latest. Waiting for a person, quiet hours or a closed app never count.",
+    "task_changed_guard": "When a recovery falls due, compare its conversation's model, approval "
+                          "mode and folder's git HEAD with when it stopped: off (the default, nothing "
+                          "is read), hold (a change waits for a person) or tell (it is sent, and its "
+                          "notification says the task changed). Only a digest is kept.",
+    "context_guard": "Codex's token count for a conversation, where Codex keeps one: off (the "
+                     "default, nothing is read), show (on Pending), or above_100k to above_1m (also "
+                     "hold a recovery whose conversation has used more, for a person).",
 }
 
 
