@@ -15,6 +15,7 @@ becomes the schedule.
 from __future__ import annotations
 
 from contextlib import closing
+import json
 from pathlib import Path
 import sqlite3
 import subprocess
@@ -29,7 +30,9 @@ from codex_auto_resume.store import (SCHEMA_VERSION, Store, StoreError, downgrad
 
 import released
 import schemagolden
+from codexsim import RESET, transient_error
 from test_control_v3 import SRC, legacy_store_module
+from test_engine import T1, TURN_A, Harness
 
 THREAD = "0a1b2c3d-0001-7000-8000-000000000001"
 OTHER = "0a1b2c3d-0001-7000-8000-000000000002"
@@ -190,13 +193,23 @@ class DowngradeToV3Tests(unittest.TestCase):
                 | machine.OBSERVING}
         self.assertEqual(result, {"changed": True, "rows": len(keys) + 3, "short_markers": len(keys) + 3,
                                   "made_final": len(sent), "postponed": 1, "conversations_off": 2,
-                                  "observe_only_paused": False})
+                                  "unfollowed_off": 1, "observe_only_paused": False})
         self.assertTrue(list(self.state.glob("state.v4-backup-*.sqlite")), "a forensic copy was taken")
         # Every record v0.6.10 could claim if nothing stopped it: none it could send twice.
         possibly_sent = sorted(key for key, state in keys.items() if state not in machine.WAITING
                                and state != "cancelled")
         waiting = next(key for key, state in keys.items() if state in machine.WAITING)
-        read = released.read_state(self.state, claims=possibly_sent + [waiting])
+        read = released.read_state(self.state, claims=[waiting, released.key(52)])
+        # THREAD has continuations out that v0.6.10 cannot follow to their turns, so it is off: what
+        # waits there waits for a person (DowngradeChainTests says why).
+        self.assertEqual(read["claims"][waiting], [False, "consent", "thread_disabled"])
+        # One never sent where nothing is in flight is v0.6.10's to send, with the marker it looks for.
+        self.assertEqual(read["claims"][released.key(52)], [True, None, None])
+        # A person switches THREAD back on in v0.6.10, and still nothing that may have gone is claimed.
+        with closing(sqlite3.connect(self.state / "state.sqlite")) as db:
+            db.execute("UPDATE threads SET enabled=1 WHERE thread_id=?", (THREAD,))
+            db.commit()
+        on = released.read_state(self.state, claims=possibly_sent + [waiting])
         self.assertEqual(read["version"], 3)
         records = read["records"]
         self.assertEqual(set(records), set(keys) | {released.key(index) for index in (50, 51, 52)})
@@ -211,11 +224,10 @@ class DowngradeToV3Tests(unittest.TestCase):
                     self.assertEqual(record["state"], keys[key])
         for key in possibly_sent:
             with self.subTest(claim=key, state=keys[key]):
-                self.assertEqual(read["claims"][key], [False, "submission_safe", "possibly_sent"])
-        # A continuation never sent is v0.6.10's to send, now with the marker it looks for.
-        self.assertEqual(read["claims"][waiting], [True, None, None])
+                self.assertEqual(on["claims"][key], [False, "submission_safe", "possibly_sent"])
+        self.assertEqual(on["claims"][waiting], [True, None, None])
         # Nothing looser: the held and the tiered conversation are off, the postponement stands.
-        self.assertEqual(read["disabled"], sorted({OTHER, HELD, TIERED}))
+        self.assertEqual(read["disabled"], sorted({OTHER, HELD, TIERED, THREAD}))
         self.assertEqual(records[released.key(52)]["next_retry_at"], 5000)
         self.assertTrue(read["settings"]["enabled"])
         # Every column schema 4 added is gone, the guards' two with the rest, and the file is schema 3's.
@@ -261,6 +273,103 @@ class DowngradeToV3Tests(unittest.TestCase):
         self.assertEqual(schemagolden.shape(path), shape)
         read = released.read_state(self.state)
         self.assertEqual({key: row["state"] for key, row in read["records"].items()}, written["states"])
+
+
+# v0.6.10's own watcher on a state `downgrade-state --to 3` wrote, in a process of its own: its engine,
+# its store and its history reader, from the tag, on the Codex home a test built with tests/codexsim.py
+# (which imports nothing of the product). `ticks` passes of 10 minutes; what it sent, and every record.
+_OLDER_WATCHER = r"""
+import json, sys
+from pathlib import Path
+root, tests, now, thread, options = Path(sys.argv[1]), sys.argv[2], float(sys.argv[3]), sys.argv[4], sys.argv[5]
+sys.path.append(tests)
+from codexsim import CodexHome, SimBackend
+from codex_auto_resume.codex import LocalSource
+from codex_auto_resume.engine import Engine
+from codex_auto_resume.store import Store
+clock = [now]
+home = CodexHome.__new__(CodexHome)              # the home the test built; nothing is created again
+home.root, home._items, home.clock = root / "codex-home", 100000, lambda: clock[0]
+backend = SimBackend(home)
+backend.loaded_map[thread] = "loaded"
+backend.after_accept = "queue"
+with Store(root) as store:
+    engine = Engine(store, LocalSource(home.root), backend, clock=lambda: clock[0], log=lambda *a: None,
+                    options=json.loads(options), notify=lambda *a: None)
+    for _ in range(12):
+        clock[0] += 600
+        engine.tick()
+    records = [{name: row[name] for name in ("interruption_id", "state", "last_error", "parent_interruption_id",
+                                             "no_progress_count", "chain_continuations", "cancel_requested")}
+               for row in store.all_records()]
+    print(json.dumps({"sent": len(backend.send_calls), "records": records,
+                      "disabled": sorted(store.disabled_threads())}))
+"""
+
+
+class DowngradeChainTests(unittest.TestCase):
+    """A23 across `downgrade-state --to 3`, against v0.6.10's own watcher.
+
+    A continuation that went out with a short marker, and was not yet followed to the turn it
+    started, is one v0.6.10 cannot follow: it knows a continuation's turn by the record's turn id or
+    by finding its marker in it, and has neither. When Codex delivers it and that turn fails, the
+    failure is a new task to v0.6.10 - a cancel made before the downgrade forgotten and a
+    continuation sent, or the budgets started again and a chain that had to stop sent once more.
+    v0.6.10 alone and this version alone both stop there. So the downgrade switches such a
+    conversation off, and v0.6.10 detects nothing there and sends nothing until a person says so."""
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.h = Harness(Path(temporary.name) / "state")
+        self.addCleanup(self.h.close)
+        self.h.enable()
+        self.h.backend.after_accept = "queue"
+        self.h.backend.loaded_map[T1] = "loaded"
+        self.h.home.add_thread(T1)
+        self.h.home.fail_usage(T1, TURN_A)
+        self.h.tick()
+        self.h.now = RESET + 61
+        self.h.tick()
+        self.assertEqual(len(self.h.backend.send_calls), 1, "a continuation waits in Codex's queue")
+
+    def deliver_and_fail(self):
+        """Codex takes the head of the queue, and the turn it starts fails with a temporary error."""
+        turn = self.h.home.dispatch(T1, status="failed", progress=False)
+        self.assertIsNotNone(turn)
+        self.h.home.set_turn(T1, turn, error_json=transient_error())
+
+    def older_watcher(self):
+        """Downgrade, let Codex deliver what is queued and its turn fail, then run v0.6.10 over it."""
+        self.h.store.close()
+        report = downgrade_to_v3(self.h.root)
+        self.deliver_and_fail()
+        return report, released.run(released.V0610, _OLDER_WATCHER, self.h.root, Path(__file__).resolve().parent,
+                                    self.h.now, T1, json.dumps(self.h.options))
+
+    def test_a_task_cancelled_before_the_downgrade_is_not_resumed(self):
+        self.h.store.cancel_interruption(self.h.record()["interruption_id"], self.h.now)
+        report, older = self.older_watcher()
+        self.assertEqual(report["unfollowed_off"], 1)
+        self.assertEqual(older["sent"], 0, "v0.6.10 sent a continuation to a task the person cancelled")
+        self.assertIn(T1, older["disabled"])
+
+    def test_a_chain_that_has_to_stop_is_not_started_again(self):
+        """At the defaults the third continuation that makes no progress is the last: the failure of
+        its turn stops the task (no_progress_budget). Here that third one is still queued."""
+        for _ in range(2):
+            self.deliver_and_fail()
+            sent = len(self.h.backend.send_calls)
+            for _ in range(40):
+                self.h.tick(advance=300)
+                if len(self.h.backend.send_calls) > sent:
+                    break
+            self.assertEqual(len(self.h.backend.send_calls), sent + 1)
+        self.assertEqual(self.h.records()[-1]["no_progress_count"], 2)
+        report, older = self.older_watcher()
+        self.assertEqual(report["unfollowed_off"], 1)
+        self.assertEqual(older["sent"], 0, "v0.6.10 started the task's budgets again")
+        self.assertIn(T1, older["disabled"])
 
 
 @unittest.skipUnless(sys.platform == "win32", "Windows named objects")

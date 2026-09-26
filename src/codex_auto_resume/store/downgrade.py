@@ -105,6 +105,12 @@ def _to_v3(connection, now: float) -> dict:
       sent, which is all a waiting record is. A continuation that went out, or may have, with the
       short marker would never be found again, so it is made final: an uncertain submission,
       never sent again (A6), or an unverified outcome (E6) for one whose turn had started.
+    * And one not yet followed to the turn it started (machine.WATCHED) switches its conversation
+      off. v0.6.10 knows a turn for a continuation's only by the record's turn id or by finding
+      its marker in it, and has neither, so when Codex delivers it and that turn fails, the failure
+      would be a new task: a cancel before the downgrade forgotten, the budgets started again (A23),
+      and nothing left to take the queued message back. With the conversation off v0.6.10 detects
+      nothing there and sends nothing until a person switches it back on.
     * Observe-only becomes a Pause: v0.6.10 has no way to watch without sending but that one.
     * A hold on a waiting record, and a conversation's tier other than automatic, switch that
       conversation off: v0.6.10 asks nobody first, and turning it back on is a person's act,
@@ -116,18 +122,20 @@ def _to_v3(connection, now: float) -> dict:
             "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")} != _TABLES_V4:
         raise StoreError("Unsupported or malformed state schema")
     report = {"short_markers": 0, "made_final": 0, "postponed": 0, "conversations_off": 0,
-              "observe_only_paused": False}
+              "unfollowed_off": 0, "observe_only_paused": False}
     connection.row_factory = sqlite3.Row
     try:
         rows = [_validated_record(dict(row)) for row in connection.execute("SELECT * FROM interruptions")]
     finally:
         connection.row_factory = None
-    held = set()
+    held, unfollowed = set(), set()
     for row in rows:
         key, state, changes = row["interruption_id"], row["state"], {}
         if row["marker"] != ids.marker(key):
             report["short_markers"] += 1
             changes["marker"] = ids.marker(key)
+            if state in machine.WATCHED:
+                unfollowed.add(row["thread_id"])
             if state in machine.CLAIMED | machine.IN_FLIGHT:
                 changes.update(state="submission_unknown", queue_id=None,
                                last_error="queue_result_unknown_do_not_resend")
@@ -150,10 +158,10 @@ def _to_v3(connection, now: float) -> dict:
                                tuple(changes[name] for name in columns) + (key,))
     held |= {row[0] for row in connection.execute(
         "SELECT thread_id FROM threads WHERE tier IS NOT NULL AND tier<>'automatic'")}
-    for thread in sorted(held):
+    for thread in sorted(held | unfollowed):
         connection.execute("INSERT INTO threads (thread_id, enabled) VALUES (?,0) "
                            "ON CONFLICT(thread_id) DO UPDATE SET enabled=0", (thread,))
-    report["conversations_off"] = len(held)
+    report["conversations_off"], report["unfollowed_off"] = len(held), len(unfollowed)
     if connection.execute("SELECT observe_only FROM settings WHERE singleton=1").fetchone()[0]:
         connection.execute("UPDATE settings SET enabled=0 WHERE singleton=1")
         report["observe_only_paused"] = True

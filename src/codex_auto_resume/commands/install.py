@@ -263,6 +263,11 @@ def cmd_downgrade_state(args) -> int:
         _print("%d conversation(s) were switched off because they waited for you to say so; "
                "switch them back on in the older release to let them resume"
                % result["conversations_off"])
+    if result.get("unfollowed_off"):
+        _print("%d conversation(s) were switched off because Codex may still deliver a continuation "
+               "the older release could not follow, and it would take a failure of that one for a new "
+               "task; switch them back on in the older release when you want them to resume"
+               % result["unfollowed_off"])
     if result.get("observe_only_paused"):
         _print("observe-only became a pause: resume recovery in the older release when you "
                "want it to send")

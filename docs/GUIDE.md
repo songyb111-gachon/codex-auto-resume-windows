@@ -622,7 +622,7 @@ records. `stop` asks a running watcher process to exit.
 | `install` | Create the owned directories and state (`--startup`). |
 | `uninstall` | Remove autostart and owned state/logs (`--keep-logs`, `--keep-state`). |
 | `diagnostics` | Write one redacted diagnostics file, to read before you share it (`--out`). |
-| `downgrade-state --to 3` | Rewrite the state file for a v0.6.0 to v0.6.10 release; stop the watcher first. A continuation that may already have gone out is marked final, and a conversation that waited for you to say so is switched off. |
+| `downgrade-state --to 3` | Rewrite the state file for a v0.6.0 to v0.6.10 release; stop the watcher first. A continuation that may already have gone out is marked final, and a conversation that waited for you to say so, or whose continuation Codex may still deliver, is switched off. |
 | `downgrade-state --to 2` | Rewrite the state file for a v0.5 release; stop the watcher first. |
 | `compat` | What the Codex Compatibility Registry says about this Codex, from the watcher's last report (`--live` to check now and write nothing, `--json`, `--import FILE` to validate a data file and keep it only if it passes). |
 
