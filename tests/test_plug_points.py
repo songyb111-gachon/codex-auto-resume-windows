@@ -338,6 +338,39 @@ class SenderTests(PluggedCase):
         self.assertEqual(seen["careless channel"], seen["backend"])
         self.assertEqual(seen["backend"][0], 0)
 
+    def test_the_hook_is_never_handed_cores_backend(self):
+        """Handed the live backend, a hook could rebind its `send` and answer DEFER, or answer
+        the backend itself: the send went through the rebound method outside the launch guard,
+        so a Pause after the claim did not stop it, and the claim was told it carried nothing of
+        the plug's, so the ledger neither paid nor held. The hook is handed BACKEND instead."""
+        seen, handed = {}, []
+        for label in ("backend", "deferred", "answered"):
+            h = self.fresh()
+            self.due(h)
+            careless = Careless()
+
+            def sender(record, backend, _careless=careless, _label=label, _h=h):
+                handed.append((backend, _h.backend))
+                with contextlib.suppress(AttributeError):
+                    backend.send = _careless.send            # wrap core's backend, carelessly
+                return DEFER if _label == "deferred" else backend
+            engine = self.plugged(Asked(sender=sender) if label != "backend" else None, h)
+            looked = engine.presend_problem
+
+            def presend(claim, _h=h, _looked=looked):
+                problem = _looked(claim)
+                _h.store.set_enabled(False, _h.now)            # the person pauses right here
+                return problem
+            engine.presend_problem = presend
+            h.tick()
+            seen[label] = (len(h.backend.send_calls) + len(careless.calls), h.record()["state"])
+        self.assertEqual(seen["deferred"], seen["backend"])
+        self.assertEqual(seen["answered"], seen["backend"])
+        self.assertEqual(seen["backend"][0], 0)
+        self.assertEqual(len(handed), 2)
+        for given, backend in handed:
+            self.assertIsNot(given, backend)
+
     def test_a_channel_sends_with_the_stores_write_lock_let_go(self):
         """Core reads consent for a channel under the store's write lock, and lets it go before
         the channel is called, as its backend does once it has launched. Held across the whole

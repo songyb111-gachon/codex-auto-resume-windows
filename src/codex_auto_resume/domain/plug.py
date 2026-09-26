@@ -114,6 +114,22 @@ class _Defer:
 DEFER = _Defer()
 
 
+class _Backend:
+    """What a hook is handed at P5 where core's backend would be: a name for it, and nothing
+    more."""
+    __slots__ = ()
+
+    def __repr__(self):
+        return "BACKEND"
+
+
+# Core's own backend, as P5 names it to a hook. Answered back - or DEFER - it keeps the backend.
+# The backend itself is never handed over: a hook holding it could rebind its `send` and answer
+# DEFER, and the one send went through the rebound method, outside the launch guard, with the
+# claim told it carried nothing of the plug's.
+BACKEND = _Backend()
+
+
 class Plug:
     """Every hook core calls, each answering as core would with no plug at all.
 
@@ -140,7 +156,8 @@ class Plug:
         return DEFER
 
     def sender(self, record, backend):                # P5
-        """What the one send is handed to: core's own backend, unless a channel says otherwise."""
+        """What the one send is handed to: core's own backend, unless a channel says otherwise.
+        `backend` is BACKEND, which stands for core's backend and is not it."""
         return backend
 
     def outcome(self, record, outcome):               # P6
@@ -242,7 +259,7 @@ class DamagedPlug(Plug):
 
 def _handed(argument):
     """What a hook is given of `argument`: a copy of core's own records and facts, and anything
-    else - a view, a connection, the backend - as it is, each being what its point hands over."""
+    else - a view, a connection, BACKEND - as it is, each being what its point hands over."""
     if isinstance(argument, (dict, list)):
         return copy.deepcopy(argument)
     return argument
@@ -343,7 +360,8 @@ class Guarded:
     answers DEFER or a member of its set; a value point answers DEFER or a value core can use,
     and anything else is DEFER - except at the sender, where it is core's own backend, because
     there is always a send to hand the one message to. Nothing a hook does reaches past this:
-    it is handed copies (`consult`), and a channel it names is held to the launch guard.
+    it is handed copies (`consult`) and a stand-in for the backend (BACKEND), and a channel it
+    names is held to the launch guard.
     `failures` counts the hooks that raised, over every caller of this plug on every thread; the
     claim asks through `claim_ledger_checked` instead, which says whether that one call raised
     (store/claims.py).
@@ -390,9 +408,13 @@ class Guarded:
         return answer if isinstance(answer, str) else DEFER
 
     def sender(self, record, backend):
-        """`backend` itself, or the channel the plug named, held to the launch guard (`_Channel`)."""
-        answer = self._ask(Point.SENDER, record, backend)
-        if answer is backend:
+        """`backend` itself, or the channel the plug named, held to the launch guard (`_Channel`).
+
+        The plug is asked with BACKEND in the backend's place, and that answer or DEFER is the
+        backend. Anything else with a `send` is a channel, core's own backend included, should
+        a plug have found it some other way: held to the guard, and paid for as the plug's."""
+        answer = self._ask(Point.SENDER, record, BACKEND)
+        if answer is BACKEND or answer is DEFER:
             return backend
         try:
             send = getattr(answer, "send", None)
