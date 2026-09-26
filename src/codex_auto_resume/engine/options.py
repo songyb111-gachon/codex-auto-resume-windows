@@ -58,23 +58,31 @@ class StoreView:
     and the store's file on disk all lead to the store. What is taken away is the plain way to
     a write a hook did not mean to make, not every way.
     """
-    __slots__ = ("now", "_read")
+    __slots__ = ("now", "_reads")
 
     def __init__(self, store, now):
         self.now = now
-
-        def read(name):
-            method = getattr(store, name)
-
-            def call(*arguments, **keywords):
-                return method(*arguments, **keywords)
+        # Written out one by one rather than looked up by name, so that each read names the
+        # store call it makes and tests/test_ports.py sees every one of them: a call built at
+        # run time is one no table can hold.
+        reads = {
+            "get": lambda *a, **k: store.get(*a, **k),
+            "records_in": lambda *a, **k: store.records_in(*a, **k),
+            "settings": lambda *a, **k: store.settings(*a, **k),
+            "thread_enabled": lambda *a, **k: store.thread_enabled(*a, **k),
+            "others_in_flight": lambda *a, **k: store.others_in_flight(*a, **k),
+            "recent_claims": lambda *a, **k: store.recent_claims(*a, **k),
+            "recent_claim_count": lambda *a, **k: store.recent_claim_count(*a, **k),
+            "claimed_on_thread": lambda *a, **k: store.claimed_on_thread(*a, **k),
+            "events": lambda *a, **k: store.events(*a, **k),
+        }
+        for name, call in reads.items():
             call.__name__ = call.__qualname__ = name
-            return call
-        self._read = read
+        self._reads = reads
 
     def __getattr__(self, name):
-        if name in VIEW_READS:
-            return self._read(name)
+        if name in VIEW_READS and name in self._reads:
+            return self._reads[name]
         raise AttributeError(name)
 
 
