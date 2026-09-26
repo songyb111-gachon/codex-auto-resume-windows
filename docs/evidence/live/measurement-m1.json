@@ -1,0 +1,20 @@
+{
+  "format": "codex-auto-resume-measurement/1",
+  "step": "m1",
+  "verdict": "blocked",
+  "recorded_at": "2026-09-26T14:27Z",
+  "product_version": "0.6.11-alpha",
+  "codex_version": "codex-cli 0.158.0-alpha.2.1",
+  "windows_build": "10.0.26200",
+  "observed": {
+    "loaded_listed": true,
+    "queue_listed": true,
+    "thread_given": true
+  },
+  "note": "open the notLoaded thread in the Desktop and confirm the queued item is delivered, then set the verdict",
+  "completion": {
+    "verdict": "pass",
+    "note": "as_expected",
+    "recorded_at": "2026-09-26T14:29Z"
+  }
+}
