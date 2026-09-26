@@ -1,0 +1,7 @@
+{
+  "format": "codex-auto-resume-compat-community/1",
+  "generated_at": "2026-09-26T10:44:03Z",
+  "grade": "REPORTED",
+  "grants": "nothing: Reported is a grade of its own beside VERIFIED, CHECKED and COMPATIBLE and never becomes one of them; no version's tier comes from a report, and a version whose own evidence says nothing stays compatible however many arrive",
+  "versions": {}
+}
