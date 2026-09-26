@@ -12,6 +12,7 @@ from pathlib import Path
 import sqlite3
 import sys
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -330,6 +331,38 @@ class SpendTests(LedgerCase):
         self.assertEqual(self.h.record()["state"], "waiting_retry")
         self.assertEqual(len(self.spends(plug)), 1, "the claim was granted, then given back: spent")
 
+
+class ChannelTests(LedgerCase):
+    def test_a_disarm_during_a_channels_send_is_not_kept_waiting(self):
+        """Once the claim has attached the advanced state, core's write lock is that file's
+        lock too. Held across a channel's whole send, it kept a disarm from another thread, or
+        from the channel's own, waiting SQLite's ten seconds, and then it failed: a disarm
+        always wins, and here it could not."""
+        for where in ("own thread", "another thread"):
+            with self.subTest(where):
+                h = self.fresh()
+                self.due(h)
+                plug = self.advanced(h, home=where.replace(" ", "-"))
+                disarmed = []
+
+                def disarm(_plug=plug, _disarmed=disarmed):
+                    _disarmed.append(_plug.runtime.arming.disarm("test_wake", actor=Actor.MCP))
+
+                class Channel:
+                    def send(self, thread_id, prompt, *, launch_guard=None, _where=where):
+                        if _where == "own thread":
+                            disarm()
+                        else:
+                            other = threading.Thread(target=disarm)
+                            other.start()
+                            other.join()
+                        return {"outcome": "unknown"}
+                self.arm(plug).answers["sender"] = Channel()
+                self.plugged(plug, h)
+                h.tick()
+                self.assertEqual([result["done"] for result in disarmed], [True])
+                self.assertEqual(plug.runtime.state.arming()["test_wake"]["state"], ArmingState.OFF)
+                self.assertEqual(len(self.spends(plug)), 1, "the channel's send was paid for")
 
 
 class SubmissionUnknownTests(LedgerCase):
