@@ -123,8 +123,10 @@ class DesignWordsTests(unittest.TestCase):
                 # Different words for each, and a name for the setting that neither theme has.
                 self.assertEqual(len(set(labels)), len(labels), labels)
                 self.assertNotIn(table["field.design"], (table["field.theme"], table["field.panel_theme"]))
-                # The help names each choice as the picker spells it, and Reduce motion by its name.
-                for label in labels + [table["field.reduce_motion"]]:
+                # The help names each choice as the picker spells it - and says no more than what
+                # each looks like: the owner found the longer one, which listed every surface and
+                # what the Theme and Reduce motion do, too much for a picker of three looks.
+                for label in labels:
                     self.assertIn(label, table["help.design"])
                 # Classic says which release it is.
                 self.assertIn("v0.6.2", table["choice.design.classic"])
@@ -182,7 +184,7 @@ class OneNameTests(unittest.TestCase):
                  "pt-BR": "Dashboard"}
     # Every sentence that names the window, on whichever surface shows it.
     NAMING = ("menu.open", "popup.open_dashboard", "msg.toast_button_open", "popup.more",
-              "custom.dashboard_only", "help.interface_language", "help.theme", "help.reduce_motion", "help.design",
+              "custom.dashboard_only", "help.interface_language", "help.theme", "help.reduce_motion",
               "msg.setup_unconfirmed", "panel.compat_acting_differs", "panel.compat_refresh",
               "panel.compat_reported", "panel.readonly")
     # The window's own words, where "this window" is the window reading them.

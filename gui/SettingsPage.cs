@@ -534,7 +534,7 @@ namespace CodexAutoResume
                             "Light or dark for the panel in Codex alone. Same as Theme uses the choice above; Codex's theme follows Codex whatever the Theme is.")));
                     if (name == "design")
                         host.Controls.Add(HelpText(S("help.design",
-                            "How the Dashboard, the notification-area popup, the notification card and the panel in Codex are drawn; light or dark is still the Theme's. Soft is raised; Classic (v0.6.2) is flat, with that version's accent bars; Plain is flat and grey. High Contrast replaces every design, and Reduce motion stops the motion in each.")));
+                            "Soft is raised; Classic (v0.6.2) is flat, with accent bars; Plain is flat and grey.")));
                 }
             }
             if (master != null)

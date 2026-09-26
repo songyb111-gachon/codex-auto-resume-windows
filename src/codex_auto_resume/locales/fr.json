@@ -346,7 +346,7 @@
   "help.style.standard": "Indique pourquoi la tâche s'est arrêtée, puis demande à Codex de réessayer. Recommandé.",
   "help.theme": "Clair ou sombre pour le Tableau de bord, la fenêtre contextuelle de la zone de notification et la carte de notification, et pour le panneau dans Codex tant que Thème dans Codex vaut Identique au thème. L'option Utiliser le paramètre système suit Windows pour les trois premiers et, pour le panneau, le thème de Codex.",
   "help.panel_theme": "Clair ou sombre pour le panneau dans Codex uniquement. Identique au thème reprend le choix ci-dessus ; Thème de Codex suit Codex quel que soit le thème.",
-  "help.design": "La façon dont le Tableau de bord, la fenêtre contextuelle de la zone de notification, la carte de notification et le panneau dans Codex sont dessinés ; clair ou sombre reste le choix du Thème. Doux est en relief ; Classique (v0.6.2) est plat, avec les barres d'accent de cette version ; Sobre est plat et gris. Le contraste élevé remplace tous les styles, et Réduire les animations arrête le mouvement dans chacun.",
+  "help.design": "Doux est en relief ; Classique (v0.6.2) est plat, avec des barres d'accent ; Sobre est plat et gris.",
   "history.col_detected": "Détectée",
   "history.col_finished": "Terminée",
   "history.col_outcome": "Résultat",
