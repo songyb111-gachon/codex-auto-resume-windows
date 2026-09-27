@@ -1034,7 +1034,9 @@ class StatusLightTests(unittest.TestCase):
 DRAWING = ["t", "fill", "element", "card", "activity", "attentionCause", "due", "checkingRow", "lightFor", "lightNode",
            "lightClass", "nextCheck", "heroFacts", "soonestFact", "showFacts", "renderHero", "renderRecovery",
            # v0.6.11: and the last usage reading among the facts.
-           "usageLine", "age", "windowName", "clockTime"]
+           "usageLine", "age", "windowName", "clockTime",
+           # and how a watcher that is not running ended.
+           "stoppedFact"]
 
 
 @unittest.skipUnless(NODE, "needs Node to run the panel's own code")

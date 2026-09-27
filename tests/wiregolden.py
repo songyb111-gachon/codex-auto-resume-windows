@@ -224,6 +224,28 @@ def _managed(**values):
 NIGHT = {"quiet_hours_start": "22:00", "quiet_hours_end": "07:00", "quiet_hours_days": "weekdays"}
 
 
+def _plugin_copy(edition_word):
+    """A copy of this plugin in the scratch Codex home's plugin cache, of `edition_word` - as `codex
+    plugin add` leaves one - for this one case (v0.6.11, edition.cached_copy). Written under the
+    envelope's own CODEX_HOME and removed after, so no real Codex home is ever read."""
+    @contextmanager
+    def using(_workspace):
+        import shutil
+        from codex_auto_resume import edition
+
+        root = Path(os.environ["CODEX_HOME"]) / "plugins" / "cache" / edition.MARKETPLACE / edition.PLUGIN
+        copy = root / "0.0.0"
+        (copy / "src" / "codex_auto_resume").mkdir(parents=True)
+        if edition_word == "advanced":
+            (copy / "src" / edition.ADVANCED_PACKAGE).mkdir()
+            (copy / "src" / edition.ADVANCED_PACKAGE / "__init__.py").write_text("", encoding="utf-8")
+        try:
+            yield
+        finally:
+            shutil.rmtree(root.parent, ignore_errors=True)
+    return using
+
+
 def _launch_that_comes_up(context):
     """The one start `start_watcher` makes, answered by a "process" that holds the scratch
     installation's watcher mutex from the moment it is made - as a watcher that came up does - with
@@ -355,6 +377,11 @@ BRIDGE_CASES = {
         Case("every failure so far marked as seen"),
         Case("again, with nothing new to see")],
     "cancel-all": [Case("every pending recovery cancelled"), Case("nothing left to cancel")],
+    # v0.6.11: Diagnostics compares the edition installed with Codex's copy of the plugin, read only.
+    "plugin-copy": [
+        Case("Codex keeps no copy of the plugin"),
+        Case("Codex's copy is the same edition", using=_plugin_copy("standard")),
+        Case("Codex's copy is still the other edition's", using=_plugin_copy("advanced"))],
     "update": [
         Case("one setting changed", {"notifications": False}),
         Case("a Korean Custom message, stored and answered as UTF-8",

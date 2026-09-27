@@ -202,6 +202,20 @@ namespace CodexAutoResume
 
         /// A moment later today as the clock shows it, and any other with its date (v0.6.11): when a
         /// postponement or quiet hours end.
+        /// v0.6.11: a watcher that is not running, as it ended (control/watcher.how_it_ended): stopped by the memory guard,
+        /// or stopped unexpectedly in this sign-in, each with when - as the panel says it (panel.js stoppedFact); otherwise
+        /// "not running", as it always said.
+        private string StoppedText(Dictionary<string, object> watcher)
+        {
+            string ended = Str(watcher, "ended");
+            double at = Number(watcher, "ended_at");
+            if (at > 0 && ended == "unexpected")
+                return S("diag.stopped_unexpectedly", "stopped unexpectedly at {time}", "time", ClockTime(at));
+            if (at > 0 && ended == "memory_guard")
+                return S("diag.stopped_memory_guard", "stopped by the memory guard at {time}", "time", ClockTime(at));
+            return S("diag.not_running", "not running");
+        }
+
         private static string ClockTime(double stamp)
         {
             if (stamp <= 0) return "";
@@ -348,7 +362,7 @@ namespace CodexAutoResume
                     recovery = S("overview.managed", "{state} - some settings are set by your administrator", "state", recovery);
                 object running = Get(status, "watcher_running");
                 string watcherText = running == null ? S("diag.unknown", "unknown")
-                                   : !Equals(running, true) ? S("diag.not_running", "not running")
+                                   : !Equals(running, true) ? StoppedText(watcher)
                                    : Equals(Get(watcher, "ticking"), false) ? S("diag.not_responding", "not responding")
                                    : S("diag.running", "running");
                 string engine = Str(watcher, "engine_state") ?? "unknown";
@@ -377,6 +391,11 @@ namespace CodexAutoResume
                     diagWatcher.Text = watcherText;
                     diagEngine.Text = engineText;
                     diagLastCheck.Text = Ago(last);
+                    // v0.6.11: the most private memory the watcher committed, in whole MB, rounded up (memguard.mib).
+                    double peak = Number(watcher, "memory_peak");
+                    diagMemory.Text = peak > 0 ? S("diag.memory_mb", "{n} MB", "n",
+                                                   Math.Ceiling(peak / (1024.0 * 1024.0)).ToString("0", CultureInfo.InvariantCulture))
+                                               : "-";
                     // Diagnostics names the keys themselves, as a person reads them in the registry.
                     diagRecovery.Text = managed.Count > 0 ? recovery + " (" + string.Join(", ", managed.ToArray()) + ")" : recovery;
                     if (updateButton != null) updateButton.Enabled = busy == 0 && !updatesManaged;

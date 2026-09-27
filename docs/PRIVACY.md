@@ -272,6 +272,15 @@ whether Windows reports this PC connected to the internet (the Network List Mana
 `GetConnectivity`), for **Wait for an internet connection** - a question Windows answers from what it
 already knows, with nothing sent to find out. **Keep this PC awake** is a request, not a question:
 `SetThreadExecutionState`, which the watcher makes and takes back and which changes no setting.
+And from v0.6.11 at every setting, about the watcher itself: how much memory its own process has
+committed and the most it has (`K32GetProcessMemoryInfo`, of that process only); the number Windows
+gives the sign-in it runs in (`GetTokenInformation` on its own token, `TokenStatistics`, of which only
+that number is kept - a counter that names no one, new at every sign-in); and how long ago Windows
+started (`GetTickCount64`). The Dashboard, the panel and `get_status` ask the last two of their own
+process, to compare - that is how a watcher that stopped unexpectedly is told from one that ended with
+an earlier sign-in. The Dashboard's Diagnostics also looks, when it opens, at which edition Codex's own
+copy of this plugin is: the names of the folders in Codex's plugin cache under
+`codex-auto-resume-windows`, and whether one folder is in the newest - no file is opened.
 
 From v0.6.5, for the Codex Compatibility Registry, the watcher also reads the shape of Codex's
 databases - which tables they have and which columns those tables have, by name only, through the
@@ -455,8 +464,15 @@ default (or wherever `CODEX_AUTO_RESUME_PLUGIN_HOME`, or failing that
   for the watcher itself: its process id, session id, start and last-tick times, and which code
   version wrote them - and, from v0.6.11, the last usage reading it made and when: for each window
   only its bucket (`codex`, `premium`, `legacy` or `other`) and slot, how much is used, its length
-  and when it resets; no account, plan or credit; and, while it keeps the PC awake, since when. None
-  of it is content;
+  and when it resets; no account, plan or credit; and, while it keeps the PC awake, since when; and
+  from v0.6.11 the most memory its process has committed, whether it last stopped on purpose (and
+  when), the number Windows gives the sign-in it ran in and when Windows started. None of it is
+  content;
+- `config/status.json` — from v0.6.11, only while **Write a status file for other tools** is on (off
+  by default): whether the watcher runs, whether recovery is on, the compatibility word, how many
+  recoveries are pending at each state and when the next is looked at, and the last usage reading's
+  numbers. No id, name, title or path. Nothing in this product reads it, and it goes when the setting
+  is turned off;
 - `config/state.vN-backup-<timestamp>.sqlite` — a copy of the state file, taken before the first
   watcher of a new version upgrades the schema and before `downgrade-state` rewrites it. It holds
   what `state.sqlite` held, and it is kept to explain a bad upgrade rather than as a way back.

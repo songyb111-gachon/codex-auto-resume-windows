@@ -27,7 +27,7 @@ from ..openstate import open_state
 from ..store import SCHEMA_VERSION, Store, StoreError
 from ..win import network
 from ..windows import AdapterError, Backend, HomeLock, Mutex, StopEvent, WakeEvent
-from .loop import EXIT_BUSY, EXIT_ERROR, EXIT_OK, EXIT_SCHEMA_NEWER, WatchLoop
+from .loop import EXIT_BUSY, EXIT_ERROR, EXIT_MEMORY_GUARD, EXIT_OK, EXIT_SCHEMA_NEWER, WatchLoop  # noqa: F401
 from .toasts import Toasts
 
 
@@ -77,6 +77,8 @@ class App(WatchLoop):
         # attached until the icon's thread hosts the card; until then, and whenever it cannot,
         # every notification is today's toast (notifier.deliver).
         self._inbox = notifier.Inbox()
+        # v0.6.11: notices about the watcher itself - the memory guard's - off the tick path.
+        self._watcher_toasts = None
         self._codex_exe_override = codex_exe or self.settings.get("codex_exe")
         self.codex_home = Path(codex_home).resolve() if codex_home else config.codex_home()
         # Fixed at construction, so what the lock protects cannot move under a running
@@ -300,6 +302,26 @@ class App(WatchLoop):
             return notifier.deliver(notice, inbox=self._inbox,
                                     setting=self.settings.get(notifier.CARD_SETTING, True) is True)[1]
         return announce
+
+    def _watcher_notice(self, event, detail, *, final=False):
+        """A notice about the watcher itself (v0.6.11: the memory guard's, memguard.py), under the
+        notifications switch alone. Queued off the tick path like any other; but a `final` one - the
+        watcher is stopping - is Windows' own toast, raised before it goes: the card lives on the icon's
+        thread, which ends with this watcher, and a toast outlives it in the notification center."""
+        if final:
+            return self._show_watcher_notice(event, detail, final=True)
+        if getattr(self, "_watcher_toasts", None) is None:
+            self._watcher_toasts = Toasts(self._show_watcher_notice, self.logger)
+        return self._watcher_toasts(event, detail)
+
+    def _show_watcher_notice(self, event, detail, final=False):
+        if not policy.notification_enabled(self.settings, event):
+            return False
+        notice = notifier.build(event, detail)
+        if notice is None:
+            return False
+        card = not final and self.settings.get(notifier.CARD_SETTING, True) is True
+        return notifier.deliver(notice, inbox=None if final else self._inbox, setting=card)[1]
 
     def _notice_action(self, uri):
         """A card's button, on a worker thread: what its toast button would do, done in process.

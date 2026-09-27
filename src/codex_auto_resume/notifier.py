@@ -61,6 +61,8 @@ STATUS = {
     "cancelled": "paused",          # a person switched it off
     "needs_you": "attention",       # v0.6.11: it needs a person, and is never resumed
     "after_sleep": "paused",        # v0.6.11: what fell due during a long sleep waits for a person
+    "memory_warning": "attention",  # v0.6.11: the watcher uses more memory than the guard allows
+    "memory_stopped": "attention",  # v0.6.11: and stopped for it
 }
 PROBES = ("notification_state", "notification_mode", "app_notifications", "screen_reader",
           "remote_session", "session_locked")
@@ -186,6 +188,10 @@ def build(event, detail, identity=None, *, sound=False):
         # conversation, so it has no key and replaces no card; its one button opens Pending.
         return _notice("after_sleep", notify.after_sleep_content(detail.get("slept"), detail.get("count")),
                        key=None)
+    if event in ("memory_warning", "memory_stopped"):
+        # v0.6.11: the memory guard (memguard.py). About the watcher, not a conversation, so it has no
+        # key and replaces no card; its one button opens a page of the Dashboard.
+        return _notice(event, notify.memory_content(event, detail.get("used"), detail.get("limit")), key=None)
     if event == "stopped":
         reason = ("no_progress" if state == "no_progress_exhausted"
                   else "time" if detail.get("reason") == "chain_time_cap"

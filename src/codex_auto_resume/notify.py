@@ -470,3 +470,23 @@ def after_sleep_content(slept, count) -> dict:
                     l10n.message("toast_after_sleep_next"),
                     extra=[l10n.message("toast_after_sleep_count").replace("{n}", str(waiting))],
                     more=[(l10n.message("toast_button_open"), open_uri("pending"))])
+
+
+# ------------------------------------------------------------ the memory guard (v0.6.11)
+# The watcher uses more memory than the memory guard allows (memguard.py). Warn: said once, and the
+# watcher goes on; its button opens Diagnostics, where the peak is. Stop: the watcher stopped between
+# two ticks, and its button opens the Overview, where Start watcher is. Neither is about a conversation,
+# and neither has a cancel: nothing on either sends or cancels anything (A28).
+def memory_content(event, used, limit) -> dict:
+    """A memory guard's notice: what the watcher uses against the limit, what happens now, and one
+    button that opens a page of the Dashboard."""
+    def whole(value):
+        try:
+            return str(max(0, int(value)))
+        except (TypeError, ValueError, OverflowError):
+            return "?"
+    stopped = event == "memory_stopped"
+    body = l10n.message("toast_memory_body").replace("{used}", whole(used)).replace("{limit}", whole(limit))
+    return _content(l10n.message("toast_memory_stopped" if stopped else "toast_memory_warning"), body,
+                    extra=[l10n.message("toast_memory_stopped_next" if stopped else "toast_memory_warning_next")],
+                    more=[(l10n.message("toast_button_open"), open_uri("overview" if stopped else "diagnostics"))])

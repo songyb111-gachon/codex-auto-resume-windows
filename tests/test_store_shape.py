@@ -58,6 +58,8 @@ METHODS = {
     # v0.6.11: a needs-you notice raised once - store/notices.py - and the last usage reading the
     # heartbeat keeps (store/watcher.py).
     "raise_notice", "_reading",
+    # v0.6.11: a watcher that stops on purpose says how - clean, or the memory guard (store/watcher.py).
+    "watcher_ended",
 }
 
 # Reachable as `store.<name>` before the split, and still.

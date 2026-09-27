@@ -73,7 +73,9 @@ LAYER = {_q(name): layer for layer, names in {
                # and which needs-you notices are raised, and when a turn has stopped moving.
                "needsyou",
                # and sleep, keeping this PC awake and the network, as a waiting recovery meets them.
-               "power"),
+               "power",
+               # and the watcher's memory guard, and the status file for other tools.
+               "memguard", "statusfile"),
     "adapters": ("store", "openstate", "codex", "windows", "compat", "compatio", "startup", "shortcut",
                  # v0.6.10-alpha: compat.py and compatio.py became compat/.
                  "compat.model", "compat.standing", "compat.report", "compat.permits", "compat.files", "compat.cache", "compat.probes", "compat.views", "compat.evaluator",
@@ -96,6 +98,8 @@ LAYER = {_q(name): layer for layer, names in {
                  "win.policykeys",
                  # and what Windows says of power and of the internet, and the one power request.
                  "win.power", "win.network",
+                 # and what it says of the watcher's own process and of this sign-in.
+                 "win.ownprocess",
                  # v0.6.10-alpha: source.py became source/, and every part of it reads Codex;
                  # windows.py's other half - the CLI, the App Server, the pairing - joined it.
                  "codex.appserver", "codex.errors", "codex.history", "codex.labels",
@@ -119,6 +123,8 @@ LAYER = {_q(name): layer for layer, names in {
               "runtime", "runtime.app", "runtime.loop", "runtime.toasts",
               # v0.6.11: the watcher's side of sleep and of keeping this PC awake.
               "runtime.waking",
+              # and of its own memory, how it ended and the status file.
+              "runtime.health",
               # v0.6.10-alpha: cli.py's command bodies became commands/; cli.py is the parser.
               "commands", "commands.base", "commands.install", "commands.records",
               "commands.status", "commands.watcher",

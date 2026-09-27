@@ -692,6 +692,41 @@
             "notnull": false,
             "default": null,
             "primary_key": 0
+          },
+          {
+            "name": "memory_peak",
+            "type": "INTEGER",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "end_mark",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "ended_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "sign_in",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "booted_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
           }
         ],
         "indexes": {}
@@ -1387,6 +1422,41 @@
           },
           {
             "name": "awake_since",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "memory_peak",
+            "type": "INTEGER",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "end_mark",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "ended_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "sign_in",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "booted_at",
             "type": "REAL",
             "notnull": false,
             "default": null,
@@ -2090,6 +2160,41 @@
             "notnull": false,
             "default": null,
             "primary_key": 0
+          },
+          {
+            "name": "memory_peak",
+            "type": "INTEGER",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "end_mark",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "ended_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "sign_in",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "booted_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
           }
         ],
         "indexes": {}
@@ -2785,6 +2890,41 @@
           },
           {
             "name": "awake_since",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "memory_peak",
+            "type": "INTEGER",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "end_mark",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "ended_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "sign_in",
+            "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "booted_at",
             "type": "REAL",
             "notnull": false,
             "default": null,

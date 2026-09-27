@@ -1,0 +1,41 @@
+{
+  "command": "plugin-copy",
+  "cases": [
+    {
+      "case": "Codex keeps no copy of the plugin",
+      "argument": null,
+      "reply": {
+        "ok": true,
+        "result": {
+          "installed": "standard",
+          "copy": null,
+          "matches": true
+        }
+      }
+    },
+    {
+      "case": "Codex's copy is the same edition",
+      "argument": null,
+      "reply": {
+        "ok": true,
+        "result": {
+          "installed": "standard",
+          "copy": "standard",
+          "matches": true
+        }
+      }
+    },
+    {
+      "case": "Codex's copy is still the other edition's",
+      "argument": null,
+      "reply": {
+        "ok": true,
+        "result": {
+          "installed": "standard",
+          "copy": "advanced",
+          "matches": false
+        }
+      }
+    }
+  ]
+}

@@ -64,6 +64,9 @@ ADDED: dict = {
     "wait_for_network": (False, "off: Windows is not asked about the internet, and usage is read as in v0.6.10"),
     "keep_awake": ("off", "off: this PC is never asked to stay awake"),
     "keep_awake_hours": ("h6", "inert while keep_awake is off, which is the default"),
+    "memory_guard": ("off", "off: the watcher's memory is only shown, never acted on"),
+    "memory_guard_limit": ("mb1024", "inert while memory_guard is off, which is the default"),
+    "status_file": (False, "off: no status file is written"),
 }
 
 

@@ -157,8 +157,12 @@ running watcher to stop and waits up to a minute so the new version takes over; 
 it, and if the old one is still finishing it leaves it running and says so. If Codex cannot
 replace the plugin because this plugin's own MCP launcher is holding its files open, the
 installer force-stops that launcher and tries again; Codex starts a new one when it next needs
-it. `Uninstall.cmd`, or asking Codex to remove it, removes it; see [Uninstall](#uninstall) for
-what each route leaves behind.
+it. If Codex still cannot replace it, the installer says so and finishes everything else: the
+plugin's tools already run the program just installed, and only the skill's text in Codex's own
+copy of the plugin waits until you close the ChatGPT/Codex app and run the installer again. From
+v0.6.11, when the installation changed edition, the installer says which edition that copy still is,
+and the Dashboard's Diagnostics says so too until the copy is replaced. `Uninstall.cmd`, or asking
+Codex to remove it, removes it; see [Uninstall](#uninstall) for what each route leaves behind.
 
 Afterwards, change anything from **Start Menu → Codex Auto Resume**, or by asking Codex to
 *open auto resume settings*.
@@ -768,7 +772,7 @@ The Settings page is split into five sections:
 
 | Section | What is in it |
 | --- | --- |
-| General | Interface language, starting at Windows sign-in, the notification-area icon, from v0.6.11 keeping this PC awake while a task waits, and which notifications appear - from v0.6.11 also when a conversation needs you |
+| General | Interface language, starting at Windows sign-in, the notification-area icon, from v0.6.11 keeping this PC awake while a task waits, the watcher's memory guard and a status file for other tools, and which notifications appear - from v0.6.11 also when a conversation needs you |
 | Automatic recovery | Which classified kinds of interruption are recovered, one check box each, and from v0.6.11 Observe only |
 | Continuation message | The language and style of the message sent to Codex, your own Custom message, and a Preview of the exact text |
 | Appearance | The theme - Use system setting, Light or Dark - the panel's Theme in Codex, the Design - Soft, Classic (v0.6.2) or Plain - and Reduce motion |
@@ -925,6 +929,36 @@ usage; *Why it is waiting* says "No internet (Windows reports)", and so does its
 Behind some proxies Windows reports no internet where there is, which is why it is off by default.
 When Windows cannot be asked or does not answer, usage is read as it always was.
 
+### The watcher's memory, how it stopped, and a status file
+
+From v0.6.11 the watcher asks Windows, after every check, how much memory its own process has
+committed, and keeps the most it has used; Diagnostics shows it as **Peak memory**. That is all that
+happens at the defaults. **When the watcher uses too much memory**, under General > Windows, is off by
+default. **Warn me** says so once, with one button that opens Diagnostics, and the watcher goes on.
+**Warn me, then stop the watcher** also stops it - after the check it is in has ended, never during
+one, so never while a continuation is being sent - the same way a Stop does, and Windows' own
+notification says so, with one button that opens the Overview. Nothing waiting is lost, and nothing
+starts the watcher again on its own: sign-in's launcher does not, and there is no other process that
+would. Start it again from the Dashboard, the panel or the Start Menu when you are ready. The limit is
+**Too much memory is more than**, 256 to 2048 MB, 1024 by default.
+
+A watcher that stops on purpose - a Stop, an upgrade, the memory guard - says so as it goes. One that
+is gone without having said so, in this same Windows sign-in, is shown as **stopped unexpectedly at**
+the time it was last seen, in the Overview and Diagnostics and in the panel in Codex; one the memory
+guard stopped is shown as **stopped by the memory guard at** its time. A watcher that ended with an
+earlier sign-in, or before Windows last started, is only **not running**, as before: Windows ends it
+then, which is no surprise.
+
+**Write a status file for other tools**, under General > Windows, off by default, has the watcher write
+`status.json` in its settings folder (`config\`) after every check and once more as it stops: whether
+it runs, whether recovery is on, paused or observing only, the compatibility word for the Codex
+engine, how many recoveries are pending at each state and when the next is looked at, and Codex's
+usage as last read - the same numbers the Overview shows. It holds no conversation or record id, no
+name or title and no path, is written whole or not at all, and nothing in this product reads it: it
+is there for a status bar or a script of your own, which can read it without a port, a server or a
+question to this product. A file that says `running` and has not changed for minutes belongs to a
+watcher that is gone. Turned off, the file is removed.
+
 ### Settings an administrator manages
 
 From v0.6.11 an administrator can set six values under `Software\Policies\CodexAutoResume` - in
@@ -937,7 +971,7 @@ has none, and then nothing is different.
 | `DisableAutoResume` | DWORD, not 0 | Recovery is paused, and Resume is refused while the value is set. |
 | `ForceObserveOnly` | DWORD, not 0 | Observe only is on: every check runs, and nothing is sent. |
 | `DisableUpdateCheck` | DWORD, not 0 | The Dashboard's **Check for updates** is greyed and asks nothing. |
-| `DisableStatusFile` | DWORD, not 0 | Keeps the status file for other tools off. This version writes no status file yet, so it holds nothing back until one exists. |
+| `DisableStatusFile` | DWORD, not 0 | Keeps **Write a status file for other tools** off, and the watcher removes the file it wrote. |
 | `MaxRecoveryAttempts` | DWORD, 1 to 20 | The most attempts per interruption: a ceiling on that setting. |
 | `QuietHours` | String | Quiet hours that hold whatever else is set, as `22:00-07:00`, or with the days they start on: `22:00-07:00 weekdays` (or `weekends`, `every_day`). Times are on the hour or the half hour. |
 

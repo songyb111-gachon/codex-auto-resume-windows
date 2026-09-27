@@ -66,7 +66,9 @@ from .windows import WakeEvent
 PLAIN = ("status", "settings", "describe", "defaults", "pending", "pending-all", "start-watcher",
          "stop-watcher", "strings", "history", "clear-history", "dashboard", "cancel-all",
          # v0.6.8: the Dashboard in front has seen any failure (control.acknowledge_failure).
-         "failure-seen")
+         "failure-seen",
+         # v0.6.11: Diagnostics - the edition installed and the edition of Codex's copy of the plugin.
+         "plugin-copy")
 WITH_ARGUMENT = ("update", "enabled", "startup", "cancel", "reset-budget", "retry-now",
                  "timeline", "statistics", "thread-enabled", "cancel-thread", "diagnostics",
                  "preview-continuation", "interruption-recovery",
@@ -363,6 +365,9 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
             return {"ok": True, "result": control.clear_history(actor="gui")}
         if command == "failure-seen":
             return {"ok": True, "result": control.acknowledge_failure()}
+        if command == "plugin-copy":
+            # Read only, and only when Diagnostics asks: nothing is done about what it says.
+            return {"ok": True, "result": control.plugin_copy()}
         if command == "dashboard":
             # What the Overview needs, in one round trip. Each part fails on its own:
             # a state that cannot be read must not also take the status away.

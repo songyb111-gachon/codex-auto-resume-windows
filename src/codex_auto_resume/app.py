@@ -14,11 +14,11 @@ Rust core is built from - the same file as the wiring of everything else.
 from __future__ import annotations
 
 from .runtime.app import App
-from .runtime.loop import (DEFAULT_POLL, EXIT_BUSY, EXIT_ERROR, EXIT_OK, EXIT_SCHEMA_NEWER, MAX_POLL, MIN_POLL, MUTEX_RETRY_SECONDS,
+from .runtime.loop import (DEFAULT_POLL, EXIT_BUSY, EXIT_ERROR, EXIT_MEMORY_GUARD, EXIT_OK, EXIT_SCHEMA_NEWER, MAX_POLL, MIN_POLL, MUTEX_RETRY_SECONDS,
                            OPEN_RETRY_MAX_SECONDS, WAKE_COALESCE_SECONDS, WATCH_SECONDS,
                            WatchLoop)
 from .runtime.toasts import Toasts
 
-__all__ = ["App", "DEFAULT_POLL", "EXIT_BUSY", "EXIT_ERROR", "EXIT_OK", "EXIT_SCHEMA_NEWER",
+__all__ = ["App", "DEFAULT_POLL", "EXIT_BUSY", "EXIT_ERROR", "EXIT_MEMORY_GUARD", "EXIT_OK", "EXIT_SCHEMA_NEWER",
            "MAX_POLL", "MIN_POLL", "MUTEX_RETRY_SECONDS", "OPEN_RETRY_MAX_SECONDS", "Toasts",
            "WAKE_COALESCE_SECONDS", "WATCH_SECONDS", "WatchLoop"]

@@ -73,7 +73,10 @@
           "ask_after_sleep_minutes": "off",
           "wait_for_network": false,
           "keep_awake": "off",
-          "keep_awake_hours": "h6"
+          "keep_awake_hours": "h6",
+          "memory_guard": "off",
+          "memory_guard_limit": "mb1024",
+          "status_file": false
         }
       }
     },
@@ -151,7 +154,10 @@
           "ask_after_sleep_minutes": "off",
           "wait_for_network": false,
           "keep_awake": "off",
-          "keep_awake_hours": "h6"
+          "keep_awake_hours": "h6",
+          "memory_guard": "off",
+          "memory_guard_limit": "mb1024",
+          "status_file": false
         }
       }
     },
@@ -250,7 +256,10 @@
           "ask_after_sleep_minutes": "off",
           "wait_for_network": false,
           "keep_awake": "off",
-          "keep_awake_hours": "h6"
+          "keep_awake_hours": "h6",
+          "memory_guard": "off",
+          "memory_guard_limit": "mb1024",
+          "status_file": false
         }
       }
     },

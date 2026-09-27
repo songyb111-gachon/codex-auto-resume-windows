@@ -147,15 +147,14 @@ class ClampTests(unittest.TestCase):
         self.assertEqual(managed.clamp(dict(settings.defaults(), max_recovery_attempts=2),
                                        held(max_recovery_attempts=5))["max_recovery_attempts"], 2)
 
-    def test_the_status_file_is_held_off_once_it_is_a_setting(self):
-        self.assertEqual(managed.fields(held(disable_status_file=True)), frozenset(),
-                         "until item 17 adds the setting, DisableStatusFile holds nothing back")
-        fields = dict(settings.FIELDS, status_file=(False, settings._boolean))
-        with patch.object(settings, "FIELDS", fields), \
-                patch.object(settings, "DEFAULTS", dict(settings.DEFAULTS, status_file=False)):
-            self.assertEqual(managed.fields(held(disable_status_file=True)), frozenset({"status_file"}))
-            clamped = managed.clamp(dict(settings.DEFAULTS, status_file=True), held(disable_status_file=True))
-            self.assertIs(clamped["status_file"], False)
+    def test_the_status_file_is_held_off(self):
+        """Item 17 made it a setting (statusfile.py), off by default; DisableStatusFile holds it there."""
+        self.assertIs(settings.DEFAULTS["status_file"], False)
+        self.assertEqual(managed.fields(held(disable_status_file=True)), frozenset({"status_file"}))
+        clamped = managed.clamp(dict(settings.DEFAULTS, status_file=True), held(disable_status_file=True))
+        self.assertIs(clamped["status_file"], False)
+        self.assertEqual(managed.admit({"status_file": True}, clamped, held(disable_status_file=True)),
+                         ({}, "status_file"))
 
     def test_settings_after_the_keys_are_never_less_restrictive_than_before(self):
         """The property the design asks for, over many settings and every combination of keys."""

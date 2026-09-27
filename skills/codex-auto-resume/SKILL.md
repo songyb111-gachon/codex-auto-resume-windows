@@ -250,6 +250,14 @@ anything or makes a recovery sooner. Keeping the PC awake while a task waits is 
 not one these tools change; `watcher.awake_since` in `get_status` says since when the watcher keeps it
 awake, or is null.
 
+From v0.6.11 `get_status` also says, of a watcher that is not running, how it ended:
+`watcher.ended` is `unexpected` (it stopped without saying so, in this Windows sign-in, at
+`watcher.ended_at`), `memory_guard` (the memory guard stopped it, as the user chose), `clean`, or
+null when nothing can be said. Report it as it is, never as a crash you have diagnosed, and offer
+`start_watcher`; nothing restarts it on its own. `watcher.memory_peak` is the most memory it has used,
+in bytes. The memory guard and the status file for other tools are Dashboard settings, not ones
+these tools change.
+
 `get_status` carries a Codex compatibility summary under `watcher.compatibility`, as codes. Its
 `overall` is one of `verified` (a real recovery on that exact Codex version confirmed it),
 `checked` (the maintainer's own checks passed on that exact version), `structurally_compatible`

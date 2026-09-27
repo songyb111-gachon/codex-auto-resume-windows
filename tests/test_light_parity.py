@@ -73,7 +73,8 @@ def panel_answers():
     cases = [[vector["status"], vector["rows"]] for vector in VECTORS]
     catalogs = {language: l10n.catalog(language) for language in FACT_LANGUAGES}
     hold = re.search(r"^var CHECKING_HOLD = \d+;$", mcpui._SCRIPT, re.M).group(0)
-    return run_javascript(["t", "fill", "activity", "due", "checkingRow", "attentionCause", "lightFor", "heroFacts"], """
+    return run_javascript(["t", "fill", "activity", "due", "checkingRow", "attentionCause", "lightFor", "clockTime",
+                           "stoppedFact", "heroFacts"], """
       var catalogs = %s;
       var now = %s;
       var out = %s.map(function (c) {

@@ -508,6 +508,10 @@ namespace CodexAutoResume
                     if (name == "wait_for_network")
                         host.Controls.Add(HelpText(S("help.wait_for_network",
                             "When a recovery is due, Windows is asked whether this PC is connected to the internet before Codex's usage is read. While Windows reports no connection it waits, and looks again every minute. Nothing is sent to find out. Behind some proxies Windows reports no internet when there is; leave this off there.")));
+                    // v0.6.11: what the status file holds, under its switch.
+                    if (name == "status_file")
+                        host.Controls.Add(HelpText(S("help.status_file",
+                            "After every check the watcher writes status.json in its settings folder, for a tool of your own to read: whether it runs, whether recovery is on, how many tasks wait and when the next is looked at, and Codex's usage as last read. It holds no conversation, name or path. Nothing in this product reads it, and it is removed when this is off.")));
                     // v0.6.11: what observe only does, under its switch.
                     if (name == "observe_only")
                         host.Controls.Add(HelpText(S("help.observe_only",
@@ -604,6 +608,10 @@ namespace CodexAutoResume
                     if (name == "keep_awake_hours")
                         host.Controls.Add(HelpText(S("help.keep_awake_hours",
                             "While a task waits, Windows is asked not to let this PC sleep on its own, for at most the hours chosen each time tasks start waiting; the display may still turn off. Closing the lid or choosing Sleep still sleeps the PC, and no Windows setting is changed. On mains power only lets it sleep on battery as usual.")));
+                    // v0.6.11: what the memory guard does, under its limit.
+                    if (name == "memory_guard_limit")
+                        host.Controls.Add(HelpText(S("help.memory_guard_limit",
+                            "After every check, the memory the watcher has committed is compared with this. Warn me says so once and goes on; Warn me, then stop the watcher also stops it before its next check - nothing waiting is lost - and it stays stopped until you start it again. Diagnostics shows the most it has used. Nothing is compared while this is Off.")));
                     if (name == "context_guard")
                         host.Controls.Add(HelpText(S("help.context_guard",
                             "Codex's own count, read when an interruption is detected, where Codex keeps one. Show them in Pending puts the count beside the task; a Hold choice also keeps a task whose conversation has used more waiting until you let it continue. Nothing is read while this is Off. For interruptions detected from then on.")));

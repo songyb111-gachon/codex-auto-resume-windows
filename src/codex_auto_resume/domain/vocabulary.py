@@ -553,6 +553,35 @@ class SleepWait(StrEnum):
     H12 = "h12"
 
 
+class MemoryGuard(StrEnum):
+    """What the watcher does when it uses more memory than the limit (memguard.MODES): nothing, the
+    default and v0.6.10's; warn once; or warn and stop between ticks (v0.6.11)."""
+    OFF = "off"
+    WARN = "warn"
+    STOP = "stop"
+
+
+class MemoryLimit(StrEnum):
+    """How much memory is too much for the watcher, in MiB (memguard.LIMITS)."""
+    MB256 = "mb256"
+    MB512 = "mb512"
+    MB768 = "mb768"
+    MB1024 = "mb1024"
+    MB1536 = "mb1536"
+    MB2048 = "mb2048"
+
+
+class WatcherEnd(StrEnum):
+    """How the watcher last ended (store.WATCHER_ENDS, v0.6.11). The heartbeat writes RUNNING every
+    tick, and a watcher that stops on purpose writes CLEAN, or MEMORY_GUARD when the memory guard
+    stopped it; UNEXPECTED is what a reader makes of RUNNING left by a watcher that is gone, in this
+    same Windows sign-in (control/watcher.py)."""
+    RUNNING = "running"
+    CLEAN = "clean"
+    MEMORY_GUARD = "memory_guard"
+    UNEXPECTED = "unexpected"
+
+
 class NotifyEvent(StrEnum):
     """What a notification may be about, each switchable (settings.NOTIFICATION_EVENTS). NEEDS_YOU
     (v0.6.11) is the one off by default: a failure this product never resumes, told once."""
@@ -633,3 +662,7 @@ class NoticeKind(StrEnum):
     NEEDS_YOU = "needs_you"
     # v0.6.11: what fell due while this PC slept long waits for a person (power.py).
     AFTER_SLEEP = "after_sleep"
+    # v0.6.11: the watcher uses more memory than the memory guard allows, and goes on; or stopped for
+    # it (memguard.py).
+    MEMORY_WARNING = "memory_warning"
+    MEMORY_STOPPED = "memory_stopped"

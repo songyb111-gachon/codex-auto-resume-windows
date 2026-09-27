@@ -1020,7 +1020,7 @@ function heroFacts(status, state, rows) {
               : count === 1 ? t('status.pending_one', '1 recovery pending')
               : fill('status.pending_many', '{n} recoveries pending', {n: count});
   if (status.watcher_running !== true) {
-    var facts = [status.watcher_running === false ? t('status.not_running', 'Watcher not running')
+    var facts = [status.watcher_running === false ? stoppedFact(status.watcher || {})
                                                   : t('status.unknown', 'Watcher status unknown'),
                  t('status.recovery_idle', 'Nothing will be recovered until it is running')];
     if (count) facts.push(pending);
@@ -1040,6 +1040,22 @@ function heroFacts(status, state, rows) {
   }
   if (state === 'paused') return [t('status.recovery_paused', 'Automatic recovery is paused'), pending];
   return [t('status.recovery_on', 'Automatic recovery is on'), pending];
+}
+
+// v0.6.11: a watcher that is not running, as it ended (control/watcher.how_it_ended) - stopped by the
+// memory guard, or unexpectedly in this sign-in, each at the time it did, as the Dashboard's Watcher fact
+// says it; otherwise "Watcher not running", as it always said.
+function stoppedFact(watcher) {
+  var at = watcher.ended_at;
+  if (typeof at === 'number' && isFinite(at) && at > 0) {
+    if (watcher.ended === 'unexpected') {
+      return fill('status.stopped_unexpectedly', 'Watcher stopped unexpectedly at {time}', {time: clockTime(at)});
+    }
+    if (watcher.ended === 'memory_guard') {
+      return fill('status.stopped_memory_guard', 'Watcher stopped by the memory guard at {time}', {time: clockTime(at)});
+    }
+  }
+  return t('status.not_running', 'Watcher not running');
 }
 
 // The soonest check, which is the question a count raises rather than answers - while recovery

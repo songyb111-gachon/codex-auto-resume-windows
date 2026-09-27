@@ -64,7 +64,9 @@ def _q(name: str) -> str:
 ITEM = {_q(name): item for item, names in {
     "watcher": ("app", "runtime", "runtime.app", "runtime.loop", "runtime.toasts",
                 # v0.6.11: the watcher's side of sleep and of keeping this PC awake.
-                "runtime.waking"),
+                "runtime.waking",
+                # and of its own memory, how it ended and the status file.
+                "runtime.health"),
     "engine": ("engine", "engine.announce", "engine.detect", "engine.dispatch", "engine.freshness",
                "engine.options", "engine.outcome",
                # v0.6.11: the waits and the two guards, as the engine asks them.
@@ -86,7 +88,9 @@ ITEM = {_q(name): item for item, names in {
                # and which needs-you notices are raised, and after how long a turn has stopped moving.
                "needsyou",
                # and what a long sleep holds, how long this PC is kept awake, and waiting for the internet.
-               "power"),
+               "power",
+               # and the watcher's memory guard, and the status file for other tools.
+               "memguard", "statusfile"),
     "machine": ("machine", "domain", "domain.errors", "domain.ids", "domain.public",
                 "domain.states", "domain.vocabulary",
                 # v0.6.11: the registry's vocabularies, out of domain/vocabulary.py.
@@ -134,6 +138,8 @@ ITEM = {_q(name): item for item, names in {
                  "win.policykeys",
                  # and what Windows says of power and of the internet, and the one power request.
                  "win.power", "win.network",
+                 # and what it says of the watcher's own process and of this sign-in.
+                 "win.ownprocess",
                  "pwsh", "shortcut", "startup"),
     "config": ("", "config", "logbook"),
 }.items() for name in names}

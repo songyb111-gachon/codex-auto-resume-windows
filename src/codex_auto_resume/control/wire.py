@@ -131,6 +131,12 @@ class WatcherView(TypedDict):
     usage: UsageReading | None
     # v0.6.11: since when the watcher keeps this PC awake while a task waits, or None.
     awake_since: float | None
+    # v0.6.11: the most private memory the watcher committed, in bytes, or None.
+    memory_peak: int | None
+    # v0.6.11: how a watcher that is not running ended - clean, memory_guard or unexpected - and when;
+    # None and None for one that runs, or of which nothing can be said.
+    ended: str | None
+    ended_at: float | None
 
 
 class StatusSnapshot(TypedDict):

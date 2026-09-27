@@ -163,7 +163,7 @@ LISTS = {
     "ui.popup.STATES": ("tuple", 6, "b38c816dbd792bf5"),
     "ui.popup.ATTENTION_OVERLAYS": ("set", 4, "a707a2b300127033"),
     # v0.6.11: and the needs-you notice's light, attention; and a long sleep's, paused (power.py).
-    "notifier.STATUS": ("dict", 9, "8c308bd036ec7168"),
+    "notifier.STATUS": ("dict", 11, "41bb96764ccfe3c6"),
     "mcpserver.Server.START_WORDING": ("dict", 4, "f15e04a780f57870"),
     # v0.6.11: the two editions, and the plug that is the whole difference between them.
     "edition.EDITIONS": ("tuple", 2, "49cc206af3867704"),
@@ -315,6 +315,10 @@ HOMES = {
     v.KeepAwake: ("list", "power.KEEP_AWAKE_MODES", "settings.KEEP_AWAKE_MODES"),
     v.AwakeCap: ("list", "power.AWAKE_CAPS", "settings.AWAKE_CAPS"),
     v.SleepWait: ("list", "power.SLEEP_WAITS", "settings.SLEEP_WAITS"),
+    # v0.6.11: the watcher's memory guard and its limit, and how the watcher last ended.
+    v.MemoryGuard: ("list", "memguard.MODES", "settings.MEMORY_GUARD_MODES"),
+    v.MemoryLimit: ("list", "memguard.LIMITS", "settings.MEMORY_LIMITS"),
+    v.WatcherEnd: ("list", "store.WATCHER_ENDS"),
     v.Locale: ("list", "l10n.LOCALES"),
     v.SendOutcome: ("returned", ("Backend.send", "outcome")),
     v.SendError: ("returned", ("Backend.send", "error_code")),

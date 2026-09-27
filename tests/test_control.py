@@ -552,7 +552,9 @@ class BridgeTests(ControlTestCase):
             # conversation asks first. Each names its exact record or conversation.
             "postpone", "release-hold", "thread-tier",
         # and Always or Never for the project of a row's conversation, bound to that row.
-        "project-rule"]))
+        "project-rule",
+            # v0.6.11: Diagnostics reads which edition Codex's copy of the plugin is; it changes nothing.
+            "plugin-copy"]))
 
     def test_serve_answers_every_line_with_exactly_one_line(self):
         requests = "\n".join([

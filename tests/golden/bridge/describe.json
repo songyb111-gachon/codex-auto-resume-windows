@@ -770,6 +770,37 @@
               "h24"
             ],
             "group": "windows"
+          },
+          {
+            "name": "memory_guard",
+            "default": "off",
+            "type": "string",
+            "choices": [
+              "off",
+              "warn",
+              "stop"
+            ],
+            "group": "windows"
+          },
+          {
+            "name": "memory_guard_limit",
+            "default": "mb1024",
+            "type": "string",
+            "choices": [
+              "mb256",
+              "mb512",
+              "mb768",
+              "mb1024",
+              "mb1536",
+              "mb2048"
+            ],
+            "group": "windows"
+          },
+          {
+            "name": "status_file",
+            "default": false,
+            "type": "boolean",
+            "group": "windows"
           }
         ]
       }
@@ -1547,6 +1578,37 @@
               "h12",
               "h24"
             ],
+            "group": "windows"
+          },
+          {
+            "name": "memory_guard",
+            "default": "off",
+            "type": "string",
+            "choices": [
+              "off",
+              "warn",
+              "stop"
+            ],
+            "group": "windows"
+          },
+          {
+            "name": "memory_guard_limit",
+            "default": "mb1024",
+            "type": "string",
+            "choices": [
+              "mb256",
+              "mb512",
+              "mb768",
+              "mb1024",
+              "mb1536",
+              "mb2048"
+            ],
+            "group": "windows"
+          },
+          {
+            "name": "status_file",
+            "default": false,
+            "type": "boolean",
             "group": "windows"
           }
         ]

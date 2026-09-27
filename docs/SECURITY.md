@@ -226,7 +226,11 @@ this product's plugin and marketplace).
   v0.6.11 **Keep this PC awake while a task waits**, off by default, is the watcher's own request to
   Windows (`SetThreadExecutionState`), which it takes back when nothing waits, after the hours chosen,
   on a pause and when it stops, and which Windows ends with the watcher; no power setting is changed,
-  and nothing wakes a sleeping PC.
+  and nothing wakes a sleeping PC. The memory guard (from v0.6.11, off by default) stops the watcher
+  itself, between two checks, through the same stop a person asks for; it leaves with an exit code
+  of its own that the sign-in launcher never starts again, and the standard edition has no
+  supervisor or other process that would. A status file for other tools (off by default) is a file
+  in the watcher's own `config\`, written whole: no port is opened and nothing listens.
 - **Named objects planted by a less-trusted process are refused.** This is new in v0.6.0. The watcher's single-instance mutex and its stop event have
   predictable names in the session namespace, where a process running at Low integrity may create
   objects. If either already exists with an integrity label below Medium (the level an ordinary
@@ -304,7 +308,9 @@ this product's plugin and marketplace).
   keeps to be told once is a table nothing that decides a send reads, and it never becomes a record.
   The notice that tasks fell due during a long sleep (from v0.6.11, off by default) also has one
   button, **Open Dashboard**, at Pending: no cancel, since it is about several tasks, each of which
-  is let continue or cancelled there on its own row.
+  is let continue or cancelled there on its own row. The memory guard's two notices (from v0.6.11,
+  off by default) are about the watcher, not a task: each has one button, **Open Dashboard**, at
+  Diagnostics or at the Overview.
 - **Front ends ask; the watcher alone sends.** New in v0.6.3. The **Auto-resume** switch
   beside each task, on the Pending page and in the notification-area popup, carries the exact
   interruption id and conversation id of the row it was drawn in. When the click arrives, the

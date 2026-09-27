@@ -625,10 +625,17 @@ namespace CodexAutoResume
             // window that has just opened has nothing to say about updates and says nothing.
             diagUpdate = Fact(facts, S("diag.update", "Updates"));
             diagUpdate.Text = S("diag.update_unasked", "not checked");
+            // v0.6.11: the most memory the watcher has used - always, whatever the memory guard is set to.
+            diagMemory = Fact(facts, S("diag.memory_peak", "Peak memory"));
             diagUpgrade = Value("");
             diagUpgrade.ForeColor = Accent;
             diagUpgrade.MaximumSize = new Size(Px(360), 0);
             health.Controls.Add(diagUpgrade);
+            // v0.6.11: that Codex's copy of this plugin is still the other edition's, only while it is (LoadPluginCopy).
+            diagPlugin = Value("");
+            diagPlugin.ForeColor = Accent;
+            diagPlugin.MaximumSize = new Size(Px(360), 0);
+            health.Controls.Add(diagPlugin);
 
             TableLayoutPanel tools = MakeCard(S("diag.tools", "Tools"));
             tools.Margin = GridGap(1, false);

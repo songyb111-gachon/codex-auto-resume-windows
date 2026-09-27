@@ -10,9 +10,11 @@ import os
 from pathlib import Path
 import time
 
-from .. import config, machine, managed, settings, startup
+from .. import config, edition, machine, managed, settings, startup
 from ..domain.plug import DEFER, EXTRA, Surface
+from ..domain.vocabulary import WatcherEnd
 from ..store import TERMINAL, LegacyStore, Store, StoreError
+from ..win import ownprocess
 from ..windows import AdapterError, Mutex, StopEvent
 from .errors import ControlError
 
@@ -38,6 +40,32 @@ WATCHER_STOP_INTERVAL = 0.25
 
 # A heartbeat older than this, from a watcher that holds the mutex, is not ticking.
 TICK_STALE_SECONDS = 180.0
+# Two readings of when Windows started, each the wall clock less the time since, that differ by no more
+# than this are one start of Windows: the wall clock may be set right by a little between them.
+BOOT_SLACK_SECONDS = 300.0
+
+
+def how_it_ended(status, running, sign_in, booted_at):
+    """How a watcher that is not running ended, and when: (WatcherEnd, time) or (None, None).
+
+    Only of a watcher known not to run (`running` False). CLEAN and MEMORY_GUARD are what a watcher that
+    stopped on purpose wrote, with when. UNEXPECTED is a heartbeat still saying RUNNING, from a watcher
+    that ran in this sign-in of this start of Windows - `sign_in` and `booted_at` are this process's own
+    (win/ownprocess.py) - at the last time it was seen alive. A watcher that ended with an earlier sign-in
+    or an earlier start of Windows was ended with it, which is no surprise, and a heartbeat from before
+    v0.6.11 says nothing of how it ended: for both, and whenever a reading is missing, (None, None) -
+    "not running", as it always said. Never "unexpected" on a guess."""
+    if running is not False or not isinstance(status, dict):
+        return None, None
+    mark = status.get("end_mark")
+    if mark in (WatcherEnd.CLEAN, WatcherEnd.MEMORY_GUARD):
+        return WatcherEnd(mark).value, status.get("ended_at")
+    if mark != WatcherEnd.RUNNING:
+        return None, None
+    then, now = status.get("booted_at"), booted_at
+    same = (isinstance(sign_in, str) and status.get("sign_in") == sign_in
+            and isinstance(then, float) and isinstance(now, float) and abs(then - now) <= BOOT_SLACK_SECONDS)
+    return (WatcherEnd.UNEXPECTED.value, status.get("last_tick_at")) if same else (None, None)
 
 
 def await_watcher(probe, process, *, timeout=None, interval=None) -> dict:
@@ -145,6 +173,8 @@ class WatcherMixin:
         ticking = None
         if running is True and status and status.get("last_tick_at"):
             ticking = time.time() - status["last_tick_at"] < TICK_STALE_SECONDS
+        ended, ended_at = (how_it_ended(status, running, ownprocess.sign_in(), ownprocess.booted_at())
+                           if running is False and status else (None, None))
         return {"running": running, "ticking": ticking,
                 "engine_state": (status or {}).get("engine_state", "unknown"),
                 "last_tick_at": (status or {}).get("last_tick_at"),
@@ -164,7 +194,25 @@ class WatcherMixin:
                 # v0.6.11: since when it keeps this PC awake while a task waits (power.py), or None -
                 # always None unless Keep this PC awake is on and something waits, and never said of a
                 # watcher that is not running, whose request ended with it.
-                "awake_since": (status or {}).get("awake_since") if running is True else None}
+                "awake_since": (status or {}).get("awake_since") if running is True else None,
+                # v0.6.11: the most private memory the watcher committed, in bytes, whether or not it runs
+                # now (memguard.py) - and, for one that does not, how it ended and when (how_it_ended):
+                # clean, stopped by the memory guard, or stopped unexpectedly in this sign-in; else None.
+                "memory_peak": (status or {}).get("memory_peak"),
+                "ended": ended, "ended_at": ended_at}
+
+    def plugin_copy(self) -> dict:
+        """Which edition is installed here, and which edition the copy of this plugin Codex keeps is
+        (edition.cached_copy): what Diagnostics compares, on request, and says (v0.6.11). Read only, and
+        nothing is done about it: after an edition change the copy is replaced when the ChatGPT/Codex
+        app is closed and the installer runs again, and until then only the skill's text is the other
+        edition's - the tools run this installation's own program (gui/McpLauncher.cs). `copy` is None
+        where Codex keeps no copy, or it cannot be read; `matches` is False only for a copy of the other
+        edition."""
+        installed = edition.name().value
+        copy = edition.cached_copy(config.codex_home())
+        copy = copy.value if copy is not None else None
+        return {"installed": installed, "copy": copy, "matches": copy is None or copy == installed}
 
     def startup_enabled(self) -> bool:
         try:

@@ -96,6 +96,8 @@ class Paths:
         self.compat_cache_file = self.state_dir / "compat-cache.json"
         # v0.6.8: when a person last saw a failure on the icon or the Dashboard (control.acknowledge_failure).
         self.failure_seen_file = self.state_dir / "failure-seen.json"
+        # v0.6.11: the status file for other tools, written only while the setting is on (statusfile.py).
+        self.status_file = self.state_dir / "status.json"
         # v0.6.11: the advanced edition's own state, in one directory of its own under config/,
         # carrying the same marker config/ does. Core never writes there and the standard edition
         # never creates it; it is named here only so a purge can take it (owned_state_files).
@@ -216,9 +218,10 @@ class Paths:
         if not self.owns(self.state_dir):
             return []
         names = ["state.sqlite", "state.sqlite-journal", "state.sqlite-wal", "state.sqlite-shm", "settings.json",
-                 "compatibility.json", "compat-cache.json", "failure-seen.json"]
+                 "compatibility.json", "compat-cache.json", "failure-seen.json", "status.json"]
         files = [self.state_dir / name for name in names]
-        for pattern in ("settings.*.tmp", "compatibility.*.tmp", "compat-cache.*.tmp", "failure-seen.*.tmp"):
+        for pattern in ("settings.*.tmp", "compatibility.*.tmp", "compat-cache.*.tmp", "failure-seen.*.tmp",
+                        "status.*.tmp"):
             files += [p for p in sorted(self.state_dir.glob(pattern))
                       if not is_link(p) and self.confined(p)]
         return files + self.owned_advanced_files() + [self.state_dir / OWNER_MARKER]

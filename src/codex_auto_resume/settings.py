@@ -20,7 +20,8 @@ import os
 from pathlib import Path
 import tempfile
 
-from . import continuation, failures, guards, l10n, ladder, needsyou, power, projects, quiet, reasons
+from . import (continuation, failures, guards, l10n, ladder, memguard, needsyou, power, projects, quiet,
+               reasons, statusfile)
 from .domain.vocabulary import (Design, ImportanceTier, NewConversationPolicy, NotifyEvent,
                                 ProjectPolicy, Theme)
 
@@ -266,6 +267,15 @@ FIELDS[power.NETWORK_FIELD] = (False, _boolean)
 FIELDS[power.KEEP_AWAKE_FIELD] = (power.DEFAULT_KEEP_AWAKE, lambda v, d: _choice(v, d, KEEP_AWAKE_MODES))
 FIELDS[power.AWAKE_CAP_FIELD] = (power.DEFAULT_AWAKE_CAP, lambda v, d: _choice(v, d, AWAKE_CAPS))
 
+# ------------------------------------------------- the watcher's memory, and a status file (v0.6.11)
+# The memory guard - off, warn, or warn and stop between ticks - and its limit, which is read only while
+# it is on (memguard.py); and a status file for other tools (statusfile.py). Each is off by default, and
+# then the watcher does what v0.6.10's did: it only shows its memory's peak, which it always does now.
+MEMORY_GUARD_MODES, MEMORY_LIMITS = memguard.MODES, memguard.LIMITS
+FIELDS[memguard.GUARD_FIELD] = (memguard.DEFAULT_MODE, lambda v, d: _choice(v, d, MEMORY_GUARD_MODES))
+FIELDS[memguard.LIMIT_FIELD] = (memguard.DEFAULT_LIMIT, lambda v, d: _choice(v, d, MEMORY_LIMITS))
+FIELDS[statusfile.FIELD] = (False, _boolean)
+
 
 def is_custom_text(name) -> bool:
     """Whether a settings field holds Custom continuation text: the user's own words, which
@@ -326,6 +336,8 @@ RANGES = {
     power.SLEEP_FIELD: {"choices": list(SLEEP_WAITS)},
     power.KEEP_AWAKE_FIELD: {"choices": list(KEEP_AWAKE_MODES)},
     power.AWAKE_CAP_FIELD: {"choices": list(AWAKE_CAPS)},
+    memguard.GUARD_FIELD: {"choices": list(MEMORY_GUARD_MODES)},
+    memguard.LIMIT_FIELD: {"choices": list(MEMORY_LIMITS)},
 }
 
 # The fields that shape a needs-you notice (v0.6.11), in the order they follow its switch.
@@ -626,12 +638,13 @@ def describe() -> list:
             # both since v0.6.10, as well as following the host's own reduced-motion preference.
             entry["group"] = "appearance"
         elif name in ("show_tray", "notification_card", "start_with_codex", power.KEEP_AWAKE_FIELD,
-                      power.AWAKE_CAP_FIELD):
+                      power.AWAKE_CAP_FIELD, memguard.GUARD_FIELD, memguard.LIMIT_FIELD, statusfile.FIELD):
             # A desktop preference, beside "run at sign-in" - not a notification, and
             # not something the notifications switch governs. The card only chooses how a
             # notification looks on this desktop, so it lives here too, and like the icon it is
             # outside what the Codex panel and MCP may change (mcpserver.USER_GROUPS). v0.6.11: so is
-            # keeping this PC awake while a task waits - a question of this PC's power, not of recovery.
+            # keeping this PC awake while a task waits - a question of this PC's power, not of recovery -
+            # and the watcher's own memory guard, and a status file written for other tools.
             entry["group"] = "windows"
         elif name in ("max_recovery_attempts", "max_no_progress", "max_chain_continuations",
                       "retry_timing", "quiet_hours_start", "quiet_hours_end", "quiet_hours_days",

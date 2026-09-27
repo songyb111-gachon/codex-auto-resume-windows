@@ -17,6 +17,8 @@ from .errors import RecordSchemaMismatch, StoreError
 
 
 ENGINE_STATES = frozenset(vocabulary.EngineState)
+# v0.6.11: how the watcher last ended, as the heartbeat keeps it (store/watcher.py).
+WATCHER_ENDS = tuple(vocabulary.WatcherEnd)
 
 
 # ------------------------------------------------------------------------- validators

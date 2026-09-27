@@ -61,9 +61,9 @@ REG_SZ, REG_EXPAND_SZ, REG_DWORD, REG_QWORD = 1, 2, 4, 11
 # (win/policykeys.UNREADABLE).
 REG_UNREADABLE = -1
 
-# The settings a status file for other tools will be switched by (stage 2's item 17). None of them is
-# a setting yet, and until one is, DisableStatusFile holds nothing back; the day one is, it is held at
-# its default, which is off, like every new setting's.
+# The setting a status file for other tools is switched by (statusfile.py). While DisableStatusFile is
+# set it is held at its default, which is off, like every new setting's; the watcher then writes no
+# status file and removes the one it wrote before.
 STATUS_FILE_FIELDS = ("status_file",)
 
 _QUIET = re.compile(r"^\s*(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})(?:\s+([a-z_]+))?\s*$")

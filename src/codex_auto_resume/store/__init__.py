@@ -54,7 +54,7 @@ from .records import RecordsMixin
 from .reporting import ReportingMixin
 from .schema import SCHEMA_VERSION, SchemaMixin, _TABLES_V2, _TABLES_V3, _TABLES_V4  # noqa: F401
 from .session import SessionMixin
-from .validate import (ENGINE_STATES, _choice, _claim_cost, _finite, _flag,  # noqa: F401
+from .validate import (ENGINE_STATES, WATCHER_ENDS, _choice, _claim_cost, _finite, _flag,  # noqa: F401
                        _integer, _short_text, _sql, _timestamp, _uuid,
                        _validated_notice, _validated_record, _validated_tier, is_usage)
 from .watcher import WatcherMixin
