@@ -28,7 +28,7 @@
   ],
   "system_dpi": 144,
   "inputs": {
-    ".codex-plugin/plugin.json": "d267b630234eb26859807a75d414f3849ffff384f2382b463dd7fa73b95feda4",
+    ".codex-plugin/plugin.json": "8a6ccd2f9148003894eeb85e0c885bd9eaaf1eee2ab2c35bdfee33fded4e72d2",
     "<window sources>": "e345968d88db11cc1fb41062fb030076c12bc470ab54206cc1acf2473459f627",
     "gui/app.manifest": "db5f16dcf2448fdd7e3812dfdaa6d2da893b92c27a982721d3f04cdc05559870",
     "assets/codex-auto-resume.ico": "45c3f3a0d02d78f9be0b80532eedc2f524cd7ebe1056007dacdb286ca743bd52",
