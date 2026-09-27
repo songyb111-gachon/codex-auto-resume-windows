@@ -77,6 +77,7 @@ sys.path.insert(0, str(ROOT / "build"))
 
 from codex_auto_resume import brand, config, l10n            # noqa: E402
 from codex_auto_resume.mcp import panel as mcpui
+from codex_auto_resume.win import typeface                          # noqa: E402
 from codex_auto_resume import settings as policy                    # noqa: E402
 
 ASSETS = ROOT / "assets"
@@ -791,7 +792,9 @@ def held_lights() -> str:
 def panel_html(theme=None, design=None) -> str:
     """The exact markup the panel screenshot is a picture of, pinned to `theme` and `design` (Soft when
     none is given: the page is stamped as the script stamps a stored Soft, and told to keep it)."""
-    page = mcpui.settings_page(sample_panel_data(design), theme=theme, text=1.0,
+    # Windows' text size and UI font pinned: both are asked of the machine when the panel is served,
+    # and a Korean Windows's Malgun Gothic made a rule the English CI runner's Segoe UI does not.
+    page = mcpui.settings_page(sample_panel_data(design), theme=theme, text=1.0, face=typeface.SEGOE,
                                design=design or brand.DEFAULT_DESIGN)
     # Before the panel's own script, which reads the host and the clock as it starts.
     head, _, tail = page.rpartition("<script>")

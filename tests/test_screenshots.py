@@ -172,6 +172,19 @@ class ManifestTests(unittest.TestCase):
                      for name in current if name not in self.manifest["inputs"])
         self.assertEqual(sorted(stale), [], REGENERATE)
 
+    def test_the_panel_input_does_not_depend_on_windows_ui_font(self):
+        """The panel is served with a rule for the languages Windows' UI font cannot set whole
+        (v0.6.11, win/typeface.py). A Korean Windows's Malgun Gothic and the English CI runner's
+        Segoe UI made two different pages from the same source, and CI called every panel picture
+        stale; the generator pins the face as it pins the text size."""
+        from codex_auto_resume.win import typeface
+        generator = self.generator()
+        pages = set()
+        for face in ("Segoe UI", "Malgun Gothic", "Microsoft JhengHei UI"):
+            with patch.object(typeface, "ui_face", return_value=face):
+                pages.add(generator.panel_html(theme=generator.THEME))
+        self.assertEqual(len(pages), 1, "the panel's picture input moves with the machine's UI font")
+
     def test_the_panel_input_is_the_rendered_markup_not_a_file_list(self):
         """The property that stops the list going stale again.
 
