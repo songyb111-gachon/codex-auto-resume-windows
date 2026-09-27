@@ -41,7 +41,7 @@
       },
       "reply": {
         "ok": false,
-        "error": "that is not something to search the log for",
+        "error": "the request could not be completed",
         "error_code": "request_failed"
       }
     }

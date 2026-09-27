@@ -48,7 +48,7 @@ class ToolsMixin:
         match ignores case."""
         if query is not None and (not isinstance(query, str) or len(query) > MAX_QUERY
                                   or any(ord(character) < 32 for character in query)):
-            raise ControlError("that is not something to search the log for", code="request_failed")
+            raise ControlError("the request could not be completed", code="request_failed")
         if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= LOG_LIMIT:
             limit = LOG_LIMIT
         wanted = (query or "").strip().casefold()
