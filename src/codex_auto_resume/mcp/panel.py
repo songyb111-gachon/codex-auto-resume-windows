@@ -127,6 +127,39 @@ def design_rules() -> str:
     ])
 
 
+def right_to_left_rules() -> str:
+    """The stylesheet's rules for a page written right to left (v0.6.11), under `:root[dir="rtl"]`.
+
+    What the logical properties cannot turn by themselves: a padding brand writes with a wider side (a
+    drop-down's field, room for its wedge; a tile's) has its sides swapped; a switch's knob travels the
+    other way; a folded section's chevron points left, into the reading direction; Classic's accent bar is
+    inside the right hairline; a person's own words - a name, a Custom message - are read in their own
+    direction (first strong character), and an id is one left-to-right run. Nothing here matches a page in
+    any other language, which is drawn exactly as it was.
+    """
+    root = ':root[dir="rtl"]'
+    swapped = []
+    for name, value in re.findall(r"--size-([a-z-]+-pad):\s*([^;]+);", brand.css_scale()):
+        sides = value.split()
+        if len(sides) == 4 and sides[1] != sides[3]:
+            swapped.append("--size-%s: %s;" % (name, " ".join([sides[0], sides[3], sides[2], sides[1]])))
+    barred = ['%s[data-design="%s"] .card' % (root, design) for design in brand.DESIGNS
+              if brand.design_accent_bar(design)]
+    rules = []
+    if swapped:
+        rules.append("%s { %s }" % (root, " ".join(swapped)))
+    rules += [
+        "%s input.switch:checked::before { transform: translateX(calc(-1 * var(--size-knob-travel))); }" % root,
+        "%s details.fold:not([open]) > summary .chevron { transform: rotate(135deg); }" % root,
+        "%s .prow-name, %s .stored-text { unicode-bidi: plaintext; }" % (root, root),
+        "%s .mono { direction: ltr; unicode-bidi: isolate; }" % root,
+    ]
+    if barred:
+        rules.append("%s { box-shadow: inset -%s 0 0 var(--accent); }" % (", ".join(barred),
+                                                                        brand._css_length(brand.ACCENT_BAR)))
+    return "\n".join(rules)
+
+
 # Resolved once, at import: the palette is a build-time fact, not a per-request one. The lift
 # of a surface is brand's SHADOWS written as CSS - the recipe the window and the popup paint
 # from - so this page states no shadow of its own.
@@ -139,6 +172,7 @@ _STYLE = (_STYLE.replace("@LIGHT@", brand.css_variables(brand.LIGHT))
                 # v0.6.10: the designs, and what each moves.
                 .replace("@DESIGNS@", brand.css_design_blocks(tile_elevation))
                 .replace("@DESIGN_MOTION@", design_rules())
+                .replace("@RIGHT_TO_LEFT@", right_to_left_rules())
                 .replace("@SCALE@", brand.css_scale())
                 .replace("@GLOW_KEYFRAMES@", brand.css_glow_keyframes())
                 # The Automatic recovery tile's light: the same light, smaller (v0.6.10).
@@ -228,9 +262,11 @@ def settings_page(data=None, theme=None, design=None, text=None) -> str:
     locale = interface.language()
     catalog = "<script>window.__CODEX_AUTO_RESUME_STRINGS__=%s;</script>" % _script_json(
         l10n.catalog(locale))
+    # And which of them are written right to left (v0.6.11), so the page mirrors in one of them.
     catalogs = ("<script>window.__CODEX_AUTO_RESUME_LOCALE__=%s;"
-                "window.__CODEX_AUTO_RESUME_CATALOGS__=%s;</script>"
-                % (_script_json(locale), _script_json(panel_catalogs())))
+                "window.__CODEX_AUTO_RESUME_CATALOGS__=%s;"
+                "window.__CODEX_AUTO_RESUME_RTL__=%s;</script>"
+                % (_script_json(locale), _script_json(panel_catalogs()), _script_json(sorted(l10n.RIGHT_TO_LEFT))))
     seed = ""
     if data is not None:
         seed = "<script>window.__CODEX_AUTO_RESUME__=%s;</script>" % _script_json(data)

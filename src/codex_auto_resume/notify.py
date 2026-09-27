@@ -228,9 +228,19 @@ def _origin_line(identity, used: str, thread_id: str) -> str:
     The thread id shares a line with the project because a separate line for it would
     be a fourth, and Windows would drop one. It is never omitted.
     """
-    thread = l10n.message("toast_thread").format(uuid=thread_id)
+    thread = _thread_line(thread_id)
     secondary = _second_line(identity, used)
-    return (secondary + "  ·  " + thread) if secondary else thread
+    return (_run(secondary) + "  ·  " + thread) if secondary else thread
+
+
+def _run(value) -> str:
+    """A name or an id kept one run in a line of a right-to-left language (l10n.embedded, v0.6.11): an id's
+    groups and a project named in another direction stay in their own order. Itself in any other language."""
+    return l10n.embedded(value, l10n.current())
+
+
+def _thread_line(thread_id: str) -> str:
+    return l10n.message("toast_thread").format(uuid=_run(thread_id))
 
 
 def _content(title, body, *, button=None, uri=None, extra=(), more=(), sound=None) -> dict:
@@ -337,7 +347,7 @@ def objection_content(thread_id: str, interruption_id: str, until: float,
 
 def cancelled_content(thread_id: str) -> dict:
     return _content(l10n.message("toast_cancelled_title"),
-                    l10n.message("toast_thread").format(uuid=thread_id),
+                    _thread_line(thread_id),
                     extra=[l10n.message("toast_cancelled_body")])
 
 

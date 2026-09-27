@@ -41,6 +41,7 @@ import json
 import os
 from pathlib import Path
 import re
+import unicodedata
 
 from .domain.vocabulary import Locale
 
@@ -62,6 +63,10 @@ DEFAULT = "en"
 HELD = frozenset({"ar", "he"})
 # The languages a person can choose and Windows can reach: every catalog but the held ones.
 OFFERED = tuple(locale for locale in LOCALES if locale not in HELD)
+# The catalogs written right to left. A surface drawn in one of them is mirrored - what stands at
+# the left in every other language stands at the right - and reads its sentences right to left
+# (right_to_left, embedded). Today they are exactly the held ones; a later release offers them.
+RIGHT_TO_LEFT = frozenset({"ar", "he"})
 # What a settings field may hold. `system` is stored as a choice in its own right so
 # that "follow Windows" survives a Windows language change, which storing the resolved
 # locale would quietly throw away.
@@ -369,6 +374,44 @@ def messages(locale: str) -> dict:
 def message(key: str, environ=None) -> str:
     """One of the plugin's own sentences, in the language this process speaks."""
     return text("msg." + key, current(environ))
+
+
+# ---------------------------------------------------------------- direction
+# Right to left (v0.6.11). A sentence in Arabic or Hebrew that carries a value written left to right - a
+# version, a path, a conversation id - has to keep that value one run: laid out by the sentence's own
+# direction, `0.6.11-alpha.2` reads `alpha.2-0.6.11` and an id's groups swap places. Unicode's isolates
+# (U+2066-2069) are the modern way to say so, and the panel's browser draws them; GDI - the window, the
+# popup and the card - draws each of them as a box, measured on Windows 11. So a value in a right-to-left
+# sentence drawn by GDI is an embedding, the older mark GDI does honour: LRE or RLE by the value's first
+# strong character, then PDF. Nothing is added in a left-to-right language.
+_LEFT_TO_RIGHT_EMBEDDING, _RIGHT_TO_LEFT_EMBEDDING, _POP = "\u202a", "\u202b", "\u202c"
+
+
+def right_to_left(locale) -> bool:
+    """Whether a surface in `locale` is drawn right to left."""
+    return locale in RIGHT_TO_LEFT
+
+
+def first_strong(value) -> str | None:
+    """"L" or "R" by the first character of `value` with a direction of its own (Unicode's rule P2, the
+    one a browser's `dir="auto"` follows), None when it has none - digits and punctuation only."""
+    for char in str(value):
+        kind = unicodedata.bidirectional(char)
+        if kind == "L":
+            return "L"
+        if kind in ("R", "AL"):
+            return "R"
+    return None
+
+
+def embedded(value, locale) -> str:
+    """`value` kept one run inside a sentence of `locale`: in a right-to-left language, embedded in its own
+    first strong direction (left to right when it has none, as a number or an id); otherwise itself."""
+    value = str(value)
+    if not right_to_left(locale) or not value:
+        return value
+    mark = _RIGHT_TO_LEFT_EMBEDDING if first_strong(value) == "R" else _LEFT_TO_RIGHT_EMBEDDING
+    return mark + value + _POP
 
 
 def placeholders(value: str) -> frozenset:

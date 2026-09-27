@@ -485,7 +485,9 @@ class StyleTests(unittest.TestCase):
         the light 9px in from the line's start and its word 18px from it. v0.6.10 (F7) stood every surface's light
         and word alike, 14 px apart, and gave it back: nothing a person knows moves by a few pixels."""
         self.assertEqual(declared(".hero-state", "gap"), "18px")
-        self.assertEqual(declared(".hero-state", "padding").split()[-1], "9px")
+        # From the line's start: its left, and its right right to left (v0.6.11).
+        self.assertEqual(declared(".hero-state", "padding-inline"), "9px 0")
+        self.assertEqual(declared(".hero-state", "padding-block"), "8px 4px")
         self.assertEqual(number(declared(".halo", "width"), "px"), 2 * brand.STATUS_DOT["panel"],
                          "the gap is from the dot's own edge: the light's box is the dot")
         self.assertEqual(declared(".eyebrow", "color"), "var(--muted)")

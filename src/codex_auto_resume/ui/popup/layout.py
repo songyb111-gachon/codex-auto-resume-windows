@@ -278,3 +278,36 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
     items.insert(0, {"kind": "card", "rect": card, "radius": px(brand.RADII["card"]), "corner": "card"})
     return {"size": (total, y + margin), "card": card, "items": items, "targets": targets, "scale": scale,
             "rows": rows}
+
+
+def mirror(plan) -> dict:
+    """The plan right to left (v0.6.11): every rectangle across the canvas from where it is, so what stands
+    at the left in every other language stands at the right - the light and the product, a row's name,
+    the switch under its chip, the first of the two buttons - and every line aligned left is aligned right.
+
+    A plan, not a drawing: the card's lift keeps the brand's one light, up and to the left, in every
+    language, as a room's light does not turn with the page. Each item says it was mirrored, so the
+    renderer draws a switch's knob from the right and Classic's accent bar inside the right hairline,
+    and the plan says `rtl`, so its lines are read right to left (Renderer._text). The popup's and the
+    card's accessible objects, hit tests and focus order all read the plan, so they follow it."""
+    width = plan["size"][0]
+
+    def across(rect):
+        left, top, right, bottom = rect
+        return (width - right, top, width - left, bottom)
+
+    items = []
+    for item in plan["items"]:
+        item = dict(item, mirrored=True)
+        if "rect" in item:
+            item["rect"] = across(item["rect"])
+        if "cx" in item:
+            item["cx"] = width - item["cx"]
+        if item["kind"] == "text":
+            item["align"] = {"left": "right", "right": "left"}.get(item["align"], item["align"])
+        items.append(item)
+    mirrored = dict(plan, items=items, card=across(plan["card"]), rtl=True,
+                    targets=[(target, across(rect)) for target, rect in plan["targets"]])
+    if "rows" in plan:
+        mirrored["rows"] = [(key, across(rect)) for key, rect in plan["rows"]]
+    return mirrored

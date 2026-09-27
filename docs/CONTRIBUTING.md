@@ -313,6 +313,14 @@ has been translated and imported, or marked as reviewed. An import that loses or
 placeholder is refused. Nothing here reaches the network, and a test holds the localization
 modules and this tool to that.
 
+A catalog is also held to how it is drawn. `tests/test_glyph_coverage.py` looks every character
+of every catalog up in the faces each surface draws with - Segoe UI and the faces Windows links
+to it, and the panel's type stack - and `tests/test_words_fit.py` lays the popup and the
+notification card out with every string of every language at every scale, so a new script or a
+long word is found before a person sees a box or a cut line. Right to left, the popup, the card
+and the panel mirror already (`tests/test_right_to_left.py`); the Dashboard window does not yet,
+and that is what keeps Arabic and Hebrew held.
+
 ## Branches and languages
 
 Three branches carry the documents three ways:

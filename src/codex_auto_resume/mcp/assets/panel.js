@@ -80,6 +80,9 @@ var S = window.__CODEX_AUTO_RESUME_STRINGS__ || {};
 // somebody the panel will change language the next time it is opened.
 var LOCALE = window.__CODEX_AUTO_RESUME_LOCALE__ || '';
 var CATALOGS = window.__CODEX_AUTO_RESUME_CATALOGS__ || {};
+// The languages written right to left (l10n.RIGHT_TO_LEFT, v0.6.11): the page mirrors in one of them
+// (applyLanguage) and isolates a value set into one of its sentences (fill).
+var RIGHT_TO_LEFT = window.__CODEX_AUTO_RESUME_RTL__ || [];
 // What the save card says once a save has redrawn the page in another language.
 var SAVED = '';
 
@@ -88,10 +91,19 @@ function t(key, fallback) {
   return (value === undefined || value === null) ? (fallback || key) : value;
 }
 
+function rightToLeft(locale) {
+  return typeof locale === 'string' && RIGHT_TO_LEFT.indexOf(locale) >= 0;
+}
+
+// A value set into a sentence of a right-to-left language is isolated (FSI ... PDI), so a version, a path
+// or an id keeps its own order inside the sentence's: `0.6.11-alpha.2` does not read `alpha.2-0.6.11`.
+// Nothing is added in any other language, nor where the page's language is not known.
 function fill(key, fallback, values) {
   var text = t(key, fallback);
+  var isolate = typeof LOCALE === 'string' && typeof rightToLeft === 'function' && rightToLeft(LOCALE);
   Object.keys(values || {}).forEach(function (name) {
-    text = text.split('{' + name + '}').join(String(values[name]));
+    var value = String(values[name]);
+    text = text.split('{' + name + '}').join(isolate ? '\u2068' + value + '\u2069' : value);
   });
   return text;
 }
@@ -167,6 +179,10 @@ function applyLanguage(root, locale) {
   if (!root || typeof root.setAttribute !== 'function') return;
   if (typeof locale === 'string' && locale) root.setAttribute('lang', locale);
   else root.removeAttribute('lang');
+  // v0.6.11: and its direction - `rtl` mirrors the page (panel.css, right_to_left_rules). None in a language
+  // written left to right, so every other page is served and drawn as it was.
+  if (rightToLeft(locale)) root.setAttribute('dir', 'rtl');
+  else root.removeAttribute('dir');
 }
 
 // The stored appearance and language, applied to the page in place. True when the words changed.
@@ -660,6 +676,7 @@ function combo(select) {
   function place() {
     list.classList.toggle('up', false);
     list.style.left = '';
+    list.style.right = '';
     list.style.maxWidth = '';
     scroll.style.maxHeight = '';
     var root = document.documentElement || {};
@@ -667,8 +684,16 @@ function combo(select) {
     if (width && typeof list.getBoundingClientRect === 'function') {
       list.style.maxWidth = width + 'px';
       var edge = list.getBoundingClientRect();
-      var over = Math.min(edge.right - width, edge.left);
-      if (over > 0) list.style.left = (list.offsetLeft - over) + 'px';
+      if (rightToLeft(LOCALE)) {
+        // Right to left (v0.6.11) the list starts a pad right of the field and runs leftward: moved right
+        // as far as it would run past the page's left edge.
+        var under = Math.min(-edge.left, width - edge.right);
+        var holder = list.offsetParent;
+        if (under > 0 && holder) list.style.right = (holder.clientWidth - list.offsetLeft - list.offsetWidth - under) + 'px';
+      } else {
+        var over = Math.min(edge.right - width, edge.left);
+        if (over > 0) list.style.left = (list.offsetLeft - over) + 'px';
+      }
     }
     var view = window.innerHeight || root.clientHeight || 0;
     if (!view || typeof box.getBoundingClientRect !== 'function') return;

@@ -86,7 +86,7 @@ button, select, input { font: inherit; }
    alone, with the halo saying the same thing for a reader who glances. */
 .hero { display: grid; gap: var(--size-hero-gap); padding: var(--size-hero-pad); }
 .eyebrow { font-size: var(--type-small); color: var(--muted); }
-.hero-state { display: flex; align-items: center; gap: 18px; padding: 8px 0 4px 9px; }
+.hero-state { display: flex; align-items: center; gap: 18px; padding-block: 8px 4px; padding-inline: 9px 0; }
 .hero h1 { font-size: var(--type-display); line-height: var(--lh-display); font-weight: 600;
            letter-spacing: -.01em; }
 .facts { display: flex; flex-wrap: wrap; color: var(--muted); }
@@ -195,7 +195,7 @@ button[disabled] { background: var(--surface); border-color: var(--line); color:
         border-radius: var(--radius-control); box-shadow: var(--elev-inset);
         transition: border-color var(--transition), box-shadow var(--transition);
         transition-timing-function: var(--transition-ease); }
-input[type=number] { width: var(--size-number-width); text-align: right; font-variant-numeric: tabular-nums; }
+input[type=number] { width: var(--size-number-width); text-align: end; font-variant-numeric: tabular-nums; }
 /* Opacity 1 is said, not left out: the browser's own stylesheet fades a disabled field to 0.7,
    and muted text at 0.7 fell to about 3:1 in light. */
 .combo-box[aria-disabled="true"], input[type=number]:disabled { background-color: var(--surface); box-shadow: none;
@@ -231,11 +231,11 @@ input[type=number] { width: var(--size-number-width); text-align: right; font-va
              padding: var(--size-select-pad); line-height: var(--combo-line); cursor: pointer; }
 .combo-box[aria-expanded="true"] { outline: none; }
 .combo-value { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.combo-box::after { content: ""; position: absolute; right: var(--size-chevron-right);
+.combo-box::after { content: ""; position: absolute; inset-inline-end: var(--size-chevron-right);
                     top: calc(55% - var(--size-chevron-height) * .55);
                     width: var(--size-chevron-width); height: var(--size-chevron-height);
                     background: var(--muted); clip-path: polygon(0 0, 100% 0, 50% 100%); pointer-events: none; }
-.combo-list { position: absolute; z-index: 3; top: calc(100% + var(--space-xs)); left: calc(-1 * var(--space-s));
+.combo-list { position: absolute; z-index: 3; top: calc(100% + var(--space-xs)); inset-inline-start: calc(-1 * var(--space-s));
               width: max-content; min-width: calc(100% + 2 * var(--space-s));
               padding: calc(var(--space-s) - var(--space-xs) - var(--size-hairline));
               background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card);
@@ -292,7 +292,7 @@ input.switch { appearance: none; -webkit-appearance: none; position: relative; f
                            box-shadow var(--transition);
                transition-timing-function: var(--transition-ease); }
 input.switch::before { content: ""; position: absolute; top: calc(var(--size-knob-inset) - var(--size-hairline));
-                       left: calc(var(--size-knob-inset) - var(--size-hairline)); width: var(--size-knob);
+                       inset-inline-start: calc(var(--size-knob-inset) - var(--size-hairline)); width: var(--size-knob);
                        height: var(--size-knob); border-radius: 50%; background: var(--muted);
                        transition: transform var(--transition), background-color var(--transition);
                        transition-timing-function: var(--transition-ease); }
@@ -350,12 +350,12 @@ input.check:checked:disabled::before { background: var(--check-on-disabled-mark)
 .setting { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
            gap: 6px var(--size-row-gap); padding: var(--size-row-pad); min-width: 0; }
 label.setting { cursor: pointer; }
-.setting.toggle > input.switch { align-self: flex-end; margin-left: auto; }
+.setting.toggle > input.switch { align-self: flex-end; margin-inline-start: auto; }
 .setting.check { flex-wrap: nowrap; justify-content: flex-start; align-items: flex-start;
                  gap: var(--size-check-gap); }
 .setting-text { flex: 1 1 180px; min-width: 0; display: grid; gap: 2px; }
 .setting-label { font-weight: 500; }
-.setting-control { flex: 0 1 auto; display: flex; min-width: 0; max-width: 100%; margin-left: auto; }
+.setting-control { flex: 0 1 auto; display: flex; min-width: 0; max-width: 100%; margin-inline-start: auto; }
 .has-select .setting-control { flex: 0 1 280px; }
 .has-select .combo { width: 100%; }
 .setting.stack { display: grid; grid-template-columns: minmax(0, 1fr); justify-content: stretch; gap: 8px; }
@@ -379,7 +379,7 @@ label.setting { cursor: pointer; }
    the button is pinned to the tile's bottom-right beside it (see .setting). */
 .master-body { flex: 1 1 200px; display: grid; gap: 4px; min-width: 0; }
 .master-text { display: flex; align-items: center; gap: 10px; min-width: 0; font-weight: 500; }
-.master > button { align-self: flex-end; margin-left: auto; }
+.master > button { align-self: flex-end; margin-inline-start: auto; }
 /* The tile's light is the state's light, smaller (.halo.mini, with the status light above): it says
    and does what the one at the top of the page says and does. */
 
@@ -405,7 +405,7 @@ label.setting { cursor: pointer; }
 details.fold > summary { display: flex; align-items: center; justify-content: space-between;
                          gap: 12px; list-style: none; cursor: pointer; }
 details.fold > summary::-webkit-details-marker { display: none; }
-.chevron { flex: none; width: var(--size-fold-chevron); height: var(--size-fold-chevron); margin-right: 6px;
+.chevron { flex: none; width: var(--size-fold-chevron); height: var(--size-fold-chevron); margin-inline-end: 6px;
            border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted);
            transform: translateY(-2px) rotate(45deg);
            transition: transform var(--transition) var(--transition-ease); }
@@ -452,7 +452,7 @@ details.inner > .fold-body > .setting { border-top: 1px solid var(--line); }
 .prow-meta b { font-weight: 500; color: var(--ink); }
 /* Pinned to the row's bottom-right, beside the facts line (see .setting); an open confirmation is
    a line of its own under both. */
-.prow-switch { display: flex; align-items: center; align-self: flex-end; gap: 10px; margin-left: auto;
+.prow-switch { display: flex; align-items: center; align-self: flex-end; gap: 10px; margin-inline-start: auto;
                color: var(--muted); font-size: var(--type-small); cursor: pointer; }
 .prow-confirm { flex: 1 1 100%; display: grid; gap: 8px; padding-top: 10px;
                 border-top: 1px solid var(--line); }
@@ -511,7 +511,7 @@ details.inner > .fold-body > .setting { border-top: 1px solid var(--line); }
   .savebar { background: var(--card-ground); }
 }
 .savebar .note { flex: 1 1 200px; min-width: 0; }
-.savebar button { margin-left: auto; }
+.savebar button { margin-inline-start: auto; }
 
 @media (max-width: 520px) {
   body { padding: 10px 10px 16px; }
@@ -525,7 +525,7 @@ details.inner > .fold-body > .setting { border-top: 1px solid var(--line); }
   details.card.fold > .fold-body { padding: 0 14px 6px; }
   .has-select { flex-direction: column; align-items: stretch; }
   .has-select .setting-text { flex: none; }
-  .has-select .setting-control { flex: none; width: 100%; margin-left: 0; }
+  .has-select .setting-control { flex: none; width: 100%; margin-inline-start: 0; }
   .segmented { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
@@ -544,6 +544,16 @@ details.inner > .fold-body > .setting { border-top: 1px solid var(--line); }
    Classic draws v0.6.2's accent bar inside each card's left hairline - a shadow, so nothing moves by its
    width. Nothing here can start what the rule above or High Contrast stops. */
 @DESIGN_MOTION@
+
+/* v0.6.11: right to left (`dir="rtl"` on the root, which the script sets for a language written that
+   way, l10n.RIGHT_TO_LEFT). The page is laid out with the reading direction - rows, grids and the start
+   and end of a line follow it, and so do the margins, insets and paddings written above as start and
+   end - and what is drawn to one side is drawn to the other here (panel.right_to_left_rules): a field's
+   and a tile's wider padding, a switch's knob travelling left, a folded section's chevron pointing left,
+   and Classic's accent bar inside the right hairline. The brand's light still falls from the top left,
+   as it does on every surface. A name, a Custom message and an id are read in their own direction, and
+   a value set into a sentence is isolated (fill). */
+@RIGHT_TO_LEFT@
 
 /* Windows High Contrast. The browser puts the person's system colours in place of the palette
    and takes every shadow away - and it would paint the light over with the page's ground,

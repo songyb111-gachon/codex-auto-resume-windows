@@ -34,6 +34,8 @@ MF_STRING, MF_GRAYED, MF_CHECKED, MF_POPUP, MF_SEPARATOR = 0x0, 0x1, 0x8, 0x10, 
 
 
 TPM_RIGHTBUTTON, TPM_RETURNCMD, TPM_NONOTIFY = 0x2, 0x100, 0x80
+# A menu opened right to left (v0.6.11): laid out mirrored, and opening leftward from the point.
+TPM_RIGHTALIGN, TPM_LAYOUTRTL = 0x8, 0x8000
 
 
 WM_APP = 0x8000
@@ -111,6 +113,10 @@ DT_CENTER, DT_VCENTER, DT_WORDBREAK, DT_SINGLELINE = 0x1, 0x4, 0x10, 0x20
 
 
 DT_CALCRECT, DT_NOPREFIX, DT_EDITCONTROL, DT_END_ELLIPSIS = 0x400, 0x800, 0x2000, 0x8000
+
+
+# Right to left (v0.6.11): a line against its right edge, and read right to left.
+DT_RIGHT, DT_RTLREADING = 0x2, 0x20000
 
 
 TIMER_TICK, TIMER_FRAME, TIMER_FIRST = 1, 2, 3

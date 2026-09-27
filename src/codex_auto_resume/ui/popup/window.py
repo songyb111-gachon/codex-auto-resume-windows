@@ -29,8 +29,10 @@ from .win32 import (MF_CHECKED,
                     MF_POPUP,
                     MF_SEPARATOR,
                     MF_STRING,
+                    TPM_LAYOUTRTL,
                     TPM_NONOTIFY,
                     TPM_RETURNCMD,
+                    TPM_RIGHTALIGN,
                     TPM_RIGHTBUTTON,
                     CS_DROPSHADOW,
                     DWMWA_USE_IMMERSIVE_DARK_MODE,
@@ -580,7 +582,7 @@ class Popup(PopupMessages):
             rect = dict(plan.get("rows") or ()).get(key)
             if rect is None:
                 return
-            point.x, point.y = rect[0], rect[1]
+            point.x, point.y = rect[2] if plan.get("rtl") else rect[0], rect[1]
             user32.ClientToScreen(self.hwnd, C.byref(point))
         else:
             point.x = C.c_short(lparam & 0xFFFF).value
@@ -615,7 +617,9 @@ class Popup(PopupMessages):
                 user32.AppendMenuW(menu, flags, command, entry["text"])
             return menu
         try:
-            chosen = user32.TrackPopupMenu(build(entries), TPM_RIGHTBUTTON | TPM_RETURNCMD | TPM_NONOTIFY,
+            # Right to left, the menu is laid out mirrored and opens leftward from its point (v0.6.11).
+            direction = TPM_LAYOUTRTL | TPM_RIGHTALIGN if plan.get("rtl") else 0
+            chosen = user32.TrackPopupMenu(build(entries), TPM_RIGHTBUTTON | TPM_RETURNCMD | TPM_NONOTIFY | direction,
                                            point.x, point.y, 0, self.hwnd, None)
             user32.PostMessageW(self.hwnd, 0, 0, 0)        # WM_NULL: a click elsewhere closes it (as the icon's)
         finally:

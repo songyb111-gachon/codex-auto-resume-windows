@@ -87,7 +87,7 @@ SURFACE = {
     "accessible_items", "adopt_settings", "animates", "appearance", "apps_use_light_theme", "busy_key",
     "contrast_colour", "design_choice", "design_setting", "effective_theme", "focus_order", "font_candidates", "font_faces",
     "gdiplus_objects", "glide_amount", "gui_resources", "halo", "high_contrast", "hit_test",
-    "icon_rect", "is_waiting", "layout", "lift_coverage", "light_for", "locale_of",
+    "icon_rect", "is_waiting", "layout", "lift_coverage", "light_for", "locale_of", "mirror",
     "message_face",
     "next_focus", "next_glides", "one_line", "perform", "place", "recipe_shadows",
     "reduced_motion", "role_size", "say", "select_action", "set_design", "set_reduce_motion", "set_theme",

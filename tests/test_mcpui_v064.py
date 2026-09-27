@@ -871,8 +871,9 @@ class PinnedControlStyleTests(unittest.TestCase):
             with self.subTest(control):
                 # Bottom: the end of the flex line, which is as tall as the text beside it.
                 self.assertEqual(declared(control, "align-self"), "flex-end")
-                # Right: on the row's right edge, and still there when it wraps under the text.
-                self.assertEqual(declared(control, "margin-left"), "auto")
+                # Right: on the row's right edge, and still there when it wraps under the text - its end,
+                # which is its left edge right to left (v0.6.11).
+                self.assertEqual(declared(control, "margin-inline-start"), "auto")
                 self.assertEqual(declared(row, "display"), "flex")
                 self.assertEqual(declared(row, "flex-wrap"), "wrap")
                 # Text shorter than the control is still centred on it: a one-line row is unchanged.
@@ -897,8 +898,8 @@ class PinnedControlStyleTests(unittest.TestCase):
 
     def test_pinning_moves_a_control_and_changes_nothing_about_it(self):
         # Hit targets, focus rings and colours are the controls' own rules, untouched.
-        self.assertEqual(set(own_declarations(".setting.toggle > input.switch")), {"align-self", "margin-left"})
-        self.assertEqual(set(own_declarations(".master > button")), {"align-self", "margin-left"})
+        self.assertEqual(set(own_declarations(".setting.toggle > input.switch")), {"align-self", "margin-inline-start"})
+        self.assertEqual(set(own_declarations(".master > button")), {"align-self", "margin-inline-start"})
         self.assertEqual(declared("input.switch", "width"), "var(--size-switch-width)")
         self.assertEqual(declared("input.switch", "height"), "var(--size-switch-height)")
         self.assertEqual(declared("button", "min-height"), "var(--size-button-height)")
@@ -906,7 +907,7 @@ class PinnedControlStyleTests(unittest.TestCase):
         # control or the row it is pinned in.
         for context in (NARROW, FORCED, "@media (prefers-reduced-motion: reduce)"):
             for selector in set(PINNED) | set(PINNED.values()) | {"input.switch", "button", ".master-body"}:
-                for prop in ("align-self", "align-items", "margin-left", "flex-wrap", "display", "order"):
+                for prop in ("align-self", "align-items", "margin-inline-start", "flex-wrap", "display", "order"):
                     with self.subTest(context=context, selector=selector, prop=prop):
                         self.assertIsNone(declared(selector, prop, context))
 

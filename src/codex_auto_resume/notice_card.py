@@ -234,7 +234,10 @@ def layout(vm, scale, measure) -> dict:
     y += pad
     card = (0, 0, width, y)
     items.insert(0, {"kind": "card", "rect": card, "radius": px(brand.RADII["card"]), "corner": "card"})
-    return {"size": (width, y), "card": card, "items": items, "targets": targets, "scale": scale}
+    laid = {"size": (width, y), "card": card, "items": items, "targets": targets, "scale": scale}
+    # Right to left (v0.6.11), the popup's card mirrored as the popup is: the light and the product at the
+    # right, the chip at the left, and the toast's buttons the other way round.
+    return popup.mirror(laid) if l10n.right_to_left(vm.get("locale")) else laid
 
 
 # ------------------------------------------------------------------------------- motion

@@ -662,7 +662,8 @@ class ComboStyleTests(unittest.TestCase):
 
     def test_the_wedge_is_brands(self):
         wedge = ".combo-box::after"
-        self.assertEqual(declared(wedge, "right"), "var(--size-chevron-right)")
+        # At the field's end: its right, and its left right to left (v0.6.11).
+        self.assertEqual(declared(wedge, "inset-inline-end"), "var(--size-chevron-right)")
         self.assertEqual(declared(wedge, "width"), "var(--size-chevron-width)")
         self.assertEqual(declared(wedge, "height"), "var(--size-chevron-height)")
         self.assertEqual(declared(wedge, "background"), "var(--muted)")
@@ -755,10 +756,11 @@ class OneListTests(unittest.TestCase):
     def test_its_words_start_under_the_fields(self):
         # The card is a pad left of the field and at least a pad wider on each side, so each pill's left
         # edge is the field's and its words start where the field's do (SelectPadLeft, past a hairline).
-        self.assertEqual(declared(".combo-list", "left"), "calc(-1 * var(--space-s))")
+        # From the field's start: its left, and its right right to left (v0.6.11).
+        self.assertEqual(declared(".combo-list", "inset-inline-start"), "calc(-1 * var(--space-s))")
         self.assertEqual(declared(".combo-list", "min-width"), "calc(100% + 2 * var(--space-s))")
         self.assertEqual(declared(".combo-list", "width"), "max-content")
-        self.assertEqual(resolved(declared(".combo-list", "left")) + self.PAD, 0)
+        self.assertEqual(resolved(declared(".combo-list", "inset-inline-start")) + self.PAD, 0)
         field = brand.padding("select_pad")
         item = sides(declared(".combo-option", "padding"))
         self.assertEqual((item[1], item[3]), (field[3], field[3]))

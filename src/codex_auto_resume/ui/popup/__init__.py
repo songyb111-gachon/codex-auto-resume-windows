@@ -64,6 +64,7 @@ from .layout import (MARK,
                      SWITCH_GAP,
                      WIDTH,
                      layout,
+                     mirror,
                      share_columns)  # noqa: F401
 from .win32 import (BITMAP,
                     BITMAPINFO,

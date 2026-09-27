@@ -351,7 +351,10 @@ class CountsFitTests(unittest.TestCase):
         for locale in l10n.LOCALES:
             vm = popup.view_model(ROWS, STATUS, l10n.catalog(locale), NOW)
             for scale in SCALES:
-                plan = renderer.layout(vm, scale, locale)
+                # As laid out, before a right-to-left language mirrors it (tests/test_right_to_left.py): the
+                # columns in their order from the well's start.
+                renderer.use(locale, scale)
+                plan = popup.layout(vm, scale, renderer.measure)
                 with self.subTest(locale=locale, scale=scale):
                     LayoutTests.assert_columns(self, plan, renderer.measure)
                     # And none takes a third line for want of a column: the tallest label is two lines.
