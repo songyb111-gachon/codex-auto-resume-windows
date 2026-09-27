@@ -82,6 +82,7 @@ from codex_auto_resume import settings as policy                    # noqa: E402
 ASSETS = ROOT / "assets"
 DOCS = ROOT / "docs" / "images"
 MANIFEST = ASSETS / "screenshots.json"
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 # The canonical image is the one the plugin card ships; the documentation copy is
 # generated from it rather than captured a second time. Four files that have to be kept
@@ -2719,6 +2720,25 @@ with App(paths, console=False, enable_logging=False).mutex(timeout=0):
 WINDOW_PAGES = ("overview", "pending", "history", "statistics", "diagnostics", "settings")
 
 
+def owner_only(folder: Path) -> None:
+    """Give the scratch installation's state folder the access list an installed one has: this
+    account, Windows itself and the administrators only.
+
+    Diagnostics asks Windows who may open the state folder (win/acl.py) while it is photographed.
+    A scratch folder under the temporary directory inherits whatever that directory grants - on a
+    PC with Codex's sandbox, its sandbox accounts - so the picture showed a warning no installed
+    product shows, and a different one on another machine. Named by security identifier, so no
+    account name is written anywhere; nothing but this scratch folder is touched."""
+    who = subprocess.run(["whoami", "/user", "/fo", "csv", "/nh"], capture_output=True, text=True,
+                         check=True, creationflags=NO_WINDOW).stdout
+    sid = who.strip().rsplit(",", 1)[-1].strip().strip('"')
+    if not sid.startswith("S-1-"):
+        raise SystemExit("could not read this account's security identifier for the capture")
+    subprocess.run(["icacls", str(folder), "/inheritance:r",
+                    "/grant:r", "*%s:(OI)(CI)F" % sid, "*S-1-5-18:(OI)(CI)F", "*S-1-5-32-544:(OI)(CI)F"],
+                   check=True, capture_output=True, creationflags=NO_WINDOW)
+
+
 def render_window(targets: dict, theme: str | None = None, design: str | None = None) -> dict:
     """Capture each page of the window, with the watcher's mutex held but no watcher running.
 
@@ -2739,6 +2759,7 @@ def render_window(targets: dict, theme: str | None = None, design: str | None = 
         now = time.time()
         seed_window_state(home, codex, now)
         word = seed_compatibility(home, codex, local, now)
+        owner_only(config.Paths(home).state_dir)
         # The window reads conversation names from Codex's own state, found through
         # CODEX_HOME - pointed here at the synthetic one, so a capture can never show,
         # or even open, the user's. It finds the Codex engine the compatibility report is
