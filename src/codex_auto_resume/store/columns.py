@@ -73,6 +73,11 @@ _SCHEMA_4_COLUMNS = (
     # first send: a postponement made before then only holds it back, and the window still opens
     # after it. Empty unless its conversation's tier is the objection window.
     ("interruptions", "objection_at", "REAL"),
+    # The last usage reading the watcher made (domain/usage.py): when, and its allowlisted windows as
+    # compact JSON - numbers, times and two closed words. Empty until a recovery was due and usage was
+    # read for it, which is the only time it ever is (C4, C9).
+    ("watcher_status", "usage_at", "REAL"),
+    ("watcher_status", "usage", "TEXT"),
 )
 
 _RECORD_COLUMNS = _V3_COLUMNS + tuple(name for table, name, _ in _SCHEMA_4_COLUMNS
@@ -82,8 +87,9 @@ _SETTINGS_COLUMNS = ("singleton", "enabled", "armed_at", "poll_seconds", "observ
 
 _THREAD_COLUMNS = ("thread_id", "enabled", "tier")
 
-# Schema 4's needs-you notices: one row per failure that needs a person, raised once. Ids, a
-# failure category, times - and nothing the engine's dispatch ever reads (tests/test_schema_v4.py).
+# Schema 4's needs-you notices: one row per failure that needs a person, or turn that stopped moving,
+# raised once. Ids, its kind (needsyou.NOTICE_KINDS), times - and nothing the engine's dispatch ever
+# reads (tests/test_schema_v4.py).
 _NOTICE_COLUMNS = ("interruption_id", "thread_id", "category", "raised_at", "seen_at")
 
 # Core's tables that nothing deciding a send may read: the claim refuses its ledger any read of
@@ -94,7 +100,7 @@ _EVENT_COLUMNS = ("event_id", "at", "interruption_id", "chain_origin_id", "code"
                   "to_state", "reason", "actor", "turn_ref", "flags", "value")
 
 _WATCHER_COLUMNS = ("singleton", "pid", "session_id", "started_at", "last_tick_at",
-                    "last_tick_ok", "engine_state", "code_version")
+                    "last_tick_ok", "engine_state", "code_version", "usage_at", "usage")
 
 # Fields a plain `update` may write. Chain linkage, the claim time and the history
 # flag are written only by the operations that own them.

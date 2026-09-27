@@ -1032,7 +1032,9 @@ class StatusLightTests(unittest.TestCase):
 
 # The panel's functions the hero and the tile are drawn with, and what they call.
 DRAWING = ["t", "fill", "element", "card", "activity", "attentionCause", "due", "checkingRow", "lightFor", "lightNode",
-           "lightClass", "nextCheck", "heroFacts", "soonestFact", "showFacts", "renderHero", "renderRecovery"]
+           "lightClass", "nextCheck", "heroFacts", "soonestFact", "showFacts", "renderHero", "renderRecovery",
+           # v0.6.11: and the last usage reading among the facts.
+           "usageLine", "age", "windowName", "clockTime"]
 
 
 @unittest.skipUnless(NODE, "needs Node to run the panel's own code")

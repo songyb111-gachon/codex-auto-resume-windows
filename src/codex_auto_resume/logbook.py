@@ -106,6 +106,9 @@ _MESSAGES = {
     ("held_by_guard_workspace_changed", None): "its task's workspace changed since it stopped; held for a person",
     ("held_by_guard_context_cost", None): "its conversation is over the context-cost limit; held for a person",
     ("task_changed_told", None): "its task's workspace changed since it stopped; its notice will say so",
+    # v0.6.11: a needs-you notice, raised once; nothing is resumed for it.
+    ("needs_you_notice", None): "needs a person; one notice raised (notice {detail12}), nothing resumed",
+    ("needs_you_unavailable", None): "needs-you notices skipped this tick; nothing is sent either way",
 }
 
 

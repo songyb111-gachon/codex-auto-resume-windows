@@ -645,7 +645,7 @@ namespace CodexAutoResume
 
         // Overview
         private Label nowRecovery, nowWatcher, nowEngine, nowLastCheck, waitingLine, nextLine,
-                      runningLine, weekDetected, weekSent, weekRecovered, weekSuccess, recentEmpty;
+                      runningLine, usageLine, weekDetected, weekSent, weekRecovered, weekSuccess, recentEmpty;
         private Button toggleButton;
         private TableLayoutPanel recentGrid;
         private string recentShown;

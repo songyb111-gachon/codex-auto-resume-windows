@@ -100,6 +100,23 @@ class Receipt(TypedDict):
     at: float | None
 
 
+class UsageWindow(TypedDict):
+    """One window of a usage reading (v0.6.11), the allowlisted numbers and nothing else
+    (domain/usage.py): the bucket and the window as closed words, the share used, the window's length
+    in minutes and when it resets, in whole seconds."""
+    bucket: str
+    window: str
+    used_percent: float
+    window_minutes: int | None
+    reset_at: int | None
+
+
+class UsageReading(TypedDict):
+    """The last usage reading the watcher made (v0.6.11), and when it made it."""
+    read_at: float
+    windows: list[UsageWindow]
+
+
 class WatcherView(TypedDict):
     """What is known of the watcher: its heartbeat, and whether it is there to beat."""
     running: bool | None
@@ -110,6 +127,8 @@ class WatcherView(TypedDict):
     code_version: str | None
     pid: int | None
     started_at: float | None
+    # v0.6.11: Codex's usage as last read, or None until it has been read.
+    usage: UsageReading | None
 
 
 class StatusSnapshot(TypedDict):
@@ -245,6 +264,6 @@ class SchemaField(TypedDict):
 
 
 # Every contract, by name, for the test that holds each to the goldens.
-CONTRACTS = (RecordView, PendingRow, TimelineEvent, Receipt, WatcherView, StatusSnapshot, Outcomes,
-             Statistics, CompatEngine, CompatData, CompatCapability, CompatReported, CompatView,
-             SchemaField)
+CONTRACTS = (RecordView, PendingRow, TimelineEvent, Receipt, UsageWindow, UsageReading, WatcherView,
+             StatusSnapshot, Outcomes, Statistics, CompatEngine, CompatData, CompatCapability,
+             CompatReported, CompatView, SchemaField)

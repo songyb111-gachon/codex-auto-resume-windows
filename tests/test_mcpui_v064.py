@@ -262,7 +262,11 @@ class ControlKindTests(unittest.TestCase):
         master = [i for i in observed["notifications"] if i["text"] == ENGLISH["field.notifications"]]
         self.assertEqual(len(master), 1)
         self.assertEqual((master[0]["cls"], master[0]["role"], master[0]["first"]), ("switch", "switch", False))
-        events = [i for i in observed["notifications"] if i["text"] != master[0]["text"]]
+        # v0.6.11: a needs-you notice's sound turns something that runs on or off: a switch.
+        sound = [i for i in observed["notifications"] if i["text"] == ENGLISH["field.needs_you_sound"]]
+        self.assertEqual(len(sound), 1)
+        self.assertEqual((sound[0]["cls"], sound[0]["role"], sound[0]["first"]), ("switch", "switch", False))
+        events = [i for i in observed["notifications"] if i["text"] not in (master[0]["text"], sound[0]["text"])]
         self.assertEqual(len(events), len([e for e in policy.describe() if e["name"].startswith("notify_")]))
         for drawn in events:
             with self.subTest(drawn["text"]):

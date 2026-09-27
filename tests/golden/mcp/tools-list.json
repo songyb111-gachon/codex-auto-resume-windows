@@ -167,6 +167,42 @@
                 "type": "boolean",
                 "description": "See the settings documentation."
               },
+              "notify_needs_you": {
+                "type": "boolean",
+                "description": "See the settings documentation."
+              },
+              "notify_needs_you_invalid": {
+                "type": "boolean",
+                "description": "See the settings documentation."
+              },
+              "notify_needs_you_policy": {
+                "type": "boolean",
+                "description": "See the settings documentation."
+              },
+              "notify_needs_you_auth": {
+                "type": "boolean",
+                "description": "See the settings documentation."
+              },
+              "notify_needs_you_failure": {
+                "type": "boolean",
+                "description": "See the settings documentation."
+              },
+              "stall_after": {
+                "type": "string",
+                "enum": [
+                  "off",
+                  "m10",
+                  "m15",
+                  "m30",
+                  "h1",
+                  "h2"
+                ],
+                "description": "See the settings documentation."
+              },
+              "needs_you_sound": {
+                "type": "boolean",
+                "description": "See the settings documentation."
+              },
               "interface_language": {
                 "type": "string",
                 "enum": [

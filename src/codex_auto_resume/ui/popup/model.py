@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from ... import machine
 from ... import reasons
-from ..words import countdown
+from ..words import countdown, usage_line
 from .words import one_line, say
 
 
@@ -262,6 +262,9 @@ def view_model(rows, status, strings, now, *, notice=None, error=None) -> dict:
         # v0.6.11: observe only, said under the list while recovery is on and nothing will be sent.
         "observe_note": (say(strings, "popup.observe_only")
                          if status is not None and status.get("observe_only") is True and not paused else None),
+        # v0.6.11: Codex's usage as the watcher last read it, and how long ago - None until it has.
+        "usage_note": usage_line(((status or {}).get("watcher") or {}).get("usage"),
+                                 lambda key, **fields: say(strings, key, **fields), now),
     }
 
 

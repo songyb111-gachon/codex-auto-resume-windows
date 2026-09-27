@@ -84,6 +84,10 @@ _RECEIVERS = {
         # v0.6.11: the stored settings the status carries, for the tier a conversation has by default.
         "settings": [("bridge:status", "status.settings"), ("bridge:dashboard", "status.settings")],
         "watcher": [("bridge:status", "status.watcher"), ("bridge:dashboard", "status.watcher")],
+        # v0.6.11: the last usage reading the heartbeat carries, and each of its windows.
+        "reading": [("bridge:status", "status.watcher.usage"), ("bridge:dashboard", "status.watcher.usage")],
+        "window": [("bridge:status", "status.watcher.usage.windows[]"),
+                   ("bridge:dashboard", "status.watcher.usage.windows[]")],
         # A pending or history row, however it was reached: the list's own, the one chosen, the
         # one a list item carries in its Tag, the fresh list compared with the shown one.
         "row": ROW, "chosen": ROW, "fresh": ROW, "Tag": ROW,
@@ -215,6 +219,7 @@ _TYPED = {
         "row": _ROW, "chosen": _ROW, "fresh": _ROW, "Tag": _ROW,
         "item": wire.TimelineEvent, "receipt": wire.Receipt,
         "status": wire.StatusSnapshot, "watcher": wire.WatcherView,
+        "reading": wire.UsageReading, "window": wire.UsageWindow,
         "view": _COMPAT, "live": _COMPAT, "report": _COMPAT, "compatLive": _COMPAT,
         "engine": wire.CompatEngine, "data": wire.CompatData, "entry": wire.CompatCapability,
         "reported": wire.CompatReported,

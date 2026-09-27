@@ -273,6 +273,16 @@ notification-area popup offers the same menu on a right click on a task:
 
 <img src="images/dashboard-pending.png" alt="The Pending page of the Dashboard: two conversations waiting, one for the usage reset and one with a retry scheduled, each with a state chip and an Auto-resume switch, the Why it is waiting checklist for the selected task, and Retry now, Cancel, Timeline, Turn off for this conversation and Cancel all buttons" width="680">
 
+From v0.6.11 the Overview's **Waiting** card, **Why it is waiting** for a usage limit, the
+notification-area popup, the panel in Codex and `get_status` also show Codex's usage as the watcher
+last read it, with how long ago: each window's length, how much of it is used and when it resets -
+"Codex usage, read 2m ago: 5-hour 100%, resets 14:42 · weekly 62%, resets 2027-01-18 13:00". When a
+weekly limit is used up, **Why it is waiting** also says the day and time it resets. Nothing is read
+for this: usage is read only when a recovery is due, as it always was, and what is shown is the last
+of those readings - so it can be hours old, and its age says so. Only the numbers are kept, with the
+time they were read: which window, how much is used, its length and its reset time. No account,
+plan or credit.
+
 <img src="images/settings-window.png" alt="The Continuation message section of the Dashboard's Settings page: the continuation language, the four message styles with Standard selected, and a Preview of the message sent for a usage limit" width="680">
 
 While the watcher runs it also puts an icon in the notification area. It belongs to the watcher
@@ -714,6 +724,32 @@ deliberately never resent.
 Turn any of them off in the Dashboard, or from Codex, or with `update_settings`. Doing so
 changes nothing about whether a task is recovered.
 
+### When a conversation needs you
+
+From v0.6.11 the watcher can also tell you about a conversation it will never resume, because only
+you can move it on. This is off by default: turn on **When a conversation needs you** under
+Settings > General > Notifications. Then:
+
+- A failure that is never retried raises one notification with its kind in a word and one next
+  step: the request was refused or the conversation is too long ("Request refused · Conversation too
+  long? Compact it or start a new one in Codex."), a content policy stopped the turn, Codex needs you
+  to sign in again, or Codex gave up on the turn.
+  One check box per kind picks which of the four are told. A turn you stopped yourself is never told.
+- With **When a turn has not moved for** set to a time from 10 minutes to 2 hours, a conversation
+  whose latest turn is still in progress and has recorded nothing new for that long raises one too:
+  "Nothing new in this turn for 20 minutes. Look at it in Codex." That is all it
+  knows. It reads only the turn's own columns and when its newest item was recorded, never what any
+  item says, so it never says why; the turn may simply still be working.
+
+Each is told once, however often the watcher looks and across restarts, only for a conversation
+whose automatic recovery is on and while recovery is not paused, and never for a failure more than
+a week old. Nothing is resumed, sent or recorded as a recovery for any of them. The notification's
+one button, **Open Dashboard**, opens the Dashboard's Settings page, which is where a kind is
+switched off; the notification itself changes no setting. **Play a sound for these** gives these
+notifications Windows' reminder sound. They are then always Windows' own notification, even with
+the card on, because the card makes no sound, and Do not disturb holds them back as it holds back
+any notification. Without it they make no sound.
+
 ## Settings
 
 Everything configurable lives in one place and is reachable three ways:
@@ -732,7 +768,7 @@ The Settings page is split into five sections:
 
 | Section | What is in it |
 | --- | --- |
-| General | Interface language, starting at Windows sign-in, the notification-area icon, and which notifications appear |
+| General | Interface language, starting at Windows sign-in, the notification-area icon, and which notifications appear - from v0.6.11 also when a conversation needs you |
 | Automatic recovery | Which classified kinds of interruption are recovered, one check box each, and from v0.6.11 Observe only |
 | Continuation message | The language and style of the message sent to Codex, your own Custom message, and a Preview of the exact text |
 | Appearance | The theme - Use system setting, Light or Dark - the panel's Theme in Codex, the Design - Soft, Classic (v0.6.2) or Plain - and Reduce motion |

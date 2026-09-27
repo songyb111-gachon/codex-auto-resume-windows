@@ -8,7 +8,8 @@ footnote. There are four kinds, and they are genuinely different:
 
 - **OpenAI, through Codex.** The watcher drives the official Codex binary already signed in
   on your machine. When a recovery is due, it asks Codex for your current usage, and Codex
-  asks OpenAI. Codex identifies these requests as coming from this tool (client name
+  asks OpenAI. From v0.6.11 it keeps the numbers of the last answer, to show you, and asks for
+  nothing more for them. Codex identifies these requests as coming from this tool (client name
   `codex_auto_resume` and a version number), so OpenAI can see that you use it and when it
   checks. The resumed turn itself runs in your Codex desktop app and goes to OpenAI like any
   turn you start. And when you use the plugin's tools inside a Codex conversation, what they
@@ -241,7 +242,12 @@ resuming is safe. Codex's databases are opened read-only (SQLite `mode=ro` with
   when it falls due, whether the task changed;
 - from v0.6.11, and only while the context-cost guard is on (off by default): Codex's own count of
   the tokens the conversation has used, from its thread list, where it keeps one as a number. The
-  count is kept on the recovery, shown in Pending and compared with the limit you chose.
+  count is kept on the recovery, shown in Pending and compared with the limit you chose;
+- from v0.6.11, and only while needs-you notices are on (off by default): the failed turns the
+  watcher already reads for detection, now also those it never resumes, classified the same way and
+  dropped but for the category; and, only while a time is chosen for a turn that has not moved, for
+  each conversation's latest turn still in progress, its ids, its start time and the time its newest
+  item was recorded (`thread_items.created_at_ms`) - never what any item says.
 
 It also asks Windows content-free questions, chiefly two: which ChatGPT and Codex processes are
 running (process id, parent and executable path), to find the desktop app; and, through the
@@ -430,15 +436,18 @@ default (or wherever `CODEX_AUTO_RESUME_PLUGIN_HOME`, or failing that
   the queued item's id); also the on/off switch for recovery, with when it was switched on
   and the poll interval, and the switch for each conversation. From v0.6.11 it also has room
   for a time a recovery is postponed to, a word for why one waits for you, a word for how much
-  a conversation asks first, an observe-only switch, and needs-you notices - each the failure's
-  and the conversation's ids, a failure category and times - and, only while a guard is on, a
+  a conversation asks first, an observe-only switch, and needs-you notices - each the failure's,
+  or the turn's that stopped moving, and the conversation's ids, its kind and times - and, only
+  while a guard is on, a
   digest of what the task was working with and its conversation's token count; all of it empty
   until you use it.
   Beside those it holds a bounded
   journal of what happened to each recovery - codes, ids, actor, turn references, counters and
   times, at most 5,000 entries and 90 days, with no prompt, reply or error text - and one row
   for the watcher itself: its process id, session id, start and last-tick times, and which code
-  version wrote them. None of it is content;
+  version wrote them - and, from v0.6.11, the last usage reading it made and when: for each window
+  only its bucket (`codex`, `premium`, `legacy` or `other`) and slot, how much is used, its length
+  and when it resets; no account, plan or credit. None of it is content;
 - `config/state.vN-backup-<timestamp>.sqlite` — a copy of the state file, taken before the first
   watcher of a new version upgrades the schema and before `downgrade-state` rewrites it. It holds
   what `state.sqlite` held, and it is kept to explain a bad upgrade rather than as a way back.
@@ -585,6 +594,14 @@ does, in the watcher itself rather than through the `codex-auto-resume:` handler
 recovery or open one page of the Dashboard. Each press leaves one line in the log: the
 conversation's UUID when it cancelled one, or a refusal code or an exception class when nothing
 happened, as the toast's buttons do.
+
+From v0.6.11, only if you turn it on, a notification also tells you when a conversation needs you:
+a failure it never resumes, or a turn that has recorded nothing new for the time you chose. It shows
+what the other notifications show - the labels and the conversation UUID - with the kind as a word
+from the product's own translations and one next step from them, never error text; its one button
+opens the Dashboard's Settings page. With **Play a sound for these** on it is always Windows' own
+toast, whose own audio element names Windows' reminder sound; otherwise it makes no sound. It is
+kept as a row of ids, its kind and times, so that it is told once.
 
 To decide whether a card may be drawn at all, the watcher asks Windows content-free questions each
 time: whether Windows is accepting notifications right now (not locked, not a full-screen app or a

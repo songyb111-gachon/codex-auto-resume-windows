@@ -42,6 +42,10 @@ WHERE = {
     wire.TimelineEvent: [("bridge:timeline", "result.events[]")],
     wire.Receipt: [("bridge:timeline", "result.receipts[]")],
     wire.WatcherView: [("bridge:status", "status.watcher"), ("bridge:dashboard", "status.watcher")],
+    # v0.6.11: the last usage reading the heartbeat carries, and each of its windows.
+    wire.UsageReading: [("bridge:status", "status.watcher.usage"), ("bridge:dashboard", "status.watcher.usage")],
+    wire.UsageWindow: [("bridge:status", "status.watcher.usage.windows[]"),
+                       ("bridge:dashboard", "status.watcher.usage.windows[]")],
     wire.StatusSnapshot: [("bridge:status", "status"), ("bridge:dashboard", "status")],
     wire.Statistics: [("bridge:statistics", "result"), ("bridge:dashboard", "week")],
     wire.Outcomes: [("bridge:statistics", "result.outcomes"), ("bridge:dashboard", "week.outcomes")],

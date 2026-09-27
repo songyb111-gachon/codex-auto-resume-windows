@@ -213,6 +213,63 @@
             "master": false
           },
           {
+            "name": "notify_needs_you",
+            "default": false,
+            "type": "boolean",
+            "group": "notifications",
+            "master": false
+          },
+          {
+            "name": "notify_needs_you_invalid",
+            "default": true,
+            "type": "boolean",
+            "group": "notifications",
+            "master": false
+          },
+          {
+            "name": "notify_needs_you_policy",
+            "default": true,
+            "type": "boolean",
+            "group": "notifications",
+            "master": false
+          },
+          {
+            "name": "notify_needs_you_auth",
+            "default": true,
+            "type": "boolean",
+            "group": "notifications",
+            "master": false
+          },
+          {
+            "name": "notify_needs_you_failure",
+            "default": true,
+            "type": "boolean",
+            "group": "notifications",
+            "master": false
+          },
+          {
+            "name": "stall_after",
+            "default": "off",
+            "type": "string",
+            "choices": [
+              "off",
+              "m10",
+              "m15",
+              "m30",
+              "h1",
+              "h2"
+            ],
+            "group": "notifications",
+            "master": false
+          },
+          {
+            "name": "needs_you_sound",
+            "default": false,
+            "type": "boolean",
+            "group": "notifications",
+            "master": false
+          },
+          {
             "name": "interface_language",
             "default": "system",
             "type": "string",
@@ -879,6 +936,63 @@
           {
             "name": "notify_stopped",
             "default": true,
+            "type": "boolean",
+            "group": "notifications",
+            "master": false
+          },
+          {
+            "name": "notify_needs_you",
+            "default": false,
+            "type": "boolean",
+            "group": "notifications",
+            "master": false
+          },
+          {
+            "name": "notify_needs_you_invalid",
+            "default": true,
+            "type": "boolean",
+            "group": "notifications",
+            "master": false
+          },
+          {
+            "name": "notify_needs_you_policy",
+            "default": true,
+            "type": "boolean",
+            "group": "notifications",
+            "master": false
+          },
+          {
+            "name": "notify_needs_you_auth",
+            "default": true,
+            "type": "boolean",
+            "group": "notifications",
+            "master": false
+          },
+          {
+            "name": "notify_needs_you_failure",
+            "default": true,
+            "type": "boolean",
+            "group": "notifications",
+            "master": false
+          },
+          {
+            "name": "stall_after",
+            "default": "off",
+            "type": "string",
+            "choices": [
+              "off",
+              "m10",
+              "m15",
+              "m30",
+              "h1",
+              "h2"
+            ],
+            "group": "notifications",
+            "master": false
+          },
+          {
+            "name": "needs_you_sound",
+            "default": false,
             "type": "boolean",
             "group": "notifications",
             "master": false

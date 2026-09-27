@@ -121,6 +121,15 @@ def interruption_id(thread_id, turn_id, completed_at, ordinal) -> InterruptionId
     return InterruptionId(hashlib.sha256(text.encode("ascii")).hexdigest())
 
 
+def stalled_id(thread_id, turn_id) -> InterruptionId:
+    """The key a needs-you notice about a turn that stopped moving is kept under (v0.6.11): SHA-256,
+    as lowercase hex, of the compact JSON array `["stalled", thread_id, turn_id]`. Three members where
+    an interruption's id has four, so it is never one; and one turn is told once, however long it
+    stays still."""
+    text = json.dumps(["stalled", thread_id, turn_id], separators=(",", ":"), allow_nan=False)
+    return InterruptionId(hashlib.sha256(text.encode("ascii")).hexdigest())
+
+
 def is_digest(value) -> bool:
     """Whether `value` is a SHA-256 as the product writes one: 64 lowercase hex digits, with nothing
     around them. What an interruption id is, and - from v0.6.11 - a project's key (projects.py) and

@@ -19,7 +19,26 @@
             "last_tick_ok": true,
             "code_version": "<version>",
             "pid": 4242,
-            "started_at": 1799994600.0
+            "started_at": 1799994600.0,
+            "usage": {
+              "read_at": 1799999880.0,
+              "windows": [
+                {
+                  "bucket": "codex",
+                  "window": "primary",
+                  "used_percent": 100,
+                  "window_minutes": 300,
+                  "reset_at": 1800002540
+                },
+                {
+                  "bucket": "codex",
+                  "window": "secondary",
+                  "used_percent": 62,
+                  "window_minutes": 10080,
+                  "reset_at": 1800277200
+                }
+              ]
+            }
           },
           "upgrade_pending": false,
           "startup_enabled": false,
@@ -62,6 +81,13 @@
             "notify_starting": true,
             "notify_result": true,
             "notify_stopped": true,
+            "notify_needs_you": false,
+            "notify_needs_you_invalid": true,
+            "notify_needs_you_policy": true,
+            "notify_needs_you_auth": true,
+            "notify_needs_you_failure": true,
+            "stall_after": "off",
+            "needs_you_sound": false,
             "interface_language": "system",
             "continuation_language": "follow",
             "continuation_style": "standard",
@@ -114,7 +140,26 @@
             "last_tick_ok": true,
             "code_version": "<version>",
             "pid": 4242,
-            "started_at": 1799994600.0
+            "started_at": 1799994600.0,
+            "usage": {
+              "read_at": 1799999880.0,
+              "windows": [
+                {
+                  "bucket": "codex",
+                  "window": "primary",
+                  "used_percent": 100,
+                  "window_minutes": 300,
+                  "reset_at": 1800002540
+                },
+                {
+                  "bucket": "codex",
+                  "window": "secondary",
+                  "used_percent": 62,
+                  "window_minutes": 10080,
+                  "reset_at": 1800277200
+                }
+              ]
+            }
           },
           "upgrade_pending": false,
           "startup_enabled": false,
@@ -157,6 +202,13 @@
             "notify_starting": true,
             "notify_result": true,
             "notify_stopped": true,
+            "notify_needs_you": false,
+            "notify_needs_you_invalid": true,
+            "notify_needs_you_policy": true,
+            "notify_needs_you_auth": true,
+            "notify_needs_you_failure": true,
+            "stall_after": "off",
+            "needs_you_sound": false,
             "interface_language": "system",
             "continuation_language": "follow",
             "continuation_style": "standard",

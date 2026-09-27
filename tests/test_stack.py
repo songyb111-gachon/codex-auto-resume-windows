@@ -66,7 +66,9 @@ ITEM = {_q(name): item for item, names in {
     "engine": ("engine", "engine.announce", "engine.detect", "engine.dispatch", "engine.freshness",
                "engine.options", "engine.outcome",
                # v0.6.11: the waits and the two guards, as the engine asks them.
-               "engine.guard"),
+               "engine.guard",
+               # and the needs-you notices, as the engine raises them.
+               "engine.notices"),
     "policy": ("failures", "reasons", "settings", "continuation", "openstate", "domain.gates",
                # what may be done at a tier, and with whose word: policy, not registry data
                "compat.permits",
@@ -78,18 +80,24 @@ ITEM = {_q(name): item for item, names in {
                # chooses; and the two guards that may hold a waiting recovery.
                "quiet", "projects", "ladder", "guards",
                # v0.6.11: what an administrator's policy keys hold, and how they hold the settings.
-               "managed"),
+               "managed",
+               # and which needs-you notices are raised, and after how long a turn has stopped moving.
+               "needsyou"),
     "machine": ("machine", "domain", "domain.errors", "domain.ids", "domain.public",
                 "domain.states", "domain.vocabulary",
                 # v0.6.11: the registry's vocabularies, out of domain/vocabulary.py.
-                "domain.compat_vocabulary"),
+                "domain.compat_vocabulary",
+                # and what a usage reading keeps of Codex's reply.
+                "domain.usage"),
     "scheduler": ("engine.reconcile",),
     "store": ("store", "store.actions", "store.claims", "store.columns", "store.downgrade",
               "store.errors", "store.journal", "store.legacy", "store.migrations", "store.policy",
               "store.records", "store.reporting", "store.schema", "store.session",
               "store.validate", "store.watcher",
               # v0.6.11: the claim ledger's machinery (P11), out of store/claims.py.
-              "store.ledger"),
+              "store.ledger",
+              # and a needs-you notice, raised once.
+              "store.notices"),
     "codex": ("codex", "codex.appserver", "codex.errors", "codex.history", "codex.labels",
               "codex.pairing", "codex.paths", "codex.payload", "codex.schema", "codex.transport",
               "codex.usage", "codex.values", "compat", "compatio", "windows",

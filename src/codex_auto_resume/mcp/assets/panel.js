@@ -1073,7 +1073,45 @@ function showFacts(facts, status, state, rows) {
   var shown = heroFacts(status, state, rows);
   var soonest = soonestFact(status, state, rows);
   if (soonest !== null) shown.push(soonest);
+  // v0.6.11: and Codex's usage as the watcher last read it, with its age - once it has been read.
+  var usage = usageLine(status.watcher && status.watcher.usage, Date.now() / 1000);
+  if (usage !== null) shown.push(usage);
   shown.forEach(function (fact) { facts.appendChild(element('span', null, fact)); });
+}
+
+// v0.6.11: how long ago, as the window says it (SettingsForm.Age) and the popup (ui/words.age).
+function age(seconds) {
+  var total = Math.max(0, Math.floor(Number(seconds) || 0));
+  if (total < 5) return t('time.just_now', 'just now');
+  var time = total < 60 ? fill('time.seconds', '{n}s', {n: total})
+           : total < 3600 ? fill('time.minutes', '{n}m', {n: Math.floor(total / 60)})
+           : total < 86400 ? fill('time.hours', '{n}h', {n: Math.floor(total / 3600)})
+           : fill('time.days', '{n}d', {n: Math.floor(total / 86400)});
+  return fill('time.ago', '{time} ago', {time: time});
+}
+
+// v0.6.11: a usage window's length, named as the popup (ui/words.window_name) and the window name it.
+function windowName(minutes) {
+  if (typeof minutes !== 'number' || !(minutes > 0) || Math.floor(minutes) !== minutes) return t('usage.limit', 'limit');
+  if (minutes === 10080) return t('usage.weekly', 'weekly');
+  if (minutes % 1440 === 0) return fill('usage.days', '{n}-day', {n: minutes / 1440});
+  if (minutes % 60 === 0) return fill('usage.hours', '{n}-hour', {n: minutes / 60});
+  return fill('usage.minutes', '{n}-minute', {n: minutes});
+}
+
+// v0.6.11: the last usage reading in one line - each window's length, share and reset, and the reading's
+// age - as the popup (ui/words.usage_line) and the window say it; null until usage has been read.
+function usageLine(reading, now) {
+  if (!reading || typeof reading !== 'object' || !Array.isArray(reading.windows) || !reading.windows.length ||
+      typeof reading.read_at !== 'number') return null;
+  var parts = reading.windows.map(function (entry) {
+    var used = Number(entry.used_percent) || 0;
+    var values = {window: windowName(entry.window_minutes), percent: used >= 100 ? 100 : Math.floor(used)};
+    if (typeof entry.reset_at !== 'number') return fill('usage.window', '{window} {percent}%', values);
+    values.time = clockTime(entry.reset_at);
+    return fill('usage.window_resets', '{window} {percent}%, resets {time}', values);
+  });
+  return fill('usage.line', 'Codex usage, read {age}: {windows}', {age: age(now - reading.read_at), windows: parts.join(' · ')});
 }
 
 // `now` is the clock the word is read by (activity); render() reads it once for the whole page.
@@ -1551,8 +1589,15 @@ function renderNotifications(schema) {
     if (entry.master) {
       master = toggle(entry, function (on) { events.classList.toggle('quiet', !on); });
       events.classList.toggle('quiet', !value(entry.name));
+    } else if (entry.choices) {
+      // v0.6.11: how long a turn may not move before a needs-you notice says so.
+      events.appendChild(choiceField(entry, entry.choices.map(function (choice) {
+        return {value: choice, text: t('choice.' + choice, choice)};
+      }), '').row);
     } else {
       events.appendChild(onOff(entry));
+      // v0.6.11: what a needs-you notice is, and what its sound changes, under the last of its settings.
+      if (entry.name === 'needs_you_sound') events.appendChild(element('p', 'help', t('help.needs_you_sound', '')));
     }
   });
   if (master) fold.body.appendChild(master);

@@ -18,6 +18,7 @@ to hold in your head:
     ledger      the edition's say in a claim (P11), and what it may do there
     actions     what a person asks for
     watcher     the heartbeat
+    notices     a needs-you notice, raised once (v0.6.11)
     reporting   counts, and the last seven days
     legacy      an older release's state, read-only
     downgrade   putting it back to v3 or v2, by hand
@@ -47,6 +48,7 @@ from .journal import EVENT_LIMIT, EVENT_MAX_AGE, JournalMixin, _PRUNE_EVERY  # n
 from .ledger import LedgerMixin
 from .legacy import LegacyStore  # noqa: F401
 from .migrations import MigrationsMixin
+from .notices import NoticesMixin
 from .policy import PolicyMixin
 from .records import RecordsMixin
 from .reporting import ReportingMixin
@@ -59,7 +61,8 @@ from .watcher import WatcherMixin
 
 
 class Store(SessionMixin, SchemaMixin, MigrationsMixin, JournalMixin, PolicyMixin,
-            RecordsMixin, ClaimsMixin, LedgerMixin, ActionsMixin, WatcherMixin, ReportingMixin):
+            RecordsMixin, ClaimsMixin, LedgerMixin, ActionsMixin, WatcherMixin, ReportingMixin,
+            NoticesMixin):
     """One connection to our own state database.
 
     ``migrate`` must be passed explicitly: only the watcher, or a caller holding the

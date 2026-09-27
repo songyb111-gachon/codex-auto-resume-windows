@@ -62,9 +62,13 @@ namespace CodexAutoResume
             nextLine.ForeColor = Accent;
             runningLine = Value("");
             runningLine.ForeColor = Secondary;
+            // v0.6.11: Codex's usage as the watcher last read it, with its age - empty until it has been read.
+            usageLine = Value("");
+            usageLine.ForeColor = Secondary;
             waiting.Controls.Add(waitingLine);
             waiting.Controls.Add(nextLine);
             waiting.Controls.Add(runningLine);
+            waiting.Controls.Add(usageLine);
             Lead(waiting, MakeButton(S("nav.pending", "Pending"), false, delegate { ShowPage("pending"); }));
 
             TableLayoutPanel week = MakeCard(S("overview.week", "Last 7 days"));

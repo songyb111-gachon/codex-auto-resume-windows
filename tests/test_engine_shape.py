@@ -22,7 +22,7 @@ from codex_auto_resume.engine import Engine  # noqa: E402
 
 MIXINS = (package.OptionsMixin, package.AnnounceMixin, package.FreshnessMixin,
           package.DetectMixin, package.ReconcileMixin, package.OutcomeMixin,
-          package.DispatchMixin)
+          package.DispatchMixin, package.NoticeMixin)
 
 # The forty-one methods the one class had, counted the day it was split.
 METHODS = {
@@ -45,6 +45,9 @@ METHODS = {
     # v0.6.11: observe only - the switch, whether a refused consent is only observed, and the record
     # that would have been sent; and the hold an interruption is detected with.
     "observing", "observes", "_would_send", "admission",
+    # v0.6.11: the needs-you notices, each raised once (engine/notices.py), and the last usage reading
+    # the watcher's heartbeat keeps, which reads nothing (engine/freshness.py).
+    "tell_needs_you", "_notice", "last_usage",
 }
 
 # What `from codex_auto_resume.engine import ...` has to keep answering (app.py, the tests).

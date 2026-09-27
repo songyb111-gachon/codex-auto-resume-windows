@@ -320,6 +320,20 @@ WINDOW_NAMES = ("example-project", "example-service", "example-docs", "example-a
 # the panel's and the card's reset time are all this, because they are all read from one seed.
 USAGE_RESET_IN = 42 * 60 + 20
 RETRY_IN = 95
+# v0.6.11: the usage reading the watcher made when that usage limit came due, two minutes before the
+# moment: the five-hour window used up and resetting with it, the weekly one at 62%, three days on.
+# Only the allowlisted numbers a real reading keeps (domain/usage.py); whole seconds, as Codex sends.
+USAGE_READ_AGO = 120
+WEEKLY_RESET_IN = 3 * 86400 + 5 * 3600
+
+
+def sample_usage(now: float):
+    """The last reading every surface is pictured showing, as the heartbeat is handed one."""
+    return (now - USAGE_READ_AGO, [
+        {"bucket": "codex", "window": "primary", "used_percent": 100, "window_minutes": 300,
+         "reset_at": int(now) + USAGE_RESET_IN},
+        {"bucket": "codex", "window": "secondary", "used_percent": 62, "window_minutes": 10080,
+         "reset_at": int(now) + WEEKLY_RESET_IN}])
 
 
 def seed_window_state(home: Path, codex: Path, now: float) -> None:
@@ -550,12 +564,14 @@ def seed_compatibility(home: Path, codex: Path, local: Path, now: float) -> str:
 def write_heartbeat(paths, now: float, engine_state: str) -> None:
     """The watcher's heartbeat as the capture's mutex holder writes it (HOLD_MUTEX), with the
     process id and the clock pinned: a tick a second ago, from a watcher started ninety minutes
-    ago, carrying the word its compatibility check gave."""
+    ago, carrying the word its compatibility check gave - and, from v0.6.11, the usage reading it
+    made two minutes ago (sample_usage). The capture's own holder writes no reading, so this one
+    stays: a heartbeat with none leaves the last one as it is."""
     from codex_auto_resume.store import Store
     with Store(paths.state_dir) as store:
         store.heartbeat(now - 1, pid=ENVELOPE_PID, session_id="screenshot",
                         started_at=now - 5400, ok=True, engine_state=engine_state,
-                        code_version=config.version())
+                        code_version=config.version(), usage=sample_usage(now))
 
 
 # ------------------------------------------------------------------------- panel

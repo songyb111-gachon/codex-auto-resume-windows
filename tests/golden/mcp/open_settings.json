@@ -29,6 +29,25 @@
                 "code_version": "<version>",
                 "pid": 4242,
                 "started_at": 1799994600.0,
+                "usage": {
+                  "read_at": 1799999880.0,
+                  "windows": [
+                    {
+                      "bucket": "codex",
+                      "window": "primary",
+                      "used_percent": 100,
+                      "window_minutes": 300,
+                      "reset_at": 1800002540
+                    },
+                    {
+                      "bucket": "codex",
+                      "window": "secondary",
+                      "used_percent": 62,
+                      "window_minutes": 10080,
+                      "reset_at": 1800277200
+                    }
+                  ]
+                },
                 "compatibility": {
                   "status": "absent",
                   "overall": "unknown",
@@ -146,6 +165,13 @@
                 "notify_starting": true,
                 "notify_result": true,
                 "notify_stopped": true,
+                "notify_needs_you": false,
+                "notify_needs_you_invalid": true,
+                "notify_needs_you_policy": true,
+                "notify_needs_you_auth": true,
+                "notify_needs_you_failure": true,
+                "stall_after": "off",
+                "needs_you_sound": false,
                 "interface_language": "system",
                 "continuation_language": "follow",
                 "continuation_style": "standard",
@@ -380,6 +406,63 @@
               {
                 "name": "notify_stopped",
                 "default": true,
+                "type": "boolean",
+                "group": "notifications",
+                "master": false
+              },
+              {
+                "name": "notify_needs_you",
+                "default": false,
+                "type": "boolean",
+                "group": "notifications",
+                "master": false
+              },
+              {
+                "name": "notify_needs_you_invalid",
+                "default": true,
+                "type": "boolean",
+                "group": "notifications",
+                "master": false
+              },
+              {
+                "name": "notify_needs_you_policy",
+                "default": true,
+                "type": "boolean",
+                "group": "notifications",
+                "master": false
+              },
+              {
+                "name": "notify_needs_you_auth",
+                "default": true,
+                "type": "boolean",
+                "group": "notifications",
+                "master": false
+              },
+              {
+                "name": "notify_needs_you_failure",
+                "default": true,
+                "type": "boolean",
+                "group": "notifications",
+                "master": false
+              },
+              {
+                "name": "stall_after",
+                "default": "off",
+                "type": "string",
+                "choices": [
+                  "off",
+                  "m10",
+                  "m15",
+                  "m30",
+                  "h1",
+                  "h2"
+                ],
+                "group": "notifications",
+                "master": false
+              },
+              {
+                "name": "needs_you_sound",
+                "default": false,
                 "type": "boolean",
                 "group": "notifications",
                 "master": false
@@ -866,6 +949,13 @@
               "notify_starting": true,
               "notify_result": true,
               "notify_stopped": true,
+              "notify_needs_you": false,
+              "notify_needs_you_invalid": true,
+              "notify_needs_you_policy": true,
+              "notify_needs_you_auth": true,
+              "notify_needs_you_failure": true,
+              "stall_after": "off",
+              "needs_you_sound": false,
               "interface_language": "system",
               "continuation_language": "follow",
               "continuation_style": "standard",

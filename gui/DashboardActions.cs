@@ -824,7 +824,21 @@ namespace CodexAutoResume
                         word = S("explain.held", "Waiting for you");
                     rows.Add(new[] { S("gate." + name, name.Replace('_', ' ')), word, code });
                 }
-            explainList.SetRows(rows, S("explain.not_checked", "Not checked yet"), ExplainNote(row, gates));
+            explainList.SetRows(rows, S("explain.not_checked", "Not checked yet"), WithUsage(row, ExplainNote(row, gates)));
+        }
+
+        /// v0.6.11: under a usage limit's checks, what the watcher last read of Codex's usage, with its age - and first,
+        /// when a weekly limit is what it waits for, the day and time that one resets. Any other task's note is as it was.
+        private string WithUsage(Dictionary<string, object> row, string note)
+        {
+            if (Str(row, "category") != "usage_limit" || snapshot == null) return note;
+            var reading = Map(Map(Map(snapshot, "status"), "watcher"), "usage");
+            var said = new List<string>();
+            if (!string.IsNullOrEmpty(note)) said.Add(note);
+            string weekly = WeeklyBlock(reading), line = UsageLine(reading);
+            if (weekly != null) said.Add(weekly);
+            if (line != null) said.Add(line);
+            return said.Count == 0 ? null : string.Join("\n", said.ToArray());
         }
 
         /// v0.6.11: the sentence under the checks. Observe only's "would have been sent", or why the first check that

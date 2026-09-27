@@ -594,10 +594,13 @@ class NotificationCardTests(unittest.TestCase):
         self.assertIs(settings.coerce({"notification_card": False})["notification_card"], False)
 
     def test_turning_it_off_silences_nothing(self):
-        # Where a notification is drawn is not whether there is one.
+        # Where a notification is drawn is not whether there is one. v0.6.11's needs-you notice is off
+        # by default, card or no card, and every other event is on either way.
         values = dict(settings.defaults(), notification_card=False)
         for event in settings.NOTIFICATION_EVENTS:
-            self.assertTrue(settings.notification_enabled(values, event), event)
+            self.assertEqual(settings.notification_enabled(values, event),
+                             settings.notification_enabled(settings.defaults(), event), event)
+            self.assertEqual(settings.notification_enabled(values, event), event != "needs_you", event)
 
     def test_it_round_trips_through_the_file(self):
         with tempfile.TemporaryDirectory() as folder:

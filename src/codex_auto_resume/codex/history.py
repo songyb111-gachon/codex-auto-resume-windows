@@ -27,6 +27,18 @@ from .payload import (_choose_reset, _content_has_marker,
                       _queue_has_marker, detect)
 
 
+def _needing(row, kinds):
+    """A failed turn whose category is one of `kinds`, normalized as `detect` normalizes one and with
+    the id it would have - or None. Never passed to `detect`, and never registered."""
+    normalized = normalize(row)
+    if (normalized is None or normalized["status"] != "failed"
+            or normalized["category"] not in kinds or normalized["completed_at"] is None):
+        return None
+    normalized["interruption_id"] = ids.interruption_id(
+        *(normalized[k] for k in ("thread_id", "turn_id", "completed_at", "ordinal")))
+    return normalized
+
+
 class HistoryMixin:
     def _metadata(self, thread_id: str, strict: bool = False) -> Path | None:
         # strict=True (used by latest()) re-raises transient I/O as SourceError so the
@@ -99,7 +111,12 @@ class HistoryMixin:
                 "ORDER BY rollout_ordinal DESC LIMIT 1", (thread_id,)).fetchone()
         return normalize(dict(row)) if row else None
 
-    def latest_failures(self, since: float) -> list[dict]:
+    def latest_failures(self, since: float, *, needs_you=frozenset()) -> list[dict]:
+        """Every conversation's latest turn that failed since `since` and that this product would
+        recover (payload.detect). `needs_you` (v0.6.11) adds, from the same read, those whose category
+        is one of these - failures that need a person (needsyou.KINDS) - normalized the same way and
+        with the id `detect` would have given them, but never through `detect`, so none of them can
+        ever become a record to recover (A14). Empty, the default, and this is v0.6.10's read."""
         if not epoch(since):
             raise SourceError("Invalid detection start timestamp")
         # Read only failure metadata; no transcript scanning or folder traversal.
@@ -114,9 +131,44 @@ class HistoryMixin:
         result = []
         for row in rows:
             eligible = detect(dict(row))
+            if eligible is None and needs_you:
+                eligible = _needing(dict(row), needs_you)
             if eligible and self._metadata(eligible["thread_id"]) is not None:
                 result.append(eligible)
         return result
+
+    def stalled_turns(self, since: float, quiet_seconds: float, now: float) -> list[dict]:
+        """Conversations whose latest turn is still in progress and has recorded nothing new for
+        `quiet_seconds` (v0.6.11, a needs-you notice): the turn's lifecycle columns and the time of its
+        newest item, and nothing of any item's content, which is never selected (B7, B9). It says that
+        nothing moved, never why. Only a desktop-app conversation of a person's own, as detection
+        (A15); none at all where Codex's items carry no time (B5). Each: thread_id, turn_id, and when
+        it last moved."""
+        if not epoch(since) or type(quiet_seconds) is not int or quiet_seconds <= 0:
+            raise SourceError("Invalid stall window")
+        with self._db("history") as connection:
+            columns = {row[1] for row in connection.execute("PRAGMA table_info(thread_items)")}
+            if "created_at_ms" not in columns:
+                return []
+            rows = connection.execute(
+                "SELECT t.thread_id,t.turn_id,t.started_at,"
+                "(SELECT max(i.created_at_ms) FROM thread_items i WHERE i.thread_id=t.thread_id "
+                "AND i.turn_id=t.turn_id) AS last_item_ms FROM thread_turns t "
+                "WHERE t.status='inProgress' AND t.started_at>=? AND t.started_at<=? "
+                "AND NOT EXISTS (SELECT 1 FROM thread_turns n "
+                "WHERE n.thread_id=t.thread_id AND n.rollout_ordinal>t.rollout_ordinal)",
+                (since, now - quiet_seconds)).fetchall()
+        found = []
+        for row in rows:
+            thread, turn, started = row["thread_id"], row["turn_id"], row["started_at"]
+            if not (ids.is_uuid(thread) and ids.is_uuid(turn) and epoch(started)):
+                continue
+            last = row["last_item_ms"]
+            item = last / 1000.0 if type(last) is int and epoch(last // 1000) else None
+            moved = max(started, item) if item is not None else started
+            if now - moved >= quiet_seconds and self._metadata(thread) is not None:
+                found.append({"thread_id": thread, "turn_id": turn, "moved_at": moved})
+        return found
 
     def identity(self, thread_id: str) -> dict:
         """Human-facing labels for one thread. Never used to *find* a thread.

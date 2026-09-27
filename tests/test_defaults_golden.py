@@ -53,6 +53,13 @@ ADDED: dict = {
     "chain_time_ceiling": ("off", "no time ceiling: a task stops on its budgets alone, as in v0.6.10"),
     "task_changed_guard": ("off", "off: nothing of a task's workspace is read, and nothing is held for it"),
     "context_guard": ("off", "off: no token count is read, shown or held for"),
+    "notify_needs_you": (False, "off: no needs-you notice is raised, and nothing is read or kept for one"),
+    "notify_needs_you_invalid": (True, "inert while notify_needs_you is off, which is the default"),
+    "notify_needs_you_policy": (True, "inert while notify_needs_you is off, which is the default"),
+    "notify_needs_you_auth": (True, "inert while notify_needs_you is off, which is the default"),
+    "notify_needs_you_failure": (True, "inert while notify_needs_you is off, which is the default"),
+    "stall_after": ("off", "off: no turn is looked at for having stopped moving"),
+    "needs_you_sound": (False, "off, and read only for a needs-you notice, which is off by default"),
 }
 
 

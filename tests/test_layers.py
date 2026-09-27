@@ -58,7 +58,9 @@ LAYER = {_q(name): layer for layer, names in {
                "domain.ids", "domain.public", "domain.states", "domain.vocabulary",
                # v0.6.11: the plug interface and NULL - pure, like everything else here; and the
                # registry's vocabularies, out of domain/vocabulary.py at its line budget.
-               "domain.plug", "domain.compat_vocabulary"),
+               "domain.plug", "domain.compat_vocabulary",
+               # and what a usage reading keeps of Codex's reply, and nothing else.
+               "domain.usage"),
     "policy": ("", "settings", "continuation", "l10n", "messages", "interface", "config", "logbook",
                # v0.6.11: which edition this is, found by looking beside the package; and quiet
                # hours and a postponement's times, on the local clock.
@@ -67,7 +69,9 @@ LAYER = {_q(name): layer for layer, names in {
                # and the retry ladders and the two guards of a waiting recovery.
                "projects", "ladder", "guards",
                # and what an administrator's policy keys hold, applied after the settings are read.
-               "managed"),
+               "managed",
+               # and which needs-you notices are raised, and when a turn has stopped moving.
+               "needsyou"),
     "adapters": ("store", "openstate", "codex", "windows", "compat", "compatio", "startup", "shortcut",
                  # v0.6.10-alpha: compat.py and compatio.py became compat/.
                  "compat.model", "compat.standing", "compat.report", "compat.permits", "compat.files", "compat.cache", "compat.probes", "compat.views", "compat.evaluator",
@@ -82,6 +86,8 @@ LAYER = {_q(name): layer for layer, names in {
                  "store.session", "store.validate", "store.watcher",
                  # v0.6.11: the claim ledger's machinery (P11), out of store/claims.py.
                  "store.ledger",
+                 # and a needs-you notice, raised once.
+                 "store.notices",
                  # v0.6.10-alpha: the Win32 the product calls, which windows.py was half of.
                  "win", "win.dll", "win.homelock", "win.inventory", "win.kernel", "win.sync",
                  # v0.6.11: the administrator's policy keys, read and never written.
@@ -96,7 +102,9 @@ LAYER = {_q(name): layer for layer, names in {
     "engine": ("engine", "engine.announce", "engine.detect", "engine.dispatch",
                "engine.freshness", "engine.options", "engine.outcome", "engine.reconcile",
                # v0.6.11: the waits and the two guards, as the engine asks them.
-               "engine.guard"),
+               "engine.guard",
+               # and the needs-you notices, as the engine raises them.
+               "engine.notices"),
     # v0.6.10-alpha: control.py became control/, ten files, `Control` composed from eight
     # mixins. `layer` is where the composition lives, so that the front holds no code.
     "control": ("control", "control.actions", "control.codexstart", "control.errors",

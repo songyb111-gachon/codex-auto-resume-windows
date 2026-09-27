@@ -294,7 +294,10 @@ this product's plugin and marketplace).
   buttons are the toast's buttons, as data, and a press is handled inside the watcher rather than
   through the handler - parsed by the same two parsers, with the same two outcomes: one exact
   interruption cancelled through the control layer, or one of the window's own pages opened. The
-  card imports nothing that can send, and the tests hold it to that.
+  card imports nothing that can send, and the tests hold it to that. From v0.6.11 the needs-you
+  notice, off by default, has one button, **Open Dashboard**, at the Settings page: no cancel, and
+  no setting is written from a notification - which kinds are told is chosen on that page. What it
+  keeps to be told once is a table nothing that decides a send reads, and it never becomes a record.
 - **Front ends ask; the watcher alone sends.** New in v0.6.3. The **Auto-resume** switch
   beside each task, on the Pending page and in the notification-area popup, carries the exact
   interruption id and conversation id of the row it was drawn in. When the click arrives, the

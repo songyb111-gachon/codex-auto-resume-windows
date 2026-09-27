@@ -20,7 +20,7 @@ import os
 from pathlib import Path
 import tempfile
 
-from . import continuation, failures, guards, l10n, ladder, projects, quiet, reasons
+from . import continuation, failures, guards, l10n, ladder, needsyou, projects, quiet, reasons
 from .domain.vocabulary import (Design, ImportanceTier, NewConversationPolicy, NotifyEvent,
                                 ProjectPolicy, Theme)
 
@@ -153,7 +153,16 @@ FIELDS = {
 for _category in CONFIGURABLE_CATEGORIES:
     FIELDS["recover_" + _category] = (True, _boolean)
 for _event in NOTIFICATION_EVENTS:
-    FIELDS["notify_" + _event] = (True, _boolean)
+    # Every event on, as it always was - but the needs-you notice (v0.6.11), which v0.6.10 never raised.
+    FIELDS["notify_" + _event] = (_event != NotifyEvent.NEEDS_YOU, _boolean)
+# v0.6.11: which kinds a needs-you notice is raised for, each on once the notice is (needsyou.py);
+# a turn that stops moving, told after a time chosen here - never, by default; and a sound of the
+# notice's own, which only Windows' notification can carry (notify.py). Where a kind is switched off
+# is here, in Settings - never on the notice itself (A28).
+for _field in needsyou.KIND_FIELDS.values():
+    FIELDS[_field] = (True, _boolean)
+FIELDS[needsyou.STALL_FIELD] = (needsyou.DEFAULT_STALL, lambda v, d: _choice(v, d, needsyou.STALL_WAITS))
+FIELDS[needsyou.SOUND_FIELD] = (False, _boolean)
 
 # ------------------------------------------------------------------- language
 # Two languages, deliberately independent. One is what the product says to you; the
@@ -303,7 +312,11 @@ RANGES = {
     "chain_time_ceiling": {"choices": list(CHAIN_CEILINGS)},
     "task_changed_guard": {"choices": list(TASK_GUARDS)},
     "context_guard": {"choices": list(CONTEXT_GUARDS)},
+    needsyou.STALL_FIELD: {"choices": list(needsyou.STALL_WAITS)},
 }
+
+# The fields that shape a needs-you notice (v0.6.11), in the order they follow its switch.
+NEEDS_YOU_FIELDS = tuple(needsyou.KIND_FIELDS.values()) + (needsyou.STALL_FIELD, needsyou.SOUND_FIELD)
 
 
 # What each published type accepts on a write. A number takes an integer - JSON has one
@@ -585,7 +598,9 @@ def describe() -> list:
         if name.startswith("recover_"):
             entry["group"] = "recovery"
             entry["category"] = name[len("recover_"):]
-        elif name.startswith("notify_") or name == "notifications":
+        elif (name.startswith("notify_") or name == "notifications"
+              or name in NEEDS_YOU_FIELDS):
+            # v0.6.11: the needs-you notice's kinds, its stall and its sound under its own switch.
             entry["group"] = "notifications"
             entry["master"] = name == "notifications"
         elif name in ("theme", "panel_theme", "design", "reduce_motion"):

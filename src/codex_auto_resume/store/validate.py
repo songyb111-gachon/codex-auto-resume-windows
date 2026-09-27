@@ -8,7 +8,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from .. import failures
+from .. import failures, needsyou
 from ..domain import ids, vocabulary
 from .. import machine
 from ..machine import CLAIMED, IN_FLIGHT, OBSERVING, STATES
@@ -132,13 +132,14 @@ def _validated_tier(value):
 
 
 def _validated_notice(row: dict[str, Any]) -> dict[str, Any]:
-    """One needs-you notice (schema 4): ids, a failure category and times - nothing else."""
+    """One needs-you notice (schema 4): ids, its kind - a failure that needs a person, or a turn that
+    stopped moving (needsyou.NOTICE_KINDS) - and times; nothing else."""
     if set(row) != set(_NOTICE_COLUMNS):
         raise RecordSchemaMismatch("Invalid notice schema")
     if not ids.is_interruption_id(row["interruption_id"], as_stored=True):
         raise StoreError("Invalid notice interruption_id")
     _uuid(row["thread_id"], "notice thread_id")
-    if row["category"] not in failures.CATEGORIES:
+    if row["category"] not in needsyou.NOTICE_KINDS:
         raise StoreError("Invalid notice category")
     _timestamp(row["raised_at"], "raised_at")
     _timestamp(row["seen_at"], "seen_at", nullable=True)

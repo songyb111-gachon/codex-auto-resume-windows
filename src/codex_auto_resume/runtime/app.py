@@ -18,7 +18,7 @@ import time
 import traceback
 import uuid
 
-from .. import compatio, config, edition, l10n, managed, notifier, settings as policy
+from .. import compatio, config, edition, l10n, managed, needsyou, notifier, settings as policy
 from ..codex import LocalSource
 from ..domain.plug import DEFER, EXTRA, Surface, guard
 from ..engine import Engine
@@ -289,7 +289,9 @@ class App(WatchLoop):
                 identity = source.identity(thread_id)
             except Exception:
                 identity = None     # an unnamed task is still worth announcing
-            notice = notifier.build(event, detail, identity)
+            # v0.6.11: a needs-you notice carries the sound its person chose, if any (notify.py).
+            sound = event == needsyou.EVENT and self.settings.get(needsyou.SOUND_FIELD) is True
+            notice = notifier.build(event, detail, identity, sound=sound)
             if notice is None:
                 return False
             return notifier.deliver(notice, inbox=self._inbox,

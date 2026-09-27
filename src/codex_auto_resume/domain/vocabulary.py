@@ -510,12 +510,25 @@ class ContextGuard(StrEnum):
     ABOVE_1M = "above_1m"
 
 
+class StallWait(StrEnum):
+    """How long a turn may record nothing new before its conversation is said to need a person
+    (needsyou.STALL_WAITS): never, the default, or 10 minutes to 2 hours (v0.6.11)."""
+    OFF = "off"
+    M10 = "m10"
+    M15 = "m15"
+    M30 = "m30"
+    H1 = "h1"
+    H2 = "h2"
+
+
 class NotifyEvent(StrEnum):
-    """What a notification may be about, each switchable (settings.NOTIFICATION_EVENTS)."""
+    """What a notification may be about, each switchable (settings.NOTIFICATION_EVENTS). NEEDS_YOU
+    (v0.6.11) is the one off by default: a failure this product never resumes, told once."""
     INTERRUPTION = "interruption"
     STARTING = "starting"
     RESULT = "result"
     STOPPED = "stopped"
+    NEEDS_YOU = "needs_you"
 
 
 class Locale(StrEnum):
@@ -585,3 +598,4 @@ class NoticeKind(StrEnum):
     UNKNOWN = "unknown"
     STOPPED = "stopped"
     CANCELLED = "cancelled"
+    NEEDS_YOU = "needs_you"

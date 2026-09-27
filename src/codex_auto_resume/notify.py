@@ -21,7 +21,7 @@ from __future__ import annotations
 import subprocess
 import time
 
-from . import l10n, machine, pwsh
+from . import l10n, machine, needsyou, pwsh
 from .domain import ids
 
 SCHEME = "codex-auto-resume"
@@ -119,7 +119,21 @@ def parse_open_uri(uri: str) -> str | None:
 MAX_TOAST_ACTIONS = 5
 
 
-def _toast_xml(title, body, button=None, uri=None, extra=(), more=(), silent=False) -> str:
+# v0.6.11: a needs-you notice's sound, only when a person chose one: Windows' own reminder sound, named
+# by the toast's own audio element - so it is Windows that plays it, and Windows' Do not disturb and
+# Focus that hold it back with the toast. Otherwise a needs-you toast is silent; no other toast changes.
+NEEDS_YOU_SOUND = "ms-winsoundevent:Notification.Reminder"
+
+
+def _audio(silent, sound) -> str:
+    """The toast's audio element: none (Windows' default, every toast but the two below), silent (the
+    history copy, and a needs-you notice without a sound), or the needs-you sound a person chose."""
+    if silent or sound is False:
+        return '<audio silent="true"/>'
+    return '<audio src="%s"/>' % NEEDS_YOU_SOUND if sound is True else ""
+
+
+def _toast_xml(title, body, button=None, uri=None, extra=(), more=(), silent=False, sound=None) -> str:
     # Imported when a toast is built, not when this module is: `xml.sax` brings about
     # ninety modules with it, `urllib.request`, `http.client`, `email` and `ssl` among
     # them, and every process that imports the watcher paid for them whether or not it
@@ -140,13 +154,13 @@ def _toast_xml(title, body, button=None, uri=None, extra=(), more=(), silent=Fal
     text = "".join("<text>%s</text>" % escape(line) for line in lines)
     # The history copy (`silent`) makes no sound. Without it the document is byte for byte
     # what it was before v0.6.5; tests/test_notice_card.py holds every toast to a golden.
-    audio = '<audio silent="true"/>' if silent else ""
+    audio = _audio(silent, sound)
     return ('<toast duration="long"><visual><binding template="ToastGeneric">'
             '%s</binding></visual>%s%s</toast>' % (text, audio, actions))
 
 
 def show(title: str, body: str, *, button: str | None = None, uri: str | None = None,
-         extra=(), more=(), silent: bool = False) -> bool:
+         extra=(), more=(), silent: bool = False, sound: bool | None = None) -> bool:
     """Best effort. Returns True only when PowerShell reported success.
 
     The toast document travels as an environment variable into a constant script, never
@@ -161,7 +175,8 @@ def show(title: str, body: str, *, button: str | None = None, uri: str | None = 
     """
     if pwsh.executable() is None:
         return False
-    values = {"XML": _toast_xml(title, body, button, uri, extra, more, silent=silent is True),
+    values = {"XML": _toast_xml(title, body, button, uri, extra, more, silent=silent is True,
+                                sound=sound if isinstance(sound, bool) else None),
               "AUMID": aumid()}
     if silent is True:
         values["SILENT"] = "1"
@@ -218,19 +233,22 @@ def _origin_line(identity, used: str, thread_id: str) -> str:
     return (secondary + "  ·  " + thread) if secondary else thread
 
 
-def _content(title, body, *, button=None, uri=None, extra=(), more=()) -> dict:
+def _content(title, body, *, button=None, uri=None, extra=(), more=(), sound=None) -> dict:
     """What one toast says, as the arguments `show` takes. Only what was given is kept, so
-    `show_content` passes `show` exactly the keywords each toast always passed."""
+    `show_content` passes `show` exactly the keywords each toast always passed. `sound` (v0.6.11) is a
+    needs-you notice's alone, and every other toast leaves it out."""
     content = {"title": title, "body": body}
     for name, value in (("button", button), ("uri", uri), ("extra", list(extra)), ("more", list(more))):
         if value:
             content[name] = value
+    if isinstance(sound, bool):
+        content["sound"] = sound
     return content
 
 
 def show_content(content: dict, *, silent: bool = False) -> bool:
     """Raise the toast one of the `*_content` functions describes."""
-    options = {name: content[name] for name in ("button", "uri", "extra", "more") if name in content}
+    options = {name: content[name] for name in ("button", "uri", "extra", "more", "sound") if name in content}
     if silent is True:
         options["silent"] = True
     return show(content["title"], content["body"], **options)
@@ -389,3 +407,34 @@ def stopped_content(thread_id: str, identity=None, *, reason: str | None = None)
 def stopped(thread_id: str, identity=None, *, reason: str | None = None) -> bool:
     """Recovery has stopped for good, and why in one line."""
     return show_content(stopped_content(thread_id, identity, reason=reason))
+
+
+# ------------------------------------------------------------ needs-you notices (v0.6.11)
+# A conversation that needs a person (needsyou.py): a failure this product will never resume, or a
+# turn that has recorded nothing new for a while. Said once, with one next step from the catalog, and
+# one button - Open Dashboard, at Settings, which is where a kind of notice is switched off. Nothing
+# on it cancels, sends or writes anything (A28), and it names no error: the category's catalog words
+# only (D6).
+def needs_you_label(kind) -> str:
+    """What kind of need it is, in the catalog's words: the reason's label, or "Not moving"."""
+    if kind == needsyou.STALLED:
+        return l10n.message("needs_you_stalled_label")
+    return _reason_label(kind)
+
+
+def needs_you_message(kind, minutes=None) -> str:
+    """The one next step for this kind, from the catalog."""
+    key = needsyou.NEXT_STEPS.get(kind, needsyou.NEXT_STEPS["terminal_failure"])
+    count = minutes if type(minutes) is int and minutes > 0 else 10
+    return l10n.message(key[len("msg."):]).replace("{minutes}", str(count))
+
+
+def needs_you_content(thread_id: str, kind: str, identity=None, *, minutes=None, sound: bool = False) -> dict:
+    """The needs-you notice's content: its conversation, what it needs and what to do next, and Open
+    Dashboard. `sound` is the person's choice (needs_you_sound): Windows' reminder sound, or none."""
+    title = headline(identity)
+    return _content(title, _origin_line(identity, title, thread_id),
+                    extra=[needs_you_label(kind) + " · " + needs_you_message(kind, minutes)],
+                    more=[(l10n.message("toast_button_open"), open_uri("settings"))],
+                    sound=sound is True)
+

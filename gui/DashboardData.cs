@@ -216,6 +216,57 @@ namespace CodexAutoResume
             return Age(Now() - stamp);
         }
 
+        // ------------------------------------------------------------ usage (v0.6.11)
+        /// A usage window's length, named as the popup (ui/words.window_name) and the panel (windowName) name it.
+        private string WindowName(object minutes)
+        {
+            double value = minutes is double ? (double)minutes : 0;
+            if (value <= 0 || value != Math.Floor(value)) return S("usage.limit", "limit");
+            int whole = (int)value;
+            if (whole == 10080) return S("usage.weekly", "weekly");
+            if (whole % 1440 == 0) return S("usage.days", "{n}-day", "n", whole / 1440);
+            if (whole % 60 == 0) return S("usage.hours", "{n}-hour", "n", whole / 60);
+            return S("usage.minutes", "{n}-minute", "n", whole);
+        }
+
+        /// The last usage reading in one line - each window's length, share and reset, and how long ago it was read - as
+        /// the popup and the panel say it; null until usage has been read.
+        private string UsageLine(Dictionary<string, object> reading)
+        {
+            var windows = Items(reading, "windows");
+            double at = Number(reading, "read_at");
+            if (windows == null || windows.Count == 0 || at <= 0) return null;
+            var parts = new List<string>();
+            foreach (object entry in windows)
+            {
+                var window = entry as Dictionary<string, object>;
+                if (window == null) continue;
+                double used = Number(window, "used_percent"), reset = Number(window, "reset_at");
+                string share = (used >= 100 ? 100 : (int)Math.Floor(used)).ToString(CultureInfo.InvariantCulture);
+                string text = reset > 0
+                    ? S("usage.window_resets", "{window} {percent}%, resets {time}").Replace("{time}", ClockTime(reset))
+                    : S("usage.window", "{window} {percent}%");
+                parts.Add(text.Replace("{window}", WindowName(Get(window, "window_minutes"))).Replace("{percent}", share));
+            }
+            if (parts.Count == 0) return null;
+            return S("usage.line", "Codex usage, read {age}: {windows}").Replace("{age}", Age(Now() - at))
+                                                                       .Replace("{windows}", string.Join(" · ", parts.ToArray()));
+        }
+
+        /// A weekly window the last reading found used up, with the day and time it resets - what a usage limit then waits
+        /// for, whatever else is used up beside it; null when no weekly window is, or its reset was not said.
+        private string WeeklyBlock(Dictionary<string, object> reading)
+        {
+            double latest = 0;
+            foreach (object entry in Items(reading, "windows") ?? new List<object>())
+            {
+                var window = entry as Dictionary<string, object>;
+                if (window == null || Number(window, "window_minutes") < 10080 || Number(window, "used_percent") < 100) continue;
+                latest = Math.Max(latest, Number(window, "reset_at"));
+            }
+            return latest > 0 ? S("usage.weekly_block", "The weekly limit is used up. It resets {time}.", "time", When(latest)) : null;
+        }
+
         private string Conversation(Dictionary<string, object> row)
         {
             string name = Str(row, "name") ?? Str(row, "project") ?? Str(row, "cwd_basename");
@@ -303,6 +354,8 @@ namespace CodexAutoResume
                 string engine = Str(watcher, "engine_state") ?? "unknown";
                 string engineText = S("engine." + engine, engine);
                 double last = Number(watcher, "last_tick_at");
+                // v0.6.11: the last usage reading, under what is waiting for it.
+                if (usageLine != null) usageLine.Text = UsageLine(Map(watcher, "usage")) ?? "";
                 if (nowRecovery != null)
                 {
                     nowRecovery.Text = recovery;

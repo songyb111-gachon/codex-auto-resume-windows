@@ -86,6 +86,8 @@ ENGINE_TO_STORE = {
     # and a record the task-changed guard holds for a person when it falls due (engine/guard.py) -
     # never at the defaults, where the guard is off.
     "hold_changed",
+    # and a needs-you notice kept so it is told once (engine/notices.py) - never at the defaults.
+    "raise_notice",
 }
 # What it asks of Codex itself, through the backend: is the app there, what is my usage, send
 # this, take it back, is the thread loaded. Five, and the split must not make it six by accident.
@@ -105,6 +107,8 @@ ENGINE_TO_SOURCE = {
     "project_key",
     # and what the task-changed and context-cost guards read, asked only while one is on.
     "task_facts",
+    # and the turns that stopped moving, asked only while a needs-you notice waits for one.
+    "stalled_turns",
 }
 # v0.6.11: what core asks the edition's plug, which it holds as `Guarded` (domain/plug.py). The
 # engine asks at the points of a tick, a dispatch and an ended turn; the claim asks the ledger,

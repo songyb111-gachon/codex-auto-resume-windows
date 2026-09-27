@@ -104,7 +104,8 @@ LISTS = {
     "continuation.DEFAULT_STYLE": "standard",
     "continuation.DEFAULT_CUSTOM_MODE": "global",
     "settings.THEMES": ("tuple", 3, "bde3c29151568c16"),
-    "settings.NOTIFICATION_EVENTS": ("tuple", 4, "edd0f68b3c5a94e6"),
+    # v0.6.11: and the needs-you notice, the one event off by default.
+    "settings.NOTIFICATION_EVENTS": ("tuple", 5, "b702d9979f24798b"),
     "settings.RETRY_TIMING": ("dict", 3, "8a8e62ec299a7928"),
     "settings.DEFAULT_TIMING": "normal",
     "settings.THEME_SYSTEM": "system",
@@ -159,7 +160,8 @@ LISTS = {
     "ui.tray.ICON_STATES": ("tuple", 5, "e94d5138669400b3"),
     "ui.popup.STATES": ("tuple", 6, "b38c816dbd792bf5"),
     "ui.popup.ATTENTION_OVERLAYS": ("set", 4, "a707a2b300127033"),
-    "notifier.STATUS": ("dict", 7, "ed71f4ec9cabc7bc"),
+    # v0.6.11: and the needs-you notice's light, attention.
+    "notifier.STATUS": ("dict", 8, "c7f7b5d3857e2ef5"),
     "mcpserver.Server.START_WORDING": ("dict", 4, "f15e04a780f57870"),
     # v0.6.11: the two editions, and the plug that is the whole difference between them.
     "edition.EDITIONS": ("tuple", 2, "49cc206af3867704"),
@@ -305,6 +307,8 @@ HOMES = {
     v.NewConversationPolicy: ("list", "settings.NEW_CONVERSATION_POLICIES"),
     v.ProjectPolicy: ("list", "settings.PROJECT_POLICIES", "projects.POLICIES"),
     v.NotifyEvent: ("list", "settings.NOTIFICATION_EVENTS"),
+    # v0.6.11: how long a turn may not move before a needs-you notice says so.
+    v.StallWait: ("list", "needsyou.STALL_WAITS"),
     v.Locale: ("list", "l10n.LOCALES"),
     v.SendOutcome: ("returned", ("Backend.send", "outcome")),
     v.SendError: ("returned", ("Backend.send", "error_code")),

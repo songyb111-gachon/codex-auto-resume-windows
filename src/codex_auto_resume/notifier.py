@@ -59,6 +59,7 @@ STATUS = {
     "unknown": "attention",         # it may have gone through; nothing is resent
     "stopped": "attention",         # recovery stopped for good
     "cancelled": "paused",          # a person switched it off
+    "needs_you": "attention",       # v0.6.11: it needs a person, and is never resumed
 }
 PROBES = ("notification_state", "notification_mode", "app_notifications", "screen_reader",
           "remote_session", "session_locked")
@@ -127,7 +128,7 @@ def _notice(kind, content, *, key, chip=None, chip_tone=None, line=None) -> Noti
                   locale=l10n.current(), key=key)
 
 
-def build(event, detail, identity=None):
+def build(event, detail, identity=None, *, sound=False):
     """The Notice for one engine event, or None for an event that is never announced.
 
     The same mapping `app.App._notifier` has made since v0.6.0, event for event, now in one
@@ -171,6 +172,14 @@ def build(event, detail, identity=None):
         certain = state != "submission_unknown"
         return _notice("failed" if certain else "unknown",
                        notify.attempt_failed_content(thread_id, identity, certain=certain), key=thread_id)
+    if event == "needs_you":
+        # v0.6.11: a conversation that needs a person (needsyou.py). Its chip says what kind, its line
+        # the one next step, and its one button opens Settings; `sound` is the person's choice.
+        kind = detail.get("category")
+        minutes = detail.get("minutes")
+        content = notify.needs_you_content(thread_id, kind, identity, minutes=minutes, sound=sound is True)
+        return _notice("needs_you", content, key=thread_id, chip=notify.needs_you_label(kind),
+                       chip_tone="attention", line=notify.needs_you_message(kind, minutes))
     if event == "stopped":
         reason = ("no_progress" if state == "no_progress_exhausted"
                   else "time" if detail.get("reason") == "chain_time_cap"
@@ -264,7 +273,9 @@ def deliver(notice, *, inbox=None, setting=True, probe=None, show=notify.show_co
     and never on the icon's thread (raising a toast runs PowerShell).
     """
     allowed = False
-    if setting is True and inbox is not None and inbox.attached:
+    # A notice with a sound of its own (v0.6.11, a needs-you notice a person asked to hear) is Windows'
+    # toast: the card makes no sound, and the sound is the toast's own audio element (notify.py).
+    if setting is True and inbox is not None and inbox.attached and not sounds(notice):
         try:
             answers = dict((probe or _presence)() or {})
         except Exception:
@@ -274,6 +285,11 @@ def deliver(notice, *, inbox=None, setting=True, probe=None, show=notify.show_co
     if allowed and inbox.post(notice):
         return "card", True
     return "toast", bool(show(notice.toast_content()))
+
+
+def sounds(notice) -> bool:
+    """Whether a notice carries a sound of its own - only a needs-you notice, only when chosen."""
+    return dict(getattr(notice, "content", ()) or ()).get("sound") is True
 
 
 def complete(notice, card_shown, *, show=notify.show_content) -> bool:

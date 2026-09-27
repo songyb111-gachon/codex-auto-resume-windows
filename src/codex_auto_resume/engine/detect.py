@@ -6,7 +6,7 @@ latest is superseded rather than recovered.
 """
 from __future__ import annotations
 
-from .. import failures, guards, machine
+from .. import failures, guards, machine, needsyou
 from ..machine import OBSERVING, TERMINAL, WAITING, WATCHED
 from ..codex import detect
 
@@ -76,7 +76,13 @@ class DetectMixin:
         if not settings["enabled"]:
             return
         since = max(0.0, settings["armed_at"] - self.options["detection_lookback_seconds"])
-        for raw in self.source.latest_failures(since):
+        # v0.6.11: the same read also brings the failures a needs-you notice is raised for, only while
+        # one is on (needsyou.kinds) - none of which `detect` takes, so none becomes a record. At the
+        # defaults it is v0.6.10's read exactly.
+        kinds = needsyou.kinds(self.policy_values)
+        found = (self.source.latest_failures(since, needs_you=kinds) if kinds
+                 else self.source.latest_failures(since))
+        for raw in found:
             record = detect(raw)
             if record is None or not self.store.thread_enabled(record["thread_id"]):
                 continue
@@ -163,3 +169,4 @@ class DetectMixin:
             # a person, never that it will resume (notify.scheduled_content).
             held = {"hold": registered["hold"]} if registered["hold"] is not None else {}
             self.announce("interruption", registered, **held)
+        self.tell_needs_you(found, since)

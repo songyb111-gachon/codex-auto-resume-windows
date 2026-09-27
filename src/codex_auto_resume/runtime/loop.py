@@ -155,12 +155,26 @@ class WatchLoop:
                 return EXIT_OK
             delay = min(delay * 2, OPEN_RETRY_MAX_SECONDS)
 
-    def _heartbeat(self, store, session, started, ok):
+    def _heartbeat(self, store, session, started, ok, engine=None):
         try:
             store.heartbeat(time.time(), pid=os.getpid(), session_id=session, started_at=started,
-                            ok=ok, engine_state=self.engine_state(), code_version=config.version())
+                            ok=ok, engine_state=self.engine_state(), code_version=config.version(),
+                            usage=self._new_reading(engine))
         except Exception:
             pass    # the heartbeat reports health; it must never be the thing that fails
+
+    def _new_reading(self, engine):
+        """The engine's last usage reading, the first time the heartbeat is handed it (v0.6.11) - None
+        otherwise, which leaves the one stored as it is. Asked of what the engine already read; this
+        reads nothing."""
+        try:
+            reading = engine.last_usage() if engine is not None else None
+        except Exception:
+            return None
+        if reading is None or reading[0] == getattr(self, "_reading_kept", None):
+            return None
+        self._reading_kept = reading[0]
+        return reading
 
     def _between_ticks(self, stop, wake, engine, interval, last_tick):
         """Wait for the next tick. Every second while anything of ours may be queued in
@@ -248,7 +262,7 @@ class WatchLoop:
                     self._record_failure("tick")
                 except Exception:
                     self._record_failure("initialising Codex adapter" if engine is None else "tick")
-                self._heartbeat(store, session, started, ok)
+                self._heartbeat(store, session, started, ok, engine)
                 if not once:
                     self._failure_baseline()            # made good at the next tick if a write was refused
                 if icon is not None:

@@ -252,6 +252,11 @@ return. If the user asks about it, send them to that page. Never describe other 
 checked or compatible, or as a check made on this machine; if the user quotes the counts, speak
 of them only as other people's reports, which change nothing this product does.
 
+From v0.6.11 `get_status` also carries, under `watcher.usage`, Codex's usage as the watcher last read
+it: `read_at`, and each window's `bucket`, `window`, `used_percent`, `window_minutes` and
+`reset_at` - or null until usage has been read. It is only the last reading, made when a recovery
+was due; say how old it is, never present it as current, and never read a count of credits into it.
+
 Do not restate the reset time the Codex usage-limit notice already shows.
 
 ## Looking further back
@@ -319,6 +324,14 @@ switch, and there is a master switch for all of them.
 
 Turning notifications off changes nothing about whether a task is recovered - say so, because
 people reasonably assume otherwise.
+
+From v0.6.11 there is one more, off by default: *When a conversation needs you*. It tells the user,
+once, of a failure this product never resumes - the request was refused or the conversation is too
+long, a content policy stopped the turn, Codex needs a new sign-in, or Codex gave up - and, if a time
+is chosen for it, of a turn that has recorded nothing new for that long. Its one button, **Open
+Dashboard**, opens the Settings page, where each kind is switched off. It never resumes, sends or
+records anything. A turn that has not moved may simply still be working: never say it is waiting
+for an approval.
 
 While the watcher runs there is an icon in the notification area. It belongs to the watcher
 process, so it cannot show a watcher that is not there. Hovering over it says whether recovery

@@ -25,7 +25,7 @@ from codex_auto_resume.store import Store  # noqa: E402
 
 MIXINS = (store.SessionMixin, store.SchemaMixin, store.MigrationsMixin, store.JournalMixin,
           store.PolicyMixin, store.RecordsMixin, store.ClaimsMixin, store.LedgerMixin,
-          store.ActionsMixin, store.WatcherMixin, store.ReportingMixin)
+          store.ActionsMixin, store.WatcherMixin, store.ReportingMixin, store.NoticesMixin)
 
 # What `Store` has, as the one class had it. Sixty-one methods, counted the day the file was
 # split; a method added or taken away is a decision, and this is where it is made.
@@ -55,6 +55,9 @@ METHODS = {
     "set_observe_only", "record_would_send", "enrol_conversation", "hold_waiting",
     # v0.6.11: the task-changed guard's hold, which takes the digest it found in the same write.
     "hold_changed",
+    # v0.6.11: a needs-you notice raised once - store/notices.py - and the last usage reading the
+    # heartbeat keeps (store/watcher.py).
+    "raise_notice", "_reading",
 }
 
 # Reachable as `store.<name>` before the split, and still.

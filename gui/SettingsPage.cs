@@ -500,6 +500,10 @@ namespace CodexAutoResume
                     if (name == "start_with_codex")
                         host.Controls.Add(HelpText(S("help.start_with_codex",
                             "Codex starts this plugin whenever it opens, and the watcher starts with it if it is not already running. This is separate from starting at sign-in: either or both can be on. It changes nothing about what is recovered.")));
+                    // v0.6.11: what a needs-you notice is and what its sound changes, under the last of its settings.
+                    if (name == "needs_you_sound")
+                        host.Controls.Add(HelpText(S("help.needs_you_sound",
+                            "For a failure this product never resumes, and for a turn that has recorded nothing new for the time chosen above: one notification each, with what to do next in Codex and a button to these settings. Nothing is resumed or sent for them. A turn that has not moved may simply still be working. With a sound on, Windows shows these notifications itself, even when notifications are cards, and its Do not disturb holds them back.")));
                     // v0.6.11: what observe only does, under its switch.
                     if (name == "observe_only")
                         host.Controls.Add(HelpText(S("help.observe_only",

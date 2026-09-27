@@ -6,6 +6,7 @@ from a history that has not caught up is reading a past that is already wrong.
 from __future__ import annotations
 
 from .. import machine
+from ..domain import usage as readings
 from ..machine import WAITING, WATCHED
 
 
@@ -15,6 +16,17 @@ class FreshnessMixin:
         if self._usage_cache is None or now - self._usage_cache[0] > 30:
             self._usage_cache = (now, self.backend.usage())
         return self._usage_cache[1]
+
+    def last_usage(self):
+        """The last usage reading this engine made that had windows, as (time, windows) - None until it
+        has made one (v0.6.11). What the watcher's heartbeat keeps (domain/usage.py). It reads nothing:
+        usage is still read only when a recovery is due, and a reading reused for 30 seconds is the
+        same reading (C4, C9)."""
+        cached = self._usage_cache
+        if cached is None:
+            return None
+        windows = readings.windows_of(cached[1])
+        return None if windows is None else (cached[0], windows)
 
     def loaded(self, thread_id):
         """The loaded state of one thread, re-read at most every few seconds."""

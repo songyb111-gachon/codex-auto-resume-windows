@@ -157,7 +157,10 @@ class WatcherMixin:
                 # `code_version` therefore proves nothing about a restart, while a
                 # `started_at` that moved, from a watcher that holds the mutex, does.
                 "pid": (status or {}).get("pid"),
-                "started_at": (status or {}).get("started_at")}
+                "started_at": (status or {}).get("started_at"),
+                # v0.6.11: Codex's usage as the watcher last read it, with when (domain/usage.py) -
+                # None until a recovery was due and usage was read for it. Nothing reads it for this.
+                "usage": (status or {}).get("usage")}
 
     def startup_enabled(self) -> bool:
         try:
