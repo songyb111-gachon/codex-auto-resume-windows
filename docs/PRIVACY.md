@@ -281,7 +281,9 @@ process, to compare - that is how a watcher that stopped unexpectedly is told fr
 an earlier sign-in. Also from v0.6.11, the Dashboard as it opens, the popup and the notification
 card each time they appear, and the panel each time Codex opens it read Windows' text size - the per-user
 `TextScaleFactor` value under `HKEY_CURRENT_USER\Software\Microsoft\Accessibility`, which they read and
-never write - to draw text at it. The Dashboard's Diagnostics also looks, when it opens, at which edition Codex's own
+never write - to draw text at it. At the same moments they ask which face Windows' interface font is and
+which of the product's own letters, in the language it speaks, that face and Segoe UI have a glyph for
+(`GetGlyphIndicesW`), so a language that font lacks letters of is set in Segoe UI. The Dashboard's Diagnostics also looks, when it opens, at which edition Codex's own
 copy of this plugin is: the names of the folders in Codex's plugin cache under
 `codex-auto-resume-windows`, and whether one folder is in the newest - no file is opened. From v0.6.11
 it also asks, then, who Windows lets open this product's `config\` folder: the folder's access list

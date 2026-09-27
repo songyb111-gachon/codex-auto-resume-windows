@@ -13,6 +13,8 @@ What each surface draws with:
   card, a script's own face (Malgun Gothic, Yu Gothic UI, the Chinese UI faces). A letter the face
   lacks is drawn from the faces Windows links to it (FontLink\\SystemLink) - every East Asian UI face
   links Segoe UI first - so "Segoe UI and its fallbacks" is the whole of what the three can show.
+  (A borrowed letter still sets one word in two faces, so a language the message font lacks a letter
+  of is set in Segoe UI instead, on every surface: tests/test_typeface.py.)
 * **The panel** asks its browser for a stack of faces (panel.css `--font`), `system-ui` - that same
   message font - first, and a browser draws each character from the first face in the stack that
   has it.

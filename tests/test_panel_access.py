@@ -28,7 +28,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 from codex_auto_resume import brand, l10n  # noqa: E402
 from codex_auto_resume.mcp import panel as mcpui  # noqa: E402
-from codex_auto_resume.win import textsize  # noqa: E402
+from codex_auto_resume.win import textsize, typeface  # noqa: E402
 from test_mcpui_v064 import NODE, run_page, say, snapshot  # noqa: E402
 
 ENGLISH = l10n.catalog("en")
@@ -145,10 +145,10 @@ class TextSizeStyleTests(unittest.TestCase):
         for text in (1.0, 0.5, True, "2", None):
             with self.subTest(text=text):
                 self.assertEqual(mcpui.text_scale_style(text), "")
-        with unittest.mock.patch.object(textsize, "read", lambda: 1.0):
+        with unittest.mock.patch.object(textsize, "read", lambda: 1.0),                 unittest.mock.patch.object(typeface, "ui_face", lambda: "Segoe UI"):
             page = mcpui.settings_page()
         self.assertEqual(page.count("<style>"), 1)
-        self.assertEqual(page, mcpui.settings_page(text=1.0))
+        self.assertEqual(page, mcpui.settings_page(text=1.0, face="Segoe UI"))
 
     def test_a_larger_size_makes_the_type_and_what_holds_a_line_that_much_larger(self):
         style = mcpui.text_scale_style(2.25)
@@ -165,7 +165,7 @@ class TextSizeStyleTests(unittest.TestCase):
         self.assertEqual(mcpui.text_scale_style(3.0), mcpui.text_scale_style(2.25), "225% is Windows' largest")
 
     def test_codex_is_served_windows_own_size_each_time(self):
-        with unittest.mock.patch.object(textsize, "read", lambda: 1.5):
+        with unittest.mock.patch.object(textsize, "read", lambda: 1.5),                 unittest.mock.patch.object(typeface, "ui_face", lambda: "Segoe UI"):
             page = mcpui.settings_page()
             self.assertIn("</style>" + mcpui.text_scale_style(1.5) + "</head>", page)
             self.assertEqual(mcpui.settings_page(text=1.0).count("<style>"), 1, "the capture's size is its own")

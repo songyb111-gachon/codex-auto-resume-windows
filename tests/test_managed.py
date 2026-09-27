@@ -312,7 +312,9 @@ class ReaderTests(unittest.TestCase):
                 patch.object(policykeys, "read", return_value=[{"ForceObserveOnly": (1, DWORD)}, {}]):
             self.assertEqual(control_policy.managed_policy(), held(force_observe_only=True))
 
-    def test_only_startup_writes_the_registry_and_only_three_modules_read_it(self):
+    def test_only_startup_writes_the_registry_and_only_four_modules_read_it(self):
+        """startup writes the Run key; tray_place reads TrayNotify, win.policykeys the policy values and, since
+        v0.6.11, win.textsize Windows' text size (TextScaleFactor) - each content-free, read and never written."""
         writers = {"CreateKey", "CreateKeyEx", "SetValue", "SetValueEx", "DeleteKey", "DeleteKeyEx",
                    "DeleteValue", "SaveKey", "LoadKey", "RestoreKey"}
         written, importers = set(), set()
@@ -326,7 +328,8 @@ class ReaderTests(unittest.TestCase):
                     importers.add(name)
         package = srcscan.PACKAGE
         self.assertEqual(written, {package + ".startup"})
-        self.assertEqual(importers, {package + ".startup", package + ".tray_place", package + ".win.policykeys"})
+        self.assertEqual(importers, {package + ".startup", package + ".tray_place", package + ".win.policykeys",
+                                     package + ".win.textsize"})
 
 
 # ------------------------------------------------------------------------------ control layer

@@ -108,6 +108,8 @@ LAYER = {_q(name): layer for layer, names in {
                  "win.acl",
                  # and the text size it is set to, which the popup, the card and the panel draw at.
                  "win.textsize",
+                 # and the face its interface is set in, and which letters a face has.
+                 "win.typeface",
                  # v0.6.10-alpha: source.py became source/, and every part of it reads Codex;
                  # windows.py's other half - the CLI, the App Server, the pairing - joined it.
                  "codex.appserver", "codex.errors", "codex.history", "codex.labels",

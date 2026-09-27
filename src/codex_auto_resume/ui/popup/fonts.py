@@ -6,9 +6,9 @@ remembers. Nothing here draws - it answers which name to draw with.
 from __future__ import annotations
 
 import ctypes as C
-import os
-from ... import brand
-from .win32 import NONCLIENTMETRICSW, SPI_GETNONCLIENTMETRICS, _declare, _dll
+from ... import brand, l10n
+from ...win import typeface
+from .win32 import _dll
 
 
 _SCRIPT_FACES = {"ko": "Malgun Gothic", "ja": "Yu Gothic UI", "zh-CN": "Microsoft YaHei UI",
@@ -21,7 +21,7 @@ _ON_EVERY_WINDOWS = "Segoe UI"
 _ASK_WINDOWS = object()
 
 
-def font_faces(locale, system=_ASK_WINDOWS) -> tuple:
+def font_faces(locale, system=_ASK_WINDOWS, lacks=None) -> tuple:
     """The typefaces to try for a locale, best first. The last one is on every Windows.
 
     A script with a face of its own (Korean, Japanese, Chinese) is set in that face. Every
@@ -31,10 +31,17 @@ def font_faces(locale, system=_ASK_WINDOWS) -> tuple:
     So English on a Korean Windows is Malgun Gothic here too, as it is in the window and the
     panel, and Segoe UI on an English one. `system` stands in Windows' answer; None or ""
     means Windows could not be asked, and the stack goes on to its next choices.
+
+    Since v0.6.11 a language whose letters that font does not all have - Vietnamese on a Korean
+    Windows - is set in Segoe UI instead, as the window and the panel set it (win/typeface.py):
+    `lacks(face, text)` says which characters a face has no glyph for, and without it every
+    face is taken as whole.
     """
     if locale in _SCRIPT_FACES:
         return (_SCRIPT_FACES[locale], _ON_EVERY_WINDOWS)
     first = message_face() if system is _ASK_WINDOWS else system
+    if lacks is not None and typeface.face_for(first, _letters(locale), lacks) != first:
+        return (_ON_EVERY_WINDOWS,)
     faces = []
     for face in (first, "Segoe UI Variable Text"):
         if not isinstance(face, str) or not face.strip():
@@ -46,7 +53,7 @@ def font_faces(locale, system=_ASK_WINDOWS) -> tuple:
     return tuple(faces) + (_ON_EVERY_WINDOWS,)
 
 
-def font_candidates(locale, weight, system=_ASK_WINDOWS) -> tuple:
+def font_candidates(locale, weight, system=_ASK_WINDOWS, lacks=None) -> tuple:
     """(face, weight) pairs to try for one font role, best first.
 
     GDI has no semibold inside a family it lists as regular: Segoe UI Variable Text asked
@@ -55,7 +62,7 @@ def font_candidates(locale, weight, system=_ASK_WINDOWS) -> tuple:
     have no semibold at all, so their emphasis is their bold - the window's own rule
     (Soft.Weighted: a Segoe UI face's semibold family, the face's bold otherwise).
     """
-    faces = font_faces(locale, system)
+    faces = font_faces(locale, system, lacks)
     if weight < 600:
         return tuple((face, 400) for face in faces)
     if locale == "ja":
@@ -104,20 +111,19 @@ def message_face():
     same field), and the panel's `system-ui` resolves to it, so text set in it here is set in
     the face the other two surfaces use: Segoe UI on an English Windows, Malgun Gothic -
     by its Korean name - on a Korean one. Asked each time fonts are made; nothing is cached.
+    Asked through win/typeface.py, which the panel asks it through too (v0.6.11).
     """
-    if os.name != "nt":
-        return None
-    try:
-        _declare()
-        metrics = NONCLIENTMETRICSW()
-        metrics.cbSize = C.sizeof(NONCLIENTMETRICSW)
-        if not _dll("user32").SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, metrics.cbSize,
-                                                    C.byref(metrics), 0):
-            return None
-        face = metrics.lfMessageFont.lfFaceName
-        return face if face and face.strip() else None
-    except Exception:
-        return None
+    return typeface.ui_face()
+
+
+_LETTERS = {}
+
+
+def _letters(locale) -> str:
+    """Every character a locale's words draw (typeface.letters), worked out once per locale."""
+    if locale not in _LETTERS:
+        _LETTERS[locale] = typeface.letters(l10n.catalog(locale).values())
+    return _LETTERS[locale]
 
 
 _FACE_CACHE = {}
@@ -169,7 +175,7 @@ class _Fonts:
         system = message_face()                  # once for every role, so they cannot disagree
         try:
             for role, (_, weight) in ROLES.items():
-                candidates = font_candidates(locale, weight, system)
+                candidates = font_candidates(locale, weight, system, typeface.lacks)
                 face, actual = next(((name, value) for name, value in candidates if _face_exists(dc, name)),
                                     candidates[-1])
                 height = -max(1, int(round(role_size(role, locale) * scale)))

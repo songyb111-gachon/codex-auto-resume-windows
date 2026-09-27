@@ -12,6 +12,8 @@ import os
 import threading
 from ... import win
 from ...win.dll import GUID, LRESULT, WNDCLASSW
+# Windows' message font is asked in win/typeface.py, where the panel asks it too (v0.6.11).
+from ...win.typeface import LOGFONTW, NONCLIENTMETRICSW, SPI_GETNONCLIENTMETRICS  # noqa: F401
 
 
 WM_ACTIVATE, WM_PAINT, WM_CLOSE, WM_ERASEBKGND = 0x0006, 0x000F, 0x0010, 0x0014
@@ -90,9 +92,6 @@ SPI_GETCLIENTAREAANIMATION = 0x1042
 
 
 SPI_GETHIGHCONTRAST, HCF_HIGHCONTRASTON = 0x0042, 0x1
-
-
-SPI_GETNONCLIENTMETRICS = 0x0029
 
 
 DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND = 33, 2
@@ -180,21 +179,6 @@ if os.name == "nt":
 
     class HIGHCONTRASTW(C.Structure):
         _fields_ = [("cbSize", W.UINT), ("dwFlags", W.DWORD), ("lpszDefaultScheme", W.LPWSTR)]
-
-    class LOGFONTW(C.Structure):
-        _fields_ = [("lfHeight", W.LONG), ("lfWidth", W.LONG), ("lfEscapement", W.LONG),
-                    ("lfOrientation", W.LONG), ("lfWeight", W.LONG), ("lfItalic", W.BYTE),
-                    ("lfUnderline", W.BYTE), ("lfStrikeOut", W.BYTE), ("lfCharSet", W.BYTE),
-                    ("lfOutPrecision", W.BYTE), ("lfClipPrecision", W.BYTE), ("lfQuality", W.BYTE),
-                    ("lfPitchAndFamily", W.BYTE), ("lfFaceName", W.WCHAR * 32)]
-
-    class NONCLIENTMETRICSW(C.Structure):
-        _fields_ = [("cbSize", W.UINT), ("iBorderWidth", C.c_int), ("iScrollWidth", C.c_int),
-                    ("iScrollHeight", C.c_int), ("iCaptionWidth", C.c_int), ("iCaptionHeight", C.c_int),
-                    ("lfCaptionFont", LOGFONTW), ("iSmCaptionWidth", C.c_int), ("iSmCaptionHeight", C.c_int),
-                    ("lfSmCaptionFont", LOGFONTW), ("iMenuWidth", C.c_int), ("iMenuHeight", C.c_int),
-                    ("lfMenuFont", LOGFONTW), ("lfStatusFont", LOGFONTW), ("lfMessageFont", LOGFONTW),
-                    ("iPaddedBorderWidth", C.c_int)]
 
 
 def _signature(function, result, *arguments):

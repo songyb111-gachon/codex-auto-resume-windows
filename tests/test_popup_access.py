@@ -83,9 +83,23 @@ class AccessibleItemsTests(unittest.TestCase):
             with self.subTest(task["name"]):
                 self.assertEqual((row_item["name"], row_item["value"], row_item["description"]),
                                  (task["name"], task["status"], task["reason"]))
-                self.assertEqual((switch["name"], switch["description"]), (task["check_label"], task["name"]))
+                self.assertEqual((switch["name"], switch["description"]), (task["check_label"] + ": " + task["name"], None))
         self.assertEqual([item["name"] for item in items[-4:-2]], [vm["more"], EN["popup.stale"]])
         self.assertEqual([item["name"] for item in items[-2:]], [vm["toggle_text"], vm["dashboard_text"]])
+
+    def test_each_switch_is_named_with_its_task_in_every_language(self):
+        """Tabbing through the popup says whose switch it is, as the panel's aria-label does ("Auto-resume: Docs"),
+        rather than the same word once for every task."""
+        for locale in l10n.LOCALES:
+            strings = interface.STRINGS[locale]
+            vm, plan = planned(strings)
+            switches = [item for item in popup.accessible_items(vm, plan, strings=strings) if item["role"] == "switch"]
+            with self.subTest(locale=locale):
+                self.assertEqual(len(switches), len(vm["tasks"]))
+                self.assertEqual(len({item["name"] for item in switches}), len(switches), "one name each")
+                for item, task in zip(switches, vm["tasks"]):
+                    self.assertEqual(item["name"], strings["pending.col_resume"] + ": " + task["name"])
+        self.assertEqual(access.switch_name({"check_label": "Auto-resume", "name": ""}), "Auto-resume")
 
     def test_each_switch_and_button_is_where_it_is_drawn_and_in_the_keyboards_order(self):
         vm, plan = planned()

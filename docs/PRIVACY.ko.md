@@ -248,7 +248,9 @@ v0.6.4 다음 릴리스부터는 알림 카드와 아이콘의 움직임을 위�
 이전 로그인과 함께 끝난 워처를 구별합니다. 또 이번 릴리스부터
 대시보드는 열릴 때, 팝업과 알림 카드는 나타날 때마다, 패널은 Codex가 열 때마다 Windows의 텍스트 크기를
 읽어 그 크기로 글자를 그립니다. `HKEY_CURRENT_USER\Software\Microsoft\Accessibility` 아래 사용자별
-`TextScaleFactor` 값으로, 읽기만 하고 쓰지 않습니다. 대시보드의 진단은 열릴 때 Codex가 따로 가진 이 플러그인 사본이
+`TextScaleFactor` 값으로, 읽기만 하고 쓰지 않습니다. 같은 때에 Windows 인터페이스 글꼴이 무엇인지, 그리고
+제품이 쓰는 언어로 된 제품 자신의 글자 가운데 어느 것의 글리프가 그 글꼴과 Segoe UI에 있는지(`GetGlyphIndicesW`)도
+묻습니다. 그 글꼴에 없는 글자가 있는 언어를 Segoe UI로 쓰기 위해서입니다. 대시보드의 진단은 열릴 때 Codex가 따로 가진 이 플러그인 사본이
 어느 판인지도 봅니다. Codex 플러그인 캐시의 `codex-auto-resume-windows` 아래 폴더 이름과, 가장 새 사본에
 폴더 하나가 있는지뿐이며 어떤 파일도 열지 않습니다. 이번 릴리스부터는 그때 이 제품의 `config\` 폴더를 Windows가
 누구에게 열어 주는지도 묻습니다. 그 폴더의 접근 목록(`GetNamedSecurityInfoW`, 목록만)과, 둘을 비교하려고 자기

@@ -556,6 +556,15 @@ namespace CodexAutoResume
                 // Kept only if it answers for the settings the key was taken of (StringsCache.Write).
                 System.Threading.ThreadPool.QueueUserWorkItem(delegate { StringsCache.Write(root, key, reply); });
             }
+            // v0.6.11: in a language whose letters Windows' UI font does not all have, and Segoe UI does - Vietnamese
+            // on a Korean Windows - the window is set in Segoe UI, as the popup, the card and the panel are (Typeface).
+            // Before anything is built, so every role's font is a variant of it.
+            Font whole = Typeface.For(Font, strings);
+            if (!ReferenceEquals(whole, Font))
+            {
+                Font = whole;
+                Soft.BaseFont = Font;
+            }
 
             BuildFooter();
             BuildHeader();

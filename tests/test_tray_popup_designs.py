@@ -92,9 +92,10 @@ class WindowGateTests(unittest.TestCase):
     def gates(self, design, reduce_motion, windows_animates, contrast):
         popup.set_design(design)
         popup.set_reduce_motion(reduce_motion)
-        shown = object.__new__(popup.Popup)
+        shown = object.__new__(popup.Popup)          # made without __init__: what the class itself holds
         with unittest.mock.patch.object(popup.theme, "high_contrast", lambda: contrast), \
                 unittest.mock.patch.object(popup.theme, "apps_use_light_theme", lambda: True), \
+                unittest.mock.patch.object(popup.theme, "text_scale", lambda: 1.0), \
                 unittest.mock.patch.object(popup.theme, "reduced_motion",
                                            lambda: reduce_motion or not windows_animates):
             shown._read_look()

@@ -1774,9 +1774,10 @@ class CardPictureTests(unittest.TestCase):
     def real(self):
         # v0.6.10-alpha: the countdown and the Win32 declarations the card's window is
         # registered with moved into ui/ and win/, and the digest follows them; so does the
-        # card's window code, which notice_window.py became ui/card/ in the same release.
+        # card's window code, which notice_window.py became ui/card/ in the same release. v0.6.11: and which face a
+        # language is set in, which the popup's fonts ask win/typeface.py.
         return real_modules("notice_card.py", "notice_window.py", "brand",
-                            "ui/tray", "ui/card", "ui/words.py", "win/dll.py")
+                            "ui/tray", "ui/card", "ui/words.py", "win/dll.py", "win/typeface.py")
 
     def test_the_patterns_cover_the_card_the_package_it_moves_into_and_the_popup_it_is_painted_by(self):
         with tempfile.TemporaryDirectory() as root:

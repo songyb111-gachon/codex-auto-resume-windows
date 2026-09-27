@@ -58,7 +58,7 @@ from pathlib import Path
 import re
 
 from .. import brand, interface, l10n
-from ..win import textsize
+from ..win import textsize, typeface
 
 _ASSETS = Path(__file__).resolve().parent / "assets"
 
@@ -238,11 +238,28 @@ def text_scale_style(text) -> str:
     return "<style>:root { %s }</style>" % " ".join(parts)
 
 
+# The page's type stack (panel.css, --font): `system-ui` - Windows' UI font - first.
+FONT_STACK = " ".join(re.search(r"--font:\s*([^;]+);", _STYLE).group(1).split())
+
+
+def typeface_style(face) -> str:
+    """v0.6.11: the offered languages Windows' UI font `face` cannot set whole, set in Segoe UI (win/typeface.py)
+    as the Dashboard, the popup and the card set them - a rule on the page's language, so a language chosen in the
+    panel is set in its face at once. "" when the UI font has every letter of every offered language - on every
+    Windows whose UI font is Segoe UI - so the page is served as it always was."""
+    whole = [locale for locale in l10n.OFFERED
+             if typeface.face_for(face, typeface.letters(l10n.catalog(locale).values()), typeface.lacks) != face]
+    if not whole:
+        return ""
+    return '<style>%s { --font: "%s", %s; }</style>' % (
+        ", ".join(":root:lang(%s)" % locale for locale in whole), typeface.SEGOE, FONT_STACK)
+
+
 def _script_json(value) -> str:
     return json.dumps(value, ensure_ascii=False, allow_nan=False).replace("<", "\\u003c")
 
 
-def settings_page(data=None, theme=None, design=None, text=None) -> str:
+def settings_page(data=None, theme=None, design=None, text=None, face=None) -> str:
     """The panel as one HTML document.
 
     ``data`` is only ever used for a preview: in Codex the values arrive from the tool
@@ -252,6 +269,9 @@ def settings_page(data=None, theme=None, design=None, text=None) -> str:
     ``text`` is the text size to draw at (text_scale_style, v0.6.11): Windows' own, asked
     each time the page is served, unless one is given - as the documentation's capture
     gives 1, so its pictures do not depend on the machine that made them.
+
+    ``face`` stands in Windows' UI font (typeface_style, v0.6.11), which is asked each time
+    the page is served unless one is given.
     """
     # The vocabulary always ships, seed data or not. In Codex the values arrive from the
     # tool result, but the page still has to know what to call them - and the panel must
@@ -285,6 +305,7 @@ def settings_page(data=None, theme=None, design=None, text=None) -> str:
     return (
         "<!doctype html>" + root + "<head><meta charset=\"utf-8\">"
         "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
-        "<title>Codex Auto Resume</title><style>%s</style>%s</head>"
+        "<title>Codex Auto Resume</title><style>%s</style>%s%s</head>"
         "<body><div id=\"root\"></div>%s%s%s<script>%s</script></body></html>"
-        % (_STYLE, text_scale_style(textsize.read() if text is None else text), catalog, catalogs, seed, _SCRIPT))
+        % (_STYLE, text_scale_style(textsize.read() if text is None else text),
+           typeface_style(typeface.ui_face() if face is None else face), catalog, catalogs, seed, _SCRIPT))

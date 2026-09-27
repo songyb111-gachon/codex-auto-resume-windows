@@ -150,8 +150,8 @@ ITEM = {_q(name): item for item, names in {
                  "win.ownprocess",
                  # and who it lets open the state folder.
                  "win.acl",
-                 # and the text size it is set to.
-                 "win.textsize",
+                 # and the text size it is set to, and the face its interface is set in.
+                 "win.textsize", "win.typeface",
                  "pwsh", "shortcut", "startup"),
     "config": ("", "config", "logbook"),
 }.items() for name in names}

@@ -145,8 +145,9 @@ class SliceTests(unittest.TestCase):
         # 55 since v0.6.10: SoftCallout, the panel's callout, in a file of its own. 56 since the designs came in
         # the same release: Design, beside Theme, which says which one the window is drawn in. 58 since v0.6.11:
         # SoftMenu and its renderer, a Pending row's own menu in the window's colours. 60 since stage 2c: SoftTip,
-        # a line's whole text in the window's colours, and TextScale, Windows' text size, beside Theme.
-        self.assertEqual(len(set(declared)), 60, "the window's types")
+        # a line's whole text in the window's colours, and TextScale, Windows' text size, beside Theme. 61 with
+        # Typeface beside it: which face a language is set in (win/typeface.py's rule).
+        self.assertEqual(len(set(declared)), 61, "the window's types")
         # v0.6.11: DashboardTools.cs, the Dashboard's own tools, an eleventh part in a twelfth source.
         self.assertEqual(len(declared) - len(set(declared)), 10,
                          "`partial class SettingsForm` written once per file that holds part "

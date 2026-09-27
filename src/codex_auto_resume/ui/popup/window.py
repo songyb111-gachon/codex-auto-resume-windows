@@ -76,6 +76,10 @@ class Popup(PopupMessages):
     # The design in effect, Soft until the window first reads one. On the class, as v0.6.10's motion gates had
     # it, so a frame drawn before anything was read - or by a Popup made without __init__ - is Soft's.
     _design = brand.DEFAULT_DESIGN
+    # Windows' text size last read, and the size fitted to the screen from it (v0.6.11): the usual size, and
+    # not yet fitted, until the window reads one - on the class for the same reason.
+    _text = 1.0
+    _fit = None
 
     def __init__(self, *, control=None, source=None, strings=None, on_dashboard=None, log=None,
                  anchor=None, theme_menu=None):

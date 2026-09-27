@@ -91,7 +91,9 @@ def accessible_items(vm, plan, focus=None, hover=None, strings=None) -> list:
         add("row", task.get("name"), rows.get(key), value=task.get("status"), description=task.get("reason"))
         target = ("check", key)
         checked = bool(task.get("checked"))
-        add("switch", task.get("check_label"), targets.get(target), description=task.get("name"),
+        # Named with its task, as the panel names the same switch (panel.js threadSwitch): tabbing from one
+        # switch to the next says whose it is, not the same word again.
+        add("switch", switch_name(task), targets.get(target),
             states=(["checked"] if checked else []) + (["unavailable"] if task.get("busy") else []),
             target=target, action=say(strings, "popup.a11y_off" if checked else "popup.a11y_on"))
     for note in (vm.get("more"), vm.get("error") or vm.get("empty"), vm.get("zero_note"), vm.get("observe_note"),
@@ -104,6 +106,13 @@ def accessible_items(vm, plan, focus=None, hover=None, strings=None) -> list:
         add("button", name, targets.get(target), states=["unavailable"] if busy else [], target=target,
             action=say(strings, "popup.a11y_press"))
     return items
+
+
+def switch_name(task) -> str:
+    """What a screen reader calls a task's switch: its label and the task it belongs to, "Auto-resume: Docs" -
+    the panel's aria-label for it, word for word."""
+    label, name = task.get("check_label") or "", task.get("name") or ""
+    return label + ": " + name if label and name else label or name
 
 
 def pick(items, x, y):

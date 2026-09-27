@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 from pathlib import Path
 import sys
 import tempfile
@@ -214,6 +215,36 @@ class NotificationCardWordsTests(unittest.TestCase):
             table = l10n._read(locale)
             with self.subTest(locale=locale):
                 self.assertIn("Windows", table["help.notification_card"])
+
+
+class ChoiceNamingTests(unittest.TestCase):
+    """v0.6.11: a sentence names a choice as the list it is chosen from shows it, and a switch is named for
+    what it does when it is on - in every catalog, the two held ones included."""
+
+    def test_every_help_that_names_off_names_the_lists_own_off(self):
+        """The guards' drop-downs show choice.off; Russian's help called it «Нет», a choice no list has."""
+        english = l10n._read(l10n.DEFAULT)
+        naming = sorted(key for key, value in english.items()
+                        if key.startswith("help.") and re.search(r"\b%s\b" % re.escape(english["choice.off"]), value))
+        self.assertGreaterEqual(len(naming), 3, "the check has sentences to look at")
+        for locale in l10n.LOCALES:
+            table = l10n._read(locale)
+            for key in naming:
+                with self.subTest(locale=locale, key=key):
+                    self.assertIn(table["choice.off"], table[key])
+
+    def test_the_per_task_switch_never_reads_as_do_not_resume(self):
+        """pending.col_resume names each task's switch in the popup, the panel and the Pending page. Turkish's
+        bare verbal noun, Sürdürme, is also its negative imperative - msg.ready_b4 uses it so, for "Do not
+        resume" - so a switch shown on read "Don't resume". With the adjective it is the feature's name, as
+        msg.enabled calls it; no catalog's switch is the words it says "do not resume" with."""
+        for locale in l10n.LOCALES:
+            table = l10n._read(locale)
+            with self.subTest(locale=locale):
+                self.assertNotIn(table["pending.col_resume"].casefold(), table["msg.ready_b4"].casefold())
+        turkish = l10n._read("tr")
+        self.assertEqual(turkish["pending.col_resume"], "Otomatik sürdürme")
+        self.assertTrue(turkish["msg.enabled"].startswith(turkish["pending.col_resume"]))
 
 
 class OneNameTests(unittest.TestCase):

@@ -317,7 +317,11 @@ A catalog is also held to how it is drawn. `tests/test_glyph_coverage.py` looks 
 of every catalog up in the faces each surface draws with - Segoe UI and the faces Windows links
 to it, and the panel's type stack - and `tests/test_words_fit.py` lays the popup and the
 notification card out with every string of every language at every scale, so a new script or a
-long word is found before a person sees a box or a cut line. Right to left, the popup, the card
+long word is found before a person sees a box or a cut line. A letter drawn from a linked face is
+not a box but is still a word in two faces, so `tests/test_typeface.py` holds every surface to one
+face per language: where Windows' interface font lacks one of a language's letters - Vietnamese on
+a Korean Windows - that language is set in Segoe UI on the Dashboard, the popup, the card and the
+panel alike (`win/typeface.py`). Right to left, the popup, the card
 and the panel mirror already (`tests/test_right_to_left.py`); the Dashboard window does not yet,
 and that is what keeps Arabic and Hebrew held.
 

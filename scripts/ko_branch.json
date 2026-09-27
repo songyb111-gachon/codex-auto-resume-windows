@@ -57,9 +57,9 @@
   ],
   "reviewed": {
     "docs/CHANGELOG.md": "a1a9c561668f5366cafa483301dc2fd407ecb0f264b0ce4db703b5693fa9510c",
-    "docs/CONTRIBUTING.md": "877d40eabf5efc55d20ce58595e54b10af4f6f62be4047dc4566761c5c806a72",
+    "docs/CONTRIBUTING.md": "4b41c5dcf277e4a8e8fc90676869ad4282c5ba22d0b9b4edcfcff9c4f105c947",
     "docs/CONTRIBUTORS.md": "29a99a735aec90caf76898eadc6cbbd3e8250a39aa832996d6ab9dfe63638c7f",
-    "docs/PRIVACY.md": "439cc021910e7e2da8db43bc4a23c913dfef40405af0270c43aa0d2d0fb0f511",
+    "docs/PRIVACY.md": "674410dcf9bc99ae85001f1b570f58b9a1bdf947592b8ac2fcb58a5216defb20",
     "README.md": "6441452801e8112f01762b46ee1e1250e33a8599e29fa1d6994c17d7f9867d6e",
     "docs/SECURITY.md": "6783785314059bc64dc3ff44f7fd7ce0eb06209bbefbae3b1606681ec071585f",
     "docs/SUPPORT.md": "7833488b0467b1afa997380e3cc9c0f6a3b1cfa25d488db50f9ec0774c4c08e4",
@@ -68,7 +68,7 @@
     "docs/DEVELOPMENT.md": "e62cfbe43c855d5c87bfce8e0d69eba649f625f3f1d508818d8126de723b73de",
     "docs/PLUGIN.md": "c497ee1de01c42f6b95a8646666f60c7034ee7326dd97fceb6bd25342b123c63",
     "docs/VERIFY.md": "3ed175771fafa8ab8bb06147971f7baac760ef46691185fa0cc568237b31e127",
-    "docs/FEATURE_MATRIX.md": "511ad344fb081e10e21e4d14de917a413b56ab23898da2fa38c0399984df6edf",
+    "docs/FEATURE_MATRIX.md": "73a82cbc1ee9868ffda2cb4d108430ac586f508d01ba1333b1ccd843c2465565",
     "docs/LIVE_ACCEPTANCE.md": "9e09353eefc136478a2f4d3cce1dffe916f82d1a7bd6deeafd567951838265f6",
     "docs/ROADMAP.md": "d48a8685ca5bf8ffe4a2b03f8c94b5ebdd29cb10cea9f377b9792cd32338f3af",
     "docs/GUIDE.md": "31f676074ff762eae33ed092dd671c3cda0bed4db4106ffa82c092858eb9ab01"
