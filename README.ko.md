@@ -6,7 +6,7 @@
 [![latest release](https://img.shields.io/github/v/release/songyb111-gachon/codex-auto-resume-windows?label=release)](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest)
 [![platform: Windows 10/11](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d4)](#설치)
 [![license: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![languages: 9](https://img.shields.io/badge/languages-9-0891b2)](docs/GUIDE.ko.md#언어)
+[![languages: 16](https://img.shields.io/badge/languages-16-0891b2)](docs/GUIDE.ko.md#언어)
 
 <sub>🇺🇸 <a href="README.md">English README</a> · 프로그램은 열여섯 개 언어로 표시됩니다: English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia</sub>
 

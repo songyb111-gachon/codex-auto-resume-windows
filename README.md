@@ -6,7 +6,7 @@
 [![latest release](https://img.shields.io/github/v/release/songyb111-gachon/codex-auto-resume-windows?label=release)](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest)
 [![platform: Windows 10/11](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d4)](#install)
 [![license: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![languages: 9](https://img.shields.io/badge/languages-9-0891b2)](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/GUIDE.md#languages)
+[![languages: 16](https://img.shields.io/badge/languages-16-0891b2)](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/GUIDE.md#languages)
 
 <sub>🇰🇷 <a href="https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/ko/README.md">한국어 README</a> · The app speaks sixteen languages: English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia</sub>
 
