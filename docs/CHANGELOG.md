@@ -21,6 +21,20 @@ lists. The advanced edition still has no capability to switch on. To leave this 
 later release, run that release's `Install.cmd`; going back to v0.6.11-alpha or v0.6.10 takes one
 command first ([The state database](#the-state-database)).
 
+**An older copy of the plugin cannot read this version, and a published copy cannot be changed.**
+Every bootstrap published before this one, v0.6.0's to v0.6.11-alpha's, knows no word after a
+version but `-alpha`, if that, so none of them can compare `0.6.11-beta` with anything. Codex keeps
+its copy of the plugin until an installer replaces it, which an installer cannot do while Codex is
+open. Run from such an older copy, a plain setup or repair takes this installation for none and
+installs that copy's own, older release over it - and v0.6.11-alpha and v0.6.10 refuse the state
+this one wrote and send nothing ([The state database](#the-state-database)). `-CheckOnly` and
+`-Update` from such a copy stop with an error and print no `update:` line. So with this pre-release
+installed, set up and repair with the installation's own copy,
+`%USERPROFILE%\.codex-auto-resume\app\scripts\bootstrap.ps1`, or with a plugin at this version; if an
+older copy has already replaced it, run this pre-release's `Install.cmd` again. From this version on,
+a bootstrap refuses an installation whose version it cannot read until `-Force` says to replace it,
+and its update check answers `update: unavailable`.
+
 How it was checked: every one of the 283 scenarios v0.6.10 was tested with, their test modules
 byte for byte the tag's, runs against the tagged v0.6.10 package and against this one, and every
 `send`, `usage`, `loaded`, `delete_queue` and `app_identity` call is the same, in the same order,

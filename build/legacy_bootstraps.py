@@ -110,6 +110,31 @@ ConvertTo-Json -InputObject @($answers) -Depth 4 -Compress
 """
 
 
+# Each case is one tag's bootstrap asked whether it can read an installed version: its own
+# Get-VersionParts, defined in a scope of its own, run on the version. A bootstrap with none - v0.5.x
+# - compares no versions at all.
+READS = r"""
+$ErrorActionPreference = 'Stop'
+Set-StrictMode -Version 2.0
+$answers = @()
+foreach ($case in (ConvertFrom-Json (Get-Content -LiteralPath $env:CAR_CASES -Raw -Encoding UTF8))) {
+    $answers += & {
+        param($case)
+        $errors = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile($case.script, [ref]$null, [ref]$errors)
+        if ($errors -and $errors.Count) { return 'unparsed' }
+        $found = @($ast.FindAll({ param($n)
+                $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+                $n.Name -eq 'Get-VersionParts' }, $true))
+        if (-not $found.Count) { return 'unguarded' }
+        Invoke-Expression $found[0].Extent.Text
+        try { $null = Get-VersionParts $case.version; return 'reads' } catch { return 'refuses' }
+    } $case
+}
+ConvertTo-Json -InputObject @($answers) -Compress
+"""
+
+
 @dataclass(frozen=True)
 class Bootstrap:
     """One bootstrap as it was published: its tag, and the two files that decide what it takes."""
@@ -207,6 +232,38 @@ def check(bootstraps, version: str, standard: Path, advanced: Path | None = None
         if answer["stage"] != "accepted":
             found.append("%s refuses %s: %s" % (tag, archive.name, answer["error"]))
     return found
+
+
+def readers(bootstraps, version: str) -> dict:
+    """What each bootstrap makes of an installation at `version`, by tag: "reads", "refuses", or
+    "unguarded" for one with no Get-VersionParts (v0.5.x), which compares no versions at all.
+
+    One that refuses cannot tell the installation from none. Run from a plugin copy Codex still
+    holds, it installs its own, older release over it (the published v0.6.10 and v0.6.11-alpha
+    over 0.6.11-beta), and with -CheckOnly or -Update it stops with no answer. It cannot be
+    changed, so the release that introduces such a version says so (tests/test_legacy_bootstraps.py).
+    """
+    if not POWERSHELL.is_file():
+        raise SystemExit("the published bootstraps are Windows PowerShell; %s is missing" % POWERSHELL)
+    bootstraps = list(bootstraps)
+    if not bootstraps:
+        return {}
+    with tempfile.TemporaryDirectory(prefix="legacy-readers-") as work:
+        cases = []
+        for index, bootstrap in enumerate(bootstraps):
+            script = Path(work) / ("%d.ps1" % index)
+            script.write_bytes(bootstrap.script)
+            cases.append({"script": str(script), "version": version})
+        (Path(work) / "cases.json").write_text(json.dumps(cases), encoding="utf-8")
+        done = subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-Command", READS],
+                              capture_output=True, text=True, encoding="utf-8", errors="replace",
+                              timeout=900, env=dict(os.environ, CAR_CASES=str(Path(work) / "cases.json")))
+    if done.returncode != 0 or not done.stdout.strip():
+        raise SystemExit("the published bootstraps could not be run:\n%s" % (done.stderr or done.stdout)[-2000:])
+    answers = json.loads(done.stdout)
+    if not isinstance(answers, list) or len(answers) != len(bootstraps):
+        raise SystemExit("asked %d bootstraps and heard about %s" % (len(bootstraps), answers))
+    return {bootstrap.tag: answer for bootstrap, answer in zip(bootstraps, answers)}
 
 
 def main(argv=None) -> int:

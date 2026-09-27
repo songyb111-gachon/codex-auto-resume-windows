@@ -174,6 +174,67 @@ class EditionAwareBootstrapTests(unittest.TestCase):
         self.assertIn("not the advanced edition", found[1])
 
 
+def names(text: str, tag: str) -> bool:
+    """Whether `text` names `tag` itself - not v0.6.1 inside v0.6.10, and in Korean too, where a
+    particle follows the tag with no space."""
+    return re.search(r"(?<![0-9A-Za-z_.-])%s(?![0-9A-Za-z_-]|\.[0-9])" % re.escape(tag), text) is not None
+
+
+@unittest.skipUnless(legacy.POWERSHELL.is_file(), "the published bootstraps are Windows PowerShell")
+class CopiesThatCannotReadThisVersionTests(unittest.TestCase):
+    """A published bootstrap reads only the version words of its day.
+
+    From v0.6.0 a bootstrap compares the installed version with its own, and leaves a newer
+    installation alone. One that cannot read the installed version cannot tell it from none: the
+    published v0.6.10 and v0.6.11-alpha bootstraps, run from a plugin copy Codex still held,
+    installed their own older release over 0.6.11-beta, whose `-beta` they had never heard of,
+    and died with no answer under -CheckOnly. Those copies cannot be changed. So a release whose
+    version the newest published bootstrap cannot read says so in its changelog entry - which
+    copies, and that it is this version they cannot read - in each language the tree holds.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.version = make_release.version()
+        cls.tags = legacy.published(ROOT, cls.version)
+        if not cls.tags:
+            if os.environ.get("CI"):
+                raise AssertionError("no tag from v0.5.2 on is in this checkout; CI must fetch the tags")
+            raise unittest.SkipTest("no tag from v0.5.2 on is in this checkout")
+        cls.answers = legacy.readers([legacy.lift(ROOT, tag) for tag in cls.tags], cls.version)
+
+    def test_each_bootstrap_is_asked_with_its_own_code(self):
+        """v0.5.x compares nothing; v0.6.0 to v0.6.8 read no word after a version; v0.6.9-alpha on
+        reads -alpha - which only each tag's own Get-VersionParts can say."""
+        tags = [tag for tag in ("v0.5.7", "v0.6.8", "v0.6.10") if tag in self.tags]
+        found = legacy.readers([legacy.lift(ROOT, tag) for tag in tags], "0.6.11-alpha")
+        self.assertEqual(found, {tag: answer for tag, answer in
+                                 {"v0.5.7": "unguarded", "v0.6.8": "refuses", "v0.6.10": "reads"}.items()
+                                 if tag in tags})
+        self.assertEqual(legacy.readers([this_tree()], self.version), {"this tree": "reads"})
+
+    def test_the_changelog_names_the_published_copies_that_cannot_read_this_version(self):
+        if self.answers[self.tags[-1]] != "refuses":
+            self.skipTest("the newest published bootstrap reads v%s" % self.version)
+        refusing = [tag for tag in self.tags if self.answers[tag] == "refuses"]
+        guarded = [tag for tag in self.tags if self.answers[tag] != "unguarded"]
+        # The entry names them as a range, from the oldest to the newest; that is true only when
+        # every guarded bootstrap in between refuses too.
+        self.assertEqual(refusing, guarded[guarded.index(refusing[0]):])
+        import release_notes
+        wanted = (refusing[0], refusing[-1])
+        for path in (ROOT / "docs" / "CHANGELOG.md", ROOT / "docs" / "CHANGELOG.ko.md"):
+            if not path.is_file():
+                continue
+            with self.subTest(path.name):
+                entry = release_notes.section(path.read_text(encoding="utf-8"), self.version)
+                said = [paragraph for paragraph in re.split(r"\n\s*\n", entry)
+                        if all(names(paragraph, tag) for tag in wanted) and "`%s`" % self.version in paragraph]
+                self.assertTrue(said, "%s: the v%s entry does not say that the bootstraps published from %s "
+                                      "to %s cannot read `%s`" % (path.name, self.version, wanted[0],
+                                                                  wanted[1], self.version))
+
+
 class CommandLineTests(unittest.TestCase):
     def test_it_wants_the_standard_archive(self):
         with tempfile.TemporaryDirectory() as empty, self.assertRaises(SystemExit) as refused:
