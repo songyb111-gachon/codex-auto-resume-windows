@@ -59,7 +59,7 @@ $normalizer = Join-Path $Root 'build\normalize_pe.py'
 # text is a pure function of the manifest, so the build stays reproducible.
 $pluginManifest = Get-Content (Join-Path $Root '.codex-plugin\plugin.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 $version = [string]$pluginManifest.version
-if ($version -notmatch '^(\d+\.\d+\.\d+)(-alpha)?$') { throw ('plugin.json version is not MAJOR.MINOR.PATCH(-alpha): ' + $version) }
+if ($version -cnotmatch '^(\d+\.\d+\.\d+)(-alpha|-beta)?$') { throw ('plugin.json version is not MAJOR.MINOR.PATCH(-alpha|-beta): ' + $version) }
 # A version resource holds numbers only; a pre-release keeps its full name in the informational version.
 $numericVersion = $Matches[1]
 $publisher = [string]$pluginManifest.author.name

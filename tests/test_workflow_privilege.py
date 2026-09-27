@@ -91,12 +91,21 @@ class WorkflowPrivilegeTests(unittest.TestCase):
         self.assertIn('refs/tags/v$VERSION', publish)
 
     def test_the_version_is_validated_before_anything_uses_it(self):
-        self.assertIn(r"-notmatch '^\d+\.\d+\.\d+(-alpha)?$'", text("release.yml"))
+        # -cnotmatch: -notmatch ignores case, and a tag is lower case.
+        self.assertIn(r"-cnotmatch '^\d+\.\d+\.\d+(-alpha|-beta)?$'", text("release.yml"))
+        # And again in the publish job, which runs none of the repository's code: the same two
+        # suffixes and no others.
+        publish = job(text("release.yml"), "publish")
+        self.assertIn(r"^[0-9]+\.[0-9]+\.[0-9]+(-alpha|-beta)?$", publish)
 
     def test_a_pre_release_never_becomes_the_latest_release(self):
         publish = job(text("release.yml"), "publish")
         self.assertIn("prerelease=(--prerelease --latest=false)", publish)
-        self.assertIn('"v*.*.*-alpha"', text("release.yml"))
+        # Both planned pre-release tags build; any other suffix does not.
+        workflow = text("release.yml")
+        self.assertIn('"!v*-*"', workflow)
+        for pattern in ('"v*.*.*-alpha"', '"v*.*.*-beta"'):
+            self.assertIn(pattern, workflow)
 
     def test_no_expression_is_spliced_into_a_run_script(self):
         """`${{ }}` inside `run:` is text substitution into a shell script.

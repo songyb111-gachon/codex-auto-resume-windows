@@ -219,9 +219,10 @@ function Get-PluginVersion {
     }
     $version = $manifest.version
     # Strict semver, because the version is spliced into a URL. Anything else stops here
-    # rather than reaching the network. The one suffix is the literal -alpha of a planned
-    # pre-release (v0.6.9-alpha), which names its own tag and archive.
-    if ($version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+(-alpha)?$') {
+    # rather than reaching the network. The two suffixes are the literal -alpha and -beta of a
+    # planned pre-release (v0.6.9-alpha, v0.6.11-beta), each naming its own tag and archive -
+    # in lower case, as tags are: -cnotmatch, because -notmatch ignores case.
+    if ($version -cnotmatch '^[0-9]+\.[0-9]+\.[0-9]+(-alpha|-beta)?$') {
         throw ('The plugin manifest declares an unusable version: ' + $version)
     }
     return $version
@@ -292,12 +293,14 @@ function Assert-TrustedHost {
 
 function Get-VersionParts {
     param([string]$Version)
-    if ($Version -notmatch '^([0-9]{1,6})\.([0-9]{1,6})\.([0-9]{1,6})(-alpha)?$') {
+    if ($Version -cnotmatch '^([0-9]{1,6})\.([0-9]{1,6})\.([0-9]{1,6})(-alpha|-beta)?$') {
         throw ('Not a version this product uses: ' + $Version)
     }
-    # A fourth part orders a pre-release just before its own release: 0.6.9-alpha < 0.6.9.
-    $stage = 1
-    if ($Matches[4]) { $stage = 0 }
+    # A fourth part orders the pre-releases just before their own release:
+    # 0.6.11-alpha < 0.6.11-beta < 0.6.11.
+    $stage = 2
+    if ($Matches[4] -ceq '-alpha') { $stage = 0 }
+    elseif ($Matches[4] -ceq '-beta') { $stage = 1 }
     return @([int]$Matches[1], [int]$Matches[2], [int]$Matches[3], $stage)
 }
 

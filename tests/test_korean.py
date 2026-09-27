@@ -110,9 +110,11 @@ PLANS = {"ROADMAP.ko.md"}
 
 
 def version_key(version: str) -> tuple:
-    """A version in order, a pre-release just before its release: v0.6.9-alpha, then v0.6.9."""
+    """A version in order, the pre-releases just before their release: v0.6.11-alpha, then
+    v0.6.11-beta, then v0.6.11. Any other suffix - Codex's `-alpha.2` among them - sorts as an alpha."""
     number, _, suffix = version.lstrip("v").partition("-")
-    return tuple(int(part) for part in number.split(".")) + (0 if suffix else 1,)
+    stage = {"beta": 1}.get(suffix.split(".")[0], 0) if suffix else 2
+    return tuple(int(part) for part in number.split(".")) + (stage,)
 
 
 def versions_named_as_current(current: str) -> list:
@@ -449,6 +451,12 @@ class ClaimTests(unittest.TestCase):
                       "provenance"):    # the ownership rule uninstall applies
             with self.subTest(claim):
                 self.assertIn(claim, self.readme)
+
+
+class VersionKeyTests(unittest.TestCase):
+    def test_both_pre_releases_come_before_their_release_in_order(self):
+        ordered = ["v0.6.10", "v0.6.11-alpha", "0.6.11-beta", "v0.6.11", "0.6.12-alpha"]
+        self.assertEqual(sorted(reversed(ordered), key=version_key), ordered)
 
 
 RELEASED, IN_DEVELOPMENT = "✅", "\U0001F6A7"     # the roadmap's two status marks

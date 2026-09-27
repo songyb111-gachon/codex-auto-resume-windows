@@ -84,12 +84,15 @@ def _signature(path):
 def product_version() -> str:
     """This product's version as the registry reads one: MAJOR.MINOR.PATCH, or "unknown".
 
-    A planned pre-release (0.6.9-alpha) answers as its release: the registry's documents name
-    releases, and an alpha that read as "unknown" would skip their min_product guard.
+    A planned pre-release (0.6.9-alpha, 0.6.11-beta) answers as its release: the registry's
+    documents name releases, and a pre-release that read as "unknown" would skip their
+    min_product guard. Only those two suffixes: anything else is not a version this product uses.
     """
     version = config.version()
-    if version.endswith("-alpha"):
-        version = version[:-len("-alpha")]
+    for suffix in ("-alpha", "-beta"):
+        if version.endswith(suffix):
+            version = version[:-len(suffix)]
+            break
     return version if compat.product_key(version) else "unknown"
 
 

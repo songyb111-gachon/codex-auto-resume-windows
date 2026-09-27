@@ -55,6 +55,10 @@ REDIRECTS = {
     "tag_is_not_a_version": (TAG + "nightly", None),
     "four_parts": (TAG + "v1.2.3.4", None),
     "prerelease_suffix": (TAG + "v1.2.3-rc1", None),
+    # The two pre-releases this product plans are not answers either: `latest` never names one,
+    # and an update offered one would install a build that was published as not the latest.
+    "alpha_suffix": (TAG + "v1.2.3-alpha", None),
+    "beta_suffix": (TAG + "v1.2.3-beta", None),
     "no_v": (TAG + "1.2.3", None),
     "trailing_slash": (TAG + "v1.2.3/", None),
     # Normalised by Uri before the path is read; it must not climb out either way.
@@ -78,9 +82,18 @@ ORDERING = [
     ("0.6.9", "0.6.9-alpha", 1),
     ("0.6.9-alpha", "0.6.8", 1),
     ("0.6.9-alpha", "0.6.9-alpha", 0),
+    # v0.6.11: a second planned pre-release sits between the first and the release.
+    ("0.6.11-alpha", "0.6.11-beta", -1),
+    ("0.6.11-beta", "0.6.11-alpha", 1),
+    ("0.6.11-beta", "0.6.11", -1),
+    ("0.6.11", "0.6.11-beta", 1),
+    ("0.6.11-beta", "0.6.10", 1),
+    ("0.6.11-beta", "0.6.11-beta", 0),
+    ("0.6.12-alpha", "0.6.11-beta", 1),
 ]
 
-MALFORMED = ["1.2", "1.2.3.4", "v1.2.3", "1.2.3-rc1", "1.2.3-beta", "1.2.3-alpha1", "", "1.2.x", "1234567.0.0"]
+MALFORMED = ["1.2", "1.2.3.4", "v1.2.3", "1.2.3-rc1", "1.2.3-rc", "1.2.3-beta1", "1.2.3-Beta",
+             "1.2.3-alpha-beta", "1.2.3-alpha1", "", "1.2.x", "1234567.0.0"]
 
 PROBE = r"""
 $ErrorActionPreference = 'Stop'

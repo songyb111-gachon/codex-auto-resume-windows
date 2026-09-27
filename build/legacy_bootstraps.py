@@ -50,9 +50,12 @@ import make_release  # noqa: E402
 # The first release whose bootstrap fetched an archive: v0.5.0 and v0.5.1 have no
 # scripts/bootstrap.ps1 at all.
 FIRST = (0, 5, 2)
-# How this project tags a release: vMAJOR.MINOR.PATCH, or a planned pre-release with one word
-# after it (v0.6.9-alpha, v0.6.6-beta). Anything else is not a release of ours.
-TAG = re.compile(r"^v(\d+)\.(\d+)\.(\d+)(?:-([a-z]+))?$")
+# How this project tags a release: vMAJOR.MINOR.PATCH, or a pre-release with -alpha or -beta
+# after it (v0.6.9-alpha, v0.6.11-beta) - the two words scripts/bootstrap.ps1 accepts. Anything
+# else is not a release of ours.
+TAG = re.compile(r"^v(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta))?$")
+# Where each stage sorts among its version's builds: alpha, then beta, then the release.
+STAGES = {"alpha": 0, "beta": 1, None: 2}
 POWERSHELL = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
               / "WindowsPowerShell" / "v1.0" / "powershell.exe")
 
@@ -118,12 +121,13 @@ class Bootstrap:
 
 
 def order(version: str) -> tuple:
-    """A version as something to sort by: 0.6.9-alpha before 0.6.9, and 0.6.10 after 0.6.9."""
-    match = TAG.match("v" + version)
+    """A version as something to sort by: 0.6.11-alpha before 0.6.11-beta before 0.6.11, and
+    0.6.10 after 0.6.9."""
+    match = TAG.fullmatch("v" + version)
     if not match:
         raise ValueError("not a version this product uses: %s" % version)
     major, minor, patch, stage = match.groups()
-    return (int(major), int(minor), int(patch), 0 if stage else 1, stage or "")
+    return (int(major), int(minor), int(patch), STAGES[stage])
 
 
 def _git(root: Path, *arguments: str) -> bytes:
@@ -140,7 +144,7 @@ def published(root: Path, before: str) -> list[str]:
     A pre-release counts: people install them, and their bootstraps update like any other."""
     tags = _git(root, "tag", "--list", "v*").decode("utf-8").split()
     limit = order(before)
-    chosen = [tag for tag in tags if TAG.match(tag)
+    chosen = [tag for tag in tags if TAG.fullmatch(tag)
               and order(tag[1:])[:3] >= FIRST and order(tag[1:]) < limit]
     return sorted(chosen, key=lambda tag: order(tag[1:]))
 

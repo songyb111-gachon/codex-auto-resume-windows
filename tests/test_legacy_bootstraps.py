@@ -61,11 +61,14 @@ def this_tree() -> legacy.Bootstrap:
 class OrderTests(unittest.TestCase):
     def test_versions_sort_as_releases_do(self):
         ordered = ["0.5.2", "0.5.10", "0.6.6-alpha", "0.6.6-beta", "0.6.6", "0.6.9-alpha", "0.6.9",
-                   "0.6.10-alpha", "0.6.10", "0.6.11"]
+                   "0.6.10-alpha", "0.6.10", "0.6.11-alpha", "0.6.11-beta", "0.6.11", "0.6.12-alpha"]
         self.assertEqual(sorted(reversed(ordered), key=legacy.order), ordered)
 
     def test_anything_else_is_not_a_version(self):
-        for bad in ("0.6", "0.6.1.2", "v0.6.1", "0.6.1-RC1", "0.6.1-alpha1", ""):
+        """The two suffixes scripts/bootstrap.ps1 accepts, and no other word: one that sorted by its
+        spelling would put an `rc` after a `beta` by accident, and a `gamma` too."""
+        for bad in ("0.6", "0.6.1.2", "v0.6.1", "0.6.1-RC1", "0.6.1-rc", "0.6.1-gamma", "0.6.1-Beta",
+                    "0.6.1-alpha1", "0.6.1-alpha-beta", "0.6.1\n", "0.6.1-beta\n", ""):
             with self.subTest(bad), self.assertRaises(ValueError):
                 legacy.order(bad)
 
@@ -105,6 +108,9 @@ class PublishedBootstrapTests(unittest.TestCase):
         self.assertEqual(self.tags[0], "v0.5.2", "v0.5.2 is the first release with a bootstrap")
         self.assertNotIn("v0.5.1", legacy.published(ROOT, VERSION))
         self.assertIn("v0.6.9-alpha", self.tags, "a pre-release is installed and updates too")
+        # A later pre-release of the same version is checked against the earlier one's bootstrap.
+        self.assertIn("v0.6.11-alpha", legacy.published(ROOT, "0.6.11-beta"))
+        self.assertNotIn("v0.6.11-beta", legacy.published(ROOT, "0.6.11-beta"))
         self.assertEqual(legacy.published(ROOT, "0.6.9"), self.tags[:self.tags.index("v0.6.9")])
 
     def test_every_published_bootstrap_takes_an_archive_shaped_like_this_release(self):
