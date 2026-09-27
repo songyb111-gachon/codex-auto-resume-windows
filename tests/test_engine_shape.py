@@ -48,6 +48,9 @@ METHODS = {
     # v0.6.11: the needs-you notices, each raised once (engine/notices.py), and the last usage reading
     # the watcher's heartbeat keeps, which reads nothing (engine/freshness.py).
     "tell_needs_you", "_notice", "last_usage",
+    # v0.6.11: whether Windows reports no internet and the wait that follows, and what a wake forgets
+    # and a long sleep holds (engine/freshness.py) - each asked of nothing at the defaults.
+    "offline", "_offline", "after_sleep",
 }
 
 # What `from codex_auto_resume.engine import ...` has to keep answering (app.py, the tests).

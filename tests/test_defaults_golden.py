@@ -60,6 +60,10 @@ ADDED: dict = {
     "notify_needs_you_failure": (True, "inert while notify_needs_you is off, which is the default"),
     "stall_after": ("off", "off: no turn is looked at for having stopped moving"),
     "needs_you_sound": (False, "off, and read only for a needs-you notice, which is off by default"),
+    "ask_after_sleep_minutes": ("off", "off: nothing is held after a sleep, and no wake is listened for"),
+    "wait_for_network": (False, "off: Windows is not asked about the internet, and usage is read as in v0.6.10"),
+    "keep_awake": ("off", "off: this PC is never asked to stay awake"),
+    "keep_awake_hours": ("h6", "inert while keep_awake is off, which is the default"),
 }
 
 

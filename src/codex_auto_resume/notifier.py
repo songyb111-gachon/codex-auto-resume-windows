@@ -60,6 +60,7 @@ STATUS = {
     "stopped": "attention",         # recovery stopped for good
     "cancelled": "paused",          # a person switched it off
     "needs_you": "attention",       # v0.6.11: it needs a person, and is never resumed
+    "after_sleep": "paused",        # v0.6.11: what fell due during a long sleep waits for a person
 }
 PROBES = ("notification_state", "notification_mode", "app_notifications", "screen_reader",
           "remote_session", "session_locked")
@@ -180,6 +181,11 @@ def build(event, detail, identity=None, *, sound=False):
         content = notify.needs_you_content(thread_id, kind, identity, minutes=minutes, sound=sound is True)
         return _notice("needs_you", content, key=thread_id, chip=notify.needs_you_label(kind),
                        chip_tone="attention", line=notify.needs_you_message(kind, minutes))
+    if event == "after_sleep":
+        # v0.6.11: what fell due while this PC slept long waits for a person (power.py). About no one
+        # conversation, so it has no key and replaces no card; its one button opens Pending.
+        return _notice("after_sleep", notify.after_sleep_content(detail.get("slept"), detail.get("count")),
+                       key=None)
     if event == "stopped":
         reason = ("no_progress" if state == "no_progress_exhausted"
                   else "time" if detail.get("reason") == "chain_time_cap"

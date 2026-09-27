@@ -222,7 +222,11 @@ this product's plugin and marketplace).
   Loaded state is determined purely from the Restart Manager inventory, so the tool never takes
   the app's own thread writer lock. Reading Codex's databases uses SQLite's normal shared read locks.
 - **Least privilege.** No administrator rights are required. Optional autostart writes a single value
-  under the current user's `Run` key. No service, no scheduled task, nothing system-wide.
+  under the current user's `Run` key. No service, no scheduled task, nothing system-wide. From
+  v0.6.11 **Keep this PC awake while a task waits**, off by default, is the watcher's own request to
+  Windows (`SetThreadExecutionState`), which it takes back when nothing waits, after the hours chosen,
+  on a pause and when it stops, and which Windows ends with the watcher; no power setting is changed,
+  and nothing wakes a sleeping PC.
 - **Named objects planted by a less-trusted process are refused.** This is new in v0.6.0. The watcher's single-instance mutex and its stop event have
   predictable names in the session namespace, where a process running at Low integrity may create
   objects. If either already exists with an integrity label below Medium (the level an ordinary
@@ -298,6 +302,9 @@ this product's plugin and marketplace).
   notice, off by default, has one button, **Open Dashboard**, at the Settings page: no cancel, and
   no setting is written from a notification - which kinds are told is chosen on that page. What it
   keeps to be told once is a table nothing that decides a send reads, and it never becomes a record.
+  The notice that tasks fell due during a long sleep (from v0.6.11, off by default) also has one
+  button, **Open Dashboard**, at Pending: no cancel, since it is about several tasks, each of which
+  is let continue or cancelled there on its own row.
 - **Front ends ask; the watcher alone sends.** New in v0.6.3. The **Auto-resume** switch
   beside each task, on the Pending page and in the notification-area popup, carries the exact
   interruption id and conversation id of the row it was drawn in. When the click arrives, the

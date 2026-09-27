@@ -82,6 +82,13 @@ QUIET_AND_TIERS = {
     "context_guard": "Codex's token count for a conversation, where Codex keeps one: off (the "
                      "default, nothing is read), show (on Pending), or above_100k to above_1m (also "
                      "hold a recovery whose conversation has used more, for a person).",
+    # And a long sleep, and the internet (power.py).
+    "ask_after_sleep_minutes": "After this PC slept for longer than this - off (the default) or m30 to "
+                               "h12 - a recovery that fell due while it slept waits for a person, who "
+                               "lets each continue from Pending. It only ever holds more back.",
+    "wait_for_network": "When true, a due recovery asks Windows whether this PC is on the internet "
+                        "before usage is read, and waits while it reports none; nothing is sent to "
+                        "find out. false (the default) reads usage as before.",
 }
 
 

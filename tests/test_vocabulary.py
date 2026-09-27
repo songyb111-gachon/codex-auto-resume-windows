@@ -59,7 +59,8 @@ LISTS = {
     "machine.SUPERSEDE_WITHDRAWALS": ("set", 3, "b63141bdc33260f0"),
     "machine.TURN_STATUSES": ("set", 5, "58aca83cec78ff2b"),
     "machine.ACTORS": ("set", 5, "eaf35d06c4c2b568"),
-    "machine.REASONS": ("set", 64, "6239ed90c572e676"),
+    # v0.6.11: offline - Windows reports no internet, so usage is not read (power.py, off by default).
+    "machine.REASONS": ("set", 65, "d89e76883e8b3477"),
     # v0.6.11: postponed, held, hold_released and tier_set - a person's (or the objection window's)
     # later time, a hold, letting it go, and a conversation's tier - and observe only's would_send.
     "machine.EVENT_CODES": ("set", 26, "c824a4566dd1c011"),
@@ -71,8 +72,9 @@ LISTS = {
     "machine.GATE_RESULTS": ("set", 4, "9a50f41ff116a706"),
     "machine.GATES": ("tuple", 13, "547089c399324718"),
     # v0.6.11: `held`, a gate core passed and the edition's plug held (domain/plug.py, HOLD);
-    # and schema 4's `postponed`, `quiet_hours` and `observe_only`, reasons of consent and schedule.
-    "machine.GATE_REASONS": ("set", 80, "b43c9f31106928e7"),
+    # and schema 4's `postponed`, `quiet_hours` and `observe_only`, reasons of consent and schedule;
+    # and `offline`, the usage gate's while Windows reports no internet (power.py).
+    "machine.GATE_REASONS": ("set", 81, "fb967f2e138c3437"),
     "machine.PASS": "PASS",
     "machine.WAIT": "WAIT",
     "machine.BLOCK": "BLOCK",
@@ -160,8 +162,8 @@ LISTS = {
     "ui.tray.ICON_STATES": ("tuple", 5, "e94d5138669400b3"),
     "ui.popup.STATES": ("tuple", 6, "b38c816dbd792bf5"),
     "ui.popup.ATTENTION_OVERLAYS": ("set", 4, "a707a2b300127033"),
-    # v0.6.11: and the needs-you notice's light, attention.
-    "notifier.STATUS": ("dict", 8, "c7f7b5d3857e2ef5"),
+    # v0.6.11: and the needs-you notice's light, attention; and a long sleep's, paused (power.py).
+    "notifier.STATUS": ("dict", 9, "8c308bd036ec7168"),
     "mcpserver.Server.START_WORDING": ("dict", 4, "f15e04a780f57870"),
     # v0.6.11: the two editions, and the plug that is the whole difference between them.
     "edition.EDITIONS": ("tuple", 2, "49cc206af3867704"),
@@ -309,6 +311,10 @@ HOMES = {
     v.NotifyEvent: ("list", "settings.NOTIFICATION_EVENTS"),
     # v0.6.11: how long a turn may not move before a needs-you notice says so.
     v.StallWait: ("list", "needsyou.STALL_WAITS"),
+    # v0.6.11: keeping this PC awake while a task waits, for how long, and after how long a sleep to ask.
+    v.KeepAwake: ("list", "power.KEEP_AWAKE_MODES", "settings.KEEP_AWAKE_MODES"),
+    v.AwakeCap: ("list", "power.AWAKE_CAPS", "settings.AWAKE_CAPS"),
+    v.SleepWait: ("list", "power.SLEEP_WAITS", "settings.SLEEP_WAITS"),
     v.Locale: ("list", "l10n.LOCALES"),
     v.SendOutcome: ("returned", ("Backend.send", "outcome")),
     v.SendError: ("returned", ("Backend.send", "error_code")),

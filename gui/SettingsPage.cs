@@ -504,6 +504,10 @@ namespace CodexAutoResume
                     if (name == "needs_you_sound")
                         host.Controls.Add(HelpText(S("help.needs_you_sound",
                             "For a failure this product never resumes, and for a turn that has recorded nothing new for the time chosen above: one notification each, with what to do next in Codex and a button to these settings. Nothing is resumed or sent for them. A turn that has not moved may simply still be working. With a sound on, Windows shows these notifications itself, even when notifications are cards, and its Do not disturb holds them back.")));
+                    // v0.6.11: what waiting for an internet connection does, under its switch.
+                    if (name == "wait_for_network")
+                        host.Controls.Add(HelpText(S("help.wait_for_network",
+                            "When a recovery is due, Windows is asked whether this PC is connected to the internet before Codex's usage is read. While Windows reports no connection it waits, and looks again every minute. Nothing is sent to find out. Behind some proxies Windows reports no internet when there is; leave this off there.")));
                     // v0.6.11: what observe only does, under its switch.
                     if (name == "observe_only")
                         host.Controls.Add(HelpText(S("help.observe_only",
@@ -593,6 +597,13 @@ namespace CodexAutoResume
                     if (name == "task_changed_guard")
                         host.Controls.Add(HelpText(S("help.task_changed_guard",
                             "Just before a continuation is sent, the conversation's model and approval mode and the git branch or commit of its folder are compared with when it stopped. Hold it for me waits until you let it continue; Resume, and tell me sends it and says so on the notification. Only a digest is kept, and nothing is read while this is Off. For interruptions detected from then on.")));
+                    // v0.6.11: what a long sleep holds, and what keeping this PC awake does, each under itself.
+                    if (name == "ask_after_sleep_minutes")
+                        host.Controls.Add(HelpText(S("help.ask_after_sleep_minutes",
+                            "After this PC slept for longer than this, a recovery that fell due while it slept waits for you: one notification says how long it slept, and Pending lets each task continue or not. Nothing is sent until you do. While this or Keep this PC awake is on, the watcher also looks again as soon as the PC wakes.")));
+                    if (name == "keep_awake_hours")
+                        host.Controls.Add(HelpText(S("help.keep_awake_hours",
+                            "While a task waits, Windows is asked not to let this PC sleep on its own, for at most the hours chosen each time tasks start waiting; the display may still turn off. Closing the lid or choosing Sleep still sleeps the PC, and no Windows setting is changed. On mains power only lets it sleep on battery as usual.")));
                     if (name == "context_guard")
                         host.Controls.Add(HelpText(S("help.context_guard",
                             "Codex's own count, read when an interruption is detected, where Codex keeps one. Show them in Pending puts the count beside the task; a Hold choice also keeps a task whose conversation has used more waiting until you let it continue. Nothing is read while this is Off. For interruptions detected from then on.")));

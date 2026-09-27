@@ -160,7 +160,11 @@ class WatcherMixin:
                 "started_at": (status or {}).get("started_at"),
                 # v0.6.11: Codex's usage as the watcher last read it, with when (domain/usage.py) -
                 # None until a recovery was due and usage was read for it. Nothing reads it for this.
-                "usage": (status or {}).get("usage")}
+                "usage": (status or {}).get("usage"),
+                # v0.6.11: since when it keeps this PC awake while a task waits (power.py), or None -
+                # always None unless Keep this PC awake is on and something waits, and never said of a
+                # watcher that is not running, whose request ended with it.
+                "awake_since": (status or {}).get("awake_since") if running is True else None}
 
     def startup_enabled(self) -> bool:
         try:

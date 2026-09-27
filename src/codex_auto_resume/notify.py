@@ -438,3 +438,35 @@ def needs_you_content(thread_id: str, kind: str, identity=None, *, minutes=None,
                     more=[(l10n.message("toast_button_open"), open_uri("settings"))],
                     sound=sound is True)
 
+
+
+# ---------------------------------------------------------- after a long sleep (v0.6.11)
+# What fell due while this PC slept for longer than Ask after a long sleep allows waits for a person
+# (power.py). One notice for the sleep - how long it lasted and how many wait - and one button, Open
+# Dashboard at Pending, where each is let continue or cancelled. No cancel on the notice: a notification
+# button cancels one exact interruption (A28), and this one is about several; nothing on it sends.
+def slept_for(seconds) -> str:
+    """How long this PC slept, in the hours and minutes every surface writes a wait in."""
+    try:
+        minutes = max(1, int(seconds) // 60)
+    except (TypeError, ValueError, OverflowError):
+        minutes = 1
+    hours, minutes = divmod(minutes, 60)
+    locale = l10n.current()
+    parts = [l10n.text("time.hours", locale, n=hours)] if hours else []
+    if minutes or not hours:
+        parts.append(l10n.text("time.minutes", locale, n=minutes))
+    return " ".join(parts)
+
+
+def after_sleep_content(slept, count) -> dict:
+    """A long sleep's notice: how long this PC slept, how many tasks that fell due meanwhile wait for a
+    person, what to do next, and Open Dashboard at Pending."""
+    try:
+        waiting = max(1, int(count))
+    except (TypeError, ValueError, OverflowError):
+        waiting = 1
+    return _content(l10n.message("toast_after_sleep").replace("{time}", slept_for(slept)),
+                    l10n.message("toast_after_sleep_next"),
+                    extra=[l10n.message("toast_after_sleep_count").replace("{n}", str(waiting))],
+                    more=[(l10n.message("toast_button_open"), open_uri("pending"))])

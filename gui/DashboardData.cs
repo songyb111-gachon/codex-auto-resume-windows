@@ -356,6 +356,14 @@ namespace CodexAutoResume
                 double last = Number(watcher, "last_tick_at");
                 // v0.6.11: the last usage reading, under what is waiting for it.
                 if (usageLine != null) usageLine.Text = UsageLine(Map(watcher, "usage")) ?? "";
+                // v0.6.11: and that the watcher keeps this PC awake while a task waits, from when - only while it runs.
+                double awake = Number(watcher, "awake_since");
+                if (awakeLine != null)
+                {
+                    awakeLine.Text = awake > 0 && Equals(running, true)
+                        ? S("overview.awake", "Keeping this PC awake while tasks wait, since {time}", "time", ClockTime(awake)) : "";
+                    awakeLine.Visible = awakeLine.Text.Length > 0;
+                }
                 if (nowRecovery != null)
                 {
                     nowRecovery.Text = recovery;

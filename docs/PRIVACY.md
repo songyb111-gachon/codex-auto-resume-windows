@@ -263,7 +263,15 @@ notification card and the icon's motion ask a few more, all content-free and des
 values an administrator may set under `Software\Policies\CodexAutoResume` in `HKEY_LOCAL_MACHINE` and
 `HKEY_CURRENT_USER` - four switches, a number and a span of hours (the guide's *Settings an
 administrator manages*) - each time it reads its settings. Nothing else under that key is read, and a
-PC nobody manages has none.
+PC nobody manages has none. Also from v0.6.11, and only while the setting that needs it is on (each
+is off by default): how long the PC has been awake (`QueryUnbiasedInterruptTime`), which beside the
+clock says how long it slept, and a notice from Windows when it wakes
+(`RegisterSuspendResumeNotification`), for **Ask me after a sleep longer than** and **Keep this PC
+awake**; whether the PC runs on mains power (`GetSystemPowerStatus`), for **On mains power only**; and
+whether Windows reports this PC connected to the internet (the Network List Manager's
+`GetConnectivity`), for **Wait for an internet connection** - a question Windows answers from what it
+already knows, with nothing sent to find out. **Keep this PC awake** is a request, not a question:
+`SetThreadExecutionState`, which the watcher makes and takes back and which changes no setting.
 
 From v0.6.5, for the Codex Compatibility Registry, the watcher also reads the shape of Codex's
 databases - which tables they have and which columns those tables have, by name only, through the
@@ -447,7 +455,8 @@ default (or wherever `CODEX_AUTO_RESUME_PLUGIN_HOME`, or failing that
   for the watcher itself: its process id, session id, start and last-tick times, and which code
   version wrote them - and, from v0.6.11, the last usage reading it made and when: for each window
   only its bucket (`codex`, `premium`, `legacy` or `other`) and slot, how much is used, its length
-  and when it resets; no account, plan or credit. None of it is content;
+  and when it resets; no account, plan or credit; and, while it keeps the PC awake, since when. None
+  of it is content;
 - `config/state.vN-backup-<timestamp>.sqlite` — a copy of the state file, taken before the first
   watcher of a new version upgrades the schema and before `downgrade-state` rewrites it. It holds
   what `state.sqlite` held, and it is kept to explain a bad upgrade rather than as a way back.

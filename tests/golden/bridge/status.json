@@ -38,7 +38,8 @@
                   "reset_at": 1800277200
                 }
               ]
-            }
+            },
+            "awake_since": null
           },
           "upgrade_pending": false,
           "startup_enabled": false,
@@ -117,7 +118,11 @@
             "retry_jitter": false,
             "chain_time_ceiling": "off",
             "task_changed_guard": "off",
-            "context_guard": "off"
+            "context_guard": "off",
+            "ask_after_sleep_minutes": "off",
+            "wait_for_network": false,
+            "keep_awake": "off",
+            "keep_awake_hours": "h6"
           }
         }
       }
@@ -159,7 +164,8 @@
                   "reset_at": 1800277200
                 }
               ]
-            }
+            },
+            "awake_since": null
           },
           "upgrade_pending": false,
           "startup_enabled": false,
@@ -238,7 +244,11 @@
             "retry_jitter": false,
             "chain_time_ceiling": "off",
             "task_changed_guard": "off",
-            "context_guard": "off"
+            "context_guard": "off",
+            "ask_after_sleep_minutes": "off",
+            "wait_for_network": false,
+            "keep_awake": "off",
+            "keep_awake_hours": "h6"
           },
           "managed": [
             "DisableAutoResume",

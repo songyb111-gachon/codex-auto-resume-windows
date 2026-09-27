@@ -48,6 +48,7 @@
                     }
                   ]
                 },
+                "awake_since": null,
                 "compatibility": {
                   "status": "absent",
                   "overall": "unknown",
@@ -201,7 +202,11 @@
                 "retry_jitter": false,
                 "chain_time_ceiling": "off",
                 "task_changed_guard": "off",
-                "context_guard": "off"
+                "context_guard": "off",
+                "ask_after_sleep_minutes": "off",
+                "wait_for_network": false,
+                "keep_awake": "off",
+                "keep_awake_hours": "h6"
               }
             },
             "schema": [
@@ -922,6 +927,52 @@
                   "above_1m"
                 ],
                 "group": "limits"
+              },
+              {
+                "name": "ask_after_sleep_minutes",
+                "default": "off",
+                "type": "string",
+                "choices": [
+                  "off",
+                  "m30",
+                  "h1",
+                  "h2",
+                  "h3",
+                  "h6",
+                  "h12"
+                ],
+                "group": "limits"
+              },
+              {
+                "name": "wait_for_network",
+                "default": false,
+                "type": "boolean",
+                "group": "limits"
+              },
+              {
+                "name": "keep_awake",
+                "default": "off",
+                "type": "string",
+                "choices": [
+                  "off",
+                  "on_ac",
+                  "always"
+                ],
+                "group": "windows"
+              },
+              {
+                "name": "keep_awake_hours",
+                "default": "h6",
+                "type": "string",
+                "choices": [
+                  "h1",
+                  "h2",
+                  "h3",
+                  "h6",
+                  "h12",
+                  "h24"
+                ],
+                "group": "windows"
               }
             ],
             "settings": {
@@ -985,7 +1036,11 @@
               "retry_jitter": false,
               "chain_time_ceiling": "off",
               "task_changed_guard": "off",
-              "context_guard": "off"
+              "context_guard": "off",
+              "ask_after_sleep_minutes": "off",
+              "wait_for_network": false,
+              "keep_awake": "off",
+              "keep_awake_hours": "h6"
             },
             "pending": [
               {

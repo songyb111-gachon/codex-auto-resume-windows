@@ -20,7 +20,7 @@ import os
 from pathlib import Path
 import tempfile
 
-from . import continuation, failures, guards, l10n, ladder, needsyou, projects, quiet, reasons
+from . import continuation, failures, guards, l10n, ladder, needsyou, power, projects, quiet, reasons
 from .domain.vocabulary import (Design, ImportanceTier, NewConversationPolicy, NotifyEvent,
                                 ProjectPolicy, Theme)
 
@@ -256,6 +256,16 @@ FIELDS["chain_time_ceiling"] = (ladder.DEFAULT_CEILING, lambda v, d: _choice(v, 
 FIELDS["task_changed_guard"] = (guards.DEFAULT_TASK_GUARD, lambda v, d: _choice(v, d, TASK_GUARDS))
 FIELDS["context_guard"] = (guards.DEFAULT_CONTEXT_GUARD, lambda v, d: _choice(v, d, CONTEXT_GUARDS))
 
+# ------------------------------------------- sleep, keeping awake and the network (v0.6.11)
+# What fell due during a long sleep waits for a person; a due recovery waits while Windows reports no
+# internet; this PC is kept awake while a task waits, for at most the hours chosen (power.py). Each is
+# off by default, and then nothing is asked of Windows for it and the watcher waits as v0.6.10 did.
+KEEP_AWAKE_MODES, AWAKE_CAPS, SLEEP_WAITS = power.KEEP_AWAKE_MODES, power.AWAKE_CAPS, power.SLEEP_WAITS
+FIELDS[power.SLEEP_FIELD] = (power.DEFAULT_SLEEP, lambda v, d: _choice(v, d, SLEEP_WAITS))
+FIELDS[power.NETWORK_FIELD] = (False, _boolean)
+FIELDS[power.KEEP_AWAKE_FIELD] = (power.DEFAULT_KEEP_AWAKE, lambda v, d: _choice(v, d, KEEP_AWAKE_MODES))
+FIELDS[power.AWAKE_CAP_FIELD] = (power.DEFAULT_AWAKE_CAP, lambda v, d: _choice(v, d, AWAKE_CAPS))
+
 
 def is_custom_text(name) -> bool:
     """Whether a settings field holds Custom continuation text: the user's own words, which
@@ -313,6 +323,9 @@ RANGES = {
     "task_changed_guard": {"choices": list(TASK_GUARDS)},
     "context_guard": {"choices": list(CONTEXT_GUARDS)},
     needsyou.STALL_FIELD: {"choices": list(needsyou.STALL_WAITS)},
+    power.SLEEP_FIELD: {"choices": list(SLEEP_WAITS)},
+    power.KEEP_AWAKE_FIELD: {"choices": list(KEEP_AWAKE_MODES)},
+    power.AWAKE_CAP_FIELD: {"choices": list(AWAKE_CAPS)},
 }
 
 # The fields that shape a needs-you notice (v0.6.11), in the order they follow its switch.
@@ -472,7 +485,10 @@ def category_enabled(values, category: str) -> bool:
 
 # v0.6.11: a notice about to be acted on - the objection window's "Continuing at 14:07" - is told
 # under the switch of the notice it comes before, Recovery starting.
-GOVERNED_BY = {"objection": NotifyEvent.STARTING.value}
+GOVERNED_BY = {"objection": NotifyEvent.STARTING.value,
+               # and a long sleep's (power.py), about tasks held for a person, under the switch of the
+               # notice that says a task was held: A task was interrupted.
+               "after_sleep": NotifyEvent.INTERRUPTION.value}
 
 
 def notification_enabled(values, event: str) -> bool:
@@ -609,21 +625,24 @@ def describe() -> list:
             # what moves is not Codex's to change (mcp.tools.PANEL_APPEARANCE). The panel draws in
             # both since v0.6.10, as well as following the host's own reduced-motion preference.
             entry["group"] = "appearance"
-        elif name in ("show_tray", "notification_card", "start_with_codex"):
+        elif name in ("show_tray", "notification_card", "start_with_codex", power.KEEP_AWAKE_FIELD,
+                      power.AWAKE_CAP_FIELD):
             # A desktop preference, beside "run at sign-in" - not a notification, and
             # not something the notifications switch governs. The card only chooses how a
             # notification looks on this desktop, so it lives here too, and like the icon it is
-            # outside what the Codex panel and MCP may change (mcpserver.USER_GROUPS).
+            # outside what the Codex panel and MCP may change (mcpserver.USER_GROUPS). v0.6.11: so is
+            # keeping this PC awake while a task waits - a question of this PC's power, not of recovery.
             entry["group"] = "windows"
         elif name in ("max_recovery_attempts", "max_no_progress", "max_chain_continuations",
                       "retry_timing", "quiet_hours_start", "quiet_hours_end", "quiet_hours_days",
                       "default_tier", "objection_minutes", "new_conversation_policy",
                       "project_policy", *ladder.STEP_FIELDS, "retry_jitter", "chain_time_ceiling",
-                      "task_changed_guard", "context_guard"):
+                      "task_changed_guard", "context_guard", power.SLEEP_FIELD, power.NETWORK_FIELD):
             # v0.6.11: quiet hours and the tier a conversation has by default join the limits -
             # how hard, and when, recovery tries - in the window and in the panel alike; and beside
             # the tier, what a new conversation gets and which projects resume without a person;
-            # and after them the Custom waits, jitter, the time ceiling and the two guards.
+            # and after them the Custom waits, jitter, the time ceiling and the two guards; and last,
+            # what waits after a long sleep, and whether a due recovery waits for the internet.
             entry["group"] = "limits"
         elif name == "observe_only":
             # v0.6.11: a switch of automatic recovery itself, under the kinds it recovers.

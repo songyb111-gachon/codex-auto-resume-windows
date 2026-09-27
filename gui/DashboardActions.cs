@@ -822,6 +822,9 @@ namespace CodexAutoResume
                         word = S("explain.quiet_hours", "Quiet hours until {time}", "time", ClockTime(Number(row, "next_retry_at")));
                     else if (code == "WAIT" && reason == "held")
                         word = S("explain.held", "Waiting for you");
+                    // v0.6.11: Wait for an internet connection - what Windows reports, never a test of its own.
+                    else if (code == "WAIT" && reason == "offline")
+                        word = S("explain.offline", "No internet (Windows reports)");
                     rows.Add(new[] { S("gate." + name, name.Replace('_', ' ')), word, code });
                 }
             explainList.SetRows(rows, S("explain.not_checked", "Not checked yet"), WithUsage(row, ExplainNote(row, gates)));
@@ -859,9 +862,9 @@ namespace CodexAutoResume
                 if (code == "PASS") continue;
                 string reason = result != null && result.Count > 1 ? Convert.ToString(result[1], CultureInfo.InvariantCulture) : null;
                 if (reason == "observe_only" && observed == null) { observed = reason; continue; }
-                // v0.6.11: a hold a guard put on it says what the guard found, not only that it waits.
+                // v0.6.11: a hold a guard or a long sleep put on it says what it found, not only that it waits.
                 string hold = Str(row, "hold");
-                if (reason == "held" && (hold == "workspace_changed" || hold == "context_cost"))
+                if (reason == "held" && (hold == "workspace_changed" || hold == "context_cost" || hold == "after_sleep"))
                     return S("why." + hold, null);
                 return reason == null ? null : S("why." + reason, null);
             }

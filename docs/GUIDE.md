@@ -768,11 +768,11 @@ The Settings page is split into five sections:
 
 | Section | What is in it |
 | --- | --- |
-| General | Interface language, starting at Windows sign-in, the notification-area icon, and which notifications appear - from v0.6.11 also when a conversation needs you |
+| General | Interface language, starting at Windows sign-in, the notification-area icon, from v0.6.11 keeping this PC awake while a task waits, and which notifications appear - from v0.6.11 also when a conversation needs you |
 | Automatic recovery | Which classified kinds of interruption are recovered, one check box each, and from v0.6.11 Observe only |
 | Continuation message | The language and style of the message sent to Codex, your own Custom message, and a Preview of the exact text |
 | Appearance | The theme - Use system setting, Light or Dark - the panel's Theme in Codex, the Design - Soft, Classic (v0.6.2) or Plain - and Reduce motion |
-| Advanced | Attempts per interruption, when to give up after recoveries that produce nothing, continuations per task, retry timing, and from v0.6.11 quiet hours, how a conversation resumes, what a conversation seen for the first time gets, which projects may resume, the Custom retry waits and jitter, a time ceiling, and the task-changed and context-cost guards |
+| Advanced | Attempts per interruption, when to give up after recoveries that produce nothing, continuations per task, retry timing, and from v0.6.11 quiet hours, how a conversation resumes, what a conversation seen for the first time gets, which projects may resume, the Custom retry waits and jitter, a time ceiling, the task-changed and context-cost guards, what waits after a long sleep, and waiting for an internet connection |
 
 Every kind of interruption the watcher recovers has a check box, ticked by default. From v0.6.3 to
 v0.6.9 there was one more, **Sign-in service failures**, for a sign-in service that is temporarily
@@ -890,6 +890,40 @@ When **Attempts per interruption**, **Stop after this many turns without progres
 **Continuations per task** is set above 8, 5 or 8, a notice under them says so, in the Dashboard and in
 the panel: a task that keeps failing can then be continued many times, and every continuation uses
 your Codex usage.
+
+### Sleep, keeping this PC awake, and the internet
+
+From v0.6.11 three more things, each off by default. Off, the watcher asks Windows nothing for them
+and waits exactly as it always did; on, none of them sends anything, skips a check or makes a
+recovery go sooner than its time.
+
+**Ask me after a sleep longer than**, under Advanced - 30 minutes to 12 hours - holds, for you, every
+waiting recovery that fell due while this PC slept for longer than that. One notification says how
+long it slept and how many tasks wait, with one button, **Open Dashboard**, at Pending; each task's
+**Let it continue** lets it go, and **Cancel** stops it. *Why it is waiting* says it fell due
+while the PC slept. How long the PC slept is measured between two of the watcher's looks, from the
+clock and from Windows' own count of the time the PC was awake, so a look that comes before Windows
+says the PC has woken still sees the sleep. A task whose time had not come by the wake is not held.
+
+**Keep this PC awake while a task waits**, under General > Windows - **On mains power only** or
+**Always** - asks Windows not to let the PC sleep on its own while a task waits, for at most the hours
+chosen under **Keep it awake for at most** (6 by default) each time tasks start waiting. It is a
+request the watcher makes and takes back, the kind `powercfg /requests` lists: when nothing waits,
+when the hours are up, when recovery is paused and when the watcher stops, and Windows ends it with
+the watcher in any case. The display may still turn off, closing the lid or choosing Sleep still
+sleeps the PC, and no setting of Windows is changed. On mains power only lets it sleep on battery as
+usual. While it keeps the PC awake, the Overview says so and since when.
+
+While either of the two is on, the watcher also listens for the PC waking and looks again at once,
+forgetting what it last read of the Codex app and of your usage, instead of waiting for its next look.
+
+**Wait for an internet connection**, under Advanced, asks Windows - its Network List Manager, which
+answers from what Windows already knows, sending nothing - whether this PC is connected to the
+internet just before Codex's usage would be read for a recovery that is due. While Windows reports no
+connection the recovery waits and looks again every minute, and no Codex helper is started to read
+usage; *Why it is waiting* says "No internet (Windows reports)", and so does its row in the popup.
+Behind some proxies Windows reports no internet where there is, which is why it is off by default.
+When Windows cannot be asked or does not answer, usage is read as it always was.
 
 ### Settings an administrator manages
 

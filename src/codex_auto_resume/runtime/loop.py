@@ -24,6 +24,7 @@ from ..openstate import open_state
 from ..store import (SCHEMA_VERSION, RecordSchemaMismatch, StateFromNewerVersion, Store,
                      StoreError)
 from ..windows import AdapterError, Mutex, StopEvent, wait_any
+from .waking import Waking
 
 
 EXIT_OK = 0
@@ -155,13 +156,29 @@ class WatchLoop:
                 return EXIT_OK
             delay = min(delay * 2, OPEN_RETRY_MAX_SECONDS)
 
-    def _heartbeat(self, store, session, started, ok, engine=None):
+    def _heartbeat(self, store, session, started, ok, engine=None, awake=None):
         try:
             store.heartbeat(time.time(), pid=os.getpid(), session_id=session, started_at=started,
                             ok=ok, engine_state=self.engine_state(), code_version=config.version(),
-                            usage=self._new_reading(engine))
+                            usage=self._new_reading(engine), awake_since=awake)
         except Exception:
             pass    # the heartbeat reports health; it must never be the thing that fails
+
+    def _keep_awake(self, waking, store, ok):
+        """v0.6.11: keep this PC awake while a task waits, or let it go (runtime/waking.py) - never at
+        the defaults. Returns since when it is kept awake, or None. A failure here lets go, and costs
+        nothing else."""
+        if waking is None:
+            return None
+        try:
+            paused = not store.settings()["enabled"] or self.managed.disable_auto_resume
+            return waking.after(store, self.settings, ok=ok, paused=paused)
+        except Exception:
+            self._record_failure("keeping this PC awake")
+            try:
+                return waking.let_go()
+            except Exception:
+                return None
 
     def _new_reading(self, engine):
         """The engine's last usage reading, the first time the heartbeat is handed it (v0.6.11) - None
@@ -227,6 +244,9 @@ class WatchLoop:
         # Not `tray`: `from . import tray` names the module in this file too, and a local
         # that shadows a module name reads as that module to anything scanning the source.
         icon = None if once else self._start_tray(stop)
+        # v0.6.11: sleep and keeping this PC awake (power.py), which ask Windows nothing at the defaults.
+        # A wake heard is a Retry Now's wake event: the tick then runs, every gate included.
+        waking = None if once else Waking(signal=lambda: self.wake_event().signal(), log=self.logger.info)
         try:
             while True:
                 ok = False
@@ -250,6 +270,9 @@ class WatchLoop:
                     if enabled != last_enabled:
                         self.logger.info("auto-resume is %s", "enabled" if enabled else "disabled (kill switch active; no submissions)")
                         last_enabled = enabled
+                    # Before any gate runs: what fell due during a long sleep waits for a person first.
+                    if waking is not None:
+                        waking.before(engine, self.settings)
                     engine.tick()
                     ok = True
                 except (StateFromNewerVersion, RecordSchemaMismatch):
@@ -262,7 +285,8 @@ class WatchLoop:
                     self._record_failure("tick")
                 except Exception:
                     self._record_failure("initialising Codex adapter" if engine is None else "tick")
-                self._heartbeat(store, session, started, ok, engine)
+                awake = self._keep_awake(waking, store, ok)
+                self._heartbeat(store, session, started, ok, engine, awake)
                 if not once:
                     self._failure_baseline()            # made good at the next tick if a write was refused
                 if icon is not None:
@@ -279,6 +303,11 @@ class WatchLoop:
         except KeyboardInterrupt:
             self.logger.info("interrupted; watcher exiting")
         finally:
+            if waking is not None:
+                try:
+                    waking.stop()           # on the thread that made the request, which holds it
+                except Exception:
+                    self._record_failure("letting this PC sleep")
             if icon is not None:
                 icon.stop()
             store.close()

@@ -143,7 +143,7 @@ class DispatchMixin:
             vector["attempt_budget"] = machine.gate(machine.WAIT, "thread_submission_cooldown")
             self._wait(row, "waiting_retry", "thread_submission_cooldown", cooldown, vector)
             return
-        if self._plugged("attempt_budget", row, vector):
+        if self._plugged("attempt_budget", row, vector) or self._offline(row, vector, now):  # v0.6.11
             return
         usage = self.usage()
         if usage.get("available") is not True:

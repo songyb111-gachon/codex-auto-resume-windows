@@ -1509,6 +1509,8 @@ function renderRecovery(status, schema, now) {
       if (entry.type === 'boolean') {
         fold.body.appendChild(toggle(entry, retell));
         if (entry.name === 'retry_jitter') fold.body.appendChild(waits);
+        // v0.6.11: what waiting for an internet connection does, under its switch, as in the Dashboard.
+        if (entry.name === 'wait_for_network') fold.body.appendChild(element('p', 'help', t('help.wait_for_network', '')));
       } else if (entry.choices) {
         fold.body.appendChild(choiceField(entry, entry.choices.map(function (choice) {
           return {value: choice, text: t('choice.' + choice, choice)};
@@ -1530,6 +1532,7 @@ function limitHelp(name) {
   if (name === 'chain_time_ceiling') return t('help.chain_time_ceiling', '');
   if (name === 'task_changed_guard') return t('help.task_changed_guard', '');
   if (name === 'context_guard') return t('help.context_guard', '');
+  if (name === 'ask_after_sleep_minutes') return t('help.ask_after_sleep_minutes', '');
   return '';
 }
 

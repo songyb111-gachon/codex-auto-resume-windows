@@ -65,10 +65,16 @@ namespace CodexAutoResume
             // v0.6.11: Codex's usage as the watcher last read it, with its age - empty until it has been read.
             usageLine = Value("");
             usageLine.ForeColor = Secondary;
+            // v0.6.11: that the watcher keeps this PC awake while a task waits - shown only while it does, so the card is
+            // the height it always was the rest of the time.
+            awakeLine = Value("");
+            awakeLine.ForeColor = Secondary;
+            awakeLine.Visible = false;
             waiting.Controls.Add(waitingLine);
             waiting.Controls.Add(nextLine);
             waiting.Controls.Add(runningLine);
             waiting.Controls.Add(usageLine);
+            waiting.Controls.Add(awakeLine);
             Lead(waiting, MakeButton(S("nav.pending", "Pending"), false, delegate { ShowPage("pending"); }));
 
             TableLayoutPanel week = MakeCard(S("overview.week", "Last 7 days"));

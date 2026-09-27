@@ -25,6 +25,7 @@ from ..engine import Engine
 from ..logbook import LOGGER_NAME, EngineLog, setup_logging
 from ..openstate import open_state
 from ..store import SCHEMA_VERSION, Store, StoreError
+from ..win import network
 from ..windows import AdapterError, Backend, HomeLock, Mutex, StopEvent, WakeEvent
 from .loop import EXIT_BUSY, EXIT_ERROR, EXIT_OK, EXIT_SCHEMA_NEWER, WatchLoop
 from .toasts import Toasts
@@ -176,7 +177,9 @@ class App(WatchLoop):
         source = self.source()
         kwargs = {"log": EngineLog(self.logger), "notify": Toasts(self._notifier(source), self.logger),
                   "language": l10n.current(), "engine_state": self.engine_state,
-                  "home_lock": lambda: self._home_lock is not None and self._home_lock.held}
+                  "home_lock": lambda: self._home_lock is not None and self._home_lock.held,
+                  # v0.6.11: asked only while Wait for an internet connection is on (power.py).
+                  "connectivity": network.internet}
         if dispatch_lock is not None:
             kwargs["dispatch_lock"] = dispatch_lock
         engine = Engine(store, source, self.backend(), plug=self.plug, **kwargs)

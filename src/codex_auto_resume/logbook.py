@@ -84,6 +84,8 @@ _MESSAGES = {
     ("waiting_for_usage", "usage_unavailable"): "usage still unavailable; waiting for reset",
     ("waiting_for_usage", "usage_unknown"): "usage status unknown; waiting without queueing",
     ("waiting_for_usage", "usage_recheck_failed"): "usage re-check failed at dispatch time; waiting",
+    # v0.6.11: Wait for an internet connection (power.py), only when it is on.
+    ("waiting_for_usage", "offline"): "Windows reports no internet connection; waiting without reading usage",
     ("waiting_retry", "queue_process_not_started"): "queue process did not start; retrying with bounded backoff",
     ("waiting_retry", "thread_submission_cooldown"): "recent submission on this thread; cooling down",
     ("waiting_retry", "daily_submission_cap"): "daily submission cap reached; deferring until the 24h window rolls over",
@@ -109,6 +111,8 @@ _MESSAGES = {
     # v0.6.11: a needs-you notice, raised once; nothing is resumed for it.
     ("needs_you_notice", None): "needs a person; one notice raised (notice {detail12}), nothing resumed",
     ("needs_you_unavailable", None): "needs-you notices skipped this tick; nothing is sent either way",
+    # v0.6.11: Ask after a long sleep (power.py), only when it is on.
+    ("held_after_sleep", None): "{detail} waiting recoveries fell due while this PC slept; held for a person",
 }
 
 

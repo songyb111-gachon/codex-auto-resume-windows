@@ -152,7 +152,9 @@ class ComboMarkupTests(unittest.TestCase):
                                               "car-chain_time_ceiling", "car-task_changed_guard",
                                               "car-context_guard",
                                               # and how long a turn may not move before a needs-you notice.
-                                              "car-stall_after"]))
+                                              "car-stall_after",
+                                              # and after how long a sleep what fell due waits for a person.
+                                              "car-ask_after_sleep_minutes"]))
         for drawn in observed:
             with self.subTest(drawn["id"]):
                 name = drawn["id"]

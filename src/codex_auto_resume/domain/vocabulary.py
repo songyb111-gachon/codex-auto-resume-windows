@@ -126,6 +126,8 @@ class ReasonCode(StrEnum):
     USAGE_UNAVAILABLE = "usage_unavailable"
     USAGE_UNKNOWN = "usage_unknown"
     USAGE_RECHECK_FAILED = "usage_recheck_failed"
+    # v0.6.11: Windows reports no internet connection, so usage is not read (power.py; off by default).
+    OFFLINE = "offline"
     DAILY_SUBMISSION_CAP = "daily_submission_cap"
     THREAD_SUBMISSION_COOLDOWN = "thread_submission_cooldown"
     QUEUE_PROCESS_NOT_STARTED = "queue_process_not_started"
@@ -521,6 +523,36 @@ class StallWait(StrEnum):
     H2 = "h2"
 
 
+class KeepAwake(StrEnum):
+    """Whether this PC is kept from sleeping while a task waits (power.KEEP_AWAKE_MODES): never, the
+    default and v0.6.10's; only while it runs on mains power; or on battery too (v0.6.11)."""
+    OFF = "off"
+    ON_AC = "on_ac"
+    ALWAYS = "always"
+
+
+class AwakeCap(StrEnum):
+    """For how long, at most, it is kept awake for tasks that go on waiting (power.AWAKE_CAPS)."""
+    H1 = "h1"
+    H2 = "h2"
+    H3 = "h3"
+    H6 = "h6"
+    H12 = "h12"
+    H24 = "h24"
+
+
+class SleepWait(StrEnum):
+    """How long a sleep must last before what fell due during it waits for a person (power.SLEEP_WAITS):
+    never, the default, or 30 minutes to 12 hours (v0.6.11)."""
+    OFF = "off"
+    M30 = "m30"
+    H1 = "h1"
+    H2 = "h2"
+    H3 = "h3"
+    H6 = "h6"
+    H12 = "h12"
+
+
 class NotifyEvent(StrEnum):
     """What a notification may be about, each switchable (settings.NOTIFICATION_EVENTS). NEEDS_YOU
     (v0.6.11) is the one off by default: a failure this product never resumes, told once."""
@@ -599,3 +631,5 @@ class NoticeKind(StrEnum):
     STOPPED = "stopped"
     CANCELLED = "cancelled"
     NEEDS_YOU = "needs_you"
+    # v0.6.11: what fell due while this PC slept long waits for a person (power.py).
+    AFTER_SLEEP = "after_sleep"

@@ -71,7 +71,9 @@ LAYER = {_q(name): layer for layer, names in {
                # and what an administrator's policy keys hold, applied after the settings are read.
                "managed",
                # and which needs-you notices are raised, and when a turn has stopped moving.
-               "needsyou"),
+               "needsyou",
+               # and sleep, keeping this PC awake and the network, as a waiting recovery meets them.
+               "power"),
     "adapters": ("store", "openstate", "codex", "windows", "compat", "compatio", "startup", "shortcut",
                  # v0.6.10-alpha: compat.py and compatio.py became compat/.
                  "compat.model", "compat.standing", "compat.report", "compat.permits", "compat.files", "compat.cache", "compat.probes", "compat.views", "compat.evaluator",
@@ -92,6 +94,8 @@ LAYER = {_q(name): layer for layer, names in {
                  "win", "win.dll", "win.homelock", "win.inventory", "win.kernel", "win.sync",
                  # v0.6.11: the administrator's policy keys, read and never written.
                  "win.policykeys",
+                 # and what Windows says of power and of the internet, and the one power request.
+                 "win.power", "win.network",
                  # v0.6.10-alpha: source.py became source/, and every part of it reads Codex;
                  # windows.py's other half - the CLI, the App Server, the pairing - joined it.
                  "codex.appserver", "codex.errors", "codex.history", "codex.labels",
@@ -113,6 +117,8 @@ LAYER = {_q(name): layer for layer, names in {
     "front": ("auto_resume", "cli", "controlcli", "mcpserver", "mcp.panel", "app", "ui.tray",
               # v0.6.10-alpha: app.py became runtime/ - the wiring, the loop and the toasts.
               "runtime", "runtime.app", "runtime.loop", "runtime.toasts",
+              # v0.6.11: the watcher's side of sleep and of keeping this PC awake.
+              "runtime.waking",
               # v0.6.10-alpha: cli.py's command bodies became commands/; cli.py is the parser.
               "commands", "commands.base", "commands.install", "commands.records",
               "commands.status", "commands.watcher",

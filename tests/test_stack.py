@@ -62,7 +62,9 @@ def _q(name: str) -> str:
 
 # Every module, placed. A new module is given an item here before anything else.
 ITEM = {_q(name): item for item, names in {
-    "watcher": ("app", "runtime", "runtime.app", "runtime.loop", "runtime.toasts"),
+    "watcher": ("app", "runtime", "runtime.app", "runtime.loop", "runtime.toasts",
+                # v0.6.11: the watcher's side of sleep and of keeping this PC awake.
+                "runtime.waking"),
     "engine": ("engine", "engine.announce", "engine.detect", "engine.dispatch", "engine.freshness",
                "engine.options", "engine.outcome",
                # v0.6.11: the waits and the two guards, as the engine asks them.
@@ -82,7 +84,9 @@ ITEM = {_q(name): item for item, names in {
                # v0.6.11: what an administrator's policy keys hold, and how they hold the settings.
                "managed",
                # and which needs-you notices are raised, and after how long a turn has stopped moving.
-               "needsyou"),
+               "needsyou",
+               # and what a long sleep holds, how long this PC is kept awake, and waiting for the internet.
+               "power"),
     "machine": ("machine", "domain", "domain.errors", "domain.ids", "domain.public",
                 "domain.states", "domain.vocabulary",
                 # v0.6.11: the registry's vocabularies, out of domain/vocabulary.py.
@@ -128,6 +132,8 @@ ITEM = {_q(name): item for item, names in {
     "platform": ("win", "win.dll", "win.homelock", "win.inventory", "win.kernel", "win.sync",
                  # v0.6.11: the administrator's policy keys, read from the registry.
                  "win.policykeys",
+                 # and what Windows says of power and of the internet, and the one power request.
+                 "win.power", "win.network",
                  "pwsh", "shortcut", "startup"),
     "config": ("", "config", "logbook"),
 }.items() for name in names}
@@ -213,6 +219,9 @@ EDGES = {
     # v0.6.11: runtime/app.py holds the edition's plug, and domain/plug.py - policy's - is reached
     # through the domain package, which is the machine's.
     ("watcher", "machine"),
+    # v0.6.11: the watcher holds this PC's keep-awake request and listens for it waking, and hands
+    # the engine the question about the internet (win/power.py, win/network.py).
+    ("watcher", "platform"),
 
     ("engine", "codex"), ("engine", "machine"), ("engine", "policy"), ("engine", "scheduler"),
     ("engine", "words"),

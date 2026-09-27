@@ -78,6 +78,9 @@ _SCHEMA_4_COLUMNS = (
     # read for it, which is the only time it ever is (C4, C9).
     ("watcher_status", "usage_at", "REAL"),
     ("watcher_status", "usage", "TEXT"),
+    # Since when the watcher has asked Windows to keep this PC awake while a task waits (power.py), or
+    # empty: always, unless Keep this PC awake is on and something waits.
+    ("watcher_status", "awake_since", "REAL"),
 )
 
 _RECORD_COLUMNS = _V3_COLUMNS + tuple(name for table, name, _ in _SCHEMA_4_COLUMNS
@@ -100,7 +103,7 @@ _EVENT_COLUMNS = ("event_id", "at", "interruption_id", "chain_origin_id", "code"
                   "to_state", "reason", "actor", "turn_ref", "flags", "value")
 
 _WATCHER_COLUMNS = ("singleton", "pid", "session_id", "started_at", "last_tick_at",
-                    "last_tick_ok", "engine_state", "code_version", "usage_at", "usage")
+                    "last_tick_ok", "engine_state", "code_version", "usage_at", "usage", "awake_since")
 
 # Fields a plain `update` may write. Chain linkage, the claim time and the history
 # flag are written only by the operations that own them.

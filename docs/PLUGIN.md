@@ -81,7 +81,8 @@ The table describes the server from v0.6.11. The server runs from the installed 
 the plugin you add. An installation from v0.6.5 through v0.6.10 has seventeen tools, without
 `postpone_recovery` and `release_hold`, and its `update_settings` does not offer quiet hours, how a
 conversation resumes, Observe only, what a conversation seen for the first time gets, which projects
-may resume, the Custom retry waits, jitter, the time ceiling or the two guards. Every installation from v0.6.3 through v0.6.9 also offers, in `update_settings`,
+may resume, the Custom retry waits, jitter, the time ceiling, the two guards, what waits after a long
+sleep or waiting for an internet connection. Every installation from v0.6.3 through v0.6.9 also offers, in `update_settings`,
 a switch for `auth_service_transient` that v0.6.10 no longer has: nothing ever produced that kind, so
 the switch changed nothing. An installation on v0.6.4 has the same seventeen tools, but its `get_status`
 carries no compatibility summary. One on v0.6.3 has the same seventeen tools too, but its
@@ -113,7 +114,7 @@ the installation directory. The last two are described below the table.
 | `disable_conversation_recovery` | Switches recovery off for one exact conversation, its later interruptions included, and cancels what it has waiting. | no |
 | `resume_auto_recovery` | Undoes a global pause. | yes |
 | `enable_conversation_recovery` | Switches recovery back on for one exact conversation. Nothing is sent; every check still applies. | yes |
-| `update_settings` | Changes user-facing settings: the Interface language, the recovery categories, the limits, the notifications, the continuation message's language, style and Custom mode, and the theme; from v0.6.11 also Observe only, what a conversation seen for the first time gets, which projects may resume, the Custom retry waits and jitter, the time ceiling, and the task-changed and context-cost guards. Not the Custom message text itself (below), and not the lists of projects set to resume or to wait, which only a task's row in the Dashboard or the popup sets. | yes |
+| `update_settings` | Changes user-facing settings: the Interface language, the recovery categories, the limits, the notifications, the continuation message's language, style and Custom mode, and the theme; from v0.6.11 also Observe only, what a conversation seen for the first time gets, which projects may resume, the Custom retry waits and jitter, the time ceiling, the task-changed and context-cost guards, what waits after a long sleep and waiting for an internet connection. Not the Custom message text itself (below), and not the lists of projects set to resume or to wait, which only a task's row in the Dashboard or the popup sets. | yes |
 | `restore_default_settings` | Puts every setting back to its recommended value - the Design to Soft and Reduce motion off among them, though Codex can set neither. | yes |
 | `cancel_recovery` | Stops the named interruption and every record that continues it. One that was never sent is cancelled outright; one that may already be in Codex is marked, and the watcher takes back whatever is still queued - a turn already running is not stopped. The conversation itself stays switched on. | yes |
 | `reset_recovery_budget` | Returns an exhausted record to waiting, as above. | yes |

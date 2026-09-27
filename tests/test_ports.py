@@ -88,6 +88,9 @@ ENGINE_TO_STORE = {
     "hold_changed",
     # and a needs-you notice kept so it is told once (engine/notices.py) - never at the defaults.
     "raise_notice",
+    # and what fell due during a long sleep, held for a person (engine/freshness.py) - never at the
+    # defaults, where Ask after a long sleep is off.
+    "hold_waiting",
 }
 # What it asks of Codex itself, through the backend: is the app there, what is my usage, send
 # this, take it back, is the thread loaded. Five, and the split must not make it six by accident.

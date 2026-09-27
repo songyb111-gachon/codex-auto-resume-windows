@@ -129,6 +129,8 @@ class WatcherView(TypedDict):
     started_at: float | None
     # v0.6.11: Codex's usage as last read, or None until it has been read.
     usage: UsageReading | None
+    # v0.6.11: since when the watcher keeps this PC awake while a task waits, or None.
+    awake_since: float | None
 
 
 class StatusSnapshot(TypedDict):

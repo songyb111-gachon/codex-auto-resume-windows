@@ -90,7 +90,7 @@ class StoreView:
 class OptionsMixin:
     def __init__(self, store, source, backend, *, dispatch_lock=nullcontext,
                  clock=time.time, log=None, options=None, notify=None, language=None,
-                 home_lock=None, engine_state=None, plug=None):
+                 home_lock=None, engine_state=None, plug=None, connectivity=None):
         self.store, self.source, self.backend = store, source, backend
         # The edition's plug, as core holds one (domain/plug.py): NULL, the standard edition's,
         # unless the watcher was given another. Every point is asked through this and nothing
@@ -114,6 +114,9 @@ class OptionsMixin:
         # engine compatibility check concluded. Both are owned by the process.
         self.home_lock = home_lock or (lambda: True)
         self.engine_state = engine_state or (lambda: "verified")
+        # v0.6.11: whether Windows reports this PC on the internet (win/network.py) - True, False or
+        # None, asked only while Wait for an internet connection is on (engine/freshness.py).
+        self.connectivity = connectivity or (lambda: None)
         self.options = {"reset_grace_seconds": 60, "conservative_poll_seconds": 900,
                         "state_poll_seconds": 60, "delivery_timeout_seconds": 180,
                         "max_queue_retries": 5, "max_submissions_per_thread_per_day": 5,

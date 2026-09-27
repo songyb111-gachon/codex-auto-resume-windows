@@ -685,6 +685,13 @@
             "notnull": false,
             "default": null,
             "primary_key": 0
+          },
+          {
+            "name": "awake_since",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
           }
         ],
         "indexes": {}
@@ -1374,6 +1381,13 @@
           {
             "name": "usage",
             "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "awake_since",
+            "type": "REAL",
             "notnull": false,
             "default": null,
             "primary_key": 0
@@ -2069,6 +2083,13 @@
             "notnull": false,
             "default": null,
             "primary_key": 0
+          },
+          {
+            "name": "awake_since",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
           }
         ],
         "indexes": {}
@@ -2758,6 +2779,13 @@
           {
             "name": "usage",
             "type": "TEXT",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "awake_since",
+            "type": "REAL",
             "notnull": false,
             "default": null,
             "primary_key": 0

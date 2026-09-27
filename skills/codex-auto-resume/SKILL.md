@@ -242,6 +242,14 @@ Quiet hours, a setting, make any recovery that falls due in them wait until they
 `release_hold` lets one held recovery continue; it sends nothing either, and every check still
 runs. Offer it only when the user asks for that recovery to go ahead.
 
+From v0.6.11 two more settings can hold a recovery back, both off by default. With
+`ask_after_sleep_minutes` set, a recovery that fell due while the PC slept for longer than that waits
+for the user, as a held one does (`hold` is `after_sleep`). With `wait_for_network` true, a due
+recovery waits while Windows reports no internet connection; its reason is `offline`. Neither sends
+anything or makes a recovery sooner. Keeping the PC awake while a task waits is a Dashboard setting,
+not one these tools change; `watcher.awake_since` in `get_status` says since when the watcher keeps it
+awake, or is null.
+
 `get_status` carries a Codex compatibility summary under `watcher.compatibility`, as codes. Its
 `overall` is one of `verified` (a real recovery on that exact Codex version confirmed it),
 `checked` (the maintainer's own checks passed on that exact version), `structurally_compatible`
