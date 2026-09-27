@@ -935,7 +935,7 @@ class ReleaseWithdrawnTests(_StoreCase):
 
     def test_T24_release_is_refused_unless_every_condition_holds(self):
         cases = [("reason %s" % reason, {"withdraw_reason": reason}, {})
-                 for reason in sorted(machine.WITHDRAW_REASONS - {"paused"})]
+                 for reason in sorted(machine.WITHDRAW_REASONS - machine.RELEASABLE_WITHDRAWALS)]
         cases += [
             ("row vanished without our delete", {"withdraw_deleted": 0}, {}),
             ("before the window", {}, {"now": 479.0}),

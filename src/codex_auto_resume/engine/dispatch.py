@@ -189,15 +189,15 @@ class DispatchMixin:
 
         Taken only as a person's Custom message is: they pass the same validator and are filled
         in the same way, for the same record, so they can say nothing a person could not have
-        written in the Dashboard. Words that fail the validator, or fill in to nothing, are not
-        sent, and core's are - the person's own style, not the Standard text a Custom message
-        falls back to."""
+        written in the Dashboard - over a conversation's own message too (v0.6.11). Words that fail
+        the validator, or fill in to nothing, are not sent, and core's are - the person's own
+        style, not the Standard text a Custom message falls back to."""
         words = self.plug.text(row, message)
         if words is DEFER:
             return message, False
         try:
             _message.validate_custom(words)
-            values = dict(self.policy_values, continuation_style="custom",
+            values = dict(self.policy_values, continuation_style="custom", custom_message_by_thread=None,
                           custom_message_mode="global", custom_message=words)
             if _message.source_for(row["category"], values, row=row, limits=limits) != "global":
                 return message, False

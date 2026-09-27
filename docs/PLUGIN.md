@@ -166,7 +166,8 @@ the window's Diagnostics page, its update check, or the command line.
 
 **Custom message text cannot be written from Codex.** `update_settings` offers
 `custom_message_mode` - one message for every interruption, or one per kind - but neither
-`custom_message` nor any `custom_message_<category>`, and a client that sends one anyway is
+`custom_message` nor any `custom_message_<category>`, nor from v0.6.11 a conversation's own message
+(`custom_message_by_thread`), and a client that sends one anyway is
 refused; `preview_recovery_message` accepts only the four choices named in its row. The reason
 is what the text is for. The watcher later sends it into your conversations, on your behalf,
 when nobody is watching, so a model that had been talked into changing it by a page it read
@@ -181,7 +182,8 @@ with the installation directory), the settings, and for `list_pending` and `open
 interruption ids with their states, codes and counts, and for `get_recovery_timeline` one
 chain's interruption ids with its event codes and times; `get_recovery_statistics` returns counts and times and no ids at all. The settings that
 `get_status`, `open_settings`, `update_settings` and `restore_default_settings` return include
-any Custom message text you wrote in the Dashboard, and `preview_recovery_message` returns the
+any Custom message text you wrote in the Dashboard - from v0.6.11 a conversation's own message too,
+beside its conversation id - and `preview_recovery_message` returns the
 text that would be sent, which under the Custom style is that text. No tool returns
 a conversation's title or content. The same holds for command output the skill asks Codex to read back - `status`,
 `pending`, `doctor`, `logs` - which also includes local paths and log lines.
@@ -218,6 +220,10 @@ Dashboard and the popup share ([BRAND.md](BRAND.md)). Top to bottom:
 * **Preview**: the exact text for a chosen kind of interruption, from
   `preview_recovery_message`, following the language and style chosen but not yet saved. The
   page never assembles a continuation of its own.
+* **Ask Codex**, folded away (from v0.6.11): a few things to ask Codex about this product, in the
+  panel's language - its status, what it is waiting for, pausing it, its settings. Codex's own list
+  of suggested prompts for a plugin, `interface.defaultPrompt` in `plugin.json`, holds three and has
+  no other language, so it stays in English, and its three are the English ones here.
 * **Appearance**: the Theme - Use system setting, Light or Dark - and Theme in Codex, the panel's
   own - Same as Theme, Codex's theme, Light or Dark. Once either is saved the panel redraws at
   once in its own choice, or in the Theme's while its own is Same as Theme.

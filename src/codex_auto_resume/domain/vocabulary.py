@@ -114,6 +114,9 @@ class WithdrawReason(StrEnum):
     EXPIRED = "expired"
     PROJECTION_STALE = "projection_stale"
     DUPLICATE_OWNER = "duplicate_owner"
+    # v0.6.11: taken back because Observe only is on - a Pause's promise, under words of its own.
+    OBSERVE_ONLY = "observe_only"
+    OBSERVE_ONLY_UNKNOWN = "observe_only_unknown"
 
 
 class ReasonCode(StrEnum):
@@ -193,6 +196,8 @@ class ReasonCode(StrEnum):
     USER_QUEUED_INPUT = "user_queued_input"
     NOT_LOADED = "not_loaded"
     EXPIRED = "expired"
+    OBSERVE_ONLY = "observe_only"
+    OBSERVE_ONLY_UNKNOWN = "observe_only_unknown"
 
 
 class EventCode(StrEnum):
@@ -225,6 +230,9 @@ class EventCode(StrEnum):
     TIER_SET = "tier_set"
     # v0.6.11: observe only - every check but consent passed, and nothing was sent (once a period).
     WOULD_SEND = "would_send"
+    # v0.6.11: one taken back for Observe only ran all the same; a person took their postponement away.
+    DISPATCHED_WHILE_OBSERVING = "dispatched_while_observing"
+    UNPOSTPONED = "unpostponed"
     OTHER = "other"
 
 
@@ -399,6 +407,9 @@ class ErrorCode(StrEnum):
     TOO_MANY_PROJECTS = "too_many_projects"
     # v0.6.11: what an administrator's policy key decides - resuming recovery, or a setting it holds.
     MANAGED_BY_POLICY = "managed_by_policy"
+    # v0.6.11: no postponement of a person's to take away; one conversation's message too many.
+    NOT_POSTPONED = "not_postponed"
+    TOO_MANY_MESSAGES = "too_many_messages"
 
 
 # ---------------------------------------------------------------- settings and language
@@ -408,6 +419,8 @@ class ContinuationStyle(StrEnum):
     STANDARD = "standard"
     DETAILED = "detailed"
     CUSTOM = "custom"
+    # v0.6.11: Standard, and a sentence asking Codex not to repeat what already wrote, pushed or sent.
+    CAREFUL = "careful"
 
 
 class CustomMode(StrEnum):
@@ -582,6 +595,14 @@ class WatcherEnd(StrEnum):
     UNEXPECTED = "unexpected"
 
 
+class StateAccess(StrEnum):
+    """Who Windows lets open the state folder (control/tools.py, v0.6.11): this account and Windows
+    itself only; other accounts too; or it could not be read."""
+    OWNER_ONLY = "owner_only"
+    SHARED = "shared"
+    UNKNOWN = "unknown"
+
+
 class NotifyEvent(StrEnum):
     """What a notification may be about, each switchable (settings.NOTIFICATION_EVENTS). NEEDS_YOU
     (v0.6.11) is the one off by default: a failure this product never resumes, told once."""
@@ -666,3 +687,5 @@ class NoticeKind(StrEnum):
     # it (memguard.py).
     MEMORY_WARNING = "memory_warning"
     MEMORY_STOPPED = "memory_stopped"
+    # v0.6.11: Show me what happens - a card of made-up words, whose buttons do nothing (demo.py).
+    DEMO = "demo"

@@ -224,6 +224,45 @@ def _managed(**values):
 NIGHT = {"quiet_hours_start": "22:00", "quiet_hours_end": "07:00", "quiet_hours_days": "weekdays"}
 
 
+def _state_access(word):
+    """What Windows says of the state folder's access list, for this one case (v0.6.11, win/acl.py): a
+    stand-in for the one function that asks, so the answer is the same on every machine."""
+    @contextmanager
+    def using(_workspace):
+        from codex_auto_resume.win import acl
+
+        with patch.object(acl, "state_access", return_value=word):
+            yield
+    return using
+
+
+def _postponed(key, thread):
+    """A task a person postponed by an hour (v0.6.11), so Don't postpone has something to take away.
+    Through the product's own store, and left as it is for the cases after it."""
+    @contextmanager
+    def using(workspace):
+        from codex_auto_resume import config
+        from codex_auto_resume.store import Store
+
+        with Store(config.Paths(workspace / "home").state_dir) as store:
+            store.postpone(key, thread, generator.ENVELOPE_NOW + 3600, generator.ENVELOPE_NOW, actor="gui")
+        yield
+    return using
+
+
+def _logged(workspace):
+    """A few lines of this product's own log, as logbook's formatter writes them, and one it does not."""
+    from codex_auto_resume import config
+
+    paths = config.Paths(workspace / "home")
+    paths.logs_dir.mkdir(parents=True, exist_ok=True)
+    paths.log_file.write_text("[2026-09-27 10:00:00] auto-resume is enabled\n"
+                              "[2026-09-27 10:01:00] thread %s: waiting for reset\n"
+                              "a line the formatter never writes\n"
+                              "[2026-09-27 10:02:00] watcher stopped\n" % T1, encoding="utf-8")
+    return {"query": "thread"}
+
+
 def _plugin_copy(edition_word):
     """A copy of this plugin in the scratch Codex home's plugin cache, of `edition_word` - as `codex
     plugin add` leaves one - for this one case (v0.6.11, edition.cached_copy). Written under the
@@ -377,6 +416,12 @@ BRIDGE_CASES = {
         Case("every failure so far marked as seen"),
         Case("again, with nothing new to see")],
     "cancel-all": [Case("every pending recovery cancelled"), Case("nothing left to cancel")],
+    # v0.6.11: Diagnostics - who Windows lets open the state folder, read only; and Show me what happens,
+    # whose rows are made up and whose card is asked of a watcher that is not there to draw it.
+    "state-access": [
+        Case("only this account and Windows", using=_state_access("owner_only")),
+        Case("other accounts too", using=_state_access("shared"))],
+    "demo": [Case("the made-up rows, and no watcher's icon to ask for the card")],
     # v0.6.11: Diagnostics compares the edition installed with Codex's copy of the plugin, read only.
     "plugin-copy": [
         Case("Codex keeps no copy of the plugin"),
@@ -496,6 +541,26 @@ BRIDGE_CASES = {
         Case("a task that belongs to another conversation",
              {"interruption_id": WAITING_RESET, "thread_id": T2, "preset": "3_hours"}),
         Case("a finished task", {"interruption_id": RECOVERED, "thread_id": T3, "preset": "3_hours"})],
+    # v0.6.11: Don't postpone - a person's own postponement taken away, bound to the row.
+    "unpostpone": [
+        Case("a person's postponement taken away", {"interruption_id": WAITING_RESET, "thread_id": T1},
+             using=_postponed(WAITING_RESET, T1)),
+        Case("the same task again: nothing to take away", {"interruption_id": WAITING_RESET, "thread_id": T1}),
+        Case("a task that belongs to another conversation",
+             {"interruption_id": WAITING_RESET, "thread_id": T2}),
+        Case("a finished task", {"interruption_id": RECOVERED, "thread_id": T3})],
+    # v0.6.11: one conversation's own message, from its row in the Dashboard only.
+    "conversation-message": [
+        Case("a message for one conversation", {"thread_id": T1, "text": "Carry on with the plan, please."}),
+        Case("a placeholder that would leak the conversation is refused", {"thread_id": T1, "text": "{prompt}"}),
+        Case("the text must be named, even to take it away", {"thread_id": T1}),
+        Case("taken away", {"thread_id": T1, "text": None}),
+        Case("not a conversation id", {"thread_id": "latest", "text": "go"})],
+    # v0.6.11: the log searched, newest last.
+    "logs": [
+        Case("no log yet", {}),
+        Case("the lines that hold a word", _logged),
+        Case("a search with a line break in it is refused", {"query": "a\nb"})],
     "release-hold": [
         Case("a held task let continue", {"interruption_id": WAITING_RESET, "thread_id": T1},
              using=_held(T1)),

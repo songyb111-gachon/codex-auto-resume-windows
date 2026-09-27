@@ -1320,8 +1320,9 @@ class SafetyTests(unittest.TestCase):
             self.assertNotIn(writer, text)
 
     def test_the_notifier_draws_nothing(self):
+        """v0.6.11 adds demo.py, the made-up task a demo card is built from, which draws nothing either."""
         package, _ = self.imports("notifier.py")
-        self.assertLessEqual(package, {"l10n", "notice_presence", "notify", "reasons"})
+        self.assertLessEqual(package, {"demo", "l10n", "notice_presence", "notify", "reasons"})
 
     def test_no_new_module_raises_powershell_itself(self):
         for name in self.CARD + ("notifier.py", "notice_presence.py"):

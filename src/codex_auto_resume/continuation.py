@@ -29,13 +29,22 @@ import re
 import time
 
 from . import failures, l10n, reasons
+from .domain import ids
 from .domain.vocabulary import ContinuationStyle, CustomMode
 
 # Minimal is short on purpose and says nothing about the cause. Standard names the
 # safely known reason. Detailed asks for the work to be continued from where it
-# stopped. Custom is the user's own words.
+# stopped. Custom is the user's own words. Careful (v0.6.11) is Standard with one more
+# sentence, asking Codex to check what already happened and not to repeat anything that
+# wrote, pushed or sent; Standard itself is left exactly as it was.
 STYLES = tuple(ContinuationStyle)
 DEFAULT_STYLE = "standard"
+
+# v0.6.11: a message for one conversation, which wins over every style for that conversation
+# alone - the setting that holds them (a UUID -> text object), and how many it may hold. Each
+# text is a Custom message: validated the same way, written only in the Dashboard.
+BY_THREAD_FIELD = "custom_message_by_thread"
+MAX_CONVERSATIONS = 50
 
 # One message for everything, or one per interruption category.
 CUSTOM_MODES = tuple(CustomMode)
@@ -118,6 +127,31 @@ def validate_custom(text) -> str:
     return text
 
 
+def coerce_by_thread(value, default=None):
+    """The settings coercer of the per-conversation messages: a new {thread id: text} of the
+    entries that are one - a canonical conversation id and a text `validate_custom` takes - or
+    `default` for anything that is not such an object, for more than MAX_CONVERSATIONS entries
+    and for none at all. An entry that fails is left out, as a Custom message that fails its
+    check is read as not set; a strict write sees the difference and is refused."""
+    if not isinstance(value, dict) or not value or len(value) > MAX_CONVERSATIONS:
+        return default
+    kept = {}
+    for thread, text in value.items():
+        if not ids.is_uuid(thread):
+            continue
+        try:
+            kept[thread] = validate_custom(text)
+        except CustomMessageError:
+            continue
+    return kept or default
+
+
+def conversation_text(values, thread_id):
+    """This conversation's own message, as stored and checked again, or None."""
+    held = coerce_by_thread((values or {}).get(BY_THREAD_FIELD)) or {}
+    return held.get(thread_id) if isinstance(thread_id, str) else None
+
+
 def _fill(template: str, values: dict) -> str:
     """Substitute only what is known, and leave the rest exactly as written.
 
@@ -198,9 +232,11 @@ def build(category, *, locale=l10n.DEFAULT, style=DEFAULT_STYLE, custom=None,
 
         {"mode": "global" | "per_reason",
          "text": "...",                       # the global message
-         "per_reason": {"usage_limit": "..."}}
+         "per_reason": {"usage_limit": "..."},
+         "conversation": "..."}               # v0.6.11: this conversation's own, or None
 
-    The fallback when Custom is selected is deterministic and documented: the
+    A conversation's own message wins over every style, for that conversation alone. Past
+    it, the fallback when Custom is selected is deterministic and documented: the
     per-reason message if this category has a usable one, otherwise the global one,
     otherwise the localized Standard message for this category. An empty continuation
     is never produced - every path ends at a template that exists, and Custom text that
@@ -208,6 +244,10 @@ def build(category, *, locale=l10n.DEFAULT, style=DEFAULT_STYLE, custom=None,
     """
     entry = reasons.get(category)
     values = _message_values(entry, locale, metadata)
+
+    own = _conversation_choice(entry, custom, values)
+    if own is not None:
+        return own
 
     # A Custom message is only ever attached to a category that is continued. The engine
     # never asks for anything else, and a Preview refuses to; this makes it structural too,
@@ -222,13 +262,16 @@ def build(category, *, locale=l10n.DEFAULT, style=DEFAULT_STYLE, custom=None,
         return _fill(l10n.text("continuation.minimal", locale), values)
     if style == "detailed" and entry.detailed_key:
         return _fill(l10n.text(entry.detailed_key, locale), values)
-    if entry.standard_key:
-        return _fill(l10n.text(entry.standard_key, locale), values)
     # A category with no continuation text is never sent - the engine's gates stop it
-    # long before here - so this is the shape of a bug, not a message anyone receives.
+    # long before here - so Minimal's is the shape of a bug, not a message anyone receives.
     # It still has to be text rather than an exception, because a Preview of a
     # non-recoverable category is a legitimate thing for a settings page to ask for.
-    return _fill(l10n.text("continuation.minimal", locale), values)
+    standard = _fill(l10n.text(entry.standard_key or "continuation.minimal", locale), values)
+    if style == "careful":
+        # The Standard message, whole, inside the catalog's sentence that adds the guard; the
+        # translator places it, so the space between two sentences is the language's own.
+        return l10n.text("continuation.careful", locale).replace("{message}", standard, 1)
+    return standard
 
 
 def _message_values(entry, locale, metadata):
@@ -236,6 +279,19 @@ def _message_values(entry, locale, metadata):
     values.setdefault("category", entry.category)
     values.setdefault("reason", l10n.text(entry.label_key, locale))
     return values
+
+
+def _conversation_choice(entry, custom, values):
+    """This conversation's own message, filled in, when there is one that says something - and only
+    for a category that is continued, as every Custom message."""
+    if not entry.recoverable or not isinstance(custom, dict):
+        return None
+    text = custom.get("conversation")
+    if isinstance(text, str) and text.strip():
+        filled = _fill(text, values)
+        if filled.strip():
+            return filled
+    return None
 
 
 def _custom_choice(category, custom, values):
@@ -287,30 +343,40 @@ def style_from(values) -> str:
     return style if style in STYLES else DEFAULT_STYLE
 
 
-def custom_from(values) -> dict:
+def custom_from(values, thread_id=None) -> dict:
     values = values or {}
     mode = values.get("custom_message_mode")
     return {"mode": mode if mode in CUSTOM_MODES else DEFAULT_CUSTOM_MODE,
             "text": values.get("custom_message"),
             "per_reason": {category: values.get("custom_message_" + category)
-                           for category in reasons.RECOVERABLE}}
+                           for category in reasons.RECOVERABLE},
+            "conversation": conversation_text(values, thread_id)}
+
+
+def _thread_of(row):
+    return row["thread_id"] if row is not None and "thread_id" in row.keys() else None
 
 
 def source_for(category, values, *, row=None, limits=None, environ=None):
     """Which text a continuation for this category actually uses.
 
-    `per_reason`, `global` or `standard` when the Custom style is selected - the third
-    meaning no usable Custom text exists and the Standard message is sent instead - and
+    `conversation` when the record's conversation has a message of its own (v0.6.11), whatever
+    the style; otherwise `per_reason`, `global` or `standard` when the Custom style is selected -
+    the third meaning no usable Custom text exists and the Standard message is sent instead - and
     `None` for every other style. A settings page says this out loud beside the Preview,
     because "I chose Custom and something else was sent" is otherwise a mystery. It is
     decided for the same record `for_settings` is given, because whether Custom text is
     usable can depend on what its placeholders fill in to.
     """
+    locale, metadata = _settings_metadata(values, row, limits, environ)
+    entry = reasons.get(category)
+    filled = _message_values(entry, locale, metadata)
+    custom = custom_from(values, _thread_of(row))
+    if _conversation_choice(entry, custom, filled) is not None:
+        return "conversation"
     if style_from(values) != "custom":
         return None
-    locale, metadata = _settings_metadata(values, row, limits, environ)
-    filled = _message_values(reasons.get(category), locale, metadata)
-    source, _ = _custom_choice(category, custom_from(values), filled)
+    source, _ = _custom_choice(category, custom, filled)
     return source or "standard"
 
 
@@ -332,7 +398,7 @@ def for_settings(category, values, *, row=None, limits=None, environ=None) -> st
     """
     locale, metadata = _settings_metadata(values, row, limits, environ)
     return build(category, locale=locale, style=style_from(values),
-                 custom=custom_from(values), metadata=metadata)
+                 custom=custom_from(values, _thread_of(row)), metadata=metadata)
 
 
 def _settings_metadata(values, row, limits, environ):

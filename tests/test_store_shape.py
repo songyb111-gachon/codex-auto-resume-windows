@@ -25,7 +25,8 @@ from codex_auto_resume.store import Store  # noqa: E402
 
 MIXINS = (store.SessionMixin, store.SchemaMixin, store.MigrationsMixin, store.JournalMixin,
           store.PolicyMixin, store.RecordsMixin, store.ClaimsMixin, store.LedgerMixin,
-          store.ActionsMixin, store.WatcherMixin, store.ReportingMixin, store.NoticesMixin)
+          store.ActionsMixin, store.ScheduleMixin, store.WatcherMixin, store.ReportingMixin,
+          store.NoticesMixin)
 
 # What `Store` has, as the one class had it. Sixty-one methods, counted the day the file was
 # split; a method added or taken away is a decision, and this is where it is made.
@@ -49,6 +50,9 @@ METHODS = {
     # v0.6.11: a record postponed, held and let go, a conversation's tier, and the objection
     # window - store/actions.py and store/policy.py.
     "_bound", "_not_waiting", "postpone", "release_hold", "open_objection_window",
+    # v0.6.11: a person's own postponement taken away (Don't postpone) - store/schedule.py, which the
+    # four above moved into with it, out of store/actions.py at its 300 lines.
+    "unpostpone",
     "_thread_tier", "thread_tier", "thread_tiers", "set_thread_tier",
     # v0.6.11: observe only's switch and its "would have been sent", a conversation first seen given
     # Only notify me, and a project's waiting records held - store/policy.py and store/claims.py.

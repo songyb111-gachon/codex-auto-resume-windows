@@ -8,15 +8,18 @@ from __future__ import annotations
 import time
 
 from .. import continuation, reasons, settings
-from .errors import ControlError
+from .errors import ControlError, _thread_id
 
 
 class PreviewMixin:
     """Showing the message without sending it."""
 
     # ------------------------------------------------------------ continuation
-    def preview_continuation(self, category, changes=None, *, now=None) -> dict:
+    def preview_continuation(self, category, changes=None, *, now=None, thread_id=None) -> dict:
         """The exact continuation the watcher would send, under the settings being edited.
+
+        `thread_id` previews it for one conversation (v0.6.11), with that conversation's own
+        message - the one stored, or one in `changes` under `custom_message_by_thread`.
 
         `changes` are unsaved edits layered over the stored settings, so a Preview follows
         what somebody is choosing or typing before anything is saved. A Custom message that
@@ -45,7 +48,18 @@ class PreviewMixin:
                 raise ControlError(problem, code="request_failed")
             for name, value in changes.items():
                 is_text = settings.is_custom_text(name)
-                if is_text and value is not None and not (isinstance(value, str) and not value.strip()):
+                if name == continuation.BY_THREAD_FIELD:
+                    # One conversation's own messages: each checked as a Custom message is, and a
+                    # text that would be refused is said beside the preview and left out of it.
+                    texts = list(value.values()) if isinstance(value, dict) else [] if value is None else [value]
+                    for text in texts:
+                        try:
+                            continuation.validate_custom(text)
+                        except continuation.CustomMessageError as exc:
+                            if refusal is None:
+                                refusal, refusal_code, refusal_detail = str(exc), exc.code, exc.detail
+                    values[name] = continuation.coerce_by_thread(value)
+                elif is_text and value is not None and not (isinstance(value, str) and not value.strip()):
                     try:
                         continuation.validate_custom(value)
                     except continuation.CustomMessageError as exc:
@@ -63,6 +77,8 @@ class PreviewMixin:
         # previews with a reset an hour away, so {reset_time} shows a real time.
         sample = {"category": category, "recovery_attempts": 0,
                   "reset_at": moment + 3600 if reasons.has_reset_time(category) else None}
+        if thread_id is not None:
+            sample["thread_id"] = _thread_id(thread_id)
         limits = {"max_recovery_attempts": values["max_recovery_attempts"]}
         text = continuation.for_settings(category, values, row=sample, limits=limits)
         return {"category": category, "locale": continuation.resolve_locale(values),

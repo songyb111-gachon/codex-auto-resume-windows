@@ -17,6 +17,7 @@ to hold in your head:
     claims      the right to send, taken and let go
     ledger      the edition's say in a claim (P11), and what it may do there
     actions     what a person asks for
+    schedule    a record made later, held and let go (v0.6.11)
     watcher     the heartbeat
     notices     a needs-you notice, raised once (v0.6.11)
     reporting   counts, and the last seven days
@@ -52,6 +53,7 @@ from .notices import NoticesMixin
 from .policy import PolicyMixin
 from .records import RecordsMixin
 from .reporting import ReportingMixin
+from .schedule import ScheduleMixin
 from .schema import SCHEMA_VERSION, SchemaMixin, _TABLES_V2, _TABLES_V3, _TABLES_V4  # noqa: F401
 from .session import SessionMixin
 from .validate import (ENGINE_STATES, WATCHER_ENDS, _choice, _claim_cost, _finite, _flag,  # noqa: F401
@@ -61,8 +63,8 @@ from .watcher import WatcherMixin
 
 
 class Store(SessionMixin, SchemaMixin, MigrationsMixin, JournalMixin, PolicyMixin,
-            RecordsMixin, ClaimsMixin, LedgerMixin, ActionsMixin, WatcherMixin, ReportingMixin,
-            NoticesMixin):
+            RecordsMixin, ClaimsMixin, LedgerMixin, ActionsMixin, ScheduleMixin, WatcherMixin,
+            ReportingMixin, NoticesMixin):
     """One connection to our own state database.
 
     ``migrate`` must be passed explicitly: only the watcher, or a caller holding the

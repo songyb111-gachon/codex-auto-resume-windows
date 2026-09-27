@@ -12,7 +12,7 @@ from __future__ import annotations
 from .. import config, managed, settings
 from ..store import StoreError
 from ..win import policykeys
-from .errors import ControlError
+from .errors import ControlError, _thread_id
 
 
 def managed_policy() -> managed.Managed:
@@ -65,6 +65,38 @@ class SettingsMixin:
         if isinstance(changes, dict) and "observe_only" in changes or held.force_observe_only:
             self._observe_only(saved)
         return saved
+
+    def set_conversation_message(self, thread_id, text) -> dict:
+        """One conversation's own continuation message (v0.6.11): `text` for it, or None - or text of
+        nothing but spaces - to take it away. A Custom message in every way: checked by the same
+        validator and sent exactly as typed, for that conversation only, whatever the style.
+
+        The Dashboard's alone, from a task's row. No MCP tool calls this and update_settings refuses
+        the field, because words a model set would be sent into the conversation later, on the
+        person's behalf, when nobody is watching (A27). Nothing is sent now."""
+        thread = _thread_id(thread_id)
+        field = settings.CONVERSATION_MESSAGES
+        held = dict(self.get_settings().get(field) or {})
+        if text is None or (isinstance(text, str) and not text.strip()):
+            held.pop(thread, None)
+        else:
+            # Refused, if it is, in the Custom message's validator's own words.
+            self.validated_text(text)
+            held[thread] = text
+            if len(held) > settings.MAX_CONVERSATION_MESSAGES:
+                raise ControlError("at most %d conversations can have a message of their own"
+                                   % settings.MAX_CONVERSATION_MESSAGES, code="too_many_messages")
+        saved = self.update_settings({field: held or None})
+        own = (saved.get(field) or {}).get(thread)
+        return {"thread_id": thread, "set": own is not None, "count": len(saved.get(field) or {})}
+
+    @staticmethod
+    def validated_text(text) -> str:
+        """`text` as a Custom message is stored, or the refusal the settings validator words for it."""
+        try:
+            return settings.validate_update({"custom_message": text})["custom_message"]
+        except settings.SettingsError as exc:
+            raise ControlError(str(exc), code="request_failed") from None
 
     def restore_defaults(self) -> dict:
         try:

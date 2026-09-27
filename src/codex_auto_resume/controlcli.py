@@ -67,8 +67,9 @@ PLAIN = ("status", "settings", "describe", "defaults", "pending", "pending-all",
          "stop-watcher", "strings", "history", "clear-history", "dashboard", "cancel-all",
          # v0.6.8: the Dashboard in front has seen any failure (control.acknowledge_failure).
          "failure-seen",
-         # v0.6.11: Diagnostics - the edition installed and the edition of Codex's copy of the plugin.
-         "plugin-copy")
+         # v0.6.11: Diagnostics - the edition installed and the edition of Codex's copy of the plugin;
+         # who may open the state folder; and Show me what happens.
+         "plugin-copy", "state-access", "demo")
 WITH_ARGUMENT = ("update", "enabled", "startup", "cancel", "reset-budget", "retry-now",
                  "timeline", "statistics", "thread-enabled", "cancel-thread", "diagnostics",
                  "preview-continuation", "interruption-recovery",
@@ -79,7 +80,9 @@ WITH_ARGUMENT = ("update", "enabled", "startup", "cancel", "reset-budget", "retr
                  # much its conversation asks first.
                  "postpone", "release-hold", "thread-tier",
                  # and Always or Never for the project of the row's conversation.
-                 "project-rule")
+                 "project-rule",
+                 # v0.6.11: Don't postpone, one conversation's own message, and the log searched.
+                 "unpostpone", "conversation-message", "logs")
 # Big enough for the largest Save the settings layer accepts: eight Custom messages of 2000
 # characters each, and the window writes every line break as a six-character escape, so a
 # valid Save can come to nearly 100 KiB. At 64 KiB such a Save was refused as "request too
@@ -368,6 +371,11 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
         if command == "plugin-copy":
             # Read only, and only when Diagnostics asks: nothing is done about what it says.
             return {"ok": True, "result": control.plugin_copy()}
+        if command == "state-access":
+            return {"ok": True, "result": control.state_access()}
+        if command == "demo":
+            # Made-up rows for the Dashboard, and a made-up card asked of the icon: nothing is sent.
+            return {"ok": True, "result": control.show_demo()}
         if command == "dashboard":
             # What the Overview needs, in one round trip. Each part fails on its own:
             # a state that cannot be read must not also take the status away.
@@ -410,7 +418,8 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
         if command == "preview-continuation":
             changes = payload.get("changes")
             return {"ok": True, "result": control.preview_continuation(payload.get("category"),
-                                                                       changes)}
+                                                                       changes,
+                                                                       thread_id=payload.get("thread_id"))}
         if command == "interruption-recovery":
             return {"ok": True, "result": control.set_interruption_recovery(
                 payload.get("interruption_id"), payload.get("thread_id"), _flag(payload))}
@@ -420,6 +429,18 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
             return {"ok": True, "result": control.postpone(
                 payload.get("interruption_id"), payload.get("thread_id"), until=payload.get("until"),
                 preset=payload.get("preset"), minutes=payload.get("minutes"))}
+        if command == "unpostpone":
+            return {"ok": True, "result": control.unpostpone(payload.get("interruption_id"),
+                                                             payload.get("thread_id"))}
+        if command == "conversation-message":
+            # The text is named even to take it away - null - so a request that forgot it is refused.
+            if "text" not in payload:
+                raise ControlError("a custom message has to be text")
+            return {"ok": True, "result": control.set_conversation_message(payload.get("thread_id"),
+                                                                           payload.get("text"))}
+        if command == "logs":
+            return {"ok": True, "result": control.search_logs(payload.get("query"),
+                                                              payload.get("limit", 500))}
         if command == "release-hold":
             return {"ok": True, "result": control.release_hold(payload.get("interruption_id"),
                                                                payload.get("thread_id"))}

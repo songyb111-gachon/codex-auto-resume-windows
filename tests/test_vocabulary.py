@@ -55,15 +55,19 @@ LISTS = {
     "machine.V2_STATES": ("set", 18, "afdae6b420db41b5"),
     "machine.POSSIBLY_SENT": ("set", 20, "dadead4aea3c20e5"),
     "machine.WATCHED": ("set", 4, "07ba1375946c1591"),
-    "machine.WITHDRAW_REASONS": ("set", 11, "48bbe2160073f30c"),
+    # v0.6.11: observe_only and observe_only_unknown - taken back for Observe only, in its own words.
+    "machine.WITHDRAW_REASONS": ("set", 13, "e0093ee6641742ac"),
     "machine.SUPERSEDE_WITHDRAWALS": ("set", 3, "b63141bdc33260f0"),
     "machine.TURN_STATUSES": ("set", 5, "58aca83cec78ff2b"),
     "machine.ACTORS": ("set", 5, "eaf35d06c4c2b568"),
     # v0.6.11: offline - Windows reports no internet, so usage is not read (power.py, off by default).
-    "machine.REASONS": ("set", 65, "d89e76883e8b3477"),
+    # and observe_only, observe_only_unknown: a withdrawal's reasons are reasons too.
+    "machine.REASONS": ("set", 67, "d85ce5215e647592"),
     # v0.6.11: postponed, held, hold_released and tier_set - a person's (or the objection window's)
     # later time, a hold, letting it go, and a conversation's tier - and observe only's would_send.
-    "machine.EVENT_CODES": ("set", 26, "c824a4566dd1c011"),
+    # And dispatched_while_observing and unpostponed: one taken back for Observe only that ran all the
+    # same, and a person's own postponement taken away.
+    "machine.EVENT_CODES": ("set", 28, "338d004c0e77ba46"),
     "machine.WAITING_CODES": ("set", 5, "aef153e5808afe46"),
     "machine.PUBLIC_CODES": ("set", 22, "33761768f9d99cd0"),
     "machine.PAGES": ("tuple", 6, "ffad1c9f0521398d"),
@@ -74,7 +78,7 @@ LISTS = {
     # v0.6.11: `held`, a gate core passed and the edition's plug held (domain/plug.py, HOLD);
     # and schema 4's `postponed`, `quiet_hours` and `observe_only`, reasons of consent and schedule;
     # and `offline`, the usage gate's while Windows reports no internet (power.py).
-    "machine.GATE_REASONS": ("set", 81, "fb967f2e138c3437"),
+    "machine.GATE_REASONS": ("set", 82, "3dbd66cb47afb5a9"),
     "machine.PASS": "PASS",
     "machine.WAIT": "WAIT",
     "machine.BLOCK": "BLOCK",
@@ -99,9 +103,11 @@ LISTS = {
     "logbook.STATE_CODES": ("set", 27, "5cac947c5c3bb648"),
     # v0.6.11: a postponement's three refusals, a record that is not held, a tier that is none, and
     # a project that cannot be read or one too many; and what an administrator's policy key decides.
-    "control.ERROR_CODES": ("set", 31, "a32fecd05f80f1c9"),
+    # v0.6.11: not_postponed and too_many_messages - Don't postpone, and one conversation's message.
+    "control.ERROR_CODES": ("set", 33, "8b10b9748945e26c"),
     "control.FALLBACK_CODE": "request_failed",
-    "continuation.STYLES": ("tuple", 4, "a390c91bf5107f3f"),
+    # v0.6.11: careful, last, so every style there was stays where it was.
+    "continuation.STYLES": ("tuple", 5, "683478cd89ef6df8"),
     "continuation.CUSTOM_MODES": ("tuple", 2, "a4a918de1aaec837"),
     "continuation.DEFAULT_STYLE": "standard",
     "continuation.DEFAULT_CUSTOM_MODE": "global",
@@ -163,7 +169,8 @@ LISTS = {
     "ui.popup.STATES": ("tuple", 6, "b38c816dbd792bf5"),
     "ui.popup.ATTENTION_OVERLAYS": ("set", 4, "a707a2b300127033"),
     # v0.6.11: and the needs-you notice's light, attention; and a long sleep's, paused (power.py).
-    "notifier.STATUS": ("dict", 11, "41bb96764ccfe3c6"),
+    # and Show me what happens' card, waiting.
+    "notifier.STATUS": ("dict", 12, "ccfbc4aee6adaf58"),
     "mcpserver.Server.START_WORDING": ("dict", 4, "f15e04a780f57870"),
     # v0.6.11: the two editions, and the plug that is the whole difference between them.
     "edition.EDITIONS": ("tuple", 2, "49cc206af3867704"),
@@ -319,6 +326,8 @@ HOMES = {
     v.MemoryGuard: ("list", "memguard.MODES", "settings.MEMORY_GUARD_MODES"),
     v.MemoryLimit: ("list", "memguard.LIMITS", "settings.MEMORY_LIMITS"),
     v.WatcherEnd: ("list", "store.WATCHER_ENDS"),
+    # v0.6.11: who may open the state folder, as Diagnostics is told it.
+    v.StateAccess: ("list", "win.acl.STATE_ACCESS"),
     v.Locale: ("list", "l10n.LOCALES"),
     v.SendOutcome: ("returned", ("Backend.send", "outcome")),
     v.SendError: ("returned", ("Backend.send", "error_code")),

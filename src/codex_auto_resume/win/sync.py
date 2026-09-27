@@ -1,7 +1,7 @@
-"""The named objects the watcher is one of, and the two it is woken by.
+"""The named objects the watcher is one of, and the three it is woken by.
 
 One mutex says a watcher is running; a manual-reset event asks it to stop and an auto-reset
-event asks it to look now. Each is created at this process's own integrity level and refused
+event asks it to look now; and from v0.6.11 one more asks its icon to show a demo card. Each is created at this process's own integrity level and refused
 if something lower got there first (`_refuse_if_squatted`), because a named object is a name
 anyone in the session can take.
 """
@@ -162,6 +162,23 @@ class WakeEvent:
             return bool(k.SetEvent(handle))
         finally:
             k.CloseHandle(handle)
+
+
+class DemoEvent(WakeEvent):
+    """Auto-reset named event: "show me what happens" (v0.6.11), sent from Diagnostics.
+
+    Made and refused like the wake event, by the watcher's icon, which looks at it once a second
+    (`taken`) and then draws one card of made-up words (demo.py, notifier.build_demo). It reaches no
+    store and no engine: all a signal can ever do is draw that card."""
+
+    def __init__(self, name: str):
+        identity = os.path.normcase(str(Path.home().resolve())) + "::demo::" + str(name)
+        self.name = "Local\\codex-auto-resume-demo-" + hashlib.sha256(identity.encode("utf-8")).hexdigest()
+        self.handle = None
+
+    def taken(self) -> bool:
+        """Whether it was signalled since the last look, which resets it. Never waits."""
+        return self.handle is not None and _kernel().WaitForSingleObject(self.handle, 0) == 0
 
 
 def wait_any(handles, seconds: float):

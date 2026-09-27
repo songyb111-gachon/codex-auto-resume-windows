@@ -240,7 +240,11 @@ postponement or an objection window that is still ahead; its reply gives that la
 tomorrow at 09:00, or a number of minutes up to a week - and only ever later. It sends nothing.
 Quiet hours, a setting, make any recovery that falls due in them wait until they end.
 `release_hold` lets one held recovery continue; it sends nothing either, and every check still
-runs. Offer it only when the user asks for that recovery to go ahead.
+runs. Offer it only when the user asks for that recovery to go ahead. There is no tool that takes a
+postponement away again: that is **Don't postpone**, on the task's row menu in the Dashboard or the
+notification-area popup, because it brings a send nearer. If the user asks, say where it is. In
+`list_pending`, `postponed_until` is the time the user postponed a task to, or null; `not_before`
+may also be an objection window's time, which nobody takes away.
 
 From v0.6.11 two more settings can hold a recovery back, both off by default. With
 `ask_after_sleep_minutes` set, a recovery that fell due while the PC slept for longer than that waits
@@ -318,13 +322,17 @@ for the user or adds a line to its notification, and never sends anything sooner
 notifications appear, the interface language, the theme (light, dark, or following the system), the
 panel's own theme in Codex (`panel_theme`: the same as the theme, Codex's, light or dark), the
 continuation language, the message style
-(Minimal, Standard, Detailed or Custom), and whether a Custom message is one message for every
+(Minimal, Standard, Detailed, Custom or, from v0.6.11, Careful - the Standard message with a request
+not to repeat anything that already changed files, pushed, sent or published something), and whether
+a Custom message is one message for every
 interruption or one per kind. The window has five things `update_settings` does not offer: the
 notification-area icon, Reduce motion (the one way to stop the animations), the Design (Soft, Classic
 or Plain), the notification card, and the Custom message text itself.
 If the user asks for any of them, say it is changed in the Dashboard, under Settings. If the user wants to
 change what a Custom message says, tell them it is written in the Dashboard, under Settings >
-Continuation message.
+Continuation message. A message for one conversation alone (`custom_message_by_thread`, from v0.6.11)
+is written from that conversation's row in the Dashboard's Pending page, **Message for this
+conversation...**, and nowhere else; do not try to set it.
 
 What cannot, and is not an oversight: there is no setting that retries an unclassified failure,
 resolves a conversation by title, resends an uncertain submission, or forces a send. If the user

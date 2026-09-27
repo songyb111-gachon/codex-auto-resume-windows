@@ -687,7 +687,9 @@ namespace CodexAutoResume
         private OutcomeChart chart;
         // Diagnostics
         private Label diagVersion, diagWatcher, diagLastCheck, diagEngine, diagRecovery, diagStartup,
-                      diagUpgrade, diagUpdate, diagMemory, diagPlugin;
+                      diagUpgrade, diagUpdate, diagMemory, diagPlugin, diagStateAccess, diagStateNote;
+        // v0.6.11: Diagnostics' Show me what happens, which waits while an action runs.
+        private Button demoButton;
         private Button exportButton, repairButton, stopButton, updateButton;
         // Codex compatibility (v0.6.5; BuildCompatibility): its facts, what the view cannot vouch for - a callout each,
         // since v0.6.10 - the parts in two lists, what each state word means, and the refresh with what it last answered.

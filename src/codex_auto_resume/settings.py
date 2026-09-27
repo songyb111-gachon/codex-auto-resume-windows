@@ -207,6 +207,10 @@ FIELDS["custom_message"] = (None, _custom_message)
 # so a category added to the classifier cannot end up without a place to put its text.
 for _category in reasons.RECOVERABLE:
     FIELDS["custom_message_" + _category] = (None, _custom_message)
+# v0.6.11: a message for one conversation, at most 50 of them - written from a task's row in the
+# Dashboard (Control.set_conversation_message) and by no settings editor (ROW_ACTION_FIELDS).
+CONVERSATION_MESSAGES, MAX_CONVERSATION_MESSAGES = continuation.BY_THREAD_FIELD, continuation.MAX_CONVERSATIONS
+FIELDS[CONVERSATION_MESSAGES] = (None, continuation.coerce_by_thread)
 
 # ------------------------------------------------------------ quiet hours and tiers (v0.6.11)
 # Each defaults to what v0.6.10 did (tests/test_defaults_golden.py, ADDED): no quiet hours - the
@@ -295,7 +299,7 @@ def is_custom_text(name) -> bool:
 # this version no longer has - v0.6.10's design "still" (FOLDED_DESIGN) - is answered with
 # the designs it has (`_refuse`); every other refusal says what it said in v0.6.10.
 EXPLAIN = {name: lambda value: continuation.validate_custom(value)
-           for name in FIELDS if is_custom_text(name)}
+           for name in FIELDS if is_custom_text(name) and name != continuation.BY_THREAD_FIELD}
 
 DEFAULTS = {name: default for name, (default, _coerce) in FIELDS.items()}
 
@@ -349,7 +353,7 @@ NEEDS_YOU_FIELDS = tuple(needsyou.KIND_FIELDS.values()) + (needsyou.STALL_FIELD,
 # number - and nothing takes a boolean but a boolean, because `bool` is an `int` in
 # Python and is not one in JSON, so a tick box is not a count.
 _ACCEPTED_TYPES = {"boolean": (bool,), "integer": (int,), "number": (int, float),
-                   "string": (str,)}
+                   "string": (str,), "object": (dict,)}
 
 
 def field_type(name: str) -> str:
@@ -360,7 +364,7 @@ def field_type(name: str) -> str:
     validator will not take.
     """
     default = FIELDS[name][0]
-    return ("boolean" if isinstance(default, bool)
+    return ("object" if name == continuation.BY_THREAD_FIELD else "boolean" if isinstance(default, bool)
             else "integer" if isinstance(default, int)
             else "number" if isinstance(default, float)
             else "string")
@@ -603,10 +607,11 @@ def update(path: Path, changes: dict) -> dict:
 NOT_YET_OFFERED = frozenset({"start_with_codex"})
 
 # Fields a task's row writes and no settings editor offers (v0.6.11): the projects set to Always and to
-# Never, each a list of keys a person has no way to read (projects.py). `describe()` leaves them out, so
+# Never, each a list of keys a person has no way to read (projects.py), and the messages for one
+# conversation each, written from that conversation's row in the Dashboard alone. `describe()` leaves them out, so
 # the Dashboard, the panel and the MCP schema draw nothing for them, and update_settings refuses them
 # as it refuses every field its schema does not offer; Restore defaults empties them with the rest.
-ROW_ACTION_FIELDS = frozenset({projects.ALWAYS, projects.NEVER})
+ROW_ACTION_FIELDS = frozenset({projects.ALWAYS, projects.NEVER, continuation.BY_THREAD_FIELD})
 
 
 def describe() -> list:

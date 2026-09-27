@@ -71,6 +71,7 @@ class RecordsMixin:
             "usage_probe_at": None, "gate_eval": None, "gate_eval_at": None,
             "history_hidden_at": None, "not_before": None, "hold": hold,
             "task_print": task_print, "context_tokens": context_tokens, "objection_at": None,
+            "objection_until": None,
         }
         _validated_record(dict(row))
         with self._transaction() as connection:

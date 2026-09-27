@@ -280,7 +280,11 @@ started (`GetTickCount64`). The Dashboard, the panel and `get_status` ask the la
 process, to compare - that is how a watcher that stopped unexpectedly is told from one that ended with
 an earlier sign-in. The Dashboard's Diagnostics also looks, when it opens, at which edition Codex's own
 copy of this plugin is: the names of the folders in Codex's plugin cache under
-`codex-auto-resume-windows`, and whether one folder is in the newest - no file is opened.
+`codex-auto-resume-windows`, and whether one folder is in the newest - no file is opened. From v0.6.11
+it also asks, then, who Windows lets open this product's `config\` folder: the folder's access list
+(`GetNamedSecurityInfoW`, the list alone) and this account's own security identifier from its own
+token (`GetTokenInformation`, `TokenUser`), to compare the two. Only one word is kept of the answer -
+your account only, other accounts too, or not checked - and nothing is written.
 
 From v0.6.5, for the Codex Compatibility Registry, the watcher also reads the shape of Codex's
 databases - which tables they have and which columns those tables have, by name only, through the
@@ -484,7 +488,8 @@ default (or wherever `CODEX_AUTO_RESUME_PLUGIN_HOME`, or failing that
   interruption and any per-kind ones, each at most 2,000 characters, stored exactly as typed. From
   v0.6.11 it may also hold two lists of projects you set, on a task's row, to resume or to wait for
   you: at most 50 each, and each project only as the 64-digit digest described above - never its
-  name or its path;
+  name or its path; and a message you wrote for one conversation, from its task's row in the
+  Dashboard, beside that conversation's id: at most 50 of them, each a Custom message in every way;
 - `config/strings-cache.json` — written by the Dashboard window so it can show its first screen
   without waiting for the Python side: the interface text in the language it resolved, the stored
   Interface language and the language Windows prefers, and the key that says whether the copy is
@@ -534,6 +539,13 @@ codes. Prompt text, assistant output, tool output and Codex's error text are not
 written to any log. When something fails, `errors.log` receives the full Python traceback, and
 `launcher.log` and `errors.log` receive the exception's message; this tool does not control
 what text an exception carries.
+
+From v0.6.11 the Dashboard's Diagnostics can search `auto-resume.log` and its rotated copies:
+the bridge reads them on this PC when you open **Search the log...** and hands the window the lines
+that match, and nothing else reads or sends them. `errors.log` is not read there. **Show me what
+happens**, beside it, plays a recovery with made-up words: nothing about it is read from or written
+to the recovery state, and its one card, drawn by the watcher's icon when a named Windows event of
+its own asks for it, is never a Windows notification, so none of it stays in the notification center.
 
 Beside those it keeps the program itself (`app\` and `runtime\`), the window, the
 icon notifications use, the sign-in launcher, and `runtime.json`, which records where the

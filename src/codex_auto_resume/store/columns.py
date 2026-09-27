@@ -73,6 +73,9 @@ _SCHEMA_4_COLUMNS = (
     # first send: a postponement made before then only holds it back, and the window still opens
     # after it. Empty unless its conversation's tier is the objection window.
     ("interruptions", "objection_at", "REAL"),
+    # And when that window ends, which a person's Don't postpone goes back to and never past
+    # (store/schedule.py, domain/public.py own_postponement). Empty with it.
+    ("interruptions", "objection_until", "REAL"),
     # The last usage reading the watcher made (domain/usage.py): when, and its allowlisted windows as
     # compact JSON - numbers, times and two closed words. Empty until a recovery was due and usage was
     # read for it, which is the only time it ever is (C4, C9).

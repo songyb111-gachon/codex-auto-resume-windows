@@ -14,6 +14,7 @@ import logging
 import os
 from pathlib import Path
 import sys
+import threading
 import time
 import traceback
 import uuid
@@ -340,6 +341,18 @@ class App(WatchLoop):
                                      setting=self.settings.get(notifier.CARD_SETTING, True) is True),
                                  log=self.logger.info)
 
+    def _demo(self):
+        """Show me what happens (v0.6.11), asked from Diagnostics: one made-up card, on a worker thread
+        (the presence checks are not the icon thread's to wait for), and only where a card may be shown
+        now - never a toast (notifier.show_demo). The state, the engine and Codex are not touched."""
+        def show():
+            try:
+                notifier.show_demo(notifier.build_demo(time.time()), inbox=self._inbox,
+                                   setting=self.settings.get(notifier.CARD_SETTING, True) is True)
+            except Exception as exc:
+                self.logger.info("demo card not shown (%s)", type(exc).__name__)
+        threading.Thread(target=show, name="demo", daemon=True).start()
+
     def mutex(self, timeout: float = 0.0) -> Mutex:
         return Mutex(str(self.paths.state_dir), timeout=timeout)
 
@@ -411,7 +424,8 @@ class App(WatchLoop):
                               on_dashboard=lambda: tray.open_dashboard(home, "pending"),
                               log=self.logger.info, inbox=self._inbox,
                               on_notice_action=self._notice_action,
-                              on_notice_complete=notifier.complete)
+                              on_notice_complete=notifier.complete,
+                              demo_name=str(self.paths.state_dir), on_demo=self._demo)
         if not icon_tray.start():
             return None
         self._tray = icon_tray

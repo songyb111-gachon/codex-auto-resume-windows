@@ -55,8 +55,10 @@ class RecordView(TypedDict):
     first_queued_at: float | None
     gates: dict[str, GateVerdict] | None
     gates_at: float | None
-    # v0.6.11 (schema 4): not before this time, and whether it waits for a person.
+    # v0.6.11 (schema 4): not before this time, of that the time a person postponed it to (which
+    # Don't postpone can take away), and whether it waits for a person.
     not_before: float | None
+    postponed_until: float | None
     hold: str | None
     # v0.6.11: observe only - when every check but consent last passed, or None.
     would_send_at: float | None
@@ -75,6 +77,39 @@ class PendingRow(RecordView):
     name: str | None
     project: str | None
     cwd_basename: str | None
+
+
+class DemoRow(PendingRow):
+    """Show me what happens' made-up task (v0.6.11, demo.py): a row in every key a row has, and `demo`."""
+    demo: bool
+
+
+class DemoReply(TypedDict):
+    """`demo`: how long the made-up task counts down, its Pending row and its History entry, and whether
+    the watcher's icon was asked to draw its card."""
+    seconds: int
+    pending: DemoRow
+    history: DemoRow
+    asked: bool
+
+
+class LogLine(TypedDict):
+    """One line of this product's own log (v0.6.11, control/tools.py): its time as written, and the rest."""
+    at: str
+    text: str
+
+
+class LogSearch(TypedDict):
+    """`logs`: the lines that matched, newest last, how many did and how many were read, and the search."""
+    lines: list[LogLine]
+    matched: int
+    total: int
+    query: str
+
+
+class StateAccessReply(TypedDict):
+    """`state-access`: who Windows lets open the state folder, as one StateAccess word (v0.6.11)."""
+    access: str
 
 
 class TimelineEvent(TypedDict):
@@ -274,4 +309,5 @@ class SchemaField(TypedDict):
 # Every contract, by name, for the test that holds each to the goldens.
 CONTRACTS = (RecordView, PendingRow, TimelineEvent, Receipt, UsageWindow, UsageReading, WatcherView,
              StatusSnapshot, Outcomes, Statistics, CompatEngine, CompatData, CompatCapability,
-             CompatReported, CompatView, SchemaField)
+             CompatReported, CompatView, SchemaField, DemoRow, DemoReply, LogLine, LogSearch,
+             StateAccessReply)

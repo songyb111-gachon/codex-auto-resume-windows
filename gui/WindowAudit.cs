@@ -161,6 +161,10 @@ namespace CodexAutoResume
                         }
                         form.ApplySnapshot(snapshot);
                         form.AuditTimeline(snapshot, findings);
+                        // v0.6.11: and the Log dialog's list, built with lines as long as the log writes them, and the
+                        // dialog of a conversation's own message, built for the reply's first waiting recovery.
+                        form.AuditLogs(findings);
+                        form.AuditConversationMessage(snapshot, findings);
                     }
                     // The Start button shows only while the watcher is stopped: shown for this, and hidden again.
                     form.startButton.Visible = true;
@@ -925,6 +929,55 @@ namespace CodexAutoResume
                 Materialise(dialog);
                 dialog.PerformLayout();
                 if (timelineList != null) AuditList("timeline/" + AuditName(timelineList), timelineList, findings);
+            }
+        }
+
+        /// The Log dialog's list (v0.6.11), filled with lines of the lengths the log writes and laid out at the dialog's
+        /// opening size, never shown (AuditList).
+        private void AuditLogs(List<string> findings)
+        {
+            var lines = new List<object>();
+            string[] texts = { "thread 00000000-0000-4000-8000-00000000de30: waiting for reset",
+                               "thread 00000000-0000-4000-8000-00000000de30: observe only: every other check passed; a continuation would have been sent now, and none was",
+                               "auto-resume is enabled" };
+            foreach (string text in texts)
+            {
+                var line = new Dictionary<string, object>();
+                line["at"] = "2026-09-27 14:02:00";
+                line["text"] = text;
+                lines.Add(line);
+            }
+            var result = new Dictionary<string, object>();
+            result["lines"] = lines;
+            result["matched"] = (double)lines.Count;
+            using (Form dialog = BuildLogs())
+            {
+                dialog.TopLevel = false;
+                Materialise(dialog);
+                dialog.PerformLayout();
+                if (logsList != null)
+                {
+                    ShowLogLines(logsList, new Label(), result);
+                    AuditList("logs/" + AuditName(logsList), logsList, findings);
+                }
+            }
+        }
+
+        /// The dialog of a conversation's own message (v0.6.11), built with a message in it at its opening size and
+        /// never shown: its text box, its count and its Preview have to fit the dialog in every language.
+        private void AuditConversationMessage(Dictionary<string, object> snapshot, List<string> findings)
+        {
+            var rows = snapshot == null ? null : snapshot.ContainsKey("pending") ? snapshot["pending"] as List<object> : null;
+            var row = rows != null && rows.Count > 0 ? rows[0] as Dictionary<string, object> : null;
+            if (row == null) return;
+            using (Form dialog = BuildConversationMessage(row, "Carry on with the plan, please. {reason}"))
+            {
+                dialog.TopLevel = false;
+                Materialise(dialog);
+                dialog.PerformLayout();
+                if (conversationArea != null && conversationArea.Right > dialog.ClientSize.Width)
+                    findings.Add("conversation message :: its text box reaches past the dialog, " + conversationArea.Right +
+                                 " in " + dialog.ClientSize.Width);
             }
         }
 

@@ -90,7 +90,9 @@ ITEM = {_q(name): item for item, names in {
                # and what a long sleep holds, how long this PC is kept awake, and waiting for the internet.
                "power",
                # and the watcher's memory guard, and the status file for other tools.
-               "memguard", "statusfile"),
+               "memguard", "statusfile",
+               # and Show me what happens: the made-up task both surfaces take the demo from.
+               "demo"),
     "machine": ("machine", "domain", "domain.errors", "domain.ids", "domain.public",
                 "domain.states", "domain.vocabulary",
                 # v0.6.11: the registry's vocabularies, out of domain/vocabulary.py.
@@ -105,7 +107,9 @@ ITEM = {_q(name): item for item, names in {
               # v0.6.11: the claim ledger's machinery (P11), out of store/claims.py.
               "store.ledger",
               # and a needs-you notice, raised once.
-              "store.notices"),
+              "store.notices",
+              # and a record made later, held and let go, out of store/actions.py.
+              "store.schedule"),
     "codex": ("codex", "codex.appserver", "codex.errors", "codex.history", "codex.labels",
               "codex.pairing", "codex.paths", "codex.payload", "codex.schema", "codex.transport",
               "codex.usage", "codex.values", "compat", "compatio", "windows",
@@ -117,6 +121,8 @@ ITEM = {_q(name): item for item, names in {
     "control": ("control", "control.actions", "control.codexstart", "control.errors",
                 "control.layer", "control.policy", "control.preview", "control.records",
                 "control.seen", "control.state", "control.watcher", "control.wire",
+                # v0.6.11: Diagnostics' own tools.
+                "control.tools",
                 "auto_resume", "cli", "controlcli", "diagnostics",
                 "commands", "commands.base", "commands.install", "commands.records",
                 "commands.status", "commands.watcher",
@@ -140,6 +146,8 @@ ITEM = {_q(name): item for item, names in {
                  "win.power", "win.network",
                  # and what it says of the watcher's own process and of this sign-in.
                  "win.ownprocess",
+                 # and who it lets open the state folder.
+                 "win.acl",
                  "pwsh", "shortcut", "startup"),
     "config": ("", "config", "logbook"),
 }.items() for name in names}

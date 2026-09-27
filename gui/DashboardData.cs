@@ -34,6 +34,8 @@ namespace CodexAutoResume
             {
                 ticks++;
                 UpdateCountdowns();
+                // v0.6.11: Show me what happens moves on, on the same clock its countdown is drawn by.
+                DemoTick(Now());
                 // The taskbar button asks again whether it may move - a Reduce motion saved, Windows' animation
                 // effects, High Contrast or battery saver turned on or off - within a second of it (TaskbarMark.Sync).
                 if (taskbar != null) taskbar.Sync();
@@ -432,7 +434,7 @@ namespace CodexAutoResume
                 if (Unreadable(reply, "pending")) ShowUnreadableList(pendingList, pendingEmpty, unreadable);
                 else
                 {
-                    FillList(pendingList, Items(reply, "pending"), true);
+                    FillList(pendingList, WithDemo(Items(reply, "pending"), demoPending, false), true);
                     pendingEmpty.Text = S("pending.empty", "Nothing is waiting");
                     pendingEmpty.Visible = pendingList.Items.Count == 0;
                 }
@@ -443,7 +445,7 @@ namespace CodexAutoResume
                 if (historyUnreadable) ShowUnreadableList(historyList, historyEmpty, unreadable);
                 else
                 {
-                    FillList(historyList, Items(reply, "history"), false);
+                    FillList(historyList, WithDemo(Items(reply, "history"), demoHistory, true), false);
                     historyEmpty.Text = S("history.empty", "No recoveries yet");
                     historyEmpty.Visible = historyList.Items.Count == 0;
                 }
@@ -879,14 +881,16 @@ namespace CodexAutoResume
             var row = Selected(pendingList);
             bool idle = busy == 0;
             bool cancelled = Equals(Get(row, "cancel_requested"), true);
-            retryButton.Enabled = CanRetryNow(row, idle, Now());
-            cancelButton.Enabled = idle && row != null && !cancelled;
-            timelineButton.Enabled = idle && row != null;
-            threadButton.Enabled = idle && row != null;
+            // v0.6.11: Show me what happens' made-up task is shown, and nothing is offered on it.
+            bool real = row != null && !IsDemo(row);
+            retryButton.Enabled = real && CanRetryNow(row, idle, Now());
+            cancelButton.Enabled = idle && real && !cancelled;
+            timelineButton.Enabled = idle && real;
+            threadButton.Enabled = idle && real;
             string text = ThreadOn(row) ? S("action.thread_off", "Turn off for this conversation")
                                         : S("action.thread_on", "Turn on for this conversation");
             if (threadButton.Text != text) threadButton.Text = text;
-            if (cancelAllButton != null) cancelAllButton.Enabled = idle && pendingList.Items.Count > 0;
+            if (cancelAllButton != null) cancelAllButton.Enabled = idle && pendingList.Items.Count > (demoPending == null ? 0 : 1);
         }
 
         private void UpdateHistoryButtons()
@@ -894,11 +898,14 @@ namespace CodexAutoResume
             if (historyList == null) return;
             var row = Selected(historyList);
             bool idle = busy == 0;
+            bool demo = IsDemo(row);
+            if (demo) row = null;
             historyTimeline.Enabled = idle && row != null;
             bool exhausted = Str(row, "code") == "exhausted" && !Equals(Get(row, "cancel_requested"), true);
             bool resetsLeft = Number(row, "budget_resets_left") > 0;
             historyReset.Enabled = CanGiveAttemptsBack(row, idle);
-            SetNote(historyNote, exhausted && !resetsLeft
+            SetNote(historyNote, demo ? S("demo.finished", "Demo finished; nothing was sent.")
+                : exhausted && !resetsLeft
                 ? S("history.reset_limit", "Its attempts were already given back as many times as allowed; continue this task in Codex yourself.")
                 : "");
             bool off = row != null && !ThreadOn(row);
@@ -907,7 +914,7 @@ namespace CodexAutoResume
             // row whose conversation is on.
             historyThread.Visible = off;
             historyThread.Enabled = idle && off;
-            historyClear.Enabled = idle && historyList.Items.Count > 0;
+            historyClear.Enabled = idle && historyList.Items.Count > (demoHistory == null ? 0 : 1);
         }
 
         private void UpdateToggle()
@@ -933,6 +940,7 @@ namespace CodexAutoResume
             if (repairButton != null) repairButton.Enabled = busy == 0;
             if (updateButton != null) updateButton.Enabled = busy == 0 && !updatesManaged;
             if (stopButton != null) stopButton.Enabled = busy == 0;
+            if (demoButton != null) demoButton.Enabled = busy == 0;
             if (compatButton != null) compatButton.Enabled = busy == 0;
             if (saveButton != null) saveButton.Enabled = busy == 0;
             if (restoreButton != null) restoreButton.Enabled = busy == 0;

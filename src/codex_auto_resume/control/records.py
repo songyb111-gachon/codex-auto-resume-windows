@@ -73,6 +73,9 @@ def describe_record(row, *, enabled=True, thread_enabled=True, watcher=None) -> 
         # v0.6.11: not before this time, a person's postponement or an objection window's - and
         # whether it waits for a person to let it continue. Empty at the defaults.
         "not_before": row.get("not_before"),
+        # And of that, the time a person postponed it to - which Don't postpone can take away - or
+        # None: an objection window's own end is no one's to take away.
+        "postponed_until": machine.own_postponement(row),
         "hold": row.get("hold"),
         # v0.6.11: observe only - when every check but consent last passed, so it would have been
         # sent; None for every record that is not only observed.

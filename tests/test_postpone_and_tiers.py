@@ -654,8 +654,12 @@ class PopupRowMenuTests(unittest.TestCase):
         postpone, release, separator, tiers, *_projects = self.menu(self.row())
         self.assertIsNone(separator)
         self.assertTrue(postpone["enabled"])
-        self.assertEqual([item["action"] for item in postpone["items"]],
+        *presets, line, unpostpone = postpone["items"]
+        self.assertEqual([item["action"] for item in presets],
                          [("postpone", KEY, THREAD, preset) for preset in quiet.PRESETS])
+        self.assertIsNone(line)
+        self.assertEqual(unpostpone["action"], ("unpostpone", KEY, THREAD))
+        self.assertFalse(unpostpone["enabled"], "nobody postponed it: nothing to take away")
         self.assertEqual(release["action"], ("release", KEY, THREAD))
         self.assertFalse(release["enabled"])
         self.assertEqual([item["action"] for item in tiers["items"]],
@@ -763,7 +767,8 @@ class PopupRowMenuTests(unittest.TestCase):
             standing = flags[self.strings["choice.tier_default"].replace("{tier}", self.strings["choice.ask_first"])]
             self.assertTrue(standing & popup_window.MF_CHECKED, "no tier of its own: Settings' is ticked")
             self.assertTrue(flags[self.strings["menu.postpone"]] & popup_window.MF_POPUP)
-            self.assertEqual(sum(1 for _, flag, _, _ in user32.appended if flag & popup_window.MF_SEPARATOR), 1)
+            # One between the row's own actions and its conversation's, and one before Don't postpone.
+            self.assertEqual(sum(1 for _, flag, _, _ in user32.appended if flag & popup_window.MF_SEPARATOR), 2)
             ran.clear()
             user32.chosen = 0                                  # dismissed
             shown.model.busy.clear()

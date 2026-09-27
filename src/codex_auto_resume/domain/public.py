@@ -15,6 +15,9 @@ from .states import CLAIMED, IN_FLIGHT, OBSERVING, TERMINAL, WAITING, waiting_st
 # ---------------------------------------------------------------------------- reasons
 WITHDRAW_REASONS = frozenset(WithdrawReason)
 SUPERSEDE_WITHDRAWALS = frozenset({"superseded", "superseded_by_user", "user_queued_input"})
+# Taken back because nothing may go to Codex for now - a Pause, or (v0.6.11) Observe only - and so
+# handed back to waiting once nothing ran; the same two over an uncertain submission end it final.
+RELEASABLE_WITHDRAWALS = frozenset({"paused", "observe_only"})
 TURN_STATUSES = frozenset(TurnStatus)
 ACTORS = frozenset(Actor)
 # Schema 4 (v0.6.11). Why a record waits for a person (`interruptions.hold`), and how much a
@@ -114,6 +117,16 @@ def eligible_at(record: dict):
         return None
     return max(record.get("next_retry_at") or 0, record.get("reset_at") or 0,
                record.get("not_before") or 0) or None
+
+
+def own_postponement(record: dict, now=None):
+    """The time a person postponed `record` to, or None (v0.6.11): its `not_before` when that is past
+    the end of its objection window (`objection_until`), which the engine writes there as well and no
+    person can take away. With `now`, only a postponement still ahead of it."""
+    until = record.get("not_before")
+    if until is None or until <= (record.get("objection_until") or 0):
+        return None
+    return None if now is not None and until <= now else until
 
 
 def public_reason(record: dict):

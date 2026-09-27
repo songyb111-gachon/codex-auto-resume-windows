@@ -40,11 +40,11 @@ interruption through the control layer, with the actor the toast has always used
 from __future__ import annotations
 
 import collections
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import re
 import threading
 
-from . import l10n, notice_presence, notify, reasons
+from . import demo, l10n, notice_presence, notify, reasons
 
 # The setting that turns the card off (settings.py, the "windows" group, default on).
 CARD_SETTING = "notification_card"
@@ -63,6 +63,7 @@ STATUS = {
     "after_sleep": "paused",        # v0.6.11: what fell due during a long sleep waits for a person
     "memory_warning": "attention",  # v0.6.11: the watcher uses more memory than the guard allows
     "memory_stopped": "attention",  # v0.6.11: and stopped for it
+    "demo": "waiting",              # v0.6.11: Show me what happens - made-up words, inert buttons
 }
 PROBES = ("notification_state", "notification_mode", "app_notifications", "screen_reader",
           "remote_session", "session_locked")
@@ -200,6 +201,32 @@ def build(event, detail, identity=None, *, sound=False):
     return None
 
 
+def build_demo(now) -> Notice:
+    """Show me what happens (v0.6.11): an interruption's card, built by `build` from the made-up task
+    of demo.py, its title saying Demo and every button's URI empty - drawn as a button, doing nothing
+    (`activate` ignores it). Its content is none: a demo is never a toast (`complete`, `show_demo`)."""
+    notice = build("interruption", demo.detail(now),
+                   {"name": l10n.text("demo.conversation", l10n.current())})
+    return replace(notice, kind="demo", status=STATUS["demo"], key=None, content=(),
+                   title=l10n.text("demo.card_title", l10n.current(), title=notice.title),
+                   actions=tuple((label, "") for label, _uri in notice.actions))
+
+
+def show_demo(notice, *, inbox=None, setting=True, probe=None) -> bool:
+    """Hand a demo card to the card host when a card may be shown now, as `deliver` decides it - and
+    otherwise nothing: never a toast, so nothing made up reaches Windows' notification center."""
+    if setting is not True or inbox is None or not inbox.attached:
+        return False
+    try:
+        answers = dict((probe or _presence)() or {})
+    except Exception:
+        answers = {}
+    if not notice_presence.card_allowed(setting=True, tray_present=True,
+                                        **{name: answers.get(name) for name in PROBES}):
+        return False
+    return inbox.post(notice)
+
+
 def build_cancelled(thread_id) -> Notice:
     """What a cancel from a notification button says afterwards, as `notify.cancelled` does."""
     return _notice("cancelled", notify.cancelled_content(thread_id), key=thread_id)
@@ -314,6 +341,8 @@ def complete(notice, card_shown, *, show=notify.show_content) -> bool:
     route raises it. Either way the notification center ends up with the notice once. Runs
     PowerShell: a worker thread's job.
     """
+    if notice.kind == "demo":
+        return False                       # made up: no history copy, and no toast in its place
     content = notice.toast_content()
     if card_shown is True:
         return bool(show(content, silent=True))

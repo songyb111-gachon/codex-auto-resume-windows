@@ -35,7 +35,7 @@ for entry in (str(Path(_HERE).parent / "src"), _HERE):
 import srcscan  # noqa: E402
 from codex_auto_resume import control  # noqa: E402
 from codex_auto_resume.control import (actions, codexstart, layer, policy,  # noqa: E402
-                                       preview, records, seen, state, watcher)
+                                       preview, records, seen, state, tools, watcher)
 
 PACKAGE = "codex_auto_resume.control"
 
@@ -44,11 +44,11 @@ PACKAGE = "codex_auto_resume.control"
 # surface, written down as types, imported by the tests that hold them to the goldens and by
 # nothing that runs.
 MODULES = ("errors", "state", "seen", "policy", "records", "preview", "actions",
-           "codexstart", "watcher", "layer", "wire")
+           "codexstart", "watcher", "tools", "layer", "wire")
 
 MIXINS = (state.StateMixin, seen.SeenMixin, policy.SettingsMixin, records.RecordsMixin,
           preview.PreviewMixin, actions.ActionsMixin, codexstart.CodexStartMixin,
-          watcher.WatcherMixin)
+          watcher.WatcherMixin, tools.ToolsMixin)
 
 # What `Control` has, as the one class had it. Thirty-eight methods, counted the day the file
 # was split; one added or taken away is a decision, and this is where it is made. v0.6.10 adds
@@ -65,6 +65,12 @@ METHODS = {
     "set_project_rule", "_bound_record", "_project_of", "_observe_only",
     # and what an administrator's policy keys hold, which every setting is read through.
     "managed",
+    # v0.6.11: Don't postpone, and one conversation's own message - and Diagnostics' own tools, each
+    # asked on request: the log searched, who may open the state folder, and a demo (control/tools.py).
+    "unpostpone", "set_conversation_message", "validated_text", "_log_files", "search_logs",
+    "state_access", "show_demo",
+    # and which edition Codex's copy of this plugin is, asked from Diagnostics (control/watcher.py).
+    "plugin_copy",
     "list_pending", "preview_continuation", "request_retry_now", "reset_recovery_budget",
     "restore_defaults", "set_enabled", "set_interruption_recovery", "set_startup_enabled",
     "set_thread_enabled", "settings_path", "start_for_codex", "start_watcher",

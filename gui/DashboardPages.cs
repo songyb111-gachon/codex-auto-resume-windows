@@ -627,6 +627,10 @@ namespace CodexAutoResume
             diagUpdate.Text = S("diag.update_unasked", "not checked");
             // v0.6.11: the most memory the watcher has used - always, whatever the memory guard is set to.
             diagMemory = Fact(facts, S("diag.memory_peak", "Peak memory"));
+            // v0.6.11: who Windows lets open the state folder (LoadStateAccess), and - only while other accounts can -
+            // what that means, under the facts.
+            diagStateAccess = Fact(facts, S("diag.state_access", "State folder"));
+            diagStateAccess.Text = S("diag.state_access.unknown", "not checked");
             diagUpgrade = Value("");
             diagUpgrade.ForeColor = Accent;
             diagUpgrade.MaximumSize = new Size(Px(360), 0);
@@ -636,6 +640,10 @@ namespace CodexAutoResume
             diagPlugin.ForeColor = Accent;
             diagPlugin.MaximumSize = new Size(Px(360), 0);
             health.Controls.Add(diagPlugin);
+            diagStateNote = Value("");
+            diagStateNote.ForeColor = Accent;
+            diagStateNote.MaximumSize = new Size(Px(360), 0);
+            health.Controls.Add(diagStateNote);
 
             TableLayoutPanel tools = MakeCard(S("diag.tools", "Tools"));
             tools.Margin = GridGap(1, false);
@@ -649,12 +657,16 @@ namespace CodexAutoResume
             // the watcher has always been in the header; stopping it lived only in the command
             // line, which is the one place a person who uses this window never goes.
             stopButton = MakeButton(S("action.stop_watcher", "Stop watcher"), false, delegate { StopWatcher(); });
+            // v0.6.11, after the five there were: the log searched, and a recovery played out with made-up words.
+            demoButton = MakeButton(S("action.demo", "Show me what happens"), false, delegate { StartDemo(); });
             foreach (Button button in new[] {
                 exportButton,
                 MakeButton(S("action.open_logs", "Open logs folder"), false, delegate { OpenLogs(); }),
                 updateButton,
                 repairButton,
-                stopButton })
+                stopButton,
+                MakeButton(S("action.search_logs", "Search the log..."), false, delegate { OpenLogSearch(); }),
+                demoButton })
             {
                 button.Margin = Pad(0, 0, 0, 9);
                 tools.Controls.Add(button);

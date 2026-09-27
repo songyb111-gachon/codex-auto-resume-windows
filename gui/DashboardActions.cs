@@ -205,6 +205,8 @@ namespace CodexAutoResume
         {
             pendingMenu.Items.Clear();
             if (row == null || Str(row, "interruption_id") == null || Str(row, "thread_id") == null) return false;
+            // Show me what happens' made-up task: nothing is offered on it (v0.6.11).
+            if (IsDemo(row)) return false;
             bool idle = busy == 0;
             ToolStripMenuItem postpone = pendingMenu.Branch(S("menu.postpone", "Postpone"));
             for (int i = 0; i < PostponePresets.Length; i++)
@@ -213,6 +215,12 @@ namespace CodexAutoResume
                 postpone.DropDownItems.Add(new ToolStripMenuItem(S("postpone." + preset, PostponeEnglish[i]), null,
                                                                  delegate { Postpone(row, preset); }));
             }
+            // v0.6.11: last in the same menu, after a line - the person's own postponement taken away, back to
+            // what the schedule says (Retry now never shortens one).
+            postpone.DropDownItems.Add(new ToolStripSeparator());
+            var unpostpone = new ToolStripMenuItem(S("menu.unpostpone", "Don't postpone"), null, delegate { Unpostpone(row); });
+            unpostpone.Enabled = CanUnpostpone(row, idle, Now());
+            postpone.DropDownItems.Add(unpostpone);
             postpone.Enabled = CanPostpone(row, idle);
             pendingMenu.Items.Add(postpone);
             var release = new ToolStripMenuItem(S("action.continue", "Let it continue"), null, delegate { ReleaseHold(row); });
@@ -243,6 +251,12 @@ namespace CodexAutoResume
                                               delegate { ProjectRule(row, false); });
             never.Enabled = tiers.Enabled;
             pendingMenu.Items.Add(never);
+            // v0.6.11: a message for this conversation alone, written here and nowhere else - last, after a line.
+            pendingMenu.Items.Add(new ToolStripSeparator());
+            var message = new ToolStripMenuItem(S("menu.conversation_message", "Message for this conversation..."), null,
+                                                delegate { EditConversationMessage(row); });
+            message.Enabled = idle;
+            pendingMenu.Items.Add(message);
             return true;
         }
 
@@ -431,7 +445,7 @@ namespace CodexAutoResume
         /// The Auto-resume box on one row: automatic recovery on or off for that exact task.
         private void ToggleAutoResume(Dictionary<string, object> row)
         {
-            if (row == null || busy > 0) return;
+            if (row == null || busy > 0 || IsDemo(row)) return;
             string id = Str(row, "interruption_id"), thread = Str(row, "thread_id");
             if (id == null || thread == null) return;
             bool enable = !ThreadOn(row);
@@ -1022,7 +1036,7 @@ namespace CodexAutoResume
         private void ShowTimeline(ListView list)
         {
             var row = Selected(list);
-            if (row == null) return;
+            if (row == null || IsDemo(row)) return;
             CallAsync("timeline", IdArgument(row), delegate(Dictionary<string, object> reply)
             {
                 if (!Ok(reply)) { Report(reply); return; }

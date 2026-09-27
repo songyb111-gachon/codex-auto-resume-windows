@@ -269,7 +269,7 @@ class ClaimsMixin:
     def release_withdrawn(self, interruption_id: str, now: float, *, window: float,
                           later_turn: bool, marker_rows: int, row_present: bool, fresh: bool,
                           target: str, next_retry_at: float | None = None) -> bool:
-        """Return a continuation withdrawn because of a Pause to its waiting state.
+        """Return a continuation withdrawn because of a Pause - or of Observe only - to its waiting state.
 
         The one way back from "sent" to "waiting", so every condition is re-checked here
         rather than trusted: our own delete succeeded, the settle window has passed, no
@@ -283,7 +283,7 @@ class ClaimsMixin:
         with self._transaction() as connection:
             row = self._row(connection, interruption_id)
             if (row is None or row["state"] != "withdrawn_unconfirmed"
-                    or row["withdraw_reason"] != "paused" or not row["withdraw_deleted"]
+                    or row["withdraw_reason"] not in machine.RELEASABLE_WITHDRAWALS or not row["withdraw_deleted"]
                     or now - row["withdrawn_at"] < window or later_turn or marker_rows
                     or row_present or not fresh or row["cancel_requested"]):
                 return False
@@ -294,6 +294,6 @@ class ClaimsMixin:
                 % _claim_cost(row, refund=True), (target, now if next_retry_at is None else next_retry_at,
                                                   interruption_id))
             self._event(connection, now, "release_withdrawn", record=row,
-                        from_state="withdrawn_unconfirmed", to_state=target, reason="paused",
+                        from_state="withdrawn_unconfirmed", to_state=target, reason=row["withdraw_reason"],
                         flags=machine.FLAG_WITHDRAW_DELETED)
             return True

@@ -1458,6 +1458,19 @@ function renderAppearance(byName) {
   return node;
 }
 
+// v0.6.11: what to ask Codex for this product, in the panel's own language - folded, after what the
+// continuation will say and before Appearance, which stays last before the save card, where the Windows
+// Dashboard puts it. The English ones are the prompts .codex-plugin/plugin.json offers in Codex itself
+// (tests/test_diagnostics_tools.py holds the two to each other); Codex's own list has no other language.
+function renderStarters() {
+  var fold = folding('starters', t('starter.title', 'Ask Codex'), false);
+  fold.body.appendChild(element('p', 'note', t('starter.note', 'Type one of these to Codex, in this language or any other.')));
+  [t('starter.status', 'Show auto resume status'), t('starter.pending', 'What is auto resume waiting for?'),
+   t('starter.pause', 'Pause auto resume'), t('starter.settings', 'Open auto resume settings')
+  ].forEach(function (prompt) { fold.body.appendChild(element('p', null, prompt)); });
+  return fold.node;
+}
+
 function renderRecovery(status, schema, now) {
   var node = card(t('group.recovery', 'Automatic recovery'));
   // The control every check box on this card depends on, first. It acts at once -
@@ -1961,7 +1974,7 @@ function render() {
   HERO = hero;
   page.appendChild(hero.node);
   [renderPending(DATA.pending), renderCompatibility(status), renderGeneral(byName), renderRecovery(status, schema, now),
-   renderNotifications(schema), renderContinuation(byName), renderPreviewCard(),
+   renderNotifications(schema), renderContinuation(byName), renderPreviewCard(), renderStarters(),
    renderAppearance(byName)
   ].forEach(function (section) { if (section) page.appendChild(section); });
   var footer = renderFooter(schema);

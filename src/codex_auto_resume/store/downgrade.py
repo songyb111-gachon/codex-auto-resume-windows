@@ -31,6 +31,9 @@ _DOWNGRADE_STATES = {
 
 TARGETS = (2, 3)
 
+# A withdrawal for Observe only (v0.6.11), as the Pause's v0.6.10 knows: the same promise, its words.
+_OBSERVE_WITHDRAWALS = {"observe_only": "paused", "observe_only_unknown": "paused_unknown"}
+
 
 def downgrade_state(state_dir: Path, target: int) -> dict:
     """Rewrite a newer state as schema `target`, for going back to an older release.
@@ -111,7 +114,9 @@ def _to_v3(connection, now: float) -> dict:
       would be a new task: a cancel before the downgrade forgotten, the budgets started again (A23),
       and nothing left to take the queued message back. With the conversation off v0.6.10 detects
       nothing there and sends nothing until a person switches it back on.
-    * Observe-only becomes a Pause: v0.6.10 has no way to watch without sending but that one.
+    * Observe-only becomes a Pause: v0.6.10 has no way to watch without sending but that one. So
+      does a continuation taken back for it: its withdrawal reads as a Pause's, which v0.6.10
+      settles the same way - back to waiting once nothing ran, final over an uncertain submission.
     * A hold on a waiting record, and a conversation's tier other than automatic, switch that
       conversation off: v0.6.10 asks nobody first, and turning it back on is a person's act,
       as releasing a hold is. Its waiting records stay as they are, never cancelled.
@@ -145,6 +150,11 @@ def _to_v3(connection, now: float) -> dict:
                 changes["queue_id"] = None
             if "state" in changes:
                 report["made_final"] += 1
+        observed = _OBSERVE_WITHDRAWALS.get(row["withdraw_reason"])
+        if observed is not None:
+            changes["withdraw_reason"] = observed
+            if row["last_error"] in _OBSERVE_WITHDRAWALS and "last_error" not in changes:
+                changes["last_error"] = _OBSERVE_WITHDRAWALS[row["last_error"]]
         if state in machine.WAITING:
             if row["not_before"] is not None and row["not_before"] > row["next_retry_at"]:
                 changes["next_retry_at"] = row["not_before"]

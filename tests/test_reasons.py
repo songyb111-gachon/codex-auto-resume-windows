@@ -70,8 +70,10 @@ class RegistryAgreementTests(unittest.TestCase):
                 self.assertFalse(switched_off.recovers(category))
 
     def test_a_custom_message_field_exists_for_exactly_the_recoverable_categories(self):
+        # v0.6.11: custom_message_by_thread holds one message per conversation, not per kind.
         per_reason = {name[len("custom_message_"):] for name in settings.FIELDS
-                      if name.startswith("custom_message_") and name != "custom_message_mode"}
+                      if name.startswith("custom_message_")
+                      and name not in ("custom_message_mode", "custom_message_by_thread")}
         self.assertEqual(per_reason, set(reasons.RECOVERABLE))
 
 

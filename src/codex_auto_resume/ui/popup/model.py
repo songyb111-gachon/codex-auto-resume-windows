@@ -28,10 +28,10 @@ KEY_REPEAT_SECONDS = 0.3     # Enter on the icon arrives twice
 
 
 # The whole of what this window may ask of the control layer. v0.6.11 adds a task row's own menu:
-# postpone it, let a held one continue, how its conversation resumes, and Always or Never for its
-# project.
+# postpone it - or take a postponement of the person's away - let a held one continue, how its
+# conversation resumes, and Always or Never for its project.
 CONTROL_CALLS = ("list_pending", "get_status", "set_enabled", "set_interruption_recovery",
-                 "postpone", "release_hold", "set_thread_tier", "set_project_rule")
+                 "postpone", "unpostpone", "release_hold", "set_thread_tier", "set_project_rule")
 
 # The row menu's choices (v0.6.11), in the order it offers them: the times a task can be postponed
 # by (quiet.PRESETS), and how much a conversation asks before it resumes, least first
@@ -192,6 +192,8 @@ def task_item(row, strings, now) -> dict:
         "waiting": is_waiting(row) and not row.get("cancel_requested"),
         "held": row.get("hold") is not None and not row.get("terminal"),
         "tier": row.get("tier"),
+        # And whether a person postponed it to a time still ahead, which Don't postpone takes away.
+        "postponed": (row.get("postponed_until") or 0) > now,
     }
 
 
@@ -206,6 +208,10 @@ def row_menu(task, strings, default_tier) -> list:
     waiting = bool(task.get("waiting"))
     postpone = [{"text": say(strings, "postpone." + preset), "action": ("postpone", key, thread, preset),
                  "enabled": waiting, "checked": False, "items": None} for preset in POSTPONE_PRESETS]
+    # Last in the same menu, after a line: a person's own postponement taken away, back to what the
+    # schedule says - never an objection window's (v0.6.11).
+    postpone += [None, {"text": say(strings, "menu.unpostpone"), "action": ("unpostpone", key, thread),
+                        "enabled": waiting and bool(task.get("postponed")), "checked": False, "items": None}]
     default = default_tier if default_tier in TIERS else TIERS[0]
     own = task.get("tier")
     tiers = [{"text": say(strings, "choice.tier_default", tier=say(strings, "choice." + default)),
@@ -284,7 +290,7 @@ def busy_key(action):
 
 
 # What a row menu's items ask for (v0.6.11): each is one control call, bound to its row.
-ROW_ACTIONS = ("postpone", "release", "tier", "project")
+ROW_ACTIONS = ("postpone", "unpostpone", "release", "tier", "project")
 
 
 def perform(action, control, *, source=None, dashboard=None):
@@ -305,6 +311,9 @@ def perform(action, control, *, source=None, dashboard=None):
         if kind == "postpone":
             _, interruption_id, thread_id, preset = action
             return ("ok", dict(control.postpone(interruption_id, thread_id, preset=preset)))
+        if kind == "unpostpone":
+            _, interruption_id, thread_id = action
+            return ("ok", dict(control.unpostpone(interruption_id, thread_id)))
         if kind == "release":
             _, interruption_id, thread_id = action
             return ("ok", dict(control.release_hold(interruption_id, thread_id)))

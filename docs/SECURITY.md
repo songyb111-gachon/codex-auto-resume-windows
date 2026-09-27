@@ -243,7 +243,10 @@ this product's plugin and marketplace).
   it is not refused, and status reports a running watcher when none is, as in v0.5.7. In v0.5.7 a
   planted mutex makes status report a watcher running when none is, and a planted, signalled stop
   event makes a real watcher quit on start, logging only an ordinary stop request - nothing that
-  points to the planted event.
+  points to the planted event. From v0.6.11 the watcher's icon makes one more, the demo event that
+  Diagnostics' **Show me what happens** signals, and refuses a planted one the same way; a signal on it
+  can do nothing but draw one card of made-up words whose buttons do nothing, which is never a
+  Windows notification and reaches neither the recovery state nor the engine.
 - **Tools that turn recovery back up request approval through MCP annotations.** This is new in v0.6.0. The plugin's MCP tools that can turn recovery back on or
   up, or change its settings - `resume_auto_recovery`, `enable_conversation_recovery`,
   `reset_recovery_budget`, `start_watcher`, `update_settings`, `restore_default_settings` and,
@@ -254,7 +257,10 @@ this product's plugin and marketplace).
   `disable_conversation_recovery`, `retry_now` and `postpone_recovery` are not: pausing and
   switching one conversation off never add automation, `retry_now` only moves an already-registered
   attempt earlier, with every check still applied, and a postponement only ever makes one record
-  later. The two switches do not cost the same, though. Pausing withdraws a
+  later. Taking a person's own postponement away again (**Don't postpone**, v0.6.11) brings a send
+  nearer, so it is no MCP tool at all: only the Dashboard and the notification-area popup offer it,
+  bound to the exact record and conversation, and it goes back no further than what the schedule says
+  without that postponement - never past an objection window, a retry's wait or a usage reset. The two switches do not cost the same, though. Pausing withdraws a
   continuation already waiting in Codex's queue, and a withdrawal the watcher can confirm puts that
   recovery back in its waiting state with its attempt returned, so resuming picks it up again; only
   a withdrawal that cannot be confirmed becomes `submission_unknown`, and only a pause over a
@@ -274,7 +280,10 @@ this product's plugin and marketplace).
   person's conversations, at every interruption it covers, while nobody is watching. So it is
   written only through the local control layer the Dashboard uses, and never through
   the plugin's MCP tools: `update_settings` leaves the text fields out of its schema and
-  refuses them by name when a client sends them anyway. A prompt-injected model that could
+  refuses them by name when a client sends them anyway. From v0.6.11 the same holds for a message
+  for one conversation (`custom_message_by_thread`), written from its task's row in the Dashboard:
+  checked by the same validator, at most 50 conversations, no MCP tool writes it and
+  `update_settings` refuses it. A prompt-injected model that could
   write it would turn one injected instruction into a standing one, delivered at every future
   interruption. What Codex may still set - the continuation language, the style and the
   Custom mode - only chooses among texts this product ships or the person wrote. The new

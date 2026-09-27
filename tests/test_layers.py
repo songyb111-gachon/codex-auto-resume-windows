@@ -75,7 +75,9 @@ LAYER = {_q(name): layer for layer, names in {
                # and sleep, keeping this PC awake and the network, as a waiting recovery meets them.
                "power",
                # and the watcher's memory guard, and the status file for other tools.
-               "memguard", "statusfile"),
+               "memguard", "statusfile",
+               # and Show me what happens: made-up rows and a made-up task, reading no state.
+               "demo"),
     "adapters": ("store", "openstate", "codex", "windows", "compat", "compatio", "startup", "shortcut",
                  # v0.6.10-alpha: compat.py and compatio.py became compat/.
                  "compat.model", "compat.standing", "compat.report", "compat.permits", "compat.files", "compat.cache", "compat.probes", "compat.views", "compat.evaluator",
@@ -92,6 +94,8 @@ LAYER = {_q(name): layer for layer, names in {
                  "store.ledger",
                  # and a needs-you notice, raised once.
                  "store.notices",
+                 # and a record made later, held and let go, out of store/actions.py.
+                 "store.schedule",
                  # v0.6.10-alpha: the Win32 the product calls, which windows.py was half of.
                  "win", "win.dll", "win.homelock", "win.inventory", "win.kernel", "win.sync",
                  # v0.6.11: the administrator's policy keys, read and never written.
@@ -100,6 +104,8 @@ LAYER = {_q(name): layer for layer, names in {
                  "win.power", "win.network",
                  # and what it says of the watcher's own process and of this sign-in.
                  "win.ownprocess",
+                 # and who it lets open the state folder, asked from Diagnostics.
+                 "win.acl",
                  # v0.6.10-alpha: source.py became source/, and every part of it reads Codex;
                  # windows.py's other half - the CLI, the App Server, the pairing - joined it.
                  "codex.appserver", "codex.errors", "codex.history", "codex.labels",
@@ -117,7 +123,9 @@ LAYER = {_q(name): layer for layer, names in {
     # mixins. `layer` is where the composition lives, so that the front holds no code.
     "control": ("control", "control.actions", "control.codexstart", "control.errors",
                 "control.layer", "control.policy", "control.preview", "control.records",
-                "control.seen", "control.state", "control.watcher", "control.wire", "diagnostics"),
+                "control.seen", "control.state", "control.watcher", "control.wire", "diagnostics",
+                # v0.6.11: Diagnostics' own tools - the log searched, the state folder's access, a demo.
+                "control.tools"),
     "front": ("auto_resume", "cli", "controlcli", "mcpserver", "mcp.panel", "app", "ui.tray",
               # v0.6.10-alpha: app.py became runtime/ - the wiring, the loop and the toasts.
               "runtime", "runtime.app", "runtime.loop", "runtime.toasts",

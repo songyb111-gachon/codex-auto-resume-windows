@@ -554,7 +554,12 @@ class BridgeTests(ControlTestCase):
         # and Always or Never for the project of a row's conversation, bound to that row.
         "project-rule",
             # v0.6.11: Diagnostics reads which edition Codex's copy of the plugin is; it changes nothing.
-            "plugin-copy"]))
+            "plugin-copy",
+            # v0.6.11: Diagnostics' reads - who may open the state folder, the log searched - and Show me
+            # what happens, whose rows are made up and whose card only draws; Don't postpone, which
+            # takes a person's own postponement away and skips no gate; and one conversation's own
+            # message, which is text the watcher sends later, under every check, as a Custom message.
+            "state-access", "logs", "demo", "unpostpone", "conversation-message"]))
 
     def test_serve_answers_every_line_with_exactly_one_line(self):
         requests = "\n".join([

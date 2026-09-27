@@ -99,6 +99,14 @@ _REFUSALS_RELEASE = {**_BOUND, **{
     "not_held": ("that recovery is not waiting for you", "not_held"),
     None: ("that recovery cannot be continued", "cannot_continue"),
 }}
+# v0.6.11: Don't postpone - a person's own postponement taken away, and nothing else.
+_REFUSALS_UNPOSTPONE = {**_BOUND, **{
+    "claimed": ("that recovery is being sent now", "being_sent"),
+    "in_flight": ("that recovery is already in Codex", "in_flight"),
+    "observing": ("that recovery is already running in Codex", "observing"),
+    "not_postponed": ("that recovery has no postponement of yours to take away", "not_postponed"),
+    None: ("the request could not be completed", "request_failed"),
+}}
 
 
 def _refusal(table: dict, detail) -> tuple:

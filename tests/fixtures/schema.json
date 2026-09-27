@@ -471,6 +471,13 @@
             "notnull": false,
             "default": null,
             "primary_key": 0
+          },
+          {
+            "name": "objection_until",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
           }
         ],
         "indexes": {
@@ -1201,6 +1208,13 @@
           },
           {
             "name": "objection_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "objection_until",
             "type": "REAL",
             "notnull": false,
             "default": null,
@@ -1939,6 +1953,13 @@
             "notnull": false,
             "default": null,
             "primary_key": 0
+          },
+          {
+            "name": "objection_until",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
           }
         ],
         "indexes": {
@@ -2669,6 +2690,13 @@
           },
           {
             "name": "objection_at",
+            "type": "REAL",
+            "notnull": false,
+            "default": null,
+            "primary_key": 0
+          },
+          {
+            "name": "objection_until",
             "type": "REAL",
             "notnull": false,
             "default": null,

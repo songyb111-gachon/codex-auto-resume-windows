@@ -233,7 +233,30 @@ class DowngradeToV3Tests(unittest.TestCase):
         # Every column schema 4 added is gone, the guards' two with the rest, and the file is schema 3's.
         with closing(sqlite3.connect(self.state / "state.sqlite")) as db:
             columns = {row[1] for row in db.execute("PRAGMA table_info(interruptions)")}
-        self.assertFalse(columns & {"not_before", "hold", "task_print", "context_tokens", "objection_at"})
+        self.assertFalse(columns & {"not_before", "hold", "task_print", "context_tokens", "objection_at",
+                                    "objection_until"})
+
+    def test_a_withdrawal_for_observe_only_reads_as_a_pause_does_in_v0_6_10(self):
+        """v0.6.11 takes a queued continuation back for Observe only under words of its own, which
+        v0.6.10's store would refuse to open: they go back to the Pause's, whose promise they make."""
+        keys = self.v4_state()
+        withdrawn = next(key for key, state in keys.items() if state == "withdrawn_unconfirmed")
+        final = next(key for key, state in keys.items() if state == "failed")
+        with closing(sqlite3.connect(self.state / "state.sqlite")) as db:
+            db.execute("UPDATE interruptions SET withdraw_reason='observe_only', last_error='observe_only', "
+                       "marker=? WHERE interruption_id=?", (ids.marker(withdrawn), withdrawn))
+            db.execute("UPDATE interruptions SET withdraw_reason='observe_only_unknown', "
+                       "last_error='observe_only_unknown' WHERE interruption_id=?", (final,))
+            db.commit()
+        downgrade_to_v3(self.state)
+        rows = table(self.state / "state.sqlite", "interruptions")
+        self.assertEqual((rows[withdrawn]["state"], rows[withdrawn]["withdraw_reason"], rows[withdrawn]["last_error"]),
+                         ("withdrawn_unconfirmed", "paused", "paused"))
+        self.assertEqual((rows[final]["withdraw_reason"], rows[final]["last_error"]),
+                         ("paused_unknown", "paused_unknown"))
+        read = released.read_state(self.state)
+        self.assertNotIn("refused", read)
+        self.assertIn(withdrawn, read["records"])
 
     def test_observe_only_becomes_a_pause(self):
         self.v4_state(observe_only=True)

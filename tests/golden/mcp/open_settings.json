@@ -187,6 +187,7 @@
                 "custom_message_timeout": null,
                 "custom_message_server_5xx": null,
                 "custom_message_stream_interrupted": null,
+                "custom_message_by_thread": null,
                 "quiet_hours_start": "off",
                 "quiet_hours_end": "07:00",
                 "quiet_hours_days": "every_day",
@@ -522,7 +523,8 @@
                   "minimal",
                   "standard",
                   "detailed",
-                  "custom"
+                  "custom",
+                  "careful"
                 ],
                 "group": "continuation"
               },
@@ -1055,6 +1057,7 @@
               "custom_message_timeout": null,
               "custom_message_server_5xx": null,
               "custom_message_stream_interrupted": null,
+              "custom_message_by_thread": null,
               "quiet_hours_start": "off",
               "quiet_hours_end": "07:00",
               "quiet_hours_days": "every_day",
@@ -1165,6 +1168,7 @@
                 },
                 "gates_at": 1799999960.0,
                 "not_before": null,
+                "postponed_until": null,
                 "hold": null,
                 "would_send_at": null,
                 "context_tokens": null,
@@ -1257,6 +1261,7 @@
                 },
                 "gates_at": 1799999960.0,
                 "not_before": null,
+                "postponed_until": null,
                 "hold": null,
                 "would_send_at": null,
                 "context_tokens": null,

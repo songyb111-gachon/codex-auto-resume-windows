@@ -105,6 +105,14 @@ _RECEIVERS = {
         "week": [("bridge:dashboard", "week")],
         "stats": [("bridge:statistics", "result"), ("bridge:dashboard", "week")],
         "outcomes": [("bridge:statistics", "result.outcomes"), ("bridge:dashboard", "week.outcomes")],
+        # v0.6.11: Show me what happens' made-up rows, whichever row is asked whether it is one; a line of
+        # the log searched; and the conversations' own messages the stored settings hold, by conversation.
+        "made": ROW + [("bridge:demo", "result.pending"), ("bridge:demo", "result.history")],
+        "pending": [("bridge:demo", "result.pending")],
+        "demoHistory": [("bridge:demo", "result.history")],
+        "line": [("bridge:logs", "result.lines[]")],
+        "held": [("bridge:status", "status.settings.custom_message_by_thread"),
+                 ("bridge:dashboard", "status.settings.custom_message_by_thread")],
     },
     "gui/SettingsApp.cs": {
         "reply": [("@", ""), REFUSAL],
@@ -187,6 +195,8 @@ UNCHECKED = {
     ("gui/DashboardActions.cs", "gates", "name"): "each gate, in GateOrder, which "
                                             "tests/test_gui_decisions.py holds to machine.GATES",
     ("gui/SettingsPage.cs", "current", "name"): "each field the schema names, read back by that name",
+    ("gui/DashboardTools.cs", "held", "thread"): "one conversation's own message, by that conversation's id "
+                                                 "(v0.6.11); the map is empty in every golden",
 }
 
 # Dictionaries the window writes a request into, by setting name: a name written there is one the
@@ -224,6 +234,7 @@ _TYPED = {
         "engine": wire.CompatEngine, "data": wire.CompatData, "entry": wire.CompatCapability,
         "reported": wire.CompatReported,
         "week": wire.Statistics, "stats": wire.Statistics, "outcomes": wire.Outcomes,
+        "made": wire.DemoRow, "pending": wire.DemoRow, "demoHistory": wire.DemoRow, "line": wire.LogLine,
     },
     "gui/SettingsApp.cs": {
         "status": wire.StatusSnapshot,

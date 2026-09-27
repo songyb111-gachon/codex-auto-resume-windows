@@ -313,7 +313,8 @@
               "minimal",
               "standard",
               "detailed",
-              "custom"
+              "custom",
+              "careful"
             ],
             "group": "continuation"
           },
@@ -1118,7 +1119,8 @@
               "minimal",
               "standard",
               "detailed",
-              "custom"
+              "custom",
+              "careful"
             ],
             "group": "continuation"
           },

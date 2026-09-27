@@ -266,14 +266,19 @@ all at once. **Turn off for this conversation** cancels its waiting recoveries a
 automatic recovery off for that conversation until you turn it back on — the Pending and History
 pages then offer **Turn on for this conversation**. From v0.6.11 each row also has a menu of its own,
 on a right click, Shift+F10 or the menu key: **Postpone** holds that task back 30 minutes, an hour,
-three hours or until 09:00 tomorrow, and only ever later; **Let it continue** lets a task that waits
+three hours or until 09:00 tomorrow, and only ever later - and, last under it, **Don't postpone** takes
+a postponement you made away again, back to what the schedule says without it: an objection window's
+time, a retry's wait and a usage reset all stay, and Retry now never shortens a postponement;
+**Let it continue** lets a task that waits
 for you go on, after asking; and **How this conversation resumes** chooses one of the four ways
 described under [Quiet hours and how a conversation resumes](#quiet-hours-and-how-a-conversation-resumes)
 for that conversation alone. **Let this project resume** and **Hold this project for me** decide for
 the project that task's conversation is filed under, as described under
 [Observe only, and which conversations and projects resume](#observe-only-and-which-conversations-and-projects-resume).
+Last, in the Dashboard's menu only, **Message for this conversation...** gives that conversation a
+continuation message of its own, as described under [The continuation message](#the-continuation-message).
 None of them sends anything, each is refused if its row has since become another task, and the
-notification-area popup offers the same menu on a right click on a task:
+notification-area popup offers the same menu on a right click on a task, but for the message:
 
 <img src="images/dashboard-pending.png" alt="The Pending page of the Dashboard: two conversations waiting, one for the usage reset and one with a retry scheduled, each with a state chip and an Auto-resume switch, the Why it is waiting checklist for the selected task, and Retry now, Cancel, Timeline, Turn off for this conversation and Cancel all buttons" width="680">
 
@@ -811,7 +816,7 @@ first, for interruptions detected from then on; a task's row menu chooses for it
 | Choice | What happens |
 | --- | --- |
 | Resume automatically | As always: every check, then the continuation. The default. |
-| After a chance to object | When everything else would let the continuation go, a notification says when it will, and it goes only once **Time to object** - 1 to 60 minutes, 5 by default - has passed. Don't resume stops it. Postponing a task before its window opens only holds it back - the window still opens after - and one postponed while its window is open goes at the time you chose. |
+| After a chance to object | When everything else would let the continuation go, a notification says when it will, and it goes only once **Time to object** - 1 to 60 minutes, 5 by default - has passed. Don't resume stops it. Postponing a task before its window opens only holds it back - the window still opens after - and one postponed while its window is open goes at the time you chose; **Don't postpone** brings it back to the window's time, never sooner. |
 | Ask me first | Nothing is sent until you choose **Let it continue** on its row, in the Dashboard or the popup. |
 | Only notify me | The same, and the notification says nothing is resumed automatically. |
 
@@ -831,7 +836,8 @@ timeline records it once each time it comes to that. The Overview says observe o
 recovery is on, and so does the popup. Nothing is claimed and nothing is sent: the watcher refuses on
 the setting, and the recovery state it keeps has a switch of its own, written from the setting, that
 refuses every send by itself. A continuation already in Codex's queue when it is turned on is taken
-back, as a Pause takes it. Turn it off to let recovery send again.
+back, as a Pause takes it; should Codex have started it all the same, its timeline says it ran
+although Observe only was on - never that recovery was paused. Turn it off to let recovery send again.
 
 **A conversation seen for the first time**, under Advanced, is resumed like the others by default.
 **Only notify me** gives a conversation this product has never seen that choice as its own when its
@@ -959,6 +965,32 @@ is there for a status bar or a script of your own, which can read it without a p
 question to this product. A file that says `running` and has not changed for minutes belongs to a
 watcher that is gone. Turned off, the file is removed.
 
+### Diagnostics: the log, the state folder, and Show me what happens
+
+From v0.6.11 the Diagnostics page has three more things, each asked only when you look, and none of
+which changes anything.
+
+**Search the log...** opens this product's own log - the one Open logs folder shows - with a search box:
+the lines that hold what you type, or every line, newest last, looked at again every five seconds while
+it is open. The log is written from a fixed table of messages, so it holds reason codes, conversation
+ids and times and never a prompt, a reply or an error's text; `errors.log`, which keeps exception
+messages as they were raised, is not read here.
+
+**State folder**, under Health, says who Windows lets open the folder that holds the settings, the
+pending tasks and the logs: **only your account can open it** - with Windows itself and the
+computer's administrators, as every user folder has - or **other accounts on this PC can open it**,
+with a sentence saying what that means, or **not checked** when Windows could not be asked. It reads
+the folder's access list and changes nothing; installed under your user folder, as the installer does,
+it is your account's alone.
+
+**Show me what happens** plays a recovery with made-up words, and sends nothing. A made-up task - an
+example conversation whose ids are all zeros - waits on Pending for a minute, counting down, then shows
+in History as recovered and goes a minute later; while the watcher runs, its icon also shows the card
+an interruption gets, titled Demo, whose buttons do nothing. None of it is read from or written to the
+recovery state, no action is offered on the made-up rows, and the card is never a Windows notification,
+so nothing of it is left in Windows' notification center. The watcher's icon hears the request through
+a Windows event of its own, which can ask for that card and nothing else.
+
 ### Settings an administrator manages
 
 From v0.6.11 an administrator can set six values under `Software\Policies\CodexAutoResume` - in
@@ -1019,6 +1051,7 @@ recognise the exact turn it started. **Continuation language** decides the langu
 | Standard (default) | Says why the task stopped, then asks Codex to retry |
 | Detailed | Also asks Codex to check the work so far and not to repeat what is already done |
 | Custom | Your own words |
+| Careful (from v0.6.11) | The Standard message, and a request to check what already happened and not to repeat any step that already changed files, pushed, sent or published something |
 
 A **Custom** message is sent exactly as you typed it and is never translated or reworded. You can
 write one message for every interruption, or one for each kind; an empty one falls back to the
@@ -1028,9 +1061,19 @@ your prompt, the reply, a title, a path, your account or a token into the messag
 name — and it is at most 2000 characters. **Preview** shows the exact text that would be sent for
 each kind of interruption, built by the same code the watcher sends with.
 
+From v0.6.11 one conversation can have a message of its own: **Message for this conversation...** on
+its task's row in the Dashboard's Pending page. It is sent instead of the continuation message every
+time that conversation is continued, whatever the style - for that conversation alone, and only for
+an interruption that is recovered. It is a Custom message in every other way: the same placeholders,
+the same 2000 characters, sent exactly as typed, and the dialog's own Preview shows what it will say.
+One that fills in to nothing is not used, and that conversation gets its style's message. At most 50
+conversations can have one; **Remove message**, or Restore defaults, takes it away. The settings file
+keeps it beside the conversation's id, and the diagnostics bundle records only that one is set.
+
 Custom message text can only be written in the Dashboard. Codex can preview the message and change
-its language or style, but it cannot set the text: words sent automatically into your conversations
-must not be something a model can be talked into changing.
+its language or style, but it cannot set the text - neither the Custom messages nor a conversation's
+own: words sent automatically into your conversations must not be something a model can be talked
+into changing.
 
 Nothing about the message changes what is recovered. The style and the text choose words for a
 recovery the watcher has already decided to make.

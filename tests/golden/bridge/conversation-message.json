@@ -1,0 +1,70 @@
+{
+  "command": "conversation-message",
+  "cases": [
+    {
+      "case": "a message for one conversation",
+      "argument": {
+        "thread_id": "11111111-1111-7111-8111-111111111111",
+        "text": "Carry on with the plan, please."
+      },
+      "reply": {
+        "ok": true,
+        "result": {
+          "thread_id": "11111111-1111-7111-8111-111111111111",
+          "set": true,
+          "count": 1
+        }
+      }
+    },
+    {
+      "case": "a placeholder that would leak the conversation is refused",
+      "argument": {
+        "thread_id": "11111111-1111-7111-8111-111111111111",
+        "text": "{prompt}"
+      },
+      "reply": {
+        "ok": false,
+        "error": "{prompt} is not available: it would put the text you sent into the message.",
+        "error_code": "request_failed"
+      }
+    },
+    {
+      "case": "the text must be named, even to take it away",
+      "argument": {
+        "thread_id": "11111111-1111-7111-8111-111111111111"
+      },
+      "reply": {
+        "ok": false,
+        "error": "a custom message has to be text",
+        "error_code": "request_failed"
+      }
+    },
+    {
+      "case": "taken away",
+      "argument": {
+        "thread_id": "11111111-1111-7111-8111-111111111111",
+        "text": null
+      },
+      "reply": {
+        "ok": true,
+        "result": {
+          "thread_id": "11111111-1111-7111-8111-111111111111",
+          "set": false,
+          "count": 0
+        }
+      }
+    },
+    {
+      "case": "not a conversation id",
+      "argument": {
+        "thread_id": "latest",
+        "text": "go"
+      },
+      "reply": {
+        "ok": false,
+        "error": "thread id must be a canonical UUID",
+        "error_code": "invalid_thread_id"
+      }
+    }
+  ]
+}

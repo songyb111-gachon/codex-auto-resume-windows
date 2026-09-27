@@ -146,9 +146,10 @@ class SliceTests(unittest.TestCase):
         # the same release: Design, beside Theme, which says which one the window is drawn in. 58 since v0.6.11:
         # SoftMenu and its renderer, a Pending row's own menu in the window's colours.
         self.assertEqual(len(set(declared)), 58, "the window's types")
-        self.assertEqual(len(declared) - len(set(declared)), 9,
+        # v0.6.11: DashboardTools.cs, the Dashboard's own tools, an eleventh part in a twelfth source.
+        self.assertEqual(len(declared) - len(set(declared)), 10,
                          "`partial class SettingsForm` written once per file that holds part "
-                         "of it, which is ten of the window's eleven sources")
+                         "of it, which is eleven of the window's twelve sources")
         for source, count in counts.items():
             with self.subTest(source):
                 self.assertGreater(count, 0)

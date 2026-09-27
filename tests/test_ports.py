@@ -140,6 +140,8 @@ CONTROL_TO_STORE = {
     "postpone", "release_hold", "set_thread_tier", "thread_tiers",
     # and observe only written as the settings say it, and a project's waiting records held.
     "set_observe_only", "hold_waiting",
+    # and a person's own postponement taken away (Don't postpone).
+    "unpostpone",
 }
 
 

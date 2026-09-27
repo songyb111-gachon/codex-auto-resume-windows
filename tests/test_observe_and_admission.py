@@ -187,7 +187,8 @@ class ObserveOnlyEngineTests(EngineCase):
     def test_a_continuation_already_queued_is_taken_back_as_a_pause_takes_it(self):
         """Observe only promises nothing goes to Codex; one left in its queue would be delivered. The
         switch, the setting and an administrator's ForceObserveOnly each take it back, and it goes
-        back to waiting with its attempt, as after a Pause (H4)."""
+        back to waiting with its attempt, as after a Pause (H4) - under words of its own, so nothing
+        says recovery was paused when it was not."""
         for how in ("switch", "setting", "key"):
             with self.subTest(how=how):
                 h = self.fresh()
@@ -199,19 +200,44 @@ class ObserveOnlyEngineTests(EngineCase):
                 h.tick(advance=1)
                 withdrawn = h.record()
                 self.assertEqual((withdrawn["state"], withdrawn["withdraw_reason"]),
-                                 ("withdrawn_unconfirmed", "paused"))
+                                 ("withdrawn_unconfirmed", "observe_only"))
                 self.assertEqual(h.home.queued(T1), [], "nothing of ours is left in Codex's queue")
                 h.tick(advance=181)
                 row = h.record()
                 self.assertIn(row["state"], machine.WAITING)
                 self.assertIsNone(row["submitted_at"])
                 self.assertEqual(len(h.backend.send_calls), 1)
+                self.assertIn("release_withdrawn", h.events(row["interruption_id"]))
+
+    def test_one_taken_back_for_it_that_ran_anyway_says_observe_only_not_pause(self):
+        """The timeline's words for a continuation Codex started as it was taken back: Observe only
+        was on, and recovery was never paused (event.dispatched_while_observing)."""
+        h = self.fresh()
+        self.send_and_hold(h)
+        key = h.record()["interruption_id"]
+        self.dispatch_then_report_deleted(h)
+        self.observe(h)
+        h.tick(advance=1)
+        h.tick(advance=1)
+        self.assertIn(h.record()["state"], machine.OBSERVING)
+        events = h.events(key)
+        self.assertIn("dispatched_while_observing", events)
+        self.assertNotIn("dispatched_while_paused", events)
+
+    def test_a_pause_as_well_takes_it_back_as_a_pause(self):
+        """Paused and only observed at once: the Pause's words, which say the stronger thing."""
+        h = self.fresh()
+        self.send_and_hold(h)
+        self.observe(h)
+        h.store.set_enabled(False, h.now)
+        h.tick(advance=1)
+        self.assertEqual(h.record()["withdraw_reason"], "paused")
 
     def test_an_uncertain_submission_still_queued_is_taken_back_and_ends_final(self):
         self.unknown_but_queued()
         self.observe()
         self.h.watch(advance=1)
-        self.assertEqual(self.h.record()["withdraw_reason"], "paused_unknown")
+        self.assertEqual(self.h.record()["withdraw_reason"], "observe_only_unknown")
         self.assertEqual(self.h.home.queued(T1), [])
 
     def test_the_setting_alone_is_enough_for_the_engine(self):

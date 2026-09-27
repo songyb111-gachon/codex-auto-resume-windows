@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import time
 
-from .. import projects, quiet, settings
+from .. import machine, projects, quiet, settings
 from ..machine import WAITING
 from ..store import TERMINAL, StoreError
 from ..windows import WakeEvent
@@ -16,6 +16,7 @@ from .errors import (ControlError,
                      _REFUSALS_RELEASE,
                      _REFUSALS_RESTORE,
                      _REFUSALS_RETRY,
+                     _REFUSALS_UNPOSTPONE,
                      _identifier,
                      _refusal,
                      _thread_id)
@@ -234,6 +235,31 @@ class ActionsMixin:
             raise ControlError(message, code=code)
         return {"interruption_id": key, "thread_id": thread, "state": state, "not_before": detail,
                 "note": "not sent before then; every safety check still applies"}
+
+    def unpostpone(self, interruption_id, thread_id, *, actor: str = "gui") -> dict:
+        """Don't postpone: take away one exact record's postponement, a person's own (v0.6.11).
+
+        Retry now never shortens a postponement, so this is how a person undoes their own. Bound to
+        both identities, as postponing is, and only ever back to what the schedule says without it:
+        an objection window still ahead stays, and so do the retry's wait, a usage reset and quiet
+        hours. It sends nothing and skips no gate. Offered in the Dashboard and the popup, never to
+        a model (it brings a send nearer, and MCP has no tool for it)."""
+        key = _identifier(interruption_id)
+        thread = _thread_id(thread_id)
+        with self._open() as store:
+            accepted, detail = store.unpostpone(key, thread, time.time(), actor=actor)
+            record = store.get(key) if accepted else None
+        if not accepted:
+            message, code = _refusal(_REFUSALS_UNPOSTPONE, detail)
+            raise ControlError(message, code=code)
+        try:
+            woke = bool(WakeEvent(str(self.paths.state_dir)).signal())
+        except Exception:
+            woke = False
+        eligible = machine.eligible_at(record) if record else None
+        return {"interruption_id": key, "thread_id": thread, "state": record["state"] if record else None,
+                "not_before": detail, "eligible_at": eligible, "woke": woke,
+                "note": "no longer postponed; every safety check still applies"}
 
     def release_hold(self, interruption_id, thread_id, *, actor: str = "gui") -> dict:
         """Let one exact held recovery continue: the one thing that takes a hold away.
