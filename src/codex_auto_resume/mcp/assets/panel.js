@@ -556,7 +556,9 @@ function settingRow(title, help, control, className) {
 // and Tab away all close it, since each takes focus from the combobox; only Tab picks on the way. A
 // press inside the list keeps focus where it is. The wheel scrolls a long list, a row at a time, and
 // stops at its ends rather than carrying on into the page.
-var COMBO_ROWS = 12;
+// How many rows a list shows before it scrolls, the window's MaxDropDownItems: about ten, the owner's
+// number for the language pickers (v0.6.11), whose seventeen choices scroll.
+var COMBO_ROWS = 10;
 var COMBO_TYPING_MS = 1000;
 
 function combo(select) {

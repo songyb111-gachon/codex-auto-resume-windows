@@ -11,7 +11,7 @@ edition's does.
     plug         the hooks core calls, each handed to the runtime
     runtime      the registry's capabilities, asked in the state each one is in
     registry     what a capability is: its points, statement revision, departures, ceilings
-    statement    the five fields a person reads, in nine languages (locales/)
+    statement    the five fields a person reads, in every language (locales/)
     standards    the ids a capability may depart from
     arming       who turns a capability on and off, and the tripwires
     policy       what an administrator's policy keys allow, read only

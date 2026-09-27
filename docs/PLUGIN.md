@@ -486,9 +486,12 @@ uninstalled. It reports and keeps anything else.
 ## Language
 
 The product's own interface - the Dashboard, the notification-area popup and its menu, Windows
-notifications, the settings panel in Codex and the plugin layer's messages - ships in nine
-languages: English, 한국어, 日本語, 简体中文, 繁體中文, Español, Deutsch, Français and Português
-(Brasil). Until v0.6.3 it was English or Korean.
+notifications, the settings panel in Codex and the plugin layer's messages - ships in sixteen
+languages: English, 한국어, 日本語, 简体中文, 繁體中文, Español, Deutsch, Français, Português
+(Brasil), Русский, Italiano, Türkçe, Polski, Українська, Tiếng Việt and Bahasa Indonesia. Until
+v0.6.3 it was English or Korean, and until v0.6.11 the first nine. Arabic and Hebrew are translated
+as well but not offered: they are written right to left and wait until every surface mirrors, so
+no picker lists them, and a Windows set to either is answered in English.
 
 **Which one.** The **Interface language** setting decides (General, in the Dashboard's Settings
 and in the panel). Its default, *System*, follows Windows, read from the same source the ChatGPT
@@ -499,8 +502,9 @@ language counts: if this product does not ship it, the answer is English, never 
 further down the list and never a guess. An explicit choice in the setting wins over Windows
 and over `CODEX_AUTO_RESUME_LANG` alike, which only decides while the setting is *System*, and it
 survives restarts, repairs and updates. One function, `l10n.normalize`, maps a tag to a
-catalog: Chinese by script or region (`Hant`, `TW`, `HK` and `MO` are traditional, anything
-else simplified), and `pt` and `pt-PT` to Brazilian Portuguese. No language is inferred from an
+catalog: a language to its own catalog in any region (`es-419`, `de-AT`, `fr-CA`, `ru-KZ`),
+Chinese by script or region (`Hant`, `TW`, `HK` and `MO` are traditional, anything else
+simplified), and `pt` and `pt-PT` to Brazilian Portuguese. No language is inferred from an
 IP address, a time zone, a user name, a country or a keyboard layout.
 
 **The continuation message is localized too**, in its own setting, **Continuation language**,

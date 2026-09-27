@@ -215,7 +215,14 @@
                   "es",
                   "de",
                   "fr",
-                  "pt-BR"
+                  "pt-BR",
+                  "ru",
+                  "it",
+                  "tr",
+                  "pl",
+                  "uk",
+                  "vi",
+                  "id"
                 ],
                 "description": "See the settings documentation."
               },
@@ -231,7 +238,14 @@
                   "es",
                   "de",
                   "fr",
-                  "pt-BR"
+                  "pt-BR",
+                  "ru",
+                  "it",
+                  "tr",
+                  "pl",
+                  "uk",
+                  "vi",
+                  "id"
                 ],
                 "description": "See the settings documentation."
               },

@@ -1,0 +1,15 @@
+{
+  "_edition": "ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.",
+  "edition.badge": "متقدم",
+  "edition.not_loaded": "متقدم - لم يُحمَّل",
+  "edition.summary": "متقدم · {n} مفعّلة",
+  "all_off": "كل الميزات المتقدمة متوقفة",
+  "field.departs": "المعايير التي تخرج عنها",
+  "field.does": "ما الذي تفعله",
+  "field.instead": "ما الذي يفعله الإصدار القياسي بدلًا من ذلك",
+  "field.risks": "ما الذي قد يسوء",
+  "field.stop": "كيفية إيقافها",
+  "state.armed": "مفعّلة",
+  "state.off": "متوقفة",
+  "state.shadow": "قيد المراقبة"
+}

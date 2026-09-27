@@ -155,9 +155,10 @@ class ManifestTests(unittest.TestCase):
 class LocaleTests(unittest.TestCase):
     def test_english_is_the_default_for_unknown_locales(self):
         """A language this build does not ship, and no preference at all."""
+        # Arabic has a catalog, but this release holds it (l10n.HELD): English too.
         for environ in ({}, {"LANG": "C"}, {"LANG": "POSIX"},
-                        {"LANG": "ru_RU.UTF-8"}, {"LC_ALL": "sv-SE"},
-                        {"LC_MESSAGES": "it_IT.UTF-8"}):
+                        {"LANG": "nl_NL.UTF-8"}, {"LC_ALL": "sv-SE"},
+                        {"LC_MESSAGES": "fi_FI.UTF-8"}, {"LANG": "ar_SA.UTF-8"}):
             with self.subTest(environ=environ), patch.object(l10n, "_windows_preferred", return_value=[]):
                 self.assertEqual(l10n.current(environ), "en")
 

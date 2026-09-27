@@ -92,8 +92,9 @@ LANGS = choices("interface_language")
 # concatenated in compile order, whichever files `gui/window.sources` names them in.
 CONTROLS = guiscan.controls()
 # How many rows a list shows before it scrolls (SoftCombo's MaxDropDownItems), and how long letters typed
-# one after another make one search (SoftCombo.TypeAhead).
-ROWS = 12
+# one after another make one search (SoftCombo.TypeAhead). About ten since v0.6.11, the owner's number
+# for the language pickers, whose seventeen choices scroll.
+ROWS = 10
 TYPING_MS = 1000
 # Page Up and Page Down move what shows less one, as the window's list does - a list that shows all its
 # rows, when nothing is measured.
@@ -553,7 +554,7 @@ class ComboPlacementTests(unittest.TestCase):
         p.box.getBoundingClientRect = function () { return {top: top, bottom: top + 35, left: 40, right: 320}; };
         p.box.offsetHeight = 35;
         p.list.offsetTop = 39;
-        lay(p.options.length);
+        lay(Math.min(p.options.length, COMBO_ROWS));
         send(p.box, 'click');
         var seen = {up: p.list.classList.contains('up'), max: p.scroll.style.maxHeight || ''};
         send(p.box, 'blur');
@@ -562,7 +563,8 @@ class ComboPlacementTests(unittest.TestCase):
     """
 
     def test_below_with_room_above_near_the_bottom_and_cut_to_whole_rows_with_room_on_neither_side(self):
-        self.assertEqual(len(LANGS), 10)
+        # The Interface language's list, as the stylesheet shows it: its first ten rows (COMBO_ROWS).
+        self.assertGreater(len(LANGS), ROWS)
         observed = page(self.PLACE + say("[at(1000, 500), at(600, 500), at(300, 130), at(300, 170), at(120, 40),"
                                          " at(0, 500)]"))
         self.assertEqual(observed, [
@@ -807,12 +809,18 @@ class OneListTests(unittest.TestCase):
         # The field gives its own ring up while its list is open.
         self.assertEqual(declared('.combo-box[aria-expanded="true"]', "outline"), "none")
 
-    def test_it_shows_twelve_whole_rows_and_scrolls_by_whole_rows(self):
+    def test_it_shows_ten_whole_rows_and_scrolls_by_whole_rows(self):
         self.assertIn("var COMBO_ROWS = %d;" % ROWS, mcpui._SCRIPT)
         self.assertEqual(declared(".combo-scroll", "max-height"),
                          "calc(2 * var(--space-xs) + %d * var(--combo-pill) + %d * var(--space-xs))" % (ROWS, ROWS - 1))
-        # Every list the panel has shows whole: the longest, the Interface language, has ten choices.
-        self.assertLessEqual(len(LANGS), ROWS)
+        # The language pickers - System first, then every offered language named in itself - are longer
+        # than that, and scroll (the owner, v0.6.11); so is the Continuation language, Same as the
+        # interface first.
+        self.assertEqual(len(LANGS), 1 + len(l10n.OFFERED))
+        self.assertEqual(LANGS[0], "system")
+        self.assertGreater(len(LANGS), ROWS)
+        self.assertEqual(choices("continuation_language")[0], "follow")
+        self.assertGreater(len(choices("continuation_language")), ROWS)
         # What scrolls stops inside the card's padding, never at its edge, and settles on whole rows.
         self.assertEqual(declared(".combo-scroll", "overflow-y"), "auto")
         self.assertIsNone(declared(".combo-list", "overflow-y"))

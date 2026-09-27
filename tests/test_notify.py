@@ -124,7 +124,7 @@ class ToastPayloadTests(unittest.TestCase):
     def test_the_toast_speaks_whatever_language_is_in_force(self):
         from xml.etree import ElementTree
 
-        for language in l10n.LOCALES:
+        for language in l10n.OFFERED:          # a held language is never in force (l10n.HELD)
             with self.subTest(language=language):
                 with patch.object(l10n, "preferred_languages", return_value=[language]),                      patch.object(pwsh, "executable", return_value="powershell.exe"),                      patch.object(subprocess, "run", return_value=MagicMock(returncode=0)) as run:
                     notify.scheduled(THREAD, INTERRUPTION, None, "usage_limit", {"name": "A task"})

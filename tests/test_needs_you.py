@@ -21,6 +21,7 @@ import sqlite3
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 _HERE = str(Path(__file__).resolve().parent)
 if _HERE not in sys.path:
@@ -326,13 +327,18 @@ class NoticeTests(unittest.TestCase):
         stay whole: it ends in the exact conversation id (D6). The kind and the next step keep to about
         what the detection toast says in German, the longest of its lines."""
         from codex_auto_resume import l10n
-        for locale in l10n.LOCALES:
-            l10n.set_preference(locale)
-            for kind in needsyou.NOTICE_KINDS:
-                with self.subTest(locale=locale, kind=kind):
-                    line = self.build(kind, minutes=120).toast_content()["extra"][0]
-                    self.assertLessEqual(len(line), 90)
-                    self.assertNotIn(chr(10), line)
+        # Every catalog, the held ones (l10n.HELD) as if offered: offering one later must not bring a
+        # line that breaks the toast.
+        with patch.object(l10n, "OFFERED", l10n.LOCALES), \
+                patch.object(l10n, "CHOICES", (l10n.SYSTEM,) + l10n.LOCALES):
+            for locale in l10n.LOCALES:
+                l10n.set_preference(locale)
+                self.assertEqual(l10n.current(), locale)
+                for kind in needsyou.NOTICE_KINDS:
+                    with self.subTest(locale=locale, kind=kind):
+                        line = self.build(kind, minutes=120).toast_content()["extra"][0]
+                        self.assertLessEqual(len(line), 90)
+                        self.assertNotIn(chr(10), line)
 
     def test_the_sound_is_the_toasts_own_and_only_when_chosen(self):
         quiet, loud = self.build().toast_content(), self.build(sound=True).toast_content()

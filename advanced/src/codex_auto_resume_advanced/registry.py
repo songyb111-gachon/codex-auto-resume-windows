@@ -7,7 +7,7 @@ asked to agree to and everything the plug holds it to:
 * `id` - its closed name, the one every table, surface and journal line uses;
 * `points` - the plug points its code answers at (domain/plug.py), and no others;
 * `revision` - the revision of its statement: the five fields in `statement.py`'s catalogs, in
-  all nine languages. Arming names the revision the person read, and a new revision turns the
+  every language the product has a catalog for. Arming names the revision the person read, and a new revision turns the
   capability off until they have read that one (a tripwire, arming.py);
 * `departs_from` - the standards it breaks (standards.py). Never empty: a capability that keeps
   every standard belongs in the standard edition, so the rule for which edition a capability is

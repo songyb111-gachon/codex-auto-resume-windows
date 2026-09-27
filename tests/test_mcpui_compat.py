@@ -367,7 +367,7 @@ class StyleTests(unittest.TestCase):
         catalogs = mcpui.panel_catalogs()
         for key in wanted:
             self.assertTrue(key in names or key.startswith(prefixes), key)
-            for locale in l10n.LOCALES:
+            for locale in l10n.OFFERED:
                 with self.subTest(key=key, locale=locale):
                     self.assertTrue(catalogs[locale].get(key), key)
                     # Sentences are translated, never copied. (A state word may be the same word in another

@@ -1518,9 +1518,11 @@ class LayoutAuditTests(unittest.TestCase):
         (locales / "en.json").write_text('{"a": "b"}', encoding="utf-8")
         probe = work / "probe.ps1"
         probe.write_text(PROBE, encoding="utf-8")
+        # The audit's time grows with the languages it lays out: 1500 s held nine; v0.6.11 has eighteen
+        # catalogs, and every one is audited, the held ones too.
         cls.result = subprocess.run(
             [str(POWERSHELL), "-STA", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(probe)],
-            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=1500,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=200 * len(l10n.LOCALES),
             env=dict(os.environ, CAR_EXE=str(exe), CAR_WORK=str(work),
                      CAR_LOCALES=json.dumps(list(l10n.LOCALES)), CAR_SCALES=json.dumps(SCALES)))
         answer = work / "result.json"

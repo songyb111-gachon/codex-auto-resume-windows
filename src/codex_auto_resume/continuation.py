@@ -333,7 +333,7 @@ def resolve_locale(values, environ=None) -> str:
     """
     values = values or {}
     chosen = values.get("continuation_language")
-    if isinstance(chosen, str) and chosen in l10n.LOCALES:
+    if isinstance(chosen, str) and chosen in l10n.OFFERED:
         return chosen
     return l10n.resolve(values.get("interface_language"), environ)
 

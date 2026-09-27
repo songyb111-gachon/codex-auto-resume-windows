@@ -118,7 +118,8 @@ LISTS = {
     "settings.DEFAULT_TIMING": "normal",
     "settings.THEME_SYSTEM": "system",
     "settings.DEFAULT_THEME": "system",
-    "settings.CONTINUATION_LANGUAGES": ("tuple", 10, "9207f7f2b9ec65dc"),
+    # v0.6.11: the nine new languages, less the two held until they mirror (l10n.HELD).
+    "settings.CONTINUATION_LANGUAGES": ("tuple", 17, "f644e75d1d333a60"),
     # v0.6.11: the days quiet hours start on, and the tiers a conversation may have by default.
     "settings.QUIET_DAYS": ("tuple", 3, "b7883f3f9fa3397d"),
     "settings.TIERS": ("tuple", 4, "1020c428556c4555"),
@@ -126,8 +127,12 @@ LISTS = {
     "settings.NEW_CONVERSATION_POLICIES": ("tuple", 2, "472d79c55b2067ec"),
     "settings.PROJECT_POLICIES": ("tuple", 3, "db754fee43e7f8d8"),
     "projects.POLICIES": ("tuple", 3, "db754fee43e7f8d8"),
-    "l10n.LOCALES": ("tuple", 9, "0d5c5b962a6ec666"),
-    "l10n.CHOICES": ("tuple", 10, "8a44c689a27e4025"),
+    # v0.6.11: nine more catalogs after pt-BR - ru, it, tr, pl, uk, vi, id, ar, he - of which ar and he
+    # are held: registered and complete, never offered or reached, until every surface mirrors.
+    "l10n.LOCALES": ("tuple", 18, "edc6caaef8734aff"),
+    "l10n.OFFERED": ("tuple", 16, "42b9ab738414dc8b"),
+    "l10n.HELD": ("set", 2, "2332329b5394bfec"),
+    "l10n.CHOICES": ("tuple", 17, "f4e304d71a4b6670"),
     "l10n.SYSTEM": "system",
     "l10n.DEFAULT": "en",
     "compat.STATES": ("tuple", 6, "17f36047142c2622"),
@@ -454,8 +459,12 @@ class HomeTests(unittest.TestCase):
         self.assertEqual(set(mcpserver.Server.START_WORDING), set(v.WatcherStartState))
         self.assertLessEqual(tray_popup.ATTENTION_OVERLAYS, set(v.Overlay))
         self.assertEqual(codex.KNOWN_STATUSES, set(v.TurnStatus) - {v.TurnStatus.OTHER})
-        self.assertEqual(l10n.CHOICES, (l10n.SYSTEM,) + tuple(v.Locale))
-        self.assertEqual(settings.CONTINUATION_LANGUAGES, (settings.FOLLOW_INTERFACE,) + tuple(v.Locale))
+        # A picker offers every language but the held ones, in the vocabulary's order.
+        self.assertLessEqual(l10n.HELD, set(v.Locale))
+        offered = tuple(locale for locale in v.Locale if locale not in l10n.HELD)
+        self.assertEqual(l10n.OFFERED, offered)
+        self.assertEqual(l10n.CHOICES, (l10n.SYSTEM,) + offered)
+        self.assertEqual(settings.CONTINUATION_LANGUAGES, (settings.FOLLOW_INTERFACE,) + offered)
         for word, cls in ((machine.PASS, v.GateResult), (machine.WAIT, v.GateResult), (machine.BLOCK, v.GateResult),
                           (machine.UNKNOWN, v.GateResult), (failures.USAGE_LIMIT, v.FailureCategory),
                           (failures.UNKNOWN, v.FailureCategory), (control.FALLBACK_CODE, v.ErrorCode),

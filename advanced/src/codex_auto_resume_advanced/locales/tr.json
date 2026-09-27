@@ -1,0 +1,15 @@
+{
+  "_edition": "ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.",
+  "edition.badge": "Gelişmiş",
+  "edition.not_loaded": "Gelişmiş - yüklenmedi",
+  "edition.summary": "Gelişmiş · {n} açık",
+  "all_off": "Tüm gelişmiş özellikler kapalı",
+  "field.departs": "Saptığı standartlar",
+  "field.does": "Ne yapar",
+  "field.instead": "Standart sürüm bunun yerine ne yapar",
+  "field.risks": "Neler ters gidebilir",
+  "field.stop": "Nasıl durdurulur",
+  "state.armed": "Açık",
+  "state.off": "Kapalı",
+  "state.shadow": "İzleniyor"
+}

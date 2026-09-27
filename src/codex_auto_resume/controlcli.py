@@ -237,7 +237,7 @@ def _flag(payload):
     The wire is JSON and JSON has `true` and `false`, which is exactly what both windows
     send. Nothing here has to guess what a string meant, so anything that is not a boolean
     is refused by name, with the code the front ends already have words for
-    (`error.invalid_enabled`, in all nine catalogs) - the same sentence and the same code
+    (`error.invalid_enabled`, in every catalog) - the same sentence and the same code
     the control layer raises when it is called directly.
     """
     enabled = payload.get("enabled")
@@ -346,7 +346,7 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
             l10n.set_preference(control.get_settings().get("interface_language"))
             return {"ok": True, "language": interface.language(), "strings": interface.catalog(),
                     "preference": l10n.preference(), "system_language": l10n.from_system(),
-                    "endonyms": dict(l10n.ENDONYMS)}
+                    "endonyms": l10n.offered_endonyms()}
         if command == "describe":
             return {"ok": True, "schema": control.describe_settings()}
         if command == "defaults":

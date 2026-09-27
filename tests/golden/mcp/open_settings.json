@@ -493,7 +493,14 @@
                   "es",
                   "de",
                   "fr",
-                  "pt-BR"
+                  "pt-BR",
+                  "ru",
+                  "it",
+                  "tr",
+                  "pl",
+                  "uk",
+                  "vi",
+                  "id"
                 ],
                 "group": "general"
               },
@@ -511,7 +518,14 @@
                   "es",
                   "de",
                   "fr",
-                  "pt-BR"
+                  "pt-BR",
+                  "ru",
+                  "it",
+                  "tr",
+                  "pl",
+                  "uk",
+                  "vi",
+                  "id"
                 ],
                 "group": "continuation"
               },
@@ -1290,7 +1304,14 @@
               "es": "Español",
               "de": "Deutsch",
               "fr": "Français",
-              "pt-BR": "Português (Brasil)"
+              "pt-BR": "Português (Brasil)",
+              "ru": "Русский",
+              "it": "Italiano",
+              "tr": "Türkçe",
+              "pl": "Polski",
+              "uk": "Українська",
+              "vi": "Tiếng Việt",
+              "id": "Bahasa Indonesia"
             },
             "system_language": "en"
           },

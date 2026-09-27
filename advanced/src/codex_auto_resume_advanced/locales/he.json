@@ -1,0 +1,15 @@
+{
+  "_edition": "ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.",
+  "edition.badge": "מתקדמת",
+  "edition.not_loaded": "מתקדמת - לא נטענה",
+  "edition.summary": "מתקדמת · {n} פועלות",
+  "all_off": "כל התכונות המתקדמות כבויות",
+  "field.departs": "תקנים שהיא חורגת מהם",
+  "field.does": "מה היא עושה",
+  "field.instead": "מה המהדורה הרגילה עושה במקום זאת",
+  "field.risks": "מה עלול להשתבש",
+  "field.stop": "איך לעצור אותה",
+  "state.armed": "פועלת",
+  "state.off": "כבויה",
+  "state.shadow": "במעקב"
+}

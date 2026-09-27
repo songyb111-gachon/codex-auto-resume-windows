@@ -177,7 +177,7 @@ FIELDS["interface_language"] = (l10n.SYSTEM,
 # interface resolves to, so a later interface change carries the continuation with it
 # unless the user has said otherwise.
 FOLLOW_INTERFACE = "follow"
-CONTINUATION_LANGUAGES = (FOLLOW_INTERFACE,) + l10n.LOCALES
+CONTINUATION_LANGUAGES = (FOLLOW_INTERFACE,) + l10n.OFFERED
 FIELDS["continuation_language"] = (FOLLOW_INTERFACE,
                                    lambda v, d: _choice(v, d, CONTINUATION_LANGUAGES))
 

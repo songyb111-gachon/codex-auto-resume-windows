@@ -388,7 +388,7 @@ namespace CodexAutoResume
         /// its bottom left, in a row of its own under the last line (Lead), and FitOverview gives the rows what the
         /// tallest needs, a little more, and under the last row the page's own padding, as every page has under its
         /// last card. What the rows need, with the most the Overview ever shows - three lines under Waiting, four
-        /// finished conversations, four facts in Right now - is the same in all nine languages (every line is one
+        /// finished conversations, four facts in Right now - is the same in every language (every line is one
         /// line, whatever it says), and per scaling a window of 626 px at 100%, 631 at 125%, 629 at 150%, 635 at 175%
         /// and 624 at 200% (measured built and never shown, text drawn as this window draws it;
         /// tests/test_gui_layout.py holds the page to it). 664 is that at 100% with 38 px more, shared by the two

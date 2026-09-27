@@ -8,7 +8,7 @@
 [![license: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![languages: 9](https://img.shields.io/badge/languages-9-0891b2)](docs/GUIDE.ko.md#언어)
 
-<sub>🇺🇸 <a href="README.md">English README</a> · 프로그램은 아홉 개 언어로 표시됩니다: English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil)</sub>
+<sub>🇺🇸 <a href="README.md">English README</a> · 프로그램은 열여섯 개 언어로 표시됩니다: English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia</sub>
 
 Codex가 작업 도중에 멈추고 오전 6시 34분에 다시 해 보라고 말합니다. 오전 6시 34분에 사용자는
 자고 있고, 아침에 보면 작업은 멈춘 그 자리 그대로입니다.
@@ -27,7 +27,7 @@ Codex Auto Resume는 한도가 풀릴 때까지 기다렸다가, 이어 가도 �
 | **손대지 않습니다** | 사용자 취소 · 권한 · 승인 필요 · 콘텐츠 정책 · 잘못된 요청 · 컨텍스트 길이 초과 · 영구 인증 실패 · 분류되지 않은 모든 것 |
 | **식별 방식** | 정확한 대화 UUID 하나. `--last`도, "가장 최근 것"도, 제목이나 폴더 이름도 쓰지 않습니다 |
 | **설정 방법** | 시작 메뉴에서 여는 대시보드, Codex 안의 설정 패널, 명령줄 |
-| **언어** | English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) |
+| **언어** | English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia |
 | **개인정보** | 텔레메트리 없음, 분석 없음, 자동 업데이트 확인 없음. Codex에서 설치하면 GitHub에서 릴리스를 내려받고, 창의 *업데이트 확인*은 눌렀을 때만 GitHub에 가장 최근 릴리스를 묻습니다. 워처에는 네트워크 코드가 없으며, 사용량 확인과 재개된 턴은 여느 Codex 통신처럼 Codex를 통해 OpenAI로 갑니다 |
 
 > **먼저 알아두실 제한 하나.** 복구 메시지가 전달되려면 Codex가 그 대화를 열어 둔 상태여야 합니다.

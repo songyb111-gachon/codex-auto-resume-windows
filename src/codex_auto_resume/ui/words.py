@@ -4,7 +4,7 @@ A remaining time is the first of them. The icon's tooltip and the popup both sho
 they showed it through the same function - which lived in the icon, so the popup imported the
 icon to draw a clock. That is one of the import cycles `tests/test_layers.py` lists.
 
-Locale-neutral on purpose: digits and a colon read the same in all nine languages, and a
+Locale-neutral on purpose: digits and a colon read the same in every language, and a
 duration that says "3 minutes" in one of them would have to be translated to say anything at
 all in the others.
 """

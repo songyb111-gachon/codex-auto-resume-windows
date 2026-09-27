@@ -2,8 +2,8 @@
 """What a person reads before a capability is turned on: its statement, in their own language.
 
 Every capability has one, in five fields - what it does, what the standard edition does
-instead, the standards it departs from, what can go wrong and how to stop it - and in all nine
-of the product's languages. It has a revision (registry.CapabilityDef.revision): arming names
+instead, the standards it departs from, what can go wrong and how to stop it - and in every one
+of the product's languages (l10n.LOCALES, the held ones too). It has a revision (registry.CapabilityDef.revision): arming names
 the revision the person read, and a statement that changes afterwards turns the capability off
 until they have read the new one.
 

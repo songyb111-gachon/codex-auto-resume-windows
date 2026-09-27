@@ -57,20 +57,20 @@
   ],
   "reviewed": {
     "docs/CHANGELOG.md": "a1a9c561668f5366cafa483301dc2fd407ecb0f264b0ce4db703b5693fa9510c",
-    "docs/CONTRIBUTING.md": "bd1353a008bdaf4e66011e3deaafeb7b6bb969b038a49df3ecf31122ac364e5e",
+    "docs/CONTRIBUTING.md": "96adcc5952580914b2fea69305d3dcf48276e773189222b17cbe948004caa008",
     "docs/CONTRIBUTORS.md": "29a99a735aec90caf76898eadc6cbbd3e8250a39aa832996d6ab9dfe63638c7f",
-    "docs/PRIVACY.md": "dc3e5044b4defb710d6f05ccbef5dc59b3fe2b07517e3709211194c3fae84caf",
-    "README.md": "3f57b8e7a8bede765e6ecd91f9a8874aaf35dd21f1776735559c870fedccfa8a",
+    "docs/PRIVACY.md": "439cc021910e7e2da8db43bc4a23c913dfef40405af0270c43aa0d2d0fb0f511",
+    "README.md": "6441452801e8112f01762b46ee1e1250e33a8599e29fa1d6994c17d7f9867d6e",
     "docs/SECURITY.md": "6783785314059bc64dc3ff44f7fd7ce0eb06209bbefbae3b1606681ec071585f",
     "docs/SUPPORT.md": "7833488b0467b1afa997380e3cc9c0f6a3b1cfa25d488db50f9ec0774c4c08e4",
     "docs/BRAND.md": "42a8ce1d0639dbed62fc7bab91d1f663d5a0775e4f666f8bb13aabd4c085ef6c",
     "docs/COMPARISON.md": "6e16cac43ed286434f100005c3d3ffcbae083088b2a5729d5459064ee8fd5385",
     "docs/DEVELOPMENT.md": "e62cfbe43c855d5c87bfce8e0d69eba649f625f3f1d508818d8126de723b73de",
-    "docs/PLUGIN.md": "108b4562c0ef6fb61eac527dca31eb1c66565f63d831faff1a54223bf89c74f7",
+    "docs/PLUGIN.md": "c497ee1de01c42f6b95a8646666f60c7034ee7326dd97fceb6bd25342b123c63",
     "docs/VERIFY.md": "3ed175771fafa8ab8bb06147971f7baac760ef46691185fa0cc568237b31e127",
-    "docs/FEATURE_MATRIX.md": "09c75ae072a539d5e84c827c27e6ef7d4d6a41f1591f17790a63a3934d93f06c",
+    "docs/FEATURE_MATRIX.md": "511ad344fb081e10e21e4d14de917a413b56ab23898da2fa38c0399984df6edf",
     "docs/LIVE_ACCEPTANCE.md": "9e09353eefc136478a2f4d3cce1dffe916f82d1a7bd6deeafd567951838265f6",
     "docs/ROADMAP.md": "d48a8685ca5bf8ffe4a2b03f8c94b5ebdd29cb10cea9f377b9792cd32338f3af",
-    "docs/GUIDE.md": "66484af6375ee2d3149f236aee182dd04e21c08ac5e5dc7f6cf44ef8735b2e65"
+    "docs/GUIDE.md": "31f676074ff762eae33ed092dd671c3cda0bed4db4106ffa82c092858eb9ab01"
   }
 }

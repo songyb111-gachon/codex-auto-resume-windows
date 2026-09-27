@@ -251,7 +251,7 @@ input[type=number] { width: var(--size-number-width); text-align: right; font-va
 /* What scrolls, inside the card's padding: SPACING xs of room around the items for the ring, which
    with the card's hairline and padding is the window's pad. */
 .combo-scroll { position: relative; display: grid; gap: var(--space-xs); padding: var(--space-xs);
-                max-height: calc(2 * var(--space-xs) + 12 * var(--combo-pill) + 11 * var(--space-xs));
+                max-height: calc(2 * var(--space-xs) + 10 * var(--combo-pill) + 9 * var(--space-xs));
                 overflow-y: auto; overscroll-behavior: contain;
                 scroll-snap-type: y mandatory; scroll-padding: var(--space-xs) 0; }
 .combo-option { display: block; min-width: 0; padding: calc(var(--space-s) - var(--size-hairline)) var(--combo-words);

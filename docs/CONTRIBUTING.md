@@ -287,9 +287,11 @@ declare it.
 
 ## Translations
 
-The interface speaks nine languages, and every word of it - the Dashboard, the popup and
+The interface speaks sixteen languages, and every word of it - the Dashboard, the popup and
 menu, notifications, the panel in Codex and the continuation message - comes from a catalog:
-`src/codex_auto_resume/locales/<locale>.json`, one per language. English (`en.json`) is the
+`src/codex_auto_resume/locales/<locale>.json`, one per language. Two more catalogs, Arabic and
+Hebrew, are complete and held: nothing offers them until every surface mirrors right to left
+(`l10n.HELD`), and every rule below holds for them as for the rest. English (`en.json`) is the
 source. Every other catalog is a translation of it, and at runtime English fills in any key a
 translation has not reached yet. A new sentence a user will read is a new key in `en.json`.
 

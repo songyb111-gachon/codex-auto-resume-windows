@@ -2,8 +2,8 @@
 
 Until v0.6.3 this product spoke two languages, and it decided which one by reading the
 Windows preferred UI languages every time anybody asked. That worked because there were
-two: a tag either started with `ko` or it did not. Nine languages is a different problem,
-and three parts of it are worth naming.
+two: a tag either started with `ko` or it did not. Nine languages (v0.6.3), and eighteen
+catalogs (v0.6.11), are a different problem, and three parts of it are worth naming.
 
 **Which language.** A user may now choose, and a choice is not the same as a detection.
 `resolve()` takes what the user stored - `"system"` or a locale id - and turns it into
@@ -14,7 +14,7 @@ meant it. Nothing infers a language from an IP address, a time zone, a user name
 country or a keyboard layout.
 
 **Which tag means which catalog.** Windows says `ko-KR`, `zh-Hans-CN`, `pt-PT`,
-`es-419`. Nine catalogs cannot each be a list of every tag that should reach them, so
+`es-419`. The catalogs cannot each be a list of every tag that should reach them, so
 `normalize()` is the single place that maps a BCP-47-ish tag to a shipped locale, script
 subtags included. It returns `None` for a language this product does not have, which is
 how "not supported" stays distinguishable from "supported, and the answer is English".
@@ -48,15 +48,25 @@ from .domain.vocabulary import Locale
 # because it is documented and people have it in scripts.
 ENV_LANG = "CODEX_AUTO_RESUME_LANG"
 
-# The languages the product's own interface is shipped in. English is first because it
+# The languages the product's own interface has a catalog for. English is first because it
 # is the source catalog, not because it is preferred.
 LOCALES = tuple(Locale)
 DEFAULT = "en"
+# Languages with a complete catalog that this release does not offer (v0.6.11). Arabic and
+# Hebrew are written right to left, and they are offered only once every surface - the
+# Dashboard, the popup, the card and the panel - mirrors fully and the window's layout audit
+# passes right to left at every scaling. Until then no picker lists them, no Windows language
+# reaches them (an Arabic Windows is answered in English, as any language without a catalog
+# is), and a stored choice of one is English. Their catalogs are kept, and held to every rule
+# a catalog is, so offering them is taking them out of this set.
+HELD = frozenset({"ar", "he"})
+# The languages a person can choose and Windows can reach: every catalog but the held ones.
+OFFERED = tuple(locale for locale in LOCALES if locale not in HELD)
 # What a settings field may hold. `system` is stored as a choice in its own right so
 # that "follow Windows" survives a Windows language change, which storing the resolved
 # locale would quietly throw away.
 SYSTEM = "system"
-CHOICES = (SYSTEM,) + LOCALES
+CHOICES = (SYSTEM,) + OFFERED
 
 DIRECTORY = Path(__file__).resolve().parent / "locales"
 
@@ -64,13 +74,17 @@ DIRECTORY = Path(__file__).resolve().parent / "locales"
 # brace that stands alone, so the pattern is deliberately narrow.
 PLACEHOLDER = re.compile(r"\{([a-z_][a-z0-9_]*)\}")
 
-# Language subtags that are not themselves shipped locales but have an obvious home.
-# Portuguese is the one judgement call: the product ships Brazilian Portuguese, and a
-# reader in Portugal is better served by it than by English, so `pt` and `pt-PT` land
-# there rather than falling through.
+# Each language subtag's catalog. A language goes to its own catalog whatever the region
+# (`es-419`, `de-AT`, `fr-CA`, `ru-KZ`); Portuguese is the one judgement call: the product
+# ships Brazilian Portuguese, and a reader in Portugal is better served by it than by
+# English, so `pt` and `pt-PT` land there rather than falling through. `in` and `iw` are
+# the older codes Java and some systems still give for Indonesian and Hebrew. A language
+# that is not here - or is here but HELD - has no catalog to go to, and is English.
 _LANGUAGE_HOME = {
     "en": "en", "ko": "ko", "ja": "ja",
     "es": "es", "de": "de", "fr": "fr", "pt": "pt-BR",
+    "ru": "ru", "it": "it", "tr": "tr", "pl": "pl", "uk": "uk", "vi": "vi",
+    "id": "id", "in": "id", "ar": "ar", "he": "he", "iw": "he",
 }
 
 # Chinese is chosen by script, not by country, and Windows may say either. Simplified
@@ -127,10 +141,11 @@ class CatalogError(ValueError):
 
 
 def normalize(tag) -> str | None:
-    """The shipped locale a language tag belongs to, or `None` if this product has none.
+    """The offered locale a language tag belongs to, or `None` if this product has none.
 
     Accepts what real systems produce: `ko`, `ko-KR`, `ko_KR`, `zh-Hans-CN`, `es-419`,
-    `pt-PT`, and the locale ids this product itself stores.
+    `pt-PT`, and the locale ids this product itself stores. A HELD language is `None`
+    too: it has a catalog, but this release does not speak it.
     """
     if not isinstance(tag, str):
         return None
@@ -148,7 +163,8 @@ def normalize(tag) -> str | None:
         # Bare `zh`, or a region this table does not call traditional: simplified is
         # what the large majority of `zh` speakers read.
         return "zh-CN"
-    return _LANGUAGE_HOME.get(language)
+    home = _LANGUAGE_HOME.get(language)
+    return home if home in OFFERED else None
 
 
 def from_system(environ=None) -> str:
@@ -172,14 +188,14 @@ def resolve(preference, environ=None) -> str:
     """The one locale to render in, from what the user stored.
 
     `system`, an empty value or anything unrecognised means "follow Windows". An
-    explicit locale wins over Windows; an explicit locale this build does not ship
-    falls back to English rather than to Windows, because the stored value was a
-    decision and Windows was not.
+    explicit locale wins over Windows; an explicit locale this build does not offer
+    (one it lacks, or a HELD one) falls back to English rather than to Windows, because
+    the stored value was a decision and Windows was not.
     """
     if isinstance(preference, str):
         chosen = preference.strip()
         if chosen and chosen != SYSTEM:
-            if chosen in LOCALES:
+            if chosen in OFFERED:
                 return chosen
             found = normalize(chosen)
             return found if found is not None else DEFAULT
@@ -221,7 +237,9 @@ def current(environ=None) -> str:
 
 # Each language named in itself. These are not translated and do not live in the
 # catalogs: a person looking for their own language in a list scans for the name they
-# know, and "Japanese" written in Korean is a name a Japanese reader does not know.
+# know, and "Japanese" written in Korean is a name a Japanese reader does not know. The
+# pickers show this name and nothing beside it - no English name, no globe (the owner,
+# v0.6.11) - and a picker lists only the OFFERED ones.
 ENDONYMS = {
     "en": "English",
     "ko": "한국어",
@@ -232,7 +250,22 @@ ENDONYMS = {
     "de": "Deutsch",
     "fr": "Français",
     "pt-BR": "Português (Brasil)",
+    "ru": "Русский",
+    "it": "Italiano",
+    "tr": "Türkçe",
+    "pl": "Polski",
+    "uk": "Українська",
+    "vi": "Tiếng Việt",
+    "id": "Bahasa Indonesia",
+    "ar": "العربية",
+    "he": "עברית",
 }
+
+
+def offered_endonyms() -> dict:
+    """The names a surface is given to label its language pickers with: the OFFERED languages' only,
+    so a held language is named nowhere a person could pick it."""
+    return {locale: ENDONYMS[locale] for locale in OFFERED}
 
 
 def _no_duplicates(pairs):

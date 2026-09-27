@@ -305,7 +305,7 @@ def sample_panel_data(design: str | None = None) -> dict:
     # drawn the way Codex draws them. The system language is pinned to the page's own.
     return {"status": status, "schema": policy.describe(),
             "settings": sample_settings(design=design), "pending": waiting,
-            "reasons": list(reasons.RECOVERABLE), "endonyms": dict(l10n.ENDONYMS),
+            "reasons": list(reasons.RECOVERABLE), "endonyms": l10n.offered_endonyms(),
             "system_language": l10n.current()}
 
 

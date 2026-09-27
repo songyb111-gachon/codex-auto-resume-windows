@@ -305,7 +305,7 @@ class Server:
                 "settings": settings,
                 "pending": self.control.list_pending(),
                 "reasons": list(_reasons.RECOVERABLE),
-                "endonyms": dict(l10n.ENDONYMS),
+                "endonyms": l10n.offered_endonyms(),
                 "system_language": l10n.from_system()}
 
     def _tool_open_settings(self, _arguments) -> dict:

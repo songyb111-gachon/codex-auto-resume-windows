@@ -4,7 +4,7 @@ Codex Auto Resume의 모든 내용을 한곳에 모은 안내서입니다. 짧�
 
 **Windows에서 사용량 한도가 풀리면 똑같은 그 Codex 작업을 자동으로 이어 갑니다.**
 
-<sub>🇺🇸 <a href="https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/GUIDE.md">English guide</a> · 프로그램은 아홉 개 언어로 표시됩니다: English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil)</sub>
+<sub>🇺🇸 <a href="https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/GUIDE.md">English guide</a> · 프로그램은 열여섯 개 언어로 표시됩니다: English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia</sub>
 
 Codex가 작업 도중에 멈추고 오전 6시 34분에 다시 해 보라고 말합니다. 오전 6시 34분에 사용자는
 자고 있고, 아침에 보면 작업은 멈춘 그 자리 그대로입니다.
@@ -29,7 +29,7 @@ Codex에서 설치할 때는 GitHub에서 릴리스를 내려받습니다. 그�
 | **손대지 않습니다** | 사용자 취소 · 권한 · 승인 필요 · 콘텐츠 정책 · 잘못된 요청 · 컨텍스트 길이 초과 · 영구 인증 실패 · 분류되지 않은 모든 것 |
 | **식별 방식** | 정확한 대화 UUID 하나. `--last`도, "가장 최근 것"도, 제목이나 폴더 이름도 쓰지 않습니다 |
 | **설정 방법** | 시작 메뉴에서 여는 Windows 창(v0.6.0부터 개요·대기 중·기록·통계·진단·설정 여섯 페이지의 대시보드), Codex 안의 설정 패널, 명령줄 |
-| **언어** | English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil). 대시보드, 알림 영역 팝업, Windows 알림, Codex 안의 패널, Codex에 보내는 이어서 하기 메시지가 모두 이 언어들로 표시됩니다. 기본은 Windows 언어를 따르고 직접 고를 수도 있습니다. [언어](#언어) 참고 |
+| **언어** | English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia. 대시보드, 알림 영역 팝업, Windows 알림, Codex 안의 패널, Codex에 보내는 이어서 하기 메시지가 모두 이 언어들로 표시됩니다. 기본은 Windows 언어를 따르고 직접 고를 수도 있습니다. [언어](#언어) 참고 |
 | **알려줍니다** | 중단 감지 · 복구 시작 · 결과 · 복구 중단 시 알림. v0.6.5부터는 알림 영역 옆에 제품 자신의 카드로 나타나고, 카드가 나타나면 안 될 때는 Windows 자체 알림으로 나타납니다. 워처가 실행 중인 동안에는 알림 영역 아이콘이 자동 복구가 일시 정지 상태인지, 몇 건이 대기 중이고 몇 건이 Codex에서 실행 중인지, 다음 확인까지 얼마나 남았는지를 툴팁으로 보여 줍니다(v0.6.0부터) |
 | **개인정보** | 텔레메트리 없음, 분석 없음, 자동 업데이트 확인 없음, 자격 증명은 읽지 않음. 창의 *업데이트 확인*은 눌렀을 때만 GitHub에 가장 최근 릴리스를 묻고, 그것과 *호환성 데이터 새로 받기*는 이 PC에 관한 것을 아무것도 보내지 않은 채 raw.githubusercontent.com에서 Codex 호환성 데이터도 받아 옵니다. watcher에는 네트워크 코드가 없으며, 사용량 확인과 재개된 턴, 그리고 대화 안에서 이 플러그인의 도구와 명령이 돌려준 결과는 여느 Codex 통신처럼 Codex를 통해 OpenAI로 갑니다. 설치 스크립트는 GitHub에서 릴리스를 내려받고, v0.5.7의 설치기는 Codex가 사용자가 설정해 둔 모든 Git 마켓플레이스를 새로 고치게 합니다(이 마켓플레이스만 지정하는 동작은 v0.6.0부터입니다) |
 
@@ -961,10 +961,15 @@ Codex 사용량(개요가 보여 주는 것과 같은 숫자)이 들어 있습�
 
 ### 언어
 
-화면은 English, 한국어, 日本語, 简体中文, 繁體中文, Español, Deutsch, Français, Português (Brasil)로
-표시됩니다. **화면 언어**의 기본값은 *시스템*이며, Windows가 첫 번째로 꼽는 언어를 따르고 이
-제품에 없는 언어면 영어로 표시합니다. 직접 고른 언어는 Windows보다 우선하며 재시작·복구·업데이트
-뒤에도 유지됩니다. 환경 변수 `CODEX_AUTO_RESUME_LANG`은 Windows가 알려 주는 언어를 대신하므로,
+화면은 English, 한국어, 日本語, 简体中文, 繁體中文, Español, Deutsch, Français, Português (Brasil),
+Русский, Italiano, Türkçe, Polski, Українська, Tiếng Việt, Bahasa Indonesia로 표시됩니다. **화면 언어**의
+기본값은 *시스템*이며, Windows가 첫 번째로 꼽는 언어를 따르고(지역은 가리지 않아 포르투갈의 포르투갈어도
+포함되며, 중국어는 문자 체계로 가립니다) 이 제품에 없는 언어면 영어로 표시합니다. 아랍어와 히브리어도
+번역되어 있지만 아직 고를 수 없습니다. 오른쪽에서 왼쪽으로 쓰는 언어라서, 모든 화면이 좌우를 뒤집어 그릴 수
+있게 된 뒤에 들어옵니다. 그때까지 Windows가 둘 중 하나로 되어 있으면 이 제품은 영어로 표시합니다. 두 언어
+목록은 *시스템*(또는 *화면 언어와 같게*)을 맨 위에 두고 각 언어를 그 언어 자신의 이름으로만 보여 줍니다.
+열 개쯤 보이고 나머지는 스크롤되며, 글자를 치면 그 글자로 시작하는 다음 언어로 갑니다. 직접 고른 언어는
+Windows보다 우선하며 재시작·복구·업데이트 뒤에도 유지됩니다. 환경 변수 `CODEX_AUTO_RESUME_LANG`은 Windows가 알려 주는 언어를 대신하므로,
 설정이 *시스템*일 때만 언어를 정합니다. 새 언어는 곧바로 보입니다. 대시보드는 그 언어로 스스로 다시
 열리고, 패널은 그 언어로 다시 그려지며, 팝업, 메뉴, 알림은 다음에 나타날 때부터 그 언어를 씁니다.
 

@@ -610,10 +610,12 @@ class ServedLanguageTests(unittest.TestCase):
     def test_every_language_ships_every_word_the_script_can_ask_for(self):
         page = mcpui.settings_page()
         catalogs = served(page, "__CODEX_AUTO_RESUME_CATALOGS__")
-        self.assertEqual(set(catalogs), set(l10n.LOCALES))
+        # Every offered language, and no held one (l10n.HELD): the page can only switch to what a
+        # picker offers.
+        self.assertEqual(set(catalogs), set(l10n.OFFERED))
         names, prefixes = mcpui.panel_keys()
         self.assertGreater(len(names), 40)
-        for locale in l10n.LOCALES:
+        for locale in l10n.OFFERED:
             full = l10n.catalog(locale)
             wanted = {key for key in full if key in names or key.startswith(prefixes)}
             with self.subTest(locale):
@@ -658,9 +660,11 @@ class LanguageTests(unittest.TestCase):
     def test_a_stored_language_resolves_as_python_adopts_it(self):
         """`_read_resource` adopts the stored value with `l10n.set_preference` and resolves it;
         `system_language` is Windows' answer, which Python worked out."""
+        # Windows' answer is always an offered language (a held one is answered in English, l10n.HELD),
+        # and the page is served the offered languages' words.
         preferences = list(l10n.CHOICES) + ["", None, 3]
-        cases = [[preference, system] for preference in preferences for system in l10n.LOCALES]
-        catalogs = {locale: {} for locale in l10n.LOCALES}
+        cases = [[preference, system] for preference in preferences for system in l10n.OFFERED]
+        catalogs = {locale: {} for locale in l10n.OFFERED}
         observed = run_javascript(["localeFor"], say("%s.map(function (c) { return localeFor(c[0], c[1], %s); })"
                                                      % (json.dumps(cases), json.dumps(catalogs))))
         for (preference, system), locale in zip(cases, observed):

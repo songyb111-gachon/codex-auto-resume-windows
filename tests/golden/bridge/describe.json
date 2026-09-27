@@ -283,7 +283,14 @@
               "es",
               "de",
               "fr",
-              "pt-BR"
+              "pt-BR",
+              "ru",
+              "it",
+              "tr",
+              "pl",
+              "uk",
+              "vi",
+              "id"
             ],
             "group": "general"
           },
@@ -301,7 +308,14 @@
               "es",
               "de",
               "fr",
-              "pt-BR"
+              "pt-BR",
+              "ru",
+              "it",
+              "tr",
+              "pl",
+              "uk",
+              "vi",
+              "id"
             ],
             "group": "continuation"
           },
@@ -1089,7 +1103,14 @@
               "es",
               "de",
               "fr",
-              "pt-BR"
+              "pt-BR",
+              "ru",
+              "it",
+              "tr",
+              "pl",
+              "uk",
+              "vi",
+              "id"
             ],
             "group": "general"
           },
@@ -1107,7 +1128,14 @@
               "es",
               "de",
               "fr",
-              "pt-BR"
+              "pt-BR",
+              "ru",
+              "it",
+              "tr",
+              "pl",
+              "uk",
+              "vi",
+              "id"
             ],
             "group": "continuation"
           },

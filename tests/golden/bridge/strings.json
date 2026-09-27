@@ -866,7 +866,14 @@
           "es": "Español",
           "de": "Deutsch",
           "fr": "Français",
-          "pt-BR": "Português (Brasil)"
+          "pt-BR": "Português (Brasil)",
+          "ru": "Русский",
+          "it": "Italiano",
+          "tr": "Türkçe",
+          "pl": "Polski",
+          "uk": "Українська",
+          "vi": "Tiếng Việt",
+          "id": "Bahasa Indonesia"
         }
       }
     }

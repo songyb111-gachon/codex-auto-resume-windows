@@ -166,7 +166,7 @@ def panel_keys() -> tuple:
 
 
 def panel_catalogs() -> dict:
-    """Every shipped language's words for this page, and only this page's.
+    """Every offered language's words for this page, and only this page's (a HELD one is never spoken).
 
     So a language chosen in the panel is spoken as soon as the save is confirmed, rather than
     the next time Codex opens the panel. Each catalog is English with that language layered
@@ -175,7 +175,7 @@ def panel_catalogs() -> dict:
     names, prefixes = panel_keys()
     return {locale: {key: text for key, text in l10n.catalog(locale).items()
                      if key in names or key.startswith(prefixes)}
-            for locale in l10n.LOCALES}
+            for locale in l10n.OFFERED}
 
 
 # v0.6.11: what holds one line of words and so grows with them at a larger text size: a button, a field, a

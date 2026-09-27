@@ -614,7 +614,7 @@ class NotifyEvent(StrEnum):
 
 
 class Locale(StrEnum):
-    """The languages the product speaks, the source catalog first (l10n.LOCALES)."""
+    """The languages with a catalog, the source first (l10n.LOCALES); l10n.HELD are not offered yet."""
     EN = "en"
     KO = "ko"
     JA = "ja"
@@ -624,6 +624,15 @@ class Locale(StrEnum):
     DE = "de"
     FR = "fr"
     PT_BR = "pt-BR"
+    RU = "ru"
+    IT = "it"
+    TR = "tr"
+    PL = "pl"
+    UK = "uk"
+    VI = "vi"
+    ID = "id"
+    AR = "ar"
+    HE = "he"
 
 
 # ------------------------------------------------------------------------ Codex's answers

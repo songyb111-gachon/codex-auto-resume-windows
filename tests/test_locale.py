@@ -80,12 +80,17 @@ class DecisionTests(unittest.TestCase):
                                (["fr-FR"], "fr"), (["fr-CA"], "fr"),
                                (["de-DE"], "de"), (["de-AT"], "de"),
                                (["es-ES"], "es"), (["es-419"], "es"),
-                               (["pt-BR"], "pt-BR"), (["pt-PT"], "pt-BR")):
+                               (["pt-BR"], "pt-BR"), (["pt-PT"], "pt-BR"),
+                               # v0.6.11: seven more languages, in any region.
+                               (["ru-RU"], "ru"), (["it-IT"], "it"), (["tr-TR"], "tr"),
+                               (["pl-PL"], "pl"), (["uk-UA"], "uk"), (["vi-VN"], "vi"),
+                               (["id-ID"], "id")):
             with self.subTest(tags):
                 self.assertEqual(self.resolve(tags), expected)
 
     def test_english_for_a_language_this_product_does_not_have(self):
-        for tags in (["ru-RU"], ["it-IT"], ["hi-IN"], ["ar-SA"], ["sv-SE"], ["tr-TR"]):
+        # Arabic and Hebrew have catalogs, but this release holds them (l10n.HELD): English too.
+        for tags in (["nl-NL"], ["fi-FI"], ["hi-IN"], ["ar-SA"], ["he-IL"], ["sv-SE"], ["th-TH"]):
             with self.subTest(tags):
                 self.assertEqual(self.resolve(tags), "en")
 
@@ -102,7 +107,7 @@ class DecisionTests(unittest.TestCase):
                                # A first preference this product does not ship is an
                                # answer too: English, not a search down the list for
                                # something it does.
-                               (["ru-RU", "ko-KR"], "en"),
+                               (["nl-NL", "ko-KR"], "en"),
                                (["sv-SE", "de-DE"], "en")):
             with self.subTest(tags):
                 self.assertEqual(self.resolve(tags), expected)
@@ -327,7 +332,8 @@ class ReachTests(unittest.TestCase):
                 if key in korean and english[key] == korean[key]]
         # `Windows` and the product's own name are names and stay. Anything else matching
         # is a missed string.
-        self.assertEqual(sorted(same), ["group.windows", "tray.title"],
+        # Nor does a string that is only placeholders and a percent sign (usage.window, v0.6.11).
+        self.assertEqual(sorted(same), ["group.windows", "tray.title", "usage.window"],
                          "these are identical in both languages")
 
 
