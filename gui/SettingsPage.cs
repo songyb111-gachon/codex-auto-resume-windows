@@ -217,6 +217,18 @@ namespace CodexAutoResume
             return label;
         }
 
+        /// v0.6.11: what a needs-you notice is told with, and so only matters while When a conversation needs you is on
+        /// (needsyou.py): each kind of failure, the stall and the sound.
+        internal static bool NeedsYouPart(string name)
+        {
+            return name != null && (name.StartsWith("notify_needs_you_", StringComparison.Ordinal)
+                                    || name == "stall_after" || name == "needs_you_sound");
+        }
+
+        // How far in a needs-you part starts: where the words of When a conversation needs you start, 21 + a box of 18
+        // + its gap of 10.
+        private const int NeedsYouIndent = 49;
+
         private Control NewRow(string text, Control editor)
         {
             var row = new TableLayoutPanel();
@@ -447,6 +459,9 @@ namespace CodexAutoResume
 
             CheckBox master = null;
             var subordinate = new List<CheckBox>();
+            // v0.6.11: When a conversation needs you, and what is told only while it is on (NeedsYouPart).
+            CheckBox needsYou = null;
+            var needsYouParts = new List<Control>();
             foreach (object entry in schema)
             {
                 var field = entry as Dictionary<string, object>;
@@ -478,12 +493,20 @@ namespace CodexAutoResume
                         check.Margin = Pad(0, 2, 0, 6);
                         master = check;
                     }
+                    else if (host == notifications && NeedsYouPart(name))
+                    {
+                        // v0.6.11: subordinate to When a conversation needs you, one step further in - its box or
+                        // switch starting where that check box's words do, 21 + 18 + 10.
+                        check.Margin = Pad(NeedsYouIndent, 2, 0, 2);
+                        needsYouParts.Add(check);
+                    }
                     else if (host == notifications)
                     {
                         // Subordinate to the master, its words starting where the master switch's do:
                         // 21 + a box of 18 + its gap of 10 is the switch's 40 + its gap of 9.
                         check.Margin = Pad(21, 2, 0, 2);
                         subordinate.Add(check);
+                        if (name == "notify_needs_you") needsYou = check;
                     }
                     host.Controls.Add(check);
                     editors[name] = check;
@@ -562,9 +585,16 @@ namespace CodexAutoResume
                     // and the Design's (v0.6.10), whose Soft and Plain are no other setting's words.
                     bool themed = name == "theme" || name == "panel_theme" || name == "design";
                     SoftCombo combo = ChoiceCombo(field, current, themed ? "choice." + name + "." : "choice.");
-                    host.Controls.Add(NewRow(Humanise(name), combo));
+                    Control choiceRow = NewRow(Humanise(name), combo);
+                    host.Controls.Add(choiceRow);
                     editors[name] = combo;
                     Managed(field, combo, host);
+                    // v0.6.11: how long a turn may not move, under When a conversation needs you as its kinds are.
+                    if (host == notifications && NeedsYouPart(name))
+                    {
+                        choiceRow.Margin = Pad(NeedsYouIndent, 6, 0, 6);
+                        needsYouParts.Add(choiceRow);
+                    }
                     if (name == "theme")
                         host.Controls.Add(HelpText(S("help.theme",
                             "Light or dark for the Dashboard, the notification-area popup and the notification card, and for the panel in Codex while Theme in Codex is Same as Theme. Use system setting follows Windows for the first three and Codex's own theme for the panel.")));
@@ -623,9 +653,17 @@ namespace CodexAutoResume
             {
                 // Progressive disclosure for notifications: the individual events only matter
                 // while notifications are on, so they are live only then.
-                CheckBox governing = master;
-                EventHandler follow = delegate { foreach (CheckBox sub in subordinate) sub.Enabled = governing.Checked; };
+                CheckBox governing = master, told = needsYou;
+                EventHandler follow = delegate
+                {
+                    foreach (CheckBox sub in subordinate) sub.Enabled = governing.Checked;
+                    // v0.6.11: a needs-you notice's kinds, its stall and its sound only matter while it is told at all -
+                    // When a conversation needs you on, under notifications on (needsyou.told) - so they are live only then.
+                    bool live = governing.Checked && (told == null || told.Checked);
+                    foreach (Control part in needsYouParts) part.Enabled = live;
+                };
                 governing.CheckedChanged += follow;
+                if (told != null) told.CheckedChanged += follow;
                 follow(governing, EventArgs.Empty);
             }
 

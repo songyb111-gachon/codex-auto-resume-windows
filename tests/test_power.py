@@ -525,6 +525,23 @@ class LoopTests(unittest.TestCase):
         self.assertEqual(port.requests(), [True, False])
         self.assertEqual(loop.failures, ["keeping this PC awake"])
 
+    def test_at_the_defaults_the_store_is_not_read_again(self):
+        """Keep this PC awake off: `after` only lets go, so the loop reads no settings row for it -
+        a tick at the defaults makes v0.6.10's store statements and no more."""
+        loop, port = self.loop(), FakePort()
+        loop.settings = settings.defaults()
+        waking = Waking(signal=lambda: None, log=lambda line: None, port=port, clock=lambda: 5.0)
+
+        class Unread:
+            def settings(self):
+                raise AssertionError("read the settings row at the defaults")
+
+            def records_in(self, states):
+                raise AssertionError("read the records at the defaults")
+        self.assertIsNone(loop._keep_awake(waking, Unread(), True))
+        self.assertEqual(loop.failures, [])
+        self.assertEqual(port.calls, [])
+
 
 class HeartbeatTests(unittest.TestCase):
     def test_since_when_it_keeps_the_pc_awake_is_kept_and_cleared(self):

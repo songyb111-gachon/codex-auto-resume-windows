@@ -131,6 +131,34 @@ class RepositoryHygieneTests(unittest.TestCase):
         self.assertIn("0a1b2c3d", text)
 
 
+class NamedTestFileTests(unittest.TestCase):
+    """A comment that sends the reader to a test file that is not there sends them nowhere.
+
+    v0.6.11's demo said "tests/test_demo.py holds all three" of what it promises; the tests were written
+    into tests/test_diagnostics_tools.py and the sentence was left pointing at nothing. The product's code
+    and its build scripts name their tests often, so every name is held to a file: from the repository's
+    root, or - for the advanced package, whose tests live beside it - from advanced/.
+    """
+
+    NAMED = re.compile(r"(?<![\w/.])((?:advanced/)?tests/[\w/]+\.py)")
+    SOURCES = ("src", "gui", "advanced/src", "advanced/gui", "scripts", "build")
+    SUFFIXES = {".py", ".cs", ".js", ".ps1"}
+
+    def test_every_test_file_the_code_names_is_there(self):
+        missing, named = [], 0
+        for base in self.SOURCES:
+            for path in sorted((ROOT / base).rglob("*")):
+                if path.suffix not in self.SUFFIXES or "__pycache__" in path.parts or not path.is_file():
+                    continue
+                for found in self.NAMED.finditer(path.read_text(encoding="utf-8", errors="replace")):
+                    named += 1
+                    name = found.group(1)
+                    if not ((ROOT / name).is_file() or (ROOT / "advanced" / name).is_file()):
+                        missing.append("%s names %s" % (path.relative_to(ROOT).as_posix(), name))
+        self.assertGreater(named, 50, "the scan found almost no names, so an empty list proves nothing")
+        self.assertEqual(missing, [])
+
+
 class TestFileShapeTests(unittest.TestCase):
     """A test that never runs guards nothing.
 

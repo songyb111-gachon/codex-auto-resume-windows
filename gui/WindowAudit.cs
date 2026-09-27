@@ -123,6 +123,9 @@ namespace CodexAutoResume
                     foreach (string page in PageOrder)
                     {
                         form.ShowPage(page);
+                        // v0.6.11: the State folder's longest answer and the sentence under it, as the bridge would give
+                        // them (LoadStateAccess asks nothing while auditing).
+                        if (page == "diagnostics") form.ApplyStateAccess("shared");
                         if (page != "settings")
                         {
                             Geometry(page, form, geometry);
@@ -158,6 +161,14 @@ namespace CodexAutoResume
                             form.ShowPage(page);
                             form.Audit(page + " with no rows", findings);
                             form.AuditLists(page + " with no rows", findings);
+                        }
+                        // v0.6.11: Diagnostics again for a watcher that stopped on another day, whose Watcher then says how
+                        // and when - the longest a Health fact says.
+                        foreach (string ended in new[] { "memory_guard", "unexpected" })
+                        {
+                            form.ApplySnapshot(WithStoppedWatcher(snapshot, ended));
+                            form.ShowPage("diagnostics");
+                            form.Audit("diagnostics with a watcher stopped (" + ended + ")", findings);
                         }
                         form.ApplySnapshot(snapshot);
                         form.AuditTimeline(snapshot, findings);
@@ -957,7 +968,7 @@ namespace CodexAutoResume
                 dialog.PerformLayout();
                 if (logsList != null)
                 {
-                    ShowLogLines(logsList, new Label(), result);
+                    ShowLogLines(logsList, new Label(), result, false);
                     AuditList("logs/" + AuditName(logsList), logsList, findings);
                 }
             }
@@ -982,6 +993,21 @@ namespace CodexAutoResume
         }
 
         /// A dashboard reply with no waiting and no finished recoveries in it.
+        /// `reply` with its watcher stopped two days ago, `ended` as control/watcher.how_it_ended says it.
+        private static Dictionary<string, object> WithStoppedWatcher(Dictionary<string, object> reply, string ended)
+        {
+            var stopped = new Dictionary<string, object>(reply);
+            var status = new Dictionary<string, object>(Map(reply, "status") ?? new Dictionary<string, object>());
+            var watcher = new Dictionary<string, object>(Map(status, "watcher") ?? new Dictionary<string, object>());
+            watcher["running"] = false;
+            watcher["ended"] = ended;
+            watcher["ended_at"] = Now() - 2 * 86400.0;
+            status["watcher"] = watcher;
+            status["watcher_running"] = false;
+            stopped["status"] = status;
+            return stopped;
+        }
+
         private static Dictionary<string, object> WithoutRows(Dictionary<string, object> reply)
         {
             var empty = new Dictionary<string, object>(reply);

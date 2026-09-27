@@ -95,6 +95,24 @@ class StateAccessTests(unittest.TestCase):
         self.assertEqual(verdict([OWN], None), "unknown")
         self.assertEqual(verdict([], OWN), "owner_only", "a folder nobody may open is nobody else's either")
 
+    def test_another_local_account_is_another_account_even_codexs_own_sandbox(self):
+        """Codex's Windows sandbox gives its own local accounts - a group of them, and an identifier of its own -
+        a way into AppData and Temp, so a state folder there reads as shared. It is: a command Codex runs in its
+        sandbox runs as one of those accounts, and could read and change the pending tasks. Only an app's own
+        sandbox (S-1-15-), which runs as this account, is not another; the note then says where the folder is
+        this account's alone."""
+        sandbox_group, sandbox_identifier = "S-1-5-21-1-2-3-1011", "S-1-5-21-4-5-6-1019343860"
+        for other in (sandbox_group, sandbox_identifier):
+            with self.subTest(other):
+                self.assertEqual(acl.verdict([OWN, "S-1-5-18", "S-1-5-32-544", other], OWN), "shared")
+
+    def test_the_note_says_where_the_folder_is_this_accounts_alone(self):
+        """"Install it under your own user folder" told a person whose folder was under AppData - inside their user
+        folder already - to do what they had done. The place that helps is the installer's own, by its name."""
+        for locale in l10n.LOCALES:
+            with self.subTest(locale):
+                self.assertIn(".codex-auto-resume", l10n.catalog(locale)["diag.state_shared_note"])
+
     def test_it_never_raises_and_answers_one_of_three_words(self):
         with tempfile.TemporaryDirectory() as folder:
             self.assertIn(acl.state_access(folder), set(StateAccess))

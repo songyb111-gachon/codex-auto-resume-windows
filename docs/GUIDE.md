@@ -285,8 +285,11 @@ notification-area popup offers the same menu on a right click on a task, but for
 From v0.6.11 the Overview's **Waiting** card, **Why it is waiting** for a usage limit, the
 notification-area popup, the panel in Codex and `get_status` also show Codex's usage as the watcher
 last read it, with how long ago: each window's length, how much of it is used and when it resets -
-"Codex usage, read 2m ago: 5-hour 100%, resets 14:42 · weekly 62%, resets 2027-01-18 13:00". When a
-weekly limit is used up, **Why it is waiting** also says the day and time it resets. Nothing is read
+"Codex usage, read 2m ago: 5-hour 100%, resets 14:42 · weekly 62%, resets 2027-01-18 13:00". On the
+Overview it is one line, ending in "..." where the card is too narrow; the others say it whole. When a
+weekly limit is used up, **Why it is waiting** also says the day and time it resets, and that Codex's
+`/usage` can redeem a reset credit if your account has one - this product never knows whether it does.
+A reset that has already passed is not said: the reading is older than it. Nothing is read
 for this: usage is read only when a recovery is due, as it always was, and what is shown is the last
 of those readings - so it can be hours old, and its age says so. Only the numbers are kept, with the
 time they were read: which window, how much is used, its length and its reset time. No account,
@@ -737,7 +740,8 @@ changes nothing about whether a task is recovered.
 
 From v0.6.11 the watcher can also tell you about a conversation it will never resume, because only
 you can move it on. This is off by default: turn on **When a conversation needs you** under
-Settings > General > Notifications. Then:
+Settings > General > Notifications. Its kinds, its time and its sound stand under it, and can be changed
+while it is on. Then:
 
 - A failure that is never retried raises one notification with its kind in a word and one next
   step: the request was refused or the conversation is too long ("Request refused · Conversation too
@@ -950,8 +954,9 @@ would. Start it again from the Dashboard, the panel or the Start Menu when you a
 
 A watcher that stops on purpose - a Stop, an upgrade, the memory guard - says so as it goes. One that
 is gone without having said so, in this same Windows sign-in, is shown as **stopped unexpectedly at**
-the time it was last seen, in the Overview and Diagnostics and in the panel in Codex; one the memory
-guard stopped is shown as **stopped by the memory guard at** its time. A watcher that ended with an
+the time it was last seen, in Diagnostics and in the panel in Codex; one the memory guard stopped is
+shown as **stopped by the memory guard at** its time. The Overview's Right now says the same without
+the time, which its Last check, just under it, gives. A watcher that ended with an
 earlier sign-in, or before Windows last started, is only **not running**, as before: Windows ends it
 then, which is no surprise.
 
@@ -980,8 +985,10 @@ messages as they were raised, is not read here.
 pending tasks and the logs: **only your account can open it** - with Windows itself and the
 computer's administrators, as every user folder has - or **other accounts on this PC can open it**,
 with a sentence saying what that means, or **not checked** when Windows could not be asked. It reads
-the folder's access list and changes nothing; installed under your user folder, as the installer does,
-it is your account's alone.
+the folder's access list and changes nothing. Where the installer puts it, `.codex-auto-resume` in your
+user folder, it is your account's alone, and the sentence says to install it there. A folder elsewhere
+may not be, even one inside your user folder: where Codex's own Windows sandbox is set up, for one, its
+sandbox accounts can open folders under `AppData`, and they are other accounts on this PC.
 
 **Show me what happens** plays a recovery with made-up words, and sends nothing. A made-up task - an
 example conversation whose ids are all zeros - waits on Pending for a minute, counting down, then shows

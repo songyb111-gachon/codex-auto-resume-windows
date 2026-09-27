@@ -424,13 +424,26 @@ def fullest_snapshot(now: float) -> dict:
     return {"ok": True,
             "status": {"version": "0.6.4", "enabled": True, "watcher_running": True, "upgrade_pending": False,
                        "startup_enabled": True, "pending": len(waiting),
-                       "watcher": {"running": True, "ticking": True, "engine_state": "verified", "last_tick_at": now}},
+                       "watcher": {"running": True, "ticking": True, "engine_state": "verified", "last_tick_at": now,
+                                   # v0.6.11: the last usage reading, under Waiting - Codex's two windows, both
+                                   # resetting on another day, so each reset is said with its date.
+                                   "usage": fullest_usage(now)}},
             "week": {"interruptions_detected": 128, "continuations_submitted": 117, "pending": len(waiting),
                      "outcomes": {"recovered": 96}, "success_rate": 0.82},
             "pending": waiting, "history": waiting + history,
             # Answered by the bridge's own `compatibility` command, not by `dashboard`: LayoutAudit hands it to the
             # Diagnostics page's card, so the card is measured at its fullest (fullest_compatibility).
             "compatibility": fullest_compatibility(now)}
+
+
+def fullest_usage(now: float) -> dict:
+    """The last usage reading at its longest as Codex gives it: the 5-hour and the weekly window, read two hours
+    ago, each resetting on another day - so each reset is said with its date - as the heartbeat hands it over."""
+    return {"read_at": now - 7200, "windows": [
+        {"bucket": "codex", "window": "primary", "used_percent": 100, "window_minutes": 300,
+         "reset_at": int(now) + 2 * 86400 + 3600},
+        {"bucket": "codex", "window": "secondary", "used_percent": 62, "window_minutes": 10080,
+         "reset_at": int(now) + 3 * 86400 + 3600}]}
 
 
 def fullest_compatibility(now: float) -> dict:
@@ -456,7 +469,8 @@ def fullest_compatibility(now: float) -> dict:
 def overview_states(now: float) -> list:
     """The replies `SettingsForm.OverviewStatesAudit` applies in turn, as [name, reply] pairs: first a watcher in
     trouble with recovery paused - the Overview is built from it, as a window opens on it - then the fullest reply, a
-    stopped watcher, one whose state is unknown, nothing waiting with History unreadable, and Pending unreadable.
+    stopped watcher, one the memory guard stopped and one that stopped unexpectedly (v0.6.11, each on another day),
+    one whose state is unknown, nothing waiting with History unreadable, and Pending unreadable.
     These are the Right now card's widest words - "nicht unterstützt", "ne répond pas", "Reprendre la récupération" -
     and in v0.6.4 the Overview opened on them scrolled in German and French, where fullest_snapshot fitted."""
     fullest = fullest_snapshot(now)
@@ -479,9 +493,16 @@ def overview_states(now: float) -> list:
     unreadable = copy.deepcopy(fullest)
     del unreadable["pending"]
     unreadable["pending_error"] = "database is locked"
+    # v0.6.11: a watcher that says how it stopped, and when - on another day, so with its date.
+    guarded = watcher(True, False, True, "unknown", 2 * 86400)
+    guarded["status"]["watcher"].update(ended="memory_guard", ended_at=now - 2 * 86400)
+    unexpected = copy.deepcopy(guarded)
+    unexpected["status"]["watcher"]["ended"] = "unexpected"
     return [["a watcher in trouble, recovery paused", watcher(False, True, False, "incompatible", 59 * 60 + 30)],
             ["the fullest", fullest],
             ["a stopped watcher", watcher(True, False, True, "unknown", 3 * 86400)],
+            ["a watcher the memory guard stopped", guarded],
+            ["a watcher that stopped unexpectedly", unexpected],
             ["a watcher in an unknown state", watcher(True, None, True, "structurally_compatible", None)],
             ["nothing waiting, History unreadable", idle],
             ["Pending unreadable", unreadable],

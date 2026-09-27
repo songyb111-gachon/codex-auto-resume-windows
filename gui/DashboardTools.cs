@@ -303,7 +303,9 @@ namespace CodexAutoResume
             dialog.CancelButton = close;
 
             int token = 0;
-            Action look = delegate
+            // `lookingAgain`: the five-second look, which keeps the list where the person left it (ShowLogLines); a
+            // search, or the first look, shows the newest line.
+            Action<bool> look = delegate(bool lookingAgain)
             {
                 int mine = ++token;
                 string argument = "{\"query\":" + Json.Escape(query.Box.Text ?? "") + "}";
@@ -315,42 +317,100 @@ namespace CodexAutoResume
                     MethodInvoker apply = delegate
                     {
                         if (mine != token || dialog.IsDisposed) return;
-                        ShowLogLines(view, count, Ok(reply) ? Map(reply, "result") : null);
+                        ShowLogLines(view, count, Ok(reply) ? Map(reply, "result") : null, lookingAgain);
                     };
                     try { if (dialog.IsHandleCreated && !dialog.IsDisposed) dialog.BeginInvoke(apply); }
                     catch (Exception) { }
                 });
             };
-            search.Click += delegate { look(); };
+            search.Click += delegate { look(false); };
             var again = new Timer();
             again.Interval = 5000;
-            again.Tick += delegate { look(); };
-            dialog.Shown += delegate { look(); again.Start(); query.Box.Focus(); };
+            again.Tick += delegate { look(true); };
+            dialog.Shown += delegate { look(false); again.Start(); query.Box.Focus(); };
             dialog.FormClosed += delegate { again.Stop(); again.Dispose(); };
             logsList = view;
             return dialog;
         }
 
-        /// One answer of the log search in the list, newest last and scrolled to it, and how many lines it is.
-        private void ShowLogLines(ListView view, Label count, Dictionary<string, object> result)
+        /// One answer of the log search in the list, newest last, and how many lines it is. A search, or the first
+        /// look, shows the newest line. The five-second look (`lookingAgain`) keeps the list where the person left it:
+        /// the same lines again leave it untouched, scrolled and selected as it was; new lines keep what was selected and
+        /// the line at the top, and follow the newest only while the newest was in view.
+        private void ShowLogLines(ListView view, Label count, Dictionary<string, object> result, bool lookingAgain)
         {
-            var lines = Items(result, "lines");
-            view.BeginUpdate();
-            view.Items.Clear();
-            if (lines != null)
-                foreach (object entry in lines)
-                {
-                    var line = entry as Dictionary<string, object>;
-                    if (line == null) continue;
-                    var item = new ListViewItem(Str(line, "at") ?? "");
-                    item.SubItems.Add(Str(line, "text") ?? "");
-                    view.Items.Add(item);
-                }
-            view.EndUpdate();
-            MeasureCells(view);
-            if (view.Items.Count > 0) view.EnsureVisible(view.Items.Count - 1);
             count.Text = LogCount(result, S("logs.shown", "{shown} of {matched} matching lines, newest last"),
                                   S("logs.none", "No line matches."), S("preview.unavailable", "Preview is not available right now."));
+            var rows = new List<string[]>();
+            var said = new StringBuilder();
+            foreach (object entry in Items(result, "lines") ?? new List<object>())
+            {
+                var line = entry as Dictionary<string, object>;
+                if (line == null) continue;
+                var row = new[] { Str(line, "at") ?? "", Str(line, "text") ?? "" };
+                rows.Add(row);
+                said.Append(LogKey(row[0], row[1])).Append('\n');
+            }
+            string shown = said.ToString();
+            if (lookingAgain && shown == view.Tag as string) return;
+            string top = null;
+            var selected = new HashSet<string>();
+            bool newest = true;
+            if (lookingAgain && view.Items.Count > 0)
+            {
+                newest = LastInView(view);
+                if (view.TopItem != null) top = LogKey(view.TopItem);
+                foreach (ListViewItem item in view.SelectedItems) selected.Add(LogKey(item));
+            }
+            view.BeginUpdate();
+            view.Items.Clear();
+            ListViewItem keep = null;
+            foreach (string[] row in rows)
+            {
+                var item = new ListViewItem(row[0]);
+                item.SubItems.Add(row[1]);
+                view.Items.Add(item);
+                string key = LogKey(row[0], row[1]);
+                if (selected.Contains(key)) item.Selected = true;
+                if (keep == null && key == top) keep = item;
+            }
+            view.EndUpdate();
+            view.Tag = shown;
+            MeasureCells(view);
+            if (view.Items.Count == 0) return;
+            if (newest || keep == null)
+            {
+                view.EnsureVisible(view.Items.Count - 1);
+                return;
+            }
+            try { view.TopItem = keep; }
+            catch (Exception) { view.EnsureVisible(keep.Index); }
+        }
+
+        /// A line of the log as the list tells it from the others: its time and its text.
+        private static string LogKey(string at, string text)
+        {
+            return at + "\u001f" + text;
+        }
+
+        private static string LogKey(ListViewItem item)
+        {
+            return LogKey(item.Text, item.SubItems.Count > 1 ? item.SubItems[1].Text : "");
+        }
+
+        /// Whether the list's newest line was in view, the whole of it, as the person left the list.
+        private static bool LastInView(ListView view)
+        {
+            try
+            {
+                if (!view.IsHandleCreated || view.Items.Count == 0) return true;
+                Rectangle last = view.GetItemRect(view.Items.Count - 1);
+                return last.Top >= 0 && last.Bottom <= view.ClientSize.Height;
+            }
+            catch (Exception)
+            {
+                return true;
+            }
         }
 
         /// What the count under the log says: how many lines are shown of how many matched, that none did, or -
@@ -379,18 +439,23 @@ namespace CodexAutoResume
                 Dictionary<string, object> reply;
                 try { reply = bridge.Call("state-access", null); }
                 catch (Exception) { reply = null; }
-                MethodInvoker apply = delegate
-                {
-                    string access = StateAccessWord(Ok(reply) ? Str(Map(reply, "result"), "access") : null);
-                    diagStateAccess.Text = access == "owner_only" ? S("diag.state_access.owner_only", "only your account can open it")
-                                         : access == "shared" ? S("diag.state_access.shared", "other accounts on this PC can open it")
-                                         : S("diag.state_access.unknown", "not checked");
-                    diagStateNote.Text = access != "shared" ? ""
-                        : S("diag.state_shared_note", "Other accounts on this PC can open the folder that holds this product's settings, pending tasks and logs. They hold no prompts or replies, but they do hold your conversations' ids. Install it under your own user folder to keep them to yourself.");
-                };
+                MethodInvoker apply = delegate { ApplyStateAccess(Ok(reply) ? Str(Map(reply, "result"), "access") : null); };
                 try { if (IsHandleCreated && !IsDisposed) BeginInvoke(apply); }
                 catch (Exception) { }
             });
+        }
+
+        /// The bridge's word for the state folder under Health, and - only while other accounts can open it - what that
+        /// means, under the facts. LayoutAudit hands it the longest, "shared".
+        private void ApplyStateAccess(string word)
+        {
+            if (diagStateAccess == null) return;
+            string access = StateAccessWord(word);
+            diagStateAccess.Text = access == "owner_only" ? S("diag.state_access.owner_only", "only your account can open it")
+                                 : access == "shared" ? S("diag.state_access.shared", "other accounts on this PC can open it")
+                                 : S("diag.state_access.unknown", "not checked");
+            diagStateNote.Text = access != "shared" ? ""
+                : S("diag.state_shared_note", "Other accounts on this PC can open the folder that holds this product's settings, pending tasks and logs. They hold no prompts or replies, but they do hold your conversations' ids. To keep them to yourself, install it where the installer puts it: .codex-auto-resume in your user folder.");
         }
 
         /// The bridge's word for the state folder, read as one of the three there are: anything else is unknown.

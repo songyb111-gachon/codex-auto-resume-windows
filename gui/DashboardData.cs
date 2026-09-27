@@ -202,22 +202,26 @@ namespace CodexAutoResume
             return local.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
         }
 
-        /// A moment later today as the clock shows it, and any other with its date (v0.6.11): when a
-        /// postponement or quiet hours end.
         /// v0.6.11: a watcher that is not running, as it ended (control/watcher.how_it_ended): stopped by the memory guard,
-        /// or stopped unexpectedly in this sign-in, each with when - as the panel says it (panel.js stoppedFact); otherwise
-        /// "not running", as it always said.
-        private string StoppedText(Dictionary<string, object> watcher)
+        /// or stopped unexpectedly in this sign-in; otherwise "not running", as it always said. With when (`when`) as the
+        /// panel says it (panel.js stoppedFact), for Diagnostics, whose facts wrap; without it for Right now, whose facts
+        /// stay one line in every language and state (tests/test_gui_layout.py) - its Last check, under the Watcher,
+        /// says when the watcher last looked, which is when it stopped.
+        private string StoppedText(Dictionary<string, object> watcher, bool when)
         {
             string ended = Str(watcher, "ended");
             double at = Number(watcher, "ended_at");
             if (at > 0 && ended == "unexpected")
-                return S("diag.stopped_unexpectedly", "stopped unexpectedly at {time}", "time", ClockTime(at));
+                return when ? S("diag.stopped_unexpectedly", "stopped unexpectedly at {time}", "time", ClockTime(at))
+                            : S("overview.stopped_unexpectedly", "stopped unexpectedly");
             if (at > 0 && ended == "memory_guard")
-                return S("diag.stopped_memory_guard", "stopped by the memory guard at {time}", "time", ClockTime(at));
+                return when ? S("diag.stopped_memory_guard", "stopped by the memory guard at {time}", "time", ClockTime(at))
+                            : S("overview.stopped_memory_guard", "stopped by the memory guard");
             return S("diag.not_running", "not running");
         }
 
+        /// A moment later today as the clock shows it, and any other with its date (v0.6.11): when a
+        /// postponement or quiet hours end.
         private static string ClockTime(double stamp)
         {
             if (stamp <= 0) return "";
@@ -270,7 +274,9 @@ namespace CodexAutoResume
         }
 
         /// A weekly window the last reading found used up, with the day and time it resets - what a usage limit then waits
-        /// for, whatever else is used up beside it; null when no weekly window is, or its reset was not said.
+        /// for, whatever else is used up beside it; null when no weekly window is, or its reset was not said. A reset
+        /// already past says nothing: the reading is older than it, and what it found is no longer so - it is never told
+        /// as current (J7). The usage line under it still says what was read, with its age.
         private string WeeklyBlock(Dictionary<string, object> reading)
         {
             double latest = 0;
@@ -280,7 +286,8 @@ namespace CodexAutoResume
                 if (window == null || Number(window, "window_minutes") < 10080 || Number(window, "used_percent") < 100) continue;
                 latest = Math.Max(latest, Number(window, "reset_at"));
             }
-            return latest > 0 ? S("usage.weekly_block", "The weekly limit is used up. It resets {time}.", "time", When(latest)) : null;
+            if (latest <= Now()) return null;
+            return S("usage.weekly_block", "The weekly limit is used up. It resets {time}.", "time", When(latest));
         }
 
         private string Conversation(Dictionary<string, object> row)
@@ -364,9 +371,11 @@ namespace CodexAutoResume
                     recovery = S("overview.managed", "{state} - some settings are set by your administrator", "state", recovery);
                 object running = Get(status, "watcher_running");
                 string watcherText = running == null ? S("diag.unknown", "unknown")
-                                   : !Equals(running, true) ? StoppedText(watcher)
+                                   : !Equals(running, true) ? StoppedText(watcher, false)
                                    : Equals(Get(watcher, "ticking"), false) ? S("diag.not_responding", "not responding")
                                    : S("diag.running", "running");
+                // Diagnostics says a stop with when; Right now without it (StoppedText).
+                string watcherFull = running != null && !Equals(running, true) ? StoppedText(watcher, true) : watcherText;
                 string engine = Str(watcher, "engine_state") ?? "unknown";
                 string engineText = S("engine." + engine, engine);
                 double last = Number(watcher, "last_tick_at");
@@ -390,7 +399,7 @@ namespace CodexAutoResume
                 if (diagVersion != null)
                 {
                     diagVersion.Text = "v" + Convert.ToString(Get(status, "version"), CultureInfo.InvariantCulture);
-                    diagWatcher.Text = watcherText;
+                    diagWatcher.Text = watcherFull;
                     diagEngine.Text = engineText;
                     diagLastCheck.Text = Ago(last);
                     // v0.6.11: the most private memory the watcher committed, in whole MB, rounded up (memguard.mib).

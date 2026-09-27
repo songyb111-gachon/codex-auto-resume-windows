@@ -63,8 +63,15 @@ namespace CodexAutoResume
             runningLine = Value("");
             runningLine.ForeColor = Secondary;
             // v0.6.11: Codex's usage as the watcher last read it, with its age - empty until it has been read.
-            usageLine = Value("");
-            usageLine.ForeColor = Secondary;
+            // One line, whatever the reading holds (LineLabel): the Overview fits a 1920 by 1080 screen at 150% with
+            // three lines under the count and not a pixel more, so a reading of two windows or eight ends in an
+            // ellipsis where it does not fit, stretched across the card, and is whole for a screen reader, on Pending,
+            // in the popup and in the panel. Empty, it keeps the line it always kept.
+            var usage = new LineLabel();
+            usage.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top;
+            usage.Margin = Pad(0, 3, 0, 3);
+            usage.ForeColor = Secondary;
+            usageLine = usage;
             // v0.6.11: that the watcher keeps this PC awake while a task waits - shown only while it does, so the card is
             // the height it always was the rest of the time.
             awakeLine = Value("");
@@ -631,6 +638,12 @@ namespace CodexAutoResume
             // what that means, under the facts.
             diagStateAccess = Fact(facts, S("diag.state_access", "State folder"));
             diagStateAccess.Text = S("diag.state_access.unknown", "not checked");
+            // v0.6.11: each value stretched across its column, so one longer than the card - a watcher stopped by the
+            // memory guard at a time on another day, a state folder other accounts can open - wraps under itself in every
+            // language rather than being cut off. A value that fits is drawn where it always was.
+            foreach (Label value in new[] { diagVersion, diagWatcher, diagLastCheck, diagEngine, diagRecovery, diagStartup,
+                                            diagUpdate, diagMemory, diagStateAccess })
+                value.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top;
             diagUpgrade = Value("");
             diagUpgrade.ForeColor = Accent;
             diagUpgrade.MaximumSize = new Size(Px(360), 0);

@@ -18,10 +18,10 @@ import time
 import traceback
 import uuid
 
-from .. import compatio, config, l10n
+from .. import compatio, config, l10n, power
 from ..logbook import EngineLog
 from ..openstate import open_state
-from ..domain.vocabulary import WatcherEnd
+from ..domain.vocabulary import KeepAwake, WatcherEnd
 from ..store import (SCHEMA_VERSION, RecordSchemaMismatch, StateFromNewerVersion, Store,
                      StoreError)
 from ..windows import AdapterError, Mutex, StopEvent, wait_any
@@ -220,7 +220,9 @@ class WatchLoop:
         if waking is None:
             return None
         try:
-            paused = not store.settings()["enabled"] or self.managed.disable_auto_resume
+            # Off (the default): `after` only lets go, so no settings row is read for it.
+            paused = (power.keep_awake(self.settings) != KeepAwake.OFF
+                      and (not store.settings()["enabled"] or self.managed.disable_auto_resume))
             return waking.after(store, self.settings, ok=ok, paused=paused)
         except Exception:
             self._record_failure("keeping this PC awake")

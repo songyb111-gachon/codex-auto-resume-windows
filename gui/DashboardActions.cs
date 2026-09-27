@@ -845,7 +845,9 @@ namespace CodexAutoResume
         }
 
         /// v0.6.11: under a usage limit's checks, what the watcher last read of Codex's usage, with its age - and first,
-        /// when a weekly limit is what it waits for, the day and time that one resets. Any other task's note is as it was.
+        /// when a weekly limit is what it waits for, the day and time that one resets, and the one fixed sentence that
+        /// Codex's /usage can redeem a reset credit (decision C13: the standard edition keeps no credit, so it never says
+        /// whether there is one). Any other task's note is as it was.
         private string WithUsage(Dictionary<string, object> row, string note)
         {
             if (Str(row, "category") != "usage_limit" || snapshot == null) return note;
@@ -853,7 +855,11 @@ namespace CodexAutoResume
             var said = new List<string>();
             if (!string.IsNullOrEmpty(note)) said.Add(note);
             string weekly = WeeklyBlock(reading), line = UsageLine(reading);
-            if (weekly != null) said.Add(weekly);
+            if (weekly != null)
+            {
+                said.Add(weekly);
+                said.Add(S("usage.weekly_credit", "If your account has a reset credit, /usage in Codex can redeem it."));
+            }
             if (line != null) said.Add(line);
             return said.Count == 0 ? null : string.Join("\n", said.ToArray());
         }

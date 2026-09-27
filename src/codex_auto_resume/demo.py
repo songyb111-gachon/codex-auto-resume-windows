@@ -8,8 +8,8 @@ an interruption's card has and buttons that do nothing (notifier.build_demo).
 Everything here is made up and held in memory: an obviously fake conversation and interruption, a
 usage limit that "resets" in a minute. This module - the one both sides take the demo from - reads
 no state and knows no engine: it imports neither the store nor the engine, and nothing it returns is
-ever written anywhere (tests/test_demo.py holds all three). A row it returns carries `demo: true`, and
-every surface offers no action on such a row.
+ever written anywhere (tests/test_diagnostics_tools.py holds all three). A row it returns carries
+`demo: true`, and every surface offers no action on such a row.
 """
 from __future__ import annotations
 
