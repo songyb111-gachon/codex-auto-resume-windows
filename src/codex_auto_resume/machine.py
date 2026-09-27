@@ -30,7 +30,7 @@ re-exported here, so nothing that imports `machine` changes.
 from __future__ import annotations
 
 from .domain.gates import (BLOCK, GATE_REASONS, GATE_RESULTS, GATES, HELD, NOT_CHECKED,
-                           OBSERVE_ONLY, PASS, POSTPONED, QUIET_HOURS, UNKNOWN, WAIT,
+                           OBSERVE_ONLY, PASS, POSTPONED, QUIET_HOURS, UNKNOWN, WAIT, counted_from,
                            decode_gates, encode_gates, first_refusal, gate, gate_budgets,
                            gate_consent, gate_schedule, gate_submission_safe, over_ceiling,
                            waited_aside, would_send_at)
@@ -55,7 +55,7 @@ __all__ = ["ACTORS", "BLOCK", "CLAIMED", "EPOCH_CODEX", "EPOCH_STORE", "EPOCH_US
            "QUIET_HOURS", "REASONS", "STATES", "SUPERSEDE_WITHDRAWALS",
            "TERMINAL", "TURN_STATUSES", "UNKNOWN", "V2_STATES", "WAIT", "WAITING",
            "WAITING_CODES", "WATCHED",
-           "WITHDRAW_REASONS", "actor_code", "decode_gates", "describe", "eligible_at",
+           "WITHDRAW_REASONS", "actor_code", "counted_from", "decode_gates", "describe", "eligible_at",
            "encode_gates", "epoch", "event_code", "first_refusal", "gate", "gate_budgets",
            "gate_consent", "gate_schedule", "gate_submission_safe", "hold_for_tier", "may_be_queued",
            "over_ceiling", "overlays",

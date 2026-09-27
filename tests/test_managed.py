@@ -487,9 +487,8 @@ class ManagedWatcherTests(ControlTestCase):
 
 class ManagedStringsTests(unittest.TestCase):
     def test_every_surface_says_it_in_the_same_words(self):
-        from codex_auto_resume import l10n
-        english = json.loads((Path(l10n.__file__).parent / "locales" / "en.json").read_text(encoding="utf-8"))
         root = Path(_HERE).parent
+        english = json.loads((root / "src" / "codex_auto_resume" / "locales" / "en.json").read_text(encoding="utf-8"))
         for key in ("settings.managed", "overview.off_managed", "overview.managed", "diag.update_managed",
                     "error.managed_by_policy"):
             self.assertIn(key, english)

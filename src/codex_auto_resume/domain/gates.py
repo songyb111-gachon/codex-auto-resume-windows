@@ -117,6 +117,18 @@ def waited_aside(vector) -> bool:
     return False
 
 
+def counted_from(row, now) -> float:
+    """Where a waiting record's chain's counted time starts once `now` ends what its stored vector
+    said it waited for (v0.6.11): later by that wait, when it was one aside (waited_aside), which a
+    time ceiling never counts - and the start the record already had otherwise. The store writes it
+    with every new vector and with the claim, so each wait aside is taken off once, and a record of
+    the chain begun after this one inherits the start (chain_span)."""
+    start, at = row["chain_first_detected_at"], row["gate_eval_at"]
+    if at is None or now <= at or not waited_aside(decode_gates(row["gate_eval"])):
+        return start
+    return start + (now - at)
+
+
 def over_ceiling(record, limits: dict, usage_category: bool) -> bool:
     """Whether a temporary task has kept failing past its time ceiling (`max_chain_seconds`, absent
     at the defaults). A usage limit waits for its reset and has none."""
