@@ -146,7 +146,9 @@ class SeenFileTests(ControlTestCase):
         self.assertNotEqual(names[0], names[1])
         for name in names:
             self.assertTrue(name.startswith("failure-seen.") and name.endswith(".tmp"), name)
-            self.assertNotIn(str(os.getpid()), name)
+            # Not the plantable failure-seen.<pid>.tmp. A substring check failed by chance on a
+            # runner whose pid was 8 and whose random name held an 8 (3.15 lane, 2026-09-27).
+            self.assertNotEqual(name[len("failure-seen."):-len(".tmp")], str(os.getpid()), name)
 
     def test_both_writers_take_one_lock(self):
         taken = []
