@@ -926,7 +926,9 @@ request the watcher makes and takes back, the kind `powercfg /requests` lists: w
 when the hours are up, when recovery is paused and when the watcher stops, and Windows ends it with
 the watcher in any case. The display may still turn off, closing the lid or choosing Sleep still
 sleeps the PC, and no setting of Windows is changed. On mains power only lets it sleep on battery as
-usual. While it keeps the PC awake, the Overview says so and since when.
+usual. While it keeps the PC awake, the Overview says so and since when - first on the line under Waiting,
+before the last usage reading, so the card has no line more; a line longer than the card ends in an
+ellipsis, and its whole text is its tooltip and Diagnostics' **While tasks wait**.
 
 While either of the two is on, the watcher also listens for the PC waking and looks again at once,
 forgetting what it last read of the Codex app and of your usage, instead of waiting for its next look.
@@ -1023,9 +1025,8 @@ hours whose times cannot be read send nothing at any hour, as `ForceObserveOnly`
 The watcher reads them at every check, the Dashboard and the panel whenever they read the settings.
 
 What a value decides is drawn greyed, with **Set by your administrator** under it, in the Dashboard's
-Settings and in the panel in Codex. The Overview says **some settings are set by your administrator**
-beside Automatic recovery - or **paused by your administrator** - and Diagnostics names the values in
-force. A change to a setting a value decides is refused, except a number of attempts within the
+Settings and in the panel in Codex. The Overview says **managed by your administrator** beside
+Automatic recovery - or **paused by your administrator** - and Diagnostics names the values in force. A change to a setting a value decides is refused, except a number of attempts within the
 ceiling. Your own choices stay in the settings file: nothing a value holds is written there, and they
 apply again once the value is removed. A pause is the one exception: removing `DisableAutoResume` does
 not resume recovery on its own - resuming is yours to do, as after an upgrade.
@@ -1045,6 +1046,26 @@ you choose wins over Windows and is kept across restarts, repairs and updates. T
 language only while the setting is *System*. A new language shows at once: the Dashboard reopens
 itself in it, the panel redraws in it, and the popup, the menu and notifications use it from the
 next time they appear.
+
+### Text size and screen readers
+
+From v0.6.11 the Dashboard, the notification-area popup, the notification card and the panel in Codex
+draw their text at Windows' text size - Settings > Accessibility > **Text size** ("Make text bigger"),
+which they read and never change. The Dashboard, the popup and the card are drawn that much larger as a
+whole - the words and everything that holds them, as a larger display scale draws them - which is what
+keeps any of it from being cut: each is laid out at every size as it is at every display scaling. None
+is made larger than the screen it opens on holds - the Dashboard at its narrowest and its tallest dialog,
+the popup whole, a card within half the screen each way - and there it is drawn at the largest size that
+fits. In the panel the type grows, with everything that holds a line of it, and every other line wraps.
+The Dashboard takes the size as it opens, the popup and a card each time they appear, and the panel each
+time Codex opens it.
+
+Every control a person can act on in the Dashboard has a name a screen reader says, in every language.
+The popup draws itself, so Windows alone could tell a screen reader nothing of what is in it; from v0.6.11
+it tells Narrator and other screen readers its counts, each task's row and its switch, the notes under
+them and its two buttons - each by name, role and state, where it is, and where the keyboard is as it
+moves. Pressing a switch or a button from a screen reader is exactly a click on it, on what was drawn.
+Every focus ring stands at least 3:1 off what it is drawn on, in every design and theme.
 
 ### The continuation message
 
@@ -1214,7 +1235,9 @@ Design rules enforced in code:
 - **Settings are policy only.** No setting can switch off a safety property; see
   [Settings](#settings).
 - **Never used:** GUI automation, mouse or keyboard simulation, OCR, screen scraping, accessibility-API
-  clicking, binary patching, DLL injection, process-memory manipulation, credential extraction.
+  clicking, binary patching, DLL injection, process-memory manipulation, credential extraction. From
+  v0.6.11 the popup answers a screen reader's questions about its own window (Text size and screen
+  readers); it asks nothing of any other window.
 
 ## Privacy
 

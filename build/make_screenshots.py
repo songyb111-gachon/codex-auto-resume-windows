@@ -790,7 +790,7 @@ def held_lights() -> str:
 def panel_html(theme=None, design=None) -> str:
     """The exact markup the panel screenshot is a picture of, pinned to `theme` and `design` (Soft when
     none is given: the page is stamped as the script stamps a stored Soft, and told to keep it)."""
-    page = mcpui.settings_page(sample_panel_data(design), theme=theme,
+    page = mcpui.settings_page(sample_panel_data(design), theme=theme, text=1.0,
                                design=design or brand.DEFAULT_DESIGN)
     # Before the panel's own script, which reads the host and the clock as it starts.
     head, _, tail = page.rpartition("<script>")

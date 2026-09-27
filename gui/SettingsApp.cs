@@ -408,11 +408,25 @@ namespace CodexAutoResume
         internal const int OpeningWidth = 1000;
         internal const int OpeningHeight = 664;
 
-        /// The display's scale. Read-only to the window; only LayoutAudit stands another
-        /// scale in, to measure a layout at a scaling this machine is not set to.
+        /// The display's scale, times the text size the window is drawn at (v0.6.11, AdoptTextSize). Read-only to the
+        /// window; only LayoutAudit stands another scale in, to measure a layout at a scaling this machine is not set to.
         internal static double DpiScale
         {
             get { return dpiScale; }
+        }
+
+        /// v0.6.11: the text size the window is drawn at, and Windows' own (TextScale): 1 until Program.Main adopts them.
+        internal static double TextSize = 1.0;
+        private static double textRead = 1.0;
+
+        /// Draws the window from here on at text size `drawn` - Windows' `read`, as far as the screen holds the window
+        /// (TextScale.Fitting): everything at that many times the display's scale, the words and what holds them alike.
+        /// Once, before the window is made (Program.Main).
+        internal static void AdoptTextSize(double read, double drawn)
+        {
+            textRead = Math.Max(1.0, read);
+            TextSize = Math.Max(1.0, drawn);
+            dpiScale = SystemScale * TextSize;
         }
 
         // Every fixed number in this file is written at 96 DPI and scaled here.
@@ -502,7 +516,8 @@ namespace CodexAutoResume
                 else asking = System.Threading.Tasks.Task.Factory.StartNew<Dictionary<string, object>>(AskStrings);
             }
             Text = "Codex Auto Resume";
-            Font = windowFont ?? SystemFonts.MessageBoxFont;
+            // v0.6.11: at the text size the window opens at (TextScale, AdoptTextSize).
+            Font = windowFont ?? TextScale.Apply(SystemFonts.MessageBoxFont, textRead, TextSize);
             // The type roles (Soft.RoleFont) are variants of the window's own font.
             Soft.BaseFont = Font;
             ForeColor = Ink;
@@ -867,6 +882,10 @@ namespace CodexAutoResume
             // glow or the Start button need. Again whenever the window's font changes.
             EventHandler fit = delegate
             {
+                // In the window's own font: the header joins the window after this, and until it does the line under
+                // the headline measures in Control.DefaultFont - a smaller one, which a larger text size (v0.6.11)
+                // made a line too short for it.
+                detail.Font = Font;
                 int line = Math.Max(headline.PreferredSize.Height, detail.PreferredSize.Height + detail.Margin.Vertical);
                 int body = Math.Max(2 * line, Math.Max(2 * HaloDot.Extent + Px(2),
                                                       startButton.PreferredSize.Height + startButton.Margin.Vertical));
@@ -1055,6 +1074,10 @@ namespace CodexAutoResume
             Design.Opened = request.Design ?? storedDesign;
             Palette.AdoptDesign(Design.Opened);
             Palette.Adopt(Theme.Current(Theme.Opened));
+            // v0.6.11: Windows' text size, as far as the screen the window opens on holds it at its narrowest.
+            double text = TextScale.Read();
+            SettingsForm.AdoptTextSize(text, TextScale.Fitting(text, Screen.FromPoint(Cursor.Position).WorkingArea.Size,
+                                                               SettingsForm.DpiScale));
             Application.Run(new SettingsForm(new PersistentBridge(root, bridge)));
             return 0;
         }

@@ -247,25 +247,27 @@ class IconHostTests(unittest.TestCase):
         with patch.object(tray_popup, "apps_use_light_theme", lambda: True), \
                 patch.object(tray_popup, "high_contrast", lambda: False), \
                 patch.object(tray_popup, "reduced_motion", lambda: bool(tray_popup.theme._reduce_motion_setting)), \
-                patch.object(notice_presence, "battery_saver", lambda: False):
+                patch.object(notice_presence, "battery_saver", lambda: False),                 patch.object(tray_popup, "text_scale", lambda: 1.0):
             look = icon._card_look()
             # v0.6.10: the design too, which chooses paint only; what moves is `reduced`'s, in every design.
-            self.assertEqual(look, {"theme": "dark", "design": "soft", "contrast": False, "reduced": True})
+            # v0.6.11: and Windows' text size, which the whole card is drawn larger by.
+            self.assertEqual(look, {"theme": "dark", "design": "soft", "contrast": False, "reduced": True,
+                                    "text": 1.0})
             settings.update(stored, {"theme": "light", "reduce_motion": False})
             os.utime(stored, ns=(time.time_ns(), time.time_ns() + 10_000_000))
             self.assertEqual(icon._card_look(), {"theme": "light", "design": "soft", "contrast": False,
-                                                 "reduced": False})
+                                                 "reduced": False, "text": 1.0})
             # Classic: the light breathes and the card comes and goes as Soft's does.
             settings.update(stored, {"design": "classic"})
             os.utime(stored, ns=(time.time_ns(), time.time_ns() + 20_000_000))
             self.assertEqual(icon._card_look(), {"theme": "light", "design": "classic", "contrast": False,
-                                                 "reduced": False})
+                                                 "reduced": False, "text": 1.0})
             # A Still stored by v0.6.10: Soft, and nothing moves - it is Reduce motion (settings._migrate).
             stored.write_text(json.dumps(dict(json.loads(stored.read_text(encoding="utf-8")),
                                               design="still", reduce_motion=False)), encoding="utf-8")
             os.utime(stored, ns=(time.time_ns(), time.time_ns() + 30_000_000))
             self.assertEqual(icon._card_look(), {"theme": "light", "design": "soft", "contrast": False,
-                                                 "reduced": True})
+                                                 "reduced": True, "text": 1.0})
         self.addCleanup(tray_popup.set_design, "soft")
 
 

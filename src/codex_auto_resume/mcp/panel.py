@@ -58,6 +58,7 @@ from pathlib import Path
 import re
 
 from .. import brand, interface, l10n
+from ..win import textsize
 
 _ASSETS = Path(__file__).resolve().parent / "assets"
 
@@ -177,16 +178,46 @@ def panel_catalogs() -> dict:
             for locale in l10n.LOCALES}
 
 
+# v0.6.11: what holds one line of words and so grows with them at a larger text size: a button, a field, a
+# chip, a segment, a count and a callout's badge - and the line a control's words stand in (panel.css,
+# --line-control).
+TEXT_HOLDERS = ("button_height", "field_height", "chip_height", "segment_height", "count_height",
+                "count_min_width", "callout_badge")
+LINE_CONTROL = 20
+
+
+def text_scale_style(text) -> str:
+    """The panel at Windows' text size `text` (win/textsize.py, v0.6.11): a second stylesheet that makes the
+    page's type (brand.TYPE_SCALE) and everything that holds one line of it that many times larger, so the
+    words are Windows' size and nothing that holds them cuts them; every other line wraps, as it does in a
+    narrow panel. "" at the usual size, so the page is served as it always was."""
+    if isinstance(text, bool) or not isinstance(text, (int, float)) or text <= 1.0:
+        return ""
+    text = min(float(text), textsize.HIGHEST / 100.0)
+
+    def length(value):
+        return "%spx" % ("%.3f" % (value * text)).rstrip("0").rstrip(".")
+
+    parts = ["--type-%s: %s;" % (name.replace("_", "-"), length(value)) for name, value in brand.TYPE_SCALE.items()]
+    parts += ["--size-%s: %s;" % (name.replace("_", "-"), length(brand.LAYOUT[name])) for name in TEXT_HOLDERS]
+    parts.append("--line-control: %s;" % length(LINE_CONTROL))
+    return "<style>:root { %s }</style>" % " ".join(parts)
+
+
 def _script_json(value) -> str:
     return json.dumps(value, ensure_ascii=False, allow_nan=False).replace("<", "\\u003c")
 
 
-def settings_page(data=None, theme=None, design=None) -> str:
+def settings_page(data=None, theme=None, design=None, text=None) -> str:
     """The panel as one HTML document.
 
     ``data`` is only ever used for a preview: in Codex the values arrive from the tool
     result, so the served page carries no settings of its own and cannot go stale
     between being read and being shown.
+
+    ``text`` is the text size to draw at (text_scale_style, v0.6.11): Windows' own, asked
+    each time the page is served, unless one is given - as the documentation's capture
+    gives 1, so its pictures do not depend on the machine that made them.
     """
     # The vocabulary always ships, seed data or not. In Codex the values arrive from the
     # tool result, but the page still has to know what to call them - and the panel must
@@ -218,6 +249,6 @@ def settings_page(data=None, theme=None, design=None) -> str:
     return (
         "<!doctype html>" + root + "<head><meta charset=\"utf-8\">"
         "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
-        "<title>Codex Auto Resume</title><style>%s</style></head>"
+        "<title>Codex Auto Resume</title><style>%s</style>%s</head>"
         "<body><div id=\"root\"></div>%s%s%s<script>%s</script></body></html>"
-        % (_STYLE, catalog, catalogs, seed, _SCRIPT))
+        % (_STYLE, text_scale_style(textsize.read() if text is None else text), catalog, catalogs, seed, _SCRIPT))

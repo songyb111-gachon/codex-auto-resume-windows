@@ -396,6 +396,36 @@ namespace CodexAutoResume
         }
     }
 
+    /// v0.6.11: the whole of a line that ends in an ellipsis where it does not fit (LineLabel), while the pointer rests
+    /// on it - in the window's own colours and font rather than Windows' own tooltip, which knows neither the theme nor
+    /// the design: its words in ink on the raised ground, a hairline round it, wrapped at a readable width.
+    internal sealed class SoftTip : ToolTip
+    {
+        // How far the words stand in from the tip's edge, and the widest a line of them runs, at 96 DPI.
+        private const int Inset = 8, Widest = 420;
+        private const TextFormatFlags Flags = TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.Left |
+                                              TextFormatFlags.Top;
+
+        internal SoftTip()
+        {
+            OwnerDraw = true;
+            Popup += delegate(object sender, PopupEventArgs e)
+            {
+                string text = GetToolTip(e.AssociatedControl) ?? "";
+                Size words = TextRenderer.MeasureText(text, Soft.BaseFont, new Size(Soft.Px(Widest), int.MaxValue), Flags);
+                e.ToolTipSize = new Size(words.Width + 2 * Soft.Px(Inset), words.Height + 2 * Soft.Px(Inset));
+            };
+            Draw += delegate(object sender, DrawToolTipEventArgs e)
+            {
+                e.Graphics.FillRectangle(Soft.Fill(Palette.Raised), e.Bounds);
+                using (var pen = new Pen(Palette.Line))
+                    e.Graphics.DrawRectangle(pen, e.Bounds.X, e.Bounds.Y, e.Bounds.Width - 1, e.Bounds.Height - 1);
+                TextRenderer.DrawText(e.Graphics, e.ToolTipText, Soft.BaseFont,
+                                      Rectangle.Inflate(e.Bounds, -Soft.Px(Inset), -Soft.Px(Inset)), Palette.Ink, Flags);
+            };
+        }
+    }
+
     /// A small bar chart of how recoveries ended, drawn to the same scale for every bar.
     internal sealed class OutcomeChart : Panel
     {
@@ -645,7 +675,9 @@ namespace CodexAutoResume
 
         // Overview
         private Label nowRecovery, nowWatcher, nowEngine, nowLastCheck, waitingLine, nextLine,
-                      runningLine, usageLine, awakeLine, weekDetected, weekSent, weekRecovered, weekSuccess, recentEmpty;
+                      runningLine, usageLine, weekDetected, weekSent, weekRecovered, weekSuccess, recentEmpty;
+        // v0.6.11: the usage line's whole text, while the pointer rests on it (WaitingLine).
+        private SoftTip lineTip;
         private Button toggleButton;
         private TableLayoutPanel recentGrid;
         private string recentShown;
@@ -687,7 +719,7 @@ namespace CodexAutoResume
         private OutcomeChart chart;
         // Diagnostics
         private Label diagVersion, diagWatcher, diagLastCheck, diagEngine, diagRecovery, diagStartup,
-                      diagUpgrade, diagUpdate, diagMemory, diagPlugin, diagStateAccess, diagStateNote;
+                      diagUpgrade, diagUpdate, diagMemory, diagPlugin, diagStateAccess, diagStateNote, diagWaiting;
         // v0.6.11: Diagnostics' Show me what happens, which waits while an action runs.
         private Button demoButton;
         private Button exportButton, repairButton, stopButton, updateButton;

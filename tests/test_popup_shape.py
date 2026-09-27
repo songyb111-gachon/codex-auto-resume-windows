@@ -42,13 +42,13 @@ from codex_auto_resume.ui import popup as tray_popup  # noqa: E402
 ROOT = Path(_HERE).parent
 PACKAGE = "codex_auto_resume.ui.popup"
 
-# The thirteen files, in the order `__init__` re-exports them: the six that ask Windows nothing,
+# The fourteen files, in the order `__init__` re-exports them: the six that ask Windows nothing,
 # then Windows and what is drawn with it. It is a dependency order, and the test below holds it
-# that way - so the list reads as the layering it is, rather than as thirteen names. `messages` came
+# that way - so the list reads as the layering it is, rather than as fourteen names. `messages` came
 # out of `window` in v0.6.10, the window's messages as a mixin it is made of, to give window.py room
-# under the line budget.
+# under the line budget; `access` in v0.6.11, what a screen reader is told, which the messages answer from.
 MODULES = ("words", "model", "placement", "motion", "elevation", "layout",
-           "win32", "fonts", "theme", "gdiplus", "renderer", "messages", "window")
+           "win32", "fonts", "theme", "gdiplus", "renderer", "access", "messages", "window")
 ASKS_WINDOWS_NOTHING = MODULES[:6]
 
 # What `tray_popup.<name>` gave before the split, name for name. `countdown` is the one public
@@ -72,7 +72,7 @@ SURFACE = {
     "KEY_WAS_DOWN", "LOGFONTW", "MARK", "MAX_TASKS", "MONITORINFO",
     "MONITOR_DEFAULTTONEAREST", "NONCLIENTMETRICSW", "NOTICE_SECONDS", "NOTIFYICONIDENTIFIER",
     "PAINTSTRUCT", "PERSONALIZE_KEY", "PIXEL_FORMAT_32BPP_PARGB", "PIXEL_FORMAT_32BPP_RGB",
-    "PointF", "Popup", "PopupModel", "REFRESH_TICKS", "ROLES", "RRF_RT_REG_DWORD", "Renderer",
+    "PointF", "Popup", "PopupAccessible", "PopupModel", "REFRESH_TICKS", "ROLES", "RRF_RT_REG_DWORD", "Renderer",
     "SHADOW_MARGIN", "SPI_GETCLIENTAREAANIMATION", "SPI_GETHIGHCONTRAST",
     "SPI_GETNONCLIENTMETRICS", "STALE_CODES", "STATES", "STATE_INK", "SWITCH_GAP",
     "SWP_NOACTIVATE", "SW_HIDE", "SW_SHOW", "SW_SHOWNOACTIVATE", "SYSTEM_COLOURS",
@@ -84,7 +84,7 @@ SURFACE = {
     "WM_SETTINGCHANGE", "WM_SYSCOLORCHANGE", "WM_TIMER", "WS_EX_TOOLWINDOW", "WS_EX_TOPMOST",
     "WS_POPUP", "_Canvas", "_Fonts", "_Painter", "_PerMonitorDpi", "_ShadowImage", "_declare",
     "_dll", "_gdiplus_acquire", "_gdiplus_release", "_icon_from_pixels", "_pack", "activity",
-    "adopt_settings", "animates", "appearance", "apps_use_light_theme", "busy_key",
+    "accessible_items", "adopt_settings", "animates", "appearance", "apps_use_light_theme", "busy_key",
     "contrast_colour", "design_choice", "design_setting", "effective_theme", "focus_order", "font_candidates", "font_faces",
     "gdiplus_objects", "glide_amount", "gui_resources", "halo", "high_contrast", "hit_test",
     "icon_rect", "is_waiting", "layout", "lift_coverage", "light_for", "locale_of",
@@ -92,7 +92,7 @@ SURFACE = {
     "next_focus", "next_glides", "one_line", "perform", "place", "recipe_shadows",
     "reduced_motion", "role_size", "say", "select_action", "set_design", "set_reduce_motion", "set_theme",
     "shadow_step", "share_columns", "snapshot_activity", "system_rgb", "task_item",
-    "taskbar_edge", "theme_choice", "theme_setting", "tile_ground", "unbroken", "urgency",
+    "taskbar_edge", "text_scale", "theme_choice", "theme_setting", "tile_ground", "unbroken", "urgency",
     "view_model", "vocabulary", "well_coverage",
 }
 
@@ -110,7 +110,7 @@ class SurfaceTests(unittest.TestCase):
                   and name != "annotations"}          # `from __future__ import`
         self.assertEqual(public - SURFACE, set(), "a new name on the popup is a decision: add it above")
 
-    def test_the_thirteen_modules_are_all_there_and_nothing_else_is(self):
+    def test_the_fourteen_modules_are_all_there_and_nothing_else_is(self):
         listed = {srcscan.module_name(path).split(".")[-1] for path in srcscan.files_of(PACKAGE)}
         self.assertEqual(listed, set(MODULES) | {"popup"})
 
@@ -154,7 +154,7 @@ class SurfaceTests(unittest.TestCase):
                     srcscan.modules()[PACKAGE + "." + module]))
 
     def test_no_two_modules_define_the_same_name(self):
-        """`__init__` re-exports thirteen files in order, so a name in two of them would resolve
+        """`__init__` re-exports fourteen files in order, so a name in two of them would resolve
         to whichever is imported last - and moving a line between files would change it."""
         owners: dict[str, list[str]] = {}
         for path in srcscan.files_of(PACKAGE):

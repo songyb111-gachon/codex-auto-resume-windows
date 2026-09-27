@@ -106,6 +106,8 @@ LAYER = {_q(name): layer for layer, names in {
                  "win.ownprocess",
                  # and who it lets open the state folder, asked from Diagnostics.
                  "win.acl",
+                 # and the text size it is set to, which the popup, the card and the panel draw at.
+                 "win.textsize",
                  # v0.6.10-alpha: source.py became source/, and every part of it reads Codex;
                  # windows.py's other half - the CLI, the App Server, the pairing - joined it.
                  "codex.appserver", "codex.errors", "codex.history", "codex.labels",
@@ -161,7 +163,9 @@ LAYER = {_q(name): layer for layer, names in {
               "ui.popup.placement", "ui.popup.renderer", "ui.popup.theme",
               "ui.popup.win32", "ui.popup.window", "ui.popup.words",
               # v0.6.10: the window's messages, out of window.py.
-              "ui.popup.messages"),
+              "ui.popup.messages",
+              # v0.6.11: what a screen reader is told of the popup, and asks of it.
+              "ui.popup.access"),
 }.items() for name in names}
 
 # The roles the target rules speak of: today's modules, and the packages the split moves them

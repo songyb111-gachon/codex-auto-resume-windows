@@ -11,6 +11,9 @@
   @ELEVATION_LIGHT@
   @TILE_LIGHT@
   @SCALE@
+  /* The line a control's one line of words stands in - a button's, a segment's, a chip's and a drop-down's
+     - which Windows' text size makes taller with the words in it (v0.6.11, panel.text_scale_style). */
+  --line-control: 20px;
   /* The light's easing: half a raised cosine, to within 0.002 of each phase, so the cycle the
      stylesheet draws is the same curve brand.glow() gives the window and the popup. */
   --glow-ease: cubic-bezier(.37, 0, .63, 1);
@@ -167,7 +170,7 @@ button, select, input { font: inherit; }
 button { min-height: var(--size-button-height); padding: var(--size-button-pad);
          border-radius: var(--radius-control);
          border: 1px solid var(--line); background: var(--raised); color: var(--ink);
-         box-shadow: var(--elev-control); font-weight: 500; line-height: 20px; cursor: pointer;
+         box-shadow: var(--elev-control); font-weight: 500; line-height: var(--line-control); cursor: pointer;
          transition: background-color var(--transition), border-color var(--transition),
                      box-shadow var(--transition), color var(--transition);
          transition-timing-function: var(--transition-ease); }
@@ -222,7 +225,7 @@ input[type=number] { width: var(--size-number-width); text-align: right; font-va
    cut to the room there is, scrolls inside the card's padding and not at its edge, a whole row at a
    time, on the window's soft bar. It rises a few pixels into place as it fades in, and closes at once. */
 .combo { position: relative; display: block; width: 100%; min-width: 0;
-         --combo-line: 20px; --combo-words: @SELECT_PAD_LEFT@;
+         --combo-line: var(--line-control); --combo-words: @SELECT_PAD_LEFT@;
          --combo-pill: calc(var(--combo-line) + 2 * var(--space-s)); }
 .combo-box { position: relative; display: flex; align-items: center; width: 100%; min-width: 0;
              padding: var(--size-select-pad); line-height: var(--combo-line); cursor: pointer; }
@@ -362,6 +365,9 @@ label.setting { cursor: pointer; }
            column-gap: 28px; }
 .toggles .setting { flex-wrap: nowrap; }
 .toggles.quiet .setting-label { color: var(--muted); }
+/* What a needs-you notice is told with - its kinds, its stall and its sound - under When a conversation needs
+   you, one step in: their boxes start where its words do (a box and its gap), as in the Dashboard. */
+.toggles.needs-you { margin-inline-start: calc(var(--size-check-size) + var(--size-check-gap)); }
 
 /* A tile - the master switch's here, a waiting task's below - stands on its card as the popup's task
    tiles do: the `raised` ground, the hairline, and --elev-tile, which is brand's control lift and, in
@@ -381,7 +387,7 @@ label.setting { cursor: pointer; }
 .segment { position: relative; display: flex; min-width: 0; }
 .segment input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0;
                  cursor: pointer; }
-.segment span { flex: 1; min-width: 0; padding: var(--size-segment-pad); text-align: center; line-height: 20px;
+.segment span { flex: 1; min-width: 0; padding: var(--size-segment-pad); text-align: center; line-height: var(--line-control);
                 font-weight: 500; overflow-wrap: anywhere; color: var(--ink);
                 border-radius: var(--radius-control); border: 1px solid var(--line);
                 background: var(--raised); box-shadow: var(--elev-control);
@@ -453,7 +459,7 @@ details.inner > .fold-body > .setting { border-top: 1px solid var(--line); }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
 .chip { --chip: var(--paused); display: inline-block; max-width: 100%; padding: 1px var(--size-chip-pad-x);
-        border-radius: 999px; font-size: var(--type-small); line-height: 20px; font-weight: 500;
+        border-radius: 999px; font-size: var(--type-small); line-height: var(--line-control); font-weight: 500;
         color: var(--chip); background: var(--inset); white-space: nowrap; overflow: hidden;
         text-overflow: ellipsis; }
 @supports (color: color-mix(in srgb, red 50%, blue)) {

@@ -273,6 +273,33 @@ namespace CodexAutoResume
                                                                        .Replace("{windows}", string.Join(" · ", parts.ToArray()));
         }
 
+        /// v0.6.11: the Overview's line under what is waiting: that the watcher keeps this PC awake while a task waits, from
+        /// when - only while it runs - and then the last usage reading (UsageLine), one after the other in one line; ""
+        /// when neither is so. Keeping awake is said first: it is what the watcher is doing now, the reading what it last
+        /// read.
+        private string WaitingLine(Dictionary<string, object> watcher, object running)
+        {
+            var parts = new List<string>();
+            double awake = Number(watcher, "awake_since");
+            if (awake > 0 && Equals(running, true))
+                parts.Add(S("overview.awake", "Keeping this PC awake while tasks wait, since {time}", "time", ClockTime(awake)));
+            string usage = UsageLine(Map(watcher, "usage"));
+            if (usage != null) parts.Add(usage);
+            return string.Join(" · ", parts.ToArray());
+        }
+
+        /// The waiting line on the Overview, one line that ends in an ellipsis where it does not fit - its whole text its
+        /// tooltip - and whole on Diagnostics, "-" there when there is none.
+        private void ShowWaitingLine(string whole)
+        {
+            if (usageLine != null)
+            {
+                usageLine.Text = whole;
+                if (lineTip != null) lineTip.SetToolTip(usageLine, whole.Length > 0 ? whole : null);
+            }
+            if (diagWaiting != null) diagWaiting.Text = whole.Length > 0 ? whole : "-";
+        }
+
         /// A weekly window the last reading found used up, with the day and time it resets - what a usage limit then waits
         /// for, whatever else is used up beside it; null when no weekly window is, or its reset was not said. A reset
         /// already past says nothing: the reading is older than it, and what it found is no longer so - it is never told
@@ -364,11 +391,11 @@ namespace CodexAutoResume
                 string recovery = !enabled ? (managed.Contains("DisableAutoResume")
                                               ? S("overview.off_managed", "paused by your administrator")
                                               : S("overview.off", "paused"))
-                                : Equals(Get(status, "observe_only"), true) ? S("overview.observe_only", "observe only; nothing is sent")
+                                : Equals(Get(status, "observe_only"), true) ? S("overview.observe_only", "observe only")
                                 : S("overview.on", "on");
                 // and that some settings are an administrator's, said after whatever the state is.
                 if (managed.Count > 0 && !(!enabled && managed.Contains("DisableAutoResume")))
-                    recovery = S("overview.managed", "{state} - some settings are set by your administrator", "state", recovery);
+                    recovery = S("overview.managed", "{state} · managed by your administrator", "state", recovery);
                 object running = Get(status, "watcher_running");
                 string watcherText = running == null ? S("diag.unknown", "unknown")
                                    : !Equals(running, true) ? StoppedText(watcher, false)
@@ -379,16 +406,9 @@ namespace CodexAutoResume
                 string engine = Str(watcher, "engine_state") ?? "unknown";
                 string engineText = S("engine." + engine, engine);
                 double last = Number(watcher, "last_tick_at");
-                // v0.6.11: the last usage reading, under what is waiting for it.
-                if (usageLine != null) usageLine.Text = UsageLine(Map(watcher, "usage")) ?? "";
-                // v0.6.11: and that the watcher keeps this PC awake while a task waits, from when - only while it runs.
-                double awake = Number(watcher, "awake_since");
-                if (awakeLine != null)
-                {
-                    awakeLine.Text = awake > 0 && Equals(running, true)
-                        ? S("overview.awake", "Keeping this PC awake while tasks wait, since {time}", "time", ClockTime(awake)) : "";
-                    awakeLine.Visible = awakeLine.Text.Length > 0;
-                }
+                // v0.6.11: under what is waiting, the last usage reading - and before it that the watcher keeps this PC
+                // awake while a task waits - in one line, whole in its tooltip and on Diagnostics (WaitingLine).
+                ShowWaitingLine(WaitingLine(watcher, running));
                 if (nowRecovery != null)
                 {
                     nowRecovery.Text = recovery;
@@ -535,6 +555,8 @@ namespace CodexAutoResume
                 nextLine.Text = "";
                 runningLine.Text = "";
             }
+            // v0.6.11: nor that the watcher keeps this PC awake, nor a reading whose age would stand still.
+            ShowWaitingLine("");
             // The week's figures and the Statistics page are read the same way and have
             // failed the same way; left as they were, they would be the last good answer
             // under a header that says the state cannot be read.

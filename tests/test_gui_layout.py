@@ -427,7 +427,10 @@ def fullest_snapshot(now: float) -> dict:
                        "watcher": {"running": True, "ticking": True, "engine_state": "verified", "last_tick_at": now,
                                    # v0.6.11: the last usage reading, under Waiting - Codex's two windows, both
                                    # resetting on another day, so each reset is said with its date.
-                                   "usage": fullest_usage(now)}},
+                                   "usage": fullest_usage(now),
+                                   # and, before it on the same line, that the watcher has kept this PC awake since
+                                   # a time on another day - said with its date too (WaitingLine).
+                                   "awake_since": now - 2 * 86400 - 3600}},
             "week": {"interruptions_detected": 128, "continuations_submitted": 117, "pending": len(waiting),
                      "outcomes": {"recovered": 96}, "success_rate": 0.82},
             "pending": waiting, "history": waiting + history,
@@ -498,8 +501,20 @@ def overview_states(now: float) -> list:
     guarded["status"]["watcher"].update(ended="memory_guard", ended_at=now - 2 * 86400)
     unexpected = copy.deepcopy(guarded)
     unexpected["status"]["watcher"]["ended"] = "unexpected"
+    # v0.6.11: Right now's words for observe only and for settings an administrator set - the longest they come,
+    # observe only an administrator's key forced with another key beside it - and for recovery an administrator
+    # paused, which have to fit its one line as every other state's words do (the review, in German).
+    observed = copy.deepcopy(fullest)
+    observed["status"].update(observe_only=True, managed=["ForceObserveOnly", "MaxRecoveryAttempts"])
+    managed = copy.deepcopy(fullest)
+    managed["status"]["managed"] = ["MaxRecoveryAttempts", "QuietHours"]
+    stopped = watcher(False, True, True, "verified", 0)
+    stopped["status"]["managed"] = ["DisableAutoResume"]
     return [["a watcher in trouble, recovery paused", watcher(False, True, False, "incompatible", 59 * 60 + 30)],
             ["the fullest", fullest],
+            ["observe only, forced by an administrator", observed],
+            ["recovery on, some settings an administrator's", managed],
+            ["recovery paused by an administrator", stopped],
             ["a stopped watcher", watcher(True, False, True, "unknown", 3 * 86400)],
             ["a watcher the memory guard stopped", guarded],
             ["a watcher that stopped unexpectedly", unexpected],
@@ -868,7 +883,7 @@ class WindowCompositionTests(unittest.TestCase):
         constructor = self.window[self.window.index("private SettingsForm(PersistentBridge bridge, Dictionary<string, object> catalog"):]
         constructor = constructor[:constructor.index("\n        }\n")]
         self.assertLess(constructor.index("StringsCache.Key(root)"), constructor.index("StringsCache.Read(root, cacheKey)"))
-        self.assertLess(constructor.index("Task.Factory.StartNew"), constructor.index("Font = windowFont ?? SystemFonts.MessageBoxFont;"),
+        self.assertLess(constructor.index("Task.Factory.StartNew"), constructor.index("Font = windowFont ?? TextScale.Apply(SystemFonts.MessageBoxFont, textRead, TextSize);"),
                         "the strings are asked for while the fonts and the icon are made")
         read = self.method(self.window, "internal static Dictionary<string, object> Read(")
         self.assertIn("(string)stored != key) return null;", read)

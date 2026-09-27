@@ -198,13 +198,13 @@ def look() -> dict:
 
     `reduced` is every stopper - Reduce motion, Windows' animation setting, High Contrast, battery saver -
     and it holds the light and the card's own entrance, exit and slide alike, in every design: the design
-    chooses paint, never motion.
+    chooses paint, never motion. `text` is Windows' text size (v0.6.11), which the whole card is drawn larger by.
     """
     contrast = popup.high_contrast()
     theme = popup.effective_theme(popup.theme_setting(), popup.apps_use_light_theme())
     design = popup.design_setting()
     reduced = bool(popup.reduced_motion() or contrast or notice_presence.battery_saver())
-    return {"theme": theme, "design": design, "contrast": contrast, "reduced": reduced}
+    return {"theme": theme, "design": design, "contrast": contrast, "reduced": reduced, "text": popup.text_scale()}
 
 
 # ------------------------------------------------------------------------ one layered window

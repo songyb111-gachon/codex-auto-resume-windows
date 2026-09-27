@@ -1463,10 +1463,11 @@ class PopupDrawingTests(unittest.TestCase):
                                          srcscan.relative(path)))
         self.assertEqual(found, tracked)
         # Every file of each, not the one file each used to be: since v0.6.10-alpha the popup
-        # is thirteen - fourteen since v0.6.10, with the window's messages out of window.py - and
-        # the palette is ten - eleven since v0.6.10, with brand/design.py, which decides how
-        # every design draws the popup and the card, so it is in their key too.
-        self.assertEqual(len([name for name in found if name.startswith("ui/popup/")]), 14)
+        # is thirteen - fourteen since v0.6.10, with the window's messages out of window.py, fifteen
+        # since v0.6.11 told a screen reader what is in it - and the palette is ten - eleven since
+        # v0.6.10, with brand/design.py, which decides how every design draws the popup and the card,
+        # so it is in their key too.
+        self.assertEqual(len([name for name in found if name.startswith("ui/popup/")]), 15)
         self.assertEqual(len([name for name in found if name.startswith("brand/")]), 11)
         self.assertIn("brand/design.py", found)
         self.assertIn("ui/popup/renderer.py", found)

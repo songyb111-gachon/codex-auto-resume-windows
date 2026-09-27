@@ -114,6 +114,11 @@ def texts(vm) -> list:
 
 
 # ------------------------------------------------------------------------------- layout
+# v0.6.11: about the tallest a card is at the usual text size, in logical pixels - two lines of reason, an
+# origin line and two buttons - which a larger text size is fitted to (ui/card/card.Card.fitting).
+USUAL_HEIGHT = 240
+
+
 def layout(vm, scale, measure) -> dict:
     """Every rectangle the card draws, in device pixels, with the card at (0, 0).
 

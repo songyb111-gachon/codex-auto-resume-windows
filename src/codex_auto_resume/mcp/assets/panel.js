@@ -1611,29 +1611,71 @@ function highLimits(limits) {
   });
 }
 
+// v0.6.11: what a needs-you notice is told with - each kind of failure, the stall and the sound - which only
+// matters while When a conversation needs you is on (needsyou.py), as the Dashboard's NeedsYouPart has it.
+function needsYouPart(name) {
+  return /^notify_needs_you_/.test(String(name || '')) || name === 'stall_after' || name === 'needs_you_sound';
+}
+
+// The one input or select in a row the page drew, or null.
+function inputOf(node) {
+  if (!node) return null;
+  if (node.tagName === 'input' || node.tagName === 'select' ||
+      node.tagName === 'INPUT' || node.tagName === 'SELECT') return node;
+  var children = node.children || [];
+  for (var i = 0; i < children.length; i++) {
+    var found = inputOf(children[i]);
+    if (found) return found;
+  }
+  return null;
+}
+
 function renderNotifications(schema) {
   var entries = schema.filter(function (entry) { return entry.group === 'notifications' && editable(entry); });
   if (!entries.length) return null;
   var fold = folding('notifications', t('group.notifications', 'Notifications'), false);
   var events = element('div', 'toggles');
-  var master = null;
+  // v0.6.11: a needs-you notice's parts, one step in under it, live only while it and notifications are on -
+  // what they store is untouched, as in the Dashboard.
+  var told = element('div', 'toggles needs-you');
+  var master = null, masterInput = null, toldInput = null, parts = [];
+  function follow() {
+    var live = (!masterInput || masterInput.checked) && (!toldInput || toldInput.checked);
+    parts.forEach(function (part) {
+      part.input.disabled = !HOST || !!part.entry.managed || !live;
+      if (part.sync) part.sync();
+    });
+    told.classList.toggle('quiet', !live);
+  }
   entries.forEach(function (entry) {
+    var host = needsYouPart(entry.name) ? told : events;
     if (entry.master) {
-      master = toggle(entry, function (on) { events.classList.toggle('quiet', !on); });
+      master = toggle(entry, function (on) { events.classList.toggle('quiet', !on); follow(); });
+      masterInput = inputOf(master);
       events.classList.toggle('quiet', !value(entry.name));
     } else if (entry.choices) {
       // v0.6.11: how long a turn may not move before a needs-you notice says so.
-      events.appendChild(choiceField(entry, entry.choices.map(function (choice) {
+      var built = choiceField(entry, entry.choices.map(function (choice) {
         return {value: choice, text: t('choice.' + choice, choice)};
-      }), '').row);
+      }), '');
+      host.appendChild(built.row);
+      if (host === told) parts.push({entry: entry, input: built.select, sync: built.sync});
     } else {
-      events.appendChild(onOff(entry));
+      var row = onOff(entry);
+      host.appendChild(row);
+      if (host === told) parts.push({entry: entry, input: inputOf(row)});
+      if (entry.name === 'notify_needs_you') {
+        toldInput = inputOf(row);
+        toldInput.addEventListener('change', follow);
+      }
       // v0.6.11: what a needs-you notice is, and what its sound changes, under the last of its settings.
-      if (entry.name === 'needs_you_sound') events.appendChild(element('p', 'help', t('help.needs_you_sound', '')));
+      if (entry.name === 'needs_you_sound') told.appendChild(element('p', 'help', t('help.needs_you_sound', '')));
     }
   });
   if (master) fold.body.appendChild(master);
   fold.body.appendChild(events);
+  if (parts.length) fold.body.appendChild(told);
+  follow();
   return fold.node;
 }
 

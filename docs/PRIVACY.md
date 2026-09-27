@@ -278,7 +278,10 @@ gives the sign-in it runs in (`GetTokenInformation` on its own token, `TokenStat
 that number is kept - a counter that names no one, new at every sign-in); and how long ago Windows
 started (`GetTickCount64`). The Dashboard, the panel and `get_status` ask the last two of their own
 process, to compare - that is how a watcher that stopped unexpectedly is told from one that ended with
-an earlier sign-in. The Dashboard's Diagnostics also looks, when it opens, at which edition Codex's own
+an earlier sign-in. Also from v0.6.11, the Dashboard as it opens, the popup and the notification
+card each time they appear, and the panel each time Codex opens it read Windows' text size - the per-user
+`TextScaleFactor` value under `HKEY_CURRENT_USER\Software\Microsoft\Accessibility`, which they read and
+never write - to draw text at it. The Dashboard's Diagnostics also looks, when it opens, at which edition Codex's own
 copy of this plugin is: the names of the folders in Codex's plugin cache under
 `codex-auto-resume-windows`, and whether one folder is in the newest - no file is opened. From v0.6.11
 it also asks, then, who Windows lets open this product's `config\` folder: the folder's access list

@@ -161,9 +161,12 @@ class ComboMarkupTests(unittest.TestCase):
                 # The select is still there and still the value, and nothing can reach it.
                 self.assertEqual((drawn["hidden"], drawn["aria"], drawn["tab"], drawn["wrap"], drawn["first"]),
                                  (True, "true", "-1", "combo", True))
+                # v0.6.11: a needs-you notice's stall is live only while the notice is on, which it is not by
+                # default (NeedsYouFollowTests) - off, the box leaves the keyboard's order, as a disabled field does.
                 self.assertEqual((drawn["role"], drawn["popup"], drawn["expanded"], drawn["controls"], drawn["boxId"],
                                   drawn["boxTab"]),
-                                 ("combobox", "listbox", "false", name + "-list", name + "-box", "0"))
+                                 ("combobox", "listbox", "false", name + "-list", name + "-box",
+                                  None if name == "car-stall_after" else "0"))
                 self.assertEqual((drawn["listId"], drawn["listRole"], drawn["listHidden"], drawn["listTab"],
                                   drawn["listLabel"]),
                                  (name + "-list", "listbox", True, "-1", name + "-label"))

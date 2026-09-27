@@ -9,6 +9,7 @@ from __future__ import annotations
 import ctypes as C
 import time
 from .placement import focus_order, hit_test, next_focus
+from . import access
 from .win32 import (KEY_WAS_DOWN,
                     PAINTSTRUCT,
                     TIMER_FIRST,
@@ -82,6 +83,10 @@ class PopupMessages:
         if message == WM_POPUP_RESULT:
             self._finished(wparam)
             return 0
+        if message == access.WM_GETOBJECT:
+            # v0.6.11: a screen reader asking what is in the window (access.py); anything else it asks,
+            # Windows answers for the window itself.
+            return access.answer(self, wparam, lparam)
         if message == WM_POPUP_STRINGS:
             if self.visible:
                 self._update()
@@ -125,6 +130,7 @@ class PopupMessages:
             dpi = wparam & 0xFFFF
             if dpi and dpi != self.dpi:
                 self.dpi = dpi
+                self._fit = None
                 if self.visible:
                     # The scale changed under an open window: measure the screen again and
                     # put it back beside the icon at its new size, not where Windows guessed.
@@ -198,6 +204,7 @@ class PopupMessages:
             self.keyboard = True
             self.focus = next_focus(focus_order(self._plan["targets"]), self.focus, backwards)
             self._invalidate()
+            self._speak()
             return 0
         if key in (VK_SPACE, VK_RETURN) and self.focus is not None:
             self._activate(self.focus)

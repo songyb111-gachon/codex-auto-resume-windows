@@ -175,6 +175,69 @@ namespace CodexAutoResume
         }
     }
 
+    /// Windows' text size (v0.6.11): Settings > Accessibility > Text size, "Make text bigger", as a factor from 1 to
+    /// 2.25. Read where Windows keeps it - HKCU\Software\Microsoft\Accessibility, TextScaleFactor, a percentage from
+    /// 100 to 225 - and never written; nothing there, or anything outside that range, is 1. The notification-area
+    /// popup and its card read the same value (win/textsize.py), and the panel in Codex is served it, so the four are
+    /// one size. The window is drawn larger by it as a whole - its words and everything that holds them, as a larger
+    /// display scale draws it - which is what keeps any of it from being cut: the layout at every scaling is the one
+    /// tests/test_gui_layout.py measures. It is decided once, as the window opens, and never larger than lets the
+    /// window at its narrowest fit the screen it opens on (Fitting).
+    internal static class TextScale
+    {
+        internal const string Key = @"Software\Microsoft\Accessibility";
+        internal const string Value = "TextScaleFactor";
+        /// Windows' message font at 100%: 9 pt, in every language Windows ships.
+        internal const float NormalPoints = 9f;
+        /// What the screen has to hold, in logical pixels, frames included: the window at its narrowest (SettingsForm's
+        /// MinimumSize, 800 by 420) and its tallest dialog (a conversation's message, 520 high).
+        internal const int NarrowestWidth = 816, NarrowestHeight = 568;
+
+        /// Windows' text size now, as a factor (Factor).
+        internal static double Read()
+        {
+            try
+            {
+                using (Microsoft.Win32.RegistryKey key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(Key))
+                {
+                    object value = key == null ? null : key.GetValue(Value);
+                    if (value is int) return Factor((int)value);
+                }
+            }
+            catch (Exception) { /* Windows could not be asked: text at its usual size */ }
+            return 1.0;
+        }
+
+        /// A TextScaleFactor percentage as a factor: 100 to 225 as itself, anything else as 1. Pure.
+        internal static double Factor(int percent)
+        {
+            return percent < 100 || percent > 225 ? 1.0 : percent / 100.0;
+        }
+
+        /// The text size the window opens at: `text`, but no larger than lets the window at its narrowest fit `work`,
+        /// the work area of the screen it opens on, at the display's `scale`; never below 1. Pure.
+        internal static double Fitting(double text, Size work, double scale)
+        {
+            double size = text > 1.0 ? text : 1.0;
+            if (work.Width > 0 && work.Height > 0 && scale > 0)
+                size = Math.Min(size, Math.Min(work.Width / (scale * NarrowestWidth), work.Height / (scale * NarrowestHeight)));
+            return Math.Max(1.0, size);
+        }
+
+        /// `font` - Windows' message font - at text size `drawn`, where Windows' own text size is `read`. Windows may
+        /// have made the message font `read` times larger itself (its size is then 9 pt times `read`), and a font made
+        /// larger twice would be larger than what holds it; so that one is taken back to its usual size first. At 1
+        /// it is `font` itself. Pure.
+        internal static Font Apply(Font font, double read, double drawn)
+        {
+            float usual = font.SizeInPoints;
+            if (read > 1.0 && Math.Abs(usual - NormalPoints * read) < 0.3) usual = (float)(usual / read);
+            float size = (float)(usual * Math.Max(1.0, drawn));
+            if (Math.Abs(size - font.SizeInPoints) < 0.01f) return font;
+            return new Font(font.FontFamily, size, font.Style, GraphicsUnit.Point);
+        }
+    }
+
     /// Which design the window is drawn in (v0.6.10): the Design setting, which says what is drawn
     /// (brand/design.py, read through Brand's Design rules) and never what moves - Soft.ReduceMotion says that.
     /// It is independent of the theme, so each design is drawn light or dark, and High Contrast replaces every
