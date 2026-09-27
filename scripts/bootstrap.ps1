@@ -304,6 +304,16 @@ function Get-VersionParts {
     return @([int]$Matches[1], [int]$Matches[2], [int]$Matches[3], $stage)
 }
 
+function Format-UnreadVersion {
+    # An installed manifest's version this copy could not read, as it may be printed: printable
+    # ASCII and not much of it. It is shown so a person can tell a newer build from a broken one,
+    # and a line break in it must never print a line that reads like one of this script's answers.
+    param($Version)
+    $shown = ([string]$Version) -replace '[^\x20-\x7E]', '?'
+    if ($shown.Length -gt 40) { $shown = $shown.Substring(0, 40) + '...' }
+    return $shown
+}
+
 function Compare-ProductVersion {
     param([string]$Left, [string]$Right)
     # -1, 0 or 1, as integers. Compared as text, '0.10.0' sorts before '0.9.0' and the tenth
@@ -701,7 +711,19 @@ if ($CheckOnly -or $Update) {
         Step 'Nothing was changed. This says nothing about whether an update exists.'
         exit $ExitUnavailable
     }
-    $order = Compare-ProductVersion -Left $newest -Right $current
+    # The installed version is compared only once it has been read. One this copy cannot read -
+    # a later build with a word after its version that did not exist when this copy was
+    # published - is neither older nor newer as far as this copy can tell, so there is no
+    # answer to give but "unavailable", and nothing is installed over it.
+    $order = $null
+    try { $order = Compare-ProductVersion -Left $newest -Right $current }
+    catch {
+        Fail ('The installation at ' + $installHome + ' says it is version ' + (Format-UnreadVersion $current) +
+              ', which this copy of the plugin cannot read, so it cannot tell whether v' + $newest + ' is newer.')
+        Write-Host 'update: unavailable'
+        Step 'Nothing was changed. This says nothing about whether an update exists.'
+        exit $ExitUnavailable
+    }
     # The second of the two moments the Codex compatibility data is refreshed: a person
     # asked, and github.com answered. Its own line, never a different update answer - and
     # never a late one: it gets only what is left of the time the window waits for this.
@@ -728,7 +750,13 @@ if ($CheckOnly -or $Update) {
 }
 
 # Whether what is installed is older than, the same as, or newer than what would be
-# installed. Null where there is no installation, or one whose version cannot be read.
+# installed. Null where there is no installation, or one whose manifest cannot be read.
+#
+# A manifest that reads and declares a version this copy cannot read is not "no installation".
+# A copy of this script knows the version words of the day it was published and no later one:
+# the published v0.6.10 and v0.6.11-alpha bootstraps knew -alpha and not -beta, took an installed
+# 0.6.11-beta for nothing installed, and installed their own older release over it. Those copies
+# cannot be changed; this one refuses instead, until -Force says to replace what it cannot read.
 #
 # The "newer" case is the one -Update creates and nothing else did: an update leaves the
 # machine ahead of the plugin tree it was started from, because Codex's copy of the plugin
@@ -740,9 +768,19 @@ if ($CheckOnly -or $Update) {
 # edition at the same version is a different installation, and replacing it is what this run
 # was asked to do - so it is never checked over in its place.
 $standing = $null
+$unread = $false
 if ($installed -and $plan.Verdict -eq 'same') {
     try { $standing = Compare-ProductVersion -Left $installed -Right $target }
-    catch { $standing = $null }
+    catch { $standing = $null; $unread = $true }
+}
+
+if ($unread -and -not $Force) {
+    Fail ('The installation at ' + $installHome + ' says it is version ' + (Format-UnreadVersion $installed) +
+          ', which this copy of the plugin cannot read.')
+    Step ('It may be newer than the v' + $target + ' this copy carries, so nothing was downloaded')
+    Step 'and nothing was replaced.'
+    Step ('Add -Force to install v' + $target + ' over it.')
+    exit 1
 }
 
 if ($null -ne $standing -and $standing -ge 0 -and -not $Force) {

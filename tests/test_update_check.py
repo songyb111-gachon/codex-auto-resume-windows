@@ -483,6 +483,131 @@ class NeverGoesBackwardsTests(unittest.TestCase):
         self.assertIn("Downloading v0.6.0", result.stdout)
 
 
+# The network as the two tests below see it: the update question is answered with a redirect to a
+# tag, and every other request - a download - fails the way an offline machine does. Every
+# request is written down. The plugin's addresses point at a port nothing listens on as well, in
+# case the stub were ever bypassed.
+STUBBED_RUN = r"""
+function global:Invoke-WebRequest {
+    param([string]$Uri, [string]$OutFile, [switch]$UseBasicParsing, [switch]$PassThru,
+          [int]$MaximumRedirection, [int]$TimeoutSec, [string]$Method)
+    Add-Content -LiteralPath $env:CAR_REQUESTS -Value (([string]$Method) + ' ' + $Uri) -Encoding UTF8
+    if ($Method -eq 'Head') {
+        $base = New-Object psobject
+        $base | Add-Member -MemberType NoteProperty -Name ResponseUri -Value ([Uri]$env:CAR_LATEST)
+        $response = New-Object psobject
+        $response | Add-Member -MemberType NoteProperty -Name BaseResponse -Value $base
+        return $response
+    }
+    throw 'there is no network here'
+}
+$arguments = @{}
+foreach ($name in (ConvertFrom-Json $env:CAR_SWITCHES)) { $arguments[[string]$name] = $true }
+& $env:CAR_SCRIPT @arguments
+exit $LASTEXITCODE
+"""
+
+
+@unittest.skipUnless(POWERSHELL.is_file(), "the bootstrap is PowerShell on Windows")
+class UnknownInstalledVersionTests(unittest.TestCase):
+    """An installation whose version this copy does not know is not "nothing installed".
+
+    A bootstrap knows the version words of its own day and no later one. The published v0.6.10
+    and v0.6.11-alpha bootstraps knew `-alpha` and not `-beta`, so with 0.6.11-beta installed
+    their comparison threw, and the throw was read as "no installation": a plain run downloaded
+    the older release and installed it over the beta, and `-CheckOnly` or `-Update` died with no
+    `update:` line at all. Those copies are published and cannot change. This one must not do the
+    same with whatever word comes after `-beta`: it refuses without -Force, downloads nothing, and
+    an update check answers "unavailable" - the one answer that claims nothing.
+    """
+
+    PLUGIN = "1.2.3-beta"
+    # Words this copy does not know, after a version it would otherwise call newer.
+    UNKNOWN = ("1.2.4-gamma", "1.2.4-rc1", "1.2.4-Beta")
+
+    def setUp(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.root = Path(folder.name)
+        plugin = self.root / "plugin"
+        (plugin / "scripts").mkdir(parents=True)
+        (plugin / ".codex-plugin").mkdir()
+        shutil.copyfile(BOOTSTRAP, plugin / "scripts" / "bootstrap.ps1")
+        manifest = json.loads((ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"))
+        (plugin / ".codex-plugin" / "plugin.json").write_text(
+            json.dumps(dict(manifest, version=self.PLUGIN)), encoding="utf-8")
+        release = json.loads((ROOT / "scripts" / "release.json").read_text(encoding="utf-8"))
+        release["download"] = "https://127.0.0.1:1/releases/download/v{version}/"
+        release["latest"] = "https://127.0.0.1:1/releases/latest"
+        (plugin / "scripts" / "release.json").write_text(json.dumps(release), encoding="utf-8")
+        self.script = plugin / "scripts" / "bootstrap.ps1"
+        self.temp = self.root / "temp"
+        self.temp.mkdir()
+        self.requests = self.root / "requests.txt"
+
+    def installation(self, version, name="") -> Path:
+        """What Get-InstalledVersion and Get-InstalledEdition read, and nothing else."""
+        home = self.root / ("home-%s%s" % (version, name))
+        (home / "runtime").mkdir(parents=True)
+        (home / "runtime" / "python.exe").write_bytes(b"not a real interpreter")
+        (home / "app" / ".codex-plugin").mkdir(parents=True)
+        (home / "app" / ".codex-plugin" / "plugin.json").write_text(
+            json.dumps({"name": "codex-auto-resume", "version": version}), encoding="utf-8")
+        (home / "app" / "scripts").mkdir()
+        (home / "app" / "src" / "codex_auto_resume").mkdir(parents=True)
+        return home
+
+    def run_it(self, home, *switches):
+        self.requests.unlink(missing_ok=True)
+        environment = dict(os.environ, CODEX_AUTO_RESUME_PLUGIN_HOME=str(home),
+                           TEMP=str(self.temp), TMP=str(self.temp), CAR_SCRIPT=str(self.script),
+                           CAR_SWITCHES=json.dumps(list(switches)), CAR_REQUESTS=str(self.requests),
+                           CAR_LATEST=TAG + "v1.2.5")
+        done = subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-ExecutionPolicy",
+                               "Bypass", "-Command", STUBBED_RUN],
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                              encoding="utf-8", errors="replace", timeout=300, env=environment)
+        asked = []
+        if self.requests.is_file():
+            asked = [line.split(" ", 1)[0] for line in
+                     self.requests.read_text(encoding="utf-8-sig").splitlines() if line.strip()]
+        return done.returncode, done.stdout, asked
+
+    def test_a_plain_run_does_not_replace_it(self):
+        for version in self.UNKNOWN:
+            with self.subTest(version):
+                home = self.installation(version)
+                before = sorted(str(path) for path in home.rglob("*"))
+                code, output, asked = self.run_it(home, "NoStartup")
+                self.assertEqual(code, 1, output[-1500:])
+                self.assertEqual(asked, [], "it asked the network: " + output[-1500:])
+                self.assertNotIn("Downloading", output)
+                self.assertIn("cannot read", output)
+                self.assertIn("Add -Force to install v%s over it" % self.PLUGIN, output)
+                self.assertEqual(sorted(str(path) for path in home.rglob("*")), before)
+                self.assertEqual(list(self.temp.glob("codex-auto-resume-*")), [])
+
+    def test_force_still_replaces_it(self):
+        """Going back is allowed; it has to be asked for - and so does replacing what it cannot read."""
+        code, output, asked = self.run_it(self.installation(self.UNKNOWN[0]), "NoStartup", "Force")
+        self.assertEqual(code, 1, "the stub network refuses the download: " + output[-1500:])
+        self.assertIn("Downloading v%s" % self.PLUGIN, output)
+        self.assertEqual(asked, [""])
+
+    def test_an_update_check_answers_unavailable(self):
+        """Not "current", not "available", and not an error with no answer: the settings window
+        reads the `update:` line and the exit code, and both have to be there."""
+        for switch in ("CheckOnly", "Update"):
+            for version in self.UNKNOWN:
+                with self.subTest(switch=switch, version=version):
+                    code, output, asked = self.run_it(self.installation(version, "-" + switch), switch)
+                    self.assertEqual(code, 12, output[-1500:])
+                    self.assertIn("update: unavailable", output)
+                    for wrong in ("update: current", "update: available", "update: newer-local"):
+                        self.assertNotIn(wrong, output)
+                    self.assertIn("This says nothing about whether an update exists", output)
+                    self.assertEqual(asked, ["Head"], "only the question is asked: " + output[-1500:])
+
 
 class InstalledCopyCanAskTests(unittest.TestCase):
     """An installation carries the script that answers the update question.
