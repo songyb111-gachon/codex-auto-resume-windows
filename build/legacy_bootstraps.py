@@ -51,9 +51,10 @@ import make_release  # noqa: E402
 # scripts/bootstrap.ps1 at all.
 FIRST = (0, 5, 2)
 # How this project tags a release: vMAJOR.MINOR.PATCH, or a pre-release with -alpha or -beta
-# after it (v0.6.9-alpha, v0.6.11-beta) - the two words scripts/bootstrap.ps1 accepts. Anything
-# else is not a release of ours.
-TAG = re.compile(r"^v(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta))?$")
+# after it (v0.6.9-alpha, v0.6.11-beta) - the two words scripts/bootstrap.ps1 accepts, in ASCII
+# digits as it takes them: \d would take any script's. Anything else is not a release of ours.
+# Always applied with fullmatch (tests/test_version_rule.py).
+TAG = re.compile(r"v([0-9]+)\.([0-9]+)\.([0-9]+)(?:-(alpha|beta))?")
 # Where each stage sorts among its version's builds: alpha, then beta, then the release.
 STAGES = {"alpha": 0, "beta": 1, None: 2}
 POWERSHELL = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"

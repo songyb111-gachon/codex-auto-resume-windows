@@ -91,10 +91,14 @@ class WorkflowPrivilegeTests(unittest.TestCase):
         self.assertIn('refs/tags/v$VERSION', publish)
 
     def test_the_version_is_validated_before_anything_uses_it(self):
-        # -cnotmatch: -notmatch ignores case, and a tag is lower case.
-        self.assertIn(r"-cnotmatch '^\d+\.\d+\.\d+(-alpha|-beta)?$'", text("release.yml"))
+        # -cnotmatch: -notmatch ignores case, and a tag is lower case. [0-9] and \z: \d takes any
+        # script's digits, and .NET's $ matches before a final line break (tests/test_version_rule.py
+        # runs the line's own pattern).
+        self.assertIn(r"-cnotmatch '^[0-9]+\.[0-9]+\.[0-9]+(-alpha|-beta)?\z'", text("release.yml"))
+        # The tag is held to the manifest in its case too.
+        self.assertIn("$tagged -cne $declared", text("release.yml"))
         # And again in the publish job, which runs none of the repository's code: the same two
-        # suffixes and no others.
+        # suffixes and no others. Bash's $ is the end of the string.
         publish = job(text("release.yml"), "publish")
         self.assertIn(r"^[0-9]+\.[0-9]+\.[0-9]+(-alpha|-beta)?$", publish)
 

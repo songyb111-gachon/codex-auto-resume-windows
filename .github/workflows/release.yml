@@ -101,15 +101,18 @@ jobs:
           $declared = [string]$manifest.version
           # The version names files and a release, and later steps read it. It is checked
           # here, once, so nothing downstream ever handles a value shaped like anything
-          # but a version.
-          if ($declared -cnotmatch '^\d+\.\d+\.\d+(-alpha|-beta)?$') {
+          # but a version: ASCII digits, and nothing after the word - \z, because .NET's $
+          # also matches before a final line break (tests/test_version_rule.py).
+          if ($declared -cnotmatch '^[0-9]+\.[0-9]+\.[0-9]+(-alpha|-beta)?\z') {
             throw "plugin.json version '$declared' is not MAJOR.MINOR.PATCH, MAJOR.MINOR.PATCH-alpha or MAJOR.MINOR.PATCH-beta"
           }
           if ($env:GITHUB_REF -like 'refs/tags/*') {
             $tagged = $env:GITHUB_REF -replace '^refs/tags/v', ''
             # A tag that disagrees with the manifest would publish an archive whose name,
             # plugin version and release title do not match. Stop instead.
-            if ($tagged -ne $declared) {
+            # -cne: -ne ignores case, and a tag that differs from the manifest only in case is
+            # still not its version.
+            if ($tagged -cne $declared) {
               throw "tag v$tagged does not match plugin.json version $declared"
             }
           }

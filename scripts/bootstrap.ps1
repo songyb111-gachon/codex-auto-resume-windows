@@ -221,8 +221,10 @@ function Get-PluginVersion {
     # Strict semver, because the version is spliced into a URL. Anything else stops here
     # rather than reaching the network. The two suffixes are the literal -alpha and -beta of a
     # planned pre-release (v0.6.9-alpha, v0.6.11-beta), each naming its own tag and archive -
-    # in lower case, as tags are: -cnotmatch, because -notmatch ignores case.
-    if ($version -cnotmatch '^[0-9]+\.[0-9]+\.[0-9]+(-alpha|-beta)?$') {
+    # in lower case, as tags are: -cnotmatch, because -notmatch ignores case. \z, not $, which
+    # .NET also matches before a final line break; [0-9], not \d, which takes any script's digits.
+    # The same rule as every other check of this product's version (tests/test_version_rule.py).
+    if ($version -cnotmatch '^[0-9]+\.[0-9]+\.[0-9]+(-alpha|-beta)?\z') {
         throw ('The plugin manifest declares an unusable version: ' + $version)
     }
     return $version
@@ -293,7 +295,8 @@ function Assert-TrustedHost {
 
 function Get-VersionParts {
     param([string]$Version)
-    if ($Version -cnotmatch '^([0-9]{1,6})\.([0-9]{1,6})\.([0-9]{1,6})(-alpha|-beta)?$') {
+    # Get-PluginVersion's rule, with a ceiling on each number so it stays an integer.
+    if ($Version -cnotmatch '^([0-9]{1,6})\.([0-9]{1,6})\.([0-9]{1,6})(-alpha|-beta)?\z') {
         throw ('Not a version this product uses: ' + $Version)
     }
     # A fourth part orders the pre-releases just before their own release:
@@ -356,7 +359,7 @@ function Get-NewestPublishedVersion {
         throw ('The release page redirected outside this repository: ' + $final.AbsolutePath)
     }
     $tag = $final.AbsolutePath.Substring($expected.Length)
-    if ($tag -notmatch '^v[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}$') {
+    if ($tag -notmatch '^v[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}\z') {
         throw ('The newest release is not tagged the way this product tags releases: ' + $tag)
     }
     # Rebuilt from the three numbers rather than reused as text: what reaches the URL
