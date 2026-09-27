@@ -15,22 +15,24 @@ set to one of the seven new languages gets the continuation message in that lang
 everything else. Every setting it adds is off, or does what v0.6.10 did, until a person changes it.
 Beyond that, what changes with nothing turned on is what is said and drawn: the Dashboard, the
 popup and the panel say more about what waits, and the product asks Windows a few more
-content-free questions - about its own process, and about the text size and the fonts it draws
-with - which [PRIVACY.md](PRIVACY.md) lists. The advanced edition still has no capability to switch
-on. To leave this pre-release for a later release, run that release's `Install.cmd`; going back to
-v0.6.11-alpha or v0.6.10 takes one command first ([The state database](#the-state-database)).
+content-free questions - about its own process, about the text size and the fonts it draws with,
+and, when Diagnostics opens, about who can open its state folder - which [PRIVACY.md](PRIVACY.md)
+lists. The advanced edition still has no capability to switch on. To leave this pre-release for a
+later release, run that release's `Install.cmd`; going back to v0.6.11-alpha or v0.6.10 takes one
+command first ([The state database](#the-state-database)).
 
 How it was checked: every one of the 283 scenarios v0.6.10 was tested with, their test modules
 byte for byte the tag's, runs against the tagged v0.6.10 package and against this one, and every
 `send`, `usage`, `loaded`, `delete_queue` and `app_identity` call is the same, in the same order,
 with the same arguments - the marker aside. The nine older languages' Standard continuation is
-v0.6.10's byte for byte, read from the tag, and `tests/golden/defaults-v0.6.10.json` holds every
-default v0.6.10 shipped and names each setting added since with a default that does what v0.6.10
-did. A review after each of the stage's three parts reproduced problems - among them, Observe
-only left a continuation already in Codex's queue to be delivered while the Overview said nothing
-is sent; a postponement of a minute made before an objection window opened took the whole window's
-place; the time ceiling counted time spent waiting, which its help said it never counts; a policy
-value that could not be read was taken for one that was not there, which lifted
+v0.6.10's byte for byte, read from the tag. `tests/golden/defaults-v0.6.10.json` holds every
+default v0.6.10 shipped, written from the tag, and `tests/test_defaults_golden.py` names each
+setting added since, with its default and why that default does what v0.6.10 did, and fails on one
+it does not name. A review after each of the stage's three parts reproduced problems - among them,
+Observe only left a continuation already in Codex's queue to be delivered while the Overview said
+nothing is sent; a postponement of a minute made before an objection window opened took the whole
+window's place; the time ceiling counted time spent waiting, which its help said it never counts; a
+policy value that could not be read was taken for one that was not there, which lifted
 `ForceObserveOnly`; and after `downgrade-state --to 3` v0.6.10 could take the failure of a
 continuation's turn for a new task, and resume one that had been cancelled. Each is fixed, with a
 test that failed before.
@@ -51,7 +53,11 @@ Nothing here has a setting.
 
 ### Staying out of the way
 
-None of these can send anything sooner or skip a check, and each setting is off by default.
+Each setting here does what v0.6.10 did until a person changes it: it is off, or it is **Resume
+automatically**, **Resume it like the others** or **Every project**. None of them skips a check.
+What undoes their holding back is a person's choice - **Don't postpone**, **Let it continue**,
+`release_hold`, which Codex asks you about first, and **Let this project resume** - and a task then
+goes only when its schedule and every check let it.
 
 - **A task has a menu of its own**, in the Dashboard's Pending page and in the popup, on a right
   click, Shift+F10 or the menu key. **Postpone** holds that one task back 30 minutes, 1 hour, 3
@@ -71,11 +77,12 @@ None of these can send anything sooner or skip a check, and each setting is off 
   everything else would let the continuation go - "Continuing at 14:07 unless you stop it", with
   **Don't resume** and **Open Dashboard** - and sends only once **Time to object (minutes)**, 1 to
   60 and 5 by default, has passed. **Ask me first** and **Only notify me** send nothing until you
-  choose **Let it continue** on the task's row, which asks you to confirm and sends nothing itself,
-  and their notification says the task waits for you - never that it will resume. The setting
-  applies to interruptions detected after it is chosen; **How this conversation resumes**, on a row,
-  chooses for that conversation alone, and Ask me first or Only notify me chosen there also holds
-  what it has waiting. A task that waits for you has no time: its row says *waiting for you*, and
+  let the task continue, and their notification says the task waits for you - never that it will
+  resume. **Let it continue** on the task's row does it, asking you to confirm and sending nothing
+  itself, and so does `release_hold` from Codex, which asks you first. The setting applies to
+  interruptions detected after it is chosen; **How this conversation resumes**, on a row, chooses
+  for that conversation alone, and Ask me first or Only notify me chosen there also holds what it
+  has waiting. A task that waits for you has no time: its row says *waiting for you*, and
   nothing says it is being checked.
 - **Observe only: check everything, send nothing**, under Automatic recovery, lets the watcher do
   everything but send. Pending and History say when a continuation *would have been sent*, *Why it
@@ -88,15 +95,16 @@ None of these can send anything sooner or skip a check, and each setting is off 
   resume** can be **Only projects let resume** or **Every project but those held** instead of
   **Every project**; a task's row sets its project with **Let this project resume** or **Hold this
   project for me**. Either only ever holds an interruption for you when it is detected, and a task
-  whose project cannot be read is held, never dropped. A project is the one Codex files the
-  conversation under, or else its folder, and the settings keep only a 64-digit SHA-256 digest of
-  it - never a name or a path; at the default it is not even read. Only a task's row sets the
-  lists: no editor draws them, and MCP refuses them.
+  whose project cannot be read is held, never dropped; **Hold this project for me** also holds at
+  once what that project already has waiting, and **Let this project resume** lets nothing already
+  held go. A project is the one Codex files the conversation under, or else its folder, and the
+  settings keep only a 64-digit SHA-256 digest of it - never a name or a path; at the default it is
+  not even read. Only a task's row sets the lists: no editor draws them, and MCP refuses them.
 - **In Codex**, `postpone_recovery`, not marked destructive since it only holds back, and
-  `release_hold`, marked `destructiveHint`, bring the plugin's tools to nineteen, and
-  `update_settings` offers the new settings under Advanced, Automatic recovery and Notifications.
-  Don't postpone is no tool at all: it brings a send nearer, so only the Dashboard and the popup
-  offer it.
+  `release_hold`, marked `destructiveHint` since it lets one held task continue, bring the plugin's
+  tools to nineteen, and `update_settings` offers the new settings under Advanced, Automatic
+  recovery and Notifications. Don't postpone is no tool at all: it brings a send nearer, so only the
+  Dashboard and the popup offer it.
 
 ### Guards and waits
 
@@ -153,12 +161,12 @@ recovery wait longer, stop sooner or wait for you.
   (Windows reports)". It is off by default because behind some proxies Windows reports no internet
   where there is.
 - **The watcher's memory.** After every check the watcher asks Windows how much memory its own
-  process has committed, and Diagnostics shows the most as **Peak memory** - the one thing here
-  that happens at the defaults. **When the watcher uses too much memory**, under General > Windows,
-  can **Warn me**, once, or **Warn me, then stop the watcher**: after the check it is in, never
-  while a continuation is being sent, the way a Stop does, with nothing waiting lost and nothing to
-  start it again on its own. The limit is **Too much memory is more than**, 256 to 2048 MB, 1024 by
-  default.
+  process has committed, and Diagnostics shows the most as **Peak memory**. That and the record of
+  how the watcher stopped, below, are all of this section that happens at the defaults. **When the
+  watcher uses too much memory**, under General > Windows, can **Warn me**, once, or **Warn me, then
+  stop the watcher**: after the check it is in, never while a continuation is being sent, the way a
+  Stop does, with nothing waiting lost and nothing to start it again on its own. The limit is **Too
+  much memory is more than**, 256 to 2048 MB, 1024 by default.
 - **Stopped, or stopped unexpectedly.** A watcher that is gone without having said so, in the same
   Windows sign-in and the same start of Windows, is shown as *stopped unexpectedly at* the time it
   was last seen - or *stopped by the memory guard at* - in Diagnostics and in the panel, and the
@@ -186,6 +194,11 @@ recovery wait longer, stop sooner or wait for you.
   account, plan or credit. A used-up weekly limit also says the day and time it resets, and that
   `/usage` in Codex can redeem a reset credit if your account has one, which this product never
   knows.
+- **A status file for your own tools.** **Write a status file for other tools**, under General >
+  Windows, off by default, has the watcher write `status.json` in its settings folder after every
+  check: whether it runs, whether recovery is on, how many tasks wait and when the next is looked
+  at, and Codex's usage as last read. It holds no conversation, name or path, nothing in this
+  product reads it, and it is removed when the setting is turned off.
 
 ### The message sent
 
@@ -270,9 +283,13 @@ recovery wait longer, stop sooner or wait for you.
   a word for why a task waits for you, a word for how much a conversation asks, the observe-only
   switch, the needs-you notices, a guard's digest and token count - and for what the watcher says
   about itself: its last usage reading, since when it keeps the PC awake, its peak memory, and how
-  it last stopped, with the sign-in and the start of Windows it ran in. At the defaults all of it
-  is empty, and nothing that decides a send reads the notices. Schema 3 is upgraded under the
-  watcher's mutex, after a forensic copy (`state.v3-backup-*.sqlite`), in one transaction.
+  it last stopped, with the sign-in and the start of Windows it ran in. At the defaults what the
+  settings hold back with is empty, and so is the keep-awake time, since nothing keeps the PC
+  awake. The rest of what the watcher says about itself is written at every setting: its peak
+  memory and the record of how it stopped, with the sign-in and the start of Windows, at every
+  check, and its usage reading whenever usage is read for a recovery that is due. Nothing that decides a send reads the notices. Schema 3 is upgraded
+  under the watcher's mutex, after a forensic copy (`state.v3-backup-*.sqlite`), in one
+  transaction.
 - **Going back takes one command first.** v0.6.11-alpha and v0.6.10 refuse a state this release
   wrote, as one from a newer version, and send nothing. To go back to either, stop the watcher, run
   `downgrade-state --to 3` from this release ([the guide's commands](GUIDE.md#commands)), and only
@@ -280,10 +297,11 @@ recovery wait longer, stop sooner or wait for you.
   writes what v0.6.10 reads, never looser than it was: every marker is the whole id's again, a
   continuation that may have gone out with a short marker is made final and never sent again, a
   conversation whose continuation v0.6.10 could not follow to its turn is switched off, Observe only
-  becomes a Pause, a hold or a tier switches its conversation off, and a postponement becomes the
-  schedule. What only schema 4 holds - the notices, the last reading, the guards' digests - is left
-  behind. It is proved against the tagged v0.6.10's own store and watcher on the simulated Codex; no
-  real older release has been installed over a downgraded state yet.
+  becomes a Pause, a hold or a tier other than Resume automatically switches its conversation off,
+  and a postponement becomes the schedule. What only schema 4 holds - the notices, the last
+  reading, the guards' digests - is left behind. It is proved against the tagged v0.6.10's own
+  store and watcher on the simulated Codex; no real older release has been installed over a
+  downgraded state yet.
 - **Under an older watcher.** While a v0.6.x watcher still owns a schema-3 state, this release can
   still pause recovery, switch a conversation off and cancel its recoveries, written so that the
   older watcher reads every row.
@@ -335,9 +353,10 @@ recovery wait longer, stop sooner or wait for you.
   (M1); a queued `/compact` arrives as plain text, not as a command (M7); and an unattended turn
   whose one approval was declined completed without running the command or opening a window (M6).
   Codex refuses an empty `thread/queue/add` (M3), and a goal set from outside is not taken up by
-  the app while it holds the conversation (M2). M4 and M5 lacked what they need on that PC, and MH
-  and MA wait for the maintainer's own sign-in. Two probes that had judged the live machine
-  wrongly were corrected first.
+  the app while it holds the conversation (M2). M4 and M5 lacked what they need on that PC; MH
+  waits for the maintainer to point the Desktop at a second `CODEX_HOME`, and MA for the maintainer
+  to sign out and back in. Two probes that had judged the live machine wrongly were corrected
+  first.
 - **A link that dev breaks is found on dev.** The Korean documents' sync takes an anchor written
   out as an anchor, and the suite builds the Korean branch's tree from the commit under test, so a
   broken link is found there, not after a release.
