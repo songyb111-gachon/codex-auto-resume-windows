@@ -9,7 +9,9 @@ which, and `session` is the one-turn helper that speaks them, follows a turn's n
 declines every request Codex makes of it, and always unsubscribes.
 
 Nothing here runs on its own. The harness (measure.py) opens a session only when a person runs a
-measurement, and the marker-free continuation's channel (engine/markerfree.py) opens one for its
-one call only when core hands it a send; the tests give both a fake, so no test opens a real Codex.
+measurement, and the marker-free continuation's channel (engine/markerfree.py) and the goal
+continuation (engine/goal.py) open one for their calls only when core hands them a send or calls
+their route; the tests give each a fake, so no test opens a real Codex. `goals` reads Codex's goals
+database, read-only and never a goal's words, for the goal continuation.
 """
 from .protocol import ADVANCED_METHODS, MEASUREMENT_METHODS, SessionRefused  # noqa: F401

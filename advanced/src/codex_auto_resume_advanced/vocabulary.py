@@ -168,6 +168,9 @@ class Measurement(StrEnum):
     warning (ArmingWarning), never by being withheld."""
     M1 = "m1"                                # a notLoaded queue item is delivered on open
     M2 = "m2"                                # thread/goal/set reaches a Desktop-loaded goal
+    # A goal set active and a turn queued while the Desktop holds the conversation: the turn runs,
+    # and the goal stays active and carries on after it (the owner, 2026-09-28; measure._m2b).
+    M2B = "m2b"
     M3 = "m3"                                # an empty thread/queue/add is dispatched, correlatable
     M4 = "m4"                                # plugin Stop hooks run after a failed turn
     M5 = "m5"                                # TUI and IDE servers dispatch codex queue items
@@ -176,6 +179,18 @@ class Measurement(StrEnum):
     MH = "mh"                                # the Desktop runs on a second CODEX_HOME
     MA = "ma"                                # the running app picks up an account logout+login
     MW = "mw"                                # re-proof of the WMI escape, with the job words
+
+
+class GoalStatus(StrEnum):
+    """A Codex goal's status, as goals_<N>.sqlite stores it (codex-rs state/goals_migrations:
+    thread_goals.status, a CHECK of exactly these six). The goal continuation reads the status
+    and nothing the goal says (codex/goals.py); a word outside these is no status it acts on."""
+    ACTIVE = "active"
+    PAUSED = "paused"
+    BLOCKED = "blocked"
+    USAGE_LIMITED = "usage_limited"
+    BUDGET_LIMITED = "budget_limited"
+    COMPLETE = "complete"
 
 
 class Verdict(StrEnum):

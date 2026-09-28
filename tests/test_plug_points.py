@@ -57,7 +57,7 @@ from codex_auto_resume.domain.plug import (DEFER, EXTRA, Alternative, Guarded, P
                                            Point, Surface, guard)
 from codex_auto_resume.engine import Engine  # noqa: E402
 from codex_auto_resume.engine.options import VIEW_READS  # noqa: E402
-from codex_auto_resume.machine import STATES  # noqa: E402
+from codex_auto_resume.machine import STATES, WAITING  # noqa: E402
 from codex_auto_resume.mcp.tools import TOOLS as MCP_TOOLS  # noqa: E402
 from codex_auto_resume.runtime.app import App  # noqa: E402
 from codex_auto_resume.store import Store  # noqa: E402
@@ -127,6 +127,9 @@ class Asked(Plug):
 
     def delivery(self, record):
         return self._answer("delivery", record)
+
+    def unloaded(self, record):
+        return self._answer("unloaded", record)
 
     def hooks(self):
         return [hook for hook, _ in self.asked]
@@ -627,6 +630,246 @@ class DeliveryTests(PluggedCase):
                          ("superseded", "duplicate_owner"))
 
 
+class Resume:
+    """A route as the advanced edition's goal continuation is one (P16): asked to continue a
+    conversation the app does not hold, it reports what came of it - accepted, not_started or
+    unknown - or raises. It sends nothing and queues nothing."""
+
+    def __init__(self, outcome="accepted"):
+        self.outcome, self.calls = outcome, []
+
+    def resume(self, thread_id, *, launch_guard=None):
+        with launch_guard as permitted:
+            self.calls.append((thread_id, permitted))
+        if self.outcome == "raise":
+            raise RuntimeError("the route broke")
+        if self.outcome == "not_started":
+            return {"outcome": "not_started", "error_code": "queue_spawn_failed"}
+        return {"outcome": self.outcome}
+
+
+class UnloadedTests(PluggedCase):
+    """P16: a conversation the app does not hold waits for it to be opened (A11) - unless the plug
+    names a route, which core carries out as it carries out a send: every gate a send passes, the
+    one claim the plug's ledger pays for, the pre-send look, and the route called once inside the
+    launch guard. Nothing is queued, so nothing is watched; what came of it is settled here."""
+
+    def due_unloaded(self, h=None):
+        """A usage-limit failure whose reset has passed, in a conversation the app does not hold."""
+        self.ready_after_reset(h, loaded=False)
+
+    def test_deferring_it_waits_for_the_app_to_open_it_as_it_always_did(self):
+        self.due_unloaded()
+        plug = Asked()
+        self.plugged(plug)
+        self.h.tick()
+        self.assert_no_send()
+        row = self.h.record()
+        self.assertEqual((row["state"], row["last_error"], row["attempt_count"]),
+                         ("waiting_for_loaded_thread", "notLoaded", 0))
+        self.assertEqual(json.loads(row["gate_eval"])["thread_available"], ["WAIT", "notLoaded"])
+        self.assertEqual([arguments[0]["interruption_id"] for hook, arguments in plug.asked
+                          if hook == "unloaded"], [row["interruption_id"]])
+
+    def test_a_route_is_carried_out_once_after_the_claim_inside_the_launch_guard(self):
+        self.due_unloaded()
+        route = Resume()
+        plug = Asked(unloaded=route)
+        self.plugged(plug)
+        self.h.tick()
+        self.assert_no_send()
+        self.assertEqual(route.calls, [(T1, True)])
+        self.assertEqual(self.h.home.queued(T1), [], "a route queues nothing")
+        row = self.h.record()
+        # Accepted: it waits again, its claim counted - never given back.
+        self.assertEqual((row["state"], row["last_error"], row["submitted_at"], row["attempt_count"]),
+                         ("waiting_retry", "notLoaded", None, 1))
+        self.assertIsNotNone(row["last_claim_at"])
+        self.assertEqual(row["chain_continuations"], 1)
+        self.assertEqual(json.loads(row["gate_eval"])["thread_available"], ["PASS", "plugged"])
+        hooks = plug.hooks()
+        self.assertLess(hooks.index("unloaded"), hooks.index("claim_ledger"))
+        # A route is not words, a channel or a way of carrying them: none of those is asked.
+        self.assertEqual(set(hooks) & {"text", "sender", "delivery"}, set())
+        self.assertIn("submitting", [arguments[1] for hook, arguments in plug.asked if hook == "moved"])
+
+    def test_the_ledger_is_told_the_claim_carries_the_route(self):
+        self.due_unloaded()
+        told = []
+
+        def claim_ledger(connection, record, now, carried):
+            told.append(carried)
+            return DEFER
+        self.plugged(Asked(unloaded=Resume(), claim_ledger=claim_ledger))
+        self.h.tick()
+        self.assertEqual(told, [frozenset({Point.UNLOADED})])
+
+    def test_a_ledger_that_holds_the_claim_calls_no_route(self):
+        self.due_unloaded()
+        route = Resume()
+        self.plugged(Asked(unloaded=route, claim_ledger=Alternative.HOLD))
+        self.h.tick()
+        self.assertEqual(route.calls, [])
+        row = self.h.record()
+        self.assertEqual((row["attempt_count"], row["submitted_at"]), (0, None))
+
+    def test_once_resumed_the_conversations_own_next_turn_supersedes_it_and_nothing_is_sent(self):
+        self.due_unloaded()
+        route = Resume()
+        self.plugged(Asked(unloaded=route))
+        self.h.tick()
+        # The app opens the conversation, and what the route set going carries it on.
+        self.h.backend.loaded_map[T1] = "loaded"
+        self.h.home.add_turn(T1, status="inProgress")
+        self.h.tick(advance=61)
+        row = self.h.record()
+        self.assertEqual((row["state"], row["last_error"]), ("superseded_by_user", "later_turn_exists"))
+        self.assert_no_send()
+        self.assertEqual(len(route.calls), 1)
+
+    def test_with_the_plug_gone_the_standard_edition_sends_only_what_it_would(self):
+        """EditionRoundTrip, core's half: resumed through a route, then the plug is gone. The
+        standard edition's engine waits for the app as it always does, keeps the claim's cooldown,
+        and - nothing having carried the conversation on - sends the one continuation it would."""
+        self.due_unloaded()
+        self.plugged(Asked(unloaded=Resume()))
+        self.h.tick()
+        self.plugged(None)
+        self.h.tick(advance=61)
+        self.assertEqual(self.h.record()["last_error"], "notLoaded")
+        self.h.backend.loaded_map[T1] = "loaded"
+        self.h.tick(advance=61)
+        self.assertEqual(self.h.record()["last_error"], "thread_submission_cooldown")
+        self.assert_no_send()
+        self.h.tick(advance=901)
+        self.assertEqual(len(self.h.backend.send_calls), 1)
+        self.assertTrue(self.prompt().endswith(self.h.record()["marker"]))
+
+    def test_a_route_that_never_started_gives_the_claim_back_and_keeps_its_time(self):
+        self.due_unloaded()
+        route = Resume("not_started")
+        self.plugged(Asked(unloaded=route))
+        self.h.tick()
+        row = self.h.record()
+        self.assertIn(row["state"], WAITING)
+        self.assertEqual((row["last_error"], row["submitted_at"], row["chain_continuations"]),
+                         ("released_before_send", None, 0))
+        self.assertIsNotNone(row["last_claim_at"])
+        self.h.tick(advance=61)
+        self.assertEqual(len(route.calls), 1, "the claim's time still counts for the cooldown")
+        self.assertEqual(self.h.record()["last_error"], "thread_submission_cooldown")
+
+    def test_an_uncertain_route_is_held_and_never_tried_again(self):
+        for outcome in ("unknown", "raise", "strange"):
+            with self.subTest(outcome):
+                h = self.fresh()
+                self.due_unloaded(h)
+                route = Resume(outcome)
+                plug = Asked(unloaded=route)
+                self.plugged(plug, h)
+                h.tick()
+                row = h.record()
+                self.assertEqual((row["state"], row["last_error"]),
+                                 ("submission_unknown", "queue_result_unknown_do_not_resend"))
+                self.assertIn("submission_unknown",
+                              [arguments[1] for hook, arguments in plug.asked if hook == "moved"])
+                h.backend.loaded_map[T1] = "loaded"
+                for _ in range(12):
+                    h.tick(advance=900)
+                self.assertEqual(len(route.calls), 1)
+                self.assertEqual(h.backend.send_calls, [])
+
+    def test_a_pause_that_commits_after_the_pre_send_look_stops_the_route_at_the_guard(self):
+        self.due_unloaded()
+        route = Resume()
+        self.plugged(Asked(unloaded=route))
+        look = Engine.presend_problem
+
+        def look_then_pause(engine, claim):
+            found = look(engine, claim)
+            engine.store.set_enabled(False, engine.clock())
+            return found
+        with patch.object(Engine, "presend_problem", look_then_pause):
+            self.h.tick()
+        self.assertEqual(route.calls, [], "the route is never called once consent has gone")
+        row = self.h.record()
+        self.assertIn(row["state"], WAITING)
+        self.assertEqual((row["last_error"], row["submitted_at"]), ("released_before_send", None))
+
+    def test_it_is_asked_only_where_core_would_wait_for_the_app_and_consent_holds(self):
+        cases = {
+            "the app cannot say": lambda h: h.backend.loaded_map.__setitem__(T1, "unknown"),
+            "observe only": lambda h: h.store.set_observe_only(True),
+            "conversation off": lambda h: h.store.set_thread_enabled(T1, False, at=h.now),
+            "loaded": lambda h: h.backend.loaded_map.__setitem__(T1, "loaded"),
+        }
+        for name, change in cases.items():
+            with self.subTest(name):
+                h = self.fresh()
+                self.due_unloaded(h)
+                change(h)
+                route = Resume()
+                plug = Asked(unloaded=route)
+                self.plugged(plug, h)
+                h.tick()
+                self.assertNotIn("unloaded", plug.hooks())
+                self.assertEqual(route.calls, [])
+
+    def test_a_conversation_opened_before_the_claim_is_not_resumed(self):
+        """The route is for a conversation the app does not hold, rechecked under the dispatch lock."""
+        self.due_unloaded()
+        route = Resume()
+
+        def opened(record):
+            self.h.backend.loaded_map[T1] = "loaded"
+            return route
+        self.plugged(Asked(unloaded=opened))
+        self.h.tick()
+        self.assertEqual(route.calls, [])
+        row = self.h.record()
+        self.assertEqual((row["state"], row["last_error"]),
+                         ("waiting_for_loaded_thread", "loaded_recheck_failed"))
+
+    def test_the_gates_that_follow_still_hold(self):
+        cases = {
+            "someone's queued input": lambda h: h.home.enqueue(T1, "mine"),
+            "no usage": lambda h: h.backend.usage_result.update(available=False, reason="unavailable"),
+        }
+        for name, change in cases.items():
+            with self.subTest(name):
+                h = self.fresh()
+                self.due_unloaded(h)
+                change(h)
+                route = Resume()
+                self.plugged(Asked(unloaded=route), h)
+                h.tick()
+                self.assertEqual(route.calls, [])
+                row = h.record()
+                self.assertIsNone(row["submitted_at"])
+                self.assertIn(row["last_error"], ("user_input_queued", "usage_unavailable"))
+
+    def test_what_is_not_a_route_is_the_wait(self):
+        class Lookup:
+            @property
+            def resume(self):
+                raise RuntimeError("no")
+        for answer in ("resume", 1, object(), Lookup(), Careless(), type("N", (), {"resume": 2})()):
+            with self.subTest(answer=type(answer).__name__):
+                h = self.fresh()
+                self.due_unloaded(h)
+                self.plugged(Asked(unloaded=answer), h)
+                h.tick()
+                row = h.record()
+                self.assertEqual((row["state"], row["last_error"], row["attempt_count"]),
+                                 ("waiting_for_loaded_thread", "notLoaded", 0))
+
+    def test_a_hook_that_raises_is_the_wait(self):
+        self.due_unloaded()
+        self.plugged(Asked(unloaded=RuntimeError("broke")))
+        self.h.tick()
+        self.assertEqual(self.h.record()["last_error"], "notLoaded")
+        self.assertEqual(self.h.engine.plug.failures, 1)
+
 class ProofReaderTests(PluggedCase):
     """The history reader looks for a proof - a marker, or a continuation's client id - and for
     nothing wider: what it is handed bounds the only message text that ever leaves Codex's
@@ -1020,8 +1263,10 @@ MOVERS = frozenset({"reserve_detailed", "release_claim", "release_withdrawn", "c
 # is told of them: P14 tells what the engine writes.
 PERSONS = frozenset({"cancel_interruption", "cancel_thread", "restore_budget_detailed"})
 # Where the engine makes those calls today - so a new one is seen, and has to tell the plug too.
+# v0.6.11 stage 3b: and the claim of a route the plug names for a conversation not held (P16).
 MOVING = frozenset({"AnnounceMixin.transition", "AnnounceMixin._release", "DispatchMixin.dispatch",
-                    "ReconcileMixin.withdraw", "ReconcileMixin.settle", "ReconcileMixin.correlate"})
+                    "ReconcileMixin.withdraw", "ReconcileMixin.settle", "ReconcileMixin.correlate",
+                    "DeliveryMixin._resume_unloaded"})
 
 
 def _moves_a_record(function, call) -> bool:
@@ -1268,7 +1513,7 @@ class MovedTests(PluggedCase):
                                         self.assertTrue(_told_after(block, index),
                                                         "moves a record and does not tell the plug")
         self.assertEqual(set(moving), MOVING)
-        self.assertEqual(len(moving), 8, "every store call that moves a record, counted")
+        self.assertEqual(len(moving), 9, "every store call that moves a record, counted")
 
     def test_a_persons_own_moves_are_not_told_and_the_contract_says_so(self):
         """P14 tells what the engine writes. A cancel, or the attempts given back, is written by

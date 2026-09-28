@@ -86,6 +86,9 @@ class AdvancedPlug(Plug):
     def delivery(self, record):
         return self.runtime.ask(Point.DELIVERY, record)
 
+    def unloaded(self, record):
+        return self.runtime.ask(Point.UNLOADED, record)
+
     def edition_changed(self, previous):
         """Entering from the standard edition turns every capability off, whatever an earlier
         advanced installation of this home left on - arming never carries across an edition

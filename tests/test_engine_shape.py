@@ -56,6 +56,9 @@ METHODS = {
     # v0.6.11: how a continuation is carried and what proves it arrived - the marker, or the client
     # id a marker-free one was queued under (P15, engine/delivery.py).
     "proof", "_delivery",
+    # v0.6.11 stage 3b: a route the plug names for a conversation the app does not hold (P16),
+    # taken where core would wait, carried out through the one claim, and what came of it.
+    "_unloaded", "_resume_unloaded", "_after_resume",
 }
 
 # What `from codex_auto_resume.engine import ...` has to keep answering (app.py, the tests).

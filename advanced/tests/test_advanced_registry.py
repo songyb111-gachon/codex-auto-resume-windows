@@ -28,15 +28,21 @@ STANDARDS_FILE = ac.ROOT.parent / standards.BASIS
 
 
 class ShippedTests(unittest.TestCase):
-    def test_the_registry_this_edition_ships_is_start_with_codex_and_the_marker_free_continuation(self):
+    def test_the_registry_this_edition_ships_is_its_three_capabilities_in_their_order(self):
         self.assertEqual([d.id for d in registry.DEFINITIONS],
-                         ["start_with_codex", "marker_free_continuation"])
-        self.assertEqual(len(registry.REGISTRY), 2)
-        self.assertEqual(registry.REGISTRY.ids, ("start_with_codex", "marker_free_continuation"))
-        # Start-with-Codex answers at P9 alone - it starts the watcher, it does not send - and the
-        # marker-free continuation at P5 and P15, the channel and the way it carries the words.
+                         ["start_with_codex", "goal_continuation", "marker_free_continuation"])
+        self.assertEqual(len(registry.REGISTRY), 3)
+        self.assertEqual(registry.REGISTRY.ids,
+                         ("start_with_codex", "goal_continuation", "marker_free_continuation"))
+        # Start-with-Codex answers at P9 alone - it starts the watcher, it does not send; the goal
+        # continuation at P16, P3 and P5 - the route, the hold while a goal carries a conversation on,
+        # and the channel where M2b passed; the marker-free continuation at P5 and P15, the channel
+        # and the way it carries the words. At P5 the goal continuation comes first, so where both
+        # are on and the goal applies its channel carries the send.
         answering = {Point.START_ROUTE: ("start_with_codex",),
-                     Point.SENDER: ("marker_free_continuation",),
+                     Point.UNLOADED: ("goal_continuation",),
+                     Point.GATES: ("goal_continuation",),
+                     Point.SENDER: ("goal_continuation", "marker_free_continuation"),
                      Point.DELIVERY: ("marker_free_continuation",)}
         for point in Point:
             self.assertEqual(tuple(d.id for d in registry.REGISTRY.at(point)), answering.get(point, ()))
@@ -57,6 +63,23 @@ class ShippedTests(unittest.TestCase):
         self.assertEqual(mfc.measurements, (Measurement.M7,))
         self.assertEqual(mfc.points, frozenset({Point.SENDER, Point.DELIVERY}))
         self.assertEqual(mfc.ceilings.per_conversation, registry.CORE_DAILY_CAP)
+
+    def test_the_goal_continuation_departs_and_rests_on_what_the_owner_asked(self):
+        """0.5 (goal-state manipulation), A2 (one channel), A11 (nothing for a conversation the app
+        does not hold), B3 (Codex's state changes only through the queue) and B4 (the app server's
+        three methods); it stands on loaded_state_detection, which has local checks and decides its
+        route - core's own goal_continuation entry has none and stays unsupported (G12) - and its
+        route on M2."""
+        goal = registry.REGISTRY.get("goal_continuation")
+        self.assertEqual(goal.departs_from, ("0.5", "A2", "A11", "B3", "B4"))
+        self.assertEqual(goal.compat, "loaded_state_detection")
+        from codex_auto_resume.compat.model import CAPABILITIES
+        self.assertTrue(CAPABILITIES[goal.compat][0], "a compatibility capability with local checks")
+        self.assertEqual(CAPABILITIES["goal_continuation"], ((), "unsupported"),
+                         "core's own entry is the standard edition's, untouched")
+        self.assertEqual(goal.measurements, (Measurement.M2,))
+        self.assertEqual(goal.points, frozenset({Point.UNLOADED, Point.GATES, Point.SENDER}))
+        self.assertLessEqual(goal.ceilings.per_conversation, registry.CORE_DAILY_CAP)
 
     def test_start_with_codex_departs_and_rests_on_what_the_plan_says(self):
         swc = registry.REGISTRY.get("start_with_codex")

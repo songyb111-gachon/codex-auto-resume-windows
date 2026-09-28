@@ -87,7 +87,13 @@ class Point(StrEnum):
     P15 (v0.6.11 stage 3) is how a continuation is carried and how its arrival is proven. Core
     has always ended the words with the record's marker and proven delivery by finding it in
     Codex's history (A4); a plug may answer CLIENT_ID instead, and core sends the words with no
-    marker, under a client id it derives from the interruption, and proves delivery by that id."""
+    marker, under a client id it derives from the interruption, and proves delivery by that id.
+
+    P16 (v0.6.11 stage 3b) is what continues a record whose conversation the app does not hold.
+    Core has always waited for the app to open it (A11); a plug may name a route instead - an
+    object with a `resume` - and core carries it out itself, as it carries out the send: its one
+    claim, its pre-send look and its launch guard, the route called once, and what came of it
+    settled by core's own rules (engine/delivery.py)."""
     RECORDS = "records"                      # P2  records of the advanced store, due now
     GATES = "gates"                          # P3  the gates a record passes before it is sent
     TEXT = "text"                            # P4  what the continuation says
@@ -102,6 +108,7 @@ class Point(StrEnum):
     SUPERVISION = "supervision"              # P13 how the launcher keeps the watcher running
     MOVED = "moved"                          # P14 a record core holds moved to another state
     DELIVERY = "delivery"                    # P15 how a continuation is carried and proven
+    UNLOADED = "unloaded"                    # P16 what continues one the app does not hold
 
 
 class Alternative(StrEnum):
@@ -245,6 +252,15 @@ class Plug:
         channel, core's own backend being unable to name one, it is DEFER."""
         return DEFER
 
+    def unloaded(self, record):                       # P16
+        """What continues `record` while the app does not hold its conversation, asked once
+        every gate before that one has passed, its consent included, and the app has said the
+        conversation is notLoaded - never when it could not say. DEFER is core's own way: the
+        record waits for the app to open it (A11). A route - an object with a callable `resume`
+        - is carried out by core instead: the gates that follow, its one claim, the pre-send look,
+        and the route called once inside the launch guard (engine/delivery.py)."""
+        return DEFER
+
     def edition_changed(self, previous):
         """The installer has just replaced an installation of edition `previous` with this one.
 
@@ -259,6 +275,7 @@ HOOKS = {
     Point.START_ROUTE: "start_route", Point.SURFACES: "surface",
     Point.CLAIM_LEDGER: "claim_ledger", Point.CONCURRENCY: "partition",
     Point.SUPERVISION: "supervise", Point.MOVED: "moved", Point.DELIVERY: "delivery",
+    Point.UNLOADED: "unloaded",
 }
 
 # A hook may always restrict. HOLD keeps a record waiting, exactly as a gate that says WAIT
@@ -278,6 +295,10 @@ RESTRICTIONS = frozenset({Alternative.HOLD})
 # start with Codex), and it does so the way the sender does - the plug names a route, an object
 # with a `start`, that core calls with the command line it built (Guarded.start_route). So the
 # start route is a value point now, not a decision point with a closed set of words.
+#
+# UNLOADED (P16) is one the same way, from v0.6.11 stage 3b: a plug names a route, an object with
+# a `resume`, and core carries it out through its own claim, pre-send look and launch guard
+# (Guarded.unloaded, engine/delivery.py). Its words are none of this table's.
 #
 # DELIVERY (P15) takes CLIENT_ID, which core learned to carry out in the same commit: the words
 # with no marker, the one send made through the plug's channel with the client id core derived,
@@ -416,6 +437,26 @@ class _Channel:
         return self._send(thread_id, prompt, launch_guard=nullcontext(True), client_id=client_id)
 
 
+class _Route:
+    """A route a plug named at P16, held to the launch guard as a channel is (`_Channel`).
+
+    Consent is read under the store's write lock, and the route is called only if it held, with
+    a guard already decided and the lock let go - the route is the plug's code, and a transport
+    core cannot see into, and a Pause or a disarm must never wait behind it. `resume` is the
+    route's one method, and the only thing of it core ever calls."""
+    __slots__ = ("_resume",)
+
+    def __init__(self, resume):
+        self._resume = resume
+
+    def resume(self, thread_id, *, launch_guard=None):
+        with launch_guard if launch_guard is not None else nullcontext(True) as permitted:
+            pass
+        if permitted is not True:
+            return {"outcome": "not_started", "error_code": "queue_consent_refused"}
+        return self._resume(thread_id, launch_guard=nullcontext(True))
+
+
 class Guarded:
     """A plug as core holds it: every hook asked through `consult`, every value checked before
     core takes it.
@@ -544,6 +585,22 @@ class Guarded:
         """P15: CLIENT_ID, or DEFER - which is the marker, as core has always carried it. Core
         takes CLIENT_ID only for a send it hands to a channel (engine/dispatch.py)."""
         return self._ask(Point.DELIVERY, record)
+
+    def unloaded(self, record):
+        """P16: the route the plug names for a record whose conversation the app does not hold,
+        held to the launch guard (`_Route`), or DEFER - which is core's own wait (A11).
+
+        A route is something with a callable `resume`; a word, a number, or an object without one
+        is DEFER, so a hook that answers with something core cannot call changes nothing. Core
+        calls it once, after its claim and its pre-send look (engine/delivery.py)."""
+        answer = self._ask(Point.UNLOADED, record)
+        if answer is DEFER:
+            return DEFER
+        try:
+            resume = getattr(answer, "resume", None)
+        except Exception:                              # a `resume` that raises when it is looked up
+            return DEFER
+        return _Route(resume) if callable(resume) else DEFER
 
 
 def guard(plug) -> Guarded:

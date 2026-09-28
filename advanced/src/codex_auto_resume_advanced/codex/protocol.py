@@ -42,6 +42,7 @@ from ..vocabulary import Measurement
 MEASUREMENT_METHODS = {
     Measurement.M1: ("thread/loaded/list", "thread/queue/list"),
     Measurement.M2: ("thread/loaded/list", "thread/goal/get", "thread/goal/set"),
+    Measurement.M2B: ("thread/goal/get", "thread/goal/set", "thread/queue/add", "thread/queue/list"),
     Measurement.M3: ("thread/queue/add", "thread/queue/list"),
     Measurement.M4: ("hooks/list",),
     Measurement.M5: ("thread/loaded/list", "thread/queue/list"),
@@ -55,9 +56,13 @@ MEASUREMENT_METHODS = {
 # The methods a capability's own route may call, beyond `initialize` - each one a measurement
 # declared first, so nothing is asked of Codex in use that was not measured. The marker-free
 # continuation (engine/markerfree.py) adds one item to a thread's queue under the client id core
-# gives it, as M7 did: nothing else, and never a read.
+# gives it, as M7 did: nothing else, and never a read. The goal continuation (engine/goal.py) sets
+# an existing goal's status, as M2 did, and - only where M2b passed - adds the one item M2b added
+# after it: never a read over the protocol, since the goal's status is read from its database and
+# its words are read nowhere.
 CAPABILITY_METHODS = {
     "marker_free_continuation": ("thread/queue/add",),
+    "goal_continuation": ("thread/goal/set", "thread/queue/add"),
 }
 
 # Everything this edition may ever ask beyond core's three. A method not here is one no

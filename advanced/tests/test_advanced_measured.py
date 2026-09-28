@@ -75,12 +75,14 @@ class TableTests(unittest.TestCase):
                 self.assertTrue(isinstance(version, str) and version)
 
     def test_the_2026_09_26_readings_the_owner_recorded(self):
-        """MW, M1, M6 and M7 passed; M2, M3, M4 and M5 failed; MH and MA were never completed."""
+        """MW, M1, M6 and M7 passed; M2, M3, M4 and M5 failed; MH and MA were never completed; and
+        M2b, added on 2026-09-28 for the goal continuation, has not been run yet."""
         passed = {m for m, (verdict, _v) in measured.MEASURED.items() if verdict == Verdict.PASS}
         failed = {m for m, (verdict, _v) in measured.MEASURED.items() if verdict == Verdict.FAIL}
         self.assertEqual(passed, {Measurement.MW, Measurement.M1, Measurement.M6, Measurement.M7})
         self.assertEqual(failed, {Measurement.M2, Measurement.M3, Measurement.M4, Measurement.M5})
-        self.assertEqual(set(Measurement) - passed - failed, {Measurement.MH, Measurement.MA})
+        self.assertEqual(set(Measurement) - passed - failed,
+                         {Measurement.MH, Measurement.MA, Measurement.M2B})
 
 
 if __name__ == "__main__":

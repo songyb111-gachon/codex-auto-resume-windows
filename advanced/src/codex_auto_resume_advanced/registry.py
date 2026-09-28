@@ -26,9 +26,9 @@ asked to agree to and everything the plug holds it to:
 * `make` - the factory for its code: given the installation's paths, it returns an object whose
   methods are the plug's hooks for its points, each answering as a plug would.
 
-The edition ships two capabilities now: start-with-Codex, at P9 (control/codexstart.py), and the
-marker-free continuation, at P5 and P15 (engine/markerfree.py). The tests define one of their own
-to hold every rule here.
+The edition ships three capabilities now: start-with-Codex, at P9 (control/codexstart.py); the
+goal continuation, at P16, P3 and P5 (engine/goal.py); and the marker-free continuation, at P5 and
+P15 (engine/markerfree.py). The tests define one of their own to hold every rule here.
 """
 from __future__ import annotations
 
@@ -39,6 +39,7 @@ from typing import Callable
 from codex_auto_resume.domain.plug import Point
 
 from .control.codexstart import make as make_start_with_codex
+from .engine.goal import make as make_goal_continuation
 from .engine.markerfree import make as make_marker_free
 from .standards import STANDARDS
 from .vocabulary import Measurement
@@ -227,5 +228,38 @@ MARKER_FREE = CapabilityDef(
     measurements=(Measurement.M7,),
 )
 
-DEFINITIONS = (START_WITH_CODEX, MARKER_FREE)
+# The goal continuation (v0.6.11 stage 3b, the owner's request of 2026-09-26): for a usage limit in
+# a conversation the app does not hold, it is the route core carries out at P16 - the conversation's
+# goal, paused by the limit, set active again through the app server's thread/goal/set, an existing
+# goal only and never its words - so Codex carries the goal on when the app next opens it (M2: a goal
+# set so is not seen while the app holds the conversation, and is live once it loads it again). At
+# P3 it holds the standard continuation back while that goal is active, so the two never both run;
+# at P5, only where M2b passed for the Codex in force, it is the channel that sets the goal active
+# before the continuation it queues. Anywhere else the standard queue route stands.
+#
+# It departs from 0.5 (goal-state manipulation is rejected from the product), A2 (one channel only),
+# A11 (nothing is done for a conversation the app does not hold), B3 (Codex's state changes only
+# through the queue and the plugin command) and B4 (the app server's three methods). It stands on
+# loaded_state_detection - whether the app holds the conversation, with local checks, which is what
+# decides its route - and reads the goals table's columns itself at every use, doing what the
+# standard edition does where they are not there. Core's own goal_continuation entry in the
+# Compatibility Registry has no local check and stays 'unsupported' (G12), as the standard
+# edition's. Its route rests on M2, which failed for a conversation the app holds - a warning in its
+# statement the person confirms; M2b only widens where it acts, and is read where it is used.
+# Ceilings: three a conversation a day - a usage limit resets a few times a day at most - and a dozen
+# a day in all. It comes before the marker-free continuation, so where both are on and the goal
+# applies its channel carries the send, under the client id P15 gives it.
+GOAL_CONTINUATION = CapabilityDef(
+    id="goal_continuation",
+    points=frozenset({Point.UNLOADED, Point.GATES, Point.SENDER}),
+    revision=1,
+    departs_from=("0.5", "A2", "A11", "B3", "B4"),
+    compat="loaded_state_detection",
+    ceilings=Ceilings(per_day=12, per_conversation=3),
+    journal_prefix="goal",
+    make=make_goal_continuation,
+    measurements=(Measurement.M2,),
+)
+
+DEFINITIONS = (START_WITH_CODEX, GOAL_CONTINUATION, MARKER_FREE)
 REGISTRY = Registry(DEFINITIONS)

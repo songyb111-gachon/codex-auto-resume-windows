@@ -277,6 +277,42 @@ class GuardTests(unittest.TestCase):
             with self.subTest(answer=answer):
                 self.assertIs(guard(RecordingPlug(sender=answer)).sender({}, backend), backend)
 
+    def test_a_route_is_something_with_a_resume_held_to_the_launch_guard_or_it_is_defer(self):
+        """P16: what a plug names for a conversation the app does not hold. Core calls its
+        `resume` and nothing else of it, only inside the launch guard and only while it permits,
+        handing it a guard already held; anything without a callable `resume` is DEFER."""
+        class Route:
+            def __init__(self):
+                self.calls = []
+
+            def resume(self, thread_id, *, launch_guard=None):
+                with launch_guard as permitted:
+                    self.calls.append((thread_id, permitted))
+                return {"outcome": "accepted"}
+
+        class Lookup:
+            @property
+            def resume(self):
+                raise RuntimeError("no")
+
+        route = Route()
+        held = guard(RecordingPlug(unloaded=route)).unloaded({})
+        self.assertIsNot(held, route)
+        entered = []
+
+        @contextlib.contextmanager
+        def launch_guard(permitted):
+            entered.append(permitted)
+            yield permitted
+        self.assertEqual(held.resume("t", launch_guard=launch_guard(True)), {"outcome": "accepted"})
+        self.assertEqual(held.resume("t", launch_guard=launch_guard(False)),
+                         {"outcome": "not_started", "error_code": "queue_consent_refused"})
+        self.assertEqual((entered, route.calls), ([True, False], [("t", True)]))
+        for answer in (None, "resume", object(), Lookup(), type("NotCallable", (), {"resume": 1})()):
+            with self.subTest(answer=answer):
+                self.assertIs(guard(RecordingPlug(unloaded=answer)).unloaded({}), DEFER)
+        self.assertIs(guard(NULL).unloaded({}), DEFER)
+
     def test_a_strange_answer_is_a_failure_or_nothing_and_never_escapes_the_guard(self):
         """An answer's own hashing, comparison and iteration are the plug's code running. At a
         decision point one that raises is a hook that failed; at a surface it is nothing - a

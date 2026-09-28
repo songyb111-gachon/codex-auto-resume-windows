@@ -42,6 +42,21 @@ anywhere else, and do not present one as active unless `list_advanced_capabiliti
   beyond the listed ones), which is why it is off until turned on. If Windows Management
   Instrumentation is off, or a policy blocks process creation through it, nothing starts and the
   reason is logged; never tell the user to change that policy.
+- **Goal continuation.** When the user has turned this on and a usage limit paused a
+  conversation's Codex goal, then once the limit has reset and the conversation is due to continue
+  while the Codex app does not have it open, the goal is set active again through Codex's own app
+  server, so Codex carries the goal on when the app next opens the conversation. Only a goal that
+  exists and was paused by the usage limit is resumed; no goal is ever created, and what the goal
+  says is never read or changed. While the app has the conversation open, the continuation goes
+  through Codex's queue as in the standard edition, and while a goal is carrying a conversation on
+  the standard continuation waits up to ten minutes so the two do not both run. Only where
+  measurement M2b passed for the installed Codex is the goal also set active before a queued
+  continuation in a conversation the app has open. It departs from five of the standard edition's
+  rules (goals are never touched; one channel only; nothing is done for a conversation the app does
+  not have open; Codex's state changes only through its queue; the app server's three requests).
+  When its result cannot be confirmed, that interruption is never tried again and the capability
+  turns itself off. A goal it set active stays active after it is turned off; tell the user to
+  pause the goal in Codex if they want it to stop.
 - **Marker-free continuation.** When the user has turned this on, each continuation is sent
   without the `[codex-auto-resume:<16 hex>]` marker the standard edition ends it with. It is added to the
   conversation's queue through Codex's own app server under an id made from the interruption, and
