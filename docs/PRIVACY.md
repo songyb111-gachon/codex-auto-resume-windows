@@ -3,6 +3,11 @@
 Codex Auto Resume runs on your machine. It has no server, no account and no telemetry, and
 the watcher makes no outbound network request of its own.
 
+This page describes the standard edition. From v0.6.11 there is an advanced edition as well: it
+does everything described here and, only for a capability a person has turned on in the Dashboard,
+what [The advanced edition](#the-advanced-edition) adds. With none turned on, what it adds is
+little more than a word in the status saying which edition it is.
+
 It does cause network traffic, though, and that is worth stating up front rather than in a
 footnote. There are four kinds, and they are genuinely different:
 
@@ -142,7 +147,9 @@ file with `-ArchivePath`.
   runs. Because the check comes after the download, a redirect to another host would still
   send the request there, with the details below, before the file is refused.
 - It downloads at most two things: this version's release archive and, only when the
-  plugin carries no pinned digest for that version, the `.sha256` published beside it.
+  plugin carries no pinned digest for that version, the `.sha256` published beside it. From
+  v0.6.11 the archive is the installed edition's - `CodexAutoResume-Advanced-vX.Y.Z-win-x64.zip`
+  for the advanced edition - and nothing else changes.
 - The URL is built from constants in the repository and the plugin's own version. There is
   no "latest", and nothing you type becomes part of it.
 - It uploads nothing. No prompt, conversation, account identifier, machine identifier or
@@ -354,7 +361,9 @@ interfaces:
   that name had; uninstalling removes it only while it still points at this installation.
 
 Codex makes those changes itself. The Codex processes it starts may also update Codex's own
-logs and caches as a side effect, as any Codex process does.
+logs and caches as a side effect, as any Codex process does. In the advanced edition, a
+capability that is on asks for two more, described under
+[The advanced edition](#the-advanced-edition).
 
 ## What it runs
 
@@ -421,7 +430,8 @@ The plugin gives Codex tools — `get_status`, `list_pending`, `get_recovery_tim
 `get_recovery_statistics`, `open_settings`, and the controls (`retry_now`, `cancel_recovery`,
 `reset_recovery_budget`, `pause_auto_recovery` and `resume_auto_recovery`,
 `disable_conversation_recovery` and `enable_conversation_recovery`, `clear_recovery_history`,
-`start_watcher`, `update_settings`, `restore_default_settings`, and from v0.6.11 `postpone_recovery` and `release_hold`), and, from v0.6.3, `preview_recovery_message` — and a skill that runs the
+`start_watcher`, `update_settings`, `restore_default_settings`, and from v0.6.11 `postpone_recovery` and `release_hold`), and, from v0.6.3, `preview_recovery_message` — in the advanced edition also
+`list_advanced_capabilities`, `disarm_advanced_capability` and `disarm_all_advanced` — and a skill that runs the
 tool's commands (for example `status`, `pending`, `doctor` and `logs`). When they run inside a
 Codex conversation, what they return becomes part of that conversation. The
 one-line summary always does, and the structured data may as well; Codex sends the
@@ -438,7 +448,8 @@ conversation to OpenAI like any tool output. That is:
   reason — no Codex version string, no path and no free text, and not what other people report
   about that version, which is for you to read on the Dashboard. It no longer returns the installation
   directory's path, which normally includes your Windows user name; v0.5.0 through v0.5.7
-  did, and a conversation held with one of them still carries it;
+  did, and a conversation held with one of them still carries it. In the advanced edition it also
+  carries which edition this is and how many of its capabilities are on, as codes;
 - from `list_pending`: the pending recoveries, with their conversation ids, interruption ids,
   states, categories, times and attempt counts, and the finished ones too when it is asked for
   them; `open_settings` returns those together with the status and settings above;
@@ -452,6 +463,10 @@ conversation to OpenAI like any tool output. That is:
   interruption, under your settings or under a language and style given for the preview —
   this product's message or, when the Custom style is selected, your Custom message. It saves
   nothing and sends nothing;
+- in the advanced edition, from `list_advanced_capabilities`: each capability's id, whether it
+  is on, watched or off, since when, from which surface and why, and the ids of the standards it
+  departs from — ids and codes, with no version string, path or free text; from the two tools
+  that turn capabilities off, the capability's id and that it is off, or how many were turned off;
 - from the commands: the same, plus each pending recovery's reset time, limit bucket and
   last reason code, the desktop app's process ids, and local paths such as the Codex executable, the Codex home,
   the state file and the log file — which normally include your Windows user name — and,
@@ -599,7 +614,9 @@ Windows keeps the notifications it showed in its notification history for a whil
 you clear them - from v0.6.5 including the silent copy raised for each notification card.
 And each resumed conversation contains the continuation message (your Custom message, when that
 is what was sent), with its
-`[codex-auto-resume:…]` marker, in Codex's own history, like any message.
+`[codex-auto-resume:…]` marker, in Codex's own history, like any message - or, in the advanced
+edition with the marker-free continuation on, without the marker, under a client id Codex keeps
+on the message.
 
 Outside that directory it also registers ordinary per-user Windows plumbing, none of it
 needing administrator rights and none of it containing anything about your conversations: a
@@ -679,6 +696,54 @@ inside the release, one JSON file per language, and are read from disk: no langu
 fetched and no translation service is used. The default, *System*, follows the first
 language Windows lists on this machine; a language you choose is stored in
 `config/settings.json` with your other settings.
+
+## The advanced edition
+
+From v0.6.11 there is a second edition, and this section is what it adds to everything above. Its
+capabilities are each off until a person turns one on in the Dashboard. With none on, and no
+measurement asked for, it runs nothing more and asks Codex for nothing more; it reads more only
+when its capabilities are listed or one is being turned on, and Codex's tools learn which edition
+it is and that none is on. It adds no network code: its package imports no networking module, which a test checks as it
+checks the standard edition's code (`tests/test_privacy_claims.py`), and what its capabilities ask
+of anything, they ask of the Codex already on this machine.
+
+- **What it reads.** Three values an administrator may set under
+  `Software\Policies\CodexAutoResume`, in `HKEY_LOCAL_MACHINE` and `HKEY_CURRENT_USER` -
+  `ForbidAdvanced`, `ForceShadow` and `AllowedCapabilities` - read and never written: when the
+  capabilities are listed, in the Dashboard or by `list_advanced_capabilities`, when one is being
+  turned on, and at each look while one is on or watched. While the goal continuation is on, from Codex's
+  goals database, opened read-only: which goal a conversation has, its status and when it changed.
+  The goal's words are never selected.
+- **What it runs.** While start with Codex is on, when Codex starts the plugin's MCP server and
+  Codex's job would end what the server starts: one constant PowerShell script, by its full path,
+  that asks WMI (`Win32_Process.Create`) to start this installation's own launcher, windowless, and
+  writes the new process's id to a temporary file it reads back and deletes. Where the job would not
+  end it, the server starts the launcher itself, as *Start watcher* does. While the marker-free or the
+  goal continuation is on: `codex app-server --stdio` sessions of their own, started as the standard
+  edition starts its own - the same client name, the same analytics and telemetry settings, the same
+  pinned ChatGPT address - that call, after `initialize`, `thread/queue/add` (the continuation's
+  words, under a client id derived from the interruption) and `thread/goal/set` (a goal's status),
+  and nothing else.
+- **What reaches OpenAI.** Nothing new: the resumed turn still runs in your Codex desktop app. A
+  marker-free continuation arrives without the `[codex-auto-resume:…]` marker, and Codex keeps the
+  client id on the message. A goal set active is carried on by Codex when the app next opens the
+  conversation, under your own Codex settings.
+- **What it stores.** `config/advanced/advanced.sqlite`, made only when something is first turned
+  on or changed: each capability's state, since when, from which surface and why, the statement
+  revision and the Codex version it was turned on for, and the warnings confirmed; each unit a
+  capability spent, with the ids of the conversation and interruption it spent it on; the edition's
+  own records and what a capability asked of a standard one, as ids, states and times; the global
+  ceiling a person set; and a journal and per-day counts of closed codes, bounded as the standard
+  journal is. No prompt, reply, error text, title, path or secret. `Uninstall.cmd -Purge` removes it
+  with the rest of `config\`.
+- **What Codex is told.** What its three MCP tools return, listed under
+  [When you use it from Codex](#when-you-use-it-from-codex).
+- **Measurements.** The harness that measures whether a capability's route can work on this Codex
+  (`measure`) is in the edition's archive and runs only when a person asks for it over the
+  Dashboard's bridge, and on a conversation they name where it needs one. Each run opens one app
+  server session limited to the methods that measurement declares. It writes a record only where a
+  source checkout's `docs/evidence/live/` is - an installed copy has none - and a record holds
+  booleans, counts, closed words and ids as aliases, never a path or a conversation's text.
 
 ## Third parties
 

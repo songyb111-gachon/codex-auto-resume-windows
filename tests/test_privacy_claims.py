@@ -117,8 +117,10 @@ class CodePropertyTests(unittest.TestCase):
     """The facts the wording depends on. If these change, the wording has to."""
 
     def test_the_recovery_runtime_imports_no_networking_module(self):
+        """The advanced edition's package as well (advanced/src/, shipped beside core in its archive):
+        SECURITY.md and PRIVACY.md say it adds no network code, and this is what makes that so."""
         offenders = []
-        for path in tracked("src/*") + tracked("scripts/*.py"):
+        for path in tracked("src/*") + tracked("scripts/*.py") + tracked("advanced/src/*"):
             if path.suffix != ".py":
                 continue
             for match in NETWORKING.finditer(path.read_text(encoding="utf-8")):
@@ -130,7 +132,8 @@ class CodePropertyTests(unittest.TestCase):
         # download the pinned interpreter. Everything that ships may not, except the
         # bootstrap - which is the whole point of the bootstrap.
         reaching = set()
-        for path in tracked("scripts/*") + tracked("build/install/*") + tracked("src/*") + tracked("gui/*"):
+        for path in (tracked("scripts/*") + tracked("build/install/*") + tracked("src/*") + tracked("gui/*")
+                     + tracked("advanced/src/*") + tracked("advanced/gui/*")):
             try:
                 text = path.read_text(encoding="utf-8")
             except (UnicodeDecodeError, OSError):
@@ -155,7 +158,7 @@ class CodePropertyTests(unittest.TestCase):
                              r"www\.python\.org|agent-plugins\.org|schemas\.microsoft\.com|"
                              r"docs\.microsoft\.com|learn\.microsoft\.com)/?", re.I)
         offenders = []
-        for path in tracked("scripts/*") + tracked("build/install/*") + tracked("src/*"):
+        for path in tracked("scripts/*") + tracked("build/install/*") + tracked("src/*") + tracked("advanced/src/*"):
             try:
                 text = path.read_text(encoding="utf-8")
             except (UnicodeDecodeError, OSError):

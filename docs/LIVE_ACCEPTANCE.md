@@ -31,6 +31,9 @@ An empty `docs/evidence/live/` is not a pass. It means nothing has been accepted
 - **What v0.6.3 adds is checked inside these steps.** [What v0.6.3 adds, and where to write
   it down](#what-v063-adds-and-where-to-write-it-down) names the step each check belongs to
   and the file whose note records it; read it before step 3.
+- **v0.6.11 is two editions.** The steps are the standard edition's acceptance, and
+  [The v0.6.11 checklist, per edition](#the-v0611-checklist-per-edition) adds what each edition
+  needs besides. Read it before step 13, where the advanced edition's checks begin.
 - **Time.** One step waits for a usage reset that may be hours away, and one step cannot
   be reached at all until a usage limit really happens to you. Both are described below.
 - **Write each file as you finish its step**, not at the end. The whole reason this
@@ -634,6 +637,104 @@ and read the confirmation before accepting it. *A pass:* the confirmation says a
 already handed to Codex is withdrawn only if it is still queued; the result counts what was
 waiting; each of those records reads `cancelled` on History; no conversation was switched
 off; and there is no button anywhere that retries everything.
+
+## The v0.6.11 checklist, per edition
+
+v0.6.11 is released as two editions, and each needs a live run of its own. The steps above are the
+standard edition's acceptance; they hold for the advanced edition too while nothing in it is turned
+on. The checks below are what v0.6.11 asks besides, one list per edition, to be filled in after the
+live runs. Until a check is run its result says *not run*. One that could not be reached honestly
+says *not reached* and why, and is never written as a pass.
+
+The validator knows none of these checks, as it knows none of v0.6.3's. Where a check belongs to a
+step, write its result as a short sentence of plain machine words in that step's `note`; the others
+are written in the Result column here, in the same words, with the date, `codex --version` and the
+Windows build. M2b is the exception: the measurement harness writes its own record,
+`docs/evidence/live/measurement-m2b.json`. Everything above still holds - a throwaway conversation
+only, no usage limit manufactured, no state edited, every click a person's, and no id, path or text
+a conversation held written anywhere.
+
+### The standard edition
+
+| Check | Do it during | Where it is written | Result |
+| --- | --- | --- | --- |
+| A real recovery, end to end, on the release being accepted | Steps 4 to 7 | `interruption-detected` to `outcome-recorded` | not run |
+| An installed v0.6.10 updating through its own bootstrap | Once the release is published | This table | not run |
+
+**A real recovery.** Steps 4 to 7 as written, on the standard edition of the release being
+accepted: a real interruption - an induced transient one, or a usage limit that really happened -
+detected, continued into that conversation alone, followed to the turn its own continuation
+started, and given an outcome. *A pass:* the four steps pass, and the continuation ends in the
+marker, `[codex-auto-resume:` and sixteen hexadecimal digits. Note which kind of interruption it was
+in `interruption-detected`, as that step asks.
+
+**An installed v0.6.10 updating through its own bootstrap.** This one comes after publication,
+because v0.6.10's *Check for updates* asks `releases/latest`, which names a release only once it is
+published. On a machine with v0.6.10 installed from its own archive, pause recovery, then press
+*Check for updates* on its Diagnostics page and accept the release it offers. It is v0.6.10's own
+bootstrap that downloads, checks and installs the new archive, which is what every installed copy
+will do. The release build holds the new archive to that bootstrap's own archive name and archive
+check (`build/legacy_bootstraps.py`); this runs the whole of it, on a real machine. *A pass:* the
+check names the new release; the bootstrap says what it checked the archive against - the `.sha256`
+published beside it, since v0.6.10's own `scripts/release.json` cannot pin a later release - and
+installs; the installation afterwards is the new version's standard edition; and recovery is still
+paused.
+
+### The advanced edition
+
+Between step 13 and step 14, change the installation step 13 left to the advanced edition, make the
+checks below, and change it back before step 14, so that steps 14 and 15 run on the standard
+edition as written.
+
+| Check | Do it during | Where it is written | Result |
+| --- | --- | --- | --- |
+| The edition change, standard to advanced and back | After step 13 | `upgrade-keeps-decisions` | not run |
+| Start with Codex surviving Codex closing | In the advanced edition | This table | not run |
+| The marker-free continuation, on a throwaway conversation | In the advanced edition | This table | not run |
+| The goal continuation, on a throwaway conversation | In the advanced edition, when a usage limit really happens | This table | not run |
+| M2b: a goal set active beside a queued turn, while the app holds the conversation | From a source checkout of the release | `docs/evidence/live/measurement-m2b.json` | not run |
+
+**The edition change - after step 13, noted in `upgrade-keeps-decisions`.** Run the advanced
+archive's `Install.cmd`, or the advanced setup program, over the standard installation. It says the
+edition changes before anything moves and asks; answer yes. Look at Settings and Pending, and run
+`auto_resume status`. Later, to change back, run the standard archive's `Install.cmd` over it the
+same way. *A pass:* each way the change is said and asked before anything moves; settings, the pause
+and pending recoveries are what they were; after the change to advanced the status names the
+advanced edition with nothing on, and every capability is off; after the change back the status has
+no edition line and the program holds no advanced package.
+
+**Start with Codex surviving Codex closing.** Turn *start with Codex* on in the Dashboard, after
+reading its statement and confirming any warning it shows. Stop the watcher, quit the ChatGPT/Codex
+app completely, and start it again. Then close the app once more. *A pass:* a watcher starts when
+Codex starts - `logs\codex-start.log` gains a line that says it was started, through WMI where
+Codex's job would have ended it - and it is still running, with its icon, after the app is closed.
+Then stop the watcher, turn the capability off and start the app again: no watcher starts, and the
+new line says it is off.
+
+**The marker-free continuation.** Turn it on in the Dashboard, then induce a transient
+interruption in a throwaway conversation as step 4 describes, with the conversation loaded, and let
+the schedule come round. *A pass:* the continuation arrives in that conversation alone and without
+the `[codex-auto-resume:…]` marker; the record is followed to the turn it started and given an
+outcome, as steps 6 and 7 describe; nothing is sent twice. Turn it off afterwards, and confirm the
+next continuation carries the marker again.
+
+**The goal continuation.** It acts only on a usage limit, which cannot be summoned, so this check
+waits for one to happen in a throwaway conversation that has a goal. Turn it on in the Dashboard.
+When the limit comes, restart the app and leave that conversation unopened, so that the app does
+not hold it, and wait past the reset; then open the conversation. *A pass:* Codex carries the goal
+on as the conversation opens, that turn supersedes the record, and no continuation was queued for
+it. If no usage limit came, write *not reached*.
+
+**M2b.** The measurement writes its record only into a source checkout's `docs/evidence/live/` - an
+installed copy has none, and the harness says so rather than write anywhere else - so this one runs
+from a checkout of the release being accepted, over the advanced edition's long-lived bridge, against
+the Codex installed on this machine. On a throwaway conversation with a goal, which the app holds
+open, let the goal pause - a usage limit, or pausing it by hand - then run `measure m2b` with that
+conversation's id, and watch the conversation. Record what you saw with `measure-verdict m2b`, as
+the harness asks: `pass as_expected`, `fail not_as_expected` where the turn did not run, or
+`fail partial` where it ran and the goal did not carry on. *A pass:* the queued turn ran, and the
+goal stayed active and carried on after it. Until M2b passes for a Codex version, the goal
+continuation leaves a conversation the app holds to the standard continuation.
 
 ## What this procedure does not prove
 
