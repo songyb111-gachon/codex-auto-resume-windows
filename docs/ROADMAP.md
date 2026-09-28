@@ -477,10 +477,9 @@ asked for one, ahead of the final that brings the advanced edition's capabilitie
 
 What the final adds to the two pre-releases:
 
-- **Three capabilities in the advanced edition**, each off until a person turns it on, after
-  reading what it does and which standards it departs from, over the local bridge the Dashboard
-  uses - the window has no page for them in this tree yet
-  (`advanced/src/codex_auto_resume_advanced/registry.py`):
+- **Three capabilities in the advanced edition**, each off until a person turns it on in the
+  Dashboard's **Advanced features** page, after reading what it does and which standards it departs
+  from (`advanced/src/codex_auto_resume_advanced/registry.py`):
   - **Start with Codex, through WMI.** Codex ends what its plugins start (v0.6.9, above). A watcher
     that WMI starts has WMI's own host for a parent, outside Codex's job, so closing Codex does not
     end it (measurement MW).
@@ -488,10 +487,11 @@ What the final adds to the two pre-releases:
     (`thread/queue/add`) under a client id derived from the interruption, and delivery is proven by
     that id alone (measurement M7). A send it cannot prove is held, never sent again.
   - **Goal continuation.** For a usage limit in a conversation the app does not hold, the goal the
-    limit paused is set active again through the app server - an existing goal only, never its
-    words - so that Codex carries it on when the app next opens the conversation. That is not
-    measured yet: M2 found only that the app does not take such a goal up while it holds the
-    conversation, which is why it acts where the app does not.
+    limit paused is set active again through the app server - an existing goal only, never its words
+    - so that Codex carries it on when the app next opens the conversation. M2 found that the app
+    does not take such a goal up while it holds the conversation, which is why it acts where the app
+    does not, and saw the goal live again once the app loaded the conversation; nobody has yet
+    followed Codex carrying such a goal on by itself.
 - **A warning, not a refusal.** A measurement a capability rests on that failed or was never made
   for the Codex in force, or a compatibility grade of Failed here, Incompatible or Unknown, is a
   warning in its statement that turning it on confirms. Only an administrator's policy still

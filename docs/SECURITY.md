@@ -502,10 +502,8 @@ capability, in plain words.
   list was read at - so that nothing turned off since is undone by a request that had not seen it -
   the warnings shown, and, for on, the Codex version shown. Every other surface may only turn
   capabilities off, and no MCP tool turns one on, whatever a client sends
-  (`advanced/tests/test_advanced_arming.py`, `advanced/tests/test_advanced_surfaces.py`). This
-  tree's window has no page for the advanced edition yet (`advanced/gui/window.sources` lists no
-  source), so until it has one, that request is written to the bridge by hand, as
-  [LIVE_ACCEPTANCE.md](LIVE_ACCEPTANCE.md#the-v0611-checklist-per-edition) shows. Like every
+  (`advanced/tests/test_advanced_arming.py`, `advanced/tests/test_advanced_surfaces.py`). The
+  Dashboard's **Advanced features** page is what makes that request. Like every
   request on that bridge, it is open to anything running as you; what cannot make it is a model
   through the plugin's MCP tools. A capability watched first journals what it would have done and
   does nothing, and nothing moves it from watched to on but a request of this kind.
@@ -981,9 +979,11 @@ proven delivered only by the client id it was queued under, which Codex keeps on
 `thread/queue/add` takes such an id and delivers the words as plain text was measured once, on one
 Codex version (M7), and no marker-free continuation has yet been followed to its turn on a real
 Codex. A goal set active is left for Codex itself to carry on, under Codex's own settings, when
-the app next opens the conversation - which no record shows yet: M2 found only that the app does
-not take such a goal up while it holds the conversation - and turning the capability off leaves a
-goal it already set active as it is. Each rests on a measurement of one Codex version, and a failed
+the app next opens the conversation. M2 found that the app does not take such a goal up while it
+holds the conversation, and saw the goal live again once the app loaded the conversation - which
+its record, holding only the failing verdict, does not keep - and nobody has yet followed Codex
+carrying such a goal on by itself. Turning the capability off leaves a goal it already set active
+as it is. Each rests on a measurement of one Codex version, and a failed
 or missing one is a warning the person confirmed rather than a refusal. The policy keys that can
 forbid them are what a cooperating installation obeys, not a lock. And a measurement run by hand
 makes its calls into the conversation it names from an installed copy as from a source checkout;

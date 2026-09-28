@@ -159,11 +159,14 @@ conversation on, the standard continuation waits, for up to ten minutes, so the 
 conversation open: in the standard edition the goal stays paused until you resume it yourself.
 
 **What it risks.** Measurement M2 found that a goal set active this way is not taken up while the app
-has the conversation open, which is why it acts only where the app does not; no record yet shows the
-goal taken up once the app opens the conversation again. Another version of Codex may handle goals
-differently. When the result cannot be confirmed - Codex does not answer, or the goal does not read
-back as active - that interruption is not tried again and the capability turns itself off. Turning
-it off leaves a goal it already set active as it is: pause the goal in Codex to stop it.
+has the conversation open, which is why it acts only where the app does not. In the same measurement
+the goal was live again once the app loaded the conversation, as its statement says, though the
+record in [`docs/evidence/live/`](evidence/live/) keeps only the failing verdict; nobody has yet
+followed Codex carrying such a goal on by itself as the app opens the conversation. Another version
+of Codex may handle goals differently. When the result cannot be confirmed - Codex does not answer,
+or the goal does not read back as active - that interruption is not tried again and the capability
+turns itself off. Turning it off leaves a goal it already set active as it is: pause the goal in
+Codex to stop it.
 
 **Departs from** [0.5](STANDARDS.md#0-the-edition-boundary) (a goal's state is never changed), A2
 (one channel only), A11 (nothing is done for a conversation the app does not have open), B3 and B4.
@@ -199,41 +202,42 @@ lets it be replaced; the installer and the Dashboard's Diagnostics page say so w
 ## Updates and pre-releases
 
 An update stays in the edition you have. **Check for updates** fetches the installed edition's
-archive and checks it against that edition's own pinned digest, and an archive of the other edition
-is refused. A pre-release it offers is your edition's too, installed only if you say yes and checked
-against the checksum published beside it (C5, I12, K2).
+archive, and an archive of the other edition is refused. Like every download, the archive is checked
+against the digest pinned for that edition and version in the installed copy's `scripts/release.json`
+where there is one, and otherwise against the `.sha256` published beside it, as the [guide](GUIDE.md)
+explains. No pre-release and no advanced archive has a pinned digest yet, so each is checked against
+its published checksum. A pre-release it offers is your edition's too, and is installed only if you
+say yes (C5, I12, K2).
 
 ## Verifying
 
 Each release publishes four files to install from - each edition's archive and setup program - each
-with its `.sha256` beside it, and one build attestation names all four. Each edition's archive has
-its own pinned digest in `scripts/release.json`. [VERIFY.md](VERIFY.md) says how to check them, and
-how to rebuild either edition yourself.
+with its `.sha256` beside it, and one build attestation names all four. `scripts/release.json` keeps
+a table of pinned digests for each edition; the advanced edition's is still empty.
+[VERIFY.md](VERIFY.md) says how to check them, and how to rebuild either edition yourself.
 
 ## What comes next
 
-v0.6.12 brings the rest of the advanced edition, stage by stage, each published as a pre-release as
-it is finished. Each new capability is the advanced edition's alone, off until you turn it on, with
-a statement that names the standards it departs from. This is a direction, not a promise;
-[ROADMAP.md](ROADMAP.md) has the whole list.
+v0.6.12 brings the rest of the advanced edition, each part published as a pre-release as it is
+finished. Each new capability is the advanced edition's alone, off until you turn it on, with a
+statement that names the standards it departs from. This is a direction, not a promise;
+[ROADMAP.md](ROADMAP.md) has the whole list in its v0.6.12 section, under the same four headings.
 
-- **3b** - more recovery through the channel in use today: a compatibility report sent from the app,
-  short retries for capacity errors, failures it cannot name on a budget of their own, rules over
-  Codex's own error tags, a request Codex gave up on, a sign-in failure retried once after proof, an
-  early usage reset, one resend when delivery is uncertain and the message is nowhere, and *Send
-  now*.
-- **3c** - several conversations at once, empty-response recovery, an unloaded conversation through
-  a queue that waits for it, a subagent through its parent, keep going after a normal completion, a
-  prompt queue and recurring wakes; beside them, the standard edition gains watching several Codex
-  homes.
-- **4** - a route of its own through Codex's app server when nothing holds the conversation, CLI, TUI
-  and IDE sessions, a full context compacted then continued, another model at capacity, a
-  continuation with no words, and Codex's own retry settings.
-- **5a** - a live usage meter, a wrap-up nudge near a limit, reset credits, and usage analytics.
-- **5b** - push notifications through one courier process, the advanced edition's only outbound
-  network code; a provider status feed; a local API and web view; remote control over Telegram; a
-  read-only view of other PCs.
-- **5c** - switching the Codex account on your command, a weekly update check while idle, crash
-  supervision, a wake timer for a reset, *Open Codex* on the card, a continuation inside the turn
-  through a Codex Stop hook, and Arabic and Hebrew.
-- **6** - the documents, each edition's live acceptance, and winget manifests.
+- **Recovery through the channels already in use** - short retries for capacity errors, failures it
+  cannot name on a budget of their own, rules over Codex's own error tags, a request Codex gave up
+  on, a sign-in failure retried once after proof, an early usage reset, one resend when delivery is
+  uncertain and the message is nowhere, *Send now*, several conversations at once, empty-response
+  recovery, an unloaded conversation through a queue that waits for it, a subagent through its
+  parent, keep going after a normal completion, a prompt queue and recurring wakes, and a
+  compatibility report sent from the app.
+- **A route of its own, and other kinds of session** - a conversation nothing holds, run through
+  Codex's app server; CLI, TUI and IDE sessions; a full context compacted, then continued; another
+  model at capacity; a continuation with no words; a continuation inside the turn through a Codex
+  Stop hook; and Codex's own retry settings.
+- **Around recovery** - a live usage meter, a wrap-up nudge near a limit, reset credits and usage
+  analytics; a provider status feed and push notifications through one courier process, the
+  advanced edition's only outbound network code; a local API and web view, remote control over
+  Telegram and a read-only view of other PCs; switching the Codex account on your command; a weekly
+  update check while idle; crash supervision, a wake timer for a reset and *Open Codex* on the card.
+- **Also moved here** - watching several Codex homes, which the standard edition gains; Arabic and
+  Hebrew; winget manifests for both editions.

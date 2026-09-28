@@ -442,16 +442,14 @@ its popup are not an exception: the watcher owns both, so they cannot show a wat
 there, and everything their menus, buttons and switches offer goes through the same control layer
 as the other surfaces.
 
-**Two editions.** From v0.6.11 the product is built and released as two editions, from one
-repository and with one version. The **standard** edition is the one this guide describes: it keeps
-every one of the project's standards - what [Safety model](#safety-model) and [Privacy](#privacy)
-promise among them - and what it gains keeps them too, each addition off, or doing what the release
-before it did, until you change it. The **advanced** edition is the standard one plus capabilities
-that break one of those standards on purpose. Each says which it breaks, is off until you turn it on
-after reading that, and turns itself off again when what you agreed to stops being true. Turning one
-on is a request on the local bridge the Dashboard uses; the window has no page for it yet, so for
-now that request is written by hand, as
-[LIVE_ACCEPTANCE.md](LIVE_ACCEPTANCE.md#the-v0611-checklist-per-edition) shows. Their code is left
+**Two editions.** From v0.6.11 the product is built and released as two editions, from one repository
+and with one version. The **standard** edition is the one this guide describes: it keeps every one of
+the project's standards - what [Safety model](#safety-model) and [Privacy](#privacy) promise among
+them - and what it gains keeps them too, each addition off, or doing what the release before it did,
+until you change it. The **advanced** edition is the standard one plus capabilities that break one of
+those standards on purpose. Each says which it breaks, is off until you turn it on after reading
+that, and turns itself off again when what you agreed to stops being true. You turn one on in the
+Dashboard, on the page that edition adds, **Advanced features**, and nowhere else. Their code is left
 out of the standard edition's archive, and `build/edition_audit.py` proves from the archive's own
 bytes, in every release build, that none of it is there. An installation updates within its edition;
 moving to the other is a reinstall. The [roadmap](ROADMAP.md) says what each has, and what is still

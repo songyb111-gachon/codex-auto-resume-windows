@@ -702,13 +702,13 @@ language Windows lists on this machine; a language you choose is stored in
 ## The advanced edition
 
 From v0.6.11 there is a second edition, and this section is what it adds to everything above. Its
-capabilities are each off until a person turns one on, over the local bridge the Dashboard uses;
-this tree's window has no page for them yet. With none on, and no measurement asked for, it runs
-nothing more and asks Codex for nothing more; it reads more only when its capabilities are listed or
-one is being turned on, and Codex's tools learn which edition it is and that none is on. It adds no
-network code: its package imports no networking module, which a test checks as it checks the
-standard edition's code (`tests/test_privacy_claims.py`), and what its capabilities ask of anything,
-they ask of the Codex already on this machine.
+capabilities are each off until a person turns one on, in the Dashboard's **Advanced features** page.
+With none on, and no measurement asked for, it runs nothing more and asks Codex for nothing more; it
+reads more only when its capabilities are listed or one is being turned on, and Codex's tools learn
+which edition it is and that none is on. It adds no network code: its package imports no networking
+module, which a test checks as it checks the standard edition's code
+(`tests/test_privacy_claims.py`), and what its capabilities ask of anything, they ask of the Codex
+already on this machine.
 
 - **What it reads.** Three values an administrator may set under
   `Software\Policies\CodexAutoResume`, in `HKEY_LOCAL_MACHINE` and `HKEY_CURRENT_USER` -

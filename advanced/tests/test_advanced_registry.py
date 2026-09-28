@@ -26,9 +26,11 @@ from codex_auto_resume_advanced.vocabulary import ArmingWarning, Field, Measurem
 
 # The standards file, public in the repository: each rule a line `**A1** <sentence>`, under its
 # family's heading `## A. <title>`, then the line that says how it is held and which tests hold it.
+# Any capital letter, and whatever follows the bold id: a family added to the file (`## L.`, `**L1**`)
+# or a rule written `**A31**: ...` is still found, and fails against FAMILIES until it follows.
 STANDARDS_FILE = ac.ROOT / standards.BASIS
-RULE_LINE = re.compile(r"(?m)^\*\*(0\.\d+|[A-K]\d+)\*\* ")
-FAMILY_HEADING = re.compile(r"(?m)^## (0|[A-K])\. ")
+RULE_LINE = re.compile(r"(?m)^\*\*(0\.\d+|[A-Z]\d+)\*\*")
+FAMILY_HEADING = re.compile(r"(?m)^## (0|[A-Z])\. ")
 # The line under a rule: its strength in italics, then the tests that hold it, if any.
 HELD_LINE = re.compile(r"^\*([^*\n]+)\*(?:: (.+))?$")
 TEST_NAME = re.compile(r"`([^`]+\.py)`")

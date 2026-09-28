@@ -16,10 +16,11 @@ Each rule says how it is held:
 
 The ids do not change: capability statements, the registry and the other documents cite them. A new rule
 takes the next number in its family, and a rule the owner changes says so, with the date. The list was
-reconciled on 2026-09-23, and family K was added on 2026-09-28. The code reads its ids from this file:
-`advanced/src/codex_auto_resume_advanced/standards.py` counts each family, and
-`advanced/tests/test_advanced_registry.py` fails when the two differ or when a test named here is not in
-the repository ([CONTRIBUTING.md](CONTRIBUTING.md) says how a rule is added or changed).
+reconciled on 2026-09-23, and family K was added on 2026-09-28. Nothing reads this file at run time:
+`advanced/src/codex_auto_resume_advanced/standards.py` holds the ids as a count for each family, and
+`advanced/tests/test_advanced_registry.py` reads this file and fails when the two differ or when a test
+named here is not in the repository ([CONTRIBUTING.md](CONTRIBUTING.md) says how a rule is added or
+changed).
 
 ## 0. The edition boundary
 
@@ -195,7 +196,7 @@ the repository ([CONTRIBUTING.md](CONTRIBUTING.md) says how a rule is added or c
 *tested*: `test_privacy_claims.py`
 
 **C2** Exactly one shipped file reaches the network: scripts/bootstrap.ps1. build/ downloads the pinned Python while a release is built; what ships from it - the install scripts and the setup program - reaches nothing.  
-*tested*: `test_privacy_claims.py`
+*tested*: `test_privacy_claims.py`, `test_setup.py`
 
 **C3** No telemetry, analytics or crash reporting, and shipped files name no unexpected host.  
 *tested*: `test_privacy_claims.py`
@@ -420,8 +421,8 @@ the repository ([CONTRIBUTING.md](CONTRIBUTING.md) says how a rule is added or c
 **H6** Cancel always works, covers the whole chain, withdraws a still-queued item and never stops a running turn.  
 *tested*: `test_store.py`
 
-**H7** Doing nothing resumes, except in a conversation set to Ask me first or Only notify me, which waits for the person, and while Observe only is on, when nothing is sent; Don't resume / Don't retry only cancels.  
-*tested*: `test_notify.py`, `test_postpone_and_tiers.py`
+**H7** Doing nothing resumes, except where a setting holds a recovery for the person - a conversation set to Ask me first or Only notify me; a project that Projects that may resume does not allow, or, under either list, one whose project cannot be read; a task the task-changed guard finds changed, set to Hold it for me; a conversation past the context-cost guard's Hold above; what fell due during a sleep longer than Ask me after a sleep longer than - and while Observe only is on, when nothing is sent. Don't resume / Don't retry only cancels.  
+*tested*: `test_notify.py`, `test_postpone_and_tiers.py`, `test_observe_and_admission.py`, `test_ladder_and_guards.py`, `test_power.py`
 
 **H8** MCP tools that add automation or cannot be undone carry destructiveHint (resume, enable_conversation, update_settings, restore_default_settings, cancel_recovery, reset_recovery_budget, start_watcher, release_hold, clear_recovery_history); pause, conversation-off, retry_now and postpone are unmarked. This is a request, not a lock.  
 *tested*: `test_mcp.py`, `test_mcp_v3.py`, `test_postpone_and_tiers.py`
@@ -540,10 +541,10 @@ the repository ([CONTRIBUTING.md](CONTRIBUTING.md) says how a rule is added or c
 
 ## K. The advanced edition's own rules
 
-**K1** The standard edition's archive and setup program hold no advanced code. The archive is built from trees that do not name advanced/, and build/edition_audit.py proves it from the two archives' and the two setup programs' bytes in every release build, before anything is kept: no advanced path, file, name or marker in any entry, a text file, a binary or a zip inside the zip; the standard archive built again from `git archive` with advanced/ deleted is the same file; every standard entry is in the advanced archive unchanged. The publish job checks the listings again.  
+**K1** The standard edition's archive and setup program hold no advanced code. The archive is built from trees that do not name advanced/, and build/edition_audit.py proves it from the two archives' and the two setup programs' bytes in every release build, before anything is kept: no advanced path, file, name or marker in any entry, a text file, a binary or a zip inside the zip; the standard archive built again from `git archive` with advanced/ deleted is the same file; every standard entry is in the advanced archive unchanged, but the settings window, which each edition builds for itself, and the manifest's display name. The publish job checks the listings again.  
 *tested*: `build/edition_audit.py`, `test_edition_audit.py`, `test_edition_build.py`, `test_edition.py`
 
-**K2** Updates stay within an edition. An update, and a pre-release the update check offers, fetch the installed edition's archive and check it against that edition's own pin; a bootstrap or installer that meets the other edition refuses before anything moves unless the change was asked for and confirmed, and says it first; a change of edition is a reinstall that keeps settings and pending recoveries and starts every advanced capability off.  
+**K2** Updates stay within an edition. An update, and a pre-release the update check offers, fetch the installed edition's archive and check it against the digest the installed copy pins for that edition and version where it has one, and otherwise against the .sha256 published beside it (today every pre-release and every advanced archive); a bootstrap or installer that meets the other edition refuses before anything moves unless the change was asked for and confirmed, and says it first; a change of edition is a reinstall that keeps settings and pending recoveries and starts every advanced capability off.  
 *tested*: `test_edition_bootstrap.py`, `test_edition_installer.py`, `test_prerelease_offer.py`
 
 **K3** Arming only in the Dashboard. Arming.arm refuses every actor but the Dashboard, one capability at a time, and needs the statement revision, the generation, the warnings and, for on, the Codex version the Dashboard showed, each still holding; every other surface (MCP, the icon, a card) may only turn capabilities off; no MCP tool arms, whatever a client sends, and the one-shot bridge never reaches the plug.  
