@@ -1,6 +1,6 @@
 """Where every module goes when the core is Rust, and what may call what once it is.
 
-`docs/ROADMAP.md` names the stack v0.6.13 is planned to arrive at: the Windows interface in
+`docs/ROADMAP.md` names the stack v0.6.14 is planned to arrive at: the Windows interface in
 C# and the core in Rust, in eight parts -
 
     Watcher · Recovery engine · Classifier / Policy · State machine ·
