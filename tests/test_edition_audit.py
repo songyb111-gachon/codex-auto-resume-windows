@@ -104,9 +104,12 @@ def pair() -> tuple[dict, dict]:
 
 
 def write_zip(path: Path, entries: dict) -> Path:
+    # A fixed time per entry: writestr with a bare name stamps the clock, so two archives of the same
+    # entries differed whenever writing them crossed an even second (a slow CI lane, 2026-09-28).
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as bundle:
         for name, data in entries.items():
-            bundle.writestr(name, data)
+            bundle.writestr(zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0)), data,
+                            compress_type=zipfile.ZIP_DEFLATED)
     return path
 
 
