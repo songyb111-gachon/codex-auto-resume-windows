@@ -8,7 +8,9 @@ bundle, and the standard edition's NULL plug adds nothing there, so those surfac
 byte-identical to today; this edition adds `edition` and how many capabilities are armed
 (`on`, 0 while the registry is empty), in codes only - no version string, no path, no free
 text, because the status is part of what Codex sends on. The display word for each locale
-lives in this package's own catalogs (`edition.*`); core surfaces keep their own words.
+lives in this package's own catalogs (`edition.*`); core surfaces keep their own words. Since the
+v0.6.11 final, core itself names the edition beside the version in both editions (the status's
+`edition`, edition.shown), so what this badge adds there is the count.
 
 The bridge is the Dashboard's (controlcli.serve, the long-lived form; the one-shot form never
 reaches a plug). It is where a person reads a capability's statement and turns it on, watches

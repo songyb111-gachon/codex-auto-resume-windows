@@ -422,7 +422,10 @@ def fullest_snapshot(now: float) -> dict:
                finished(6, "no_progress", "server_5xx", "flaky-integration-tests-in-the-sync-service", 26),
                finished(7, "submission_unknown", "stream_interrupted", "release-notes-and-changelog-for-the-next-version", 50)]
     return {"ok": True,
-            "status": {"version": "0.6.4", "enabled": True, "watcher_running": True, "upgrade_pending": False,
+            # v0.6.11: the edition beside the version, at its longest word - an advanced installation whose
+            # package could not be loaded - in the save bar and in Diagnostics' Version row (VersionLine).
+            "status": {"version": "0.6.4", "edition": "advanced_not_loaded",
+                       "enabled": True, "watcher_running": True, "upgrade_pending": False,
                        "startup_enabled": True, "pending": len(waiting),
                        "watcher": {"running": True, "ticking": True, "engine_state": "verified", "last_tick_at": now,
                                    # v0.6.11: the last usage reading, under Waiting - Codex's two windows, both

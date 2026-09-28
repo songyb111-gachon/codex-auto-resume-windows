@@ -69,9 +69,12 @@ class Tray(MenuMixin, StoredMixin, CardsMixin, ClicksMixin, AnimationMixin):
 
     def __init__(self, *, icon_path=None, strings=None, on_open=None, on_toggle=None, on_stop=None,
                  on_pending=None, log=None, control=None, pending_source=None, on_dashboard=None,
-                 inbox=None, on_notice_action=None, on_notice_complete=None, demo_name=None, on_demo=None):
+                 inbox=None, on_notice_action=None, on_notice_complete=None, demo_name=None, on_demo=None,
+                 edition=None):
         self.icon_path = Path(icon_path) if icon_path else None
         self.strings = strings or {}
+        # v0.6.11: the edition that runs (edition.shown), which the tooltip's title names.
+        self.edition = edition
         self.on_open, self.on_toggle, self.on_stop = on_open, on_toggle, on_stop
         self.on_pending = on_pending
         self.log = log or (lambda *args: None)
@@ -271,7 +274,7 @@ class Tray(MenuMixin, StoredMixin, CardsMixin, ClicksMixin, AnimationMixin):
         data.uFlags = flags
         data.uCallbackMessage = CALLBACK
         data.hIcon = self._shown_icon or self._icon
-        data.szTip = tooltip(self._shown(), self.strings, time.time())
+        data.szTip = tooltip(self._shown(), self.strings, time.time(), self.edition)
         return data
 
     def _shown(self) -> dict:
@@ -300,7 +303,7 @@ class Tray(MenuMixin, StoredMixin, CardsMixin, ClicksMixin, AnimationMixin):
             snapshot = dict(self._snapshot)
         self._failed = self._failure_unseen(snapshot)
         snapshot["failed"] = self._failed
-        text = tooltip(snapshot, self.strings, time.time())
+        text = tooltip(snapshot, self.strings, time.time(), self.edition)
         changed, replaced = False, []
         if self._frames:
             self._observe(snapshot)

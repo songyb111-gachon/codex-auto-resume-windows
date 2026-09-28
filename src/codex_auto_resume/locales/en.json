@@ -844,5 +844,8 @@
   "starter.status": "Show auto resume status",
   "starter.pending": "What is auto resume waiting for?",
   "starter.pause": "Pause auto resume",
-  "starter.settings": "Open auto resume settings"
+  "starter.settings": "Open auto resume settings",
+  "edition.standard": "Standard",
+  "edition.advanced": "Advanced",
+  "edition.advanced_not_loaded": "Advanced - not loaded"
 }

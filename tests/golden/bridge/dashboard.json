@@ -8,6 +8,7 @@
         "ok": true,
         "status": {
           "version": "<version>",
+          "edition": "standard",
           "enabled": true,
           "observe_only": false,
           "watcher_running": true,

@@ -427,7 +427,8 @@ Codex conversation, what they return becomes part of that conversation. The
 one-line summary always does, and the structured data may as well; Codex sends the
 conversation to OpenAI like any tool output. That is:
 
-- from `get_status`: the version, whether recovery is on, whether the watcher is running and
+- from `get_status`: the version and, from v0.6.11, the edition installed (a code: standard,
+  advanced, or advanced_not_loaded), whether recovery is on, whether the watcher is running and
   whether sign-in autostart is registered, counts by state, and your settings — which
   include the Codex executable path if you set one and, from v0.6.3, the text of any Custom
   message you have written (Codex can read it there, not change it). From v0.6.5 it also

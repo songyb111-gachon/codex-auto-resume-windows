@@ -181,6 +181,8 @@ class StatusSnapshot(TypedDict):
     observe_only: bool
     pending: int
     version: str
+    # v0.6.11: the edition beside the version - standard, advanced or advanced_not_loaded (edition.shown).
+    edition: str
     watcher: WatcherView
     watcher_running: bool
     startup_enabled: bool

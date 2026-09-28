@@ -425,7 +425,8 @@ class App(WatchLoop):
                               log=self.logger.info, inbox=self._inbox,
                               on_notice_action=self._notice_action,
                               on_notice_complete=notifier.complete,
-                              demo_name=str(self.paths.state_dir), on_demo=self._demo)
+                              demo_name=str(self.paths.state_dir), on_demo=self._demo,
+                              edition=edition.shown(self.plug))
         if not icon_tray.start():
             return None
         self._tray = icon_tray

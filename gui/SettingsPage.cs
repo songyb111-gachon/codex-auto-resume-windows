@@ -1246,9 +1246,19 @@ namespace CodexAutoResume
             if (heroStatus != null) Hero(status, null, Now());
             // The taskbar button likewise, by the notification-area icon's rule (TrayActivity).
             if (snapshot == null) TellTaskbar(status, null, Now());
-            versionText.Text = "v" + status["version"];
+            versionText.Text = VersionLine(status);
             if (startButton != null) startButton.Visible = Equals(running, false);
             header.Invalidate(true);
+        }
+
+        /// The version as the save bar and Diagnostics show it, with the edition that runs beside it (v0.6.11):
+        /// "v0.6.11 · Standard", the edition in the catalog's word (edition.shown). A status that names no
+        /// edition shows the version alone, as it did before.
+        private string VersionLine(Dictionary<string, object> status)
+        {
+            string line = "v" + Convert.ToString(Get(status, "version"), CultureInfo.InvariantCulture);
+            string edition = Str(status, "edition");
+            return string.IsNullOrEmpty(edition) ? line : line + " \u00B7 " + S("edition." + edition, edition);
         }
 
         // The header as Hero last wrote it, and what decides it (ApplyStatus).

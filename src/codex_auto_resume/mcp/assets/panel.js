@@ -1164,7 +1164,9 @@ function renderHero(status, now) {
   hero.setAttribute('data-state', state);
   // The product name is an eyebrow rather than a heading: inside Codex the panel is
   // already attributed, and the question a reader arrives with is what it is doing.
-  hero.appendChild(element('div', 'eyebrow', 'Codex Auto Resume · v' + (status.version || '?')));
+  // v0.6.11: and the edition, in this language's word, as every surface that shows the version names it.
+  hero.appendChild(element('div', 'eyebrow', 'Codex Auto Resume · v' + (status.version || '?')
+    + (status.edition ? ' · ' + t('edition.' + status.edition, status.edition) : '')));
   var line = element('div', 'hero-state');
   var light = lightFor(status, state, DATA.pending);
   line.appendChild(lightNode(light, false));
