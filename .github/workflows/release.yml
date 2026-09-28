@@ -26,6 +26,11 @@ name: release
 # audited and checked here, attested together, and published by the one release, so neither
 # edition can go out without the other or under a different version.
 #
+# Each archive also goes out as a one-file installer, CodexAutoResume[-Advanced]-Setup-v<version>.exe,
+# which carries that archive byte for byte and runs its Install.cmd (build/make_setup.py). make_release.py
+# builds it from the archive it has just written; it is checked, audited, attested and published with the
+# archives, and the archives, their names and every bootstrap that takes them are what they were.
+#
 # The split exists because the dispatch "dry run" was not one. Its build steps ran with
 # the workflow-wide contents: write and id-token: write, checkout left the token in
 # .git/config, and the three publish steps were gated only on github.ref being a tag - so
@@ -186,6 +191,15 @@ jobs:
       - name: Build the advanced edition's release archive
         run: python build/make_release.py --edition advanced
 
+      # make_release.py compiled each edition's setup program around the archive it had just written.
+      # Built a second time here from that archive and compared, as the executables above are, and held
+      # to the archive beside it byte for byte and to its .sha256. One step each, for the reason above.
+      - name: Check the setup program carries the archive and is reproducible
+        run: python build/make_setup.py --check --edition standard
+
+      - name: Check the advanced setup program carries its archive and is reproducible
+        run: python build/make_setup.py --check --edition advanced
+
       - name: Extract the release notes
         env:
           VERSION: ${{ steps.version.outputs.version }}
@@ -243,10 +257,10 @@ jobs:
 
       # The standard archive is built from a list of trees that does not name advanced/, so it
       # cannot hold the advanced code; this is the proof that does not take the build script's
-      # word for it. Six findings, (a) to (f) in the script, read from the two archives' bytes -
-      # the last builds the standard archive again from `git archive HEAD` with advanced/
-      # deleted and wants the same file. It runs before anything is kept, so an archive it
-      # refuses never reaches the publish job.
+      # word for it. Eight findings, (a) to (h) in the script, read from the two archives' and the
+      # two setup programs' bytes - (e) builds the standard archive again from `git archive HEAD`
+      # with advanced/ deleted and wants the same file, and (h) the standard setup program around
+      # it. It runs before anything is kept, so a file it refuses never reaches the publish job.
       - name: Prove the standard archive holds none of the advanced edition
         run: python build/edition_audit.py
 
@@ -265,6 +279,7 @@ jobs:
           name: release-build
           path: |
             build/dist/*.zip
+            build/dist/*.exe
             build/dist/*.sha256
             build/dist/release-notes.md
           if-no-files-found: error
@@ -277,7 +292,7 @@ jobs:
         run: |
           Write-Host "Built and verified v$($env:VERSION), both editions."
           Write-Host "Nothing was published: a dispatch never reaches the publish job."
-          Write-Host "The archives are attached to this run as a workflow artifact."
+          Write-Host "The archives and setup programs are attached to this run as a workflow artifact."
 
   publish:
     needs: build
@@ -300,6 +315,9 @@ jobs:
       # reads them as variables, and the first step below refuses a version of any other shape.
       STANDARD_ZIP: dist/CodexAutoResume-v${{ needs.build.outputs.version }}-win-x64.zip
       ADVANCED_ZIP: dist/CodexAutoResume-Advanced-v${{ needs.build.outputs.version }}-win-x64.zip
+      # And each edition's setup program, which the build job held to its archive byte for byte.
+      STANDARD_SETUP: dist/CodexAutoResume-Setup-v${{ needs.build.outputs.version }}.exe
+      ADVANCED_SETUP: dist/CodexAutoResume-Advanced-Setup-v${{ needs.build.outputs.version }}.exe
 
     steps:
       # No checkout. Nothing in this job runs the repository's code.
@@ -315,11 +333,11 @@ jobs:
           set -euo pipefail
           [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta)(\.([2-9]|[1-9][0-9]{1,2}))?)?$ ]] || { echo "bad version '$VERSION'"; exit 1; }
           [[ "$GITHUB_REF" == "refs/tags/v$VERSION" ]] || { echo "tag $GITHUB_REF does not match v$VERSION"; exit 1; }
-          for zip in "$STANDARD_ZIP" "$ADVANCED_ZIP"; do
-            recorded="$(cut -d' ' -f1 "$zip.sha256")"
-            actual="$(sha256sum "$zip" | cut -d' ' -f1)"
-            [[ "$recorded" == "$actual" ]] || { echo "checksum mismatch in $zip: recorded $recorded, actual $actual"; exit 1; }
-            echo "$zip verified: $actual"
+          for file in "$STANDARD_ZIP" "$ADVANCED_ZIP" "$STANDARD_SETUP" "$ADVANCED_SETUP"; do
+            recorded="$(cut -d' ' -f1 "$file.sha256")"
+            actual="$(sha256sum "$file" | cut -d' ' -f1)"
+            [[ "$recorded" == "$actual" ]] || { echo "checksum mismatch in $file: recorded $recorded, actual $actual"; exit 1; }
+            echo "$file verified: $actual"
           done
 
       # Which edition each archive is, read from its listing by `unzip`, because this job runs
@@ -380,15 +398,17 @@ jobs:
       # and the commit that produced it. Runs before publication: an archive that cannot
       # be attested should not become a release.
       #
-      # One attestation, naming both archives as its subjects: they come from one run of one
-      # commit, and `gh attestation verify` on either finds it. One step, so neither edition
-      # can be published unattested by a step that was skipped or left out.
+      # One attestation, naming both archives and both setup programs as its subjects: they come
+      # from one run of one commit, and `gh attestation verify` on any of them finds it. One step,
+      # so no file can be published unattested by a step that was skipped or left out.
       - name: Attest the archives
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
             ${{ env.STANDARD_ZIP }}
             ${{ env.ADVANCED_ZIP }}
+            ${{ env.STANDARD_SETUP }}
+            ${{ env.ADVANCED_SETUP }}
 
       - name: Publish the GitHub release
         env:
@@ -400,10 +420,12 @@ jobs:
           # installation's update check reads releases/latest, and none may be offered it.
           prerelease=()
           if [[ "$VERSION" == *-* ]]; then prerelease=(--prerelease --latest=false); fi
-          # Four assets: each edition's archive and the checksum beside it. The pre-release
-          # flags above are the release's, so they apply to both editions alike.
+          # Eight assets: each edition's archive and setup program, and the checksum beside each.
+          # The pre-release flags above are the release's, so they apply to every file alike.
           gh release create "v$VERSION" \
             "$STANDARD_ZIP" "$STANDARD_ZIP.sha256" \
             "$ADVANCED_ZIP" "$ADVANCED_ZIP.sha256" \
+            "$STANDARD_SETUP" "$STANDARD_SETUP.sha256" \
+            "$ADVANCED_SETUP" "$ADVANCED_SETUP.sha256" \
             --title "v$VERSION" \
             --notes-file dist/release-notes.md "${prerelease[@]}"

@@ -31,6 +31,10 @@ payload manifest. Each edition is staged in a directory of its own under build/s
 building one never wipes the other. build/edition_audit.py proves from the two archives' bytes
 that the standard one holds nothing of the advanced edition, and that the advanced one differs
 from it only there.
+
+Each archive also goes out as a one-file installer: right after writing it, main() compiles that very file
+into CodexAutoResume[-Advanced]-Setup-v<version>.exe beside it (build/make_setup.py), with a .sha256 of its
+own. The archive is written first and not touched again, so it is what it was without the setup program.
 """
 from __future__ import annotations
 
@@ -337,6 +341,25 @@ def write_archive(stage: Path, target: Path) -> Path:
     return target
 
 
+def build_setup(archive: Path, edition: str, release: str) -> Path:
+    """The edition's setup program, compiled around the archive just written and put beside it
+    (build/make_setup.py). Imported here rather than at the top, so loading this module to read its
+    lists - as the tests do, by path - needs nothing beside it."""
+    here = str(Path(__file__).resolve().parent)
+    if here not in sys.path:
+        sys.path.insert(0, here)
+    import make_setup
+    return make_setup.build(archive, archive.parent, edition, release)
+
+
+def write_sidecar(target: Path) -> str:
+    """`<sha256>  <name>` in <name>.sha256 beside the file, as every file of a release has; the digest."""
+    digest = hashlib.sha256(target.read_bytes()).hexdigest()
+    (target.parent / (target.name + ".sha256")).write_text(
+        "%s  %s\n" % (digest, target.name), encoding="utf-8")
+    return digest
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Build the Windows release archive.")
     parser.add_argument("--output", default=str(OUT))
@@ -363,9 +386,9 @@ def main(argv=None) -> int:
 
     name = archive_name(edition, release)
     target = write_archive(stage, Path(args.output) / name)
-    digest = hashlib.sha256(target.read_bytes()).hexdigest()
-    (target.parent / (name + ".sha256")).write_text(
-        "%s  %s\n" % (digest, name), encoding="utf-8")
+    digest = write_sidecar(target)
+    setup = build_setup(target, edition, release)
+    setup_digest = write_sidecar(setup)
 
     print("version        : %s" % release)
     print("edition        : %s" % edition)
@@ -376,6 +399,9 @@ def main(argv=None) -> int:
     print("archive        : %s" % target)
     print("size           : %.2f MB" % (target.stat().st_size / 1024 / 1024))
     print("sha256         : %s" % digest)
+    print("setup program  : %s" % setup)
+    print("setup size     : %.2f MB" % (setup.stat().st_size / 1024 / 1024))
+    print("setup sha256   : %s" % setup_digest)
     return 0
 
 

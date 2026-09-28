@@ -38,6 +38,22 @@ Codex Auto Resume는 한도가 풀릴 때까지 기다렸다가, 이어 가도 �
 
 **Windows 10/11. Python 불필요. 관리자 권한 불필요.**
 
+### 설치 파일로 설치
+
+[최신 릴리스](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest)에서
+`CodexAutoResume-Setup-vX.Y.Z.exe`를 받아 더블클릭합니다. 압축을 풀 필요가 없습니다. 아래의 릴리스
+압축 파일을 바이트 그대로 담고 있어서, 그것을 확인한 뒤 그 압축 파일의 `Install.cmd`를 실행하고(같은
+설치기가 같은 질문을 합니다) 풀어 놓았던 것을 지웁니다.
+
+코드 서명이 없으므로 *Windows의 PC 보호*(Windows protected your PC) 창이 뜰 수 있습니다. **추가 정보**를
+누른 뒤 **실행**을 누릅니다. 이 경고는 파일에 서명이 없고 Microsoft에 아직 알려지지 않았다는 뜻일 뿐,
+확인에 실패했다는 뜻이 아닙니다. 이 프로젝트가 게시한 그 파일인지는 옆에 게시된 `.sha256` 파일과
+비교하거나 [GitHub CLI](https://cli.github.com/)로 확인합니다.
+
+```powershell
+gh attestation verify .\CodexAutoResume-Setup-vX.Y.Z.exe --repo songyb111-gachon/codex-auto-resume-windows
+```
+
 ### Codex에서 설치 (권장)
 
 플러그인을 추가한 뒤, Codex에게 **auto resume 설정해줘** 라고 말하면 됩니다.
@@ -68,7 +84,7 @@ codex plugin add codex-auto-resume@codex-auto-resume-windows
 
 ### 어느 쪽이든
 
-두 경로 모두 같은 설치본 한 곳(기본값 `%USERPROFILE%\.codex-auto-resume`)에 설치됩니다. 어느 쪽이든 다시
+어느 경로든 같은 설치본 한 곳(기본값 `%USERPROFILE%\.codex-auto-resume`)에 설치됩니다. 어느 것이든 다시
 실행하면 업그레이드이자 복구 경로이며, 대기 중인 재개를 그대로 유지합니다.
 
 ## 처음 할 일

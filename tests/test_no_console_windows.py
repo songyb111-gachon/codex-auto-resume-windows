@@ -25,6 +25,8 @@ window's C#):
   CreateNoWindow=true, except the two GUI targets named below with their reason.
 * PowerShellTests - in the PowerShell the product runs, no Start-Process without -NoNewWindow
   or -WindowStyle Hidden, and none of the other ways to open a console.
+* SetupStartTests - the one-file setup program is a console program the person starts, as they
+  start Install.cmd, and the one program it starts - that archive's Install.cmd - shares its console.
 * LiveChainTests - under pythonw, two real chains: `pwsh.run` (PowerShell with CREATE_NO_WINDOW
   starting python.exe with `&` and with Start-Process -NoNewWindow, as the bootstrap and the
   installer do), and the Codex adapter's own `codex queue --help`, with a stand-in that starts a
@@ -620,6 +622,39 @@ except Exception as exc:
 
 
 @unittest.skipUnless(sys.platform == "win32", "Windows consoles")
+class SetupStartTests(unittest.TestCase):
+    """build/setup/Setup.cs, the setup program each release ships beside its archive (build/make_setup.py).
+
+    The person double-clicks it as they would Install.cmd, and Windows gives a console program a console
+    of its own for that - the installer's console, where Install.cmd has always asked its questions. The
+    one program it starts is that archive's Install.cmd, through cmd.exe, and it shares that console:
+    no console of its own, no window of its own, and nothing else is started."""
+
+    def setUp(self):
+        self.source = _read("build/setup/Setup.cs")
+        self.builder = _read("build/make_setup.py")
+
+    def test_it_is_a_console_program_the_person_starts(self):
+        self.assertIn('"/target:exe"', self.builder)
+        self.assertNotIn("winexe", self.builder)
+
+    def test_its_one_start_shares_its_console(self):
+        self.assertEqual(len(re.findall(r"\bProcess\.Start\(", self.source)), 1)
+        self.assertEqual(len(re.findall(r"new ProcessStartInfo\(", self.source)), 1)
+        self.assertIn("start.UseShellExecute = false;", self.source)
+        # No CreateNoWindow either way: the default is the console it was started in, which is the point.
+        for other in ("CreateNoWindow", "CREATE_NEW_CONSOLE", "DETACHED_PROCESS", "WindowStyle", "AllocConsole",
+                      "CreateProcess", "WinExec"):
+            with self.subTest(other):
+                self.assertNotIn(other, self.source)
+        self.assertIsNone(re.search(r"(?<!Use)ShellExecute", self.source))
+
+    def test_its_build_gets_no_window(self):
+        self.assertIn('NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)', self.builder)
+        self.assertEqual(self.builder.count("subprocess.run("), 1)
+        self.assertIn("creationflags=NO_WINDOW)", self.builder)
+
+
 class LiveChainTests(unittest.TestCase):
     """The real chains, from a host with no console, as the watcher is."""
 

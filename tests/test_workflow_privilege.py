@@ -144,16 +144,18 @@ class WorkflowPrivilegeTests(unittest.TestCase):
 
 
 class ReleaseAttestationTests(unittest.TestCase):
-    """Every archive a release publishes is attested, by one step, before it is published.
+    """Every file a release publishes is attested, by one step, before it is published.
 
     Build provenance is how a download is traced back to the run and the commit that made it
     (docs/VERIFY.md). Until v0.6.11 nothing asserted that the step making it exists - only that
     the build job could not make one - and two editions are what made that worth closing: a
     second archive is a second subject, and a step naming only the first would publish the
-    other unattested with every check green.
+    other unattested with every check green. The setup programs (build/make_setup.py) are two more.
     """
 
     ARCHIVES = ("STANDARD_ZIP", "ADVANCED_ZIP")
+    SETUPS = ("STANDARD_SETUP", "ADVANCED_SETUP")
+    FILES = ARCHIVES + SETUPS
 
     def setUp(self):
         self.source = text("release.yml")
@@ -170,6 +172,12 @@ class ReleaseAttestationTests(unittest.TestCase):
         for path in named.values():
             self.assertRegex(path, r"^dist/CodexAutoResume-(Advanced-)?v\$\{\{ needs\.build\.outputs\.version \}\}-win-x64\.zip$")
 
+    def test_the_publish_job_names_one_setup_program_per_edition(self):
+        named = dict(re.findall(r"(?m)^      ([A-Z]+_SETUP): (.+?)\s*$", self.publish))
+        self.assertEqual(sorted(named), sorted(self.SETUPS))
+        for path in named.values():
+            self.assertRegex(path, r"^dist/CodexAutoResume-(Advanced-)?Setup-v\$\{\{ needs\.build\.outputs\.version \}\}\.exe$")
+
     def test_one_step_attests_every_archive(self):
         self.assertEqual(self.source.count("uses: actions/attest-build-provenance@"), 1)
         step = self.step("Attest the archives")
@@ -177,7 +185,7 @@ class ReleaseAttestationTests(unittest.TestCase):
         subjects = re.search(r"subject-path: \|\n((?:            \S.*\n?)+)", step)
         self.assertIsNotNone(subjects, "the attestation names no list of subjects")
         self.assertEqual([line.strip() for line in subjects.group(1).splitlines()],
-                         ["${{ env.%s }}" % name for name in self.ARCHIVES])
+                         ["${{ env.%s }}" % name for name in self.FILES])
 
     def test_only_the_publish_job_can_attest(self):
         for grant in ("id-token: write", "attestations: write"):
@@ -198,10 +206,11 @@ class ReleaseAttestationTests(unittest.TestCase):
         publish = self.step("Publish the GitHub release")
         command = publish[publish.index('gh release create "v$VERSION"'):publish.index("--title")]
         self.assertEqual(re.findall(r'"(\$[A-Z_]+(?:\.sha256)?)"', command),
-                         ["$STANDARD_ZIP", "$STANDARD_ZIP.sha256", "$ADVANCED_ZIP", "$ADVANCED_ZIP.sha256"])
+                         [form % ("$" + name) for name in self.FILES for form in ("%s", "%s.sha256")])
 
-    def test_both_archives_are_checked_again_here(self):
-        self.assertIn('for zip in "$STANDARD_ZIP" "$ADVANCED_ZIP"; do', self.step("Check it again, here"))
+    def test_every_file_is_checked_again_here(self):
+        self.assertIn('for file in "$STANDARD_ZIP" "$ADVANCED_ZIP" "$STANDARD_SETUP" "$ADVANCED_SETUP"; do',
+                      self.step("Check it again, here"))
 
 
 class KoSyncPrivilegeTests(unittest.TestCase):

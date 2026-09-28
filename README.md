@@ -39,6 +39,23 @@ setting, the notification, the command line, the safety model and privacy in ful
 
 **Windows 10/11. No Python needed. No administrator rights.**
 
+### With the setup program
+
+Download `CodexAutoResume-Setup-vX.Y.Z.exe` from the
+[latest release](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest)
+and double-click it. There is nothing to unzip: it carries the release archive below, byte for byte,
+checks it, runs that archive's own `Install.cmd` - the same installer, asking the same questions -
+and removes what it unpacked.
+
+It is not code-signed, so Windows may say *Windows protected your PC*: choose **More info**, then
+**Run anyway**. That warning means the file is unsigned and new to Microsoft, not that it failed a
+check. To check it is the file this project published, compare it with the `.sha256` file beside it,
+or use the [GitHub CLI](https://cli.github.com/):
+
+```powershell
+gh attestation verify .\CodexAutoResume-Setup-vX.Y.Z.exe --repo songyb111-gachon/codex-auto-resume-windows
+```
+
 ### From Codex (recommended)
 
 Add the plugin, then ask Codex to **set up auto resume**.
@@ -70,8 +87,8 @@ and installs it for your Windows account only.
 
 ### Either way
 
-Both routes end at the same installation, by default in `%USERPROFILE%\.codex-auto-resume`.
-Running either again upgrades or repairs it, and keeps anything already waiting to resume.
+Every route ends at the same installation, by default in `%USERPROFILE%\.codex-auto-resume`.
+Running any of them again upgrades or repairs it, and keeps anything already waiting to resume.
 
 ## First steps
 
