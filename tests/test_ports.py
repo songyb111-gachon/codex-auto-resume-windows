@@ -123,8 +123,10 @@ ENGINE_TO_SOURCE = {
 # what became of a record from core itself - a paid send that went through submission_unknown
 # included, though the watch settled it before P8 looked - and never by reading the journal
 # back, which no decision may (tests/test_surface_properties.py). Never told to NULL.
-ENGINE_TO_PLUG = {"gate", "moved", "null", "outcome", "partition", "records", "schedule", "sender",
-                  "text", "tick"}
+# `delivery` is P15: how a continuation is carried and proven - its marker, or no marker and the
+# client id core derives, which core takes only for a send it hands to the plug's channel.
+ENGINE_TO_PLUG = {"delivery", "gate", "moved", "null", "outcome", "partition", "records", "schedule",
+                  "sender", "text", "tick"}
 # `claim_ledger_checked` is how the claim asks: it says whether that one call raised, so a
 # failure on another thread holding the same plug is not read as this claim's (domain/plug.py).
 STORE_TO_LEDGER = {"claim_ledger_checked", "null"}

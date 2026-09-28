@@ -180,9 +180,10 @@ LISTS = {
     # v0.6.11: the two editions, and the plug that is the whole difference between them.
     "edition.EDITIONS": ("tuple", 2, "49cc206af3867704"),
     "edition.PLUG_FAILURES": ("tuple", 4, "4414d548d1f8f251"),
-    # P14 joined the twelve: core tells the plug of each move of a record as it writes it.
-    "domain.plug.POINTS": ("tuple", 13, "2d6643b1732de1ca"),
-    "domain.plug.ANSWERS": ("set", 1, "b4686ae67262ac33"),
+    # P14 joined the twelve: core tells the plug of each move of a record as it writes it. P15 too:
+    # how a continuation is carried and proven, where CLIENT_ID - no marker - joined HOLD.
+    "domain.plug.POINTS": ("tuple", 14, "fddedf83507bd5b5"),
+    "domain.plug.ANSWERS": ("set", 2, "284268ee15d0f48c"),
     "domain.plug.SURFACES": ("tuple", 5, "d41ac5a6d67be21b"),
     "domain.plug.EXTRA": "advanced",
 }

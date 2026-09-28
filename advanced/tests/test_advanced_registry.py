@@ -28,14 +28,18 @@ STANDARDS_FILE = ac.ROOT.parent / standards.BASIS
 
 
 class ShippedTests(unittest.TestCase):
-    def test_the_registry_this_edition_ships_is_start_with_codex_at_the_start_route(self):
-        self.assertEqual([d.id for d in registry.DEFINITIONS], ["start_with_codex"])
-        self.assertEqual(len(registry.REGISTRY), 1)
-        self.assertEqual(registry.REGISTRY.ids, ("start_with_codex",))
-        # It answers at P9 alone, and nowhere else - it starts the watcher, it does not send.
+    def test_the_registry_this_edition_ships_is_start_with_codex_and_the_marker_free_continuation(self):
+        self.assertEqual([d.id for d in registry.DEFINITIONS],
+                         ["start_with_codex", "marker_free_continuation"])
+        self.assertEqual(len(registry.REGISTRY), 2)
+        self.assertEqual(registry.REGISTRY.ids, ("start_with_codex", "marker_free_continuation"))
+        # Start-with-Codex answers at P9 alone - it starts the watcher, it does not send - and the
+        # marker-free continuation at P5 and P15, the channel and the way it carries the words.
+        answering = {Point.START_ROUTE: ("start_with_codex",),
+                     Point.SENDER: ("marker_free_continuation",),
+                     Point.DELIVERY: ("marker_free_continuation",)}
         for point in Point:
-            expected = ("start_with_codex",) if point == Point.START_ROUTE else ()
-            self.assertEqual(tuple(d.id for d in registry.REGISTRY.at(point)), expected)
+            self.assertEqual(tuple(d.id for d in registry.REGISTRY.at(point)), answering.get(point, ()))
 
     def test_every_shipped_capability_keeps_every_rule_and_has_a_complete_statement(self):
         """The shipped definitions - not a test's own - each pass the registry's rules and have a
@@ -45,6 +49,14 @@ class ShippedTests(unittest.TestCase):
                 self.assertEqual(problems(definition), [])
                 self.assertEqual(statement.CATALOGS.missing(definition), [])
                 self.assertTrue(set(definition.departs_from) <= set(standards.STANDARDS))
+
+    def test_the_marker_free_continuation_departs_and_rests_on_what_the_owner_asked(self):
+        mfc = registry.REGISTRY.get("marker_free_continuation")
+        self.assertEqual(mfc.departs_from, ("A2", "A4"))
+        self.assertEqual(mfc.compat, "recovery_turn_tracking")
+        self.assertEqual(mfc.measurements, (Measurement.M7,))
+        self.assertEqual(mfc.points, frozenset({Point.SENDER, Point.DELIVERY}))
+        self.assertEqual(mfc.ceilings.per_conversation, registry.CORE_DAILY_CAP)
 
     def test_start_with_codex_departs_and_rests_on_what_the_plan_says(self):
         swc = registry.REGISTRY.get("start_with_codex")

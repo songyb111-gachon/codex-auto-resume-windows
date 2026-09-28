@@ -7,7 +7,8 @@ they did:
     options     what it was given, and the policy it was last told
     detect      turning what Codex recorded into records this product owns
     freshness   whether Codex is in a state worth reading
-    dispatch    sending one continuation, and the last look before it goes
+    dispatch    sending one continuation
+    delivery    how it is carried, the last look before it goes, and what proves it arrived
     reconcile   what became of a continuation that was sent
     outcome     how the recovered turn ended, and what it costs the budgets
     announce    moving a record, and saying so
@@ -20,6 +21,7 @@ package does, and reading it should not mean opening seven files.
 from __future__ import annotations
 
 from .announce import NOTIFY_ON_STATE, AnnounceMixin  # noqa: F401
+from .delivery import DeliveryMixin
 from .detect import DetectMixin
 from .dispatch import DispatchMixin
 from .freshness import FreshnessMixin
@@ -32,7 +34,7 @@ from .reconcile import SETTLED, UNSENT, ReconcileMixin, _UNDETERMINED  # noqa: F
 
 
 class Engine(OptionsMixin, AnnounceMixin, FreshnessMixin, DetectMixin, ReconcileMixin, OutcomeMixin, DispatchMixin,
-             GuardMixin, NoticeMixin):
+             DeliveryMixin, GuardMixin, NoticeMixin):
     """The part that decides.
     """
 

@@ -11,6 +11,9 @@ and simulated backend the engine's scenarios use (tests/codexsim.py):
   HOLD - the one answer it has - keeps the record waiting for one poll and nothing more;
 * its words go out only as a person's Custom message would; a channel it names gets the one
   send, after the one claim and the pre-send look, inside the launch guard;
+* a continuation it asks to send with no marker (P15) goes through its channel under the client
+  id core derives from the interruption, and is followed, taken back and proven by that id alone
+  - and never sent twice, whatever becomes of the plug;
 * its ledger is asked inside the claim, can refuse one and never grant one, and what it writes
   there commits with the claim or not at all - and the standard edition's is never asked;
 * every move of a record the engine writes is told to it once written, a Pause's too, and
@@ -49,6 +52,7 @@ from test_engine import T1, T2, TURN_A, EngineCase  # noqa: E402
 from test_ports import ENGINE_TO_STORE  # noqa: E402
 from codex_auto_resume import (config, continuation, control, controlcli, diagnostics,  # noqa: E402
                                edition, mcpserver, settings, startup, windows)
+from codex_auto_resume.domain import ids  # noqa: E402
 from codex_auto_resume.domain.plug import (DEFER, EXTRA, Alternative, Guarded, Plug,  # noqa: E402
                                            Point, Surface, guard)
 from codex_auto_resume.engine import Engine  # noqa: E402
@@ -120,6 +124,9 @@ class Asked(Plug):
 
     def moved(self, record, state):
         return self._answer("moved", record, state)
+
+    def delivery(self, record):
+        return self._answer("delivery", record)
 
     def hooks(self):
         return [hook for hook, _ in self.asked]
@@ -420,6 +427,229 @@ class SenderTests(PluggedCase):
         self.plugged(Asked(sender="the app server"))
         self.h.tick()
         self.assertEqual(len(self.h.backend.send_calls), 1)
+
+
+class QueueAdd:
+    """A channel as the advanced edition's marker-free continuation is one (P15): it puts the words
+    into Codex's queue under the client id core hands it - codexsim's queue, here, as
+    thread/queue/add does in Codex - and the desktop app starts them at once or leaves them queued.
+    `outcome` is what it reports: accepted, unknown (nothing queued, or `queued` anyway), or
+    not_started."""
+
+    def __init__(self, h, *, outcome="accepted", queued=True, dispatch=True, client=None):
+        self.h, self.outcome, self.queued, self.dispatch, self.client = h, outcome, queued, dispatch, client
+        self.calls = []
+
+    def send(self, thread_id, prompt, *, launch_guard=None, client_id=None):
+        with launch_guard as permitted:
+            self.calls.append((thread_id, prompt, client_id, permitted))
+        if self.outcome == "not_started":
+            return {"outcome": "not_started", "error_code": "queue_spawn_failed"}
+        queue_id = None
+        if self.queued:
+            queue_id = self.h.home.enqueue(thread_id, prompt, client_id=self.client or client_id)
+            if self.dispatch:
+                self.h.home.dispatch(thread_id)
+        if self.outcome == "accepted":
+            return {"outcome": "accepted", "queue_id": queue_id}
+        return {"outcome": "unknown"}
+
+
+class DeliveryTests(PluggedCase):
+    """P15: the marker, as core has always carried a continuation - or, where the plug asks for it
+    and names a channel, no marker and the client id core derives from the interruption, which
+    everything that follows the send looks for instead."""
+
+    def marker_free(self, channel):
+        return Asked(sender=channel, delivery=Alternative.CLIENT_ID)
+
+    def test_no_marker_goes_out_under_the_derived_id_and_that_id_proves_it_arrived(self):
+        self.due()
+        key = self.h.record()["interruption_id"]
+        channel = QueueAdd(self.h)
+        self.plugged(self.marker_free(channel))
+        self.h.tick()
+        self.assert_no_send()
+        ((thread_id, prompt, client_id, permitted),) = channel.calls
+        self.assertEqual((thread_id, client_id, permitted), (T1, ids.continuation_client_id(key), True))
+        self.assertNotIn(ids.MARKER_PREFIX, prompt)
+        self.assertEqual(self.h.record()["recovery_client_id"], client_id)
+        ours = self.h.turn_ids()[-1]
+        self.follow()
+        row = self.h.record()
+        self.assertEqual((row["state"], row["recovery_turn_id"]), ("recovered", ours))
+        self.h.tick(advance=3600)
+        self.assertEqual(len(channel.calls), 1, "a recovered interruption is never resent")
+
+    def test_the_same_interruption_always_has_the_same_id_and_another_never_does(self):
+        self.assertEqual(ids.continuation_client_id("a" * 64), ids.continuation_client_id("a" * 64))
+        self.assertNotEqual(ids.continuation_client_id("a" * 64), ids.continuation_client_id("b" * 64))
+        made = ids.continuation_client_id("a" * 64)
+        self.assertTrue(ids.is_uuid(made) and ids.is_client_id(made) and ids.is_delivery_proof(made))
+        self.assertFalse(ids.is_delivery_proof("a"))
+
+    def test_without_a_channel_it_is_the_marker_core_has_always_sent(self):
+        """Core's own backend is `codex queue`, which takes no client id."""
+        self.due()
+        self.plugged(Asked(delivery=Alternative.CLIENT_ID))
+        self.h.tick()
+        row = self.h.record()
+        self.assertTrue(self.prompt().endswith(row["marker"]))
+        self.assertNotEqual(row["recovery_client_id"], ids.continuation_client_id(row["interruption_id"]))
+        self.follow()
+        self.assertEqual(self.h.record()["state"], "recovered")
+
+    def test_any_other_answer_is_the_marker(self):
+        for answer in (DEFER, Alternative.HOLD, "client_id ", "marker_free", object()):
+            with self.subTest(answer=answer):
+                h = self.fresh()
+                self.due(h)
+                channel = QueueAdd(h)
+                self.plugged(Asked(sender=channel, delivery=answer), h)
+                h.tick()
+                ((_thread, prompt, client_id, _permitted),) = channel.calls
+                self.assertIsNone(client_id)
+                self.assertTrue(prompt.endswith(h.record()["marker"]))
+
+    def test_the_ledger_is_told_the_send_carries_the_plugs_way_of_carrying_it(self):
+        self.due()
+        told = []
+
+        def claim_ledger(connection, record, now, carried):
+            told.append(carried)
+            return DEFER
+        plug = Asked(sender=QueueAdd(self.h), delivery=Alternative.CLIENT_ID, claim_ledger=claim_ledger)
+        self.plugged(plug)
+        self.h.tick()
+        self.assertEqual(told, [frozenset({Point.SENDER, Point.DELIVERY})])
+
+    def test_an_uncertain_marker_free_send_is_held_as_the_marker_path_holds_one_and_never_resent(self):
+        """The app server refused, timed out, or the item never showed: no id to find, so the
+        record is an uncertain submission - told to the plug as one - and nothing sends it again."""
+        self.due()
+        channel = QueueAdd(self.h, outcome="unknown", queued=False)
+        plug = self.marker_free(channel)
+        self.plugged(plug)
+        self.h.tick()
+        self.assertEqual(self.h.record()["state"], "submission_unknown")
+        self.assertIn(("moved", "submission_unknown"),
+                      [(hook, arguments[1]) for hook, arguments in plug.asked if hook == "moved"])
+        for _ in range(12):
+            self.h.tick(advance=900)
+        self.assertEqual(len(channel.calls), 1)
+        self.assert_no_send()
+        self.assertEqual(self.h.record()["state"], "submission_unknown")
+
+    def test_one_the_watch_finds_queued_by_its_id_after_an_unknown_answer_is_followed(self):
+        self.due()
+        channel = QueueAdd(self.h, outcome="unknown", dispatch=False)
+        self.plugged(self.marker_free(channel))
+        self.h.tick()
+        self.assertEqual(self.h.record()["state"], "submission_unknown")
+        self.h.watch(advance=1)
+        row = self.h.record()
+        self.assertEqual(self.h.home.queued(T1), [row["queue_id"]])
+        self.h.home.dispatch(T1)
+        self.follow()
+        self.assertEqual(self.h.record()["state"], "recovered")
+        self.assertEqual(len(channel.calls), 1)
+
+    def test_a_message_under_another_client_id_is_not_ours(self):
+        """Only the id proves it: an item Codex holds under another client id is not our send."""
+        self.due()
+        channel = QueueAdd(self.h, dispatch=False, client=ids.continuation_client_id("f" * 64))
+        self.plugged(self.marker_free(channel))
+        self.h.tick()
+        self.h.watch(advance=1)
+        row = self.h.record()
+        self.assertEqual((row["state"], row["last_error"]), ("handed_over", "queued_item_edited"))
+        self.assertEqual(len(channel.calls), 1)
+
+    def test_a_pause_takes_a_marker_free_item_back_by_its_id(self):
+        self.due()
+        channel = QueueAdd(self.h, dispatch=False)
+        self.plugged(self.marker_free(channel))
+        self.h.tick()
+        queued = self.h.home.queued(T1)
+        self.assertEqual(len(queued), 1)
+        self.h.store.set_enabled(False, self.h.now)
+        self.h.watch(advance=1)
+        self.assertEqual(self.h.backend.deleted, [(T1, queued[0])])
+        self.assertEqual(self.h.record()["state"], "withdrawn_unconfirmed")
+
+    def test_given_back_unsent_it_goes_by_its_marker_next_time_with_the_id_taken_away(self):
+        self.due()
+        channel = QueueAdd(self.h, outcome="not_started")
+        self.plugged(self.marker_free(channel))
+        self.h.tick()
+        row = self.h.record()
+        self.assertEqual(row["state"], "waiting_retry")
+        self.assertEqual(row["recovery_client_id"], ids.continuation_client_id(row["interruption_id"]))
+        self.plugged(None)
+        self.h.now = max(row["next_retry_at"], self.h.now + 901)     # past the retry and the cooldown
+        self.h.tick()
+        self.assertEqual(len(self.h.backend.send_calls), 1)
+        self.assertTrue(self.prompt().endswith(row["marker"]))
+        self.assertNotEqual(self.h.record()["recovery_client_id"],
+                            ids.continuation_client_id(row["interruption_id"]))
+        self.follow()
+        self.assertEqual(self.h.record()["state"], "recovered")
+
+    def test_the_standard_edition_follows_a_marker_free_send_it_did_not_make_and_sends_nothing(self):
+        """EditionRoundTrip, core's half: sent with no marker, then the plug is gone - the standard
+        edition's engine on the same state follows the record by the id it holds, to its end, and
+        sends nothing of its own."""
+        self.due()
+        channel = QueueAdd(self.h, dispatch=False)
+        self.plugged(self.marker_free(channel))
+        self.h.tick()
+        self.assertEqual(self.h.record()["state"], "queued")
+        self.plugged(None)
+        self.h.watch(advance=1)
+        self.assertEqual(self.h.record()["state"], "queued")
+        self.h.home.dispatch(T1)
+        self.follow()
+        self.assertEqual(self.h.record()["state"], "recovered")
+        self.h.tick(advance=3600)
+        self.assert_no_send()
+        self.assertEqual(len(channel.calls), 1)
+
+    def test_a_copy_with_the_marker_already_there_stops_a_marker_free_send(self):
+        """One with the marker already in Codex is the same continuation: never sent again with none."""
+        self.due()
+        row = self.h.record()
+        self.h.home.add_item(T1, TURN_A, "userMessage", "go on " + row["marker"])
+        channel = QueueAdd(self.h)
+        self.plugged(self.marker_free(channel))
+        self.h.tick()
+        self.assertEqual(channel.calls, [])
+        self.assertEqual((self.h.record()["state"], self.h.record()["last_error"]),
+                         ("superseded", "duplicate_owner"))
+
+
+class ProofReaderTests(PluggedCase):
+    """The history reader looks for a proof - a marker, or a continuation's client id - and for
+    nothing wider: what it is handed bounds the only message text that ever leaves Codex's
+    database to our own continuation's."""
+
+    def test_a_client_id_is_found_on_the_message_and_not_in_its_words(self):
+        cid = ids.continuation_client_id("c" * 64)
+        self.h.home.add_turn(T1, user_text="about " + cid)                    # quoted, not ours
+        turn = self.h.home.add_turn(T1, user_text="please go on", client_id=cid)
+        found = self.h.source.marker_rows(T1, cid)
+        self.assertEqual([row["turn_id"] for row in found], [turn])
+        self.assertEqual(found[0]["client_id"], cid)
+        self.h.home.enqueue(T1, "and " + cid)                                 # quoted, not ours
+        queued = self.h.home.enqueue(T1, "please go on", client_id=cid)
+        self.assertEqual([row["id"] for row in self.h.source.queued_rows(T1, cid)], [queued])
+
+    def test_nothing_wider_than_a_proof_is_looked_for(self):
+        for wrong in ("a", "", "codex", T1, "[codex-auto-resume:zz]", None, 7):
+            with self.subTest(wrong=wrong):
+                with self.assertRaises(Exception):
+                    self.h.source.marker_rows(T1, wrong)
+                with self.assertRaises(Exception):
+                    self.h.source.marker_presence(T1, wrong)
 
 
 class LedgerTests(PluggedCase):

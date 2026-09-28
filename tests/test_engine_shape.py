@@ -22,7 +22,9 @@ from codex_auto_resume.engine import Engine  # noqa: E402
 
 MIXINS = (package.OptionsMixin, package.AnnounceMixin, package.FreshnessMixin,
           package.DetectMixin, package.ReconcileMixin, package.OutcomeMixin,
-          package.DispatchMixin, package.NoticeMixin)
+          package.DispatchMixin, package.NoticeMixin,
+          # v0.6.11: how a continuation is carried and proven (P15), and the look before it goes.
+          package.DeliveryMixin)
 
 # The forty-one methods the one class had, counted the day it was split.
 METHODS = {
@@ -51,6 +53,9 @@ METHODS = {
     # v0.6.11: whether Windows reports no internet and the wait that follows, and what a wake forgets
     # and a long sleep holds (engine/freshness.py) - each asked of nothing at the defaults.
     "offline", "_offline", "after_sleep",
+    # v0.6.11: how a continuation is carried and what proves it arrived - the marker, or the client
+    # id a marker-free one was queued under (P15, engine/delivery.py).
+    "proof", "_delivery",
 }
 
 # What `from codex_auto_resume.engine import ...` has to keep answering (app.py, the tests).

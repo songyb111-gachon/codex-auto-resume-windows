@@ -68,7 +68,7 @@ class PlugFailure(StrEnum):
 
 class Point(StrEnum):
     """Where core asks the plug (POINTS), numbered P2-P13 as the v0.6.11 plan numbers them, and
-    P14, which the plan did not have.
+    P14 and P15, which the plan did not have.
 
     There is no P1. Classifying a turn into a core category would write a category that does
     not describe it, so an advanced record stays in the advanced store and reaches core through
@@ -82,7 +82,12 @@ class Point(StrEnum):
     finds where they left a record at its next P2 or P8. A plug that read the moves back instead
     - out of the journal - would decide by a second source of truth, which a pruned entry or a
     retention bound changes; and the record's state alone, read at P8, has already moved on when
-    the watch that runs before P8 settled it."""
+    the watch that runs before P8 settled it.
+
+    P15 (v0.6.11 stage 3) is how a continuation is carried and how its arrival is proven. Core
+    has always ended the words with the record's marker and proven delivery by finding it in
+    Codex's history (A4); a plug may answer CLIENT_ID instead, and core sends the words with no
+    marker, under a client id it derives from the interruption, and proves delivery by that id."""
     RECORDS = "records"                      # P2  records of the advanced store, due now
     GATES = "gates"                          # P3  the gates a record passes before it is sent
     TEXT = "text"                            # P4  what the continuation says
@@ -96,12 +101,16 @@ class Point(StrEnum):
     CONCURRENCY = "concurrency"              # P12 how due records are divided for dispatch
     SUPERVISION = "supervision"              # P13 how the launcher keeps the watcher running
     MOVED = "moved"                          # P14 a record core holds moved to another state
+    DELIVERY = "delivery"                    # P15 how a continuation is carried and proven
 
 
 class Alternative(StrEnum):
     """What a plug may answer at a decision point instead of DEFER (ANSWERS). Core carries out
     every one of them itself."""
     HOLD = "hold"                            # not now: the record keeps waiting, as on a WAIT
+    # P15: no marker; queued under the client id core derives from the interruption
+    # (ids.continuation_client_id), which is what proves it arrived.
+    CLIENT_ID = "client_id"
 
 
 class Surface(StrEnum):
@@ -227,6 +236,15 @@ class Plug:
         attempts given back - are not told (Point, P14). Its answer is not read."""
         return DEFER
 
+    def delivery(self, record):                       # P15
+        """How a continuation of `record` is carried and how its arrival is proven, asked once
+        a dispatch has its words and its sender, before the claim. DEFER is core's own way: the
+        record's marker at the end of the words, found in Codex's history. CLIENT_ID is no
+        marker: core queues the words through the channel the plug named at P5, under the client
+        id it derives from the interruption, and proves delivery by that id alone - so without a
+        channel, core's own backend being unable to name one, it is DEFER."""
+        return DEFER
+
     def edition_changed(self, previous):
         """The installer has just replaced an installation of edition `previous` with this one.
 
@@ -240,7 +258,7 @@ HOOKS = {
     Point.OUTCOME: "outcome", Point.SCHEDULE: "schedule", Point.TICK: "tick",
     Point.START_ROUTE: "start_route", Point.SURFACES: "surface",
     Point.CLAIM_LEDGER: "claim_ledger", Point.CONCURRENCY: "partition",
-    Point.SUPERVISION: "supervise", Point.MOVED: "moved",
+    Point.SUPERVISION: "supervise", Point.MOVED: "moved", Point.DELIVERY: "delivery",
 }
 
 # A hook may always restrict. HOLD keeps a record waiting, exactly as a gate that says WAIT
@@ -260,6 +278,12 @@ RESTRICTIONS = frozenset({Alternative.HOLD})
 # start with Codex), and it does so the way the sender does - the plug names a route, an object
 # with a `start`, that core calls with the command line it built (Guarded.start_route). So the
 # start route is a value point now, not a decision point with a closed set of words.
+#
+# DELIVERY (P15) takes CLIENT_ID, which core learned to carry out in the same commit: the words
+# with no marker, the one send made through the plug's channel with the client id core derived,
+# and every look that proves or disproves delivery made for that id (engine/delivery.py). It
+# relaxes no gate - every one of them has passed before it is asked - so it is not a restriction,
+# and it is the one answer here that is not.
 ALTERNATIVES = {
     Point.RECORDS: frozenset(),
     Point.GATES: RESTRICTIONS,
@@ -268,6 +292,7 @@ ALTERNATIVES = {
     Point.CLAIM_LEDGER: RESTRICTIONS,
     Point.CONCURRENCY: frozenset(),
     Point.SUPERVISION: frozenset(),
+    Point.DELIVERY: frozenset({Alternative.CLIENT_ID}),
 }
 
 # Every alternative some point accepts. The vocabulary is exactly these
@@ -372,18 +397,23 @@ class _Channel:
     advanced state's too once the claim has attached it, so a Pause from the settings window,
     a disarm on another thread and the channel's own write to the advanced state all waited
     for it - and failed, past SQLite's ten seconds. A Pause that commits once consent was read
-    finds a send started, as it finds one of the backend's after its launch."""
+    finds a send started, as it finds one of the backend's after its launch.
+
+    `client_id` is handed on only when core gives one - a continuation it sends with no marker
+    (P15) - so a channel that was never asked for that is called exactly as before."""
     __slots__ = ("_send",)
 
     def __init__(self, send):
         self._send = send
 
-    def send(self, thread_id, prompt, *, launch_guard=None):
+    def send(self, thread_id, prompt, *, launch_guard=None, client_id=None):
         with launch_guard if launch_guard is not None else nullcontext(True) as permitted:
             pass
         if permitted is not True:
             return {"outcome": "not_started", "error_code": "queue_consent_refused"}
-        return self._send(thread_id, prompt, launch_guard=nullcontext(True))
+        if client_id is None:
+            return self._send(thread_id, prompt, launch_guard=nullcontext(True))
+        return self._send(thread_id, prompt, launch_guard=nullcontext(True), client_id=client_id)
 
 
 class Guarded:
@@ -509,6 +539,11 @@ class Guarded:
     def moved(self, record, state):
         """P14. The record goes as a copy (`consult`), and the answer is not read."""
         self._ask(Point.MOVED, record, state)
+
+    def delivery(self, record):
+        """P15: CLIENT_ID, or DEFER - which is the marker, as core has always carried it. Core
+        takes CLIENT_ID only for a send it hands to a channel (engine/dispatch.py)."""
+        return self._ask(Point.DELIVERY, record)
 
 
 def guard(plug) -> Guarded:

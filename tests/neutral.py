@@ -80,7 +80,7 @@ FIRST = ("test_outcomes",)
 # have to reach every one, or a point nothing reaches would pass for a neutral one.
 ENGINE_POINTS = frozenset({Point.RECORDS, Point.GATES, Point.TEXT, Point.SENDER, Point.OUTCOME,
                            Point.SCHEDULE, Point.TICK, Point.CLAIM_LEDGER, Point.CONCURRENCY,
-                           Point.MOVED})
+                           Point.MOVED, Point.DELIVERY})
 # What a moment read off the wall clock while a pair ran is written as, in rows and calls alike.
 WALL_CLOCK = "<wall clock>"
 # What a scenario is asked of Codex: every call the engine can make of a backend.
@@ -154,6 +154,10 @@ class DeferringPlug(Plug):
     def moved(self, record, state):
         self.asked.add(Point.MOVED)
         return super().moved(record, state)
+
+    def delivery(self, record):
+        self.asked.add(Point.DELIVERY)
+        return super().delivery(record)
 
 
 def scenarios(modules=MODULES) -> list[str]:

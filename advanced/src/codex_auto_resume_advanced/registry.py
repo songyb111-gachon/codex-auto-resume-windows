@@ -26,8 +26,9 @@ asked to agree to and everything the plug holds it to:
 * `make` - the factory for its code: given the installation's paths, it returns an object whose
   methods are the plug's hooks for its points, each answering as a plug would.
 
-The edition ships one capability now: start-with-Codex, at P9 (control/codexstart.py). The tests
-define one of their own to hold every rule here.
+The edition ships two capabilities now: start-with-Codex, at P9 (control/codexstart.py), and the
+marker-free continuation, at P5 and P15 (engine/markerfree.py). The tests define one of their own
+to hold every rule here.
 """
 from __future__ import annotations
 
@@ -38,6 +39,7 @@ from typing import Callable
 from codex_auto_resume.domain.plug import Point
 
 from .control.codexstart import make as make_start_with_codex
+from .engine.markerfree import make as make_marker_free
 from .standards import STANDARDS
 from .vocabulary import Measurement
 
@@ -202,5 +204,28 @@ START_WITH_CODEX = CapabilityDef(
     measurements=(Measurement.MW,),
 )
 
-DEFINITIONS = (START_WITH_CODEX,)
+# The marker-free continuation (v0.6.11 stage 3a, the owner's request of 2026-09-26): each
+# continuation goes with no marker, queued through the app server's thread/queue/add under the
+# client id core derives from the interruption, and core proves delivery by that id alone
+# (domain/plug.py, P15). It is the channel at P5 and answers CLIENT_ID at P15, so it pays one unit
+# at the claim of each send it carries, and past its ceilings core sends with the marker as the
+# standard edition does. It departs from A2 (one channel only: `codex queue`) and A4 (the marker
+# proves delivery); it stands on recovery_turn_tracking - the history and queue tables the proof is
+# read from, with local checks - and on measurement M7, where thread/queue/add with a
+# clientUserMessageId was accepted and delivered as plain text. A send it cannot prove is held as
+# core holds any uncertain one, and the tripwire for a paid send gone submission_unknown turns it
+# off. Its ceilings: core's own five a conversation a day, and two dozen a day in all.
+MARKER_FREE = CapabilityDef(
+    id="marker_free_continuation",
+    points=frozenset({Point.SENDER, Point.DELIVERY}),
+    revision=1,
+    departs_from=("A2", "A4"),
+    compat="recovery_turn_tracking",
+    ceilings=Ceilings(per_day=24, per_conversation=CORE_DAILY_CAP),
+    journal_prefix="mfc",
+    make=make_marker_free,
+    measurements=(Measurement.M7,),
+)
+
+DEFINITIONS = (START_WITH_CODEX, MARKER_FREE)
 REGISTRY = Registry(DEFINITIONS)

@@ -3,6 +3,12 @@
 The watch loop, the marker that says a message of ours is in Codex's queue, taking one back,
 and matching a turn that started to the record that asked for it. This is where a send that
 may have happened is settled one way or the other - never guessed at.
+
+What a record is looked for by is its proof (engine/delivery.py): its marker, as it always was -
+or, for a continuation the edition's plug had sent with no marker (domain/plug.py, P15), the
+client id it was queued under. Every look below is made for that one proof, so a marker-free
+continuation is followed, taken back and settled exactly as one with a marker is, and never sent
+twice.
 """
 from __future__ import annotations
 
@@ -74,7 +80,7 @@ class ReconcileMixin:
     def watch_record(self, row):
         """Follow one continuation that may be in Codex. Never sends anything."""
         now = self.clock()
-        thread, marker = row["thread_id"], row["marker"]
+        thread, marker = row["thread_id"], self.proof(row)
         found = self.source.marker_rows(thread, marker)
         if len(found) > 1:
             # Our unique marker in two places cannot be explained by one send, so no
@@ -158,7 +164,7 @@ class ReconcileMixin:
         saying recovery was paused when it was not.
         """
         now = self.clock()
-        thread, marker = row["thread_id"], row["marker"]
+        thread, marker = row["thread_id"], self.proof(row)
         if row["cancel_requested"]:
             return "cancel"
         if not self.store.thread_enabled(thread):
@@ -194,7 +200,7 @@ class ReconcileMixin:
         Codex can report the delete after the turn has already started. The settle
         that follows decides."""
         now = self.clock()
-        thread, marker = row["thread_id"], row["marker"]
+        thread, marker = row["thread_id"], self.proof(row)
         results = [self._delete(thread, queue_id) for queue_id in queue_ids]
         if results and all(results):
             self.store.update(row["interruption_id"], at=now, event="withdraw",
@@ -234,7 +240,7 @@ class ReconcileMixin:
         ran. If the history cannot be trusted, the record stays unknown - never resent.
         """
         now = self.clock()
-        thread, marker = row["thread_id"], row["marker"]
+        thread, marker = row["thread_id"], self.proof(row)
         queued = self.source.queued_rows(thread, marker)
         if queued:
             # Back in the queue, or never really gone: take it back again.
@@ -299,7 +305,7 @@ class ReconcileMixin:
             else:
                 self.transition(row, "submission_unknown", "ambiguous_receipt", delay=900)
             return
-        turns = self.source.later_turns(row["thread_id"], row["ordinal"], row["marker"])
+        turns = self.source.later_turns(row["thread_id"], row["ordinal"], self.proof(row))
         before_ours = any(turn["kind"] == "foreign" and turn["ordinal"] < found["ordinal"]
                           for turn in turns)
         withdrawn = row["state"] == "withdrawn_unconfirmed"

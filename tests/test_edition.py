@@ -143,22 +143,26 @@ class ClosedAlternativeTests(unittest.TestCase):
         carry it out, and this test changes with it. v0.6.11 stage 3: the claim ledger holds a
         claim as a gate holds a record; the start route left this table for a value core checks
         (Guarded.start_route); a record served, a follow-up, a division of the due records and a
-        restart are asked for, and none is carried out."""
-        self.assertEqual(plug.ANSWERS, plug.RESTRICTIONS)
+        restart are asked for, and none is carried out. And P15 takes CLIENT_ID, which core
+        carries out in the commit that added it: no marker, and the client id core derives - no
+        gate relaxed, so no restriction either, and the one answer that is not one."""
+        self.assertEqual(plug.ANSWERS, plug.RESTRICTIONS | {Alternative.CLIENT_ID})
         self.assertEqual(plug.ANSWERS, frozenset(Alternative))
         for point, accepted in plug.ALTERNATIVES.items():
             with self.subTest(point):
                 self.assertIn(point, Point)
-                self.assertLessEqual(accepted, plug.RESTRICTIONS)
+                if point is not Point.DELIVERY:
+                    self.assertLessEqual(accepted, plug.RESTRICTIONS)
+        self.assertEqual(plug.ALTERNATIVES[Point.DELIVERY], frozenset({Alternative.CLIENT_ID}))
         self.assertEqual({point for point, accepted in plug.ALTERNATIVES.items() if accepted},
-                         {Point.GATES, Point.SCHEDULE, Point.CLAIM_LEDGER})
+                         {Point.GATES, Point.SCHEDULE, Point.CLAIM_LEDGER, Point.DELIVERY})
         self.assertEqual({point for point, accepted in plug.ALTERNATIVES.items() if not accepted},
                          {Point.RECORDS, Point.OUTCOME, Point.CONCURRENCY, Point.SUPERVISION})
         # The start route is no longer a decision point: core checks the value it hands back.
         self.assertNotIn(Point.START_ROUTE, plug.ALTERNATIVES)
         for point, accepted in plug.ALTERNATIVES.items():
-            for answer in ([object()], {"records": []}, "go", Alternative.HOLD):
-                if answer is Alternative.HOLD and answer in accepted:
+            for answer in ([object()], {"records": []}, "go", Alternative.HOLD, Alternative.CLIENT_ID):
+                if answer in (Alternative.HOLD, Alternative.CLIENT_ID) and answer in accepted:
                     continue
                 with self.subTest(point=point, answer=answer):
                     asked = RecordingPlug(**{plug.HOOKS[point]: answer})

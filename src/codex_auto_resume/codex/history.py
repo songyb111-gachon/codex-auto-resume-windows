@@ -23,8 +23,7 @@ from .values import (KNOWN_STATUSES, MAX_ITEM_BYTES, MAX_META_BYTES,
                      _turn_status, epoch, normalize)
 from .paths import _safe_path
 from . import workspace
-from .payload import (_choose_reset, _content_has_marker,
-                      _queue_has_marker, detect)
+from .payload import _choose_reset, _item_is_ours, _queue_has_marker, detect
 
 
 def _needing(row, kinds):
@@ -376,10 +375,15 @@ class HistoryMixin:
     # Every query below that returns stored content is bounded by `instr(...,marker)>0`,
     # so the only message text that can ever leave SQL is our own continuation. Every
     # query over anyone else's rows returns counts, booleans and ids - never content.
+    #
+    # `marker` is what proves a continuation is ours (ids.is_delivery_proof): the marker at
+    # the end of its words, or - for one the advanced edition sent with none (domain/plug.py,
+    # P15) - the client id it was queued under, which Codex keeps on the message. Either is
+    # looked for the same way, so the bound is the same: a row that holds our proof.
     # ------------------------------------------------------------------------
     @staticmethod
     def _identity(thread_id, marker):
-        if not ids.is_uuid(thread_id) or not ids.is_marker(marker):
+        if not ids.is_uuid(thread_id) or not ids.is_delivery_proof(marker) or marker == thread_id:
             raise SourceError("Invalid delivery identity")
 
     def marker_rows(self, thread_id: str, marker: str) -> list:
@@ -402,8 +406,7 @@ class HistoryMixin:
         found = []
         for row in rows:
             payload = _json(row["item_json"])
-            if not (isinstance(payload, dict) and payload.get("type") == "userMessage"
-                    and _content_has_marker(payload.get("content"), marker)):
+            if not _item_is_ours(payload, marker):
                 continue
             client = payload.get("clientId")
             ordinal = row["rollout_ordinal"]
@@ -545,10 +548,12 @@ class HistoryMixin:
             return None
 
     def turn_markers(self, thread_id: str, turn_id: str, markers) -> list:
-        """Which of these markers appear in a user message of one turn. Booleans only."""
+        """Which of these markers - or client ids a marker-free continuation was queued under -
+        appear in a user message of one turn. Booleans only."""
         if not ids.is_uuid(thread_id) or not ids.is_uuid(turn_id):
             raise SourceError("Invalid turn identity")
-        wanted = [marker for marker in markers if ids.is_marker(marker)]
+        wanted = [marker for marker in markers
+                  if ids.is_delivery_proof(marker) and marker not in (thread_id, turn_id)]
         found = []
         with self._db("history") as connection:
             for marker in wanted:

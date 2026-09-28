@@ -18,6 +18,9 @@ The kinds:
   16 of the interruption id's 64 digits, from v0.6.11, and the whole id before it: how the engine
   finds its own message in Codex's history, and knows it for its own. Both are read.
 * **A client id** (`ClientId`) Codex gives a queued message: 1 to 64 letters, digits and dashes.
+  A continuation sent with no marker (the advanced edition's marker-free continuation, v0.6.11)
+  is queued under one core makes itself from its interruption id (`continuation_client_id`), and
+  that id, which Codex keeps on the message, is what proves it arrived.
 * **A watcher session** (`SessionId`), and **a moment** (`Epoch`, seconds since 1970, which
   `machine.epoch` reads).
 
@@ -204,3 +207,26 @@ def is_client_id(value) -> bool:
     """Whether `value` is a client id Codex may give a queued message: 1 to 64 letters, digits
     and dashes. Anything else is not kept: the store and the history reader record None."""
     return isinstance(value, str) and _CLIENT_ID.fullmatch(value) is not None
+
+
+def continuation_client_id(key) -> ClientId:
+    """The client id a continuation of the record `key` is queued under when it carries no marker
+    (domain/plug.py, Alternative.CLIENT_ID): a UUID of the SHA-1 name kind, made from the key in a
+    namespace of this product's own. The same interruption always has the same id - so a record
+    sent once and looked for again, by this watcher or another, looks for the one id it was sent
+    under - and two interruptions never share one. Canonical UUID text, so it is a client id
+    (`is_client_id`) and a delivery proof (`is_delivery_proof`)."""
+    return ClientId(str(uuid.uuid5(_CONTINUATION_NAMESPACE, key)))
+
+
+# The namespace `continuation_client_id` makes its ids in: this product's own, so no other
+# program's name-based UUIDs are ever among them.
+_CONTINUATION_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "urn:codex-auto-resume:continuation-client-id")
+
+
+def is_delivery_proof(value) -> bool:
+    """Whether `value` is something the history reader may look for to prove a continuation of
+    ours arrived: a marker (`is_marker`), or the canonical UUID a marker-free continuation was
+    queued under (`continuation_client_id`). Nothing wider: what it is looked for with bounds the
+    only message text that ever leaves Codex's database to our own continuation's."""
+    return is_marker(value) or is_uuid(value)

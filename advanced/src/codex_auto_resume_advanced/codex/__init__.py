@@ -9,6 +9,7 @@ which, and `session` is the one-turn helper that speaks them, follows a turn's n
 declines every request Codex makes of it, and always unsubscribes.
 
 Nothing here runs on its own. The harness (measure.py) opens a session only when a person runs a
-measurement, and the tests give it a fake, so no test opens a real Codex.
+measurement, and the marker-free continuation's channel (engine/markerfree.py) opens one for its
+one call only when core hands it a send; the tests give both a fake, so no test opens a real Codex.
 """
 from .protocol import ADVANCED_METHODS, MEASUREMENT_METHODS, SessionRefused  # noqa: F401
