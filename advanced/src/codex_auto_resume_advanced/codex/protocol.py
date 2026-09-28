@@ -42,6 +42,7 @@ from ..vocabulary import Measurement
 MEASUREMENT_METHODS = {
     Measurement.M1: ("thread/loaded/list", "thread/queue/list"),
     Measurement.M2: ("thread/loaded/list", "thread/goal/get", "thread/goal/set"),
+    Measurement.M2B: ("thread/goal/get", "thread/goal/set", "thread/queue/add", "thread/queue/list"),
     Measurement.M3: ("thread/queue/add", "thread/queue/list"),
     Measurement.M4: ("hooks/list",),
     Measurement.M5: ("thread/loaded/list", "thread/queue/list"),
@@ -50,6 +51,18 @@ MEASUREMENT_METHODS = {
     Measurement.MH: ("thread/loaded/list",),
     Measurement.MA: ("account/read",),
     Measurement.MW: (),
+}
+
+# The methods a capability's own route may call, beyond `initialize` - each one a measurement
+# declared first, so nothing is asked of Codex in use that was not measured. The marker-free
+# continuation (engine/markerfree.py) adds one item to a thread's queue under the client id core
+# gives it, as M7 did: nothing else, and never a read. The goal continuation (engine/goal.py) sets
+# an existing goal's status, as M2 did, and - only where M2b passed - adds the one item M2b added
+# after it: never a read over the protocol, since the goal's status is read from its database and
+# its words are read nowhere.
+CAPABILITY_METHODS = {
+    "marker_free_continuation": ("thread/queue/add",),
+    "goal_continuation": ("thread/goal/set", "thread/queue/add"),
 }
 
 # Everything this edition may ever ask beyond core's three. A method not here is one no
@@ -171,6 +184,14 @@ def methods_for(measurement) -> frozenset:
     return frozenset(allowed | {"initialize", "initialized"})
 
 
+def methods_for_capability(capability) -> frozenset:
+    """The methods a capability's route may call: its own row of CAPABILITY_METHODS, and of that
+    only what some measurement also declared (ADVANCED_METHODS), `initialize` always among them
+    and a forbidden method never. A capability with no row may call nothing."""
+    allowed = set(CAPABILITY_METHODS.get(capability, ())) & ADVANCED_METHODS - FORBIDDEN_METHODS
+    return frozenset(allowed | {"initialize", "initialized"})
+
+
 class Session:
     """A one-turn App Server helper for one measurement, over `codex app-server --stdio`.
 
@@ -180,11 +201,18 @@ class Session:
     on exit unsubscribes from anything it subscribed to and shuts the process. Nothing here
     sends a continuation - only core does (A1); a session reads, sets a goal or adds a queue
     item, and observes.
+
+    Opened for a `capability` instead, it may call only that capability's row of
+    CAPABILITY_METHODS: the marker-free continuation's channel opens one to add the one item core
+    hands it, the way the measurement that proved the call opened one.
     """
-    def __init__(self, backend, measurement):
+    def __init__(self, backend, measurement=None, *, capability=None):
+        if (measurement is None) == (capability is None):
+            raise ValueError("a session is opened for one measurement or one capability")
         self.backend = backend
-        self.measurement = Measurement(measurement)
-        self.allowed = methods_for(self.measurement)
+        self.measurement = Measurement(measurement) if measurement is not None else None
+        self.allowed = (methods_for(self.measurement) if capability is None
+                        else methods_for_capability(capability))
         self.process = None
         self.sequence = 0
         self.responses = queue.Queue(maxsize=128)
@@ -261,7 +289,7 @@ class Session:
 
     def call(self, method, params=None):
         if method not in self.allowed:
-            raise SessionRefused("method not permitted for this measurement")
+            raise SessionRefused("method not permitted for this session")
         from codex_auto_resume.codex.errors import AdapterError
         self.sequence += 1
         sequence = self.sequence

@@ -15,7 +15,7 @@ class OutcomeMixin:
         """Follow our own recovery turn to its end, reading that turn only."""
         now = self.clock()
         try:
-            seen = self.source.turn_observation(row["thread_id"], row["recovery_turn_id"], row["marker"])
+            seen = self.source.turn_observation(row["thread_id"], row["recovery_turn_id"], self.proof(row))
         except Exception:
             seen = None
         deadline = (row["turn_started_at"] or now) + self.options["unknown_reconcile_window_seconds"]

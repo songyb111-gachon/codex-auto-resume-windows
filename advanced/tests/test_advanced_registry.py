@@ -21,19 +21,104 @@ from codex_auto_resume.domain.plug import Point  # noqa: E402
 from codex_auto_resume_advanced import registry, standards, statement  # noqa: E402
 from codex_auto_resume_advanced.registry import (CAPABILITY_POINTS, Ceilings, Registry,  # noqa: E402
                                                  RegistryError, problems)
-from codex_auto_resume_advanced.vocabulary import Field  # noqa: E402
+from codex_auto_resume_advanced.vocabulary import ArmingWarning, Field, Measurement  # noqa: E402
 
 # Where the owner keeps the standards file: beside the repository, not in it.
 STANDARDS_FILE = ac.ROOT.parent / standards.BASIS
+# B4: all the standard edition asks of the app server - initialize (with initialized),
+# account/rateLimits/read and thread/queue/delete.
+B4_METHODS = frozenset({"initialize", "initialized", "account/rateLimits/read", "thread/queue/delete"})
+# The app-server methods this edition may call beyond those, each a read or a change of Codex's
+# state; B3 lets Codex's state change only through `codex queue`, thread/queue/delete and the
+# plugin command. A method in neither set is a decision this table has to make first.
+READS = frozenset({"thread/loaded/list", "thread/queue/list", "thread/goal/get"})
+CHANGES = frozenset({"thread/queue/add", "thread/goal/set"})
 
 
 class ShippedTests(unittest.TestCase):
-    def test_the_registry_this_edition_ships_is_empty(self):
-        self.assertEqual(registry.DEFINITIONS, ())
-        self.assertEqual(len(registry.REGISTRY), 0)
-        self.assertEqual(registry.REGISTRY.ids, ())
+    def test_the_registry_this_edition_ships_is_its_three_capabilities_in_their_order(self):
+        self.assertEqual([d.id for d in registry.DEFINITIONS],
+                         ["start_with_codex", "goal_continuation", "marker_free_continuation"])
+        self.assertEqual(len(registry.REGISTRY), 3)
+        self.assertEqual(registry.REGISTRY.ids,
+                         ("start_with_codex", "goal_continuation", "marker_free_continuation"))
+        # Start-with-Codex answers at P9 alone - it starts the watcher, it does not send; the goal
+        # continuation at P16, P3 and P5 - the route, the hold while a goal carries a conversation on,
+        # and the channel where M2b passed; the marker-free continuation at P5 and P15, the channel
+        # and the way it carries the words. At P5 the goal continuation comes first, so where both
+        # are on and the goal applies its channel carries the send.
+        answering = {Point.START_ROUTE: ("start_with_codex",),
+                     Point.UNLOADED: ("goal_continuation",),
+                     Point.GATES: ("goal_continuation",),
+                     Point.SENDER: ("goal_continuation", "marker_free_continuation"),
+                     Point.DELIVERY: ("marker_free_continuation",)}
         for point in Point:
-            self.assertEqual(registry.REGISTRY.at(point), ())
+            self.assertEqual(tuple(d.id for d in registry.REGISTRY.at(point)), answering.get(point, ()))
+
+    def test_every_shipped_capability_keeps_every_rule_and_has_a_complete_statement(self):
+        """The shipped definitions - not a test's own - each pass the registry's rules and have a
+        statement in every language (owner rule: ar/he ship held, so the key is present too)."""
+        for definition in registry.DEFINITIONS:
+            with self.subTest(definition.id):
+                self.assertEqual(problems(definition), [])
+                self.assertEqual(statement.CATALOGS.missing(definition), [])
+                self.assertTrue(set(definition.departs_from) <= set(standards.STANDARDS))
+
+    def test_a_capability_whose_session_asks_the_app_server_more_departs_from_b4_and_b3(self):
+        """What a capability's own session may call (codex/protocol.CAPABILITY_METHODS) is part of
+        what it departs from: a method beyond B4's is B4, and one that changes Codex's state is B3
+        as well. The marker-free continuation's thread/queue/add is both, as the goal
+        continuation's is - its statement named A2 and A4 alone at revision 1."""
+        from codex_auto_resume_advanced.codex import protocol
+        for definition in registry.DEFINITIONS:
+            with self.subTest(definition.id):
+                beyond = protocol.methods_for_capability(definition.id) - B4_METHODS
+                self.assertLessEqual(beyond, READS | CHANGES, "a method this table has not placed")
+                self.assertEqual("B4" in definition.departs_from, bool(beyond))
+                self.assertEqual("B3" in definition.departs_from, bool(beyond & CHANGES))
+
+    def test_every_statement_names_every_standard_it_departs_from_in_every_language(self):
+        for definition in registry.DEFINITIONS:
+            for locale in l10n.LOCALES:
+                with self.subTest(definition.id, locale=locale):
+                    text = statement.CATALOGS.own(locale)[statement.key(definition.id, Field.DEPARTS)]
+                    for standard in definition.departs_from:
+                        self.assertRegex(text, r"(?<![\w.])%s(?![\w.])" % re.escape(standard))
+
+    def test_the_marker_free_continuation_departs_and_rests_on_what_the_owner_asked(self):
+        """A2 and A4 as the owner named them, and B3 and B4 for the thread/queue/add its session
+        makes; revision 2, since revision 1's statement named the first two alone."""
+        mfc = registry.REGISTRY.get("marker_free_continuation")
+        self.assertEqual(mfc.departs_from, ("A2", "A4", "B3", "B4"))
+        self.assertEqual(mfc.revision, 2)
+        self.assertEqual(mfc.compat, "recovery_turn_tracking")
+        self.assertEqual(mfc.measurements, (Measurement.M7,))
+        self.assertEqual(mfc.points, frozenset({Point.SENDER, Point.DELIVERY}))
+        self.assertEqual(mfc.ceilings.per_conversation, registry.CORE_DAILY_CAP)
+
+    def test_the_goal_continuation_departs_and_rests_on_what_the_owner_asked(self):
+        """0.5 (goal-state manipulation), A2 (one channel), A11 (nothing for a conversation the app
+        does not hold), B3 (Codex's state changes only through the queue) and B4 (the app server's
+        three methods); it stands on loaded_state_detection, which has local checks and decides its
+        route - core's own goal_continuation entry has none and stays unsupported (G12) - and its
+        route on M2."""
+        goal = registry.REGISTRY.get("goal_continuation")
+        self.assertEqual(goal.departs_from, ("0.5", "A2", "A11", "B3", "B4"))
+        self.assertEqual(goal.compat, "loaded_state_detection")
+        from codex_auto_resume.compat.model import CAPABILITIES
+        self.assertTrue(CAPABILITIES[goal.compat][0], "a compatibility capability with local checks")
+        self.assertEqual(CAPABILITIES["goal_continuation"], ((), "unsupported"),
+                         "core's own entry is the standard edition's, untouched")
+        self.assertEqual(goal.measurements, (Measurement.M2,))
+        self.assertEqual(goal.points, frozenset({Point.UNLOADED, Point.GATES, Point.SENDER}))
+        self.assertLessEqual(goal.ceilings.per_conversation, registry.CORE_DAILY_CAP)
+
+    def test_start_with_codex_departs_and_rests_on_what_the_plan_says(self):
+        swc = registry.REGISTRY.get("start_with_codex")
+        self.assertEqual(swc.departs_from, ("C4", "F6"))
+        self.assertEqual(swc.compat, "engine_present")
+        self.assertEqual(swc.measurements, (Measurement.MW,))
+        self.assertEqual(swc.points, frozenset({Point.START_ROUTE}))
 
     def test_the_global_ceiling_is_twelve_an_hour_and_core_caps_are_cores(self):
         from codex_auto_resume.engine import Engine
@@ -78,6 +163,7 @@ class DefinitionTests(unittest.TestCase):
             "journal_prefix": dict(journal_prefix="t.w"),
             "codes": dict(codes=("woke", "woke")),
             "make": dict(make=None),
+            "measurements": dict(measurements=("m1",)),
         }
         for rule, change in cases.items():
             with self.subTest(rule):
@@ -86,6 +172,9 @@ class DefinitionTests(unittest.TestCase):
         self.assertIn("ceilings", problems(ac.definition(ceilings=Ceilings(per_day=300, per_conversation=1))))
         self.assertIn("ceilings", problems(ac.definition(ceilings=Ceilings(per_day=6, per_conversation=6))))
         self.assertEqual(problems("not a definition"), ["not a definition"])
+        self.assertIn("measurements", problems(ac.definition(measurements=[Measurement.M1])))
+        self.assertIn("measurements", problems(ac.definition(measurements=(Measurement.M1,) * 2)))
+        self.assertEqual(problems(ac.definition(measurements=(Measurement.M1, Measurement.MW))), [])
 
     def test_a_capability_never_holds_the_claim_ledger_or_a_surface(self):
         """Nor the moves core tells of, which the tripwires read (P14)."""
@@ -154,6 +243,26 @@ class StatementTests(unittest.TestCase):
         self.assertEqual(shown["fields"][0]["title"], "하는 일")
         self.assertEqual(catalogs.statement(ac.definition(), "xx")["locale"], "en")
 
+    def test_the_statement_shows_the_warnings_it_is_given_above_its_fields_in_their_words(self):
+        """The warnings' words ship in every language, title and note too: a warning is read,
+        and confirmed, in the person's own language."""
+        catalogs = ac.catalogs(self.where, ac.definition())
+        shown = catalogs.statement(ac.definition(), "ko", warnings=(ArmingWarning.FAILED_HERE,
+                                                                    ArmingWarning.UNMEASURED))
+        self.assertEqual([item["warning"] for item in shown["warnings"]["items"]],
+                         ["failed_here", "unmeasured"])
+        self.assertEqual(shown["warnings"]["title"], "경고")
+        self.assertIn("켤 수 있습니다", shown["warnings"]["note"])
+        self.assertIn("컴퓨터", shown["warnings"]["items"][0]["text"])
+        self.assertEqual(catalogs.statement(ac.definition(), "en")["warnings"]["items"], [])
+        for locale in l10n.LOCALES:
+            with self.subTest(locale):
+                table = catalogs.own(locale)
+                for name in statement.WARNING_KEYS:
+                    self.assertTrue(table.get(name, "").strip(), name)
+                    if locale != "en":
+                        self.assertNotEqual(table[name], catalogs.own("en")[name], name)
+
     def test_a_language_whose_catalog_breaks_is_english_underneath(self):
         catalogs = ac.catalogs(self.where, ac.definition())
         (self.where / "locales" / "fr.json").write_text("{", encoding="utf-8")
@@ -170,10 +279,16 @@ class ShippedCatalogTests(unittest.TestCase):
     def test_every_language_has_exactly_the_english_keys_and_none_is_empty(self):
         tables = self.tables()
         english = set(tables["en"])
+        # The fixed words, plus the five statement fields of every capability the edition ships.
+        shipped_statements = {statement.key(definition.id, field)
+                              for definition in registry.DEFINITIONS for field in statement.FIELDS}
         self.assertEqual(english, {statement.SENTINEL_KEY, statement.ALL_OFF_KEY}
                          | set(statement.EDITION_KEYS)
                          | {statement.title_key(field) for field in statement.FIELDS}
-                         | {"state.off", "state.shadow", "state.armed"})
+                         | {"state.off", "state.shadow", "state.armed"}
+                         | set(statement.WARNING_KEYS)
+                         | shipped_statements)
+        self.assertEqual(len(statement.WARNING_KEYS), 2 + len(ArmingWarning))
         for locale, table in tables.items():
             with self.subTest(locale):
                 self.assertEqual(set(table), english)

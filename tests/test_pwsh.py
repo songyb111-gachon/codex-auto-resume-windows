@@ -145,6 +145,32 @@ class NoValueInScriptTests(unittest.TestCase):
                         self.assertIn(script.id, constants, "the script must be defined at module level")
         self.assertEqual(sorted(set(calls)), ["codex_auto_resume/notify.py", "codex_auto_resume/shortcut.py"])
 
+    def test_every_advanced_pwsh_run_call_passes_a_module_constant(self):
+        """The advanced edition runs its own WMI creates through `pwsh.run` (start-with-Codex and
+        the app-server escape). `srcscan` reads only `src/`, so those callers are not held to the
+        same rule there; this holds them here - every `pwsh.run` script in the advanced package is
+        a module-level constant, and the callers are exactly the two that make a WMI create."""
+        advanced_src = ROOT / "advanced" / "src"
+        if not advanced_src.is_dir():
+            self.skipTest("the advanced package is not present")
+        callers = []
+        for path in sorted(advanced_src.rglob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            constants = {target.id for node in tree.body if isinstance(node, ast.Assign)
+                         for target in node.targets if isinstance(target, ast.Name)}
+            relative = path.relative_to(advanced_src).as_posix()
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) \
+                        and node.func.attr == "run" and isinstance(node.func.value, ast.Name) \
+                        and node.func.value.id == "pwsh":
+                    callers.append(relative)
+                    with self.subTest(relative):
+                        self.assertIsInstance(node.args[0], ast.Name, "the script must be a named constant")
+                        self.assertIn(node.args[0].id, constants, "the script must be a module-level constant")
+        self.assertEqual(sorted(set(callers)),
+                         ["codex_auto_resume_advanced/codex/wmi_escape.py",
+                          "codex_auto_resume_advanced/control/codexstart.py"])
+
     def test_nothing_else_builds_an_encoded_powershell_command(self):
         """One place encodes scripts; a second would be a second place to get it wrong."""
         self.assertEqual(srcscan.holders("-EncodedCommand"), {"codex_auto_resume/pwsh.py"})

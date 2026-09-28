@@ -10,8 +10,11 @@ purge the directory without knowing a single file in it (config.owned_advanced_f
 The same rules as core's store: no link anywhere on the way, nothing outside the home, one
 connection per process opened the first time it is needed, BEGIN IMMEDIATE for every write and
 synchronous=FULL, and a file whose tables, columns or version are not exactly these is refused
-rather than repaired. Reading never creates the file: an installation where nothing was ever
-turned on has none, and every question about it has the answer "off".
+rather than repaired - but for a version-1 file, exactly as version 1 made it, which is brought
+to this version when it is opened (schema.UPGRADE_FROM_1), a read's opening too: it is the one
+write a read makes, and it adds a column and changes no row. Reading never creates the file: an
+installation where nothing was ever turned on has none, and every question about it has the
+answer "off".
 
 The one connection serves every thread of its process - the MCP server asks P9 on a thread of
 its own, the watcher's tray popup calls the plug its engine thread holds - so it is not bound to
@@ -29,7 +32,8 @@ import time
 from codex_auto_resume import config, machine
 from codex_auto_resume.domain import ids
 
-from .schema import ATTACHED, FILE_NAME, SCHEMA_VERSION, STATEMENTS, TABLES
+from .schema import (ATTACHED, FILE_NAME, SCHEMA_VERSION, STATEMENTS, TABLES, TABLES_V1,
+                     UPGRADE_FROM_1)
 
 
 class StateError(RuntimeError):
@@ -182,6 +186,11 @@ class SessionMixin:
             version = SCHEMA_VERSION
         if version > SCHEMA_VERSION:
             raise StateError("the advanced state was written by a newer version")
+        if version == 1 and tables == TABLES_V1:
+            for statement in UPGRADE_FROM_1:
+                connection.execute(statement)
+            tables = self._tables(connection)
+            version = connection.execute("PRAGMA user_version").fetchone()[0]
         if version != SCHEMA_VERSION or tables != TABLES:
             raise StateError("unsupported or malformed advanced state")
         if connection.execute("SELECT count(*) FROM meta").fetchone()[0] != 1:

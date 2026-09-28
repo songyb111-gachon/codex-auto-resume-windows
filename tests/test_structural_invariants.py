@@ -152,6 +152,18 @@ class OneSenderTests(unittest.TestCase):
                          [("codex_auto_resume/engine/dispatch.py", "DispatchMixin.dispatch",
                            SENDER_BINDING.split(" = ", 1)[1])])
 
+    def test_a_route_for_a_conversation_not_held_is_asked_once_and_carried_out_once(self):
+        """P16 (v0.6.11 stage 3b): the route a plug names where core would wait for the app is
+        asked in one place and called in one place - after the one claim and the pre-send look,
+        inside the launch guard - and core's own backend is never handed one."""
+        asked = calls(lambda node: isinstance(node.func, ast.Attribute) and node.func.attr == "unloaded")
+        self.assertEqual([(where, name) for where, name, _ in asked],
+                         [("codex_auto_resume/engine/delivery.py", "DeliveryMixin._unloaded")])
+        resumed = calls(lambda node: isinstance(node.func, ast.Attribute) and node.func.attr == "resume")
+        self.assertEqual([(where, name) for where, name, _ in resumed],
+                         [("codex_auto_resume/engine/delivery.py", "DeliveryMixin._resume_unloaded")])
+        self.assertEqual(ast.unparse(resumed[0][2].func.value), "route")
+
     def test_exactly_one_place_spawns_the_queue_process(self):
         """`codex queue` is started with a message in one function. The only other process
         that names `queue` asks it for `--help`, to prove the flags still exist."""
