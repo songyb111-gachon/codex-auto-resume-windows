@@ -28,12 +28,30 @@ STANDARDS_FILE = ac.ROOT.parent / standards.BASIS
 
 
 class ShippedTests(unittest.TestCase):
-    def test_the_registry_this_edition_ships_is_empty(self):
-        self.assertEqual(registry.DEFINITIONS, ())
-        self.assertEqual(len(registry.REGISTRY), 0)
-        self.assertEqual(registry.REGISTRY.ids, ())
+    def test_the_registry_this_edition_ships_is_start_with_codex_at_the_start_route(self):
+        self.assertEqual([d.id for d in registry.DEFINITIONS], ["start_with_codex"])
+        self.assertEqual(len(registry.REGISTRY), 1)
+        self.assertEqual(registry.REGISTRY.ids, ("start_with_codex",))
+        # It answers at P9 alone, and nowhere else - it starts the watcher, it does not send.
         for point in Point:
-            self.assertEqual(registry.REGISTRY.at(point), ())
+            expected = ("start_with_codex",) if point == Point.START_ROUTE else ()
+            self.assertEqual(tuple(d.id for d in registry.REGISTRY.at(point)), expected)
+
+    def test_every_shipped_capability_keeps_every_rule_and_has_a_complete_statement(self):
+        """The shipped definitions - not a test's own - each pass the registry's rules and have a
+        statement in every language (owner rule: ar/he ship held, so the key is present too)."""
+        for definition in registry.DEFINITIONS:
+            with self.subTest(definition.id):
+                self.assertEqual(problems(definition), [])
+                self.assertEqual(statement.CATALOGS.missing(definition), [])
+                self.assertTrue(set(definition.departs_from) <= set(standards.STANDARDS))
+
+    def test_start_with_codex_departs_and_rests_on_what_the_plan_says(self):
+        swc = registry.REGISTRY.get("start_with_codex")
+        self.assertEqual(swc.departs_from, ("C4", "F6"))
+        self.assertEqual(swc.compat, "engine_present")
+        self.assertEqual(swc.measurements, (Measurement.MW,))
+        self.assertEqual(swc.points, frozenset({Point.START_ROUTE}))
 
     def test_the_global_ceiling_is_twelve_an_hour_and_core_caps_are_cores(self):
         from codex_auto_resume.engine import Engine
@@ -194,11 +212,15 @@ class ShippedCatalogTests(unittest.TestCase):
     def test_every_language_has_exactly_the_english_keys_and_none_is_empty(self):
         tables = self.tables()
         english = set(tables["en"])
+        # The fixed words, plus the five statement fields of every capability the edition ships.
+        shipped_statements = {statement.key(definition.id, field)
+                              for definition in registry.DEFINITIONS for field in statement.FIELDS}
         self.assertEqual(english, {statement.SENTINEL_KEY, statement.ALL_OFF_KEY}
                          | set(statement.EDITION_KEYS)
                          | {statement.title_key(field) for field in statement.FIELDS}
                          | {"state.off", "state.shadow", "state.armed"}
-                         | set(statement.WARNING_KEYS))
+                         | set(statement.WARNING_KEYS)
+                         | shipped_statements)
         self.assertEqual(len(statement.WARNING_KEYS), 2 + len(ArmingWarning))
         for locale, table in tables.items():
             with self.subTest(locale):

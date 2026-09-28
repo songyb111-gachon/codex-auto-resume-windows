@@ -48,7 +48,7 @@ from test_control import ControlTestCase  # noqa: E402
 from test_engine import T1, T2, TURN_A, EngineCase  # noqa: E402
 from test_ports import ENGINE_TO_STORE  # noqa: E402
 from codex_auto_resume import (config, continuation, control, controlcli, diagnostics,  # noqa: E402
-                               edition, mcpserver, settings, windows)
+                               edition, mcpserver, settings, startup, windows)
 from codex_auto_resume.domain.plug import (DEFER, EXTRA, Alternative, Guarded, Plug,  # noqa: E402
                                            Point, Surface, guard)
 from codex_auto_resume.engine import Engine  # noqa: E402
@@ -1327,11 +1327,12 @@ class StartRouteTests(unittest.TestCase):
             patcher.start()
             self.addCleanup(patcher.stop)
 
-    def test_the_refusal_stands_whatever_the_plug_answers(self):
-        """Asked only where core refuses - with the setting on and nothing running - and no
-        route of a plug's is carried out yet."""
+    def test_the_refusal_stands_when_the_plug_names_no_route(self):
+        """Asked only where core refuses - with the setting on and nothing running. A plug that
+        answers with anything core cannot call - DEFER, a word, an exception - keeps the refusal
+        (Guarded.start_route drops it), and nothing is launched."""
         job = {"in_job": True, "kill_on_close": True, "breakaway_ok": False}
-        for answer in (DEFER, Alternative.HOLD, "wmi", RuntimeError("no")):
+        for answer in (DEFER, Alternative.HOLD, "wmi", 3, object(), RuntimeError("no")):
             with self.subTest(answer=answer):
                 plug = Asked(start_route=answer)
                 layer = control.Control(self.paths, plug=plug)
@@ -1341,6 +1342,59 @@ class StartRouteTests(unittest.TestCase):
                 launch.assert_not_called()
                 self.assertEqual(decision, "not started: this Codex ends what its plugins start")
                 self.assertEqual(plug.asked, [("start_route", (job,))])
+
+    def test_a_named_route_is_carried_out_outside_the_job(self):
+        """A route the plug names - an object with `start` - is called with the command line core
+        built from the stable launcher, and the pid it hands back is the line core writes."""
+        job = {"in_job": True, "kill_on_close": True, "breakaway_ok": False}
+        seen = {}
+
+        class Route:
+            def start(self, command):
+                seen["command"] = command
+                return {"pid": 4242}
+
+        plug = Asked(start_route=Route())
+        layer = control.Control(self.paths, plug=plug)
+        layer.update_settings({"start_with_codex": True})
+        with patch.object(startup, "python_launcher", return_value=Path("pythonw.exe")), \
+                patch.object(control.Control, "_launch_watcher") as launch:
+            decision = layer._start_for_codex(dict(job))
+        launch.assert_not_called()          # core never launches inside the job itself
+        self.assertEqual(decision, "started through WMI pid 4242")
+        self.assertIn("watcher-launcher.py", seen["command"])
+        self.assertTrue(seen["command"].endswith(' "run"') or seen["command"].endswith(" run"))
+
+    def test_a_route_that_refuses_records_the_code_and_starts_nothing(self):
+        job = {"in_job": True, "kill_on_close": True, "breakaway_ok": False}
+
+        class Route:
+            def start(self, command):
+                return {"code": 21}
+
+        layer = control.Control(self.paths, plug=Asked(start_route=Route()))
+        layer.update_settings({"start_with_codex": True})
+        with patch.object(startup, "python_launcher", return_value=Path("pythonw.exe")):
+            decision = layer._start_for_codex(dict(job))
+        self.assertEqual(decision, "not started: WMI refused (21)")
+
+    def test_a_route_is_not_taken_while_an_installation_is_in_progress(self):
+        """The install lock is looked at once more immediately before the launch, so an install
+        that began after the first look stops the route."""
+        job = {"in_job": True, "kill_on_close": True, "breakaway_ok": False}
+        started = []
+
+        class Route:
+            def start(self, command):
+                started.append(command)
+                return {"pid": 1}
+
+        layer = control.Control(self.paths, plug=Asked(start_route=Route()))
+        layer.update_settings({"start_with_codex": True})
+        with patch.object(windows, "install_in_progress", side_effect=[False, True]):
+            decision = layer._start_for_codex(dict(job))
+        self.assertEqual(decision, "not started: an installation is in progress")
+        self.assertEqual(started, [])
 
     def test_a_start_core_makes_or_declines_itself_asks_nothing(self):
         plug = Asked()

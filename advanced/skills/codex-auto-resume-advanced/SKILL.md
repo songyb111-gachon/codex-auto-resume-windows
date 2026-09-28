@@ -29,9 +29,19 @@ capability.
 
 ## What it can do
 
-In this version, nothing the standard edition cannot: it carries the edition and no capability
-yet, so with nothing to turn on it behaves exactly as the standard edition does. If the user
-asks what the advanced edition does, say that. Do not describe capabilities from anywhere else.
+Every capability is off until the user turns it on, so an advanced installation with nothing
+turned on behaves exactly as the standard edition does. Do not describe capabilities from
+anywhere else, and do not present one as active unless `list_advanced_capabilities` says it is.
+
+- **Start with Codex.** When the user has turned this on, the watcher starts as Codex starts,
+  even though Codex runs this plugin inside a job it closes when it quits - which would stop a
+  watcher started there within seconds. It asks Windows (WMI) to start the watcher outside that
+  job, so it keeps running after Codex closes; it registers nothing and leaves nothing behind.
+  The standard edition starts nothing there and only notes why. It departs from two of the
+  standard edition's rules (nothing starts on its own at Codex start; no process-creation route
+  beyond the listed ones), which is why it is off until turned on. If Windows Management
+  Instrumentation is off, or a policy blocks process creation through it, nothing starts and the
+  reason is logged; never tell the user to change that policy.
 
 ## Turning capabilities on and off
 

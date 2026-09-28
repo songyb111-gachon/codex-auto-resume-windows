@@ -134,15 +134,16 @@ class ClosedAlternativeTests(unittest.TestCase):
                 self.assertIs(plug.consult(RecordingPlug(gate=answer), Point.GATES, 1, 2, 3), DEFER)
         taken = plug.consult(RecordingPlug(gate="hold"), Point.GATES, 1, 2, 3)
         self.assertIs(taken, Alternative.HOLD)
-        # A word of another point is no word here: nothing at all relaxes a start yet.
-        self.assertIs(plug.consult(RecordingPlug(start_route=Alternative.HOLD), Point.START_ROUTE, 1), DEFER)
+        # A word of another point is no word at an empty-set point: records carries nothing out.
+        self.assertIs(plug.consult(RecordingPlug(records=Alternative.HOLD), Point.RECORDS, 1), DEFER)
 
     def test_every_decision_point_accepts_a_restriction_or_nothing(self):
         """A hook may always restrict and may relax only as core has learned to carry out, which
         is not at all yet. A relaxation joins its point's set in the commit that teaches core to
-        carry it out, and this test changes with it. v0.6.11-alpha: the claim ledger holds a
-        claim as a gate holds a record; a record served, a follow-up, a route, a division of the
-        due records and a restart are asked for, and none is carried out."""
+        carry it out, and this test changes with it. v0.6.11 stage 3: the claim ledger holds a
+        claim as a gate holds a record; the start route left this table for a value core checks
+        (Guarded.start_route); a record served, a follow-up, a division of the due records and a
+        restart are asked for, and none is carried out."""
         self.assertEqual(plug.ANSWERS, plug.RESTRICTIONS)
         self.assertEqual(plug.ANSWERS, frozenset(Alternative))
         for point, accepted in plug.ALTERNATIVES.items():
@@ -152,8 +153,9 @@ class ClosedAlternativeTests(unittest.TestCase):
         self.assertEqual({point for point, accepted in plug.ALTERNATIVES.items() if accepted},
                          {Point.GATES, Point.SCHEDULE, Point.CLAIM_LEDGER})
         self.assertEqual({point for point, accepted in plug.ALTERNATIVES.items() if not accepted},
-                         {Point.RECORDS, Point.OUTCOME, Point.START_ROUTE, Point.CONCURRENCY,
-                          Point.SUPERVISION})
+                         {Point.RECORDS, Point.OUTCOME, Point.CONCURRENCY, Point.SUPERVISION})
+        # The start route is no longer a decision point: core checks the value it hands back.
+        self.assertNotIn(Point.START_ROUTE, plug.ALTERNATIVES)
         for point, accepted in plug.ALTERNATIVES.items():
             for answer in ([object()], {"records": []}, "go", Alternative.HOLD):
                 if answer is Alternative.HOLD and answer in accepted:

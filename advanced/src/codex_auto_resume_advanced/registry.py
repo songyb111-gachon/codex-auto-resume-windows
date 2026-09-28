@@ -26,9 +26,8 @@ asked to agree to and everything the plug holds it to:
 * `make` - the factory for its code: given the installation's paths, it returns an object whose
   methods are the plug's hooks for its points, each answering as a plug would.
 
-There is no capability yet. DEFINITIONS is empty, so the registry the edition ships offers
-nothing and its plug answers everywhere as the standard edition's does; the tests define one of
-their own to hold every rule here.
+The edition ships one capability now: start-with-Codex, at P9 (control/codexstart.py). The tests
+define one of their own to hold every rule here.
 """
 from __future__ import annotations
 
@@ -38,6 +37,7 @@ from typing import Callable
 
 from codex_auto_resume.domain.plug import Point
 
+from .control.codexstart import make as make_start_with_codex
 from .standards import STANDARDS
 from .vocabulary import Measurement
 
@@ -177,6 +177,28 @@ class Registry:
         return len(self.definitions)
 
 
-# The capabilities this edition ships. None yet.
-DEFINITIONS = ()
+# The capabilities this edition ships.
+#
+# start-with-Codex (decision C9): the one route out of Codex's kill-on-close job, at P9. It sends
+# nothing and claims nothing - it starts the watcher - so it answers at START_ROUTE alone, its
+# ceilings never bind (no point it answers at spends a unit), and its journal keeps its own words
+# for a start and a refusal. It departs from C4 (nothing at start) and F6 (a process-creation
+# route beyond the listed ones), rests on engine_present (the installed Codex is the one we start
+# a watcher for, with local checks), and on measurement MW (the WMI escape still leaves a process
+# outside the job); a version of Codex MW has not passed for is a warning in its statement, never
+# a reason to withhold it.
+START_WITH_CODEX = CapabilityDef(
+    id="start_with_codex",
+    points=frozenset({Point.START_ROUTE}),
+    revision=1,
+    departs_from=("C4", "F6"),
+    compat="engine_present",
+    ceilings=Ceilings(per_day=5, per_conversation=1),
+    journal_prefix="swc",
+    make=make_start_with_codex,
+    codes=("started", "refused"),
+    measurements=(Measurement.MW,),
+)
+
+DEFINITIONS = (START_WITH_CODEX,)
 REGISTRY = Registry(DEFINITIONS)

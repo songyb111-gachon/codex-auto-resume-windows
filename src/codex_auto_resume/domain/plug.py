@@ -252,16 +252,19 @@ RESTRICTIONS = frozenset({Alternative.HOLD})
 # and core checks it where it takes it, as it checks its own.
 #
 # An empty set is a point core asks and carries nothing out at yet. An advanced record tried
-# like core's own, something that follows a finished turn, another way to start the watcher, a
-# division of the due records and a restart each relax what core does alone, so each waits for
-# the commit that teaches core to carry it out - and then joins its point's set, or leaves this
-# table for a value core checks.
+# like core's own, something that follows a finished turn, a division of the due records and a
+# restart each relax what core does alone, so each waits for the commit that teaches core to
+# carry it out - and then joins its point's set, or leaves this table for a value core checks.
+#
+# START_ROUTE has left this table: v0.6.11 stage 3 taught core to carry out a start route (the
+# start with Codex), and it does so the way the sender does - the plug names a route, an object
+# with a `start`, that core calls with the command line it built (Guarded.start_route). So the
+# start route is a value point now, not a decision point with a closed set of words.
 ALTERNATIVES = {
     Point.RECORDS: frozenset(),
     Point.GATES: RESTRICTIONS,
     Point.OUTCOME: frozenset(),
     Point.SCHEDULE: RESTRICTIONS,
-    Point.START_ROUTE: frozenset(),
     Point.CLAIM_LEDGER: RESTRICTIONS,
     Point.CONCURRENCY: frozenset(),
     Point.SUPERVISION: frozenset(),
@@ -463,7 +466,21 @@ class Guarded:
         self._ask(Point.TICK, view)
 
     def start_route(self, request):
-        return self._ask(Point.START_ROUTE, request)
+        """A route to start the watcher outside Codex's job, or DEFER.
+
+        DEFER keeps core's own answer, which is today's refusal. Anything else is a route only
+        if it has a callable `start`, which core calls with the command line it built itself; a
+        word, a number, or an object without one is DEFER, so a hook that answers with something
+        core cannot call changes nothing. The route is the plug's own code, held to the launch
+        the way the sender's channel is: core decides when to call it, and with what."""
+        answer = self._ask(Point.START_ROUTE, request)
+        if answer is DEFER:
+            return DEFER
+        try:
+            start = getattr(answer, "start", None)
+        except Exception:                              # a `start` that raises when it is looked up
+            return DEFER
+        return answer if callable(start) else DEFER
 
     def surface(self, name, facts):
         """Fields for surface `name` (a Surface), or DEFER."""
