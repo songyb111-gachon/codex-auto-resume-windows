@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import re
 
-from .. import controlcli, reasons as _reasons, settings as policy
+from .. import controlcli, quiet, reasons as _reasons, settings as policy
 from ..domain import ids
 
 SETTINGS_UI = "ui://codex-auto-resume/settings"
@@ -39,6 +39,62 @@ USER_GROUPS = frozenset({"general", "recovery", "limits", "notifications", "cont
 # The panel draws in both, and edits neither: they are written in the Dashboard.
 # restore_default_settings still puts both back, as it puts back every setting.
 PANEL_APPEARANCE = frozenset({"theme", "panel_theme"})
+
+
+# v0.6.11: what the quiet hours and the tiers do, for a model choosing a value. Each can only hold
+# a recovery back, except default_tier towards automatic, which is why update_settings asks first.
+QUIET_AND_TIERS = {
+    "quiet_hours_start": "When quiet hours start, local time, or off (the default: none). A recovery "
+                         "that falls due in them waits until they end; nothing else changes.",
+    "quiet_hours_end": "When quiet hours end, local time. Nothing while quiet_hours_start is off.",
+    "quiet_hours_days": "The days quiet hours start on. Nothing while quiet_hours_start is off.",
+    "default_tier": "How much a conversation without a tier of its own asks before it is resumed: "
+                    "automatic (the default), objection_window (a card first, objection_minutes to "
+                    "stop it), ask_first or notify_only (nothing is sent until a person lets it "
+                    "continue). Applies to interruptions detected after it is chosen.",
+    "objection_minutes": "How long the objection window waits before a continuation is sent.",
+    # And what Observe only does, and which conversations and projects resume without a person.
+    "observe_only": "Observe only: every check still runs and when a continuation would have been "
+                    "sent is recorded, but nothing is sent. false (the default) sends as usual.",
+    "new_conversation_policy": "What a conversation this product has never seen before gets: resume "
+                               "(the default: the same as every other conversation) or notify_only "
+                               "(its own tier becomes Only notify me, so nothing is sent for it until "
+                               "a person lets a task continue).",
+    "project_policy": "Which projects resume without a person: every (the default), only_listed (only "
+                      "projects a person set to Always on a task's row) or except_listed (every "
+                      "project but those set to Never). An interruption of any other project, or of "
+                      "one whose project cannot be read, waits for a person and is never dropped. "
+                      "Applies to interruptions detected after it is chosen.",
+    # And the Custom waits, jitter, the time ceiling and the two guards (ladder.py, guards.py).
+    **{field: "Wait %d of the custom retry timing, read only while retry_timing is custom: the "
+              "wait before attempt %d at a task that failed with a temporary error. Whatever is "
+              "chosen, one conversation gets a continuation at most every 15 minutes and 5 a day."
+              % (number, number) for number, field in enumerate(policy.STEP_FIELDS, 1)},
+    "retry_jitter": "Adds up to a fifth to each wait of a temporary failure, never taking any off. "
+                    "false (the default) waits exactly.",
+    "chain_time_ceiling": "How long a task may keep failing with temporary errors before it stops: "
+                          "off (the default) or a number of hours, from its first failure to its "
+                          "latest. Waiting for a person, quiet hours or a closed app never count.",
+    "task_changed_guard": "When a recovery falls due, compare its conversation's model, approval "
+                          "mode and folder's git HEAD with when it stopped: off (the default, nothing "
+                          "is read), hold (a change waits for a person) or tell (it is sent, and its "
+                          "notification says the task changed). Only a digest is kept.",
+    "context_guard": "Codex's token count for a conversation, where Codex keeps one: off (the "
+                     "default, nothing is read), show (on Pending), or above_100k to above_1m (also "
+                     "hold a recovery whose conversation has used more, for a person).",
+    # And a long sleep, and the internet (power.py).
+    "ask_after_sleep_minutes": "After this PC slept for longer than this - off (the default) or m30 to "
+                               "h12 - a recovery that fell due while it slept waits for a person, who "
+                               "lets each continue from Pending. It only ever holds more back.",
+    "wait_for_network": "When true, a due recovery asks Windows whether this PC is on the internet "
+                        "before usage is read, and waits while it reports none; nothing is sent to "
+                        "find out. false (the default) reads usage as before.",
+}
+
+
+def _thread_schema() -> dict:
+    return {"type": "string", "pattern": ids.THREAD_ID_SCHEMA,
+            "description": "The conversation's exact thread id, from the same row of list_pending"}
 
 
 def settings_schema() -> dict:
@@ -90,6 +146,8 @@ def settings_schema() -> dict:
                          "while panel_theme is same, the panel. system: Windows there, Codex in the panel.",
                 "panel_theme": "Light or dark for the settings panel in Codex alone: same uses theme's "
                                "choice, system follows Codex whatever theme is. Changes nothing but colours."}[name]
+        elif name in QUIET_AND_TIERS:
+            described["description"] = QUIET_AND_TIERS[name]
         described.setdefault("description", "See the settings documentation.")
         properties[name] = described
     return {"type": "object", "properties": properties, "additionalProperties": False}
@@ -232,6 +290,44 @@ TOOLS = [
                         "properties": {"interruption_id": _identifier_schema("Interruption id")},
                         "required": ["interruption_id"], "additionalProperties": False},
         "annotations": {"readOnlyHint": False, "destructiveHint": False,
+                        "idempotentHint": True, "openWorldHint": False},
+    },
+    {
+        "name": "postpone_recovery",
+        "title": "Postpone one waiting recovery",
+        "description": "Make one exact waiting recovery wait longer: nothing is sent for it before "
+                       "the time asked for - preset 30_minutes, 1_hour, 3_hours or tomorrow_morning "
+                       "(09:00 local time), or a number of minutes up to a week; give exactly one. "
+                       "Identify it by its interruption id and its thread id, both from the same row "
+                       "of list_pending - never by title, project or recency. It only ever makes a "
+                       "recovery later, sends nothing and skips no check; retry_now does not bring "
+                       "it forward.",
+        "inputSchema": {"type": "object",
+                        "properties": {"interruption_id": _identifier_schema("Interruption id"),
+                                       "thread_id": _thread_schema(),
+                                       "preset": {"type": "string", "enum": list(quiet.PRESETS)},
+                                       "minutes": {"type": "integer", "minimum": 1,
+                                                   "maximum": quiet.MAX_POSTPONE_SECONDS // 60}},
+                        "required": ["interruption_id", "thread_id"], "additionalProperties": False},
+        # Not destructive: it only ever holds a recovery back, as a pause does (H8).
+        "annotations": {"readOnlyHint": False, "destructiveHint": False,
+                        "idempotentHint": False, "openWorldHint": False},
+    },
+    {
+        "name": "release_hold",
+        "title": "Let one held recovery continue",
+        "description": "Let one exact recovery that waits for a person continue - one whose "
+                       "conversation asks first or only notifies (its hold in list_pending). "
+                       "Identify it by its interruption id and its thread id from the same row. "
+                       "Nothing is sent by this; the watcher still runs every check, and a "
+                       "postponement or quiet hours still apply. This lets automation run again for "
+                       "that recovery, so Codex asks the user first.",
+        "inputSchema": {"type": "object",
+                        "properties": {"interruption_id": _identifier_schema("Interruption id"),
+                                       "thread_id": _thread_schema()},
+                        "required": ["interruption_id", "thread_id"], "additionalProperties": False},
+        # Destructive: it lets a recovery a person held go again, so Codex asks first (H8).
+        "annotations": {"readOnlyHint": False, "destructiveHint": True,
                         "idempotentHint": True, "openWorldHint": False},
     },
     {

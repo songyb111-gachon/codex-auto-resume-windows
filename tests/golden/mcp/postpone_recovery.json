@@ -1,0 +1,79 @@
+{
+  "tool": "postpone_recovery",
+  "cases": [
+    {
+      "case": "a waiting recovery postponed by an hour",
+      "arguments": {
+        "interruption_id": "7777777777777777777777777777777777777777777777777777777777777777",
+        "thread_id": "11111111-1111-7111-8111-111111111111",
+        "preset": "1_hour"
+      },
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "Postponed: nothing is sent for it before not_before. Nothing was sent; every check still applies."
+            }
+          ],
+          "structuredContent": {
+            "interruption_id": "7777777777777777777777777777777777777777777777777777777777777777",
+            "thread_id": "11111111-1111-7111-8111-111111111111",
+            "state": "waiting_reset",
+            "not_before": 1800003600.0,
+            "note": "not sent before then; every safety check still applies"
+          }
+        }
+      }
+    },
+    {
+      "case": "half an hour is earlier than the hour it already waits for",
+      "arguments": {
+        "interruption_id": "7777777777777777777777777777777777777777777777777777777777777777",
+        "thread_id": "11111111-1111-7111-8111-111111111111",
+        "minutes": 30
+      },
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "isError": true,
+          "content": [
+            {
+              "type": "text",
+              "text": "a recovery can only be postponed to a later time"
+            }
+          ],
+          "structuredContent": {
+            "error_code": "not_later"
+          }
+        }
+      }
+    },
+    {
+      "case": "the conversation is required",
+      "arguments": {
+        "interruption_id": "7777777777777777777777777777777777777777777777777777777777777777",
+        "preset": "1_hour"
+      },
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "isError": true,
+          "content": [
+            {
+              "type": "text",
+              "text": "missing required tool arguments"
+            }
+          ],
+          "structuredContent": {
+            "error_code": "request_failed"
+          }
+        }
+      }
+    }
+  ]
+}

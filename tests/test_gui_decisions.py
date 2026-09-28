@@ -55,10 +55,35 @@ RECORDS = {
     # Out of attempts, with resets left and without.
     "exhausted":         ({"code": "exhausted", "budget_resets_left": 2}, False, True),
     "exhausted_spent":   ({"code": "exhausted", "budget_resets_left": 0}, False, False),
+    # v0.6.11: held for a person. Retry now would only find it held again.
+    "held":              ({"code": "scheduled", "overlays": ["held"], "hold": "ask"}, False, False),
+    # v0.6.11: a postponement, or an objection window, still ahead - which Retry now never shortens -
+    # and one that has passed, which holds nothing back any more.
+    "postponed":         ({"code": "scheduled", "not_before": NOW + 600}, False, False),
+    "postponement_over": ({"code": "scheduled", "not_before": NOW - 60}, True, False),
     # A code nothing knows. Fail closed: offer nothing.
     "unknown_code":      ({"code": "something_new"}, False, False),
     "empty":             ({}, False, False),
 }
+
+# v0.6.11, a Pending row's own menu: name -> (Postpone offered, Let it continue offered). Postponing
+# only holds a waiting task back further, so a pause or a conversation switched off does not stop it;
+# only a held task can be let continue, and nothing cancelled or finished is offered either.
+ROW_MENU = {
+    "reset_passed": (True, False), "reset_ahead": (True, False), "scheduled": (True, False),
+    "paused": (True, False), "thread_off": (True, False), "held": (True, True),
+    "cancelled": (False, False), "running": (False, False), "recovered": (False, False),
+    "exhausted": (False, False), "unknown_code": (False, False), "empty": (False, False),
+}
+
+# The Overview's pending list (v0.6.11): each row, and whether it counts as waiting. A task held for a
+# person has no time (domain/public.eligible_at) and still waits; only a row in Codex is running.
+COUNTED = (
+    ({"code": "scheduled", "eligible_at": NOW - 5}, True),
+    ({"code": "scheduled", "overlays": ["held"], "hold": "ask"}, True),
+    ({"code": "waiting_reset", "eligible_at": NOW + 600}, True),
+    ({"code": "submitted"}, False),
+)
 
 # name -> (what the fake setup prints, its exit code, what Repair must call it)
 REPAIRS = {
@@ -81,11 +106,14 @@ $flags = [Reflection.BindingFlags]'Static,NonPublic,Public'
 $retry = $form.GetMethod('CanRetryNow', $flags)
 $give = $form.GetMethod('CanGiveAttemptsBack', $flags)
 $repair = $form.GetMethod('RunRepair', $flags)
-foreach ($pair in @(@('CanRetryNow', $retry), @('CanGiveAttemptsBack', $give), @('RunRepair', $repair))) {
+$postpone = $form.GetMethod('CanPostpone', $flags)
+$release = $form.GetMethod('CanRelease', $flags)
+foreach ($pair in @(@('CanRetryNow', $retry), @('CanGiveAttemptsBack', $give), @('RunRepair', $repair),
+                    @('CanPostpone', $postpone), @('CanRelease', $release))) {
     if (-not $pair[1]) { throw ('SettingsForm has no ' + $pair[0]) }
 }
 $work = [string]$env:CAR_WORK
-$out = @{ retry = @{}; give = @{}; busy = @{}; repair = @{} }
+$out = @{ retry = @{}; give = @{}; busy = @{}; repair = @{}; postpone = @{}; release = @{} }
 
 # The window's own dictionary shape: string keys, object values.
 function To-Row {
@@ -125,7 +153,11 @@ foreach ($case in (ConvertFrom-Json $env:CAR_RECORDS).PSObject.Properties) {
     # And with the window busy, which is what stops a second click acting on a row the
     # first click already changed.
     $out.busy[$case.Name] = [bool]$retry.Invoke($null, [object[]]@($row, $false, [double]$env:CAR_NOW)) -or
-                            [bool]$give.Invoke($null, [object[]]@($row, $false))
+                            [bool]$give.Invoke($null, [object[]]@($row, $false)) -or
+                            [bool]$postpone.Invoke($null, [object[]]@($row, $false)) -or
+                            [bool]$release.Invoke($null, [object[]]@($row, $false))
+    $out.postpone[$case.Name] = [bool]$postpone.Invoke($null, [object[]]@($row, $true))
+    $out.release[$case.Name] = [bool]$release.Invoke($null, [object[]]@($row, $true))
 }
 # No record selected at all.
 $out.retry['null'] = [bool]$retry.Invoke($null, [object[]]@($null, $true, [double]$env:CAR_NOW))
@@ -237,6 +269,19 @@ $out.shown = @{
 $list.Dispose()
 $label.Dispose()
 
+# The Overview's counts (v0.6.11): waiting by a row's code, so a task held for a person, which has
+# no time, is still waiting and never "running in Codex".
+$counts = $form.GetMethod('PendingCounts', $flags)
+if (-not $counts) { throw 'SettingsForm has no PendingCounts' }
+[System.Collections.Generic.List[object]]$pending = New-Object 'System.Collections.Generic.List[object]'
+foreach ($source in (ConvertFrom-Json $env:CAR_COUNTS)) {
+    $pending.Add([Collections.Generic.Dictionary[string,object]](To-Row $source))
+}
+# One argument, the list itself: an array literal would hand it over wrapped, or unrolled.
+$arguments = New-Object 'object[]' 1
+$arguments[0] = $pending
+$out.counts = @($counts.Invoke($null, $arguments) | ForEach-Object { [double]$_ })
+
 $out | ConvertTo-Json -Depth 5 -Compress
 """
 
@@ -264,7 +309,8 @@ class DecisionTests(unittest.TestCase):
                      CAR_RECORDS=json.dumps({name: record
                                              for name, (record, _, _) in RECORDS.items()}),
                      CAR_REPAIRS=json.dumps({name: [printed, code]
-                                             for name, (printed, code, _) in REPAIRS.items()})))
+                                             for name, (printed, code, _) in REPAIRS.items()}),
+                     CAR_COUNTS=json.dumps([row for row, _ in COUNTED])))
         cls.result = result
         cls.answer = json.loads(result.stdout) if result.returncode == 0 and result.stdout.strip() else {}
 
@@ -286,12 +332,22 @@ class DecisionTests(unittest.TestCase):
             with self.subTest(name):
                 self.assertEqual(self.answer["give"][name], give)
 
+    def test_a_row_menu_offers_postpone_and_continue_only_where_they_could_succeed(self):
+        for name, (postpone, release) in sorted(ROW_MENU.items()):
+            with self.subTest(name):
+                self.assertEqual((self.answer["postpone"][name], self.answer["release"][name]), (postpone, release))
+
     def test_nothing_is_offered_while_the_window_is_busy(self):
         """A second click on a button whose first click has not been answered is how a
         person acts twice, or on the row that happened to be selected by then."""
         for name in sorted(RECORDS):
             with self.subTest(name):
                 self.assertFalse(self.answer["busy"][name])
+
+    def test_the_overview_counts_a_held_task_as_waiting(self):
+        """It counted a row with no time as running in Codex; a held task has none (v0.6.11)."""
+        waiting = sum(1 for _, counted in COUNTED if counted)
+        self.assertEqual(self.answer["counts"], [waiting, len(COUNTED) - waiting, NOW - 5])
 
     def test_nothing_is_offered_with_no_record_selected(self):
         self.assertFalse(self.answer["retry"]["null"])

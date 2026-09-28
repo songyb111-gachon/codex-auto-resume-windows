@@ -84,9 +84,10 @@ namespace CodexAutoResume
             FlatStyle = FlatStyle.Flat;
             BackColor = Palette.Raised;
             ForeColor = Palette.Ink;
-            // How many items its list shows before it scrolls: every list in the window whole - the
-            // longest, the Interface language, has ten choices.
-            MaxDropDownItems = 12;
+            // How many items its list shows before it scrolls: about ten, the owner's number for the
+            // language pickers (v0.6.11), whose seventeen choices scroll, and one number for every list
+            // in the window and the panel (panel.js COMBO_ROWS). A shorter list shows whole.
+            MaxDropDownItems = 10;
             closer = delegate { CloseList(); };
             Fit();
         }

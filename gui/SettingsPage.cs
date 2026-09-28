@@ -217,6 +217,18 @@ namespace CodexAutoResume
             return label;
         }
 
+        /// v0.6.11: what a needs-you notice is told with, and so only matters while When a conversation needs you is on
+        /// (needsyou.py): each kind of failure, the stall and the sound.
+        internal static bool NeedsYouPart(string name)
+        {
+            return name != null && (name.StartsWith("notify_needs_you_", StringComparison.Ordinal)
+                                    || name == "stall_after" || name == "needs_you_sound");
+        }
+
+        // How far in a needs-you part starts: where the words of When a conversation needs you start, 21 + a box of 18
+        // + its gap of 10.
+        private const int NeedsYouIndent = 49;
+
         private Control NewRow(string text, Control editor)
         {
             var row = new TableLayoutPanel();
@@ -447,6 +459,9 @@ namespace CodexAutoResume
 
             CheckBox master = null;
             var subordinate = new List<CheckBox>();
+            // v0.6.11: When a conversation needs you, and what is told only while it is on (NeedsYouPart).
+            CheckBox needsYou = null;
+            var needsYouParts = new List<Control>();
             foreach (object entry in schema)
             {
                 var field = entry as Dictionary<string, object>;
@@ -461,6 +476,8 @@ namespace CodexAutoResume
                 // General and Continuation are laid out by hand; the "advanced" fields - which
                 // engine binary to run, how far back to look - stay out of the window.
                 if (host == null) continue;
+                // v0.6.11: what the retry preview and the high-limit notice read of the limits' schema.
+                if (group == "limits") limitSchema[name] = field;
 
                 string type = Str(field, "type");
                 if (type == "boolean")
@@ -476,15 +493,24 @@ namespace CodexAutoResume
                         check.Margin = Pad(0, 2, 0, 6);
                         master = check;
                     }
+                    else if (host == notifications && NeedsYouPart(name))
+                    {
+                        // v0.6.11: subordinate to When a conversation needs you, one step further in - its box or
+                        // switch starting where that check box's words do, 21 + 18 + 10.
+                        check.Margin = Pad(NeedsYouIndent, 2, 0, 2);
+                        needsYouParts.Add(check);
+                    }
                     else if (host == notifications)
                     {
                         // Subordinate to the master, its words starting where the master switch's do:
                         // 21 + a box of 18 + its gap of 10 is the switch's 40 + its gap of 9.
                         check.Margin = Pad(21, 2, 0, 2);
                         subordinate.Add(check);
+                        if (name == "notify_needs_you") needsYou = check;
                     }
                     host.Controls.Add(check);
                     editors[name] = check;
+                    Managed(field, check, host);
                     if (name == "reduce_motion")
                         host.Controls.Add(HelpText(S("help.reduce_motion",
                             "Stops every animation - the status light's breathing, controls that glide, a notification card sliding in - in the Dashboard, the notification-area popup and icon, the notification card, the taskbar button and the panel in Codex, in every design. Windows' own Animation effects setting is always honored as well.")));
@@ -497,6 +523,30 @@ namespace CodexAutoResume
                     if (name == "start_with_codex")
                         host.Controls.Add(HelpText(S("help.start_with_codex",
                             "Codex starts this plugin whenever it opens, and the watcher starts with it if it is not already running. This is separate from starting at sign-in: either or both can be on. It changes nothing about what is recovered.")));
+                    // v0.6.11: what a needs-you notice is and what its sound changes, under the last of its settings.
+                    if (name == "needs_you_sound")
+                        host.Controls.Add(HelpText(S("help.needs_you_sound",
+                            "For a failure this product never resumes, and for a turn that has recorded nothing new for the time chosen above: one notification each, with what to do next in Codex and a button to these settings. Nothing is resumed or sent for them. A turn that has not moved may simply still be working. With a sound on, Windows shows these notifications itself, even when notifications are cards, and its Do not disturb holds them back.")));
+                    // v0.6.11: what waiting for an internet connection does, under its switch.
+                    if (name == "wait_for_network")
+                        host.Controls.Add(HelpText(S("help.wait_for_network",
+                            "When a recovery is due, Windows is asked whether this PC is connected to the internet before Codex's usage is read. While Windows reports no connection it waits, and looks again every minute. Nothing is sent to find out. Behind some proxies Windows reports no internet when there is; leave this off there.")));
+                    // v0.6.11: what the status file holds, under its switch.
+                    if (name == "status_file")
+                        host.Controls.Add(HelpText(S("help.status_file",
+                            "After every check the watcher writes status.json in its settings folder, for a tool of your own to read: whether it runs, whether recovery is on, how many tasks wait and when the next is looked at, and Codex's usage as last read. It holds no conversation, name or path. Nothing in this product reads it, and it is removed when this is off.")));
+                    // v0.6.11: what observe only does, under its switch.
+                    if (name == "observe_only")
+                        host.Controls.Add(HelpText(S("help.observe_only",
+                            "Every check still runs, and when a continuation would have been sent is shown in Pending, History and the timeline; nothing is sent. Turn it off to let recovery send again.")));
+                    // v0.6.11: the waits the retry timing comes to, under jitter, which lengthens them.
+                    if (name == "retry_jitter")
+                    {
+                        retryJitter = check;
+                        retryPreview = HelpText("");
+                        host.Controls.Add(retryPreview);
+                        check.CheckedChanged += delegate { UpdateRetryPreview(); };
+                    }
                 }
                 else if (type == "integer")
                 {
@@ -512,6 +562,17 @@ namespace CodexAutoResume
                     IgnoreWheel(spin);
                     host.Controls.Add(NewRow(Humanise(name), number));
                     editors[name] = spin;
+                    Managed(field, number, host);
+                    // v0.6.11: a limit above its "high" is warned of, under the three limits, while it is.
+                    if (field.ContainsKey("high")) spin.ValueChanged += delegate { UpdateHighLimits(); };
+                    if (name == "max_chain_continuations")
+                    {
+                        highLimits = new SoftCallout(S("warn.high_limits",
+                            "These limits are high: a task that keeps failing can be continued many times before it stops, and every continuation uses your Codex usage."));
+                        highLimits.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top;
+                        highLimits.Margin = Pad(0, 2, 0, 8);
+                        host.Controls.Add(highLimits);
+                    }
                 }
                 else if (type == "string" && field.ContainsKey("choices"))
                 {
@@ -524,8 +585,16 @@ namespace CodexAutoResume
                     // and the Design's (v0.6.10), whose Soft and Plain are no other setting's words.
                     bool themed = name == "theme" || name == "panel_theme" || name == "design";
                     SoftCombo combo = ChoiceCombo(field, current, themed ? "choice." + name + "." : "choice.");
-                    host.Controls.Add(NewRow(Humanise(name), combo));
+                    Control choiceRow = NewRow(Humanise(name), combo);
+                    host.Controls.Add(choiceRow);
                     editors[name] = combo;
+                    Managed(field, combo, host);
+                    // v0.6.11: how long a turn may not move, under When a conversation needs you as its kinds are.
+                    if (host == notifications && NeedsYouPart(name))
+                    {
+                        choiceRow.Margin = Pad(NeedsYouIndent, 6, 0, 6);
+                        needsYouParts.Add(choiceRow);
+                    }
                     if (name == "theme")
                         host.Controls.Add(HelpText(S("help.theme",
                             "Light or dark for the Dashboard, the notification-area popup and the notification card, and for the panel in Codex while Theme in Codex is Same as Theme. Use system setting follows Windows for the first three and Codex's own theme for the panel.")));
@@ -535,15 +604,66 @@ namespace CodexAutoResume
                     if (name == "design")
                         host.Controls.Add(HelpText(S("help.design",
                             "Soft is raised; Classic (v0.6.2) is flat, with accent bars; Plain is flat and grey.")));
+                    // v0.6.11: what quiet hours do, under the last of their three; and what a tier does, under the
+                    // default one.
+                    if (name == "quiet_hours_days")
+                        host.Controls.Add(HelpText(S("help.quiet_hours_days",
+                            "A recovery that falls due during quiet hours waits until they end; nothing else about it changes. Hours that run past midnight belong to the day they start on. Time spent in them does not count toward giving up on a usage limit.")));
+                    if (name == "default_tier")
+                        host.Controls.Add(HelpText(S("help.default_tier",
+                            "For every conversation without a choice of its own, and for interruptions detected from then on; choose for one conversation from its task's row in Pending. After a chance to object shows a notification first and sends only once the time to object has passed. Ask me first and Only notify me send nothing until you let the task continue.")));
+                    // v0.6.11: what a new conversation gets, and which projects may resume, under each.
+                    if (name == "new_conversation_policy")
+                        host.Controls.Add(HelpText(S("help.new_conversation_policy",
+                            "Only notify me gives a conversation this product has never seen that choice as its own, so nothing is sent for it until you let a task continue or change how it resumes from its task's row.")));
+                    if (name == "project_policy")
+                        host.Controls.Add(HelpText(S("help.project_policy",
+                            "Let this project resume and Hold this project for me are on a task's row in Pending and in the popup. A task of any other project, or of one that cannot be read, waits for you and is never dropped. For interruptions detected from then on; holding a project from a row also holds what it has waiting.")));
+                    // v0.6.11: the Custom waits, the time ceiling and the two guards, each said under itself.
+                    if (name == "retry_timing" || name.StartsWith("retry_wait_", StringComparison.Ordinal))
+                        combo.SelectedIndexChanged += delegate { UpdateRetryPreview(); };
+                    if (name == "retry_wait_5")
+                        host.Controls.Add(HelpText(S("help.retry_wait_5",
+                            "Used only when Retry timing is Custom. The first wait comes before a task's first continuation, each later one after a continuation of the same task failed again, and the fifth before every attempt after that. A rate limit's first wait is at least a minute, and a wait Codex names is never cut short. Whatever you choose, one conversation gets a continuation at most every 15 minutes and 5 times a day.")));
+                    if (name == "chain_time_ceiling")
+                        host.Controls.Add(HelpText(S("help.chain_time_ceiling",
+                            "Measured from a task's first temporary failure to its latest, so time spent waiting - postponed, in quiet hours, or for the app - never counts. Usage limits are not affected. Give attempts back gives the time back too.")));
+                    if (name == "task_changed_guard")
+                        host.Controls.Add(HelpText(S("help.task_changed_guard",
+                            "Just before a continuation is sent, the conversation's model and approval mode and the git branch or commit of its folder are compared with when it stopped. Hold it for me waits until you let it continue; Resume, and tell me sends it and says so on the notification. Only a digest is kept, and nothing is read while this is Off. For interruptions detected from then on.")));
+                    // v0.6.11: what a long sleep holds, and what keeping this PC awake does, each under itself.
+                    if (name == "ask_after_sleep_minutes")
+                        host.Controls.Add(HelpText(S("help.ask_after_sleep_minutes",
+                            "After this PC slept for longer than this, a recovery that fell due while it slept waits for you: one notification says how long it slept, and Pending lets each task continue or not. Nothing is sent until you do. While this or Keep this PC awake is on, the watcher also looks again as soon as the PC wakes.")));
+                    if (name == "keep_awake_hours")
+                        host.Controls.Add(HelpText(S("help.keep_awake_hours",
+                            "While a task waits, Windows is asked not to let this PC sleep on its own, for at most the hours chosen each time tasks start waiting; the display may still turn off. Closing the lid or choosing Sleep still sleeps the PC, and no Windows setting is changed. On mains power only lets it sleep on battery as usual.")));
+                    // v0.6.11: what the memory guard does, under its limit.
+                    if (name == "memory_guard_limit")
+                        host.Controls.Add(HelpText(S("help.memory_guard_limit",
+                            "After every check, the memory the watcher has committed is compared with this. Warn me says so once and goes on; Warn me, then stop the watcher also stops it before its next check - nothing waiting is lost - and it stays stopped until you start it again. Diagnostics shows the most it has used. Nothing is compared while this is Off.")));
+                    if (name == "context_guard")
+                        host.Controls.Add(HelpText(S("help.context_guard",
+                            "Codex's own count, read when an interruption is detected, where Codex keeps one. Show them in Pending puts the count beside the task; a Hold choice also keeps a task whose conversation has used more waiting until you let it continue. Nothing is read while this is Off. For interruptions detected from then on.")));
                 }
             }
+            UpdateRetryPreview();
+            UpdateHighLimits();
             if (master != null)
             {
                 // Progressive disclosure for notifications: the individual events only matter
                 // while notifications are on, so they are live only then.
-                CheckBox governing = master;
-                EventHandler follow = delegate { foreach (CheckBox sub in subordinate) sub.Enabled = governing.Checked; };
+                CheckBox governing = master, told = needsYou;
+                EventHandler follow = delegate
+                {
+                    foreach (CheckBox sub in subordinate) sub.Enabled = governing.Checked;
+                    // v0.6.11: a needs-you notice's kinds, its stall and its sound only matter while it is told at all -
+                    // When a conversation needs you on, under notifications on (needsyou.told) - so they are live only then.
+                    bool live = governing.Checked && (told == null || told.Checked);
+                    foreach (Control part in needsYouParts) part.Enabled = live;
+                };
                 governing.CheckedChanged += follow;
+                if (told != null) told.CheckedChanged += follow;
                 follow(governing, EventArgs.Empty);
             }
 
@@ -576,7 +696,7 @@ namespace CodexAutoResume
             styleGroup.AccessibleName = S("field.continuation_style", "Message style");
             Dictionary<string, object> styleField;
             List<object> styles = fields.TryGetValue("continuation_style", out styleField) ? Items(styleField, "choices") : null;
-            if (styles == null) styles = new List<object> { "minimal", "standard", "detailed", "custom" };
+            if (styles == null) styles = new List<object> { "minimal", "standard", "detailed", "custom", "careful" };
             foreach (object choice in styles)
             {
                 string style = Convert.ToString(choice, CultureInfo.InvariantCulture);
@@ -730,6 +850,113 @@ namespace CodexAutoResume
             int keep = continuationCombo.SelectedIndex;
             continuationCombo.Items[0] = new Choice("follow", LanguageLabel("follow"));
             continuationCombo.SelectedIndex = keep;
+        }
+
+        // ------------------------------------------------------ the waits, and high limits (v0.6.11)
+        // The limits' schema as the page was built from it, the line under jitter that says what the retry timing
+        // comes to, and the notice under the three limits while one is above its "high".
+        private readonly Dictionary<string, Dictionary<string, object>> limitSchema =
+            new Dictionary<string, Dictionary<string, object>>();
+        private Label retryPreview;
+        private CheckBox retryJitter;
+        private SoftCallout highLimits;
+
+        /// The waits before attempts 1 to 5 as the watcher keeps them (ladder.preview): a preset's from the table the
+        /// schema carries on Retry timing, Custom's the five chosen - whose lists already start at the floor - and the
+        /// jitter that may lengthen each, as the page stands now, before Save.
+        private void UpdateRetryPreview()
+        {
+            if (retryPreview == null) return;
+            var steps = new List<string>();
+            for (int step = 1; step <= 5; step++) steps.Add(ChoiceOf("retry_wait_" + step.ToString(CultureInfo.InvariantCulture)));
+            var waits = new List<string>();
+            foreach (double seconds in PreviewWaits(limitSchema, ChoiceOf("retry_timing"), steps)) waits.Add(Duration(seconds));
+            string line = waits.Count == 0 ? "" : S("retry.preview",
+                "Waits before attempts 1 to 5, if each continuation fails at once: {waits}", "waits",
+                string.Join(" · ", waits.ToArray()));
+            if (line.Length > 0 && retryJitter != null && retryJitter.Checked)
+                line += " " + S("retry.preview_jitter", "Each may be up to a fifth longer.");
+            if (retryPreview.Text != line) retryPreview.Text = line;
+        }
+
+        /// The waits, in seconds, that `timing` comes to, looked up in the limits' schema - a preset's in the table
+        /// Retry timing carries, Custom's the seconds of the five `steps` chosen - or none when the schema has none of
+        /// it. A lookup, never a sum: the one place the waits are worked out is ladder.preview, and
+        /// tests/test_gui_v0611_waits.py holds this to it.
+        internal static List<double> PreviewWaits(Dictionary<string, Dictionary<string, object>> limitSchema,
+                                                  string timing, IList<string> steps)
+        {
+            var found = new List<double>();
+            Dictionary<string, object> field;
+            if (limitSchema == null || timing == null) return found;
+            if (timing == "custom")
+            {
+                for (int step = 1; step <= 5; step++)
+                {
+                    string chosen = steps != null && steps.Count >= step ? steps[step - 1] : null;
+                    string name = "retry_wait_" + step.ToString(CultureInfo.InvariantCulture);
+                    var seconds = limitSchema.TryGetValue(name, out field) ? Map(field, "seconds") : null;
+                    object value;
+                    if (seconds == null || chosen == null || !seconds.TryGetValue(chosen, out value) || !(value is double))
+                        return new List<double>();
+                    found.Add((double)value);
+                }
+                return found;
+            }
+            var waits = limitSchema.TryGetValue("retry_timing", out field) ? Map(field, "waits") : null;
+            object list;
+            if (waits != null && waits.TryGetValue(timing, out list) && list is List<object>)
+                foreach (object value in (List<object>)list)
+                    if (value is double) found.Add((double)value);
+            return found;
+        }
+
+        /// Whether any limit in `values` is above the "high" the limits' schema gives it.
+        internal static bool AnyHigh(Dictionary<string, Dictionary<string, object>> limitSchema,
+                                     Dictionary<string, double> values)
+        {
+            if (limitSchema == null || values == null) return false;
+            foreach (string name in limitSchema.Keys)
+            {
+                var field = limitSchema[name];
+                object limit = Get(field, "high");
+                double value;
+                if (limit is double && values.TryGetValue(name, out value) && value > (double)limit) return true;
+            }
+            return false;
+        }
+
+        /// The value a drop-down of the page holds now, or null.
+        private string ChoiceOf(string name)
+        {
+            Control editor;
+            var combo = editors.TryGetValue(name, out editor) ? editor as SoftCombo : null;
+            var chosen = combo == null ? null : combo.SelectedItem as Choice;
+            return chosen == null ? null : chosen.Value;
+        }
+
+        /// The notice under the three limits, shown while any is above the "high" its schema gives it.
+        private void UpdateHighLimits()
+        {
+            if (highLimits == null) return;
+            var values = new Dictionary<string, double>();
+            foreach (var pair in editors)
+            {
+                var spin = pair.Value as NumericUpDown;
+                if (spin != null) values[pair.Key] = (double)spin.Value;
+            }
+            bool high = AnyHigh(limitSchema, values);
+            if (Soft.OwnVisible(highLimits) != high) highLimits.Visible = high;
+        }
+
+        /// v0.6.11: a setting an administrator's policy key decides ("managed" in its schema) is drawn as it
+        /// stands, greyed, with one line under it saying who set it. Save still sends what it shows, which the
+        /// bridge keeps out of the file (managed.admit), so the person's own choice is there when the key goes.
+        private void Managed(Dictionary<string, object> field, Control editor, TableLayoutPanel host)
+        {
+            if (!Equals(Get(field, "managed"), true)) return;
+            editor.Enabled = false;
+            host.Controls.Add(HelpText(S("settings.managed", "Set by your administrator.")));
         }
 
         private SoftCombo ChoiceCombo(Dictionary<string, object> field, Dictionary<string, object> current, string prefix)

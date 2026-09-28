@@ -1,0 +1,93 @@
+{
+  "command": "project-rule",
+  "cases": [
+    {
+      "case": "a project held for a person, with what it has waiting",
+      "argument": {
+        "interruption_id": "7777777777777777777777777777777777777777777777777777777777777777",
+        "thread_id": "11111111-1111-7111-8111-111111111111",
+        "always": false
+      },
+      "reply": {
+        "ok": true,
+        "result": {
+          "thread_id": "11111111-1111-7111-8111-111111111111",
+          "always": false,
+          "project_policy": "except_listed",
+          "allowed": false,
+          "held": 1
+        }
+      }
+    },
+    {
+      "case": "the same project let resume again",
+      "argument": {
+        "interruption_id": "7777777777777777777777777777777777777777777777777777777777777777",
+        "thread_id": "11111111-1111-7111-8111-111111111111",
+        "always": true
+      },
+      "reply": {
+        "ok": true,
+        "result": {
+          "thread_id": "11111111-1111-7111-8111-111111111111",
+          "always": true,
+          "project_policy": "except_listed",
+          "allowed": true,
+          "held": 0
+        }
+      }
+    },
+    {
+      "case": "a conversation whose project cannot be read",
+      "argument": {
+        "interruption_id": "8888888888888888888888888888888888888888888888888888888888888888",
+        "thread_id": "22222222-2222-7222-8222-222222222222",
+        "always": false
+      },
+      "reply": {
+        "ok": false,
+        "error": "the project of that conversation cannot be read",
+        "error_code": "project_unreadable"
+      }
+    },
+    {
+      "case": "always must be true or false",
+      "argument": {
+        "interruption_id": "7777777777777777777777777777777777777777777777777777777777777777",
+        "thread_id": "11111111-1111-7111-8111-111111111111",
+        "always": "yes"
+      },
+      "reply": {
+        "ok": false,
+        "error": "always must be true or false",
+        "error_code": "invalid_enabled"
+      }
+    },
+    {
+      "case": "a task that belongs to another conversation",
+      "argument": {
+        "interruption_id": "7777777777777777777777777777777777777777777777777777777777777777",
+        "thread_id": "22222222-2222-7222-8222-222222222222",
+        "always": false
+      },
+      "reply": {
+        "ok": false,
+        "error": "that recovery belongs to a different conversation",
+        "error_code": "thread_mismatch"
+      }
+    },
+    {
+      "case": "a finished task",
+      "argument": {
+        "interruption_id": "6666666666666666666666666666666666666666666666666666666666666666",
+        "thread_id": "33333333-3333-7333-8333-333333333333",
+        "always": false
+      },
+      "reply": {
+        "ok": false,
+        "error": "that recovery has already finished",
+        "error_code": "already_finished"
+      }
+    }
+  ]
+}

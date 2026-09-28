@@ -287,9 +287,11 @@ declare it.
 
 ## Translations
 
-The interface speaks nine languages, and every word of it - the Dashboard, the popup and
+The interface speaks sixteen languages, and every word of it - the Dashboard, the popup and
 menu, notifications, the panel in Codex and the continuation message - comes from a catalog:
-`src/codex_auto_resume/locales/<locale>.json`, one per language. English (`en.json`) is the
+`src/codex_auto_resume/locales/<locale>.json`, one per language. Two more catalogs, Arabic and
+Hebrew, are complete and held: nothing offers them until every surface mirrors right to left
+(`l10n.HELD`), and every rule below holds for them as for the rest. English (`en.json`) is the
 source. Every other catalog is a translation of it, and at runtime English fills in any key a
 translation has not reached yet. A new sentence a user will read is a new key in `en.json`.
 
@@ -310,6 +312,18 @@ up: the key is missing or stale in the other eight, and `tests/test_l10n.py` fai
 has been translated and imported, or marked as reviewed. An import that loses or invents a
 placeholder is refused. Nothing here reaches the network, and a test holds the localization
 modules and this tool to that.
+
+A catalog is also held to how it is drawn. `tests/test_glyph_coverage.py` looks every character
+of every catalog up in the faces each surface draws with - Segoe UI and the faces Windows links
+to it, and the panel's type stack - and `tests/test_words_fit.py` lays the popup and the
+notification card out with every string of every language at every scale, so a new script or a
+long word is found before a person sees a box or a cut line. A letter drawn from a linked face is
+not a box but is still a word in two faces, so `tests/test_typeface.py` holds every surface to one
+face per language: where Windows' interface font lacks one of a language's letters - Vietnamese on
+a Korean Windows - that language is set in Segoe UI on the Dashboard, the popup, the card and the
+panel alike (`win/typeface.py`). Right to left, the popup, the card
+and the panel mirror already (`tests/test_right_to_left.py`); the Dashboard window does not yet,
+and that is what keeps Arabic and Hebrew held.
 
 ## Branches and languages
 

@@ -1,7 +1,7 @@
 """The one layer every surface asks, and the only one that may change anything.
 
-`control.py` was 1,083 lines. It is the same layer in ten files, and every `control.<name>`
-reads as it did.
+`control.py` was 1,083 lines. It is the same layer in ten files - eleven from v0.6.11 - and every
+`control.<name>` reads as it did.
 
     errors      every way this layer refuses, and how it reads an identity
     state       the one door to the store, and what a refusal to open says
@@ -12,7 +12,8 @@ reads as it did.
     actions     what a person asks for: a flag, a schedule, a budget
     codexstart  the launch Codex asks for, and the note saying why it was refused
     watcher     whether it runs, whether it starts at sign-in, starting and stopping it
-    layer       `Control` composed from the eight mixins above
+    tools       Diagnostics' own: the log searched, the state folder's access, a demo (v0.6.11)
+    layer       `Control` composed from the nine mixins above
 
 Nothing here sends. The watcher is the only thing that hands anything to Codex, and every
 method in `actions` changes a flag, a schedule or a budget and then stops - which is the rule
@@ -23,8 +24,11 @@ from __future__ import annotations
 from .errors import (ControlError,
                      ERROR_CODES,
                      FALLBACK_CODE,
+                     _REFUSALS_POSTPONE,
+                     _REFUSALS_RELEASE,
                      _REFUSALS_RESTORE,
                      _REFUSALS_RETRY,
+                     _REFUSALS_UNPOSTPONE,
                      _identifier,
                      _refusal,
                      _thread_id)  # noqa: F401

@@ -7,9 +7,11 @@ style or a language changed while a recovery waits applies to that recovery.
 from __future__ import annotations
 
 from contextlib import nullcontext
+import random
 import time
-from .. import settings as policy
+from .. import ladder, machine, managed as admin, projects, quiet, settings as policy
 from ..domain.plug import guard
+from ..domain.vocabulary import ImportanceTier, NewConversationPolicy
 
 
 # Bounded exponential backoff for proven "queue process never started" failures.
@@ -88,7 +90,7 @@ class StoreView:
 class OptionsMixin:
     def __init__(self, store, source, backend, *, dispatch_lock=nullcontext,
                  clock=time.time, log=None, options=None, notify=None, language=None,
-                 home_lock=None, engine_state=None, plug=None):
+                 home_lock=None, engine_state=None, plug=None, connectivity=None):
         self.store, self.source, self.backend = store, source, backend
         # The edition's plug, as core holds one (domain/plug.py): NULL, the standard edition's,
         # unless the watcher was given another. Every point is asked through this and nothing
@@ -102,10 +104,19 @@ class OptionsMixin:
         # the moment of sending, so a style or language changed while a recovery waits
         # applies to that recovery rather than to the next one.
         self.policy_values = policy.defaults()
+        # v0.6.11: an administrator's policy keys, as last adopted (managed.py) - none until told -
+        # and the windows quiet hours are asked of besides the settings': each administrator's, and
+        # a person's own that the first of those stands in for in the settings. None at all unless
+        # a key sets quiet hours.
+        self.managed = admin.NONE
+        self._more_quiet = ()
         # Whether this watcher holds the lock on its Codex home, and what the Codex
         # engine compatibility check concluded. Both are owned by the process.
         self.home_lock = home_lock or (lambda: True)
         self.engine_state = engine_state or (lambda: "verified")
+        # v0.6.11: whether Windows reports this PC on the internet (win/network.py) - True, False or
+        # None, asked only while Wait for an internet connection is on (engine/freshness.py).
+        self.connectivity = connectivity or (lambda: None)
         self.options = {"reset_grace_seconds": 60, "conservative_poll_seconds": 900,
                         "state_poll_seconds": 60, "delivery_timeout_seconds": 180,
                         "max_queue_retries": 5, "max_submissions_per_thread_per_day": 5,
@@ -146,6 +157,10 @@ class OptionsMixin:
                         "recoverable_categories": None,
                         **(options or {})}
         self._usage_cache = None
+        # v0.6.11: records whose task changed under the task-changed guard's Tell, said on their
+        # continuation's notice (engine/guard.py); and jitter's draw, asked only while it is on.
+        self._told = set()
+        self._random = random.Random()
         self._declined = set()
         self._announced = set()
         self._stale_since = {}
@@ -154,7 +169,7 @@ class OptionsMixin:
         self._watch_offset = 0
 
     # ------------------------------------------------------------------ policy
-    def apply_policy(self, values) -> None:
+    def apply_policy(self, values, managed=None) -> None:
         """Adopt the user's configurable policy.
 
         Policy only. Nothing here can widen what the classifier treats as recoverable,
@@ -162,9 +177,15 @@ class OptionsMixin:
         gate - those are properties of the engine, not preferences. The worst a bad
         settings file can do through this method is make recovery more conservative,
         because every value it reads has already been coerced to a sane default.
+
+        v0.6.11: `managed` is what an administrator's policy keys hold (managed.py), applied after
+        the coercion, so it can only hold back; with none, the values are the ones adopted.
         """
-        values = policy.coerce(values)
+        own = policy.coerce(values)
+        self.managed = managed if isinstance(managed, admin.Managed) else admin.NONE
+        values = admin.clamp(own, self.managed)
         self.policy_values = values
+        self._more_quiet = admin.quiet_sources(own, self.managed) if self.managed.quiet_hours else ()
         self.options["max_recovery_attempts"] = values["max_recovery_attempts"]
         self.options["max_no_progress"] = values["max_no_progress"]
         self.options["max_chain_continuations"] = values["max_chain_continuations"]
@@ -173,10 +194,16 @@ class OptionsMixin:
         self.options["recoverable_categories"] = frozenset(
             category for category in policy.CONFIGURABLE_CATEGORIES
             if policy.category_enabled(values, category))
+        # v0.6.11: how long a task may keep failing with a temporary error; None, the default, is no
+        # ceiling, and then the budgets are exactly the three there were.
+        self.options["max_chain_seconds"] = ladder.ceiling(values)
 
     def limits(self) -> dict:
-        return {name: self.options[name] for name in
-                ("max_recovery_attempts", "max_no_progress", "max_chain_continuations")}
+        found = {name: self.options[name] for name in
+                 ("max_recovery_attempts", "max_no_progress", "max_chain_continuations")}
+        if self.options.get("max_chain_seconds") is not None:
+            found["max_chain_seconds"] = self.options["max_chain_seconds"]
+        return found
 
     def recovers(self, category) -> bool:
         """Whether the user has left this category of failure switched on.
@@ -201,6 +228,55 @@ class OptionsMixin:
             return max(60, self.delay_for(1))
         return self.delay_for(1)
 
+    def quiet_until(self, now):
+        """The end of the quiet hours `now` falls in, or None (quiet.py). Asked of the settings
+        alone, so with none set - the default - nothing is read and nothing ever waits; and, from
+        v0.6.11, of each window an administrator set too, a person's own still among them, the
+        latest end of any being when a recovery may go."""
+        if not self._more_quiet:
+            return quiet.quiet_until(now, self.policy_values)
+        ends = [end for end in (quiet.quiet_until(now, source)
+                                for source in (self.policy_values,) + self._more_quiet) if end is not None]
+        return max(ends) if ends else None
+
+    def tier(self, thread_id) -> str:
+        """The tier a conversation has: its own, or the default's (settings.tier_of)."""
+        return policy.tier_of(self.policy_values, self.store.thread_tier(thread_id))
+
     def allowed(self, row):
-        return (self.store.settings()["enabled"] and self.store.thread_enabled(row["thread_id"])
-                and not row.get("cancel_requested"))
+        """Consent: recovery on, the conversation on, no cancel - and, from schema 4, not only
+        observed and not held for a person, both of which are off at the defaults. What the
+        last look before a send asks again (presend_problem), with a postponement beside it."""
+        settings = self.store.settings()
+        return (settings["enabled"] and self.store.thread_enabled(row["thread_id"])
+                and not row.get("cancel_requested") and not self.observing(settings)
+                and row.get("hold") is None)
+
+    def observing(self, settings) -> bool:
+        """Observe only (v0.6.11): the state's switch, or the setting it is written from - either is
+        enough, so a switch not yet written, or a setting not yet read, still sends nothing."""
+        return bool(settings["observe_only"] or self.policy_values.get("observe_only"))
+
+    @staticmethod
+    def observes(row, vector) -> bool:
+        """Whether a record whose consent was refused is only observed: every other condition of consent
+        held, so the rest of the gates are asked to learn whether it would have been sent."""
+        return vector["consent"][1] == machine.OBSERVE_ONLY and row.get("hold") is None
+
+    def admission(self, thread_id, now):
+        """The hold an interruption of this conversation is detected with (v0.6.11), or None - at the
+        defaults, always None, and nothing is read or written for it. A conversation this state has
+        never seen may first be given Only notify me as its own tier (new_conversation_policy); then
+        its tier's hold, and failing that its project's (projects.py): one the policy does not allow,
+        or one that cannot be read under either list policy, waits for a person (notify_only)."""
+        values = self.policy_values
+        if values.get("new_conversation_policy") == NewConversationPolicy.NOTIFY_ONLY:
+            self.store.enrol_conversation(thread_id, ImportanceTier.NOTIFY_ONLY.value, now)
+        hold = machine.hold_for_tier(self.tier(thread_id))
+        if hold is not None or not projects.asks(values):
+            return hold
+        try:
+            key = self.source.project_key(thread_id)
+        except Exception:
+            key = None
+        return projects.hold_for(values, key)

@@ -159,5 +159,32 @@ def classify(error_info, message=None) -> str:
     return UNKNOWN
 
 
+# v0.6.11: a wait the service named - a Retry-After - where Codex carries one in the structured error
+# itself. Whole seconds, at most a day; never read from message text, and only ever a floor under the
+# first wait of a temporary failure (ladder.py), never a reason to go sooner.
+_RETRY_AFTER_KEYS = ("retryAfterSeconds", "retry_after_seconds", "retryAfter", "retry_after")
+MAX_RETRY_AFTER = 86400
+
+
+def wait_seconds(value):
+    """A named wait as it is kept: whole seconds from 1 to a day, or None."""
+    return value if type(value) is int and 0 < value <= MAX_RETRY_AFTER else None
+
+
+def retry_after(error_info):
+    """The wait in seconds a structured error names, or None. No Codex build has been seen to write
+    one; this reads it where one does, in the variant's own payload, and nowhere else."""
+    payload = error_info
+    if isinstance(payload, dict) and len(payload) == 1 and not any(key in payload for key in _TAG_KEYS):
+        (_tag, payload), = payload.items()
+    if not isinstance(payload, dict):
+        return None
+    for key in _RETRY_AFTER_KEYS:
+        found = wait_seconds(payload.get(key))
+        if found is not None:
+            return found
+    return None
+
+
 def is_recoverable(category: str) -> bool:
     return category == USAGE_LIMIT or category in TRANSIENT

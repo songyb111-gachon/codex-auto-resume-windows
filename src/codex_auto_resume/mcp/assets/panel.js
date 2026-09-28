@@ -80,6 +80,9 @@ var S = window.__CODEX_AUTO_RESUME_STRINGS__ || {};
 // somebody the panel will change language the next time it is opened.
 var LOCALE = window.__CODEX_AUTO_RESUME_LOCALE__ || '';
 var CATALOGS = window.__CODEX_AUTO_RESUME_CATALOGS__ || {};
+// The languages written right to left (l10n.RIGHT_TO_LEFT, v0.6.11): the page mirrors in one of them
+// (applyLanguage) and isolates a value set into one of its sentences (fill).
+var RIGHT_TO_LEFT = window.__CODEX_AUTO_RESUME_RTL__ || [];
 // What the save card says once a save has redrawn the page in another language.
 var SAVED = '';
 
@@ -88,10 +91,19 @@ function t(key, fallback) {
   return (value === undefined || value === null) ? (fallback || key) : value;
 }
 
+function rightToLeft(locale) {
+  return typeof locale === 'string' && RIGHT_TO_LEFT.indexOf(locale) >= 0;
+}
+
+// A value set into a sentence of a right-to-left language is isolated (FSI ... PDI), so a version, a path
+// or an id keeps its own order inside the sentence's: `0.6.11-alpha.2` does not read `alpha.2-0.6.11`.
+// Nothing is added in any other language, nor where the page's language is not known.
 function fill(key, fallback, values) {
   var text = t(key, fallback);
+  var isolate = typeof LOCALE === 'string' && typeof rightToLeft === 'function' && rightToLeft(LOCALE);
   Object.keys(values || {}).forEach(function (name) {
-    text = text.split('{' + name + '}').join(String(values[name]));
+    var value = String(values[name]);
+    text = text.split('{' + name + '}').join(isolate ? '\u2068' + value + '\u2069' : value);
   });
   return text;
 }
@@ -167,6 +179,10 @@ function applyLanguage(root, locale) {
   if (!root || typeof root.setAttribute !== 'function') return;
   if (typeof locale === 'string' && locale) root.setAttribute('lang', locale);
   else root.removeAttribute('lang');
+  // v0.6.11: and its direction - `rtl` mirrors the page (panel.css, right_to_left_rules). None in a language
+  // written left to right, so every other page is served and drawn as it was.
+  if (rightToLeft(locale)) root.setAttribute('dir', 'rtl');
+  else root.removeAttribute('dir');
 }
 
 // The stored appearance and language, applied to the page in place. True when the words changed.
@@ -556,7 +572,9 @@ function settingRow(title, help, control, className) {
 // and Tab away all close it, since each takes focus from the combobox; only Tab picks on the way. A
 // press inside the list keeps focus where it is. The wheel scrolls a long list, a row at a time, and
 // stops at its ends rather than carrying on into the page.
-var COMBO_ROWS = 12;
+// How many rows a list shows before it scrolls, the window's MaxDropDownItems: about ten, the owner's
+// number for the language pickers (v0.6.11), whose seventeen choices scroll.
+var COMBO_ROWS = 10;
 var COMBO_TYPING_MS = 1000;
 
 function combo(select) {
@@ -658,6 +676,7 @@ function combo(select) {
   function place() {
     list.classList.toggle('up', false);
     list.style.left = '';
+    list.style.right = '';
     list.style.maxWidth = '';
     scroll.style.maxHeight = '';
     var root = document.documentElement || {};
@@ -665,8 +684,16 @@ function combo(select) {
     if (width && typeof list.getBoundingClientRect === 'function') {
       list.style.maxWidth = width + 'px';
       var edge = list.getBoundingClientRect();
-      var over = Math.min(edge.right - width, edge.left);
-      if (over > 0) list.style.left = (list.offsetLeft - over) + 'px';
+      if (rightToLeft(LOCALE)) {
+        // Right to left (v0.6.11) the list starts a pad right of the field and runs leftward: moved right
+        // as far as it would run past the page's left edge.
+        var under = Math.min(-edge.left, width - edge.right);
+        var holder = list.offsetParent;
+        if (under > 0 && holder) list.style.right = (holder.clientWidth - list.offsetLeft - list.offsetWidth - under) + 'px';
+      } else {
+        var over = Math.min(edge.right - width, edge.left);
+        if (over > 0) list.style.left = (list.offsetLeft - over) + 'px';
+      }
     }
     var view = window.innerHeight || root.clientHeight || 0;
     if (!view || typeof box.getBoundingClientRect !== 'function') return;
@@ -847,12 +874,13 @@ function toggle(entry, onChange) {
   var row = element('label', 'setting toggle');
   var text = element('span', 'setting-text');
   text.appendChild(element('span', 'setting-label', label(entry.name)));
+  managedNote(text, entry);
   row.appendChild(text);
   var input = element('input', 'switch');
   input.type = 'checkbox';
   input.setAttribute('role', 'switch');
   input.checked = !!value(entry.name);
-  input.disabled = !HOST;
+  input.disabled = !HOST || !!entry.managed;
   input.addEventListener('change', function () {
     DRAFT[entry.name] = input.checked;
     edited(entry.name);
@@ -880,7 +908,7 @@ function checkItem(entry) {
   var input = element('input', 'check');
   input.type = 'checkbox';
   input.checked = !!value(entry.name);
-  input.disabled = !HOST;
+  input.disabled = !HOST || !!entry.managed;
   input.addEventListener('change', function () {
     DRAFT[entry.name] = input.checked;
     edited(entry.name);
@@ -888,29 +916,38 @@ function checkItem(entry) {
   row.appendChild(input);
   var text = element('span', 'setting-text');
   text.appendChild(element('span', 'setting-label', label(entry.name)));
+  managedNote(text, entry);
   row.appendChild(text);
   EDITORS[entry.name] = function () { return input.checked; };
   return row;
+}
+
+// v0.6.11: a setting an administrator's policy key decides (its schema says `managed`) is drawn as it
+// stands, greyed, with one line saying who set it - as the Dashboard draws it. Saving sends what it
+// shows, which is never written over the person's own (managed.admit).
+function managedNote(text, entry) {
+  if (entry && entry.managed) text.appendChild(element('span', 'help', t('settings.managed', 'Set by your administrator.')));
 }
 
 function onOff(entry, onChange) {
   return booleanKind(entry) === 'check' ? checkItem(entry) : toggle(entry, onChange);
 }
 
-function numberField(entry) {
+function numberField(entry, onChange) {
   var input = document.createElement('input');
   input.type = 'number';
   input.id = 'car-' + entry.name;
   if (entry.min !== undefined) input.min = entry.min;
   if (entry.max !== undefined) input.max = entry.max;
   input.value = value(entry.name);
-  input.disabled = !HOST;
+  input.disabled = !HOST || !!entry.managed;
   input.addEventListener('input', function () {
     DRAFT[entry.name] = Number(input.value);
     edited(entry.name);
+    if (onChange) onChange();
   });
   EDITORS[entry.name] = function () { return Number(input.value); };
-  return settingRow(label(entry.name), '', input).row;
+  return settingRow(label(entry.name), entry.managed ? t('settings.managed', 'Set by your administrator.') : '', input).row;
 }
 
 // A select whose stored value is the untranslated choice and whose label is whatever the
@@ -926,7 +963,8 @@ function choiceField(entry, options, help, onChange) {
     if (option.value === chosen) node.selected = true;
     input.appendChild(node);
   });
-  input.disabled = !HOST;
+  input.disabled = !HOST || !!entry.managed;
+  if (entry.managed) help = t('settings.managed', 'Set by your administrator.') + (help ? ' ' + help : '');
   input.addEventListener('change', function () {
     DRAFT[entry.name] = input.value;
     edited(entry.name);
@@ -985,6 +1023,8 @@ function segmented(entry, onChange) {
 // turns to "due now" then (retell, v0.6.10), which is a change the page can know of.
 function nextCheck(row) {
   var at = row.eligible_at;
+  // v0.6.11: a task held for a person has no time - nothing sends it until they let it continue.
+  if ((row.overlays || []).indexOf('held') >= 0) return t('overlay.held', 'waiting for you');
   if (at === null || at === undefined) return t('panel.next_unknown', 'not known yet');
   var when = new Date(at * 1000);
   if (isNaN(when.getTime())) return t('panel.next_unknown', 'not known yet');
@@ -1007,7 +1047,7 @@ function heroFacts(status, state, rows) {
               : count === 1 ? t('status.pending_one', '1 recovery pending')
               : fill('status.pending_many', '{n} recoveries pending', {n: count});
   if (status.watcher_running !== true) {
-    var facts = [status.watcher_running === false ? t('status.not_running', 'Watcher not running')
+    var facts = [status.watcher_running === false ? stoppedFact(status.watcher || {})
                                                   : t('status.unknown', 'Watcher status unknown'),
                  t('status.recovery_idle', 'Nothing will be recovered until it is running')];
     if (count) facts.push(pending);
@@ -1027,6 +1067,22 @@ function heroFacts(status, state, rows) {
   }
   if (state === 'paused') return [t('status.recovery_paused', 'Automatic recovery is paused'), pending];
   return [t('status.recovery_on', 'Automatic recovery is on'), pending];
+}
+
+// v0.6.11: a watcher that is not running, as it ended (control/watcher.how_it_ended) - stopped by the
+// memory guard, or unexpectedly in this sign-in, each at the time it did, as the Dashboard's Watcher fact
+// says it; otherwise "Watcher not running", as it always said.
+function stoppedFact(watcher) {
+  var at = watcher.ended_at;
+  if (typeof at === 'number' && isFinite(at) && at > 0) {
+    if (watcher.ended === 'unexpected') {
+      return fill('status.stopped_unexpectedly', 'Watcher stopped unexpectedly at {time}', {time: clockTime(at)});
+    }
+    if (watcher.ended === 'memory_guard') {
+      return fill('status.stopped_memory_guard', 'Watcher stopped by the memory guard at {time}', {time: clockTime(at)});
+    }
+  }
+  return t('status.not_running', 'Watcher not running');
 }
 
 // The soonest check, which is the question a count raises rather than answers - while recovery
@@ -1060,7 +1116,45 @@ function showFacts(facts, status, state, rows) {
   var shown = heroFacts(status, state, rows);
   var soonest = soonestFact(status, state, rows);
   if (soonest !== null) shown.push(soonest);
+  // v0.6.11: and Codex's usage as the watcher last read it, with its age - once it has been read.
+  var usage = usageLine(status.watcher && status.watcher.usage, Date.now() / 1000);
+  if (usage !== null) shown.push(usage);
   shown.forEach(function (fact) { facts.appendChild(element('span', null, fact)); });
+}
+
+// v0.6.11: how long ago, as the window says it (SettingsForm.Age) and the popup (ui/words.age).
+function age(seconds) {
+  var total = Math.max(0, Math.floor(Number(seconds) || 0));
+  if (total < 5) return t('time.just_now', 'just now');
+  var time = total < 60 ? fill('time.seconds', '{n}s', {n: total})
+           : total < 3600 ? fill('time.minutes', '{n}m', {n: Math.floor(total / 60)})
+           : total < 86400 ? fill('time.hours', '{n}h', {n: Math.floor(total / 3600)})
+           : fill('time.days', '{n}d', {n: Math.floor(total / 86400)});
+  return fill('time.ago', '{time} ago', {time: time});
+}
+
+// v0.6.11: a usage window's length, named as the popup (ui/words.window_name) and the window name it.
+function windowName(minutes) {
+  if (typeof minutes !== 'number' || !(minutes > 0) || Math.floor(minutes) !== minutes) return t('usage.limit', 'limit');
+  if (minutes === 10080) return t('usage.weekly', 'weekly');
+  if (minutes % 1440 === 0) return fill('usage.days', '{n}-day', {n: minutes / 1440});
+  if (minutes % 60 === 0) return fill('usage.hours', '{n}-hour', {n: minutes / 60});
+  return fill('usage.minutes', '{n}-minute', {n: minutes});
+}
+
+// v0.6.11: the last usage reading in one line - each window's length, share and reset, and the reading's
+// age - as the popup (ui/words.usage_line) and the window say it; null until usage has been read.
+function usageLine(reading, now) {
+  if (!reading || typeof reading !== 'object' || !Array.isArray(reading.windows) || !reading.windows.length ||
+      typeof reading.read_at !== 'number') return null;
+  var parts = reading.windows.map(function (entry) {
+    var used = Number(entry.used_percent) || 0;
+    var values = {window: windowName(entry.window_minutes), percent: used >= 100 ? 100 : Math.floor(used)};
+    if (typeof entry.reset_at !== 'number') return fill('usage.window', '{window} {percent}%', values);
+    values.time = clockTime(entry.reset_at);
+    return fill('usage.window_resets', '{window} {percent}%, resets {time}', values);
+  });
+  return fill('usage.line', 'Codex usage, read {age}: {windows}', {age: age(now - reading.read_at), windows: parts.join(' · ')});
 }
 
 // `now` is the clock the word is read by (activity); render() reads it once for the whole page.
@@ -1134,15 +1228,23 @@ function pendingRow(row) {
   if (row.category && S['reason.' + row.category]) {
     meta.appendChild(element('span', null, t('reason.' + row.category, row.category)));
   }
-  [[t('panel.col_next', 'Next check'), nextCheck(row), row.eligible_at],
-   [t('panel.col_attempts', 'Attempts'), String(row.recovery_attempts === undefined ? 0 : row.recovery_attempts)]
-  ].forEach(function (pair) {
+  // The attempts used beside those it may have now: "19/6" after the limit was lowered (v0.6.11).
+  var attempts = String(row.recovery_attempts === undefined ? 0 : row.recovery_attempts)
+    + (typeof row.attempt_limit === 'number' ? '/' + row.attempt_limit : '');
+  var facts = [[t('panel.col_next', 'Next check'), nextCheck(row), row.eligible_at],
+               [t('panel.col_attempts', 'Attempts'), attempts]];
+  facts.forEach(function (pair) {
     var fact = element('span', null, pair[0] + ' ');
     var said = fact.appendChild(element('b', null, pair[1]));
     // A time that becomes "due now" while the page is open, which retell() says again when it comes.
     if (typeof pair[2] === 'number') said.setAttribute('data-due', String(pair[2]));
     meta.appendChild(fact);
   });
+  // v0.6.11: the tokens its conversation had used, where the context-cost guard read them.
+  if (typeof row.context_tokens === 'number') {
+    meta.appendChild(element('span', null, fill('pending.tokens', '{n} tokens used',
+                                                {n: groupDigits(row.context_tokens)})));
+  }
   main.appendChild(meta);
   item.appendChild(main);
   if (typeof row.thread_enabled === 'boolean' && row.thread_id) {
@@ -1150,6 +1252,11 @@ function pendingRow(row) {
   }
   if (CONFIRM_ROW && CONFIRM_ROW === row.interruption_id) item.appendChild(confirmOff(row, shown));
   return item;
+}
+
+// A count with its thousands apart, the same in every language the page speaks.
+function groupDigits(count) {
+  return String(Math.max(0, Math.floor(count))).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
 function threadSwitch(row, shown) {
@@ -1378,6 +1485,19 @@ function renderAppearance(byName) {
   return node;
 }
 
+// v0.6.11: what to ask Codex for this product, in the panel's own language - folded, after what the
+// continuation will say and before Appearance, which stays last before the save card, where the Windows
+// Dashboard puts it. The English ones are the prompts .codex-plugin/plugin.json offers in Codex itself
+// (tests/test_diagnostics_tools.py holds the two to each other); Codex's own list has no other language.
+function renderStarters() {
+  var fold = folding('starters', t('starter.title', 'Ask Codex'), false);
+  fold.body.appendChild(element('p', 'note', t('starter.note', 'Type one of these to Codex, in this language or any other.')));
+  [t('starter.status', 'Show auto resume status'), t('starter.pending', 'What is auto resume waiting for?'),
+   t('starter.pause', 'Pause auto resume'), t('starter.settings', 'Open auto resume settings')
+  ].forEach(function (prompt) { fold.body.appendChild(element('p', null, prompt)); });
+  return fold.node;
+}
+
 function renderRecovery(status, schema, now) {
   var node = card(t('group.recovery', 'Automatic recovery'));
   // The control every check box on this card depends on, first. It acts at once -
@@ -1400,11 +1520,14 @@ function renderRecovery(status, schema, now) {
   body.appendChild(text);
   var note = element('p', 'note');
   note.setAttribute('role', 'status');
+  // v0.6.11: a pause an administrator's DisableAutoResume holds says who set it, and cannot be undone here.
+  var heldPause = !status.enabled && (status.managed || []).indexOf('DisableAutoResume') >= 0;
+  if (heldPause) note.textContent = t('settings.managed', 'Set by your administrator.');
   body.appendChild(note);
   master.appendChild(body);
   var pause = element('button', null, status.enabled
     ? t('action.pause', 'Pause recovery') : t('action.resume', 'Resume recovery'));
-  pause.disabled = !HOST;
+  pause.disabled = !HOST || heldPause;
   master.appendChild(pause);
   node.appendChild(master);
   if (HOST) {
@@ -1431,18 +1554,107 @@ function renderRecovery(status, schema, now) {
   if (limits.length) {
     var fold = folding('limits', t('group.limits', 'Limits'), false, 'inner');
     fold.node.style.marginTop = '4px';
+    // v0.6.11: the line that says what the retry timing comes to, and the notice while a limit is high.
+    var waits = element('p', 'help');
+    var high = element('p', 'callout', t('warn.high_limits', 'These limits are high: a task that keeps failing can be continued many times before it stops, and every continuation uses your Codex usage.'));
+    var retell = function () {
+      waits.textContent = retryPreview(limits);
+      high.hidden = !highLimits(limits);
+    };
     limits.forEach(function (entry) {
-      if (entry.choices) {
+      if (entry.type === 'boolean') {
+        fold.body.appendChild(toggle(entry, retell));
+        if (entry.name === 'retry_jitter') fold.body.appendChild(waits);
+        // v0.6.11: what waiting for an internet connection does, under its switch, as in the Dashboard.
+        if (entry.name === 'wait_for_network') fold.body.appendChild(element('p', 'help', t('help.wait_for_network', '')));
+      } else if (entry.choices) {
         fold.body.appendChild(choiceField(entry, entry.choices.map(function (choice) {
           return {value: choice, text: t('choice.' + choice, choice)};
-        }), '').row);
+        }), limitHelp(entry.name), retell).row);
       } else {
-        fold.body.appendChild(numberField(entry));
+        fold.body.appendChild(numberField(entry, retell));
+        if (entry.name === 'max_chain_continuations') fold.body.appendChild(high);
       }
     });
+    retell();
     node.appendChild(fold.node);
   }
   return node;
+}
+
+// v0.6.11: the help the new limits carry in the panel, as in the Dashboard; '' for every other limit.
+function limitHelp(name) {
+  if (name === 'retry_wait_5') return t('help.retry_wait_5', '');
+  if (name === 'chain_time_ceiling') return t('help.chain_time_ceiling', '');
+  if (name === 'task_changed_guard') return t('help.task_changed_guard', '');
+  if (name === 'context_guard') return t('help.context_guard', '');
+  if (name === 'ask_after_sleep_minutes') return t('help.ask_after_sleep_minutes', '');
+  return '';
+}
+
+// A wait in the words the rest of the page uses: seconds, minutes and seconds, or hours and minutes.
+function duration(seconds) {
+  var total = Math.max(0, Math.round(Number(seconds) || 0));
+  if (total < 60) return fill('time.seconds', '{n}s', {n: total});
+  if (total < 3600) {
+    return fill('time.minutes', '{n}m', {n: Math.floor(total / 60)})
+      + (total % 60 ? ' ' + fill('time.seconds', '{n}s', {n: total % 60}) : '');
+  }
+  return fill('time.hours', '{n}h', {n: Math.floor(total / 3600)})
+    + ((total % 3600) >= 60 ? ' ' + fill('time.minutes', '{n}m', {n: Math.floor((total % 3600) / 60)}) : '');
+}
+
+// The waits before attempts 1 to 5 as the watcher keeps them (ladder.preview), as the page stands now:
+// a preset's from the table the schema carries on retry_timing, Custom's the five chosen, whose lists
+// already start at the floor. '' when the schema has none of it.
+function retryPreview(limits) {
+  var byName = {};
+  limits.forEach(function (entry) { byName[entry.name] = entry; });
+  var timing = byName.retry_timing;
+  if (!timing) return '';
+  var chosen = read('retry_timing');
+  var seconds = [];
+  if (chosen === 'custom') {
+    for (var step = 1; step <= 5; step++) {
+      var entry = byName['retry_wait_' + step];
+      var table = entry && entry.seconds;
+      if (!table || typeof table[read(entry.name)] !== 'number') return '';
+      seconds.push(table[read(entry.name)]);
+    }
+  } else {
+    seconds = (timing.waits && timing.waits[chosen]) || [];
+  }
+  if (!seconds.length) return '';
+  var line = fill('retry.preview', 'Waits before attempts 1 to 5, if each continuation fails at once: {waits}',
+                  {waits: seconds.map(duration).join(' · ')});
+  if (read('retry_jitter') === true) line += ' ' + t('retry.preview_jitter', 'Each may be up to a fifth longer.');
+  return line;
+}
+
+// Whether any limit is above the "high" its schema gives it.
+function highLimits(limits) {
+  return limits.some(function (entry) {
+    return typeof entry.high === 'number' && Number(read(entry.name)) > entry.high;
+  });
+}
+
+// v0.6.11: what a needs-you notice is told with - each kind of failure, the stall and the sound - which only
+// matters while When a conversation needs you is on (needsyou.py), as the Dashboard's NeedsYouPart has it.
+function needsYouPart(name) {
+  return /^notify_needs_you_/.test(String(name || '')) || name === 'stall_after' || name === 'needs_you_sound';
+}
+
+// The one input or select in a row the page drew, or null.
+function inputOf(node) {
+  if (!node) return null;
+  if (node.tagName === 'input' || node.tagName === 'select' ||
+      node.tagName === 'INPUT' || node.tagName === 'SELECT') return node;
+  var children = node.children || [];
+  for (var i = 0; i < children.length; i++) {
+    var found = inputOf(children[i]);
+    if (found) return found;
+  }
+  return null;
 }
 
 function renderNotifications(schema) {
@@ -1450,17 +1662,47 @@ function renderNotifications(schema) {
   if (!entries.length) return null;
   var fold = folding('notifications', t('group.notifications', 'Notifications'), false);
   var events = element('div', 'toggles');
-  var master = null;
+  // v0.6.11: a needs-you notice's parts, one step in under it, live only while it and notifications are on -
+  // what they store is untouched, as in the Dashboard.
+  var told = element('div', 'toggles needs-you');
+  var master = null, masterInput = null, toldInput = null, parts = [];
+  function follow() {
+    var live = (!masterInput || masterInput.checked) && (!toldInput || toldInput.checked);
+    parts.forEach(function (part) {
+      part.input.disabled = !HOST || !!part.entry.managed || !live;
+      if (part.sync) part.sync();
+    });
+    told.classList.toggle('quiet', !live);
+  }
   entries.forEach(function (entry) {
+    var host = needsYouPart(entry.name) ? told : events;
     if (entry.master) {
-      master = toggle(entry, function (on) { events.classList.toggle('quiet', !on); });
+      master = toggle(entry, function (on) { events.classList.toggle('quiet', !on); follow(); });
+      masterInput = inputOf(master);
       events.classList.toggle('quiet', !value(entry.name));
+    } else if (entry.choices) {
+      // v0.6.11: how long a turn may not move before a needs-you notice says so.
+      var built = choiceField(entry, entry.choices.map(function (choice) {
+        return {value: choice, text: t('choice.' + choice, choice)};
+      }), '');
+      host.appendChild(built.row);
+      if (host === told) parts.push({entry: entry, input: built.select, sync: built.sync});
     } else {
-      events.appendChild(onOff(entry));
+      var row = onOff(entry);
+      host.appendChild(row);
+      if (host === told) parts.push({entry: entry, input: inputOf(row)});
+      if (entry.name === 'notify_needs_you') {
+        toldInput = inputOf(row);
+        toldInput.addEventListener('change', follow);
+      }
+      // v0.6.11: what a needs-you notice is, and what its sound changes, under the last of its settings.
+      if (entry.name === 'needs_you_sound') told.appendChild(element('p', 'help', t('help.needs_you_sound', '')));
     }
   });
   if (master) fold.body.appendChild(master);
   fold.body.appendChild(events);
+  if (parts.length) fold.body.appendChild(told);
+  follow();
   return fold.node;
 }
 
@@ -1801,7 +2043,7 @@ function render() {
   HERO = hero;
   page.appendChild(hero.node);
   [renderPending(DATA.pending), renderCompatibility(status), renderGeneral(byName), renderRecovery(status, schema, now),
-   renderNotifications(schema), renderContinuation(byName), renderPreviewCard(),
+   renderNotifications(schema), renderContinuation(byName), renderPreviewCard(), renderStarters(),
    renderAppearance(byName)
   ].forEach(function (section) { if (section) page.appendChild(section); });
   var footer = renderFooter(schema);

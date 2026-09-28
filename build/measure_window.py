@@ -105,7 +105,7 @@ def measure(tree: Path) -> dict:
     (work / "settings.json").write_text(json.dumps(current, ensure_ascii=False), encoding="utf-8")
     for locale in LOCALES:
         reply = {"ok": True, "language": locale, "strings": l10n.catalog(locale),
-                 "endonyms": dict(l10n.ENDONYMS), "preference": locale, "system_language": locale}
+                 "endonyms": l10n.offered_endonyms(), "preference": locale, "system_language": locale}
         (work / ("strings-%s.json" % locale)).write_text(json.dumps(reply, ensure_ascii=False), encoding="utf-8")
     # The fullest the pages ever are, which is the suite's own sample (tests/test_gui_layout.py).
     (work / "snapshot.json").write_text(

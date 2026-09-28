@@ -192,13 +192,45 @@ this product's plugin and marketplace).
   it for 24 hours, and if the message turns out to have arrived it is matched to the exact turn
   it started and follows that turn to its outcome. (`resumed`, the name v0.5 wrote on delivery,
   is kept so old rows stay valid and is never written now.)
+- **Observe only sends nothing, twice over.** From v0.6.11 Observe only is refused by the watcher on
+  the setting and by the claim itself on the state's own switch, which the setting is written into, so
+  either one alone stops a send the other has not heard of yet. What a conversation seen for the first
+  time gets and which projects may resume only ever hold an interruption for a person when it is
+  detected, and a project that cannot be read is held; a project is only a digest, it narrows what
+  may be sent and never names a conversation, whose identity stays its exact UUID.
+- **The waits and the guards only hold back.** From v0.6.11 the Custom retry waits are picked from
+  closed lists, the second to fifth starting at the engine's own 15-minute floor, which with the five
+  continuations a day stays a constant of the engine, not a setting; jitter and a named Retry-After only
+  lengthen a wait, and the time ceiling only stops a task sooner. The task-changed guard reads a
+  folder's `.git/HEAD` as a file - git is never started - and never a share path, and keeps only a
+  digest; the context-cost guard reads one number of Codex's, and only where it is a numeric column.
+  A guard's hold is a hold like any other: the claim and the last look before the send refuse it, and
+  only Let it continue, bound to the exact record, lets it go. Each is off by default.
+- **An administrator's policy keys only hold back.** From v0.6.11 six values under
+  `Software\Policies\CodexAutoResume`, in `HKEY_LOCAL_MACHINE` or `HKEY_CURRENT_USER`, are read and
+  never written - `startup.py` is still the only code that writes the registry - and applied after the
+  settings are read, never to the file: they can pause recovery, force Observe only, turn off the update
+  check or the status file, lower the attempts' ceiling and add quiet hours, and nothing else. Both
+  places' restrictions hold, a malformed value is ignored, one that is there and cannot be read holds the
+  most it could, and a write that would loosen one is refused.
+  `DisableAutoResume` is written into the state as a Pause before every check and refused by the engine
+  on the key as well. They are what a cooperating installation obeys, not a lock: the program is the
+  person's own, in their own folder, and a copy run from a source checkout reads none.
 - **Path confinement.** Owned directories are rejected if they are links, or if they resolve outside the
   configured home. The resolve-based check also catches NTFS junctions, which `is_symlink()` does not.
 - **No contention with the app's thread lock.** There is no byte-lock API anywhere in the adapter.
   Loaded state is determined purely from the Restart Manager inventory, so the tool never takes
   the app's own thread writer lock. Reading Codex's databases uses SQLite's normal shared read locks.
 - **Least privilege.** No administrator rights are required. Optional autostart writes a single value
-  under the current user's `Run` key. No service, no scheduled task, nothing system-wide.
+  under the current user's `Run` key. No service, no scheduled task, nothing system-wide. From
+  v0.6.11 **Keep this PC awake while a task waits**, off by default, is the watcher's own request to
+  Windows (`SetThreadExecutionState`), which it takes back when nothing waits, after the hours chosen,
+  on a pause and when it stops, and which Windows ends with the watcher; no power setting is changed,
+  and nothing wakes a sleeping PC. The memory guard (from v0.6.11, off by default) stops the watcher
+  itself, between two checks, through the same stop a person asks for; it leaves with an exit code
+  of its own that the sign-in launcher never starts again, and the standard edition has no
+  supervisor or other process that would. A status file for other tools (off by default) is a file
+  in the watcher's own `config\`, written whole: no port is opened and nothing listens.
 - **Named objects planted by a less-trusted process are refused.** This is new in v0.6.0. The watcher's single-instance mutex and its stop event have
   predictable names in the session namespace, where a process running at Low integrity may create
   objects. If either already exists with an integrity label below Medium (the level an ordinary
@@ -211,16 +243,24 @@ this product's plugin and marketplace).
   it is not refused, and status reports a running watcher when none is, as in v0.5.7. In v0.5.7 a
   planted mutex makes status report a watcher running when none is, and a planted, signalled stop
   event makes a real watcher quit on start, logging only an ordinary stop request - nothing that
-  points to the planted event.
+  points to the planted event. From v0.6.11 the watcher's icon makes one more, the demo event that
+  Diagnostics' **Show me what happens** signals, and refuses a planted one the same way; a signal on it
+  can do nothing but draw one card of made-up words whose buttons do nothing, which is never a
+  Windows notification and reaches neither the recovery state nor the engine.
 - **Tools that turn recovery back up request approval through MCP annotations.** This is new in v0.6.0. The plugin's MCP tools that can turn recovery back on or
   up, or change its settings - `resume_auto_recovery`, `enable_conversation_recovery`,
-  `reset_recovery_budget`, `start_watcher`, `update_settings`, `restore_default_settings` - are
-  annotated `destructiveHint: true`, and so are `cancel_recovery` and `clear_recovery_history`.
+  `reset_recovery_budget`, `start_watcher`, `update_settings`, `restore_default_settings` and,
+  from v0.6.11, `release_hold` - are annotated `destructiveHint: true`, and so are `cancel_recovery`
+  and `clear_recovery_history`.
   This requests approval; actual prompt behavior depends on Codex and its approval settings,
   and has not been observed for this release. `pause_auto_recovery`,
-  `disable_conversation_recovery` and `retry_now` are not: pausing and switching one conversation
-  off never add automation, and `retry_now` only moves an already-registered attempt earlier, with
-  every check still applied. The two switches do not cost the same, though. Pausing withdraws a
+  `disable_conversation_recovery`, `retry_now` and `postpone_recovery` are not: pausing and
+  switching one conversation off never add automation, `retry_now` only moves an already-registered
+  attempt earlier, with every check still applied, and a postponement only ever makes one record
+  later. Taking a person's own postponement away again (**Don't postpone**, v0.6.11) brings a send
+  nearer, so it is no MCP tool at all: only the Dashboard and the notification-area popup offer it,
+  bound to the exact record and conversation, and it goes back no further than what the schedule says
+  without that postponement - never past an objection window, a retry's wait or a usage reset. The two switches do not cost the same, though. Pausing withdraws a
   continuation already waiting in Codex's queue, and a withdrawal the watcher can confirm puts that
   recovery back in its waiting state with its attempt returned, so resuming picks it up again; only
   a withdrawal that cannot be confirmed becomes `submission_unknown`, and only a pause over a
@@ -240,7 +280,10 @@ this product's plugin and marketplace).
   person's conversations, at every interruption it covers, while nobody is watching. So it is
   written only through the local control layer the Dashboard uses, and never through
   the plugin's MCP tools: `update_settings` leaves the text fields out of its schema and
-  refuses them by name when a client sends them anyway. A prompt-injected model that could
+  refuses them by name when a client sends them anyway. From v0.6.11 the same holds for a message
+  for one conversation (`custom_message_by_thread`), written from its task's row in the Dashboard:
+  checked by the same validator, at most 50 conversations, no MCP tool writes it and
+  `update_settings` refuses it. A prompt-injected model that could
   write it would turn one injected instruction into a standing one, delivered at every future
   interruption. What Codex may still set - the continuation language, the style and the
   Custom mode - only chooses among texts this product ships or the person wrote. The new
@@ -268,7 +311,15 @@ this product's plugin and marketplace).
   buttons are the toast's buttons, as data, and a press is handled inside the watcher rather than
   through the handler - parsed by the same two parsers, with the same two outcomes: one exact
   interruption cancelled through the control layer, or one of the window's own pages opened. The
-  card imports nothing that can send, and the tests hold it to that.
+  card imports nothing that can send, and the tests hold it to that. From v0.6.11 the needs-you
+  notice, off by default, has one button, **Open Dashboard**, at the Settings page: no cancel, and
+  no setting is written from a notification - which kinds are told is chosen on that page. What it
+  keeps to be told once is a table nothing that decides a send reads, and it never becomes a record.
+  The notice that tasks fell due during a long sleep (from v0.6.11, off by default) also has one
+  button, **Open Dashboard**, at Pending: no cancel, since it is about several tasks, each of which
+  is let continue or cancelled there on its own row. The memory guard's two notices (from v0.6.11,
+  off by default) are about the watcher, not a task: each has one button, **Open Dashboard**, at
+  Diagnostics or at the Overview.
 - **Front ends ask; the watcher alone sends.** New in v0.6.3. The **Auto-resume** switch
   beside each task, on the Pending page and in the notification-area popup, carries the exact
   interruption id and conversation id of the row it was drawn in. When the click arrives, the

@@ -424,13 +424,29 @@ def fullest_snapshot(now: float) -> dict:
     return {"ok": True,
             "status": {"version": "0.6.4", "enabled": True, "watcher_running": True, "upgrade_pending": False,
                        "startup_enabled": True, "pending": len(waiting),
-                       "watcher": {"running": True, "ticking": True, "engine_state": "verified", "last_tick_at": now}},
+                       "watcher": {"running": True, "ticking": True, "engine_state": "verified", "last_tick_at": now,
+                                   # v0.6.11: the last usage reading, under Waiting - Codex's two windows, both
+                                   # resetting on another day, so each reset is said with its date.
+                                   "usage": fullest_usage(now),
+                                   # and, before it on the same line, that the watcher has kept this PC awake since
+                                   # a time on another day - said with its date too (WaitingLine).
+                                   "awake_since": now - 2 * 86400 - 3600}},
             "week": {"interruptions_detected": 128, "continuations_submitted": 117, "pending": len(waiting),
                      "outcomes": {"recovered": 96}, "success_rate": 0.82},
             "pending": waiting, "history": waiting + history,
             # Answered by the bridge's own `compatibility` command, not by `dashboard`: LayoutAudit hands it to the
             # Diagnostics page's card, so the card is measured at its fullest (fullest_compatibility).
             "compatibility": fullest_compatibility(now)}
+
+
+def fullest_usage(now: float) -> dict:
+    """The last usage reading at its longest as Codex gives it: the 5-hour and the weekly window, read two hours
+    ago, each resetting on another day - so each reset is said with its date - as the heartbeat hands it over."""
+    return {"read_at": now - 7200, "windows": [
+        {"bucket": "codex", "window": "primary", "used_percent": 100, "window_minutes": 300,
+         "reset_at": int(now) + 2 * 86400 + 3600},
+        {"bucket": "codex", "window": "secondary", "used_percent": 62, "window_minutes": 10080,
+         "reset_at": int(now) + 3 * 86400 + 3600}]}
 
 
 def fullest_compatibility(now: float) -> dict:
@@ -456,7 +472,8 @@ def fullest_compatibility(now: float) -> dict:
 def overview_states(now: float) -> list:
     """The replies `SettingsForm.OverviewStatesAudit` applies in turn, as [name, reply] pairs: first a watcher in
     trouble with recovery paused - the Overview is built from it, as a window opens on it - then the fullest reply, a
-    stopped watcher, one whose state is unknown, nothing waiting with History unreadable, and Pending unreadable.
+    stopped watcher, one the memory guard stopped and one that stopped unexpectedly (v0.6.11, each on another day),
+    one whose state is unknown, nothing waiting with History unreadable, and Pending unreadable.
     These are the Right now card's widest words - "nicht unterstützt", "ne répond pas", "Reprendre la récupération" -
     and in v0.6.4 the Overview opened on them scrolled in German and French, where fullest_snapshot fitted."""
     fullest = fullest_snapshot(now)
@@ -479,9 +496,28 @@ def overview_states(now: float) -> list:
     unreadable = copy.deepcopy(fullest)
     del unreadable["pending"]
     unreadable["pending_error"] = "database is locked"
+    # v0.6.11: a watcher that says how it stopped, and when - on another day, so with its date.
+    guarded = watcher(True, False, True, "unknown", 2 * 86400)
+    guarded["status"]["watcher"].update(ended="memory_guard", ended_at=now - 2 * 86400)
+    unexpected = copy.deepcopy(guarded)
+    unexpected["status"]["watcher"]["ended"] = "unexpected"
+    # v0.6.11: Right now's words for observe only and for settings an administrator set - the longest they come,
+    # observe only an administrator's key forced with another key beside it - and for recovery an administrator
+    # paused, which have to fit its one line as every other state's words do (the review, in German).
+    observed = copy.deepcopy(fullest)
+    observed["status"].update(observe_only=True, managed=["ForceObserveOnly", "MaxRecoveryAttempts"])
+    managed = copy.deepcopy(fullest)
+    managed["status"]["managed"] = ["MaxRecoveryAttempts", "QuietHours"]
+    stopped = watcher(False, True, True, "verified", 0)
+    stopped["status"]["managed"] = ["DisableAutoResume"]
     return [["a watcher in trouble, recovery paused", watcher(False, True, False, "incompatible", 59 * 60 + 30)],
             ["the fullest", fullest],
+            ["observe only, forced by an administrator", observed],
+            ["recovery on, some settings an administrator's", managed],
+            ["recovery paused by an administrator", stopped],
             ["a stopped watcher", watcher(True, False, True, "unknown", 3 * 86400)],
+            ["a watcher the memory guard stopped", guarded],
+            ["a watcher that stopped unexpectedly", unexpected],
             ["a watcher in an unknown state", watcher(True, None, True, "structurally_compatible", None)],
             ["nothing waiting, History unreadable", idle],
             ["Pending unreadable", unreadable],
@@ -847,7 +883,7 @@ class WindowCompositionTests(unittest.TestCase):
         constructor = self.window[self.window.index("private SettingsForm(PersistentBridge bridge, Dictionary<string, object> catalog"):]
         constructor = constructor[:constructor.index("\n        }\n")]
         self.assertLess(constructor.index("StringsCache.Key(root)"), constructor.index("StringsCache.Read(root, cacheKey)"))
-        self.assertLess(constructor.index("Task.Factory.StartNew"), constructor.index("Font = windowFont ?? SystemFonts.MessageBoxFont;"),
+        self.assertLess(constructor.index("Task.Factory.StartNew"), constructor.index("Font = windowFont ?? TextScale.Apply(SystemFonts.MessageBoxFont, textRead, TextSize);"),
                         "the strings are asked for while the fonts and the icon are made")
         read = self.method(self.window, "internal static Dictionary<string, object> Read(")
         self.assertIn("(string)stored != key) return null;", read)
@@ -1482,9 +1518,11 @@ class LayoutAuditTests(unittest.TestCase):
         (locales / "en.json").write_text('{"a": "b"}', encoding="utf-8")
         probe = work / "probe.ps1"
         probe.write_text(PROBE, encoding="utf-8")
+        # The audit's time grows with the languages it lays out: 1500 s held nine; v0.6.11 has eighteen
+        # catalogs, and every one is audited, the held ones too.
         cls.result = subprocess.run(
             [str(POWERSHELL), "-STA", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(probe)],
-            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=1500,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=200 * len(l10n.LOCALES),
             env=dict(os.environ, CAR_EXE=str(exe), CAR_WORK=str(work),
                      CAR_LOCALES=json.dumps(list(l10n.LOCALES)), CAR_SCALES=json.dumps(SCALES)))
         answer = work / "result.json"
@@ -1574,12 +1612,13 @@ class LayoutAuditTests(unittest.TestCase):
         """v0.6.5 (the person, with a screenshot): Windows' white horizontal bar under the Pending list. Pending and
         History with the fullest reply and with no rows, and the Timeline dialog's list, in every language at every
         scaling: their columns share their width (their findings are in the first test's reports). This holds the
-        audit to having looked at all five, and a list whose columns are wider than it is to being reported."""
+        audit to having looked at all five - six from v0.6.11, with the Log dialog's - and a list whose columns are
+        wider than it is to being reported."""
         self.assertEqual(sorted(self.answer["lists"]), sorted(l10n.LOCALES))
         for locale in l10n.LOCALES:
             for scale in SCALES:
                 with self.subTest(locale=locale, scale=scale):
-                    self.assertEqual(self.answer["lists"][locale]["%.2f" % scale], 5)
+                    self.assertEqual(self.answer["lists"][locale]["%.2f" % scale], 6)
         self.assertIn("canary :: scrolls sideways at the opening size, its columns 400 wide in ", self.answer["listCanary"])
 
     def test_the_lists_share_their_width_in_the_narrowest_window_too(self):

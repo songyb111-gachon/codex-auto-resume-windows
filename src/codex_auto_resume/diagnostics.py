@@ -241,6 +241,9 @@ def collect(control, *, now=None, redact=None) -> dict:
         bundle["status"] = {key: status[key] for key in
                             ("enabled", "watcher", "upgrade_pending", "startup_enabled", "pending",
                              "states", "codes")}
+        # v0.6.11: the administrator's policy keys in force, by name only - never their values.
+        if "managed" in status:
+            bundle["status"]["managed"] = list(status["managed"])
     except Exception as exc:
         bundle["status"] = {"error": redact.text(str(exc))[:200]}
     try:

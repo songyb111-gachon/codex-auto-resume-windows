@@ -78,11 +78,14 @@ class ClaimsMixin:
         """
         with self._transaction() as connection:
             row = self._row(connection, interruption_id)
+            settings = self._read_settings(connection)
+            # A hold or observe-only (schema 4) that commits first stops the launch as a Pause
+            # does; neither is ever set at the defaults.
             permitted = bool(
                 row is not None and row["state"] == "submitting"
                 and row["submitted_at"] is not None and row["queue_id"] is None
-                and not row["cancel_requested"]
-                and self._read_settings(connection)["enabled"]
+                and not row["cancel_requested"] and row["hold"] is None
+                and settings["enabled"] and not settings["observe_only"]
                 and self._thread_enabled(connection, row["thread_id"]))
             yield permitted
 
@@ -90,7 +93,8 @@ class ClaimsMixin:
         return self.reserve_detailed(interruption_id, now, **options)[0]
 
     def reserve_detailed(self, interruption_id: str, now: float, *, limits: dict | None = None,
-                         gates: dict | None = None, ledger=None, carried=frozenset()) -> tuple:
+                         gates: dict | None = None, ledger=None, carried=frozenset(),
+                         quiet_until: float | None = None) -> tuple:
         """Claim a record for sending, re-checking every store-side gate in the claim.
 
         Returns (claimed, refusing_gate, reason). The gate vector - the engine's view of
@@ -99,7 +103,9 @@ class ClaimsMixin:
         `ledger` is the engine's plug (domain/plug.py), asked last (P11); None is NULL's.
         `carried` is the points whose answers of the plug's the send this claim leads to
         carries - Point.TEXT for its words, Point.SENDER for its channel - which its ledger pays
-        for (`_ledger_holds`).
+        for (`_ledger_holds`). `quiet_until` is the end of the quiet hours `now` falls in, or None.
+        Schema 4's conditions - observe-only, a hold, a postponement, the quiet hours - are asked
+        here again, inside the claim, as reasons of the consent and schedule gates.
         """
         _timestamp(now, "now")
         if gates is not None and limits is None:
@@ -113,10 +119,10 @@ class ClaimsMixin:
             vector = dict(gates or {})
             vector["consent"] = machine.gate_consent(
                 settings["enabled"], self._thread_enabled(connection, row["thread_id"]),
-                row["cancel_requested"])
+                row["cancel_requested"], observe_only=settings["observe_only"], hold=row["hold"])
             vector["submission_safe"] = machine.gate_submission_safe(
                 row, self._others_in_flight(connection, row["thread_id"], interruption_id))
-            vector["schedule"] = machine.gate_schedule(row, now)
+            vector["schedule"] = machine.gate_schedule(row, now, quiet_until=quiet_until)
             if limits is not None:
                 vector.update(machine.gate_budgets(row, limits, is_usage(row)))
             refusal = None
@@ -139,28 +145,52 @@ class ClaimsMixin:
             if refusal is not None:
                 if encoded is not None and row["state"] in WAITING:
                     connection.execute(
-                        "UPDATE interruptions SET gate_eval=?, gate_eval_at=? WHERE interruption_id=?",
-                        (encoded, now, interruption_id))
+                        "UPDATE interruptions SET gate_eval=?, gate_eval_at=?, chain_first_detected_at=? "
+                        "WHERE interruption_id=?", (encoded, now, machine.counted_from(row, now), interruption_id))
                 return False, refusal[0], refusal[1]
             connection.execute(
                 "UPDATE interruptions SET state='submitting', attempt_count=attempt_count+1, %s, "
                 "submitted_at=?, last_claim_at=?, last_error=NULL, gate_eval=coalesce(?, gate_eval), "
-                "gate_eval_at=coalesce(?, gate_eval_at) WHERE interruption_id=?" % _claim_cost(row),
-                (now, now, encoded, now if encoded is not None else None, interruption_id))
+                "gate_eval_at=coalesce(?, gate_eval_at), chain_first_detected_at=? WHERE interruption_id=?"
+                % _claim_cost(row),
+                (now, now, encoded, now if encoded is not None else None, machine.counted_from(row, now),
+                 interruption_id))
             self._event(connection, now, "claim", record=row, from_state=row["state"],
                         to_state="submitting")
             return True, None, None
 
-
     def record_gates(self, interruption_id: str, gates: dict, now: float) -> None:
-        """Persist a gate vector for a waiting record that was due but not claimable."""
+        """Persist a due, unclaimable record's gate vector, and end its last wait (machine.counted_from)."""
         _timestamp(now, "now")
         encoded = machine.encode_gates(gates)
         with self._transaction() as connection:
+            row = self._row(connection, interruption_id)
+            if row is None or row["state"] not in WAITING:
+                return
             connection.execute(
-                "UPDATE interruptions SET gate_eval=?, gate_eval_at=? WHERE interruption_id=? "
-                "AND state IN (%s)" % ",".join("?" for _ in WAITING),
-                (encoded, now, interruption_id, *sorted(WAITING)))
+                "UPDATE interruptions SET gate_eval=?, gate_eval_at=?, chain_first_detected_at=? "
+                "WHERE interruption_id=?", (encoded, now, machine.counted_from(row, now), interruption_id))
+
+    def record_would_send(self, interruption_id: str, gates: dict, now: float, next_retry_at: float) -> bool:
+        """Observe only (v0.6.11): a waiting record every gate but consent passed, parked until
+        `next_retry_at` with that vector. Journaled as would_send when the vector it had was not this
+        one - once for each time it came due and would have gone - and never claimed. Returns whether
+        it was journaled."""
+        _timestamp(now, "now")
+        _timestamp(next_retry_at, "next_retry_at")
+        encoded = machine.encode_gates(gates)
+        with self._transaction() as connection:
+            row = self._row(connection, interruption_id)
+            if row is None or row["state"] not in WAITING or row["submitted_at"] is not None:
+                return False
+            fresh = row["gate_eval"] != encoded
+            connection.execute("UPDATE interruptions SET gate_eval=?, gate_eval_at=?, next_retry_at=?, "
+                               "chain_first_detected_at=? WHERE interruption_id=?",
+                               (encoded, now, next_retry_at, machine.counted_from(row, now), interruption_id))
+            if fresh:
+                self._event(connection, now, "would_send", record=row, from_state=row["state"],
+                            to_state=row["state"], value=now)
+            return fresh
 
     def release_claim(self, interruption_id: str, target: str, reason: str, now: float, *,
                       next_retry_at: float | None = None, actor: str = "engine") -> bool:
@@ -239,7 +269,7 @@ class ClaimsMixin:
     def release_withdrawn(self, interruption_id: str, now: float, *, window: float,
                           later_turn: bool, marker_rows: int, row_present: bool, fresh: bool,
                           target: str, next_retry_at: float | None = None) -> bool:
-        """Return a continuation withdrawn because of a Pause to its waiting state.
+        """Return a continuation withdrawn because of a Pause - or of Observe only - to its waiting state.
 
         The one way back from "sent" to "waiting", so every condition is re-checked here
         rather than trusted: our own delete succeeded, the settle window has passed, no
@@ -253,7 +283,7 @@ class ClaimsMixin:
         with self._transaction() as connection:
             row = self._row(connection, interruption_id)
             if (row is None or row["state"] != "withdrawn_unconfirmed"
-                    or row["withdraw_reason"] != "paused" or not row["withdraw_deleted"]
+                    or row["withdraw_reason"] not in machine.RELEASABLE_WITHDRAWALS or not row["withdraw_deleted"]
                     or now - row["withdrawn_at"] < window or later_turn or marker_rows
                     or row_present or not fresh or row["cancel_requested"]):
                 return False
@@ -264,6 +294,6 @@ class ClaimsMixin:
                 % _claim_cost(row, refund=True), (target, now if next_retry_at is None else next_retry_at,
                                                   interruption_id))
             self._event(connection, now, "release_withdrawn", record=row,
-                        from_state="withdrawn_unconfirmed", to_state=target, reason="paused",
+                        from_state="withdrawn_unconfirmed", to_state=target, reason=row["withdraw_reason"],
                         flags=machine.FLAG_WITHDRAW_DELETED)
             return True

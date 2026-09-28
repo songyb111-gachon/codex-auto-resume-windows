@@ -88,7 +88,14 @@
               ]
             },
             "gates_at": 1799999960.0,
+            "not_before": null,
+            "postponed_until": null,
+            "hold": null,
+            "would_send_at": null,
+            "context_tokens": null,
             "thread_enabled": true,
+            "tier": null,
+            "attempt_limit": null,
             "name": "example-project",
             "project": null,
             "cwd_basename": null
@@ -174,7 +181,14 @@
               ]
             },
             "gates_at": 1799999960.0,
+            "not_before": null,
+            "postponed_until": null,
+            "hold": null,
+            "would_send_at": null,
+            "context_tokens": null,
             "thread_enabled": true,
+            "tier": null,
+            "attempt_limit": 4,
             "name": "example-service",
             "project": null,
             "cwd_basename": null

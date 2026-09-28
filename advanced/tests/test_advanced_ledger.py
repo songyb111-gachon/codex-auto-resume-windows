@@ -22,7 +22,7 @@ import advancedcase as ac  # noqa: E402
 from codex_auto_resume import config  # noqa: E402
 from codex_auto_resume.domain.plug import DEFER, Alternative, Point, guard  # noqa: E402
 from codex_auto_resume.store import Store  # noqa: E402
-from codex_auto_resume.store.schema import _TABLES_V3  # noqa: E402
+from codex_auto_resume.store.schema import _TABLES_V4  # noqa: E402
 from codex_auto_resume_advanced import arming  # noqa: E402
 from codex_auto_resume_advanced import ledger as ledger_module  # noqa: E402
 from codex_auto_resume_advanced.registry import Ceilings  # noqa: E402
@@ -79,7 +79,7 @@ class LedgerCase(PluggedCase):
     def core_tables_intact(self, h=None):
         h = h or self.h
         with Store(h.store.state_dir) as reopened:
-            self.assertEqual(Store._tables(reopened._connection), _TABLES_V3)
+            self.assertEqual(Store._tables(reopened._connection), _TABLES_V4)
 
 
 class RecordClaimTests(LedgerCase):

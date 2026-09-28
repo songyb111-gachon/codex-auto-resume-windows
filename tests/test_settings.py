@@ -227,11 +227,13 @@ class DescribeTests(unittest.TestCase):
     def test_describes_every_field_exactly_once(self):
         # Every field but those held back until something reads them (NOT_YET_OFFERED): a
         # surface draws whatever is described, and a switch that changes nothing must not be drawn.
-        offered = set(settings.FIELDS) - settings.NOT_YET_OFFERED
+        # Nor (v0.6.11) the two lists of projects a task's row writes, which no editor draws.
+        offered = set(settings.FIELDS) - settings.NOT_YET_OFFERED - settings.ROW_ACTION_FIELDS
         self.assertEqual(sorted(self.by_name), sorted(offered))
         self.assertEqual(len(self.described), len(offered))
         self.assertLessEqual(settings.NOT_YET_OFFERED, set(settings.FIELDS), "held back, not unknown")
-        with patch.object(settings, "NOT_YET_OFFERED", frozenset()):
+        self.assertLessEqual(settings.ROW_ACTION_FIELDS, set(settings.FIELDS), "a row's, not unknown")
+        with patch.object(settings, "NOT_YET_OFFERED", frozenset()),                 patch.object(settings, "ROW_ACTION_FIELDS", frozenset()):
             self.assertEqual(sorted(entry["name"] for entry in settings.describe()), sorted(settings.FIELDS))
 
     def test_every_entry_carries_a_group_the_interfaces_understand(self):
@@ -592,10 +594,13 @@ class NotificationCardTests(unittest.TestCase):
         self.assertIs(settings.coerce({"notification_card": False})["notification_card"], False)
 
     def test_turning_it_off_silences_nothing(self):
-        # Where a notification is drawn is not whether there is one.
+        # Where a notification is drawn is not whether there is one. v0.6.11's needs-you notice is off
+        # by default, card or no card, and every other event is on either way.
         values = dict(settings.defaults(), notification_card=False)
         for event in settings.NOTIFICATION_EVENTS:
-            self.assertTrue(settings.notification_enabled(values, event), event)
+            self.assertEqual(settings.notification_enabled(values, event),
+                             settings.notification_enabled(settings.defaults(), event), event)
+            self.assertEqual(settings.notification_enabled(values, event), event != "needs_you", event)
 
     def test_it_round_trips_through_the_file(self):
         with tempfile.TemporaryDirectory() as folder:

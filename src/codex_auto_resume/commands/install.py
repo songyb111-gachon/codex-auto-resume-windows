@@ -13,7 +13,7 @@ import time
 from .. import config, edition, notify, settings, shortcut, startup
 from ..app import EXIT_ERROR, EXIT_OK, App
 from ..domain.plug import DamagedPlug, Edition
-from ..store import LegacyStore, StoreError, downgrade_to_v2
+from ..store import LegacyStore, StoreError, downgrade_state
 from ..windows import AdapterError
 from .base import CliError, _app, _open_state, _print
 
@@ -233,7 +233,8 @@ def cmd_diagnostics(args) -> int:
 
 
 def cmd_downgrade_state(args) -> int:
-    """Rewrite the state so a v0.5 release can read it, keeping every record.
+    """Rewrite the state so an older release can read it - schema 3 for v0.6.0 to v0.6.10,
+    schema 2 for v0.5 - keeping every record.
 
     Needs the watcher stopped: it runs only while holding the watcher's mutex, so a
     watcher cannot be writing rows while their schema changes. Deleting the state is
@@ -241,18 +242,35 @@ def cmd_downgrade_state(args) -> int:
     exhausted or possibly sent, and which conversations were switched off.
     """
     app = _app(args)
+    target = args.to
     try:
         with app.mutex(timeout=0.0):
-            result = downgrade_to_v2(app.paths.state_dir)
+            result = downgrade_state(app.paths.state_dir, target)
     except AdapterError:
         _print("the watcher is running; stop it first (stop), then run this again")
         return EXIT_ERROR
     if not result["changed"]:
-        _print("the state is already schema 2; nothing to do")
+        _print("the state is already schema %d or older; nothing to do" % target)
         return EXIT_OK
-    app.logger.info("state downgraded to schema 2 (%d records kept)", result["rows"])
-    _print("state rewritten as schema 2; %d records kept, and a copy of the previous state "
-           "was saved beside it" % result["rows"])
+    app.logger.info("state downgraded to schema %d (%d records kept)", target, result["rows"])
+    _print("state rewritten as schema %d; %d records kept, and a copy of the previous state "
+           "was saved beside it" % (target, result["rows"]))
+    # What the older release could not have kept as it was (store/downgrade.py, _to_v3).
+    if result.get("made_final"):
+        _print("%d continuation(s) already handed to Codex were marked final: the older release "
+               "could not follow them, and never sends them again" % result["made_final"])
+    if result.get("conversations_off"):
+        _print("%d conversation(s) were switched off because they waited for you to say so; "
+               "switch them back on in the older release to let them resume"
+               % result["conversations_off"])
+    if result.get("unfollowed_off"):
+        _print("%d conversation(s) were switched off because Codex may still deliver a continuation "
+               "the older release could not follow, and it would take a failure of that one for a new "
+               "task; switch them back on in the older release when you want them to resume"
+               % result["unfollowed_off"])
+    if result.get("observe_only_paused"):
+        _print("observe-only became a pause: resume recovery in the older release when you "
+               "want it to send")
     _print("install the older release now; starting this version's watcher again upgrades "
            "the state again")
     return EXIT_OK

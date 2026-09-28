@@ -12,6 +12,10 @@ from .base import CliError, _app, _now, _open_state, _print, canonical_thread_id
 
 def cmd_enable(args) -> int:
     app = _app(args)
+    # v0.6.11: an administrator's DisableAutoResume keeps recovery paused (managed.py). Asked before
+    # anything is written; switching one conversation back on is still a person's to do.
+    if not args.thread_id and app.managed.disable_auto_resume:
+        raise CliError("recovery is paused by your administrator (DisableAutoResume)")
     if args.lookback_hours is not None:
         # An update, not a save: naming one field must never rewrite the other fifteen.
         app.settings = config.update_settings(app.paths, {"detection_lookback_hours": args.lookback_hours})

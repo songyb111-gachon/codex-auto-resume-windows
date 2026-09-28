@@ -61,11 +61,14 @@ def this_tree() -> legacy.Bootstrap:
 class OrderTests(unittest.TestCase):
     def test_versions_sort_as_releases_do(self):
         ordered = ["0.5.2", "0.5.10", "0.6.6-alpha", "0.6.6-beta", "0.6.6", "0.6.9-alpha", "0.6.9",
-                   "0.6.10-alpha", "0.6.10", "0.6.11"]
+                   "0.6.10-alpha", "0.6.10", "0.6.11-alpha", "0.6.11-beta", "0.6.11", "0.6.12-alpha"]
         self.assertEqual(sorted(reversed(ordered), key=legacy.order), ordered)
 
     def test_anything_else_is_not_a_version(self):
-        for bad in ("0.6", "0.6.1.2", "v0.6.1", "0.6.1-RC1", "0.6.1-alpha1", ""):
+        """The two suffixes scripts/bootstrap.ps1 accepts, and no other word: one that sorted by its
+        spelling would put an `rc` after a `beta` by accident, and a `gamma` too."""
+        for bad in ("0.6", "0.6.1.2", "v0.6.1", "0.6.1-RC1", "0.6.1-rc", "0.6.1-gamma", "0.6.1-Beta",
+                    "0.6.1-alpha1", "0.6.1-alpha-beta", "0.6.1\n", "0.6.1-beta\n", ""):
             with self.subTest(bad), self.assertRaises(ValueError):
                 legacy.order(bad)
 
@@ -105,6 +108,9 @@ class PublishedBootstrapTests(unittest.TestCase):
         self.assertEqual(self.tags[0], "v0.5.2", "v0.5.2 is the first release with a bootstrap")
         self.assertNotIn("v0.5.1", legacy.published(ROOT, VERSION))
         self.assertIn("v0.6.9-alpha", self.tags, "a pre-release is installed and updates too")
+        # A later pre-release of the same version is checked against the earlier one's bootstrap.
+        self.assertIn("v0.6.11-alpha", legacy.published(ROOT, "0.6.11-beta"))
+        self.assertNotIn("v0.6.11-beta", legacy.published(ROOT, "0.6.11-beta"))
         self.assertEqual(legacy.published(ROOT, "0.6.9"), self.tags[:self.tags.index("v0.6.9")])
 
     def test_every_published_bootstrap_takes_an_archive_shaped_like_this_release(self):
@@ -166,6 +172,67 @@ class EditionAwareBootstrapTests(unittest.TestCase):
         self.assertEqual(len(found), 2, found)
         self.assertIn("holds the advanced edition", found[0])
         self.assertIn("not the advanced edition", found[1])
+
+
+def names(text: str, tag: str) -> bool:
+    """Whether `text` names `tag` itself - not v0.6.1 inside v0.6.10, and in Korean too, where a
+    particle follows the tag with no space."""
+    return re.search(r"(?<![0-9A-Za-z_.-])%s(?![0-9A-Za-z_-]|\.[0-9])" % re.escape(tag), text) is not None
+
+
+@unittest.skipUnless(legacy.POWERSHELL.is_file(), "the published bootstraps are Windows PowerShell")
+class CopiesThatCannotReadThisVersionTests(unittest.TestCase):
+    """A published bootstrap reads only the version words of its day.
+
+    From v0.6.0 a bootstrap compares the installed version with its own, and leaves a newer
+    installation alone. One that cannot read the installed version cannot tell it from none: the
+    published v0.6.10 and v0.6.11-alpha bootstraps, run from a plugin copy Codex still held,
+    installed their own older release over 0.6.11-beta, whose `-beta` they had never heard of,
+    and died with no answer under -CheckOnly. Those copies cannot be changed. So a release whose
+    version the newest published bootstrap cannot read says so in its changelog entry - which
+    copies, and that it is this version they cannot read - in each language the tree holds.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.version = make_release.version()
+        cls.tags = legacy.published(ROOT, cls.version)
+        if not cls.tags:
+            if os.environ.get("CI"):
+                raise AssertionError("no tag from v0.5.2 on is in this checkout; CI must fetch the tags")
+            raise unittest.SkipTest("no tag from v0.5.2 on is in this checkout")
+        cls.answers = legacy.readers([legacy.lift(ROOT, tag) for tag in cls.tags], cls.version)
+
+    def test_each_bootstrap_is_asked_with_its_own_code(self):
+        """v0.5.x compares nothing; v0.6.0 to v0.6.8 read no word after a version; v0.6.9-alpha on
+        reads -alpha - which only each tag's own Get-VersionParts can say."""
+        tags = [tag for tag in ("v0.5.7", "v0.6.8", "v0.6.10") if tag in self.tags]
+        found = legacy.readers([legacy.lift(ROOT, tag) for tag in tags], "0.6.11-alpha")
+        self.assertEqual(found, {tag: answer for tag, answer in
+                                 {"v0.5.7": "unguarded", "v0.6.8": "refuses", "v0.6.10": "reads"}.items()
+                                 if tag in tags})
+        self.assertEqual(legacy.readers([this_tree()], self.version), {"this tree": "reads"})
+
+    def test_the_changelog_names_the_published_copies_that_cannot_read_this_version(self):
+        if self.answers[self.tags[-1]] != "refuses":
+            self.skipTest("the newest published bootstrap reads v%s" % self.version)
+        refusing = [tag for tag in self.tags if self.answers[tag] == "refuses"]
+        guarded = [tag for tag in self.tags if self.answers[tag] != "unguarded"]
+        # The entry names them as a range, from the oldest to the newest; that is true only when
+        # every guarded bootstrap in between refuses too.
+        self.assertEqual(refusing, guarded[guarded.index(refusing[0]):])
+        import release_notes
+        wanted = (refusing[0], refusing[-1])
+        for path in (ROOT / "docs" / "CHANGELOG.md", ROOT / "docs" / "CHANGELOG.ko.md"):
+            if not path.is_file():
+                continue
+            with self.subTest(path.name):
+                entry = release_notes.section(path.read_text(encoding="utf-8"), self.version)
+                said = [paragraph for paragraph in re.split(r"\n\s*\n", entry)
+                        if all(names(paragraph, tag) for tag in wanted) and "`%s`" % self.version in paragraph]
+                self.assertTrue(said, "%s: the v%s entry does not say that the bootstraps published from %s "
+                                      "to %s cannot read `%s`" % (path.name, self.version, wanted[0],
+                                                                  wanted[1], self.version))
 
 
 class CommandLineTests(unittest.TestCase):

@@ -399,19 +399,50 @@ class RouteTests(unittest.TestCase):
 
 # ================================================================== what the toast says
 class CharacterizationTests(unittest.TestCase):
-    """Nothing about today's toast moved."""
+    """Nothing about today's toast moved.
+
+    In the nine languages v0.6.4 spoke, that is: a language that came later (v0.6.11) has no toast
+    of v0.6.4's to be held to, and is held instead to raising the same toasts in its own words."""
+
+    # The languages the golden files were captured in, from the v0.6.4 tree.
+    V064 = ("en", "ko", "ja", "zh-CN", "zh-TW", "es", "de", "fr", "pt-BR")
 
     @classmethod
     def setUpClass(cls):
         cls.golden = json.loads(GOLDEN.read_text(encoding="utf-8"))
 
     def test_the_golden_covers_every_language_and_case(self):
-        self.assertEqual(set(self.golden), set(l10n.LOCALES))
-        for locale in l10n.LOCALES:
+        self.assertEqual(set(self.golden), set(self.V064))
+        self.assertEqual(l10n.LOCALES[:len(self.V064)], self.V064)
+        for locale in self.V064:
             self.assertEqual(set(self.golden[locale]), {name for name, *_ in CASES})
 
+    def test_a_later_language_raises_the_same_toasts_in_its_own_words(self):
+        """Each case raises one toast, laid out as the English one is - the same elements in the same
+        order - in the language's own words. The held languages are checked as if offered, so offering
+        them cannot bring a toast that breaks."""
+        import xml.etree.ElementTree as ElementTree
+
+        def shape(document):
+            return [(element.tag, sorted(set(element.attrib) - {"content", "arguments"}))
+                    for element in ElementTree.fromstring(document).iter()]
+
+        later = [locale for locale in l10n.LOCALES if locale not in self.V064]
+        self.assertEqual(len(later), 9)
+        with patch.object(l10n, "OFFERED", l10n.LOCALES), \
+                patch.object(l10n, "CHOICES", (l10n.SYSTEM,) + l10n.LOCALES):
+            for locale in later:
+                with in_locale(locale):
+                    self.assertEqual(l10n.current(), locale)
+                    for name, function, arguments, keywords in CASES:
+                        with self.subTest(locale=locale, case=name):
+                            seen = captured_xml(lambda: getattr(notify, function)(*arguments, **keywords))
+                            self.assertEqual(len(seen), 1)
+                            self.assertEqual(shape(seen[0]["XML"]), shape(self.golden["en"][name]))
+                            self.assertNotEqual(seen[0]["XML"], self.golden["en"][name])
+
     def test_every_toast_is_byte_for_byte_what_v064_raised(self):
-        for locale in l10n.LOCALES:
+        for locale in self.V064:
             with in_locale(locale):
                 for name, function, arguments, keywords in CASES:
                     with self.subTest(locale=locale, case=name):
@@ -422,8 +453,8 @@ class CharacterizationTests(unittest.TestCase):
 
     def test_the_event_golden_is_complete(self):
         events = json.loads(EVENTS_GOLDEN.read_text(encoding="utf-8"))
-        self.assertEqual(set(events), set(l10n.LOCALES))
-        for locale in l10n.LOCALES:
+        self.assertEqual(set(events), set(self.V064))
+        for locale in self.V064:
             self.assertEqual(set(events[locale]), {name for name, *_ in NAMED_EVENTS})
             # Each announced event raised exactly one toast in v0.6.4; the unannounced one none.
             self.assertEqual({name: len(documents) for name, documents in events[locale].items()},
@@ -433,7 +464,7 @@ class CharacterizationTests(unittest.TestCase):
         """The event -> toast mapping, pinned to documents captured from the v0.6.4 tree - not to
         App._notifier, which is about to call the very builder this checks."""
         events = json.loads(EVENTS_GOLDEN.read_text(encoding="utf-8"))
-        for locale in l10n.LOCALES:
+        for locale in self.V064:
             with in_locale(locale):
                 for name, event, detail, identity in NAMED_EVENTS:
                     with self.subTest(locale=locale, event=name):
@@ -563,12 +594,16 @@ class NoticeTests(unittest.TestCase):
         self.assertEqual(notice.status, "paused")
 
     def test_a_notice_speaks_the_interface_language(self):
-        for locale in l10n.LOCALES:
+        for locale in l10n.OFFERED:
             with in_locale(locale):
                 notice = build("starting", {})
             with self.subTest(locale=locale):
                 self.assertEqual(notice.locale, locale)
                 self.assertEqual(notice.line, l10n.catalog(locale)["msg.toast_starting_body"])
+        # A held language is never a choice (l10n.HELD), so a notice is never in one.
+        for locale in l10n.HELD:
+            with patch.object(l10n, "preferred_languages", return_value=["en-US"]), in_locale(locale):
+                self.assertEqual(build("starting", {}).locale, "en")
 
 
 class PrivacyTests(unittest.TestCase):
@@ -1320,8 +1355,9 @@ class SafetyTests(unittest.TestCase):
             self.assertNotIn(writer, text)
 
     def test_the_notifier_draws_nothing(self):
+        """v0.6.11 adds demo.py, the made-up task a demo card is built from, which draws nothing either."""
         package, _ = self.imports("notifier.py")
-        self.assertLessEqual(package, {"l10n", "notice_presence", "notify", "reasons"})
+        self.assertLessEqual(package, {"demo", "l10n", "notice_presence", "notify", "reasons"})
 
     def test_no_new_module_raises_powershell_itself(self):
         for name in self.CARD + ("notifier.py", "notice_presence.py"):

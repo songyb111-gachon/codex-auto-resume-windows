@@ -172,6 +172,19 @@ class ManifestTests(unittest.TestCase):
                      for name in current if name not in self.manifest["inputs"])
         self.assertEqual(sorted(stale), [], REGENERATE)
 
+    def test_the_panel_input_does_not_depend_on_windows_ui_font(self):
+        """The panel is served with a rule for the languages Windows' UI font cannot set whole
+        (v0.6.11, win/typeface.py). A Korean Windows's Malgun Gothic and the English CI runner's
+        Segoe UI made two different pages from the same source, and CI called every panel picture
+        stale; the generator pins the face as it pins the text size."""
+        from codex_auto_resume.win import typeface
+        generator = self.generator()
+        pages = set()
+        for face in ("Segoe UI", "Malgun Gothic", "Microsoft JhengHei UI"):
+            with patch.object(typeface, "ui_face", return_value=face):
+                pages.add(generator.panel_html(theme=generator.THEME))
+        self.assertEqual(len(pages), 1, "the panel's picture input moves with the machine's UI font")
+
     def test_the_panel_input_is_the_rendered_markup_not_a_file_list(self):
         """The property that stops the list going stale again.
 
@@ -1463,10 +1476,11 @@ class PopupDrawingTests(unittest.TestCase):
                                          srcscan.relative(path)))
         self.assertEqual(found, tracked)
         # Every file of each, not the one file each used to be: since v0.6.10-alpha the popup
-        # is thirteen - fourteen since v0.6.10, with the window's messages out of window.py - and
-        # the palette is ten - eleven since v0.6.10, with brand/design.py, which decides how
-        # every design draws the popup and the card, so it is in their key too.
-        self.assertEqual(len([name for name in found if name.startswith("ui/popup/")]), 14)
+        # is thirteen - fourteen since v0.6.10, with the window's messages out of window.py, fifteen
+        # since v0.6.11 told a screen reader what is in it - and the palette is ten - eleven since
+        # v0.6.10, with brand/design.py, which decides how every design draws the popup and the card,
+        # so it is in their key too.
+        self.assertEqual(len([name for name in found if name.startswith("ui/popup/")]), 15)
         self.assertEqual(len([name for name in found if name.startswith("brand/")]), 11)
         self.assertIn("brand/design.py", found)
         self.assertIn("ui/popup/renderer.py", found)
@@ -1773,9 +1787,10 @@ class CardPictureTests(unittest.TestCase):
     def real(self):
         # v0.6.10-alpha: the countdown and the Win32 declarations the card's window is
         # registered with moved into ui/ and win/, and the digest follows them; so does the
-        # card's window code, which notice_window.py became ui/card/ in the same release.
+        # card's window code, which notice_window.py became ui/card/ in the same release. v0.6.11: and which face a
+        # language is set in, which the popup's fonts ask win/typeface.py.
         return real_modules("notice_card.py", "notice_window.py", "brand",
-                            "ui/tray", "ui/card", "ui/words.py", "win/dll.py")
+                            "ui/tray", "ui/card", "ui/words.py", "win/dll.py", "win/typeface.py")
 
     def test_the_patterns_cover_the_card_the_package_it_moves_into_and_the_popup_it_is_painted_by(self):
         with tempfile.TemporaryDirectory() as root:

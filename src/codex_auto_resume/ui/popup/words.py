@@ -32,16 +32,23 @@ _LOCALE_PROBES = ("activity.monitoring", "popup.nothing", "action.pause", "popup
 
 
 def locale_of(strings) -> str:
-    """Which shipped catalog a vocabulary is, so the window can pick a typeface for it."""
+    """Which shipped catalog a vocabulary is, so the window can pick a typeface for it.
+
+    The language this process speaks is asked first, and a catalog every probe matches ends the
+    search (v0.6.11): the popup is almost always given that language's words, so the answer reads
+    the one catalog already loaded instead of loading all eighteen into the watcher."""
     if not strings:
         return l10n.DEFAULT
+    first = l10n.current()
     best, score = l10n.DEFAULT, -1
-    for locale in l10n.LOCALES:
+    for locale in (first,) + tuple(each for each in l10n.LOCALES if each != first):
         table = l10n.catalog(locale)
         found = sum(1 for key in _LOCALE_PROBES
                     if strings.get(key) is not None and strings.get(key) == table.get(key))
         if found > score:
             best, score = locale, found
+        if found == len(_LOCALE_PROBES):
+            break
     return best
 
 

@@ -68,7 +68,8 @@ class ActionsMixin:
         _timestamp(now, "now")
         with self._transaction() as connection:
             connection.execute(
-                "INSERT INTO threads VALUES (?,0) ON CONFLICT(thread_id) DO UPDATE SET enabled=0", (thread_id,)
+                "INSERT INTO threads (thread_id, enabled) VALUES (?,0) "
+                "ON CONFLICT(thread_id) DO UPDATE SET enabled=0", (thread_id,)
             )
             for value in connection.execute("SELECT * FROM interruptions WHERE thread_id=?", (thread_id,)).fetchall():
                 row = _validated_record(dict(value))
@@ -122,9 +123,12 @@ class ActionsMixin:
             if row["budget_resets"] >= max_resets:
                 return False, "reset_limit"
             target = machine.waiting_state(row, now)
+            # Its time as well (v0.6.11): a task's time ceiling is measured from the first failure
+            # of its chain, which is this one from now on. Nothing reads it while there is none.
             connection.execute(
                 "UPDATE interruptions SET state=?, recovery_attempts=0, no_progress_count=0, "
                 "retry_count=0, chain_continuations=0, budget_resets=budget_resets+1, "
+                "chain_first_detected_at=detected_at, "
                 "last_error='budget_restored', next_retry_at=? WHERE interruption_id=?",
                 (target, now, interruption_id))
             self._event(connection, now, "reset_budget", record=row, from_state=row["state"],
@@ -137,7 +141,9 @@ class ActionsMixin:
         A schedule change and nothing else: it never touches a stored usage reset or
         any gate, and it never sends. On refusal `detail` names why; on acceptance it is
         the earliest time the watcher can actually act, which is later than now when a
-        usage reset is still ahead.
+        usage reset is still ahead - or, from v0.6.11, a postponement or an objection
+        window, which it never shortens: each only ever holds a record back, and ending
+        one early would be a check skipped (A25) by a request not marked as one (H8).
         """
         _timestamp(now, "now")
         with self._transaction() as connection:
@@ -155,7 +161,7 @@ class ActionsMixin:
                 "WHERE interruption_id=?", (now, interruption_id))
             self._event(connection, now, "retry_now", record=row, from_state=state, to_state=state,
                         reason="retry_now", actor=actor)
-            return True, max(now, row["reset_at"] or 0)
+            return True, max(now, row["reset_at"] or 0, row["not_before"] or 0)
 
     def hide_history(self, now: float, *, actor: str = "gui") -> dict:
         """Clear recovery history from view. Display only; never deletes a row.

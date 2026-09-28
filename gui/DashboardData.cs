@@ -34,6 +34,8 @@ namespace CodexAutoResume
             {
                 ticks++;
                 UpdateCountdowns();
+                // v0.6.11: Show me what happens moves on, on the same clock its countdown is drawn by.
+                DemoTick(Now());
                 // The taskbar button asks again whether it may move - a Reduce motion saved, Windows' animation
                 // effects, High Contrast or battery saver turned on or off - within a second of it (TaskbarMark.Sync).
                 if (taskbar != null) taskbar.Sync();
@@ -200,10 +202,119 @@ namespace CodexAutoResume
             return local.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
         }
 
+        /// v0.6.11: a watcher that is not running, as it ended (control/watcher.how_it_ended): stopped by the memory guard,
+        /// or stopped unexpectedly in this sign-in; otherwise "not running", as it always said. With when (`when`) as the
+        /// panel says it (panel.js stoppedFact), for Diagnostics, whose facts wrap; without it for Right now, whose facts
+        /// stay one line in every language and state (tests/test_gui_layout.py) - its Last check, under the Watcher,
+        /// says when the watcher last looked, which is when it stopped.
+        private string StoppedText(Dictionary<string, object> watcher, bool when)
+        {
+            string ended = Str(watcher, "ended");
+            double at = Number(watcher, "ended_at");
+            if (at > 0 && ended == "unexpected")
+                return when ? S("diag.stopped_unexpectedly", "stopped unexpectedly at {time}", "time", ClockTime(at))
+                            : S("overview.stopped_unexpectedly", "stopped unexpectedly");
+            if (at > 0 && ended == "memory_guard")
+                return when ? S("diag.stopped_memory_guard", "stopped by the memory guard at {time}", "time", ClockTime(at))
+                            : S("overview.stopped_memory_guard", "stopped by the memory guard");
+            return S("diag.not_running", "not running");
+        }
+
+        /// A moment later today as the clock shows it, and any other with its date (v0.6.11): when a
+        /// postponement or quiet hours end.
+        private static string ClockTime(double stamp)
+        {
+            if (stamp <= 0) return "";
+            DateTime local = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(stamp).ToLocalTime();
+            return local.Date == DateTime.Now.Date ? local.ToString("HH:mm", CultureInfo.InvariantCulture)
+                                                   : When(stamp);
+        }
+
         private string Ago(double stamp)
         {
             if (stamp <= 0) return S("time.never", "never");
             return Age(Now() - stamp);
+        }
+
+        // ------------------------------------------------------------ usage (v0.6.11)
+        /// A usage window's length, named as the popup (ui/words.window_name) and the panel (windowName) name it.
+        private string WindowName(object minutes)
+        {
+            double value = minutes is double ? (double)minutes : 0;
+            if (value <= 0 || value != Math.Floor(value)) return S("usage.limit", "limit");
+            int whole = (int)value;
+            if (whole == 10080) return S("usage.weekly", "weekly");
+            if (whole % 1440 == 0) return S("usage.days", "{n}-day", "n", whole / 1440);
+            if (whole % 60 == 0) return S("usage.hours", "{n}-hour", "n", whole / 60);
+            return S("usage.minutes", "{n}-minute", "n", whole);
+        }
+
+        /// The last usage reading in one line - each window's length, share and reset, and how long ago it was read - as
+        /// the popup and the panel say it; null until usage has been read.
+        private string UsageLine(Dictionary<string, object> reading)
+        {
+            var windows = Items(reading, "windows");
+            double at = Number(reading, "read_at");
+            if (windows == null || windows.Count == 0 || at <= 0) return null;
+            var parts = new List<string>();
+            foreach (object entry in windows)
+            {
+                var window = entry as Dictionary<string, object>;
+                if (window == null) continue;
+                double used = Number(window, "used_percent"), reset = Number(window, "reset_at");
+                string share = (used >= 100 ? 100 : (int)Math.Floor(used)).ToString(CultureInfo.InvariantCulture);
+                string text = reset > 0
+                    ? S("usage.window_resets", "{window} {percent}%, resets {time}").Replace("{time}", ClockTime(reset))
+                    : S("usage.window", "{window} {percent}%");
+                parts.Add(text.Replace("{window}", WindowName(Get(window, "window_minutes"))).Replace("{percent}", share));
+            }
+            if (parts.Count == 0) return null;
+            return S("usage.line", "Codex usage, read {age}: {windows}").Replace("{age}", Age(Now() - at))
+                                                                       .Replace("{windows}", string.Join(" · ", parts.ToArray()));
+        }
+
+        /// v0.6.11: the Overview's line under what is waiting: that the watcher keeps this PC awake while a task waits, from
+        /// when - only while it runs - and then the last usage reading (UsageLine), one after the other in one line; ""
+        /// when neither is so. Keeping awake is said first: it is what the watcher is doing now, the reading what it last
+        /// read.
+        private string WaitingLine(Dictionary<string, object> watcher, object running)
+        {
+            var parts = new List<string>();
+            double awake = Number(watcher, "awake_since");
+            if (awake > 0 && Equals(running, true))
+                parts.Add(S("overview.awake", "Keeping this PC awake while tasks wait, since {time}", "time", ClockTime(awake)));
+            string usage = UsageLine(Map(watcher, "usage"));
+            if (usage != null) parts.Add(usage);
+            return string.Join(" · ", parts.ToArray());
+        }
+
+        /// The waiting line on the Overview, one line that ends in an ellipsis where it does not fit - its whole text its
+        /// tooltip - and whole on Diagnostics, "-" there when there is none.
+        private void ShowWaitingLine(string whole)
+        {
+            if (usageLine != null)
+            {
+                usageLine.Text = whole;
+                if (lineTip != null) lineTip.SetToolTip(usageLine, whole.Length > 0 ? whole : null);
+            }
+            if (diagWaiting != null) diagWaiting.Text = whole.Length > 0 ? whole : "-";
+        }
+
+        /// A weekly window the last reading found used up, with the day and time it resets - what a usage limit then waits
+        /// for, whatever else is used up beside it; null when no weekly window is, or its reset was not said. A reset
+        /// already past says nothing: the reading is older than it, and what it found is no longer so - it is never told
+        /// as current (J7). The usage line under it still says what was read, with its age.
+        private string WeeklyBlock(Dictionary<string, object> reading)
+        {
+            double latest = 0;
+            foreach (object entry in Items(reading, "windows") ?? new List<object>())
+            {
+                var window = entry as Dictionary<string, object>;
+                if (window == null || Number(window, "window_minutes") < 10080 || Number(window, "used_percent") < 100) continue;
+                latest = Math.Max(latest, Number(window, "reset_at"));
+            }
+            if (latest <= Now()) return null;
+            return S("usage.weekly_block", "The weekly limit is used up. It resets {time}.", "time", When(latest));
         }
 
         private string Conversation(Dictionary<string, object> row)
@@ -222,6 +333,9 @@ namespace CodexAutoResume
             if (overlays != null)
                 foreach (object overlay in overlays)
                     parts.Add(S("overlay." + overlay, Convert.ToString(overlay).Replace('_', ' ')));
+            // v0.6.11: observe only, and every other check passed - when it would have been sent.
+            double would = Number(row, "would_send_at");
+            if (would > 0) parts.Add(S("code.would_send", "would have been sent {time}", "time", ClockTime(would)));
             return string.Join(" · ", parts.ToArray());
         }
 
@@ -229,7 +343,13 @@ namespace CodexAutoResume
         {
             // The reason's own name, as the notifications and the popup say it.
             string category = Str(row, "category") ?? "";
-            return S("reason." + category, S("field.recover_" + category, category.Replace('_', ' ')));
+            string kind = S("reason." + category, S("field.recover_" + category, category.Replace('_', ' ')));
+            // v0.6.11: the tokens its conversation had used, where the context-cost guard read them.
+            object tokens = Get(row, "context_tokens");
+            if (tokens is double)
+                kind += " · " + S("pending.tokens", "{n} tokens used", "n",
+                                  ((long)(double)tokens).ToString("N0", CultureInfo.CurrentCulture));
+            return kind;
         }
 
         private static bool HasOverlay(Dictionary<string, object> row, string name)
@@ -261,15 +381,34 @@ namespace CodexAutoResume
                 bool enabled = Equals(Get(status, "enabled"), true);
                 shownEnabled = enabled;
                 bool upgrade = Equals(Get(status, "upgrade_pending"), true);
-                string recovery = enabled ? S("overview.on", "on") : S("overview.off", "paused");
+                // v0.6.11: the administrator's policy keys in force, by name (managed.py); none, and
+                // the status carries no list and nothing below says anything it did not.
+                var managed = new List<string>();
+                foreach (object code in Items(status, "managed") ?? new List<object>())
+                    if (code is string) managed.Add((string)code);
+                updatesManaged = managed.Contains("DisableUpdateCheck");
+                // v0.6.11: observe only is on, but nothing is sent - said where on is.
+                string recovery = !enabled ? (managed.Contains("DisableAutoResume")
+                                              ? S("overview.off_managed", "paused by your administrator")
+                                              : S("overview.off", "paused"))
+                                : Equals(Get(status, "observe_only"), true) ? S("overview.observe_only", "observe only")
+                                : S("overview.on", "on");
+                // and that some settings are an administrator's, said after whatever the state is.
+                if (managed.Count > 0 && !(!enabled && managed.Contains("DisableAutoResume")))
+                    recovery = S("overview.managed", "{state} · managed by your administrator", "state", recovery);
                 object running = Get(status, "watcher_running");
                 string watcherText = running == null ? S("diag.unknown", "unknown")
-                                   : !Equals(running, true) ? S("diag.not_running", "not running")
+                                   : !Equals(running, true) ? StoppedText(watcher, false)
                                    : Equals(Get(watcher, "ticking"), false) ? S("diag.not_responding", "not responding")
                                    : S("diag.running", "running");
+                // Diagnostics says a stop with when; Right now without it (StoppedText).
+                string watcherFull = running != null && !Equals(running, true) ? StoppedText(watcher, true) : watcherText;
                 string engine = Str(watcher, "engine_state") ?? "unknown";
                 string engineText = S("engine." + engine, engine);
                 double last = Number(watcher, "last_tick_at");
+                // v0.6.11: under what is waiting, the last usage reading - and before it that the watcher keeps this PC
+                // awake while a task waits - in one line, whole in its tooltip and on Diagnostics (WaitingLine).
+                ShowWaitingLine(WaitingLine(watcher, running));
                 if (nowRecovery != null)
                 {
                     nowRecovery.Text = recovery;
@@ -280,10 +419,18 @@ namespace CodexAutoResume
                 if (diagVersion != null)
                 {
                     diagVersion.Text = "v" + Convert.ToString(Get(status, "version"), CultureInfo.InvariantCulture);
-                    diagWatcher.Text = watcherText;
+                    diagWatcher.Text = watcherFull;
                     diagEngine.Text = engineText;
                     diagLastCheck.Text = Ago(last);
-                    diagRecovery.Text = recovery;
+                    // v0.6.11: the most private memory the watcher committed, in whole MB, rounded up (memguard.mib).
+                    double peak = Number(watcher, "memory_peak");
+                    diagMemory.Text = peak > 0 ? S("diag.memory_mb", "{n} MB", "n",
+                                                   Math.Ceiling(peak / (1024.0 * 1024.0)).ToString("0", CultureInfo.InvariantCulture))
+                                               : "-";
+                    // Diagnostics names the keys themselves, as a person reads them in the registry.
+                    diagRecovery.Text = managed.Count > 0 ? recovery + " (" + string.Join(", ", managed.ToArray()) + ")" : recovery;
+                    if (updateButton != null) updateButton.Enabled = busy == 0 && !updatesManaged;
+                    if (updatesManaged) diagUpdate.Text = S("diag.update_managed", "turned off by your administrator");
                     diagStartup.Text = Equals(Get(status, "startup_enabled"), true) ? S("diag.yes", "yes") : S("diag.no", "no");
                     diagUpgrade.Text = upgrade ? S("diag.upgrade_pending", "An older watcher still owns the state") : "";
                 }
@@ -316,7 +463,7 @@ namespace CodexAutoResume
                 if (Unreadable(reply, "pending")) ShowUnreadableList(pendingList, pendingEmpty, unreadable);
                 else
                 {
-                    FillList(pendingList, Items(reply, "pending"), true);
+                    FillList(pendingList, WithDemo(Items(reply, "pending"), demoPending, false), true);
                     pendingEmpty.Text = S("pending.empty", "Nothing is waiting");
                     pendingEmpty.Visible = pendingList.Items.Count == 0;
                 }
@@ -327,7 +474,7 @@ namespace CodexAutoResume
                 if (historyUnreadable) ShowUnreadableList(historyList, historyEmpty, unreadable);
                 else
                 {
-                    FillList(historyList, Items(reply, "history"), false);
+                    FillList(historyList, WithDemo(Items(reply, "history"), demoHistory, true), false);
                     historyEmpty.Text = S("history.empty", "No recoveries yet");
                     historyEmpty.Visible = historyList.Items.Count == 0;
                 }
@@ -408,6 +555,8 @@ namespace CodexAutoResume
                 nextLine.Text = "";
                 runningLine.Text = "";
             }
+            // v0.6.11: nor that the watcher keeps this PC awake, nor a reading whose age would stand still.
+            ShowWaitingLine("");
             // The week's figures and the Statistics page are read the same way and have
             // failed the same way; left as they were, they would be the last good answer
             // under a header that says the state cannot be read.
@@ -451,10 +600,18 @@ namespace CodexAutoResume
         private string[] Cells(Dictionary<string, object> row, bool pending)
         {
             return pending
-                ? new[] { Conversation(row), CodeLabel(row), KindLabel(row), null,
-                          ((int)Number(row, "recovery_attempts")).ToString(CultureInfo.CurrentCulture), "" }
+                ? new[] { Conversation(row), CodeLabel(row), KindLabel(row), null, Attempts(row), "" }
                 : new[] { Conversation(row), CodeLabel(row), KindLabel(row),
                           When(Number(row, "detected_at")), When(Number(row, "outcome_at")) };
+        }
+
+        /// v0.6.11: the attempts a task has used beside those it may have now - "3/4", and "19/6" after the limit was
+        /// lowered: the count is never cut down to the limit. A usage limit spends none, so it has no limit beside it.
+        private static string Attempts(Dictionary<string, object> row)
+        {
+            string used = ((int)Number(row, "recovery_attempts")).ToString(CultureInfo.CurrentCulture);
+            object limit = Get(row, "attempt_limit");
+            return limit is double ? used + "/" + ((int)(double)limit).ToString(CultureInfo.CurrentCulture) : used;
         }
 
         // What a filled list is made of, per list: every row's cells and the three things a row is
@@ -608,23 +765,9 @@ namespace CodexAutoResume
                 }
                 return;
             }
-            int waiting = 0, running = 0;
-            double next = 0;
-            if (pending != null)
-            {
-                foreach (object entry in pending)
-                {
-                    var row = entry as Dictionary<string, object>;
-                    if (row == null) continue;
-                    double eligible = Number(row, "eligible_at");
-                    if (eligible > 0)
-                    {
-                        waiting++;
-                        if (next == 0 || eligible < next) next = eligible;
-                    }
-                    else running++;
-                }
-            }
+            double[] counts = PendingCounts(pending);
+            int waiting = (int)counts[0], running = (int)counts[1];
+            double next = counts[2];
             bool enabled = Equals(Get(status, "enabled"), true);
             if (waitingLine != null)
             {
@@ -640,6 +783,29 @@ namespace CodexAutoResume
             // per waiting row per second for nobody. ShowPage writes them once when it comes back.
             if (pendingList == null || currentPage != "pending") return;
             WriteCountdowns(now);
+        }
+
+        /// The Overview's counts from a pending list: {waiting, in Codex, the soonest time a waiting one is looked at, or
+        /// 0}. Waiting by its code (WaitingCode), not by having a time: a task held for a person (v0.6.11) has none,
+        /// since no time sends it, and is still waiting - never "running in Codex".
+        internal static double[] PendingCounts(List<object> pending)
+        {
+            double waiting = 0, running = 0, next = 0;
+            if (pending != null)
+                foreach (object entry in pending)
+                {
+                    var row = entry as Dictionary<string, object>;
+                    if (row == null) continue;
+                    if (!WaitingCode(Str(row, "code")))
+                    {
+                        running++;
+                        continue;
+                    }
+                    waiting++;
+                    double eligible = Number(row, "eligible_at");
+                    if (eligible > 0 && (next == 0 || eligible < next)) next = eligible;
+                }
+            return new[] { waiting, running, next };
         }
 
         /// Each waiting row's Next check, written only where it differs from what the row already shows.
@@ -702,7 +868,32 @@ namespace CodexAutoResume
             // is unknown, is exactly where it helps.
             if (Number(row, "reset_at") > now) return false;
             if (HasOverlay(row, "paused") || HasOverlay(row, "thread_disabled")) return false;
+            // v0.6.11: nor past a hold. A held task waits for a person to let it continue, and a check
+            // brought forward would only find it held again.
+            if (HasOverlay(row, "held")) return false;
+            // Nor past a postponement or an objection window still ahead, which it never shortens: each
+            // only ever holds a task back (store.request_retry_now).
+            if (Number(row, "not_before") > now) return false;
             return true;
+        }
+
+        /// Whether a task can be postponed (v0.6.11): it is waiting, and nobody cancelled it. A pause or a
+        /// conversation switched off do not stop it: postponing only ever holds a task back further.
+        internal static bool CanPostpone(Dictionary<string, object> row, bool idle)
+        {
+            if (row == null || !idle) return false;
+            string code = Str(row, "code");
+            bool waiting = code == "waiting_reset" || code == "waiting_usage" || code == "waiting_thread" ||
+                           code == "scheduled" || code == "failed_retryable";
+            return waiting && !Equals(Get(row, "cancel_requested"), true);
+        }
+
+        /// Whether a held task can be let continue (v0.6.11): it is held, not finished and not cancelled.
+        internal static bool CanRelease(Dictionary<string, object> row, bool idle)
+        {
+            if (row == null || !idle) return false;
+            if (string.IsNullOrEmpty(Str(row, "hold"))) return false;
+            return !Equals(Get(row, "terminal"), true) && !Equals(Get(row, "cancel_requested"), true);
         }
 
         /// Whether giving this record its attempts back could succeed. The store allows it a
@@ -721,14 +912,16 @@ namespace CodexAutoResume
             var row = Selected(pendingList);
             bool idle = busy == 0;
             bool cancelled = Equals(Get(row, "cancel_requested"), true);
-            retryButton.Enabled = CanRetryNow(row, idle, Now());
-            cancelButton.Enabled = idle && row != null && !cancelled;
-            timelineButton.Enabled = idle && row != null;
-            threadButton.Enabled = idle && row != null;
+            // v0.6.11: Show me what happens' made-up task is shown, and nothing is offered on it.
+            bool real = row != null && !IsDemo(row);
+            retryButton.Enabled = real && CanRetryNow(row, idle, Now());
+            cancelButton.Enabled = idle && real && !cancelled;
+            timelineButton.Enabled = idle && real;
+            threadButton.Enabled = idle && real;
             string text = ThreadOn(row) ? S("action.thread_off", "Turn off for this conversation")
                                         : S("action.thread_on", "Turn on for this conversation");
             if (threadButton.Text != text) threadButton.Text = text;
-            if (cancelAllButton != null) cancelAllButton.Enabled = idle && pendingList.Items.Count > 0;
+            if (cancelAllButton != null) cancelAllButton.Enabled = idle && pendingList.Items.Count > (demoPending == null ? 0 : 1);
         }
 
         private void UpdateHistoryButtons()
@@ -736,11 +929,14 @@ namespace CodexAutoResume
             if (historyList == null) return;
             var row = Selected(historyList);
             bool idle = busy == 0;
+            bool demo = IsDemo(row);
+            if (demo) row = null;
             historyTimeline.Enabled = idle && row != null;
             bool exhausted = Str(row, "code") == "exhausted" && !Equals(Get(row, "cancel_requested"), true);
             bool resetsLeft = Number(row, "budget_resets_left") > 0;
             historyReset.Enabled = CanGiveAttemptsBack(row, idle);
-            SetNote(historyNote, exhausted && !resetsLeft
+            SetNote(historyNote, demo ? S("demo.finished", "Demo finished; nothing was sent.")
+                : exhausted && !resetsLeft
                 ? S("history.reset_limit", "Its attempts were already given back as many times as allowed; continue this task in Codex yourself.")
                 : "");
             bool off = row != null && !ThreadOn(row);
@@ -749,7 +945,7 @@ namespace CodexAutoResume
             // row whose conversation is on.
             historyThread.Visible = off;
             historyThread.Enabled = idle && off;
-            historyClear.Enabled = idle && historyList.Items.Count > 0;
+            historyClear.Enabled = idle && historyList.Items.Count > (demoHistory == null ? 0 : 1);
         }
 
         private void UpdateToggle()
@@ -773,8 +969,9 @@ namespace CodexAutoResume
             UpdateToggle();
             if (exportButton != null) exportButton.Enabled = busy == 0;
             if (repairButton != null) repairButton.Enabled = busy == 0;
-            if (updateButton != null) updateButton.Enabled = busy == 0;
+            if (updateButton != null) updateButton.Enabled = busy == 0 && !updatesManaged;
             if (stopButton != null) stopButton.Enabled = busy == 0;
+            if (demoButton != null) demoButton.Enabled = busy == 0;
             if (compatButton != null) compatButton.Enabled = busy == 0;
             if (saveButton != null) saveButton.Enabled = busy == 0;
             if (restoreButton != null) restoreButton.Enabled = busy == 0;

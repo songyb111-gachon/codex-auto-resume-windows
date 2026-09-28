@@ -81,12 +81,20 @@ _RECEIVERS = {
         "envelope": [("bridge:_framing", "cases[].replies[]")],
         "snapshot": [("bridge:dashboard", "")],
         "status": [("bridge:status", "status"), ("bridge:dashboard", "status")],
+        # v0.6.11: the stored settings the status carries, for the tier a conversation has by default.
+        "settings": [("bridge:status", "status.settings"), ("bridge:dashboard", "status.settings")],
         "watcher": [("bridge:status", "status.watcher"), ("bridge:dashboard", "status.watcher")],
+        # v0.6.11: the last usage reading the heartbeat carries, and each of its windows.
+        "reading": [("bridge:status", "status.watcher.usage"), ("bridge:dashboard", "status.watcher.usage")],
+        "window": [("bridge:status", "status.watcher.usage.windows[]"),
+                   ("bridge:dashboard", "status.watcher.usage.windows[]")],
         # A pending or history row, however it was reached: the list's own, the one chosen, the
         # one a list item carries in its Tag, the fresh list compared with the shown one.
         "row": ROW, "chosen": ROW, "fresh": ROW, "Tag": ROW,
         "gates": _under(ROW, ".gates"),
         "item": [("bridge:timeline", "result.events[]")],
+        # v0.6.11: what delivery showed of each continuation, after the journal.
+        "receipt": [("bridge:timeline", "result.receipts[]")],
         "view": COMPAT_VIEW, "live": COMPAT_VIEW, "report": COMPAT_VIEW, "compatLive": COMPAT_VIEW,
         "engine": _under(COMPAT_VIEW, ".engine"),
         "data": _under(COMPAT_VIEW, ".data"),
@@ -97,6 +105,14 @@ _RECEIVERS = {
         "week": [("bridge:dashboard", "week")],
         "stats": [("bridge:statistics", "result"), ("bridge:dashboard", "week")],
         "outcomes": [("bridge:statistics", "result.outcomes"), ("bridge:dashboard", "week.outcomes")],
+        # v0.6.11: Show me what happens' made-up rows, whichever row is asked whether it is one; a line of
+        # the log searched; and the conversations' own messages the stored settings hold, by conversation.
+        "made": ROW + [("bridge:demo", "result.pending"), ("bridge:demo", "result.history")],
+        "pending": [("bridge:demo", "result.pending")],
+        "demoHistory": [("bridge:demo", "result.history")],
+        "line": [("bridge:logs", "result.lines[]")],
+        "held": [("bridge:status", "status.settings.custom_message_by_thread"),
+                 ("bridge:dashboard", "status.settings.custom_message_by_thread")],
     },
     "gui/SettingsApp.cs": {
         "reply": [("@", ""), REFUSAL],
@@ -111,8 +127,10 @@ _RECEIVERS = {
         "map": SETTINGS,
         "field": [("bridge:describe", "schema[]")],
         "styleField": [("bridge:describe", "schema[]")],
-        # The schema by field name, as BuildEditors indexes it.
+        # The schema by field name, as BuildEditors indexes it - and the limits' part of it, which the
+        # retry preview and the high-limit notice read (v0.6.11).
         "fields": [("bridge:describe", "schema{name}")],
+        "limitSchema": [("bridge:describe", "schema{name}")],
         # The Save request, built by setting name: each must be a setting the bridge stores.
         "jsonValues": SETTINGS,
         # LayoutAudit's input: a dashboard reply, with the compatibility reply's view beside it.
@@ -177,6 +195,8 @@ UNCHECKED = {
     ("gui/DashboardActions.cs", "gates", "name"): "each gate, in GateOrder, which "
                                             "tests/test_gui_decisions.py holds to machine.GATES",
     ("gui/SettingsPage.cs", "current", "name"): "each field the schema names, read back by that name",
+    ("gui/DashboardTools.cs", "held", "thread"): "one conversation's own message, by that conversation's id "
+                                                 "(v0.6.11); the map is empty in every golden",
 }
 
 # Dictionaries the window writes a request into, by setting name: a name written there is one the
@@ -207,12 +227,14 @@ _ROW, _COMPAT = wire.PendingRow, wire.CompatView
 _TYPED = {
     "gui/Dashboard.cs": {
         "row": _ROW, "chosen": _ROW, "fresh": _ROW, "Tag": _ROW,
-        "item": wire.TimelineEvent,
+        "item": wire.TimelineEvent, "receipt": wire.Receipt,
         "status": wire.StatusSnapshot, "watcher": wire.WatcherView,
+        "reading": wire.UsageReading, "window": wire.UsageWindow,
         "view": _COMPAT, "live": _COMPAT, "report": _COMPAT, "compatLive": _COMPAT,
         "engine": wire.CompatEngine, "data": wire.CompatData, "entry": wire.CompatCapability,
         "reported": wire.CompatReported,
         "week": wire.Statistics, "stats": wire.Statistics, "outcomes": wire.Outcomes,
+        "made": wire.DemoRow, "pending": wire.DemoRow, "demoHistory": wire.DemoRow, "line": wire.LogLine,
     },
     "gui/SettingsApp.cs": {
         "status": wire.StatusSnapshot,

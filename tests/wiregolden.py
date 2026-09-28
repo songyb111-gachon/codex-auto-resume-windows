@@ -71,6 +71,17 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 GOLDEN = ROOT / "tests" / "golden"
+# The wire's goldens are in these two folders. A file directly in tests/golden is another
+# test's - tests/golden/defaults-v0.6.10.json is tests/test_defaults_golden.py's - and is never
+# this script's to rewrite or remove.
+WIRE_FOLDERS = ("bridge", "mcp")
+
+
+def wire_goldens() -> set:
+    """Every wire golden on disk, as a path relative to GOLDEN with forward slashes."""
+    return {str(path.relative_to(GOLDEN)).replace(os.sep, "/")
+            for folder in WIRE_FOLDERS for path in (GOLDEN / folder).rglob("*.json")}
+
 # The files that are not one command's or one tool's.
 BRIDGE_FRAMING = "_framing"
 MCP_PROTOCOL = "_protocol"
@@ -161,6 +172,117 @@ def _launch_that_exits(_workspace):
 
     with patch.object(subprocess, "Popen", Exited):
         yield
+
+
+def _held(thread):
+    """A conversation that asks first (v0.6.11), so what it has waiting is held for a person and
+    "let it continue" has something to let go. Written by the product's own store, as the rest of
+    the installation is, and left as it is for the cases after it."""
+    @contextmanager
+    def using(workspace):
+        from codex_auto_resume import config
+        from codex_auto_resume.store import Store
+
+        with Store(config.Paths(workspace / "home").state_dir) as store:
+            store.set_thread_tier(thread, "ask_first", generator.ENVELOPE_NOW, actor="gui")
+        yield
+    return using
+
+
+def _filed(thread, folder):
+    """A conversation the synthetic Codex home files under a folder (v0.6.11), so Let this project
+    resume and Hold this project for me have a project to read. The home's own table, written as
+    Codex writes it, and left as it is for the cases after it."""
+    @contextmanager
+    def using(workspace):
+        import sqlite3
+
+        connection = sqlite3.connect(workspace / "codex" / "state_5.sqlite")
+        try:
+            with connection:
+                connection.execute("UPDATE threads SET cwd=? WHERE id=?", (folder, thread))
+        finally:
+            connection.close()
+        yield
+    return using
+
+
+def _managed(**values):
+    """An administrator's policy keys in force for this one case (v0.6.11, managed.py): a stand-in for
+    the one function that asks Windows for them, so what the window is sent while they are set is held
+    here too. Nothing is read from the registry."""
+    @contextmanager
+    def using(_workspace):
+        from codex_auto_resume import managed
+        from codex_auto_resume.control import policy
+
+        with patch.object(policy, "managed_policy", return_value=managed.Managed(**values)):
+            yield
+    return using
+
+
+NIGHT = {"quiet_hours_start": "22:00", "quiet_hours_end": "07:00", "quiet_hours_days": "weekdays"}
+
+
+def _state_access(word):
+    """What Windows says of the state folder's access list, for this one case (v0.6.11, win/acl.py): a
+    stand-in for the one function that asks, so the answer is the same on every machine."""
+    @contextmanager
+    def using(_workspace):
+        from codex_auto_resume.win import acl
+
+        with patch.object(acl, "state_access", return_value=word):
+            yield
+    return using
+
+
+def _postponed(key, thread):
+    """A task a person postponed by an hour (v0.6.11), so Don't postpone has something to take away.
+    Through the product's own store, and left as it is for the cases after it."""
+    @contextmanager
+    def using(workspace):
+        from codex_auto_resume import config
+        from codex_auto_resume.store import Store
+
+        with Store(config.Paths(workspace / "home").state_dir) as store:
+            store.postpone(key, thread, generator.ENVELOPE_NOW + 3600, generator.ENVELOPE_NOW, actor="gui")
+        yield
+    return using
+
+
+def _logged(workspace):
+    """A few lines of this product's own log, as logbook's formatter writes them, and one it does not."""
+    from codex_auto_resume import config
+
+    paths = config.Paths(workspace / "home")
+    paths.logs_dir.mkdir(parents=True, exist_ok=True)
+    paths.log_file.write_text("[2026-09-27 10:00:00] auto-resume is enabled\n"
+                              "[2026-09-27 10:01:00] thread %s: waiting for reset\n"
+                              "a line the formatter never writes\n"
+                              "[2026-09-27 10:02:00] watcher stopped\n" % T1, encoding="utf-8")
+    return {"query": "thread"}
+
+
+def _plugin_copy(edition_word):
+    """A copy of this plugin in the scratch Codex home's plugin cache, of `edition_word` - as `codex
+    plugin add` leaves one - for this one case (v0.6.11, edition.cached_copy). Written under the
+    envelope's own CODEX_HOME and removed after, so no real Codex home is ever read."""
+    @contextmanager
+    def using(_workspace):
+        import shutil
+        from codex_auto_resume import edition
+
+        root = Path(os.environ["CODEX_HOME"]) / "plugins" / "cache" / edition.MARKETPLACE / edition.PLUGIN
+        copy = root / "0.0.0"
+        (copy / "src" / "codex_auto_resume").mkdir(parents=True)
+        if edition_word == "advanced":
+            (copy / "src" / edition.ADVANCED_PACKAGE).mkdir()
+            (copy / "src" / edition.ADVANCED_PACKAGE / "__init__.py").write_text("", encoding="utf-8")
+        try:
+            yield
+        finally:
+            shutil.rmtree(root.parent, ignore_errors=True)
+    return using
 
 
 def _launch_that_comes_up(context):
@@ -265,9 +387,15 @@ KOREAN_CUSTOM = "중단된 작업을 이어서 진행해 주세요."
 
 # Every bridge command, and what each golden asks it, in order.
 BRIDGE_CASES = {
-    "status": [Case("the status line of a watched installation")],
+    "status": [Case("the status line of a watched installation"),
+               # v0.6.11: paused by an administrator, with the keys in force named.
+               Case("while an administrator's policy keys pause recovery and hold two settings",
+                    using=_managed(disable_auto_resume=True, disable_update_check=True,
+                                   max_recovery_attempts=2, quiet_hours=(NIGHT,)))],
     "settings": [Case("the stored settings")],
-    "describe": [Case("the settings schema the Settings page is built from")],
+    "describe": [Case("the settings schema the Settings page is built from"),
+                 Case("greyed where an administrator's policy key decides",
+                      using=_managed(max_recovery_attempts=2, force_observe_only=True, quiet_hours=(NIGHT,)))],
     "defaults": [Case("every setting back to its default")],
     "pending": [Case("what is waiting, with the names Codex gives the conversations")],
     "pending-all": [Case("every record, finished ones too, without names")],
@@ -288,18 +416,37 @@ BRIDGE_CASES = {
         Case("every failure so far marked as seen"),
         Case("again, with nothing new to see")],
     "cancel-all": [Case("every pending recovery cancelled"), Case("nothing left to cancel")],
+    # v0.6.11: Diagnostics - who Windows lets open the state folder, read only; and Show me what happens,
+    # whose rows are made up and whose card is asked of a watcher that is not there to draw it.
+    "state-access": [
+        Case("only this account and Windows", using=_state_access("owner_only")),
+        Case("other accounts too", using=_state_access("shared"))],
+    "demo": [Case("the made-up rows, and no watcher's icon to ask for the card")],
+    # v0.6.11: Diagnostics compares the edition installed with Codex's copy of the plugin, read only.
+    "plugin-copy": [
+        Case("Codex keeps no copy of the plugin"),
+        Case("Codex's copy is the same edition", using=_plugin_copy("standard")),
+        Case("Codex's copy is still the other edition's", using=_plugin_copy("advanced"))],
     "update": [
         Case("one setting changed", {"notifications": False}),
         Case("a Korean Custom message, stored and answered as UTF-8",
              {"continuation_style": "custom", "custom_message_mode": "global",
               "custom_message": KOREAN_CUSTOM}),
         Case("a value out of range is refused", {"max_recovery_attempts": 0}),
-        Case("a setting that does not exist is refused", {"no_such_setting": True})],
+        Case("a setting that does not exist is refused", {"no_such_setting": True}),
+        # v0.6.11: what a policy key already says is kept out of the file; a loosening is refused.
+        Case("what an administrator's key already says is answered and not written",
+             {"observe_only": True, "notifications": True}, using=_managed(force_observe_only=True)),
+        Case("a change an administrator's key forbids is refused", {"max_recovery_attempts": 9},
+             using=_managed(max_recovery_attempts=2))],
     "enabled": [
         Case("paused", {"enabled": False}),
         Case("on again", {"enabled": True}),
         Case("the string \"false\" is refused, not read as true", {"enabled": "false"}),
-        Case("a missing flag is refused", {})],
+        Case("a missing flag is refused", {}),
+        # v0.6.11: a pause an administrator's DisableAutoResume holds is not lifted here.
+        Case("an administrator's pause cannot be resumed", {"enabled": True},
+             using=_managed(disable_auto_resume=True))],
     "startup": [
         Case("registered to start at sign-in", {"enabled": True}, using=_startup_in_memory),
         Case("unregistered", {"enabled": False}, using=_startup_in_memory),
@@ -380,6 +527,68 @@ BRIDGE_CASES = {
         Case("no file named", {}),
         Case("an origin that is neither main nor file",
              lambda workspace: {"path": _registry_document(workspace), "origin": "web"})],
+    # v0.6.11: a task's row menu.
+    "postpone": [
+        Case("a waiting recovery postponed by an hour",
+             {"interruption_id": WAITING_RESET, "thread_id": T1, "preset": "1_hour"}),
+        Case("half an hour is earlier than the hour it already waits for",
+             {"interruption_id": WAITING_RESET, "thread_id": T1, "preset": "30_minutes"}),
+        Case("a number of minutes, later still",
+             {"interruption_id": WAITING_RESET, "thread_id": T1, "minutes": 180}),
+        Case("two ways to say the time at once",
+             {"interruption_id": WAITING_RESET, "thread_id": T1, "preset": "3_hours", "minutes": 240}),
+        Case("more than a week ahead", {"interruption_id": WAITING_RESET, "thread_id": T1, "minutes": 10081}),
+        Case("a task that belongs to another conversation",
+             {"interruption_id": WAITING_RESET, "thread_id": T2, "preset": "3_hours"}),
+        Case("a finished task", {"interruption_id": RECOVERED, "thread_id": T3, "preset": "3_hours"})],
+    # v0.6.11: Don't postpone - a person's own postponement taken away, bound to the row.
+    "unpostpone": [
+        Case("a person's postponement taken away", {"interruption_id": WAITING_RESET, "thread_id": T1},
+             using=_postponed(WAITING_RESET, T1)),
+        Case("the same task again: nothing to take away", {"interruption_id": WAITING_RESET, "thread_id": T1}),
+        Case("a task that belongs to another conversation",
+             {"interruption_id": WAITING_RESET, "thread_id": T2}),
+        Case("a finished task", {"interruption_id": RECOVERED, "thread_id": T3})],
+    # v0.6.11: one conversation's own message, from its row in the Dashboard only.
+    "conversation-message": [
+        Case("a message for one conversation", {"thread_id": T1, "text": "Carry on with the plan, please."}),
+        Case("a placeholder that would leak the conversation is refused", {"thread_id": T1, "text": "{prompt}"}),
+        Case("the text must be named, even to take it away", {"thread_id": T1}),
+        Case("taken away", {"thread_id": T1, "text": None}),
+        Case("not a conversation id", {"thread_id": "latest", "text": "go"})],
+    # v0.6.11: the log searched, newest last.
+    "logs": [
+        Case("no log yet", {}),
+        Case("the lines that hold a word", _logged),
+        Case("a search with a line break in it is refused", {"query": "a\nb"})],
+    "release-hold": [
+        Case("a held task let continue", {"interruption_id": WAITING_RESET, "thread_id": T1},
+             using=_held(T1)),
+        Case("the same task again: it is not held", {"interruption_id": WAITING_RESET, "thread_id": T1}),
+        Case("a task that belongs to another conversation",
+             {"interruption_id": WAITING_RESET, "thread_id": T2}),
+        Case("no such interruption", {"interruption_id": NO_SUCH, "thread_id": T1})],
+    "thread-tier": [
+        Case("a conversation that asks first holds what it has waiting",
+             {"thread_id": T1, "tier": "ask_first", "interruption_id": WAITING_RESET}),
+        Case("back to the default in Settings", {"thread_id": T1, "tier": None}),
+        Case("a tier that is not one", {"thread_id": T1, "tier": "sometimes"}),
+        Case("a row whose task is another conversation's",
+             {"thread_id": T2, "tier": "ask_first", "interruption_id": WAITING_RESET}),
+        Case("the tier must be named, even to take it away", {"thread_id": T1})],
+    "project-rule": [
+        Case("a project held for a person, with what it has waiting",
+             {"interruption_id": WAITING_RESET, "thread_id": T1, "always": False},
+             using=_filed(T1, r"C:\work\alpha")),
+        Case("the same project let resume again",
+             {"interruption_id": WAITING_RESET, "thread_id": T1, "always": True}),
+        Case("a conversation whose project cannot be read",
+             {"interruption_id": WAITING_BACKOFF, "thread_id": T2, "always": False}),
+        Case("always must be true or false",
+             {"interruption_id": WAITING_RESET, "thread_id": T1, "always": "yes"}),
+        Case("a task that belongs to another conversation",
+             {"interruption_id": WAITING_RESET, "thread_id": T2, "always": False}),
+        Case("a finished task", {"interruption_id": RECOVERED, "thread_id": T3, "always": False})],
     "compat-refresh": [
         Case("the bootstrap refreshed the data", {},
              using=_bootstrap("  Asking...\ncompatibility: refreshed 2\n", 0)),
@@ -408,7 +617,10 @@ FRAMING_CASES = [
 # Every MCP tool, and what each golden asks it, in order.
 MCP_CASES = {
     "open_settings": [Case("the panel's snapshot", {})],
-    "get_status": [Case("the status, with the registry's summary under watcher", {})],
+    "get_status": [Case("the status, with the registry's summary under watcher", {}),
+                   # v0.6.11: an administrator's policy keys in force, named.
+                   Case("while an administrator's policy keys force observe only and cap the attempts", {},
+                        using=_managed(force_observe_only=True, max_recovery_attempts=2))],
     "list_pending": [
         Case("what is waiting", {}),
         Case("finished ones too", {"include_finished": True}),
@@ -440,6 +652,17 @@ MCP_CASES = {
     "retry_now": [
         Case("a usage limit whose reset is still ahead", {"interruption_id": WAITING_RESET}),
         Case("a recovered one has already finished", {"interruption_id": RECOVERED})],
+    # v0.6.11: postpone one recovery (never marked destructive), and let a held one continue.
+    "postpone_recovery": [
+        Case("a waiting recovery postponed by an hour",
+             {"interruption_id": WAITING_RESET, "thread_id": T1, "preset": "1_hour"}),
+        Case("half an hour is earlier than the hour it already waits for",
+             {"interruption_id": WAITING_RESET, "thread_id": T1, "minutes": 30}),
+        Case("the conversation is required", {"interruption_id": WAITING_RESET, "preset": "1_hour"})],
+    "release_hold": [
+        Case("a held recovery let continue", {"interruption_id": WAITING_RESET, "thread_id": T1},
+             using=_held(T1)),
+        Case("the same one again: it is not held", {"interruption_id": WAITING_RESET, "thread_id": T1})],
     "disable_conversation_recovery": [
         Case("one conversation switched off", {"thread_id": T1}),
         Case("not a conversation id", {"thread_id": "not-a-uuid"})],
@@ -734,9 +957,7 @@ def main(argv=None) -> int:
     write = "--write" in arguments
     made = generate()
     differ = sorted(name for name, text in made.items() if recorded(name) != text)
-    stale = sorted(str(path.relative_to(GOLDEN)).replace(os.sep, "/")
-                   for path in GOLDEN.rglob("*.json")
-                   if str(path.relative_to(GOLDEN)).replace(os.sep, "/") not in made)
+    stale = sorted(name for name in wire_goldens() if name not in made)
     if write:
         for name in differ:
             target = GOLDEN / name

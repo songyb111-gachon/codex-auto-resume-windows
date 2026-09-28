@@ -14,7 +14,7 @@ import json
 from pathlib import Path, PureWindowsPath
 import re
 import sqlite3
-from .. import failures, machine
+from .. import failures, guards, machine, projects
 from ..domain import ids
 from .errors import SourceError
 from .labels import _label
@@ -22,8 +22,21 @@ from .values import (KNOWN_STATUSES, MAX_ITEM_BYTES, MAX_META_BYTES,
                      MAX_SCAN_BYTES, PROGRESS_ITEM_TYPES, _json,
                      _turn_status, epoch, normalize)
 from .paths import _safe_path
+from . import workspace
 from .payload import (_choose_reset, _content_has_marker,
                       _queue_has_marker, detect)
+
+
+def _needing(row, kinds):
+    """A failed turn whose category is one of `kinds`, normalized as `detect` normalizes one and with
+    the id it would have - or None. Never passed to `detect`, and never registered."""
+    normalized = normalize(row)
+    if (normalized is None or normalized["status"] != "failed"
+            or normalized["category"] not in kinds or normalized["completed_at"] is None):
+        return None
+    normalized["interruption_id"] = ids.interruption_id(
+        *(normalized[k] for k in ("thread_id", "turn_id", "completed_at", "ordinal")))
+    return normalized
 
 
 class HistoryMixin:
@@ -98,7 +111,12 @@ class HistoryMixin:
                 "ORDER BY rollout_ordinal DESC LIMIT 1", (thread_id,)).fetchone()
         return normalize(dict(row)) if row else None
 
-    def latest_failures(self, since: float) -> list[dict]:
+    def latest_failures(self, since: float, *, needs_you=frozenset()) -> list[dict]:
+        """Every conversation's latest turn that failed since `since` and that this product would
+        recover (payload.detect). `needs_you` (v0.6.11) adds, from the same read, those whose category
+        is one of these - failures that need a person (needsyou.KINDS) - normalized the same way and
+        with the id `detect` would have given them, but never through `detect`, so none of them can
+        ever become a record to recover (A14). Empty, the default, and this is v0.6.10's read."""
         if not epoch(since):
             raise SourceError("Invalid detection start timestamp")
         # Read only failure metadata; no transcript scanning or folder traversal.
@@ -113,9 +131,44 @@ class HistoryMixin:
         result = []
         for row in rows:
             eligible = detect(dict(row))
+            if eligible is None and needs_you:
+                eligible = _needing(dict(row), needs_you)
             if eligible and self._metadata(eligible["thread_id"]) is not None:
                 result.append(eligible)
         return result
+
+    def stalled_turns(self, since: float, quiet_seconds: float, now: float) -> list[dict]:
+        """Conversations whose latest turn is still in progress and has recorded nothing new for
+        `quiet_seconds` (v0.6.11, a needs-you notice): the turn's lifecycle columns and the time of its
+        newest item, and nothing of any item's content, which is never selected (B7, B9). It says that
+        nothing moved, never why. Only a desktop-app conversation of a person's own, as detection
+        (A15); none at all where Codex's items carry no time (B5). Each: thread_id, turn_id, and when
+        it last moved."""
+        if not epoch(since) or type(quiet_seconds) is not int or quiet_seconds <= 0:
+            raise SourceError("Invalid stall window")
+        with self._db("history") as connection:
+            columns = {row[1] for row in connection.execute("PRAGMA table_info(thread_items)")}
+            if "created_at_ms" not in columns:
+                return []
+            rows = connection.execute(
+                "SELECT t.thread_id,t.turn_id,t.started_at,"
+                "(SELECT max(i.created_at_ms) FROM thread_items i WHERE i.thread_id=t.thread_id "
+                "AND i.turn_id=t.turn_id) AS last_item_ms FROM thread_turns t "
+                "WHERE t.status='inProgress' AND t.started_at>=? AND t.started_at<=? "
+                "AND NOT EXISTS (SELECT 1 FROM thread_turns n "
+                "WHERE n.thread_id=t.thread_id AND n.rollout_ordinal>t.rollout_ordinal)",
+                (since, now - quiet_seconds)).fetchall()
+        found = []
+        for row in rows:
+            thread, turn, started = row["thread_id"], row["turn_id"], row["started_at"]
+            if not (ids.is_uuid(thread) and ids.is_uuid(turn) and epoch(started)):
+                continue
+            last = row["last_item_ms"]
+            item = last / 1000.0 if type(last) is int and epoch(last // 1000) else None
+            moved = max(started, item) if item is not None else started
+            if now - moved >= quiet_seconds and self._metadata(thread) is not None:
+                found.append({"thread_id": thread, "turn_id": turn, "moved_at": moved})
+        return found
 
     def identity(self, thread_id: str) -> dict:
         """Human-facing labels for one thread. Never used to *find* a thread.
@@ -160,6 +213,73 @@ class HistoryMixin:
                         "project": project, "cwd_basename": base}
         except (SourceError, sqlite3.Error, OSError, ValueError):
             return blank
+
+    def project_key(self, thread_id: str):
+        """The key of the project a conversation is filed under (projects.key_for), or None when it
+        cannot be read. Codex's project id, or else its folder, is read here and digested here: the
+        key is all that leaves this method, and nothing is ever found by it (B8).
+
+        Asked only when Settings let some projects resume and not others (projects.asks); at the
+        defaults it is never asked. The same two columns the labels are read from, and no other."""
+        if not ids.is_uuid(thread_id):
+            return None
+        try:
+            with self._db("state") as connection:
+                columns = {row[1] for row in connection.execute("PRAGMA table_info(threads)")}
+                wanted = [name for name in ("project_id", "cwd") if name in columns]
+                if not wanted:
+                    return None
+                row = connection.execute(
+                    "SELECT %s FROM threads WHERE id=?" % ",".join(wanted), (thread_id,)).fetchone()
+        except (SourceError, sqlite3.Error, OSError, ValueError):
+            return None
+        if row is None:
+            return None
+        keys = row.keys()
+        return projects.key_for(row["project_id"] if "project_id" in keys else None,
+                                row["cwd"] if "cwd" in keys else None)
+
+    def task_facts(self, thread_id: str, *, fingerprint: bool = False, tokens: bool = False) -> dict:
+        """What the two guards of v0.6.11 read of a conversation (guards.py), and only what they ask:
+
+        * "print": the digest of its model, its approval mode and its folder's git HEAD
+          (codex/workspace.py) - None when the conversation cannot be read;
+        * "tokens": Codex's own count of the tokens it has used, only where the threads table has
+          a numeric `tokens_used` column - None where it has none, or holds no whole number.
+
+        Each column is read only if it is there (B5); a missing model or approval column is a
+        part of the digest that is always the same, never a change. Nothing but the digest and
+        the count leaves this method, and neither guard is on at the defaults, where it is never
+        asked."""
+        found = {"print": None, "tokens": None}
+        if not ids.is_uuid(thread_id) or not (fingerprint or tokens):
+            return found
+        try:
+            with self._db("state") as connection:
+                columns = {row[1]: str(row[2] or "").upper()
+                           for row in connection.execute("PRAGMA table_info(threads)")}
+                wanted = [name for name in ("cwd", "model", "approval_mode")
+                          if fingerprint and name in columns]
+                counted = tokens and "INT" in columns.get("tokens_used", "")
+                if counted:
+                    wanted.append("tokens_used")
+                if not wanted:
+                    return found
+                row = connection.execute(
+                    "SELECT %s FROM threads WHERE id=?" % ",".join(wanted), (thread_id,)).fetchone()
+        except (SourceError, sqlite3.Error, OSError, ValueError):
+            return found
+        if row is None:
+            return found
+        keys = row.keys()
+        if counted:
+            found["tokens"] = guards.tokens(row["tokens_used"])
+        if fingerprint:
+            text = {name: row[name] if name in keys and isinstance(row[name], str) else None
+                    for name in ("cwd", "model", "approval_mode")}
+            head = workspace.head_digest(text["cwd"]) if text["cwd"] else workspace.UNREADABLE
+            found["print"] = guards.fingerprint(text["model"], text["approval_mode"], head)
+        return found
 
     def progress(self, thread_id: str, after_ordinal: int) -> dict:
         """Content-free evidence that something happened after a given turn.

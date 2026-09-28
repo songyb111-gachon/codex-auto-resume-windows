@@ -54,8 +54,7 @@ class GoldenTests(unittest.TestCase):
         mcp = {name[len("mcp/"):-len(".json")] for name in self.made if name.startswith("mcp/")}
         self.assertEqual(bridge - {wiregolden.BRIDGE_FRAMING}, set(wiregolden.bridge_commands()))
         self.assertEqual(mcp - {wiregolden.MCP_PROTOCOL, wiregolden.MCP_TOOL_LIST}, set(wiregolden.mcp_tools()))
-        on_disk = {str(path.relative_to(wiregolden.GOLDEN)).replace(os.sep, "/")
-                   for path in wiregolden.GOLDEN.rglob("*.json")}
+        on_disk = wiregolden.wire_goldens()
         self.assertEqual(sorted(set(self.made) - on_disk), [],
                          "a command or tool has no golden; run python -X utf8 tests/wiregolden.py --write")
         self.assertEqual(sorted(on_disk - set(self.made)), [],

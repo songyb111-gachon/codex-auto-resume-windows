@@ -6,6 +6,7 @@ import ctypes as C
 
 from ... import brand
 from ... import notice_card
+from ...win import textsize
 from .. import popup
 from . import win32
 from .win32 import INTERPOLATION_HIGH_QUALITY_BILINEAR, UNIT_PIXEL, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP, _declare  # noqa: F401
@@ -20,7 +21,7 @@ class Card:
         self.notice = notice
         self.vm = notice_card.view(notice)
         self.edge, self.born, self._breathed = "bottom", now_ms, now_ms
-        self.scale = where["dpi"] / 96.0
+        self.scale = where["dpi"] / 96.0 * self.fitting(where, drawn)
         self.theme, self.contrast = drawn["theme"], drawn["contrast"]
         # v0.6.10: the design (win32.look), which chooses paint only. What moves - the light's breath, and
         # the card's own entrance, exit and slide - is held by `reduced` alone, the same in every design.
@@ -55,6 +56,25 @@ class Card:
         except Exception:
             self.close()
             raise
+
+    # The most of the work area one card may take at a text size, across and down: a stack of them still has
+    # room beside it and above it.
+    ROOM = (0.5, 0.5)
+
+    @classmethod
+    def fitting(cls, where, drawn):
+        """v0.6.11: the text size the card is drawn at - Windows' (win32.look's `text`), which draws the whole
+        card that much larger, words and what holds them alike - but no larger than lets a card of the usual
+        size grow into half the work area each way (textsize.fitting). 1 where nothing says, or nothing is
+        measured."""
+        text = (drawn or {}).get("text")
+        work = where.get("work") if isinstance(where, dict) else None
+        if not isinstance(text, float) or text <= 1.0 or not work:
+            return 1.0
+        scale = where["dpi"] / 96.0
+        usual = (notice_card.CARD_WIDTH * scale, notice_card.USUAL_HEIGHT * scale)
+        room = ((work[2] - work[0]) * cls.ROOM[0], (work[3] - work[1]) * cls.ROOM[1])
+        return textsize.fitting(text, usual, room)
 
     # ---- drawing the card once
     @property

@@ -1,5 +1,382 @@
 # Changelog
 
+## v0.6.11-beta — The standard edition's additions, and v0.6.10's behaviour at its defaults
+
+[The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.11-alpha...v0.6.11-beta)
+
+**A pre-release, published from `main`.** It is a GitHub pre-release, so `releases/latest` never
+answers with it and an installed copy's update check never offers it. It is on `main`, though, and
+the plugin's own route installs what `main`'s manifest says, so an installation made that way gets
+it. It is here because the maintainer asked for a pre-release once v0.6.11's second stage was done:
+everything this release adds to the standard edition. At its defaults the standard edition behaves
+as v0.6.10 did and makes the same calls to Codex, with two exceptions: the marker at the end of a
+continuation is shorter, a change asked for on purpose ([The marker](#the-marker)), and a Windows
+set to one of the seven new languages gets the continuation message in that language, as it gets
+everything else. Every setting it adds is off, or does what v0.6.10 did, until a person changes it.
+Beyond that, what changes with nothing turned on is what is said and drawn: the Dashboard, the
+popup and the panel say more about what waits, and the product asks Windows a few more
+content-free questions - about its own process, about the text size and the fonts it draws with,
+and, when Diagnostics opens, about who can open its state folder - which [PRIVACY.md](PRIVACY.md)
+lists. The advanced edition still has no capability to switch on. To leave this pre-release for a
+later release, run that release's `Install.cmd`; going back to v0.6.11-alpha or v0.6.10 takes one
+command first ([The state database](#the-state-database)).
+
+**An older copy of the plugin cannot read this version, and a published copy cannot be changed.**
+Every bootstrap published before this one, v0.6.0's to v0.6.11-alpha's, knows no word after a
+version but `-alpha`, if that, so none of them can compare `0.6.11-beta` with anything. Codex keeps
+its copy of the plugin until an installer replaces it, which an installer cannot do while Codex is
+open. Run from such an older copy, a plain setup or repair takes this installation for none and
+installs that copy's own, older release over it - and v0.6.11-alpha and v0.6.10 refuse the state
+this one wrote and send nothing ([The state database](#the-state-database)). `-CheckOnly` and
+`-Update` from such a copy stop with an error and print no `update:` line. So with this pre-release
+installed, set up and repair with the installation's own copy,
+`%USERPROFILE%\.codex-auto-resume\app\scripts\bootstrap.ps1`, or with a plugin at this version; if an
+older copy has already replaced it, run this pre-release's `Install.cmd` again. From this version on,
+a bootstrap refuses an installation whose version it cannot read until `-Force` says to replace it,
+and its update check answers `update: unavailable`.
+
+How it was checked: every one of the 283 scenarios v0.6.10 was tested with, their test modules
+byte for byte the tag's, runs against the tagged v0.6.10 package and against this one, and every
+`send`, `usage`, `loaded`, `delete_queue` and `app_identity` call is the same, in the same order,
+with the same arguments - the marker aside. The nine older languages' Standard continuation is
+v0.6.10's byte for byte, read from the tag. `tests/golden/defaults-v0.6.10.json` holds every
+default v0.6.10 shipped, written from the tag, and `tests/test_defaults_golden.py` names each
+setting added since, with its default and why that default does what v0.6.10 did, and fails on one
+it does not name. A review after each of the stage's three parts reproduced problems - among them,
+Observe only left a continuation already in Codex's queue to be delivered while the Overview said
+nothing is sent; a postponement of a minute made before an objection window opened took the whole
+window's place; the time ceiling counted time spent waiting, which its help said it never counts; a
+policy value that could not be read was taken for one that was not there, which lifted
+`ForceObserveOnly`; and after `downgrade-state --to 3` v0.6.10 could take the failure of a
+continuation's turn for a new task, and resume one that had been cancelled. Each is fixed, with a
+test that failed before.
+
+### What waits, and what it says
+
+Nothing here has a setting.
+
+- ***Why it is waiting* says it in words.** Under its list of checks, a sentence says what the
+  first check that did not pass is waiting for: the Codex app, the conversation being opened, the
+  usage reset, and so on.
+- **A recovery's *Timeline* shows what delivery showed.** After its journal it lists, for each
+  continuation, when it was seen starting a turn in its conversation, that it was handed to Codex
+  and not seen yet, or that its delivery is uncertain - watched for a day and never sent again.
+  Only the records' own columns are read for it, never content.
+- **Attempts are shown beside the limit they have now:** `3/4`, or `19/6` after the limit was
+  lowered - never cut down to the limit.
+
+### Staying out of the way
+
+Each setting here does what v0.6.10 did until a person changes it: it is off, or it is **Resume
+automatically**, **Resume it like the others** or **Every project**. None of them skips a check.
+What undoes their holding back is a person's choice - **Don't postpone**, **Let it continue**,
+`release_hold`, which Codex asks you about first, and **Let this project resume** - and a task then
+goes only when its schedule and every check let it.
+
+- **A task has a menu of its own**, in the Dashboard's Pending page and in the popup, on a right
+  click, Shift+F10 or the menu key. **Postpone** holds that one task back 30 minutes, 1 hour, 3
+  hours or until 09:00 tomorrow, only ever later - from Codex, `postpone_recovery` takes a number of
+  minutes up to a week - and **Don't postpone**, last under it, takes a postponement you made away
+  again, back to what the schedule says without it: an objection window's time, a retry's wait and a
+  usage reset all stay. Retry now never shortens a postponement, and the Dashboard does not offer it
+  while one is ahead. Every item acts on the exact task and its conversation, and is refused if the
+  row has since become another task. The menus are drawn in the window's own colours, and nothing
+  that was on screen moves.
+- **Quiet hours**, under Settings > Advanced - **Quiet hours from**, **Quiet hours until** and
+  **Quiet hours on** (every day, Monday to Friday, or Saturday and Sunday) - make a recovery that
+  falls due in them wait until they end, on your clock, across midnight and a change of summer
+  time. Time spent in them does not count toward giving up on a usage limit.
+- **How much a conversation asks first.** **Before resuming a conversation** is **Resume
+  automatically** by default. **After a chance to object** raises one more notification when
+  everything else would let the continuation go - "Continuing at 14:07 unless you stop it", with
+  **Don't resume** and **Open Dashboard** - and sends only once **Time to object (minutes)**, 1 to
+  60 and 5 by default, has passed. **Ask me first** and **Only notify me** send nothing until you
+  let the task continue, and their notification says the task waits for you - never that it will
+  resume. **Let it continue** on the task's row does it, asking you to confirm and sending nothing
+  itself, and so does `release_hold` from Codex, which asks you first. The setting applies to
+  interruptions detected after it is chosen; **How this conversation resumes**, on a row, chooses
+  for that conversation alone, and Ask me first or Only notify me chosen there also holds what it
+  has waiting. A task that waits for you has no time: its row says *waiting for you*, and
+  nothing says it is being checked.
+- **Observe only: check everything, send nothing**, under Automatic recovery, lets the watcher do
+  everything but send. Pending and History say when a continuation *would have been sent*, *Why it
+  is waiting* says every check but Observe only passed, and the Overview and the popup say observe
+  only. It is refused twice over - by the watcher on the setting, and by the claim on a switch of
+  the state's own - and a continuation already in Codex's queue when it is turned on is taken back,
+  as a Pause takes it.
+- **Which conversations and projects resume without you.** **A conversation seen for the first
+  time** can be **Only notify me** instead of **Resume it like the others**, and **Projects that may
+  resume** can be **Only projects let resume** or **Every project but those held** instead of
+  **Every project**; a task's row sets its project with **Let this project resume** or **Hold this
+  project for me**. Either only ever holds an interruption for you when it is detected, and a task
+  whose project cannot be read is held, never dropped; **Hold this project for me** also holds at
+  once what that project already has waiting, and **Let this project resume** lets nothing already
+  held go. A project is the one Codex files the conversation under, or else its folder, and the
+  settings keep only a 64-digit SHA-256 digest of it - never a name or a path; at the default it is
+  not even read. Only a task's row sets the lists: no editor draws them, and MCP refuses them.
+- **In Codex**, `postpone_recovery`, not marked destructive since it only holds back, and
+  `release_hold`, marked `destructiveHint` since it lets one held task continue, bring the plugin's
+  tools to nineteen, and `update_settings` offers the new settings under Advanced, Automatic
+  recovery and Notifications. Don't postpone is no tool at all: it brings a send nearer, so only the
+  Dashboard and the popup offer it.
+
+### Guards and waits
+
+The settings are under Settings > Advanced, each off or unused by default, and each can only make a
+recovery wait longer, stop sooner or wait for you.
+
+- **Custom retry timing.** **Retry timing** gains **Custom**: five waits picked from lists, for a
+  task that fails with a temporary error - the first from 5 seconds to 2 hours, each later one from
+  15 minutes to 6 hours, and the fifth for every attempt after it. The 15 minutes are the watcher's
+  own floor, not a setting: whatever is chosen, one conversation gets a continuation at most every
+  15 minutes and five times in any 24 hours. A rate limit's first wait is still at least a minute,
+  and a Retry-After that Codex's structured error names is the least the first wait may be - none
+  has been seen yet. **Add up to a fifth to each wait** only ever lengthens a wait. A line under the
+  waits, in the Dashboard and in the panel, says what the timing comes to if each continuation fails
+  at once.
+- **Stop a task that keeps failing after**, 1 to 24 hours, stops a task whose temporary failures
+  have gone on longer, less the time it waited for anything but its own retries: time spent paused,
+  postponed, in an objection window, in quiet hours or waiting for the app never counts. It stops
+  the task as running out of attempts does, **Give attempts back** gives the time back, and usage
+  limits are not affected.
+- **If the task changed while it waited** - the task-changed guard - compares, just before a
+  continuation is sent, the conversation's model and approval mode and its folder's git branch or
+  commit with what they were when it stopped. The branch is the folder's `.git/HEAD`, read as a
+  file: git is never run, and a network share path is not read. **Hold it for me** keeps a changed
+  task waiting for you; **Resume, and tell me** sends it and says so on its notification. Only a
+  digest of the three is kept.
+- **Tokens a conversation has used** - the context-cost guard - reads Codex's own count when an
+  interruption is detected, where Codex's list of conversations keeps one as a number. **Show them
+  in Pending** puts it beside the task; **Hold above 100,000** to **Hold above 1,000,000** also keep
+  a task whose conversation has used more waiting for you. Where Codex keeps no count, it does
+  nothing.
+- **High limits are said to be high.** With **Attempts per interruption**, **Stop after this many
+  turns without progress** or **Continuations per task** above 8, 5 or 8, a notice under them, in
+  the Dashboard and the panel, says a task that keeps failing can then be continued many times, and
+  every continuation uses your Codex usage.
+
+### Sleep, the network and memory
+
+- **Ask me after a sleep longer than**, under Advanced - 30 minutes to 12 hours - holds for you
+  every waiting recovery that fell due while the PC slept longer than that. One notification says
+  how long it slept and how many tasks wait, with one button, **Open Dashboard**, at Pending, where
+  each task's **Let it continue** or **Cancel** decides it.
+- **Keep this PC awake while a task waits**, under General > Windows - **On mains power only** or
+  **Always** - asks Windows not to let the PC sleep on its own while a task waits, for at most
+  **Keep it awake for at most** (6 hours by default) each time tasks start waiting. It is a request
+  the watcher makes and takes back - when nothing waits, when the hours are up, on a pause and when
+  it stops - and no Windows setting changes: the lid and Sleep still sleep the PC, and nothing wakes
+  a sleeping one. While this or **Ask me after a sleep longer than** is on, the watcher also hears
+  the PC wake and looks again at once, forgetting what it last read of the app and of your usage.
+- **Wait for an internet connection**, under Advanced, asks Windows' Network List Manager - which
+  answers from what Windows already knows, sending nothing - whether the PC is online, just before
+  usage would be read for a recovery that is due. While Windows reports no connection the recovery
+  waits and looks again every minute, and no usage is read; *Why it is waiting* says "No internet
+  (Windows reports)". It is off by default because behind some proxies Windows reports no internet
+  where there is.
+- **The watcher's memory.** After every check the watcher asks Windows how much memory its own
+  process has committed, and Diagnostics shows the most as **Peak memory**. That and the record of
+  how the watcher stopped, below, are all of this section that happens at the defaults. **When the
+  watcher uses too much memory**, under General > Windows, can **Warn me**, once, or **Warn me, then
+  stop the watcher**: after the check it is in, never while a continuation is being sent, the way a
+  Stop does, with nothing waiting lost and nothing to start it again on its own. The limit is **Too
+  much memory is more than**, 256 to 2048 MB, 1024 by default.
+- **Stopped, or stopped unexpectedly.** A watcher that is gone without having said so, in the same
+  Windows sign-in and the same start of Windows, is shown as *stopped unexpectedly at* the time it
+  was last seen - or *stopped by the memory guard at* - in Diagnostics and in the panel, and the
+  Overview's Right now says the same without the time. One that ended with an earlier sign-in, or
+  before Windows last started, is only not running, as before.
+
+### Notices and usage
+
+- **When a conversation needs you**, under Settings > General > Notifications, off by default,
+  tells you once about a conversation this product will never resume, because only you can move it
+  on: a request refused or a conversation too long, a content policy, a sign-in Codex needs, or
+  Codex giving up - one check box each - and, with **When a turn has not moved for** set from 10
+  minutes to 2 hours, a latest turn still in progress that has recorded nothing new for that long.
+  Each has its kind in a word, one next step and one button, **Open Dashboard**, at Settings;
+  nothing is resumed, sent or recorded as a recovery for any of them, and a turn you stopped
+  yourself is never told. The stall is read from the turn's own columns and when its newest item
+  was recorded, never from what an item says, so it never says why. **Play a sound for these**
+  gives them Windows' reminder sound; they are then always Windows' own notification, which Do not
+  disturb holds back.
+- **Codex's usage, as last read.** The Overview's Waiting card, *Why it is waiting* for a usage
+  limit, the popup, the panel and `get_status` show the watcher's last usage reading with its age:
+  "Codex usage, read 2m ago: 5-hour 100%, resets 14:42 · weekly 62%, ...". Nothing is read for it -
+  usage is still read only when a recovery is due - so it can be hours old, and its age says so.
+  Only the numbers are kept: which window, how much of it is used, its length and its reset; no
+  account, plan or credit. A used-up weekly limit also says the day and time it resets, and that
+  `/usage` in Codex can redeem a reset credit if your account has one, which this product never
+  knows.
+- **A status file for your own tools.** **Write a status file for other tools**, under General >
+  Windows, off by default, has the watcher write `status.json` in its settings folder after every
+  check: whether it runs, whether recovery is on, how many tasks wait and when the next is looked
+  at, and Codex's usage as last read. It holds no conversation, name or path, nothing in this
+  product reads it, and it is removed when the setting is turned off.
+
+### The message sent
+
+- **Careful**, a new **Message style**, is the Standard message and a request to check what has
+  already happened and not to repeat any step that already changed files, pushed, sent or published
+  something. Standard stays the default.
+- **Message for this conversation...**, on a task's row in the Dashboard's Pending page, gives one
+  conversation a continuation message of its own, sent instead of the style's whenever that
+  conversation is continued, and only for an interruption that is recovered. It is a Custom
+  message in every other way - the same placeholders and 2,000 characters, sent exactly as typed,
+  with the dialog's own Preview - for at most 50 conversations, and **Remove message** takes it
+  away. No model can set it: no MCP tool writes it, `update_settings` refuses it, and the
+  diagnostics bundle records only that one is set.
+
+### Diagnostics
+
+- **Search the log...** opens this product's own log with a search box, newest last, looked at
+  again every five seconds while it is open. The log holds reason codes, ids and times - never a
+  prompt, a reply or an error's text - and `errors.log` is not read there.
+- **State folder**, under Health, says who Windows lets open the folder that holds the settings,
+  the pending tasks and the logs: *only your account can open it*, *other accounts on this PC can
+  open it* - with a sentence on what that means, and where to install instead - or *not checked*.
+  It reads the folder's access list and changes nothing.
+- **Show me what happens** plays a recovery with made-up words: a made-up task waits on Pending for
+  a minute, then shows in History, and while the watcher runs its icon shows a Demo card whose
+  buttons do nothing. None of it touches the recovery state, the card is never a Windows
+  notification, and nothing is sent.
+- **While tasks wait** says whole what the Overview's line under Waiting says about keeping the PC
+  awake and the last usage reading.
+- **After an edition change, Codex's copy of the plugin.** When Codex cannot replace its copy of
+  the plugin after an installation changed edition, the installer now says which edition that copy
+  still is, and that only its skill's text waits for closing the ChatGPT/Codex app and running the
+  installer again - the plugin's tools already run what was just installed. Diagnostics says so too
+  until the copy is replaced.
+
+### The window, the panel and accessibility
+
+- **Windows' text size.** The Dashboard, the popup, the notification card and the panel draw their
+  text at Windows' **Text size** (Settings > Accessibility), which they read and never change. The
+  first three are drawn that much larger as a whole, so nothing is cut, and never larger than the
+  screen holds; in the panel the type grows and other lines wrap. At 100% everything is drawn as
+  before.
+- **Screen readers.** The popup, which draws itself, now tells Narrator and other screen readers its
+  counts, each task's row and its switch - "Auto-resume: " and the task - its notes and its two
+  buttons, by name, role, state and place, and follows the keyboard; a screen reader's press is
+  exactly a click on what was drawn. Every control a person can act on in the Dashboard has a name a
+  screen reader says, in every language, and every focus ring stands at least 3:1 off what it
+  touches, in every design and theme.
+- **Ask Codex**, folded in the panel before Appearance: a few things to type to Codex about this
+  product - its status, what it waits for, pausing it, its settings - in the panel's language.
+- **One line on the Overview.** Keeping the PC awake and the last usage reading share the one line
+  under Waiting, so the card has no line more; it ends in an ellipsis where it does not fit, and its
+  whole text is its tooltip and what a screen reader says. No button, header or position that was
+  there before moves, and Pending and History stay flat rows.
+
+### Languages
+
+- **Sixteen languages.** Русский, Italiano, Türkçe, Polski, Українська, Tiếng Việt and Bahasa
+  Indonesia join the nine, in the Dashboard, the popup, the notifications, the panel and the
+  continuation message. *System* takes Windows' first display language to its own catalog in any
+  region - Portuguese from anywhere to Português (Brasil), Chinese by its script - and anything
+  else to English. The two language lists name each language in itself only, after *System* or
+  *Same as the interface*; about ten rows show and the rest scroll, and typing a letter goes to the
+  next language that begins with it.
+- **Arabic and Hebrew are translated, and held.** Their catalogs are complete and current, but
+  nothing offers them: no list shows them, no Windows language reaches them, and a Windows set to
+  either is answered in English. They are written right to left, and they ship only once every
+  surface mirrors. The popup, the notification card and the panel already do, held by tests and
+  reached by no one while the two are held. The Dashboard does not: WinForms mirrors only a form's
+  direct children and none of the painting the window does itself, so every layout and painter of
+  it has to be mirrored by hand - a stage of its own.
+- **One face per language.** Every letter of every catalog is found in the faces each surface draws
+  with. Where Windows' interface font lacks a letter of a language - Vietnamese on a Korean Windows,
+  Cyrillic under Microsoft JhengHei UI - that language is set in Segoe UI on all four surfaces,
+  rather than one word in two faces; every language the interface font has whole keeps it, and on
+  an English Windows nothing changes. The popup and the card are laid out with every string each of
+  their places can hold, in every language from 100% to 300%, and nothing is cut.
+
+### The state database
+
+- **Schema 4.** The state gains room for what the settings above hold back with - a postponement,
+  a word for why a task waits for you, a word for how much a conversation asks, the observe-only
+  switch, the needs-you notices, a guard's digest and token count - and for what the watcher says
+  about itself: its last usage reading, since when it keeps the PC awake, its peak memory, and how
+  it last stopped, with the sign-in and the start of Windows it ran in. At the defaults what the
+  settings hold back with is empty, and so is the keep-awake time, since nothing keeps the PC
+  awake. The rest of what the watcher says about itself is written at every setting: its peak
+  memory and the record of how it stopped, with the sign-in and the start of Windows, at every
+  check, and its usage reading whenever usage is read for a recovery that is due. Nothing that decides a send reads the notices. Schema 3 is upgraded
+  under the watcher's mutex, after a forensic copy (`state.v3-backup-*.sqlite`), in one
+  transaction.
+- **Going back takes one command first.** v0.6.11-alpha and v0.6.10 refuse a state this release
+  wrote, as one from a newer version, and send nothing. To go back to either, stop the watcher, run
+  `downgrade-state --to 3` from this release ([the guide's commands](GUIDE.md#commands)), and only
+  then install the older release. It takes a copy (`state.v4-backup-*.sqlite`), keeps every row and
+  writes what v0.6.10 reads, never looser than it was: every marker is the whole id's again, a
+  continuation that may have gone out with a short marker is made final and never sent again, a
+  conversation whose continuation v0.6.10 could not follow to its turn is switched off, Observe only
+  becomes a Pause, a hold or a tier other than Resume automatically switches its conversation off,
+  and a postponement becomes the schedule. What only schema 4 holds - the notices, the last
+  reading, the guards' digests - is left behind. It is proved against the tagged v0.6.10's own
+  store and watcher on the simulated Codex; no real older release has been installed over a
+  downgraded state yet.
+- **Under an older watcher.** While a v0.6.x watcher still owns a schema-3 state, this release can
+  still pause recovery, switch a conversation off and cancel its recoveries, written so that the
+  older watcher reads every row.
+
+### For administrators
+
+- **Six policy values** under `Software\Policies\CodexAutoResume`, in `HKEY_LOCAL_MACHINE` or
+  `HKEY_CURRENT_USER`, each of which can only hold recovery back: `DisableAutoResume` pauses it and
+  refuses Resume while set; `ForceObserveOnly` turns Observe only on; `DisableUpdateCheck` greys
+  **Check for updates...**, which then asks nothing; `DisableStatusFile` keeps the status file off;
+  `MaxRecoveryAttempts`, 1 to 20, is a ceiling on attempts per interruption; and `QuietHours`, as
+  `22:00-07:00` or `22:00-07:00 weekdays`, adds quiet hours beside a person's own.
+  [The guide](GUIDE.md#settings-an-administrator-manages) has the whole table.
+- **Read, never written, and applied, never stored.** `startup.py` is still the only code that
+  writes the registry. The values are applied after the settings are read, never to the file, so a
+  person's own choices apply again once a value goes - except a pause, since resuming is theirs to
+  do. Both places' restrictions hold, a malformed value is ignored, one that is there and cannot be
+  read holds the most it could, and a change that would loosen one is refused with
+  `managed_by_policy`. What a value decides is greyed in the Dashboard's Settings and the panel,
+  with *Set by your administrator.*; the Overview says *managed by your administrator* or *paused
+  by your administrator*; Diagnostics names the values in force, and the diagnostics bundle holds
+  their names, never what they say. Only an installed copy reads them - a source checkout reads
+  none - and they are a statement a cooperating installation obeys, not a lock.
+
+### The marker
+
+- **A continuation now ends in `[codex-auto-resume:` and the first 16 of its interruption id's 64
+  hex digits**, as the maintainer asked, where it carried the whole id. The rule it serves is
+  unchanged: one marker per interruption, and delivery counts only when that marker is found in
+  that exact conversation - two of them, or one at or before the failed turn, are still ambiguous.
+  A record made before keeps the whole id's marker and is found by it; a record whose short marker
+  another record of the same conversation already carries gets the whole one, so no two share a
+  marker; and the closing `]` keeps a 16-digit marker from being found inside a 64-digit one. The
+  channel is unchanged, `codex queue --thread --message`, and so are the words before the marker.
+- **Why no marker at all is advanced-only.** A message queued through Codex's App Server,
+  `thread/queue/add`, can carry a client id that Codex keeps with it, and delivery could be proven
+  by that instead of a marker. But the standard edition sends through one channel only, the
+  `codex queue` command line, which takes no client id; a second channel, and delivery proven
+  without the marker, depart from the standard edition's rules. So a continuation without a marker
+  can only ever be an advanced capability that a person turns on, with a statement of what it
+  departs from. Nothing of it is in this pre-release.
+
+### Around the product
+
+- **The measurements the advanced edition will build on.** Its `measure` was run on the maintainer's
+  PC against codex-cli 0.158.0-alpha.2.1, on throwaway conversations only, and its content-free
+  records are in `docs/evidence/live/`. A watcher started through WMI outlives Codex's kill-on-close
+  job (MW); a message queued while no app holds the conversation is delivered once it is opened
+  (M1); a queued `/compact` arrives as plain text, not as a command (M7); and an unattended turn
+  whose one approval was declined completed without running the command or opening a window (M6).
+  Codex refuses an empty `thread/queue/add` (M3), and a goal set from outside is not taken up by
+  the app while it holds the conversation (M2). M4 and M5 lacked what they need on that PC; MH
+  waits for the maintainer to point the Desktop at a second `CODEX_HOME`, and MA for the maintainer
+  to sign out and back in. Two probes that had judged the live machine wrongly were corrected
+  first.
+- **A link that dev breaks is found on dev.** The Korean documents' sync takes an anchor written
+  out as an anchor, and the suite builds the Korean branch's tree from the commit under test, so a
+  broken link is found there, not after a release.
+- **The pictures are drawn again for what this adds** - Diagnostics among them, from a state folder
+  with the access list an installation has, so it shows no warning an installed product would not.
+
 ## v0.6.11-alpha — Two editions, and the ground the advanced one stands on
 
 [The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.10...v0.6.11-alpha)

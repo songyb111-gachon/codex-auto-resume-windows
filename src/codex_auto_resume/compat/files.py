@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import tempfile
 
 from .. import config
@@ -17,6 +18,9 @@ REFRESH_TIMEOUT_SECONDS = 150
 # What `bootstrap.ps1 -Compatibility` answers with, beside its one `compatibility:` line.
 REFRESH_EXIT = {"refreshed": 0, "unavailable": 12, "refused": 13}
 REFRESH_ANSWERS = ("refreshed", "refused", "unavailable", "incomplete", "failed")
+# This product's own version, and the release it belongs to: MAJOR.MINOR.PATCH in ASCII digits,
+# then -alpha, -beta or nothing (product_version).
+RELEASE_VERSION = re.compile(r"([0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6})(?:-alpha|-beta)?")
 
 
 # ------------------------------------------------------------------------------ helpers
@@ -84,13 +88,14 @@ def _signature(path):
 def product_version() -> str:
     """This product's version as the registry reads one: MAJOR.MINOR.PATCH, or "unknown".
 
-    A planned pre-release (0.6.9-alpha) answers as its release: the registry's documents name
-    releases, and an alpha that read as "unknown" would skip their min_product guard.
+    A planned pre-release (0.6.9-alpha, 0.6.11-beta) answers as its release: the registry's
+    documents name releases, and a pre-release that read as "unknown" would skip their
+    min_product guard. Only those two suffixes: anything else is not a version this product uses.
+    The rule is the one every check of this product's version applies (tests/test_version_rule.py):
+    ASCII digits, and nothing around the version - no space, no line break.
     """
-    version = config.version()
-    if version.endswith("-alpha"):
-        version = version[:-len("-alpha")]
-    return version if compat.product_key(version) else "unknown"
+    found = RELEASE_VERSION.fullmatch(config.version())
+    return found.group(1) if found else "unknown"
 
 
 # ------------------------------------------------------------------------------ bundled

@@ -335,7 +335,8 @@ class WordSourceTests(unittest.TestCase):
         choice = choice[:choice.index("\n    }\n")]
         quote = self.controls[self.controls.index("internal sealed class SoftQuote"):]
         quote = quote[:quote.index("\n    }\n")]
-        for name, body, count in (("GateList", gates, 2), ("ChoiceCard", choice, 4), ("SoftQuote", quote, 2)):
+        # GateList's: what it says with no checks, and (v0.6.11) the sentence under them - each measured and drawn.
+        for name, body, count in (("GateList", gates, 4), ("ChoiceCard", choice, 4), ("SoftQuote", quote, 2)):
             with self.subTest(name):
                 self.assertEqual(body.count("Soft.Wrap("), count, "every measure and every draw")
         note = self.method(self.window, "private int NoteHeight(")

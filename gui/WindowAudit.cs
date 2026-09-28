@@ -58,7 +58,9 @@ namespace CodexAutoResume
         ///   * text, a list's columns or other content that needs more room than it is drawn in,
         ///     and a status light too small for its glow;
         ///   * the header's light not spanning its two lines, not centred on the pair, or not where it has always
-        ///     stood (AuditHero), with the Start button shown and without it.
+        ///     stood (AuditHero), with the Start button shown and without it;
+        ///   * v0.6.11: a control a person can act on, on any page, Settings section or dialog, with no name a screen
+        ///     reader says (AuditSpoken).
         /// tests/test_gui_layout.py runs it in every language at five scalings.
         ///
         /// v0.6.10: it also writes down where everything is on every page and Settings section it lays out
@@ -67,7 +69,18 @@ namespace CodexAutoResume
         /// and so the audit of one design is the audit of all four.
         internal static string LayoutAudit(string schemaJson, string settingsJson, string stringsJson, string snapshotJson, double scale)
         {
+            return LayoutAuditAt(schemaJson, settingsJson, stringsJson, snapshotJson, scale, 1.0);
+        }
+
+        /// v0.6.11: the same at Windows' text size `text` - 1 to 2.25, "Make text bigger" - drawn as the window draws it
+        /// (SettingsForm.AdoptTextSize, TextScale.Apply): the whole window that many times larger, words and what holds
+        /// them alike, every check as at any other scaling. And every control a person can act on is held to a name a
+        /// screen reader can say (AuditSpoken), at every text size and scaling alike.
+        internal static string LayoutAuditAt(string schemaJson, string settingsJson, string stringsJson, string snapshotJson,
+                                             double scale, double text)
+        {
             var findings = new List<string>();
+            AuditedSpoken = 0;
             AuditedPins = 0;
             AuditedLists = 0;
             AuditedNotes = 0;
@@ -83,14 +96,16 @@ namespace CodexAutoResume
             Font baseBefore = Soft.BaseFont;
             try
             {
-                dpiScale = scale;
+                dpiScale = scale * Math.Max(1.0, text);
                 float factor = (float)(scale / SystemScale);
-                Font box = SystemFonts.MessageBoxFont;
+                double read = TextScale.Read();
+                Font box = TextScale.Apply(SystemFonts.MessageBoxFont, read, text);
                 var windowFont = new Font(box.FontFamily, box.SizeInPoints * factor, box.Style, GraphicsUnit.Point);
                 // An unparented control measures in Control.DefaultFont, which follows the display too.
+                Font fallen = TextScale.Apply(defaultBefore, read, text);
                 if (fallback != null)
-                    fallback.SetValue(null, new Font(defaultBefore.FontFamily, defaultBefore.SizeInPoints * factor,
-                                                     defaultBefore.Style, GraphicsUnit.Point));
+                    fallback.SetValue(null, new Font(fallen.FontFamily, fallen.SizeInPoints * factor,
+                                                     fallen.Style, GraphicsUnit.Point));
                 var catalog = Json.Parse(stringsJson) as Dictionary<string, object>;
                 var schema = Json.Parse(schemaJson) as List<object>;
                 var current = Json.Parse(settingsJson) as Dictionary<string, object>;
@@ -123,10 +138,14 @@ namespace CodexAutoResume
                     foreach (string page in PageOrder)
                     {
                         form.ShowPage(page);
+                        // v0.6.11: the State folder's longest answer and the sentence under it, as the bridge would give
+                        // them (LoadStateAccess asks nothing while auditing).
+                        if (page == "diagnostics") form.ApplyStateAccess("shared");
                         if (page != "settings")
                         {
                             Geometry(page, form, geometry);
                             form.Audit(page, findings);
+                            AuditSpoken(page, form, findings);
                             form.AuditScrolling(page, findings);
                             if (page == "overview")
                             {
@@ -143,6 +162,7 @@ namespace CodexAutoResume
                             form.ShowSection(section);
                             Geometry("settings/" + section, form, geometry);
                             form.Audit("settings/" + section, findings);
+                            AuditSpoken("settings/" + section, form, findings);
                             form.AuditPins("settings/" + section, findings);
                         }
                     }
@@ -159,14 +179,27 @@ namespace CodexAutoResume
                             form.Audit(page + " with no rows", findings);
                             form.AuditLists(page + " with no rows", findings);
                         }
+                        // v0.6.11: Diagnostics again for a watcher that stopped on another day, whose Watcher then says how
+                        // and when - the longest a Health fact says.
+                        foreach (string ended in new[] { "memory_guard", "unexpected" })
+                        {
+                            form.ApplySnapshot(WithStoppedWatcher(snapshot, ended));
+                            form.ShowPage("diagnostics");
+                            form.Audit("diagnostics with a watcher stopped (" + ended + ")", findings);
+                        }
                         form.ApplySnapshot(snapshot);
                         form.AuditTimeline(snapshot, findings);
+                        // v0.6.11: and the Log dialog's list, built with lines as long as the log writes them, and the
+                        // dialog of a conversation's own message, built for the reply's first waiting recovery.
+                        form.AuditLogs(findings);
+                        form.AuditConversationMessage(snapshot, findings);
                     }
                     // The Start button shows only while the watcher is stopped: shown for this, and hidden again.
                     form.startButton.Visible = true;
                     Materialise(form);
                     form.PerformLayout();
                     form.AuditPins("header", findings);
+                    AuditSpoken("header with Start", form, findings);
                     form.AuditHero("header with Start", findings);
                     form.startButton.Visible = false;
                     form.PerformLayout();
@@ -919,16 +952,86 @@ namespace CodexAutoResume
                 entry["to_code"] = states[i];
                 events.Add(entry);
             }
-            using (Form dialog = BuildTimeline(row, events))
+            using (Form dialog = BuildTimeline(row, events, null))
             {
                 dialog.TopLevel = false;
                 Materialise(dialog);
                 dialog.PerformLayout();
                 if (timelineList != null) AuditList("timeline/" + AuditName(timelineList), timelineList, findings);
+                AuditSpoken("timeline", dialog, findings);
+            }
+        }
+
+        /// The Log dialog's list (v0.6.11), filled with lines of the lengths the log writes and laid out at the dialog's
+        /// opening size, never shown (AuditList).
+        private void AuditLogs(List<string> findings)
+        {
+            var lines = new List<object>();
+            string[] texts = { "thread 00000000-0000-4000-8000-00000000de30: waiting for reset",
+                               "thread 00000000-0000-4000-8000-00000000de30: observe only: every other check passed; a continuation would have been sent now, and none was",
+                               "auto-resume is enabled" };
+            foreach (string text in texts)
+            {
+                var line = new Dictionary<string, object>();
+                line["at"] = "2026-09-27 14:02:00";
+                line["text"] = text;
+                lines.Add(line);
+            }
+            var result = new Dictionary<string, object>();
+            result["lines"] = lines;
+            result["matched"] = (double)lines.Count;
+            using (Form dialog = BuildLogs())
+            {
+                dialog.TopLevel = false;
+                Materialise(dialog);
+                dialog.PerformLayout();
+                if (logsList != null)
+                {
+                    ShowLogLines(logsList, new Label(), result, false);
+                    AuditList("logs/" + AuditName(logsList), logsList, findings);
+                }
+                AuditSpoken("logs", dialog, findings);
+            }
+        }
+
+        /// The dialog of a conversation's own message (v0.6.11), built with a message in it at its opening size and
+        /// never shown: its text box, its count and its Preview have to fit the dialog in every language.
+        private void AuditConversationMessage(Dictionary<string, object> snapshot, List<string> findings)
+        {
+            var rows = snapshot == null ? null : snapshot.ContainsKey("pending") ? snapshot["pending"] as List<object> : null;
+            var row = rows != null && rows.Count > 0 ? rows[0] as Dictionary<string, object> : null;
+            if (row == null) return;
+            using (Form dialog = BuildConversationMessage(row, "Carry on with the plan, please. {reason}"))
+            {
+                dialog.TopLevel = false;
+                Materialise(dialog);
+                dialog.PerformLayout();
+                // Unless the screen this runs on is smaller than the dialog, which Windows then makes smaller: the window
+                // opens only at a text size whose dialogs its screen holds (TextScale.Fitting).
+                bool whole = dialog.ClientSize.Width >= Px(600);
+                if (whole && conversationArea != null && conversationArea.Right > dialog.ClientSize.Width)
+                    findings.Add("conversation message :: its text box reaches past the dialog, " + conversationArea.Right +
+                                 " in " + dialog.ClientSize.Width);
+                AuditSpoken("conversation message", dialog, findings);
             }
         }
 
         /// A dashboard reply with no waiting and no finished recoveries in it.
+        /// `reply` with its watcher stopped two days ago, `ended` as control/watcher.how_it_ended says it.
+        private static Dictionary<string, object> WithStoppedWatcher(Dictionary<string, object> reply, string ended)
+        {
+            var stopped = new Dictionary<string, object>(reply);
+            var status = new Dictionary<string, object>(Map(reply, "status") ?? new Dictionary<string, object>());
+            var watcher = new Dictionary<string, object>(Map(status, "watcher") ?? new Dictionary<string, object>());
+            watcher["running"] = false;
+            watcher["ended"] = ended;
+            watcher["ended_at"] = Now() - 2 * 86400.0;
+            status["watcher"] = watcher;
+            status["watcher_running"] = false;
+            stopped["status"] = status;
+            return stopped;
+        }
+
         private static Dictionary<string, object> WithoutRows(Dictionary<string, object> reply)
         {
             var empty = new Dictionary<string, object>(reply);
@@ -953,6 +1056,51 @@ namespace CodexAutoResume
             if (total > list.ClientSize.Width) return "columns are " + total + " wide in " + list.ClientSize.Width;
             return cut.Count == 0 ? null : "column headings cut: " + string.Join("; ", cut.ToArray()) + " (columns " + total + " wide in " +
                                            list.ClientSize.Width + ")";
+        }
+
+        /// How many controls the last LayoutAudit asked a screen reader's name of (AuditSpoken), so that a quiet report is
+        /// known to have asked.
+        internal static int AuditedSpoken;
+
+        /// v0.6.11: every control in `parent` that is showing, that a person can act on (Actionable), and that a screen
+        /// reader would announce with no name - the name it is given (AccessibleName), or else the one Windows makes of
+        /// it: its text, or for a text box or a number the words before it (SpokenName). Run in every language the audit
+        /// runs in, so a control named by a word some catalog lacks is found in that language.
+        internal static void AuditSpoken(string where, Control parent, List<string> findings)
+        {
+            foreach (Control child in parent.Controls)
+            {
+                if (!OwnVisible(child)) continue;
+                if (Actionable(child))
+                {
+                    AuditedSpoken++;
+                    if (SpokenName(child).Trim().Length == 0)
+                        findings.Add(where + "/" + AuditName(child) + " :: has no name a screen reader can say");
+                }
+                AuditSpoken(where, child, findings);
+            }
+        }
+
+        /// Whether a person can act on `control`: press it, switch it, choose in it, type in it or move through it.
+        internal static bool Actionable(Control control)
+        {
+            return control is ButtonBase || control is ComboBox || control is TextBoxBase || control is UpDownBase ||
+                   control is ListView || control is TrackBar;
+        }
+
+        /// The name a screen reader says for `control`: its AccessibleName, or else what Windows' accessibility makes of
+        /// it; "" when it has none, or cannot be asked.
+        internal static string SpokenName(Control control)
+        {
+            if (!string.IsNullOrEmpty(control.AccessibleName)) return control.AccessibleName;
+            try
+            {
+                return control.AccessibilityObject.Name ?? "";
+            }
+            catch (Exception)
+            {
+                return "";
+            }
         }
 
         private static string AuditName(Control control)

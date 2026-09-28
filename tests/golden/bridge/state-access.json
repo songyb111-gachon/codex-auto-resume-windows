@@ -1,0 +1,25 @@
+{
+  "command": "state-access",
+  "cases": [
+    {
+      "case": "only this account and Windows",
+      "argument": null,
+      "reply": {
+        "ok": true,
+        "result": {
+          "access": "owner_only"
+        }
+      }
+    },
+    {
+      "case": "other accounts too",
+      "argument": null,
+      "reply": {
+        "ok": true,
+        "result": {
+          "access": "shared"
+        }
+      }
+    }
+  ]
+}

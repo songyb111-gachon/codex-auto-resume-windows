@@ -12,6 +12,8 @@ import os
 import threading
 from ... import win
 from ...win.dll import GUID, LRESULT, WNDCLASSW
+# Windows' message font is asked in win/typeface.py, where the panel asks it too (v0.6.11).
+from ...win.typeface import LOGFONTW, NONCLIENTMETRICSW, SPI_GETNONCLIENTMETRICS  # noqa: F401
 
 
 WM_ACTIVATE, WM_PAINT, WM_CLOSE, WM_ERASEBKGND = 0x0006, 0x000F, 0x0010, 0x0014
@@ -24,6 +26,18 @@ WM_MOUSEMOVE, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSELEAVE = 0x0200, 0x0201, 0x02
 
 
 WM_DPICHANGED = 0x02E0
+
+
+# v0.6.11: a task row's own menu - asked for by a right click, Shift+F10 or the menu key.
+WM_CONTEXTMENU = 0x007B
+
+
+MF_STRING, MF_GRAYED, MF_CHECKED, MF_POPUP, MF_SEPARATOR = 0x0, 0x1, 0x8, 0x10, 0x800
+
+
+TPM_RIGHTBUTTON, TPM_RETURNCMD, TPM_NONOTIFY = 0x2, 0x100, 0x80
+# A menu opened right to left (v0.6.11): laid out mirrored, and opening leftward from the point.
+TPM_RIGHTALIGN, TPM_LAYOUTRTL = 0x8, 0x8000
 
 
 WM_APP = 0x8000
@@ -80,9 +94,6 @@ SPI_GETCLIENTAREAANIMATION = 0x1042
 SPI_GETHIGHCONTRAST, HCF_HIGHCONTRASTON = 0x0042, 0x1
 
 
-SPI_GETNONCLIENTMETRICS = 0x0029
-
-
 DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND = 33, 2
 
 
@@ -101,6 +112,10 @@ DT_CENTER, DT_VCENTER, DT_WORDBREAK, DT_SINGLELINE = 0x1, 0x4, 0x10, 0x20
 
 
 DT_CALCRECT, DT_NOPREFIX, DT_EDITCONTROL, DT_END_ELLIPSIS = 0x400, 0x800, 0x2000, 0x8000
+
+
+# Right to left (v0.6.11): a line against its right edge, and read right to left.
+DT_RIGHT, DT_RTLREADING = 0x2, 0x20000
 
 
 TIMER_TICK, TIMER_FRAME, TIMER_FIRST = 1, 2, 3
@@ -165,21 +180,6 @@ if os.name == "nt":
     class HIGHCONTRASTW(C.Structure):
         _fields_ = [("cbSize", W.UINT), ("dwFlags", W.DWORD), ("lpszDefaultScheme", W.LPWSTR)]
 
-    class LOGFONTW(C.Structure):
-        _fields_ = [("lfHeight", W.LONG), ("lfWidth", W.LONG), ("lfEscapement", W.LONG),
-                    ("lfOrientation", W.LONG), ("lfWeight", W.LONG), ("lfItalic", W.BYTE),
-                    ("lfUnderline", W.BYTE), ("lfStrikeOut", W.BYTE), ("lfCharSet", W.BYTE),
-                    ("lfOutPrecision", W.BYTE), ("lfClipPrecision", W.BYTE), ("lfQuality", W.BYTE),
-                    ("lfPitchAndFamily", W.BYTE), ("lfFaceName", W.WCHAR * 32)]
-
-    class NONCLIENTMETRICSW(C.Structure):
-        _fields_ = [("cbSize", W.UINT), ("iBorderWidth", C.c_int), ("iScrollWidth", C.c_int),
-                    ("iScrollHeight", C.c_int), ("iCaptionWidth", C.c_int), ("iCaptionHeight", C.c_int),
-                    ("lfCaptionFont", LOGFONTW), ("iSmCaptionWidth", C.c_int), ("iSmCaptionHeight", C.c_int),
-                    ("lfSmCaptionFont", LOGFONTW), ("iMenuWidth", C.c_int), ("iMenuHeight", C.c_int),
-                    ("lfMenuFont", LOGFONTW), ("lfStatusFont", LOGFONTW), ("lfMessageFont", LOGFONTW),
-                    ("iPaddedBorderWidth", C.c_int)]
-
 
 def _signature(function, result, *arguments):
     function.restype = result
@@ -212,6 +212,12 @@ def _declare():
         _signature(user32.KillTimer, W.BOOL, H, C.c_size_t)
         _signature(user32.PostMessageW, W.BOOL, H, U, W.WPARAM, W.LPARAM)
         _signature(user32.GetCursorPos, W.BOOL, C.POINTER(W.POINT))
+        _signature(user32.ScreenToClient, W.BOOL, H, C.POINTER(W.POINT))
+        _signature(user32.ClientToScreen, W.BOOL, H, C.POINTER(W.POINT))
+        _signature(user32.CreatePopupMenu, H)
+        _signature(user32.DestroyMenu, W.BOOL, H)
+        _signature(user32.AppendMenuW, W.BOOL, H, U, C.c_size_t, W.LPCWSTR)
+        _signature(user32.TrackPopupMenu, I, H, U, I, I, I, H, H)
         _signature(user32.MonitorFromRect, H, C.POINTER(W.RECT), D)
         _signature(user32.GetMonitorInfoW, W.BOOL, H, C.POINTER(MONITORINFO))
         _signature(user32.SystemParametersInfoW, W.BOOL, U, U, H, U)

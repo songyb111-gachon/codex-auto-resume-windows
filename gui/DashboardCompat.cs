@@ -357,6 +357,8 @@ namespace CodexAutoResume
         private void LoadCompatibility()
         {
             if (compatOverall == null || loadingCompat || auditing) return;
+            LoadPluginCopy();
+            LoadStateAccess();
             loadingCompat = true;
             System.Threading.ThreadPool.QueueUserWorkItem(delegate
             {
@@ -380,6 +382,33 @@ namespace CodexAutoResume
                 };
                 try { if (IsHandleCreated && !IsDisposed) BeginInvoke(apply); }
                 catch (Exception) { loadingCompat = false; }
+            });
+        }
+
+        /// v0.6.11: which edition Codex's copy of this plugin is, beside the edition installed here (control.plugin_copy), asked
+        /// whenever Diagnostics loads its compatibility view. Read only, and nothing is done about it: said under the Health
+        /// facts only while the two differ - after an edition change, until the ChatGPT/Codex app is closed and the installer
+        /// runs again - and gone otherwise, or when it cannot be asked.
+        private void LoadPluginCopy()
+        {
+            if (diagPlugin == null) return;
+            System.Threading.ThreadPool.QueueUserWorkItem(delegate
+            {
+                Dictionary<string, object> reply;
+                try { reply = bridge.Call("plugin-copy", null); }
+                catch (Exception) { reply = null; }
+                MethodInvoker apply = delegate
+                {
+                    var result = Ok(reply) ? Map(reply, "result") : null;
+                    string copy = Str(result, "copy");
+                    bool other = result != null && Equals(Get(result, "matches"), false) && (copy == "standard" || copy == "advanced");
+                    diagPlugin.Text = !other ? ""
+                        : copy == "standard"
+                          ? S("diag.plugin_copy.standard", "Codex still has the Standard edition's copy of this plugin. Its tools already run the Advanced edition installed here; its skill's text changes once you close the ChatGPT/Codex app and run the installer again.")
+                          : S("diag.plugin_copy.advanced", "Codex still has the Advanced edition's copy of this plugin. Its tools already run the Standard edition installed here; its skill's text changes once you close the ChatGPT/Codex app and run the installer again.");
+                };
+                try { if (IsHandleCreated && !IsDisposed) BeginInvoke(apply); }
+                catch (Exception) { }
             });
         }
 

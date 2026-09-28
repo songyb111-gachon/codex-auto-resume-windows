@@ -1,0 +1,58 @@
+{
+  "command": "release-hold",
+  "cases": [
+    {
+      "case": "a held task let continue",
+      "argument": {
+        "interruption_id": "7777777777777777777777777777777777777777777777777777777777777777",
+        "thread_id": "11111111-1111-7111-8111-111111111111"
+      },
+      "reply": {
+        "ok": true,
+        "result": {
+          "interruption_id": "7777777777777777777777777777777777777777777777777777777777777777",
+          "thread_id": "11111111-1111-7111-8111-111111111111",
+          "state": "waiting_reset",
+          "woke": false,
+          "note": "nothing is sent now; every safety check still applies"
+        }
+      }
+    },
+    {
+      "case": "the same task again: it is not held",
+      "argument": {
+        "interruption_id": "7777777777777777777777777777777777777777777777777777777777777777",
+        "thread_id": "11111111-1111-7111-8111-111111111111"
+      },
+      "reply": {
+        "ok": false,
+        "error": "that recovery is not waiting for you",
+        "error_code": "not_held"
+      }
+    },
+    {
+      "case": "a task that belongs to another conversation",
+      "argument": {
+        "interruption_id": "7777777777777777777777777777777777777777777777777777777777777777",
+        "thread_id": "22222222-2222-7222-8222-222222222222"
+      },
+      "reply": {
+        "ok": false,
+        "error": "that recovery belongs to a different conversation",
+        "error_code": "thread_mismatch"
+      }
+    },
+    {
+      "case": "no such interruption",
+      "argument": {
+        "interruption_id": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "thread_id": "11111111-1111-7111-8111-111111111111"
+      },
+      "reply": {
+        "ok": false,
+        "error": "no such interruption",
+        "error_code": "no_such_interruption"
+      }
+    }
+  ]
+}

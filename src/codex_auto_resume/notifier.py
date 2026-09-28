@@ -40,11 +40,11 @@ interruption through the control layer, with the actor the toast has always used
 from __future__ import annotations
 
 import collections
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import re
 import threading
 
-from . import l10n, notice_presence, notify, reasons
+from . import demo, l10n, notice_presence, notify, reasons
 
 # The setting that turns the card off (settings.py, the "windows" group, default on).
 CARD_SETTING = "notification_card"
@@ -59,6 +59,11 @@ STATUS = {
     "unknown": "attention",         # it may have gone through; nothing is resent
     "stopped": "attention",         # recovery stopped for good
     "cancelled": "paused",          # a person switched it off
+    "needs_you": "attention",       # v0.6.11: it needs a person, and is never resumed
+    "after_sleep": "paused",        # v0.6.11: what fell due during a long sleep waits for a person
+    "memory_warning": "attention",  # v0.6.11: the watcher uses more memory than the guard allows
+    "memory_stopped": "attention",  # v0.6.11: and stopped for it
+    "demo": "waiting",              # v0.6.11: Show me what happens - made-up words, inert buttons
 }
 PROBES = ("notification_state", "notification_mode", "app_notifications", "screen_reader",
           "remote_session", "session_locked")
@@ -127,7 +132,7 @@ def _notice(kind, content, *, key, chip=None, chip_tone=None, line=None) -> Noti
                   locale=l10n.current(), key=key)
 
 
-def build(event, detail, identity=None):
+def build(event, detail, identity=None, *, sound=False):
     """The Notice for one engine event, or None for an event that is never announced.
 
     The same mapping `app.App._notifier` has made since v0.6.0, event for event, now in one
@@ -140,15 +145,29 @@ def build(event, detail, identity=None):
     state = detail.get("state")
     if event == "interruption":
         category = detail.get("category") or "usage_limit"
+        hold = detail.get("hold")
         content = notify.scheduled_content(thread_id, detail.get("interruption_id"),
-                                           detail.get("reset_at"), category, identity)
+                                           detail.get("reset_at"), category, identity, hold=hold)
         # The card names the reason in its chip, so its line is the sentence without the label
         # the toast has to put in front of it. Both are words the toast already says.
-        line = None if category == "usage_limit" else l10n.message("toast_transient")
+        line = (notify.held_message(hold) if hold is not None
+                else None if category == "usage_limit" else l10n.message("toast_transient"))
         chip = l10n.text(reasons.label_key(category), l10n.current())
         return _notice("interruption", content, key=thread_id, chip=chip, chip_tone="waiting", line=line)
+    if event == "objection":
+        # v0.6.11: the objection window. An interruption's notice in every other way - its chip,
+        # its light, its two buttons - saying when the continuation goes unless it is stopped.
+        category = detail.get("category") or "usage_limit"
+        until = detail.get("until")
+        content = notify.objection_content(thread_id, detail.get("interruption_id"), until, category,
+                                           identity)
+        chip = l10n.text(reasons.label_key(category), l10n.current())
+        return _notice("interruption", content, key=thread_id, chip=chip, chip_tone="waiting",
+                       line=notify.objection_message(until))
     if event == "starting":
-        return _notice("starting", notify.starting_content(thread_id, identity), key=thread_id)
+        return _notice("starting", notify.starting_content(thread_id, identity,
+                                                           task_changed=detail.get("task_changed") is True),
+                       key=thread_id)
     if event == "result":
         if state in ("turn_started", "resumed"):
             return _notice("resumed", notify.resumed_content(thread_id, identity), key=thread_id)
@@ -157,11 +176,55 @@ def build(event, detail, identity=None):
         certain = state != "submission_unknown"
         return _notice("failed" if certain else "unknown",
                        notify.attempt_failed_content(thread_id, identity, certain=certain), key=thread_id)
+    if event == "needs_you":
+        # v0.6.11: a conversation that needs a person (needsyou.py). Its chip says what kind, its line
+        # the one next step, and its one button opens Settings; `sound` is the person's choice.
+        kind = detail.get("category")
+        minutes = detail.get("minutes")
+        content = notify.needs_you_content(thread_id, kind, identity, minutes=minutes, sound=sound is True)
+        return _notice("needs_you", content, key=thread_id, chip=notify.needs_you_label(kind),
+                       chip_tone="attention", line=notify.needs_you_message(kind, minutes))
+    if event == "after_sleep":
+        # v0.6.11: what fell due while this PC slept long waits for a person (power.py). About no one
+        # conversation, so it has no key and replaces no card; its one button opens Pending.
+        return _notice("after_sleep", notify.after_sleep_content(detail.get("slept"), detail.get("count")),
+                       key=None)
+    if event in ("memory_warning", "memory_stopped"):
+        # v0.6.11: the memory guard (memguard.py). About the watcher, not a conversation, so it has no
+        # key and replaces no card; its one button opens a page of the Dashboard.
+        return _notice(event, notify.memory_content(event, detail.get("used"), detail.get("limit")), key=None)
     if event == "stopped":
         reason = ("no_progress" if state == "no_progress_exhausted"
+                  else "time" if detail.get("reason") == "chain_time_cap"
                   else "attempts" if state == "retry_budget_exhausted" else None)
         return _notice("stopped", notify.stopped_content(thread_id, identity, reason=reason), key=thread_id)
     return None
+
+
+def build_demo(now) -> Notice:
+    """Show me what happens (v0.6.11): an interruption's card, built by `build` from the made-up task
+    of demo.py, its title saying Demo and every button's URI empty - drawn as a button, doing nothing
+    (`activate` ignores it). Its content is none: a demo is never a toast (`complete`, `show_demo`)."""
+    notice = build("interruption", demo.detail(now),
+                   {"name": l10n.text("demo.conversation", l10n.current())})
+    return replace(notice, kind="demo", status=STATUS["demo"], key=None, content=(),
+                   title=l10n.text("demo.card_title", l10n.current(), title=notice.title),
+                   actions=tuple((label, "") for label, _uri in notice.actions))
+
+
+def show_demo(notice, *, inbox=None, setting=True, probe=None) -> bool:
+    """Hand a demo card to the card host when a card may be shown now, as `deliver` decides it - and
+    otherwise nothing: never a toast, so nothing made up reaches Windows' notification center."""
+    if setting is not True or inbox is None or not inbox.attached:
+        return False
+    try:
+        answers = dict((probe or _presence)() or {})
+    except Exception:
+        answers = {}
+    if not notice_presence.card_allowed(setting=True, tray_present=True,
+                                        **{name: answers.get(name) for name in PROBES}):
+        return False
+    return inbox.post(notice)
 
 
 def build_cancelled(thread_id) -> Notice:
@@ -249,7 +312,9 @@ def deliver(notice, *, inbox=None, setting=True, probe=None, show=notify.show_co
     and never on the icon's thread (raising a toast runs PowerShell).
     """
     allowed = False
-    if setting is True and inbox is not None and inbox.attached:
+    # A notice with a sound of its own (v0.6.11, a needs-you notice a person asked to hear) is Windows'
+    # toast: the card makes no sound, and the sound is the toast's own audio element (notify.py).
+    if setting is True and inbox is not None and inbox.attached and not sounds(notice):
         try:
             answers = dict((probe or _presence)() or {})
         except Exception:
@@ -259,6 +324,11 @@ def deliver(notice, *, inbox=None, setting=True, probe=None, show=notify.show_co
     if allowed and inbox.post(notice):
         return "card", True
     return "toast", bool(show(notice.toast_content()))
+
+
+def sounds(notice) -> bool:
+    """Whether a notice carries a sound of its own - only a needs-you notice, only when chosen."""
+    return dict(getattr(notice, "content", ()) or ()).get("sound") is True
 
 
 def complete(notice, card_shown, *, show=notify.show_content) -> bool:
@@ -271,6 +341,8 @@ def complete(notice, card_shown, *, show=notify.show_content) -> bool:
     route raises it. Either way the notification center ends up with the notice once. Runs
     PowerShell: a worker thread's job.
     """
+    if notice.kind == "demo":
+        return False                       # made up: no history copy, and no toast in its place
     content = notice.toast_content()
     if card_shown is True:
         return bool(show(content, silent=True))

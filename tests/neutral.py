@@ -60,12 +60,19 @@ from codex_auto_resume.store import session  # noqa: E402
 # Every test module that drives the engine against codexsim (tests/test_neutral_plug.py holds
 # this to the modules that import it), and the ones that import it and are not scenarios here.
 MODULES = ("test_compat_characterization", "test_compat_io", "test_correlation", "test_engine",
-           "test_engine_gates", "test_outcomes", "test_pause_unknown", "test_recovery")
+           "test_engine_gates", "test_outcomes", "test_pause_unknown", "test_recovery",
+           # v0.6.11: the Custom waits, the time ceiling and the two guards, at their settings.
+           "test_ladder_and_guards")
 NOT_SCENARIOS = {
     "test_codex_schema": "reads a Codex home through the source alone; it builds no engine",
     "test_source": "reads a Codex home through the source alone; it builds no engine",
     "test_screenshots": "draws the settings window's pictures, one GUI module at a time",
     "test_plug_points": "gives every engine a plug of its own, to hold each point where it stands",
+    "test_released_calls": "runs the scenarios above against v0.6.10's tagged package and this one, "
+                           "in workers of its own; it builds no engine itself",
+    "test_downgrade": "sends one continuation with this version's engine only to leave it queued, then "
+                      "downgrades the state and runs v0.6.10's tagged watcher on it in a process of its "
+                      "own, which no plug of this version reaches",
 }
 # The module whose scenarios simulate days of ticks, handed out first (run_all).
 FIRST = ("test_outcomes",)

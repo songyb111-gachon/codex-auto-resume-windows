@@ -62,9 +62,24 @@ namespace CodexAutoResume
             nextLine.ForeColor = Accent;
             runningLine = Value("");
             runningLine.ForeColor = Secondary;
+            // v0.6.11: Codex's usage as the watcher last read it, with its age - empty until it has been read - and before
+            // it, only while it is so, that the watcher keeps this PC awake while a task waits, from when (WaitingLine).
+            // One line, whatever it holds (LineLabel): the Overview fits a 1920 by 1080 screen at 150% with three lines
+            // under the count and not a pixel more, so keeping awake shares the reading's line rather than adding one, and
+            // a line longer than the card ends in an ellipsis, stretched across it. Its whole text is its tooltip, what a
+            // screen reader says and a fact on Diagnostics; the reading alone is said on Pending, in the popup and in the
+            // panel. Empty, it keeps the line it always kept.
+            var usage = new LineLabel();
+            usage.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top;
+            usage.Margin = Pad(0, 3, 0, 3);
+            usage.ForeColor = Secondary;
+            usageLine = usage;
+            lineTip = new SoftTip();
+            Disposed += delegate { lineTip.Dispose(); };
             waiting.Controls.Add(waitingLine);
             waiting.Controls.Add(nextLine);
             waiting.Controls.Add(runningLine);
+            waiting.Controls.Add(usageLine);
             Lead(waiting, MakeButton(S("nav.pending", "Pending"), false, delegate { ShowPage("pending"); }));
 
             TableLayoutPanel week = MakeCard(S("overview.week", "Last 7 days"));
@@ -410,6 +425,32 @@ namespace CodexAutoResume
                 ToggleAutoResume(Selected(pendingList));
                 e.Handled = true;
             };
+            // v0.6.11: the row's own menu - postpone it, let a held one continue, how its conversation
+            // resumes - on a right click, Shift+F10 or the menu key. Nothing on the page moves for it, and
+            // each item acts on the row the menu was opened on, whatever the list does while it is open.
+            pendingMenu = new SoftMenu();
+            pendingMenu.Font = Font;
+            pendingMenu.Opening += delegate(object sender, System.ComponentModel.CancelEventArgs e)
+            {
+                Dictionary<string, object> task = null;
+                if (menuByMouse)
+                {
+                    Point at = pendingList.PointToClient(Cursor.Position);
+                    ListViewItem under = pendingList.GetItemAt(at.X, at.Y);
+                    task = under == null ? null : under.Tag as Dictionary<string, object>;
+                }
+                else task = Selected(pendingList);
+                menuByMouse = false;
+                e.Cancel = !FillRowMenu(task);
+            };
+            pendingList.ContextMenuStrip = pendingMenu;
+            pendingList.MouseDown += delegate(object sender, MouseEventArgs e)
+            {
+                if (e.Button != MouseButtons.Right) return;
+                menuByMouse = true;
+                ListViewItem under = pendingList.GetItemAt(e.X, e.Y);
+                if (under != null) under.Selected = true;
+            };
 
             // As tall as the list's card beside it, always: its checks scroll inside it, on the soft bar,
             // below its heading. It used to scroll as a whole and ask the page for its full height, and
@@ -589,10 +630,34 @@ namespace CodexAutoResume
             // window that has just opened has nothing to say about updates and says nothing.
             diagUpdate = Fact(facts, S("diag.update", "Updates"));
             diagUpdate.Text = S("diag.update_unasked", "not checked");
+            // v0.6.11: the most memory the watcher has used - always, whatever the memory guard is set to.
+            diagMemory = Fact(facts, S("diag.memory_peak", "Peak memory"));
+            // v0.6.11: who Windows lets open the state folder (LoadStateAccess), and - only while other accounts can -
+            // what that means, under the facts.
+            diagStateAccess = Fact(facts, S("diag.state_access", "State folder"));
+            diagStateAccess.Text = S("diag.state_access.unknown", "not checked");
+            // v0.6.11: the Overview's line under what is waiting, whole: that the watcher keeps this PC awake, and the last
+            // usage reading (WaitingLine).
+            diagWaiting = Fact(facts, S("diag.while_waiting", "While tasks wait"));
+            // v0.6.11: each value stretched across its column, so one longer than the card - a watcher stopped by the
+            // memory guard at a time on another day, a state folder other accounts can open - wraps under itself in every
+            // language rather than being cut off. A value that fits is drawn where it always was.
+            foreach (Label value in new[] { diagVersion, diagWatcher, diagLastCheck, diagEngine, diagRecovery, diagStartup,
+                                            diagUpdate, diagMemory, diagStateAccess, diagWaiting })
+                value.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top;
             diagUpgrade = Value("");
             diagUpgrade.ForeColor = Accent;
             diagUpgrade.MaximumSize = new Size(Px(360), 0);
             health.Controls.Add(diagUpgrade);
+            // v0.6.11: that Codex's copy of this plugin is still the other edition's, only while it is (LoadPluginCopy).
+            diagPlugin = Value("");
+            diagPlugin.ForeColor = Accent;
+            diagPlugin.MaximumSize = new Size(Px(360), 0);
+            health.Controls.Add(diagPlugin);
+            diagStateNote = Value("");
+            diagStateNote.ForeColor = Accent;
+            diagStateNote.MaximumSize = new Size(Px(360), 0);
+            health.Controls.Add(diagStateNote);
 
             TableLayoutPanel tools = MakeCard(S("diag.tools", "Tools"));
             tools.Margin = GridGap(1, false);
@@ -606,12 +671,16 @@ namespace CodexAutoResume
             // the watcher has always been in the header; stopping it lived only in the command
             // line, which is the one place a person who uses this window never goes.
             stopButton = MakeButton(S("action.stop_watcher", "Stop watcher"), false, delegate { StopWatcher(); });
+            // v0.6.11, after the five there were: the log searched, and a recovery played out with made-up words.
+            demoButton = MakeButton(S("action.demo", "Show me what happens"), false, delegate { StartDemo(); });
             foreach (Button button in new[] {
                 exportButton,
                 MakeButton(S("action.open_logs", "Open logs folder"), false, delegate { OpenLogs(); }),
                 updateButton,
                 repairButton,
-                stopButton })
+                stopButton,
+                MakeButton(S("action.search_logs", "Search the log..."), false, delegate { OpenLogSearch(); }),
+                demoButton })
             {
                 button.Margin = Pad(0, 0, 0, 9);
                 tools.Controls.Add(button);

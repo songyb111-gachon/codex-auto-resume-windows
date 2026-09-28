@@ -111,3 +111,35 @@ def plug(paths) -> Plug:
     if home not in _plugs:
         _plugs[home] = load(paths)
     return _plugs[home]
+
+
+# The marketplace this product is published under and its plugin's name there (scripts/watcher_launcher.py,
+# build/install/install.ps1): where Codex keeps its copies of this plugin, one directory per version.
+MARKETPLACE, PLUGIN = "codex-auto-resume-windows", "codex-auto-resume"
+
+
+def cached_copy(codex_home) -> Edition | None:
+    """The edition of the newest copy Codex keeps of this plugin, or None when it keeps none or it
+    cannot be read (v0.6.11).
+
+    `codex plugin add` copies the whole payload tree, so a copy is one edition or the other by the
+    same fact `name` reads - whether the advanced package sits in its `src` - and the newest is the
+    one Codex uses, found as the launcher finds it, by the time it was written. Read only: the names
+    of the directories, and whether that one package is there; nothing in any file is opened. What
+    it matters for: Codex reads this plugin's skill from its copy, and replaces the copy only when the
+    installer can add the plugin again, which it cannot while the app holds the copy open - so after
+    an edition change the copy may still be the other edition's until the app is closed and the
+    installer runs again. The tools do not wait for that: they run this installation's own program."""
+    root = Path(codex_home) / "plugins" / "cache" / MARKETPLACE / PLUGIN
+    try:
+        copies = [entry for entry in root.iterdir()
+                  if entry.is_dir() and not entry.is_symlink() and (entry / "src" / "codex_auto_resume").is_dir()]
+        newest = max(copies, key=lambda entry: entry.stat().st_mtime) if copies else None
+    except (OSError, ValueError):
+        return None
+    if newest is None:
+        return None
+    try:
+        return name(newest / "src")
+    except (OSError, ImportError, ValueError):
+        return None

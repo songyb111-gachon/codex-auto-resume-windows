@@ -26,8 +26,8 @@ from codex_auto_resume import store as store_module
 from codex_auto_resume.machine import (
     CLAIMED, EXHAUSTED, IN_FLIGHT, OBSERVING, OUTCOMES, PLAIN_MOVES, STATES, TERMINAL, WAITING,
 )
-from codex_auto_resume.store import (RecordSchemaMismatch, StateFromNewerVersion, Store, StoreError,
-                                     UpgradePending)
+from codex_auto_resume.store import (SCHEMA_VERSION, RecordSchemaMismatch, StateFromNewerVersion, Store,
+                                     StoreError, UpgradePending)
 
 
 THREAD = "0a1b2c3d-0001-7000-8000-000000000001"
@@ -205,7 +205,8 @@ class StoreTests(_StoreCase):
         with self.store.submission_guard(key) as permitted:
             self.assertFalse(permitted)
     def test_initial_disabled_and_rearm_only_on_transition(self):
-        self.assertEqual(self.store.settings(), {"enabled": False, "armed_at": 0, "poll_seconds": 30})
+        self.assertEqual(self.store.settings(), {"enabled": False, "armed_at": 0, "poll_seconds": 30,
+                                                 "observe_only": False})
         self.store.set_enabled(True, 100)
         self.store.set_enabled(False, 120)
         self.store.set_enabled(True, 130)
@@ -439,10 +440,10 @@ class StoreTests(_StoreCase):
     def test_newer_schema_and_unknown_record_state_fail_closed(self):
         self.store.register(failure(), 111)
         self.store.close()
-        self.db.execute("PRAGMA user_version=4")      # a schema from a future version
+        self.db.execute("PRAGMA user_version=%d" % (SCHEMA_VERSION + 1))   # a schema from a future version
         with self.assertRaises(StateFromNewerVersion):
             Store(self.root)
-        self.db.execute("PRAGMA user_version=3")
+        self.db.execute("PRAGMA user_version=%d" % SCHEMA_VERSION)
         self.db.execute("UPDATE interruptions SET state='unexpected'")
         with self.assertRaises(StoreError):
             Store(self.root)
@@ -934,7 +935,7 @@ class ReleaseWithdrawnTests(_StoreCase):
 
     def test_T24_release_is_refused_unless_every_condition_holds(self):
         cases = [("reason %s" % reason, {"withdraw_reason": reason}, {})
-                 for reason in sorted(machine.WITHDRAW_REASONS - {"paused"})]
+                 for reason in sorted(machine.WITHDRAW_REASONS - machine.RELEASABLE_WITHDRAWALS)]
         cases += [
             ("row vanished without our delete", {"withdraw_deleted": 0}, {}),
             ("before the window", {}, {"now": 479.0}),
@@ -1496,7 +1497,7 @@ def raw_state(path):
 
 class MigrationTests(unittest.TestCase):
     """T37: states written by the tagged v0.3.2 (schema 1), v0.5.6 and v0.5.7
-    (schema 2) releases migrate linearly to schema 3 with every row preserved."""
+    (schema 2) releases migrate linearly to the newest schema with every row preserved."""
 
     TAGS = (("v0.3.2", 1), ("v0.5.6", 2), ("v0.5.7", 2))
 
@@ -1562,7 +1563,7 @@ class MigrationTests(unittest.TestCase):
                     records = {row["interruption_id"]: row for row in migrated.all_records()}
                     events = migrated.events()
                 after = raw_state(root / "state.sqlite")
-                self.assertEqual(after["version"], 3)
+                self.assertEqual(after["version"], SCHEMA_VERSION)
                 self.assertTrue(V3_COLUMNS <= after["columns"], V3_COLUMNS - after["columns"])
                 self.assertTrue({"events", "watcher_status"} <= after["tables"])
                 self.assertEqual(set(after["rows"]), set(before["rows"]))
@@ -1605,7 +1606,7 @@ class MigrationTests(unittest.TestCase):
                 self.assertEqual(by_columns[("recovery_turn_id",)][4], 1, "partial: NULLs are not owners")
                 self.assertIn(("thread_id", "last_claim_at"), by_columns)
                 self.assertIn(("chain_origin_id",), by_columns)
-                # Once migrated it opens as schema 3, and never migrates twice.
+                # Once migrated it opens as the newest schema, and never migrates twice.
                 with Store(root) as reopened:
                     self.assertEqual([event["code"] for event in reopened.events()].count("migrated"), 1)
                     self.assertEqual(len(reopened.all_records()), len(before["rows"]))
@@ -1618,7 +1619,7 @@ class MigrationTests(unittest.TestCase):
         root = Path(self.temp.name) / "newer"
         Store(root).close()
         with closing(sqlite3.connect(root / "state.sqlite")) as db:
-            db.execute("PRAGMA user_version=4")
+            db.execute("PRAGMA user_version=%d" % (SCHEMA_VERSION + 1))
             db.commit()
         before = (root / "state.sqlite").read_bytes()
         for migrate in (False, True):
@@ -1628,8 +1629,8 @@ class MigrationTests(unittest.TestCase):
 
     def test_T19_T37_a_crash_during_migration_leaves_the_old_schema_or_the_new(self):
         """Every step runs in one BEGIN IMMEDIATE, so a crash at any statement leaves
-        schema 2 exactly as it was or schema 3 complete - never a v3 number over v2
-        columns - and the next open simply migrates again."""
+        schema 2 exactly as it was or the newest schema complete - never a newer number over
+        v2 columns, nor a stop at schema 3 on the way - and the next open simply migrates again."""
         real_connect = sqlite3.connect
         for tag in ("v0.3.2", "v0.5.7"):
             original = raw_state(self.fixtures[tag])
@@ -1667,13 +1668,13 @@ class MigrationTests(unittest.TestCase):
                             continue
                         retried_old = True
                     else:
-                        self.assertEqual(found["version"], 3)
+                        self.assertEqual(found["version"], SCHEMA_VERSION)
                         self.assertTrue(V3_COLUMNS <= found["columns"])
                         self.assertEqual([event["code"] for event in found["events"]].count("migrated"), 1)
                     with mock.patch.object(store_module.sqlite3, "connect", counting):
                         with Store(root, migrate=True) as retried:
                             self.assertEqual(len(retried.all_records()), len(original["rows"]))
-                    self.assertEqual(raw_state(root / "state.sqlite")["version"], 3)
+                    self.assertEqual(raw_state(root / "state.sqlite")["version"], SCHEMA_VERSION)
 
 
 if __name__ == "__main__":

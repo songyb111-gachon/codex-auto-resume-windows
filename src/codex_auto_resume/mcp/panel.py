@@ -58,6 +58,7 @@ from pathlib import Path
 import re
 
 from .. import brand, interface, l10n
+from ..win import textsize, typeface
 
 _ASSETS = Path(__file__).resolve().parent / "assets"
 
@@ -126,6 +127,39 @@ def design_rules() -> str:
     ])
 
 
+def right_to_left_rules() -> str:
+    """The stylesheet's rules for a page written right to left (v0.6.11), under `:root[dir="rtl"]`.
+
+    What the logical properties cannot turn by themselves: a padding brand writes with a wider side (a
+    drop-down's field, room for its wedge; a tile's) has its sides swapped; a switch's knob travels the
+    other way; a folded section's chevron points left, into the reading direction; Classic's accent bar is
+    inside the right hairline; a person's own words - a name, a Custom message - are read in their own
+    direction (first strong character), and an id is one left-to-right run. Nothing here matches a page in
+    any other language, which is drawn exactly as it was.
+    """
+    root = ':root[dir="rtl"]'
+    swapped = []
+    for name, value in re.findall(r"--size-([a-z-]+-pad):\s*([^;]+);", brand.css_scale()):
+        sides = value.split()
+        if len(sides) == 4 and sides[1] != sides[3]:
+            swapped.append("--size-%s: %s;" % (name, " ".join([sides[0], sides[3], sides[2], sides[1]])))
+    barred = ['%s[data-design="%s"] .card' % (root, design) for design in brand.DESIGNS
+              if brand.design_accent_bar(design)]
+    rules = []
+    if swapped:
+        rules.append("%s { %s }" % (root, " ".join(swapped)))
+    rules += [
+        "%s input.switch:checked::before { transform: translateX(calc(-1 * var(--size-knob-travel))); }" % root,
+        "%s details.fold:not([open]) > summary .chevron { transform: rotate(135deg); }" % root,
+        "%s .prow-name, %s .stored-text { unicode-bidi: plaintext; }" % (root, root),
+        "%s .mono { direction: ltr; unicode-bidi: isolate; }" % root,
+    ]
+    if barred:
+        rules.append("%s { box-shadow: inset -%s 0 0 var(--accent); }" % (", ".join(barred),
+                                                                        brand._css_length(brand.ACCENT_BAR)))
+    return "\n".join(rules)
+
+
 # Resolved once, at import: the palette is a build-time fact, not a per-request one. The lift
 # of a surface is brand's SHADOWS written as CSS - the recipe the window and the popup paint
 # from - so this page states no shadow of its own.
@@ -138,6 +172,7 @@ _STYLE = (_STYLE.replace("@LIGHT@", brand.css_variables(brand.LIGHT))
                 # v0.6.10: the designs, and what each moves.
                 .replace("@DESIGNS@", brand.css_design_blocks(tile_elevation))
                 .replace("@DESIGN_MOTION@", design_rules())
+                .replace("@RIGHT_TO_LEFT@", right_to_left_rules())
                 .replace("@SCALE@", brand.css_scale())
                 .replace("@GLOW_KEYFRAMES@", brand.css_glow_keyframes())
                 # The Automatic recovery tile's light: the same light, smaller (v0.6.10).
@@ -165,7 +200,7 @@ def panel_keys() -> tuple:
 
 
 def panel_catalogs() -> dict:
-    """Every shipped language's words for this page, and only this page's.
+    """Every offered language's words for this page, and only this page's (a HELD one is never spoken).
 
     So a language chosen in the panel is spoken as soon as the save is confirmed, rather than
     the next time Codex opens the panel. Each catalog is English with that language layered
@@ -174,19 +209,69 @@ def panel_catalogs() -> dict:
     names, prefixes = panel_keys()
     return {locale: {key: text for key, text in l10n.catalog(locale).items()
                      if key in names or key.startswith(prefixes)}
-            for locale in l10n.LOCALES}
+            for locale in l10n.OFFERED}
+
+
+# v0.6.11: what holds one line of words and so grows with them at a larger text size: a button, a field, a
+# chip, a segment, a count and a callout's badge - and the line a control's words stand in (panel.css,
+# --line-control).
+TEXT_HOLDERS = ("button_height", "field_height", "chip_height", "segment_height", "count_height",
+                "count_min_width", "callout_badge")
+LINE_CONTROL = 20
+
+
+def text_scale_style(text) -> str:
+    """The panel at Windows' text size `text` (win/textsize.py, v0.6.11): a second stylesheet that makes the
+    page's type (brand.TYPE_SCALE) and everything that holds one line of it that many times larger, so the
+    words are Windows' size and nothing that holds them cuts them; every other line wraps, as it does in a
+    narrow panel. "" at the usual size, so the page is served as it always was."""
+    if isinstance(text, bool) or not isinstance(text, (int, float)) or text <= 1.0:
+        return ""
+    text = min(float(text), textsize.HIGHEST / 100.0)
+
+    def length(value):
+        return "%spx" % ("%.3f" % (value * text)).rstrip("0").rstrip(".")
+
+    parts = ["--type-%s: %s;" % (name.replace("_", "-"), length(value)) for name, value in brand.TYPE_SCALE.items()]
+    parts += ["--size-%s: %s;" % (name.replace("_", "-"), length(brand.LAYOUT[name])) for name in TEXT_HOLDERS]
+    parts.append("--line-control: %s;" % length(LINE_CONTROL))
+    return "<style>:root { %s }</style>" % " ".join(parts)
+
+
+# The page's type stack (panel.css, --font): `system-ui` - Windows' UI font - first.
+FONT_STACK = " ".join(re.search(r"--font:\s*([^;]+);", _STYLE).group(1).split())
+
+
+def typeface_style(face) -> str:
+    """v0.6.11: the offered languages Windows' UI font `face` cannot set whole, set in Segoe UI (win/typeface.py)
+    as the Dashboard, the popup and the card set them - a rule on the page's language, so a language chosen in the
+    panel is set in its face at once. "" when the UI font has every letter of every offered language - on every
+    Windows whose UI font is Segoe UI - so the page is served as it always was."""
+    whole = [locale for locale in l10n.OFFERED
+             if typeface.face_for(face, typeface.letters(l10n.catalog(locale).values()), typeface.lacks) != face]
+    if not whole:
+        return ""
+    return '<style>%s { --font: "%s", %s; }</style>' % (
+        ", ".join(":root:lang(%s)" % locale for locale in whole), typeface.SEGOE, FONT_STACK)
 
 
 def _script_json(value) -> str:
     return json.dumps(value, ensure_ascii=False, allow_nan=False).replace("<", "\\u003c")
 
 
-def settings_page(data=None, theme=None, design=None) -> str:
+def settings_page(data=None, theme=None, design=None, text=None, face=None) -> str:
     """The panel as one HTML document.
 
     ``data`` is only ever used for a preview: in Codex the values arrive from the tool
     result, so the served page carries no settings of its own and cannot go stale
     between being read and being shown.
+
+    ``text`` is the text size to draw at (text_scale_style, v0.6.11): Windows' own, asked
+    each time the page is served, unless one is given - as the documentation's capture
+    gives 1, so its pictures do not depend on the machine that made them.
+
+    ``face`` stands in Windows' UI font (typeface_style, v0.6.11), which is asked each time
+    the page is served unless one is given.
     """
     # The vocabulary always ships, seed data or not. In Codex the values arrive from the
     # tool result, but the page still has to know what to call them - and the panel must
@@ -197,9 +282,11 @@ def settings_page(data=None, theme=None, design=None) -> str:
     locale = interface.language()
     catalog = "<script>window.__CODEX_AUTO_RESUME_STRINGS__=%s;</script>" % _script_json(
         l10n.catalog(locale))
+    # And which of them are written right to left (v0.6.11), so the page mirrors in one of them.
     catalogs = ("<script>window.__CODEX_AUTO_RESUME_LOCALE__=%s;"
-                "window.__CODEX_AUTO_RESUME_CATALOGS__=%s;</script>"
-                % (_script_json(locale), _script_json(panel_catalogs())))
+                "window.__CODEX_AUTO_RESUME_CATALOGS__=%s;"
+                "window.__CODEX_AUTO_RESUME_RTL__=%s;</script>"
+                % (_script_json(locale), _script_json(panel_catalogs()), _script_json(sorted(l10n.RIGHT_TO_LEFT))))
     seed = ""
     if data is not None:
         seed = "<script>window.__CODEX_AUTO_RESUME__=%s;</script>" % _script_json(data)
@@ -218,6 +305,7 @@ def settings_page(data=None, theme=None, design=None) -> str:
     return (
         "<!doctype html>" + root + "<head><meta charset=\"utf-8\">"
         "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
-        "<title>Codex Auto Resume</title><style>%s</style></head>"
+        "<title>Codex Auto Resume</title><style>%s</style>%s%s</head>"
         "<body><div id=\"root\"></div>%s%s%s<script>%s</script></body></html>"
-        % (_STYLE, catalog, catalogs, seed, _SCRIPT))
+        % (_STYLE, text_scale_style(textsize.read() if text is None else text),
+           typeface_style(typeface.ui_face() if face is None else face), catalog, catalogs, seed, _SCRIPT))

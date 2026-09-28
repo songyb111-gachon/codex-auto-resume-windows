@@ -1,0 +1,15 @@
+{
+  "_edition": "ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.",
+  "edition.badge": "Tingkat lanjut",
+  "edition.not_loaded": "Tingkat lanjut - tidak dimuat",
+  "edition.summary": "Tingkat lanjut · {n} aktif",
+  "all_off": "Semua fitur tingkat lanjut nonaktif",
+  "field.departs": "Standar yang tidak diikutinya",
+  "field.does": "Apa yang dilakukannya",
+  "field.instead": "Apa yang dilakukan edisi Standar sebagai gantinya",
+  "field.risks": "Apa yang bisa salah",
+  "field.stop": "Cara menghentikannya",
+  "state.armed": "Aktif",
+  "state.off": "Nonaktif",
+  "state.shadow": "Mengamati"
+}

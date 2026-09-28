@@ -1,0 +1,107 @@
+{
+  "command": "postpone",
+  "cases": [
+    {
+      "case": "a waiting recovery postponed by an hour",
+      "argument": {
+        "interruption_id": "7777777777777777777777777777777777777777777777777777777777777777",
+        "thread_id": "11111111-1111-7111-8111-111111111111",
+        "preset": "1_hour"
+      },
+      "reply": {
+        "ok": true,
+        "result": {
+          "interruption_id": "7777777777777777777777777777777777777777777777777777777777777777",
+          "thread_id": "11111111-1111-7111-8111-111111111111",
+          "state": "waiting_reset",
+          "not_before": 1800003600.0,
+          "note": "not sent before then; every safety check still applies"
+        }
+      }
+    },
+    {
+      "case": "half an hour is earlier than the hour it already waits for",
+      "argument": {
+        "interruption_id": "7777777777777777777777777777777777777777777777777777777777777777",
+        "thread_id": "11111111-1111-7111-8111-111111111111",
+        "preset": "30_minutes"
+      },
+      "reply": {
+        "ok": false,
+        "error": "a recovery can only be postponed to a later time",
+        "error_code": "not_later"
+      }
+    },
+    {
+      "case": "a number of minutes, later still",
+      "argument": {
+        "interruption_id": "7777777777777777777777777777777777777777777777777777777777777777",
+        "thread_id": "11111111-1111-7111-8111-111111111111",
+        "minutes": 180
+      },
+      "reply": {
+        "ok": true,
+        "result": {
+          "interruption_id": "7777777777777777777777777777777777777777777777777777777777777777",
+          "thread_id": "11111111-1111-7111-8111-111111111111",
+          "state": "waiting_reset",
+          "not_before": 1800010800.0,
+          "note": "not sent before then; every safety check still applies"
+        }
+      }
+    },
+    {
+      "case": "two ways to say the time at once",
+      "argument": {
+        "interruption_id": "7777777777777777777777777777777777777777777777777777777777777777",
+        "thread_id": "11111111-1111-7111-8111-111111111111",
+        "preset": "3_hours",
+        "minutes": 240
+      },
+      "reply": {
+        "ok": false,
+        "error": "that is not a time to postpone a recovery to",
+        "error_code": "invalid_time"
+      }
+    },
+    {
+      "case": "more than a week ahead",
+      "argument": {
+        "interruption_id": "7777777777777777777777777777777777777777777777777777777777777777",
+        "thread_id": "11111111-1111-7111-8111-111111111111",
+        "minutes": 10081
+      },
+      "reply": {
+        "ok": false,
+        "error": "a recovery can be postponed by a week at most",
+        "error_code": "too_far"
+      }
+    },
+    {
+      "case": "a task that belongs to another conversation",
+      "argument": {
+        "interruption_id": "7777777777777777777777777777777777777777777777777777777777777777",
+        "thread_id": "22222222-2222-7222-8222-222222222222",
+        "preset": "3_hours"
+      },
+      "reply": {
+        "ok": false,
+        "error": "that recovery belongs to a different conversation",
+        "error_code": "thread_mismatch"
+      }
+    },
+    {
+      "case": "a finished task",
+      "argument": {
+        "interruption_id": "6666666666666666666666666666666666666666666666666666666666666666",
+        "thread_id": "33333333-3333-7333-8333-333333333333",
+        "preset": "3_hours"
+      },
+      "reply": {
+        "ok": false,
+        "error": "that recovery has already finished",
+        "error_code": "already_finished"
+      }
+    }
+  ]
+}

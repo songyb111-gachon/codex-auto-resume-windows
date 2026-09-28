@@ -79,7 +79,7 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
     total = card_width + 2 * margin
     left, right = margin + pad, total - margin - pad
     inner = right - left
-    items, targets = [], []
+    items, targets, rows = [], [], []
     y = margin + pad
 
     def text(rect, role, value, colour, *, wrap=False, align="left", target=None):
@@ -201,6 +201,9 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
         items.extend(contents)
         items.append({"kind": "focusable", "rect": hit, "target": target, "radius": px(brand.RADII["small"]),
                       "corner": "small"})
+        # v0.6.11: the whole row, where a right click opens its own menu. Not a target: nothing is drawn
+        # for it and the keyboard's order is the switches' as it was.
+        rows.append((task["interruption_id"], (left, row_top, right, row_bottom)))
         y = row_bottom + px(space["s"])
 
     if vm["more"]:
@@ -218,10 +221,12 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
              wrap=True, align="center")
         y += block + px(space["s"])
 
-    if vm["zero_note"]:
-        _, note_h = measure("small", vm["zero_note"], inner, True)
-        text((left, y, right, y + note_h), "small", vm["zero_note"], "muted", wrap=True)
-        y += note_h + px(space["s"])
+    # v0.6.11: and observe only's, and the last usage reading's.
+    for note in (vm["zero_note"], vm.get("observe_note"), vm.get("usage_note")):
+        if note:
+            _, note_h = measure("small", note, inner, True)
+            text((left, y, right, y + note_h), "small", note, "muted", wrap=True)
+            y += note_h + px(space["s"])
 
     if vm["notice"]:
         inset = px(space["s"])
@@ -271,4 +276,38 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
     # `radius` is Soft's, and `corner` the role a design rounds it by (v0.6.10: the renderer asks
     # brand.design_radii; the layout, and so every rectangle, is the same in every design).
     items.insert(0, {"kind": "card", "rect": card, "radius": px(brand.RADII["card"]), "corner": "card"})
-    return {"size": (total, y + margin), "card": card, "items": items, "targets": targets, "scale": scale}
+    return {"size": (total, y + margin), "card": card, "items": items, "targets": targets, "scale": scale,
+            "rows": rows}
+
+
+def mirror(plan) -> dict:
+    """The plan right to left (v0.6.11): every rectangle across the canvas from where it is, so what stands
+    at the left in every other language stands at the right - the light and the product, a row's name,
+    the switch under its chip, the first of the two buttons - and every line aligned left is aligned right.
+
+    A plan, not a drawing: the card's lift keeps the brand's one light, up and to the left, in every
+    language, as a room's light does not turn with the page. Each item says it was mirrored, so the
+    renderer draws a switch's knob from the right and Classic's accent bar inside the right hairline,
+    and the plan says `rtl`, so its lines are read right to left (Renderer._text). The popup's and the
+    card's accessible objects, hit tests and focus order all read the plan, so they follow it."""
+    width = plan["size"][0]
+
+    def across(rect):
+        left, top, right, bottom = rect
+        return (width - right, top, width - left, bottom)
+
+    items = []
+    for item in plan["items"]:
+        item = dict(item, mirrored=True)
+        if "rect" in item:
+            item["rect"] = across(item["rect"])
+        if "cx" in item:
+            item["cx"] = width - item["cx"]
+        if item["kind"] == "text":
+            item["align"] = {"left": "right", "right": "left"}.get(item["align"], item["align"])
+        items.append(item)
+    mirrored = dict(plan, items=items, card=across(plan["card"]), rtl=True,
+                    targets=[(target, across(rect)) for target, rect in plan["targets"]])
+    if "rows" in plan:
+        mirrored["rows"] = [(key, across(rect)) for key, rect in plan["rows"]]
+    return mirrored

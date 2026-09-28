@@ -22,7 +22,7 @@ from codex_auto_resume.engine import Engine  # noqa: E402
 
 MIXINS = (package.OptionsMixin, package.AnnounceMixin, package.FreshnessMixin,
           package.DetectMixin, package.ReconcileMixin, package.OutcomeMixin,
-          package.DispatchMixin)
+          package.DispatchMixin, package.NoticeMixin)
 
 # The forty-one methods the one class had, counted the day it was split.
 METHODS = {
@@ -39,6 +39,18 @@ METHODS = {
     # v0.6.11: the plug told of each move the engine writes (P14), and giving a claim back,
     # which is one of them.
     "moved", "_release",
+    # v0.6.11: quiet hours and a conversation's tier as the policy says them, a record parked in
+    # quiet hours, and the objection window before a first send.
+    "quiet_until", "tier", "_quiet", "_objection",
+    # v0.6.11: observe only - the switch, whether a refused consent is only observed, and the record
+    # that would have been sent; and the hold an interruption is detected with.
+    "observing", "observes", "_would_send", "admission",
+    # v0.6.11: the needs-you notices, each raised once (engine/notices.py), and the last usage reading
+    # the watcher's heartbeat keeps, which reads nothing (engine/freshness.py).
+    "tell_needs_you", "_notice", "last_usage",
+    # v0.6.11: whether Windows reports no internet and the wait that follows, and what a wake forgets
+    # and a long sleep holds (engine/freshness.py) - each asked of nothing at the defaults.
+    "offline", "_offline", "after_sleep",
 }
 
 # What `from codex_auto_resume.engine import ...` has to keep answering (app.py, the tests).

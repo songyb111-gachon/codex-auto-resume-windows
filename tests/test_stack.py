@@ -62,33 +62,67 @@ def _q(name: str) -> str:
 
 # Every module, placed. A new module is given an item here before anything else.
 ITEM = {_q(name): item for item, names in {
-    "watcher": ("app", "runtime", "runtime.app", "runtime.loop", "runtime.toasts"),
+    "watcher": ("app", "runtime", "runtime.app", "runtime.loop", "runtime.toasts",
+                # v0.6.11: the watcher's side of sleep and of keeping this PC awake.
+                "runtime.waking",
+                # and of its own memory, how it ended and the status file.
+                "runtime.health"),
     "engine": ("engine", "engine.announce", "engine.detect", "engine.dispatch", "engine.freshness",
-               "engine.options", "engine.outcome"),
+               "engine.options", "engine.outcome",
+               # v0.6.11: the waits and the two guards, as the engine asks them.
+               "engine.guard",
+               # and the needs-you notices, as the engine raises them.
+               "engine.notices"),
     "policy": ("failures", "reasons", "settings", "continuation", "openstate", "domain.gates",
                # what may be done at a tier, and with whose word: policy, not registry data
                "compat.permits",
                # v0.6.11: what an edition may change about a decision, and which edition this
                # is - the "under which edition" of HOMELESS below, in code
-               "domain.plug", "edition"),
+               "domain.plug", "edition",
+               # v0.6.11: quiet hours and a postponement's times - when, by the local clock - and
+               # which projects may resume without a person; the retry ladders, which a person
+               # chooses; and the two guards that may hold a waiting recovery.
+               "quiet", "projects", "ladder", "guards",
+               # v0.6.11: what an administrator's policy keys hold, and how they hold the settings.
+               "managed",
+               # and which needs-you notices are raised, and after how long a turn has stopped moving.
+               "needsyou",
+               # and what a long sleep holds, how long this PC is kept awake, and waiting for the internet.
+               "power",
+               # and the watcher's memory guard, and the status file for other tools.
+               "memguard", "statusfile",
+               # and Show me what happens: the made-up task both surfaces take the demo from.
+               "demo"),
     "machine": ("machine", "domain", "domain.errors", "domain.ids", "domain.public",
-                "domain.states", "domain.vocabulary"),
+                "domain.states", "domain.vocabulary",
+                # v0.6.11: the registry's vocabularies, out of domain/vocabulary.py.
+                "domain.compat_vocabulary",
+                # and what a usage reading keeps of Codex's reply.
+                "domain.usage"),
     "scheduler": ("engine.reconcile",),
     "store": ("store", "store.actions", "store.claims", "store.columns", "store.downgrade",
               "store.errors", "store.journal", "store.legacy", "store.migrations", "store.policy",
               "store.records", "store.reporting", "store.schema", "store.session",
               "store.validate", "store.watcher",
               # v0.6.11: the claim ledger's machinery (P11), out of store/claims.py.
-              "store.ledger"),
+              "store.ledger",
+              # and a needs-you notice, raised once.
+              "store.notices",
+              # and a record made later, held and let go, out of store/actions.py.
+              "store.schedule"),
     "codex": ("codex", "codex.appserver", "codex.errors", "codex.history", "codex.labels",
               "codex.pairing", "codex.paths", "codex.payload", "codex.schema", "codex.transport",
               "codex.usage", "codex.values", "compat", "compatio", "windows",
               "compat.model", "compat.standing", "compat.report", "compat.files", "compat.cache", "compat.probes", "compat.views", "compat.evaluator",
               # v0.6.10: what others report, read beside the registry and never by it.
-              "compat.reported"),
+              "compat.reported",
+              # v0.6.11: a conversation's folder's git HEAD, as a digest.
+              "codex.workspace"),
     "control": ("control", "control.actions", "control.codexstart", "control.errors",
                 "control.layer", "control.policy", "control.preview", "control.records",
                 "control.seen", "control.state", "control.watcher", "control.wire",
+                # v0.6.11: Diagnostics' own tools.
+                "control.tools",
                 "auto_resume", "cli", "controlcli", "diagnostics",
                 "commands", "commands.base", "commands.install", "commands.records",
                 "commands.status", "commands.watcher",
@@ -99,13 +133,25 @@ ITEM = {_q(name): item for item, names in {
     "popup": ("ui.popup", "ui.popup.elevation", "ui.popup.fonts", "ui.popup.gdiplus",
               "ui.popup.layout", "ui.popup.model", "ui.popup.motion", "ui.popup.placement",
               "ui.popup.renderer", "ui.popup.theme", "ui.popup.win32", "ui.popup.window",
-              "ui.popup.words", "ui.popup.messages"),
+              "ui.popup.words", "ui.popup.messages",
+              # v0.6.11: what a screen reader is told of the popup, and asks of it.
+              "ui.popup.access"),
     "notifications": ("notice_card", "notice_presence", "notice_window", "notifier", "notify",
                       "ui.card", "ui.card.win32", "ui.card.surfaces", "ui.card.card", "ui.card.stack"),
     "words": ("l10n", "messages", "interface", "ui.words"),
     "brand": ("brand", "brand.checkbox", "brand.colour", "brand.css", "brand.design", "brand.elevation",
               "brand.light", "brand.mark", "brand.motion", "brand.scale", "brand.tokens"),
     "platform": ("win", "win.dll", "win.homelock", "win.inventory", "win.kernel", "win.sync",
+                 # v0.6.11: the administrator's policy keys, read from the registry.
+                 "win.policykeys",
+                 # and what Windows says of power and of the internet, and the one power request.
+                 "win.power", "win.network",
+                 # and what it says of the watcher's own process and of this sign-in.
+                 "win.ownprocess",
+                 # and who it lets open the state folder.
+                 "win.acl",
+                 # and the text size it is set to, and the face its interface is set in.
+                 "win.textsize", "win.typeface",
                  "pwsh", "shortcut", "startup"),
     "config": ("", "config", "logbook"),
 }.items() for name in names}
@@ -191,6 +237,9 @@ EDGES = {
     # v0.6.11: runtime/app.py holds the edition's plug, and domain/plug.py - policy's - is reached
     # through the domain package, which is the machine's.
     ("watcher", "machine"),
+    # v0.6.11: the watcher holds this PC's keep-awake request and listens for it waking, and hands
+    # the engine the question about the internet (win/power.py, win/network.py).
+    ("watcher", "platform"),
 
     ("engine", "codex"), ("engine", "machine"), ("engine", "policy"), ("engine", "scheduler"),
     ("engine", "words"),

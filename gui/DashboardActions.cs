@@ -199,6 +199,192 @@ namespace CodexAutoResume
             });
         }
 
+        // ------------------------------------------------------------ a row's own menu (v0.6.11)
+        /// Fills the Pending row menu for `row`, the task it was opened on. False when there is none.
+        private bool FillRowMenu(Dictionary<string, object> row)
+        {
+            pendingMenu.Items.Clear();
+            if (row == null || Str(row, "interruption_id") == null || Str(row, "thread_id") == null) return false;
+            // Show me what happens' made-up task: nothing is offered on it (v0.6.11).
+            if (IsDemo(row)) return false;
+            bool idle = busy == 0;
+            ToolStripMenuItem postpone = pendingMenu.Branch(S("menu.postpone", "Postpone"));
+            for (int i = 0; i < PostponePresets.Length; i++)
+            {
+                string preset = PostponePresets[i];
+                postpone.DropDownItems.Add(new ToolStripMenuItem(S("postpone." + preset, PostponeEnglish[i]), null,
+                                                                 delegate { Postpone(row, preset); }));
+            }
+            // v0.6.11: last in the same menu, after a line - the person's own postponement taken away, back to
+            // what the schedule says (Retry now never shortens one).
+            postpone.DropDownItems.Add(new ToolStripSeparator());
+            var unpostpone = new ToolStripMenuItem(S("menu.unpostpone", "Don't postpone"), null, delegate { Unpostpone(row); });
+            unpostpone.Enabled = CanUnpostpone(row, idle, Now());
+            postpone.DropDownItems.Add(unpostpone);
+            postpone.Enabled = CanPostpone(row, idle);
+            pendingMenu.Items.Add(postpone);
+            var release = new ToolStripMenuItem(S("action.continue", "Let it continue"), null, delegate { ReleaseHold(row); });
+            release.Enabled = CanRelease(row, idle);
+            pendingMenu.Items.Add(release);
+            pendingMenu.Items.Add(new ToolStripSeparator());
+            ToolStripMenuItem tiers = pendingMenu.Branch(S("menu.tier", "How this conversation resumes"));
+            string own = Str(row, "tier");
+            var standing = new ToolStripMenuItem(S("choice.tier_default", "As in Settings ({tier})", "tier",
+                                                   TierLabel(DefaultTier())), null, delegate { SetTier(row, null); });
+            standing.Checked = own == null;
+            tiers.DropDownItems.Add(standing);
+            foreach (string tier in TierOrder)
+            {
+                string chosen = tier;
+                var item = new ToolStripMenuItem(TierLabel(tier), null, delegate { SetTier(row, chosen); });
+                item.Checked = own == tier;
+                tiers.DropDownItems.Add(item);
+            }
+            tiers.Enabled = idle && !Equals(Get(row, "terminal"), true);
+            pendingMenu.Items.Add(tiers);
+            // Whether the project its conversation is filed under may resume without a person, or is held for one.
+            var always = new ToolStripMenuItem(S("menu.project_always", "Let this project resume"), null,
+                                               delegate { ProjectRule(row, true); });
+            always.Enabled = tiers.Enabled;
+            pendingMenu.Items.Add(always);
+            var never = new ToolStripMenuItem(S("menu.project_never", "Hold this project for me"), null,
+                                              delegate { ProjectRule(row, false); });
+            never.Enabled = tiers.Enabled;
+            pendingMenu.Items.Add(never);
+            // v0.6.11: a message for this conversation alone, written here and nowhere else - last, after a line.
+            pendingMenu.Items.Add(new ToolStripSeparator());
+            var message = new ToolStripMenuItem(S("menu.conversation_message", "Message for this conversation..."), null,
+                                                delegate { EditConversationMessage(row); });
+            message.Enabled = idle;
+            pendingMenu.Items.Add(message);
+            return true;
+        }
+
+        /// Lets the project of the task's conversation resume, or holds it for a person (v0.6.11). Letting it resume
+        /// can let automation run again, so it asks first, naming the conversation; holding it only holds more back.
+        private void ProjectRule(Dictionary<string, object> row, bool always)
+        {
+            if (always && !Confirm(Named("confirm.project_always",
+                                         "Let the project of \"{name}\" resume? Its tasks may then be sent without asking you, as Settings allow. Nothing is sent now.", row),
+                                   S("menu.project_always", "Let this project resume")))
+                return;
+            string key = Str(row, "interruption_id");
+            CallAsync("project-rule", RowArgument(row, ",\"always\":" + (always ? "true" : "false")),
+                      delegate(Dictionary<string, object> reply)
+            {
+                if (!Ok(reply))
+                {
+                    Report(reply);
+                    RefreshAfterChange();
+                    return;
+                }
+                int held = (int)Number(Map(reply, "result"), "held");
+                pendingNoteFor = key;
+                pendingNoteText = always
+                    ? S("result.project_always", "Tasks of this project may resume without asking you, as Settings allow.")
+                    : S("result.project_never", "Tasks of this project wait for you from now on.") +
+                      (held > 0 ? " " + S("result.tier_held", "Now waiting for you: {n}", "n", held) : "");
+                ShowPendingNote();
+                RefreshAfterChange();
+            });
+        }
+
+        private string TierLabel(string tier)
+        {
+            int index = Array.IndexOf(TierOrder, tier);
+            return S("choice." + tier, index < 0 ? tier : TierEnglish[index]);
+        }
+
+        /// The tier a conversation without one of its own has: Settings' default, as the status last read it.
+        private string DefaultTier()
+        {
+            var settings = snapshot == null ? null : Map(Map(snapshot, "status"), "settings");
+            string tier = Str(settings, "default_tier");
+            return Array.IndexOf(TierOrder, tier) < 0 ? "automatic" : tier;
+        }
+
+        private static string RowArgument(Dictionary<string, object> row, string extra)
+        {
+            return "{\"interruption_id\":" + Json.Escape(Str(row, "interruption_id")) + ",\"thread_id\":" +
+                   Json.Escape(Str(row, "thread_id")) + (extra ?? "") + "}";
+        }
+
+        /// Postpones exactly the task the menu was opened on. It only ever holds it back, so it asks nothing.
+        private void Postpone(Dictionary<string, object> row, string preset)
+        {
+            string key = Str(row, "interruption_id");
+            CallAsync("postpone", RowArgument(row, ",\"preset\":" + Json.Escape(preset)), delegate(Dictionary<string, object> reply)
+            {
+                if (!Ok(reply))
+                {
+                    Report(reply);
+                    RefreshAfterChange();
+                    return;
+                }
+                pendingNoteFor = key;
+                pendingNoteText = S("result.postponed", "Postponed until {time}. Nothing is sent before then.", "time",
+                                    ClockTime(Number(Map(reply, "result"), "not_before")));
+                ShowPendingNote();
+                RefreshAfterChange();
+            });
+        }
+
+        /// Lets exactly the held task the menu was opened on continue. It lets automation run again, so it asks
+        /// first, naming the conversation, as switching a conversation back on does.
+        private void ReleaseHold(Dictionary<string, object> row)
+        {
+            if (!Confirm(Named("confirm.release",
+                               "Let \"{name}\" continue? Nothing is sent now; every check still applies.", row),
+                         S("action.continue", "Let it continue")))
+                return;
+            string key = Str(row, "interruption_id");
+            CallAsync("release-hold", RowArgument(row, null), delegate(Dictionary<string, object> reply)
+            {
+                if (!Ok(reply))
+                {
+                    Report(reply);
+                    RefreshAfterChange();
+                    return;
+                }
+                pendingNoteFor = key;
+                pendingNoteText = S("result.released", "It may continue now. Every safety check still applies.");
+                ShowPendingNote();
+                RefreshAfterChange();
+            });
+        }
+
+        /// How much the task's conversation asks before it resumes: a tier of its own, or null for Settings'.
+        /// One that asks less than the conversation does now asks first; one that asks more holds what waits.
+        private void SetTier(Dictionary<string, object> row, string tier)
+        {
+            string now = Str(row, "tier") ?? DefaultTier(), next = tier ?? DefaultTier();
+            if (Array.IndexOf(TierOrder, next) < Array.IndexOf(TierOrder, now) &&
+                !Confirm(S("confirm.tier", "Change how \"{name}\" resumes to \"{tier}\"? It asks you less before a continuation is sent. Nothing is sent now.",
+                           "tier", TierLabel(next)).Replace("{name}", Conversation(row)),
+                         TierLabel(next)))
+                return;
+            string key = Str(row, "interruption_id");
+            CallAsync("thread-tier", "{\"thread_id\":" + Json.Escape(Str(row, "thread_id")) + ",\"tier\":" +
+                      (tier == null ? "null" : Json.Escape(tier)) + ",\"interruption_id\":" + Json.Escape(key) + "}",
+                      delegate(Dictionary<string, object> reply)
+            {
+                if (!Ok(reply))
+                {
+                    Report(reply);
+                    RefreshAfterChange();
+                    return;
+                }
+                int held = (int)Number(Map(reply, "result"), "held");
+                if (held > 0)
+                {
+                    pendingNoteFor = key;
+                    pendingNoteText = S("result.tier_held", "Now waiting for you: {n}", "n", held);
+                    ShowPendingNote();
+                }
+                RefreshAfterChange();
+            });
+        }
+
         private void CancelSelected()
         {
             var row = Selected(pendingList);
@@ -259,7 +445,7 @@ namespace CodexAutoResume
         /// The Auto-resume box on one row: automatic recovery on or off for that exact task.
         private void ToggleAutoResume(Dictionary<string, object> row)
         {
-            if (row == null || busy > 0) return;
+            if (row == null || busy > 0 || IsDemo(row)) return;
             string id = Str(row, "interruption_id"), thread = Str(row, "thread_id");
             if (id == null || thread == null) return;
             bool enable = !ThreadOn(row);
@@ -642,9 +828,67 @@ namespace CodexAutoResume
                                 : code == "WAIT" ? S("gate.result.wait", "Waiting")
                                 : code == "BLOCK" ? S("gate.result.block", "Blocked")
                                 : S("gate.result.unknown", "Unknown");
+                    // v0.6.11: a wait a person set, or quiet hours, says until when; a hold says who it waits for.
+                    string reason = result != null && result.Count > 1 ? Convert.ToString(result[1], CultureInfo.InvariantCulture) : null;
+                    if (code == "WAIT" && reason == "postponed" && Number(row, "not_before") > 0)
+                        word = S("explain.postponed", "Postponed until {time}", "time", ClockTime(Number(row, "not_before")));
+                    else if (code == "WAIT" && reason == "quiet_hours" && Number(row, "next_retry_at") > 0)
+                        word = S("explain.quiet_hours", "Quiet hours until {time}", "time", ClockTime(Number(row, "next_retry_at")));
+                    else if (code == "WAIT" && reason == "held")
+                        word = S("explain.held", "Waiting for you");
+                    // v0.6.11: Wait for an internet connection - what Windows reports, never a test of its own.
+                    else if (code == "WAIT" && reason == "offline")
+                        word = S("explain.offline", "No internet (Windows reports)");
                     rows.Add(new[] { S("gate." + name, name.Replace('_', ' ')), word, code });
                 }
-            explainList.SetRows(rows, S("explain.not_checked", "Not checked yet"));
+            explainList.SetRows(rows, S("explain.not_checked", "Not checked yet"), WithUsage(row, ExplainNote(row, gates)));
+        }
+
+        /// v0.6.11: under a usage limit's checks, what the watcher last read of Codex's usage, with its age - and first,
+        /// when a weekly limit is what it waits for, the day and time that one resets, and the one fixed sentence that
+        /// Codex's /usage can redeem a reset credit (decision C13: the standard edition keeps no credit, so it never says
+        /// whether there is one). Any other task's note is as it was.
+        private string WithUsage(Dictionary<string, object> row, string note)
+        {
+            if (Str(row, "category") != "usage_limit" || snapshot == null) return note;
+            var reading = Map(Map(Map(snapshot, "status"), "watcher"), "usage");
+            var said = new List<string>();
+            if (!string.IsNullOrEmpty(note)) said.Add(note);
+            string weekly = WeeklyBlock(reading), line = UsageLine(reading);
+            if (weekly != null)
+            {
+                said.Add(weekly);
+                said.Add(S("usage.weekly_credit", "If your account has a reset credit, /usage in Codex can redeem it."));
+            }
+            if (line != null) said.Add(line);
+            return said.Count == 0 ? null : string.Join("\n", said.ToArray());
+        }
+
+        /// v0.6.11: the sentence under the checks. Observe only's "would have been sent", or why the first check that
+        /// did not pass stops it, in words; nothing when every check passed or no words are known for the reason.
+        private string ExplainNote(Dictionary<string, object> row, Dictionary<string, object> gates)
+        {
+            double would = Number(row, "would_send_at");
+            if (would > 0)
+                return S("explain.would_send", "Every check but Observe only passed at {time}: it would have been sent then. Nothing was sent.",
+                         "time", ClockTime(would));
+            if (gates == null) return null;
+            // Under observe only, what else stops it says more than observe only does, and it is said first.
+            string observed = null;
+            foreach (string name in GateOrder)
+            {
+                var result = Items(gates, name);
+                string code = result != null && result.Count > 0 ? Convert.ToString(result[0], CultureInfo.InvariantCulture) : "UNKNOWN";
+                if (code == "PASS") continue;
+                string reason = result != null && result.Count > 1 ? Convert.ToString(result[1], CultureInfo.InvariantCulture) : null;
+                if (reason == "observe_only" && observed == null) { observed = reason; continue; }
+                // v0.6.11: a hold a guard or a long sleep put on it says what it found, not only that it waits.
+                string hold = Str(row, "hold");
+                if (reason == "held" && (hold == "workspace_changed" || hold == "context_cost" || hold == "after_sleep"))
+                    return S("why." + hold, null);
+                return reason == null ? null : S("why." + reason, null);
+            }
+            return observed == null ? null : S("why." + observed, null);
         }
 
         private void TogglePause()
@@ -798,22 +1042,22 @@ namespace CodexAutoResume
         private void ShowTimeline(ListView list)
         {
             var row = Selected(list);
-            if (row == null) return;
+            if (row == null || IsDemo(row)) return;
             CallAsync("timeline", IdArgument(row), delegate(Dictionary<string, object> reply)
             {
                 if (!Ok(reply)) { Report(reply); return; }
-                OpenTimeline(row, Items(Map(reply, "result"), "events"));
+                OpenTimeline(row, Items(Map(reply, "result"), "events"), Items(Map(reply, "result"), "receipts"));
             });
         }
 
-        private void OpenTimeline(Dictionary<string, object> row, List<object> events)
+        private void OpenTimeline(Dictionary<string, object> row, List<object> events, List<object> receipts)
         {
-            using (Form dialog = BuildTimeline(row, events)) dialog.ShowDialog(this);
+            using (Form dialog = BuildTimeline(row, events, receipts)) dialog.ShowDialog(this);
         }
 
-        /// The Timeline dialog for `row`'s `events`, built and not shown - OpenTimeline shows it, LayoutAudit
-        /// measures it.
-        private Form BuildTimeline(Dictionary<string, object> row, List<object> events)
+        /// The Timeline dialog for `row`'s `events`, and after them what delivery showed of each continuation
+        /// (v0.6.11, `receipts`), built and not shown - OpenTimeline shows it, LayoutAudit measures it.
+        private Form BuildTimeline(Dictionary<string, object> row, List<object> events, List<object> receipts)
         {
             {
                 var dialog = new Form();
@@ -845,6 +1089,19 @@ namespace CodexAutoResume
                         // and a translated label for each would say no more than the state does.
                         string to = Str(item, "to_code");
                         line.SubItems.Add(to == null ? "" : S("code." + to, to.Replace('_', ' ')));
+                        view.Items.Add(line);
+                    }
+                }
+                if (receipts != null)
+                {
+                    foreach (object entry in receipts)
+                    {
+                        var receipt = entry as Dictionary<string, object>;
+                        string kind = Str(receipt, "kind");
+                        if (kind != "seen" && kind != "uncertain" && kind != "queued") continue;
+                        var line = new ListViewItem(When(Number(receipt, "at")));
+                        line.SubItems.Add(S("receipt." + kind, kind));
+                        line.SubItems.Add("");
                         view.Items.Add(line);
                     }
                 }

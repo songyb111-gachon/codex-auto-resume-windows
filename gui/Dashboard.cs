@@ -396,6 +396,36 @@ namespace CodexAutoResume
         }
     }
 
+    /// v0.6.11: the whole of a line that ends in an ellipsis where it does not fit (LineLabel), while the pointer rests
+    /// on it - in the window's own colours and font rather than Windows' own tooltip, which knows neither the theme nor
+    /// the design: its words in ink on the raised ground, a hairline round it, wrapped at a readable width.
+    internal sealed class SoftTip : ToolTip
+    {
+        // How far the words stand in from the tip's edge, and the widest a line of them runs, at 96 DPI.
+        private const int Inset = 8, Widest = 420;
+        private const TextFormatFlags Flags = TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.Left |
+                                              TextFormatFlags.Top;
+
+        internal SoftTip()
+        {
+            OwnerDraw = true;
+            Popup += delegate(object sender, PopupEventArgs e)
+            {
+                string text = GetToolTip(e.AssociatedControl) ?? "";
+                Size words = TextRenderer.MeasureText(text, Soft.BaseFont, new Size(Soft.Px(Widest), int.MaxValue), Flags);
+                e.ToolTipSize = new Size(words.Width + 2 * Soft.Px(Inset), words.Height + 2 * Soft.Px(Inset));
+            };
+            Draw += delegate(object sender, DrawToolTipEventArgs e)
+            {
+                e.Graphics.FillRectangle(Soft.Fill(Palette.Raised), e.Bounds);
+                using (var pen = new Pen(Palette.Line))
+                    e.Graphics.DrawRectangle(pen, e.Bounds.X, e.Bounds.Y, e.Bounds.Width - 1, e.Bounds.Height - 1);
+                TextRenderer.DrawText(e.Graphics, e.ToolTipText, Soft.BaseFont,
+                                      Rectangle.Inflate(e.Bounds, -Soft.Px(Inset), -Soft.Px(Inset)), Palette.Ink, Flags);
+            };
+        }
+    }
+
     /// A small bar chart of how recoveries ended, drawn to the same scale for every bar.
     internal sealed class OutcomeChart : Panel
     {
@@ -491,6 +521,8 @@ namespace CodexAutoResume
     {
         private readonly List<string[]> rows = new List<string[]>();   // label, result word, result code
         private string empty = "";
+        // v0.6.11: a sentence under the rows - why the first check that did not pass stops it - or "".
+        private string note = "";
 
         internal GateList()
         {
@@ -505,17 +537,24 @@ namespace CodexAutoResume
 
         internal void SetRows(List<string[]> fresh, string whenEmpty)
         {
+            SetRows(fresh, whenEmpty, null);
+        }
+
+        internal void SetRows(List<string[]> fresh, string whenEmpty, string under)
+        {
             // The snapshot arrives every five seconds and the checks in it rarely move, so the same
             // thirteen rows were rebuilt, given a new accessible description and handed a full parent
             // layout every time - on the window's thread, whether or not this page was the one on
             // screen. Identical rows are now nothing to do.
-            if (Same(fresh, whenEmpty)) return;
+            if (Same(fresh, whenEmpty) && note == (rows.Count == 0 ? "" : under ?? "")) return;
             GateFills++;
             rows.Clear();
             rows.AddRange(fresh);
             empty = whenEmpty ?? "";
+            note = rows.Count == 0 ? "" : under ?? "";
             var spoken = new List<string>();
             foreach (string[] row in rows) spoken.Add(row[0] + ": " + row[1]);
+            if (note.Length > 0) spoken.Add(note);
             AccessibleDescription = rows.Count == 0 ? empty : string.Join(", ", spoken.ToArray());
             if (Parent != null) Parent.PerformLayout();
             Invalidate();
@@ -547,8 +586,16 @@ namespace CodexAutoResume
             int height = rows.Count == 0
                 ? TextRenderer.MeasureText(Soft.Wrap(text, Font, width, EmptyFormat), Font, new Size(width, int.MaxValue),
                                            EmptyFormat).Height
-                : rows.Count * RowHeight;
+                : rows.Count * RowHeight + NoteHeight(width);
             return new Size(width, height);
+        }
+
+        /// The sentence under the rows, wrapped at `width`, with the gap above it; 0 when there is none.
+        private int NoteHeight(int width)
+        {
+            if (note.Length == 0) return 0;
+            return Soft.Px(8) + TextRenderer.MeasureText(Soft.Wrap(note, Font, width, EmptyFormat), Font,
+                                                         new Size(width, int.MaxValue), EmptyFormat).Height;
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -579,6 +626,10 @@ namespace CodexAutoResume
                     Soft.Chip(g, new Rectangle(Math.Max(0, Width - chip.Width), y, chip.Width, height), row[1], Font, tone, ground);
                     y += height;
                 }
+            if (note.Length > 0)
+                TextRenderer.DrawText(g, Soft.Wrap(note, Font, Width, EmptyFormat), Font,
+                                      new Rectangle(0, y + Soft.Px(8), Width, Math.Max(0, Height - y - Soft.Px(8))),
+                                      Palette.Secondary, EmptyFormat);
         }
     }
 
@@ -613,6 +664,8 @@ namespace CodexAutoResume
         private bool loadingStats, statsAgain;
         // What the pause button currently stands for; null until a status has been read.
         private bool? shownEnabled;
+        // v0.6.11: whether an administrator's DisableUpdateCheck is in force (the status's `managed`).
+        private bool updatesManaged;
         private Dictionary<string, object> snapshot;
         // Lists whose first row has already been preselected once (see Preselect).
         private readonly Dictionary<ListView, bool> preselected = new Dictionary<ListView, bool>();
@@ -622,7 +675,9 @@ namespace CodexAutoResume
 
         // Overview
         private Label nowRecovery, nowWatcher, nowEngine, nowLastCheck, waitingLine, nextLine,
-                      runningLine, weekDetected, weekSent, weekRecovered, weekSuccess, recentEmpty;
+                      runningLine, usageLine, weekDetected, weekSent, weekRecovered, weekSuccess, recentEmpty;
+        // v0.6.11: the usage line's whole text, while the pointer rests on it (WaitingLine).
+        private SoftTip lineTip;
         private Button toggleButton;
         private TableLayoutPanel recentGrid;
         private string recentShown;
@@ -635,6 +690,17 @@ namespace CodexAutoResume
         private Label explainAsOf;
         // The Pending list's Auto-resume column, a check box for the task on its row.
         private const int ResumeColumn = 5;
+        // v0.6.11: a Pending row's own menu, and whether the right button opened it - then it is the row under
+        // the pointer's, and from the keyboard the chosen row's.
+        private SoftMenu pendingMenu;
+        private bool menuByMouse;
+        // The times a task can be postponed by, and how much a conversation asks before it resumes, least first
+        // (quiet.PRESETS, machine.IMPORTANCE_TIERS).
+        private static readonly string[] PostponePresets = { "30_minutes", "1_hour", "3_hours", "tomorrow_morning" };
+        private static readonly string[] PostponeEnglish = { "30 minutes", "1 hour", "3 hours", "Tomorrow at 09:00" };
+        private static readonly string[] TierOrder = { "automatic", "objection_window", "ask_first", "notify_only" };
+        private static readonly string[] TierEnglish = { "Resume automatically", "After a chance to object",
+                                                         "Ask me first", "Only notify me" };
         // The Pending list's Next check column, which the clock writes (UpdateCountdowns).
         private const int CountdownColumn = 3;
         // The note that belongs to no single record: what Cancel all did.
@@ -653,7 +719,9 @@ namespace CodexAutoResume
         private OutcomeChart chart;
         // Diagnostics
         private Label diagVersion, diagWatcher, diagLastCheck, diagEngine, diagRecovery, diagStartup,
-                      diagUpgrade, diagUpdate;
+                      diagUpgrade, diagUpdate, diagMemory, diagPlugin, diagStateAccess, diagStateNote, diagWaiting;
+        // v0.6.11: Diagnostics' Show me what happens, which waits while an action runs.
+        private Button demoButton;
         private Button exportButton, repairButton, stopButton, updateButton;
         // Codex compatibility (v0.6.5; BuildCompatibility): its facts, what the view cannot vouch for - a callout each,
         // since v0.6.10 - the parts in two lists, what each state word means, and the refresh with what it last answered.

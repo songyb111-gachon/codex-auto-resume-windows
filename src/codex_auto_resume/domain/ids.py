@@ -14,8 +14,9 @@ The kinds:
 * **An interruption** (`InterruptionId`): 64 lowercase hex digits, which `interruption_id`
   makes from the failed turn. A chain of continuations is named by the id of the interruption
   that began it (`ChainOriginId`).
-* **The marker** (`Marker`) a continuation carries, `[codex-auto-resume:<id>]`: how the engine
-  finds its own message in Codex's history, and knows it for its own.
+* **The marker** (`Marker`) a continuation carries, `[codex-auto-resume:<16 hex>]` - the first
+  16 of the interruption id's 64 digits, from v0.6.11, and the whole id before it: how the engine
+  finds its own message in Codex's history, and knows it for its own. Both are read.
 * **A client id** (`ClientId`) Codex gives a queued message: 1 to 64 letters, digits and dashes.
 * **A watcher session** (`SessionId`), and **a moment** (`Epoch`, seconds since 1970, which
   `machine.epoch` reads).
@@ -120,6 +121,23 @@ def interruption_id(thread_id, turn_id, completed_at, ordinal) -> InterruptionId
     return InterruptionId(hashlib.sha256(text.encode("ascii")).hexdigest())
 
 
+def stalled_id(thread_id, turn_id) -> InterruptionId:
+    """The key a needs-you notice about a turn that stopped moving is kept under (v0.6.11): SHA-256,
+    as lowercase hex, of the compact JSON array `["stalled", thread_id, turn_id]`. Three members where
+    an interruption's id has four, so it is never one; and one turn is told once, however long it
+    stays still."""
+    text = json.dumps(["stalled", thread_id, turn_id], separators=(",", ":"), allow_nan=False)
+    return InterruptionId(hashlib.sha256(text.encode("ascii")).hexdigest())
+
+
+def is_digest(value) -> bool:
+    """Whether `value` is a SHA-256 as the product writes one: 64 lowercase hex digits, with nothing
+    around them. What an interruption id is, and - from v0.6.11 - a project's key (projects.py) and
+    what the task-changed guard keeps of a task (guards.py): one rule for all three."""
+    return (isinstance(value, str) and len(value) == INTERRUPTION_ID_LENGTH
+            and all(character in _HEX_DIGITS for character in value))
+
+
 def is_interruption_id(value, *, as_stored: bool = False) -> bool:
     """Whether `value` is exactly an id `interruption_id` makes: 64 lowercase hex digits.
 
@@ -127,8 +145,7 @@ def is_interruption_id(value, *, as_stored: bool = False) -> bool:
     parent's, or its chain's: 1 to 128 letters, digits, `_` and `-`, as it always has."""
     if as_stored:
         return isinstance(value, str) and _STORED_KEY.fullmatch(value) is not None
-    return (isinstance(value, str) and len(value) == INTERRUPTION_ID_LENGTH
-            and all(character in _HEX_DIGITS for character in value))
+    return is_digest(value)
 
 
 def read_interruption_id(text: str):
@@ -140,18 +157,43 @@ def read_interruption_id(text: str):
 
 # ------------------------------------------------------------------------------- markers
 MARKER_PREFIX = "[codex-auto-resume:"
+# How many of an interruption id's 64 hex digits the marker carries, from v0.6.11 (the owner:
+# the whole id was more than a person needs to see at the end of every continuation). A marker is
+# only ever looked for inside the one conversation its record belongs to, and a record is never
+# given one another record of that conversation already has (store/records.py), so 16 digits
+# tell every continuation of a conversation apart as surely as 64 did. The closing `]` keeps the
+# two lengths apart: neither is ever found inside the other.
+SHORT_MARKER_DIGITS = 16
 
 
 def marker(key) -> Marker:
-    """The marker the continuation of the record `key` carries: the prefix, the key, `]`."""
+    """The marker of the whole key: the prefix, the key, `]`. What every continuation carried
+    before v0.6.11, and still carries where its short one is taken (store/records.py)."""
     return Marker(f"{MARKER_PREFIX}{key}]")
 
 
+def short_marker(key) -> Marker:
+    """The marker a new record's continuation carries from v0.6.11: the prefix, the first 16 hex
+    digits of its interruption id, `]`. A stored key that is not an id `interruption_id` makes -
+    which only a test writes - keeps the marker of the whole key."""
+    return marker(key[:SHORT_MARKER_DIGITS] if is_interruption_id(key) else key)
+
+
+def record_markers(key) -> tuple:
+    """Every marker a record of `key` may carry: its short one, and the one of the whole key
+    that a record made before v0.6.11 carries (one, when the two are the same)."""
+    return tuple(dict.fromkeys((short_marker(key), marker(key))))
+
+
 def is_marker(value) -> bool:
-    """Whether `value` is exactly the marker of an interruption id, with nothing around it.
-    The history reader looks for no other: this is the text its queries search Codex for."""
-    return (isinstance(value, str) and value.startswith(MARKER_PREFIX) and value.endswith("]")
-            and is_interruption_id(value[len(MARKER_PREFIX):-1]))
+    """Whether `value` is exactly the marker of an interruption id - of all 64 digits, or of the
+    first 16 - with nothing around it. The history reader looks for no other: this is the text its
+    queries search Codex for."""
+    if not (isinstance(value, str) and value.startswith(MARKER_PREFIX) and value.endswith("]")):
+        return False
+    body = value[len(MARKER_PREFIX):-1]
+    return is_interruption_id(body) or (
+        len(body) == SHORT_MARKER_DIGITS and all(character in _HEX_DIGITS for character in body))
 
 
 # ----------------------------------------------------------------------------- client ids

@@ -41,6 +41,7 @@ gui/DashboardCompat.cs
 gui/DashboardData.cs
 gui/DashboardActions.cs
 gui/DashboardMaintenance.cs
+gui/DashboardTools.cs
 
 [controls]
 gui/SoftTheme.cs

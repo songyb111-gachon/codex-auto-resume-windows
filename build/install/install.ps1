@@ -215,6 +215,28 @@ function Get-EditionStatement {
     return $line + 'the advanced features go, and their code with them'
 }
 
+function Write-PluginNotUpdated {
+    <#
+        What a failed `codex plugin add` leaves, said as it is. The watcher, its settings and the
+        plugin's tools do not depend on it: the tools' launcher runs this installation's own program
+        (gui/McpLauncher.cs runs <home>\app\src), so they are already whatever this archive is. What
+        Codex keeps in its own copy of the plugin is the skill's text and that launcher, and it replaces
+        the copy only once nothing holds it open. After an edition change that copy is still the old
+        edition's - said here, and in the Dashboard's Diagnostics until it is replaced.
+    #>
+    param([string]$From, [string]$To)
+    $words = @{ standard = 'Standard edition'; advanced = 'Advanced edition' }
+    if ($From -and $To -and $From -ne $To) {
+        Warn ('Could not update the Codex plugin, so Codex still has the ' + $words[$From] + '''s copy of it.')
+        Write-Host ('       Its tools already run the ' + $words[$To] + ' installed here; only the skill''s text')
+        Write-Host '       is still the old one. Close the ChatGPT/Codex app and run this installer again to'
+        Write-Host '       update it. The watcher and its settings work meanwhile.'
+        return
+    }
+    Warn 'Could not update the Codex plugin; the watcher and its settings still work.'
+    Write-Host '       Close the ChatGPT/Codex app and run this installer again to finish it.'
+}
+
 function Get-OwnedMcpProcess {
     <#
         Running MCP launchers that belong to an installation we are managing.
@@ -958,8 +980,9 @@ if ($installed.Code -ne 0 -and (($installed.Err + $installed.Out) -match 'os err
     }
 }
 if ($installed.Code -ne 0) {
-    Warn 'Could not update the Codex plugin; the watcher and its settings still work.'
-    Write-Host '       Close the ChatGPT/Codex app and run this installer again to finish it.'
+    # After an edition change, what is and is not the new edition yet (Write-PluginNotUpdated).
+    if ($editionChange) { Write-PluginNotUpdated -From $previousEdition -To $edition }
+    else { Write-PluginNotUpdated }
 } else { Ok 'Codex plugin installed' }
 
 # Every run, not only when a locked file forced it: a tool server Codex started before the

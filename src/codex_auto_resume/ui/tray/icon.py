@@ -60,6 +60,7 @@ from .win32 import (CALLBACK,
                     _dll)
 from .words import tooltip
 from ...win.dll import LRESULT, WNDCLASSW, WNDPROC
+from ...win.sync import DemoEvent
 
 
 class Tray(MenuMixin, StoredMixin, CardsMixin, ClicksMixin, AnimationMixin):
@@ -68,7 +69,7 @@ class Tray(MenuMixin, StoredMixin, CardsMixin, ClicksMixin, AnimationMixin):
 
     def __init__(self, *, icon_path=None, strings=None, on_open=None, on_toggle=None, on_stop=None,
                  on_pending=None, log=None, control=None, pending_source=None, on_dashboard=None,
-                 inbox=None, on_notice_action=None, on_notice_complete=None):
+                 inbox=None, on_notice_action=None, on_notice_complete=None, demo_name=None, on_demo=None):
         self.icon_path = Path(icon_path) if icon_path else None
         self.strings = strings or {}
         self.on_open, self.on_toggle, self.on_stop = on_open, on_toggle, on_stop
@@ -126,6 +127,10 @@ class Tray(MenuMixin, StoredMixin, CardsMixin, ClicksMixin, AnimationMixin):
         self.on_notice_action = on_notice_action
         self.on_notice_complete = on_notice_complete
         self._cards = None
+        # v0.6.11: Show me what happens. The demo event this icon makes for its state folder and looks
+        # at once a second (win/sync.py DemoEvent); signalled, `on_demo()` draws one made-up card.
+        self.demo_name, self.on_demo = demo_name, on_demo
+        self._demo = None
 
     # ----------------------------------------------------------------- public
     def start(self) -> bool:
@@ -220,6 +225,7 @@ class Tray(MenuMixin, StoredMixin, CardsMixin, ClicksMixin, AnimationMixin):
         self._notify(NIM_ADD)
         self._set_version()
         self._host_cards()
+        self._demo = self._open_demo()
         user32.SetTimer(self._hwnd, TIMER_TICK, 1000, None)
         self._watch_session()
         if self._icon_owned:
@@ -227,6 +233,24 @@ class Tray(MenuMixin, StoredMixin, CardsMixin, ClicksMixin, AnimationMixin):
             self._build_frames_later(user32.GetSystemMetrics(SM_CXSMICON))
 
 
+
+    def _open_demo(self):
+        """The demo event, made by this icon; None without a demo, or when it cannot be made (one a
+        lower-integrity process made first is refused, as the wake event's is)."""
+        if not self.demo_name or self.on_demo is None:
+            return None
+        try:
+            return DemoEvent(self.demo_name).__enter__()
+        except Exception as exc:
+            self.log("demo unavailable (%s)" % type(exc).__name__)
+            return None
+
+    def _look_for_demo(self):
+        if self._demo is not None and self._demo.taken():
+            try:
+                self.on_demo()
+            except Exception as exc:
+                self.log("demo failed (%s)" % type(exc).__name__)
 
     def _load_icon(self):
         user32 = _dll("user32")
@@ -342,6 +366,7 @@ class Tray(MenuMixin, StoredMixin, CardsMixin, ClicksMixin, AnimationMixin):
                     self._animate()
                 else:
                     self._refresh()
+                    self._look_for_demo()
                 return 0
             if message == WM_TRAY_FRAMES:
                 self._frames_built()
@@ -370,6 +395,9 @@ class Tray(MenuMixin, StoredMixin, CardsMixin, ClicksMixin, AnimationMixin):
                         pass
                     self._session_watch = False
                 self._drop_cards()
+                demo, self._demo = self._demo, None
+                if demo is not None:
+                    demo.__exit__(None, None, None)
                 popup, self._popup = self._popup, None
                 if popup is not None:
                     try:

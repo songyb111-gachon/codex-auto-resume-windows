@@ -738,7 +738,9 @@ class DarkRendererTests(unittest.TestCase):
             for scale in SCALES:
                 for times in SwitchPlacementTests.LENGTHS:
                     vm = lengthen(popup.view_model(rows, STATUS, strings, NOW), times)
-                    plan = self.renderer.layout(vm, scale, locale)
+                    # As laid out, before a right-to-left language mirrors it (tests/test_right_to_left.py).
+                    self.renderer.use(locale, scale)
+                    plan = popup.layout(vm, scale, self.renderer.measure)
                     line_h = self.renderer.measure("body", "Ag", 100, False)[1]
                     for part in task_parts(plan):
                         left, top, right, bottom = part["label"]["rect"]

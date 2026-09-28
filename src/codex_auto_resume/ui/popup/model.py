@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from ... import machine
 from ... import reasons
-from ..words import countdown
+from ..words import countdown, usage_line
 from .words import one_line, say
 
 
@@ -27,8 +27,17 @@ DOUBLE_CLICK_SECONDS = 0.6
 KEY_REPEAT_SECONDS = 0.3     # Enter on the icon arrives twice
 
 
-# The whole of what this window may ask of the control layer.
-CONTROL_CALLS = ("list_pending", "get_status", "set_enabled", "set_interruption_recovery")
+# The whole of what this window may ask of the control layer. v0.6.11 adds a task row's own menu:
+# postpone it - or take a postponement of the person's away - let a held one continue, how its
+# conversation resumes, and Always or Never for its project.
+CONTROL_CALLS = ("list_pending", "get_status", "set_enabled", "set_interruption_recovery",
+                 "postpone", "unpostpone", "release_hold", "set_thread_tier", "set_project_rule")
+
+# The row menu's choices (v0.6.11), in the order it offers them: the times a task can be postponed
+# by (quiet.PRESETS), and how much a conversation asks before it resumes, least first
+# (machine.IMPORTANCE_TIERS) - after "as in Settings", which is no tier of its own.
+POSTPONE_PRESETS = ("30_minutes", "1_hour", "3_hours", "tomorrow_morning")
+TIERS = tuple(machine.IMPORTANCE_TIERS)
 
 
 # The refusals that mean "the row you clicked is no longer the record it was drawn from".
@@ -149,12 +158,18 @@ def task_item(row, strings, now) -> dict:
         # A reset is waited for; anything else is looked at again at the next check, the word the
         # popup's own summary, the window and the panel use (popup.until_retry: "Next check · …").
         key = "popup.until_reset" if usage and row.get("reset_at") else "popup.until_retry"
+        # v0.6.11: Wait for an internet connection - Windows reports none, so usage is not read yet.
+        if row.get("reason") == "offline":
+            key = "popup.offline"
         status = say(strings, key, time=countdown(seconds))
     overlays = set(row.get("overlays") or ())
     enabled = bool(row.get("thread_enabled", True))
+    if "held" in overlays and is_waiting(row):
+        # v0.6.11: nothing is sent for it until a person lets it continue - no countdown says otherwise.
+        status, seconds = say(strings, "popup.held"), None
     if overlays & ATTENTION_OVERLAYS or not reasons.is_recoverable(category):
         tone = "warning"
-    elif not enabled or overlays & {"paused", "thread_disabled"}:
+    elif not enabled or overlays & {"paused", "thread_disabled", "held"}:
         tone = "paused"
     else:
         tone = "waiting"
@@ -172,7 +187,52 @@ def task_item(row, strings, now) -> dict:
         "check_label": say(strings, "pending.col_resume"),
         "checked": enabled,
         "busy": False,
+        # v0.6.11: what its row menu is drawn from - whether it still waits, whether it waits for a
+        # person, and its conversation's own tier (None: Settings').
+        "waiting": is_waiting(row) and not row.get("cancel_requested"),
+        "held": row.get("hold") is not None and not row.get("terminal"),
+        "tier": row.get("tier"),
+        # And whether a person postponed it to a time still ahead, which Don't postpone takes away.
+        "postponed": (row.get("postponed_until") or 0) > now,
     }
+
+
+def row_menu(task, strings, default_tier) -> list:
+    """A task row's own menu, as data (v0.6.11): the entries in order, each ``{"text", "action",
+    "enabled", "checked", "items"}`` or ``None`` for a separator. An action names the row's own
+    interruption and conversation, as the switch does, and the control layer refuses it if the row
+    no longer is that record. Pure, so what is offered can be read without a window."""
+    key, thread = task.get("interruption_id"), task.get("thread_id")
+    if not key or not thread:
+        return []
+    waiting = bool(task.get("waiting"))
+    postpone = [{"text": say(strings, "postpone." + preset), "action": ("postpone", key, thread, preset),
+                 "enabled": waiting, "checked": False, "items": None} for preset in POSTPONE_PRESETS]
+    # Last in the same menu, after a line: a person's own postponement taken away, back to what the
+    # schedule says - never an objection window's (v0.6.11).
+    postpone += [None, {"text": say(strings, "menu.unpostpone"), "action": ("unpostpone", key, thread),
+                        "enabled": waiting and bool(task.get("postponed")), "checked": False, "items": None}]
+    default = default_tier if default_tier in TIERS else TIERS[0]
+    own = task.get("tier")
+    tiers = [{"text": say(strings, "choice.tier_default", tier=say(strings, "choice." + default)),
+              "action": ("tier", key, thread, None), "enabled": True, "checked": own is None, "items": None}]
+    tiers += [{"text": say(strings, "choice." + tier), "action": ("tier", key, thread, tier),
+               "enabled": True, "checked": own == tier, "items": None} for tier in TIERS]
+    return [
+        {"text": say(strings, "menu.postpone"), "action": None, "enabled": waiting, "checked": False,
+         "items": postpone},
+        {"text": say(strings, "action.continue"), "action": ("release", key, thread),
+         "enabled": bool(task.get("held")), "checked": False, "items": None},
+        None,
+        {"text": say(strings, "menu.tier"), "action": None, "enabled": True, "checked": False,
+         "items": tiers},
+        # Always or Never for the project its conversation is filed under: the row's identities, and
+        # the project read by the control layer, never by what the row shows.
+        {"text": say(strings, "menu.project_always"), "action": ("project", key, thread, True),
+         "enabled": True, "checked": False, "items": None},
+        {"text": say(strings, "menu.project_never"), "action": ("project", key, thread, False),
+         "enabled": True, "checked": False, "items": None},
+    ]
 
 
 def view_model(rows, status, strings, now, *, notice=None, error=None) -> dict:
@@ -208,6 +268,12 @@ def view_model(rows, status, strings, now, *, notice=None, error=None) -> dict:
         "toggle_text": say(strings, "action.resume" if paused else "action.pause"),
         "toggle_busy": False,
         "dashboard_text": say(strings, "popup.open_dashboard"),
+        # v0.6.11: observe only, said under the list while recovery is on and nothing will be sent.
+        "observe_note": (say(strings, "popup.observe_only")
+                         if status is not None and status.get("observe_only") is True and not paused else None),
+        # v0.6.11: Codex's usage as the watcher last read it, and how long ago - None until it has.
+        "usage_note": usage_line(((status or {}).get("watcher") or {}).get("usage"),
+                                 lambda key, **fields: say(strings, key, **fields), now),
     }
 
 
@@ -218,7 +284,13 @@ def busy_key(action):
         return ("recovery", action[1])
     if action[0] == "enabled":
         return ("enabled",)
+    if action[0] in ROW_ACTIONS:
+        return ("row", action[1])
     return None
+
+
+# What a row menu's items ask for (v0.6.11): each is one control call, bound to its row.
+ROW_ACTIONS = ("postpone", "unpostpone", "release", "tier", "project")
 
 
 def perform(action, control, *, source=None, dashboard=None):
@@ -236,6 +308,22 @@ def perform(action, control, *, source=None, dashboard=None):
             return ("ok", dict(control.set_interruption_recovery(interruption_id, thread_id, bool(enabled))))
         if kind == "enabled":
             return ("ok", dict(control.set_enabled(bool(action[1]))))
+        if kind == "postpone":
+            _, interruption_id, thread_id, preset = action
+            return ("ok", dict(control.postpone(interruption_id, thread_id, preset=preset)))
+        if kind == "unpostpone":
+            _, interruption_id, thread_id = action
+            return ("ok", dict(control.unpostpone(interruption_id, thread_id)))
+        if kind == "release":
+            _, interruption_id, thread_id = action
+            return ("ok", dict(control.release_hold(interruption_id, thread_id)))
+        if kind == "tier":
+            _, interruption_id, thread_id, tier = action
+            return ("ok", dict(control.set_thread_tier(thread_id, tier, interruption_id=interruption_id)))
+        if kind == "project":
+            _, interruption_id, thread_id, always = action
+            return ("ok", dict(control.set_project_rule(interruption_id, thread_id, bool(always),
+                                                        source=source)))
         if kind == "dashboard":
             return ("ok", {"opened": bool(dashboard()) if dashboard else False})
     except Exception as exc:                  # a front end reports; it never raises into the loop
@@ -260,6 +348,8 @@ class PopupModel:
         # What the last view drew: interruption id -> (thread id, checked). A click is
         # resolved against this and nothing else.
         self.drawn = {}
+        # v0.6.11: and each task as it was drawn, which its row menu is built from.
+        self.drawn_tasks = {}
         self.drawn_paused = None
         self.wants_read = False
 
@@ -272,6 +362,7 @@ class PopupModel:
             task["busy"] = ("recovery", task["interruption_id"]) in self.busy
         vm["toggle_busy"] = ("enabled",) in self.busy or vm["paused"] is None
         self.drawn = {task["interruption_id"]: (task["thread_id"], task["checked"]) for task in vm["tasks"]}
+        self.drawn_tasks = {task["interruption_id"]: dict(task) for task in vm["tasks"]}
         self.drawn_paused = vm["paused"]
         return vm
 
@@ -288,6 +379,14 @@ class PopupModel:
         if kind == "dashboard":
             return ("dashboard",)
         return None
+
+    def menu_for(self, interruption_id) -> list:
+        """The row menu of a task as it was last drawn (row_menu), or [] for a row that was not."""
+        task = self.drawn_tasks.get(interruption_id)
+        if task is None:
+            return []
+        settings = (self.status or {}).get("settings") or {}
+        return row_menu(task, self.strings, settings.get("default_tier"))
 
     def begin(self, action) -> bool:
         """Mark an action as under way. False if the same one already is."""
@@ -325,8 +424,11 @@ class PopupModel:
             elif kind == "enabled" and self.status is not None:
                 self.status["enabled"] = bool(payload.get("enabled"))
         else:
-            # Refused or failed: nothing local changes. Say so, and look again.
-            self.notice_key = "popup.stale" if kind == "recovery" and verdict == "refused" else "action.failed"
+            # Refused or failed: nothing local changes. Say so, and look again. A row the list moved
+            # from under the click is the stale sentence, whichever of its actions it was.
+            stale = verdict == "refused" and (kind == "recovery" or (kind in ROW_ACTIONS
+                                                                    and payload in STALE_CODES))
+            self.notice_key = "popup.stale" if stale else "action.failed"
             self.notice_until = now + NOTICE_SECONDS
         self.wants_read = True
 

@@ -1,0 +1,72 @@
+{
+  "command": "thread-tier",
+  "cases": [
+    {
+      "case": "a conversation that asks first holds what it has waiting",
+      "argument": {
+        "thread_id": "11111111-1111-7111-8111-111111111111",
+        "tier": "ask_first",
+        "interruption_id": "7777777777777777777777777777777777777777777777777777777777777777"
+      },
+      "reply": {
+        "ok": true,
+        "result": {
+          "thread_id": "11111111-1111-7111-8111-111111111111",
+          "tier": "ask_first",
+          "held": 1
+        }
+      }
+    },
+    {
+      "case": "back to the default in Settings",
+      "argument": {
+        "thread_id": "11111111-1111-7111-8111-111111111111",
+        "tier": null
+      },
+      "reply": {
+        "ok": true,
+        "result": {
+          "thread_id": "11111111-1111-7111-8111-111111111111",
+          "tier": null,
+          "held": 0
+        }
+      }
+    },
+    {
+      "case": "a tier that is not one",
+      "argument": {
+        "thread_id": "11111111-1111-7111-8111-111111111111",
+        "tier": "sometimes"
+      },
+      "reply": {
+        "ok": false,
+        "error": "invalid tier",
+        "error_code": "invalid_tier"
+      }
+    },
+    {
+      "case": "a row whose task is another conversation's",
+      "argument": {
+        "thread_id": "22222222-2222-7222-8222-222222222222",
+        "tier": "ask_first",
+        "interruption_id": "7777777777777777777777777777777777777777777777777777777777777777"
+      },
+      "reply": {
+        "ok": false,
+        "error": "that recovery belongs to a different conversation",
+        "error_code": "thread_mismatch"
+      }
+    },
+    {
+      "case": "the tier must be named, even to take it away",
+      "argument": {
+        "thread_id": "11111111-1111-7111-8111-111111111111"
+      },
+      "reply": {
+        "ok": false,
+        "error": "invalid tier",
+        "error_code": "invalid_tier"
+      }
+    }
+  ]
+}

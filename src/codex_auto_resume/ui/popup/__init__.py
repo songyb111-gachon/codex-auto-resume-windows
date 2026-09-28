@@ -17,9 +17,10 @@ Then Windows, and what is drawn with it:
 
     win32       the numbers, the structures, and one declaration pass
     fonts       which face each script is drawn in, and what Windows has
-    theme       light or dark, motion or none, and High Contrast
+    theme       light or dark, motion or none, High Contrast, and the text size
     gdiplus     the surfaces drawn on, and the counting that proves nothing leaks
     renderer    drawing it into memory
+    access      what a screen reader is told of it, and asks of it (v0.6.11)
     messages    what Windows says to the window, and what each message decides
     window      the window itself, and the life of one popup
 
@@ -63,6 +64,7 @@ from .layout import (MARK,
                      SWITCH_GAP,
                      WIDTH,
                      layout,
+                     mirror,
                      share_columns)  # noqa: F401
 from .win32 import (BITMAP,
                     BITMAPINFO,
@@ -172,6 +174,7 @@ from .theme import (APP_MODE_VALUE,
                     set_reduce_motion,
                     set_theme,
                     system_rgb,
+                    text_scale,
                     theme_choice,
                     theme_setting)  # noqa: F401
 from .gdiplus import (PIXEL_FORMAT_32BPP_PARGB,
@@ -183,5 +186,6 @@ from .gdiplus import (PIXEL_FORMAT_32BPP_PARGB,
                       _gdiplus_release,
                       gdiplus_objects)  # noqa: F401
 from .renderer import CHIP_ALPHA, DOT_FILL, Renderer  # noqa: F401
+from .access import PopupAccessible, accessible_items  # noqa: F401
 from .messages import REFRESH_TICKS  # noqa: F401
 from .window import FIRST_READ_WAIT_MS, FRAME_MS, Popup  # noqa: F401

@@ -40,7 +40,12 @@ COMPAT = [("bridge:compatibility", "compatibility"), ("bridge:compat-refresh", "
 WHERE = {
     wire.PendingRow: ROW,
     wire.TimelineEvent: [("bridge:timeline", "result.events[]")],
+    wire.Receipt: [("bridge:timeline", "result.receipts[]")],
     wire.WatcherView: [("bridge:status", "status.watcher"), ("bridge:dashboard", "status.watcher")],
+    # v0.6.11: the last usage reading the heartbeat carries, and each of its windows.
+    wire.UsageReading: [("bridge:status", "status.watcher.usage"), ("bridge:dashboard", "status.watcher.usage")],
+    wire.UsageWindow: [("bridge:status", "status.watcher.usage.windows[]"),
+                       ("bridge:dashboard", "status.watcher.usage.windows[]")],
     wire.StatusSnapshot: [("bridge:status", "status"), ("bridge:dashboard", "status")],
     wire.Statistics: [("bridge:statistics", "result"), ("bridge:dashboard", "week")],
     wire.Outcomes: [("bridge:statistics", "result.outcomes"), ("bridge:dashboard", "week.outcomes")],
@@ -52,6 +57,12 @@ WHERE = {
     # never carries it (tests/test_compat_surfaces.py).
     wire.CompatReported: [(source, path + ".reported") for source, path in COMPAT],
     wire.SchemaField: [("bridge:describe", "schema[]")],
+    # v0.6.11: Diagnostics' own tools - Show me what happens, the log searched, the state folder.
+    wire.DemoRow: [("bridge:demo", "result.pending"), ("bridge:demo", "result.history")],
+    wire.DemoReply: [("bridge:demo", "result")],
+    wire.LogLine: [("bridge:logs", "result.lines[]")],
+    wire.LogSearch: [("bridge:logs", "result")],
+    wire.StateAccessReply: [("bridge:state-access", "result")],
 }
 
 
@@ -163,7 +174,9 @@ class ContractTests(unittest.TestCase):
 
     def test_a_row_is_a_record_and_what_the_listings_add(self):
         added = set(typing.get_type_hints(wire.PendingRow)) - set(typing.get_type_hints(wire.RecordView))
-        self.assertEqual(added, {"thread_enabled", "name", "project", "cwd_basename"})
+        # v0.6.11: and its conversation's own tier, beside whether it is switched on.
+        # v0.6.11: and the attempts a temporary failure may have now, beside what it used.
+        self.assertEqual(added, {"thread_enabled", "tier", "name", "project", "cwd_basename", "attempt_limit"})
 
     def test_describe_record_builds_exactly_a_record_view(self):
         """The producer itself, not only its golden: every key describe_record writes."""

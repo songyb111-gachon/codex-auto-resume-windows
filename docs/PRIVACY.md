@@ -8,7 +8,8 @@ footnote. There are four kinds, and they are genuinely different:
 
 - **OpenAI, through Codex.** The watcher drives the official Codex binary already signed in
   on your machine. When a recovery is due, it asks Codex for your current usage, and Codex
-  asks OpenAI. Codex identifies these requests as coming from this tool (client name
+  asks OpenAI. From v0.6.11 it keeps the numbers of the last answer, to show you, and asks for
+  nothing more for them. Codex identifies these requests as coming from this tool (client name
   `codex_auto_resume` and a version number), so OpenAI can see that you use it and when it
   checks. The resumed turn itself runs in your Codex desktop app and goes to OpenAI like any
   turn you start. And when you use the plugin's tools inside a Codex conversation, what they
@@ -227,7 +228,26 @@ resuming is safe. Codex's databases are opened read-only (SQLite `mode=ro` with
   path; those are parsed and discarded;
 - rate-limit and usage snapshots, for the reset timestamp;
 - `threads.name`, the project name and the working directory (only its last segment is
-  kept), used only as labels in a notification.
+  kept), used only as labels in a notification;
+- from v0.6.11, and only while Settings let some projects resume without you and not others (the
+  default lets every project resume, and then this is never read): the conversation's project id
+  and working directory, read to make one SHA-256 digest of the project - the id's, or else the
+  directory's - and dropped. The digest decides whether an interruption waits for you when it is
+  detected; nothing is ever found by it;
+- from v0.6.11, and only while the task-changed guard is on (it is off by default, and then none of
+  this is read): the conversation's model and approval mode from their columns in Codex's thread
+  list, where they are there, its working directory, and that directory's `.git/HEAD` - one small
+  file, read as a file, never by running git, and not read at all for a network share path. The
+  three are made into one SHA-256 digest and dropped; the digest is kept on the recovery to tell,
+  when it falls due, whether the task changed;
+- from v0.6.11, and only while the context-cost guard is on (off by default): Codex's own count of
+  the tokens the conversation has used, from its thread list, where it keeps one as a number. The
+  count is kept on the recovery, shown in Pending and compared with the limit you chose;
+- from v0.6.11, and only while needs-you notices are on (off by default): the failed turns the
+  watcher already reads for detection, now also those it never resumes, classified the same way and
+  dropped but for the category; and, only while a time is chosen for a turn that has not moved, for
+  each conversation's latest turn still in progress, its ids, its start time and the time its newest
+  item was recorded (`thread_items.created_at_ms`) - never what any item says.
 
 It also asks Windows content-free questions, chiefly two: which ChatGPT and Codex processes are
 running (process id, parent and executable path), to find the desktop app; and, through the
@@ -239,7 +259,37 @@ apps light or dark - the per-user `AppsUseLightTheme` value, which it reads and 
 the Dashboard, the popup and its menu can be drawn to match; and the integrity level of the
 watcher's single-instance mutex and stop event, a check that is new in v0.6.0. From v0.6.5 the
 notification card and the icon's motion ask a few more, all content-free and described under
-[Notifications](#notifications).
+[Notifications](#notifications). From v0.6.11 an installed copy also reads, and never writes, the six
+values an administrator may set under `Software\Policies\CodexAutoResume` in `HKEY_LOCAL_MACHINE` and
+`HKEY_CURRENT_USER` - four switches, a number and a span of hours (the guide's *Settings an
+administrator manages*) - each time it reads its settings. Nothing else under that key is read, and a
+PC nobody manages has none. Also from v0.6.11, and only while the setting that needs it is on (each
+is off by default): how long the PC has been awake (`QueryUnbiasedInterruptTime`), which beside the
+clock says how long it slept, and a notice from Windows when it wakes
+(`RegisterSuspendResumeNotification`), for **Ask me after a sleep longer than** and **Keep this PC
+awake**; whether the PC runs on mains power (`GetSystemPowerStatus`), for **On mains power only**; and
+whether Windows reports this PC connected to the internet (the Network List Manager's
+`GetConnectivity`), for **Wait for an internet connection** - a question Windows answers from what it
+already knows, with nothing sent to find out. **Keep this PC awake** is a request, not a question:
+`SetThreadExecutionState`, which the watcher makes and takes back and which changes no setting.
+And from v0.6.11 at every setting, about the watcher itself: how much memory its own process has
+committed and the most it has (`K32GetProcessMemoryInfo`, of that process only); the number Windows
+gives the sign-in it runs in (`GetTokenInformation` on its own token, `TokenStatistics`, of which only
+that number is kept - a counter that names no one, new at every sign-in); and how long ago Windows
+started (`GetTickCount64`). The Dashboard, the panel and `get_status` ask the last two of their own
+process, to compare - that is how a watcher that stopped unexpectedly is told from one that ended with
+an earlier sign-in. Also from v0.6.11, the Dashboard as it opens, the popup and the notification
+card each time they appear, and the panel each time Codex opens it read Windows' text size - the per-user
+`TextScaleFactor` value under `HKEY_CURRENT_USER\Software\Microsoft\Accessibility`, which they read and
+never write - to draw text at it. At the same moments they ask which face Windows' interface font is and
+which of the product's own letters, in the language it speaks, that face and Segoe UI have a glyph for
+(`GetGlyphIndicesW`), so a language that font lacks letters of is set in Segoe UI. The Dashboard's Diagnostics also looks, when it opens, at which edition Codex's own
+copy of this plugin is: the names of the folders in Codex's plugin cache under
+`codex-auto-resume-windows`, and whether one folder is in the newest - no file is opened. From v0.6.11
+it also asks, then, who Windows lets open this product's `config\` folder: the folder's access list
+(`GetNamedSecurityInfoW`, the list alone) and this account's own security identifier from its own
+token (`GetTokenInformation`, `TokenUser`), to compare the two. Only one word is kept of the answer -
+your account only, other accounts too, or not checked - and nothing is written.
 
 From v0.6.5, for the Codex Compatibility Registry, the watcher also reads the shape of Codex's
 databases - which tables they have and which columns those tables have, by name only, through the
@@ -358,7 +408,7 @@ The plugin gives Codex tools — `get_status`, `list_pending`, `get_recovery_tim
 `get_recovery_statistics`, `open_settings`, and the controls (`retry_now`, `cancel_recovery`,
 `reset_recovery_budget`, `pause_auto_recovery` and `resume_auto_recovery`,
 `disable_conversation_recovery` and `enable_conversation_recovery`, `clear_recovery_history`,
-`start_watcher`, `update_settings`, `restore_default_settings`), and, from v0.6.3, `preview_recovery_message` — and a skill that runs the
+`start_watcher`, `update_settings`, `restore_default_settings`, and from v0.6.11 `postpone_recovery` and `release_hold`), and, from v0.6.3, `preview_recovery_message` — and a skill that runs the
 tool's commands (for example `status`, `pending`, `doctor` and `logs`). When they run inside a
 Codex conversation, what they return becomes part of that conversation. The
 one-line summary always does, and the structured data may as well; Codex sends the
@@ -410,11 +460,28 @@ default (or wherever `CODEX_AUTO_RESUME_PLUGIN_HOME`, or failing that
   bucket name and reset time and whether that reading was uncertain, attempt counts, state,
   flags and the last reason code, and the two ids it needs to prove delivery (its marker and
   the queued item's id); also the on/off switch for recovery, with when it was switched on
-  and the poll interval, and the switch for each conversation. Beside those it holds a bounded
+  and the poll interval, and the switch for each conversation. From v0.6.11 it also has room
+  for a time a recovery is postponed to, a word for why one waits for you, a word for how much
+  a conversation asks first, an observe-only switch, and needs-you notices - each the failure's,
+  or the turn's that stopped moving, and the conversation's ids, its kind and times - and, only
+  while a guard is on, a
+  digest of what the task was working with and its conversation's token count; all of it empty
+  until you use it.
+  Beside those it holds a bounded
   journal of what happened to each recovery - codes, ids, actor, turn references, counters and
   times, at most 5,000 entries and 90 days, with no prompt, reply or error text - and one row
   for the watcher itself: its process id, session id, start and last-tick times, and which code
-  version wrote them. None of it is content;
+  version wrote them - and, from v0.6.11, the last usage reading it made and when: for each window
+  only its bucket (`codex`, `premium`, `legacy` or `other`) and slot, how much is used, its length
+  and when it resets; no account, plan or credit; and, while it keeps the PC awake, since when; and
+  from v0.6.11 the most memory its process has committed, whether it last stopped on purpose (and
+  when), the number Windows gives the sign-in it ran in and when Windows started. None of it is
+  content;
+- `config/status.json` — from v0.6.11, only while **Write a status file for other tools** is on (off
+  by default): whether the watcher runs, whether recovery is on, the compatibility word, how many
+  recoveries are pending at each state and when the next is looked at, and the last usage reading's
+  numbers. No id, name, title or path. Nothing in this product reads it, and it goes when the setting
+  is turned off;
 - `config/state.vN-backup-<timestamp>.sqlite` — a copy of the state file, taken before the first
   watcher of a new version upgrades the schema and before `downgrade-state` rewrites it. It holds
   what `state.sqlite` held, and it is kept to explain a bad upgrade rather than as a way back.
@@ -423,7 +490,11 @@ default (or wherever `CODEX_AUTO_RESUME_PLUGIN_HOME`, or failing that
   `uninstall` deletes `state.sqlite` unless you pass `--keep-state`, and leaves this copy either way;
 - `config/settings.json` — your settings, including the interface and continuation languages
   and, from v0.6.3, any Custom message you write in the Dashboard: the message for every
-  interruption and any per-kind ones, each at most 2,000 characters, stored exactly as typed;
+  interruption and any per-kind ones, each at most 2,000 characters, stored exactly as typed. From
+  v0.6.11 it may also hold two lists of projects you set, on a task's row, to resume or to wait for
+  you: at most 50 each, and each project only as the 64-digit digest described above - never its
+  name or its path; and a message you wrote for one conversation, from its task's row in the
+  Dashboard, beside that conversation's id: at most 50 of them, each a Custom message in every way;
 - `config/strings-cache.json` — written by the Dashboard window so it can show its first screen
   without waiting for the Python side: the interface text in the language it resolved, the stored
   Interface language and the language Windows prefers, and the key that says whether the copy is
@@ -473,6 +544,13 @@ codes. Prompt text, assistant output, tool output and Codex's error text are not
 written to any log. When something fails, `errors.log` receives the full Python traceback, and
 `launcher.log` and `errors.log` receive the exception's message; this tool does not control
 what text an exception carries.
+
+From v0.6.11 the Dashboard's Diagnostics can search `auto-resume.log` and its rotated copies:
+the bridge reads them on this PC when you open **Search the log...** and hands the window the lines
+that match, and nothing else reads or sends them. `errors.log` is not read there. **Show me what
+happens**, beside it, plays a recovery with made-up words: nothing about it is read from or written
+to the recovery state, and its one card, drawn by the watcher's icon when a named Windows event of
+its own asks for it, is never a Windows notification, so none of it stays in the notification center.
 
 Beside those it keeps the program itself (`app\` and `runtime\`), the window, the
 icon notifications use, the sign-in launcher, and `runtime.json`, which records where the
@@ -559,6 +637,14 @@ recovery or open one page of the Dashboard. Each press leaves one line in the lo
 conversation's UUID when it cancelled one, or a refusal code or an exception class when nothing
 happened, as the toast's buttons do.
 
+From v0.6.11, only if you turn it on, a notification also tells you when a conversation needs you:
+a failure it never resumes, or a turn that has recorded nothing new for the time you chose. It shows
+what the other notifications show - the labels and the conversation UUID - with the kind as a word
+from the product's own translations and one next step from them, never error text; its one button
+opens the Dashboard's Settings page. With **Play a sound for these** on it is always Windows' own
+toast, whose own audio element names Windows' reminder sound; otherwise it makes no sound. It is
+kept as a row of ids, its kind and times, so that it is told once.
+
 To decide whether a card may be drawn at all, the watcher asks Windows content-free questions each
 time: whether Windows is accepting notifications right now (not locked, not a full-screen app or a
 presentation, not quiet time), whether Do not disturb or Focus is on, whether notifications for
@@ -574,7 +660,8 @@ cannot get means Windows' own toast.
 ## Languages
 
 From v0.6.3 the interface - the Dashboard, the popup and menu, notifications and the panel in
-Codex - and the continuation message are available in nine languages. The translations ship
+Codex - and the continuation message are available in nine languages, and from v0.6.11 in
+sixteen. The translations ship
 inside the release, one JSON file per language, and are read from disk: no language data is
 fetched and no translation service is used. The default, *System*, follows the first
 language Windows lists on this machine; a language you choose is stored in

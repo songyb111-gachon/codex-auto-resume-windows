@@ -66,13 +66,23 @@ from .windows import WakeEvent
 PLAIN = ("status", "settings", "describe", "defaults", "pending", "pending-all", "start-watcher",
          "stop-watcher", "strings", "history", "clear-history", "dashboard", "cancel-all",
          # v0.6.8: the Dashboard in front has seen any failure (control.acknowledge_failure).
-         "failure-seen")
+         "failure-seen",
+         # v0.6.11: Diagnostics - the edition installed and the edition of Codex's copy of the plugin;
+         # who may open the state folder; and Show me what happens.
+         "plugin-copy", "state-access", "demo")
 WITH_ARGUMENT = ("update", "enabled", "startup", "cancel", "reset-budget", "retry-now",
                  "timeline", "statistics", "thread-enabled", "cancel-thread", "diagnostics",
                  "preview-continuation", "interruption-recovery",
                  # The Compatibility Registry: read the report (or check live), import a
                  # document the bootstrap downloaded, and the Diagnostics refresh.
-                 "compatibility", "compat-import", "compat-refresh")
+                 "compatibility", "compat-import", "compat-refresh",
+                 # v0.6.11: a task's row menu - postpone it, let a held one continue, and how
+                 # much its conversation asks first.
+                 "postpone", "release-hold", "thread-tier",
+                 # and Always or Never for the project of the row's conversation.
+                 "project-rule",
+                 # v0.6.11: Don't postpone, one conversation's own message, and the log searched.
+                 "unpostpone", "conversation-message", "logs")
 # Big enough for the largest Save the settings layer accepts: eight Custom messages of 2000
 # characters each, and the window writes every line break as a six-character escape, so a
 # valid Save can come to nearly 100 KiB. At 64 KiB such a Save was refused as "request too
@@ -227,7 +237,7 @@ def _flag(payload):
     The wire is JSON and JSON has `true` and `false`, which is exactly what both windows
     send. Nothing here has to guess what a string meant, so anything that is not a boolean
     is refused by name, with the code the front ends already have words for
-    (`error.invalid_enabled`, in all nine catalogs) - the same sentence and the same code
+    (`error.invalid_enabled`, in every catalog) - the same sentence and the same code
     the control layer raises when it is called directly.
     """
     enabled = payload.get("enabled")
@@ -336,7 +346,7 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
             l10n.set_preference(control.get_settings().get("interface_language"))
             return {"ok": True, "language": interface.language(), "strings": interface.catalog(),
                     "preference": l10n.preference(), "system_language": l10n.from_system(),
-                    "endonyms": dict(l10n.ENDONYMS)}
+                    "endonyms": l10n.offered_endonyms()}
         if command == "describe":
             return {"ok": True, "schema": control.describe_settings()}
         if command == "defaults":
@@ -358,6 +368,14 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
             return {"ok": True, "result": control.clear_history(actor="gui")}
         if command == "failure-seen":
             return {"ok": True, "result": control.acknowledge_failure()}
+        if command == "plugin-copy":
+            # Read only, and only when Diagnostics asks: nothing is done about what it says.
+            return {"ok": True, "result": control.plugin_copy()}
+        if command == "state-access":
+            return {"ok": True, "result": control.state_access()}
+        if command == "demo":
+            # Made-up rows for the Dashboard, and a made-up card asked of the icon: nothing is sent.
+            return {"ok": True, "result": control.show_demo()}
         if command == "dashboard":
             # What the Overview needs, in one round trip. Each part fails on its own:
             # a state that cannot be read must not also take the status away.
@@ -400,12 +418,46 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
         if command == "preview-continuation":
             changes = payload.get("changes")
             return {"ok": True, "result": control.preview_continuation(payload.get("category"),
-                                                                       changes)}
+                                                                       changes,
+                                                                       thread_id=payload.get("thread_id"))}
         if command == "interruption-recovery":
             return {"ok": True, "result": control.set_interruption_recovery(
                 payload.get("interruption_id"), payload.get("thread_id"), _flag(payload))}
         if command == "cancel-all":
             return {"ok": True, "result": control.cancel_all_pending(actor="gui")}
+        if command == "postpone":
+            return {"ok": True, "result": control.postpone(
+                payload.get("interruption_id"), payload.get("thread_id"), until=payload.get("until"),
+                preset=payload.get("preset"), minutes=payload.get("minutes"))}
+        if command == "unpostpone":
+            return {"ok": True, "result": control.unpostpone(payload.get("interruption_id"),
+                                                             payload.get("thread_id"))}
+        if command == "conversation-message":
+            # The text is named even to take it away - null - so a request that forgot it is refused.
+            if "text" not in payload:
+                raise ControlError("a custom message has to be text")
+            return {"ok": True, "result": control.set_conversation_message(payload.get("thread_id"),
+                                                                           payload.get("text"))}
+        if command == "logs":
+            return {"ok": True, "result": control.search_logs(payload.get("query"),
+                                                              payload.get("limit", 500))}
+        if command == "release-hold":
+            return {"ok": True, "result": control.release_hold(payload.get("interruption_id"),
+                                                               payload.get("thread_id"))}
+        if command == "thread-tier":
+            # The tier is named even to take it away - null, the default in Settings - so a
+            # request that forgot it is refused rather than read as "the default".
+            if "tier" not in payload:
+                raise ControlError("invalid tier", code="invalid_tier")
+            return {"ok": True, "result": control.set_thread_tier(
+                payload.get("thread_id"), payload.get("tier"),
+                interruption_id=payload.get("interruption_id"))}
+        if command == "project-rule":
+            always = payload.get("always")
+            if not isinstance(always, bool):
+                raise ControlError("always must be true or false", code="invalid_enabled")
+            return {"ok": True, "result": control.set_project_rule(
+                payload.get("interruption_id"), payload.get("thread_id"), always, source=_labels())}
         if command == "compatibility":
             return {"ok": True, "compatibility": _compatibility(control, payload)}
         if command == "compat-import":

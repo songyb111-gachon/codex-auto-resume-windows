@@ -8,6 +8,7 @@ from __future__ import annotations
 from ctypes import wintypes as W
 import ctypes as C
 from ... import brand
+from ...win import textsize
 from .win32 import (HCF_HIGHCONTRASTON,
                     HIGHCONTRASTW,
                     HKEY_CURRENT_USER,
@@ -147,6 +148,12 @@ def apps_use_light_theme():
         return data.value != 0
     except Exception:
         return None
+
+
+def text_scale() -> float:
+    """Windows' text size (v0.6.11): "Make text bigger", as a factor from 1 to 2.25 (win/textsize.py),
+    which the popup and its card are drawn larger by, as the Dashboard is."""
+    return textsize.read()
 
 
 def reduced_motion() -> bool:

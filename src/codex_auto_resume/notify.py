@@ -21,7 +21,7 @@ from __future__ import annotations
 import subprocess
 import time
 
-from . import l10n, machine, pwsh
+from . import l10n, machine, needsyou, pwsh
 from .domain import ids
 
 SCHEME = "codex-auto-resume"
@@ -119,7 +119,21 @@ def parse_open_uri(uri: str) -> str | None:
 MAX_TOAST_ACTIONS = 5
 
 
-def _toast_xml(title, body, button=None, uri=None, extra=(), more=(), silent=False) -> str:
+# v0.6.11: a needs-you notice's sound, only when a person chose one: Windows' own reminder sound, named
+# by the toast's own audio element - so it is Windows that plays it, and Windows' Do not disturb and
+# Focus that hold it back with the toast. Otherwise a needs-you toast is silent; no other toast changes.
+NEEDS_YOU_SOUND = "ms-winsoundevent:Notification.Reminder"
+
+
+def _audio(silent, sound) -> str:
+    """The toast's audio element: none (Windows' default, every toast but the two below), silent (the
+    history copy, and a needs-you notice without a sound), or the needs-you sound a person chose."""
+    if silent or sound is False:
+        return '<audio silent="true"/>'
+    return '<audio src="%s"/>' % NEEDS_YOU_SOUND if sound is True else ""
+
+
+def _toast_xml(title, body, button=None, uri=None, extra=(), more=(), silent=False, sound=None) -> str:
     # Imported when a toast is built, not when this module is: `xml.sax` brings about
     # ninety modules with it, `urllib.request`, `http.client`, `email` and `ssl` among
     # them, and every process that imports the watcher paid for them whether or not it
@@ -140,13 +154,13 @@ def _toast_xml(title, body, button=None, uri=None, extra=(), more=(), silent=Fal
     text = "".join("<text>%s</text>" % escape(line) for line in lines)
     # The history copy (`silent`) makes no sound. Without it the document is byte for byte
     # what it was before v0.6.5; tests/test_notice_card.py holds every toast to a golden.
-    audio = '<audio silent="true"/>' if silent else ""
+    audio = _audio(silent, sound)
     return ('<toast duration="long"><visual><binding template="ToastGeneric">'
             '%s</binding></visual>%s%s</toast>' % (text, audio, actions))
 
 
 def show(title: str, body: str, *, button: str | None = None, uri: str | None = None,
-         extra=(), more=(), silent: bool = False) -> bool:
+         extra=(), more=(), silent: bool = False, sound: bool | None = None) -> bool:
     """Best effort. Returns True only when PowerShell reported success.
 
     The toast document travels as an environment variable into a constant script, never
@@ -161,7 +175,8 @@ def show(title: str, body: str, *, button: str | None = None, uri: str | None = 
     """
     if pwsh.executable() is None:
         return False
-    values = {"XML": _toast_xml(title, body, button, uri, extra, more, silent=silent is True),
+    values = {"XML": _toast_xml(title, body, button, uri, extra, more, silent=silent is True,
+                                sound=sound if isinstance(sound, bool) else None),
               "AUMID": aumid()}
     if silent is True:
         values["SILENT"] = "1"
@@ -213,34 +228,77 @@ def _origin_line(identity, used: str, thread_id: str) -> str:
     The thread id shares a line with the project because a separate line for it would
     be a fourth, and Windows would drop one. It is never omitted.
     """
-    thread = l10n.message("toast_thread").format(uuid=thread_id)
+    thread = _thread_line(thread_id)
     secondary = _second_line(identity, used)
-    return (secondary + "  ·  " + thread) if secondary else thread
+    return (_run(secondary) + "  ·  " + thread) if secondary else thread
 
 
-def _content(title, body, *, button=None, uri=None, extra=(), more=()) -> dict:
+def _run(value) -> str:
+    """A name or an id kept one run in a line of a right-to-left language (l10n.embedded, v0.6.11): an id's
+    groups and a project named in another direction stay in their own order. Itself in any other language."""
+    return l10n.embedded(value, l10n.current())
+
+
+def _thread_line(thread_id: str) -> str:
+    return l10n.message("toast_thread").format(uuid=_run(thread_id))
+
+
+def _content(title, body, *, button=None, uri=None, extra=(), more=(), sound=None) -> dict:
     """What one toast says, as the arguments `show` takes. Only what was given is kept, so
-    `show_content` passes `show` exactly the keywords each toast always passed."""
+    `show_content` passes `show` exactly the keywords each toast always passed. `sound` (v0.6.11) is a
+    needs-you notice's alone, and every other toast leaves it out."""
     content = {"title": title, "body": body}
     for name, value in (("button", button), ("uri", uri), ("extra", list(extra)), ("more", list(more))):
         if value:
             content[name] = value
+    if isinstance(sound, bool):
+        content["sound"] = sound
     return content
 
 
 def show_content(content: dict, *, silent: bool = False) -> bool:
     """Raise the toast one of the `*_content` functions describes."""
-    options = {name: content[name] for name in ("button", "uri", "extra", "more") if name in content}
+    options = {name: content[name] for name in ("button", "uri", "extra", "more", "sound") if name in content}
     if silent is True:
         options["silent"] = True
     return show(content["title"], content["body"], **options)
 
 
+# v0.6.11: what the detection notice says of an interruption its conversation holds for a person
+# (machine.hold_for_tier) - never that it will resume - and what the objection window's says.
+HELD_MESSAGES = {"ask": "toast_held", "notify_only": "toast_notify_only",
+                 # v0.6.11: the two guards' holds (guards.py), said as what changed or grew.
+                 "workspace_changed": "toast_workspace_changed", "context_cost": "toast_context_cost"}
+
+
+def held_message(hold) -> str:
+    """The sentence for an interruption that waits for a person, by the kind of hold it has."""
+    return l10n.message(HELD_MESSAGES.get(hold, "toast_held"))
+
+
+def _reason_label(category) -> str:
+    from . import reasons
+    return l10n.text(reasons.label_key(category), l10n.current())
+
+
+def _cancel_button(category) -> str:
+    return l10n.message("toast_button_cancel" if category == "usage_limit" else "toast_button_no_retry")
+
+
 def scheduled_content(thread_id: str, interruption_id: str, reset_at: float | None,
-                      category: str = "usage_limit", identity=None) -> dict:
-    """The detection toast's content. See `scheduled`."""
+                      category: str = "usage_limit", identity=None, hold=None) -> dict:
+    """The detection toast's content. See `scheduled`.
+
+    `hold` (v0.6.11) is the hold the conversation's tier put on it, or None - at the defaults,
+    always. A held interruption is said to wait for the person, under its reason, and keeps the
+    same two buttons: Don't resume, and the Dashboard, where it is let continue."""
     usage = category == "usage_limit"
     title = headline(identity)
+    if hold is not None:
+        return _content(title, _origin_line(identity, title, thread_id),
+                        button=_cancel_button(category), uri=cancel_uri(interruption_id),
+                        extra=[_reason_label(category) + " · " + held_message(hold)],
+                        more=[(l10n.message("toast_button_open"), open_uri("pending"))])
     if usage:
         body = (l10n.message("toast_usage_at").format(time=_local_time(reset_at)) if reset_at
                 else l10n.message("toast_usage_soon"))
@@ -270,9 +328,26 @@ def scheduled(thread_id: str, interruption_id: str, reset_at: float | None,
     return show_content(scheduled_content(thread_id, interruption_id, reset_at, category, identity))
 
 
+def objection_message(until) -> str:
+    """The objection window's sentence: when the continuation goes, unless it is stopped."""
+    return l10n.message("toast_objection").format(time=_local_time(until))
+
+
+def objection_content(thread_id: str, interruption_id: str, until: float,
+                      category: str = "usage_limit", identity=None) -> dict:
+    """The objection window's content (v0.6.11): the continuation is sent at `until` unless the
+    person stops it. The detection notice's two buttons and no other - Don't resume, and the
+    Dashboard - so a button still cannot make anything be sent (A28)."""
+    title = headline(identity)
+    return _content(title, _origin_line(identity, title, thread_id),
+                    button=_cancel_button(category), uri=cancel_uri(interruption_id),
+                    extra=[_reason_label(category) + " · " + objection_message(until)],
+                    more=[(l10n.message("toast_button_open"), open_uri("pending"))])
+
+
 def cancelled_content(thread_id: str) -> dict:
     return _content(l10n.message("toast_cancelled_title"),
-                    l10n.message("toast_thread").format(uuid=thread_id),
+                    _thread_line(thread_id),
                     extra=[l10n.message("toast_cancelled_body")])
 
 
@@ -286,10 +361,15 @@ def cancelled(thread_id: str) -> bool:
 # a message, never an attempt. Only the detection toast carries a button, because
 # cancelling is the one action that fails in the safe direction.
 
-def starting_content(thread_id: str, identity=None) -> dict:
+def starting_content(thread_id: str, identity=None, *, task_changed: bool = False) -> dict:
+    """A continuation being sent now. `task_changed` (v0.6.11, the task-changed guard's Tell) adds to
+    its one line that the task's workspace changed since it stopped - the same three lines (D6)."""
+    body = l10n.message("toast_starting_body")
+    if task_changed is True:
+        body += " · " + l10n.message("toast_task_changed")
     return _content(headline(identity),
                     _origin_line(identity, headline(identity), thread_id),
-                    extra=[l10n.message("toast_starting_body")])
+                    extra=[body])
 
 
 def starting(thread_id: str, identity=None) -> bool:
@@ -328,6 +408,8 @@ def stopped_content(thread_id: str, identity=None, *, reason: str | None = None)
     title = l10n.message("toast_exhausted_title")
     body = (l10n.message("toast_no_progress_body") if reason == "no_progress"
             else l10n.message("toast_exhausted_body") if reason == "attempts"
+            # v0.6.11: the time ceiling, which a task reaches with attempts to spare.
+            else l10n.message("toast_time_cap_body") if reason == "time"
             else l10n.message("toast_stopped_body"))
     return _content(title, _origin_line(identity, title, thread_id), extra=[body])
 
@@ -335,3 +417,86 @@ def stopped_content(thread_id: str, identity=None, *, reason: str | None = None)
 def stopped(thread_id: str, identity=None, *, reason: str | None = None) -> bool:
     """Recovery has stopped for good, and why in one line."""
     return show_content(stopped_content(thread_id, identity, reason=reason))
+
+
+# ------------------------------------------------------------ needs-you notices (v0.6.11)
+# A conversation that needs a person (needsyou.py): a failure this product will never resume, or a
+# turn that has recorded nothing new for a while. Said once, with one next step from the catalog, and
+# one button - Open Dashboard, at Settings, which is where a kind of notice is switched off. Nothing
+# on it cancels, sends or writes anything (A28), and it names no error: the category's catalog words
+# only (D6).
+def needs_you_label(kind) -> str:
+    """What kind of need it is, in the catalog's words: the reason's label, or "Not moving"."""
+    if kind == needsyou.STALLED:
+        return l10n.message("needs_you_stalled_label")
+    return _reason_label(kind)
+
+
+def needs_you_message(kind, minutes=None) -> str:
+    """The one next step for this kind, from the catalog."""
+    key = needsyou.NEXT_STEPS.get(kind, needsyou.NEXT_STEPS["terminal_failure"])
+    count = minutes if type(minutes) is int and minutes > 0 else 10
+    return l10n.message(key[len("msg."):]).replace("{minutes}", str(count))
+
+
+def needs_you_content(thread_id: str, kind: str, identity=None, *, minutes=None, sound: bool = False) -> dict:
+    """The needs-you notice's content: its conversation, what it needs and what to do next, and Open
+    Dashboard. `sound` is the person's choice (needs_you_sound): Windows' reminder sound, or none."""
+    title = headline(identity)
+    return _content(title, _origin_line(identity, title, thread_id),
+                    extra=[needs_you_label(kind) + " · " + needs_you_message(kind, minutes)],
+                    more=[(l10n.message("toast_button_open"), open_uri("settings"))],
+                    sound=sound is True)
+
+
+
+# ---------------------------------------------------------- after a long sleep (v0.6.11)
+# What fell due while this PC slept for longer than Ask after a long sleep allows waits for a person
+# (power.py). One notice for the sleep - how long it lasted and how many wait - and one button, Open
+# Dashboard at Pending, where each is let continue or cancelled. No cancel on the notice: a notification
+# button cancels one exact interruption (A28), and this one is about several; nothing on it sends.
+def slept_for(seconds) -> str:
+    """How long this PC slept, in the hours and minutes every surface writes a wait in."""
+    try:
+        minutes = max(1, int(seconds) // 60)
+    except (TypeError, ValueError, OverflowError):
+        minutes = 1
+    hours, minutes = divmod(minutes, 60)
+    locale = l10n.current()
+    parts = [l10n.text("time.hours", locale, n=hours)] if hours else []
+    if minutes or not hours:
+        parts.append(l10n.text("time.minutes", locale, n=minutes))
+    return " ".join(parts)
+
+
+def after_sleep_content(slept, count) -> dict:
+    """A long sleep's notice: how long this PC slept, how many tasks that fell due meanwhile wait for a
+    person, what to do next, and Open Dashboard at Pending."""
+    try:
+        waiting = max(1, int(count))
+    except (TypeError, ValueError, OverflowError):
+        waiting = 1
+    return _content(l10n.message("toast_after_sleep").replace("{time}", slept_for(slept)),
+                    l10n.message("toast_after_sleep_next"),
+                    extra=[l10n.message("toast_after_sleep_count").replace("{n}", str(waiting))],
+                    more=[(l10n.message("toast_button_open"), open_uri("pending"))])
+
+
+# ------------------------------------------------------------ the memory guard (v0.6.11)
+# The watcher uses more memory than the memory guard allows (memguard.py). Warn: said once, and the
+# watcher goes on; its button opens Diagnostics, where the peak is. Stop: the watcher stopped between
+# two ticks, and its button opens the Overview, where Start watcher is. Neither is about a conversation,
+# and neither has a cancel: nothing on either sends or cancels anything (A28).
+def memory_content(event, used, limit) -> dict:
+    """A memory guard's notice: what the watcher uses against the limit, what happens now, and one
+    button that opens a page of the Dashboard."""
+    def whole(value):
+        try:
+            return str(max(0, int(value)))
+        except (TypeError, ValueError, OverflowError):
+            return "?"
+    stopped = event == "memory_stopped"
+    body = l10n.message("toast_memory_body").replace("{used}", whole(used)).replace("{limit}", whole(limit))
+    return _content(l10n.message("toast_memory_stopped" if stopped else "toast_memory_warning"), body,
+                    extra=[l10n.message("toast_memory_stopped_next" if stopped else "toast_memory_warning_next")],
+                    more=[(l10n.message("toast_button_open"), open_uri("overview" if stopped else "diagnostics"))])

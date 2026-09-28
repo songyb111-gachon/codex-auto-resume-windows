@@ -2,8 +2,8 @@
 
 Until v0.6.3 this product spoke two languages, and it decided which one by reading the
 Windows preferred UI languages every time anybody asked. That worked because there were
-two: a tag either started with `ko` or it did not. Nine languages is a different problem,
-and three parts of it are worth naming.
+two: a tag either started with `ko` or it did not. Nine languages (v0.6.3), and eighteen
+catalogs (v0.6.11), are a different problem, and three parts of it are worth naming.
 
 **Which language.** A user may now choose, and a choice is not the same as a detection.
 `resolve()` takes what the user stored - `"system"` or a locale id - and turns it into
@@ -14,7 +14,7 @@ meant it. Nothing infers a language from an IP address, a time zone, a user name
 country or a keyboard layout.
 
 **Which tag means which catalog.** Windows says `ko-KR`, `zh-Hans-CN`, `pt-PT`,
-`es-419`. Nine catalogs cannot each be a list of every tag that should reach them, so
+`es-419`. The catalogs cannot each be a list of every tag that should reach them, so
 `normalize()` is the single place that maps a BCP-47-ish tag to a shipped locale, script
 subtags included. It returns `None` for a language this product does not have, which is
 how "not supported" stays distinguishable from "supported, and the answer is English".
@@ -41,6 +41,7 @@ import json
 import os
 from pathlib import Path
 import re
+import unicodedata
 
 from .domain.vocabulary import Locale
 
@@ -48,15 +49,29 @@ from .domain.vocabulary import Locale
 # because it is documented and people have it in scripts.
 ENV_LANG = "CODEX_AUTO_RESUME_LANG"
 
-# The languages the product's own interface is shipped in. English is first because it
+# The languages the product's own interface has a catalog for. English is first because it
 # is the source catalog, not because it is preferred.
 LOCALES = tuple(Locale)
 DEFAULT = "en"
+# Languages with a complete catalog that this release does not offer (v0.6.11). Arabic and
+# Hebrew are written right to left, and they are offered only once every surface - the
+# Dashboard, the popup, the card and the panel - mirrors fully and the window's layout audit
+# passes right to left at every scaling. Until then no picker lists them, no Windows language
+# reaches them (an Arabic Windows is answered in English, as any language without a catalog
+# is), and a stored choice of one is English. Their catalogs are kept, and held to every rule
+# a catalog is, so offering them is taking them out of this set.
+HELD = frozenset({"ar", "he"})
+# The languages a person can choose and Windows can reach: every catalog but the held ones.
+OFFERED = tuple(locale for locale in LOCALES if locale not in HELD)
+# The catalogs written right to left. A surface drawn in one of them is mirrored - what stands at
+# the left in every other language stands at the right - and reads its sentences right to left
+# (right_to_left, embedded). Today they are exactly the held ones; a later release offers them.
+RIGHT_TO_LEFT = frozenset({"ar", "he"})
 # What a settings field may hold. `system` is stored as a choice in its own right so
 # that "follow Windows" survives a Windows language change, which storing the resolved
 # locale would quietly throw away.
 SYSTEM = "system"
-CHOICES = (SYSTEM,) + LOCALES
+CHOICES = (SYSTEM,) + OFFERED
 
 DIRECTORY = Path(__file__).resolve().parent / "locales"
 
@@ -64,13 +79,17 @@ DIRECTORY = Path(__file__).resolve().parent / "locales"
 # brace that stands alone, so the pattern is deliberately narrow.
 PLACEHOLDER = re.compile(r"\{([a-z_][a-z0-9_]*)\}")
 
-# Language subtags that are not themselves shipped locales but have an obvious home.
-# Portuguese is the one judgement call: the product ships Brazilian Portuguese, and a
-# reader in Portugal is better served by it than by English, so `pt` and `pt-PT` land
-# there rather than falling through.
+# Each language subtag's catalog. A language goes to its own catalog whatever the region
+# (`es-419`, `de-AT`, `fr-CA`, `ru-KZ`); Portuguese is the one judgement call: the product
+# ships Brazilian Portuguese, and a reader in Portugal is better served by it than by
+# English, so `pt` and `pt-PT` land there rather than falling through. `in` and `iw` are
+# the older codes Java and some systems still give for Indonesian and Hebrew. A language
+# that is not here - or is here but HELD - has no catalog to go to, and is English.
 _LANGUAGE_HOME = {
     "en": "en", "ko": "ko", "ja": "ja",
     "es": "es", "de": "de", "fr": "fr", "pt": "pt-BR",
+    "ru": "ru", "it": "it", "tr": "tr", "pl": "pl", "uk": "uk", "vi": "vi",
+    "id": "id", "in": "id", "ar": "ar", "he": "he", "iw": "he",
 }
 
 # Chinese is chosen by script, not by country, and Windows may say either. Simplified
@@ -127,10 +146,11 @@ class CatalogError(ValueError):
 
 
 def normalize(tag) -> str | None:
-    """The shipped locale a language tag belongs to, or `None` if this product has none.
+    """The offered locale a language tag belongs to, or `None` if this product has none.
 
     Accepts what real systems produce: `ko`, `ko-KR`, `ko_KR`, `zh-Hans-CN`, `es-419`,
-    `pt-PT`, and the locale ids this product itself stores.
+    `pt-PT`, and the locale ids this product itself stores. A HELD language is `None`
+    too: it has a catalog, but this release does not speak it.
     """
     if not isinstance(tag, str):
         return None
@@ -148,7 +168,8 @@ def normalize(tag) -> str | None:
         # Bare `zh`, or a region this table does not call traditional: simplified is
         # what the large majority of `zh` speakers read.
         return "zh-CN"
-    return _LANGUAGE_HOME.get(language)
+    home = _LANGUAGE_HOME.get(language)
+    return home if home in OFFERED else None
 
 
 def from_system(environ=None) -> str:
@@ -172,14 +193,14 @@ def resolve(preference, environ=None) -> str:
     """The one locale to render in, from what the user stored.
 
     `system`, an empty value or anything unrecognised means "follow Windows". An
-    explicit locale wins over Windows; an explicit locale this build does not ship
-    falls back to English rather than to Windows, because the stored value was a
-    decision and Windows was not.
+    explicit locale wins over Windows; an explicit locale this build does not offer
+    (one it lacks, or a HELD one) falls back to English rather than to Windows, because
+    the stored value was a decision and Windows was not.
     """
     if isinstance(preference, str):
         chosen = preference.strip()
         if chosen and chosen != SYSTEM:
-            if chosen in LOCALES:
+            if chosen in OFFERED:
                 return chosen
             found = normalize(chosen)
             return found if found is not None else DEFAULT
@@ -221,7 +242,9 @@ def current(environ=None) -> str:
 
 # Each language named in itself. These are not translated and do not live in the
 # catalogs: a person looking for their own language in a list scans for the name they
-# know, and "Japanese" written in Korean is a name a Japanese reader does not know.
+# know, and "Japanese" written in Korean is a name a Japanese reader does not know. The
+# pickers show this name and nothing beside it - no English name, no globe (the owner,
+# v0.6.11) - and a picker lists only the OFFERED ones.
 ENDONYMS = {
     "en": "English",
     "ko": "한국어",
@@ -232,7 +255,22 @@ ENDONYMS = {
     "de": "Deutsch",
     "fr": "Français",
     "pt-BR": "Português (Brasil)",
+    "ru": "Русский",
+    "it": "Italiano",
+    "tr": "Türkçe",
+    "pl": "Polski",
+    "uk": "Українська",
+    "vi": "Tiếng Việt",
+    "id": "Bahasa Indonesia",
+    "ar": "العربية",
+    "he": "עברית",
 }
+
+
+def offered_endonyms() -> dict:
+    """The names a surface is given to label its language pickers with: the OFFERED languages' only,
+    so a held language is named nowhere a person could pick it."""
+    return {locale: ENDONYMS[locale] for locale in OFFERED}
 
 
 def _no_duplicates(pairs):
@@ -336,6 +374,44 @@ def messages(locale: str) -> dict:
 def message(key: str, environ=None) -> str:
     """One of the plugin's own sentences, in the language this process speaks."""
     return text("msg." + key, current(environ))
+
+
+# ---------------------------------------------------------------- direction
+# Right to left (v0.6.11). A sentence in Arabic or Hebrew that carries a value written left to right - a
+# version, a path, a conversation id - has to keep that value one run: laid out by the sentence's own
+# direction, `0.6.11-alpha.2` reads `alpha.2-0.6.11` and an id's groups swap places. Unicode's isolates
+# (U+2066-2069) are the modern way to say so, and the panel's browser draws them; GDI - the window, the
+# popup and the card - draws each of them as a box, measured on Windows 11. So a value in a right-to-left
+# sentence drawn by GDI is an embedding, the older mark GDI does honour: LRE or RLE by the value's first
+# strong character, then PDF. Nothing is added in a left-to-right language.
+_LEFT_TO_RIGHT_EMBEDDING, _RIGHT_TO_LEFT_EMBEDDING, _POP = "\u202a", "\u202b", "\u202c"
+
+
+def right_to_left(locale) -> bool:
+    """Whether a surface in `locale` is drawn right to left."""
+    return locale in RIGHT_TO_LEFT
+
+
+def first_strong(value) -> str | None:
+    """"L" or "R" by the first character of `value` with a direction of its own (Unicode's rule P2, the
+    one a browser's `dir="auto"` follows), None when it has none - digits and punctuation only."""
+    for char in str(value):
+        kind = unicodedata.bidirectional(char)
+        if kind == "L":
+            return "L"
+        if kind in ("R", "AL"):
+            return "R"
+    return None
+
+
+def embedded(value, locale) -> str:
+    """`value` kept one run inside a sentence of `locale`: in a right-to-left language, embedded in its own
+    first strong direction (left to right when it has none, as a number or an id); otherwise itself."""
+    value = str(value)
+    if not right_to_left(locale) or not value:
+        return value
+    mark = _RIGHT_TO_LEFT_EMBEDDING if first_strong(value) == "R" else _LEFT_TO_RIGHT_EMBEDDING
+    return mark + value + _POP
 
 
 def placeholders(value: str) -> frozenset:

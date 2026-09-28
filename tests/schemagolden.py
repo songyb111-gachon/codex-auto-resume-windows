@@ -36,8 +36,9 @@ for entry in (str(ROOT / "src"), str(HERE)):
         sys.path.insert(0, entry)
 
 GOLDEN = HERE / "fixtures" / "schema.json"
-# The releases whose state files are still out there and still upgraded on open.
-V1_TAG, V2_TAG = "v0.5.0", "v0.5.7"
+# The releases whose state files are still out there and still upgraded on open. v0.6.10's
+# store is a package, so it is run whole in a process of its own (tests/released.py).
+V1_TAG, V2_TAG, V3_TAG = "v0.5.0", "v0.5.7", "v0.6.10"
 
 
 def legacy_store(tag):
@@ -105,12 +106,29 @@ def upgraded(folder: Path, tag: str) -> dict:
     return shape(folder / "state.sqlite")
 
 
-def downgraded(folder: Path) -> dict:
-    """What `codex-auto-resume downgrade-state` leaves for an older release to open."""
-    from codex_auto_resume.store import Store, downgrade_to_v2
+def released_fresh(folder: Path) -> dict:
+    """A fresh state as the tagged v0.6.10 makes it: what `downgrade-state --to 3` must match."""
+    import released
+    released.run(V3_TAG, "import sys\nfrom codex_auto_resume.store import Store\n"
+                         "Store(sys.argv[1]).close()\nprint(0)", folder)
+    return shape(folder / "state.sqlite")
+
+
+def upgraded_from_released(folder: Path) -> dict:
+    """A state the tagged v0.6.10 made, then opened by today's store, which upgrades it."""
+    from codex_auto_resume.store import Store
+    released_fresh(folder)
+    with Store(folder, migrate=True):
+        pass
+    return shape(folder / "state.sqlite")
+
+
+def downgraded(folder: Path, target: int = 2) -> dict:
+    """What `codex-auto-resume downgrade-state --to <target>` leaves for an older release."""
+    from codex_auto_resume.store import Store, downgrade_state
     with Store(folder):
         pass
-    downgrade_to_v2(folder)
+    downgrade_state(folder, target)
     return shape(folder / "state.sqlite")
 
 
@@ -118,6 +136,9 @@ PATHS = {
     "fresh": fresh,
     "upgraded-from-%s" % V1_TAG: lambda folder: upgraded(folder, V1_TAG),
     "upgraded-from-%s" % V2_TAG: lambda folder: upgraded(folder, V2_TAG),
+    "upgraded-from-%s" % V3_TAG: upgraded_from_released,
+    "fresh-%s" % V3_TAG: released_fresh,
+    "downgraded-to-v3": lambda folder: downgraded(folder, 3),
     "downgraded-to-v2": downgraded,
 }
 

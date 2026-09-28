@@ -40,7 +40,7 @@ if _HERE not in sys.path:
     sys.path.insert(0, _HERE)        # srcscan lives next to this file
 
 import srcscan  # noqa: E402
-from codex_auto_resume.domain import plug as p, vocabulary as v  # noqa: E402
+from codex_auto_resume.domain import compat_vocabulary as c, plug as p, vocabulary as v  # noqa: E402
 
 # "module.NAME" -> (kind, length, digest), or the text of a single word.
 LISTS = {
@@ -55,26 +55,42 @@ LISTS = {
     "machine.V2_STATES": ("set", 18, "afdae6b420db41b5"),
     "machine.POSSIBLY_SENT": ("set", 20, "dadead4aea3c20e5"),
     "machine.WATCHED": ("set", 4, "07ba1375946c1591"),
-    "machine.WITHDRAW_REASONS": ("set", 11, "48bbe2160073f30c"),
+    # v0.6.11: observe_only and observe_only_unknown - taken back for Observe only, in its own words.
+    "machine.WITHDRAW_REASONS": ("set", 13, "e0093ee6641742ac"),
     "machine.SUPERSEDE_WITHDRAWALS": ("set", 3, "b63141bdc33260f0"),
     "machine.TURN_STATUSES": ("set", 5, "58aca83cec78ff2b"),
     "machine.ACTORS": ("set", 5, "eaf35d06c4c2b568"),
-    "machine.REASONS": ("set", 63, "05852eb344a83206"),
-    "machine.EVENT_CODES": ("set", 21, "09df0cbe0e244464"),
+    # v0.6.11: offline - Windows reports no internet, so usage is not read (power.py, off by default).
+    # and observe_only, observe_only_unknown: a withdrawal's reasons are reasons too.
+    "machine.REASONS": ("set", 67, "d85ce5215e647592"),
+    # v0.6.11: postponed, held, hold_released and tier_set - a person's (or the objection window's)
+    # later time, a hold, letting it go, and a conversation's tier - and observe only's would_send.
+    # And dispatched_while_observing and unpostponed: one taken back for Observe only that ran all the
+    # same, and a person's own postponement taken away.
+    "machine.EVENT_CODES": ("set", 28, "338d004c0e77ba46"),
     "machine.WAITING_CODES": ("set", 5, "aef153e5808afe46"),
     "machine.PUBLIC_CODES": ("set", 22, "33761768f9d99cd0"),
     "machine.PAGES": ("tuple", 6, "ffad1c9f0521398d"),
-    "machine.OVERLAYS": ("tuple", 7, "ec4b756213ffdd1a"),
+    # v0.6.11: `held`, a record that waits for a person (schema 4's hold).
+    "machine.OVERLAYS": ("tuple", 8, "275fd01184c6c4e3"),
     "machine.GATE_RESULTS": ("set", 4, "9a50f41ff116a706"),
     "machine.GATES": ("tuple", 13, "547089c399324718"),
-    # v0.6.11: `held`, a gate core passed and the edition's plug held (domain/plug.py, HOLD).
-    "machine.GATE_REASONS": ("set", 76, "ba3953d7dffacbdc"),
+    # v0.6.11: `held`, a gate core passed and the edition's plug held (domain/plug.py, HOLD);
+    # and schema 4's `postponed`, `quiet_hours` and `observe_only`, reasons of consent and schedule;
+    # and `offline`, the usage gate's while Windows reports no internet (power.py).
+    "machine.GATE_REASONS": ("set", 82, "3dbd66cb47afb5a9"),
     "machine.PASS": "PASS",
     "machine.WAIT": "WAIT",
     "machine.BLOCK": "BLOCK",
     "machine.UNKNOWN": "UNKNOWN",
     "machine.NOT_CHECKED": "not_checked",
     "machine.HELD": "held",
+    "machine.POSTPONED": "postponed",
+    "machine.QUIET_HOURS": "quiet_hours",
+    "machine.OBSERVE_ONLY": "observe_only",
+    # v0.6.11, schema 4: a record's hold, and a conversation's tier, least asking first.
+    "machine.HOLDS": ("set", 6, "46f978e63d3c05c3"),
+    "machine.IMPORTANCE_TIERS": ("tuple", 4, "1020c428556c4555"),
     "failures.CATEGORIES": ("set", 14, "05e7b8e16f528bde"),
     # v0.6.10: auth_service_transient, which nothing produces, left TRANSIENT for RESERVED.
     "failures.TRANSIENT": ("set", 5, "7c4f1306a8dcfc48"),
@@ -85,21 +101,38 @@ LISTS = {
     "store.ENGINE_STATES": ("set", 6, "a40ef34f9adea697"),
     "codex.KNOWN_STATUSES": ("set", 4, "23d2734c27812d29"),
     "logbook.STATE_CODES": ("set", 27, "5cac947c5c3bb648"),
-    "control.ERROR_CODES": ("set", 23, "f5946a4030e69cad"),
+    # v0.6.11: a postponement's three refusals, a record that is not held, a tier that is none, and
+    # a project that cannot be read or one too many; and what an administrator's policy key decides.
+    # v0.6.11: not_postponed and too_many_messages - Don't postpone, and one conversation's message.
+    "control.ERROR_CODES": ("set", 33, "8b10b9748945e26c"),
     "control.FALLBACK_CODE": "request_failed",
-    "continuation.STYLES": ("tuple", 4, "a390c91bf5107f3f"),
+    # v0.6.11: careful, last, so every style there was stays where it was.
+    "continuation.STYLES": ("tuple", 5, "683478cd89ef6df8"),
     "continuation.CUSTOM_MODES": ("tuple", 2, "a4a918de1aaec837"),
     "continuation.DEFAULT_STYLE": "standard",
     "continuation.DEFAULT_CUSTOM_MODE": "global",
     "settings.THEMES": ("tuple", 3, "bde3c29151568c16"),
-    "settings.NOTIFICATION_EVENTS": ("tuple", 4, "edd0f68b3c5a94e6"),
+    # v0.6.11: and the needs-you notice, the one event off by default.
+    "settings.NOTIFICATION_EVENTS": ("tuple", 5, "b702d9979f24798b"),
     "settings.RETRY_TIMING": ("dict", 3, "8a8e62ec299a7928"),
     "settings.DEFAULT_TIMING": "normal",
     "settings.THEME_SYSTEM": "system",
     "settings.DEFAULT_THEME": "system",
-    "settings.CONTINUATION_LANGUAGES": ("tuple", 10, "9207f7f2b9ec65dc"),
-    "l10n.LOCALES": ("tuple", 9, "0d5c5b962a6ec666"),
-    "l10n.CHOICES": ("tuple", 10, "8a44c689a27e4025"),
+    # v0.6.11: the nine new languages, less the two held until they mirror (l10n.HELD).
+    "settings.CONTINUATION_LANGUAGES": ("tuple", 17, "f644e75d1d333a60"),
+    # v0.6.11: the days quiet hours start on, and the tiers a conversation may have by default.
+    "settings.QUIET_DAYS": ("tuple", 3, "b7883f3f9fa3397d"),
+    "settings.TIERS": ("tuple", 4, "1020c428556c4555"),
+    # v0.6.11: what a conversation first seen gets, and which projects may resume without a person.
+    "settings.NEW_CONVERSATION_POLICIES": ("tuple", 2, "472d79c55b2067ec"),
+    "settings.PROJECT_POLICIES": ("tuple", 3, "db754fee43e7f8d8"),
+    "projects.POLICIES": ("tuple", 3, "db754fee43e7f8d8"),
+    # v0.6.11: nine more catalogs after pt-BR - ru, it, tr, pl, uk, vi, id, ar, he - of which ar and he
+    # are held: registered and complete, never offered or reached, until every surface mirrors.
+    "l10n.LOCALES": ("tuple", 18, "edc6caaef8734aff"),
+    "l10n.OFFERED": ("tuple", 16, "42b9ab738414dc8b"),
+    "l10n.HELD": ("set", 2, "2332329b5394bfec"),
+    "l10n.CHOICES": ("tuple", 17, "f4e304d71a4b6670"),
     "l10n.SYSTEM": "system",
     "l10n.DEFAULT": "en",
     "compat.STATES": ("tuple", 6, "17f36047142c2622"),
@@ -140,7 +173,9 @@ LISTS = {
     "ui.tray.ICON_STATES": ("tuple", 5, "e94d5138669400b3"),
     "ui.popup.STATES": ("tuple", 6, "b38c816dbd792bf5"),
     "ui.popup.ATTENTION_OVERLAYS": ("set", 4, "a707a2b300127033"),
-    "notifier.STATUS": ("dict", 7, "ed71f4ec9cabc7bc"),
+    # v0.6.11: and the needs-you notice's light, attention; and a long sleep's, paused (power.py).
+    # and Show me what happens' card, waiting.
+    "notifier.STATUS": ("dict", 12, "ccfbc4aee6adaf58"),
     "mcpserver.Server.START_WORDING": ("dict", 4, "f15e04a780f57870"),
     # v0.6.11: the two editions, and the plug that is the whole difference between them.
     "edition.EDITIONS": ("tuple", 2, "49cc206af3867704"),
@@ -263,6 +298,8 @@ HOMES = {
     v.TurnStatus: ("list", "machine.TURN_STATUSES"),
     v.Page: ("list", "machine.PAGES"),
     v.Overlay: ("list", "machine.OVERLAYS"),
+    v.HoldKind: ("list", "machine.HOLDS"),
+    v.ImportanceTier: ("list", "machine.IMPORTANCE_TIERS", "settings.TIERS"),
     v.GateName: ("list", "machine.GATES"),
     v.GateResult: ("list", "machine.GATE_RESULTS"),
     v.FailureCategory: ("list", "failures.CATEGORIES"),
@@ -274,8 +311,28 @@ HOMES = {
     v.CustomMode: ("list", "continuation.CUSTOM_MODES"),
     v.Theme: ("list", "settings.THEMES"),
     v.Design: ("list", "settings.DESIGNS", "brand.DESIGNS"),
-    v.RetryTiming: ("keys", "settings.RETRY_TIMING"),
+    # v0.6.11: the presets, the keys of settings.RETRY_TIMING, and Custom after them.
+    v.RetryTiming: ("list", "settings.RETRY_TIMINGS", "ladder.TIMINGS"),
+    v.RetryWait: ("list", "ladder.WAITS"),
+    v.ChainCeiling: ("list", "ladder.CEILINGS", "settings.CHAIN_CEILINGS"),
+    v.TaskGuard: ("list", "guards.TASK_GUARDS", "settings.TASK_GUARDS"),
+    v.ContextGuard: ("list", "guards.CONTEXT_GUARDS", "settings.CONTEXT_GUARDS"),
+    v.QuietDays: ("list", "settings.QUIET_DAYS"),
+    v.NewConversationPolicy: ("list", "settings.NEW_CONVERSATION_POLICIES"),
+    v.ProjectPolicy: ("list", "settings.PROJECT_POLICIES", "projects.POLICIES"),
     v.NotifyEvent: ("list", "settings.NOTIFICATION_EVENTS"),
+    # v0.6.11: how long a turn may not move before a needs-you notice says so.
+    v.StallWait: ("list", "needsyou.STALL_WAITS"),
+    # v0.6.11: keeping this PC awake while a task waits, for how long, and after how long a sleep to ask.
+    v.KeepAwake: ("list", "power.KEEP_AWAKE_MODES", "settings.KEEP_AWAKE_MODES"),
+    v.AwakeCap: ("list", "power.AWAKE_CAPS", "settings.AWAKE_CAPS"),
+    v.SleepWait: ("list", "power.SLEEP_WAITS", "settings.SLEEP_WAITS"),
+    # v0.6.11: the watcher's memory guard and its limit, and how the watcher last ended.
+    v.MemoryGuard: ("list", "memguard.MODES", "settings.MEMORY_GUARD_MODES"),
+    v.MemoryLimit: ("list", "memguard.LIMITS", "settings.MEMORY_LIMITS"),
+    v.WatcherEnd: ("list", "store.WATCHER_ENDS"),
+    # v0.6.11: who may open the state folder, as Diagnostics is told it.
+    v.StateAccess: ("list", "win.acl.STATE_ACCESS"),
     v.Locale: ("list", "l10n.LOCALES"),
     v.SendOutcome: ("returned", ("Backend.send", "outcome")),
     v.SendError: ("returned", ("Backend.send", "error_code")),
@@ -311,9 +368,10 @@ HOMES = {
 
 
 def enums():
-    """Every vocabulary the two modules define: `domain/vocabulary.py`, and `domain/plug.py`,
-    whose five are the plug interface's own and are held to every rule here all the same."""
-    return [value for module in (v, p) for value in vars(module).values()
+    """Every vocabulary the three modules define: `domain/vocabulary.py`; `domain/compat_vocabulary.py`,
+    the registry's, out of it since v0.6.11 and named through it still; and `domain/plug.py`, whose five
+    are the plug interface's own. Each is held to every rule here all the same."""
+    return [value for module in (v, c, p) for value in vars(module).values()
             if inspect.isclass(value) and issubclass(value, StrEnum) and value is not StrEnum
             and value.__module__ == module.__name__]
 
@@ -401,8 +459,12 @@ class HomeTests(unittest.TestCase):
         self.assertEqual(set(mcpserver.Server.START_WORDING), set(v.WatcherStartState))
         self.assertLessEqual(tray_popup.ATTENTION_OVERLAYS, set(v.Overlay))
         self.assertEqual(codex.KNOWN_STATUSES, set(v.TurnStatus) - {v.TurnStatus.OTHER})
-        self.assertEqual(l10n.CHOICES, (l10n.SYSTEM,) + tuple(v.Locale))
-        self.assertEqual(settings.CONTINUATION_LANGUAGES, (settings.FOLLOW_INTERFACE,) + tuple(v.Locale))
+        # A picker offers every language but the held ones, in the vocabulary's order.
+        self.assertLessEqual(l10n.HELD, set(v.Locale))
+        offered = tuple(locale for locale in v.Locale if locale not in l10n.HELD)
+        self.assertEqual(l10n.OFFERED, offered)
+        self.assertEqual(l10n.CHOICES, (l10n.SYSTEM,) + offered)
+        self.assertEqual(settings.CONTINUATION_LANGUAGES, (settings.FOLLOW_INTERFACE,) + offered)
         for word, cls in ((machine.PASS, v.GateResult), (machine.WAIT, v.GateResult), (machine.BLOCK, v.GateResult),
                           (machine.UNKNOWN, v.GateResult), (failures.USAGE_LIMIT, v.FailureCategory),
                           (failures.UNKNOWN, v.FailureCategory), (control.FALLBACK_CODE, v.ErrorCode),

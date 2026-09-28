@@ -129,32 +129,47 @@ class InterruptionIdTests(unittest.TestCase):
 # ------------------------------------------------------------------------------ marker
 class MarkerTests(unittest.TestCase):
     def test_the_store_writes_the_marker_of_the_key_it_is_given(self):
+        """From v0.6.11 an interruption id's marker is its first 16 hex digits (the owner's
+        shorter marker); a stored key no interruption id is - a test's - keeps the whole key."""
         with tempfile.TemporaryDirectory() as temp:
             with Store(Path(temp) / "state") as store:
-                for key in (KEY, "rec-0001"):
+                for key, marked in ((KEY, KEY[:16]), ("rec-0001", "rec-0001")):
                     with self.subTest(key):
                         self.assertTrue(store.register(failure(key, THREAD, str(uuid.uuid4())), 111.0))
-                        self.assertEqual(store.get(key)["marker"], "[codex-auto-resume:%s]" % key)
+                        self.assertEqual(store.get(key)["marker"], "[codex-auto-resume:%s]" % marked)
 
     def test_the_history_reader_looks_only_for_a_marker_of_an_exact_id(self):
         accepted = []
         for text in ("[codex-auto-resume:%s]" % KEY, "[codex-auto-resume:%s]" % KEY.upper(),
                      "[codex-auto-resume:%s]\n" % KEY, " [codex-auto-resume:%s]" % KEY,
                      "[codex-auto-resume:%s]" % KEY[:-1], "[codex-auto-resume:rec-0001]",
-                     "[codex-auto-resume: %s]" % KEY, "codex-auto-resume:%s" % KEY, None):
+                     "[codex-auto-resume: %s]" % KEY, "codex-auto-resume:%s" % KEY, None,
+                     # v0.6.11's short marker, and the spellings next to it that are not one.
+                     "[codex-auto-resume:%s]" % KEY[:16], "[codex-auto-resume:%s]" % KEY[:16].upper(),
+                     "[codex-auto-resume:%s]" % KEY[:15], "[codex-auto-resume:%s]" % KEY[:17],
+                     "[codex-auto-resume:%s]" % (KEY[:15] + "g"), " [codex-auto-resume:%s]" % KEY[:16]):
             try:
                 codex.LocalSource._identity(THREAD, text)
             except codex.SourceError:
                 continue
             accepted.append(text)
-        self.assertEqual(accepted, ["[codex-auto-resume:%s]" % KEY])
+        self.assertEqual(accepted, ["[codex-auto-resume:%s]" % KEY, "[codex-auto-resume:%s]" % KEY[:16]])
 
     def test_the_one_implementation_writes_and_reads_the_same_marker(self):
         self.assertEqual(ids.marker(KEY), "[codex-auto-resume:%s]" % KEY)
         self.assertEqual(ids.marker("rec-0001"), "[codex-auto-resume:rec-0001]")
+        self.assertEqual(ids.short_marker(KEY), "[codex-auto-resume:%s]" % KEY[:16])
+        self.assertEqual(ids.short_marker("rec-0001"), "[codex-auto-resume:rec-0001]")
+        self.assertEqual(ids.record_markers(KEY), (ids.short_marker(KEY), ids.marker(KEY)))
+        self.assertEqual(ids.record_markers("rec-0001"), (ids.marker("rec-0001"),))
         self.assertTrue(ids.is_marker(ids.marker(KEY)))
+        self.assertTrue(ids.is_marker(ids.short_marker(KEY)))
         self.assertFalse(ids.is_marker(ids.marker("rec-0001")))
         self.assertTrue(ids.marker(KEY).startswith(ids.MARKER_PREFIX))
+        # The closing bracket keeps the two lengths apart: neither is found inside the other,
+        # which is what an `instr(...)>0` bound on Codex's history relies on.
+        self.assertNotIn(ids.short_marker(KEY), ids.marker(KEY))
+        self.assertNotIn(ids.marker(KEY), ids.short_marker(KEY))
 
 
 # --------------------------------------------------------------------------- gate vector
@@ -204,11 +219,15 @@ class GateVectorTests(unittest.TestCase):
 # v0.6.10 writes no recover_ or custom_message_ key for auth_service_transient, which nothing
 # produces (failures.RESERVED); a file that still has them reads as it did (test_settings).
 DEFAULT_FILE = """{
+  "ask_after_sleep_minutes": "off",
+  "chain_time_ceiling": "off",
   "codex_exe": null,
   "config_version": 2,
+  "context_guard": "off",
   "continuation_language": "follow",
   "continuation_style": "standard",
   "custom_message": null,
+  "custom_message_by_thread": null,
   "custom_message_mode": "global",
   "custom_message_network_transient": null,
   "custom_message_rate_limit_transient": null,
@@ -216,19 +235,39 @@ DEFAULT_FILE = """{
   "custom_message_stream_interrupted": null,
   "custom_message_timeout": null,
   "custom_message_usage_limit": null,
+  "default_tier": "automatic",
   "design": "soft",
   "detection_lookback_hours": 6.0,
   "interface_language": "system",
+  "keep_awake": "off",
+  "keep_awake_hours": "h6",
   "max_chain_continuations": 6,
   "max_no_progress": 3,
   "max_recovery_attempts": 4,
+  "memory_guard": "off",
+  "memory_guard_limit": "mb1024",
+  "needs_you_sound": false,
+  "new_conversation_policy": "resume",
   "notification_card": true,
   "notifications": true,
   "notify_interruption": true,
+  "notify_needs_you": false,
+  "notify_needs_you_auth": true,
+  "notify_needs_you_failure": true,
+  "notify_needs_you_invalid": true,
+  "notify_needs_you_policy": true,
   "notify_result": true,
   "notify_starting": true,
   "notify_stopped": true,
+  "objection_minutes": 5,
+  "observe_only": false,
   "panel_theme": "same",
+  "project_keys_always": "",
+  "project_keys_never": "",
+  "project_policy": "every",
+  "quiet_hours_days": "every_day",
+  "quiet_hours_end": "07:00",
+  "quiet_hours_start": "off",
   "recover_network_transient": true,
   "recover_rate_limit_transient": true,
   "recover_server_5xx": true,
@@ -236,10 +275,20 @@ DEFAULT_FILE = """{
   "recover_timeout": true,
   "recover_usage_limit": true,
   "reduce_motion": false,
+  "retry_jitter": false,
   "retry_timing": "normal",
+  "retry_wait_1": "s5",
+  "retry_wait_2": "m15",
+  "retry_wait_3": "m15",
+  "retry_wait_4": "m15",
+  "retry_wait_5": "m15",
   "show_tray": true,
+  "stall_after": "off",
   "start_with_codex": false,
-  "theme": "system"
+  "status_file": false,
+  "task_changed_guard": "off",
+  "theme": "system",
+  "wait_for_network": false
 }"""
 KOREAN = "\uc5ec\uae30\uc11c \uc774\uc5b4\uc11c \uacc4\uc18d\ud574 \uc8fc\uc138\uc694. {reason}"
 KOREAN_USAGE = "\ud55c\ub3c4\uac00 \ud480\ub838\uc5b4\uc694 \u2014 \uacc4\uc18d!"

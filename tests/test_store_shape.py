@@ -25,7 +25,8 @@ from codex_auto_resume.store import Store  # noqa: E402
 
 MIXINS = (store.SessionMixin, store.SchemaMixin, store.MigrationsMixin, store.JournalMixin,
           store.PolicyMixin, store.RecordsMixin, store.ClaimsMixin, store.LedgerMixin,
-          store.ActionsMixin, store.WatcherMixin, store.ReportingMixin)
+          store.ActionsMixin, store.ScheduleMixin, store.WatcherMixin, store.ReportingMixin,
+          store.NoticesMixin)
 
 # What `Store` has, as the one class had it. Sixty-one methods, counted the day the file was
 # split; a method added or taken away is a decision, and this is where it is made.
@@ -44,6 +45,25 @@ METHODS = {
     "thread_enabled", "update", "watcher_status",
     # v0.6.11: the edition's claim ledger, asked inside the claim (P11) - store/ledger.py.
     "_ledger_holds",
+    # v0.6.11: schema 4, made fresh and reached from schema 3 - store/migrations.py.
+    "_add_schema_4", "_migrate_3_to_4",
+    # v0.6.11: a record postponed, held and let go, a conversation's tier, and the objection
+    # window - store/actions.py and store/policy.py.
+    "_bound", "_not_waiting", "postpone", "release_hold", "open_objection_window",
+    # v0.6.11: a person's own postponement taken away (Don't postpone) - store/schedule.py, which the
+    # four above moved into with it, out of store/actions.py at its 300 lines.
+    "unpostpone",
+    "_thread_tier", "thread_tier", "thread_tiers", "set_thread_tier",
+    # v0.6.11: observe only's switch and its "would have been sent", a conversation first seen given
+    # Only notify me, and a project's waiting records held - store/policy.py and store/claims.py.
+    "set_observe_only", "record_would_send", "enrol_conversation", "hold_waiting",
+    # v0.6.11: the task-changed guard's hold, which takes the digest it found in the same write.
+    "hold_changed",
+    # v0.6.11: a needs-you notice raised once - store/notices.py - and the last usage reading the
+    # heartbeat keeps (store/watcher.py).
+    "raise_notice", "_reading",
+    # v0.6.11: a watcher that stops on purpose says how - clean, or the memory guard (store/watcher.py).
+    "watcher_ended",
 }
 
 # Reachable as `store.<name>` before the split, and still.

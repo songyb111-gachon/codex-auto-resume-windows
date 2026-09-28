@@ -78,6 +78,19 @@ ENGINE_TO_STORE = {
     "reserve_detailed", "claimed_on_thread", "others_in_flight", "recent_claims",
     "recent_claim_count", "release_claim", "release_withdrawn", "submission_guard",
     "thread_enabled",
+    # v0.6.11: a conversation's tier, read when a failure is detected and before a first send,
+    # and the objection window that tier opens.
+    "thread_tier", "open_objection_window",
+    # and observe only's "would have been sent", and a conversation first seen given Only notify me.
+    "record_would_send", "enrol_conversation",
+    # and a record the task-changed guard holds for a person when it falls due (engine/guard.py) -
+    # never at the defaults, where the guard is off.
+    "hold_changed",
+    # and a needs-you notice kept so it is told once (engine/notices.py) - never at the defaults.
+    "raise_notice",
+    # and what fell due during a long sleep, held for a person (engine/freshness.py) - never at the
+    # defaults, where Ask after a long sleep is off.
+    "hold_waiting",
 }
 # What it asks of Codex itself, through the backend: is the app there, what is my usage, send
 # this, take it back, is the thread loaded. Five, and the split must not make it six by accident.
@@ -92,6 +105,13 @@ ENGINE_TO_SOURCE = {
     "latest", "later_turns", "latest_failures", "turn_markers", "turn_observation",
     "turn_progress", "progress", "projection", "marker_presence", "marker_rows", "queue_row",
     "queued_rows", "foreign_queued", "reset_hint",
+    # v0.6.11: the key of a conversation's project, asked only when Settings let some projects
+    # resume and not others (projects.asks) - never at the defaults.
+    "project_key",
+    # and what the task-changed and context-cost guards read, asked only while one is on.
+    "task_facts",
+    # and the turns that stopped moving, asked only while a needs-you notice waits for one.
+    "stalled_turns",
 }
 # v0.6.11: what core asks the edition's plug, which it holds as `Guarded` (domain/plug.py). The
 # engine asks at the points of a tick, a dispatch and an ended turn; the claim asks the ledger,
@@ -116,6 +136,12 @@ CONTROL_TO_STORE = {
     "status_counts", "settings", "watcher_status", "failure_marks", "disabled_threads",
     "thread_enabled", "set_thread_enabled", "set_enabled", "cancel_interruption",
     "cancel_thread", "request_retry_now", "restore_budget_detailed",
+    # v0.6.11: postpone one record, let a held one continue, and a conversation's tier.
+    "postpone", "release_hold", "set_thread_tier", "thread_tiers",
+    # and observe only written as the settings say it, and a project's waiting records held.
+    "set_observe_only", "hold_waiting",
+    # and a person's own postponement taken away (Don't postpone).
+    "unpostpone",
 }
 
 

@@ -11,8 +11,8 @@ import sqlite3
 import time
 from typing import Any, Iterator
 from .errors import StateFromNewerVersion, StoreError, UpgradePending
-from .schema import SCHEMA_VERSION, _TABLES_V3
-from .validate import _flag, _timestamp, _uuid, _validated_record
+from .schema import SCHEMA_VERSION, _TABLES_V4
+from .validate import _flag, _timestamp, _uuid, _validated_notice, _validated_record, _validated_tier
 
 
 class SessionMixin:
@@ -37,7 +37,7 @@ class SessionMixin:
             if version > SCHEMA_VERSION:
                 raise StateFromNewerVersion(
                     "This state was written by a newer version of codex-auto-resume")
-            if version in (1, 2):
+            if 1 <= version < SCHEMA_VERSION:
                 if not migrate:
                     raise UpgradePending("Upgrade pending: an older watcher still owns the state")
                 self._forensic_copy(version)
@@ -55,22 +55,25 @@ class SessionMixin:
                 elif version > SCHEMA_VERSION:
                     raise StateFromNewerVersion(
                         "This state was written by a newer version of codex-auto-resume")
-                elif version in (1, 2):
+                elif 1 <= version < SCHEMA_VERSION:
                     if not migrate:
                         raise UpgradePending("Upgrade pending: an older watcher still owns the state")
                     self._migrate(connection, version)
-                elif version != SCHEMA_VERSION or tables != _TABLES_V3:
+                elif version != SCHEMA_VERSION or tables != _TABLES_V4:
                     raise StoreError("Unsupported or malformed state schema")
                 self._validate_schema(connection)
                 self._read_settings(connection)
                 if check or self.migrated_from is not None:
                     if connection.execute("PRAGMA quick_check").fetchone()[0] != "ok":
                         raise StoreError("State integrity check failed")
-                    for row in connection.execute("SELECT thread_id, enabled FROM threads"):
+                    for row in connection.execute("SELECT thread_id, enabled, tier FROM threads"):
                         _uuid(row["thread_id"], "thread_id")
                         _flag(row["enabled"], "thread enabled")
+                        _validated_tier(row["tier"])
                     for row in connection.execute("SELECT * FROM interruptions"):
                         _validated_record(dict(row))
+                    for row in connection.execute("SELECT * FROM notices"):
+                        _validated_notice(dict(row))
         except (sqlite3.Error, OSError, StoreError) as exc:
             self.close()
             if isinstance(exc, StoreError):

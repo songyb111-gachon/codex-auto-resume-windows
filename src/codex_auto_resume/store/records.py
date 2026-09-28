@@ -21,7 +21,9 @@ class RecordsMixin:
     def register(self, record: dict[str, Any], now: float, *,
                  state: str = "waiting_reset", next_retry_at: float | None = None,
                  owner_id: str | None = None, failed_turn_progress: bool | None = None,
-                 legacy_carry: int | None = None, limits: dict | None = None) -> bool:
+                 legacy_carry: int | None = None, limits: dict | None = None,
+                 hold: str | None = None, task_print: str | None = None,
+                 context_tokens: int | None = None) -> bool:
         """Create the record WITH its real schedule and its chain, in one transaction.
 
         Writing the schedule, or the counters inherited from the record whose own
@@ -36,6 +38,10 @@ class RecordsMixin:
 
         Returns False, without raising, when this failure is already known - including
         the same turn seen under a different identity, which is journaled instead.
+
+        `hold` (schema 4) is the hold its conversation's tier puts on it (machine.hold_for_tier):
+        None at the defaults, where every conversation is resumed automatically. `task_print` and
+        `context_tokens` are what the two guards keep of it (guards.py): None while they are off.
         """
         _timestamp(now, "now")
         required = {"thread_id", "turn_id", "completed_at", "started_at", "ordinal",
@@ -52,7 +58,7 @@ class RecordsMixin:
             **record, "detected_at": now, "state": state, "retry_count": 0,
             "next_retry_at": now if next_retry_at is None else next_retry_at,
             "resumed_at": None, "last_error": None,
-            "marker": ids.marker(key), "queue_id": None,
+            "marker": ids.short_marker(key), "queue_id": None,
             "submitted_at": None, "attempt_count": 0, "cancel_requested": False,
             "recovery_attempts": 0, "no_progress_count": 0,
             "recovery_turn_id": None, "recovery_client_id": None, "recovery_turn_status": None,
@@ -63,7 +69,9 @@ class RecordsMixin:
             "chain_origin_id": key, "chain_first_detected_at": now, "chain_continuations": 0,
             "budget_resets": 0, "retry_now_count": 0, "usage_unavailable_seconds": 0.0,
             "usage_probe_at": None, "gate_eval": None, "gate_eval_at": None,
-            "history_hidden_at": None,
+            "history_hidden_at": None, "not_before": None, "hold": hold,
+            "task_print": task_print, "context_tokens": context_tokens, "objection_at": None,
+            "objection_until": None,
         }
         _validated_record(dict(row))
         with self._transaction() as connection:
@@ -73,6 +81,12 @@ class RecordsMixin:
                        ("thread_id", "turn_id", "completed_at", "started_at", "ordinal")):
                     raise StoreError("Interruption identity collision")
                 return False
+            # One marker per interruption in its conversation (A4), by construction rather than by
+            # the odds of 16 hex digits: a record whose short marker another record of the same
+            # conversation already carries is given the marker of its whole id instead.
+            if connection.execute("SELECT 1 FROM interruptions WHERE thread_id=? AND marker=? LIMIT 1",
+                                  (row["thread_id"], row["marker"])).fetchone() is not None:
+                row["marker"] = ids.marker(key)
             drift = connection.execute(
                 "SELECT interruption_id FROM interruptions WHERE thread_id=? AND turn_id=? "
                 "AND interruption_id<>? LIMIT 1", (row["thread_id"], row["turn_id"], key)).fetchone()
@@ -106,6 +120,10 @@ class RecordsMixin:
                     row["state"], reason = "no_progress_exhausted", "no_progress_budget"
                 elif row["chain_continuations"] >= limits["max_chain_continuations"]:
                     row["state"], reason = "retry_budget_exhausted", "chain_cap"
+                elif machine.over_ceiling(row, limits, is_usage(row)):
+                    # v0.6.11: a temporary task that kept failing past its time ceiling (absent at
+                    # the defaults), measured from its first failure to this one.
+                    row["state"], reason = "retry_budget_exhausted", "chain_time_cap"
                 elif (not is_usage(row)
                         and row["recovery_attempts"] >= limits["max_recovery_attempts"]):
                     row["state"], reason = "retry_budget_exhausted", "recovery_budget"

@@ -6,9 +6,9 @@
 [![latest release](https://img.shields.io/github/v/release/songyb111-gachon/codex-auto-resume-windows?label=release)](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest)
 [![platform: Windows 10/11](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d4)](#install)
 [![license: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![languages: 9](https://img.shields.io/badge/languages-9-0891b2)](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/GUIDE.md#languages)
+[![languages: 16](https://img.shields.io/badge/languages-16-0891b2)](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/GUIDE.md#languages)
 
-<sub>🇰🇷 <a href="https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/ko/README.md">한국어 README</a> · The app speaks nine languages: English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil)</sub>
+<sub>🇰🇷 <a href="https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/ko/README.md">한국어 README</a> · The app speaks sixteen languages: English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia</sub>
 
 Codex stops mid-task and tells you to try again at 6:34 AM. You are asleep at 6:34 AM, and in
 the morning the task is exactly where it stopped.
@@ -28,7 +28,7 @@ setting, the notification, the command line, the safety model and privacy in ful
 | **Never touches** | user cancellation · permission · approval · content policy · invalid requests · context length · permanent authentication failures · anything unclassified |
 | **Identity** | the exact conversation UUID only — never `--last`, never "the most recent one", never a title or a folder name |
 | **Configure it** | the Dashboard from the Start Menu, a settings panel inside Codex, or the command line |
-| **Languages** | English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) |
+| **Languages** | English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia |
 | **Privacy** | no telemetry, no analytics, no automatic update check. Setting it up from Codex downloads the release from GitHub, and *Check for updates* asks GitHub which release is newest only when you press it. The watcher has no network code; the usage check and the resumed turn go to OpenAI through Codex, as Codex's traffic always does |
 
 > **One honest limitation, up front.** Codex has to currently have that conversation open for a

@@ -54,13 +54,71 @@ _SCHEMA_3_COLUMNS = (
     ("history_hidden_at", "REAL"),
 )
 
-_RECORD_COLUMNS = _V2_COLUMNS + tuple(name for name, _ in _SCHEMA_3_COLUMNS)
+_V3_COLUMNS = _V2_COLUMNS + tuple(name for name, _ in _SCHEMA_3_COLUMNS)
+
+# Columns added in schema 4 (v0.6.11), each to the table it names. Content-free like the rest: a
+# time, a word from a closed list, a flag. Every one is empty - or 0 - on a record, a conversation
+# and a state that nobody has postponed, held, given a tier or put in observe-only, which is every
+# one at the defaults: the state v0.6.10 kept, with nothing added to it (tests/test_schema_v4.py).
+_SCHEMA_4_COLUMNS = (
+    ("interruptions", "not_before", "REAL"),
+    ("interruptions", "hold", "TEXT"),
+    ("threads", "tier", "TEXT"),
+    ("settings", "observe_only", "INTEGER NOT NULL DEFAULT 0 CHECK (observe_only IN (0, 1))"),
+    # What the two guards keep of a record (guards.py): a digest of what its task was working with,
+    # and its conversation's token count. Empty unless a guard was on when it was detected.
+    ("interruptions", "task_print", "TEXT"),
+    ("interruptions", "context_tokens", "INTEGER"),
+    # When a record's objection window opened (engine/announce.py), which happens once, before its
+    # first send: a postponement made before then only holds it back, and the window still opens
+    # after it. Empty unless its conversation's tier is the objection window.
+    ("interruptions", "objection_at", "REAL"),
+    # And when that window ends, which a person's Don't postpone goes back to and never past
+    # (store/schedule.py, domain/public.py own_postponement). Empty with it.
+    ("interruptions", "objection_until", "REAL"),
+    # The last usage reading the watcher made (domain/usage.py): when, and its allowlisted windows as
+    # compact JSON - numbers, times and two closed words. Empty until a recovery was due and usage was
+    # read for it, which is the only time it ever is (C4, C9).
+    ("watcher_status", "usage_at", "REAL"),
+    ("watcher_status", "usage", "TEXT"),
+    # Since when the watcher has asked Windows to keep this PC awake while a task waits (power.py), or
+    # empty: always, unless Keep this PC awake is on and something waits.
+    ("watcher_status", "awake_since", "REAL"),
+    # The most private memory the watcher's process has committed, in bytes (memguard.py): a number,
+    # written every tick.
+    ("watcher_status", "memory_peak", "INTEGER"),
+    # How the watcher last ended (WatcherEnd): `running`, written every tick, until a watcher that stops
+    # on purpose writes `clean` or `memory_guard`, and when. With the number Windows gives the sign-in it
+    # ran in and when Windows started (win/ownprocess.py), a reader tells a watcher that stopped
+    # unexpectedly in this sign-in from one that ended with an earlier one (control/watcher.py).
+    ("watcher_status", "end_mark", "TEXT"),
+    ("watcher_status", "ended_at", "REAL"),
+    ("watcher_status", "sign_in", "TEXT"),
+    ("watcher_status", "booted_at", "REAL"),
+)
+
+_RECORD_COLUMNS = _V3_COLUMNS + tuple(name for table, name, _ in _SCHEMA_4_COLUMNS
+                                      if table == "interruptions")
+
+_SETTINGS_COLUMNS = ("singleton", "enabled", "armed_at", "poll_seconds", "observe_only")
+
+_THREAD_COLUMNS = ("thread_id", "enabled", "tier")
+
+# Schema 4's needs-you notices: one row per failure that needs a person, or turn that stopped moving,
+# raised once. Ids, its kind (needsyou.NOTICE_KINDS), times - and nothing the engine's dispatch ever
+# reads (tests/test_schema_v4.py).
+_NOTICE_COLUMNS = ("interruption_id", "thread_id", "category", "raised_at", "seen_at")
+
+# Core's tables that nothing deciding a send may read: the claim refuses its ledger any read of
+# them (store/ledger.py), and core's own dispatch reads none (tests/test_schema_v4.py).
+_UNREAD_BY_DISPATCH = frozenset({"notices"})
 
 _EVENT_COLUMNS = ("event_id", "at", "interruption_id", "chain_origin_id", "code", "from_state",
                   "to_state", "reason", "actor", "turn_ref", "flags", "value")
 
 _WATCHER_COLUMNS = ("singleton", "pid", "session_id", "started_at", "last_tick_at",
-                    "last_tick_ok", "engine_state", "code_version")
+                    "last_tick_ok", "engine_state", "code_version", "usage_at", "usage", "awake_since",
+                    "memory_peak", "end_mark", "ended_at", "sign_in", "booted_at")
 
 # Fields a plain `update` may write. Chain linkage, the claim time and the history
 # flag are written only by the operations that own them.

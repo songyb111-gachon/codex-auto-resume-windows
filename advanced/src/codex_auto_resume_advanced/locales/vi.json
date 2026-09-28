@@ -1,0 +1,15 @@
+{
+  "_edition": "ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.",
+  "edition.badge": "Nâng cao",
+  "edition.not_loaded": "Nâng cao - chưa tải",
+  "edition.summary": "Nâng cao · {n} đang bật",
+  "all_off": "Mọi tính năng nâng cao đều tắt",
+  "field.departs": "Các tiêu chuẩn mà nó không theo",
+  "field.does": "Nó làm gì",
+  "field.instead": "Phiên bản Tiêu chuẩn làm gì thay vào đó",
+  "field.risks": "Điều gì có thể sai",
+  "field.stop": "Cách dừng nó",
+  "state.armed": "Bật",
+  "state.off": "Tắt",
+  "state.shadow": "Đang quan sát"
+}

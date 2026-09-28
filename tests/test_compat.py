@@ -333,6 +333,17 @@ class VersionTests(unittest.TestCase):
         self.assertEqual(compat.evidence_for("exact_thread_recovery", "weird build",
                                              [("cache", parsed, True)])[0], None)
 
+    def test_this_products_pre_releases_read_as_their_release(self):
+        """The registry names releases, so a planned pre-release reads as its release - both of the
+        suffixes this product uses, and nothing else (compat/files.py, product_version)."""
+        from unittest.mock import patch
+        from codex_auto_resume.compat import files
+        cases = [("0.6.11", "0.6.11"), ("0.6.11-alpha", "0.6.11"), ("0.6.11-beta", "0.6.11"),
+                 ("0.6.11-rc", "unknown"), ("0.6.11-alpha-beta", "unknown"), ("0.6", "unknown")]
+        for declared, expected in cases:
+            with self.subTest(declared), patch.object(files.config, "version", return_value=declared):
+                self.assertEqual(files.product_version(), expected)
+
 
 class EvidenceTests(unittest.TestCase):
     def setUp(self):

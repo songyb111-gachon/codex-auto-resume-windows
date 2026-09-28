@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import advancedcase as ac  # noqa: E402
 from codex_auto_resume import cli, config, settings, shortcut, startup  # noqa: E402
 from codex_auto_resume.store import Store  # noqa: E402
-from codex_auto_resume.store.schema import _TABLES_V3  # noqa: E402
+from codex_auto_resume.store.schema import _TABLES_V4  # noqa: E402
 from codex_auto_resume_advanced import vocabulary  # noqa: E402
 from codex_auto_resume_advanced.state import (ATTACHED, EVENT_LIMIT, EVENT_MAX_AGE,  # noqa: E402
                                               FILE_NAME, TABLES, AdvancedState, StateError)
@@ -383,7 +383,7 @@ class CoreStateTests(StateCase):
         runtime.arming.all_off(actor=Actor.MCP)
         self.assertEqual(self.paths.settings_file.read_bytes(), before)
         with Store(self.paths.state_dir) as store:
-            self.assertEqual(Store._tables(store._connection), _TABLES_V3)
+            self.assertEqual(Store._tables(store._connection), _TABLES_V4)
         self.assertEqual(sorted(path.name for path in self.paths.state_dir.iterdir()),
                          sorted([config.OWNER_MARKER, "advanced", "settings.json", "state.sqlite"]))
 

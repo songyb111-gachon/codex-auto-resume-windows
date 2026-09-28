@@ -9,17 +9,19 @@ from __future__ import annotations
 from ctypes import wintypes as W
 import ctypes as C
 import math
-from ... import brand
+from ... import brand, l10n
 from .elevation import lift_coverage, recipe_shadows, shadow_step, tile_ground, well_coverage
 from .fonts import _Fonts
 from .gdiplus import _Canvas, _Painter, _ShadowImage, _gdiplus_acquire, _gdiplus_release
-from .layout import layout as plan            # the method below shares its name
+from .layout import layout as plan, mirror   # the method below shares its name
 from .theme import SYSTEM_COLOURS, contrast_colour, system_rgb
 from .win32 import (DT_CALCRECT,
                     DT_CENTER,
                     DT_EDITCONTROL,
                     DT_END_ELLIPSIS,
                     DT_NOPREFIX,
+                    DT_RIGHT,
+                    DT_RTLREADING,
                     DT_SINGLELINE,
                     DT_VCENTER,
                     DT_WORDBREAK,
@@ -123,8 +125,10 @@ class Renderer:
             gdi32.SelectObject(dc, previous)
 
     def layout(self, vm, scale, locale):
+        """The popup's plan in `locale` at `scale`: mirrored when the language is written right to left."""
         self.use(locale, scale)
-        return plan(vm, scale, self.measure)
+        laid = plan(vm, scale, self.measure)
+        return mirror(laid) if l10n.right_to_left(locale) else laid
 
     def draw(self, vm, plan, *, frame=None, hover=None, pressed=None, focus=None, glides=None):
         """One whole frame into the canvas. Returns the canvas.
@@ -266,7 +270,8 @@ class Renderer:
             elif kind not in ("text", "focusable", "halo"):
                 parts.append((kind, item["rect"], item.get("radius"), item.get("tone"), item.get("checked"),
                               item.get("busy"), kind == "switch" and item["target"] in glides))
-        key = (plan["size"], scale, self._theme(), self._design(), self._system_key(), tuple(parts))
+        key = (plan["size"], scale, self._theme(), self._design(), self._system_key(), bool(plan.get("rtl")),
+               tuple(parts))
         if self._ground_key == key and self._ground_pixels is not None:
             C.memmove(canvas.bits, self._ground_pixels, len(self._ground_pixels))
             return
@@ -300,7 +305,7 @@ class Renderer:
                       else _pack(brand.rgb(brand.card_ground(self._theme(), self._design()))))
             paint.fill_round(rect, radius, ground)
             if not self.contrast and brand.design_accent_bar(self._design()):
-                self._accent_bar(paint, rect, radius, scale, ground)
+                self._accent_bar(paint, rect, radius, scale, ground, item.get("mirrored", False))
             self._inner(paint, "card", rect, radius, scale)
             paint.stroke_round(rect, radius, self._argb("line"), hairline)
         elif kind == "panel":
@@ -339,15 +344,19 @@ class Renderer:
         elif kind == "button" and self._lifted(item, pressed):
             self._lift(paint, "control", item["rect"], self._control_radius(scale), scale)
 
-    def _accent_bar(self, paint, rect, radius, scale, ground):
+    def _accent_bar(self, paint, rect, radius, scale, ground, mirrored=False):
         """Classic's mark (v0.6.10): brand.ACCENT_BAR px of the accent just inside the card's left hairline,
         following its corners - what v0.6.2's card drew, and what the panel draws as an inset shadow: the
-        inside of the border in the accent, and the same shape moved right by the bar in the card's ground."""
+        inside of the border in the accent, and the same shape moved right by the bar in the card's ground.
+        Mirrored (v0.6.11, right to left), inside the right hairline: the shape moved left instead."""
         border = max(1.0, round(scale))
         left, top, right, bottom = rect
         inside, inner = (left + border, top + border, right - border, bottom - border), max(0.0, radius - border)
         paint.fill_round(inside, inner, self._argb("accent"))
-        paint.fill_round((inside[0] + brand.ACCENT_BAR * scale, inside[1], inside[2], inside[3]), inner, ground)
+        bar = brand.ACCENT_BAR * scale
+        cover = ((inside[0], inside[1], inside[2] - bar, inside[3]) if mirrored
+                 else (inside[0] + bar, inside[1], inside[2], inside[3]))
+        paint.fill_round(cover, inner, ground)
 
     # ------------------------------------------------------------------ materials
     def _use_scale(self, scale):
@@ -420,7 +429,8 @@ class Renderer:
 
         `on` is how far on it is drawn, for a glide: the knob that far along its travel, the accent
         faded in over the well by as much, and the knob's colour that far from off's to on's. None
-        draws it where it stands.
+        draws it where it stands. Mirrored (right to left, v0.6.11), off is at the right and the knob
+        travels left.
         """
         left, top, right, bottom = rect = item["rect"]
         radius = (bottom - top) / 2.0
@@ -437,6 +447,8 @@ class Renderer:
         if amount > 0.0:
             paint.fill_round(rect, radius, self._argb("accent", faded * amount))
         knob_left += int(round(brand.LAYOUT["knob_travel"] * scale)) * amount
+        if item.get("mirrored"):
+            knob_left = left + right - knob_left - knob             # the same knob, across the track
         if amount in (0.0, 1.0):
             colour = self._argb("on_accent" if amount else off_knob, faded)
         else:
@@ -504,6 +516,13 @@ class Renderer:
                        opacity)
         paint.fill_circle(cx, cy, dot * scale, self._argb(fill, 1.0 - dim))
 
+    @staticmethod
+    def _own_direction_left(item):
+        """Whether a line in a right-to-left plan is read left to right: a conversation's name is somebody's
+        own words, read in their own direction (Unicode's first strong character, as the panel's
+        `unicode-bidi: plaintext` reads it) - right-aligned with every other line all the same."""
+        return item["role"] == "name" and l10n.first_strong(item["text"]) == "L"
+
     def _text(self, dc, plan, busy):
         gdi32, user32 = _dll("gdi32"), _dll("user32")
         gdi32.SetBkMode(dc, 1)                                             # transparent
@@ -525,6 +544,10 @@ class Renderer:
                     flags |= DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS
                 if item["align"] == "center":
                     flags |= DT_CENTER
+                elif item["align"] == "right":
+                    flags |= DT_RIGHT
+                if plan.get("rtl") and not self._own_direction_left(item):
+                    flags |= DT_RTLREADING
                 left, top, right, bottom = item["rect"]
                 value = self.lines(item["role"], item["text"], right - left) if item["wrap"] else item["text"]
                 rect = W.RECT(int(left), int(top), int(right), int(bottom))

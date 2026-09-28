@@ -20,9 +20,21 @@ from .model import PopupModel, perform, select_action
 from .motion import animates, glide_amount, halo, next_glides
 from .placement import focus_order, place
 from .renderer import Renderer
-from . import theme as look                # the three questions below are asked through it
+from ...win import textsize
+from . import access
+from . import theme as look                # the questions below are asked through it
 from .theme import adopt_settings, appearance, design_setting, effective_theme, theme_setting
-from .win32 import (CS_DROPSHADOW,
+from .win32 import (MF_CHECKED,
+                    MF_GRAYED,
+                    MF_POPUP,
+                    MF_SEPARATOR,
+                    MF_STRING,
+                    TPM_LAYOUTRTL,
+                    TPM_NONOTIFY,
+                    TPM_RETURNCMD,
+                    TPM_RIGHTALIGN,
+                    TPM_RIGHTBUTTON,
+                    CS_DROPSHADOW,
                     DWMWA_USE_IMMERSIVE_DARK_MODE,
                     DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1,
                     DWMWA_WINDOW_CORNER_PREFERENCE,
@@ -64,9 +76,13 @@ class Popup(PopupMessages):
     # The design in effect, Soft until the window first reads one. On the class, as v0.6.10's motion gates had
     # it, so a frame drawn before anything was read - or by a Popup made without __init__ - is Soft's.
     _design = brand.DEFAULT_DESIGN
+    # Windows' text size last read, and the size fitted to the screen from it (v0.6.11): the usual size, and
+    # not yet fitted, until the window reads one - on the class for the same reason.
+    _text = 1.0
+    _fit = None
 
     def __init__(self, *, control=None, source=None, strings=None, on_dashboard=None, log=None,
-                 anchor=None):
+                 anchor=None, theme_menu=None):
         self.model = PopupModel(strings)
         self.locale = locale_of(strings)
         self.control = control
@@ -74,6 +90,9 @@ class Popup(PopupMessages):
         self.on_dashboard = on_dashboard
         self.log = log or (lambda *unused: None)
         self.anchor = anchor
+        # v0.6.11: asks Windows to draw this process's menus in the popup's own light or dark, as the
+        # icon's menu is drawn (ui/tray/menu.py); None where nothing can be asked.
+        self.theme_menu = theme_menu
         self.hwnd = None
         self.visible = False
         self._proc = None
@@ -103,6 +122,8 @@ class Popup(PopupMessages):
         self._reduced = False            # a stopper: Reduce motion, Windows' animation setting, High Contrast
         self._contrast = False
         self._apps_light = None          # Windows' app mode when last asked: True, False or None
+        self._text = 1.0                 # Windows' text size when last asked (v0.6.11): 1 to 2.25
+        self._fit = None                 # the size drawn at, fitted to the screen once per opening (_fitting)
         self._theme = "light"            # the theme in effect: the setting, resolved against that mode
         self._framed_dark = None         # what DWM was last told about the window's frame
         self._tracking = False
@@ -111,6 +132,10 @@ class Popup(PopupMessages):
         self._origin = None
         self._switches = None            # {target: checked} as last laid out while on screen
         self._glides = {}                # {target: (started_ms, from, to)}: switches on the move
+        # v0.6.11: what a screen reader is handed (access.py), made the first time one asks and kept for as long
+        # as this popup lives; and what it was last told is on screen, for the events a change raises.
+        self._access = None
+        self._spoken = []
 
     # ------------------------------------------------------------------ lifecycle
     def create(self):
@@ -145,6 +170,7 @@ class Popup(PopupMessages):
 
     def destroy(self):
         user32 = _dll("user32")
+        access.disconnect(self)
         hwnd, self.hwnd = self.hwnd, None
         self.visible = False
         if hwnd:
@@ -223,6 +249,8 @@ class Popup(PopupMessages):
         self._painted_plan = None
         # A change made while it is closed is simply there when it opens again.
         self._switches, self._glides = None, {}
+        self._spoken = []
+        self._fit = None
 
     # ------------------------------------------------------------------- appearance
     def _read_look(self):
@@ -230,10 +258,14 @@ class Popup(PopupMessages):
         opening and whenever Windows says a setting changed, never per frame. High Contrast moves nothing
         either, and outranks the theme and the design (the product's own, adopted with the theme).
 
-        These three are the only questions this window asks Windows about how to look, and they
-        go through `look` rather than by name: a test that draws without a screen replaces them,
-        and through the module there is one place to do it whichever file is asking.
+        These three, and since v0.6.11 Windows' text size, are the only questions this window asks
+        Windows about how to look, and they go through `look` rather than by name: a test that draws
+        without a screen replaces them, and through the module there is one place to do it whichever
+        file is asking.
         """
+        text = look.text_scale()
+        if text != self._text:
+            self._text, self._fit = text, None
         self._contrast = look.high_contrast()
         self._apps_light = look.apps_use_light_theme()
         self._reduced = look.reduced_motion() or self._contrast
@@ -328,6 +360,7 @@ class Popup(PopupMessages):
         user32.KillTimer(self.hwnd, TIMER_FIRST)
         self._screen = self._screen_now()
         self.dpi = self._screen["dpi"]
+        self._fit = None                 # fitted to this screen, this opening
         plan = self._rebuild(time.time())
         if self.keyboard and self.focus is None:
             order = focus_order(plan["targets"])
@@ -343,6 +376,7 @@ class Popup(PopupMessages):
         user32.SetTimer(self.hwnd, TIMER_TICK, 1000, None)
         self._sync_frames()
         user32.UpdateWindow(self.hwnd)
+        self._speak()
 
     def _move(self, plan, origin=None):
         width, height = plan["size"]
@@ -371,11 +405,27 @@ class Popup(PopupMessages):
         if vm["light"] != self._state:
             self._state = vm["light"]
             self._state_since = time.monotonic()
-        plan = self._renderer.layout(vm, self.dpi / 96.0, self.locale)
+        if self._fit is None:
+            self._fit = self._fitting(vm)
+        plan = self._renderer.layout(vm, self.dpi / 96.0 * self._fit, self.locale)
         self._vm, self._plan = vm, plan
         self._static_dirty = True
         self._follow_switches(plan)
         return plan
+
+    def _fitting(self, vm):
+        """v0.6.11: the text size the popup is drawn at - Windows' (`_text`), which draws the whole popup that
+        much larger, words and what holds them alike, so nothing in it is cut - but never taller or wider than
+        the screen it opens on holds (textsize.fitting): the largest that fits there, where the one asked for
+        would not. 1 without a screen to measure. Worked out once an opening (`_fit`), from what it first shows,
+        and again only when the text size or the display's scale changes: at most three tasks, the popup's
+        height moves little while it is open."""
+        if self._text <= 1.0 or not self._screen:
+            return 1.0
+        left, top, right, bottom = self._screen["work"]
+        gap = 2 * int(round(brand.SPACING["m"] * self.dpi / 96.0))
+        usual = self._renderer.layout(vm, self.dpi / 96.0, self.locale)["size"]
+        return textsize.fitting(self._text, usual, (right - left - gap, bottom - top - gap))
 
     def _follow_switches(self, plan):
         """Start a glide for each switch now drawn the other way from the last layout on screen."""
@@ -411,6 +461,16 @@ class Popup(PopupMessages):
             self._frame_theme()
         self._sync_frames()
         _dll("user32").InvalidateRect(self.hwnd, None, False)
+        self._speak()
+
+    def _speak(self):
+        """v0.6.11: tell a screen reader what changed since it was last told (access.announce) - the rows, a
+        switch's state, where the keyboard is - while the popup is on screen."""
+        items = access.accessible_items(self._vm, self._plan, self.focus if self.keyboard else None, None,
+                                        self.model.strings)
+        before, self._spoken = self._spoken, items
+        if before:
+            access.announce(self, before, items)
 
     def _since_state_ms(self):
         return (time.monotonic() - self._state_since) * 1000.0
@@ -510,6 +570,69 @@ class Popup(PopupMessages):
             self._present(*self._pending_show)
         elif self.visible:
             self._update()
+
+    # ------------------------------------------------------------ a row's own menu (v0.6.11)
+    def _context_menu(self, lparam):
+        """A task row's own menu: at the pointer on the row under it, or - from the keyboard - on the row
+        whose switch has the focus. Its items are that row's as it was drawn (model.row_menu); what is
+        chosen is done exactly as a click on the row's switch is, bound to the row's identities."""
+        plan = self._painted_plan
+        if plan is None or not self.hwnd:
+            return
+        user32 = _dll("user32")
+        point = W.POINT()
+        if (lparam & 0xFFFFFFFF) == 0xFFFFFFFF:            # the keyboard: the focused row, at its corner
+            key = self.focus[1] if self.focus and self.focus[0] == "check" else None
+            rect = dict(plan.get("rows") or ()).get(key)
+            if rect is None:
+                return
+            point.x, point.y = rect[2] if plan.get("rtl") else rect[0], rect[1]
+            user32.ClientToScreen(self.hwnd, C.byref(point))
+        else:
+            point.x = C.c_short(lparam & 0xFFFF).value
+            point.y = C.c_short((lparam >> 16) & 0xFFFF).value
+            inside = W.POINT(point.x, point.y)
+            user32.ScreenToClient(self.hwnd, C.byref(inside))
+            key = next((key for key, (left, top, right, bottom) in plan.get("rows") or ()
+                        if left <= inside.x < right and top <= inside.y < bottom), None)
+        entries = self.model.menu_for(key) if key else []
+        if not entries:
+            return
+        if self.theme_menu is not None:
+            try:
+                self.theme_menu()
+            except Exception as exc:
+                self.log("tray popup menu theme failed (%s)" % type(exc).__name__)
+        actions, menus = {}, []
+
+        def build(items):
+            menu = user32.CreatePopupMenu()
+            menus.append(menu)
+            for entry in items:
+                if entry is None:
+                    user32.AppendMenuW(menu, MF_SEPARATOR, 0, None)
+                    continue
+                flags = MF_STRING | (0 if entry["enabled"] else MF_GRAYED) | (MF_CHECKED if entry["checked"] else 0)
+                if entry["items"]:
+                    user32.AppendMenuW(menu, flags | MF_POPUP, build(entry["items"]), entry["text"])
+                    continue
+                command = len(actions) + 1
+                actions[command] = entry["action"] if entry["enabled"] else None
+                user32.AppendMenuW(menu, flags, command, entry["text"])
+            return menu
+        try:
+            # Right to left, the menu is laid out mirrored and opens leftward from its point (v0.6.11).
+            direction = TPM_LAYOUTRTL | TPM_RIGHTALIGN if plan.get("rtl") else 0
+            chosen = user32.TrackPopupMenu(build(entries), TPM_RIGHTBUTTON | TPM_RETURNCMD | TPM_NONOTIFY | direction,
+                                           point.x, point.y, 0, self.hwnd, None)
+            user32.PostMessageW(self.hwnd, 0, 0, 0)        # WM_NULL: a click elsewhere closes it (as the icon's)
+        finally:
+            user32.DestroyMenu(menus[0])        # its submenus go with it
+        action = actions.get(chosen)
+        if action is None or not self.model.begin(action):
+            return
+        self._run(action)
+        self._update()
 
     def _activate(self, target):
         action = self.model.action_for(target)

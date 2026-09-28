@@ -14,19 +14,21 @@ import logging
 import os
 from pathlib import Path
 import sys
+import threading
 import time
 import traceback
 import uuid
 
-from .. import compatio, config, edition, l10n, notifier, settings as policy
+from .. import compatio, config, edition, l10n, managed, needsyou, notifier, settings as policy
 from ..codex import LocalSource
 from ..domain.plug import DEFER, EXTRA, Surface, guard
 from ..engine import Engine
 from ..logbook import LOGGER_NAME, EngineLog, setup_logging
 from ..openstate import open_state
 from ..store import SCHEMA_VERSION, Store, StoreError
+from ..win import network
 from ..windows import AdapterError, Backend, HomeLock, Mutex, StopEvent, WakeEvent
-from .loop import EXIT_BUSY, EXIT_ERROR, EXIT_OK, EXIT_SCHEMA_NEWER, WatchLoop
+from .loop import EXIT_BUSY, EXIT_ERROR, EXIT_MEMORY_GUARD, EXIT_OK, EXIT_SCHEMA_NEWER, WatchLoop  # noqa: F401
 from .toasts import Toasts
 
 
@@ -58,7 +60,12 @@ class App(WatchLoop):
             self.logger = logging.getLogger(LOGGER_NAME + ".silent")
             self.logger.handlers = [logging.NullHandler()]
             self.logger.propagate = False
-        self.settings = config.load_settings(paths)
+        # v0.6.11: what an administrator's policy keys hold (managed.py), and the settings as they
+        # leave them - which is what every part of this process works from - kept apart from the
+        # stored ones the engine is handed with them.
+        self.managed = self._read_managed()
+        self._stored = config.load_settings(paths)
+        self.settings = managed.clamp(self._stored, self.managed)
         # Everything this process says - the icon, its menu, every notification - is in the
         # Interface language the user stored, which is `system` until they choose.
         from ..ui import popup
@@ -71,6 +78,8 @@ class App(WatchLoop):
         # attached until the icon's thread hosts the card; until then, and whenever it cannot,
         # every notification is today's toast (notifier.deliver).
         self._inbox = notifier.Inbox()
+        # v0.6.11: notices about the watcher itself - the memory guard's - off the tick path.
+        self._watcher_toasts = None
         self._codex_exe_override = codex_exe or self.settings.get("codex_exe")
         self.codex_home = Path(codex_home).resolve() if codex_home else config.codex_home()
         # Fixed at construction, so what the lock protects cannot move under a running
@@ -171,12 +180,47 @@ class App(WatchLoop):
         source = self.source()
         kwargs = {"log": EngineLog(self.logger), "notify": Toasts(self._notifier(source), self.logger),
                   "language": l10n.current(), "engine_state": self.engine_state,
-                  "home_lock": lambda: self._home_lock is not None and self._home_lock.held}
+                  "home_lock": lambda: self._home_lock is not None and self._home_lock.held,
+                  # v0.6.11: asked only while Wait for an internet connection is on (power.py).
+                  "connectivity": network.internet}
         if dispatch_lock is not None:
             kwargs["dispatch_lock"] = dispatch_lock
         engine = Engine(store, source, self.backend(), plug=self.plug, **kwargs)
-        engine.apply_policy(self.settings)
+        engine.apply_policy(self._stored, self.managed)
+        self._observe_only(engine)
+        self._managed_pause(engine)
         return engine
+
+    @staticmethod
+    def _read_managed():
+        """The policy keys in force (control/policy.py asks Windows, for an installed copy alone)."""
+        from ..control import policy as settings_policy
+        return settings_policy.managed_policy()
+
+    def _managed_pause(self, engine: Engine) -> None:
+        """An administrator's DisableAutoResume (v0.6.11), written into the state as a Pause before
+        any tick - where the engine, the claim and every surface read it, and a queued continuation
+        is taken back as a Pause takes it. The engine refuses on the key as well, so a write that
+        fails sends nothing. Nothing here switches recovery back on when the key goes: that is a
+        person's to do, as after an upgrade."""
+        if not self.managed.disable_auto_resume:
+            return
+        try:
+            if engine.store.settings()["enabled"]:
+                engine.store.set_enabled(False, time.time())
+                self.logger.info("auto-resume paused: an administrator's policy key says so (DisableAutoResume)")
+        except Exception:
+            self._record_failure("administrator's pause")
+
+    def _observe_only(self, engine: Engine) -> None:
+        """Write Observe only into the state as the settings say it (v0.6.11): the claim refuses on
+        the state's switch, the engine on the setting, and this keeps the two saying one thing - a
+        setting edited by hand, or saved while an older watcher held the state, included. A write
+        that fails changes nothing that is sent: the engine still refuses on the setting alone."""
+        try:
+            engine.store.set_observe_only(bool(self.settings.get("observe_only")))
+        except Exception:
+            self._record_failure("observe-only switch")
 
     def _settings_stamp(self):
         """A cheap identity for the settings file, used to notice edits while running."""
@@ -194,16 +238,27 @@ class App(WatchLoop):
         goes through the same validator as every other path, so an edit made with a text
         editor cannot do anything an edit made in the window could not.
         """
+        # v0.6.11: the policy keys are asked every tick, the way the file's stamp is, and a Pause one
+        # holds is made good before the tick whatever else changed.
+        held = self._read_managed()
         stamp = self._settings_stamp()
-        if stamp == self._settings_stamp_seen:
+        if stamp == self._settings_stamp_seen and held == self.managed:
+            self._managed_pause(engine)
             return False
         self._settings_stamp_seen = stamp
-        values = config.load_settings(self.paths)
-        if values == self.settings:
+        keys_changed = held != self.managed
+        if keys_changed:
+            self.logger.info("administrator's policy keys: %s", ", ".join(held.codes()) or "none")
+            self.managed = held
+        self._stored = config.load_settings(self.paths)
+        values = managed.clamp(self._stored, held)
+        if values == self.settings and not keys_changed:
             return False
         previous = self.settings.get("interface_language")
         self.settings = values
-        engine.apply_policy(values)
+        engine.apply_policy(self._stored, held)
+        self._observe_only(engine)
+        self._managed_pause(engine)
         from ..ui import popup
         popup.adopt_settings(values)
         if values.get("interface_language") != previous:
@@ -240,12 +295,34 @@ class App(WatchLoop):
                 identity = source.identity(thread_id)
             except Exception:
                 identity = None     # an unnamed task is still worth announcing
-            notice = notifier.build(event, detail, identity)
+            # v0.6.11: a needs-you notice carries the sound its person chose, if any (notify.py).
+            sound = event == needsyou.EVENT and self.settings.get(needsyou.SOUND_FIELD) is True
+            notice = notifier.build(event, detail, identity, sound=sound)
             if notice is None:
                 return False
             return notifier.deliver(notice, inbox=self._inbox,
                                     setting=self.settings.get(notifier.CARD_SETTING, True) is True)[1]
         return announce
+
+    def _watcher_notice(self, event, detail, *, final=False):
+        """A notice about the watcher itself (v0.6.11: the memory guard's, memguard.py), under the
+        notifications switch alone. Queued off the tick path like any other; but a `final` one - the
+        watcher is stopping - is Windows' own toast, raised before it goes: the card lives on the icon's
+        thread, which ends with this watcher, and a toast outlives it in the notification center."""
+        if final:
+            return self._show_watcher_notice(event, detail, final=True)
+        if getattr(self, "_watcher_toasts", None) is None:
+            self._watcher_toasts = Toasts(self._show_watcher_notice, self.logger)
+        return self._watcher_toasts(event, detail)
+
+    def _show_watcher_notice(self, event, detail, final=False):
+        if not policy.notification_enabled(self.settings, event):
+            return False
+        notice = notifier.build(event, detail)
+        if notice is None:
+            return False
+        card = not final and self.settings.get(notifier.CARD_SETTING, True) is True
+        return notifier.deliver(notice, inbox=None if final else self._inbox, setting=card)[1]
 
     def _notice_action(self, uri):
         """A card's button, on a worker thread: what its toast button would do, done in process.
@@ -263,6 +340,18 @@ class App(WatchLoop):
                                      notice, inbox=self._inbox,
                                      setting=self.settings.get(notifier.CARD_SETTING, True) is True),
                                  log=self.logger.info)
+
+    def _demo(self):
+        """Show me what happens (v0.6.11), asked from Diagnostics: one made-up card, on a worker thread
+        (the presence checks are not the icon thread's to wait for), and only where a card may be shown
+        now - never a toast (notifier.show_demo). The state, the engine and Codex are not touched."""
+        def show():
+            try:
+                notifier.show_demo(notifier.build_demo(time.time()), inbox=self._inbox,
+                                   setting=self.settings.get(notifier.CARD_SETTING, True) is True)
+            except Exception as exc:
+                self.logger.info("demo card not shown (%s)", type(exc).__name__)
+        threading.Thread(target=show, name="demo", daemon=True).start()
 
     def mutex(self, timeout: float = 0.0) -> Mutex:
         return Mutex(str(self.paths.state_dir), timeout=timeout)
@@ -335,7 +424,8 @@ class App(WatchLoop):
                               on_dashboard=lambda: tray.open_dashboard(home, "pending"),
                               log=self.logger.info, inbox=self._inbox,
                               on_notice_action=self._notice_action,
-                              on_notice_complete=notifier.complete)
+                              on_notice_complete=notifier.complete,
+                              demo_name=str(self.paths.state_dir), on_demo=self._demo)
         if not icon_tray.start():
             return None
         self._tray = icon_tray

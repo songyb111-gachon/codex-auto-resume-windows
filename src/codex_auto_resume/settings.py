@@ -20,8 +20,10 @@ import os
 from pathlib import Path
 import tempfile
 
-from . import continuation, failures, l10n, reasons
-from .domain.vocabulary import Design, NotifyEvent, Theme
+from . import (continuation, failures, guards, l10n, ladder, memguard, needsyou, power, projects, quiet,
+               reasons, statusfile)
+from .domain.vocabulary import (Design, ImportanceTier, NewConversationPolicy, NotifyEvent,
+                                ProjectPolicy, Theme)
 
 CONFIG_VERSION = 2
 MAX_SETTINGS_BYTES = 256 * 1024
@@ -48,13 +50,11 @@ CONFIGURABLE_CATEGORIES = (
 NOTIFICATION_EVENTS = tuple(NotifyEvent)
 
 # Retry timing presets. Raw ladders are not exposed: a preset cannot produce a zero
-# delay or an unbounded one, which a free-form number could.
-RETRY_TIMING = {
-    "conservative": (15, 45, 120, 300, 600),
-    "normal": (5, 15, 30, 60, 120),
-    "aggressive": (3, 8, 20, 45, 90),
-}
-DEFAULT_TIMING = "normal"
+# delay or an unbounded one, which a free-form number could. v0.6.11 adds Custom, five waits
+# each chosen from a closed list for the same reason (ladder.py); the presets are unchanged.
+RETRY_TIMING = ladder.PRESETS
+RETRY_TIMINGS = ladder.TIMINGS
+DEFAULT_TIMING = ladder.DEFAULT_TIMING
 
 # Light or dark, for the settings window, the notification-area popup and the notification
 # card - and for the panel in Codex too while its own choice is "same". "system" is not a
@@ -120,7 +120,7 @@ FIELDS = {
     # How many continuations one task may receive in total, across every failure of it.
     # Never above 10, whatever the other limits say.
     "max_chain_continuations": (6, lambda v, d: _bounded_int(v, d, 1, 10)),
-    "retry_timing": (DEFAULT_TIMING, lambda v, d: _choice(v, d, RETRY_TIMING)),
+    "retry_timing": (DEFAULT_TIMING, lambda v, d: _choice(v, d, RETRY_TIMINGS)),
     "detection_lookback_hours": (6.0, lambda v, d: _bounded_number(v, d, 0.0, 24 * 7)),
     "notifications": (True, _boolean),
     # The watcher's notification-area icon. Showing it changes nothing about recovery.
@@ -154,7 +154,16 @@ FIELDS = {
 for _category in CONFIGURABLE_CATEGORIES:
     FIELDS["recover_" + _category] = (True, _boolean)
 for _event in NOTIFICATION_EVENTS:
-    FIELDS["notify_" + _event] = (True, _boolean)
+    # Every event on, as it always was - but the needs-you notice (v0.6.11), which v0.6.10 never raised.
+    FIELDS["notify_" + _event] = (_event != NotifyEvent.NEEDS_YOU, _boolean)
+# v0.6.11: which kinds a needs-you notice is raised for, each on once the notice is (needsyou.py);
+# a turn that stops moving, told after a time chosen here - never, by default; and a sound of the
+# notice's own, which only Windows' notification can carry (notify.py). Where a kind is switched off
+# is here, in Settings - never on the notice itself (A28).
+for _field in needsyou.KIND_FIELDS.values():
+    FIELDS[_field] = (True, _boolean)
+FIELDS[needsyou.STALL_FIELD] = (needsyou.DEFAULT_STALL, lambda v, d: _choice(v, d, needsyou.STALL_WAITS))
+FIELDS[needsyou.SOUND_FIELD] = (False, _boolean)
 
 # ------------------------------------------------------------------- language
 # Two languages, deliberately independent. One is what the product says to you; the
@@ -168,7 +177,7 @@ FIELDS["interface_language"] = (l10n.SYSTEM,
 # interface resolves to, so a later interface change carries the continuation with it
 # unless the user has said otherwise.
 FOLLOW_INTERFACE = "follow"
-CONTINUATION_LANGUAGES = (FOLLOW_INTERFACE,) + l10n.LOCALES
+CONTINUATION_LANGUAGES = (FOLLOW_INTERFACE,) + l10n.OFFERED
 FIELDS["continuation_language"] = (FOLLOW_INTERFACE,
                                    lambda v, d: _choice(v, d, CONTINUATION_LANGUAGES))
 
@@ -198,6 +207,78 @@ FIELDS["custom_message"] = (None, _custom_message)
 # so a category added to the classifier cannot end up without a place to put its text.
 for _category in reasons.RECOVERABLE:
     FIELDS["custom_message_" + _category] = (None, _custom_message)
+# v0.6.11: a message for one conversation, at most 50 of them - written from a task's row in the
+# Dashboard (Control.set_conversation_message) and by no settings editor (ROW_ACTION_FIELDS).
+CONVERSATION_MESSAGES, MAX_CONVERSATION_MESSAGES = continuation.BY_THREAD_FIELD, continuation.MAX_CONVERSATIONS
+FIELDS[CONVERSATION_MESSAGES] = (None, continuation.coerce_by_thread)
+
+# ------------------------------------------------------------ quiet hours and tiers (v0.6.11)
+# Each defaults to what v0.6.10 did (tests/test_defaults_golden.py, ADDED): no quiet hours - the
+# start is `off`, and the end and the days change nothing until a start is chosen - and every
+# conversation resumed automatically. They can only hold a recovery back: quiet hours make one
+# that falls due wait until they end, and a tier that asks first holds an interruption for a
+# person, or gives them the objection window's minutes to stop it first (quiet.py).
+QUIET_STARTS, QUIET_TIMES, QUIET_DAYS = quiet.STARTS, quiet.TIMES, quiet.DAYS
+FIELDS["quiet_hours_start"] = (quiet.DEFAULT_START, lambda v, d: _choice(v, d, QUIET_STARTS))
+FIELDS["quiet_hours_end"] = (quiet.DEFAULT_END, lambda v, d: _choice(v, d, QUIET_TIMES))
+FIELDS["quiet_hours_days"] = (quiet.DEFAULT_DAYS, lambda v, d: _choice(v, d, QUIET_DAYS))
+# The tier a conversation without one of its own has, least asking first; and how long the
+# objection window gives a person to stop a continuation before it is sent.
+TIERS = tuple(ImportanceTier)
+DEFAULT_TIER = ImportanceTier.AUTOMATIC.value
+FIELDS["default_tier"] = (DEFAULT_TIER, lambda v, d: _choice(v, d, TIERS))
+FIELDS["objection_minutes"] = (5, lambda v, d: _bounded_int(v, d, 1, 60))
+
+# ------------------------------------------------ observe only, and who may resume (v0.6.11)
+# Observe only: every check is made and when a continuation would have gone is recorded, and
+# nothing is sent - the engine refuses it, and the state's own switch, which this one is written
+# into (control/policy.py, runtime/app.py), makes the claim refuse it too. Off by default.
+FIELDS["observe_only"] = (False, _boolean)
+# What a conversation this product has never seen gets: the same as every other (the default), or
+# Only notify me as a tier of its own, so nothing is sent for it until a person says so. And which
+# projects may resume without a person (projects.py): every one, the default. The two lists a task
+# row's Always and Never for this project write are keys, never paths, and no editor draws them
+# (ROW_ACTION_FIELDS). Each of these can only hold a recovery back, and none does at the defaults.
+NEW_CONVERSATION_POLICIES = tuple(NewConversationPolicy)
+PROJECT_POLICIES = tuple(ProjectPolicy)
+FIELDS["new_conversation_policy"] = (NewConversationPolicy.RESUME.value,
+                                     lambda v, d: _choice(v, d, NEW_CONVERSATION_POLICIES))
+FIELDS["project_policy"] = (projects.DEFAULT_POLICY, lambda v, d: _choice(v, d, PROJECT_POLICIES))
+FIELDS[projects.ALWAYS] = ("", projects.coerce_keys)
+FIELDS[projects.NEVER] = ("", projects.coerce_keys)
+
+# ------------------------------------------- waits, a time ceiling and two guards (v0.6.11)
+# The Custom ladder's five waits, read only while retry_timing is Custom; jitter, which only ever
+# lengthens a wait; how long a task may keep failing with a temporary error; and the task-changed
+# and context-cost guards (guards.py). Each defaults to what v0.6.10 did: the waits are inert under
+# a preset, jitter and the ceiling are off, and neither guard reads or holds anything.
+for _field, _default in zip(ladder.STEP_FIELDS, ladder.DEFAULT_STEPS):
+    FIELDS[_field] = (_default, lambda v, d, _allowed=ladder.choices_for(_field): _choice(v, d, _allowed))
+FIELDS["retry_jitter"] = (False, _boolean)
+STEP_FIELDS = ladder.STEP_FIELDS
+CHAIN_CEILINGS, TASK_GUARDS, CONTEXT_GUARDS = ladder.CEILINGS, guards.TASK_GUARDS, guards.CONTEXT_GUARDS
+FIELDS["chain_time_ceiling"] = (ladder.DEFAULT_CEILING, lambda v, d: _choice(v, d, CHAIN_CEILINGS))
+FIELDS["task_changed_guard"] = (guards.DEFAULT_TASK_GUARD, lambda v, d: _choice(v, d, TASK_GUARDS))
+FIELDS["context_guard"] = (guards.DEFAULT_CONTEXT_GUARD, lambda v, d: _choice(v, d, CONTEXT_GUARDS))
+
+# ------------------------------------------- sleep, keeping awake and the network (v0.6.11)
+# What fell due during a long sleep waits for a person; a due recovery waits while Windows reports no
+# internet; this PC is kept awake while a task waits, for at most the hours chosen (power.py). Each is
+# off by default, and then nothing is asked of Windows for it and the watcher waits as v0.6.10 did.
+KEEP_AWAKE_MODES, AWAKE_CAPS, SLEEP_WAITS = power.KEEP_AWAKE_MODES, power.AWAKE_CAPS, power.SLEEP_WAITS
+FIELDS[power.SLEEP_FIELD] = (power.DEFAULT_SLEEP, lambda v, d: _choice(v, d, SLEEP_WAITS))
+FIELDS[power.NETWORK_FIELD] = (False, _boolean)
+FIELDS[power.KEEP_AWAKE_FIELD] = (power.DEFAULT_KEEP_AWAKE, lambda v, d: _choice(v, d, KEEP_AWAKE_MODES))
+FIELDS[power.AWAKE_CAP_FIELD] = (power.DEFAULT_AWAKE_CAP, lambda v, d: _choice(v, d, AWAKE_CAPS))
+
+# ------------------------------------------------- the watcher's memory, and a status file (v0.6.11)
+# The memory guard - off, warn, or warn and stop between ticks - and its limit, which is read only while
+# it is on (memguard.py); and a status file for other tools (statusfile.py). Each is off by default, and
+# then the watcher does what v0.6.10's did: it only shows its memory's peak, which it always does now.
+MEMORY_GUARD_MODES, MEMORY_LIMITS = memguard.MODES, memguard.LIMITS
+FIELDS[memguard.GUARD_FIELD] = (memguard.DEFAULT_MODE, lambda v, d: _choice(v, d, MEMORY_GUARD_MODES))
+FIELDS[memguard.LIMIT_FIELD] = (memguard.DEFAULT_LIMIT, lambda v, d: _choice(v, d, MEMORY_LIMITS))
+FIELDS[statusfile.FIELD] = (False, _boolean)
 
 
 def is_custom_text(name) -> bool:
@@ -218,18 +299,23 @@ def is_custom_text(name) -> bool:
 # this version no longer has - v0.6.10's design "still" (FOLDED_DESIGN) - is answered with
 # the designs it has (`_refuse`); every other refusal says what it said in v0.6.10.
 EXPLAIN = {name: lambda value: continuation.validate_custom(value)
-           for name in FIELDS if is_custom_text(name)}
+           for name in FIELDS if is_custom_text(name) and name != continuation.BY_THREAD_FIELD}
 
 DEFAULTS = {name: default for name, (default, _coerce) in FIELDS.items()}
 
 # Ranges published to the user interfaces so a slider or spin box cannot offer a value
 # the validator would reject.
+# v0.6.11: a limit above its "high" gets a warning beside it on every surface that edits it - a
+# task that keeps failing may then be continued many times, each one using the person's Codex usage.
+HIGH_LIMITS = {"max_recovery_attempts": 8, "max_no_progress": 5, "max_chain_continuations": 8}
+
 RANGES = {
-    "max_recovery_attempts": {"min": 1, "max": 20},
-    "max_no_progress": {"min": 1, "max": 10},
-    "max_chain_continuations": {"min": 1, "max": 10},
+    "max_recovery_attempts": {"min": 1, "max": 20, "high": HIGH_LIMITS["max_recovery_attempts"]},
+    "max_no_progress": {"min": 1, "max": 10, "high": HIGH_LIMITS["max_no_progress"]},
+    "max_chain_continuations": {"min": 1, "max": 10, "high": HIGH_LIMITS["max_chain_continuations"]},
     "detection_lookback_hours": {"min": 0.0, "max": float(24 * 7)},
-    "retry_timing": {"choices": list(RETRY_TIMING)},
+    # Each preset's waits as a person is shown them (ladder.preview), for the surfaces to look up.
+    "retry_timing": {"choices": list(RETRY_TIMINGS), "waits": ladder.previews()},
     "theme": {"choices": list(THEMES)},
     "panel_theme": {"choices": list(PANEL_THEMES)},
     "design": {"choices": list(DESIGNS)},
@@ -237,7 +323,29 @@ RANGES = {
     "continuation_language": {"choices": list(CONTINUATION_LANGUAGES)},
     "continuation_style": {"choices": list(continuation.STYLES)},
     "custom_message_mode": {"choices": list(continuation.CUSTOM_MODES)},
+    "quiet_hours_start": {"choices": list(QUIET_STARTS)},
+    "quiet_hours_end": {"choices": list(QUIET_TIMES)},
+    "quiet_hours_days": {"choices": list(QUIET_DAYS)},
+    "default_tier": {"choices": list(TIERS)},
+    "objection_minutes": {"min": 1, "max": 60},
+    "new_conversation_policy": {"choices": list(NEW_CONVERSATION_POLICIES)},
+    "project_policy": {"choices": list(PROJECT_POLICIES)},
+    **{field: {"choices": list(ladder.choices_for(field)),
+               "seconds": {wait: ladder.WAIT_SECONDS[wait] for wait in ladder.choices_for(field)}}
+       for field in ladder.STEP_FIELDS},
+    "chain_time_ceiling": {"choices": list(CHAIN_CEILINGS)},
+    "task_changed_guard": {"choices": list(TASK_GUARDS)},
+    "context_guard": {"choices": list(CONTEXT_GUARDS)},
+    needsyou.STALL_FIELD: {"choices": list(needsyou.STALL_WAITS)},
+    power.SLEEP_FIELD: {"choices": list(SLEEP_WAITS)},
+    power.KEEP_AWAKE_FIELD: {"choices": list(KEEP_AWAKE_MODES)},
+    power.AWAKE_CAP_FIELD: {"choices": list(AWAKE_CAPS)},
+    memguard.GUARD_FIELD: {"choices": list(MEMORY_GUARD_MODES)},
+    memguard.LIMIT_FIELD: {"choices": list(MEMORY_LIMITS)},
 }
+
+# The fields that shape a needs-you notice (v0.6.11), in the order they follow its switch.
+NEEDS_YOU_FIELDS = tuple(needsyou.KIND_FIELDS.values()) + (needsyou.STALL_FIELD, needsyou.SOUND_FIELD)
 
 
 # What each published type accepts on a write. A number takes an integer - JSON has one
@@ -245,7 +353,7 @@ RANGES = {
 # number - and nothing takes a boolean but a boolean, because `bool` is an `int` in
 # Python and is not one in JSON, so a tick box is not a count.
 _ACCEPTED_TYPES = {"boolean": (bool,), "integer": (int,), "number": (int, float),
-                   "string": (str,)}
+                   "string": (str,), "object": (dict,)}
 
 
 def field_type(name: str) -> str:
@@ -256,7 +364,7 @@ def field_type(name: str) -> str:
     validator will not take.
     """
     default = FIELDS[name][0]
-    return ("boolean" if isinstance(default, bool)
+    return ("object" if name == continuation.BY_THREAD_FIELD else "boolean" if isinstance(default, bool)
             else "integer" if isinstance(default, int)
             else "number" if isinstance(default, float)
             else "string")
@@ -337,8 +445,16 @@ def validate_update(changes) -> dict:
 
 
 def timing_ladder(values) -> tuple:
-    name = _choice((values or {}).get("retry_timing"), DEFAULT_TIMING, RETRY_TIMING)
-    return RETRY_TIMING[name]
+    """The five waits in effect: a preset's, or the Custom ones (ladder.py)."""
+    return ladder.ladder(values)
+
+
+def high_limits(values) -> list:
+    """The limits set above their "high", in the order they are shown: each is warned of."""
+    values = values if isinstance(values, dict) else {}
+    return [name for name, high in HIGH_LIMITS.items()
+            if isinstance(values.get(name), int) and not isinstance(values.get(name), bool)
+            and values[name] > high]
 
 
 def theme_preference(values) -> str:
@@ -363,6 +479,14 @@ def design_preference(values) -> str:
     return _choice(raw, DEFAULT_DESIGN, DESIGNS)
 
 
+def tier_of(values, own=None) -> str:
+    """The tier a conversation has: its own (`threads.tier`), or else the default in `values`."""
+    if own in TIERS:
+        return own
+    raw = values.get("default_tier") if isinstance(values, dict) else None
+    return _choice(raw, DEFAULT_TIER, TIERS)
+
+
 def category_enabled(values, category: str) -> bool:
     """Whether automatic recovery is allowed for one failure category.
 
@@ -375,11 +499,19 @@ def category_enabled(values, category: str) -> bool:
     return bool((values or {}).get(key, DEFAULTS[key]))
 
 
+# v0.6.11: a notice about to be acted on - the objection window's "Continuing at 14:07" - is told
+# under the switch of the notice it comes before, Recovery starting.
+GOVERNED_BY = {"objection": NotifyEvent.STARTING.value,
+               # and a long sleep's (power.py), about tasks held for a person, under the switch of the
+               # notice that says a task was held: A task was interrupted.
+               "after_sleep": NotifyEvent.INTERRUPTION.value}
+
+
 def notification_enabled(values, event: str) -> bool:
     values = values or {}
     if not values.get("notifications", DEFAULTS["notifications"]):
         return False
-    key = "notify_" + str(event)
+    key = "notify_" + GOVERNED_BY.get(str(event), str(event))
     return bool(values.get(key, DEFAULTS.get(key, True)))
 
 
@@ -474,6 +606,13 @@ def update(path: Path, changes: dict) -> dict:
 # properly in v0.6.11, where starting a process outside the host's job is a thing a person may turn on.
 NOT_YET_OFFERED = frozenset({"start_with_codex"})
 
+# Fields a task's row writes and no settings editor offers (v0.6.11): the projects set to Always and to
+# Never, each a list of keys a person has no way to read (projects.py), and the messages for one
+# conversation each, written from that conversation's row in the Dashboard alone. `describe()` leaves them out, so
+# the Dashboard, the panel and the MCP schema draw nothing for them, and update_settings refuses them
+# as it refuses every field its schema does not offer; Restore defaults empties them with the rest.
+ROW_ACTION_FIELDS = frozenset({projects.ALWAYS, projects.NEVER, continuation.BY_THREAD_FIELD})
+
 
 def describe() -> list:
     """Machine-readable schema for the settings interfaces.
@@ -484,7 +623,7 @@ def describe() -> list:
     """
     described = []
     for name, (default, _coerce) in FIELDS.items():
-        if name in NOT_YET_OFFERED:
+        if name in NOT_YET_OFFERED or name in ROW_ACTION_FIELDS:
             continue
         entry = {"name": name, "default": default, "type": field_type(name)}
         if name in RANGES:
@@ -492,7 +631,9 @@ def describe() -> list:
         if name.startswith("recover_"):
             entry["group"] = "recovery"
             entry["category"] = name[len("recover_"):]
-        elif name.startswith("notify_") or name == "notifications":
+        elif (name.startswith("notify_") or name == "notifications"
+              or name in NEEDS_YOU_FIELDS):
+            # v0.6.11: the needs-you notice's kinds, its stall and its sound under its own switch.
             entry["group"] = "notifications"
             entry["master"] = name == "notifications"
         elif name in ("theme", "panel_theme", "design", "reduce_motion"):
@@ -501,15 +642,29 @@ def describe() -> list:
             # what moves is not Codex's to change (mcp.tools.PANEL_APPEARANCE). The panel draws in
             # both since v0.6.10, as well as following the host's own reduced-motion preference.
             entry["group"] = "appearance"
-        elif name in ("show_tray", "notification_card", "start_with_codex"):
+        elif name in ("show_tray", "notification_card", "start_with_codex", power.KEEP_AWAKE_FIELD,
+                      power.AWAKE_CAP_FIELD, memguard.GUARD_FIELD, memguard.LIMIT_FIELD, statusfile.FIELD):
             # A desktop preference, beside "run at sign-in" - not a notification, and
             # not something the notifications switch governs. The card only chooses how a
             # notification looks on this desktop, so it lives here too, and like the icon it is
-            # outside what the Codex panel and MCP may change (mcpserver.USER_GROUPS).
+            # outside what the Codex panel and MCP may change (mcpserver.USER_GROUPS). v0.6.11: so is
+            # keeping this PC awake while a task waits - a question of this PC's power, not of recovery -
+            # and the watcher's own memory guard, and a status file written for other tools.
             entry["group"] = "windows"
         elif name in ("max_recovery_attempts", "max_no_progress", "max_chain_continuations",
-                      "retry_timing"):
+                      "retry_timing", "quiet_hours_start", "quiet_hours_end", "quiet_hours_days",
+                      "default_tier", "objection_minutes", "new_conversation_policy",
+                      "project_policy", *ladder.STEP_FIELDS, "retry_jitter", "chain_time_ceiling",
+                      "task_changed_guard", "context_guard", power.SLEEP_FIELD, power.NETWORK_FIELD):
+            # v0.6.11: quiet hours and the tier a conversation has by default join the limits -
+            # how hard, and when, recovery tries - in the window and in the panel alike; and beside
+            # the tier, what a new conversation gets and which projects resume without a person;
+            # and after them the Custom waits, jitter, the time ceiling and the two guards; and last,
+            # what waits after a long sleep, and whether a due recovery waits for the internet.
             entry["group"] = "limits"
+        elif name == "observe_only":
+            # v0.6.11: a switch of automatic recovery itself, under the kinds it recovers.
+            entry["group"] = "recovery"
         elif name == "interface_language":
             entry["group"] = "general"
         elif name in ("continuation_language", "continuation_style", "custom_message_mode"):

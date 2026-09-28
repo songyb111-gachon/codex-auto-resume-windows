@@ -1,0 +1,15 @@
+{
+  "_edition": "ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.",
+  "edition.badge": "Zaawansowana",
+  "edition.not_loaded": "Zaawansowana – nie wczytano",
+  "edition.summary": "Zaawansowana · włączone: {n}",
+  "all_off": "Wszystkie funkcje zaawansowane wyłączone",
+  "field.departs": "Standardy, od których odstępuje",
+  "field.does": "Co robi",
+  "field.instead": "Co zamiast tego robi edycja standardowa",
+  "field.risks": "Co może pójść nie tak",
+  "field.stop": "Jak ją zatrzymać",
+  "state.armed": "Włączona",
+  "state.off": "Wyłączona",
+  "state.shadow": "Obserwacja"
+}

@@ -18,12 +18,15 @@ import time
 import traceback
 import uuid
 
-from .. import compatio, config, l10n
+from .. import compatio, config, l10n, power
 from ..logbook import EngineLog
 from ..openstate import open_state
+from ..domain.vocabulary import KeepAwake, WatcherEnd
 from ..store import (SCHEMA_VERSION, RecordSchemaMismatch, StateFromNewerVersion, Store,
                      StoreError)
 from ..windows import AdapterError, Mutex, StopEvent, wait_any
+from .health import Health
+from .waking import Waking
 
 
 EXIT_OK = 0
@@ -32,8 +35,9 @@ EXIT_BUSY = 3
 # The state was written by a newer version of this tool. The launcher re-reads the
 # installation once and starts whatever is installed now.
 EXIT_SCHEMA_NEWER = 4
-# Long enough that a status probe, which holds the single-instance mutex for
-# microseconds, has certainly let go; short enough to be invisible at startup.
+# v0.6.11: the memory guard stopped the watcher, between two ticks (memguard.py). The launcher starts
+# no watcher again for it (scripts/watcher_launcher.py): a person starts it, from the Dashboard.
+EXIT_MEMORY_GUARD = 5
 
 
 # Long enough that a status probe, which holds the single-instance mutex for
@@ -155,12 +159,90 @@ class WatchLoop:
                 return EXIT_OK
             delay = min(delay * 2, OPEN_RETRY_MAX_SECONDS)
 
-    def _heartbeat(self, store, session, started, ok):
+    def _heartbeat(self, store, session, started, ok, engine=None, awake=None, health=None):
         try:
             store.heartbeat(time.time(), pid=os.getpid(), session_id=session, started_at=started,
-                            ok=ok, engine_state=self.engine_state(), code_version=config.version())
+                            ok=ok, engine_state=self.engine_state(), code_version=config.version(),
+                            usage=self._new_reading(engine), awake_since=awake,
+                            memory_peak=getattr(health, "peak", None), sign_in=getattr(health, "sign_in", None),
+                            booted_at=getattr(health, "booted_at", None))
         except Exception:
             pass    # the heartbeat reports health; it must never be the thing that fails
+
+    # ------------------------------------------------------------------ its own health (v0.6.11)
+    def _new_health(self):
+        """The watcher's memory, how it ends and the status file (runtime/health.py). Costs nothing
+        else when it cannot be had."""
+        try:
+            return Health(paths=self.paths, log=self.logger.info, notice=self._watcher_notice)
+        except Exception:
+            self._record_failure("the watcher's own health")
+            return None
+
+    def _memory(self, health, *, guard=True) -> bool:
+        """Look at the watcher's own memory after a tick; True when the memory guard stops it now - never
+        for a single tick (`run --once`), which ends anyway. A failure here costs the look, never the
+        watcher."""
+        if health is None:
+            return False
+        try:
+            health.look()
+            return guard and health.over(self.settings)
+        except Exception:
+            self._record_failure("memory guard")
+            return False
+
+    def _status(self, health, store, *, running=True):
+        """The status file for other tools, while its setting is on (statusfile.py)."""
+        if health is None:
+            return
+        try:
+            health.status(store, self.settings, running=running, engine=self.engine_state())
+        except Exception:
+            self._record_failure("status file")
+
+    def _ended(self, health, store, end):
+        """Write that the watcher stops on purpose, and how, and the status file's last word. Nothing is
+        written of an end that was not chosen - a newer state's, or a failure's - so that one reads as
+        what it is."""
+        if health is None or end is None:
+            return
+        try:
+            health.ended(store, end)
+        except Exception:
+            self._record_failure("recording how the watcher stopped")
+        self._status(health, store, running=False)
+
+    def _keep_awake(self, waking, store, ok):
+        """v0.6.11: keep this PC awake while a task waits, or let it go (runtime/waking.py) - never at
+        the defaults. Returns since when it is kept awake, or None. A failure here lets go, and costs
+        nothing else."""
+        if waking is None:
+            return None
+        try:
+            # Off (the default): `after` only lets go, so no settings row is read for it.
+            paused = (power.keep_awake(self.settings) != KeepAwake.OFF
+                      and (not store.settings()["enabled"] or self.managed.disable_auto_resume))
+            return waking.after(store, self.settings, ok=ok, paused=paused)
+        except Exception:
+            self._record_failure("keeping this PC awake")
+            try:
+                return waking.let_go()
+            except Exception:
+                return None
+
+    def _new_reading(self, engine):
+        """The engine's last usage reading, the first time the heartbeat is handed it (v0.6.11) - None
+        otherwise, which leaves the one stored as it is. Asked of what the engine already read; this
+        reads nothing."""
+        try:
+            reading = engine.last_usage() if engine is not None else None
+        except Exception:
+            return None
+        if reading is None or reading[0] == getattr(self, "_reading_kept", None):
+            return None
+        self._reading_kept = reading[0]
+        return reading
 
     def _between_ticks(self, stop, wake, engine, interval, last_tick):
         """Wait for the next tick. Every second while anything of ours may be queued in
@@ -208,11 +290,17 @@ class WatchLoop:
         engine = None
         last_enabled = None
         exit_code = EXIT_OK
+        # v0.6.11: how this watcher ends, once it chooses to (WatcherEnd); None for any other end.
+        end = None
+        health = self._new_health()
         if not once:
             self._failure_baseline()
         # Not `tray`: `from . import tray` names the module in this file too, and a local
         # that shadows a module name reads as that module to anything scanning the source.
         icon = None if once else self._start_tray(stop)
+        # v0.6.11: sleep and keeping this PC awake (power.py), which ask Windows nothing at the defaults.
+        # A wake heard is a Retry Now's wake event: the tick then runs, every gate included.
+        waking = None if once else Waking(signal=lambda: self.wake_event().signal(), log=self.logger.info)
         try:
             while True:
                 ok = False
@@ -236,6 +324,9 @@ class WatchLoop:
                     if enabled != last_enabled:
                         self.logger.info("auto-resume is %s", "enabled" if enabled else "disabled (kill switch active; no submissions)")
                         last_enabled = enabled
+                    # Before any gate runs: what fell due during a long sleep waits for a person first.
+                    if waking is not None:
+                        waking.before(engine, self.settings)
                     engine.tick()
                     ok = True
                 except (StateFromNewerVersion, RecordSchemaMismatch):
@@ -248,7 +339,11 @@ class WatchLoop:
                     self._record_failure("tick")
                 except Exception:
                     self._record_failure("initialising Codex adapter" if engine is None else "tick")
-                self._heartbeat(store, session, started, ok)
+                awake = self._keep_awake(waking, store, ok)
+                # v0.6.11: after the tick, never inside it - its memory, and whether the guard stops it.
+                stopping = self._memory(health, guard=not once)
+                self._heartbeat(store, session, started, ok, engine, awake, health)
+                self._status(health, store)
                 if not once:
                     self._failure_baseline()            # made good at the next tick if a write was refused
                 if icon is not None:
@@ -257,16 +352,29 @@ class WatchLoop:
                 if once:
                     if engine is None:
                         exit_code = EXIT_ERROR
+                    end = WatcherEnd.CLEAN
+                    break
+                if stopping:
+                    # The memory guard, between two ticks: the normal stop, with its own exit code.
+                    end, exit_code = WatcherEnd.MEMORY_GUARD, EXIT_MEMORY_GUARD
                     break
                 interval = self._poll_interval(store, poll)
                 if self._between_ticks(stop, wake, engine, interval, last_tick) == "stop":
                     self.logger.info("stop requested; watcher exiting")
+                    end = WatcherEnd.CLEAN
                     break
         except KeyboardInterrupt:
             self.logger.info("interrupted; watcher exiting")
+            end = WatcherEnd.CLEAN
         finally:
+            if waking is not None:
+                try:
+                    waking.stop()           # on the thread that made the request, which holds it
+                except Exception:
+                    self._record_failure("letting this PC sleep")
             if icon is not None:
                 icon.stop()
+            self._ended(health, store, end)
             store.close()
             self.logger.info("watcher stopped")
         return exit_code

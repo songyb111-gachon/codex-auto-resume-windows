@@ -32,6 +32,10 @@ CONFIG_NAME = "runtime.json"
 # code it is running (app.EXIT_SCHEMA_NEWER). The launcher then starts itself once more,
 # so an installation that has been updated underneath a running watcher takes over.
 EXIT_SCHEMA_NEWER = 4
+# v0.6.11: the memory guard stopped the watcher between two ticks (app.EXIT_MEMORY_GUARD). Like every
+# code but the one above it is returned as it is, and nothing is started again: a watcher the guard
+# stopped stays stopped until a person starts it. The standard edition has no supervisor (F8).
+EXIT_MEMORY_GUARD = 5
 RELAUNCH_MARK = "CODEX_AUTO_RESUME_RELAUNCHED"
 # The marketplace names this product is published under. See resolve_plugin_root.
 OUR_MARKETPLACES = frozenset({"codex-auto-resume-windows"})

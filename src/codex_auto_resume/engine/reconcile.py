@@ -20,8 +20,8 @@ SETTLED = {
     "superseded": "superseded", "duplicate_owner": "superseded",
     "not_loaded": "failed", "expired": "failed",
     # Withdrawn by a Pause, but it was already an uncertain submission: final, never
-    # released back to waiting.
-    "paused_unknown": "failed",
+    # released back to waiting. The same for Observe only (v0.6.11).
+    "paused_unknown": "failed", "observe_only_unknown": "failed",
 }
 
 _UNDETERMINED = object()
@@ -150,6 +150,12 @@ class ReconcileMixin:
         A submission already known to be uncertain is still withdrawn by a Pause, but
         under its own reason: a paused withdrawal can be released back to waiting, and
         an uncertain submission is never sent again, so this one settles as final.
+
+        Observe only (v0.6.11) - the setting, the state's switch, or an administrator's
+        ForceObserveOnly - takes it back as a Pause does, under reasons of its own: it makes
+        the same promise, that nothing goes to Codex while it is on, and a queued item left
+        there would be delivered by Codex regardless; its own words keep the timeline from
+        saying recovery was paused when it was not.
         """
         now = self.clock()
         thread, marker = row["thread_id"], row["marker"]
@@ -165,8 +171,10 @@ class ReconcileMixin:
             return "user_queued_input"
         if not turns and not self.valid_interruption(row):
             return "superseded"
-        if not self.store.settings()["enabled"]:
-            return "paused_unknown" if row["state"] == "submission_unknown" else "paused"
+        settings = self.store.settings()
+        if not settings["enabled"] or self.observing(settings):
+            reason = "paused" if not settings["enabled"] else "observe_only"
+            return reason + "_unknown" if row["state"] == "submission_unknown" else reason
         if self.loaded(thread) == "notLoaded":
             return "not_loaded"
         if now - (row.get("submitted_at") or now) >= self.options["delivery_timeout_seconds"]:
@@ -243,7 +251,7 @@ class ReconcileMixin:
             self.transition(row, "submission_unknown", "withdraw_unconfirmed",
                             delay=self.options["conservative_poll_seconds"])
             return
-        if reason == "paused":
+        if reason in machine.RELEASABLE_WITHDRAWALS:
             later = bool(self.source.later_turns(thread, row["ordinal"], marker))
             target = self.waiting_state(row)
             if self.store.release_withdrawn(
@@ -251,7 +259,7 @@ class ReconcileMixin:
                     later_turn=later, marker_rows=0, row_present=False, fresh=fresh,
                     target=target, next_retry_at=now):
                 self.moved(row, target)
-                self.log(thread, "released_after_withdrawal", "paused")
+                self.log(thread, "released_after_withdrawal", reason)
                 return
             self.transition(row, "submission_unknown", "withdraw_unconfirmed",
                             delay=self.options["conservative_poll_seconds"])
@@ -297,8 +305,9 @@ class ReconcileMixin:
         withdrawn = row["state"] == "withdrawn_unconfirmed"
         after_user = before_ours or row["withdraw_reason"] in machine.SUPERSEDE_WITHDRAWALS
         extra = None
-        if withdrawn and row["withdraw_reason"] == "paused":
-            extra = "dispatched_while_paused"
+        if withdrawn and row["withdraw_reason"] in machine.RELEASABLE_WITHDRAWALS:
+            extra = ("dispatched_while_paused" if row["withdraw_reason"] == "paused"
+                     else "dispatched_while_observing")
         elif withdrawn and row["withdraw_deleted"]:
             extra = "dispatched_despite_delete"
         elif before_ours:

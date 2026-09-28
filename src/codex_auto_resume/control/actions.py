@@ -7,11 +7,16 @@ from __future__ import annotations
 
 import time
 
+from .. import machine, projects, quiet, settings
+from ..machine import WAITING
 from ..store import TERMINAL, StoreError
 from ..windows import WakeEvent
 from .errors import (ControlError,
+                     _REFUSALS_POSTPONE,
+                     _REFUSALS_RELEASE,
                      _REFUSALS_RESTORE,
                      _REFUSALS_RETRY,
+                     _REFUSALS_UNPOSTPONE,
                      _identifier,
                      _refusal,
                      _thread_id)
@@ -32,6 +37,9 @@ class ActionsMixin:
         Pending records are preserved either way."""
         if not isinstance(enabled, bool):
             raise ControlError("enabled must be true or false", code="invalid_enabled")
+        # v0.6.11: DisableAutoResume keeps recovery paused (managed.py); a pause is always taken.
+        if enabled and self.managed().disable_auto_resume:
+            raise ControlError("recovery is paused by your administrator", code="managed_by_policy")
         with self._open(legacy_ok=True) as store:
             store.set_enabled(enabled, time.time())
             return {"enabled": bool(store.settings()["enabled"])}
@@ -139,9 +147,13 @@ class ActionsMixin:
         except Exception:
             woke = False
         now = time.time()
-        if detail > now + 1:
+        if detail > now + 1 and (record["reset_at"] or 0) >= detail:
             note = ("the usage reset is at a later time; the watcher checks then, and every "
                     "safety check still applies")
+        elif detail > now + 1:
+            # v0.6.11: a postponement, or an objection window, which Retry now never shortens.
+            note = ("it is postponed to a later time, which this does not shorten; the watcher "
+                    "checks then, and every safety check still applies")
         elif woke:
             note = "checking now; every safety check still applies"
         else:
@@ -182,6 +194,176 @@ class ActionsMixin:
             store.set_thread_enabled(thread, enabled, actor=actor)
             return {"interruption_id": key, "thread_id": thread,
                     "enabled": store.thread_enabled(thread), "state": record["state"]}
+
+    # --------------------------------------------------- postponing and holding (v0.6.11)
+    @staticmethod
+    def _postpone_until(now, until, preset, minutes):
+        """The one time a postponement asks for, from exactly one of its three ways to say it: a
+        time, one of the offered choices (quiet.PRESETS), or a number of minutes."""
+        given = [value for value in (until, preset, minutes) if value is not None]
+        if len(given) != 1:
+            raise ControlError("that is not a time to postpone a recovery to", code="invalid_time")
+        if preset is not None:
+            when = quiet.postpone_time(now, preset) if isinstance(preset, str) else None
+        elif minutes is not None:
+            # A count of whole minutes; how far ahead it may go is the store's to say (too_far).
+            when = (now + 60.0 * minutes if isinstance(minutes, int) and not isinstance(minutes, bool)
+                    and minutes >= 1 else None)
+        else:
+            when = until
+        if when is None:
+            raise ControlError("that is not a time to postpone a recovery to", code="invalid_time")
+        return when
+
+    def postpone(self, interruption_id, thread_id, *, until=None, preset=None, minutes=None,
+                 actor: str = "gui") -> dict:
+        """Postpone one exact waiting recovery: it is not sent before the time asked for.
+
+        Bound to both identities, as the per-task switch is, and checked against the record as it
+        is now. It only ever makes a record later - never earlier than now, or than a postponement
+        it already has, and never more than a week ahead - and it writes that time and nothing
+        else: it sends nothing, skips no gate, and Retry now brings it forward again."""
+        key = _identifier(interruption_id)
+        thread = _thread_id(thread_id)
+        now = time.time()
+        when = self._postpone_until(now, until, preset, minutes)
+        with self._open() as store:
+            accepted, detail = store.postpone(key, thread, when, now, actor=actor)
+            state = (store.get(key) or {}).get("state")
+        if not accepted:
+            message, code = _refusal(_REFUSALS_POSTPONE, detail)
+            raise ControlError(message, code=code)
+        return {"interruption_id": key, "thread_id": thread, "state": state, "not_before": detail,
+                "note": "not sent before then; every safety check still applies"}
+
+    def unpostpone(self, interruption_id, thread_id, *, actor: str = "gui") -> dict:
+        """Don't postpone: take away one exact record's postponement, a person's own (v0.6.11).
+
+        Retry now never shortens a postponement, so this is how a person undoes their own. Bound to
+        both identities, as postponing is, and only ever back to what the schedule says without it:
+        an objection window still ahead stays, and so do the retry's wait, a usage reset and quiet
+        hours. It sends nothing and skips no gate. Offered in the Dashboard and the popup, never to
+        a model (it brings a send nearer, and MCP has no tool for it)."""
+        key = _identifier(interruption_id)
+        thread = _thread_id(thread_id)
+        with self._open() as store:
+            accepted, detail = store.unpostpone(key, thread, time.time(), actor=actor)
+            record = store.get(key) if accepted else None
+        if not accepted:
+            message, code = _refusal(_REFUSALS_UNPOSTPONE, detail)
+            raise ControlError(message, code=code)
+        try:
+            woke = bool(WakeEvent(str(self.paths.state_dir)).signal())
+        except Exception:
+            woke = False
+        eligible = machine.eligible_at(record) if record else None
+        return {"interruption_id": key, "thread_id": thread, "state": record["state"] if record else None,
+                "not_before": detail, "eligible_at": eligible, "woke": woke,
+                "note": "no longer postponed; every safety check still applies"}
+
+    def release_hold(self, interruption_id, thread_id, *, actor: str = "gui") -> dict:
+        """Let one exact held recovery continue: the one thing that takes a hold away.
+
+        A conversation that asks first, or only notifies, holds what it detects for a person;
+        this is that person saying continue, for this record and no other. Bound to both
+        identities. It sends nothing and skips no gate: the watcher still checks everything,
+        and a postponement or quiet hours still hold it."""
+        key = _identifier(interruption_id)
+        thread = _thread_id(thread_id)
+        with self._open() as store:
+            released, detail = store.release_hold(key, thread, time.time(), actor=actor)
+        if not released:
+            message, code = _refusal(_REFUSALS_RELEASE, detail)
+            raise ControlError(message, code=code)
+        try:
+            woke = bool(WakeEvent(str(self.paths.state_dir)).signal())
+        except Exception:
+            woke = False
+        return {"interruption_id": key, "thread_id": thread, "state": detail, "woke": woke,
+                "note": "nothing is sent now; every safety check still applies"}
+
+    def set_thread_tier(self, thread_id, tier, *, interruption_id=None, actor: str = "gui") -> dict:
+        """How much one conversation asks before it is resumed: a tier of its own, or None for
+        the default in Settings.
+
+        A tier that asks a person - Ask me first, Only notify me - also holds what the
+        conversation has waiting and unsent. One that asks less lets nothing go that is already
+        held. Chosen from a task's row, the click carries that row's interruption too, and is
+        refused if the record has gone, finished or is another conversation's."""
+        thread = _thread_id(thread_id)
+        if tier is not None and tier not in settings.TIERS:
+            raise ControlError("invalid tier", code="invalid_tier")
+        with self._open() as store:
+            if interruption_id is not None:
+                record = store.get(_identifier(interruption_id))
+                if record is None:
+                    raise ControlError("no such interruption", code="no_such_interruption")
+                if record["thread_id"] != thread:
+                    raise ControlError("that recovery belongs to a different conversation",
+                                       code="thread_mismatch")
+                if record["state"] in TERMINAL:
+                    raise ControlError("that recovery has already finished", code="already_finished")
+            result = store.set_thread_tier(thread, tier, time.time(), actor=actor)
+        return {"thread_id": thread, "tier": result["tier"], "held": result["held"]}
+
+    def set_project_rule(self, interruption_id, thread_id, always, *, source=None,
+                         actor: str = "gui") -> dict:
+        """Always, or Never, for the project one exact task's conversation is filed under (v0.6.11).
+
+        Chosen from the task's row, so the click carries its interruption and its conversation and is
+        refused if the record has gone, finished or is another conversation's. The project is read
+        through `source` - Codex's own state, read-only - as a key and nothing more (projects.py),
+        and the key is written into Settings' Always or Never list. Never also holds, for a person,
+        what waits unsent in that project; Always lets nothing go that is held. Nothing is sent."""
+        key, thread = _identifier(interruption_id), _thread_id(thread_id)
+        if not isinstance(always, bool):
+            raise ControlError("always must be true or false", code="invalid_enabled")
+        with self._open() as store:
+            self._bound_record(store, key, thread)
+        project = self._project_of(source, thread)
+        if project is None:
+            raise ControlError("the project of that conversation cannot be read",
+                               code="project_unreadable")
+        try:
+            changes = projects.rule(self.get_settings(), project, always)
+        except ValueError:
+            raise ControlError("at most %d projects can be listed" % projects.MAX_KEYS,
+                               code="too_many_projects") from None
+        saved = self.update_settings(changes)
+        allowed, held = projects.allows(saved, project), 0
+        if not allowed:
+            with self._open() as store:
+                keys, seen = [], {thread: project}
+                for row in store.pending():
+                    if row["hold"] is not None or row["state"] not in WAITING:
+                        continue
+                    if row["thread_id"] not in seen:
+                        seen[row["thread_id"]] = self._project_of(source, row["thread_id"])
+                    if seen[row["thread_id"]] == project:
+                        keys.append(row["interruption_id"])
+                held = store.hold_waiting(keys, projects.hold_for(saved, project), time.time(), actor=actor)
+        return {"thread_id": thread, "always": always, "project_policy": saved["project_policy"],
+                "allowed": allowed, "held": held}
+
+    @staticmethod
+    def _bound_record(store, key, thread) -> dict:
+        """The record a row's click names, refused if it is gone, finished or another conversation's."""
+        record = store.get(key)
+        if record is None:
+            raise ControlError("no such interruption", code="no_such_interruption")
+        if record["thread_id"] != thread:
+            raise ControlError("that recovery belongs to a different conversation", code="thread_mismatch")
+        if record["state"] in TERMINAL:
+            raise ControlError("that recovery has already finished", code="already_finished")
+        return record
+
+    @staticmethod
+    def _project_of(source, thread_id):
+        """A conversation's project key, read through `source`, or None when it cannot be read."""
+        try:
+            return None if source is None else source.project_key(thread_id)
+        except Exception:
+            return None
 
     def cancel_all_pending(self, *, actor: str = "gui") -> dict:
         """Stop every pending recovery, one exact interruption at a time.

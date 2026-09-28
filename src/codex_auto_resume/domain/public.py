@@ -6,8 +6,8 @@ names are drawn from, which is why nothing here reads settings or the clock.
 """
 from __future__ import annotations
 
-from .vocabulary import (Actor, EventCode, GateName, GateResult, Overlay, Page,
-                         PublicCode, ReasonCode, RecordState, TurnStatus,
+from .vocabulary import (Actor, EventCode, GateName, GateResult, HoldKind, ImportanceTier,
+                         Overlay, Page, PublicCode, ReasonCode, RecordState, TurnStatus,
                          WithdrawReason)
 from .states import CLAIMED, IN_FLIGHT, OBSERVING, TERMINAL, WAITING, waiting_state
 
@@ -15,8 +15,25 @@ from .states import CLAIMED, IN_FLIGHT, OBSERVING, TERMINAL, WAITING, waiting_st
 # ---------------------------------------------------------------------------- reasons
 WITHDRAW_REASONS = frozenset(WithdrawReason)
 SUPERSEDE_WITHDRAWALS = frozenset({"superseded", "superseded_by_user", "user_queued_input"})
+# Taken back because nothing may go to Codex for now - a Pause, or (v0.6.11) Observe only - and so
+# handed back to waiting once nothing ran; the same two over an uncertain submission end it final.
+RELEASABLE_WITHDRAWALS = frozenset({"paused", "observe_only"})
 TURN_STATUSES = frozenset(TurnStatus)
 ACTORS = frozenset(Actor)
+# Schema 4 (v0.6.11). Why a record waits for a person (`interruptions.hold`), and how much a
+# conversation asks first (`threads.tier`). Neither is ever set at the defaults: a record with no
+# hold and a conversation with no tier are what every record and conversation were until then.
+HOLDS = frozenset(HoldKind)
+IMPORTANCE_TIERS = tuple(ImportanceTier)
+# The hold each tier puts on an interruption of its conversation: Ask me first waits for a person to
+# let it continue, and Only notify me as well. Resume automatically and the objection window hold
+# nothing - the window is a time (`not_before`), not a person.
+_TIER_HOLDS = {ImportanceTier.ASK_FIRST: HoldKind.ASK, ImportanceTier.NOTIFY_ONLY: HoldKind.NOTIFY_ONLY}
+
+
+def hold_for_tier(tier):
+    """The hold `tier` puts on an interruption, or None: every tier but the two that ask a person."""
+    return _TIER_HOLDS.get(tier) if isinstance(tier, str) else None
 
 # Every reason the engine or the store writes. The journal stores only these; anything
 # else is recorded as "other" rather than refused, because a journal entry must never
@@ -90,10 +107,26 @@ def public_code(record: dict) -> str:
 
 
 def eligible_at(record: dict):
-    """When a waiting record is next looked at: its schedule, or a later usage reset."""
-    if record.get("state") not in WAITING:
+    """When a waiting record is next looked at: its schedule, or a later usage reset, or a
+    later time a person postponed it to (`not_before`, schema 4), whichever is last.
+
+    None for a record held for a person (`hold`, schema 4) as for one that is not waiting: no
+    time will send it, only a person letting it continue, so no surface may say its time has
+    come or that it is being checked (J7)."""
+    if record.get("state") not in WAITING or record.get("hold") is not None:
         return None
-    return max(record.get("next_retry_at") or 0, record.get("reset_at") or 0) or None
+    return max(record.get("next_retry_at") or 0, record.get("reset_at") or 0,
+               record.get("not_before") or 0) or None
+
+
+def own_postponement(record: dict, now=None):
+    """The time a person postponed `record` to, or None (v0.6.11): its `not_before` when that is past
+    the end of its objection window (`objection_until`), which the engine writes there as well and no
+    person can take away. With `now`, only a postponement still ahead of it."""
+    until = record.get("not_before")
+    if until is None or until <= (record.get("objection_until") or 0):
+        return None
+    return None if now is not None and until <= now else until
 
 
 def public_reason(record: dict):
@@ -130,6 +163,11 @@ def overlays(record: dict, *, enabled=True, thread_enabled=True, watcher=None) -
         found.append("paused")
     if not thread_enabled:
         found.append("thread_disabled")
+    # v0.6.11: it waits for a person (schema 4's hold) - its conversation asks first or only
+    # notifies - and nothing is sent for it until one lets it continue. Read from the record, as
+    # the two above are read from the switches: never from a setting or the clock.
+    if record.get("hold") is not None:
+        found.append("held")
     watcher = watcher or {}
     if watcher.get("engine_state") == "incompatible":
         found.append("compatibility_blocked")

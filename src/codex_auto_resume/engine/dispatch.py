@@ -24,26 +24,32 @@ class DispatchMixin:
         now = self.clock()
         poll = self.options["state_poll_seconds"]
         settings = self.store.settings()
-        vector = {"consent": machine.gate_consent(settings["enabled"],
-                                                  self.store.thread_enabled(row["thread_id"]),
-                                                  row.get("cancel_requested"))}
-        if vector["consent"][0] != machine.PASS:
+        vector = {"consent": machine.gate_consent(settings["enabled"], self.store.thread_enabled(row["thread_id"]),
+                  row.get("cancel_requested"), observe_only=self.observing(settings), hold=row.get("hold"))}
+        # Observe only goes on through every other gate, asking no plug, to where a send would begin.
+        if vector["consent"][0] != machine.PASS and not self.observes(row, vector):
             # No transition - the overlays already say why it waits - but a due record
             # still records the refusing gate, once, so every interface can show it.
             recorded = machine.decode_gates(row.get("gate_eval")).get("consent")
             if (row.get("next_retry_at") or 0) <= now and recorded != vector["consent"]:
                 self.store.record_gates(row["interruption_id"], vector, now)
             return
-        vector["schedule"] = machine.gate_schedule(row, now)
+        quiet_until = self.quiet_until(now)     # v0.6.11; None with no quiet hours, the default
+        vector["schedule"] = machine.gate_schedule(row, now, quiet_until=quiet_until)
         if vector["schedule"][0] != machine.PASS:
             if vector["schedule"][1] == "waiting_reset" and (row.get("next_retry_at") or 0) <= now:
                 # A usage reset still ahead is a wait with a reason, never a record that is
                 # due every poll and silently refused.
                 self._wait(row, "waiting_reset", "waiting_reset",
                            row["reset_at"] + self.options["reset_grace_seconds"] - now, vector)
+            elif vector["schedule"][1] == machine.POSTPONED and (row.get("next_retry_at") or 0) <= now:
+                self._wait(row, row["state"], row.get("last_error"), row["not_before"] - now, vector)
+            elif vector["schedule"][1] == machine.QUIET_HOURS:
+                self._quiet(row, vector, quiet_until - now)
             return
         # P7: due by core's schedule, and the plug may say not yet.
-        if self._held("schedule", row, vector, self.plug.schedule(row, machine.eligible_at(row))):
+        if (vector["consent"][0] == machine.PASS
+                and self._held("schedule", row, vector, self.plug.schedule(row, machine.eligible_at(row)))):
             return
         if row["state"] in ("waiting_reset", "waiting_poll"):
             self.log(row["thread_id"], "checking_eligibility", None)
@@ -137,7 +143,7 @@ class DispatchMixin:
             vector["attempt_budget"] = machine.gate(machine.WAIT, "thread_submission_cooldown")
             self._wait(row, "waiting_retry", "thread_submission_cooldown", cooldown, vector)
             return
-        if self._plugged("attempt_budget", row, vector):
+        if self._plugged("attempt_budget", row, vector) or self._offline(row, vector, now):  # v0.6.11
             return
         usage = self.usage()
         if usage.get("available") is not True:
@@ -150,10 +156,18 @@ class DispatchMixin:
         vector["usage"] = machine.gate(machine.PASS)
         if self._plugged("usage", row, vector):
             return
+        if vector["consent"][0] != machine.PASS:
+            return self._would_send(row, vector, now)       # observe only: every other gate passed
+        # v0.6.11: the task-changed guard, which reads nothing at the defaults (engine/guard.py).
+        if self._guarded(row, vector, now) or self._objection(row, vector, now):
+            return
         self.dispatch(row, app, vector, limits)
 
     def _plugged(self, name, row, vector) -> bool:
-        """P3: gate `name`, which core has just passed, put to the plug. True if it held."""
+        """P3: gate `name`, which core has just passed, put to the plug. True if it held. Never asked
+        of a record only observed: the plug is asked after consent, and observe only refused it."""
+        if vector["consent"][0] != machine.PASS:
+            return False
         return self._held(name, row, vector, self.plug.gate(name, row, dict(vector)))
 
     def _held(self, name, row, vector, answer) -> bool:
@@ -175,15 +189,15 @@ class DispatchMixin:
 
         Taken only as a person's Custom message is: they pass the same validator and are filled
         in the same way, for the same record, so they can say nothing a person could not have
-        written in the Dashboard. Words that fail the validator, or fill in to nothing, are not
-        sent, and core's are - the person's own style, not the Standard text a Custom message
-        falls back to."""
+        written in the Dashboard - over a conversation's own message too (v0.6.11). Words that fail
+        the validator, or fill in to nothing, are not sent, and core's are - the person's own
+        style, not the Standard text a Custom message falls back to."""
         words = self.plug.text(row, message)
         if words is DEFER:
             return message, False
         try:
             _message.validate_custom(words)
-            values = dict(self.policy_values, continuation_style="custom",
+            values = dict(self.policy_values, continuation_style="custom", custom_message_by_thread=None,
                           custom_message_mode="global", custom_message=words)
             if _message.source_for(row["category"], values, row=row, limits=limits) != "global":
                 return message, False
@@ -238,8 +252,10 @@ class DispatchMixin:
             carried = frozenset(point for point, taken in ((Point.TEXT, worded),
                                                            (Point.SENDER, sender is not self.backend))
                                 if taken)
+            at = self.clock()
             claimed, gate, reason = self.store.reserve_detailed(
-                key, self.clock(), limits=limits, gates=vector, ledger=self.plug, carried=carried)
+                key, at, limits=limits, gates=vector, ledger=self.plug, carried=carried,
+                quiet_until=self.quiet_until(at))
             if not claimed:
                 self._refused(current, gate, reason)
                 return
@@ -280,7 +296,7 @@ class DispatchMixin:
                             queue_id=response.get("queue_id"),
                             first_queued_at=reserved["first_queued_at"] or now)
             self.log(row["thread_id"], "continuation_submitted", None)
-            self.announce("starting", reserved)
+            self.announce("starting", reserved, **self._told_of(row))   # a Tell's line (engine/guard.py)
         elif outcome == "not_started":
             if response.get("error_code") == "queue_consent_refused":
                 target = "cancelled" if reserved["cancel_requested"] else self.waiting_state(reserved)
@@ -301,22 +317,6 @@ class DispatchMixin:
         else:
             self.transition(reserved, "submission_unknown", "queue_result_unknown_do_not_resend", delay=1)
 
-    def _refused(self, row, gate, reason):
-        """A claim the store refused. Recorded as a wait or a stop, never silently."""
-        if gate in ("chain_budget", "attempt_budget", "no_progress_budget"):
-            self._stop_for_budget(row, gate, reason)
-        elif gate == "schedule" and reason == "waiting_reset" and row.get("reset_at"):
-            self.transition(row, "waiting_reset", "waiting_reset",
-                            delay=max(30, row["reset_at"] + self.options["reset_grace_seconds"] - self.clock()))
-        elif gate == "submission_safe" and reason == "other_recovery_in_flight":
-            self.transition(row, "waiting_retry", "other_recovery_in_flight",
-                            delay=self.options["state_poll_seconds"])
-        elif gate == "submission_safe" and reason == machine.HELD:
-            # The plug's ledger held the claim (P11): the record keeps its state and its reason
-            # for one more poll, as a gate the plug holds does.
-            self.transition(row, row["state"], row.get("last_error"),
-                            delay=self.options["state_poll_seconds"])
-
     def presend_problem(self, claim):
         """The last look before the queue process starts. Returns (target, reason,
         delay) to give the claim back, or None to send.
@@ -330,9 +330,10 @@ class DispatchMixin:
             return "waiting_retry", "released_before_send", poll
         if claim["cancel_requested"]:
             return "cancelled", "user_cancelled", 0
-        waiting = self.waiting_state(claim)
-        if not self.store.settings()["enabled"] or not self.store.thread_enabled(claim["thread_id"]):
-            return waiting, "released_before_send", poll
+        now = self.clock()
+        if (not self.allowed(claim) or (claim.get("not_before") or 0) > now    # schema 4's, and
+                or self.quiet_until(now) is not None):                         # quiet hours
+            return self.waiting_state(claim), "released_before_send", poll
         if not self.valid_interruption(claim):
             state, reason = self.supersede_reason(claim)
             return state, reason, 0

@@ -18,6 +18,7 @@
             "status": {
               "version": "<version>",
               "enabled": true,
+              "observe_only": false,
               "watcher_running": true,
               "watcher": {
                 "running": true,
@@ -28,6 +29,29 @@
                 "code_version": "<version>",
                 "pid": 4242,
                 "started_at": 1799994600.0,
+                "usage": {
+                  "read_at": 1799999880.0,
+                  "windows": [
+                    {
+                      "bucket": "codex",
+                      "window": "primary",
+                      "used_percent": 100,
+                      "window_minutes": 300,
+                      "reset_at": 1800002540
+                    },
+                    {
+                      "bucket": "codex",
+                      "window": "secondary",
+                      "used_percent": 62,
+                      "window_minutes": 10080,
+                      "reset_at": 1800277200
+                    }
+                  ]
+                },
+                "awake_since": null,
+                "memory_peak": null,
+                "ended": null,
+                "ended_at": null,
                 "compatibility": {
                   "status": "absent",
                   "overall": "unknown",
@@ -145,6 +169,13 @@
                 "notify_starting": true,
                 "notify_result": true,
                 "notify_stopped": true,
+                "notify_needs_you": false,
+                "notify_needs_you_invalid": true,
+                "notify_needs_you_policy": true,
+                "notify_needs_you_auth": true,
+                "notify_needs_you_failure": true,
+                "stall_after": "off",
+                "needs_you_sound": false,
                 "interface_language": "system",
                 "continuation_language": "follow",
                 "continuation_style": "standard",
@@ -155,7 +186,34 @@
                 "custom_message_network_transient": null,
                 "custom_message_timeout": null,
                 "custom_message_server_5xx": null,
-                "custom_message_stream_interrupted": null
+                "custom_message_stream_interrupted": null,
+                "custom_message_by_thread": null,
+                "quiet_hours_start": "off",
+                "quiet_hours_end": "07:00",
+                "quiet_hours_days": "every_day",
+                "default_tier": "automatic",
+                "objection_minutes": 5,
+                "observe_only": false,
+                "new_conversation_policy": "resume",
+                "project_policy": "every",
+                "project_keys_always": "",
+                "project_keys_never": "",
+                "retry_wait_1": "s5",
+                "retry_wait_2": "m15",
+                "retry_wait_3": "m15",
+                "retry_wait_4": "m15",
+                "retry_wait_5": "m15",
+                "retry_jitter": false,
+                "chain_time_ceiling": "off",
+                "task_changed_guard": "off",
+                "context_guard": "off",
+                "ask_after_sleep_minutes": "off",
+                "wait_for_network": false,
+                "keep_awake": "off",
+                "keep_awake_hours": "h6",
+                "memory_guard": "off",
+                "memory_guard_limit": "mb1024",
+                "status_file": false
               }
             },
             "schema": [
@@ -165,6 +223,7 @@
                 "type": "integer",
                 "min": 1,
                 "max": 20,
+                "high": 8,
                 "group": "limits"
               },
               {
@@ -173,6 +232,7 @@
                 "type": "integer",
                 "min": 1,
                 "max": 10,
+                "high": 5,
                 "group": "limits"
               },
               {
@@ -181,6 +241,7 @@
                 "type": "integer",
                 "min": 1,
                 "max": 10,
+                "high": 8,
                 "group": "limits"
               },
               {
@@ -190,8 +251,32 @@
                 "choices": [
                   "conservative",
                   "normal",
-                  "aggressive"
+                  "aggressive",
+                  "custom"
                 ],
+                "waits": {
+                  "conservative": [
+                    15,
+                    915,
+                    915,
+                    915,
+                    915
+                  ],
+                  "normal": [
+                    5,
+                    905,
+                    905,
+                    905,
+                    905
+                  ],
+                  "aggressive": [
+                    3,
+                    903,
+                    903,
+                    903,
+                    903
+                  ]
+                },
                 "group": "limits"
               },
               {
@@ -338,6 +423,63 @@
                 "master": false
               },
               {
+                "name": "notify_needs_you",
+                "default": false,
+                "type": "boolean",
+                "group": "notifications",
+                "master": false
+              },
+              {
+                "name": "notify_needs_you_invalid",
+                "default": true,
+                "type": "boolean",
+                "group": "notifications",
+                "master": false
+              },
+              {
+                "name": "notify_needs_you_policy",
+                "default": true,
+                "type": "boolean",
+                "group": "notifications",
+                "master": false
+              },
+              {
+                "name": "notify_needs_you_auth",
+                "default": true,
+                "type": "boolean",
+                "group": "notifications",
+                "master": false
+              },
+              {
+                "name": "notify_needs_you_failure",
+                "default": true,
+                "type": "boolean",
+                "group": "notifications",
+                "master": false
+              },
+              {
+                "name": "stall_after",
+                "default": "off",
+                "type": "string",
+                "choices": [
+                  "off",
+                  "m10",
+                  "m15",
+                  "m30",
+                  "h1",
+                  "h2"
+                ],
+                "group": "notifications",
+                "master": false
+              },
+              {
+                "name": "needs_you_sound",
+                "default": false,
+                "type": "boolean",
+                "group": "notifications",
+                "master": false
+              },
+              {
                 "name": "interface_language",
                 "default": "system",
                 "type": "string",
@@ -351,7 +493,14 @@
                   "es",
                   "de",
                   "fr",
-                  "pt-BR"
+                  "pt-BR",
+                  "ru",
+                  "it",
+                  "tr",
+                  "pl",
+                  "uk",
+                  "vi",
+                  "id"
                 ],
                 "group": "general"
               },
@@ -369,7 +518,14 @@
                   "es",
                   "de",
                   "fr",
-                  "pt-BR"
+                  "pt-BR",
+                  "ru",
+                  "it",
+                  "tr",
+                  "pl",
+                  "uk",
+                  "vi",
+                  "id"
                 ],
                 "group": "continuation"
               },
@@ -381,7 +537,8 @@
                   "minimal",
                   "standard",
                   "detailed",
-                  "custom"
+                  "custom",
+                  "careful"
                 ],
                 "group": "continuation"
               },
@@ -456,6 +613,419 @@
                 "multiline": true,
                 "max_length": 2000,
                 "category": "stream_interrupted"
+              },
+              {
+                "name": "quiet_hours_start",
+                "default": "off",
+                "type": "string",
+                "choices": [
+                  "off",
+                  "00:00",
+                  "00:30",
+                  "01:00",
+                  "01:30",
+                  "02:00",
+                  "02:30",
+                  "03:00",
+                  "03:30",
+                  "04:00",
+                  "04:30",
+                  "05:00",
+                  "05:30",
+                  "06:00",
+                  "06:30",
+                  "07:00",
+                  "07:30",
+                  "08:00",
+                  "08:30",
+                  "09:00",
+                  "09:30",
+                  "10:00",
+                  "10:30",
+                  "11:00",
+                  "11:30",
+                  "12:00",
+                  "12:30",
+                  "13:00",
+                  "13:30",
+                  "14:00",
+                  "14:30",
+                  "15:00",
+                  "15:30",
+                  "16:00",
+                  "16:30",
+                  "17:00",
+                  "17:30",
+                  "18:00",
+                  "18:30",
+                  "19:00",
+                  "19:30",
+                  "20:00",
+                  "20:30",
+                  "21:00",
+                  "21:30",
+                  "22:00",
+                  "22:30",
+                  "23:00",
+                  "23:30"
+                ],
+                "group": "limits"
+              },
+              {
+                "name": "quiet_hours_end",
+                "default": "07:00",
+                "type": "string",
+                "choices": [
+                  "00:00",
+                  "00:30",
+                  "01:00",
+                  "01:30",
+                  "02:00",
+                  "02:30",
+                  "03:00",
+                  "03:30",
+                  "04:00",
+                  "04:30",
+                  "05:00",
+                  "05:30",
+                  "06:00",
+                  "06:30",
+                  "07:00",
+                  "07:30",
+                  "08:00",
+                  "08:30",
+                  "09:00",
+                  "09:30",
+                  "10:00",
+                  "10:30",
+                  "11:00",
+                  "11:30",
+                  "12:00",
+                  "12:30",
+                  "13:00",
+                  "13:30",
+                  "14:00",
+                  "14:30",
+                  "15:00",
+                  "15:30",
+                  "16:00",
+                  "16:30",
+                  "17:00",
+                  "17:30",
+                  "18:00",
+                  "18:30",
+                  "19:00",
+                  "19:30",
+                  "20:00",
+                  "20:30",
+                  "21:00",
+                  "21:30",
+                  "22:00",
+                  "22:30",
+                  "23:00",
+                  "23:30"
+                ],
+                "group": "limits"
+              },
+              {
+                "name": "quiet_hours_days",
+                "default": "every_day",
+                "type": "string",
+                "choices": [
+                  "every_day",
+                  "weekdays",
+                  "weekends"
+                ],
+                "group": "limits"
+              },
+              {
+                "name": "default_tier",
+                "default": "automatic",
+                "type": "string",
+                "choices": [
+                  "automatic",
+                  "objection_window",
+                  "ask_first",
+                  "notify_only"
+                ],
+                "group": "limits"
+              },
+              {
+                "name": "objection_minutes",
+                "default": 5,
+                "type": "integer",
+                "min": 1,
+                "max": 60,
+                "group": "limits"
+              },
+              {
+                "name": "observe_only",
+                "default": false,
+                "type": "boolean",
+                "group": "recovery"
+              },
+              {
+                "name": "new_conversation_policy",
+                "default": "resume",
+                "type": "string",
+                "choices": [
+                  "resume",
+                  "notify_only"
+                ],
+                "group": "limits"
+              },
+              {
+                "name": "project_policy",
+                "default": "every",
+                "type": "string",
+                "choices": [
+                  "every",
+                  "only_listed",
+                  "except_listed"
+                ],
+                "group": "limits"
+              },
+              {
+                "name": "retry_wait_1",
+                "default": "s5",
+                "type": "string",
+                "choices": [
+                  "s5",
+                  "s15",
+                  "s30",
+                  "m1",
+                  "m2",
+                  "m5",
+                  "m10",
+                  "m15",
+                  "m30",
+                  "h1",
+                  "h2"
+                ],
+                "seconds": {
+                  "s5": 5,
+                  "s15": 15,
+                  "s30": 30,
+                  "m1": 60,
+                  "m2": 120,
+                  "m5": 300,
+                  "m10": 600,
+                  "m15": 900,
+                  "m30": 1800,
+                  "h1": 3600,
+                  "h2": 7200
+                },
+                "group": "limits"
+              },
+              {
+                "name": "retry_wait_2",
+                "default": "m15",
+                "type": "string",
+                "choices": [
+                  "m15",
+                  "m30",
+                  "h1",
+                  "h2",
+                  "h3",
+                  "h6"
+                ],
+                "seconds": {
+                  "m15": 900,
+                  "m30": 1800,
+                  "h1": 3600,
+                  "h2": 7200,
+                  "h3": 10800,
+                  "h6": 21600
+                },
+                "group": "limits"
+              },
+              {
+                "name": "retry_wait_3",
+                "default": "m15",
+                "type": "string",
+                "choices": [
+                  "m15",
+                  "m30",
+                  "h1",
+                  "h2",
+                  "h3",
+                  "h6"
+                ],
+                "seconds": {
+                  "m15": 900,
+                  "m30": 1800,
+                  "h1": 3600,
+                  "h2": 7200,
+                  "h3": 10800,
+                  "h6": 21600
+                },
+                "group": "limits"
+              },
+              {
+                "name": "retry_wait_4",
+                "default": "m15",
+                "type": "string",
+                "choices": [
+                  "m15",
+                  "m30",
+                  "h1",
+                  "h2",
+                  "h3",
+                  "h6"
+                ],
+                "seconds": {
+                  "m15": 900,
+                  "m30": 1800,
+                  "h1": 3600,
+                  "h2": 7200,
+                  "h3": 10800,
+                  "h6": 21600
+                },
+                "group": "limits"
+              },
+              {
+                "name": "retry_wait_5",
+                "default": "m15",
+                "type": "string",
+                "choices": [
+                  "m15",
+                  "m30",
+                  "h1",
+                  "h2",
+                  "h3",
+                  "h6"
+                ],
+                "seconds": {
+                  "m15": 900,
+                  "m30": 1800,
+                  "h1": 3600,
+                  "h2": 7200,
+                  "h3": 10800,
+                  "h6": 21600
+                },
+                "group": "limits"
+              },
+              {
+                "name": "retry_jitter",
+                "default": false,
+                "type": "boolean",
+                "group": "limits"
+              },
+              {
+                "name": "chain_time_ceiling",
+                "default": "off",
+                "type": "string",
+                "choices": [
+                  "off",
+                  "h1",
+                  "h3",
+                  "h6",
+                  "h12",
+                  "h24"
+                ],
+                "group": "limits"
+              },
+              {
+                "name": "task_changed_guard",
+                "default": "off",
+                "type": "string",
+                "choices": [
+                  "off",
+                  "hold",
+                  "tell"
+                ],
+                "group": "limits"
+              },
+              {
+                "name": "context_guard",
+                "default": "off",
+                "type": "string",
+                "choices": [
+                  "off",
+                  "show",
+                  "above_100k",
+                  "above_250k",
+                  "above_500k",
+                  "above_1m"
+                ],
+                "group": "limits"
+              },
+              {
+                "name": "ask_after_sleep_minutes",
+                "default": "off",
+                "type": "string",
+                "choices": [
+                  "off",
+                  "m30",
+                  "h1",
+                  "h2",
+                  "h3",
+                  "h6",
+                  "h12"
+                ],
+                "group": "limits"
+              },
+              {
+                "name": "wait_for_network",
+                "default": false,
+                "type": "boolean",
+                "group": "limits"
+              },
+              {
+                "name": "keep_awake",
+                "default": "off",
+                "type": "string",
+                "choices": [
+                  "off",
+                  "on_ac",
+                  "always"
+                ],
+                "group": "windows"
+              },
+              {
+                "name": "keep_awake_hours",
+                "default": "h6",
+                "type": "string",
+                "choices": [
+                  "h1",
+                  "h2",
+                  "h3",
+                  "h6",
+                  "h12",
+                  "h24"
+                ],
+                "group": "windows"
+              },
+              {
+                "name": "memory_guard",
+                "default": "off",
+                "type": "string",
+                "choices": [
+                  "off",
+                  "warn",
+                  "stop"
+                ],
+                "group": "windows"
+              },
+              {
+                "name": "memory_guard_limit",
+                "default": "mb1024",
+                "type": "string",
+                "choices": [
+                  "mb256",
+                  "mb512",
+                  "mb768",
+                  "mb1024",
+                  "mb1536",
+                  "mb2048"
+                ],
+                "group": "windows"
+              },
+              {
+                "name": "status_file",
+                "default": false,
+                "type": "boolean",
+                "group": "windows"
               }
             ],
             "settings": {
@@ -483,6 +1053,13 @@
               "notify_starting": true,
               "notify_result": true,
               "notify_stopped": true,
+              "notify_needs_you": false,
+              "notify_needs_you_invalid": true,
+              "notify_needs_you_policy": true,
+              "notify_needs_you_auth": true,
+              "notify_needs_you_failure": true,
+              "stall_after": "off",
+              "needs_you_sound": false,
               "interface_language": "system",
               "continuation_language": "follow",
               "continuation_style": "standard",
@@ -493,7 +1070,34 @@
               "custom_message_network_transient": null,
               "custom_message_timeout": null,
               "custom_message_server_5xx": null,
-              "custom_message_stream_interrupted": null
+              "custom_message_stream_interrupted": null,
+              "custom_message_by_thread": null,
+              "quiet_hours_start": "off",
+              "quiet_hours_end": "07:00",
+              "quiet_hours_days": "every_day",
+              "default_tier": "automatic",
+              "objection_minutes": 5,
+              "observe_only": false,
+              "new_conversation_policy": "resume",
+              "project_policy": "every",
+              "project_keys_always": "",
+              "project_keys_never": "",
+              "retry_wait_1": "s5",
+              "retry_wait_2": "m15",
+              "retry_wait_3": "m15",
+              "retry_wait_4": "m15",
+              "retry_wait_5": "m15",
+              "retry_jitter": false,
+              "chain_time_ceiling": "off",
+              "task_changed_guard": "off",
+              "context_guard": "off",
+              "ask_after_sleep_minutes": "off",
+              "wait_for_network": false,
+              "keep_awake": "off",
+              "keep_awake_hours": "h6",
+              "memory_guard": "off",
+              "memory_guard_limit": "mb1024",
+              "status_file": false
             },
             "pending": [
               {
@@ -577,7 +1181,14 @@
                   ]
                 },
                 "gates_at": 1799999960.0,
+                "not_before": null,
+                "postponed_until": null,
+                "hold": null,
+                "would_send_at": null,
+                "context_tokens": null,
                 "thread_enabled": true,
+                "tier": null,
+                "attempt_limit": null,
                 "name": null,
                 "project": null,
                 "cwd_basename": null
@@ -663,7 +1274,14 @@
                   ]
                 },
                 "gates_at": 1799999960.0,
+                "not_before": null,
+                "postponed_until": null,
+                "hold": null,
+                "would_send_at": null,
+                "context_tokens": null,
                 "thread_enabled": true,
+                "tier": null,
+                "attempt_limit": 4,
                 "name": null,
                 "project": null,
                 "cwd_basename": null
@@ -686,7 +1304,14 @@
               "es": "Español",
               "de": "Deutsch",
               "fr": "Français",
-              "pt-BR": "Português (Brasil)"
+              "pt-BR": "Português (Brasil)",
+              "ru": "Русский",
+              "it": "Italiano",
+              "tr": "Türkçe",
+              "pl": "Polski",
+              "uk": "Українська",
+              "vi": "Tiếng Việt",
+              "id": "Bahasa Indonesia"
             },
             "system_language": "en"
           },

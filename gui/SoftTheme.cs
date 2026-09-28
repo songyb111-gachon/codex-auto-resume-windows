@@ -175,6 +175,186 @@ namespace CodexAutoResume
         }
     }
 
+    /// Windows' text size (v0.6.11): Settings > Accessibility > Text size, "Make text bigger", as a factor from 1 to
+    /// 2.25. Read where Windows keeps it - HKCU\Software\Microsoft\Accessibility, TextScaleFactor, a percentage from
+    /// 100 to 225 - and never written; nothing there, or anything outside that range, is 1. The notification-area
+    /// popup and its card read the same value (win/textsize.py), and the panel in Codex is served it, so the four are
+    /// one size. The window is drawn larger by it as a whole - its words and everything that holds them, as a larger
+    /// display scale draws it - which is what keeps any of it from being cut: the layout at every scaling is the one
+    /// tests/test_gui_layout.py measures. It is decided once, as the window opens, and never larger than lets the
+    /// window at its narrowest fit the screen it opens on (Fitting).
+    internal static class TextScale
+    {
+        internal const string Key = @"Software\Microsoft\Accessibility";
+        internal const string Value = "TextScaleFactor";
+        /// Windows' message font at 100%: 9 pt, in every language Windows ships.
+        internal const float NormalPoints = 9f;
+        /// What the screen has to hold, in logical pixels, frames included: the window at its narrowest (SettingsForm's
+        /// MinimumSize, 800 by 420) and its tallest dialog (a conversation's message, 520 high).
+        internal const int NarrowestWidth = 816, NarrowestHeight = 568;
+
+        /// Windows' text size now, as a factor (Factor).
+        internal static double Read()
+        {
+            try
+            {
+                using (Microsoft.Win32.RegistryKey key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(Key))
+                {
+                    object value = key == null ? null : key.GetValue(Value);
+                    if (value is int) return Factor((int)value);
+                }
+            }
+            catch (Exception) { /* Windows could not be asked: text at its usual size */ }
+            return 1.0;
+        }
+
+        /// A TextScaleFactor percentage as a factor: 100 to 225 as itself, anything else as 1. Pure.
+        internal static double Factor(int percent)
+        {
+            return percent < 100 || percent > 225 ? 1.0 : percent / 100.0;
+        }
+
+        /// The text size the window opens at: `text`, but no larger than lets the window at its narrowest fit `work`,
+        /// the work area of the screen it opens on, at the display's `scale`; never below 1. Pure.
+        internal static double Fitting(double text, Size work, double scale)
+        {
+            double size = text > 1.0 ? text : 1.0;
+            if (work.Width > 0 && work.Height > 0 && scale > 0)
+                size = Math.Min(size, Math.Min(work.Width / (scale * NarrowestWidth), work.Height / (scale * NarrowestHeight)));
+            return Math.Max(1.0, size);
+        }
+
+        /// `font` - Windows' message font - at text size `drawn`, where Windows' own text size is `read`. Windows may
+        /// have made the message font `read` times larger itself (its size is then 9 pt times `read`), and a font made
+        /// larger twice would be larger than what holds it; so that one is taken back to its usual size first. At 1
+        /// it is `font` itself. Pure.
+        internal static Font Apply(Font font, double read, double drawn)
+        {
+            float usual = font.SizeInPoints;
+            if (read > 1.0 && Math.Abs(usual - NormalPoints * read) < 0.3) usual = (float)(usual / read);
+            float size = (float)(usual * Math.Max(1.0, drawn));
+            if (Math.Abs(size - font.SizeInPoints) < 0.01f) return font;
+            return new Font(font.FontFamily, size, font.Style, GraphicsUnit.Point);
+        }
+    }
+
+    /// Which face a language is set in (v0.6.11): win/typeface.py's rule, asked of GDI the same way. Windows' UI
+    /// font, this window's own, is Segoe UI on an English Windows and an East Asian face on an East Asian one, which
+    /// has every letter of the languages v0.6.10 spoke but not of every one v0.6.11 adds - Malgun Gothic has no ế,
+    /// ї, ą or ş. A letter the face lacks is drawn from a face linked to it, in that face's shape and weight: one
+    /// word in two faces. So a language whose letters the window's font does not all have, and Segoe UI does, is set
+    /// in Segoe UI, as on every Windows set to that language and as the popup, the card and the panel set it.
+    internal static class Typeface
+    {
+        internal const string Segoe = "Segoe UI";
+        private const uint MarkMissing = 0x1;           // GGI_MARK_NONEXISTING_GLYPHS
+        private const ushort NoGlyph = 0xFFFF;
+        private static readonly Dictionary<string, string> lacking = new Dictionary<string, string>();
+
+        [DllImport("gdi32.dll")] private static extern IntPtr CreateCompatibleDC(IntPtr dc);
+        [DllImport("gdi32.dll")] private static extern bool DeleteDC(IntPtr dc);
+        [DllImport("gdi32.dll")] private static extern IntPtr SelectObject(IntPtr dc, IntPtr gdiObject);
+        [DllImport("gdi32.dll")] private static extern bool DeleteObject(IntPtr gdiObject);
+        [DllImport("gdi32.dll", CharSet = CharSet.Unicode)]
+        private static extern IntPtr CreateFontW(int height, int width, int escapement, int orientation, int weight,
+            uint italic, uint underline, uint strikeOut, uint charSet, uint outPrecision, uint clipPrecision,
+            uint quality, uint pitchAndFamily, string face);
+        [DllImport("gdi32.dll", CharSet = CharSet.Unicode)]
+        private static extern uint GetGlyphIndicesW(IntPtr dc, string text, int count, [Out] ushort[] glyphs, uint flags);
+
+        /// Every character of a catalog's words that is drawn - no white space, control or format character - once
+        /// each, in order (typeface.letters). Pure.
+        internal static string Letters(Dictionary<string, object> strings)
+        {
+            var found = new SortedSet<char>();
+            if (strings != null)
+                foreach (object value in strings.Values)
+                {
+                    string text = value as string;
+                    if (text == null) continue;
+                    foreach (char c in text)
+                    {
+                        if (char.IsWhiteSpace(c) || char.IsSurrogate(c)) continue;
+                        var category = char.GetUnicodeCategory(c);
+                        if (category == System.Globalization.UnicodeCategory.Control ||
+                            category == System.Globalization.UnicodeCategory.Format) continue;
+                        found.Add(c);
+                    }
+                }
+            var letters = new char[found.Count];
+            found.CopyTo(letters);
+            return new string(letters);
+        }
+
+        /// The characters of `text` the face `family` has no glyph of its own for - not one it would borrow through a
+        /// font link; "" when Windows cannot be asked. Asked once per face and text.
+        internal static string Lacks(string family, string text)
+        {
+            if (string.IsNullOrEmpty(family) || string.IsNullOrEmpty(text)) return "";
+            string key = family + "\n" + text;
+            lock (lacking)
+            {
+                string known;
+                if (lacking.TryGetValue(key, out known)) return known;
+                string missing = "";
+                try
+                {
+                    IntPtr dc = CreateCompatibleDC(IntPtr.Zero);
+                    if (dc != IntPtr.Zero)
+                    {
+                        try
+                        {
+                            IntPtr font = CreateFontW(-12, 0, 0, 0, 400, 0, 0, 0, 1, 0, 0, 5, 0, family);
+                            if (font != IntPtr.Zero)
+                            {
+                                IntPtr previous = SelectObject(dc, font);
+                                try
+                                {
+                                    var glyphs = new ushort[text.Length];
+                                    if (GetGlyphIndicesW(dc, text, text.Length, glyphs, MarkMissing) != 0xFFFFFFFF)
+                                    {
+                                        var lacked = new StringBuilder();
+                                        for (int i = 0; i < text.Length; i++)
+                                            if (glyphs[i] == NoGlyph) lacked.Append(text[i]);
+                                        missing = lacked.ToString();
+                                    }
+                                }
+                                finally
+                                {
+                                    SelectObject(dc, previous);
+                                    DeleteObject(font);
+                                }
+                            }
+                        }
+                        finally { DeleteDC(dc); }
+                    }
+                }
+                catch (Exception) { missing = ""; }
+                lacking[key] = missing;
+                return missing;
+            }
+        }
+
+        /// The window's font for the words `strings`: `font` when its face has every letter of them, or when Segoe UI
+        /// lacks one too (a script with a face of its own); Segoe UI at its size and style otherwise
+        /// (typeface.face_for). On an English Windows it is always `font`.
+        internal static Font For(Font font, Dictionary<string, object> strings)
+        {
+            if (font == null || string.Equals(font.FontFamily.Name, Segoe, StringComparison.OrdinalIgnoreCase)) return font;
+            string text = Letters(strings);
+            if (text.Length == 0 || Lacks(font.FontFamily.Name, text).Length == 0 || Lacks(Segoe, text).Length > 0)
+                return font;
+            try
+            {
+                var whole = new Font(Segoe, font.SizeInPoints, font.Style, GraphicsUnit.Point);
+                if (string.Equals(whole.FontFamily.Name, Segoe, StringComparison.OrdinalIgnoreCase)) return whole;
+                whole.Dispose();
+            }
+            catch (ArgumentException) { /* no Segoe UI: the font it was */ }
+            return font;
+        }
+    }
+
     /// Which design the window is drawn in (v0.6.10): the Design setting, which says what is drawn
     /// (brand/design.py, read through Brand's Design rules) and never what moves - Soft.ReduceMotion says that.
     /// It is independent of the theme, so each design is drawn light or dark, and High Contrast replaces every

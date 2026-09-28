@@ -305,7 +305,7 @@ class Server:
                 "settings": settings,
                 "pending": self.control.list_pending(),
                 "reasons": list(_reasons.RECOVERABLE),
-                "endonyms": dict(l10n.ENDONYMS),
+                "endonyms": l10n.offered_endonyms(),
                 "system_language": l10n.from_system()}
 
     def _tool_open_settings(self, _arguments) -> dict:
@@ -378,6 +378,19 @@ class Server:
         if result.get("note"):
             summary += " Note: " + result["note"] + "."
         return self._reply(summary, result)
+
+    def _tool_postpone_recovery(self, arguments) -> dict:
+        result = self.control.postpone(arguments.get("interruption_id"), arguments.get("thread_id"),
+                                       preset=arguments.get("preset"), minutes=arguments.get("minutes"),
+                                       actor="mcp")
+        return self._reply("Postponed: nothing is sent for it before not_before. Nothing was sent; "
+                           "every check still applies.", result)
+
+    def _tool_release_hold(self, arguments) -> dict:
+        result = self.control.release_hold(arguments.get("interruption_id"), arguments.get("thread_id"),
+                                           actor="mcp")
+        return self._reply("It may continue now. Nothing was sent; the watcher still runs every check.",
+                           result)
 
     def _tool_disable_conversation_recovery(self, arguments) -> dict:
         result = self.control.cancel_thread(arguments.get("thread_id"), actor="mcp")

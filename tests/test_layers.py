@@ -56,11 +56,28 @@ LAYER = {_q(name): layer for layer, names in {
     # docstring called "three layers, kept apart on purpose", said in the tree.
     "domain": ("failures", "reasons", "machine", "domain", "domain.errors", "domain.gates",
                "domain.ids", "domain.public", "domain.states", "domain.vocabulary",
-               # v0.6.11: the plug interface and NULL - pure, like everything else here.
-               "domain.plug"),
+               # v0.6.11: the plug interface and NULL - pure, like everything else here; and the
+               # registry's vocabularies, out of domain/vocabulary.py at its line budget.
+               "domain.plug", "domain.compat_vocabulary",
+               # and what a usage reading keeps of Codex's reply, and nothing else.
+               "domain.usage"),
     "policy": ("", "settings", "continuation", "l10n", "messages", "interface", "config", "logbook",
-               # v0.6.11: which edition this is, found by looking beside the package.
-               "edition"),
+               # v0.6.11: which edition this is, found by looking beside the package; and quiet
+               # hours and a postponement's times, on the local clock.
+               "edition", "quiet",
+               # and which projects may resume without a person, by a key that is only a digest;
+               # and the retry ladders and the two guards of a waiting recovery.
+               "projects", "ladder", "guards",
+               # and what an administrator's policy keys hold, applied after the settings are read.
+               "managed",
+               # and which needs-you notices are raised, and when a turn has stopped moving.
+               "needsyou",
+               # and sleep, keeping this PC awake and the network, as a waiting recovery meets them.
+               "power",
+               # and the watcher's memory guard, and the status file for other tools.
+               "memguard", "statusfile",
+               # and Show me what happens: made-up rows and a made-up task, reading no state.
+               "demo"),
     "adapters": ("store", "openstate", "codex", "windows", "compat", "compatio", "startup", "shortcut",
                  # v0.6.10-alpha: compat.py and compatio.py became compat/.
                  "compat.model", "compat.standing", "compat.report", "compat.permits", "compat.files", "compat.cache", "compat.probes", "compat.views", "compat.evaluator",
@@ -75,23 +92,51 @@ LAYER = {_q(name): layer for layer, names in {
                  "store.session", "store.validate", "store.watcher",
                  # v0.6.11: the claim ledger's machinery (P11), out of store/claims.py.
                  "store.ledger",
+                 # and a needs-you notice, raised once.
+                 "store.notices",
+                 # and a record made later, held and let go, out of store/actions.py.
+                 "store.schedule",
                  # v0.6.10-alpha: the Win32 the product calls, which windows.py was half of.
                  "win", "win.dll", "win.homelock", "win.inventory", "win.kernel", "win.sync",
+                 # v0.6.11: the administrator's policy keys, read and never written.
+                 "win.policykeys",
+                 # and what Windows says of power and of the internet, and the one power request.
+                 "win.power", "win.network",
+                 # and what it says of the watcher's own process and of this sign-in.
+                 "win.ownprocess",
+                 # and who it lets open the state folder, asked from Diagnostics.
+                 "win.acl",
+                 # and the text size it is set to, which the popup, the card and the panel draw at.
+                 "win.textsize",
+                 # and the face its interface is set in, and which letters a face has.
+                 "win.typeface",
                  # v0.6.10-alpha: source.py became source/, and every part of it reads Codex;
                  # windows.py's other half - the CLI, the App Server, the pairing - joined it.
                  "codex.appserver", "codex.errors", "codex.history", "codex.labels",
                  "codex.pairing", "codex.paths", "codex.payload", "codex.schema",
-                 "codex.transport", "codex.usage", "codex.values"),
+                 "codex.transport", "codex.usage", "codex.values",
+                 # v0.6.11: a conversation's folder's git HEAD, as a digest, for the task-changed guard.
+                 "codex.workspace"),
     "engine": ("engine", "engine.announce", "engine.detect", "engine.dispatch",
-               "engine.freshness", "engine.options", "engine.outcome", "engine.reconcile"),
+               "engine.freshness", "engine.options", "engine.outcome", "engine.reconcile",
+               # v0.6.11: the waits and the two guards, as the engine asks them.
+               "engine.guard",
+               # and the needs-you notices, as the engine raises them.
+               "engine.notices"),
     # v0.6.10-alpha: control.py became control/, ten files, `Control` composed from eight
     # mixins. `layer` is where the composition lives, so that the front holds no code.
     "control": ("control", "control.actions", "control.codexstart", "control.errors",
                 "control.layer", "control.policy", "control.preview", "control.records",
-                "control.seen", "control.state", "control.watcher", "control.wire", "diagnostics"),
+                "control.seen", "control.state", "control.watcher", "control.wire", "diagnostics",
+                # v0.6.11: Diagnostics' own tools - the log searched, the state folder's access, a demo.
+                "control.tools"),
     "front": ("auto_resume", "cli", "controlcli", "mcpserver", "mcp.panel", "app", "ui.tray",
               # v0.6.10-alpha: app.py became runtime/ - the wiring, the loop and the toasts.
               "runtime", "runtime.app", "runtime.loop", "runtime.toasts",
+              # v0.6.11: the watcher's side of sleep and of keeping this PC awake.
+              "runtime.waking",
+              # and of its own memory, how it ended and the status file.
+              "runtime.health",
               # v0.6.10-alpha: cli.py's command bodies became commands/; cli.py is the parser.
               "commands", "commands.base", "commands.install", "commands.records",
               "commands.status", "commands.watcher",
@@ -120,7 +165,9 @@ LAYER = {_q(name): layer for layer, names in {
               "ui.popup.placement", "ui.popup.renderer", "ui.popup.theme",
               "ui.popup.win32", "ui.popup.window", "ui.popup.words",
               # v0.6.10: the window's messages, out of window.py.
-              "ui.popup.messages"),
+              "ui.popup.messages",
+              # v0.6.11: what a screen reader is told of the popup, and asks of it.
+              "ui.popup.access"),
 }.items() for name in names}
 
 # The roles the target rules speak of: today's modules, and the packages the split moves them
@@ -183,6 +230,8 @@ LAZY_CYCLES = {}
 LAZY_IMPORTS = {(_q(importer), _q(imported)): (kind, reason) for (importer, imported), (kind, reason) in {
     ("", "config"): ("cost", "__version__ is resolved on demand, so importing the package reads no manifest"),
     ("runtime.app", "control"): ("cost", "only a card's button and the icon's thread use the control layer"),
+    ("runtime.app", "control.policy"): ("cost", "the administrator's policy keys, asked where the control "
+                                                "layer asks them, when the settings are read"),
     ("runtime.loop", "control"): ("cost", "only a card's button and the icon's thread use the control layer"),
     ("runtime.app", "interface"): ("cost", "the icon's catalogue, when the icon starts or the language changes"),
     ("runtime.app", "ui.tray"): ("cost", "the notification-area icon, only in a watcher that shows one"),

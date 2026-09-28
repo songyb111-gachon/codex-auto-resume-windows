@@ -6,15 +6,18 @@ them, and `tests/test_schema_golden.py` fails if a column, an index or the user_
 from __future__ import annotations
 
 import sqlite3
-from .columns import _EVENT_COLUMNS, _RECORD_COLUMNS, _WATCHER_COLUMNS
+from .columns import (_EVENT_COLUMNS, _NOTICE_COLUMNS, _RECORD_COLUMNS, _SETTINGS_COLUMNS,
+                      _THREAD_COLUMNS, _WATCHER_COLUMNS)
 from .errors import StoreError
 
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 _TABLES_V2 = {"settings", "threads", "interruptions"}
 
 _TABLES_V3 = _TABLES_V2 | {"events", "watcher_status"}
+
+_TABLES_V4 = _TABLES_V3 | {"notices"}
 
 
 class SchemaMixin:
@@ -69,16 +72,20 @@ class SchemaMixin:
         )""")
         cls._create_interruptions(connection)
         cls._add_schema_3(connection)
-        connection.execute("PRAGMA user_version=3")
+        # Made the way a migration makes it, so an upgraded state and a fresh one are the same
+        # file (tests/test_schema_golden.py).
+        cls._add_schema_4(connection)
+        connection.execute("PRAGMA user_version=4")
 
     @staticmethod
     def _validate_schema(connection: sqlite3.Connection) -> None:
         expected = {
-            "settings": ({"singleton", "enabled", "armed_at", "poll_seconds"}, "singleton"),
-            "threads": ({"thread_id", "enabled"}, "thread_id"),
+            "settings": (set(_SETTINGS_COLUMNS), "singleton"),
+            "threads": (set(_THREAD_COLUMNS), "thread_id"),
             "interruptions": (set(_RECORD_COLUMNS), "interruption_id"),
             "events": (set(_EVENT_COLUMNS), "event_id"),
             "watcher_status": (set(_WATCHER_COLUMNS), "singleton"),
+            "notices": (set(_NOTICE_COLUMNS), "interruption_id"),
         }
         for table, (columns, primary_name) in expected.items():
             information = list(connection.execute(f"PRAGMA table_info({table})"))

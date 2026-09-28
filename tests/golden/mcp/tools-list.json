@@ -99,7 +99,8 @@
                 "enum": [
                   "conservative",
                   "normal",
-                  "aggressive"
+                  "aggressive",
+                  "custom"
                 ],
                 "description": "See the settings documentation."
               },
@@ -166,6 +167,42 @@
                 "type": "boolean",
                 "description": "See the settings documentation."
               },
+              "notify_needs_you": {
+                "type": "boolean",
+                "description": "See the settings documentation."
+              },
+              "notify_needs_you_invalid": {
+                "type": "boolean",
+                "description": "See the settings documentation."
+              },
+              "notify_needs_you_policy": {
+                "type": "boolean",
+                "description": "See the settings documentation."
+              },
+              "notify_needs_you_auth": {
+                "type": "boolean",
+                "description": "See the settings documentation."
+              },
+              "notify_needs_you_failure": {
+                "type": "boolean",
+                "description": "See the settings documentation."
+              },
+              "stall_after": {
+                "type": "string",
+                "enum": [
+                  "off",
+                  "m10",
+                  "m15",
+                  "m30",
+                  "h1",
+                  "h2"
+                ],
+                "description": "See the settings documentation."
+              },
+              "needs_you_sound": {
+                "type": "boolean",
+                "description": "See the settings documentation."
+              },
               "interface_language": {
                 "type": "string",
                 "enum": [
@@ -178,7 +215,14 @@
                   "es",
                   "de",
                   "fr",
-                  "pt-BR"
+                  "pt-BR",
+                  "ru",
+                  "it",
+                  "tr",
+                  "pl",
+                  "uk",
+                  "vi",
+                  "id"
                 ],
                 "description": "See the settings documentation."
               },
@@ -194,7 +238,14 @@
                   "es",
                   "de",
                   "fr",
-                  "pt-BR"
+                  "pt-BR",
+                  "ru",
+                  "it",
+                  "tr",
+                  "pl",
+                  "uk",
+                  "vi",
+                  "id"
                 ],
                 "description": "See the settings documentation."
               },
@@ -204,7 +255,8 @@
                   "minimal",
                   "standard",
                   "detailed",
-                  "custom"
+                  "custom",
+                  "careful"
                 ],
                 "description": "See the settings documentation."
               },
@@ -215,6 +267,280 @@
                   "per_reason"
                 ],
                 "description": "See the settings documentation."
+              },
+              "quiet_hours_start": {
+                "type": "string",
+                "enum": [
+                  "off",
+                  "00:00",
+                  "00:30",
+                  "01:00",
+                  "01:30",
+                  "02:00",
+                  "02:30",
+                  "03:00",
+                  "03:30",
+                  "04:00",
+                  "04:30",
+                  "05:00",
+                  "05:30",
+                  "06:00",
+                  "06:30",
+                  "07:00",
+                  "07:30",
+                  "08:00",
+                  "08:30",
+                  "09:00",
+                  "09:30",
+                  "10:00",
+                  "10:30",
+                  "11:00",
+                  "11:30",
+                  "12:00",
+                  "12:30",
+                  "13:00",
+                  "13:30",
+                  "14:00",
+                  "14:30",
+                  "15:00",
+                  "15:30",
+                  "16:00",
+                  "16:30",
+                  "17:00",
+                  "17:30",
+                  "18:00",
+                  "18:30",
+                  "19:00",
+                  "19:30",
+                  "20:00",
+                  "20:30",
+                  "21:00",
+                  "21:30",
+                  "22:00",
+                  "22:30",
+                  "23:00",
+                  "23:30"
+                ],
+                "description": "When quiet hours start, local time, or off (the default: none). A recovery that falls due in them waits until they end; nothing else changes."
+              },
+              "quiet_hours_end": {
+                "type": "string",
+                "enum": [
+                  "00:00",
+                  "00:30",
+                  "01:00",
+                  "01:30",
+                  "02:00",
+                  "02:30",
+                  "03:00",
+                  "03:30",
+                  "04:00",
+                  "04:30",
+                  "05:00",
+                  "05:30",
+                  "06:00",
+                  "06:30",
+                  "07:00",
+                  "07:30",
+                  "08:00",
+                  "08:30",
+                  "09:00",
+                  "09:30",
+                  "10:00",
+                  "10:30",
+                  "11:00",
+                  "11:30",
+                  "12:00",
+                  "12:30",
+                  "13:00",
+                  "13:30",
+                  "14:00",
+                  "14:30",
+                  "15:00",
+                  "15:30",
+                  "16:00",
+                  "16:30",
+                  "17:00",
+                  "17:30",
+                  "18:00",
+                  "18:30",
+                  "19:00",
+                  "19:30",
+                  "20:00",
+                  "20:30",
+                  "21:00",
+                  "21:30",
+                  "22:00",
+                  "22:30",
+                  "23:00",
+                  "23:30"
+                ],
+                "description": "When quiet hours end, local time. Nothing while quiet_hours_start is off."
+              },
+              "quiet_hours_days": {
+                "type": "string",
+                "enum": [
+                  "every_day",
+                  "weekdays",
+                  "weekends"
+                ],
+                "description": "The days quiet hours start on. Nothing while quiet_hours_start is off."
+              },
+              "default_tier": {
+                "type": "string",
+                "enum": [
+                  "automatic",
+                  "objection_window",
+                  "ask_first",
+                  "notify_only"
+                ],
+                "description": "How much a conversation without a tier of its own asks before it is resumed: automatic (the default), objection_window (a card first, objection_minutes to stop it), ask_first or notify_only (nothing is sent until a person lets it continue). Applies to interruptions detected after it is chosen."
+              },
+              "objection_minutes": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 60,
+                "description": "How long the objection window waits before a continuation is sent."
+              },
+              "observe_only": {
+                "type": "boolean",
+                "description": "Observe only: every check still runs and when a continuation would have been sent is recorded, but nothing is sent. false (the default) sends as usual."
+              },
+              "new_conversation_policy": {
+                "type": "string",
+                "enum": [
+                  "resume",
+                  "notify_only"
+                ],
+                "description": "What a conversation this product has never seen before gets: resume (the default: the same as every other conversation) or notify_only (its own tier becomes Only notify me, so nothing is sent for it until a person lets a task continue)."
+              },
+              "project_policy": {
+                "type": "string",
+                "enum": [
+                  "every",
+                  "only_listed",
+                  "except_listed"
+                ],
+                "description": "Which projects resume without a person: every (the default), only_listed (only projects a person set to Always on a task's row) or except_listed (every project but those set to Never). An interruption of any other project, or of one whose project cannot be read, waits for a person and is never dropped. Applies to interruptions detected after it is chosen."
+              },
+              "retry_wait_1": {
+                "type": "string",
+                "enum": [
+                  "s5",
+                  "s15",
+                  "s30",
+                  "m1",
+                  "m2",
+                  "m5",
+                  "m10",
+                  "m15",
+                  "m30",
+                  "h1",
+                  "h2"
+                ],
+                "description": "Wait 1 of the custom retry timing, read only while retry_timing is custom: the wait before attempt 1 at a task that failed with a temporary error. Whatever is chosen, one conversation gets a continuation at most every 15 minutes and 5 a day."
+              },
+              "retry_wait_2": {
+                "type": "string",
+                "enum": [
+                  "m15",
+                  "m30",
+                  "h1",
+                  "h2",
+                  "h3",
+                  "h6"
+                ],
+                "description": "Wait 2 of the custom retry timing, read only while retry_timing is custom: the wait before attempt 2 at a task that failed with a temporary error. Whatever is chosen, one conversation gets a continuation at most every 15 minutes and 5 a day."
+              },
+              "retry_wait_3": {
+                "type": "string",
+                "enum": [
+                  "m15",
+                  "m30",
+                  "h1",
+                  "h2",
+                  "h3",
+                  "h6"
+                ],
+                "description": "Wait 3 of the custom retry timing, read only while retry_timing is custom: the wait before attempt 3 at a task that failed with a temporary error. Whatever is chosen, one conversation gets a continuation at most every 15 minutes and 5 a day."
+              },
+              "retry_wait_4": {
+                "type": "string",
+                "enum": [
+                  "m15",
+                  "m30",
+                  "h1",
+                  "h2",
+                  "h3",
+                  "h6"
+                ],
+                "description": "Wait 4 of the custom retry timing, read only while retry_timing is custom: the wait before attempt 4 at a task that failed with a temporary error. Whatever is chosen, one conversation gets a continuation at most every 15 minutes and 5 a day."
+              },
+              "retry_wait_5": {
+                "type": "string",
+                "enum": [
+                  "m15",
+                  "m30",
+                  "h1",
+                  "h2",
+                  "h3",
+                  "h6"
+                ],
+                "description": "Wait 5 of the custom retry timing, read only while retry_timing is custom: the wait before attempt 5 at a task that failed with a temporary error. Whatever is chosen, one conversation gets a continuation at most every 15 minutes and 5 a day."
+              },
+              "retry_jitter": {
+                "type": "boolean",
+                "description": "Adds up to a fifth to each wait of a temporary failure, never taking any off. false (the default) waits exactly."
+              },
+              "chain_time_ceiling": {
+                "type": "string",
+                "enum": [
+                  "off",
+                  "h1",
+                  "h3",
+                  "h6",
+                  "h12",
+                  "h24"
+                ],
+                "description": "How long a task may keep failing with temporary errors before it stops: off (the default) or a number of hours, from its first failure to its latest. Waiting for a person, quiet hours or a closed app never count."
+              },
+              "task_changed_guard": {
+                "type": "string",
+                "enum": [
+                  "off",
+                  "hold",
+                  "tell"
+                ],
+                "description": "When a recovery falls due, compare its conversation's model, approval mode and folder's git HEAD with when it stopped: off (the default, nothing is read), hold (a change waits for a person) or tell (it is sent, and its notification says the task changed). Only a digest is kept."
+              },
+              "context_guard": {
+                "type": "string",
+                "enum": [
+                  "off",
+                  "show",
+                  "above_100k",
+                  "above_250k",
+                  "above_500k",
+                  "above_1m"
+                ],
+                "description": "Codex's token count for a conversation, where Codex keeps one: off (the default, nothing is read), show (on Pending), or above_100k to above_1m (also hold a recovery whose conversation has used more, for a person)."
+              },
+              "ask_after_sleep_minutes": {
+                "type": "string",
+                "enum": [
+                  "off",
+                  "m30",
+                  "h1",
+                  "h2",
+                  "h3",
+                  "h6",
+                  "h12"
+                ],
+                "description": "After this PC slept for longer than this - off (the default) or m30 to h12 - a recovery that fell due while it slept waits for a person, who lets each continue from Pending. It only ever holds more back."
+              },
+              "wait_for_network": {
+                "type": "boolean",
+                "description": "When true, a due recovery asks Windows whether this PC is on the internet before usage is read, and waits while it reports none; nothing is sent to find out. false (the default) reads usage as before."
               }
             },
             "additionalProperties": false
@@ -364,6 +690,84 @@
           "annotations": {
             "readOnlyHint": false,
             "destructiveHint": false,
+            "idempotentHint": true,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "postpone_recovery",
+          "title": "Postpone one waiting recovery",
+          "description": "Make one exact waiting recovery wait longer: nothing is sent for it before the time asked for - preset 30_minutes, 1_hour, 3_hours or tomorrow_morning (09:00 local time), or a number of minutes up to a week; give exactly one. Identify it by its interruption id and its thread id, both from the same row of list_pending - never by title, project or recency. It only ever makes a recovery later, sends nothing and skips no check; retry_now does not bring it forward.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "interruption_id": {
+                "type": "string",
+                "title": "Interruption id",
+                "description": "The exact interruption id, as listed by list_pending. Never a title, a project name, or 'the most recent one'.",
+                "pattern": "^[0-9a-fA-F]{64}$"
+              },
+              "thread_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                "description": "The conversation's exact thread id, from the same row of list_pending"
+              },
+              "preset": {
+                "type": "string",
+                "enum": [
+                  "30_minutes",
+                  "1_hour",
+                  "3_hours",
+                  "tomorrow_morning"
+                ]
+              },
+              "minutes": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10080
+              }
+            },
+            "required": [
+              "interruption_id",
+              "thread_id"
+            ],
+            "additionalProperties": false
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": false,
+            "idempotentHint": false,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "release_hold",
+          "title": "Let one held recovery continue",
+          "description": "Let one exact recovery that waits for a person continue - one whose conversation asks first or only notifies (its hold in list_pending). Identify it by its interruption id and its thread id from the same row. Nothing is sent by this; the watcher still runs every check, and a postponement or quiet hours still apply. This lets automation run again for that recovery, so Codex asks the user first.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "interruption_id": {
+                "type": "string",
+                "title": "Interruption id",
+                "description": "The exact interruption id, as listed by list_pending. Never a title, a project name, or 'the most recent one'.",
+                "pattern": "^[0-9a-fA-F]{64}$"
+              },
+              "thread_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                "description": "The conversation's exact thread id, from the same row of list_pending"
+              }
+            },
+            "required": [
+              "interruption_id",
+              "thread_id"
+            ],
+            "additionalProperties": false
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": true,
             "idempotentHint": true,
             "openWorldHint": false
           }

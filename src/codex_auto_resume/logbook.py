@@ -84,6 +84,8 @@ _MESSAGES = {
     ("waiting_for_usage", "usage_unavailable"): "usage still unavailable; waiting for reset",
     ("waiting_for_usage", "usage_unknown"): "usage status unknown; waiting without queueing",
     ("waiting_for_usage", "usage_recheck_failed"): "usage re-check failed at dispatch time; waiting",
+    # v0.6.11: Wait for an internet connection (power.py), only when it is on.
+    ("waiting_for_usage", "offline"): "Windows reports no internet connection; waiting without reading usage",
     ("waiting_retry", "queue_process_not_started"): "queue process did not start; retrying with bounded backoff",
     ("waiting_retry", "thread_submission_cooldown"): "recent submission on this thread; cooling down",
     ("waiting_retry", "daily_submission_cap"): "daily submission cap reached; deferring until the 24h window rolls over",
@@ -101,6 +103,16 @@ _MESSAGES = {
     ("reconciliation_unavailable", None): "reconciliation unavailable this tick; no submission",
     ("detection_unavailable_no_submission", None): "Codex local state unavailable; detection skipped, no submission",
     ("eligibility_check_failed_no_submission", None): "eligibility check failed; no submission",
+    ("would_send", None): "observe only: every other check passed; a continuation would have been sent now, and none was",
+    # v0.6.11: the two guards (guards.py), each only when it is on.
+    ("held_by_guard_workspace_changed", None): "its task's workspace changed since it stopped; held for a person",
+    ("held_by_guard_context_cost", None): "its conversation is over the context-cost limit; held for a person",
+    ("task_changed_told", None): "its task's workspace changed since it stopped; its notice will say so",
+    # v0.6.11: a needs-you notice, raised once; nothing is resumed for it.
+    ("needs_you_notice", None): "needs a person; one notice raised (notice {detail12}), nothing resumed",
+    ("needs_you_unavailable", None): "needs-you notices skipped this tick; nothing is sent either way",
+    # v0.6.11: Ask after a long sleep (power.py), only when it is on.
+    ("held_after_sleep", None): "{detail} waiting recoveries fell due while this PC slept; held for a person",
 }
 
 

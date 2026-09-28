@@ -6,7 +6,7 @@ latest is superseded rather than recovered.
 """
 from __future__ import annotations
 
-from .. import failures, machine
+from .. import failures, guards, machine, needsyou
 from ..machine import OBSERVING, TERMINAL, WAITING, WATCHED
 from ..codex import detect
 
@@ -76,7 +76,13 @@ class DetectMixin:
         if not settings["enabled"]:
             return
         since = max(0.0, settings["armed_at"] - self.options["detection_lookback_seconds"])
-        for raw in self.source.latest_failures(since):
+        # v0.6.11: the same read also brings the failures a needs-you notice is raised for, only while
+        # one is on (needsyou.kinds) - none of which `detect` takes, so none becomes a record. At the
+        # defaults it is v0.6.10's read exactly.
+        kinds = needsyou.kinds(self.policy_values)
+        found = (self.source.latest_failures(since, needs_you=kinds) if kinds
+                 else self.source.latest_failures(since))
+        for raw in found:
             record = detect(raw)
             if record is None or not self.store.thread_enabled(record["thread_id"]):
                 continue
@@ -108,21 +114,36 @@ class DetectMixin:
             }
             now = self.clock()
             reset = detection["reset_at"]
+            owner = self._owner(detection["thread_id"], detection["turn_id"])
             if usage:
                 state = "waiting_reset" if reset else "waiting_poll"
                 when = (max(now + 30, reset + self.options["reset_grace_seconds"]) if reset
                         else now + self.options["conservative_poll_seconds"])
             else:
+                # The preset's first wait, as in v0.6.10; from v0.6.11 the Custom ladder's step for
+                # this attempt at the task, a Retry-After Codex named, and jitter, each only if set.
                 state = "waiting_backoff"
-                when = now + self.first_delay(category)
-            owner = self._owner(detection["thread_id"], detection["turn_id"])
+                when = now + self.detection_wait(category, thread_id=detection["thread_id"],
+                                                 turn_id=detection["turn_id"], owner=owner,
+                                                 retry_after=record.get("retry_after"))
             progress = self.source.turn_progress(detection["thread_id"], detection["turn_id"])
             carry = None if owner else self._legacy_carry(detection)
+            # v0.6.11: a conversation that asks first, or only notifies, has what it detects held
+            # for a person from the start - its tier as it stands now (machine.hold_for_tier) - and
+            # so does one new to this state or in a project not let resume, when Settings say so
+            # (admission). None at the defaults, where every conversation is resumed automatically.
+            hold = self.admission(detection["thread_id"], now)
+            # And what the two guards keep of it, each only while it is on (engine/guard.py): a
+            # conversation already over the context-cost limit waits for a person from the start.
+            facts = self.detected_facts(detection["thread_id"])
+            if hold is None and guards.over(self.policy_values, facts["context_tokens"]):
+                hold = guards.CONTEXT_HOLD
             # One transaction: the record can never exist without its real schedule and
             # the counters of the task it continues.
             if not self.store.register(detection, now, state=state, next_retry_at=when,
                                        owner_id=owner, failed_turn_progress=progress,
-                                       legacy_carry=carry, limits=self.limits()):
+                                       legacy_carry=carry, limits=self.limits(), hold=hold,
+                                       **facts):
                 continue
             registered = self.store.get(detection["interruption_id"])
             self.log(detection["thread_id"],
@@ -144,5 +165,8 @@ class DetectMixin:
                 self.log(detection["thread_id"], "blocking_limit_uncertain", None)
             # The only moment a control can be offered at the time it matters: the
             # Codex turn has already failed, so nothing can be added to the app's
-            # own notice, but the watcher is running right now.
-            self.announce("interruption", registered)
+            # own notice, but the watcher is running right now. A held one says it waits for
+            # a person, never that it will resume (notify.scheduled_content).
+            held = {"hold": registered["hold"]} if registered["hold"] is not None else {}
+            self.announce("interruption", registered, **held)
+        self.tell_needs_you(found, since)

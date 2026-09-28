@@ -92,8 +92,9 @@ LANGS = choices("interface_language")
 # concatenated in compile order, whichever files `gui/window.sources` names them in.
 CONTROLS = guiscan.controls()
 # How many rows a list shows before it scrolls (SoftCombo's MaxDropDownItems), and how long letters typed
-# one after another make one search (SoftCombo.TypeAhead).
-ROWS = 12
+# one after another make one search (SoftCombo.TypeAhead). About ten since v0.6.11, the owner's number
+# for the language pickers, whose seventeen choices scroll.
+ROWS = 10
 TYPING_MS = 1000
 # Page Up and Page Down move what shows less one, as the window's list does - a list that shows all its
 # rows, when nothing is measured.
@@ -139,16 +140,34 @@ class ComboMarkupTests(unittest.TestCase):
         ids = [drawn["id"] for drawn in observed]
         self.assertEqual(sorted(ids), sorted(["car-interface_language", "car-retry_timing", "car-continuation_language",
                                               "car-custom_message_mode", "car-preview-reason", "car-theme",
-                                              "car-panel_theme"]))
+                                              "car-panel_theme",
+                                              # v0.6.11: the limits' quiet hours and the tier a conversation
+                                              # has by default, what a conversation first seen gets and
+                                              # which projects may resume.
+                                              "car-quiet_hours_start", "car-quiet_hours_end",
+                                              "car-quiet_hours_days", "car-default_tier",
+                                              "car-new_conversation_policy", "car-project_policy",
+                                              # and the Custom waits, the time ceiling and the two guards.
+                                              "car-retry_wait_1", "car-retry_wait_2", "car-retry_wait_3",
+                                              "car-retry_wait_4", "car-retry_wait_5",
+                                              "car-chain_time_ceiling", "car-task_changed_guard",
+                                              "car-context_guard",
+                                              # and how long a turn may not move before a needs-you notice.
+                                              "car-stall_after",
+                                              # and after how long a sleep what fell due waits for a person.
+                                              "car-ask_after_sleep_minutes"]))
         for drawn in observed:
             with self.subTest(drawn["id"]):
                 name = drawn["id"]
                 # The select is still there and still the value, and nothing can reach it.
                 self.assertEqual((drawn["hidden"], drawn["aria"], drawn["tab"], drawn["wrap"], drawn["first"]),
                                  (True, "true", "-1", "combo", True))
+                # v0.6.11: a needs-you notice's stall is live only while the notice is on, which it is not by
+                # default (NeedsYouFollowTests) - off, the box leaves the keyboard's order, as a disabled field does.
                 self.assertEqual((drawn["role"], drawn["popup"], drawn["expanded"], drawn["controls"], drawn["boxId"],
                                   drawn["boxTab"]),
-                                 ("combobox", "listbox", "false", name + "-list", name + "-box", "0"))
+                                 ("combobox", "listbox", "false", name + "-list", name + "-box",
+                                  None if name == "car-stall_after" else "0"))
                 self.assertEqual((drawn["listId"], drawn["listRole"], drawn["listHidden"], drawn["listTab"],
                                   drawn["listLabel"]),
                                  (name + "-list", "listbox", True, "-1", name + "-label"))
@@ -535,7 +554,7 @@ class ComboPlacementTests(unittest.TestCase):
         p.box.getBoundingClientRect = function () { return {top: top, bottom: top + 35, left: 40, right: 320}; };
         p.box.offsetHeight = 35;
         p.list.offsetTop = 39;
-        lay(p.options.length);
+        lay(Math.min(p.options.length, COMBO_ROWS));
         send(p.box, 'click');
         var seen = {up: p.list.classList.contains('up'), max: p.scroll.style.maxHeight || ''};
         send(p.box, 'blur');
@@ -544,7 +563,8 @@ class ComboPlacementTests(unittest.TestCase):
     """
 
     def test_below_with_room_above_near_the_bottom_and_cut_to_whole_rows_with_room_on_neither_side(self):
-        self.assertEqual(len(LANGS), 10)
+        # The Interface language's list, as the stylesheet shows it: its first ten rows (COMBO_ROWS).
+        self.assertGreater(len(LANGS), ROWS)
         observed = page(self.PLACE + say("[at(1000, 500), at(600, 500), at(300, 130), at(300, 170), at(120, 40),"
                                          " at(0, 500)]"))
         self.assertEqual(observed, [
@@ -642,7 +662,8 @@ class ComboStyleTests(unittest.TestCase):
 
     def test_the_wedge_is_brands(self):
         wedge = ".combo-box::after"
-        self.assertEqual(declared(wedge, "right"), "var(--size-chevron-right)")
+        # At the field's end: its right, and its left right to left (v0.6.11).
+        self.assertEqual(declared(wedge, "inset-inline-end"), "var(--size-chevron-right)")
         self.assertEqual(declared(wedge, "width"), "var(--size-chevron-width)")
         self.assertEqual(declared(wedge, "height"), "var(--size-chevron-height)")
         self.assertEqual(declared(wedge, "background"), "var(--muted)")
@@ -735,10 +756,11 @@ class OneListTests(unittest.TestCase):
     def test_its_words_start_under_the_fields(self):
         # The card is a pad left of the field and at least a pad wider on each side, so each pill's left
         # edge is the field's and its words start where the field's do (SelectPadLeft, past a hairline).
-        self.assertEqual(declared(".combo-list", "left"), "calc(-1 * var(--space-s))")
+        # From the field's start: its left, and its right right to left (v0.6.11).
+        self.assertEqual(declared(".combo-list", "inset-inline-start"), "calc(-1 * var(--space-s))")
         self.assertEqual(declared(".combo-list", "min-width"), "calc(100% + 2 * var(--space-s))")
         self.assertEqual(declared(".combo-list", "width"), "max-content")
-        self.assertEqual(resolved(declared(".combo-list", "left")) + self.PAD, 0)
+        self.assertEqual(resolved(declared(".combo-list", "inset-inline-start")) + self.PAD, 0)
         field = brand.padding("select_pad")
         item = sides(declared(".combo-option", "padding"))
         self.assertEqual((item[1], item[3]), (field[3], field[3]))
@@ -789,12 +811,18 @@ class OneListTests(unittest.TestCase):
         # The field gives its own ring up while its list is open.
         self.assertEqual(declared('.combo-box[aria-expanded="true"]', "outline"), "none")
 
-    def test_it_shows_twelve_whole_rows_and_scrolls_by_whole_rows(self):
+    def test_it_shows_ten_whole_rows_and_scrolls_by_whole_rows(self):
         self.assertIn("var COMBO_ROWS = %d;" % ROWS, mcpui._SCRIPT)
         self.assertEqual(declared(".combo-scroll", "max-height"),
                          "calc(2 * var(--space-xs) + %d * var(--combo-pill) + %d * var(--space-xs))" % (ROWS, ROWS - 1))
-        # Every list the panel has shows whole: the longest, the Interface language, has ten choices.
-        self.assertLessEqual(len(LANGS), ROWS)
+        # The language pickers - System first, then every offered language named in itself - are longer
+        # than that, and scroll (the owner, v0.6.11); so is the Continuation language, Same as the
+        # interface first.
+        self.assertEqual(len(LANGS), 1 + len(l10n.OFFERED))
+        self.assertEqual(LANGS[0], "system")
+        self.assertGreater(len(LANGS), ROWS)
+        self.assertEqual(choices("continuation_language")[0], "follow")
+        self.assertGreater(len(choices("continuation_language")), ROWS)
         # What scrolls stops inside the card's padding, never at its edge, and settles on whole rows.
         self.assertEqual(declared(".combo-scroll", "overflow-y"), "auto")
         self.assertIsNone(declared(".combo-list", "overflow-y"))

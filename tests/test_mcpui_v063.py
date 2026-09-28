@@ -485,7 +485,9 @@ class StyleTests(unittest.TestCase):
         the light 9px in from the line's start and its word 18px from it. v0.6.10 (F7) stood every surface's light
         and word alike, 14 px apart, and gave it back: nothing a person knows moves by a few pixels."""
         self.assertEqual(declared(".hero-state", "gap"), "18px")
-        self.assertEqual(declared(".hero-state", "padding").split()[-1], "9px")
+        # From the line's start: its left, and its right right to left (v0.6.11).
+        self.assertEqual(declared(".hero-state", "padding-inline"), "9px 0")
+        self.assertEqual(declared(".hero-state", "padding-block"), "8px 4px")
         self.assertEqual(number(declared(".halo", "width"), "px"), 2 * brand.STATUS_DOT["panel"],
                          "the gap is from the dot's own edge: the light's box is the dot")
         self.assertEqual(declared(".eyebrow", "color"), "var(--muted)")
@@ -1032,7 +1034,11 @@ class StatusLightTests(unittest.TestCase):
 
 # The panel's functions the hero and the tile are drawn with, and what they call.
 DRAWING = ["t", "fill", "element", "card", "activity", "attentionCause", "due", "checkingRow", "lightFor", "lightNode",
-           "lightClass", "nextCheck", "heroFacts", "soonestFact", "showFacts", "renderHero", "renderRecovery"]
+           "lightClass", "nextCheck", "heroFacts", "soonestFact", "showFacts", "renderHero", "renderRecovery",
+           # v0.6.11: and the last usage reading among the facts.
+           "usageLine", "age", "windowName", "clockTime",
+           # and how a watcher that is not running ended.
+           "stoppedFact"]
 
 
 @unittest.skipUnless(NODE, "needs Node to run the panel's own code")
@@ -1073,6 +1079,16 @@ class HeroLightTests(unittest.TestCase):
         """ % json.dumps([status for status, _, _ in self.CASES]), prelude=self.PRELUDE)
         self.assertEqual(observed, [[state, "halo " + light, ENGLISH["activity." + state]]
                                     for _, state, light in self.CASES])
+
+    def test_a_task_held_for_a_person_has_no_next_check(self):
+        """v0.6.11: it has no time (domain/public.eligible_at) - only a person lets it go - so its row says it
+        waits for them rather than 'not known yet', and it never makes the page say checking."""
+        observed = run_javascript(["t", "nextCheck", "due", "checkingRow"], """
+          var held = {code: 'scheduled', eligible_at: null, overlays: ['held']};
+          process.stdout.write(JSON.stringify([nextCheck(held), nextCheck({eligible_at: null}),
+                                               checkingRow(held, 1800000000, 1800000000)]));
+        """, prelude=self.PRELUDE)
+        self.assertEqual(observed, [ENGLISH["overlay.held"], ENGLISH["panel.next_unknown"], False])
 
     def test_amber_is_for_a_watcher_that_runs(self):
         observed = run_javascript(["lightFor"], "process.stdout.write(JSON.stringify(["

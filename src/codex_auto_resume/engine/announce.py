@@ -4,6 +4,9 @@ One place writes a transition and decides whether it is worth telling somebody a
 notification is a state a person would want to know they are in, not every step between. The
 same place is where a recovery turn is seen to end, so it is where the edition's plug is asked
 what follows one (P6), and where it is told of every move the engine writes (P14).
+
+The waits a dispatch ends in are here too: a claim the store refused, a record parked in quiet
+hours, and (v0.6.11) the objection window's minutes and the card that says so.
 """
 from __future__ import annotations
 
@@ -93,6 +96,63 @@ class AnnounceMixin:
                                 "reset_at": row.get("reset_at"), **detail})
         except Exception:
             self.log(row.get("thread_id"), "notification_failed", event)
+
+    def _objection(self, row, vector, now) -> bool:
+        """The objection-window tier (v0.6.11): before a record is first sent, its minutes for a
+        person to stop it. True if the record waits instead of being sent now.
+
+        Asked once every gate has passed - when it would otherwise be sent now - so the minutes
+        are the last before a send, not minutes spent waiting for a reset or for the conversation
+        to be opened. Opened once per record (`objection_at`): one whose window has passed goes
+        when every gate passes again, and one a person postponed before it opened has it once the
+        postponement is over - a postponement only ever holds a record back, and never makes one
+        go sooner than it would have. One made while it is open is later than its end, and goes at
+        the time chosen. The card it raises offers what an interruption's card offers: Don't
+        resume, and the Dashboard. No tier asks this at the defaults, where every conversation is
+        resumed automatically."""
+        if row.get("objection_at") is not None or self.tier(row["thread_id"]) != "objection_window":
+            return False
+        until = now + 60 * self.policy_values["objection_minutes"]
+        if self.store.open_objection_window(row["interruption_id"], until, now):
+            vector["schedule"] = machine.gate(machine.WAIT, machine.POSTPONED)
+            self._wait(row, row["state"], row.get("last_error"), until - now, vector)
+            self.announce("objection", dict(row, not_before=until), until=until)
+        # A window that could not be opened - the record moved, or a person postponed it in the
+        # meantime - sends nothing on this tick either; the next one looks again from the top.
+        return True
+
+    def _refused(self, row, gate, reason):
+        """A claim the store refused. Recorded as a wait or a stop, never silently."""
+        if gate in ("chain_budget", "attempt_budget", "no_progress_budget"):
+            self._stop_for_budget(row, gate, reason)
+        elif gate == "schedule" and reason == "waiting_reset" and row.get("reset_at"):
+            self.transition(row, "waiting_reset", "waiting_reset",
+                            delay=max(30, row["reset_at"] + self.options["reset_grace_seconds"] - self.clock()))
+        elif gate == "submission_safe" and reason == "other_recovery_in_flight":
+            self.transition(row, "waiting_retry", "other_recovery_in_flight",
+                            delay=self.options["state_poll_seconds"])
+        elif gate == "submission_safe" and reason == machine.HELD:
+            # The plug's ledger held the claim (P11): the record keeps its state and its reason
+            # for one more poll, as a gate the plug holds does.
+            self.transition(row, row["state"], row.get("last_error"),
+                            delay=self.options["state_poll_seconds"])
+
+    def _quiet(self, row, vector, delay):
+        """A record that fell due in quiet hours (v0.6.11), parked until they end, keeping its state
+        and its reason. The time counts toward nothing: a usage limit's seven days count only the
+        time between two reads that both found no usage (engine/outcome.py), and forgetting the
+        last read here makes the first one after the quiet hours start that count again."""
+        self.store.record_gates(row["interruption_id"], vector, self.clock())
+        self.transition(row, row["state"], row.get("last_error"), delay=delay, usage_probe_at=None)
+
+    def _would_send(self, row, vector, now):
+        """Observe only (v0.6.11): every gate but consent passed, so this record would have been sent
+        now. Nothing is claimed and nothing is sent: it is parked at the conservative poll with the
+        vector that says so, and journaled (would_send) the first time it comes to this each time it
+        comes due, never on every poll it spends here."""
+        if self.store.record_would_send(row["interruption_id"], vector, now,
+                                        now + self.options["conservative_poll_seconds"]):
+            self.log(row["thread_id"], "would_send", None)
 
     def _wait(self, row, state, reason, delay, vector):
         """Park a record that was due but is not claimable, with the reason recorded."""

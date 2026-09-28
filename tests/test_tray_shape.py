@@ -58,6 +58,8 @@ METHODS = {
     "_popup_broke", "_popup_for_click", "_refresh", "_run", "_select", "_session_changed",
     "_set_version", "_shown", "_stored_settings", "_sync_motion", "_theme_menu",
     "_watch_session", "_wndproc", "set_strings", "start", "stop", "update",
+    # v0.6.11: Show me what happens - the demo event this icon makes, and its look at it once a second.
+    "_open_demo", "_look_for_demo",
 }
 
 

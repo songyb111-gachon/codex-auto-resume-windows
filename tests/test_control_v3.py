@@ -18,7 +18,7 @@ import unittest
 from unittest.mock import patch
 
 from codex_auto_resume import config, control, machine
-from codex_auto_resume.store import MAX_BUDGET_RESETS, Store
+from codex_auto_resume.store import MAX_BUDGET_RESETS, SCHEMA_VERSION, Store
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = str(ROOT / "src")
@@ -379,15 +379,42 @@ class UpgradeWindowTests(Base):
         # Once it has gone, the next call upgrades under the mutex, and the thread-wide
         # cancel made during the window is still there.
         listed = self.control.list_pending(include_terminal=True)
-        self.assertEqual(self.version(), 3)
+        self.assertEqual(self.version(), SCHEMA_VERSION)
         self.assertEqual(listed[0]["state"], "cancelled")
         self.assertFalse(listed[0]["thread_enabled"])
+
+    def test_under_an_older_v0_6_watcher_too_only_what_reduces_automation_works(self):
+        """From v0.6.11 (schema 4) the older watcher can be a v0.6.x one, which owns schema 3. The
+        same reducing actions reach it, written so v0.6.10's own store still reads every row."""
+        import released
+        written = released.write_v3_state(self.paths.state_dir)
+        with self.older_watcher():
+            self.assertEqual(self.control.set_enabled(False), {"enabled": False})
+            self.control.cancel_thread(released.THREAD)
+            self.assertTrue(self.control.get_status()["upgrade_pending"])
+            with self.assertRaises(control.ControlError) as caught:
+                self.control.list_pending()
+            self.assertIn("Upgrade pending", str(caught.exception))
+            self.assertEqual(self.version(), 3, "nothing migrates under an older watcher")
+            seen = released.read_state(self.paths.state_dir)
+            self.assertFalse(seen["settings"]["enabled"])
+            self.assertIn(released.THREAD, seen["disabled"])
+            for key, record in seen["records"].items():
+                state = written["states"][key]
+                if state in machine.WAITING:
+                    self.assertEqual((record["state"], record["last_error"]), ("cancelled", "user_cancelled"))
+                elif state not in machine.TERMINAL:
+                    self.assertTrue(record["cancel_requested"], "marked for the old watcher to take back")
+        listed = self.control.list_pending(include_terminal=True)
+        self.assertEqual(self.version(), SCHEMA_VERSION)
+        self.assertEqual(len(listed), len(written["states"]))
+        self.assertTrue(all(not row["thread_enabled"] for row in listed))
 
     def test_a_newer_state_is_never_called_damage(self):
         with self.store():
             pass
         with closing(sqlite3.connect(self.paths.state_dir / "state.sqlite")) as db:
-            db.execute("PRAGMA user_version=4")
+            db.execute("PRAGMA user_version=%d" % (SCHEMA_VERSION + 1))
             db.commit()
         with self.assertRaises(control.ControlError) as caught:
             self.control.list_pending()

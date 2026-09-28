@@ -50,9 +50,13 @@ import make_release  # noqa: E402
 # The first release whose bootstrap fetched an archive: v0.5.0 and v0.5.1 have no
 # scripts/bootstrap.ps1 at all.
 FIRST = (0, 5, 2)
-# How this project tags a release: vMAJOR.MINOR.PATCH, or a planned pre-release with one word
-# after it (v0.6.9-alpha, v0.6.6-beta). Anything else is not a release of ours.
-TAG = re.compile(r"^v(\d+)\.(\d+)\.(\d+)(?:-([a-z]+))?$")
+# How this project tags a release: vMAJOR.MINOR.PATCH, or a pre-release with -alpha or -beta
+# after it (v0.6.9-alpha, v0.6.11-beta) - the two words scripts/bootstrap.ps1 accepts, in ASCII
+# digits as it takes them: \d would take any script's. Anything else is not a release of ours.
+# Always applied with fullmatch (tests/test_version_rule.py).
+TAG = re.compile(r"v([0-9]+)\.([0-9]+)\.([0-9]+)(?:-(alpha|beta))?")
+# Where each stage sorts among its version's builds: alpha, then beta, then the release.
+STAGES = {"alpha": 0, "beta": 1, None: 2}
 POWERSHELL = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
               / "WindowsPowerShell" / "v1.0" / "powershell.exe")
 
@@ -106,6 +110,31 @@ ConvertTo-Json -InputObject @($answers) -Depth 4 -Compress
 """
 
 
+# Each case is one tag's bootstrap asked whether it can read an installed version: its own
+# Get-VersionParts, defined in a scope of its own, run on the version. A bootstrap with none - v0.5.x
+# - compares no versions at all.
+READS = r"""
+$ErrorActionPreference = 'Stop'
+Set-StrictMode -Version 2.0
+$answers = @()
+foreach ($case in (ConvertFrom-Json (Get-Content -LiteralPath $env:CAR_CASES -Raw -Encoding UTF8))) {
+    $answers += & {
+        param($case)
+        $errors = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile($case.script, [ref]$null, [ref]$errors)
+        if ($errors -and $errors.Count) { return 'unparsed' }
+        $found = @($ast.FindAll({ param($n)
+                $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+                $n.Name -eq 'Get-VersionParts' }, $true))
+        if (-not $found.Count) { return 'unguarded' }
+        Invoke-Expression $found[0].Extent.Text
+        try { $null = Get-VersionParts $case.version; return 'reads' } catch { return 'refuses' }
+    } $case
+}
+ConvertTo-Json -InputObject @($answers) -Compress
+"""
+
+
 @dataclass(frozen=True)
 class Bootstrap:
     """One bootstrap as it was published: its tag, and the two files that decide what it takes."""
@@ -118,12 +147,13 @@ class Bootstrap:
 
 
 def order(version: str) -> tuple:
-    """A version as something to sort by: 0.6.9-alpha before 0.6.9, and 0.6.10 after 0.6.9."""
-    match = TAG.match("v" + version)
+    """A version as something to sort by: 0.6.11-alpha before 0.6.11-beta before 0.6.11, and
+    0.6.10 after 0.6.9."""
+    match = TAG.fullmatch("v" + version)
     if not match:
         raise ValueError("not a version this product uses: %s" % version)
     major, minor, patch, stage = match.groups()
-    return (int(major), int(minor), int(patch), 0 if stage else 1, stage or "")
+    return (int(major), int(minor), int(patch), STAGES[stage])
 
 
 def _git(root: Path, *arguments: str) -> bytes:
@@ -140,7 +170,7 @@ def published(root: Path, before: str) -> list[str]:
     A pre-release counts: people install them, and their bootstraps update like any other."""
     tags = _git(root, "tag", "--list", "v*").decode("utf-8").split()
     limit = order(before)
-    chosen = [tag for tag in tags if TAG.match(tag)
+    chosen = [tag for tag in tags if TAG.fullmatch(tag)
               and order(tag[1:])[:3] >= FIRST and order(tag[1:]) < limit]
     return sorted(chosen, key=lambda tag: order(tag[1:]))
 
@@ -202,6 +232,38 @@ def check(bootstraps, version: str, standard: Path, advanced: Path | None = None
         if answer["stage"] != "accepted":
             found.append("%s refuses %s: %s" % (tag, archive.name, answer["error"]))
     return found
+
+
+def readers(bootstraps, version: str) -> dict:
+    """What each bootstrap makes of an installation at `version`, by tag: "reads", "refuses", or
+    "unguarded" for one with no Get-VersionParts (v0.5.x), which compares no versions at all.
+
+    One that refuses cannot tell the installation from none. Run from a plugin copy Codex still
+    holds, it installs its own, older release over it (the published v0.6.10 and v0.6.11-alpha
+    over 0.6.11-beta), and with -CheckOnly or -Update it stops with no answer. It cannot be
+    changed, so the release that introduces such a version says so (tests/test_legacy_bootstraps.py).
+    """
+    if not POWERSHELL.is_file():
+        raise SystemExit("the published bootstraps are Windows PowerShell; %s is missing" % POWERSHELL)
+    bootstraps = list(bootstraps)
+    if not bootstraps:
+        return {}
+    with tempfile.TemporaryDirectory(prefix="legacy-readers-") as work:
+        cases = []
+        for index, bootstrap in enumerate(bootstraps):
+            script = Path(work) / ("%d.ps1" % index)
+            script.write_bytes(bootstrap.script)
+            cases.append({"script": str(script), "version": version})
+        (Path(work) / "cases.json").write_text(json.dumps(cases), encoding="utf-8")
+        done = subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-Command", READS],
+                              capture_output=True, text=True, encoding="utf-8", errors="replace",
+                              timeout=900, env=dict(os.environ, CAR_CASES=str(Path(work) / "cases.json")))
+    if done.returncode != 0 or not done.stdout.strip():
+        raise SystemExit("the published bootstraps could not be run:\n%s" % (done.stderr or done.stdout)[-2000:])
+    answers = json.loads(done.stdout)
+    if not isinstance(answers, list) or len(answers) != len(bootstraps):
+        raise SystemExit("asked %d bootstraps and heard about %s" % (len(bootstraps), answers))
+    return {bootstrap.tag: answer for bootstrap, answer in zip(bootstraps, answers)}
 
 
 def main(argv=None) -> int:

@@ -64,6 +64,42 @@ class EveryReasonEveryLanguageTests(unittest.TestCase):
                          continuation.build("timeout", locale="en", style="standard"))
 
 
+class NewLanguagesTests(unittest.TestCase):
+    """v0.6.11 adds nine catalogs. Each speaks every style of continuation in its own words, and the
+    nine languages v0.6.10 spoke still send exactly what v0.6.10 sent."""
+
+    V0610 = ("en", "ko", "ja", "zh-CN", "zh-TW", "es", "de", "fr", "pt-BR")
+    WITH_TEXT = tuple(style for style in continuation.STYLES if style != "custom")
+
+    def test_every_new_language_has_its_own_text_for_every_style_and_reason(self):
+        later = [locale for locale in l10n.LOCALES if locale not in self.V0610]
+        self.assertEqual(len(later), 9)
+        self.assertIn("careful", self.WITH_TEXT)
+        for locale in later:
+            for style in self.WITH_TEXT:
+                for category in reasons.RECOVERABLE:
+                    with self.subTest(locale=locale, style=style, category=category):
+                        text = continuation.build(category, locale=locale, style=style)
+                        self.assertTrue(text.strip())
+                        self.assertIsNone(continuation.PLACEHOLDER.search(text), text)
+                        self.assertNotEqual(text, continuation.build(category, locale="en", style=style))
+
+    def test_the_standard_text_of_v0610s_nine_languages_is_byte_for_byte_v0610s(self):
+        """The owner's rule for v0.6.11's languages: nothing the nine already send changes. Read from the
+        v0.6.10 tag's own catalogs, not from a copy kept here."""
+        import json
+        import released
+        tagged = released.package(released.V0610) / "codex_auto_resume" / "locales"
+        for locale in self.V0610:
+            table = json.loads((tagged / ("%s.json" % locale)).read_text(encoding="utf-8"))
+            for category in reasons.RECOVERABLE:
+                key = reasons.get(category).standard_key
+                with self.subTest(locale=locale, category=category):
+                    self.assertIn(key, table)
+                    self.assertEqual(continuation.build(category, locale=locale, style="standard").encode("utf-8"),
+                                     table[key].encode("utf-8"))
+
+
 class CustomMessageTests(unittest.TestCase):
     def test_custom_text_is_never_translated(self):
         custom = {"mode": "global", "text": "Bitte weitermachen. 続けてください。"}

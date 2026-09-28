@@ -1,0 +1,15 @@
+{
+  "_edition": "ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.",
+  "edition.badge": "Розширена",
+  "edition.not_loaded": "Розширена — не завантажено",
+  "edition.summary": "Розширена · увімкнено: {n}",
+  "all_off": "Усі розширені функції вимкнено",
+  "field.departs": "Стандарти, від яких вона відступає",
+  "field.does": "Що вона робить",
+  "field.instead": "Що натомість робить стандартна редакція",
+  "field.risks": "Що може піти не так",
+  "field.stop": "Як її зупинити",
+  "state.armed": "Увімкнено",
+  "state.off": "Вимкнено",
+  "state.shadow": "Спостереження"
+}

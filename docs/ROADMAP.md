@@ -448,14 +448,23 @@ v0.6.11 arrives in stages. **v0.6.11-alpha**, a pre-release, is the ground both 
 and nothing else: the two editions built, audited and published together, updates that stay in
 their edition, the places where core asks, and the advanced edition's own state, switches and
 measurements - with no capability yet to switch on. That is not a release on its own, and
-everything after it is built on it. The final **v0.6.11** is the capabilities themselves.
+everything after it is built on it. **v0.6.11-beta**, a pre-release too, is everything v0.6.11 adds
+to the standard edition. The final **v0.6.11** is the capabilities themselves.
 
-### v0.6.11-alpha 🚧 — The ground both editions stand on (a pre-release)
+### v0.6.11-alpha ✅ — The ground both editions stand on (a pre-release)
 
-In development; what it carries is in [CHANGELOG.md](CHANGELOG.md). Its release asks the owner's
-machine two things no test can: an install from standard to advanced and back, keeping state and
-turning every capability off, and the measurements that decide which capabilities can be offered
-as built.
+Published as a pre-release; what it carries is in [CHANGELOG.md](CHANGELOG.md). Its release asked
+the owner's machine two things no test can. An install from standard to advanced and back kept the
+state each way, and the measurements that decide which capabilities can be offered as built were
+taken; what they found is in v0.6.11-beta's entry, and two of them still wait for the owner.
+
+### v0.6.11-beta 🚧 — The standard edition's additions (a pre-release)
+
+In development; what it carries is in [CHANGELOG.md](CHANGELOG.md). It is the second stage: what
+the standard edition gains, every setting of it off or doing what v0.6.10 did until a person
+changes it, so that at its defaults the standard edition behaves as v0.6.10 did. It is worth a
+release on its own, so it is a beta and not a second alpha; it is a pre-release because the owner
+asked for one, ahead of the final that brings the advanced edition's capabilities.
 
 v0.6.11 goes further than every release so far. It is planned to offer, aggressively, as many
 capabilities as any comparable program does, and more: before it is built, the tools that do anything
@@ -733,8 +742,9 @@ Python modularization and a tidier landing page on GitHub, in a pre-release
 
         ↓
 
-v0.6.11-alpha → v0.6.11
+v0.6.11-alpha → v0.6.11-beta → v0.6.11
 The ground both editions stand on, in a pre-release
++ the standard edition's additions, in a second pre-release
 + advanced features, more than any program like this, and compatibility reports from others, in the final
 
         ↓

@@ -1,0 +1,15 @@
+{
+  "_edition": "ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.",
+  "edition.badge": "Расширенная",
+  "edition.not_loaded": "Расширенная — не загружена",
+  "edition.summary": "Расширенная · включено: {n}",
+  "all_off": "Все расширенные функции выключены",
+  "field.departs": "Стандарты, от которых она отступает",
+  "field.does": "Что она делает",
+  "field.instead": "Что вместо этого делает стандартная редакция",
+  "field.risks": "Что может пойти не так",
+  "field.stop": "Как её остановить",
+  "state.armed": "Вкл.",
+  "state.off": "Выкл.",
+  "state.shadow": "Наблюдение"
+}

@@ -127,10 +127,11 @@ class StatementTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.where = Path(temporary.name)
 
-    def test_the_tests_capability_has_all_five_fields_in_all_nine_languages(self):
+    def test_the_tests_capability_has_all_five_fields_in_every_language(self):
+        # Every catalog core has, the held ones too (v0.6.11: eighteen, l10n.HELD not yet offered).
         catalogs = ac.catalogs(self.where, ac.definition())
         self.assertEqual(catalogs.missing(ac.definition()), [])
-        self.assertEqual(len(l10n.LOCALES), 9)
+        self.assertEqual(len(l10n.LOCALES), 18)
         self.assertEqual([str(field) for field in statement.FIELDS],
                          ["does", "instead", "departs", "risks", "stop"])
 

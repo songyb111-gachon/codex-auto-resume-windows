@@ -242,6 +242,21 @@ class ControlKindTests(unittest.TestCase):
                   pending: inputsOf(S['panel.pending_title'])};
         })()"""))
         recover = [e for e in policy.describe() if e["name"].startswith("recover_")]
+        # v0.6.11: Observe only, under the kinds of interruption, turns something that runs on or off.
+        observe = [i for i in observed["recovery"] if i["text"] == ENGLISH["field.observe_only"]]
+        self.assertEqual(len(observe), 1)
+        self.assertEqual((observe[0]["cls"], observe[0]["role"], observe[0]["first"]), ("switch", "switch", False))
+        observed["recovery"] = [i for i in observed["recovery"] if i is not observe[0]]
+        # And jitter, in the limits under them, which lengthens every wait: a switch too.
+        jitter = [i for i in observed["recovery"] if i["text"] == ENGLISH["field.retry_jitter"]]
+        self.assertEqual(len(jitter), 1)
+        self.assertEqual((jitter[0]["cls"], jitter[0]["role"], jitter[0]["first"]), ("switch", "switch", False))
+        observed["recovery"] = [i for i in observed["recovery"] if i is not jitter[0]]
+        # And waiting for an internet connection, which holds a due recovery back: a switch as well.
+        network = [i for i in observed["recovery"] if i["text"] == ENGLISH["field.wait_for_network"]]
+        self.assertEqual(len(network), 1)
+        self.assertEqual((network[0]["cls"], network[0]["role"], network[0]["first"]), ("switch", "switch", False))
+        observed["recovery"] = [i for i in observed["recovery"] if i is not network[0]]
         self.assertEqual(len(observed["recovery"]), len(recover))
         self.assertEqual(sorted(i["text"] for i in observed["recovery"]),
                          sorted(ENGLISH["field." + e["name"]] for e in recover))
@@ -252,7 +267,11 @@ class ControlKindTests(unittest.TestCase):
         master = [i for i in observed["notifications"] if i["text"] == ENGLISH["field.notifications"]]
         self.assertEqual(len(master), 1)
         self.assertEqual((master[0]["cls"], master[0]["role"], master[0]["first"]), ("switch", "switch", False))
-        events = [i for i in observed["notifications"] if i["text"] != master[0]["text"]]
+        # v0.6.11: a needs-you notice's sound turns something that runs on or off: a switch.
+        sound = [i for i in observed["notifications"] if i["text"] == ENGLISH["field.needs_you_sound"]]
+        self.assertEqual(len(sound), 1)
+        self.assertEqual((sound[0]["cls"], sound[0]["role"], sound[0]["first"]), ("switch", "switch", False))
+        events = [i for i in observed["notifications"] if i["text"] not in (master[0]["text"], sound[0]["text"])]
         self.assertEqual(len(events), len([e for e in policy.describe() if e["name"].startswith("notify_")]))
         for drawn in events:
             with self.subTest(drawn["text"]):
@@ -591,10 +610,12 @@ class ServedLanguageTests(unittest.TestCase):
     def test_every_language_ships_every_word_the_script_can_ask_for(self):
         page = mcpui.settings_page()
         catalogs = served(page, "__CODEX_AUTO_RESUME_CATALOGS__")
-        self.assertEqual(set(catalogs), set(l10n.LOCALES))
+        # Every offered language, and no held one (l10n.HELD): the page can only switch to what a
+        # picker offers.
+        self.assertEqual(set(catalogs), set(l10n.OFFERED))
         names, prefixes = mcpui.panel_keys()
         self.assertGreater(len(names), 40)
-        for locale in l10n.LOCALES:
+        for locale in l10n.OFFERED:
             full = l10n.catalog(locale)
             wanted = {key for key in full if key in names or key.startswith(prefixes)}
             with self.subTest(locale):
@@ -639,9 +660,11 @@ class LanguageTests(unittest.TestCase):
     def test_a_stored_language_resolves_as_python_adopts_it(self):
         """`_read_resource` adopts the stored value with `l10n.set_preference` and resolves it;
         `system_language` is Windows' answer, which Python worked out."""
+        # Windows' answer is always an offered language (a held one is answered in English, l10n.HELD),
+        # and the page is served the offered languages' words.
         preferences = list(l10n.CHOICES) + ["", None, 3]
-        cases = [[preference, system] for preference in preferences for system in l10n.LOCALES]
-        catalogs = {locale: {} for locale in l10n.LOCALES}
+        cases = [[preference, system] for preference in preferences for system in l10n.OFFERED]
+        catalogs = {locale: {} for locale in l10n.OFFERED}
         observed = run_javascript(["localeFor"], say("%s.map(function (c) { return localeFor(c[0], c[1], %s); })"
                                                      % (json.dumps(cases), json.dumps(catalogs))))
         for (preference, system), locale in zip(cases, observed):
@@ -848,8 +871,9 @@ class PinnedControlStyleTests(unittest.TestCase):
             with self.subTest(control):
                 # Bottom: the end of the flex line, which is as tall as the text beside it.
                 self.assertEqual(declared(control, "align-self"), "flex-end")
-                # Right: on the row's right edge, and still there when it wraps under the text.
-                self.assertEqual(declared(control, "margin-left"), "auto")
+                # Right: on the row's right edge, and still there when it wraps under the text - its end,
+                # which is its left edge right to left (v0.6.11).
+                self.assertEqual(declared(control, "margin-inline-start"), "auto")
                 self.assertEqual(declared(row, "display"), "flex")
                 self.assertEqual(declared(row, "flex-wrap"), "wrap")
                 # Text shorter than the control is still centred on it: a one-line row is unchanged.
@@ -874,8 +898,8 @@ class PinnedControlStyleTests(unittest.TestCase):
 
     def test_pinning_moves_a_control_and_changes_nothing_about_it(self):
         # Hit targets, focus rings and colours are the controls' own rules, untouched.
-        self.assertEqual(set(own_declarations(".setting.toggle > input.switch")), {"align-self", "margin-left"})
-        self.assertEqual(set(own_declarations(".master > button")), {"align-self", "margin-left"})
+        self.assertEqual(set(own_declarations(".setting.toggle > input.switch")), {"align-self", "margin-inline-start"})
+        self.assertEqual(set(own_declarations(".master > button")), {"align-self", "margin-inline-start"})
         self.assertEqual(declared("input.switch", "width"), "var(--size-switch-width)")
         self.assertEqual(declared("input.switch", "height"), "var(--size-switch-height)")
         self.assertEqual(declared("button", "min-height"), "var(--size-button-height)")
@@ -883,7 +907,7 @@ class PinnedControlStyleTests(unittest.TestCase):
         # control or the row it is pinned in.
         for context in (NARROW, FORCED, "@media (prefers-reduced-motion: reduce)"):
             for selector in set(PINNED) | set(PINNED.values()) | {"input.switch", "button", ".master-body"}:
-                for prop in ("align-self", "align-items", "margin-left", "flex-wrap", "display", "order"):
+                for prop in ("align-self", "align-items", "margin-inline-start", "flex-wrap", "display", "order"):
                     with self.subTest(context=context, selector=selector, prop=prop):
                         self.assertIsNone(declared(selector, prop, context))
 

@@ -16,8 +16,9 @@ Windows only.
 This plugin also provides tools (`open_settings`, `get_status`, `list_pending`,
 `update_settings`, `restore_default_settings`, `pause_auto_recovery`, `resume_auto_recovery`,
 `cancel_recovery`, `disable_conversation_recovery`, `enable_conversation_recovery`,
-`reset_recovery_budget`, `start_watcher`, `retry_now`, `get_recovery_statistics`,
-`get_recovery_timeline`, `clear_recovery_history`, `preview_recovery_message`). When they are
+`reset_recovery_budget`, `start_watcher`, `retry_now`, `postpone_recovery`, `release_hold`,
+`get_recovery_statistics`, `get_recovery_timeline`, `clear_recovery_history`,
+`preview_recovery_message`). When they are
 available, use them instead of the commands below: they are typed, they refuse an invalid
 value instead of writing it, and `open_settings` shows the user a panel they can read and
 change directly.
@@ -29,8 +30,9 @@ The user's own Custom message text cannot be written from Codex - not through
 is edited in the Dashboard, under Settings > Continuation message.
 
 `resume_auto_recovery`, `enable_conversation_recovery`, `update_settings`,
-`restore_default_settings`, `cancel_recovery`, `reset_recovery_budget`, `start_watcher` and
-`clear_recovery_history` carry MCP's `destructiveHint` annotation to request approval.
+`restore_default_settings`, `cancel_recovery`, `reset_recovery_budget`, `start_watcher`,
+`clear_recovery_history` and `release_hold` carry MCP's `destructiveHint` annotation to request
+approval.
 Codex and its approval settings decide whether to show a prompt; actual host approval
 behavior has not been observed for v0.6.0. The annotation is not an authorization lock.
 If the user declines one, do not run the matching
@@ -134,7 +136,9 @@ Two kinds of id, and they are not interchangeable. `cancel_recovery`, `reset_rec
 `enable_conversation_recovery` take a `thread_id`, the conversation's UUID, and so does the
 `cancel` command. Never guess either, and never pass one where the other belongs: the wrong
 shape is refused outright, and the right shape would act on something the user did not ask
-about. The `pending` command prints the conversation UUID in full but only the first 16
+about. `postpone_recovery` and `release_hold` take both, the `interruption_id` and the
+`thread_id` from the same `list_pending` entry, and are refused if the two do not belong
+together. The `pending` command prints the conversation UUID in full but only the first 16
 characters of the interruption id, so take the whole interruption id from `list_pending`.
 Never pass `--last`, and never pick "the most recent thread".
 
@@ -172,9 +176,16 @@ Report what the command actually printed. Useful fields from `status` and `pendi
   prints there and what `list_pending` returns as `code`. It never depends on a setting, so
   prefer it to `state` when telling the user what is happening.
 - `overlays`, on a `list_pending` entry — circumstances that change what a waiting recovery
-  will do next: `paused`, `thread_disabled`, `engine_unavailable`, `watcher_not_ticking`,
-  `compatibility_blocked`, `cancel_pending`. A recovery can be waiting exactly as it should
-  and still never run because of one of these, so say which.
+  will do next: `paused`, `thread_disabled`, `held`, `engine_unavailable`,
+  `watcher_not_ticking`, `compatibility_blocked`, `cancel_pending`. A recovery can be waiting
+  exactly as it should and still never run because of one of these, so say which. `held` means
+  its conversation asks the user first, or only notifies - or its project, or a conversation
+  seen for the first time, is set to wait for them: nothing is sent for it until the user lets it
+  continue (`release_hold`, or Let it continue on its row in the Dashboard).
+- `observe_only` in `get_status` — Observe only is on: every check runs and nothing is sent, and
+  a pending entry's `would_send_at` says when it would have been. Say so plainly; never describe a
+  recovery as about to resume while it is true. Turning it off is `update_settings` with
+  `observe_only` false, which asks the user first.
 - `state` on a pending entry — the engine's own name for where that recovery is:
   - `waiting_reset` / `waiting_poll` / `waiting_for_usage` — waiting for the usage limit to
     reset.
@@ -222,7 +233,34 @@ exits. That is not a fault; the setup notes below say what to do.
 
 `retry_now` brings a waiting recovery's next attempt forward. It is not a send: the watcher still
 revalidates the interruption, still needs the conversation open, still waits for usage, and still
-refuses anything uncertain. Do not describe it as making a resume happen.
+refuses anything uncertain. Do not describe it as making a resume happen. It never shortens a
+postponement or an objection window that is still ahead; its reply gives that later time.
+
+`postpone_recovery` makes one waiting recovery wait longer - 30 minutes, an hour, three hours,
+tomorrow at 09:00, or a number of minutes up to a week - and only ever later. It sends nothing.
+Quiet hours, a setting, make any recovery that falls due in them wait until they end.
+`release_hold` lets one held recovery continue; it sends nothing either, and every check still
+runs. Offer it only when the user asks for that recovery to go ahead. There is no tool that takes a
+postponement away again: that is **Don't postpone**, on the task's row menu in the Dashboard or the
+notification-area popup, because it brings a send nearer. If the user asks, say where it is. In
+`list_pending`, `postponed_until` is the time the user postponed a task to, or null; `not_before`
+may also be an objection window's time, which nobody takes away.
+
+From v0.6.11 two more settings can hold a recovery back, both off by default. With
+`ask_after_sleep_minutes` set, a recovery that fell due while the PC slept for longer than that waits
+for the user, as a held one does (`hold` is `after_sleep`). With `wait_for_network` true, a due
+recovery waits while Windows reports no internet connection; its reason is `offline`. Neither sends
+anything or makes a recovery sooner. Keeping the PC awake while a task waits is a Dashboard setting,
+not one these tools change; `watcher.awake_since` in `get_status` says since when the watcher keeps it
+awake, or is null.
+
+From v0.6.11 `get_status` also says, of a watcher that is not running, how it ended:
+`watcher.ended` is `unexpected` (it stopped without saying so, in this Windows sign-in, at
+`watcher.ended_at`), `memory_guard` (the memory guard stopped it, as the user chose), `clean`, or
+null when nothing can be said. Report it as it is, never as a crash you have diagnosed, and offer
+`start_watcher`; nothing restarts it on its own. `watcher.memory_peak` is the most memory it has used,
+in bytes. The memory guard and the status file for other tools are Dashboard settings, not ones
+these tools change.
 
 `get_status` carries a Codex compatibility summary under `watcher.compatibility`, as codes. Its
 `overall` is one of `verified` (a real recovery on that exact Codex version confirmed it),
@@ -233,6 +271,11 @@ shown as *Reported by others* on the Dashboard's Diagnostics page, is in nothing
 return. If the user asks about it, send them to that page. Never describe other people's reports as verified,
 checked or compatible, or as a check made on this machine; if the user quotes the counts, speak
 of them only as other people's reports, which change nothing this product does.
+
+From v0.6.11 `get_status` also carries, under `watcher.usage`, Codex's usage as the watcher last read
+it: `read_at`, and each window's `bucket`, `window`, `used_percent`, `window_minutes` and
+`reset_at` - or null until usage has been read. It is only the last reading, made when a recovery
+was due; say how old it is, never present it as current, and never read a count of credits into it.
 
 Do not restate the reset time the Codex usage-limit notice already shows.
 
@@ -271,17 +314,27 @@ believing they changed something.
 
 What `update_settings` can change: which classified failure categories are recovered, how many
 attempts each interruption gets, how many continuations one task gets in total (six by default,
-one to ten), when to stop after repeated no-progress recoveries, the retry timing preset, which
+one to ten), when to stop after repeated no-progress recoveries, the retry timing (a preset, or
+Custom with its five waits and optional jitter - the watcher still sends to one conversation at most
+every 15 minutes and five times a day, whatever is chosen), a time after which a task that keeps
+failing stops, the task-changed and context-cost guards (off by default; each only holds a recovery
+for the user or adds a line to its notification, and never sends anything sooner), which
 notifications appear, the interface language, the theme (light, dark, or following the system), the
 panel's own theme in Codex (`panel_theme`: the same as the theme, Codex's, light or dark), the
 continuation language, the message style
-(Minimal, Standard, Detailed or Custom), and whether a Custom message is one message for every
-interruption or one per kind. The window has five things `update_settings` does not offer: the
+(Minimal, Standard, Detailed, Custom or, from v0.6.11, Careful - the Standard message with a request
+not to repeat anything that already changed files, pushed, sent or published something), and whether
+a Custom message is one message for every
+interruption or one per kind. The window has things `update_settings` does not offer: the
 notification-area icon, Reduce motion (the one way to stop the animations), the Design (Soft, Classic
-or Plain), the notification card, and the Custom message text itself.
+or Plain), the notification card, and, from v0.6.11, Keep this PC awake while a task waits (and for how
+many hours at most), the memory guard (and its limit), and the status file for other tools - each a
+question of this PC rather than of recovery - and the Custom message text itself.
 If the user asks for any of them, say it is changed in the Dashboard, under Settings. If the user wants to
 change what a Custom message says, tell them it is written in the Dashboard, under Settings >
-Continuation message.
+Continuation message. A message for one conversation alone (`custom_message_by_thread`, from v0.6.11)
+is written from that conversation's row in the Dashboard's Pending page, **Message for this
+conversation...**, and nowhere else; do not try to set it.
 
 What cannot, and is not an oversight: there is no setting that retries an unclassified failure,
 resolves a conversation by title, resends an uncertain submission, or forces a send. If the user
@@ -297,6 +350,14 @@ switch, and there is a master switch for all of them.
 
 Turning notifications off changes nothing about whether a task is recovered - say so, because
 people reasonably assume otherwise.
+
+From v0.6.11 there is one more, off by default: *When a conversation needs you*. It tells the user,
+once, of a failure this product never resumes - the request was refused or the conversation is too
+long, a content policy stopped the turn, Codex needs a new sign-in, or Codex gave up - and, if a time
+is chosen for it, of a turn that has recorded nothing new for that long. Its one button, **Open
+Dashboard**, opens the Settings page, where each kind is switched off. It never resumes, sends or
+records anything. A turn that has not moved may simply still be working: never say it is waiting
+for an approval.
 
 While the watcher runs there is an icon in the notification area. It belongs to the watcher
 process, so it cannot show a watcher that is not there. Hovering over it says whether recovery

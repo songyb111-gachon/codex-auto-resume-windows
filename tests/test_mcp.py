@@ -222,6 +222,29 @@ class ToolSurfaceTests(McpTestCase):
         named = set(re.findall(r"`([a-z_]+)`", preferred))
         self.assertEqual(named, {tool["name"] for tool in mcpserver.TOOLS})
 
+    def test_the_skill_names_everything_the_window_has_and_update_settings_does_not(self):
+        """The skill tells the model which settings are the Dashboard's alone, so it sends the person there
+        instead of trying `update_settings` and failing. It said "five things" through v0.6.10 and still did
+        once v0.6.11 added Keep this PC awake, the memory guard and the status file to the window's own; so
+        every such setting is held to words in that sentence, and the sentence to giving no count."""
+        skill = (Path(__file__).resolve().parents[1] / "skills" / "codex-auto-resume"
+                 / "SKILL.md").read_text(encoding="utf-8")
+        said = " ".join(skill.split("What `update_settings` can change:", 1)[1].split("\n\n", 1)[0].split())
+        # Each setting the window draws and update_settings leaves out, and the words the skill names it by.
+        words = {"show_tray": "notification-area icon", "reduce_motion": "Reduce motion", "design": "the Design",
+                 "notification_card": "the notification card", "keep_awake": "Keep this PC awake",
+                 "keep_awake_hours": "how many hours", "memory_guard": "the memory guard",
+                 "memory_guard_limit": "its limit", "status_file": "the status file"}
+        window_only = {entry["name"] for entry in settings.describe()
+                       if entry.get("group") not in mcpserver.USER_GROUPS | {"advanced"}
+                       and entry["name"] not in mcpserver.PANEL_APPEARANCE}
+        self.assertEqual(window_only, set(words), "a setting only the window offers, which the skill does not name")
+        for name, phrase in words.items():
+            with self.subTest(name):
+                self.assertIn(phrase, said)
+        self.assertIn("the Custom message text itself", said)
+        self.assertNotRegex(said, r"window has (two|three|four|five|six|seven|eight|nine|ten|\d+) things")
+
     def test_read_only_tools_are_marked_read_only(self):
         by_name = {tool["name"]: tool for tool in mcpserver.TOOLS}
         for name in ("open_settings", "get_status", "list_pending"):

@@ -77,8 +77,12 @@ anything but its exact id, resends an uncertain submission or forces a send.
 
 ### The tools, and which ones Codex asks about
 
-The table describes the server from v0.6.5. The server runs from the installed release, not from
-the plugin you add. Every installation from v0.6.3 through v0.6.9 also offers, in `update_settings`,
+The table describes the server from v0.6.11. The server runs from the installed release, not from
+the plugin you add. An installation from v0.6.5 through v0.6.10 has seventeen tools, without
+`postpone_recovery` and `release_hold`, and its `update_settings` does not offer quiet hours, how a
+conversation resumes, Observe only, what a conversation seen for the first time gets, which projects
+may resume, the Custom retry waits, jitter, the time ceiling, the two guards, what waits after a long
+sleep or waiting for an internet connection. Every installation from v0.6.3 through v0.6.9 also offers, in `update_settings`,
 a switch for `auth_service_transient` that v0.6.10 no longer has: nothing ever produced that kind, so
 the switch changed nothing. An installation on v0.6.4 has the same seventeen tools, but its `get_status`
 carries no compatibility summary. One on v0.6.3 has the same seventeen tools too, but its
@@ -99,20 +103,22 @@ the installation directory. The last two are described below the table.
 | Tool | What it does | Marked destructive |
 | --- | --- | --- |
 | `open_settings` | Shows the settings panel. Opening it changes nothing. | no |
-| `get_status` | Whether recovery is on, whether the watcher is running, counts by state, the version and the current settings, and the Codex compatibility summary the Dashboard's Diagnostics page shows, as codes only - no Codex version string, no path, no free text, and not what other people report about that version. | no |
+| `get_status` | Whether recovery is on, whether the watcher is running, counts by state, the version and the current settings, from v0.6.11 Codex's usage as the watcher last read it - numbers and times only - and the Codex compatibility summary the Dashboard's Diagnostics page shows, as codes only - no Codex version string, no path, no free text, and not what other people report about that version. | no |
 | `list_pending` | Pending recoveries with their interruption ids, conversation ids, stored state, public code, reason, overlays and attempt counts. With `include_finished: true`, the recoveries that have already finished as well. | no |
 | `get_recovery_statistics` | How many interruptions were detected, how many continuations were sent, how they ended, and the median waits, over the last `days` days or all of it. Counts only; no ids. | no |
 | `get_recovery_timeline` | One interruption and everything that continued it, as codes and times. | no |
 | `preview_recovery_message` | The exact text the watcher would send for one recoverable kind of interruption, under the current settings or with an unsaved Interface language, Continuation language, Message style or Custom mode. Built by the same function the watcher sends with. Accepts no Custom text; saves nothing and sends nothing. | no |
 | `pause_auto_recovery` | Global pause. The watcher sends nothing while paused. A continuation already waiting in Codex's queue is withdrawn when the watcher reaches it; a withdrawal the watcher can confirm returns that recovery to its waiting state with its attempt back, so resuming picks it up again. Only a withdrawal that cannot be confirmed is marked `submission_unknown` and never resent, though Codex's queue may still hold it; if Codex delivers it first, the engine follows the turn that continuation started and records what that turn actually did. | no |
-| `retry_now` | Moves a waiting record's next check to now. | no |
+| `retry_now` | Moves a waiting record's next check to now. A postponement or an objection window still ahead is not shortened: the reply gives that later time. | no |
+| `postpone_recovery` | From v0.6.11. Holds one exact waiting record back - 30 minutes, an hour, three hours, until 09:00 tomorrow, or a number of minutes up to a week - named by both its interruption id and its conversation id, and only ever later. Sends nothing. | no |
 | `disable_conversation_recovery` | Switches recovery off for one exact conversation, its later interruptions included, and cancels what it has waiting. | no |
 | `resume_auto_recovery` | Undoes a global pause. | yes |
 | `enable_conversation_recovery` | Switches recovery back on for one exact conversation. Nothing is sent; every check still applies. | yes |
-| `update_settings` | Changes user-facing settings: the Interface language, the recovery categories, the limits, the notifications, the continuation message's language, style and Custom mode, and the theme. Not the Custom message text itself (below). | yes |
+| `update_settings` | Changes user-facing settings: the Interface language, the recovery categories, the limits, the notifications, the continuation message's language, style and Custom mode, and the theme; from v0.6.11 also Observe only, what a conversation seen for the first time gets, which projects may resume, the Custom retry waits and jitter, the time ceiling, the task-changed and context-cost guards, what waits after a long sleep and waiting for an internet connection. Not the Custom message text itself (below), and not the lists of projects set to resume or to wait, which only a task's row in the Dashboard or the popup sets. | yes |
 | `restore_default_settings` | Puts every setting back to its recommended value - the Design to Soft and Reduce motion off among them, though Codex can set neither. | yes |
 | `cancel_recovery` | Stops the named interruption and every record that continues it. One that was never sent is cancelled outright; one that may already be in Codex is marked, and the watcher takes back whatever is still queued - a turn already running is not stopped. The conversation itself stays switched on. | yes |
 | `reset_recovery_budget` | Returns an exhausted record to waiting, as above. | yes |
+| `release_hold` | From v0.6.11. Lets one exact record that waits for a person - its conversation asks first, or only notifies - continue, named by both its interruption id and its conversation id. Nothing is sent by it; every check still runs, and a postponement or quiet hours still apply. | yes |
 | `clear_recovery_history` | Hides finished recoveries from the history. Deletes nothing and cancels nothing; a recovery that may still change stays visible, and hidden rows still count for every safety check. | yes |
 | `start_watcher` | Starts the watcher the installer starts, if it is not running. Started this way it runs inside Codex. Where Codex ends what its plugins start, as Codex 26.915 was measured to, the reply from v0.6.10 says it stops when Codex closes, if not sooner (`ends_with_codex`, read from the job each time), and names a start that outlives Codex: once Codex has closed, Codex Auto Resume in the Start menu, or Run at Windows sign-in in the Dashboard. A Dashboard opened from that watcher's own icon runs inside Codex too. | yes |
 
@@ -121,16 +127,17 @@ each tool. It requests approval; Codex and your approval settings decide whether
 Actual Codex approval behavior has not been observed for this release; the tests check the
 annotations only. A tool that can add automation is marked.
 Turning recovery back on - globally, or for one conversation - re-arming a record that had
-stopped, changing or restoring settings (either can switch a recovery category back on) and
-starting a watcher you stopped can all add automation. `cancel_recovery` is marked for the
+stopped, changing or restoring settings (either can switch a recovery category back on),
+letting a record a person held continue and starting a watcher you stopped can all add automation. `cancel_recovery` is marked for the
 opposite reason: no tool restarts a record it cancelled, so for that interruption and the
 records that continue it the stop is one-way. Switching a whole conversation off is a separate
 action, `disable_conversation_recovery`, and the switch itself is reversible -
 `enable_conversation_recovery` turns that conversation back on, as does the command line's
 `enable` with that conversation's id - though the records it cancelled stay cancelled.
 `clear_recovery_history` is marked for the same one-way reason: it deletes nothing and cancels
-nothing, but nothing puts a hidden row back in the history. Pause, `retry_now` and the
-read-only tools are not marked: a pause only reduces automation: a continuation already
+nothing, but nothing puts a hidden row back in the history. Pause, `retry_now`,
+`postpone_recovery` and the read-only tools are not marked: a postponement only ever holds a
+record back, and a pause only reduces automation: a continuation already
 waiting in Codex's queue is withdrawn, and a withdrawal the watcher can confirm returns that
 recovery to waiting with its attempt back, so resuming picks it up again - only a withdrawal
 it cannot confirm, or a pause over a submission that was already uncertain, is final, and
@@ -159,7 +166,8 @@ the window's Diagnostics page, its update check, or the command line.
 
 **Custom message text cannot be written from Codex.** `update_settings` offers
 `custom_message_mode` - one message for every interruption, or one per kind - but neither
-`custom_message` nor any `custom_message_<category>`, and a client that sends one anyway is
+`custom_message` nor any `custom_message_<category>`, nor from v0.6.11 a conversation's own message
+(`custom_message_by_thread`), and a client that sends one anyway is
 refused; `preview_recovery_message` accepts only the four choices named in its row. The reason
 is what the text is for. The watcher later sends it into your conversations, on your behalf,
 when nobody is watching, so a model that had been talked into changing it by a page it read
@@ -174,7 +182,8 @@ with the installation directory), the settings, and for `list_pending` and `open
 interruption ids with their states, codes and counts, and for `get_recovery_timeline` one
 chain's interruption ids with its event codes and times; `get_recovery_statistics` returns counts and times and no ids at all. The settings that
 `get_status`, `open_settings`, `update_settings` and `restore_default_settings` return include
-any Custom message text you wrote in the Dashboard, and `preview_recovery_message` returns the
+any Custom message text you wrote in the Dashboard - from v0.6.11 a conversation's own message too,
+beside its conversation id - and `preview_recovery_message` returns the
 text that would be sent, which under the Custom style is that text. No tool returns
 a conversation's title or content. The same holds for command output the skill asks Codex to read back - `status`,
 `pending`, `doctor`, `logs` - which also includes local paths and log lines.
@@ -211,6 +220,10 @@ Dashboard and the popup share ([BRAND.md](BRAND.md)). Top to bottom:
 * **Preview**: the exact text for a chosen kind of interruption, from
   `preview_recovery_message`, following the language and style chosen but not yet saved. The
   page never assembles a continuation of its own.
+* **Ask Codex**, folded away (from v0.6.11): a few things to ask Codex about this product, in the
+  panel's language - its status, what it is waiting for, pausing it, its settings. Codex's own list
+  of suggested prompts for a plugin, `interface.defaultPrompt` in `plugin.json`, holds three and has
+  no other language, so it stays in English, and its three are the English ones here.
 * **Appearance**: the Theme - Use system setting, Light or Dark - and Theme in Codex, the panel's
   own - Same as Theme, Codex's theme, Light or Dark. Once either is saved the panel redraws at
   once in its own choice, or in the Theme's while its own is Same as Theme.
@@ -473,9 +486,12 @@ uninstalled. It reports and keeps anything else.
 ## Language
 
 The product's own interface - the Dashboard, the notification-area popup and its menu, Windows
-notifications, the settings panel in Codex and the plugin layer's messages - ships in nine
-languages: English, 한국어, 日本語, 简体中文, 繁體中文, Español, Deutsch, Français and Português
-(Brasil). Until v0.6.3 it was English or Korean.
+notifications, the settings panel in Codex and the plugin layer's messages - ships in sixteen
+languages: English, 한국어, 日本語, 简体中文, 繁體中文, Español, Deutsch, Français, Português
+(Brasil), Русский, Italiano, Türkçe, Polski, Українська, Tiếng Việt and Bahasa Indonesia. Until
+v0.6.3 it was English or Korean, and until v0.6.11 the first nine. Arabic and Hebrew are translated
+as well but not offered: they are written right to left and wait until every surface mirrors, so
+no picker lists them, and a Windows set to either is answered in English.
 
 **Which one.** The **Interface language** setting decides (General, in the Dashboard's Settings
 and in the panel). Its default, *System*, follows Windows, read from the same source the ChatGPT
@@ -486,8 +502,9 @@ language counts: if this product does not ship it, the answer is English, never 
 further down the list and never a guess. An explicit choice in the setting wins over Windows
 and over `CODEX_AUTO_RESUME_LANG` alike, which only decides while the setting is *System*, and it
 survives restarts, repairs and updates. One function, `l10n.normalize`, maps a tag to a
-catalog: Chinese by script or region (`Hant`, `TW`, `HK` and `MO` are traditional, anything
-else simplified), and `pt` and `pt-PT` to Brazilian Portuguese. No language is inferred from an
+catalog: a language to its own catalog in any region (`es-419`, `de-AT`, `fr-CA`, `ru-KZ`),
+Chinese by script or region (`Hant`, `TW`, `HK` and `MO` are traditional, anything else
+simplified), and `pt` and `pt-PT` to Brazilian Portuguese. No language is inferred from an
 IP address, a time zone, a user name, a country or a keyboard layout.
 
 **The continuation message is localized too**, in its own setting, **Continuation language**,

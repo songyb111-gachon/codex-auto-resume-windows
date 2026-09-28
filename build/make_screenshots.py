@@ -77,11 +77,13 @@ sys.path.insert(0, str(ROOT / "build"))
 
 from codex_auto_resume import brand, config, l10n            # noqa: E402
 from codex_auto_resume.mcp import panel as mcpui
+from codex_auto_resume.win import typeface                          # noqa: E402
 from codex_auto_resume import settings as policy                    # noqa: E402
 
 ASSETS = ROOT / "assets"
 DOCS = ROOT / "docs" / "images"
 MANIFEST = ASSETS / "screenshots.json"
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 # The canonical image is the one the plugin card ships; the documentation copy is
 # generated from it rather than captured a second time. Four files that have to be kept
@@ -305,7 +307,7 @@ def sample_panel_data(design: str | None = None) -> dict:
     # drawn the way Codex draws them. The system language is pinned to the page's own.
     return {"status": status, "schema": policy.describe(),
             "settings": sample_settings(design=design), "pending": waiting,
-            "reasons": list(reasons.RECOVERABLE), "endonyms": dict(l10n.ENDONYMS),
+            "reasons": list(reasons.RECOVERABLE), "endonyms": l10n.offered_endonyms(),
             "system_language": l10n.current()}
 
 
@@ -320,6 +322,20 @@ WINDOW_NAMES = ("example-project", "example-service", "example-docs", "example-a
 # the panel's and the card's reset time are all this, because they are all read from one seed.
 USAGE_RESET_IN = 42 * 60 + 20
 RETRY_IN = 95
+# v0.6.11: the usage reading the watcher made when that usage limit came due, two minutes before the
+# moment: the five-hour window used up and resetting with it, the weekly one at 62%, three days on.
+# Only the allowlisted numbers a real reading keeps (domain/usage.py); whole seconds, as Codex sends.
+USAGE_READ_AGO = 120
+WEEKLY_RESET_IN = 3 * 86400 + 5 * 3600
+
+
+def sample_usage(now: float):
+    """The last reading every surface is pictured showing, as the heartbeat is handed one."""
+    return (now - USAGE_READ_AGO, [
+        {"bucket": "codex", "window": "primary", "used_percent": 100, "window_minutes": 300,
+         "reset_at": int(now) + USAGE_RESET_IN},
+        {"bucket": "codex", "window": "secondary", "used_percent": 62, "window_minutes": 10080,
+         "reset_at": int(now) + WEEKLY_RESET_IN}])
 
 
 def seed_window_state(home: Path, codex: Path, now: float) -> None:
@@ -550,12 +566,14 @@ def seed_compatibility(home: Path, codex: Path, local: Path, now: float) -> str:
 def write_heartbeat(paths, now: float, engine_state: str) -> None:
     """The watcher's heartbeat as the capture's mutex holder writes it (HOLD_MUTEX), with the
     process id and the clock pinned: a tick a second ago, from a watcher started ninety minutes
-    ago, carrying the word its compatibility check gave."""
+    ago, carrying the word its compatibility check gave - and, from v0.6.11, the usage reading it
+    made two minutes ago (sample_usage). The capture's own holder writes no reading, so this one
+    stays: a heartbeat with none leaves the last one as it is."""
     from codex_auto_resume.store import Store
     with Store(paths.state_dir) as store:
         store.heartbeat(now - 1, pid=ENVELOPE_PID, session_id="screenshot",
                         started_at=now - 5400, ok=True, engine_state=engine_state,
-                        code_version=config.version())
+                        code_version=config.version(), usage=sample_usage(now))
 
 
 # ------------------------------------------------------------------------- panel
@@ -774,7 +792,9 @@ def held_lights() -> str:
 def panel_html(theme=None, design=None) -> str:
     """The exact markup the panel screenshot is a picture of, pinned to `theme` and `design` (Soft when
     none is given: the page is stamped as the script stamps a stored Soft, and told to keep it)."""
-    page = mcpui.settings_page(sample_panel_data(design), theme=theme,
+    # Windows' text size and UI font pinned: both are asked of the machine when the panel is served,
+    # and a Korean Windows's Malgun Gothic made a rule the English CI runner's Segoe UI does not.
+    page = mcpui.settings_page(sample_panel_data(design), theme=theme, text=1.0, face=typeface.SEGOE,
                                design=design or brand.DEFAULT_DESIGN)
     # Before the panel's own script, which reads the host and the clock as it starts.
     head, _, tail = page.rpartition("<script>")
@@ -2703,6 +2723,25 @@ with App(paths, console=False, enable_logging=False).mutex(timeout=0):
 WINDOW_PAGES = ("overview", "pending", "history", "statistics", "diagnostics", "settings")
 
 
+def owner_only(folder: Path) -> None:
+    """Give the scratch installation's state folder the access list an installed one has: this
+    account, Windows itself and the administrators only.
+
+    Diagnostics asks Windows who may open the state folder (win/acl.py) while it is photographed.
+    A scratch folder under the temporary directory inherits whatever that directory grants - on a
+    PC with Codex's sandbox, its sandbox accounts - so the picture showed a warning no installed
+    product shows, and a different one on another machine. Named by security identifier, so no
+    account name is written anywhere; nothing but this scratch folder is touched."""
+    who = subprocess.run(["whoami", "/user", "/fo", "csv", "/nh"], capture_output=True, text=True,
+                         check=True, creationflags=NO_WINDOW).stdout
+    sid = who.strip().rsplit(",", 1)[-1].strip().strip('"')
+    if not sid.startswith("S-1-"):
+        raise SystemExit("could not read this account's security identifier for the capture")
+    subprocess.run(["icacls", str(folder), "/inheritance:r",
+                    "/grant:r", "*%s:(OI)(CI)F" % sid, "*S-1-5-18:(OI)(CI)F", "*S-1-5-32-544:(OI)(CI)F"],
+                   check=True, capture_output=True, creationflags=NO_WINDOW)
+
+
 def render_window(targets: dict, theme: str | None = None, design: str | None = None) -> dict:
     """Capture each page of the window, with the watcher's mutex held but no watcher running.
 
@@ -2723,6 +2762,7 @@ def render_window(targets: dict, theme: str | None = None, design: str | None = 
         now = time.time()
         seed_window_state(home, codex, now)
         word = seed_compatibility(home, codex, local, now)
+        owner_only(config.Paths(home).state_dir)
         # The window reads conversation names from Codex's own state, found through
         # CODEX_HOME - pointed here at the synthetic one, so a capture can never show,
         # or even open, the user's. It finds the Codex engine the compatibility report is

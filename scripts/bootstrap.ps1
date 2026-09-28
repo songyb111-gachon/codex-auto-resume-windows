@@ -219,9 +219,12 @@ function Get-PluginVersion {
     }
     $version = $manifest.version
     # Strict semver, because the version is spliced into a URL. Anything else stops here
-    # rather than reaching the network. The one suffix is the literal -alpha of a planned
-    # pre-release (v0.6.9-alpha), which names its own tag and archive.
-    if ($version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+(-alpha)?$') {
+    # rather than reaching the network. The two suffixes are the literal -alpha and -beta of a
+    # planned pre-release (v0.6.9-alpha, v0.6.11-beta), each naming its own tag and archive -
+    # in lower case, as tags are: -cnotmatch, because -notmatch ignores case. \z, not $, which
+    # .NET also matches before a final line break; [0-9], not \d, which takes any script's digits.
+    # The same rule as every other check of this product's version (tests/test_version_rule.py).
+    if ($version -cnotmatch '^[0-9]+\.[0-9]+\.[0-9]+(-alpha|-beta)?\z') {
         throw ('The plugin manifest declares an unusable version: ' + $version)
     }
     return $version
@@ -292,13 +295,26 @@ function Assert-TrustedHost {
 
 function Get-VersionParts {
     param([string]$Version)
-    if ($Version -notmatch '^([0-9]{1,6})\.([0-9]{1,6})\.([0-9]{1,6})(-alpha)?$') {
+    # Get-PluginVersion's rule, with a ceiling on each number so it stays an integer.
+    if ($Version -cnotmatch '^([0-9]{1,6})\.([0-9]{1,6})\.([0-9]{1,6})(-alpha|-beta)?\z') {
         throw ('Not a version this product uses: ' + $Version)
     }
-    # A fourth part orders a pre-release just before its own release: 0.6.9-alpha < 0.6.9.
-    $stage = 1
-    if ($Matches[4]) { $stage = 0 }
+    # A fourth part orders the pre-releases just before their own release:
+    # 0.6.11-alpha < 0.6.11-beta < 0.6.11.
+    $stage = 2
+    if ($Matches[4] -ceq '-alpha') { $stage = 0 }
+    elseif ($Matches[4] -ceq '-beta') { $stage = 1 }
     return @([int]$Matches[1], [int]$Matches[2], [int]$Matches[3], $stage)
+}
+
+function Format-UnreadVersion {
+    # An installed manifest's version this copy could not read, as it may be printed: printable
+    # ASCII and not much of it. It is shown so a person can tell a newer build from a broken one,
+    # and a line break in it must never print a line that reads like one of this script's answers.
+    param($Version)
+    $shown = ([string]$Version) -replace '[^\x20-\x7E]', '?'
+    if ($shown.Length -gt 40) { $shown = $shown.Substring(0, 40) + '...' }
+    return $shown
 }
 
 function Compare-ProductVersion {
@@ -343,7 +359,7 @@ function Get-NewestPublishedVersion {
         throw ('The release page redirected outside this repository: ' + $final.AbsolutePath)
     }
     $tag = $final.AbsolutePath.Substring($expected.Length)
-    if ($tag -notmatch '^v[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}$') {
+    if ($tag -notmatch '^v[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}\z') {
         throw ('The newest release is not tagged the way this product tags releases: ' + $tag)
     }
     # Rebuilt from the three numbers rather than reused as text: what reaches the URL
@@ -698,7 +714,19 @@ if ($CheckOnly -or $Update) {
         Step 'Nothing was changed. This says nothing about whether an update exists.'
         exit $ExitUnavailable
     }
-    $order = Compare-ProductVersion -Left $newest -Right $current
+    # The installed version is compared only once it has been read. One this copy cannot read -
+    # a later build with a word after its version that did not exist when this copy was
+    # published - is neither older nor newer as far as this copy can tell, so there is no
+    # answer to give but "unavailable", and nothing is installed over it.
+    $order = $null
+    try { $order = Compare-ProductVersion -Left $newest -Right $current }
+    catch {
+        Fail ('The installation at ' + $installHome + ' says it is version ' + (Format-UnreadVersion $current) +
+              ', which this copy of the plugin cannot read, so it cannot tell whether v' + $newest + ' is newer.')
+        Write-Host 'update: unavailable'
+        Step 'Nothing was changed. This says nothing about whether an update exists.'
+        exit $ExitUnavailable
+    }
     # The second of the two moments the Codex compatibility data is refreshed: a person
     # asked, and github.com answered. Its own line, never a different update answer - and
     # never a late one: it gets only what is left of the time the window waits for this.
@@ -725,7 +753,13 @@ if ($CheckOnly -or $Update) {
 }
 
 # Whether what is installed is older than, the same as, or newer than what would be
-# installed. Null where there is no installation, or one whose version cannot be read.
+# installed. Null where there is no installation, or one whose manifest cannot be read.
+#
+# A manifest that reads and declares a version this copy cannot read is not "no installation".
+# A copy of this script knows the version words of the day it was published and no later one:
+# the published v0.6.10 and v0.6.11-alpha bootstraps knew -alpha and not -beta, took an installed
+# 0.6.11-beta for nothing installed, and installed their own older release over it. Those copies
+# cannot be changed; this one refuses instead, until -Force says to replace what it cannot read.
 #
 # The "newer" case is the one -Update creates and nothing else did: an update leaves the
 # machine ahead of the plugin tree it was started from, because Codex's copy of the plugin
@@ -737,9 +771,19 @@ if ($CheckOnly -or $Update) {
 # edition at the same version is a different installation, and replacing it is what this run
 # was asked to do - so it is never checked over in its place.
 $standing = $null
+$unread = $false
 if ($installed -and $plan.Verdict -eq 'same') {
     try { $standing = Compare-ProductVersion -Left $installed -Right $target }
-    catch { $standing = $null }
+    catch { $standing = $null; $unread = $true }
+}
+
+if ($unread -and -not $Force) {
+    Fail ('The installation at ' + $installHome + ' says it is version ' + (Format-UnreadVersion $installed) +
+          ', which this copy of the plugin cannot read.')
+    Step ('It may be newer than the v' + $target + ' this copy carries, so nothing was downloaded')
+    Step 'and nothing was replaced.'
+    Step ('Add -Force to install v' + $target + ' over it.')
+    exit 1
 }
 
 if ($null -ne $standing -and $standing -ge 0 -and -not $Force) {
