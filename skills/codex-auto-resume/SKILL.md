@@ -401,8 +401,9 @@ why.
   continuation to that one conversation, and its App Server withdraws that same message
   when it has to.
 - Its own runtime has no network code and no telemetry. It never checks for updates on its
-  own: the Diagnostics page has a button that asks GitHub which release is newest, and that
-  request happens only when a person presses it. The setup script
+  own: the Diagnostics page has a button that asks GitHub which release is newest and reads
+  this repository's list of releases on api.github.com for a newer pre-release, and those
+  requests happen only when a person presses it. The setup script
   downloads the release from GitHub. The Codex processes it starts use the user's existing
   sign-in to check usage, and the resumed turn goes to OpenAI like any turn the user starts.
   What these tools and commands return becomes part of this conversation.

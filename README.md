@@ -29,7 +29,7 @@ setting, the notification, the command line, the safety model and privacy in ful
 | **Identity** | the exact conversation UUID only — never `--last`, never "the most recent one", never a title or a folder name |
 | **Configure it** | the Dashboard from the Start Menu, a settings panel inside Codex, or the command line |
 | **Languages** | English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia |
-| **Privacy** | no telemetry, no analytics, no automatic update check. Setting it up from Codex downloads the release from GitHub, and *Check for updates* asks GitHub which release is newest only when you press it. The watcher has no network code; the usage check and the resumed turn go to OpenAI through Codex, as Codex's traffic always does |
+| **Privacy** | no telemetry, no analytics, no automatic update check. Setting it up from Codex downloads the release from GitHub, and *Check for updates* asks GitHub which release is newest, and reads its list of releases on api.github.com for a newer pre-release, only when you press it. The watcher has no network code; the usage check and the resumed turn go to OpenAI through Codex, as Codex's traffic always does |
 
 > **One honest limitation, up front.** Codex has to currently have that conversation open for a
 > recovery to be delivered. If the app restarted since, open the conversation once and recovery
@@ -43,7 +43,9 @@ setting, the notification, the command line, the safety model and privacy in ful
 
 Download `CodexAutoResume-Setup-vX.Y.Z.exe` from the
 [latest release](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest)
-and double-click it. There is nothing to unzip: it carries the release archive below, byte for byte,
+and double-click it. Setup programs are published from v0.6.11 on: while the latest release is older
+than that, only the v0.6.11 pre-releases on the [releases page](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases) carry one. There is nothing to
+unzip: it carries the release archive below, byte for byte,
 checks it, runs that archive's own `Install.cmd` - the same installer, asking the same questions -
 and removes what it unpacked.
 
