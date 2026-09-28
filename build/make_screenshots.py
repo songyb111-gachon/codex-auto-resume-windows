@@ -2872,7 +2872,7 @@ def render_window(targets: dict, theme: str | None = None, design: str | None = 
                          # The Settings page opens on the section with the most to show.
                          "--page=settings --section=continuation" if page == "settings"
                          else "--page=" + page],
-                        timeout=300, env=environment)
+                        timeout=CAPTURE_LIMIT, env=environment)
                 if done.returncode != 0:
                     raise SystemExit("the capture of %s failed:\n%s%s" % (
                         shown_path(target), done.stdout.decode("utf-8", "replace"),
@@ -2901,6 +2901,13 @@ def render_window(targets: dict, theme: str | None = None, design: str | None = 
 # every picture waited, whatever its window was doing, until v0.6.11.
 CAPTURE_WAIT = 15
 
+# The longest one capture may take once its window's turn has come, in seconds: a window that has not
+# answered by then is taken to be hung, and its job fails. It was five minutes until v0.6.11, which a
+# busy machine outran - with every processor taken by other work, a window took more than five minutes
+# to answer, and the old generator and this one alike failed a run over a window that was only slow.
+# A slow window is waited for; a picture taken of it is the same bytes (see CAPTURE_WAIT).
+CAPTURE_LIMIT = 30 * 60
+
 # How many of the generator's windows are open at once on the machine, from every job and every run.
 # A window spends most of its start drawing text, and text is drawn through parts of Windows every
 # process shares: twelve windows started together each took two minutes to answer, where one alone
@@ -2912,31 +2919,47 @@ WINDOW_TURNS = "Local\\CodexAutoResume.Windows"
 
 @contextmanager
 def window_turn():
-    """One of WINDOWS_AT_ONCE turns to have a window open, for as long as the block runs: a named
-    semaphore every generator process on this machine shares, waited for as long as it takes. Off
-    Windows there are no windows to take turns with."""
+    """One of WINDOWS_AT_ONCE turns to have a window open, for as long as the block runs, waited for as long
+    as it takes: WINDOWS_AT_ONCE named mutexes every generator process on this machine shares, one per turn.
+
+    Mutexes rather than one semaphore of that many, because a process that ends holding a mutex gives it
+    back - Windows abandons it to the next waiter - where a semaphore's count is simply lost: a job killed
+    for its time, or with the run it belonged to (`run_jobs`), left one turn fewer to every run on the
+    machine after it, and two such left none. A turn is taken and given back by one thread, as a mutex
+    must be. Off Windows there are no windows to take turns with."""
     if os.name != "nt":
         yield
         return
     import ctypes
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    kernel32.CreateSemaphoreW.restype = ctypes.c_void_p
-    kernel32.CreateSemaphoreW.argtypes = (ctypes.c_void_p, ctypes.c_long, ctypes.c_long, ctypes.c_wchar_p)
-    kernel32.WaitForSingleObject.argtypes = (ctypes.c_void_p, ctypes.c_ulong)
-    kernel32.ReleaseSemaphore.argtypes = (ctypes.c_void_p, ctypes.c_long, ctypes.c_void_p)
+    kernel32.CreateMutexW.restype = ctypes.c_void_p
+    kernel32.CreateMutexW.argtypes = (ctypes.c_void_p, ctypes.c_int, ctypes.c_wchar_p)
+    kernel32.WaitForMultipleObjects.argtypes = (ctypes.c_ulong, ctypes.c_void_p, ctypes.c_int, ctypes.c_ulong)
+    kernel32.WaitForMultipleObjects.restype = ctypes.c_ulong
+    kernel32.ReleaseMutex.argtypes = (ctypes.c_void_p,)
     kernel32.CloseHandle.argtypes = (ctypes.c_void_p,)
-    turns = kernel32.CreateSemaphoreW(None, WINDOWS_AT_ONCE, WINDOWS_AT_ONCE, WINDOW_TURNS)
-    if not turns:
-        raise OSError(ctypes.get_last_error(), "could not open the windows' turns")
+    turns = (ctypes.c_void_p * WINDOWS_AT_ONCE)()
     try:
-        if kernel32.WaitForSingleObject(turns, 0xFFFFFFFF) != 0:
+        for number in range(WINDOWS_AT_ONCE):
+            turns[number] = kernel32.CreateMutexW(None, False, "%s.%d" % (WINDOW_TURNS, number))
+            if not turns[number]:
+                raise OSError(ctypes.get_last_error(), "could not open the windows' turns")
+        got = kernel32.WaitForMultipleObjects(WINDOWS_AT_ONCE, turns, False, 0xFFFFFFFF)
+        # WAIT_OBJECT_0 + n, or WAIT_ABANDONED_0 + n: the turn of a process that ended holding it, ours now.
+        if got < WINDOWS_AT_ONCE:
+            mine = got
+        elif 0x80 <= got < 0x80 + WINDOWS_AT_ONCE:
+            mine = got - 0x80
+        else:
             raise OSError(ctypes.get_last_error(), "could not wait for a window's turn")
         try:
             yield
         finally:
-            kernel32.ReleaseSemaphore(turns, 1, None)
+            kernel32.ReleaseMutex(turns[mine])
     finally:
-        kernel32.CloseHandle(turns)
+        for handle in turns:
+            if handle:
+                kernel32.CloseHandle(handle)
 
 
 def run_contained(argv, timeout, env) -> subprocess.CompletedProcess:
@@ -2947,8 +2970,23 @@ def run_contained(argv, timeout, env) -> subprocess.CompletedProcess:
     installation deleted under it, it read the missing settings as the defaults and opened itself again in
     them. Started suspended, put in the job and then let go, so nothing it starts can begin outside it.
     Off Windows, or where a job cannot be made, it is `subprocess.run`."""
-    if os.name != "nt":
-        return subprocess.run(argv, capture_output=True, timeout=timeout, env=env)
+    job = kill_on_close_job()
+    if job is None:
+        return subprocess.run(argv, capture_output=True, timeout=timeout, env=env, creationflags=NO_WINDOW)
+    try:
+        process = start_in_job(job, argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+        try:
+            out, err = process.communicate(timeout=timeout)
+        except BaseException:
+            process.kill()
+            process.communicate()
+            raise
+        return subprocess.CompletedProcess(argv, process.returncode, out, err)
+    finally:
+        close_job(job)
+
+
+def _job_api():
     import ctypes
     from ctypes import wintypes
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
@@ -2959,6 +2997,16 @@ def run_contained(argv, timeout, env) -> subprocess.CompletedProcess:
     kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
     ntdll = ctypes.WinDLL("ntdll")
     ntdll.NtResumeProcess.argtypes = (wintypes.HANDLE,)
+    return ctypes, wintypes, kernel32, ntdll
+
+
+def kill_on_close_job():
+    """A Windows job that ends every process in it once its handle is closed - by `close_job`, or by Windows
+    when the process holding it ends, however it ends, killed outright included - or None off Windows or where
+    one cannot be made."""
+    if os.name != "nt":
+        return None
+    ctypes, wintypes, kernel32, _ntdll = _job_api()
 
     class Limits(ctypes.Structure):          # JOBOBJECT_EXTENDED_LIMIT_INFORMATION
         _fields_ = [("PerProcessUserTimeLimit", ctypes.c_int64), ("PerJobUserTimeLimit", ctypes.c_int64),
@@ -2974,22 +3022,26 @@ def run_contained(argv, timeout, env) -> subprocess.CompletedProcess:
     if not job or not kernel32.SetInformationJobObject(job, 9, ctypes.byref(limits), ctypes.sizeof(limits)):
         if job:
             kernel32.CloseHandle(job)
-        return subprocess.run(argv, capture_output=True, timeout=timeout, env=env, creationflags=NO_WINDOW)
+        return None
+    return job
+
+
+def start_in_job(job, argv, **options) -> subprocess.Popen:
+    """`subprocess.Popen(argv, **options)` with no console, started suspended and put in `job` (`kill_on_close_job`)
+    before it runs, so nothing it starts can begin outside the job."""
+    _ctypes, _wintypes, kernel32, ntdll = _job_api()
+    process = subprocess.Popen(argv, creationflags=NO_WINDOW | 0x4, **options)          # CREATE_SUSPENDED
     try:
-        process = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env,
-                                   creationflags=NO_WINDOW | 0x4)          # CREATE_SUSPENDED
-        try:
-            # A process Windows will not put in the job - only where jobs cannot nest - runs outside it.
-            kernel32.AssignProcessToJobObject(job, int(process._handle))
-            ntdll.NtResumeProcess(int(process._handle))
-            out, err = process.communicate(timeout=timeout)
-        except BaseException:
-            process.kill()
-            process.communicate()
-            raise
-        return subprocess.CompletedProcess(argv, process.returncode, out, err)
+        # A process Windows will not put in the job - only where jobs cannot nest - runs outside it.
+        kernel32.AssignProcessToJobObject(job, int(process._handle))
     finally:
-        kernel32.CloseHandle(job)
+        ntdll.NtResumeProcess(int(process._handle))
+    return process
+
+
+def close_job(job) -> None:
+    """Closes a job's handle (`kill_on_close_job`), which ends whatever still runs in it."""
+    _job_api()[2].CloseHandle(job)
 
 
 def shown_path(path) -> str:
@@ -3757,6 +3809,11 @@ def audit_main(argv) -> int:
 JOB_RESULT = "CAR-JOB:"
 
 
+# The longest a job may take, in seconds, its windows' turns included: a window's job waits for every
+# other window of the run to take its turn, which on a busy machine took the last of them 45 minutes.
+JOB_LIMIT = 4 * 3600
+
+
 def job_workers() -> int:
     """How many jobs other than the windows' run at once unless `--jobs` says: half the processors, and no
     more than eight - Edge and the drawing each want a processor of their own. The windows' jobs all start
@@ -3878,9 +3935,10 @@ def run_job(job: dict) -> dict:
 
 
 def window_job(targets: dict, design) -> dict:
-    """One installation's pages, captured one after another, each picture's record read while the next page is
-    captured. The fixture every record's light is read from is read first, as the panel read it before the window
-    was captured when all this ran one after another: reading it patches the clock, which the capture must not see."""
+    """One installation's pages, captured side by side as the windows' turns come (`render_window`), each
+    picture's record read while the other pages are captured. The fixture every record's light is read from is
+    read first, as the panel read it before the window was captured when all this ran one after another: reading
+    it patches the clock, which the capture must not see."""
     from concurrent.futures import ThreadPoolExecutor
     fixture_light()
     with ThreadPoolExecutor(max_workers=1) as reader:
@@ -3904,27 +3962,56 @@ def job_main(text: str) -> int:
 def run_jobs(jobs: list, workers: int | None = None) -> tuple:
     """Runs each job in a process of its own and prints what each drew as it ends: every window's job at once,
     since each waits for its windows' turns (`window_turn`), and the others `workers` at a time, in the order
-    given. Returns ({picture: record} of every job that finished, how many failed)."""
-    from concurrent.futures import ThreadPoolExecutor, as_completed
+    given. Returns ({picture: record} of every job that finished, how many failed).
+
+    A run that is stopped - Ctrl+C, or anything else that ends it early - ends every job it started and starts
+    no other. The jobs have no console, so Ctrl+C never reaches them: without this they went on drawing into
+    the working tree after the run had said it was over. A run killed outright has no say, so on Windows every
+    job runs in a job object of the run's (`kill_on_close_job`), which Windows closes with the run however it
+    ends. A job ended so ends what it started with it (the capture's `run_contained`, the mutex holder's
+    standard input).
+
+    The windows' jobs are given the runtime first, fetched once: each unpacks the one archive into its
+    installation (`scratch_installation`), and on a machine that had none yet they all fetched it at once,
+    into the one file."""
+    from concurrent.futures import ThreadPoolExecutor
     drawn, failed = {}, 0
     if not jobs:
         return drawn, failed
+    windows = [job for job in jobs if job["kind"] == "window"]
+    others = [job for job in jobs if job["kind"] != "window"]
+    if windows:
+        import make_release
+        make_release.fetch_runtime()
+    started, gate, stopping = [], threading.Lock(), threading.Event()
+    contained = kill_on_close_job()
 
     def run(job):
         begun = time.monotonic()
-        done = subprocess.run([sys.executable, "-X", "utf8", str(Path(__file__).resolve()), "--job",
-                               json.dumps(job)],
-                              capture_output=True, text=True, encoding="utf-8", errors="replace",
-                              cwd=str(ROOT), timeout=3600, creationflags=NO_WINDOW)
-        return done, time.monotonic() - begun
+        with gate:
+            if stopping.is_set():
+                raise RuntimeError("not started: the run was stopped")
+            options = dict(stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
+                           errors="replace", cwd=str(ROOT))
+            if contained is None:
+                process = subprocess.Popen(job_command(job), creationflags=NO_WINDOW, **options)
+            else:
+                process = start_in_job(contained, job_command(job), **options)
+            started.append(process)
+        try:
+            out, err = process.communicate(timeout=JOB_LIMIT)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.communicate()
+            raise
+        return subprocess.CompletedProcess(process.args, process.returncode, out, err), time.monotonic() - begun
 
-    windows = [job for job in jobs if job["kind"] == "window"]
-    others = [job for job in jobs if job["kind"] != "window"]
-    with ThreadPoolExecutor(max_workers=max(1, len(windows))) as capturing, \
-            ThreadPoolExecutor(max_workers=workers or job_workers()) as drawing:
+    capturing = ThreadPoolExecutor(max_workers=max(1, len(windows)))
+    drawing = ThreadPoolExecutor(max_workers=workers or job_workers())
+    try:
         running = {capturing.submit(run, job): job for job in windows}
         running.update({drawing.submit(run, job): job for job in others})
-        for future in as_completed(running):
+        for future in finishing(running):
             job = running[future]
             name = " ".join(str(job[key]) for key in ("kind", "locale", "design", "picture") if job.get(key))
             try:
@@ -3945,7 +4032,35 @@ def run_jobs(jobs: list, workers: int | None = None) -> tuple:
             for key, record in json.loads(result[-1][len(JOB_RESULT):]).items():
                 drawn[ROOT / key] = record
             print("done           : %s in %.1f s" % (name, seconds))
+    except BaseException:
+        with gate:
+            stopping.set()
+            for process in started:
+                if process.poll() is None:
+                    process.kill()
+        raise
+    finally:
+        for pool in (capturing, drawing):
+            pool.shutdown(wait=True, cancel_futures=True)
+        if contained is not None:
+            close_job(contained)
     return drawn, failed
+
+
+def job_command(job: dict) -> list:
+    """The command line that draws one job in a process of its own (`job_main`)."""
+    return [sys.executable, "-X", "utf8", str(Path(__file__).resolve()), "--job", json.dumps(job)]
+
+
+def finishing(futures):
+    """Each of `futures` as it finishes, looking up at least once a second, so a Ctrl+C is acted on within one:
+    Python interrupts a lock's wait on a signal on POSIX only, and a wait with no end on Windows saw the Ctrl+C
+    only once the next job had finished, which could be minutes."""
+    from concurrent.futures import FIRST_COMPLETED, wait
+    pending = set(futures)
+    while pending:
+        finished, pending = wait(pending, timeout=1, return_when=FIRST_COMPLETED)
+        yield from finished
 
 
 def picture_set() -> tuple:

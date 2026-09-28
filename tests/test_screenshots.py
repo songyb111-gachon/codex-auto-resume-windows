@@ -2248,6 +2248,33 @@ class AuditSheetTests(unittest.TestCase):
         self.assertFalse((ROOT / "docs" / "images" / "audit").exists())
 
 
+def process_ended(pid: int, wait: float = 10) -> bool:
+    """Whether the process `pid` has ended, or does within `wait` seconds."""
+    import time
+    if os.name != "nt":
+        end = time.monotonic() + wait
+        while True:
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                return True
+            if time.monotonic() > end:
+                return False
+            time.sleep(0.1)
+    import ctypes
+    kernel32 = ctypes.WinDLL("kernel32")
+    kernel32.OpenProcess.restype = ctypes.c_void_p
+    kernel32.WaitForSingleObject.argtypes = (ctypes.c_void_p, ctypes.c_ulong)
+    kernel32.CloseHandle.argtypes = (ctypes.c_void_p,)
+    handle = kernel32.OpenProcess(0x00100000, False, pid)          # SYNCHRONIZE
+    if not handle:
+        return True
+    try:
+        return kernel32.WaitForSingleObject(handle, int(wait * 1000)) == 0
+    finally:
+        kernel32.CloseHandle(handle)
+
+
 class FasterRunTests(unittest.TestCase):
     """A whole run draws only what is stale, side by side, and photographs a window when it says it is ready (v0.6.11).
 
@@ -2305,22 +2332,168 @@ class FasterRunTests(unittest.TestCase):
         source = inspect.getsource(g.render_window)
         self.assertLess(source.index("with window_turn():"), source.index('"powershell.exe"'))
         if os.name != "nt":
-            self.skipTest("a turn is a Windows semaphore")
+            self.skipTest("a turn is a Windows mutex")
         # A name of this test's own, so a generator running on this machine is neither waited for nor held up.
         with patch.object(g, "WINDOW_TURNS", "Local\\CodexAutoResume.Test.%s" % uuid.uuid4().hex):
+            # Each turn in a thread of its own, as each capture takes one: a turn is a mutex, which the thread
+            # holding it would simply take again.
+            holding = [threading.Event(), threading.Event()]
+            give_back = [threading.Event(), threading.Event()]
             third = threading.Event()
+
+            def hold(number):
+                with g.window_turn():
+                    holding[number].set()
+                    give_back[number].wait(30)
 
             def waiting():
                 with g.window_turn():
                     third.set()
 
+            holders = [threading.Thread(target=hold, args=(number,), daemon=True) for number in (0, 1)]
+            for holder in holders:
+                holder.start()
+            self.assertTrue(all(event.wait(10) for event in holding), "two windows may be open at once")
+            waiter = threading.Thread(target=waiting, daemon=True)
+            waiter.start()
+            self.assertFalse(third.wait(0.5), "a third window opened beside two")
+            give_back[1].set()
+            self.assertTrue(third.wait(10), "and it opens once one of the two has closed")
+            give_back[0].set()
+            for thread in holders + [waiter]:
+                thread.join(10)
+
+    def test_a_turn_held_by_a_process_that_was_killed_is_given_back(self):
+        """A job killed holding a turn - for its time, or with its run - gives it back to whoever waits for one.
+
+        A semaphore's count is lost with a process killed holding it, for as long as anybody keeps the semaphore
+        open - here the waiting run, as another generator run on the machine would: a mutex is abandoned to the
+        next waiter."""
+        import subprocess
+        import threading
+        import uuid
+        g = self.generator
+        if os.name != "nt":
+            self.skipTest("a turn is a Windows mutex")
+        name = "Local\\CodexAutoResume.Test.%s" % uuid.uuid4().hex
+        takes = ("import sys, time; sys.path.insert(0, sys.argv[1]); import make_screenshots as g; "
+                 "g.WINDOW_TURNS = sys.argv[2]; turn = g.window_turn(); turn.__enter__(); "
+                 "print('held', flush=True); time.sleep(60)")
+        holders, takers = [], []
+        taken = [threading.Event() for _turn in range(g.WINDOWS_AT_ONCE)]
+        done = threading.Event()
+
+        def take(number):
             with g.window_turn():
-                with g.window_turn():
-                    waiter = threading.Thread(target=waiting, daemon=True)
-                    waiter.start()
-                    self.assertFalse(third.wait(0.5), "a third window opened beside two")
-                self.assertTrue(third.wait(10), "and it opens once one of the two has closed")
-            waiter.join(10)
+                taken[number].set()
+                done.wait(30)
+
+        with patch.object(g, "WINDOW_TURNS", name):
+            try:
+                for _turn in range(g.WINDOWS_AT_ONCE):
+                    holder = subprocess.Popen([sys.executable, "-c", takes, str(ROOT / "build"), name],
+                                              stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+                                              creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                    holders.append(holder)
+                    self.assertEqual(holder.stdout.readline().strip(), "held")
+                # This run waits for every turn, each in a thread of its own, while the others hold them all.
+                takers = [threading.Thread(target=take, args=(number,), daemon=True) for number in range(len(taken))]
+                for taker in takers:
+                    taker.start()
+                self.assertFalse(taken[0].wait(0.5), "a turn was taken while every one was held")
+                for holder in holders:
+                    holder.kill()
+                    holder.wait(10)
+                self.assertTrue(all(event.wait(10) for event in taken), "a killed process kept its window's turn")
+            finally:
+                done.set()
+                for taker in takers:
+                    taker.join(10)
+                for holder in holders:
+                    if holder.poll() is None:
+                        holder.kill()
+                        holder.wait(10)
+                    holder.stdout.close()
+
+    def test_a_run_that_is_stopped_ends_every_job_it_started_and_starts_no_other(self):
+        """The jobs have no console, so a Ctrl+C never reached them: they went on drawing after the run had ended."""
+        from contextlib import redirect_stdout
+        import io
+        import time
+        g = self.generator
+        with tempfile.TemporaryDirectory() as scratch:
+            marks = Path(scratch)
+            waits = "import os, sys, time; open(sys.argv[1], 'w').write(str(os.getpid())); time.sleep(60)"
+            # Once both others are running, a result the run cannot read: the run itself fails.
+            breaks = ("import os, sys, time; end = time.time() + 30\n"
+                      "while time.time() < end and not all(os.path.exists(p) for p in sys.argv[1:]): time.sleep(0.1)\n"
+                      "print('%s{', flush=True)" % g.JOB_RESULT)
+
+            def command(job):
+                if job["locale"] == "breaks":
+                    return [sys.executable, "-c", breaks, str(marks / "a"), str(marks / "b")]
+                return [sys.executable, "-c", waits, str(marks / job["locale"])]
+
+            queued = ["q1", "q2", "q3"]
+            jobs = [{"kind": "panel", "locale": name, "design": None} for name in ["a", "b", "breaks"] + queued]
+            begun = time.monotonic()
+            with patch.object(g, "job_command", command), redirect_stdout(io.StringIO()):
+                with self.assertRaises(ValueError):
+                    g.run_jobs(jobs, workers=3)
+            self.assertLess(time.monotonic() - begun, 40, "the run waited for its jobs instead of ending them")
+            started = sorted(path.name for path in marks.iterdir())
+            # The worker "breaks" leaves may take the next job before the run has read what "breaks" printed: that
+            # one is ended with the rest. No other is started.
+            self.assertIn("a", started)
+            self.assertIn("b", started)
+            self.assertLessEqual(len([name for name in started if name in queued]), 1, started)
+            for name in started:
+                # Empty only for a job ended between opening its mark and writing it.
+                pid = (marks / name).read_text()
+                self.assertTrue(not pid or process_ended(int(pid)), "job %s is still running" % name)
+            time.sleep(1.5)
+            self.assertEqual(sorted(path.name for path in marks.iterdir()), started,
+                             "a job was started after the run had stopped")
+
+    def test_a_run_killed_outright_ends_every_job_it_started(self):
+        """A run killed from outside - by whatever ran it, with no Ctrl+C to act on - left its jobs drawing on."""
+        import subprocess
+        import time
+        if os.name != "nt":
+            self.skipTest("a Windows job")
+        # Each job writes its process id once it runs, whole (written aside and renamed), and waits.
+        waits = ("import os, sys, time; p = sys.argv[1]; open(p + '.new', 'w').write(str(os.getpid())); "
+                 "os.replace(p + '.new', p); time.sleep(60)")
+        run = ("import os, sys; sys.path.insert(0, sys.argv[1]); import make_screenshots as g; "
+               "g.job_command = lambda job: [sys.executable, '-c', %r, os.path.join(sys.argv[2], job['locale'])]; "
+               "g.run_jobs([{'kind': 'panel', 'locale': name, 'design': None} for name in ('a', 'b')], workers=2)"
+               % waits)
+        with tempfile.TemporaryDirectory() as scratch:
+            marks = Path(scratch)
+            generator_run = subprocess.Popen([sys.executable, "-c", run, str(ROOT / "build"), str(marks)],
+                                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            try:
+                end = time.monotonic() + 60
+                while time.monotonic() < end and not all((marks / name).is_file() for name in ("a", "b")):
+                    time.sleep(0.1)
+                self.assertTrue(all((marks / name).is_file() for name in ("a", "b")), "the jobs did not start")
+            finally:
+                generator_run.kill()
+                generator_run.wait(10)
+            for name in ("a", "b"):
+                self.assertTrue(process_ended(int((marks / name).read_text())), "job %s outlived its run" % name)
+
+    def test_a_slow_window_is_waited_for_rather_than_failing_the_run(self):
+        """With every processor taken by other work, windows took more than the five minutes a capture was given, and
+        four of seven window jobs failed a run over windows that were only slow; the last job took 45 minutes."""
+        g = self.generator
+        self.assertIn("timeout=CAPTURE_LIMIT", inspect.getsource(g.render_window))
+        self.assertIn("timeout=JOB_LIMIT", inspect.getsource(g.run_jobs))
+        self.assertGreaterEqual(g.CAPTURE_LIMIT, 30 * 60)
+        self.assertGreater(g.JOB_LIMIT, 45 * 60)
+        # A window is still photographed after CAPTURE_WAIT whether it said it was ready or not.
+        self.assertLess(g.CAPTURE_WAIT, g.CAPTURE_LIMIT)
 
     def test_a_capture_leaves_nothing_it_started_running(self):
         """A capture killed for its time left its window open, which then reopened itself in the defaults."""
