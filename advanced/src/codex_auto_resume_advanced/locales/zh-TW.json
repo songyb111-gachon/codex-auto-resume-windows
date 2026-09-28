@@ -21,7 +21,7 @@
   "statement.goal_continuation.stop": "在儀表板中關閉它，或一次關閉所有進階功能；之後接續只會重新透過 Codex 的佇列進行。已被它設為啟用狀態的目標會維持啟用；如果想讓它停下，請在 Codex 中暫停該目標。",
   "statement.marker_free_continuation.does": "傳送每則接續訊息時，不帶標準版附在結尾的標記。訊息透過 Codex 自身的應用程式伺服器加入對話的佇列，並帶有一個由這次中斷產生的 ID；Codex 會把這個 ID 保存在訊息上，它就是訊息已送達的證明。超出其每日上限後，接續訊息會像標準版一樣帶標記傳送。",
   "statement.marker_free_continuation.instead": "標準版透過 Codex 的佇列命令傳送每則接續訊息，並在結尾附上一個簡短的標記 [codex-auto-resume:…]，之後便憑它在對話中找到自己的訊息。",
-  "statement.marker_free_continuation.departs": "A2（接續訊息只走一條通道，也就是 Codex 的佇列命令）和 A4（每則接續訊息都帶有自己的標記，只有找到該標記時才算已送達）。",
+  "statement.marker_free_continuation.departs": "A2（接續訊息只走一條通道，也就是 Codex 的佇列命令）、A4（每則接續訊息都帶有自己的標記，只有找到該標記時才算已送達）、B3（Codex 的狀態只透過佇列命令和外掛程式命令改變）以及 B4（只向應用程式伺服器請求用量和撤回已排入佇列的訊息）。",
   "statement.marker_free_continuation.risks": "它依賴一個只在某一 Codex 版本上量測過的應用程式伺服器請求（M7）；其他版本可能拒絕該請求，或不再保存該 ID。當無法證明訊息已送達時（伺服器拒絕或沒有回應，或訊息始終沒有出現），這則接續訊息會像在標準版中一樣被視為不確定：絕不會再次傳送，此功能也會自行關閉。每一道復原關卡和每一項限制都維持不變。",
   "statement.marker_free_continuation.stop": "在儀表板中關閉它，或一次關閉所有進階功能；之後接續訊息會重新透過 Codex 的佇列命令並帶上標記傳送。已經不帶標記送出的訊息，仍會憑其 ID 一路追蹤到結束。",
   "state.armed": "開啟",

@@ -267,6 +267,16 @@ class Plug:
         Not a point: it is called once, by `install --edition-from`, never during a tick."""
         return None
 
+    def codex(self, codex_exe, codex_home):
+        """The Codex this process drives: the codex.exe the watcher found and checked - its
+        `--codex-exe`, the `codex_exe` setting, or the one discovery chose - and the Codex home it
+        runs it with, `--codex-home` or CODEX_HOME's. A plug whose own session with Codex has to
+        be that very Codex, and whose reads have to be of that home, is told them here, once the
+        watcher has built its backend (runtime/app.py), rather than finding a Codex of its own.
+
+        Not a point: nothing is decided by it and its answer is not read. NULL keeps nothing."""
+        return None
+
 
 # Which hook each point calls.
 HOOKS = {
@@ -443,18 +453,25 @@ class _Route:
     Consent is read under the store's write lock, and the route is called only if it held, with
     a guard already decided and the lock let go - the route is the plug's code, and a transport
     core cannot see into, and a Pause or a disarm must never wait behind it. `resume` is the
-    route's one method, and the only thing of it core ever calls."""
+    route's one method, and the only thing of it core ever calls.
+
+    `still_unloaded` is core's own look at whether the app still does not hold the conversation
+    (engine/delivery.py), handed on for the route to ask at the last moment before it changes
+    anything in Codex: its session takes seconds to start, and the app may open the conversation
+    in them. It is handed on only when core gives one."""
     __slots__ = ("_resume",)
 
     def __init__(self, resume):
         self._resume = resume
 
-    def resume(self, thread_id, *, launch_guard=None):
+    def resume(self, thread_id, *, launch_guard=None, still_unloaded=None):
         with launch_guard if launch_guard is not None else nullcontext(True) as permitted:
             pass
         if permitted is not True:
             return {"outcome": "not_started", "error_code": "queue_consent_refused"}
-        return self._resume(thread_id, launch_guard=nullcontext(True))
+        if still_unloaded is None:
+            return self._resume(thread_id, launch_guard=nullcontext(True))
+        return self._resume(thread_id, launch_guard=nullcontext(True), still_unloaded=still_unloaded)
 
 
 class Guarded:
@@ -601,6 +618,17 @@ class Guarded:
         except Exception:                              # a `resume` that raises when it is looked up
             return DEFER
         return _Route(resume) if callable(resume) else DEFER
+
+    def codex(self, codex_exe, codex_home):
+        """Tell the plug which Codex this process drives (Plug.codex). Not a point, so not asked
+        through `consult`: NULL is told nothing, and a plug that raises is counted in `failures`
+        and has changed nothing of core's."""
+        if self.plug is NULL:
+            return
+        try:
+            self.plug.codex(codex_exe, codex_home)
+        except Exception:
+            self.failures += 1
 
 
 def guard(plug) -> Guarded:

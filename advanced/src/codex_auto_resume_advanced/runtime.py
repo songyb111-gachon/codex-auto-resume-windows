@@ -250,7 +250,7 @@ class Runtime:
         from . import measure
         session_factory, backend = self._measure_session_factory, self._measure_backend
         if session_factory is None:
-            backend = backend if backend is not None else measure.live_backend()
+            backend = backend if backend is not None else measure.live_backend(self.paths)
             session_factory = measure.live_session_factory(self.paths, backend)
         launcher = self._measure_launcher
         if launcher is None:
@@ -269,6 +269,6 @@ class Runtime:
         from . import measure
         backend = self._measure_backend
         if backend is None and self._measure_session_factory is None:
-            backend = measure.live_backend()
+            backend = measure.live_backend(self.paths)
         return measure.complete(measurement, verdict, note, backend=backend,
                                 directory=self._evidence_dir, clock=self.clock)

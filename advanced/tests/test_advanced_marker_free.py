@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import os
 from pathlib import Path
 import queue
 import sqlite3
@@ -30,7 +31,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import advancedcase as ac  # noqa: E402
 from advancedcase import ENGINE  # noqa: E402
-from codex_auto_resume import config  # noqa: E402
+from codex_auto_resume import config, settings  # noqa: E402
+from codex_auto_resume.codex import transport  # noqa: E402
 from codex_auto_resume.codex.errors import AdapterError  # noqa: E402
 from codex_auto_resume.domain import ids  # noqa: E402
 from codex_auto_resume.domain.plug import BACKEND, DEFER, Alternative, Point  # noqa: E402
@@ -38,7 +40,7 @@ from codex_auto_resume.engine import Engine  # noqa: E402
 from codex_auto_resume.store import Store  # noqa: E402
 from codex_auto_resume.win.kernel import NO_WINDOW  # noqa: E402
 from codex_auto_resume_advanced import statement  # noqa: E402
-from codex_auto_resume_advanced.codex import protocol  # noqa: E402
+from codex_auto_resume_advanced.codex import inuse, protocol  # noqa: E402
 from codex_auto_resume_advanced.engine import markerfree  # noqa: E402
 from codex_auto_resume_advanced.engine.markerfree import MarkerFreeContinuation  # noqa: E402
 from codex_auto_resume_advanced.registry import MARKER_FREE, Registry  # noqa: E402
@@ -260,6 +262,88 @@ class ArmedTests(MarkerFreeCase):
         self.assertNotEqual(made[0], ids.continuation_client_id("b" * 64))
 
 
+class CodexInUseTests(MarkerFreeCase):
+    """The channel's session is with the Codex the watcher drives: the one it told the plug it
+    found (core's Plug.codex) - pinned by `--codex-exe` or the `codex_exe` setting, with its
+    `--codex-home` - and, where nothing was told, the one the setting pins. Two official engines
+    are installed, so discovery alone is ambiguous and would never send anything. No session is
+    stood in for: the channel opens its own, and only the process it would start is a fake."""
+
+    def setUp(self):
+        super().setUp()
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        root = Path(folder.name)
+        self.engines = []
+        for name in ("aaaa1111", "bbbb2222"):
+            (root / "bin" / name).mkdir(parents=True)
+            (root / "bin" / name / "codex.exe").write_bytes(b"MZ")
+            self.engines.append((root / "bin" / name / "codex.exe").resolve())
+        (root / "elsewhere").mkdir()
+        # CODEX_HOME names a home of the test's own that nothing here uses, never the real one.
+        environment = patch.dict(os.environ, {"CODEX_HOME": str(root / "elsewhere")})
+        environment.start()
+        self.addCleanup(environment.stop)
+        os.environ.pop(config.ENV_CODEX_EXE, None)
+        for target, name, value in ((config, "candidate_codex_exes", lambda: list(self.engines)),
+                                    (transport.Backend, "_compatible", lambda backend: {})):
+            patcher = patch.object(target, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def live(self, **options):
+        """The fake app server the channel's own session reaches, and what each process it would
+        have started was: its codex.exe and its CODEX_HOME."""
+        server = FakeAppServer(self.h, **options)
+        launched = []
+
+        def popen(argv, **given):
+            launched.append((Path(argv[0]).resolve(), Path(given["env"]["CODEX_HOME"]).resolve()))
+            return server.popen(argv, **given)
+        patcher = patch.object(protocol.S, "Popen", popen)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        return server, launched
+
+    def plug_here(self):
+        self.due()
+        plug = self.advanced()
+        self.addCleanup(inuse.forget, plug.paths)
+        self.arm(plug)
+        return plug
+
+    def test_discovery_alone_is_ambiguous_here(self):
+        with self.assertRaises(config.ConfigError):
+            config.discover_codex_exe(None, lambda path: None)
+
+    def test_its_session_is_with_the_codex_and_home_the_watcher_told_it_of(self):
+        plug = self.plug_here()
+        plug.codex(self.engines[1], self.h.home.root)
+        server, launched = self.live()
+        self.plugged(plug)
+        self.h.tick()
+        self.assertEqual(launched, [(self.engines[1], self.h.home.root.resolve())])
+        self.assertEqual(len(server.adds()), 1)
+        self.assert_no_send()
+        self.follow()
+        self.assertEqual(self.h.record()["state"], "recovered")
+        self.assertEqual(plug.runtime.state.arming()[CAP]["state"], ArmingState.ARMED)
+
+    def test_told_nothing_it_is_the_codex_the_setting_pins(self):
+        """A process that holds no watcher - the Dashboard's bridge - finds Codex as the watcher
+        does with no arguments: the `codex_exe` setting, and CODEX_HOME's home."""
+        plug = self.plug_here()
+        plug.paths.settings_file.parent.mkdir(parents=True, exist_ok=True)
+        settings.update(plug.paths.settings_file, {"codex_exe": str(self.engines[0])})
+        os.environ["CODEX_HOME"] = str(self.h.home.root)
+        server, launched = self.live()
+        self.plugged(plug)
+        self.h.tick()
+        self.assertEqual(launched, [(self.engines[0], self.h.home.root.resolve())])
+        self.assertEqual(len(server.adds()), 1)
+        self.assert_no_send()
+
+
 class ShadowNeverActsTests(MarkerFreeCase):
     def test_watched_it_journals_what_it_would_have_done_and_core_sends_the_marker(self):
         """ShadowNeverActs: asked at P5 and P15, its answers written as what it would have done,
@@ -393,7 +477,7 @@ class WarningTests(MarkerFreeCase):
         shown = runtime.arming.statement(MARKER_FREE, "en")
         self.assertEqual([item["warning"] for item in shown["warnings"]["items"]],
                          [ArmingWarning.UNMEASURED])
-        self.assertEqual(shown["departs_from"], ["A2", "A4"])
+        self.assertEqual(shown["departs_from"], ["A2", "A4", "B3", "B4"])
         self.assertTrue(self.arm(plug, warnings=[ArmingWarning.UNMEASURED])["done"])
 
 

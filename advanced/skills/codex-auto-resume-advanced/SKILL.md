@@ -61,8 +61,9 @@ anywhere else, and do not present one as active unless `list_advanced_capabiliti
   without the `[codex-auto-resume:<16 hex>]` marker the standard edition ends it with. It is added to the
   conversation's queue through Codex's own app server under an id made from the interruption, and
   that id, which Codex keeps on the message, is how the product proves it arrived. It departs from
-  two of the standard edition's rules (one channel only, Codex's queue command; the marker proves
-  delivery). Past its daily limits a continuation goes with the marker, as in the standard
+  four of the standard edition's rules (one channel only, Codex's queue command; the marker proves
+  delivery; Codex's state changes only through its queue; the app server's three requests). Past
+  its daily limits a continuation goes with the marker, as in the standard
   edition. When arrival cannot be proven, the continuation is treated as uncertain and never sent
   again, and the capability turns itself off; the user can turn it on again in the Dashboard.
 

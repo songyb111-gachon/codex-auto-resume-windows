@@ -15,6 +15,10 @@ until the app has the conversation open (A11) and queues its continuation throug
   it back. Measurement M2 found a goal set so is not seen while the app holds the conversation
   and is live once the app loads it again, so this is where it is set: when the app next opens the
   conversation Codex carries the goal on, and that turn supersedes the record by core's own rule.
+  The app may open the conversation while the session starts, so the set is made only once core's
+  own look, asked again after the session is up, still finds it not held; where it does not, the
+  goal is left as it was and the answer is "not started", so core gives its claim back and the
+  standard continuation follows once the app holds the conversation.
 * P3 - thread_available, once the app holds the conversation. While its goal is active - Codex's
   own goal runtime is carrying the conversation on - the standard continuation is held back, for
   at most HOLD_SECONDS from the first time it was found so, so the two never both run.
@@ -38,10 +42,11 @@ from __future__ import annotations
 from contextlib import nullcontext
 import time
 
-from codex_auto_resume import config, failures
+from codex_auto_resume import failures
 from codex_auto_resume.domain import ids
 from codex_auto_resume.domain.plug import DEFER, Alternative
 
+from ..codex import inuse
 from ..codex.goals import Goals
 from ..codex.protocol import Session, SessionRefused
 from ..measured import MEASURED
@@ -75,6 +80,14 @@ def m2b_passed(view, measured) -> bool:
             and entry[0] == Verdict.PASS and entry[1] == version)
 
 
+def _yes(look) -> bool:
+    """What a look core hands answers, where it is a plain yes; a look that raises is no."""
+    try:
+        return look() is True
+    except Exception:
+        return False
+
+
 def _view_of(paths):
     """The Compatibility Registry's view as every front end reads it (arming._view_of)."""
     from codex_auto_resume import compatio, settings
@@ -86,9 +99,9 @@ class GoalContinuation:
     core sends through.
 
     Its seams are the tests': `session` opens the app-server session the calls are made in (None:
-    a live one against the installed Codex, restricted to this capability's methods,
-    codex/protocol.CAPABILITY_METHODS); `home` is the Codex home whose goals are read (None:
-    config.codex_home(), the one core reads); `view` and `measured` give the Compatibility
+    a live one against the Codex the watcher drives, restricted to this capability's methods,
+    codex/protocol.CAPABILITY_METHODS); `home` is the Codex home whose goals are read (None: the
+    watcher's, the one core reads - codex/inuse.py); `view` and `measured` give the Compatibility
     Registry's view and the measurements (None: the watcher's view, and measured.py)."""
     __slots__ = ("paths", "clock", "_open", "_home", "_view", "_measured", "_seen")
 
@@ -103,7 +116,7 @@ class GoalContinuation:
         """The conversation's goal, or None where it has none - or it cannot be read, which is
         the standard edition's answer, never a reason to act."""
         try:
-            return Goals(self._home if self._home is not None else config.codex_home()).read(thread_id)
+            return Goals(self._home if self._home is not None else inuse.home(self.paths)).read(thread_id)
         except Exception:
             return None
 
@@ -152,9 +165,15 @@ class GoalContinuation:
         return self
 
     # ------------------------------------------------------------------ what core calls
-    def resume(self, thread_id, *, launch_guard=None):
+    def resume(self, thread_id, *, launch_guard=None, still_unloaded=None):
         """Set `thread_id`'s goal, paused by the usage limit, active again - and say what came of it
         the way core's backend says what came of a send. Never raises.
+
+        `still_unloaded` is core's look at whether the app still does not hold the conversation
+        (engine/delivery.py in core). It is asked once the session is up, at the last moment
+        before the set: seconds after core last looked, in which the app may have opened the
+        conversation - and M2 found a goal set while the app holds it is not seen. Anything but
+        yes leaves the goal as it was, and nothing was asked of Codex that changes it.
 
         Accepted only when the goal reads back active and the same goal. Not started where nothing
         was asked of Codex, or Codex said no and the goal is not active, so nothing will carry the
@@ -171,6 +190,8 @@ class GoalContinuation:
         if refused is not None:
             return refused
         try:
+            if still_unloaded is not None and not _yes(still_unloaded):
+                return {"outcome": "not_started", "error_code": "queue_preflight_failed"}
             session.call(SET, {"threadId": thread_id, "status": str(GoalStatus.ACTIVE)})
         except SessionRefused:
             return {"outcome": "not_started", "error_code": "queue_preflight_failed"}
@@ -246,8 +267,7 @@ class GoalContinuation:
     def _session(self):
         if self._open is not None:
             return self._open()
-        from ..measure import live_backend
-        return Session(live_backend(), capability=CAPABILITY)
+        return Session(inuse.backend(self.paths), capability=CAPABILITY)
 
 
 def make(paths) -> GoalContinuation:

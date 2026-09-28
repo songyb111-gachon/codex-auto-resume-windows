@@ -31,6 +31,7 @@ from codex_auto_resume.diagnostics import Redactor
 from codex_auto_resume.domain.ids import is_uuid
 
 from . import evidence
+from .codex import inuse
 from .codex.protocol import Session, SessionRefused, methods_for
 from .vocabulary import Measurement, NoteCode, Verdict
 
@@ -454,14 +455,11 @@ def _versions(backend) -> dict:
             "windows_build": build or "10.0.0"}
 
 
-def live_backend():
-    """The installed Codex, found as core finds it and checked, so its `engine_version` is the
-    version a record says it measured."""
-    from codex_auto_resume.codex.transport import Backend
-    exe = config.discover_codex_exe(None, lambda path: Backend(config.codex_home(), path)._compatible())
-    backend = Backend(config.codex_home(), exe)
-    backend._compatible()
-    return backend
+def live_backend(paths=None):
+    """The Codex the installation at `paths` drives, checked, so its `engine_version` is the
+    version a record says it measured: the one its watcher told the plug, else the one the
+    watcher would find - the `codex_exe` setting, or discovery (codex/inuse.py)."""
+    return inuse.backend(paths)
 
 
 def live_session_factory(paths, backend=None):
@@ -473,7 +471,7 @@ def live_session_factory(paths, backend=None):
     is the one the run's record reads its Codex version from, so the session and the record are
     of the same Codex."""
     def factory(measurement):
-        return Session(backend if backend is not None else live_backend(), measurement)
+        return Session(backend if backend is not None else live_backend(paths), measurement)
 
     return factory
 

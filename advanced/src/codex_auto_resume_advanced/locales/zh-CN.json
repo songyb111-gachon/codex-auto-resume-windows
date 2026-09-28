@@ -21,7 +21,7 @@
   "statement.goal_continuation.stop": "在仪表盘中关闭它，或一次关闭所有高级功能；之后续接只会重新通过 Codex 的队列进行。已被它设为活动状态的目标会保持活动；如果想让它停下，请在 Codex 中暂停该目标。",
   "statement.marker_free_continuation.does": "发送每条续接消息时，不带标准版附在末尾的标记。消息通过 Codex 自身的应用服务器加入对话的队列，并带有一个由此次中断生成的 ID；Codex 会把这个 ID 保存在消息上，它就是消息已送达的证明。超出其每日上限后，续接消息会像标准版一样带标记发送。",
   "statement.marker_free_continuation.instead": "标准版通过 Codex 的队列命令发送每条续接消息，并在末尾附上一个简短的标记 [codex-auto-resume:…]，之后便凭它在对话中找到自己的消息。",
-  "statement.marker_free_continuation.departs": "A2（续接消息只走一条通道，即 Codex 的队列命令）和 A4（每条续接消息都带有自己的标记，只有找到该标记时才算已送达）。",
+  "statement.marker_free_continuation.departs": "A2（续接消息只走一条通道，即 Codex 的队列命令）、A4（每条续接消息都带有自己的标记，只有找到该标记时才算已送达）、B3（Codex 的状态只通过队列命令和插件命令改变）以及 B4（只向应用服务器请求用量和撤回已排队的消息）。",
   "statement.marker_free_continuation.risks": "它依赖一个只在某一 Codex 版本上测量过的应用服务器请求（M7）；其他版本可能拒绝该请求，或不再保存该 ID。当无法证明消息已送达时（服务器拒绝或没有回应，或消息始终没有出现），这条续接消息会像在标准版中一样被视为不确定：绝不会再次发送，此功能也会自行关闭。每一道恢复关卡和每一项限制都保持不变。",
   "statement.marker_free_continuation.stop": "在仪表盘中关闭它，或一次关闭所有高级功能；之后续接消息会重新通过 Codex 的队列命令并带上标记发送。已经不带标记发出的消息，仍会凭其 ID 一直跟踪到结束。",
   "state.armed": "开启",

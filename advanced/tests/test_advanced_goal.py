@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import os
 from pathlib import Path
 import sqlite3
 import sys
@@ -35,14 +36,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import advancedcase as ac  # noqa: E402
 from advancedcase import ENGINE  # noqa: E402
 from codex_auto_resume import config  # noqa: E402
+from codex_auto_resume.codex import transport  # noqa: E402
 from codex_auto_resume.codex.errors import AdapterError  # noqa: E402
 from codex_auto_resume.domain import ids  # noqa: E402
 from codex_auto_resume.domain.plug import BACKEND, DEFER, Alternative, Point  # noqa: E402
 from codex_auto_resume.engine import Engine  # noqa: E402
+from codex_auto_resume.machine import WAITING  # noqa: E402
 from codex_auto_resume.store import Store  # noqa: E402
 from codex_auto_resume.win.kernel import NO_WINDOW  # noqa: E402
 from codex_auto_resume_advanced import statement  # noqa: E402
-from codex_auto_resume_advanced.codex import goals, protocol  # noqa: E402
+from codex_auto_resume_advanced.codex import goals, inuse, protocol  # noqa: E402
 from codex_auto_resume_advanced.engine import goal as goal_module  # noqa: E402
 from codex_auto_resume_advanced.engine.goal import GoalContinuation, m2b_passed  # noqa: E402
 from codex_auto_resume_advanced.registry import GOAL_CONTINUATION, MARKER_FREE, Registry  # noqa: E402
@@ -94,13 +97,16 @@ class GoalAppServer(FakeAppServer):
     goal in the harness's goals database exactly as Codex's does - an existing goal only, refused
     where there is none - and answers with the goal, its words included, as Codex's does. `refuse`
     answers the set with Codex's error; `ignore` answers it as done and changes nothing; `on_set` is
-    told of each set as it arrives. thread/queue/add is the marker-free fake's."""
+    told of each set as it arrives, and `on_start` of each session as it starts - its initialize.
+    thread/queue/add is the marker-free fake's."""
 
-    def __init__(self, h, *, refuse=False, ignore=False, on_set=None, **options):
+    def __init__(self, h, *, refuse=False, ignore=False, on_set=None, on_start=None, **options):
         super().__init__(h, **options)
-        self.refuse_set, self.ignore_set, self.on_set = refuse, ignore, on_set
+        self.refuse_set, self.ignore_set, self.on_set, self.on_start = refuse, ignore, on_set, on_start
 
     def receive(self, message):
+        if message.get("method") == "initialize" and self.on_start:
+            self.on_start()
         if message.get("method") != "thread/goal/set" or message.get("id") is None:
             return super().receive(message)
         self.received.append(message)
@@ -344,6 +350,43 @@ class UnloadedTests(GoalCase):
         self.assertEqual(self.status(), "usage_limited")
 
 
+class RaceTests(GoalCase):
+    """The app opens the conversation while the route's session is starting - after core last
+    found it not held, before the set. M2 found a goal set while the app holds the conversation
+    is not seen, so the set is not made: core's own look, asked again once the session is up,
+    says the app holds it, the goal is left paused, the claim is given back, and the standard
+    continuation follows as it would with the capability off, once the claim's cooldown is past.
+    Nothing is left an uncertain submission, and the capability stays on."""
+
+    def opened_while_starting(self, **server):
+        def app_opens_it():
+            self.h.backend.loaded_map[T1] = "loaded"
+        plug, fake = self.armed(on_start=app_opens_it, **server)
+        self.h.tick()
+        self.assertEqual(fake.sets(), [], "no goal is set on a conversation the app holds")
+        self.assertEqual(self.status(), "usage_limited")
+        row = self.h.record()
+        self.assertIn(row["state"], WAITING)
+        self.assertEqual((row["last_error"], row["submitted_at"], row["chain_continuations"]),
+                         ("released_before_send", None, 0))
+        started = self.h.now
+        while not self.h.backend.send_calls and self.h.now < started + 3600:
+            self.h.tick(advance=61)
+        self.assertLessEqual(self.h.now - started, 900 + 2 * 61, "the claim's cooldown, and no more")
+        self.assertEqual(len(self.h.backend.send_calls), 1)
+        self.assertTrue(self.prompt().endswith(self.h.record()["marker"]))
+        self.assertEqual(plug.runtime.state.arming()[CAP]["state"], ArmingState.ARMED)
+        self.assertEqual(fake.sets(), [])
+
+    def test_the_app_opening_it_while_the_session_starts_leaves_the_goal_alone(self):
+        self.opened_while_starting()
+
+    def test_even_where_codex_would_have_answered_a_set_it_did_not_apply(self):
+        """Where a set on a conversation the app holds would be answered and not applied, it was
+        an uncertain submission - never continued, and the capability off. It is not made."""
+        self.opened_while_starting(ignore=True)
+
+
 class LoadedTests(GoalCase):
     """A conversation the app holds: the standard queue route, unless M2b passed for this Codex."""
 
@@ -519,6 +562,25 @@ class TripwireTests(GoalCase):
         self.h.tick(advance=61)
         self.assertEqual(fake.received, [])
         self.assertEqual(self.status(), "usage_limited")
+
+    def test_a_later_send_core_made_alone_going_unknown_leaves_it_on(self):
+        """The goal was resumed and read back active: the unit it paid bought that, and it is done.
+        The standard continuation of the same record, sent later by `codex queue` with nothing of
+        this capability's in it, going unknown is core's uncertain submission - not a send this
+        capability paid for, so it is not turned off for it."""
+        plug, fake = self.armed()
+        self.h.tick()
+        self.assertEqual((self.h.record()["state"], self.status()), ("waiting_retry", "active"))
+        self.h.backend.loaded_map[T1] = "loaded"
+        self.h.backend.outcomes[T1] = "unknown"
+        started = self.h.now
+        while not self.h.backend.send_calls and self.h.now < started + 7200:
+            self.h.tick(advance=61)
+        self.assertEqual(len(self.h.backend.send_calls), 1)
+        self.assertEqual(self.h.record()["state"], "submission_unknown")
+        stored = plug.runtime.state.arming()[CAP]
+        self.assertEqual((stored["state"], stored["reason"]), (ArmingState.ARMED, None))
+        self.assertEqual(len(self.spends(plug)), 1, "it paid for the route alone")
 
     def test_re_arming_is_always_possible_after_a_trip(self):
         plug, fake = self.armed(ignore=True)
@@ -710,6 +772,37 @@ class RouteTests(unittest.TestCase):
                 set_goal(self.root, T1, "usage_limited")
                 self.assertEqual(self.made(session).resume(T1), {"outcome": "unknown", "error_code": code})
 
+    def test_the_set_is_made_only_while_cores_look_still_finds_it_not_held(self):
+        """Core's look is asked once the session is up, at the last moment before the set. A yes
+        sets the goal; a no, or a look that fails, leaves it as it was and nothing that changes
+        Codex was asked - not started, so core gives its claim back."""
+        order = []
+
+        class Session(self.Session):
+            def __enter__(inner):
+                order.append("session")
+                return super().__enter__()
+
+        def look(answer):
+            def asked():
+                order.append("look")
+                if isinstance(answer, Exception):
+                    raise answer
+                return answer
+            return asked
+
+        session = Session(self, then=self.activate)
+        self.assertEqual(self.made(session).resume(T1, still_unloaded=look(True))["outcome"], "accepted")
+        self.assertEqual(order, ["session", "look"])
+        for answer in (False, None, "notLoaded", OSError("gone")):
+            with self.subTest(answer=answer):
+                set_goal(self.root, T1, "usage_limited")
+                refused = Session(self, then=self.activate)
+                self.assertEqual(self.made(refused).resume(T1, still_unloaded=look(answer)),
+                                 {"outcome": "not_started", "error_code": "queue_preflight_failed"})
+                self.assertEqual(refused.calls, [])
+                self.assertEqual(goal_row(self.root, T1)[2], "usage_limited")
+
     def test_another_goal_in_its_place_is_not_the_one_resumed(self):
         def replaced(method, params):
             set_goal(self.root, T1, "active", goal_id="another-goal")
@@ -748,6 +841,37 @@ class RouteTests(unittest.TestCase):
             with self.subTest(measured=measured):
                 self.assertFalse(m2b_passed(view, measured))
         self.assertFalse(m2b_passed({}, {Measurement.M2B: (Verdict.PASS, ENGINE)}))
+
+
+class CodexInUseTests(GoalCase):
+    """Its goals are read from the Codex home the watcher drives, and its session is with the
+    codex.exe the watcher found - as the watcher told the plug (core's Plug.codex) - not a home
+    or a Codex found anew: `--codex-home` and a pinned engine included. CODEX_HOME names a home of
+    the test's own with no goals in it, never the real one."""
+
+    def setUp(self):
+        super().setUp()
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.exe = Path(folder.name) / "bin" / "aaaa1111" / "codex.exe"
+        self.exe.parent.mkdir(parents=True)
+        self.exe.write_bytes(b"MZ")
+        environment = patch.dict(os.environ, {"CODEX_HOME": folder.name})
+        environment.start()
+        self.addCleanup(environment.stop)
+
+    def test_its_goals_and_its_session_are_of_the_codex_the_watcher_told_it_of(self):
+        plug = self.advanced()
+        self.addCleanup(inuse.forget, plug.paths)
+        plug.codex(self.exe, self.h.home.root)
+        made = plug.runtime._code_of(GOAL_CONTINUATION)
+        record = {"interruption_id": ac.KEY, "thread_id": T1, "category": "usage_limit"}
+        self.assertIs(made.unloaded(record), made, "the goal paused by the limit, read where Codex keeps it")
+        with patch.object(transport.Backend, "_compatible", lambda backend: {}):
+            session = made._session()
+        self.assertEqual((session.backend.codex_exe, session.backend.codex_home),
+                         (self.exe.resolve(), self.h.home.root.resolve()))
+        self.assertEqual(session.allowed, protocol.methods_for_capability(CAP))
 
 
 class GoalsReaderTests(unittest.TestCase):

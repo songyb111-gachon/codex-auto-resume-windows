@@ -236,7 +236,7 @@ class DispatchMixin:
                 self.transition(current, "waiting_for_usage", "usage_recheck_failed", delay=900)
                 return
             if route is not None:
-                self._resume_unloaded(current, vector, limits, route)
+                self._resume_unloaded(current, vector, limits, route, app)
                 return
             # The text is decided before the claim, not after it. Building it reads catalogs
             # and settings; if either were ever broken, the failure has to happen while the

@@ -210,17 +210,21 @@ START_WITH_CODEX = CapabilityDef(
 # client id core derives from the interruption, and core proves delivery by that id alone
 # (domain/plug.py, P15). It is the channel at P5 and answers CLIENT_ID at P15, so it pays one unit
 # at the claim of each send it carries, and past its ceilings core sends with the marker as the
-# standard edition does. It departs from A2 (one channel only: `codex queue`) and A4 (the marker
-# proves delivery); it stands on recovery_turn_tracking - the history and queue tables the proof is
-# read from, with local checks - and on measurement M7, where thread/queue/add with a
+# standard edition does. It departs from A2 (one channel only: `codex queue`), A4 (the marker
+# proves delivery), B3 (Codex's state changes only through `codex queue`, thread/queue/delete and
+# the plugin command) and B4 (the app server is asked only initialize, account/rateLimits/read and
+# thread/queue/delete) - the last two because its session calls thread/queue/add, as the goal
+# continuation's does (codex/protocol.CAPABILITY_METHODS); revision 2 names them, where revision 1
+# named A2 and A4 alone. It stands on recovery_turn_tracking - the history and queue tables the
+# proof is read from, with local checks - and on measurement M7, where thread/queue/add with a
 # clientUserMessageId was accepted and delivered as plain text. A send it cannot prove is held as
 # core holds any uncertain one, and the tripwire for a paid send gone submission_unknown turns it
 # off. Its ceilings: core's own five a conversation a day, and two dozen a day in all.
 MARKER_FREE = CapabilityDef(
     id="marker_free_continuation",
     points=frozenset({Point.SENDER, Point.DELIVERY}),
-    revision=1,
-    departs_from=("A2", "A4"),
+    revision=2,
+    departs_from=("A2", "A4", "B3", "B4"),
     compat="recovery_turn_tracking",
     ceilings=Ceilings(per_day=24, per_conversation=CORE_DAILY_CAP),
     journal_prefix="mfc",

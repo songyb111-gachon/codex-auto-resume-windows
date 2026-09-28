@@ -37,8 +37,9 @@ agreement no longer covers what the capability would do:
 * the tripwires turn it off: its statement changed (a new revision the person has not read); a
   warning they did not confirm appeared that says what it stands on went wrong - its
   compatibility FAILED_HERE or INCOMPATIBLE here, or a measurement its route rests on failed; a
-  hook of its raised; or a send it paid for became submission_unknown. A warning they confirmed
-  never trips it: it was so when they turned it on;
+  hook of its raised; or a send it paid for became submission_unknown - that send, claimed when
+  it paid, and not a later one core made of the same record alone. A warning they confirmed never
+  trips it: it was so when they turned it on;
 * a new Codex version turns an armed capability off: the acknowledgement was for another one;
 * a policy (policy.py) only reads it down - off, or watched - and changes nothing stored; so,
   for one that is on, does a compatibility or a Codex version that cannot be read now, where the
@@ -49,6 +50,7 @@ Codex - the Dashboard can turn it on again, with its statement as it reads then.
 """
 from __future__ import annotations
 
+import math
 import time
 
 from codex_auto_resume.compat.model import FAILED_HERE, INCOMPATIBLE, STATES, UNKNOWN
@@ -66,6 +68,10 @@ SURFACES = frozenset({Actor.DASHBOARD, Actor.MCP, Actor.TRAY, Actor.CARD})
 # What the state of a capability in core's store is when a send it paid for may or may not have
 # reached Codex (engine/dispatch.py).
 SUBMISSION_UNKNOWN = "submission_unknown"
+# How far apart a unit's time and a claim's may be and still be the one claim. The ledger spends a
+# unit at the very time the claim writes (ledger.py, store/claims.py), so they are equal; this only
+# absorbs a float's round trip. Two claims of one record are never this close.
+SAME_CLAIM = 0.001
 # The warnings that, appearing where the person did not confirm them, say that what a capability
 # stands on went wrong: each is a tripwire, with its own reason. The first found trips it.
 TRIPPING = {ArmingWarning.FAILED_HERE: OffReason.FAILED_HERE,
@@ -166,14 +172,42 @@ def _confirmed(warnings):
         return None
 
 
-def _holds_unknown(core_view, key) -> bool:
-    """Whether core holds record `key` as submission_unknown now. A view that cannot answer
-    says nothing either way."""
+def _claimed_at(record):
+    """When the send of `record` that core holds now was claimed - its `last_claim_at` - or None
+    where that cannot be read."""
+    at = record.get("last_claim_at") if isinstance(record, dict) else None
+    if isinstance(at, bool) or not isinstance(at, (int, float)) or not math.isfinite(at):
+        return None
+    return at
+
+
+def _carried(spent, key, claimed_at) -> bool:
+    """Whether the send of record `key` claimed at `claimed_at` is one a capability paid for, by
+    `spent` - its units, {record: their times} (state.spends_since).
+
+    A unit is spent inside the claim it pays for, at the claim's own time, so a later send of the
+    same record that core made alone - once the capability's own was settled, a goal set active or
+    a message that arrived - carried nothing of the capability's, and its going unknown is not
+    the capability's doing. Where the claim's time cannot be read, any unit on the record is taken
+    for that send: the side that turns the capability off."""
+    times = spent.get(key)
+    if not times:
+        return False
+    if claimed_at is None:
+        return True
+    return any(abs(at - claimed_at) <= SAME_CLAIM for at in times)
+
+
+def _unknown_claim(core_view, key):
+    """(whether core holds record `key` as submission_unknown now, when the send it holds so was
+    claimed). A view that cannot answer says nothing either way."""
     try:
         record = core_view.get(key)
     except Exception:
-        return False
-    return isinstance(record, dict) and record.get("state") == SUBMISSION_UNKNOWN
+        return False, None
+    if not (isinstance(record, dict) and record.get("state") == SUBMISSION_UNKNOWN):
+        return False, None
+    return True, _claimed_at(record)
 
 
 def _view_of(paths):
@@ -193,10 +227,11 @@ class Arming:
         self._view = view or (lambda: _view_of(state.paths))
         self._measured = measured or (lambda: MEASURED)
         self.clock = clock
-        # {record: when core told of its move into submission_unknown} for each such move whose
-        # trips are not all written yet: core tells a move once, so one whose trip could not be
-        # written then - the state locked past its timeout, or not to be opened - is tried again
-        # at every sweep until it is, though the record has settled by then (`_settle`).
+        # {record: (when core told of its move into submission_unknown, when the send that went
+        # unknown was claimed)} for each such move whose trips are not all written yet: core tells
+        # a move once, so one whose trip could not be written then - the state locked past its
+        # timeout, or not to be opened - is tried again at every sweep until it is, though the
+        # record has settled by then (`_settle`).
         self._owed = {}
 
     def policy(self):
@@ -275,8 +310,8 @@ class Arming:
         return self._off(capability, reason)
 
     def _paid(self):
-        """{capability: (since when it is on, the records it paid a send of since then)} for each
-        capability that is on, or None where the state cannot be read."""
+        """{capability: (since when it is on, {record: when it paid a send of it} since then)} for
+        each capability that is on, or None where the state cannot be read."""
         try:
             rows = self.state.arming()
             return {capability: (row["since"], self.state.spends_since(capability, row["since"]))
@@ -286,9 +321,9 @@ class Arming:
             return None
 
     def _settle(self, core_view=None) -> bool:
-        """Turn off every capability that is on and paid for a send core told this plug went
-        into submission_unknown while it was on - and, with `core_view`, one core holds so now.
-        Whether any was turned off.
+        """Turn off every capability that is on and paid for the very send core told this plug
+        went into submission_unknown while it was on - and, with `core_view`, for one core holds
+        so now (`_carried`). Whether any was turned off.
 
         What was told stays owed until a pass has read the state and written every trip it
         called for: a trip whose write failed is not lost with the one telling of it, and a
@@ -297,10 +332,13 @@ class Arming:
         if paid is None:
             return False
         tripped = failed = False
-        for capability, (since, spent_on) in paid.items():
-            if not (any(key in spent_on and at >= since for key, at in self._owed.items())
-                    or (core_view is not None
-                        and any(_holds_unknown(core_view, key) for key in spent_on))):
+        for capability, (since, spent) in paid.items():
+            owed = any(told >= since and _carried(spent, key, claimed)
+                       for key, (told, claimed) in self._owed.items())
+            held = core_view is not None and any(
+                unknown and _carried(spent, key, claimed)
+                for key in spent for unknown, claimed in (_unknown_claim(core_view, key),))
+            if not (owed or held):
                 continue
             try:
                 tripped = self._write_off(capability, OffReason.SUBMISSION_UNKNOWN) or tripped
@@ -314,6 +352,7 @@ class Arming:
         """Once a tick: every trip and reset `standing` finds, and a send a capability paid for,
         since it was last turned on, that core holds as submission_unknown now - one that was
         so before this plug was told of any move, say, the watcher having started again since.
+        A send of the same record core made later, alone, is not one it paid for (`_carried`).
 
         A send that became unknown while this plug was loaded has tripped its capability
         already, as core wrote the move (`moved`): by P8 the watch that runs before it may have
@@ -326,8 +365,9 @@ class Arming:
 
     def moved(self, record, state) -> bool:
         """P14: core has just moved `record` to `state`. Into submission_unknown, every capability
-        that paid for its send since it was last turned on is turned off - the tripwire's word
-        for "it may be in Codex, and nothing proves where". Whether any was.
+        that paid for that send - the one claimed at the record's `last_claim_at` - since it was
+        last turned on is turned off: the tripwire's word for "it may be in Codex, and nothing
+        proves where". Whether any was.
 
         Told by core as it writes the move, so nothing that settles the record afterwards - in
         the same watch or the same tick - can hide it, and nothing is read back from core's
@@ -336,7 +376,7 @@ class Arming:
         key = record.get("interruption_id") if isinstance(record, dict) else None
         if state != SUBMISSION_UNKNOWN or not isinstance(key, str) or not len(self.registry):
             return False
-        self._owed[key] = self.clock()
+        self._owed[key] = (self.clock(), _claimed_at(record))
         return self._settle()
 
     # ------------------------------------------------------------------ on

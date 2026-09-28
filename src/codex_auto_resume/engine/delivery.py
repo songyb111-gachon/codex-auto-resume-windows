@@ -13,7 +13,9 @@ has always waited for the app to open it (A11); the plug may name a route instea
 `_unloaded` takes it where core would wait, once every gate before that one has passed. The gates
 after it are the ones a send passes, and `_resume_unloaded` carries the route out as `dispatch`
 carries out a send: the one claim - which the plug's ledger pays for - the pre-send look, and the
-route called once inside the launch guard. Nothing is queued, so nothing is watched: a route that
+route called once inside the launch guard, handed core's own look at whether the app still does
+not hold the conversation, for it to ask at the last moment before it changes anything in Codex.
+Nothing is queued, so nothing is watched: a route that
 did what it was asked leaves the record waiting again with its claim counted (the cooldown, the
 day's five and the chain), one that never started gives the claim back, and anything else is an
 uncertain submission, never tried again, exactly as a send's is.
@@ -118,11 +120,18 @@ class DeliveryMixin:
         vector["thread_available"] = machine.gate(machine.PASS, machine.PLUGGED)
         return route
 
-    def _resume_unloaded(self, current, vector, limits, route):
+    def _resume_unloaded(self, current, vector, limits, route, app):
         """Carry out the route the plug named at P16, as `dispatch` carries out a send: the one
         claim, paid for by the plug's ledger (P11, told the route is what it carries); the pre-send
         look; and the route called once, inside the launch guard. Called under the dispatch lock,
-        with the conversation still not held and usage still there (`dispatch`)."""
+        with the conversation still not held by the app `app` and usage still there (`dispatch`).
+
+        The route is handed `still_unloaded`, core's look at the conversation made again when it
+        is asked - never the cached one: the app `app` still there and saying notLoaded, and
+        anything else, a look that fails included, is no. A route opens a session with Codex
+        before it changes anything, which takes seconds, and the app may open the conversation in
+        them; asked at the last moment, the look keeps the route from changing a conversation the
+        app has just taken, and the route answers not started."""
         key = current["interruption_id"]
         at = self.clock()
         claimed, gate, reason = self.store.reserve_detailed(
@@ -139,8 +148,17 @@ class DeliveryMixin:
             self._release(key, claim, target, why, delay)
             self.log(current["thread_id"], target, why)
             return
+        thread_id = claim["thread_id"]
+
+        def still_unloaded() -> bool:
+            try:
+                return (self.backend.app_identity() == app
+                        and self.backend.loaded(thread_id, app) == "notLoaded")
+            except Exception:
+                return False
         try:
-            response = route.resume(claim["thread_id"], launch_guard=self.store.submission_guard(key))
+            response = route.resume(thread_id, launch_guard=self.store.submission_guard(key),
+                                    still_unloaded=still_unloaded)
         except Exception:
             response = {"outcome": "unknown"}
         if not isinstance(response, dict):

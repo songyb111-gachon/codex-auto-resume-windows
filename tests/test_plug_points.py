@@ -635,12 +635,20 @@ class Resume:
     conversation the app does not hold, it reports what came of it - accepted, not_started or
     unknown - or raises. It sends nothing and queues nothing."""
 
-    def __init__(self, outcome="accepted"):
-        self.outcome, self.calls = outcome, []
+    def __init__(self, outcome="accepted", before=None):
+        self.outcome, self.calls, self.looks = outcome, [], []
+        # Called as the route's session would start, before its look (the app opening the
+        # conversation in those seconds, say).
+        self.before = before
 
-    def resume(self, thread_id, *, launch_guard=None):
+    def resume(self, thread_id, *, launch_guard=None, still_unloaded=None):
         with launch_guard as permitted:
             self.calls.append((thread_id, permitted))
+        if self.before is not None:
+            self.before()
+        self.looks.append(still_unloaded())
+        if self.looks[-1] is not True:
+            return {"outcome": "not_started", "error_code": "queue_preflight_failed"}
         if self.outcome == "raise":
             raise RuntimeError("the route broke")
         if self.outcome == "not_started":
@@ -829,6 +837,39 @@ class UnloadedTests(PluggedCase):
         row = self.h.record()
         self.assertEqual((row["state"], row["last_error"]),
                          ("waiting_for_loaded_thread", "loaded_recheck_failed"))
+
+    def test_the_route_is_handed_cores_own_look_made_again_when_it_asks(self):
+        """A route's session takes seconds to start, and the app may open the conversation in
+        them. The route is handed core's look - the app that was checked still there, and saying
+        notLoaded now, never the cached answer - to ask at its last moment; a route that finds the
+        app holds the conversation changes nothing, and its claim is given back."""
+        def app_opens_it(h):
+            h.backend.loaded_map[T1] = "loaded"
+
+        def new_app(h):
+            h.backend.app = dict(h.backend.app, pid=h.backend.app.get("pid", 0) + 1)
+
+        def look_breaks(h):
+            h.backend.loaded = lambda *arguments: (_ for _ in ()).throw(OSError("gone"))
+
+        for name, change, seen in (("still not held", None, True), ("the app opened it", app_opens_it, False),
+                                   ("another app", new_app, False), ("a look that fails", look_breaks, False)):
+            with self.subTest(name):
+                h = self.fresh()
+                self.due_unloaded(h)
+                route = Resume(before=None if change is None else (lambda h=h, change=change: change(h)))
+                self.plugged(Asked(unloaded=route), h)
+                h.tick()
+                self.assertEqual((route.calls, route.looks), ([(T1, True)], [seen]))
+                row = h.record()
+                if seen:
+                    self.assertEqual((row["state"], row["last_error"], row["attempt_count"]),
+                                     ("waiting_retry", "notLoaded", 1))
+                    continue
+                self.assertIn(row["state"], WAITING)
+                self.assertEqual((row["last_error"], row["submitted_at"], row["chain_continuations"]),
+                                 ("released_before_send", None, 0))
+                self.assertEqual(h.backend.send_calls, [])
 
     def test_the_gates_that_follow_still_hold(self):
         cases = {

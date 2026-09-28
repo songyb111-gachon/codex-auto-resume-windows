@@ -89,6 +89,13 @@ class AdvancedPlug(Plug):
     def unloaded(self, record):
         return self.runtime.ask(Point.UNLOADED, record)
 
+    def codex(self, codex_exe, codex_home):
+        """The Codex this installation's watcher drives (core's Plug.codex), kept for the
+        capabilities' own sessions and reads (codex/inuse.py). Nothing is opened or read."""
+        from .codex import inuse
+        inuse.tell(self.paths, codex_exe, codex_home)
+        return None
+
     def edition_changed(self, previous):
         """Entering from the standard edition turns every capability off, whatever an earlier
         advanced installation of this home left on - arming never carries across an edition

@@ -25,6 +25,14 @@ from codex_auto_resume_advanced.vocabulary import ArmingWarning, Field, Measurem
 
 # Where the owner keeps the standards file: beside the repository, not in it.
 STANDARDS_FILE = ac.ROOT.parent / standards.BASIS
+# B4: all the standard edition asks of the app server - initialize (with initialized),
+# account/rateLimits/read and thread/queue/delete.
+B4_METHODS = frozenset({"initialize", "initialized", "account/rateLimits/read", "thread/queue/delete"})
+# The app-server methods this edition may call beyond those, each a read or a change of Codex's
+# state; B3 lets Codex's state change only through `codex queue`, thread/queue/delete and the
+# plugin command. A method in neither set is a decision this table has to make first.
+READS = frozenset({"thread/loaded/list", "thread/queue/list", "thread/goal/get"})
+CHANGES = frozenset({"thread/queue/add", "thread/goal/set"})
 
 
 class ShippedTests(unittest.TestCase):
@@ -56,9 +64,33 @@ class ShippedTests(unittest.TestCase):
                 self.assertEqual(statement.CATALOGS.missing(definition), [])
                 self.assertTrue(set(definition.departs_from) <= set(standards.STANDARDS))
 
+    def test_a_capability_whose_session_asks_the_app_server_more_departs_from_b4_and_b3(self):
+        """What a capability's own session may call (codex/protocol.CAPABILITY_METHODS) is part of
+        what it departs from: a method beyond B4's is B4, and one that changes Codex's state is B3
+        as well. The marker-free continuation's thread/queue/add is both, as the goal
+        continuation's is - its statement named A2 and A4 alone at revision 1."""
+        from codex_auto_resume_advanced.codex import protocol
+        for definition in registry.DEFINITIONS:
+            with self.subTest(definition.id):
+                beyond = protocol.methods_for_capability(definition.id) - B4_METHODS
+                self.assertLessEqual(beyond, READS | CHANGES, "a method this table has not placed")
+                self.assertEqual("B4" in definition.departs_from, bool(beyond))
+                self.assertEqual("B3" in definition.departs_from, bool(beyond & CHANGES))
+
+    def test_every_statement_names_every_standard_it_departs_from_in_every_language(self):
+        for definition in registry.DEFINITIONS:
+            for locale in l10n.LOCALES:
+                with self.subTest(definition.id, locale=locale):
+                    text = statement.CATALOGS.own(locale)[statement.key(definition.id, Field.DEPARTS)]
+                    for standard in definition.departs_from:
+                        self.assertRegex(text, r"(?<![\w.])%s(?![\w.])" % re.escape(standard))
+
     def test_the_marker_free_continuation_departs_and_rests_on_what_the_owner_asked(self):
+        """A2 and A4 as the owner named them, and B3 and B4 for the thread/queue/add its session
+        makes; revision 2, since revision 1's statement named the first two alone."""
         mfc = registry.REGISTRY.get("marker_free_continuation")
-        self.assertEqual(mfc.departs_from, ("A2", "A4"))
+        self.assertEqual(mfc.departs_from, ("A2", "A4", "B3", "B4"))
+        self.assertEqual(mfc.revision, 2)
         self.assertEqual(mfc.compat, "recovery_turn_tracking")
         self.assertEqual(mfc.measurements, (Measurement.M7,))
         self.assertEqual(mfc.points, frozenset({Point.SENDER, Point.DELIVERY}))

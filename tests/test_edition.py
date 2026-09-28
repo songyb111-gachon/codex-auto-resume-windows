@@ -786,5 +786,77 @@ class EditionFromTests(unittest.TestCase):
         self.assertNotIn("disk full", err)
 
 
+class CodexToldTests(unittest.TestCase):
+    """Plug.codex: the Codex the watcher drives - its codex.exe, pinned by `--codex-exe` or the
+    `codex_exe` setting or chosen by discovery, and its Codex home - told to the plug once the
+    watcher has built its backend, so a capability's own session is with that very Codex. Not a
+    point: NULL is told nothing, and a plug that raises is counted and changes nothing."""
+
+    def watcher(self, told):
+        """A watcher over temporary homes, pinned to one of two installed engines, with `told` as
+        its plug. Nothing is started: the engine check is stood in for."""
+        from codex_auto_resume.codex import transport
+        from codex_auto_resume.control import policy as control_policy
+        from codex_auto_resume.runtime.app import App
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        root = Path(folder.name)
+        engines = []
+        for name in ("aaaa1111", "bbbb2222"):
+            (root / "bin" / name).mkdir(parents=True)
+            engines.append(root / "bin" / name / "codex.exe")
+            engines[-1].write_bytes(b"MZ")
+        (root / "codex").mkdir()
+        for target, name, value in ((transport.Backend, "_compatible", lambda backend: {}),
+                                    (config, "candidate_codex_exes", lambda: list(engines))):
+            patcher = patch.object(target, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        with patch.object(control_policy, "managed_policy", return_value=control_policy.managed.NONE):
+            app = App(config.Paths(root / "home"), codex_exe=str(engines[1]), codex_home=root / "codex",
+                      enable_logging=False)
+        if told is not None:
+            app._plug = guard(told)
+        return app, engines[1].resolve(), (root / "codex").resolve()
+
+    def test_null_keeps_nothing_and_is_told_nothing(self):
+        self.assertIsNone(NULL.codex("codex.exe", "home"))
+        with patch.object(Plug, "codex", side_effect=AssertionError("NULL was told")):
+            guard(NULL).codex("codex.exe", "home")
+            app, _exe, _home = self.watcher(None)
+            app.backend()
+        self.assertIs(app.plug.plug, NULL)
+
+    def test_the_watcher_tells_its_plug_the_codex_it_drives_once_it_has_found_it(self):
+        calls = []
+
+        class Told(Plug):
+            __slots__ = ()
+            edition = Edition.ADVANCED
+
+            def codex(self, codex_exe, codex_home):
+                calls.append((codex_exe, codex_home))
+
+        app, exe, home = self.watcher(Told())
+        self.assertEqual(calls, [], "nothing is told before the watcher has found its Codex")
+        backend = app.backend()
+        self.assertEqual(calls, [(exe, home)])
+        self.assertEqual((backend.codex_exe, backend.codex_home), (exe, home))
+        app.backend()
+        self.assertEqual(len(calls), 1, "once, with the backend the watcher keeps")
+
+    def test_a_plug_that_raises_when_told_is_counted_and_nothing_else(self):
+        class Raising(Plug):
+            __slots__ = ()
+            edition = Edition.ADVANCED
+
+            def codex(self, codex_exe, codex_home):
+                raise RuntimeError("broken")
+
+        app, exe, _home = self.watcher(Raising())
+        self.assertEqual(app.backend().codex_exe, exe)
+        self.assertEqual(app.plug.failures, 1)
+
+
 if __name__ == "__main__":
     unittest.main()

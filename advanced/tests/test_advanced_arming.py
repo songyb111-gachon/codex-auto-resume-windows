@@ -382,6 +382,40 @@ class TripwireTests(ArmingCase):
         self.rt.moved(dict(RECORD, state="queued"), "submission_unknown")
         self.assertEqual(self.stored()["state"], ArmingState.ARMED)
 
+    def test_only_the_send_it_paid_for_going_unknown_turns_it_off(self):
+        """A unit is spent inside the claim it pays for, at the claim's time. A later send of the
+        same record that core made alone - claimed later, with nothing of the capability's in it -
+        going unknown is not the capability's doing, whether core tells the move (P14) or holds the
+        record so at a tick; the send it did pay for is, and so is one whose claim cannot be read."""
+        class CoreView:
+            def __init__(self, record):
+                self.record = record
+
+            def get(self, key):
+                return dict(self.record, interruption_id=key)
+
+        for how in ("told", "held"):
+            for send, later, trips in (("core's own, later", 900.0, False), ("the one it paid for", 0.0, True),
+                                       ("a claim that cannot be read", None, True)):
+                with self.subTest(how=how, send=send):
+                    self.setUp()
+                    self.armed()
+                    self.now += 10
+                    paid = self.now
+                    with self.rt.state._transaction() as connection:
+                        self.rt.state.record_spend(connection, "main", "test_wake", ac.THREAD, ac.KEY, paid)
+                    self.now += 1000
+                    record = dict(RECORD, state="submitting",
+                                  last_claim_at=None if later is None else paid + later)
+                    if how == "told":
+                        self.rt.moved(record, "submission_unknown")
+                    else:
+                        self.rt.tick(CoreView(dict(record, state="submission_unknown")))
+                    if trips:
+                        self.assert_tripped(OffReason.SUBMISSION_UNKNOWN)
+                    else:
+                        self.assertEqual(self.stored()["state"], ArmingState.ARMED)
+
     def test_a_trip_that_could_not_be_written_as_core_told_it_is_written_at_the_next_tick(self):
         """Core tells a move once. Where the trip cannot be written then - the state locked past
         its timeout, or not to be opened - it is owed, and the next tick writes it though the

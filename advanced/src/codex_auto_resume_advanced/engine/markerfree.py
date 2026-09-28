@@ -9,7 +9,9 @@ interruption (ids.continuation_client_id - the same interruption, the same id), 
 record before the claim, and hands this channel the words and that id for the one send. The
 channel adds one item to the conversation's queue through Codex's own app server -
 `thread/queue/add` with `clientUserMessageId`, the call measurement M7 made - and Codex keeps the
-id on the message as `clientId`. Core proves delivery by that id and by nothing else
+id on the message as `clientId`. That call changes Codex's state through its app server, which the
+standard edition never asks it to (B3, B4), so the statement names those two standards as well
+as A2 and A4. Core proves delivery by that id and by nothing else
 (engine/delivery.py in core), and follows, takes back and settles the record by it exactly as it
 does one with a marker.
 
@@ -31,6 +33,7 @@ from contextlib import nullcontext
 from codex_auto_resume.domain import ids
 from codex_auto_resume.domain.plug import Alternative
 
+from ..codex import inuse
 from ..codex.protocol import Session, SessionRefused
 
 CAPABILITY = "marker_free_continuation"
@@ -63,8 +66,8 @@ class MarkerFreeContinuation:
     """The capability's code: its hooks at P5 and P15, and the channel core sends through.
 
     `session` is a factory for the app-server session the one call is made in; None opens a live
-    one against the installed Codex, restricted to this capability's one method
-    (codex/protocol.CAPABILITY_METHODS)."""
+    one against the Codex the watcher drives (codex/inuse.py), restricted to this capability's one
+    method (codex/protocol.CAPABILITY_METHODS)."""
     __slots__ = ("paths", "_open")
 
     def __init__(self, paths, *, session=None):
@@ -124,8 +127,7 @@ class MarkerFreeContinuation:
     def _session(self):
         if self._open is not None:
             return self._open()
-        from ..measure import live_backend
-        return Session(live_backend(), capability=CAPABILITY)
+        return Session(inuse.backend(self.paths), capability=CAPABILITY)
 
 
 def make(paths) -> MarkerFreeContinuation:

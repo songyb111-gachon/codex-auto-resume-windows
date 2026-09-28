@@ -140,6 +140,10 @@ class App(WatchLoop):
                              "anything is marked resumed.", backend.engine_version,
                              ENGINE_LOG_WORDS.get(word, ENGINE_LOG_CHECKS_ONLY))
             self._backend = backend
+            # v0.6.11: the edition's plug is told the Codex found here, so that a capability's
+            # own session is with this very Codex and home - the setting, the arguments and
+            # discovery's choice included - and not one it found for itself. NULL is told nothing.
+            self.plug.codex(backend.codex_exe, backend.codex_home)
         return self._backend
 
     def engine_state(self) -> str:
