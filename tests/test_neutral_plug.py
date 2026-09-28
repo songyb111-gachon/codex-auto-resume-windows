@@ -46,6 +46,35 @@ class ScenarioListTests(unittest.TestCase):
 
 
 class NeutralPlugTests(unittest.TestCase):
+    def test_a_worker_that_says_nothing_is_stopped_and_named(self):
+        """One hung scenario ends its worker after the stall limit; a slow machine alone never does."""
+        import subprocess
+        import sys
+        import time
+        hang = "import sys, time\nsys.stdin.readline()\ntime.sleep(600)\n"
+        with subprocess.Popen([sys.executable, "-c", hang], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                              text=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)) as process:
+            started = time.monotonic()
+            line, stalled = neutral.answer(process, "a.scenario", stall=1)
+            self.assertEqual((line, stalled), ("", True))
+            self.assertLess(time.monotonic() - started, 30)
+            self.assertIsNotNone(process.wait(timeout=30))
+        prompt = "import sys\nfor line in sys.stdin:\n    print(line.strip(), flush=True)\n"
+        with subprocess.Popen([sys.executable, "-c", prompt], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                              text=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)) as process:
+            self.assertEqual(neutral.answer(process, "b.scenario", stall=60), ("b.scenario\n", False))
+            process.stdin.close()
+
+    def test_no_run_has_a_deadline_for_the_whole_of_it(self):
+        """The 30-minute deadline for all scenarios failed slow runners with nothing wrong (2026-09-28)."""
+        from pathlib import Path
+        here = Path(neutral.__file__).resolve().parent
+        for name in ("neutral.py", "test_released_calls.py"):
+            source = (here / name).read_text(encoding="utf-8")
+            with self.subTest(name):
+                self.assertNotIn("deadline =", source)
+                self.assertIn("answer(process, test_id, stall)", source)
+
     def test_every_codexsim_scenario_is_the_same_with_a_plug_that_always_defers(self):
         ids = neutral.scenarios()
         self.assertGreater(len(ids), 250, "the listing itself looks wrong")
