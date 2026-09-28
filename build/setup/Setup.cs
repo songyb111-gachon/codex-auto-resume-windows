@@ -11,11 +11,14 @@
 //   3. checks the carried bytes against the constant, and stops on any difference;
 //   4. makes a folder of its own in the user's temporary folder - a new name, created new, refused when it is
 //      already there, a junction included, and held open so it cannot be swapped while it is used - and unpacks
-//      the archive into it, refusing any entry that would land anywhere else;
+//      the archive into it, refusing any entry that would land anywhere else. A long temporary folder does not
+//      stop it: the files are written by their \\?\ names, which have no 260-character limit;
 //   5. runs that archive's own Install.cmd by its full path, in that folder, as a double-click in Explorer runs
 //      it: the same installer, asking the same questions in this same console, with the arguments given here
 //      passed on;
-//   6. removes the folder, and ends with Install.cmd's exit code.
+//   6. removes the folder, and ends with Install.cmd's exit code. Closing the console window ends a console
+//      program a few seconds after Windows tells it so, and ends Install.cmd with it: the folder is removed in
+//      those seconds, so a window closed at Install.cmd's last "Press any key" leaves nothing behind either.
 // No network, no administrator rights (its manifest asks for none) and no Python of its own: the archive
 // carries the Python the installer uses.
 //
@@ -43,6 +46,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using Microsoft.Win32.SafeHandles;
 
 // Each DLL this program's own code calls into is taken from System32 alone. Without this, .NET Framework looks
@@ -105,6 +109,8 @@ namespace CodexAutoResumeSetup
                                    "one it was built with (its SHA-256 differs). The file is damaged - download it " +
                                    "again.", !hook);
             }
+            // Before the folder is made, so a console window closed at any moment after it finds it removed.
+            Closing.Watch();
             string reason;
             Folder folder = Folder.Fresh(into ?? "CodexAutoResume-Setup-" + Guid.NewGuid().ToString("N").Substring(0, 16),
                                          out reason);
@@ -119,6 +125,12 @@ namespace CodexAutoResumeSetup
                     Say.Line("Codex Auto Resume setup: unpacking " + Embedded.Archive + " into " + folder.Path);
                 }
                 string failed = Unpacking.Into(archive, folder.Path);
+                if (Closing.Now)
+                {
+                    // The console window was closed: there is no one to ask anything, and Install.cmd is not started
+                    // in a console that is going away.
+                    return Codes.NotStarted;
+                }
                 if (failed != null)
                 {
                     return Say.Stopped(Codes.NotUnpacked, "This setup program stops here: " + failed, !hook);
@@ -131,18 +143,30 @@ namespace CodexAutoResumeSetup
             }
             finally
             {
-                if (!folder.Remove())
+                bool removed = folder.Remove();
+                // A closed console window ends Install.cmd and what it started at the same moment as it tells this
+                // program, so a file one of them held a moment ago is let go of soon: it is tried again while
+                // Windows still gives this program time.
+                while (!removed && Closing.Now && Closing.Left() > 400)
+                {
+                    Thread.Sleep(200);
+                    removed = folder.Remove();
+                }
+                if (!removed && !Closing.Now)
                 {
                     Say.Line("The temporary folder " + folder.Path + " could not be removed completely. It holds " +
                              "only an unpacked copy of " + Embedded.Archive + ", and can be deleted.");
                 }
+                Closing.Done();
             }
         }
 
         // Install.cmd as Explorer runs a double-clicked one - cmd.exe /c with the script's full path, in the
         // script's folder - from System32 by its full path, with /d so no AutoRun command of the machine's runs
         // first and moves it elsewhere. It shares this console: the person answers its questions here. Ctrl+C
-        // is Install.cmd's to answer, so this program outlives it and still removes the folder.
+        // is Install.cmd's to answer, so this program outlives it and still removes the folder. Closing the
+        // console window is not anyone's to answer: it ends Install.cmd, and this program waits a moment for
+        // that and goes on to remove the folder (Closing).
         static int Install(string folder, string[] arguments)
         {
             string script = Path.Combine(folder, "Install.cmd");
@@ -165,8 +189,17 @@ namespace CodexAutoResumeSetup
             {
                 using (Process run = Process.Start(start))
                 {
-                    run.WaitForExit();
-                    return run.ExitCode;
+                    while (!run.WaitForExit(200))
+                    {
+                        if (Closing.Now)
+                        {
+                            run.WaitForExit(Math.Max(0, Math.Min(1500, Closing.Left() - 2000)));
+                            break;
+                        }
+                    }
+                    // Not exited only when the window was closed and Windows is about to end this program: the code
+                    // reaches no one then.
+                    return run.HasExited ? run.ExitCode : Codes.NotStarted;
                 }
             }
             catch (Win32Exception error)
@@ -377,7 +410,7 @@ namespace CodexAutoResumeSetup
         {
             string path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), name);
             reason = null;
-            if (!CreateDirectory(path, IntPtr.Zero))
+            if (!CreateDirectory(LongName.Of(path), IntPtr.Zero))
             {
                 int error = Marshal.GetLastWin32Error();
                 reason = "This setup program stops here: " + path + (error == ERROR_ALREADY_EXISTS
@@ -385,8 +418,8 @@ namespace CodexAutoResumeSetup
                     : " could not be made (Windows error " + error.ToString(CultureInfo.InvariantCulture) + ").");
                 return null;
             }
-            SafeFileHandle handle = CreateFile(path, FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE,
-                                               IntPtr.Zero, OPEN_EXISTING,
+            SafeFileHandle handle = CreateFile(LongName.Of(path), FILE_READ_ATTRIBUTES,
+                                               FILE_SHARE_READ | FILE_SHARE_WRITE, IntPtr.Zero, OPEN_EXISTING,
                                                FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, IntPtr.Zero);
             Information information;
             if (handle.IsInvalid || !GetFileInformationByHandle(handle, out information) ||
@@ -403,13 +436,20 @@ namespace CodexAutoResumeSetup
         }
 
         // Lets go of the folder and removes it with everything in it, never following a link out of it: a
-        // junction or a link inside is removed as the link it is. False when something could not be removed.
+        // junction or a link inside is removed as the link it is. False when something could not be removed; true
+        // once it is gone, so it can be asked again after a file in it was let go of. By its \\?\ name, as it
+        // was written.
         public bool Remove()
         {
             held.Dispose();
             try
             {
-                Erase(new DirectoryInfo(Path));
+                DirectoryInfo directory = new DirectoryInfo(LongName.Of(Path));
+                if (!directory.Exists)
+                {
+                    return true;
+                }
+                Erase(directory);
                 return true;
             }
             catch (IOException)
@@ -476,14 +516,21 @@ namespace CodexAutoResumeSetup
                             return "the archive holds an entry named \"" + name + "\", which would be unpacked " +
                                    "outside its folder.";
                         }
+                        if (Closing.Now)
+                        {
+                            return "the console window was closed.";
+                        }
+                        // Written by the \\?\ name, which has no 260-character limit: the user's temporary folder
+                        // can be long, and the release's own entries run to 62 characters below this folder.
+                        string written = LongName.Of(target);
                         if (directory)
                         {
-                            Directory.CreateDirectory(target);
+                            Directory.CreateDirectory(written);
                             continue;
                         }
-                        Directory.CreateDirectory(Path.GetDirectoryName(target));
+                        Directory.CreateDirectory(Path.GetDirectoryName(written));
                         using (Stream source = entry.Open())
-                        using (FileStream to = new FileStream(target, FileMode.CreateNew, FileAccess.Write,
+                        using (FileStream to = new FileStream(written, FileMode.CreateNew, FileAccess.Write,
                                                               FileShare.None))
                         {
                             source.CopyTo(to);
@@ -529,6 +576,84 @@ namespace CodexAutoResumeSetup
                 }
             }
             return true;
+        }
+    }
+
+    // A full path as the \\?\ name Windows reads without the 260-character limit that .NET Framework's file
+    // functions and CreateDirectory keep for an ordinary one. The path it is given is already full and normalized
+    // (GetTempPath, then GetFullPath), which is what such a name has to be: Windows takes it as it is.
+    internal static class LongName
+    {
+        public static string Of(string path)
+        {
+            if (path.StartsWith(@"\\?\", StringComparison.Ordinal))
+            {
+                return path;
+            }
+            if (path.StartsWith(@"\\", StringComparison.Ordinal))
+            {
+                return @"\\?\UNC\" + path.Substring(2);
+            }
+            return @"\\?\" + path;
+        }
+    }
+
+    // What closing the console window does. Windows tells every program in the console (CTRL_CLOSE_EVENT, and the
+    // same at sign-out and shutdown) and ends each one when its handler returns, or after about five seconds.
+    // Install.cmd and what it started end at once; this program's handler waits, up to Grace, for the folder to be
+    // removed by the code that removes it anyway - Started's finally - which learns from Now that the window is
+    // going and that it has Left() milliseconds. Ctrl+C and Ctrl+Break are not this handler's.
+    internal static class Closing
+    {
+        const uint CTRL_CLOSE_EVENT = 2;
+        const uint CTRL_LOGOFF_EVENT = 5;
+        const uint CTRL_SHUTDOWN_EVENT = 6;
+        const int Grace = 4500;
+
+        delegate bool Handler(uint type);
+
+        [DllImport("kernel32.dll", ExactSpelling = true, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        static extern bool SetConsoleCtrlHandler(Handler handler, [MarshalAs(UnmanagedType.Bool)] bool add);
+
+        // Held for as long as the process lives: Windows calls it through a pointer the collector cannot see.
+        static readonly Handler heard = Heard;
+        static readonly ManualResetEvent cleaned = new ManualResetEvent(false);
+        static readonly Stopwatch clock = Stopwatch.StartNew();
+        static long closedAt = -1;
+
+        public static void Watch()
+        {
+            SetConsoleCtrlHandler(heard, true);
+        }
+
+        public static bool Now
+        {
+            get { return Interlocked.Read(ref closedAt) >= 0; }
+        }
+
+        // Milliseconds left of the grace since the window was closed.
+        public static int Left()
+        {
+            long at = Interlocked.Read(ref closedAt);
+            return at < 0 ? Grace : (int)Math.Max(0, Grace - (clock.ElapsedMilliseconds - at));
+        }
+
+        public static void Done()
+        {
+            cleaned.Set();
+        }
+
+        static bool Heard(uint type)
+        {
+            if (type != CTRL_CLOSE_EVENT && type != CTRL_LOGOFF_EVENT && type != CTRL_SHUTDOWN_EVENT)
+            {
+                return false;
+            }
+            Interlocked.CompareExchange(ref closedAt, clock.ElapsedMilliseconds, -1);
+            cleaned.WaitOne(Left());
+            // Then on to Windows' own handler, which ends the program as it always would have.
+            return false;
         }
     }
 

@@ -14,13 +14,22 @@ runs that archive's Install.cmd there. What is held here:
 * DllTests - copies of Windows' own DLLs beside it and in the current folder, as a DLL of one of their names
   could be waiting in Downloads: none is loaded from either (the --loaded-modules hook), and a .config beside
   it stops it.
-* SourceTests, ReleaseTests - what the source and the release build and workflow have to say.
+* LongTempTests - a temporary folder long enough that the release's own entries run past 260 characters below
+  it: everything is unpacked, run and removed all the same.
+* CloseTests - the console window closed while Install.cmd runs, as a person closes it at its last "Press any
+  key": the folder is removed all the same. The console is a pseudo-console with no window, and Install.cmd
+  only writes a line and waits.
+* SourceTests, ReleaseTests, DocsTests - what the source, the release build and workflow, and the install
+  instructions have to say.
 
 Every run points TEMP and TMP at a folder of the test's own, so nothing is unpacked anywhere else, and every
-child is started with CREATE_NO_WINDOW and no input.
+child is started with CREATE_NO_WINDOW and no input - or, in CloseTests, in a pseudo-console, which has no
+window either.
 """
 from __future__ import annotations
 
+import ctypes
+from ctypes import wintypes
 import hashlib
 import json
 import os
@@ -31,6 +40,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 import zipfile
@@ -341,6 +351,197 @@ class DllTests(unittest.TestCase):
         self.assertEqual((self.scratch.left(), self.scratch.recorded()), ([], []))
 
 
+# An Install.cmd that writes down where it ran, and ends: for the long temporary folder, where cmd.exe's own `dir`
+# cannot list what lies past 260 characters. And the two releases' longest entries, 62 and 61 characters.
+LONG_ENTRIES = {"Install.cmd": (b"@echo off\r\n>>\"%SETUP_TEST_RECORD%\" echo cd=[%CD%]\r\n"
+                                b"exit /b %SETUP_TEST_EXIT%\r\n"),
+                "payload/app/src/codex_auto_resume_advanced/codex/wmi_escape.py": b"x = 1\n",
+                "payload/app/src/codex_auto_resume/domain/compat_vocabulary.py": b"y = 2\n"}
+
+
+@unittest.skipUnless(CSC.is_file(), "the in-box C# compiler is not available")
+class LongTempTests(unittest.TestCase):
+    """.NET Framework's file functions and CreateDirectory stop at 260 characters for a file (248 for a folder)
+    unless a path is given by its \\\\?\\ name. A temporary folder of about 155 characters was enough to stop
+    the setup program with 45 before anything ran; so was running this suite from a long TEMP."""
+
+    def test_a_long_temporary_folder_is_unpacked_into_run_and_removed(self):
+        work = Path(tempfile.mkdtemp(prefix="s-"))
+        self.addCleanup(shutil.rmtree, work, True)
+        _, exe = build_around(LONG_ENTRIES, work)
+        scratch = Scratch(self)
+        self.addCleanup(shutil.rmtree, "\\\\?\\" + str(scratch.base), True)
+        longest = max(len(name) for name in LONG_ENTRIES)
+        # The folder it makes is about 240 characters: under 248, where cmd.exe can still be started in it, while
+        # its files run past 260. A TEMP that is long already needs no more.
+        folder = len(str(scratch.temp)) + len("\\CodexAutoResume-Setup-0123456789abcdef")
+        if folder > 246:
+            self.skipTest("this test's own temporary folder leaves no room under 248 characters")
+        if folder < 239:
+            scratch.temp = scratch.temp / ("t" * (240 - folder - 1))
+            scratch.temp.mkdir()
+        self.assertGreater(len(str(scratch.temp)) + 39 + 1 + longest, 260, "the entries reach past 260 characters")
+        done = scratch.run(exe, exit_code=7)
+        self.assertEqual(done.returncode, 7, done.stderr)
+        lines = scratch.recorded()
+        self.assertEqual(len(lines), 1, lines)
+        self.assertRegex(Path(lines[0][len("cd=["):-1]).name, FOLDER)
+        self.assertEqual(scratch.left(), [], "the folder is removed afterwards")
+
+
+class _Coord(ctypes.Structure):
+    _fields_ = [("X", ctypes.c_short), ("Y", ctypes.c_short)]
+
+
+class _StartupInfo(ctypes.Structure):
+    _fields_ = [("cb", wintypes.DWORD), ("lpReserved", wintypes.LPWSTR), ("lpDesktop", wintypes.LPWSTR),
+                ("lpTitle", wintypes.LPWSTR), ("dwX", wintypes.DWORD), ("dwY", wintypes.DWORD),
+                ("dwXSize", wintypes.DWORD), ("dwYSize", wintypes.DWORD), ("dwXCountChars", wintypes.DWORD),
+                ("dwYCountChars", wintypes.DWORD), ("dwFillAttribute", wintypes.DWORD), ("dwFlags", wintypes.DWORD),
+                ("wShowWindow", wintypes.WORD), ("cbReserved2", wintypes.WORD), ("lpReserved2", ctypes.c_void_p),
+                ("hStdInput", wintypes.HANDLE), ("hStdOutput", wintypes.HANDLE), ("hStdError", wintypes.HANDLE)]
+
+
+class _StartupInfoEx(ctypes.Structure):
+    _fields_ = [("StartupInfo", _StartupInfo), ("lpAttributeList", ctypes.c_void_p)]
+
+
+class _ProcessInformation(ctypes.Structure):
+    _fields_ = [("hProcess", wintypes.HANDLE), ("hThread", wintypes.HANDLE), ("dwProcessId", wintypes.DWORD),
+                ("dwThreadId", wintypes.DWORD)]
+
+
+def _kernel32():
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    k32.CreatePseudoConsole.argtypes = [_Coord, wintypes.HANDLE, wintypes.HANDLE, wintypes.DWORD,
+                                        ctypes.POINTER(ctypes.c_void_p)]
+    k32.CreatePseudoConsole.restype = ctypes.c_long
+    k32.ClosePseudoConsole.argtypes = [ctypes.c_void_p]
+    k32.ClosePseudoConsole.restype = None
+    k32.CreatePipe.argtypes = [ctypes.POINTER(wintypes.HANDLE), ctypes.POINTER(wintypes.HANDLE), ctypes.c_void_p,
+                               wintypes.DWORD]
+    k32.InitializeProcThreadAttributeList.argtypes = [ctypes.c_void_p, wintypes.DWORD, wintypes.DWORD,
+                                                      ctypes.POINTER(ctypes.c_size_t)]
+    k32.UpdateProcThreadAttribute.argtypes = [ctypes.c_void_p, wintypes.DWORD, ctypes.c_size_t, ctypes.c_void_p,
+                                              ctypes.c_size_t, ctypes.c_void_p, ctypes.c_void_p]
+    k32.DeleteProcThreadAttributeList.argtypes = [ctypes.c_void_p]
+    k32.CreateProcessW.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR, ctypes.c_void_p, ctypes.c_void_p,
+                                   wintypes.BOOL, wintypes.DWORD, ctypes.c_void_p, wintypes.LPCWSTR,
+                                   ctypes.c_void_p, ctypes.POINTER(_ProcessInformation)]
+    k32.ReadFile.argtypes = [wintypes.HANDLE, ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(wintypes.DWORD),
+                             ctypes.c_void_p]
+    k32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+    k32.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+    k32.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
+    k32.CloseHandle.argtypes = [wintypes.HANDLE]
+    return k32
+
+
+def run_in_a_console_then_close_it(exe: Path, environment: dict, cwd: Path, closed_when) -> int:
+    """Starts `exe` in a pseudo-console - a console with no window - and closes that console once `closed_when()`
+    is true, which sends every program in it the CTRL_CLOSE_EVENT the X of a console window sends. Its exit code."""
+    k32 = _kernel32()
+    in_read, in_write, out_read, out_write = (wintypes.HANDLE(), wintypes.HANDLE(), wintypes.HANDLE(),
+                                              wintypes.HANDLE())
+    assert k32.CreatePipe(ctypes.byref(in_read), ctypes.byref(in_write), None, 0)
+    assert k32.CreatePipe(ctypes.byref(out_read), ctypes.byref(out_write), None, 0)
+    console = ctypes.c_void_p()
+    made = k32.CreatePseudoConsole(_Coord(120, 30), in_read, out_write, 0, ctypes.byref(console))
+    assert made == 0, hex(made & 0xFFFFFFFF)
+    k32.CloseHandle(in_read)
+    k32.CloseHandle(out_write)
+
+    def drain():
+        # The console's output has to be read, or it stops the programs writing to it.
+        buffer = ctypes.create_string_buffer(4096)
+        got = wintypes.DWORD()
+        while k32.ReadFile(out_read, buffer, 4096, ctypes.byref(got), None) and got.value:
+            pass
+
+    threading.Thread(target=drain, daemon=True).start()
+    size = ctypes.c_size_t()
+    k32.InitializeProcThreadAttributeList(None, 1, 0, ctypes.byref(size))
+    attributes = ctypes.create_string_buffer(size.value)
+    assert k32.InitializeProcThreadAttributeList(attributes, 1, 0, ctypes.byref(size))
+    assert k32.UpdateProcThreadAttribute(attributes, 0, 0x00020016, console, ctypes.sizeof(ctypes.c_void_p),
+                                         None, None)   # PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE
+    startup = _StartupInfoEx()
+    startup.StartupInfo.cb = ctypes.sizeof(_StartupInfoEx)
+    # STARTF_USESTDHANDLES with none given: the program's standard handles are the pseudo-console's, never the
+    # ones this test's own process may have redirected.
+    startup.StartupInfo.dwFlags = 0x00000100
+    startup.lpAttributeList = ctypes.cast(attributes, ctypes.c_void_p)
+    block = ctypes.create_unicode_buffer("".join("%s=%s\0" % pair for pair in sorted(environment.items())) + "\0")
+    info = _ProcessInformation()
+    line = ctypes.create_unicode_buffer('"%s"' % exe)
+    # EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT: the pseudo-console, and this environment.
+    assert k32.CreateProcessW(None, line, None, None, False, 0x00080000 | 0x00000400, block, str(cwd),
+                              ctypes.byref(startup), ctypes.byref(info)), ctypes.get_last_error()
+    try:
+        deadline = time.monotonic() + 60
+        while not closed_when() and time.monotonic() < deadline:
+            time.sleep(0.2)
+        closer = threading.Thread(target=k32.ClosePseudoConsole, args=(console,), daemon=True)
+        closer.start()
+        closer.join(30)
+        if k32.WaitForSingleObject(info.hProcess, 30000) != 0:
+            k32.TerminateProcess(info.hProcess, 1)
+            k32.WaitForSingleObject(info.hProcess, 5000)
+        code = wintypes.DWORD()
+        k32.GetExitCodeProcess(info.hProcess, ctypes.byref(code))
+        return code.value
+    finally:
+        k32.CloseHandle(info.hProcess)
+        k32.CloseHandle(info.hThread)
+        k32.DeleteProcThreadAttributeList(attributes)
+        k32.CloseHandle(in_write)
+
+
+# An Install.cmd that says it started, and then waits as the real one's last "Press any key" does.
+WAITING_ENTRIES = {"Install.cmd": (b"@echo off\r\n>>\"%SETUP_TEST_RECORD%\" echo started\r\n"
+                                   b"\"%SystemRoot%\\System32\\PING.EXE\" -n 40 127.0.0.1 >nul\r\n"
+                                   b">>\"%SETUP_TEST_RECORD%\" echo finished\r\nexit /b 0\r\n"),
+                   "install/install.ps1": b"# never run\r\n",
+                   "payload/app/src/codex_auto_resume/__init__.py": b"",
+                   "payload/runtime/python.exe": b"MZ not a program"}
+
+
+def _pseudo_consoles() -> bool:
+    try:
+        return hasattr(ctypes.WinDLL("kernel32"), "CreatePseudoConsole")
+    except (AttributeError, OSError):
+        return False
+
+
+@unittest.skipUnless(CSC.is_file() and _pseudo_consoles(), "the in-box C# compiler and pseudo-consoles are not available")
+class CloseTests(unittest.TestCase):
+    """Closing the console window - most often at Install.cmd's last "Press any key" - used to end the setup
+    program before its finally ran: the whole unpacked archive stayed in %TEMP%, about 27 MB under a new name
+    each time, which nothing removes later."""
+
+    def test_the_folder_is_removed_when_the_console_window_is_closed_while_install_cmd_runs(self):
+        work = Path(tempfile.mkdtemp(prefix="s-"))
+        self.addCleanup(shutil.rmtree, work, True)
+        _, exe = build_around(WAITING_ENTRIES, work)
+        scratch = Scratch(self)
+        environment = dict(os.environ, TEMP=str(scratch.temp), TMP=str(scratch.temp),
+                           SETUP_TEST_RECORD=str(scratch.record))
+        seen = []
+
+        def started():
+            if scratch.recorded() == ["started"]:
+                seen.extend(scratch.left())
+                return True
+            return False
+
+        code = run_in_a_console_then_close_it(exe, environment, scratch.base, started)
+        self.assertEqual(len(seen), 1, "Install.cmd ran in a folder of its own: %s" % seen)
+        self.assertRegex(seen[0], FOLDER)
+        self.assertEqual(scratch.recorded(), ["started"], "the close ended Install.cmd before it finished")
+        self.assertNotEqual(code, 0, "the program was ended by the close")
+        self.assertEqual(scratch.left(), [], "the unpacked archive outlived the console window")
+
+
 def method(name: str) -> str:
     """The text of a method of Setup.cs, from its signature to its closing brace."""
     found = re.search(r"\n(\s+)(?:public |internal |private )?static \w+(?:<\w+>)? %s\(" % re.escape(name), SOURCE)
@@ -367,7 +568,7 @@ class SourceTests(unittest.TestCase):
 
     def test_it_calls_into_kernel32_alone_by_exact_names(self):
         imports = re.findall(r"\[DllImport\(([^\]]*)\)\]", SOURCE)
-        self.assertEqual(len(imports), 6)
+        self.assertEqual(len(imports), 7)
         for declaration in imports:
             with self.subTest(declaration):
                 self.assertTrue(declaration.startswith('"kernel32.dll"'))
@@ -402,6 +603,25 @@ class SourceTests(unittest.TestCase):
         installer = (ROOT / "build" / "install" / "install.ps1").read_text(encoding="utf-8")
         self.assertEqual(set(re.findall(r"(?m)exit (\d+)", installer)), {"0", "1"})
         self.assertIn("$EDITION_CHANGE_REFUSED = 14", installer)
+
+    def test_every_file_it_writes_or_removes_goes_by_its_long_name(self):
+        into = method("Into")
+        self.assertIn("string written = LongName.Of(target);", into)
+        self.assertIn("new FileStream(written,", into)
+        self.assertNotIn("new FileStream(target,", into)
+        self.assertIn("CreateDirectory(LongName.Of(path), IntPtr.Zero)", SOURCE)
+        self.assertIn("CreateFile(LongName.Of(path),", SOURCE)
+        self.assertIn("new DirectoryInfo(LongName.Of(Path))", SOURCE)
+        self.assertIn('[assembly: TargetFramework(".NETFramework,Version=v4.8"', make_setup.version_source(
+            "standard", "9.9.9"), "a \\\\?\\ name needs .NET Framework 4.6.2's path handling, not 4.0's")
+
+    def test_a_closed_console_window_is_heard_and_the_folder_removed_first(self):
+        self.assertIn("SetConsoleCtrlHandler(heard, true);", SOURCE)
+        self.assertIn("static readonly Handler heard = Heard;", SOURCE, "the handler outlives the collector")
+        started = method("Started")
+        self.assertLess(started.index("Closing.Watch();"), started.index("Folder.Fresh("))
+        cleanup = started[started.index("finally"):]
+        self.assertLess(cleanup.index("folder.Remove()"), cleanup.index("Closing.Done();"))
 
     def test_it_unpacks_the_bytes_it_checked(self):
         started = method("Started")
@@ -441,6 +661,30 @@ class ReleaseTests(unittest.TestCase):
             for edition in make_setup.EDITIONS:
                 self.assertNotEqual(template, make_setup.NAMES[edition])
                 self.assertTrue(make_setup.NAMES[edition].endswith("-v{version}.exe"))
+
+
+RELEASES = "https://github.com/songyb111-gachon/codex-auto-resume-windows/releases"
+
+
+class DocsTests(unittest.TestCase):
+    """Where the install instructions send a person for the setup program."""
+
+    def test_the_setup_programs_route_names_where_one_is_found_while_no_release_has_one(self):
+        """A pre-release is published with --latest=false, so releases/latest stays on the newest release - one
+        from before the setup programs, until a release that carries one ships. A route that pointed there alone
+        sent everyone to a file that was not there; it names the releases page, where the pre-releases are, too."""
+        headings = {"README.md": "### With the setup program", "README.ko.md": "### 설치 파일로 설치",
+                    "docs/GUIDE.md": "### With the setup program", "docs/GUIDE.ko.md": "### 설치 파일로 설치"}
+        for name, heading in headings.items():
+            if not (ROOT / name).is_file():
+                continue
+            with self.subTest(name):
+                text = (ROOT / name).read_text(encoding="utf-8")
+                section = text[text.index(heading):]
+                section = section[:section.index("\n### ", len(heading))]
+                self.assertIn("](%s)" % RELEASES, section, "the releases page, where a pre-release is listed")
+                if not name.endswith(".ko.md"):
+                    self.assertIn("v0.6.11", section, "the release the setup programs start with")
 
 
 if __name__ == "__main__":
