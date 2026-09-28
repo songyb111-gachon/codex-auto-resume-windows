@@ -3,7 +3,8 @@
 Codex Auto Resume runs on your machine. It has no server, no account and no telemetry, and
 the watcher makes no outbound network request of its own.
 
-This page describes the standard edition. From v0.6.11 there is an advanced edition as well: it
+This page describes the standard edition. From v0.6.11 there is an advanced edition as well
+([EDITIONS.md](EDITIONS.md)): it
 does everything described here and, only for a capability a person has turned on, or while a
 person runs one of its measurements by hand, what [The advanced edition](#the-advanced-edition)
 adds. With none turned on and no measurement run, what it adds is little more than a word in the
@@ -466,7 +467,7 @@ conversation to OpenAI like any tool output. That is:
   nothing and sends nothing;
 - in the advanced edition, from `list_advanced_capabilities`: each capability's id, whether it
   is on, watched or off, since when, from which surface and why, and the ids of the standards it
-  departs from — ids and codes, with no version string, path or free text; from the two tools
+  departs from ([STANDARDS.md](STANDARDS.md)) — ids and codes, with no version string, path or free text; from the two tools
   that turn capabilities off, the capability's id and that it is off, or how many were turned off;
 - from the commands: the same, plus each pending recovery's reset time, limit bucket and
   last reason code, the desktop app's process ids, and local paths such as the Codex executable, the Codex home,

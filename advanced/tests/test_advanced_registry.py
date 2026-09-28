@@ -16,6 +16,7 @@ import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import advancedcase as ac  # noqa: E402
+import languages  # noqa: E402
 from codex_auto_resume import l10n  # noqa: E402
 from codex_auto_resume.domain.plug import Point  # noqa: E402
 from codex_auto_resume_advanced import registry, standards, statement  # noqa: E402
@@ -23,8 +24,14 @@ from codex_auto_resume_advanced.registry import (CAPABILITY_POINTS, Ceilings, Re
                                                  RegistryError, problems)
 from codex_auto_resume_advanced.vocabulary import ArmingWarning, Field, Measurement  # noqa: E402
 
-# Where the owner keeps the standards file: beside the repository, not in it.
-STANDARDS_FILE = ac.ROOT.parent / standards.BASIS
+# The standards file, public in the repository: each rule a line `**A1** <sentence>`, under its
+# family's heading `## A. <title>`, then the line that says how it is held and which tests hold it.
+STANDARDS_FILE = ac.ROOT / standards.BASIS
+RULE_LINE = re.compile(r"(?m)^\*\*(0\.\d+|[A-K]\d+)\*\* ")
+FAMILY_HEADING = re.compile(r"(?m)^## (0|[A-K])\. ")
+# The line under a rule: its strength in italics, then the tests that hold it, if any.
+HELD_LINE = re.compile(r"^\*([^*\n]+)\*(?:: (.+))?$")
+TEST_NAME = re.compile(r"`([^`]+\.py)`")
 # B4: all the standard edition asks of the app server - initialize (with initialized),
 # account/rateLimits/read and thread/queue/delete.
 B4_METHODS = frozenset({"initialize", "initialized", "account/rateLimits/read", "thread/queue/delete"})
@@ -215,12 +222,66 @@ class StandardsTests(unittest.TestCase):
         self.assertEqual(standards.DEPARTABLE[-1], "J14")
 
     def test_they_are_exactly_the_ids_the_standards_file_numbers(self):
-        """Read from the owner's file where it is at hand; it is not part of the repository."""
-        if not STANDARDS_FILE.is_file():
-            self.skipTest("the standards file is not beside this repository")
-        text = STANDARDS_FILE.read_text(encoding="utf-8").split("# promised_not_enforced")[0]
-        found = re.findall(r"(?m)^(0\.\d+|[A-K]\d+) ", text)
+        """docs/STANDARDS.md, in the repository since the standards were published (v0.6.11)."""
+        found = RULE_LINE.findall(STANDARDS_FILE.read_text(encoding="utf-8"))
         self.assertEqual(tuple(found), standards.STANDARDS)
+
+    def test_a_rule_added_or_removed_moves_the_count_of_its_family(self):
+        """Each family's heading holds as many rules as FAMILIES counts for it, each of its own
+        family: a rule written into the file without FAMILIES following - or FAMILIES changed
+        without the file - names this family and both counts."""
+        text = STANDARDS_FILE.read_text(encoding="utf-8")
+        headings = list(FAMILY_HEADING.finditer(text))
+        counted = {prefix.rstrip("."): count for prefix, count in standards.FAMILIES}
+        self.assertEqual([heading.group(1) for heading in headings], list(counted))
+        for index, heading in enumerate(headings):
+            family = heading.group(1)
+            end = headings[index + 1].start() if index + 1 < len(headings) else len(text)
+            rules = RULE_LINE.findall(text, heading.end(), end)
+            with self.subTest(family=family):
+                self.assertEqual(len(rules), counted[family],
+                                 "the file and standards.FAMILIES disagree on family %s" % family)
+                prefix = family + "." if family == "0" else family
+                self.assertTrue(all(rule.startswith(prefix) for rule in rules), rules)
+
+    def test_every_rule_says_how_it_is_held_and_every_test_it_names_is_here(self):
+        """A rule held by tests names them, and each is a file in this repository: a bare name in
+        tests/ or advanced/tests/, a path from the root otherwise. A test renamed or deleted
+        without the file following leaves a rule citing nothing."""
+        lines = STANDARDS_FILE.read_text(encoding="utf-8").splitlines()
+        places = (ac.ROOT / "tests", ac.ROOT / "advanced" / "tests")
+        named = 0
+        for index, line in enumerate(lines):
+            rule = RULE_LINE.match(line)
+            if rule is None:
+                continue
+            with self.subTest(rule.group(1)):
+                held = HELD_LINE.match(lines[index + 1]) if index + 1 < len(lines) else None
+                self.assertIsNotNone(held, "no line under it says how it is held")
+                strength, tests = held.group(1), TEST_NAME.findall(held.group(2) or "")
+                if strength.startswith("tested"):
+                    self.assertTrue(tests, "held by tests, and names none")
+                for name in tests:
+                    named += 1
+                    found = ((ac.ROOT / name).is_file() if "/" in name
+                             else any((place / name).is_file() for place in places))
+                    self.assertTrue(found, "%s is not in the repository" % name)
+        self.assertGreater(named, len(standards.STANDARDS))
+
+    def test_the_korean_twin_holds_the_same_rules_and_names_the_same_tests(self):
+        """docs/STANDARDS.ko.md, rule by rule: the same ids in the same order, each naming the
+        tests the English names. On dev, where the Korean sources are; main is English only."""
+        if not languages.both_languages():
+            self.skipTest(languages.ON_DEV)
+
+        def rules(path):
+            lines = path.read_text(encoding="utf-8").splitlines()
+            return [(match.group(1), TEST_NAME.findall(lines[index + 1]))
+                    for index, line in enumerate(lines) for match in [RULE_LINE.match(line)] if match]
+
+        english = rules(STANDARDS_FILE)
+        self.assertEqual(rules(STANDARDS_FILE.with_name("STANDARDS.ko.md")), english)
+        self.assertEqual(len(english), len(standards.STANDARDS))
 
 
 class StatementTests(unittest.TestCase):

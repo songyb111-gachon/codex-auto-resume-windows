@@ -469,9 +469,11 @@ being run, everything above holds for it as written. Once one is on, everything 
 except what that capability's paragraph under *What each does* says; and while a person runs a
 measurement, it does what *The measurement harness* says.
 
-The standards are the project's own list, kept by the owner and not in this repository, so where
-this section names one by its id it says in a few words what that standard is, as each
-capability's statement does.
+The standards are the project's own list, kept by the owner and published in
+[STANDARDS.md](STANDARDS.md), each with how it is held and the tests that hold it. Where this
+section names one by its id it also says in a few words what that standard is, as each
+capability's statement does. [EDITIONS.md](EDITIONS.md) describes the two editions, and each
+capability, in plain words.
 
 **How the two editions are kept apart.**
 

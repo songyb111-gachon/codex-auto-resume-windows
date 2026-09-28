@@ -455,7 +455,8 @@ now that request is written by hand, as
 out of the standard edition's archive, and `build/edition_audit.py` proves from the archive's own
 bytes, in every release build, that none of it is there. An installation updates within its edition;
 moving to the other is a reinstall. The [roadmap](ROADMAP.md) says what each has, and what is still
-to come.
+to come. [EDITIONS.md](EDITIONS.md) says what each edition is and what each capability does, and
+[STANDARDS.md](STANDARDS.md) lists every standard by its id, with how it is held.
 
 The advanced edition's state is the one exception to *a second state database*: which capability is
 on, what each has spent and what it did are kept in `config/advanced/advanced.sqlite`, apart from
