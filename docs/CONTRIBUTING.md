@@ -341,7 +341,9 @@ Three branches carry the documents three ways:
   tests pass - and it is force-updated: main's code, with the Korean sources of the dev commit
   main was promoted from written over the English pages. A pull request against `ko` cannot be
   merged and an edit made there is lost at the next sync, so please do not spend an evening on
-  one.
+  one. The sync tests the tree in four parts at once before publishing it, and
+  `.github/workflows/ko-watch.yml` fails a scheduled run when ko is still behind main six hours
+  after main moved - a stalled sync used to read only as "cancelled".
 
 CI holds the split: on a push to `main` no `*.ko.md` may exist, and on a push to `dev` every
 mapped one must (`tests/languages.py`, `tests/test_korean.py`), so dev cannot quietly skip its

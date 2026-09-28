@@ -305,7 +305,9 @@ python build/l10n.py check                  # 하나라도 불완전하면 종�
 - **`ko`**는 main의 테스트가 통과할 때마다 `.github/workflows/sync-ko.yml`이 `main`에서 만들어 내며, 강제로
   갱신됩니다. main의 코드에, main이 승격되어 온 dev 커밋의 한국어 원본을 영어 페이지 자리에 쓴 것입니다.
   `ko`를 대상으로 한 pull request는 병합할 수 없고 거기서 한 수정은 다음 sync 때 사라지므로, 거기에 저녁
-  시간을 쓰지 말아 주세요.
+  시간을 쓰지 말아 주세요. sync는 게시하기 전에 트리를 네 부분으로 나눠 동시에 테스트하고, main이 바뀐 지
+  여섯 시간이 지나도 ko가 뒤처져 있으면 `.github/workflows/ko-watch.yml`의 예약 실행이 실패로 알립니다.
+  멈춘 sync가 예전에는 "cancelled"로만 보였기 때문입니다.
 
 CI가 이 나눔을 지킵니다. `main`에 푸시하면 `*.ko.md`가 하나도 없어야 하고, `dev`에 푸시하면 매핑된 것이
 모두 있어야 합니다(`tests/languages.py`, `tests/test_korean.py`). 그래서 dev는 한국어 검사를 조용히 건너뛸 수

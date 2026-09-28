@@ -1,0 +1,60 @@
+name: ko watch
+
+# Says so when the Korean branch has fallen behind main.
+#
+# sync-ko.yml has stalled three times without a single red run: a newer pending run cancelled
+# the older (2026-09-18 to 2026-09-20), its time limit stopped it part way through (four days,
+# 122 commits), and the limit stopped it again on 2026-09-28 after the suite grew. Each time the
+# runs read "cancelled" or "skipped", which is also what a healthy sync looks like from dev's
+# side, so the only way anyone learnt was by reading ko. This reads it instead, every six hours,
+# and fails - which GitHub reports to whoever maintains this schedule - when main's head is more
+# than six hours old and no sync has succeeded since it.
+#
+# It runs none of the repository's code: no checkout, two reads through the API.
+
+on:
+  schedule:
+    - cron: "23 */6 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+
+    steps:
+      - name: Fail when ko has fallen behind main
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          main_sha="$(gh api "repos/$REPO/commits/main" --jq .sha)"
+          main_at="$(gh api "repos/$REPO/commits/main" --jq .commit.committer.date)"
+          source="$(gh api "repos/$REPO/commits/ko" --jq .commit.message \
+                    | sed -n 's/^Generate ko from main@\([0-9a-f]\{40\}\).*/\1/p' | head -n 1)"
+          if [ "$source" = "$main_sha" ]; then
+            echo "ko is built from main's head, $main_sha"
+            exit 0
+          fi
+          # A sync that found nothing to change leaves ko's last message naming an older commit,
+          # so a successful sync that started after main's head was made counts as caught up.
+          synced="$(gh api "repos/$REPO/actions/workflows/sync-ko.yml/runs?status=success&per_page=1" \
+                    --jq '.workflow_runs[0].created_at // ""')"
+          if [ -n "$synced" ] && [ "$(date -u -d "$synced" +%s)" -gt "$(date -u -d "$main_at" +%s)" ]; then
+            echo "a sync succeeded at $synced, after main's head was made at $main_at"
+            exit 0
+          fi
+          age=$(( $(date -u +%s) - $(date -u -d "$main_at" +%s) ))
+          if [ "$age" -lt 21600 ]; then
+            echo "main's head is $(( age / 60 )) minutes old; its tests and the sync have six hours"
+            exit 0
+          fi
+          echo "::error::ko is built from main@${source:-unknown}, but main is $main_sha, made $(( age / 3600 )) hours ago, and no sync has succeeded since. Read the latest 'sync ko' run: a failure, or a cancellation, which is how its time limit is reported. If main's own tests are red, that is the reason."
+          exit 1
