@@ -651,7 +651,10 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.text = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
 
     def test_it_runs_the_tests_before_publishing(self):
-        self.assertIn("unittest discover", self.text)
+        # In parts, as jobs the build waits for; the publish job waits for the build.
+        self.assertIn("python scripts/test_parts.py --lane release", self.text)
+        self.assertIn("\n    needs: test\n", self.text[self.text.index("\n  build:"):])
+        self.assertIn("\n    needs: build\n", self.text[self.text.index("\n  publish:"):])
 
     def test_it_publishes_only_from_a_tag(self):
         # A tag *push*: a dispatch whose ref is a tag satisfies startsWith() alone.

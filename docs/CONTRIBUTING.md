@@ -54,6 +54,46 @@ What a green run does and does not establish is set out capability by capability
 no suite can make - a real install, a real interruption, a real send - are the procedure in
 [`docs/LIVE_ACCEPTANCE.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/LIVE_ACCEPTANCE.md).
 
+### In parts
+
+The suite is long - a lane took 78 to 103 minutes on GitHub's runners in September 2026 - so CI runs
+every lane in parts, one job each, and you can run it in parts on your own machine.
+`scripts/test_parts.py` is the one place the suite is split. It deals the test files into N parts,
+balanced by how long each file took when it was last measured (`tests/data/durations.json`), and runs
+each part the way `unittest discover` runs the suite: the same files, loaded by discover itself, in the
+same order, one fresh Python per suite.
+
+```bash
+python scripts/test_parts.py --parallel 8                   # all 8 parts at once: one summary, one exit code
+python scripts/test_parts.py --part 3/8                     # only the third of 8 parts
+python scripts/test_parts.py --lane advanced --parallel 8   # the advanced edition's lane
+python scripts/test_parts.py                                # the whole suite as one run
+```
+
+It sets `PYTHONPATH` and `CODEX_AR_EDITION` for the lane itself - `standard`, `advanced`, or
+`release` (the two suites the release runs before it builds) - gives each part of a parallel run its
+own `TEMP` and `TMP`, and starts every child with no console window. Parallel parts share the machine,
+so the speed-up is what your processor has to spare. The window tests
+contend for one desktop, and the longest file - `tests/test_gui_layout.py`, which lays out every page
+in every language at five scalings - is a floor no number of parts goes below.
+
+The parts together are exactly the tests `unittest discover` finds, each once, for every part count
+the workflows use: `tests/test_split_runs.py` proves it. Whether a part's results are a whole run's
+is a question about the tests themselves, and the runner answers it on your machine:
+
+```bash
+python scripts/test_parts.py --outcomes whole.json
+python scripts/test_parts.py --parallel 8 --outcomes parts.json
+python scripts/test_parts.py --compare whole.json parts.json
+```
+
+`--compare` prints every test id whose outcome differs. A difference means two test files share
+something - a fixed temporary path, a mutex or event name, a port, the working directory, the
+environment or a module global - and the fix is to make them independent, never to keep them in one
+part. After adding a test file or changing how long one takes, refresh the durations from a whole run
+with `--record-durations` so the parts stay even; a file never measured is dealt round-robin after
+the measured ones. `--list --parts 8` shows the deal.
+
 ## Measuring the window
 
 Speed is a claim like any other, and `build/measure_window.py` is how it is checked rather than

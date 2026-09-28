@@ -50,6 +50,45 @@ Windows에서 `CODEX_AR_LIVE=1`을 설정하지 않는 한 건너뜁니다.
 정리되어 있고, 어떤 suite도 대신할 수 없는 확인 — 실제 설치, 실제 중단, 실제 전송 — 은
 [docs/LIVE_ACCEPTANCE.ko.md](LIVE_ACCEPTANCE.ko.md)의 절차입니다.
 
+### 나눠서 돌리기
+
+suite는 깁니다. 2026년 9월 GitHub 러너에서 한 레인이 78~103분 걸렸습니다. 그래서 CI는 모든 레인을 여러
+부분으로 나눠 부분마다 job 하나로 돌리고, 여러분의 컴퓨터에서도 나눠서 돌릴 수 있습니다. suite를 나누는
+곳은 `scripts/test_parts.py` 한 곳뿐입니다. 테스트 파일을 N개 부분으로 나누되, 각 파일이 마지막으로 잰 때
+걸린 시간(`tests/data/durations.json`)으로 균형을 맞추고, 각 부분을 `unittest discover`가 suite를 돌리는
+방식 그대로 돌립니다. 같은 파일을, discover 자신이 불러와서, 같은 순서로, suite마다 새 Python 하나로 돌립니다.
+
+```bash
+python scripts/test_parts.py --parallel 8                   # 8개 부분을 한꺼번에: 요약 하나, 종료 코드 하나
+python scripts/test_parts.py --part 3/8                     # 8개 중 세 번째 부분만
+python scripts/test_parts.py --lane advanced --parallel 8   # 고급 에디션의 레인
+python scripts/test_parts.py                                # suite 전체를 한 번에
+```
+
+레인에 맞는 `PYTHONPATH`와 `CODEX_AR_EDITION`은 스크립트가 직접 설정합니다. 레인은 `standard`,
+`advanced`, `release`(릴리스가 빌드 전에 돌리는 두 suite)입니다. 병렬 실행의 각 부분에는 자기만의 `TEMP`와
+`TMP`를 주고, 모든 자식 프로세스는 콘솔 창 없이 시작합니다. 병렬 부분들은 한 컴퓨터를 나눠 쓰므로, 빨라지는
+정도는 프로세서에 남는 여유만큼입니다. 창 테스트들은 데스크톱 하나를 두고 다투고, 가장 긴 파일인
+`tests/test_gui_layout.py`(모든 쪽을 모든 언어로 다섯 배율에서 배치해 보는 파일)는 부분을 아무리 늘려도
+그 아래로 내려가지 않는 바닥입니다.
+
+워크플로가 쓰는 모든 부분 수에 대해, 부분들을 합치면 `unittest discover`가 찾는 테스트와 정확히 같고 각각
+한 번씩입니다. `tests/test_split_runs.py`가 이것을 증명합니다. 부분의 결과가 전체 실행의 결과와 같은지는
+테스트 자체에 달린 문제이고, 여러분의 컴퓨터에서 스크립트가 답해 줍니다.
+
+```bash
+python scripts/test_parts.py --outcomes whole.json
+python scripts/test_parts.py --parallel 8 --outcomes parts.json
+python scripts/test_parts.py --compare whole.json parts.json
+```
+
+`--compare`는 결과가 다른 테스트 id를 모두 찍습니다. 차이가 있다면 두 테스트 파일이 무언가를 나눠 쓰고
+있다는 뜻입니다. 고정된 임시 경로, mutex나 event 이름, 포트, 작업 디렉터리, 환경 변수, 모듈 전역 변수 같은
+것입니다. 고치는 방법은 테스트를 서로 독립적으로 만드는 것이지, 한 부분에 묶어 두는 것이 아닙니다. 테스트
+파일을 추가했거나 걸리는 시간이 바뀌었다면, 부분들이 고르게 유지되도록 전체 실행에서 `--record-durations`로
+시간을 새로 기록하세요. 한 번도 재지 않은 파일은 잰 파일들 다음에 돌아가며 나눠집니다. `--list --parts 8`은
+어떻게 나눠지는지 보여 줍니다.
+
 ## 창을 재기
 
 빠르기도 다른 주장과 같아서, 믿는 대신 확인하는 방법이 `build/measure_window.py`입니다. `gui/*.cs`를 임시

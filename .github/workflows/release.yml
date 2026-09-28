@@ -15,10 +15,13 @@ name: release
 # digest pin depends on. A correction now needs a new version, which is the honest way to
 # say "these are different bytes".
 #
-# Two jobs, split by privilege. `build` runs the repository's code - its tests, its build
+# Split by privilege. `test` and `build` run the repository's code - its tests, its build
 # scripts - with a read-only token that is not left on disk. `publish` holds the rights to
 # create a release and attest it, and runs none of the repository's code: it takes the
 # archives `build` produced, checks them again, attests them and publishes them.
+#
+# `test` is the suite in parts, one job each (2026-09-28): the suite took about 80 minutes as one
+# step of `build`, and `build` now starts only once every part has passed.
 #
 # Two editions, one version, one release (v0.6.11). The standard archive is the one every
 # installed bootstrap updates to, under the name it has always had; the advanced archive is
@@ -66,7 +69,52 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  test:
+    # Windows, where the product and its suite run.
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    strategy:
+      # Every part runs to the end, so one run shows every failure there is.
+      fail-fast: false
+      matrix:
+        # PARTS below is the length of this list; tests/test_split_runs.py holds the two together,
+        # so no part of the suite can be dropped by changing one of them.
+        part: [1, 2, 3, 4]
+
+    steps:
+      # The same commit the build job builds, checked out the same way: no token left on disk, and
+      # the tags and their commits here, because the upgrade and downgrade tests build their
+      # databases with the store code of real tagged releases (the build job's checkout says more).
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      # A tag is not a reason to skip the tests; it is the last moment they still help.
+      #
+      # The release lane (scripts/test_parts.py LANES): the core suite as the standard edition, and
+      # the advanced package's own tests with the package importable, as the advanced lane of
+      # test.yml runs them. The standard archive is built from the first and the advanced archive is
+      # the standard one plus the package, so these are the two suites the release rests on; that
+      # lane has also run the whole core suite with the package on the path, and here that would be
+      # the same run a second time. This job's part of them; the build waits for every part.
+      - name: Run the automated test suite, this part
+        shell: pwsh
+        env:
+          PART: ${{ matrix.part }}
+          PARTS: "4"
+        run: python scripts/test_parts.py --lane release --part "$env:PART/$env:PARTS" -v --annotate
+
   build:
+    # Only once every part of the suite has passed.
+    needs: test
     # The product is Windows-only, and the release contains two Windows executables
     # compiled with the in-box C# compiler, so it can only be built on Windows.
     runs-on: windows-latest
@@ -125,22 +173,6 @@ jobs:
           }
           "version=$declared" >> $env:GITHUB_OUTPUT
           Write-Host "building v$declared"
-
-      - name: Run the automated test suite
-        # A tag is not a reason to skip the tests; it is the last moment they still help.
-        env:
-          PYTHONPATH: src
-        run: python -m unittest discover -s tests
-
-      # The advanced archive is the standard one plus the advanced package, so its suite is the
-      # one above plus the package's own tests, run with the package importable - as the advanced
-      # lane of test.yml runs them. That lane has also run the whole core suite with the package
-      # on the path; here that would be the same run a second time.
-      - name: Run the advanced edition's tests
-        env:
-          PYTHONPATH: src;advanced/src
-          CODEX_AR_EDITION: advanced
-        run: python -m unittest discover -s advanced/tests
 
       # Each edition has a settings window of its own - the advanced one is the standard sources
       # and the overlay's, in build/advanced/ - and the MCP launcher is one file for both.
