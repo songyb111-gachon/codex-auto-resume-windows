@@ -3,7 +3,7 @@
 A record's state, a public code, a reason, a gate, a failure category, an error code, a
 setting's choice, a registry state - each is a string from a closed list, and each list is
 also a contract: the store validates against it, the window and the panel look words up by it,
-the catalogs carry a sentence for each member, and the Rust core of v0.6.8 has to write the same
+the catalogs carry a sentence for each member, and the Rust core of v0.6.14 has to write the same
 strings. v0.6.5 gives every list one home, `domain/vocabulary.py`, as an `enum.StrEnum`, and
 keeps each old constant under its old name so that every `x in STATES` still works.
 

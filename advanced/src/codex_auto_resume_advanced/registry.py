@@ -11,7 +11,8 @@ asked to agree to and everything the plug holds it to:
   capability off until they have read that one (a tripwire, arming.py);
 * `departs_from` - the standards it breaks (standards.py). Never empty: a capability that keeps
   every standard belongs in the standard edition, so the rule for which edition a capability is
-  in is this field;
+  in is this field. Only the standard edition's standards may be named (standards.DEPARTABLE):
+  family K is the advanced edition's own rules, which every capability keeps;
 * `compat` - the Compatibility Registry capability it stands on. Its grade here is shown in the
   statement - FAILED_HERE, INCOMPATIBLE or UNKNOWN as a warning the person confirms - and a
   failure the person did not confirm turns it off (arming.py);
@@ -41,7 +42,7 @@ from codex_auto_resume.domain.plug import Point
 from .control.codexstart import make as make_start_with_codex
 from .engine.goal import make as make_goal_continuation
 from .engine.markerfree import make as make_marker_free
-from .standards import STANDARDS
+from .standards import DEPARTABLE
 from .vocabulary import Measurement
 
 # The one ceiling over every capability together: advanced sends an hour. It is also the highest
@@ -116,8 +117,8 @@ def problems(definition) -> list:
     if not isinstance(departs, tuple) or not departs:
         found.append("departs_from is empty: it keeps every standard, so it is standard")
     elif (not all(isinstance(standard, str) for standard in departs)
-          or len(set(departs)) != len(departs) or not set(departs) <= set(STANDARDS)):
-        found.append("departs_from names a standard the standards file does not hold")
+          or len(set(departs)) != len(departs) or not set(departs) <= set(DEPARTABLE)):
+        found.append("departs_from names a standard the standard edition does not keep")
     if not isinstance(definition.compat, str) or not ID_SHAPE.fullmatch(definition.compat):
         found.append("compat")
     ceilings = definition.ceilings

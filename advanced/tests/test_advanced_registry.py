@@ -62,7 +62,7 @@ class ShippedTests(unittest.TestCase):
             with self.subTest(definition.id):
                 self.assertEqual(problems(definition), [])
                 self.assertEqual(statement.CATALOGS.missing(definition), [])
-                self.assertTrue(set(definition.departs_from) <= set(standards.STANDARDS))
+                self.assertTrue(set(definition.departs_from) <= set(standards.DEPARTABLE))
 
     def test_a_capability_whose_session_asks_the_app_server_more_departs_from_b4_and_b3(self):
         """What a capability's own session may call (codex/protocol.CAPABILITY_METHODS) is part of
@@ -147,10 +147,21 @@ class DefinitionTests(unittest.TestCase):
             Registry((ac.definition(departs_from=()),))
 
     def test_every_standard_it_departs_from_is_one_the_standards_file_holds(self):
-        for departs in (("A99",), ("K1",), ("A6", "A6"), ("a6",), (6,), ["A6"]):
+        for departs in (("A99",), ("L1",), ("A6", "A6"), ("a6",), (6,), ["A6"]):
             with self.subTest(departs=departs):
                 self.assertNotEqual(problems(ac.definition(departs_from=departs)), [])
         self.assertEqual(problems(ac.definition(departs_from=("0.5", "A11", "B4", "J14"))), [])
+
+    def test_the_advanced_editions_own_rules_are_never_departed_from(self):
+        """Family K binds every capability - arming only in the Dashboard, pause and consent
+        first, the tripwires - so naming one is a mistake the registry refuses, like an id the
+        file does not hold."""
+        for standard in ("K1", "K5", "K7"):
+            with self.subTest(standard):
+                self.assertIn(standard, standards.STANDARDS)
+                self.assertNotIn(standard, standards.DEPARTABLE)
+                self.assertNotEqual(problems(ac.definition(departs_from=(standard,))), [])
+                self.assertNotEqual(problems(ac.definition(departs_from=("A11", standard))), [])
 
     def test_each_field_is_checked(self):
         cases = {
@@ -196,17 +207,19 @@ class DefinitionTests(unittest.TestCase):
 
 class StandardsTests(unittest.TestCase):
     def test_the_ids_are_the_families_numbered_without_gaps(self):
-        self.assertEqual(len(standards.STANDARDS), 165)
-        self.assertEqual(len(set(standards.STANDARDS)), 165)
+        self.assertEqual(len(standards.STANDARDS), 172)
+        self.assertEqual(len(set(standards.STANDARDS)), 172)
         self.assertEqual(standards.STANDARDS[:2], ("0.1", "0.2"))
-        self.assertEqual(standards.STANDARDS[-1], "J14")
+        self.assertEqual(standards.STANDARDS[-1], "K7")
+        self.assertEqual(len(standards.DEPARTABLE), 165)
+        self.assertEqual(standards.DEPARTABLE[-1], "J14")
 
     def test_they_are_exactly_the_ids_the_standards_file_numbers(self):
         """Read from the owner's file where it is at hand; it is not part of the repository."""
         if not STANDARDS_FILE.is_file():
             self.skipTest("the standards file is not beside this repository")
         text = STANDARDS_FILE.read_text(encoding="utf-8").split("# promised_not_enforced")[0]
-        found = re.findall(r"(?m)^(0\.\d+|[A-J]\d+) ", text)
+        found = re.findall(r"(?m)^(0\.\d+|[A-K]\d+) ", text)
         self.assertEqual(tuple(found), standards.STANDARDS)
 
 

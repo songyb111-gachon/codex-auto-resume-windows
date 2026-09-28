@@ -1,4 +1,4 @@
-# Codex Auto Resume roadmap: v0.6.7 → v0.6.14
+# Codex Auto Resume roadmap: v0.6.7 → v0.6.15
 
 This is the current development direction for Codex Auto Resume after v0.6.6.
 
@@ -12,7 +12,7 @@ advanced features, more than any program like this, in two editions → stabiliz
 core with Rust and make it Rust-native → stabilize Rust**
 
 The default recovery behavior stays as conservative as it has always been, through every release
-here: what v0.6.11 adds is there for a person to turn on, never on by itself.
+here: what v0.6.11 and v0.6.12 add to it is there for a person to turn on, never on by itself.
 
 ---
 
@@ -326,7 +326,7 @@ The repository's landing page on GitHub is tidied in the same stage, while paths
 anyway, so that fewer files sit at its root.
 
 Bugs discovered during this refactor will be fixed with regression tests, but the alpha is
-**not intended to be the full repository-wide bug hunt**; v0.6.12 is. It is the modularization and
+**not intended to be the full repository-wide bug hunt**; v0.6.13 is. It is the modularization and
 nothing else: no feature, and no change anybody could see.
 
 What it carries: the modules that were over their ceiling are packages in the plan's layout -
@@ -356,7 +356,7 @@ right first.
   animates one light per picture today, and will animate every light a surface moves,
 - a choice of appearance: today's design, the same without motion, v0.6.2's plainer look (with
   today's status light), and a fully plain one - each in light and dark,
-- then the advanced features and the two editions above.
+- then the advanced features and the two editions below.
 
 ---
 
@@ -439,9 +439,9 @@ opens the pull request.
 
 ---
 
-## v0.6.11 — Advanced features in two editions
+## v0.6.11 — Two editions, and the advanced edition's first capabilities
 
-**Next.**
+**In development: the final release, after two pre-releases.**
 
 
 v0.6.11 arrives in stages. **v0.6.11-alpha**, a pre-release, is the ground both editions stand on
@@ -449,26 +449,73 @@ and nothing else: the two editions built, audited and published together, update
 their edition, the places where core asks, and the advanced edition's own state, switches and
 measurements - with no capability yet to switch on. That is not a release on its own, and
 everything after it is built on it. **v0.6.11-beta**, a pre-release too, is everything v0.6.11 adds
-to the standard edition. The final **v0.6.11** is the capabilities themselves.
+to the standard edition. The final **v0.6.11** is the advanced edition's first capabilities, and
+what came with them.
+
+The plan had four more stages of capabilities after the first, each to be published as a numbered
+beta. On 2026-09-28 the owner judged that this left too many steps before a release, so v0.6.11
+goes out with what is finished, and the capabilities those stages held move, whole, to v0.6.12,
+below.
 
 ### v0.6.11-alpha ✅ — The ground both editions stand on (a pre-release)
 
 Published as a pre-release; what it carries is in [CHANGELOG.md](CHANGELOG.md). Its release asked
 the owner's machine two things no test can. An install from standard to advanced and back kept the
 state each way, and the measurements that decide which capabilities can be offered as built were
-taken; what they found is in v0.6.11-beta's entry, and two of them still wait for the owner.
+taken; what they found is in v0.6.11-beta's entry. The two that needed the owner at the app, MA
+and MH, passed on 2026-09-28 (`docs/evidence/live/`).
 
-### v0.6.11-beta 🚧 — The standard edition's additions (a pre-release)
+### v0.6.11-beta ✅ — The standard edition's additions (a pre-release)
 
-In development; what it carries is in [CHANGELOG.md](CHANGELOG.md). It is the second stage: what
-the standard edition gains, every setting of it off or doing what v0.6.10 did until a person
-changes it, so that at its defaults the standard edition behaves as v0.6.10 did. It is worth a
-release on its own, so it is a beta and not a second alpha; it is a pre-release because the owner
+Published as a pre-release; what it carries is in [CHANGELOG.md](CHANGELOG.md). It is the second
+stage: what the standard edition gains, every setting of it off or doing what v0.6.10 did until a
+person changes it, so that at its defaults the standard edition behaves as v0.6.10 did. It is worth
+a release on its own, so it is a beta and not a second alpha; it is a pre-release because the owner
 asked for one, ahead of the final that brings the advanced edition's capabilities.
 
-v0.6.11 goes further than every release so far. It is planned to offer, aggressively, as many
-capabilities as any comparable program does, and more: before it is built, the tools that do anything
-like this are surveyed, and everything any of them offers goes on the list.
+### v0.6.11 — The final: the advanced edition's first capabilities
+
+What the final adds to the two pre-releases:
+
+- **Three capabilities in the advanced edition**, each off until a person turns it on, after
+  reading what it does and which standards it departs from, over the local bridge the Dashboard
+  uses - the window has no page for them in this tree yet
+  (`advanced/src/codex_auto_resume_advanced/registry.py`):
+  - **Start with Codex, through WMI.** Codex ends what its plugins start (v0.6.9, above). A watcher
+    that WMI starts has WMI's own host for a parent, outside Codex's job, so closing Codex does not
+    end it (measurement MW).
+  - **A continuation with no marker.** The words go without the marker, through Codex's app server
+    (`thread/queue/add`) under a client id derived from the interruption, and delivery is proven by
+    that id alone (measurement M7). A send it cannot prove is held, never sent again.
+  - **Goal continuation.** For a usage limit in a conversation the app does not hold, the goal the
+    limit paused is set active again through the app server - an existing goal only, never its
+    words - so that Codex carries it on when the app next opens the conversation. That is not
+    measured yet: M2 found only that the app does not take such a goal up while it holds the
+    conversation, which is why it acts where the app does not.
+- **A warning, not a refusal.** A measurement a capability rests on that failed or was never made
+  for the Codex in force, or a compatibility grade of Failed here, Incompatible or Unknown, is a
+  warning in its statement that turning it on confirms. Only an administrator's policy still
+  refuses. What turns a capability off by itself stays: a new statement, a new Codex version, a
+  failure the person did not confirm, or a send it paid for whose delivery became uncertain.
+- **Numbered pre-releases**, `-alpha.2` and `-beta.2` and on, read by every check of a version, and a
+  rule for when a stage is an alpha and when a beta ([CONTRIBUTING.md](CONTRIBUTING.md)).
+- **The update check offers a pre-release.** *Check for updates* also reads this repository's list
+  of releases, and offers a pre-release newer than both the installed version and the latest
+  release, installed only if you say yes. The owner amended two of the project's standards for it:
+  C5, under which the update check asked for the latest release alone and took only a plain
+  version, and I12, under which an update never went to a pre-release.
+- **A setup program per edition.** Each release also carries `CodexAutoResume-Setup-v<version>.exe`
+  and `CodexAutoResume-Advanced-Setup-v<version>.exe`: one file holding its edition's archive, which
+  runs that archive's own `Install.cmd`, with nothing to unzip.
+- **Interface work being built beside it**, on a branch of its own and not in this tree yet, and in
+  the final only if it is finished in time: the edition shown beside the version, a version and
+  edition picker in the Dashboard, the Careful style folded into Detailed, and Custom values and
+  Unlimited beside presets.
+
+v0.6.11 and v0.6.12 go further than every release so far. Together they are planned to offer,
+aggressively, as many capabilities as any comparable program does, and more: before they were
+built, the tools that do anything like this were surveyed, and everything any of them offers went on
+the list.
 
 Two rules, the user's own:
 
@@ -489,22 +536,79 @@ reads and sends through exactly one conversation, that it fails closed - would h
 setting said so, not in the code. So from v0.6.11 there are two editions, built from one repository
 and released at the same time, with the same version:
 
-- **Standard** is the product as it is. The new capabilities are not in it at all: their code is
-  left out of its archive, and a test proves the archive it builds holds none of it.
-- **Advanced** is everything, each new capability off until its user turns it on.
+- **Standard** is the product as it is, plus only what keeps every one of its standards. The new
+  capabilities are not in it at all: their code is left out of its archive, and a test proves the
+  archive it builds holds none of it (`build/edition_audit.py`).
+- **Advanced** is everything, each new capability off until its user turns it on. A capability is
+  in it, and not in the standard edition, because it departs from at least one standard, and its
+  statement names which.
 
-Each has its own archive, pinned digest and build attestation. An installation updates within its
-edition only; moving between them is a deliberate reinstall, never an update. The Rust core carries
-both (v0.6.13).
+Each has its own archive and pinned digest, and one build attestation names both. An installation
+updates within its edition only; moving between them is a deliberate reinstall, never an update.
+The Rust core carries both (v0.6.14).
 
-Where the list starts, from the earlier plan:
+---
 
-- notLoaded recovery,
-- empty-response recovery,
-- Goal-like continuation,
-- subagent recovery,
-- every further failure category that can be recovered,
-- broader recovery wherever Codex allows it.
+## v0.6.12 — The rest of the advanced edition
+
+What the plan put in v0.6.11's later stages, moved here whole when v0.6.11 was cut short, in as
+many pre-releases as it needs: each finished stage is published as one while the next is built.
+Every capability here is the advanced edition's alone, off until a person turns it on, with a
+statement that names the standards it departs from, as v0.6.11's are. Some rest on a measurement
+of the real Codex; one that fails narrows the route, or becomes a warning the person confirms, and
+does not drop the capability.
+
+### Recovery through the channels already in use
+
+- capacity errors retried at short intervals, under a wall-clock ceiling of at most 12 hours,
+- failures it cannot name, on a budget of their own, with a sampler that keeps no text, and at most
+  ten structured trigger rules over Codex's own error tags - never over error text,
+- a request Codex gave up on (`responseTooManyFailedAttempts` with a 5xx or no status),
+- a sign-in failure retried once, after a usage read proves the sign-in works,
+- a usage limit that resets early, noticed,
+- one resend when delivery is uncertain and neither Codex's history nor its queue holds the message,
+- *Send now*, from the Dashboard only, past the schedule and the budget but not past the checks
+  that make a send safe,
+- several conversations at once, still one send in flight in each,
+- empty-response recovery, recognised by the kinds of item a turn left and never by its words,
+- an unloaded conversation, through a queue that waits until it is opened (measurement M1),
+- a subagent recovered through its parent, never written to directly,
+- keep going after a normal completion, a set number of times,
+- a prompt queue and recurring wakes, carrying the person's own words only,
+- recording and sending a compatibility report from the app, below.
+
+### A route of its own, and other kinds of session
+
+- a conversation nothing holds, run headless through Codex's app server with the settings Codex
+  saved for it,
+- CLI, TUI and IDE sessions,
+- a full context window compacted, then continued,
+- another model when one is at capacity, on the headless route only,
+- a continuation with no words, where Codex allows it (the app's queue refused an empty one:
+  measurement M3),
+- a continuation inside the turn, through a Codex Stop hook,
+- Codex's own retry settings, written through its official configuration and put back when the
+  capability is turned off or the product uninstalled.
+
+### Around recovery
+
+- a live usage meter, a wrap-up nudge near a limit, reset credits, and usage and token analytics,
+- a provider status feed and push notifications - ntfy, a webhook, Telegram, e-mail - through one
+  courier process, the advanced edition's only outbound network code,
+- a loopback API and web view on 127.0.0.1, remote control over Telegram, and a read-only view of
+  other PCs through a folder the person syncs,
+- switching the active Codex account on the person's command (measurement MA),
+- a weekly update check while idle,
+- crash supervision, a wake timer for a reset, and an *Open Codex* button on the card.
+
+### Also moved here
+
+- **Watching several Codex homes**, a standard-edition addition that waited on measurement MH, which
+  passed on 2026-09-28.
+- **Arabic and Hebrew**, translated and held since v0.6.11-beta, offered once the window is mirrored
+  for right-to-left.
+- **winget** manifests for both editions, pointing at the pinned archives; submitting them is a
+  public pull request the owner makes.
 
 ### Compatibility reports from others
 
@@ -516,12 +620,14 @@ opens the pull request.
 
 ---
 
-## v0.6.12 — The final Python audit, both editions
+## v0.6.13 — The final Python audit, both editions
 
-v0.6.12 is the last Python release: the whole repository, both editions, through its bug hunt, and
-the Python reference implementation the Rust migration reproduces.
+v0.6.13 is the last Python release: the whole repository, both editions, through its bug hunt, and
+the Python reference implementation the Rust migration reproduces. It comes after v0.6.12 so that
+the last features written in Python - the rest of the advanced edition - are audited with the rest,
+and the reference the Rust core reproduces holds them.
 
-v0.6.12 is planned as the final comprehensive audit of the Python implementation, in both editions.
+v0.6.13 is planned as the final comprehensive audit of the Python implementation, in both editions.
 
 Unlike v0.6.10-alpha's refactoring, it is intentionally a broad bug hunt.
 
@@ -539,7 +645,8 @@ Expected areas include:
 - malformed, stale, or corrupted state,
 - fault injection,
 - real Codex integration,
-- Advanced / Experimental recovery paths,
+- Advanced / Experimental recovery paths: every capability of v0.6.11 and v0.6.12, each with its
+  warnings, tripwires and ceilings,
 - responsiveness, in every language: whatever lag v0.6.9 left,
 - both editions, and that the standard one still holds none of the advanced code.
 
@@ -553,14 +660,14 @@ for the Rust migration.
 
 ---
 
-## v0.6.13 — Rust: the core replaced as it is, then made Rust-native
+## v0.6.14 — Rust: the core replaced as it is, then made Rust-native
 
-v0.6.13 arrives in two stages too: **v0.6.13-alpha**, a pre-release, replaces the production Python
-core with Rust as it is; the final **v0.6.13** is that core made naturally Rust-oriented. The alpha is
+v0.6.14 arrives in two stages too: **v0.6.14-alpha**, a pre-release, replaces the production Python
+core with Rust as it is; the final **v0.6.14** is that core made naturally Rust-oriented. The alpha is
 a pre-release because the core swapped as it is is a stage on the way to the Rust-native one, not a
 release worth having on its own.
 
-### v0.6.13-alpha — Complete Rust core replacement (a pre-release)
+### v0.6.14-alpha — Complete Rust core replacement (a pre-release)
 
 The alpha is planned to replace the production Python core with Rust, as it is.
 
@@ -571,7 +678,7 @@ The rule is:
 
 > **Replace the implementation, not the behavior.**
 
-The Rust implementation should reproduce the final v0.6.12 as closely as practical.
+The Rust implementation should reproduce the final v0.6.13 as closely as practical.
 
 Goals include:
 
@@ -613,13 +720,13 @@ Rust
 PowerShell may remain as a thin layer for bootstrap, installation, updating, or similar Windows
 deployment work.
 
-### v0.6.13 — Rust-native restructuring and optimization
+### v0.6.14 — Rust-native restructuring and optimization
 
 The alpha prioritizes behavioral parity.
 
 That may leave some Python-shaped architecture inside the first Rust implementation.
 
-The final v0.6.13 is planned to make the codebase more naturally Rust-oriented.
+The final v0.6.14 is planned to make the codebase more naturally Rust-oriented.
 
 Potential work includes:
 
@@ -639,9 +746,9 @@ This is not intended to be the final full-system bug hunt.
 
 ---
 
-## v0.6.14 — Final Rust audit and stabilization: the Rust bug hunt
+## v0.6.15 — Final Rust audit and stabilization: the Rust bug hunt
 
-v0.6.14 is planned as the final comprehensive stabilization pass.
+v0.6.15 is planned as the final comprehensive stabilization pass.
 
 Expected focus includes:
 
@@ -679,7 +786,7 @@ The intended final stack is:
 
 There is currently **no planned v0.7.0 feature cycle**.
 
-After v0.6.14, the project is expected to move primarily into maintenance:
+After v0.6.15, the project is expected to move primarily into maintenance:
 
 - Codex compatibility updates,
 - Compatibility Registry updates,
@@ -745,23 +852,29 @@ Python modularization and a tidier landing page on GitHub, in a pre-release
 v0.6.11-alpha → v0.6.11-beta → v0.6.11
 The ground both editions stand on, in a pre-release
 + the standard edition's additions, in a second pre-release
-+ advanced features, more than any program like this, and compatibility reports from others, in the final
++ the advanced edition's first capabilities, a pre-release offer and a setup program, in the final
 
         ↓
 
 v0.6.12
+The rest of the advanced edition, in as many pre-releases as it needs
++ several Codex homes, Arabic and Hebrew mirrored, winget, compatibility reports from the app
+
+        ↓
+
+v0.6.13
 The final Python audit, both editions
 → freeze Python reference behavior
 
         ↓
 
-v0.6.13-alpha → v0.6.13
+v0.6.14-alpha → v0.6.14
 Complete Rust core replacement, in a pre-release
 + Rust-native restructuring and optimization, in the final
 
         ↓
 
-v0.6.14
+v0.6.15
 Final Rust audit and stabilization: the Rust bug hunt
 → final stable Rust baseline
 
@@ -770,4 +883,5 @@ Final Rust audit and stabilization: the Rust bug hunt
 Maintenance
 ```
 
-This document records the current direction; v0.6.10 is out, and v0.6.11 is next.
+This document records the current direction; v0.6.11's two pre-releases are out, and its final
+release is next.
