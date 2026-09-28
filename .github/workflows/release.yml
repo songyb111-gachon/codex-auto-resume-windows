@@ -135,9 +135,10 @@ jobs:
           # The upgrade and downgrade tests build their databases with the store code of
           # real tagged releases - `git show v0.5.7:src/.../store.py` - so the tags and
           # their commits have to be here. `test.yml` has said so since those tests were
-          # written; this job runs the same suite and did not, because until v0.6.0 no tag
+          # written; this job ran the same suite and did not, because until v0.6.0 no tag
           # had ever reached it. The first real tag push failed here, on eight tests whose
-          # own message is "CI must fetch the tags".
+          # own message is "CI must fetch the tags". The suite runs in `test` now, checked
+          # out the same way, and this job still takes earlier releases' bootstraps out of the tags.
           #
           # It costs history, not privilege: the token is still not persisted, the job
           # still holds `contents: read`, and the repository is public.

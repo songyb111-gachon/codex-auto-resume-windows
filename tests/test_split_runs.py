@@ -16,8 +16,9 @@ result a whole run gives. What is held here:
   once still runs once.
 
 The comparison of a whole run with a parallel one, test id by test id, is in CONTRIBUTING.md; it takes
-as long as the suite, so it is a command rather than a test. It was made for both editions' lanes before
-the workflows were switched to parts (the commit that did so says with what result).
+as long as the suite, so it is a command rather than a test. It was made on both editions' lanes, and
+tests/data/durations.json was recorded from its whole runs: the commit that recorded them says with what
+result.
 """
 from __future__ import annotations
 
