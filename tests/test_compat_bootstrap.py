@@ -302,6 +302,7 @@ class WholeScriptTests(unittest.TestCase):
         shutil.copyfile(ROOT / ".codex-plugin" / "plugin.json", root / ".codex-plugin" / "plugin.json")
         release = json.loads((ROOT / "scripts" / "release.json").read_text(encoding="utf-8"))
         release["latest"] = "https://127.0.0.1:1/releases/latest"
+        release["releases"] = "https://127.0.0.1:1/releases/list"
         release["download"] = "https://127.0.0.1:1/releases/download/v{version}/"
         (root / "scripts" / "release.json").write_text(json.dumps(release), encoding="utf-8")
         cls.script = root / "scripts" / "bootstrap.ps1"
@@ -400,7 +401,8 @@ class UpdateCheckWholeScriptTests(unittest.TestCase):
         (root / "scripts" / "bootstrap.ps1").write_text(text, encoding="utf-8")
         cls.release = json.loads((ROOT / "scripts" / "release.json").read_text(encoding="utf-8"))
         release = dict(cls.release, latest="https://127.0.0.1:1/releases/latest",
-                       download="https://127.0.0.1:1/releases/download/v{version}/")
+                       download="https://127.0.0.1:1/releases/download/v{version}/",
+                       releases="https://127.0.0.1:1/releases/list")
         (root / "scripts" / "release.json").write_text(json.dumps(release), encoding="utf-8")
         cls.script = root / "scripts" / "bootstrap.ps1"
         manifest = json.loads((ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8-sig"))
@@ -438,8 +440,13 @@ class UpdateCheckWholeScriptTests(unittest.TestCase):
         self.assertIn("compatibility: unavailable", done.stdout)
         self.assertLess(done.stdout.index("compatibility: "), done.stdout.index("update: "))
         self.assertIn("no installation here", done.stdout)
-        self.assertEqual([request[0] for request in requests], ["Head"],
+        # The question, then the list of releases for a pre-release (v0.6.11), which this stub
+        # answers with no list - and nothing for the data in between.
+        self.assertEqual([request[:2] for request in requests],
+                         [["Head", "https://127.0.0.1:1/releases/latest"],
+                          ["Get", "https://127.0.0.1:1/releases/list"]],
                          "with nothing to validate it, the data is not asked for")
+        self.assertNotIn("prerelease:", done.stdout)
 
     def test_an_installation_is_told_the_host_and_given_only_the_time_that_is_left(self):
         home = Path(self.folder.name) / "installed"
@@ -453,11 +460,14 @@ class UpdateCheckWholeScriptTests(unittest.TestCase):
         self.assertIn("update: current " + self.version, done.stdout)
         self.assertIn("Asking raw.githubusercontent.com for the Codex compatibility data", done.stdout)
         self.assertIn("compatibility: unavailable", done.stdout)
-        self.assertEqual(len(requests), 2, requests)
+        # The question, the data, and then the list of releases (v0.6.11): the refresh keeps its
+        # place, and its share of the check's time is taken before the list's.
+        self.assertEqual(len(requests), 3, requests)
         method, uri, timeout = requests[1] if len(requests[1]) == 3 else [""] + requests[1]
         self.assertEqual(uri, "https://127.0.0.1:1/codex_compat.json")
         self.assertLessEqual(int(timeout), 30, "a share of the check's time, not the refresh's own 60 s")
         self.assertGreaterEqual(int(timeout), 5)
+        self.assertEqual(requests[2][:2], ["Get", "https://127.0.0.1:1/releases/list"])
         self.assertFalse((home / "config").exists(), "nothing the validator did not accept is kept")
 
 

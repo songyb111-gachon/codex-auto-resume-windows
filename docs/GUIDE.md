@@ -35,7 +35,7 @@ v0.6.0).
 | **Configure it** | a Windows window from the Start Menu — from v0.6.0, a Dashboard whose settings are one of its six pages — a settings panel inside Codex, or the command line |
 | **Languages** | English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia — in the Dashboard, the notification-area popup, Windows notifications, the panel inside Codex and the continuation message sent to Codex. It follows Windows unless you choose one; see [Languages](#languages) |
 | **Tells you** | Notifications when a task is interrupted, when recovery starts, how it went, and when it gives up - from v0.6.5 as a card of the product's own beside the notification area, with Windows' own notification wherever a card must not show. While the watcher runs it also shows a notification-area icon, whose tooltip says whether recovery is paused, how many recoveries are waiting, how many are running in Codex, and how long until the next check |
-| **Privacy** | no telemetry, no analytics, no automatic update check, never reads your credentials. *Check for updates* in the window asks GitHub which release is newest, and only when you press it; it and *Refresh compatibility data* also fetch the Codex compatibility data from raw.githubusercontent.com, sending nothing about your machine. The watcher has no network code; the usage check, the resumed turn and what the plugin's tools and commands return in a conversation go to OpenAI through Codex, as Codex's traffic always does; setup downloads the release from GitHub; and the v0.5.7 installer has Codex refresh every Git marketplace you have configured (naming only this one is new in v0.6.0) |
+| **Privacy** | no telemetry, no analytics, no automatic update check, never reads your credentials. *Check for updates* in the window asks GitHub which release is newest - and, from v0.6.11, whether a newer pre-release exists, which it installs only if you say yes - and only when you press it; it and *Refresh compatibility data* also fetch the Codex compatibility data from raw.githubusercontent.com, sending nothing about your machine. The watcher has no network code; the usage check, the resumed turn and what the plugin's tools and commands return in a conversation go to OpenAI through Codex, as Codex's traffic always does; setup downloads the release from GitHub; and the v0.5.7 installer has Codex refresh every Git marketplace you have configured (naming only this one is new in v0.6.0) |
 
 > **One honest limitation, up front.** Codex has to currently have that conversation open for a
 > recovery to be delivered. If the app restarted since, open the conversation once and recovery
@@ -163,6 +163,18 @@ copy of the plugin waits until you close the ChatGPT/Codex app and run the insta
 v0.6.11, when the installation changed edition, the installer says which edition that copy still is,
 and the Dashboard's Diagnostics says so too until the copy is replaced. `Uninstall.cmd`, or asking
 Codex to remove it, removes it; see [Uninstall](#uninstall) for what each route leaves behind.
+
+**Check for updates**, on the Dashboard's Diagnostics page, asks GitHub whether a newer release has
+been published and offers to install it. From v0.6.11 it also looks for a newer *pre-release*: an
+`-alpha` or `-beta` build published before its release is finished, and tested less than a release.
+When there is one newer than both the version you have and the newest release, and no release to
+offer first, it asks whether to install it - and **Not now** is the button Enter presses. Saying yes
+installs that pre-release over the version you have, in the edition you have, after checking it
+against the checksum published beside it, and keeps your settings, your pause, everything waiting
+and the sign-in choice. Nothing else installs a pre-release: not the watcher, not the panel inside
+Codex and not Codex's tools, and `scripts/bootstrap.ps1 -Update` still installs releases only. From
+a command line, `-CheckOnly` prints the pre-release it found on a line of its own
+(`prerelease: v<version>`), and `-Version <version>` installs it.
 
 Afterwards, change anything from **Start Menu → Codex Auto Resume**, or by asking Codex to
 *open auto resume settings*.
@@ -1276,12 +1288,14 @@ to wherever your other Git marketplaces are hosted:
   after that, `Install.cmd` downloads nothing itself, but it does ask Codex to refresh
   marketplaces (next item).
 - **GitHub, when you ask.** *Check for updates* on the Diagnostics page asks github.com which
-  release is newest, with one `HEAD` request that reads no page. From v0.6.5, *Refresh
+  release is newest, with one `HEAD` request that reads no page. From v0.6.11 it then reads
+  GitHub's list of this repository's ten newest releases from api.github.com, with one `GET` that
+  carries nothing about your machine, for a newer pre-release, which it only offers. From v0.6.5, *Refresh
   compatibility data* on the same page - and a *Check for updates* that github.com answered -
   fetches the Codex compatibility data with one `GET` to one fixed address on
   raw.githubusercontent.com, with nothing about your machine in it; this installation's own
-  validator keeps it only if it is valid, and it can only make the watcher more careful. Neither
-  happens unless you ask for it. What other people report about a Codex version is not fetched at
+  validator keeps it only if it is valid, and it can only make the watcher more careful. None of
+  it happens unless you ask for it. What other people report about a Codex version is not fetched at
   all: its counts come with the release, and your own report reaches GitHub only as a pull request
   you open with the separate reporter.
 - **Marketplace hosts, while an installer runs.** v0.6.0 names only

@@ -9,7 +9,10 @@ It is checked in six places, and each says it applies the rule the others do:
 the bootstrap's Get-PluginVersion (the version it splices into a URL) and Get-VersionParts (the
 one it compares), the settings window's build (build/make_gui.ps1), the release workflow's build
 job, the order the published bootstraps are checked in (build/legacy_bootstraps.py), and the
-version the product reads its compatibility data as (compat/files.py, product_version).
+version the product reads its compatibility data as (compat/files.py, product_version). Its
+pre-releases alone are read in two more (v0.6.11): the bootstrap's Get-PrereleaseVersion, for the
+update check's offer and -Version, and the settings window's PrereleaseLine, which
+tests/test_gui_update.py holds to this same table.
 
 They disagreed at the edges, and each edge is a case below. PowerShell's `$` matches before a final
 line break as well as at the end, so every PowerShell check took `0.6.11-beta` followed by a
@@ -92,7 +95,8 @@ Set-StrictMode -Version 2.0
 $errors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile($env:CAR_BOOTSTRAP, [ref]$null, [ref]$errors)
 if ($errors -and $errors.Count) { throw 'bootstrap.ps1 does not parse' }
-$wanted = @('Read-Json', 'Get-PluginVersion', 'Get-VersionParts', 'Compare-ProductVersion')
+$wanted = @('Read-Json', 'Get-PluginVersion', 'Get-VersionParts', 'Compare-ProductVersion',
+            'Get-PrereleaseVersion', 'Format-UnreadVersion')
 foreach ($node in $ast.FindAll({ param($n)
         $n -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)) {
     if ($wanted -contains $node.Name) { Invoke-Expression $node.Extent.Text }
@@ -115,6 +119,7 @@ foreach ($version in $input_.versions) {
                             (New-Object Text.UTF8Encoding($false)))
     try { $null = Get-PluginVersion; $answer.plugin = $true } catch { $answer.plugin = $false }
     try { $null = Get-VersionParts $version; $answer.parts = $true } catch { $answer.parts = $false }
+    try { $answer.prerelease = [string](Get-PrereleaseVersion $version) } catch { $answer.prerelease = $null }
     foreach ($name in $lines.Keys) {
         $answer[$name] = [bool](& $lines[$name] $version $input_.lines.$name.pattern)
     }
@@ -204,6 +209,15 @@ class PowerShellTests(unittest.TestCase):
             for j, right in enumerate(ORDER):
                 with self.subTest(left=left, right=right):
                     self.assertEqual(next(signs), (i > j) - (i < j))
+
+    def test_the_bootstrap_offers_and_installs_exactly_the_rules_pre_releases(self):
+        """v0.6.11: Get-PrereleaseVersion, which reads a tag in the list of releases for the update
+        check's offer and the version -Version installs, takes the rule's pre-releases and nothing
+        else - not a release, which is no pre-release - and gives back exactly what it was given."""
+        verdicts = self.verdicts("prerelease")
+        for version, accepted in CASES:
+            with self.subTest(ascii(version)):
+                self.assertEqual(verdicts[version], version if accepted and "-" in version else None)
 
     def test_the_windows_build_takes_exactly_the_rule(self):
         self.assertEqual(self.lines["make_gui"]["operator"], "-cnotmatch")

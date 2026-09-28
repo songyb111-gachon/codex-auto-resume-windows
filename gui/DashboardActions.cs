@@ -33,6 +33,15 @@ namespace CodexAutoResume
         /// where those two would be the same word, as they are for the Pending page's own Cancel.
         private bool Say(string text, string affirm)
         {
+            return Dialog(text, affirm, null);
+        }
+
+        /// Say, and the one question whose safe answer is the default (v0.6.11): with `away`, the
+        /// dismissing button says those words, wears the accent and is what Enter presses and where the
+        /// keyboard starts, while the button that acts keeps its place on the right. The update check's
+        /// offer of a pre-release asks this way, so a reflex Enter keeps the version that is installed.
+        private bool Dialog(string text, string affirm, string away)
+        {
             using (var dialog = new Form())
             {
                 dialog.Text = "Codex Auto Resume";
@@ -104,6 +113,7 @@ namespace CodexAutoResume
                 // then inset by the same 16 as the sentence above it.
                 buttons.Padding = Pad(0, 12, 16, 16);
                 Button accept, dismiss;
+                bool careful = affirm != null && away != null;
                 if (affirm == null)
                 {
                     accept = dismiss = MakeButton(S("action.close", "Close"), true, delegate { dialog.Close(); });
@@ -111,21 +121,27 @@ namespace CodexAutoResume
                 }
                 else
                 {
-                    accept = MakeButton(affirm, true, delegate { said = true; dialog.Close(); });
-                    string away = S("action.cancel", "Cancel");
-                    if (string.Equals(away, affirm, StringComparison.CurrentCultureIgnoreCase))
-                        away = S("action.close", "Close");
-                    dismiss = MakeButton(away, false, delegate { dialog.Close(); });
+                    accept = MakeButton(affirm, !careful, delegate { said = true; dialog.Close(); });
+                    if (!careful)
+                    {
+                        away = S("action.cancel", "Cancel");
+                        if (string.Equals(away, affirm, StringComparison.CurrentCultureIgnoreCase))
+                            away = S("action.close", "Close");
+                    }
+                    dismiss = MakeButton(away, careful, delegate { dialog.Close(); });
                     // Right to left, so the button that does the thing is the rightmost.
                     buttons.Controls.Add(accept);
                     buttons.Controls.Add(dismiss);
                 }
                 dialog.Controls.Add(buttons);
-                dialog.AcceptButton = accept;
+                // Enter presses the accent button: the one that acts, or where the safe answer is the
+                // default, the one that does not.
+                Button first = careful ? dismiss : accept;
+                dialog.AcceptButton = first;
                 dialog.CancelButton = dismiss;     // which is also what Escape presses
-                // The keyboard starts on the button that acts, not on the words: a dialog hands the
-                // focus to its first control, and where the words are in a well that is the well.
-                dialog.ActiveControl = accept;
+                // The keyboard starts on that button, not on the words: a dialog hands the focus to its
+                // first control, and where the words are in a well that is the well.
+                dialog.ActiveControl = first;
 
                 dialog.ClientSize = new Size(width + 2 * pad, room + pad + buttons.PreferredSize.Height);
                 dialog.ShowDialog(this);

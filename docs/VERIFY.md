@@ -119,8 +119,10 @@ them disagrees, do not extract it: delete the file and open an issue with the ve
 the values you got.
 
 A pre-release - a tag with a suffix, such as `vX.Y.Z-alpha` - is never in the pin table either, and
-that is deliberate: the table's keys are releases, and nothing is ever served a pre-release, because
-`releases/latest` does not answer with one. For a pre-release, steps 1, 2 and 4 are the whole check,
+that is deliberate: the table's keys are releases, and `releases/latest` does not answer with a
+pre-release. From v0.6.11 the Dashboard's update check can offer a newer one, and installs it only
+when you say yes, checked against the `.sha256` published beside it - step 1 of the list above, done
+for you. For a pre-release, steps 1, 2 and 4 are the whole check,
 with `--source-ref refs/tags/vX.Y.Z-alpha` in step 4, and step 3 does not apply.
 
 v0.5.0 and v0.5.1 predate the `sha256` pin table and have no entry. For them only the `.sha256`
@@ -420,7 +422,9 @@ If either one blocks you, please open an issue naming the file and the message.
   `scripts/release.json`, which is the release published at the tag `v0.6.6` and neither of those -
   so a download taken from either pre-release's page fails the comparison, which is the comparison
   doing its job. Nothing fetches them: the update check reads the tag out of the URL
-  `releases/latest` ends at and accepts `vMAJOR.MINOR.PATCH` alone.
+  `releases/latest` ends at and accepts `vMAJOR.MINOR.PATCH` alone, and the pre-release it can
+  offer from v0.6.11 has to be newer than both the version installed and the newest release, which
+  these two never are.
 
 - **The releases are not GitHub immutable releases.** GitHub reports every release from
   v0.5.0 through v0.6.0 as not immutable, v0.6.0 included - the API was asked after it was

@@ -114,7 +114,7 @@ class RefreshRouteTests(unittest.TestCase):
         self.assertLess(after.index('StartsWith("refreshed ", StringComparison.Ordinal)'), after.index("CallOnce"),
                         "only after new data came in")
         self.assertEqual((self.dashboard + self.window).count("CheckAfterRefresh("), 3, "defined once, called by the two checks")
-        for caller in ("private void CheckForUpdates()", "private void OfferUpdate("):
+        for caller in ("private void CheckForUpdates()", "private void InstallUpdate("):
             with self.subTest(caller):
                 body = method(self.dashboard, caller)
                 worker = body.index("QueueUserWorkItem")
@@ -134,10 +134,10 @@ class RefreshRouteTests(unittest.TestCase):
                         "let go before the refresh, so an installation that starts meanwhile is not turned away")
 
     def test_an_update_checks_compatibility_line_reaches_the_card(self):
-        for caller in ("private void CheckForUpdates()", "private void OfferUpdate("):
+        for caller in ("private void CheckForUpdates()", "private void InstallUpdate("):
             with self.subTest(caller):
                 body = method(self.dashboard, caller)
-                self.assertIn("out compatibility);", body)
+                self.assertIn("out compatibility, out prerelease);", body)
                 self.assertIn("ReportCompatibilityLine(compatibility, live);", body)
         run = self.dashboard[self.dashboard.index("private static void RunBootstrap"):]
         run = run[:run.index("\n        /// The one-line fact")]

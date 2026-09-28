@@ -240,9 +240,10 @@ So, once the release is up:
 3. Put that digest in `scripts/release.json` under the version, and commit.
 
 A planned pre-release - a suffixed tag such as `v0.6.9-alpha` - is not pinned at all. The
-table's keys are releases, `releases/latest` never answers with a pre-release, so nothing is
-served one, and the check that a tagged version carries a pin is told about it by the
-`prerelease` list in `scripts/release.json` instead. That list may name the version under
+table's keys are releases, `releases/latest` never answers with a pre-release, and the check that
+a tagged version carries a pin is told about it by the `prerelease` list in `scripts/release.json`
+instead. From v0.6.11 the update check can offer a newer pre-release, and installs it only on a
+person's yes, against the `.sha256` published beside it - the weaker case below, said as such. That list may name the version under
 development and nothing else, so the next bump has to remove the entry
 (`tests/test_convergence.py` fails until it does).
 

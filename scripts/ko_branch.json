@@ -57,20 +57,20 @@
   ],
   "reviewed": {
     "docs/CHANGELOG.md": "1dd178e893a8b1d4ca3b8ee7f51c7bea3ecc30194613488242609ebb3d674b69",
-    "docs/CONTRIBUTING.md": "8ae0e141d25bb03aecfedd1e204f80efba9b4c883ba9864bf909890fdd62e387",
+    "docs/CONTRIBUTING.md": "78cd59199715d4e0d3732f4af3ad4dbc17a33a5a34583ff8234bd81acc8e3fbd",
     "docs/CONTRIBUTORS.md": "29a99a735aec90caf76898eadc6cbbd3e8250a39aa832996d6ab9dfe63638c7f",
-    "docs/PRIVACY.md": "674410dcf9bc99ae85001f1b570f58b9a1bdf947592b8ac2fcb58a5216defb20",
+    "docs/PRIVACY.md": "ed59146d460b581b54a1c1fc62f5724218370b29cfe7deee570679a0efbdddac",
     "README.md": "48c5b9db8771de588ca7bcbc5b01403925695845103f95b5cd6a37513e1f201d",
-    "docs/SECURITY.md": "6783785314059bc64dc3ff44f7fd7ce0eb06209bbefbae3b1606681ec071585f",
+    "docs/SECURITY.md": "9f791ab8b60fdcb71c8144a4a840b8bca658cea597cf1878a2b6cd744440d5b4",
     "docs/SUPPORT.md": "7833488b0467b1afa997380e3cc9c0f6a3b1cfa25d488db50f9ec0774c4c08e4",
     "docs/BRAND.md": "42a8ce1d0639dbed62fc7bab91d1f663d5a0775e4f666f8bb13aabd4c085ef6c",
     "docs/COMPARISON.md": "6e16cac43ed286434f100005c3d3ffcbae083088b2a5729d5459064ee8fd5385",
     "docs/DEVELOPMENT.md": "e62cfbe43c855d5c87bfce8e0d69eba649f625f3f1d508818d8126de723b73de",
-    "docs/PLUGIN.md": "c497ee1de01c42f6b95a8646666f60c7034ee7326dd97fceb6bd25342b123c63",
-    "docs/VERIFY.md": "3ed175771fafa8ab8bb06147971f7baac760ef46691185fa0cc568237b31e127",
-    "docs/FEATURE_MATRIX.md": "73a82cbc1ee9868ffda2cb4d108430ac586f508d01ba1333b1ccd843c2465565",
+    "docs/PLUGIN.md": "69288207da1276fa86f6b6bf83adb2420a6adebe72b6e67ae2d52eecee63835d",
+    "docs/VERIFY.md": "2756a47af8d5b5b1539f7dfd18d645a5f8f803ec2d266176e83629b6125faf57",
+    "docs/FEATURE_MATRIX.md": "8ae22ce2e55c00172b59db9d8755cef0f38079f779adce4041a448e6f49bcd35",
     "docs/LIVE_ACCEPTANCE.md": "9e09353eefc136478a2f4d3cce1dffe916f82d1a7bd6deeafd567951838265f6",
     "docs/ROADMAP.md": "77cfb8a1e8c3f8d000f9d3c624e1611b34614757fdb167df6239884fa7a0c4ba",
-    "docs/GUIDE.md": "31f676074ff762eae33ed092dd671c3cda0bed4db4106ffa82c092858eb9ab01"
+    "docs/GUIDE.md": "a3b775e280b1512bc02c412c553c45ef789ed5bfbaca94e7a722bd30afca360d"
   }
 }

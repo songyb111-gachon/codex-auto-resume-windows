@@ -14,10 +14,12 @@
 
     What it will fetch
       * Exactly one URL shape, built from constants in scripts/release.json and a
-        version this script chose. No input becomes part of a URL. An ordinary run
-        fetches the version in the plugin's own manifest and nothing else; -Update is
-        the single exception, and the version it fetches is not an input either - it is
-        three integers read out of a redirect under this exact repository.
+        version this script chose. An ordinary run fetches the version in the plugin's
+        own manifest and nothing else. -Update fetches the version it read out of a
+        redirect under this exact repository, as three integers. -Version fetches the one
+        pre-release a person said yes to when the update check offered it, and what was
+        typed never reaches the URL as typed: only a pre-release in this product's own
+        grammar is accepted, and it is rebuilt from its integers and one of two words.
       * Over HTTPS, with TLS 1.2 at minimum, from github.com - and the final response
         URI has to be one of the three hosts in $AllowedHosts below, because a release
         download redirects to GitHub's object storage and nowhere else.
@@ -56,11 +58,29 @@
       from those three integers, so the only thing that crosses from the network into a
       download URL is arithmetic.
 
-      An update is refused unless it is strictly newer, compared as three integers and
-      never as text. A local build ahead of everything published is reported as that and
-      left alone. Everything an ordinary install verifies - the checksum, the contents,
-      the version inside the archive - is verified for an update too, and it goes through
-      the same installer, which keeps the state and the decisions already on the machine.
+      An update is refused unless it is strictly newer, compared as numbers and never as
+      text. A local build ahead of everything published is reported as that and left
+      alone. Everything an ordinary install verifies - the checksum, the contents, the
+      version inside the archive - is verified for an update too, and it goes through the
+      same installer, which keeps the state and the decisions already on the machine.
+
+    Offering a pre-release
+      releases/latest never names a pre-release, so -CheckOnly asks one more question once
+      github.com has answered the first: one GET to GitHub's list of this repository's
+      releases (`releases` in scripts/release.json, api.github.com, unauthenticated, the
+      ten newest). It looks for the newest one that is published, not a draft, marked a
+      pre-release, tagged vMAJOR.MINOR.PATCH-alpha or -beta with a stage's number, and
+      newer than both the installed version and the newest release. It says so on a line
+      of its own, `prerelease: v<version>`, and nothing else in the answer changes: a list
+      that cannot be read, is too large or is malformed offers nothing, and the `update:`
+      line and the exit code are the ones the first question gave. A redirect is not
+      followed, so this request goes to api.github.com and nowhere else.
+
+      Nothing installs a pre-release unless a person says yes to it: the settings window
+      asks, and its yes runs -Version with the version offered. -Version installs only a
+      pre-release newer than what is installed, over an installation, in its edition and
+      keeping its state; a pre-release is never pinned, so it is verified against the
+      .sha256 published beside it.
 
     Which edition it installs
       There are two, and an installation is one or the other: the advanced edition is the
@@ -106,6 +126,7 @@
          contents checks apply, because there is no sidecar to fetch for a local file.
          Add -CheckOnly to ask whether a newer release exists and install nothing.
          Add -Update to install one if there is.
+         Add -Version <pre-release> to install the pre-release -CheckOnly offered.
          Add -Compatibility to refresh the Codex compatibility data and nothing else.
          Add -Edition Standard or -Edition Advanced to choose the edition; over the other
          edition, add -Force as well, which is what replacing it takes.
@@ -121,7 +142,11 @@ param(
     # A closed word, not a value: it only chooses which of two constant archive names is
     # fetched, and nothing of what was typed reaches a URL.
     [ValidateSet('Standard', 'Advanced')]
-    [string]$Edition
+    [string]$Edition,
+    # The pre-release a person said yes to when the update check offered it. Never spliced as
+    # typed: Get-PrereleaseVersion accepts a pre-release in this product's grammar alone and
+    # rebuilds it from its integers and one of two words.
+    [string]$Version
 )
 
 # Started before anything else runs, so an update check can tell how much of its caller's
@@ -156,6 +181,17 @@ $LookupAllowanceSeconds = 15
 $ValidatorAllowanceSeconds = 10
 $CompatibilityCheckTimeoutMax = 30
 $CompatibilityCheckTimeoutMin = 5
+
+# The update check's question about pre-releases: GitHub's list of this repository's releases,
+# on its API host, which is allowed for this request alone - the archive's list above does not
+# grow. The list is the one body this script parses, so a larger one is refused before it is,
+# and a malformed one offers nothing. It shares the check's time too, after the refresh, so it
+# can make the check neither late nor "running": what is left of $CheckBudgetSeconds after a
+# name lookup, at most $ReleasesTimeoutMax, and not attempted under $ReleasesTimeoutMin.
+$ReleasesHosts = @('api.github.com')
+$ReleasesMaxChars = 2097152
+$ReleasesTimeoutMax = 15
+$ReleasesTimeoutMin = 5
 
 # What -CheckOnly and -Update answer with. Four codes, because there are four answers and
 # a caller that has to tell them apart should not have to read prose to do it. "Could not
@@ -377,6 +413,84 @@ function Get-NewestPublishedVersion {
     return ([string][int]$parts[0]) + '.' + ([string][int]$parts[1]) + '.' + ([string][int]$parts[2])
 }
 
+function Get-PrereleaseVersion {
+    <#
+        A pre-release's version as this product writes it, rebuilt, or a throw: MAJOR.MINOR.PATCH,
+        then -alpha or -beta, then a stage's later number .2 to .999 - the rule every check of this
+        product's version applies (tests/test_version_rule.py), less the release, which is not a
+        pre-release. What comes back is made of integers and one of two literal words, and it has to
+        be exactly what came in: a leading zero is a tag this product never makes, and rebuilding it
+        would name a different tag from the one that was read or offered.
+    #>
+    param([string]$Text)
+    if ($Text -cnotmatch '^([0-9]{1,6})\.([0-9]{1,6})\.([0-9]{1,6})-(alpha|beta)(?:\.([2-9]|[1-9][0-9]{1,2}))?\z') {
+        throw ('Not a pre-release this product publishes: ' + (Format-UnreadVersion $Text))
+    }
+    $word = 'beta'
+    if ($Matches[4] -ceq 'alpha') { $word = 'alpha' }
+    $rebuilt = ([string][int]$Matches[1]) + '.' + ([string][int]$Matches[2]) + '.' + ([string][int]$Matches[3]) + '-' + $word
+    if ($Matches[5]) { $rebuilt += '.' + ([string][int]$Matches[5]) }
+    if ($rebuilt -cne $Text) { throw ('Not a pre-release this product publishes: ' + (Format-UnreadVersion $Text)) }
+    return $rebuilt
+}
+
+function Get-NewerPrerelease {
+    <#
+        The newest pre-release this repository has published that is newer than both $Installed and
+        $Stable, the newest release - or $null where there is none. It throws where the list cannot be
+        read, and the caller takes that as nothing to offer, never as an answer about the release.
+
+        One GET, unauthenticated, to the constant `releases` in scripts/release.json. No redirect is
+        followed, the answer has to come from api.github.com for this exact owner and repository, and
+        a body over $ReleasesMaxChars is refused before it is parsed. An entry counts only when it is
+        published (`draft` false), a pre-release (`prerelease` true) and tagged `v` and a version
+        Get-PrereleaseVersion accepts; anything else in the list, or about an entry, is passed over.
+    #>
+    param($Release, [string]$Installed, [string]$Stable, [int]$TimeoutSec = 15)
+    foreach ($name in @('owner', 'repo', 'releases')) {
+        if (-not $Release.PSObject.Properties.Match($name).Count) {
+            throw ('scripts/release.json has no "' + $name + '", so there is no list to read.')
+        }
+    }
+    $response = Invoke-WebRequest -Uri $Release.releases -UseBasicParsing -Method Get `
+                                  -MaximumRedirection 0 -TimeoutSec $TimeoutSec
+    Assert-TrustedHost -Response $response -What 'The list of releases' -Hosts $ReleasesHosts
+    $final = Get-FinalUri -Response $response
+    # The literal owner and repository, as the release page's are: another repository's list says
+    # nothing about this one.
+    $expected = '/repos/' + $Release.owner + '/' + $Release.repo + '/releases'
+    if ($final.AbsolutePath -cne $expected) {
+        throw ('The list of releases came from outside this repository: ' + $final.AbsolutePath)
+    }
+    if (-not $response.PSObject.Properties.Match('Content').Count) { throw 'The list of releases was empty.' }
+    $body = [string]$response.Content
+    if ($body.Length -gt $ReleasesMaxChars) { throw 'The list of releases is larger than this script reads.' }
+    if (-not $body.TrimStart().StartsWith('[', [StringComparison]::Ordinal)) {
+        throw 'The list of releases is not a list.'
+    }
+    # Windows PowerShell hands a JSON list back as one array and PowerShell 7 as its items, so
+    # both are made into the same list here.
+    $list = @(ConvertFrom-Json -InputObject $body)
+    if ($list.Count -eq 1 -and $list[0] -is [array]) { $list = @($list[0]) }
+    $best = $null
+    foreach ($entry in $list) {
+        if ($entry -isnot [Management.Automation.PSCustomObject]) { continue }
+        $fields = $entry.PSObject.Properties
+        if (-not $fields.Match('draft').Count -or -not $fields.Match('prerelease').Count -or
+            -not $fields.Match('tag_name').Count) { continue }
+        if ($entry.draft -isnot [bool] -or $entry.draft) { continue }
+        if ($entry.prerelease -isnot [bool] -or -not $entry.prerelease) { continue }
+        $tag = $entry.tag_name
+        if ($tag -isnot [string] -or -not $tag.StartsWith('v', [StringComparison]::Ordinal)) { continue }
+        $candidate = $null
+        try { $candidate = Get-PrereleaseVersion $tag.Substring(1) } catch { continue }
+        if ((Compare-ProductVersion -Left $candidate -Right $Installed) -le 0) { continue }
+        if ((Compare-ProductVersion -Left $candidate -Right $Stable) -le 0) { continue }
+        if ($null -eq $best -or (Compare-ProductVersion -Left $candidate -Right $best) -gt 0) { $best = $candidate }
+    }
+    return $best
+}
+
 function Get-Remote {
     param([string]$Uri, [string]$OutFile, [string]$What, [string[]]$Hosts = $AllowedHosts,
           [int]$TimeoutSec = 300)
@@ -398,6 +512,17 @@ function Get-CompatibilityTimeout {
     $left = $CheckBudgetSeconds - $Elapsed - $LookupAllowanceSeconds - $ValidatorAllowanceSeconds
     $seconds = [int][Math]::Floor([Math]::Min([double]$CompatibilityCheckTimeoutMax, $left))
     if ($seconds -lt $CompatibilityCheckTimeoutMin) { return 0 }
+    return $seconds
+}
+
+function Get-ReleasesListTimeout {
+    # The seconds the update check's question about pre-releases may wait, given how long this
+    # script has already run: what is left of $CheckBudgetSeconds after a name lookup, at most
+    # $ReleasesTimeoutMax - and 0, meaning do not ask, when that is under $ReleasesTimeoutMin.
+    param([double]$Elapsed)
+    $left = $CheckBudgetSeconds - $Elapsed - $LookupAllowanceSeconds
+    $seconds = [int][Math]::Floor([Math]::Min([double]$ReleasesTimeoutMax, $left))
+    if ($seconds -lt $ReleasesTimeoutMin) { return 0 }
     return $seconds
 }
 
@@ -645,7 +770,8 @@ Write-Host ''
 Write-Host 'Codex Auto Resume - setting up'
 Write-Host ''
 
-$version = Get-PluginVersion
+# Not $version: PowerShell's names ignore case, and that one would overwrite -Version.
+$pluginVersion = Get-PluginVersion
 $release = Read-Json (Join-Path $PSScriptRoot 'release.json')
 $installHome = $env:CODEX_AUTO_RESUME_PLUGIN_HOME
 if ([string]::IsNullOrWhiteSpace($installHome)) {
@@ -656,7 +782,7 @@ $installed = Get-InstalledVersion -Home_ $installHome
 
 # ------------------------------------------------- the Codex compatibility data only
 if ($Compatibility) {
-    if ($CheckOnly -or $Update -or $ArchivePath -or $Force -or $Edition) {
+    if ($CheckOnly -or $Update -or $ArchivePath -or $Force -or $Edition -or $Version) {
         Fail 'Use -Compatibility on its own: it refreshes data and installs nothing.'
         Write-Host 'compatibility: unavailable'
         exit $ExitUnavailable
@@ -677,6 +803,17 @@ if ($CheckOnly -and $Update) {
 if (($CheckOnly -or $Update) -and $ArchivePath) {
     Fail 'A file you already have is not an update: -ArchivePath and -Update ask different questions.'
     exit $ExitUnavailable
+}
+
+# ------------------------------------------------ the pre-release a person said yes to
+# Its own run, and a narrow one: the version a check offered, over the installation that asked,
+# in that installation's edition. So it takes nothing that would widen it - not a second
+# question, not a file, not another edition, and not -Force, because a pre-release is never
+# installed over a version as new as itself or newer.
+if ($Version -and ($CheckOnly -or $Update -or $ArchivePath -or $Edition -or $Force)) {
+    Fail '-Version installs the pre-release an update check offered, and goes with -NoStartup alone.'
+    Step 'Nothing was downloaded, and nothing was changed.'
+    exit 1
 }
 
 # ------------------------------------------------------ which edition this run installs
@@ -705,13 +842,41 @@ if ($plan.Verdict -eq 'change') { Write-Host (Get-EditionStatement -From $instal
 Write-Host ('edition: ' + $targetEdition)
 
 # What gets installed. It is the plugin's own version for every ordinary run, and only
-# -Update ever moves it.
-$target = $version
+# -Update and -Version ever move it.
+$target = $pluginVersion
+if ($Version) {
+    try { $target = Get-PrereleaseVersion $Version }
+    catch {
+        Fail $_.Exception.Message
+        Step 'Nothing was downloaded, and nothing was changed.'
+        exit 1
+    }
+    # An update of an installation that asked, never a first install: a pre-release is installed
+    # only over a version it is newer than, which there has to be one of to compare.
+    $order = $null
+    if ($installed) {
+        try { $order = Compare-ProductVersion -Left $target -Right $installed } catch { $order = $null }
+    }
+    if ($null -eq $order) {
+        Fail ('There is no installation at ' + $installHome + ' whose version this copy can read, so v' + $target +
+              ' would not be an update of one.')
+        Step 'Nothing was downloaded, and nothing was changed.'
+        exit 1
+    }
+    if ($order -le 0) {
+        Fail ('v' + $installed + ' is installed at ' + $installHome + ', and the pre-release v' + $target +
+              ' is not newer than it.')
+        Step 'Nothing was downloaded, and nothing was replaced with an older or the same version.'
+        exit 1
+    }
+    Ok ('v' + $target + ' is a pre-release, tested less than a release. This machine has v' + $installed + '.')
+    Write-Host ('update: available ' + $installed + ' ' + $target)
+}
 if ($CheckOnly -or $Update) {
     # "Up to date" is a question about the version that would run, which is the installed
     # one wherever there is one. A plugin tree sitting at a version the machine has not
     # installed yet is an install that has not happened, not an answer to this.
-    $current = $version
+    $current = $pluginVersion
     if ($installed) { $current = $installed }
     Step 'Asking github.com which release is newest. Nothing is uploaded, and no page is read.'
     $newest = $null
@@ -740,6 +905,28 @@ if ($CheckOnly -or $Update) {
     # never a late one: it gets only what is left of the time the window waits for this.
     $compatibilityTimeout = Get-CompatibilityTimeout -Elapsed $ScriptClock.Elapsed.TotalSeconds
     Write-Host ('compatibility: ' + (Update-CompatibilityData -Home_ $installHome -TimeoutSec $compatibilityTimeout))
+    # The check's own second question, asked by -CheckOnly alone: is there a pre-release newer than
+    # both? Its own line, `prerelease: v<version>`, and only when there is one. It never changes the
+    # answer below, and a list that could not be read offers nothing rather than claiming anything.
+    if ($CheckOnly) {
+        $listTimeout = Get-ReleasesListTimeout -Elapsed $ScriptClock.Elapsed.TotalSeconds
+        $prerelease = $null
+        if ($listTimeout -le 0) {
+            Step 'Too little of the update check''s time is left to look for a pre-release; none is offered.'
+        } else {
+            Step 'Asking api.github.com for this repository''s list of releases, for a newer pre-release.'
+            try {
+                $prerelease = Get-NewerPrerelease -Release $release -Installed $current -Stable $newest -TimeoutSec $listTimeout
+            } catch {
+                Step 'The list of releases could not be read, so no pre-release is offered. The answer below does not depend on it.'
+            }
+        }
+        if ($prerelease) {
+            Ok ('v' + $prerelease + ' is a pre-release, newer than this machine''s v' + $current +
+                ' and the newest release, v' + $newest + ', and tested less than a release.')
+            Write-Host ('prerelease: v' + $prerelease)
+        }
+    }
     if ($order -lt 0) {
         Ok ('This is v' + $current + ', which is ahead of the newest published release, v' + $newest + '.')
         Write-Host ('update: newer-local ' + $current + ' ' + $newest)

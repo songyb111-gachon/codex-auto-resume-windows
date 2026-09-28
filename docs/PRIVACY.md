@@ -29,10 +29,20 @@ footnote. There are four kinds, and they are genuinely different:
   redirect ends at. Choosing to install then downloads that release's archive and its
   checksum, which is the same download the installer has always made.
 
-  Nothing about you is sent. The request carries no identifier this product invented — no
+  From v0.6.11 the same press makes one more request once github.com has answered, because
+  `releases/latest` never names a pre-release: one HTTPS `GET`, without signing in, to GitHub's
+  list of this repository's ten newest releases,
+  `api.github.com/repos/songyb111-gachon/codex-auto-resume-windows/releases?per_page=10`. No
+  redirect is followed, so it goes to api.github.com and nowhere else. The list is read for the
+  newest pre-release newer than both your version and the newest release; if there is one, the
+  window asks whether to install it, with *Not now* as the default, and nothing is installed unless
+  you say yes - then its archive and its checksum are downloaded as above. A list that cannot be
+  read changes nothing else in the answer.
+
+  Nothing about you is sent. Neither request carries an identifier this product invented — no
   installation id, no version of yours, no machine name, no account — and GitHub sees what
-  it sees for any anonymous request to a public page: an IP address, a time and a user
-  agent. It happens when you press the button and at no other time.
+  it sees for any anonymous request to a public page or its API: an IP address, a time and a
+  user agent. It happens when you press the button and at no other time.
 
 - **GitHub, for the Codex compatibility data, when you ask for it.** From v0.6.5 the
   Diagnostics page has a *Refresh compatibility data* button, and `scripts/bootstrap.ps1
@@ -80,7 +90,7 @@ The sections below take each in turn.
 
 Nothing, beyond the aggregate download count GitHub shows for every release (see
 [Installing it](#installing-it)) and, if you press *Check for updates* or *Refresh
-compatibility data*, one or two more anonymous requests to public GitHub addresses. There is no
+compatibility data*, up to three more anonymous requests to public GitHub addresses. There is no
 telemetry, no analytics, no crash reporting, no opt-in reporting, no automatic update check and
 no automatic compatibility refresh — no endpoint of any kind exists to
 receive them, because no collection service is operated for this project. Local statistics
@@ -672,7 +682,8 @@ language Windows lists on this machine; a language you choose is stored in
 **GitHub**, for the release download when you install or update from the plugin, or when
 you download the ZIP yourself; for the marketplace refresh described under
 [Installing it](#installing-it) when a marketplace it refreshes points at GitHub; for *Check
-for updates*; and, from v0.6.5, for the Codex compatibility data from raw.githubusercontent.com
+for updates*, which from v0.6.11 also reads this repository's list of releases from
+api.github.com; and, from v0.6.5, for the Codex compatibility data from raw.githubusercontent.com
 when you ask for it. It is subject to GitHub's own privacy practices, as any download would be.
 
 **OpenAI**, only through the official Codex app and CLI already signed in on your machine:

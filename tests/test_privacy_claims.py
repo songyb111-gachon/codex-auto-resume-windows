@@ -146,7 +146,11 @@ class CodePropertyTests(unittest.TestCase):
         # passes `chatgpt_base_url="https://chatgpt.com/backend-api/"` so a hostile local
         # config cannot redirect the queue call elsewhere. It is a constant handed to the
         # official binary, not a host this code connects to.
+        # api.github.com (v0.6.11) is here for one address alone, the update check's list of this
+        # repository's releases, which it reads for a newer pre-release; any other use of that host
+        # is still a host nobody expected.
         allowed = re.compile(r"^https://(?:github\.com|[a-z-]+\.githubusercontent\.com|"
+                             r"api\.github\.com/repos/songyb111-gachon/codex-auto-resume-windows/releases\?per_page=10$|"
                              r"chatgpt\.com/backend-api/|"
                              r"www\.python\.org|agent-plugins\.org|schemas\.microsoft\.com|"
                              r"docs\.microsoft\.com|learn\.microsoft\.com)/?", re.I)

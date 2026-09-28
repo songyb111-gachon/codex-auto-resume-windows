@@ -347,6 +347,7 @@ class EndToEndTests(unittest.TestCase):
         release = json.loads((ROOT / "scripts" / "release.json").read_text(encoding="utf-8"))
         # Refused at once, with no name to look up and no packet leaving the machine.
         release["latest"] = "https://127.0.0.1:1/releases/latest"
+        release["releases"] = "https://127.0.0.1:1/releases/list"
         (root / "scripts" / "release.json").write_text(
             json.dumps(release, indent=2), encoding="utf-8")
         cls.script = root / "scripts" / "bootstrap.ps1"
@@ -430,6 +431,7 @@ class NeverGoesBackwardsTests(unittest.TestCase):
         # Nothing is listening, so any download attempt is an unmistakable failure.
         release["download"] = "https://127.0.0.1:1/releases/download/v{version}/"
         release["latest"] = "https://127.0.0.1:1/releases/latest"
+        release["releases"] = "https://127.0.0.1:1/releases/list"
         (cls.root / "scripts" / "release.json").write_text(
             json.dumps(release, indent=2), encoding="utf-8")
         cls.script = cls.root / "scripts" / "bootstrap.ps1"
@@ -554,6 +556,7 @@ class UnknownInstalledVersionTests(unittest.TestCase):
         release = json.loads((ROOT / "scripts" / "release.json").read_text(encoding="utf-8"))
         release["download"] = "https://127.0.0.1:1/releases/download/v{version}/"
         release["latest"] = "https://127.0.0.1:1/releases/latest"
+        release["releases"] = "https://127.0.0.1:1/releases/list"
         (plugin / "scripts" / "release.json").write_text(json.dumps(release), encoding="utf-8")
         self.script = plugin / "scripts" / "bootstrap.ps1"
         self.temp = self.root / "temp"
@@ -630,7 +633,10 @@ class UnknownInstalledVersionTests(unittest.TestCase):
         self.assertEqual(code, 10, output[-1500:])
         self.assertIn("update: available 1.2.4-beta.2 1.2.5", output)
         self.assertNotIn("cannot read", output)
-        self.assertEqual(asked, ["Head"], "only the question is asked: " + output[-1500:])
+        # The question, and then the list of releases for a pre-release, which the stub cannot
+        # answer: nothing is offered, and the answer above stands.
+        self.assertEqual(asked, ["Head", "Get"], "only the two questions are asked: " + output[-1500:])
+        self.assertNotIn("prerelease:", output)
 
 
 class InstalledCopyCanAskTests(unittest.TestCase):

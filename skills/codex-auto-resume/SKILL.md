@@ -74,7 +74,9 @@ Change the edition only when the user asks for the other one by name, and say fi
 changes. Then add `-Edition Advanced -Force`, or `-Edition Standard -Force` to go back;
 the script says what the change means before it downloads anything, keeps their
 settings and pending recoveries, and starts every advanced capability off. Never add
-`-Edition` on your own, and never together with `-Update`, which refuses it.
+`-Edition` on your own, and never together with `-Update`, which refuses it. Never pass
+`-Version` either: it installs a pre-release, and a pre-release is installed only when the
+user says yes to it in the Dashboard's Check for updates.
 
 Tell the user plainly what it is about to do before running it: it downloads this
 version's release archive from the project's GitHub releases over HTTPS, checks its
