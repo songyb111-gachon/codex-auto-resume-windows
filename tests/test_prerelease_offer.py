@@ -5,12 +5,19 @@ has answered the first: GitHub's list of this repository's releases, for the new
 is published, not a draft, tagged by this product's rule and newer than both the installed version
 and the newest release. It says so on a line of its own, `prerelease: v<version>`, and nothing else
 in the answer changes: the `update:` line and the exit code are the first question's, and a list
-that cannot be read offers nothing. Only a person's yes installs one, through `-Version`, which takes
-a pre-release newer than what is installed, over an installation, in its edition, verified against
-the `.sha256` published beside it - a pre-release is never pinned.
+that cannot be read offers nothing - nor one that arrives too slowly, since the list has a deadline
+of wall-clock time and not only `-TimeoutSec`. Only a person's yes installs one, through `-Version`,
+which asks both questions again and takes only what the check would still offer: a pre-release the
+list names as published, newer than what is installed and than the newest release, over an
+installation, in its edition, verified against the `.sha256` published beside it - a pre-release is
+never pinned.
 
 The reader is lifted out of scripts/bootstrap.ps1 by the PowerShell parser and run with
-`Invoke-WebRequest` replaced, as tests/test_update_check.py does. The whole-script runs start a
+`Invoke-WebRequest` replaced, as tests/test_update_check.py does. The stand-in keeps what it is told
+and what it was asked in the environment and in files, because the reader asks it from a runspace of
+its own (Invoke-BoundedWebRequest), which carries the stand-in over by its text and nothing else of
+this session. The deadline itself is held with the real cmdlet against a server on 127.0.0.1 that
+sends its body one byte a second - loopback only. The whole-script runs start a
 scratch copy of the plugin with a scratch installation home and a scratch TEMP, never the real
 installation, in a session where `Invoke-WebRequest` writes down what it was asked and answers from
 files this test wrote; the copy's addresses point at a port nothing listens on in case the stub were
@@ -26,9 +33,12 @@ import os
 from pathlib import Path
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import unittest
 
 _HERE = str(Path(__file__).resolve().parent)
@@ -37,6 +47,7 @@ if _HERE not in sys.path:
 
 from test_edition_bootstrap import archive, stub_installer  # noqa: E402
 import editions  # noqa: E402
+import languages  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 BOOTSTRAP = ROOT / "scripts" / "bootstrap.ps1"
@@ -116,8 +127,9 @@ Set-StrictMode -Version 2.0
 $errors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile($env:CAR_BOOTSTRAP, [ref]$null, [ref]$errors)
 if ($errors -and $errors.Count) { throw 'bootstrap.ps1 does not parse' }
-$wanted = @('Get-FinalUri', 'Assert-TrustedHost', 'Get-VersionParts', 'Compare-ProductVersion',
-            'Format-UnreadVersion', 'Get-PrereleaseVersion', 'Get-NewerPrerelease', 'Get-ReleasesListTimeout')
+$wanted = @('Get-FinalUri', 'Assert-TrustedHost', 'Invoke-BoundedWebRequest', 'Get-VersionParts',
+            'Compare-ProductVersion', 'Format-UnreadVersion', 'Get-PrereleaseVersion', 'Get-PublishedPrereleases',
+            'Get-NewerPrerelease', 'Get-ReleasesListTimeout')
 foreach ($node in $ast.FindAll({ param($n)
         $n -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)) {
     if ($wanted -contains $node.Name) { Invoke-Expression $node.Extent.Text }
@@ -136,28 +148,34 @@ foreach ($name in @('$ReleasesHosts', '$ReleasesMaxChars', '$ReleasesTimeoutMax'
 }
 
 $Release = [pscustomobject]@{ owner = $env:CAR_OWNER; repo = $env:CAR_REPO; releases = $env:CAR_ASKED_URL }
-$script:Body = $null
-$script:Final = $null
-$script:Calls = @()
+# What the stand-in answers, and where it writes down what it was asked: the environment and files,
+# which the reader's own runspace shares with this one.
+$env:CAR_STUB_BODY = Join-Path $env:CAR_WORK 'body.txt'
+$env:CAR_STUB_CALLS = Join-Path $env:CAR_WORK 'calls.txt'
+$env:CAR_STUB_LARGE = [string]$ReleasesMaxChars
 function Invoke-WebRequest {
     param([string]$Uri, [switch]$UseBasicParsing, [string]$Method, [int]$MaximumRedirection,
           [int]$TimeoutSec, [string]$OutFile, [switch]$PassThru)
-    $script:Calls += ,@([string]$Method, $Uri, $MaximumRedirection, $TimeoutSec, [bool]$OutFile)
-    if ($script:Body -eq 'throw') { throw 'the network is not there' }
+    $call = ConvertTo-Json -Compress @([string]$Method, $Uri, $MaximumRedirection, $TimeoutSec, [bool]$OutFile)
+    [IO.File]::AppendAllText($env:CAR_STUB_CALLS, $call + "`n")
+    $mode = $env:CAR_STUB_MODE
+    if ($mode -eq 'throw') { throw 'the network is not there' }
     $base = New-Object psobject
-    if ($script:Final) { $base | Add-Member -MemberType NoteProperty -Name ResponseUri -Value ([Uri]$script:Final) }
+    if ($env:CAR_STUB_FINAL) { $base | Add-Member -MemberType NoteProperty -Name ResponseUri -Value ([Uri]$env:CAR_STUB_FINAL) }
     $response = New-Object psobject
     $response | Add-Member -MemberType NoteProperty -Name BaseResponse -Value $base
-    if ($script:Body -eq 'large') {
-        $response | Add-Member -MemberType NoteProperty -Name Content -Value ('[' + (' ' * $ReleasesMaxChars) + ']')
-    } elseif ($script:Body -ne 'nobody') {
-        $response | Add-Member -MemberType NoteProperty -Name Content -Value $script:Body
+    if ($mode -eq 'large') {
+        $response | Add-Member -MemberType NoteProperty -Name Content -Value ('[' + (' ' * [int]$env:CAR_STUB_LARGE) + ']')
+    } elseif ($mode -ne 'nobody') {
+        $response | Add-Member -MemberType NoteProperty -Name Content -Value ([IO.File]::ReadAllText($env:CAR_STUB_BODY))
     }
     return $response
 }
 function Read-It($body, $final, $installed, $stable) {
-    $script:Body = $body
-    $script:Final = $final
+    $env:CAR_STUB_MODE = ''
+    if (@('throw', 'large', 'nobody') -contains $body) { $env:CAR_STUB_MODE = $body }
+    else { [IO.File]::WriteAllText($env:CAR_STUB_BODY, [string]$body) }
+    $env:CAR_STUB_FINAL = [string]$final
     try {
         $found = Get-NewerPrerelease -Release $Release -Installed $installed -Stable $stable -TimeoutSec 11
         if ($null -eq $found) { return $null }
@@ -174,9 +192,9 @@ foreach ($case in $cases.places.PSObject.Properties) {
     $out.places[$case.Name] = Read-It $cases.one $case.Value '1.2.3' '1.2.3'
 }
 # The request itself: one GET to the constant, no redirect followed, the time it was given.
-$script:Calls = @()
+[IO.File]::WriteAllText($env:CAR_STUB_CALLS, '')
 $null = Read-It $cases.one $cases.final '1.2.3' '1.2.3'
-$out.calls = $script:Calls
+$out.calls = @([IO.File]::ReadAllLines($env:CAR_STUB_CALLS) | Where-Object { $_ })
 # A release.json that names no list has nothing to ask.
 $Release = [pscustomobject]@{ owner = $env:CAR_OWNER; repo = $env:CAR_REPO }
 $out.incomplete = Read-It $cases.one $cases.final '1.2.3' '1.2.3'
@@ -206,7 +224,8 @@ class ListReadingTests(unittest.TestCase):
             done = subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-Command", READER],
                                   capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300,
                                   env=dict(os.environ, CAR_BOOTSTRAP=str(BOOTSTRAP), CAR_CASES=str(written),
-                                           CAR_OWNER=OWNER, CAR_REPO=REPO, CAR_ASKED_URL=RELEASE["releases"]))
+                                           CAR_WORK=folder, CAR_OWNER=OWNER, CAR_REPO=REPO,
+                                           CAR_ASKED_URL=RELEASE["releases"]))
         cls.done = done
         cls.answer = json.loads(done.stdout) if done.returncode == 0 and done.stdout.strip() else None
 
@@ -228,8 +247,7 @@ class ListReadingTests(unittest.TestCase):
 
     def test_it_is_one_get_to_the_constant_with_no_redirect_followed(self):
         calls = self.answer["calls"]
-        if calls and not isinstance(calls[0], list):
-            calls = [calls]
+        calls = [json.loads(call) for call in ([calls] if isinstance(calls, str) else calls)]
         self.assertEqual(calls, [["Get", RELEASE["releases"], 0, 11, False]],
                          "one request, to the one address, into memory rather than a file")
 
@@ -258,6 +276,103 @@ class ListReadingTests(unittest.TestCase):
         self.assertEqual(self.answer["timeouts"]["90"], 0)
 
 
+class SlowServer:
+    """HTTP on 127.0.0.1 alone: the status line and headers at once, then the body one byte a second - the
+    list GitHub would send over a very slow link, or a server that means to hold the check up."""
+
+    def __init__(self, seconds: int):
+        self.body = b"[" + b" " * (seconds - 2) + b"]"
+        self.listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.listener.bind(("127.0.0.1", 0))
+        self.listener.listen(5)
+        self.listener.settimeout(1)
+        self.port = self.listener.getsockname()[1]
+        self.asked = 0
+        self.stopped = threading.Event()
+        threading.Thread(target=self.serve, daemon=True).start()
+
+    def serve(self):
+        while not self.stopped.is_set():
+            try:
+                connection, _ = self.listener.accept()
+            except (socket.timeout, OSError):
+                continue
+            self.asked += 1
+            threading.Thread(target=self.drip, args=(connection,), daemon=True).start()
+
+    def drip(self, connection):
+        try:
+            connection.recv(65536)
+            connection.sendall(b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\n"
+                               b"Connection: close\r\n\r\n" % len(self.body))
+            for byte in self.body:
+                if self.stopped.is_set():
+                    break
+                connection.sendall(bytes([byte]))
+                time.sleep(1)
+        except OSError:
+            pass
+        finally:
+            connection.close()
+
+    def close(self):
+        self.stopped.set()
+        self.listener.close()
+
+
+DEADLINE = r"""
+$ErrorActionPreference = 'Stop'
+Set-StrictMode -Version 2.0
+$errors = $null
+$ast = [System.Management.Automation.Language.Parser]::ParseFile($env:CAR_BOOTSTRAP, [ref]$null, [ref]$errors)
+if ($errors -and $errors.Count) { throw 'bootstrap.ps1 does not parse' }
+$wanted = @('Get-FinalUri', 'Assert-TrustedHost', 'Invoke-BoundedWebRequest', 'Get-VersionParts',
+            'Compare-ProductVersion', 'Format-UnreadVersion', 'Get-PrereleaseVersion', 'Get-PublishedPrereleases',
+            'Get-NewerPrerelease')
+foreach ($node in $ast.FindAll({ param($n)
+        $n -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)) {
+    if ($wanted -contains $node.Name) { Invoke-Expression $node.Extent.Text }
+}
+foreach ($name in @('$ReleasesHosts', '$ReleasesMaxChars')) {
+    $found = $ast.FindAll({ param($n)
+        $n -is [System.Management.Automation.Language.AssignmentStatementAst] -and $n.Left.Extent.Text -eq $name }, $true)
+    Invoke-Expression $found[0].Extent.Text
+}
+# The real cmdlet, and a list address on this machine alone.
+if ((Get-Command Invoke-WebRequest).CommandType -ne 'Cmdlet') { throw 'Invoke-WebRequest is not the cmdlet here' }
+$Release = [pscustomobject]@{ owner = 'o'; repo = 'r'; releases = $env:CAR_SLOW_URL }
+$clock = [Diagnostics.Stopwatch]::StartNew()
+$answer = 'NOTHING'
+try { $found = Get-NewerPrerelease -Release $Release -Installed '1.2.3' -Stable '1.2.3' -TimeoutSec 5; $answer = [string]$found }
+catch { $answer = 'THROWS ' + $_.Exception.Message }
+@{ answer = $answer; seconds = $clock.Elapsed.TotalSeconds } | ConvertTo-Json -Compress
+"""
+
+
+@unittest.skipUnless(POWERSHELL.is_file(), "the bootstrap is PowerShell on Windows")
+class DeadlineTests(unittest.TestCase):
+    """Under Windows PowerShell 5.1 -TimeoutSec bounds only the wait for a response to begin, and a body that
+    arrives slowly is read for as long as it keeps coming. The window waits a fixed time for -CheckOnly and
+    calls anything slower "running", so the list gets a deadline for all of it - held here with the real
+    cmdlet, against a server on 127.0.0.1 that takes 40 s to send a list of 40 bytes."""
+
+    def test_a_list_that_arrives_slowly_is_given_up_at_its_deadline(self):
+        server = SlowServer(40)
+        self.addCleanup(server.close)
+        done = subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-Command", DEADLINE],
+                              capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300,
+                              env=dict(os.environ, CAR_BOOTSTRAP=str(BOOTSTRAP),
+                                       CAR_SLOW_URL="http://127.0.0.1:%d/repos/o/r/releases" % server.port))
+        self.assertEqual(done.returncode, 0, done.stderr[-2000:])
+        answer = json.loads(done.stdout.strip().splitlines()[-1])
+        self.assertEqual(server.asked, 1, "the request reached the slow server")
+        self.assertTrue(answer["answer"].startswith("THROWS"), answer)
+        self.assertIn("did not arrive within 5 s", answer["answer"])
+        # Five seconds, a runspace to start and two to let a stopped request go: nowhere near the forty the
+        # body takes.
+        self.assertLess(answer["seconds"], 12, answer)
+
+
 # ------------------------------------------------------------------------------ the whole script
 RUN = r"""
 # Where the network was: every request is written down, and none leaves this process. HEAD - the
@@ -272,6 +387,8 @@ function global:Invoke-WebRequest {
     if ($Method -eq 'Head' -and $env:CAR_LATEST) {
         $base | Add-Member -MemberType NoteProperty -Name ResponseUri -Value ([Uri]$env:CAR_LATEST)
     } elseif ($Method -eq 'Get' -and $env:CAR_LIST) {
+        # A list that takes this long to arrive, as a slow link or a slow server makes one.
+        if ($env:CAR_LIST_SECONDS) { Start-Sleep -Seconds ([int]$env:CAR_LIST_SECONDS) }
         $base | Add-Member -MemberType NoteProperty -Name ResponseUri -Value ([Uri]$env:CAR_LIST_FINAL)
         $response | Add-Member -MemberType NoteProperty -Name Content -Value ([IO.File]::ReadAllText($env:CAR_LIST))
     } elseif ($OutFile -and $env:CAR_ZIP -and $Uri.EndsWith('.zip')) {
@@ -339,14 +456,14 @@ class ScriptRun(unittest.TestCase):
         found += sorted(self.temp.glob("codex-auto-resume-*"))
         return sorted(str(path.relative_to(self.root)) for path in found)
 
-    def run_it(self, latest=None, listed=None, **arguments):
+    def run_it(self, latest=None, listed=None, list_seconds=0, **arguments):
         self.requests.unlink(missing_ok=True)
         environment = dict(os.environ, CODEX_AUTO_RESUME_PLUGIN_HOME=str(self.home),
                            TEMP=str(self.temp), TMP=str(self.temp),
                            CAR_SCRIPT=str(self.plugin / "scripts" / "bootstrap.ps1"),
                            CAR_ARGUMENTS=json.dumps(arguments), CAR_REQUESTS=str(self.requests),
                            CAR_INSTALLED=str(self.installed), CAR_LATEST=TAG + latest if latest else "",
-                           CAR_LIST="", CAR_LIST_FINAL=LIST + "?per_page=10",
+                           CAR_LIST="", CAR_LIST_FINAL=LIST + "?per_page=10", CAR_LIST_SECONDS=str(list_seconds or ""),
                            CAR_ZIP=str(self.zip or ""), CAR_SUM=str(self.sum or ""))
         if listed is not None:
             self.listed.write_text(json.dumps(listed), encoding="utf-8")
@@ -417,6 +534,20 @@ class CheckOnlyTests(ScriptRun):
                 self.assertIn("The list of releases could not be read", output)
                 self.assertEqual([request[0] for request in asked], ["Head", "Get"])
 
+    def test_a_list_that_arrives_too_slowly_offers_nothing_and_the_answer_comes_in_time(self):
+        """The window waits 120 s for -CheckOnly and calls anything slower "running". A list that takes 200 s
+        to arrive is given up at the list's deadline, and the answer is the one github.com gave."""
+        self.installation("1.2.4")
+        started = time.monotonic()
+        code, output, asked = self.run_it(latest="v1.2.4", listed=self.ONE, list_seconds=200, CheckOnly=True)
+        seconds = time.monotonic() - started
+        self.assertEqual(code, 0, output[-1500:])
+        self.assertIn("update: current 1.2.4", output)
+        self.assertNotIn("prerelease:", output)
+        self.assertIn("The list of releases could not be read", output)
+        self.assertEqual([request[0] for request in asked], ["Head", "Get"])
+        self.assertLess(seconds, 60, "the check waited for the list: " + output[-1500:])
+
     def test_a_check_that_could_not_ask_asks_nothing_else(self):
         self.installation("1.2.4")
         code, output, asked = self.run_it(listed=self.ONE, CheckOnly=True)
@@ -437,7 +568,11 @@ class CheckOnlyTests(ScriptRun):
 
 @unittest.skipUnless(POWERSHELL.is_file(), "the bootstrap is PowerShell on Windows")
 class VersionTests(ScriptRun):
-    """-Version: the pre-release a person said yes to, and nothing wider."""
+    """-Version: the pre-release a person said yes to, and nothing wider. It asks both of the check's questions
+    again, because a release may have been published while the question was open: it installs only what the
+    check would still offer - a pre-release the list names as published, newer than the newest release."""
+
+    ASKED = [["Head", NOWHERE + "/latest"], ["Get", NOWHERE + "/list"]]
 
     def published(self, version, digest=None, edition="standard"):
         """The archive and the checksum GitHub would serve for `version`."""
@@ -450,14 +585,16 @@ class VersionTests(ScriptRun):
     def test_it_installs_that_pre_release_verified_by_its_published_checksum(self):
         self.installation("1.2.3")
         self.published("1.2.4-beta.2")
-        code, output, asked = self.run_it(Version="1.2.4-beta.2", NoStartup=True)
+        code, output, asked = self.run_it(latest="v1.2.3", listed=[entry("v1.2.4-beta.2"), entry("v1.2.4-beta")],
+                                          Version="1.2.4-beta.2", NoStartup=True)
         self.assertEqual(code, 0, output[-2000:])
         self.assertIn("update: available 1.2.3 1.2.4-beta.2", output)
         self.assertIn("tested less than a release", output)
         self.assertIn("SHA-256 matches the checksum published beside it", output)
         self.assertIn("Archive contents verified as Codex Auto Resume v1.2.4-beta.2", output)
         name = NOWHERE + "/download/v1.2.4-beta.2/CodexAutoResume-v1.2.4-beta.2-win-x64.zip"
-        self.assertEqual(asked, [["", name], ["", name + ".sha256"]], "the archive and its checksum, and nothing else")
+        self.assertEqual(asked, self.ASKED + [["", name], ["", name + ".sha256"]],
+                         "the two questions, then the archive and its checksum, and nothing else")
         # Over the installation, in its edition: the installer is told of no edition change, and
         # its own upgrade branch is what keeps the state (tests/test_installer.py).
         self.assertEqual(json.loads(self.installed.read_text(encoding="utf-8-sig")),
@@ -466,15 +603,16 @@ class VersionTests(ScriptRun):
 
     def test_it_stays_in_the_installed_edition(self):
         self.installation("1.2.3", "advanced")
-        code, output, asked = self.run_it(Version="1.2.4-alpha")
+        code, output, asked = self.run_it(latest="v1.2.3", listed=[entry("v1.2.4-alpha")], Version="1.2.4-alpha")
         self.assertEqual(code, 1, "the stub network refuses the download: " + output[-1500:])
         self.assertIn("edition: advanced", output)
-        self.assertEqual(asked, [["", NOWHERE + "/download/v1.2.4-alpha/CodexAutoResume-Advanced-v1.2.4-alpha-win-x64.zip"]])
+        self.assertEqual(asked, self.ASKED + [
+            ["", NOWHERE + "/download/v1.2.4-alpha/CodexAutoResume-Advanced-v1.2.4-alpha-win-x64.zip"]])
 
     def test_a_checksum_that_does_not_match_installs_nothing(self):
         self.installation("1.2.3")
         self.published("1.2.4-beta", digest="0" * 64)
-        code, output, _ = self.run_it(Version="1.2.4-beta")
+        code, output, _ = self.run_it(latest="v1.2.3", listed=[entry("v1.2.4-beta")], Version="1.2.4-beta")
         self.assertEqual(code, 1, output[-1500:])
         self.assertIn("does not match its published checksum", output)
         self.assertIn("Nothing was installed.", output)
@@ -484,10 +622,54 @@ class VersionTests(ScriptRun):
     def test_an_archive_of_another_version_installs_nothing(self):
         self.installation("1.2.3")
         self.published("1.2.4-beta.3")
-        code, output, _ = self.run_it(Version="1.2.4-beta.2")
+        code, output, _ = self.run_it(latest="v1.2.3", listed=[entry("v1.2.4-beta.2")], Version="1.2.4-beta.2")
         self.assertEqual(code, 1, output[-1500:])
         self.assertIn("The archive is version 1.2.4-beta.3, not 1.2.4-beta.2.", output)
         self.assertFalse(self.installed.exists(), "its installer ran")
+
+    def test_a_release_published_since_is_answered_and_nothing_is_downloaded(self):
+        """The offer was made, and before the yes a release as new or newer came out: the answer is the check's
+        own, `update: available` with that release and its exit code, and nothing is fetched."""
+        for latest, asked in (("v1.2.4", "1.2.4-beta"), ("v1.2.5", "1.2.4-beta.2"), ("v1.3.0", "1.2.9-alpha")):
+            with self.subTest(latest=latest, asked=asked):
+                shutil.rmtree(self.home, ignore_errors=True)
+                self.installation("1.2.3")
+                self.published(asked)
+                code, output, requests = self.run_it(latest=latest, listed=[entry("v" + asked)], Version=asked)
+                self.assertEqual(code, 10, output[-1500:])
+                self.assertIn("update: available 1.2.3 " + latest[1:], output)
+                self.assertNotIn("update: available 1.2.3 " + asked, output)
+                self.assertEqual(requests, self.ASKED[:1], "it asked for more than the newest release")
+                self.assertNotIn("Downloading", output)
+                self.assertFalse(self.installed.exists(), "its installer ran")
+
+    def test_only_a_pre_release_the_list_names_as_published(self):
+        self.installation("1.2.3")
+        self.published("1.2.4-beta")
+        for listed in ([], [entry("v1.2.4-beta.2")], [entry("v1.2.4-beta", draft=True)],
+                       [entry("v1.2.4-beta", prerelease=False)], [entry("v1.2.4-Beta")]):
+            with self.subTest(listed=listed):
+                code, output, requests = self.run_it(latest="v1.2.3", listed=listed, Version="1.2.4-beta")
+                self.assertEqual(code, 1, output[-1500:])
+                self.assertIn("is not a published pre-release", output)
+                self.assertEqual(requests, self.ASKED)
+                self.assertNotIn("update: available", output)
+                self.assertFalse(self.installed.exists(), "its installer ran")
+
+    def test_a_question_that_could_not_be_asked_installs_nothing(self):
+        """Could not ask is its own answer here too, and never a yes."""
+        self.installation("1.2.3")
+        self.published("1.2.4-beta")
+        for latest, listed, asked in ((None, [entry("v1.2.4-beta")], self.ASKED[:1]),
+                                      ("v1.2.3", None, self.ASKED),
+                                      ("v1.2.3", {"message": "API rate limit exceeded"}, self.ASKED)):
+            with self.subTest(latest=latest, listed=listed):
+                code, output, requests = self.run_it(latest=latest, listed=listed, Version="1.2.4-beta")
+                self.assertEqual(code, 12, output[-1500:])
+                self.assertIn("update: unavailable", output)
+                self.assertNotIn("update: available", output)
+                self.assertEqual(requests, asked)
+                self.assertFalse(self.installed.exists(), "its installer ran")
 
     def refused(self, arguments, reason, code=1):
         before = self.listing()
@@ -528,6 +710,27 @@ class VersionTests(ScriptRun):
             with self.subTest(more=more):
                 self.refused(dict(more, Version="1.2.4-beta"), "goes with -NoStartup alone")
         self.refused({"Version": "1.2.4-beta", "Compatibility": True}, "compatibility: unavailable", code=12)
+
+
+class DocsTests(unittest.TestCase):
+    """What the pages about privacy and security say the window does with what the list holds."""
+
+    def test_every_page_says_a_pre_release_is_offered_only_where_no_release_is_offered_first(self):
+        """The window offers the pre-release only where the answer is current or newer-local: where a release is
+        available it offers that, and a release declined offers nothing more. The guide said so; the privacy and
+        security pages said the window asks whenever the list holds one."""
+        window = (ROOT / "gui" / "DashboardMaintenance.cs").read_text(encoding="utf-8")
+        self.assertIn('if (answer == "available") OfferUpdate(root, script, current, latest);', window)
+        self.assertIn('else if ((answer == "current" || answer == "newer-local") && prerelease != null)', window)
+        english, korean = "no release to offer first", "먼저 제안할 릴리스가 없"
+        pages = ["docs/PRIVACY.md", "docs/SECURITY.md", "docs/GUIDE.md"]
+        if languages.both_languages():
+            pages += ["docs/PRIVACY.ko.md", "docs/SECURITY.ko.md", "docs/GUIDE.ko.md"]
+        for name in pages:
+            with self.subTest(name):
+                text = " ".join((ROOT / name).read_text(encoding="utf-8").split())
+                korean_text = name.endswith(".ko.md") or languages.generated_ko_branch()
+                self.assertIn(korean if korean_text else english, text)
 
 
 if __name__ == "__main__":

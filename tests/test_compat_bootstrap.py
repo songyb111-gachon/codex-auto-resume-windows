@@ -2,7 +2,9 @@ r"""The bootstrap's compatibility refresh: one GET, one host, one writer.
 
 The real function definitions are lifted out of `scripts/bootstrap.ps1` by the PowerShell
 parser, as tests/test_update_check.py does, into a session where `Invoke-WebRequest` is a
-stub that writes a canned body - so the shipped code runs and no test reaches the network.
+stub that writes a canned body - so the shipped code runs and no test reaches the network. The
+download is asked from a runspace of its own, with a deadline (Invoke-BoundedWebRequest), which
+carries the stub over by its text alone: so the stub keeps what it was asked in a file.
 The validator it hands the download to is the real one: this repository's own
 `controlcli compat-import`, run by the interpreter running the tests, against a scratch
 installation home.
@@ -35,7 +37,7 @@ Set-StrictMode -Version 2.0
 $errors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile($env:CAR_BOOTSTRAP, [ref]$null, [ref]$errors)
 if ($errors -and $errors.Count) { throw 'bootstrap.ps1 does not parse' }
-$wanted = @('Step', 'Get-FinalUri', 'Assert-TrustedHost', 'Get-Remote',
+$wanted = @('Step', 'Get-FinalUri', 'Assert-TrustedHost', 'Invoke-BoundedWebRequest', 'Get-Remote',
             'Update-CompatibilityData', 'Get-CompatibilityExit')
 foreach ($node in $ast.FindAll({ param($n)
         $n -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)) {
@@ -50,12 +52,17 @@ foreach ($name in @('$AllowedHosts', '$CompatibilityUrl', '$CompatibilityHosts',
     Invoke-Expression $found[0].Extent.Text
 }
 
-$script:Requests = @()
+[IO.File]::WriteAllText($env:CAR_REQUESTS, '')
 function Invoke-WebRequest {
     param([string]$Uri, [string]$OutFile, [switch]$UseBasicParsing, [switch]$PassThru,
           [int]$MaximumRedirection, [int]$TimeoutSec, [string]$Method)
-    $script:Requests += ,@($Uri, $Method, $TimeoutSec)
+    [IO.File]::AppendAllText($env:CAR_REQUESTS, (ConvertTo-Json -Compress @($Uri, $Method, $TimeoutSec)) + "`n")
     if ($env:CAR_MODE -eq 'throw') { throw 'the network is not there' }
+    # A download that is still arriving long after it was given up on: half of it is written, then it waits.
+    if ($env:CAR_MODE -eq 'slow') {
+        [IO.File]::WriteAllBytes($OutFile, [byte[]](1, 2, 3))
+        Start-Sleep -Seconds 120
+    }
     [IO.File]::WriteAllBytes($OutFile, [IO.File]::ReadAllBytes($env:CAR_BODY))
     $base = New-Object psobject
     $base | Add-Member -MemberType NoteProperty -Name ResponseUri -Value ([Uri]$env:CAR_FINAL)
@@ -71,9 +78,12 @@ function Get-Workfolders {
 $before = Get-Workfolders
 $arguments = @{ Home_ = $env:CAR_HOME; Python = $env:CAR_PYTHON; Source = $env:CAR_SOURCE }
 if ($env:CAR_TIMEOUT) { $arguments['TimeoutSec'] = [int]$env:CAR_TIMEOUT }
+$clock = [Diagnostics.Stopwatch]::StartNew()
 $answer = Update-CompatibilityData @arguments
+$seconds = $clock.Elapsed.TotalSeconds
 $leftovers = @(Get-Workfolders | Where-Object { $before -notcontains $_ })
-@{ answer = $answer; exit = (Get-CompatibilityExit $answer); requests = $script:Requests;
+$requests = @([IO.File]::ReadAllLines($env:CAR_REQUESTS) | Where-Object { $_ })
+@{ answer = $answer; exit = (Get-CompatibilityExit $answer); requests = $requests; seconds = $seconds;
    url = $CompatibilityUrl; hosts = $CompatibilityHosts; leftovers = $leftovers } |
     ConvertTo-Json -Depth 5 -Compress
 """
@@ -103,7 +113,7 @@ class RefreshFunctionTests(unittest.TestCase):
         environment = dict(os.environ, CAR_BOOTSTRAP=str(BOOTSTRAP), CAR_HOME=str(self.home),
                            CAR_PYTHON=str(python or sys.executable),
                            CAR_SOURCE=str(source or ROOT / "src"), CAR_BODY=str(self.body),
-                           CAR_FINAL=final, CAR_MODE=mode)
+                           CAR_FINAL=final, CAR_MODE=mode, CAR_REQUESTS=str(self.root / "requests.txt"))
         environment.pop("PYTHONPATH", None)
         environment.pop("CAR_TIMEOUT", None)
         if timeout is not None:
@@ -115,6 +125,8 @@ class RefreshFunctionTests(unittest.TestCase):
         lines = done.stdout.strip().splitlines()
         result = json.loads(lines[-1])
         result["printed"] = "\n".join(lines[:-1])
+        requests = result["requests"]
+        result["requests"] = [json.loads(line) for line in ([requests] if isinstance(requests, str) else requests or [])]
         return result
 
     @property
@@ -203,6 +215,16 @@ class RefreshFunctionTests(unittest.TestCase):
             requests = [requests]
         self.assertEqual([request[2] for request in requests], [17])
         self.assertEqual(result["answer"], "refreshed 4")
+
+    def test_a_download_still_arriving_at_its_deadline_is_given_up_and_leaves_nothing(self):
+        """Under Windows PowerShell 5.1 -TimeoutSec bounds only the wait for a response to begin, and a body that
+        arrives slowly is read for as long as it keeps coming - which made an update check "running" in the
+        window. The time the refresh is given is a deadline for all of it."""
+        result = self.run_probe(json.dumps(a_document()).encode("utf-8"), mode="slow", timeout=5)
+        self.assertEqual((result["answer"], result["exit"]), ("unavailable", 12))
+        self.assertLess(result["seconds"], 15, "the refresh waited for the download")
+        self.assertEqual(result["leftovers"], [] if isinstance(result["leftovers"], list) else None)
+        self.assertFalse(self.cache.exists())
 
 
 TIMEOUT_PROBE = r"""

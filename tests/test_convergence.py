@@ -552,15 +552,21 @@ class BootstrapTests(unittest.TestCase):
         calls = [i for i in range(len(self.text))
                  if self.text.startswith("Get-NewestPublishedVersion", i)
                  and i != definition + len("function ")]
-        self.assertEqual(len(calls), 1, "the resolver is reached from more than one place")
-        # And that one call sits inside the branch only a switch opens.
+        # v0.6.11: from two places, each inside a branch only a switch opens - the check, and -Version, which
+        # a person's yes to the check's offer starts and which asks the check's questions again.
+        self.assertEqual(len(calls), 2, "the resolver is reached from more places than the check and -Version")
         guarded = block(self.text, "if ($CheckOnly -or $Update) {", "    $target = $newest")
         self.assertIn("Get-NewestPublishedVersion -Release $release", guarded)
-        # v0.6.11: so does the list of releases, in -CheckOnly's part of that branch alone.
+        chosen = block(self.text, "if ($Version) {\n    try { $target = Get-PrereleaseVersion", "if ($CheckOnly -or $Update) {")
+        self.assertIn("Get-NewestPublishedVersion -Release $release", chosen)
+        # So is the list of releases: -CheckOnly's part of the check's branch, and -Version.
         self.assertEqual(len(re.findall(r"Get-NewerPrerelease -Release", self.text)), 1,
-                         "the list is read from more than one place")
+                         "the offer is made from more than one place")
         offer = block(guarded, "    if ($CheckOnly) {", "    if ($order -lt 0)")
         self.assertIn("Get-NewerPrerelease -Release $release -Installed $current -Stable $newest", offer)
+        readers = [match.start() for match in re.finditer(r"Get-PublishedPrereleases -Release", self.text)]
+        self.assertEqual(len(readers), 2, "the list is read from more places than the offer and -Version")
+        self.assertIn("Get-PublishedPrereleases -Release $release -TimeoutSec $ReleasesVersionTimeout", chosen)
 
     def test_required_contents_match_the_release_workflow(self):
         # Two lists of the same thing, in two languages, in two files. They drift.

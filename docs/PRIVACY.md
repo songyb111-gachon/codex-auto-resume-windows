@@ -34,10 +34,13 @@ footnote. There are four kinds, and they are genuinely different:
   list of this repository's ten newest releases,
   `api.github.com/repos/songyb111-gachon/codex-auto-resume-windows/releases?per_page=10`. No
   redirect is followed, so it goes to api.github.com and nowhere else. The list is read for the
-  newest pre-release newer than both your version and the newest release; if there is one, the
-  window asks whether to install it, with *Not now* as the default, and nothing is installed unless
-  you say yes - then its archive and its checksum are downloaded as above. A list that cannot be
-  read changes nothing else in the answer.
+  newest pre-release newer than both your version and the newest release; if there is one and no
+  release to offer first, the window asks whether to install it, with *Not now* as the default, and
+  nothing is installed unless you say yes. A yes asks both questions again, because a release may
+  have been published while the question was open - then that release is what you are told about,
+  and nothing is downloaded - and otherwise downloads the pre-release's archive and its checksum as
+  above. A list that cannot be read, or has not arrived within the time the check has left, changes
+  nothing else in the answer.
 
   Nothing about you is sent. Neither request carries an identifier this product invented — no
   installation id, no version of yours, no machine name, no account — and GitHub sees what

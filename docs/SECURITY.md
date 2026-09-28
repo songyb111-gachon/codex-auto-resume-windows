@@ -148,12 +148,16 @@ this product's plugin and marketplace).
   redirect followed and nothing about the machine in it. It is the one body the update check
   parses, and it is read for one thing: the newest published pre-release - not a draft, tagged
   `vMAJOR.MINOR.PATCH-alpha` or `-beta` with a stage's number - that is newer than both the version
-  installed and the newest release. A list that cannot be read, is over 2 MiB or is not a list
-  offers nothing and changes nothing else in the answer. What it finds is only offered, in a
-  question whose default button is *Not now*: a pre-release is installed only when you say yes,
-  only over an older version, in the edition you have and with your state kept, and - since no
-  pre-release is ever pinned - verified against the `.sha256` published beside it, the
-  trust-on-first-use case `docs/PLUGIN.md` describes. The watcher, the panel and the MCP tools
+  installed and the newest release. A list that cannot be read, is over 2 MiB, is not a list or
+  has not arrived within the time the check has left - a deadline for the whole request, not only
+  for its first byte - offers nothing and changes nothing else in the answer. What it finds is only
+  offered, and only where there is no release to offer first, in a question whose default button is
+  *Not now*: a pre-release is installed only when you say yes, and the yes asks both questions
+  again, so a release published while the question was open is reported instead and nothing is
+  downloaded. It is installed only while the list still names it as published and it is newer than
+  the newest release, only over an older version, in the edition you have and with your state
+  kept, and - since no pre-release is ever pinned - verified against the `.sha256` published beside
+  it, the trust-on-first-use case `docs/PLUGIN.md` describes. The watcher, the panel and the MCP tools
   never install one.
 
   No compatibility refresh runs unless you ask for it either. From v0.6.5 the Codex

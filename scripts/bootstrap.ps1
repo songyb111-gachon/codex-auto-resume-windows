@@ -16,10 +16,11 @@
       * Exactly one URL shape, built from constants in scripts/release.json and a
         version this script chose. An ordinary run fetches the version in the plugin's
         own manifest and nothing else. -Update fetches the version it read out of a
-        redirect under this exact repository, as three integers. -Version fetches the one
-        pre-release a person said yes to when the update check offered it, and what was
-        typed never reaches the URL as typed: only a pre-release in this product's own
-        grammar is accepted, and it is rebuilt from its integers and one of two words.
+        redirect under this exact repository, as three integers. -Version fetches a
+        pre-release the update check would offer, which is how a person's yes to that offer
+        reaches it, and what was typed never reaches the URL as typed: only a pre-release in
+        this product's own grammar is accepted, and it is rebuilt from its integers and one of
+        two words.
       * Over HTTPS, with TLS 1.2 at minimum, from github.com - and the final response
         URI has to be one of the three hosts in $AllowedHosts below, because a release
         download redirects to GitHub's object storage and nowhere else.
@@ -77,10 +78,18 @@
       followed, so this request goes to api.github.com and nowhere else.
 
       Nothing installs a pre-release unless a person says yes to it: the settings window
-      asks, and its yes runs -Version with the version offered. -Version installs only a
-      pre-release newer than what is installed, over an installation, in its edition and
-      keeping its state; a pre-release is never pinned, so it is verified against the
-      .sha256 published beside it.
+      asks, and its yes runs -Version with the version offered. -Version asks both questions
+      again first, because a release may have been published while the question was open, and
+      installs only what the check would still offer: a pre-release the list names as
+      published, newer than what is installed and newer than the newest release, over an
+      installation, in its edition and keeping its state. A release newer than it is answered
+      as the check answers it, `update: available`, and nothing is downloaded. A pre-release
+      is never pinned, so it is verified against the .sha256 published beside it.
+
+      Both of the check's later requests - this list and the compatibility data - are given a
+      deadline of wall-clock time, not only -TimeoutSec: under Windows PowerShell 5.1 that
+      bounds the wait for a response to begin, and a body that arrives slowly is read for as
+      long as it keeps coming (Invoke-BoundedWebRequest).
 
     Which edition it installs
       There are two, and an installation is one or the other: the advanced edition is the
@@ -116,8 +125,9 @@
       It says so before it asks: the host is named on the output, update check or not, so a
       second address is never contacted silently. And when it rides on an update check it
       gets only what is left of the time the settings window waits for that check
-      ($CheckBudgetSeconds below), so it can make the check neither late nor "running" -
-      with too little left it is not attempted, and the data already in force still applies.
+      ($CheckBudgetSeconds below), as a deadline its download cannot overrun however slowly
+      the bytes arrive, so it can make the check neither late nor "running" - with too little
+      left it is not attempted, and the data already in force still applies.
 
     Run: powershell -ExecutionPolicy Bypass -File scripts/bootstrap.ps1
          Add -Force to reinstall a version that is already present.
@@ -187,11 +197,14 @@ $CompatibilityCheckTimeoutMin = 5
 # grow. The list is the one body this script parses, so a larger one is refused before it is,
 # and a malformed one offers nothing. It shares the check's time too, after the refresh, so it
 # can make the check neither late nor "running": what is left of $CheckBudgetSeconds after a
-# name lookup, at most $ReleasesTimeoutMax, and not attempted under $ReleasesTimeoutMin.
+# name lookup, at most $ReleasesTimeoutMax, and not attempted under $ReleasesTimeoutMin - a
+# deadline for the whole request, body and all (Invoke-BoundedWebRequest). -Version, which the
+# window waits far longer for, gives the same request $ReleasesVersionTimeout.
 $ReleasesHosts = @('api.github.com')
 $ReleasesMaxChars = 2097152
 $ReleasesTimeoutMax = 15
 $ReleasesTimeoutMin = 5
+$ReleasesVersionTimeout = 60
 
 # What -CheckOnly and -Update answer with. Four codes, because there are four answers and
 # a caller that has to tell them apart should not have to read prose to do it. "Could not
@@ -331,6 +344,66 @@ function Assert-TrustedHost {
     }
 }
 
+function Invoke-BoundedWebRequest {
+    <#
+        Invoke-WebRequest with $Parameters, answered within $Seconds of being asked - lookup,
+        response and body - or a throw.
+
+        Under Windows PowerShell 5.1, which the settings window starts, -TimeoutSec bounds only
+        the wait for a response to begin. The body is read after that for as long as bytes keep
+        arriving: a list sent one byte a second kept a -TimeoutSec 5 request going for 29 s, and
+        a 300 KB list over a very slow link does the same without anyone meaning it to. The window
+        waits a fixed time for -CheckOnly and calls anything slower "running", so a request that
+        rides on the check needs a deadline it cannot overrun. The request therefore runs in a
+        runspace of its own, and this waits for it at most $Seconds; one still going then is
+        stopped - Invoke-WebRequest aborts its connection when it is - and this throws.
+
+        What runs there is what this session would run under the name: the cmdlet, or a function
+        standing in for it, carried over by its text - which is how the tests replace the network,
+        so a stand-in is never passed over for the real one. Anything else under the name is
+        refused rather than guessed at.
+    #>
+    param([hashtable]$Parameters, [int]$Seconds, [string]$What)
+    $clock = [Diagnostics.Stopwatch]::StartNew()
+    $command = Get-Command -Name Invoke-WebRequest -ErrorAction Stop
+    $state = [Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
+    if ($command.CommandType -eq 'Function') {
+        $state.Commands.Add((New-Object Management.Automation.Runspaces.SessionStateFunctionEntry `
+                                        -ArgumentList 'Invoke-WebRequest', $command.Definition))
+    } elseif ($command.CommandType -ne 'Cmdlet') {
+        throw ('Invoke-WebRequest is a ' + $command.CommandType + ' here, which this script does not run.')
+    }
+    $runspace = [Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace($state)
+    $shell = [PowerShell]::Create()
+    $finished = $false
+    try {
+        $runspace.Open()
+        $shell.Runspace = $runspace
+        [void]$shell.AddCommand('Invoke-WebRequest')
+        foreach ($name in $Parameters.Keys) { [void]$shell.AddParameter($name, $Parameters[$name]) }
+        [void]$shell.AddParameter('ErrorAction', 'Stop')
+        $pending = $shell.BeginInvoke()
+        $left = [int][Math]::Max(0, $Seconds * 1000 - $clock.ElapsedMilliseconds)
+        if (-not $pending.AsyncWaitHandle.WaitOne($left)) {
+            # A moment for it to let go of a file it was writing, so the caller can remove it.
+            $finished = $shell.BeginStop($null, $null).AsyncWaitHandle.WaitOne(2000)
+            throw ($What + ' did not arrive within ' + $Seconds + ' s.')
+        }
+        $finished = $true
+        try { $answer = @($shell.EndInvoke($pending)) }
+        catch {
+            $inner = $_.Exception
+            while ($null -ne $inner.InnerException) { $inner = $inner.InnerException }
+            throw ($What + ' could not be fetched: ' + $inner.Message)
+        }
+        if ($answer.Count -eq 0) { return $null }
+        return $answer[0]
+    } finally {
+        # One that would not stop ends with this process; disposing it here would wait for it.
+        if ($finished) { $shell.Dispose(); $runspace.Dispose() }
+    }
+}
+
 function Get-VersionParts {
     param([string]$Version)
     # Get-PluginVersion's rule, with a ceiling on each number so it stays an integer.
@@ -434,26 +507,28 @@ function Get-PrereleaseVersion {
     return $rebuilt
 }
 
-function Get-NewerPrerelease {
+function Get-PublishedPrereleases {
     <#
-        The newest pre-release this repository has published that is newer than both $Installed and
-        $Stable, the newest release - or $null where there is none. It throws where the list cannot be
-        read, and the caller takes that as nothing to offer, never as an answer about the release.
+        Every pre-release GitHub's list of this repository's releases names as published, by this
+        product's version rule - or a throw where the list cannot be read.
 
-        One GET, unauthenticated, to the constant `releases` in scripts/release.json. No redirect is
-        followed, the answer has to come from api.github.com for this exact owner and repository, and
-        a body over $ReleasesMaxChars is refused before it is parsed. An entry counts only when it is
-        published (`draft` false), a pre-release (`prerelease` true) and tagged `v` and a version
+        One GET, unauthenticated, to the constant `releases` in scripts/release.json, with a deadline
+        of $TimeoutSec for all of it (Invoke-BoundedWebRequest). No redirect is followed, the answer
+        has to come from api.github.com for this exact owner and repository, and a body over
+        $ReleasesMaxChars is refused before it is parsed. An entry counts only when it is published
+        (`draft` false), a pre-release (`prerelease` true) and tagged `v` and a version
         Get-PrereleaseVersion accepts; anything else in the list, or about an entry, is passed over.
     #>
-    param($Release, [string]$Installed, [string]$Stable, [int]$TimeoutSec = 15)
+    param($Release, [int]$TimeoutSec = 15)
     foreach ($name in @('owner', 'repo', 'releases')) {
         if (-not $Release.PSObject.Properties.Match($name).Count) {
             throw ('scripts/release.json has no "' + $name + '", so there is no list to read.')
         }
     }
-    $response = Invoke-WebRequest -Uri $Release.releases -UseBasicParsing -Method Get `
-                                  -MaximumRedirection 0 -TimeoutSec $TimeoutSec
+    $response = Invoke-BoundedWebRequest -What 'The list of releases' -Seconds $TimeoutSec -Parameters @{
+        Uri = $Release.releases; UseBasicParsing = $true; Method = 'Get'; MaximumRedirection = 0
+        TimeoutSec = $TimeoutSec }
+    if ($null -eq $response) { throw 'The list of releases was empty.' }
     Assert-TrustedHost -Response $response -What 'The list of releases' -Hosts $ReleasesHosts
     $final = Get-FinalUri -Response $response
     # The literal owner and repository, as the release page's are: another repository's list says
@@ -472,7 +547,7 @@ function Get-NewerPrerelease {
     # both are made into the same list here.
     $list = @(ConvertFrom-Json -InputObject $body)
     if ($list.Count -eq 1 -and $list[0] -is [array]) { $list = @($list[0]) }
-    $best = $null
+    $found = @()
     foreach ($entry in $list) {
         if ($entry -isnot [Management.Automation.PSCustomObject]) { continue }
         $fields = $entry.PSObject.Properties
@@ -482,8 +557,21 @@ function Get-NewerPrerelease {
         if ($entry.prerelease -isnot [bool] -or -not $entry.prerelease) { continue }
         $tag = $entry.tag_name
         if ($tag -isnot [string] -or -not $tag.StartsWith('v', [StringComparison]::Ordinal)) { continue }
-        $candidate = $null
-        try { $candidate = Get-PrereleaseVersion $tag.Substring(1) } catch { continue }
+        try { $found += ,(Get-PrereleaseVersion $tag.Substring(1)) } catch { continue }
+    }
+    return ,$found
+}
+
+function Get-NewerPrerelease {
+    <#
+        The newest pre-release this repository has published (Get-PublishedPrereleases) that is newer
+        than both $Installed and $Stable, the newest release - or $null where there is none. It throws
+        where the list cannot be read, and the caller takes that as nothing to offer, never as an
+        answer about the release.
+    #>
+    param($Release, [string]$Installed, [string]$Stable, [int]$TimeoutSec = 15)
+    $best = $null
+    foreach ($candidate in (Get-PublishedPrereleases -Release $Release -TimeoutSec $TimeoutSec)) {
         if ((Compare-ProductVersion -Left $candidate -Right $Installed) -le 0) { continue }
         if ((Compare-ProductVersion -Left $candidate -Right $Stable) -le 0) { continue }
         if ($null -eq $best -or (Compare-ProductVersion -Left $candidate -Right $best) -gt 0) { $best = $candidate }
@@ -492,12 +580,20 @@ function Get-NewerPrerelease {
 }
 
 function Get-Remote {
+    # -Deadline makes -TimeoutSec a deadline for the whole download (Invoke-BoundedWebRequest): what
+    # rides on an update check takes it. An archive never does - on a slow link it simply takes long.
     param([string]$Uri, [string]$OutFile, [string]$What, [string[]]$Hosts = $AllowedHosts,
-          [int]$TimeoutSec = 300)
+          [int]$TimeoutSec = 300, [switch]$Deadline)
     # -UseBasicParsing keeps this working on a Windows with no Internet Explorer engine,
     # which is every current one.
-    $response = Invoke-WebRequest -Uri $Uri -OutFile $OutFile -UseBasicParsing -PassThru `
-                                 -MaximumRedirection 5 -TimeoutSec $TimeoutSec
+    if ($Deadline) {
+        $response = Invoke-BoundedWebRequest -What $What -Seconds $TimeoutSec -Parameters @{
+            Uri = $Uri; OutFile = $OutFile; UseBasicParsing = $true; PassThru = $true; MaximumRedirection = 5
+            TimeoutSec = $TimeoutSec }
+    } else {
+        $response = Invoke-WebRequest -Uri $Uri -OutFile $OutFile -UseBasicParsing -PassThru `
+                                     -MaximumRedirection 5 -TimeoutSec $TimeoutSec
+    }
     Assert-TrustedHost -Response $response -What $What -Hosts $Hosts
 }
 
@@ -564,7 +660,7 @@ function Update-CompatibilityData {
         $file = Join-Path $folder 'codex_compat.json'
         try {
             Get-Remote -Uri $CompatibilityUrl -OutFile $file -What 'The compatibility data' `
-                       -Hosts $CompatibilityHosts -TimeoutSec $TimeoutSec
+                       -Hosts $CompatibilityHosts -TimeoutSec $TimeoutSec -Deadline
         } catch { return 'unavailable' }
         if (-not (Test-Path -LiteralPath $file)) { return 'unavailable' }
         if ((Get-Item -LiteralPath $file).Length -gt $CompatibilityMaxBytes) { return 'refused too_large' }
@@ -869,7 +965,43 @@ if ($Version) {
         Step 'Nothing was downloaded, and nothing was replaced with an older or the same version.'
         exit 1
     }
-    Ok ('v' + $target + ' is a pre-release, tested less than a release. This machine has v' + $installed + '.')
+    # The check's two questions again, now that a person said yes: a release may have been published
+    # while the question was open, and what is installed is only what the check would still offer - a
+    # pre-release the list names as published, newer than the newest release. A release newer than it
+    # is answered as the check answers it, and a question that could not be asked as "unavailable".
+    Step 'Asking github.com which release is newest. Nothing is uploaded, and no page is read.'
+    $newest = $null
+    try { $newest = Get-NewestPublishedVersion -Release $release }
+    catch {
+        Fail $_.Exception.Message
+        Write-Host 'update: unavailable'
+        Step ('Nothing was downloaded, and nothing was changed: whether a release newer than v' + $target +
+              ' has been published could not be told.')
+        exit $ExitUnavailable
+    }
+    if ((Compare-ProductVersion -Left $target -Right $newest) -le 0) {
+        Fail ('v' + $newest + ' has been published, and the pre-release v' + $target + ' is not newer than it.')
+        Write-Host ('update: available ' + $installed + ' ' + $newest)
+        Step 'Nothing was downloaded, and nothing was changed. Check for updates again to install the release.'
+        exit $ExitAvailable
+    }
+    Step 'Asking api.github.com for this repository''s list of releases, for the pre-release.'
+    $listed = $null
+    try { $listed = Get-PublishedPrereleases -Release $release -TimeoutSec $ReleasesVersionTimeout }
+    catch {
+        Fail ('The list of releases could not be read (' + $_.Exception.Message + ').')
+        Write-Host 'update: unavailable'
+        Step ('Nothing was downloaded, and nothing was changed: whether v' + $target +
+              ' is a published pre-release could not be told.')
+        exit $ExitUnavailable
+    }
+    if ($listed -cnotcontains $target) {
+        Fail ('v' + $target + ' is not a published pre-release among this repository''s newest releases.')
+        Step 'Nothing was downloaded, and nothing was changed.'
+        exit 1
+    }
+    Ok ('v' + $target + ' is a pre-release, tested less than a release, and newer than the newest release, v' +
+        $newest + '. This machine has v' + $installed + '.')
     Write-Host ('update: available ' + $installed + ' ' + $target)
 }
 if ($CheckOnly -or $Update) {
