@@ -14,6 +14,7 @@ import time
 
 from .. import startup, windows
 from ..domain.plug import DEFER
+from .errors import ControlError
 
 
 CODEX_START_LOG_LINES = 50
@@ -116,14 +117,32 @@ class CodexStartMixin:
 
     def _start_for_codex(self, context) -> str:
         setting_on = bool(self.get_settings().get("start_with_codex"))
-        # The standard edition's only switch is the setting, held back in NOT_YET_OFFERED; with
-        # it off, nothing starts. The advanced edition has a second switch - an armed
-        # start-with-Codex capability - which is asked at P9 in the job branch below, so a plug
-        # that is not NULL is let through to that point even with the setting off. Core's own
-        # auto-start, the non-job branch, still needs the setting in either edition: only the job
-        # branch changes (the v0.6.11 plan).
-        if self.plug.null and not setting_on:
-            return "off"
+        breakaway = bool(context.get("in_job") and context.get("breakaway_ok")
+                         and not context.get("silent_breakaway_ok"))
+        # Measured on Codex 26.915 (v0.6.9-alpha, 2026-09-23): Codex runs each plugin's MCP server in a
+        # job object with KILL_ON_JOB_CLOSE and no BREAKAWAY_OK, and cancels that server a few seconds
+        # after it has listed its tools. A watcher started there is killed with it - six starts, six
+        # watchers, each dead within about six seconds - and a watcher killed mid-tick is exactly what
+        # this product does not do.
+        job_ends = ends_with_job(context, leaving=breakaway) is True
+        # Whether "start with Codex" is on: the standard edition's setting (held back in
+        # NOT_YET_OFFERED), or an armed advanced start-with-Codex capability, which names a route
+        # at P9 (domain/plug.py). With the setting off we ask the plug once - the only way to
+        # learn the capability is armed, since the plug points are the one seam core has to it -
+        # and with no route named the answer is "off", exactly the standard edition's, before a
+        # single probe. NULL names no route, so the standard edition is unchanged; an advanced
+        # installation with nothing armed reads its own empty state and answers "off" too. With
+        # the setting on the plug is not asked here: core is starting on its own account, and the
+        # job branch below asks for the route in its own place, as it always has.
+        route = DEFER
+        if not setting_on:
+            route = self.plug.start_route(dict(context))
+            if route is DEFER:
+                return "off"
+        # A pause stops start-with-Codex, as it stops every capability and core's own recovery:
+        # nothing is started, WMI route or core's own launch, while recovery is paused.
+        if self._paused():
+            return "not started: recovery is paused"
         running = self.watcher_running()
         if running is True:
             return "already running"
@@ -135,29 +154,21 @@ class CodexStartMixin:
         # through anything but the launcher would bring back a watcher that was just removed.
         if not (self.paths.home / "watcher-launcher.py").is_file():
             return "not started: not installed"
-        breakaway = bool(context.get("in_job") and context.get("breakaway_ok")
-                         and not context.get("silent_breakaway_ok"))
-        # Measured on Codex 26.915 (v0.6.9-alpha, 2026-09-23): Codex runs each plugin's MCP server in a
-        # job object with KILL_ON_JOB_CLOSE and no BREAKAWAY_OK, and cancels that server a few seconds
-        # after it has listed its tools. A watcher started there is killed with it - six starts, six
-        # watchers, each dead within about six seconds - and a watcher killed mid-tick is exactly what
-        # this product does not do. So where the job would end it and will not let it leave, nothing is
-        # started: the line below is the whole answer for that Codex, and the switch is not offered.
-        if ends_with_job(context, leaving=breakaway) is True:
-            # P9: asked only here, once, after every existing refusal - nothing running, no
-            # install, the launcher present - and only where the job would end the watcher. The
-            # standard edition's plug has no route (DEFER), so the refusal stands; the advanced
-            # edition, with start-with-Codex armed, names a route that starts the watcher outside
-            # this job through WMI, and core carries it out.
-            route = self.plug.start_route(dict(context))
+        if job_ends:
+            # P9: asked here, after every existing refusal - nothing running, no install, the
+            # launcher present - and only where the job would end the watcher. The standard
+            # edition's plug has no route (DEFER), so its refusal stands; the advanced edition,
+            # with start-with-Codex armed, names a route that starts the watcher outside this job
+            # through WMI, and core carries it out.
+            if route is DEFER:
+                route = self.plug.start_route(dict(context))
             if route is DEFER:
                 return "not started: this Codex ends what its plugins start"
             return self._start_through_route(route)
-        # The non-job branch is core's own launch, and it needs the setting in either edition;
-        # an advanced installation whose capability is armed but whose setting is off reaches
-        # here only where the job would not have ended the watcher anyway.
-        if not setting_on:
-            return "off"
+        # The job would not end the watcher: core starts it itself, out of the job if it may
+        # leave. Reached with the setting on, or with an armed capability that has turned the
+        # start on the way the setting does - "start with Codex" starts the watcher whenever
+        # Codex starts, and only where the job would end it does the route take over.
         # Looked at once more, as late as it can be: an installation may have begun meanwhile.
         if windows.install_in_progress() is not False:
             return "not started: an installation is in progress"
@@ -173,6 +184,23 @@ class CodexStartMixin:
         return "started pid %d%s" % (process.pid, ", out of the job" if breakaway else
                                      ", inside the job" if context.get("in_job") else "")
 
+    def _paused(self) -> bool:
+        """Whether recovery is paused: the global switch turned off in a state that already
+        exists. Never raises.
+
+        A state that was never written is not a pause - a fresh installation has not turned
+        recovery on yet, and a start-with-Codex refused there would never start at all - so the
+        file is read only where it is there. A state that cannot be read is not read as a pause
+        either: refusing a start over a store that will not open is worse than making one.
+        """
+        if not (self.paths.state_dir / "state.sqlite").is_file():
+            return False
+        try:
+            with self._open(legacy_ok=True) as store:
+                return not bool(store.settings()["enabled"])
+        except ControlError:
+            return False
+
     def _start_through_route(self, route) -> str:
         """Carry out a plug's start route: start the watcher outside this job and say what happened.
 
@@ -180,15 +208,21 @@ class CodexStartMixin:
         windowless interpreter (startup.python_launcher) and this installation's stable launcher,
         which already knows its home - so nothing derived from anything else reaches the route.
         The install lock is looked at once more, as late as it can be, immediately before the
-        launch. The route runs the launch and hands back a pid or a refusal code; core writes the
-        one line, which carries no path, name or content. The route never sends and never claims.
+        launch. The route runs the launch and hands back a pid, a refusal code, or - where it
+        could not tell whether the create ran - an uncertain outcome; core writes the one line,
+        which carries no path, name or content. The route never sends and never claims.
         """
         if windows.install_in_progress() is not False:
             return "not started: an installation is in progress"
         command = startup.command_line(self.paths.home / "watcher-launcher.py")
         outcome = route.start(command)
-        pid = outcome.get("pid") if isinstance(outcome, dict) else None
+        outcome = outcome if isinstance(outcome, dict) else {}
+        pid = outcome.get("pid")
         if isinstance(pid, int) and pid > 0:
             return "started through WMI pid %d" % pid
-        code = outcome.get("code") if isinstance(outcome, dict) else None
+        if "uncertain" in outcome:
+            # The create may have run and a watcher may be up; the mutex settles any race. Not a
+            # refusal, so the line does not claim the watcher was not started.
+            return "start uncertain: WMI did not answer (%s)" % outcome["uncertain"]
+        code = outcome.get("code")
         return "not started: WMI refused (%s)" % (code if code is not None else "no pid")

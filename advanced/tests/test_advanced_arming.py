@@ -50,6 +50,24 @@ class DashboardOnlyTests(ArmingCase):
         self.assertEqual(self.rt.arming.current(), {"test_wake": ArmingState.OFF})
         self.assertIsNone(self.stored())
 
+    def test_with_nothing_on_it_reads_no_policy_view_or_measurement(self):
+        """A capability that is off is off whatever a policy, a compatibility view or a
+        measurement says, so an installation that never turned one on reads none of them - it is
+        the standard edition, down to what it touches. Only a stored-on row makes it read them."""
+        reads = []
+        for name in ("_view", "_policy", "_measured"):
+            real = getattr(self.rt.arming, name)
+            key = name[1:]
+            setattr(self.rt.arming, name,
+                    (lambda k, f: (lambda: (reads.append(k), f())[1]))(key, real))
+        self.assertEqual(self.rt.arming.current(), {"test_wake": ArmingState.OFF})
+        self.assertEqual(reads, [], "an all-off registry read a policy, view or measurement")
+        # A stored-on row makes it read them: the optimization only skips where nothing is on.
+        self.assertTrue(self.arm(self.rt)["done"])
+        reads.clear()
+        self.rt.arming.current()
+        self.assertEqual(set(reads), {"view", "policy", "measured"})
+
     def test_only_the_dashboard_turns_one_on_or_to_watch(self):
         for actor in (Actor.MCP, Actor.TRAY, Actor.CARD, Actor.TRIPWIRE, Actor.EDITION_ENTRY,
                       Actor.ENGINE_CHANGE, "model", None):

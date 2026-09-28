@@ -73,17 +73,29 @@ class StartWithCodex:
         """Run the WMI create for `command` and report the created pid, or why it failed.
 
         `command` is the watcher's command line, built by core from the windowless interpreter
-        and the stable launcher. Content-free: the return is `{"pid": int}` on success or
-        `{"code": <int or word>}` on a refusal - never a path, a name or any output. Never
-        raises: a failure of the runner, or a create WMI would not make, is a code."""
+        and the stable launcher. Content-free: the return is `{"pid": int}` on success, or
+        `{"code": <int or word>}` on a refusal, or `{"uncertain": <word>}` where the runner
+        timed out and the create may already have run - never a path, a name or any output.
+
+        Never raises. Every step is inside a guard, `mkstemp` included: a temporary directory
+        that cannot be used is a code, not an exception, so a failure here never becomes core's
+        `failed:` line, never leaves the capability untripped for want of a start_route error, and
+        never goes uncounted. A runner timeout is not a refusal: subprocess kills PowerShell after
+        Win32_Process.Create may have returned, so the outcome is unknown, not "not started"."""
         from codex_auto_resume import pwsh
         if pwsh.executable() is None:
             return {"code": "no_powershell"}
-        handle, pidfile = tempfile.mkstemp(prefix="car-swc-")
+        try:
+            handle, pidfile = tempfile.mkstemp(prefix="car-swc-")
+        except OSError as exc:
+            return {"code": type(exc).__name__}
         os.close(handle)
         try:
-            code = pwsh.run(_WMI_CREATE, {"WMI_COMMAND": command, "WMI_PIDFILE": pidfile},
-                            timeout=_TIMEOUT_SECONDS)
+            try:
+                code = pwsh.run(_WMI_CREATE, {"WMI_COMMAND": command, "WMI_PIDFILE": pidfile},
+                                timeout=_TIMEOUT_SECONDS)
+            except subprocess.TimeoutExpired:
+                return {"uncertain": "timeout"}
             if code != 0:
                 return {"code": code}
             try:

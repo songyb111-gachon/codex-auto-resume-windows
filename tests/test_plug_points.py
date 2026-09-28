@@ -1396,15 +1396,27 @@ class StartRouteTests(unittest.TestCase):
         self.assertEqual(decision, "not started: an installation is in progress")
         self.assertEqual(started, [])
 
-    def test_a_start_core_makes_or_declines_itself_asks_nothing(self):
+    def test_a_start_core_makes_itself_with_the_setting_on_asks_nothing(self):
+        """With the setting on, core is starting on its own account: it launches itself and asks
+        the plug for no route, in a job that would not end the watcher or out of one."""
         plug = Asked()
         layer = control.Control(self.paths, plug=plug)
-        self.assertEqual(layer._start_for_codex({"in_job": False}), "off")
         layer.update_settings({"start_with_codex": True})
         with patch.object(control.Control, "_launch_watcher",
                           return_value=type("Process", (), {"pid": 7})()):
             self.assertEqual(layer._start_for_codex({"in_job": False}), "started pid 7")
         self.assertEqual(plug.asked, [])
+
+    def test_a_decline_with_the_setting_off_asks_only_for_a_route(self):
+        """With the setting off, the one way core learns whether an advanced capability has turned
+        the start on is to ask the plug for a route; a plug that names none is declined as "off",
+        and the standard edition's NULL plug is asked nothing at all (it names no route by kind)."""
+        plug = Asked()
+        layer = control.Control(self.paths, plug=plug)
+        self.assertEqual(layer._start_for_codex({"in_job": False}), "off")
+        self.assertEqual(plug.asked, [("start_route", ({"in_job": False},))])
+        standard = control.Control(self.paths)
+        self.assertEqual(standard._start_for_codex({"in_job": False}), "off")
 
 
 class SupervisionTests(unittest.TestCase):

@@ -180,23 +180,25 @@ class Registry:
 # The capabilities this edition ships.
 #
 # start-with-Codex (decision C9): the one route out of Codex's kill-on-close job, at P9. It sends
-# nothing and claims nothing - it starts the watcher - so it answers at START_ROUTE alone, its
-# ceilings never bind (no point it answers at spends a unit), and its journal keeps its own words
-# for a start and a refusal. It departs from C4 (nothing at start) and F6 (a process-creation
-# route beyond the listed ones), rests on engine_present (the installed Codex is the one we start
-# a watcher for, with local checks), and on measurement MW (the WMI escape still leaves a process
-# outside the job); a version of Codex MW has not passed for is a warning in its statement, never
-# a reason to withhold it.
+# nothing and claims nothing - it starts the watcher - so it answers at START_ROUTE alone, no
+# point it answers at is a sending point, and its ceilings never bind: a surface that shows them
+# says so (arming.listing marks a non-sending capability). Its journal is the runtime's own -
+# WOULD_HAVE where it is watched, ACTED where core takes its route - so it declares no codes of
+# its own: nothing here would ever write one. It departs from C4 (nothing at start) and F6 (a
+# process-creation route beyond the listed ones), rests on engine_present (the installed Codex is
+# the one we start a watcher for, with local checks), and on measurement MW (the WMI escape still
+# leaves a process outside the job); a version of Codex MW has not passed for is a warning in its
+# statement, never a reason to withhold it. The ceilings are the schema's floor - the smallest a
+# definition may name - because for a capability that never spends they are nominal.
 START_WITH_CODEX = CapabilityDef(
     id="start_with_codex",
     points=frozenset({Point.START_ROUTE}),
     revision=1,
     departs_from=("C4", "F6"),
     compat="engine_present",
-    ceilings=Ceilings(per_day=5, per_conversation=1),
+    ceilings=Ceilings(per_day=1, per_conversation=1),
     journal_prefix="swc",
     make=make_start_with_codex,
-    codes=("started", "refused"),
     measurements=(Measurement.MW,),
 )
 

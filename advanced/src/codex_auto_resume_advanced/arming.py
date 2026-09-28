@@ -231,16 +231,22 @@ class Arming:
     # ------------------------------------------------------------------ now
     def current(self, *, view=None, policy=None) -> dict:
         """{id: state now} for every capability of the registry, carrying out every trip and
-        reset `standing` finds. With no capability, nothing is read."""
+        reset `standing` finds. With no capability, nothing is read; and with nothing stored on,
+        nothing else is read either - no policy, no compatibility view, no measurement - so an
+        installation that never turned a capability on is the standard edition, down to what it
+        reads. A capability that is off is off whatever any of those say."""
         if not len(self.registry):
             return {}
-        view = self.view() if view is None else view
-        policy = self.policy() if policy is None else policy
-        measured = self.measured()
         try:
             rows = self.state.arming()
         except StateError:
             rows = {}
+        if not any((row or {}).get("state", ArmingState.OFF) != ArmingState.OFF
+                   for row in rows.values()):
+            return {definition.id: ArmingState.OFF for definition in self.registry}
+        view = self.view() if view is None else view
+        policy = self.policy() if policy is None else policy
+        measured = self.measured()
         states = {}
         for definition in self.registry:
             state, change, _held = standing(definition, rows.get(definition.id), policy, view,
@@ -460,6 +466,8 @@ class Arming:
         """Every capability as a surface shows it: where it is stored, what it is now, since
         when and by whom, what a person would be agreeing to, what its statement warns of now
         and what they confirmed when they last turned it on or watched it."""
+        from .runtime import SENDING              # lazily: runtime imports this module
+        SENDING_POINTS = frozenset(SENDING)
         view, policy = self.view(), self.policy()
         states = self.current(view=view, policy=policy)
         try:
@@ -480,6 +488,10 @@ class Arming:
                 "departs_from": list(definition.departs_from), "compat": definition.compat,
                 "measurements": [str(measurement) for measurement in definition.measurements],
                 "points": sorted(str(point) for point in definition.points),
+                # Whether any point it answers at leads to a send, and so whether its ceilings can
+                # ever bind. A capability that only starts, or only shadows, spends no unit; a
+                # surface shows its ceilings as nominal rather than as a limit that will be met.
+                "sends": bool(definition.points & SENDING_POINTS),
                 "ceilings": {"per_day": definition.ceilings.per_day,
                              "per_conversation": definition.ceilings.per_conversation}})
         return {"generation": meta["generation"], "global_hourly": meta["global_hourly"],

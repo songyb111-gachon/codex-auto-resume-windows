@@ -109,6 +109,26 @@ class RouteTests(StartWithCodexCase):
                 patch.object(pwsh, "run", side_effect=AssertionError("must not run")):
             self.assertEqual(route.start("cmd"), {"code": "no_powershell"})
 
+    def test_a_temporary_file_that_cannot_be_made_is_a_code_not_an_exception(self):
+        """`start` says it never raises, and every step is inside the guard - mkstemp included. A
+        temporary directory that cannot be used is a code, so core writes a WMI-refused line, not
+        its `failed:` line, and the capability is neither left untripped for it nor uncounted."""
+        route = StartWithCodex(self.paths)
+        with patch.object(pwsh, "executable", return_value="powershell.exe"), \
+                patch("codex_auto_resume_advanced.control.codexstart.tempfile.mkstemp",
+                      side_effect=FileNotFoundError(2, "no such directory")), \
+                patch.object(pwsh, "run", side_effect=AssertionError("must not run")):
+            self.assertEqual(route.start("cmd"), {"code": "FileNotFoundError"})
+
+    def test_a_runner_timeout_is_uncertain_not_a_refusal(self):
+        """The runner's 30 s timeout kills PowerShell after Win32_Process.Create may already have
+        returned, so the outcome is unknown, not "not started": the route says so with `uncertain`."""
+        import subprocess
+        route = StartWithCodex(self.paths)
+        with patch.object(pwsh, "executable", return_value="powershell.exe"), \
+                patch.object(pwsh, "run", side_effect=subprocess.TimeoutExpired("ps", 30)):
+            self.assertEqual(route.start("cmd"), {"uncertain": "timeout"})
+
 
 class NoSpendTests(StartWithCodexCase):
     def test_it_spends_no_ceiling_unit_it_starts_it_does_not_send(self):
@@ -148,6 +168,25 @@ class McpTests(StartWithCodexCase):
         self.assertEqual(runtime.state.arming()[CAP]["state"], ArmingState.OFF)
 
 
+class RegistryMetadataTests(StartWithCodexCase):
+    def test_it_declares_no_journal_codes_of_its_own(self):
+        """Nothing ever writes swc.started or swc.refused: the journal is the runtime's own -
+        ACTED where core takes the route, WOULD_HAVE where it is watched - so the definition
+        declares no codes of its own, and none can be formed from it."""
+        self.assertEqual(START_WITH_CODEX.codes, ())
+        self.assertIsNone(START_WITH_CODEX.code("started"))
+        self.assertIsNone(START_WITH_CODEX.code("refused"))
+
+    def test_the_listing_marks_whether_a_capability_sends(self):
+        """START_ROUTE is not a sending point, so start-with-Codex spends no unit and its ceilings
+        never bind; a surface is told it does not send rather than shown a limit it will never
+        meet. A capability that gates or sends is marked the other way."""
+        (swc,) = self.runtime(START_WITH_CODEX).arming.listing()["capabilities"]
+        self.assertIs(swc["sends"], False)
+        (wake,) = self.runtime(ac.definition()).arming.listing()["capabilities"]
+        self.assertIs(wake["sends"], True)
+
+
 class EditionRoundTripTests(StartWithCodexCase):
     def test_arming_writes_only_to_the_advanced_state_the_standard_store_is_untouched(self):
         """EditionRoundTrip: start-with-Codex makes no record and sends nothing, so a standard
@@ -169,13 +208,16 @@ class CoreCarryOutTests(StartWithCodexCase):
         self.paths.ensure()
         (self.paths.home / "watcher-launcher.py").write_text("# launcher\n", encoding="utf-8")
 
-    def test_core_starts_the_watcher_outside_the_job_through_the_armed_capability(self):
+    def armed_layer(self):
         plug = self.plug(START_WITH_CODEX)
         self.assertTrue(plug.runtime.arming.arm(
             CAP, state=ArmingState.ARMED, revision=1,
             generation=plug.runtime.state.meta()["generation"],
             acknowledged_version=ENGINE, warnings=[], actor="dashboard")["done"])
-        layer = control.Control(self.paths, plug=plug)
+        return control.Control(self.paths, plug=plug), plug
+
+    def test_core_starts_the_watcher_outside_the_job_through_the_armed_capability(self):
+        layer, _plug = self.armed_layer()
         seen = {}
 
         def run(script, values, *, timeout):
@@ -193,6 +235,80 @@ class CoreCarryOutTests(StartWithCodexCase):
         self.assertTrue(line.endswith("started through WMI pid 5150"), line)
         self.assertIn("watcher-launcher.py", seen["command"])
         self.assertNotIn(str(self.paths.home), line)     # the log line carries no path
+
+    def test_nothing_armed_is_the_standard_edition_at_codex_start(self):
+        """An advanced installation with nothing armed answers Codex's start exactly as the
+        standard edition does - "off", no watcher probe, no WMI - and reads no policy, view or
+        measurement doing it (the arming has nothing on)."""
+        probed = []
+        for label, plug in (("advanced, nothing armed", self.plug(START_WITH_CODEX)),
+                            ("standard", None)):
+            layer = control.Control(self.paths, plug=plug) if plug is not None \
+                else control.Control(self.paths)
+            with patch.object(control.Control, "watcher_running",
+                              side_effect=lambda *a: probed.append(label) or False), \
+                    patch.object(pwsh, "run", side_effect=AssertionError("no WMI")), \
+                    patch("codex_auto_resume.windows.process_context", return_value=dict(JOB_ENDS)), \
+                    patch("codex_auto_resume.windows.install_in_progress", return_value=False):
+                self.assertTrue(layer.start_for_codex().endswith("; off"), label)
+        self.assertEqual(probed, [], "an unarmed advanced start touched nothing the standard one did not")
+
+    def test_armed_it_starts_even_where_the_job_would_not_end_the_watcher(self):
+        """"Start with Codex" starts the watcher whenever Codex starts. Where the job would not
+        end it - not in a job, breakaway allowed, or Windows will not say - core starts it on its
+        own account (the WMI route is only for the job that would end it), so the person who armed
+        it is never left with "off"."""
+        for context in ({"in_job": False},
+                        {"in_job": True, "kill_on_close": True, "breakaway_ok": True,
+                         "silent_breakaway_ok": False},
+                        {"in_job": None}):
+            with self.subTest(context=context):
+                layer, _plug = self.armed_layer()
+                with patch.object(control.Control, "watcher_running", return_value=False), \
+                        patch.object(control.Control, "_launch_watcher",
+                                     return_value=type("P", (), {"pid": 4242})()), \
+                        patch.object(pwsh, "run", side_effect=AssertionError("no WMI off the job")), \
+                        patch("codex_auto_resume.windows.process_context", return_value=dict(context)), \
+                        patch("codex_auto_resume.windows.install_in_progress", return_value=False):
+                    self.assertIn("started pid 4242", layer.start_for_codex())
+
+    def test_a_pause_stops_the_start_and_no_wmi_create_is_made(self):
+        """Pause stops every capability along with everything else: with recovery paused, an
+        armed start-with-Codex makes no WMI create; with it on, the create is made."""
+        for enabled, expected, wmi in ((False, "not started: recovery is paused", False),
+                                       (True, "started through WMI pid 5150", True)):
+            with self.subTest(enabled=enabled):
+                layer, _plug = self.armed_layer()
+                layer.set_enabled(enabled)                    # writes state.sqlite
+                created = []
+
+                def run(script, values, *, timeout):
+                    created.append(1)
+                    Path(values["WMI_PIDFILE"]).write_text("5150", encoding="utf-8")
+                    return 0
+
+                with patch.object(control.Control, "watcher_running", return_value=False), \
+                        patch.object(startup, "python_launcher", return_value=Path("pythonw.exe")), \
+                        patch.object(pwsh, "executable", return_value="powershell.exe"), \
+                        patch.object(pwsh, "run", run), \
+                        patch("codex_auto_resume.windows.process_context", return_value=dict(JOB_ENDS)), \
+                        patch("codex_auto_resume.windows.install_in_progress", return_value=False):
+                    line = layer.start_for_codex()
+                self.assertTrue(line.endswith(expected), line)
+                self.assertEqual(bool(created), wmi)
+
+    def test_an_uncertain_route_is_not_written_as_a_definite_refusal(self):
+        import subprocess
+        layer, _plug = self.armed_layer()
+        with patch.object(control.Control, "watcher_running", return_value=False), \
+                patch.object(startup, "python_launcher", return_value=Path("pythonw.exe")), \
+                patch.object(pwsh, "executable", return_value="powershell.exe"), \
+                patch.object(pwsh, "run", side_effect=subprocess.TimeoutExpired("ps", 30)), \
+                patch("codex_auto_resume.windows.process_context", return_value=dict(JOB_ENDS)), \
+                patch("codex_auto_resume.windows.install_in_progress", return_value=False):
+            line = layer.start_for_codex()
+        self.assertTrue(line.endswith("start uncertain: WMI did not answer (timeout)"), line)
+        self.assertNotIn("not started", line)
 
 
 if __name__ == "__main__":
