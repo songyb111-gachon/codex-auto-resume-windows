@@ -11,5 +11,14 @@
   "field.stop": "Cara menghentikannya",
   "state.armed": "Aktif",
   "state.off": "Nonaktif",
-  "state.shadow": "Mengamati"
+  "state.shadow": "Mengamati",
+  "warning.title": "Peringatan",
+  "warning.note": "Tidak satu pun dari peringatan ini mencegah Anda mengaktifkannya. Dengan mengaktifkannya, Anda mengonfirmasi telah membacanya; jika nanti muncul masalah baru, fitur ini menonaktifkan dirinya sendiri.",
+  "warning.measurement_failed": "Pengukuran atas hal yang diandalkannya gagal. Fitur ini mungkin tidak berjalan dengan Codex Anda.",
+  "warning.unmeasured": "Hal yang diandalkannya belum diukur pada versi Codex ini.",
+  "warning.failed_here": "Pemeriksaan kompatibilitas atas hal yang diandalkannya gagal di komputer ini.",
+  "warning.incompatible": "Menurut data kompatibilitas, hal yang diandalkannya tidak berjalan dengan versi Codex ini.",
+  "warning.local_check_failed": "Pemeriksaan di komputer ini mendapati bahwa versi Codex ini tidak memiliki hal yang diandalkannya.",
+  "warning.compat_unknown": "Belum diketahui apakah hal yang diandalkannya berjalan dengan versi Codex ini.",
+  "warning.engine_unknown": "Versi Codex belum diketahui. Jika Anda mengaktifkannya, fitur ini akan nonaktif lagi begitu versinya diketahui, agar Anda dapat mengonfirmasi versi tersebut."
 }

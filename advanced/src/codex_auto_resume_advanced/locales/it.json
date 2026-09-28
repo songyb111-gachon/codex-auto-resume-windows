@@ -11,5 +11,14 @@
   "field.stop": "Come fermarla",
   "state.armed": "Attiva",
   "state.off": "Disattivata",
-  "state.shadow": "In osservazione"
+  "state.shadow": "In osservazione",
+  "warning.title": "Avvisi",
+  "warning.note": "Nessuno di questi ti impedisce di attivarla. Attivarla conferma che li hai letti; se più avanti compare un problema nuovo, si disattiva da sola.",
+  "warning.measurement_failed": "Una misurazione di ciò su cui si basa non è riuscita. Potrebbe non funzionare con il tuo Codex.",
+  "warning.unmeasured": "Ciò su cui si basa non è stato misurato con questa versione di Codex.",
+  "warning.failed_here": "Un controllo di compatibilità di ciò su cui si basa non è riuscito su questo computer.",
+  "warning.incompatible": "Secondo i dati di compatibilità, ciò su cui si basa non funziona con questa versione di Codex.",
+  "warning.local_check_failed": "Un controllo su questo computer ha rilevato che a questa versione di Codex manca ciò su cui si basa.",
+  "warning.compat_unknown": "Non si sa se ciò su cui si basa funzioni con questa versione di Codex.",
+  "warning.engine_unknown": "La versione di Codex non è ancora nota. Se la attivi, si disattiva di nuovo appena la versione è nota, così puoi confermare quella versione."
 }

@@ -11,5 +11,14 @@
   "field.stop": "止め方",
   "state.armed": "オン",
   "state.off": "オフ",
-  "state.shadow": "様子見中"
+  "state.shadow": "様子見中",
+  "warning.title": "警告",
+  "warning.note": "これらの警告があってもオンにできます。オンにすると、警告を読んだことを確認したことになります。後で新しい問題が見つかると、自動的にオフになります。",
+  "warning.measurement_failed": "この機能が頼る部分の測定が失敗しました。お使いの Codex では動かない可能性があります。",
+  "warning.unmeasured": "この機能が頼る部分は、このバージョンの Codex ではまだ測定されていません。",
+  "warning.failed_here": "この機能が頼る部分の互換性チェックが、このコンピューターで失敗しました。",
+  "warning.incompatible": "互換性データによると、この機能が頼る部分はこのバージョンの Codex では動きません。",
+  "warning.local_check_failed": "このコンピューターでのチェックで、このバージョンの Codex にはこの機能が頼る部分がないことがわかりました。",
+  "warning.compat_unknown": "この機能が頼る部分がこのバージョンの Codex で動くかどうかは、わかっていません。",
+  "warning.engine_unknown": "Codex のバージョンがまだわかりません。オンにしても、バージョンがわかった時点でオフに戻るので、そのバージョンを確認してからオンにできます。"
 }

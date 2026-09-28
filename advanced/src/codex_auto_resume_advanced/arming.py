@@ -3,20 +3,29 @@
 
 Every capability starts off, and stays off until a person turns it on, one at a time, in the
 Dashboard, after its statement. So `arm` - which also moves one to "Watch first" - takes an actor
-and refuses every actor but the Dashboard, and it needs three things only the Dashboard has just
-shown the person:
+and refuses every actor but the Dashboard, and it needs what only the Dashboard has just shown
+the person, each of which must still hold when the request arrives:
 
-* the statement revision they read, which must be the current one;
-* the generation the Dashboard read the list at, which must still be the current one, so that
-  anything turned off anywhere since - by a person, a tripwire or a policy - is never undone by a
-  window that had not seen it yet;
-* for "on", the Codex version the person acknowledged, which `compat.permits` must accept at the
-  experimental tier: the capability's local checks passed, the registry says nothing against it,
-  and the acknowledgement is for this exact engine. UNKNOWN is never enough.
+* the statement revision they read;
+* the generation the Dashboard read the list at, so that anything turned off anywhere since - by
+  a person, a tripwire or a policy - is never undone by a window that had not seen it yet;
+* the statement's warnings (`warnings_for`), exactly as they hold now: a measurement its route
+  rests on that failed or was never made for this Codex, a compatibility grade of FAILED_HERE,
+  INCOMPATIBLE or UNKNOWN, no Codex version known. A warning never refuses. Turning the
+  capability on, or watching it, is the person's confirmation of every warning shown, and the
+  set they confirmed is stored with the state;
+* for "on", the Codex version the Dashboard showed, which is the one in force - or none, where
+  none is known, which is itself a warning.
+
+That replaced decision C7 (the owner, 2026-09-26). A failed measurement or a low grade used to be
+a refusal - compat.permits at the experimental tier - and is now a warning the person confirms.
+What still refuses a capability is an administrator's policy (policy.py): ForbidAdvanced,
+AllowedCapabilities, and ForceShadow for "on". Every other refusal says only that the request
+was not the person's own, current confirmation, which the Dashboard can ask for again at once.
 
 Turning off is the other way round. `disarm` and `all_off` take any actor that is a surface -
 the Dashboard, MCP, the icon, a card - and need nothing: turning something off only ever does
-less, like a Pause.
+less, like a Pause. MCP can turn things off and nothing else (surfaces.py).
 
 Shadow ("Watch first") never promotes itself: nothing here, or anywhere, moves a capability
 from watched to on except a person arming it.
@@ -25,44 +34,44 @@ What a capability is at this moment (`standing`) is its stored state as seen thr
 happened since, and a few of those things are carried out, because each means the person's
 agreement no longer covers what the capability would do:
 
-* the tripwires turn it off: its statement changed (a new revision the person has not read), the
-  capability it stands on failed a local check here, FAILED_HERE or INCOMPATIBLE, a hook of its
-  raised, or a send it paid for became submission_unknown;
+* the tripwires turn it off: its statement changed (a new revision the person has not read); a
+  warning they did not confirm appeared that says what it stands on went wrong - its
+  compatibility FAILED_HERE or INCOMPATIBLE here, or a measurement its route rests on failed; a
+  hook of its raised; or a send it paid for became submission_unknown. A warning they confirmed
+  never trips it: it was so when they turned it on;
 * a new Codex version turns an armed capability off: the acknowledgement was for another one;
-* a policy (policy.py) only reads it down - off, or watched - and changes nothing stored.
+* a policy (policy.py) only reads it down - off, or watched - and changes nothing stored; so,
+  for one that is on, does a compatibility or a Codex version that cannot be read now, where the
+  person did not confirm that.
+
+Re-arming is always possible: whatever turned a capability off - a person, a tripwire, a new
+Codex - the Dashboard can turn it on again, with its statement as it reads then.
 """
 from __future__ import annotations
 
 import time
 
-from codex_auto_resume.compat import permits
-from codex_auto_resume.compat.model import FAILED_HERE, INCOMPATIBLE
+from codex_auto_resume.compat.model import FAILED_HERE, INCOMPATIBLE, STATES, UNKNOWN
 
 from . import policy as _policy
+from .measured import MEASURED
 from .registry import GLOBAL_HOURLY
 from .state import StaleGeneration, StateError
 from .statement import CATALOGS
-from .vocabulary import TRIPWIRES, Actor, ArmingState, OffReason, Refusal
+from .vocabulary import (TRIPWIRES, Actor, ArmingState, ArmingWarning, OffReason, Refusal,
+                         Verdict)
 
-TIER = "experimental"
 # The actors a person turns a capability off through.
 SURFACES = frozenset({Actor.DASHBOARD, Actor.MCP, Actor.TRAY, Actor.CARD})
 # What the state of a capability in core's store is when a send it paid for may or may not have
 # reached Codex (engine/dispatch.py).
 SUBMISSION_UNKNOWN = "submission_unknown"
-
-
-def compat_trip(view, definition):
-    """The tripwire the Compatibility Registry trips for `definition`, or None."""
-    capabilities = view.get("capabilities") if isinstance(view, dict) else None
-    entry = capabilities.get(definition.compat) if isinstance(capabilities, dict) else None
-    state = entry.get("state") if isinstance(entry, dict) else None
-    if state == FAILED_HERE:
-        return OffReason.FAILED_HERE
-    if state == INCOMPATIBLE:
-        return (OffReason.LOCAL_CHECK_FAILED if entry.get("reason") == "local_check_failed"
-                else OffReason.INCOMPATIBLE)
-    return None
+# The warnings that, appearing where the person did not confirm them, say that what a capability
+# stands on went wrong: each is a tripwire, with its own reason. The first found trips it.
+TRIPPING = {ArmingWarning.FAILED_HERE: OffReason.FAILED_HERE,
+            ArmingWarning.LOCAL_CHECK_FAILED: OffReason.LOCAL_CHECK_FAILED,
+            ArmingWarning.INCOMPATIBLE: OffReason.INCOMPATIBLE,
+            ArmingWarning.MEASUREMENT_FAILED: OffReason.MEASUREMENT_FAILED}
 
 
 def engine_version(view):
@@ -71,33 +80,90 @@ def engine_version(view):
     return version if isinstance(version, str) else None
 
 
-def standing(definition, row, policy, view) -> tuple:
-    """(state now, what must be done to the stored state or None, permits' reason or None).
+def compat_warning(view, definition):
+    """The warning the Compatibility Registry's view gives for what `definition` stands on, or
+    None for a grade of COMPATIBLE or better. A view that cannot be read is UNKNOWN."""
+    capabilities = view.get("capabilities") if isinstance(view, dict) else None
+    entry = capabilities.get(definition.compat) if isinstance(capabilities, dict) else None
+    state = entry.get("state") if isinstance(entry, dict) else UNKNOWN
+    if state == FAILED_HERE:
+        return ArmingWarning.FAILED_HERE
+    if state == INCOMPATIBLE:
+        return (ArmingWarning.LOCAL_CHECK_FAILED if entry.get("reason") == "local_check_failed"
+                else ArmingWarning.INCOMPATIBLE)
+    if state == UNKNOWN or state not in STATES:
+        return ArmingWarning.COMPAT_UNKNOWN
+    return None
 
-    Pure. The order is the order of what overrides what: a changed statement and a failed
-    compatibility turn it off whatever else holds; a policy reads it down; and "on" is on only
-    while `permits` agrees, with a new Codex version turning it off."""
+
+def warnings_for(definition, view, measured=MEASURED) -> tuple:
+    """Every warning `definition`'s statement shows now, in the vocabulary's order. Pure.
+
+    A measurement its route rests on that failed is MEASUREMENT_FAILED, whichever Codex it failed
+    on; one with no verdict, or a pass on another Codex than the one in force, is UNMEASURED - a
+    pass counts only for the version it was made on. Then the compatibility grade of what it
+    stands on (`compat_warning`), and ENGINE_UNKNOWN where no Codex version is known."""
+    version = engine_version(view)
+    found = set()
+    for measurement in definition.measurements:
+        entry = measured.get(measurement) if isinstance(measured, dict) else None
+        verdict, measured_on = entry if isinstance(entry, tuple) and len(entry) == 2 else (None, None)
+        if verdict == Verdict.FAIL:
+            found.add(ArmingWarning.MEASUREMENT_FAILED)
+        elif verdict != Verdict.PASS or version is None or measured_on != version:
+            found.add(ArmingWarning.UNMEASURED)
+    compat = compat_warning(view, definition)
+    if compat is not None:
+        found.add(compat)
+    if version is None:
+        found.add(ArmingWarning.ENGINE_UNKNOWN)
+    return tuple(warning for warning in ArmingWarning if warning in found)
+
+
+def standing(definition, row, policy, view, measured=MEASURED) -> tuple:
+    """(state now, what must be done to the stored state or None, the unconfirmed warning that
+    holds it back without changing anything stored, or None).
+
+    Pure. The order is the order of what overrides what: a changed statement, and a warning the
+    person did not confirm that says what it stands on went wrong, turn it off whatever else
+    holds; a policy reads it down; and "on" is on only for the Codex version the person
+    acknowledged, with a new one turning it off, and one that cannot be read - or a grade nobody
+    knows, where the person did not confirm that - holding it back."""
     stored = row["state"] if row else ArmingState.OFF
     if stored == ArmingState.OFF:
         return ArmingState.OFF, None, None
     if row.get("statement_revision") != definition.revision:
         return ArmingState.OFF, OffReason.STATEMENT_CHANGED, None
-    tripped = compat_trip(view, definition)
-    if tripped is not None:
-        return ArmingState.OFF, tripped, None
+    unconfirmed = set(warnings_for(definition, view, measured)) - set(row.get("warnings") or ())
+    for warning, reason in TRIPPING.items():
+        if warning in unconfirmed:
+            return ArmingState.OFF, reason, None
     if not policy.admits(definition.id):
         return ArmingState.OFF, None, None
     if stored == ArmingState.ARMED and policy.force_shadow:
         return ArmingState.SHADOW, None, None
     if stored == ArmingState.ARMED:
-        allowed, reason = permits(view, definition.compat, tier=TIER, opt_in=True,
-                                  engine_version=engine_version(view),
-                                  acknowledged_version=row.get("engine_version"))
-        if not allowed:
-            return (ArmingState.OFF,
-                    OffReason.ENGINE_CHANGED if reason == "not_acknowledged_for_this_engine" else None,
-                    reason)
+        version, acknowledged = engine_version(view), row.get("engine_version")
+        if version != acknowledged:
+            if version is None:
+                return ArmingState.OFF, None, ArmingWarning.ENGINE_UNKNOWN
+            return ArmingState.OFF, OffReason.ENGINE_CHANGED, None
+        if ArmingWarning.COMPAT_UNKNOWN in unconfirmed:
+            return ArmingState.OFF, None, ArmingWarning.COMPAT_UNKNOWN
     return stored, None, None
+
+
+def _confirmed(warnings):
+    """The warnings a request says the person confirmed, as a set of the vocabulary's words, or
+    None for a request that does not say it in those words. Saying nothing is confirming none."""
+    if warnings is None:
+        return frozenset()
+    if not isinstance(warnings, (list, tuple)) or not all(isinstance(word, str) for word in warnings):
+        return None
+    try:
+        return frozenset(ArmingWarning(word) for word in warnings)
+    except ValueError:
+        return None
 
 
 def _holds_unknown(core_view, key) -> bool:
@@ -118,12 +184,14 @@ def _view_of(paths):
 
 
 class Arming:
-    def __init__(self, state, *, catalogs=CATALOGS, policy=None, view=None, clock=time.time):
+    def __init__(self, state, *, catalogs=CATALOGS, policy=None, view=None, measured=None,
+                 clock=time.time):
         self.state = state
         self.registry = state.registry
         self.catalogs = catalogs
         self._policy = policy or _policy.read
         self._view = view or (lambda: _view_of(state.paths))
+        self._measured = measured or (lambda: MEASURED)
         self.clock = clock
         # {record: when core told of its move into submission_unknown} for each such move whose
         # trips are not all written yet: core tells a move once, so one whose trip could not be
@@ -140,12 +208,25 @@ class Arming:
 
     def view(self) -> dict:
         """The Compatibility Registry's view; one that cannot be read is UNKNOWN for everything,
-        which permits nothing."""
+        and no Codex version - both warnings, never permission for anything unconfirmed."""
         try:
             found = self._view()
         except Exception:
             return {}
         return found if isinstance(found, dict) else {}
+
+    def measured(self) -> dict:
+        """What the measurements found, as this build ships them (measured.py). A table that
+        cannot be read is no measurement at all: every route unmeasured, which is a warning."""
+        try:
+            found = self._measured()
+        except Exception:
+            return {}
+        return found if isinstance(found, dict) else {}
+
+    def warnings(self, definition, view=None) -> tuple:
+        """The warnings `definition`'s statement shows now."""
+        return warnings_for(definition, self.view() if view is None else view, self.measured())
 
     # ------------------------------------------------------------------ now
     def current(self, *, view=None, policy=None) -> dict:
@@ -155,13 +236,15 @@ class Arming:
             return {}
         view = self.view() if view is None else view
         policy = self.policy() if policy is None else policy
+        measured = self.measured()
         try:
             rows = self.state.arming()
         except StateError:
             rows = {}
         states = {}
         for definition in self.registry:
-            state, change, _reason = standing(definition, rows.get(definition.id), policy, view)
+            state, change, _held = standing(definition, rows.get(definition.id), policy, view,
+                                            measured)
             if change is not None:
                 self._off(definition.id, change)
             states[definition.id] = state
@@ -252,13 +335,21 @@ class Arming:
 
     # ------------------------------------------------------------------ on
     def arm(self, capability, *, state, revision, generation, acknowledged_version=None,
-            actor) -> dict:
+            warnings=None, actor) -> dict:
         """Move `capability` to watched (SHADOW) or on (ARMED), for a person in the Dashboard.
 
-        {"done": bool, "refusal": Refusal or None, "permit": permits' reason or None,
-        "generation": the generation after}."""
-        def refused(why, permit=None):
-            return {"done": False, "refusal": why, "permit": permit,
+        `warnings` are the words of the statement's warnings the person confirmed (none, when
+        not given), and `acknowledged_version` the Codex version the Dashboard showed them, for
+        "on". Neither may be what refuses it: when they are not what holds now, the request is
+        refused as a stale confirmation, and the warnings that hold now go back with it for the
+        Dashboard to show.
+
+        {"done": bool, "refusal": Refusal or None, "warnings": the warnings that hold now, once
+        read, "generation": the generation after}."""
+        shown = ()
+
+        def refused(why):
+            return {"done": False, "refusal": why, "warnings": [str(word) for word in shown],
                     "generation": self._generation()}
 
         if actor != Actor.DASHBOARD:
@@ -266,10 +357,12 @@ class Arming:
         definition = self.registry.get(capability)
         if definition is None:
             return refused(Refusal.UNKNOWN_CAPABILITY)
+        confirmed = _confirmed(warnings)
         if (state not in (ArmingState.SHADOW, ArmingState.ARMED) or type(revision) is not int
-                or type(generation) is not int
-                or (state == ArmingState.ARMED and not isinstance(acknowledged_version, str))):
+                or type(generation) is not int or confirmed is None
+                or not (acknowledged_version is None or isinstance(acknowledged_version, str))):
             return refused(Refusal.INVALID_REQUEST)
+        # The administrator's word, and the only thing that refuses a capability itself.
         policy = self.policy()
         if policy.forbid:
             return refused(Refusal.FORBIDDEN_BY_POLICY)
@@ -277,31 +370,27 @@ class Arming:
             return refused(Refusal.NOT_ALLOWED_BY_POLICY)
         if state == ArmingState.ARMED and policy.force_shadow:
             return refused(Refusal.SHADOW_FORCED_BY_POLICY)
+        # What the person read and confirmed has to be what holds now.
         if revision != definition.revision:
             return refused(Refusal.STALE_REVISION)
         if not self.catalogs.complete_in(definition, "en"):
             return refused(Refusal.STATEMENT_INCOMPLETE)
         view = self.view()
-        tripped = compat_trip(view, definition)
-        if tripped is not None:
-            return refused(Refusal.NOT_PERMITTED, "incompatible")
-        version = None
-        if state == ArmingState.ARMED:
-            allowed, reason = permits(view, definition.compat, tier=TIER, opt_in=True,
-                                      engine_version=engine_version(view),
-                                      acknowledged_version=acknowledged_version)
-            if not allowed:
-                return refused(Refusal.NOT_PERMITTED, reason)
-            version = acknowledged_version
+        shown = self.warnings(definition, view)
+        if confirmed != frozenset(shown) or (state == ArmingState.ARMED
+                                             and acknowledged_version != engine_version(view)):
+            return refused(Refusal.STALE_CONFIRMATION)
         try:
-            _moved, after = self.state.move(capability, state, actor=actor, revision=revision,
-                                            engine_version=version, generation=generation,
-                                            at=self.clock())
+            _moved, after = self.state.move(
+                capability, state, actor=actor, revision=revision,
+                engine_version=acknowledged_version if state == ArmingState.ARMED else None,
+                warnings=shown, generation=generation, at=self.clock())
         except StaleGeneration:
             return refused(Refusal.STALE_GENERATION)
         except StateError:
             return refused(Refusal.STATE_UNAVAILABLE)
-        return {"done": True, "refusal": None, "permit": None, "generation": after}
+        return {"done": True, "refusal": None, "warnings": [str(word) for word in shown],
+                "generation": after}
 
     def _generation(self) -> int:
         try:
@@ -359,9 +448,18 @@ class Arming:
         return {"done": True, "refusal": None, "generation": after}
 
     # ------------------------------------------------------------------ shown
+    def statement(self, definition, locale=None) -> dict:
+        """What the Dashboard shows before the choice: the five fields, and above them the
+        warnings that hold now, with the Codex version an "on" acknowledges. The Dashboard
+        sends back the warnings' words and that version as the person's confirmation (`arm`)."""
+        view = self.view()
+        return dict(self.catalogs.statement(definition, locale, warnings=self.warnings(definition, view)),
+                    engine_version=engine_version(view))
+
     def listing(self) -> dict:
         """Every capability as a surface shows it: where it is stored, what it is now, since
-        when and by whom, and what a person would be agreeing to."""
+        when and by whom, what a person would be agreeing to, what its statement warns of now
+        and what they confirmed when they last turned it on or watched it."""
         view, policy = self.view(), self.policy()
         states = self.current(view=view, policy=policy)
         try:
@@ -377,7 +475,10 @@ class Arming:
                 "since": row.get("since"), "by": row.get("actor"), "reason": row.get("reason"),
                 "revision": definition.revision, "read_revision": row.get("statement_revision"),
                 "acknowledged_version": row.get("engine_version"),
+                "warnings": [str(word) for word in self.warnings(definition, view)],
+                "confirmed_warnings": [str(word) for word in row.get("warnings") or ()],
                 "departs_from": list(definition.departs_from), "compat": definition.compat,
+                "measurements": [str(measurement) for measurement in definition.measurements],
                 "points": sorted(str(point) for point in definition.points),
                 "ceilings": {"per_day": definition.ceilings.per_day,
                              "per_conversation": definition.ceilings.per_conversation}})

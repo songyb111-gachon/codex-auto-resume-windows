@@ -6,8 +6,10 @@ queued message reaches a notLoaded thread when it is opened, that a headless tur
 its approvals are declined, that the WMI escape still leaves a process outside Codex's job. An
 agent never learns these: it never touches the real install (the whole product turns on that
 rule). So the owner runs `measure <id>` on a throwaway conversation, once per Codex version, and
-each run writes one content-free record to docs/evidence/live/ (evidence.py). A capability whose
-measurement has not passed for the Codex in force ships built but unavailable (decision C7).
+each run writes one content-free record to docs/evidence/live/ (evidence.py), and what a release
+carries of them is measured.py. A capability whose measurement failed, or has not passed for the
+Codex in force, says so as a warning in its statement, which the person confirms by turning it on
+(arming.warnings_for; the owner's rule of 2026-09-26, which replaced decision C7).
 
 Nothing here runs unless a person asks for it. A measurement opens a one-turn session
 (codex/protocol.Session) restricted to the methods it declared, reads what it can, and records a
@@ -338,8 +340,8 @@ def run(measurement, *, session_factory=None, launcher=None, backend=None, versi
     into the record, which keeps only whether one was given.
 
     A record that cannot say which Codex it measured is not written, and nothing is run for it:
-    a measurement decides, per Codex version, whether a capability ships (C7), and "unknown"
-    would decide it for every version at once.
+    a measurement speaks for one Codex version - a pass counts only there, as the statement's
+    warnings read it (arming.warnings_for) - and "unknown" would speak for every version at once.
     """
     measurement = Measurement(measurement)
     if thread is not None and not is_uuid(thread):

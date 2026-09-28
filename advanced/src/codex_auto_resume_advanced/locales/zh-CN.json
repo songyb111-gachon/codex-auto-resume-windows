@@ -11,5 +11,14 @@
   "field.stop": "如何停止",
   "state.armed": "开启",
   "state.off": "关闭",
-  "state.shadow": "观察中"
+  "state.shadow": "观察中",
+  "warning.title": "警告",
+  "warning.note": "这些警告不会阻止你开启它。开启即表示你已读过这些警告；如果之后出现新问题，它会自动关闭。",
+  "warning.measurement_failed": "对它所依赖部分的测量失败了。它在你的 Codex 上可能无法工作。",
+  "warning.unmeasured": "它所依赖的部分尚未在此版本的 Codex 上测量过。",
+  "warning.failed_here": "它所依赖部分的兼容性检查在这台电脑上失败了。",
+  "warning.incompatible": "兼容性数据表明，它所依赖的部分在此版本的 Codex 上无法工作。",
+  "warning.local_check_failed": "这台电脑上的检查发现，此版本的 Codex 缺少它所依赖的部分。",
+  "warning.compat_unknown": "尚不清楚它所依赖的部分能否在此版本的 Codex 上工作。",
+  "warning.engine_unknown": "尚不知道 Codex 的版本。如果开启它，一旦得知版本它会再次关闭，以便你确认该版本。"
 }

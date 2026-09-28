@@ -12,8 +12,12 @@ asked to agree to and everything the plug holds it to:
 * `departs_from` - the standards it breaks (standards.py). Never empty: a capability that keeps
   every standard belongs in the standard edition, so the rule for which edition a capability is
   in is this field;
-* `compat` - the Compatibility Registry capability it stands on, which `compat.permits` is asked
-  about at the experimental tier before it may act (arming.py);
+* `compat` - the Compatibility Registry capability it stands on. Its grade here is shown in the
+  statement - FAILED_HERE, INCOMPATIBLE or UNKNOWN as a warning the person confirms - and a
+  failure the person did not confirm turns it off (arming.py);
+* `measurements` - the measurements its route rests on (measure.py), if any. One that failed, or
+  has no pass for the Codex in force (measured.py), is a warning in its statement, never a
+  reason to withhold it;
 * `ceilings` - how many sends it may make in a day, overall and in one conversation. Beside them
   stands one global ceiling for every capability together, GLOBAL_HOURLY an hour, which a person
   may lower and never raise (state.AdvancedState.set_global_hourly);
@@ -35,6 +39,7 @@ from typing import Callable
 from codex_auto_resume.domain.plug import Point
 
 from .standards import STANDARDS
+from .vocabulary import Measurement
 
 # The one ceiling over every capability together: advanced sends an hour. It is also the highest
 # value a person may set it to - it can be lowered and never raised.
@@ -78,6 +83,7 @@ class CapabilityDef:
     journal_prefix: str
     make: Callable
     codes: tuple = ()
+    measurements: tuple = ()
 
     def code(self, word) -> str | None:
         """`word` as this capability's journal writes it, or None if it is not one of its own."""
@@ -126,6 +132,11 @@ def problems(definition) -> list:
         found.append("codes")
     if not callable(definition.make):
         found.append("make")
+    measurements = definition.measurements
+    if (not isinstance(measurements, tuple)
+            or not all(isinstance(measurement, Measurement) for measurement in measurements)
+            or len(set(measurements)) != len(measurements)):
+        found.append("measurements")
     return found
 
 

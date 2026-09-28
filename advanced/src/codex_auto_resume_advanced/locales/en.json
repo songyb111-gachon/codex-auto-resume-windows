@@ -11,5 +11,14 @@
   "field.stop": "How to stop it",
   "state.armed": "On",
   "state.off": "Off",
-  "state.shadow": "Watching"
+  "state.shadow": "Watching",
+  "warning.title": "Warnings",
+  "warning.note": "None of these stops you turning it on. Turning it on confirms you have read them, and if a new problem appears later, it turns itself off.",
+  "warning.measurement_failed": "A measurement of what it relies on failed. It may not work with your Codex.",
+  "warning.unmeasured": "What it relies on has not been measured with this version of Codex.",
+  "warning.failed_here": "A compatibility check of what it relies on failed on this computer.",
+  "warning.incompatible": "The compatibility data says what it relies on does not work with this version of Codex.",
+  "warning.local_check_failed": "A check on this computer found that this version of Codex lacks what it relies on.",
+  "warning.compat_unknown": "It is not known whether what it relies on works with this version of Codex.",
+  "warning.engine_unknown": "The version of Codex is not known yet. If you turn it on, it turns off again once the version is known, so that you can confirm that version."
 }

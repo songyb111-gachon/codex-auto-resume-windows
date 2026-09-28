@@ -1,6 +1,11 @@
 """Turning capabilities on and off: only the Dashboard turns one on, anything turns one off,
 shadow never promotes itself, a policy only reads one down, and the tripwires.
 
+And the owner's rule of 2026-09-26, which replaced decision C7: a failed measurement, a low
+compatibility grade or a route never measured is a warning the person confirms, never a refusal;
+only the three policy keys refuse; a tripwire still turns a capability off; and whatever turned
+it off, it can always be turned on again.
+
 Run from the repository root:
 
     PYTHONPATH=src python -m unittest discover -s advanced/tests
@@ -20,10 +25,10 @@ import advancedcase as ac  # noqa: E402
 from codex_auto_resume import edition  # noqa: E402
 from codex_auto_resume.domain.plug import DEFER, Alternative, Edition, Point  # noqa: E402
 from codex_auto_resume_advanced import policy  # noqa: E402
-from codex_auto_resume_advanced.arming import standing  # noqa: E402
+from codex_auto_resume_advanced.arming import standing, warnings_for  # noqa: E402
 from codex_auto_resume_advanced.state import StateError  # noqa: E402
-from codex_auto_resume_advanced.vocabulary import (Actor, ArmingState, OffReason,  # noqa: E402
-                                                   Refusal)
+from codex_auto_resume_advanced.vocabulary import (Actor, ArmingState, ArmingWarning,  # noqa: E402
+                                                   Measurement, OffReason, Refusal, Verdict)
 
 RECORD = {"interruption_id": ac.KEY, "thread_id": ac.THREAD}
 
@@ -72,38 +77,34 @@ class DashboardOnlyTests(ArmingCase):
         self.assertEqual(self.stored()["state"], ArmingState.OFF)
         self.assertTrue(self.arm(self.rt, generation=seen + 2)["done"])
 
-    def test_on_needs_permits_at_the_experimental_tier_for_the_acknowledged_version(self):
-        cases = (("UNKNOWN", ac.ENGINE, "unknown"), ("COMPATIBLE", "0.154.0", "not_acknowledged_for_this_engine"),
-                 ("CHECKED", None, "invalid"))
-        for compat, acknowledged, permit in cases:
-            with self.subTest(compat=compat, acknowledged=acknowledged):
-                self.compat = ac.view(compat)
+    def test_on_needs_the_codex_version_the_dashboard_showed(self):
+        """The acknowledgement is part of the person's confirmation: for the Codex in force, and
+        a string or none. One for another version, or none while one is known, is stale."""
+        for acknowledged in ("0.154.0", None):
+            with self.subTest(acknowledged=acknowledged):
                 result = self.arm(self.rt, acknowledged_version=acknowledged)
-                if permit == "invalid":
-                    self.assertEqual(result["refusal"], Refusal.INVALID_REQUEST)
-                else:
-                    self.assertEqual((result["refusal"], result["permit"]), (Refusal.NOT_PERMITTED, permit))
-        for compat in ("INCOMPATIBLE", "FAILED_HERE"):
-            with self.subTest(compat=compat):
-                self.compat = ac.view(compat)
-                for state in ("armed", "shadow"):
-                    self.assertEqual(self.arm(self.rt, state=state)["refusal"], Refusal.NOT_PERMITTED)
-        self.compat = {}
-        self.assertEqual(self.arm(self.rt)["permit"], "unknown")
+                self.assertEqual((result["done"], result["refusal"]), (False, Refusal.STALE_CONFIRMATION))
+        self.assertEqual(self.arm(self.rt, acknowledged_version=155)["refusal"], Refusal.INVALID_REQUEST)
         self.assertIsNone(self.stored())
-        with patch("codex_auto_resume_advanced.arming.permits", wraps=__import__(
-                "codex_auto_resume.compat", fromlist=["permits"]).permits) as asked:
-            self.compat = ac.view("VERIFIED")
-            self.assertTrue(self.arm(self.rt)["done"])
-        self.assertEqual(asked.call_args.kwargs, {"tier": "experimental", "opt_in": True,
-                                                  "engine_version": ac.ENGINE,
-                                                  "acknowledged_version": ac.ENGINE})
+        self.assertTrue(self.arm(self.rt)["done"])
         self.assertEqual(self.stored()["engine_version"], ac.ENGINE)
+
+    def test_the_package_asks_compat_permits_nothing(self):
+        """Decision C7's gate is gone: no grade is a refusal, so nothing here asks permits."""
+        package = ac.ROOT / "advanced" / "src" / "codex_auto_resume_advanced"
+        for path in sorted(package.rglob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            names = {getattr(node, "attr", None) or getattr(node, "id", None) for node in ast.walk(tree)}
+            names |= {alias.name for node in ast.walk(tree)
+                      if isinstance(node, ast.ImportFrom) for alias in node.names}
+            self.assertNotIn("permits", names, path.name)
 
     def test_watching_needs_no_acknowledgement_and_stores_none(self):
         self.compat = ac.view("UNKNOWN")
-        self.assertTrue(self.arm(self.rt, state="shadow", acknowledged_version=None)["done"])
+        self.assertTrue(self.arm(self.rt, state="shadow", acknowledged_version=None,
+                                 warnings=["compat_unknown"])["done"])
         self.assertEqual((self.stored()["state"], self.stored()["engine_version"]), ("shadow", None))
+        self.assertEqual(self.stored()["warnings"], (ArmingWarning.COMPAT_UNKNOWN,))
 
     def test_a_statement_missing_in_english_cannot_have_been_read(self):
         self.catalogs = ac.catalogs(self.home.parent / "partial", ac.definition(),
@@ -418,7 +419,305 @@ class TripwireTests(ArmingCase):
                          (ArmingState.ARMED, None, None))
         self.assertEqual(standing(ac.definition(), None, policy.NONE, ac.view()),
                          (ArmingState.OFF, None, None))
+        failed = {Measurement.M2: (Verdict.FAIL, ac.ENGINE)}
+        measured = ac.definition(measurements=(Measurement.M2,))
+        self.assertEqual(standing(measured, row, policy.NONE, ac.view(), failed),
+                         (ArmingState.OFF, OffReason.MEASUREMENT_FAILED, None))
+        confirmed = dict(row, warnings=(ArmingWarning.MEASUREMENT_FAILED,))
+        self.assertEqual(standing(measured, confirmed, policy.NONE, ac.view(), failed),
+                         (ArmingState.ARMED, None, None))
+        self.assertEqual(standing(ac.definition(), row, policy.NONE, ac.view(version=None)),
+                         (ArmingState.OFF, None, ArmingWarning.ENGINE_UNKNOWN))
 
+
+class WarningCase(ArmingCase):
+    """A capability whose route rests on M2, whatever its grade and its measurement say."""
+
+    def setUp(self):
+        super().setUp()
+        self.definition = ac.definition(measurements=(Measurement.M2,))
+        self.rt = self.runtime(self.definition)
+        self.measured = {Measurement.M2: (Verdict.PASS, ac.ENGINE)}
+
+    def shown(self):
+        """What the Dashboard would show and send back: the statement's warnings and version."""
+        statement = self.rt.arming.statement(self.definition, "en")
+        return [item["warning"] for item in statement["warnings"]["items"]], statement["engine_version"]
+
+    def fresh(self):
+        """Off, in a world where nothing is wrong: what setUp leaves, without making it again."""
+        self.rt.arming.all_off(actor=Actor.DASHBOARD)
+        self.compat, self.policy = ac.view(), policy.NONE
+        self.measured = {Measurement.M2: (Verdict.PASS, ac.ENGINE)}
+
+    def confirm(self, state="armed", **changes):
+        warnings, version = self.shown()
+        request = dict(state=state, warnings=warnings, acknowledged_version=version,
+                       generation=self.rt.state.meta()["generation"])
+        request.update(changes)
+        return self.arm(self.rt, **request)
+
+
+class WarningTests(WarningCase):
+    # What is so, and the warnings the statement shows for it.
+    PATHS = {
+        "a measurement that failed": (dict(measured={Measurement.M2: (Verdict.FAIL, ac.ENGINE)}),
+                                      ["measurement_failed"]),
+        "a measurement that failed on another Codex": (
+            dict(measured={Measurement.M2: (Verdict.FAIL, "0.150.0")}), ["measurement_failed"]),
+        "a route never measured": (dict(measured={}), ["unmeasured"]),
+        "a pass on another Codex only": (dict(measured={Measurement.M2: (Verdict.PASS, "0.150.0")}),
+                                         ["unmeasured"]),
+        "a blocked measurement nobody completed": (
+            dict(measured={Measurement.M2: (Verdict.BLOCKED, ac.ENGINE)}), ["unmeasured"]),
+        "FAILED_HERE": (dict(compat=ac.view("FAILED_HERE", reason="local_check_failed_here")),
+                        ["failed_here"]),
+        "INCOMPATIBLE by the registry": (
+            dict(compat=ac.view("INCOMPATIBLE", reason="registry_incompatible")), ["incompatible"]),
+        "INCOMPATIBLE by a local check": (
+            dict(compat=ac.view("INCOMPATIBLE", reason="local_check_failed")), ["local_check_failed"]),
+        "a grade nobody knows": (dict(compat=ac.view("UNKNOWN")), ["compat_unknown"]),
+        "a grade the view does not name": (dict(compat=ac.view("SPLENDID")), ["compat_unknown"]),
+        "no Codex version": (dict(compat=ac.view(version=None)), ["unmeasured", "engine_unknown"]),
+        "no view at all": (dict(compat={}), ["unmeasured", "compat_unknown", "engine_unknown"]),
+        "two at once": (dict(compat=ac.view("FAILED_HERE"), measured={}), ["unmeasured", "failed_here"]),
+    }
+
+    def given(self, measured=None, compat=None):
+        self.measured = self.measured if measured is None else measured
+        self.compat = self.compat if compat is None else compat
+
+    def test_every_warning_is_shown_and_none_refuses_once_it_is_confirmed(self):
+        for name, (world, expected) in self.PATHS.items():
+            with self.subTest(name):
+                self.fresh()
+                self.given(**world)
+                warnings, version = self.shown()
+                self.assertEqual(warnings, expected)
+                for state in ("shadow", "armed"):
+                    result = self.confirm(state)
+                    self.assertEqual((result["done"], result["refusal"], result["warnings"]),
+                                     (True, None, expected), state)
+                    self.assertEqual(self.stored()["warnings"],
+                                     tuple(ArmingWarning(word) for word in expected))
+                self.assertEqual(self.stored()["engine_version"], version)
+                for _ in range(3):
+                    self.rt.tick(None)
+                    self.now += 61
+                    self.assertEqual(self.state_now(), ArmingState.ARMED,
+                                     "a warning the person confirmed never turns it off")
+
+    def test_a_warning_not_confirmed_is_a_stale_confirmation_that_hands_back_what_holds_now(self):
+        for name, (world, expected) in self.PATHS.items():
+            with self.subTest(name):
+                self.fresh()
+                self.given(**world)
+                _warnings, version = self.shown()
+                for state in ("shadow", "armed"):
+                    result = self.arm(self.rt, state=state, warnings=[], acknowledged_version=version)
+                    self.assertEqual((result["done"], result["refusal"], result["warnings"]),
+                                     (False, Refusal.STALE_CONFIRMATION, expected))
+                self.assertEqual((self.stored() or {}).get("state", ArmingState.OFF), ArmingState.OFF)
+                self.assertTrue(self.confirm(warnings=result["warnings"])["done"])
+
+    def test_confirming_what_does_not_hold_is_stale_too_and_a_word_nobody_has_is_invalid(self):
+        self.given(measured={})
+        self.assertEqual(self.confirm(warnings=["unmeasured", "failed_here"])["refusal"],
+                         Refusal.STALE_CONFIRMATION)
+        for warnings in (["unmeasured", "fine_really"], "unmeasured", [7], {"unmeasured": True}):
+            with self.subTest(warnings=warnings):
+                self.assertEqual(self.confirm(warnings=warnings)["refusal"], Refusal.INVALID_REQUEST)
+        self.assertIsNone(self.stored())
+        self.assertTrue(self.confirm(warnings=["unmeasured", "unmeasured"])["done"])
+
+    def test_nothing_shown_is_nothing_to_confirm(self):
+        self.assertEqual(self.shown(), ([], ac.ENGINE))
+        self.assertTrue(self.arm(self.rt)["done"])
+        self.assertEqual(self.stored()["warnings"], ())
+
+    def test_warnings_for_is_pure_and_in_the_vocabularys_order(self):
+        found = warnings_for(self.definition, ac.view("INCOMPATIBLE", version=None), {})
+        self.assertEqual(found, (ArmingWarning.UNMEASURED, ArmingWarning.INCOMPATIBLE,
+                                 ArmingWarning.ENGINE_UNKNOWN))
+        self.assertEqual(warnings_for(ac.definition(), ac.view("VERIFIED"), {}), ())
+        self.assertEqual(warnings_for(ac.definition(), ac.view("CHECKED"), "not a table"), ())
+
+    def test_a_measurement_table_that_cannot_be_read_is_every_route_unmeasured(self):
+        def broken():
+            raise OSError("gone")
+        self.rt.arming._measured = broken
+        self.assertEqual(self.shown()[0], ["unmeasured"])
+
+    def test_on_while_no_codex_version_is_known_turns_off_once_one_is(self):
+        """Confirmed without a version, "on" holds only while none is known: the version that
+        then appears is one nobody acknowledged."""
+        self.given(compat=ac.view(version=None))
+        self.assertTrue(self.confirm()["done"])
+        self.assertIsNone(self.stored()["engine_version"])
+        self.assertEqual(self.state_now(), ArmingState.ARMED)
+        self.compat = ac.view()
+        self.assertEqual(self.state_now(), ArmingState.OFF)
+        self.assertEqual((self.stored()["actor"], self.stored()["reason"]),
+                         (Actor.ENGINE_CHANGE, OffReason.ENGINE_CHANGED))
+        self.assertTrue(self.confirm()["done"], "and it is turned on again for the one now known")
+
+    def test_a_version_or_grade_that_cannot_be_read_holds_on_back_unless_it_was_confirmed(self):
+        self.assertTrue(self.confirm()["done"])
+        for unreadable in ({}, ac.view(version=None), ac.view("UNKNOWN")):
+            with self.subTest(unreadable=unreadable):
+                self.compat = unreadable
+                self.assertEqual(self.state_now(), ArmingState.OFF)
+                self.assertEqual(self.stored()["state"], ArmingState.ARMED, "nothing stored changes")
+                self.compat = ac.view()
+                self.assertEqual(self.state_now(), ArmingState.ARMED)
+
+
+class WarningTripwireTests(WarningCase):
+    def assert_tripped(self, reason):
+        row = self.stored()
+        self.assertEqual((row["state"], row["actor"], row["reason"]),
+                         (ArmingState.OFF, Actor.TRIPWIRE, reason))
+
+    def test_a_failure_the_person_did_not_confirm_trips_it_on_or_watched(self):
+        cases = (
+            (dict(compat=ac.view("FAILED_HERE")), OffReason.FAILED_HERE),
+            (dict(compat=ac.view("INCOMPATIBLE", reason="registry_incompatible")), OffReason.INCOMPATIBLE),
+            (dict(compat=ac.view("INCOMPATIBLE", reason="local_check_failed")),
+             OffReason.LOCAL_CHECK_FAILED),
+            (dict(measured={Measurement.M2: (Verdict.FAIL, ac.ENGINE)}), OffReason.MEASUREMENT_FAILED),
+        )
+        for world, reason in cases:
+            for state in ("armed", "shadow"):
+                with self.subTest(reason=reason, state=state):
+                    self.fresh()
+                    self.assertTrue(self.confirm(state)["done"])
+                    self.compat = world.get("compat", self.compat)
+                    self.measured = world.get("measured", self.measured)
+                    self.assertEqual(self.state_now(), ArmingState.OFF)
+                    self.assert_tripped(reason)
+                    self.compat = ac.view()
+                    self.measured = {Measurement.M2: (Verdict.PASS, ac.ENGINE)}
+                    self.assertEqual(self.state_now(), ArmingState.OFF, "a trip is not undone by itself")
+
+    def test_a_confirmed_failure_that_gets_worse_trips_it(self):
+        """Confirmed FAILED_HERE; a local check then finds it incompatible - a new failure."""
+        self.compat = ac.view("FAILED_HERE")
+        self.assertTrue(self.confirm()["done"])
+        self.compat = ac.view("INCOMPATIBLE", reason="local_check_failed")
+        self.assertEqual(self.state_now(), ArmingState.OFF)
+        self.assert_tripped(OffReason.LOCAL_CHECK_FAILED)
+
+    def test_a_route_unmeasured_on_a_new_codex_is_a_new_codex_for_on_and_nothing_for_watching(self):
+        self.assertTrue(self.confirm("shadow")["done"])
+        self.compat = ac.view(version="0.156.0")
+        self.assertEqual(self.state_now(), ArmingState.SHADOW)
+        self.assertTrue(self.confirm()["done"])
+        self.compat = ac.view(version="0.157.0")
+        self.assertEqual(self.state_now(), ArmingState.OFF)
+        self.assertEqual(self.stored()["reason"], OffReason.ENGINE_CHANGED)
+
+
+class RemainingRefusalTests(WarningCase):
+    """Only the three policy keys refuse a capability, whatever its warnings; every other
+    refusal is about the request, and the same request made current is done."""
+
+    def given_everything_wrong(self):
+        self.measured = {Measurement.M2: (Verdict.FAIL, ac.ENGINE)}
+        self.compat = ac.view("INCOMPATIBLE", reason="registry_incompatible")
+
+    def test_the_three_policy_keys_refuse_even_with_every_warning_confirmed(self):
+        self.given_everything_wrong()
+        for found, state, refusal in (
+                (policy.Policy(forbid=True), "armed", Refusal.FORBIDDEN_BY_POLICY),
+                (policy.Policy(forbid=True), "shadow", Refusal.FORBIDDEN_BY_POLICY),
+                (policy.Policy(allowed=frozenset({"test_sleep"})), "armed", Refusal.NOT_ALLOWED_BY_POLICY),
+                (policy.Policy(allowed=frozenset()), "shadow", Refusal.NOT_ALLOWED_BY_POLICY),
+                (policy.Policy(force_shadow=True), "armed", Refusal.SHADOW_FORCED_BY_POLICY),
+                (policy.STRICTEST, "shadow", Refusal.FORBIDDEN_BY_POLICY)):
+            with self.subTest(policy=found, state=state):
+                self.policy = found
+                self.assertEqual(self.confirm(state)["refusal"], refusal)
+        self.assertIsNone(self.stored())
+        self.policy = policy.Policy(force_shadow=True)
+        self.assertTrue(self.confirm("shadow")["done"], "forced to watch, watching is allowed")
+        self.policy = policy.NONE
+        self.assertTrue(self.confirm()["done"])
+
+    def test_a_policy_that_cannot_be_read_is_the_strictest(self):
+        def unreadable():
+            raise OSError("denied")
+        self.rt.arming._policy = unreadable
+        self.assertEqual(self.confirm("shadow")["refusal"], Refusal.FORBIDDEN_BY_POLICY)
+
+    def test_no_grade_and_no_measurement_is_ever_a_refusal(self):
+        """Every grade the view can hold, with every reason, against every measurement outcome
+        and a Codex version known or not: confirmed as shown, it is done."""
+        from codex_auto_resume.compat.model import STATES
+        outcomes = ({}, {Measurement.M2: (Verdict.PASS, ac.ENGINE)},
+                    {Measurement.M2: (Verdict.PASS, "0.1.0")}, {Measurement.M2: (Verdict.FAIL, ac.ENGINE)})
+        for grade in STATES:
+            for reason in ("local_check_failed", "registry_incompatible", "local_checks_passed"):
+                for measured in outcomes:
+                    for version in (ac.ENGINE, None):
+                        with self.subTest(grade=grade, reason=reason, measured=measured, version=version):
+                            self.fresh()
+                            self.compat = ac.view(grade, reason=reason, version=version)
+                            self.measured = measured
+                            result = self.confirm()
+                            self.assertEqual((result["done"], result["refusal"]), (True, None))
+                            self.assertEqual(self.state_now(), ArmingState.ARMED)
+
+    def test_the_refusals_arm_can_give_are_the_policys_and_the_requests(self):
+        """Read from the source: every Refusal `arm` names. None of them is about a grade or a
+        measurement - those are warnings - and NOT_PERMITTED, C7's word, is gone."""
+        import inspect
+        import textwrap
+        from codex_auto_resume_advanced import arming
+        tree = ast.parse(textwrap.dedent(inspect.getsource(arming.Arming.arm)))
+        named = {node.attr for node in ast.walk(tree)
+                 if isinstance(node, ast.Attribute) and getattr(node.value, "id", None) == "Refusal"}
+        self.assertEqual(named, {"NOT_THE_DASHBOARD", "UNKNOWN_CAPABILITY", "INVALID_REQUEST",
+                                 "FORBIDDEN_BY_POLICY", "NOT_ALLOWED_BY_POLICY",
+                                 "SHADOW_FORCED_BY_POLICY", "STALE_REVISION", "STATEMENT_INCOMPLETE",
+                                 "STALE_CONFIRMATION", "STALE_GENERATION", "STATE_UNAVAILABLE"})
+        self.assertNotIn("not_permitted", {str(word) for word in Refusal})
+
+
+class ReArmTests(WarningCase):
+    """Whatever turned a capability off, the Dashboard can turn it on again."""
+
+    def test_after_every_way_off_it_can_be_turned_on_again(self):
+        ways = {
+            "a person, in the Dashboard": lambda: self.rt.arming.disarm("test_wake", actor=Actor.DASHBOARD),
+            "a model, through MCP": lambda: self.rt.arming.disarm("test_wake", actor=Actor.MCP),
+            "all advanced features off": lambda: self.rt.arming.all_off(actor=Actor.TRAY),
+            "a failure here": lambda: setattr(self, "compat", ac.view("FAILED_HERE")),
+            "a failed measurement": lambda: setattr(
+                self, "measured", {Measurement.M2: (Verdict.FAIL, ac.ENGINE)}),
+            "a hook that raised": lambda: self.rt.arming.trip("test_wake", OffReason.HOOK_EXCEPTION),
+            "a send left unknown": lambda: self.rt.arming.trip("test_wake", OffReason.SUBMISSION_UNKNOWN),
+            "a new Codex": lambda: setattr(self, "compat", ac.view(version="0.156.0")),
+            "entering the edition": lambda: self.rt.arming.edition_entered(),
+        }
+        for name, way in ways.items():
+            with self.subTest(name):
+                self.fresh()
+                self.assertTrue(self.confirm()["done"])
+                way()
+                self.assertEqual(self.state_now(), ArmingState.OFF)
+                self.assertEqual(self.stored()["state"], ArmingState.OFF)
+                result = self.confirm()
+                self.assertEqual((result["done"], result["refusal"]), (True, None))
+                self.assertEqual(self.state_now(), ArmingState.ARMED)
+
+    def test_a_new_statement_is_read_and_then_turned_on_again(self):
+        self.assertTrue(self.confirm()["done"])
+        self.definition = ac.definition(measurements=(Measurement.M2,), revision=2)
+        self.catalogs = ac.catalogs(self.home.parent / "second", self.definition)
+        self.rt = self.runtime(self.definition)
+        self.assertEqual(self.state_now(), ArmingState.OFF)
+        self.assertEqual(self.confirm(revision=1)["refusal"], Refusal.STALE_REVISION)
+        self.assertTrue(self.confirm(revision=2)["done"])
 
 class EditionEntryTests(ArmingCase):
     def test_entering_the_edition_turns_every_capability_off(self):

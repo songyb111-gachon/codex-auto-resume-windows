@@ -888,7 +888,7 @@ class InvocationTests(ac.AdvancedCase):
 
     def test_a_record_says_which_codex_it_measured(self):
         """The Dashboard's run opens the installed Codex and records the version it checked -
-        the one fact a measurement decides a capability by (C7). It recorded "unknown" always,
+        the one fact a statement's warnings read a measurement by. It recorded "unknown" always,
         since the backend it opened was never handed to the record."""
         opened = []
 

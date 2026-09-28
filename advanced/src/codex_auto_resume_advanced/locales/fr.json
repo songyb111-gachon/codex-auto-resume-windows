@@ -11,5 +11,14 @@
   "field.stop": "Comment l'arrêter",
   "state.armed": "Activée",
   "state.off": "Désactivée",
-  "state.shadow": "En observation"
+  "state.shadow": "En observation",
+  "warning.title": "Avertissements",
+  "warning.note": "Aucun ne vous empêche de l'activer. L'activer confirme que vous les avez lus ; si un nouveau problème apparaît plus tard, elle se désactive d'elle-même.",
+  "warning.measurement_failed": "Une mesure de ce sur quoi elle s'appuie a échoué. Elle risque de ne pas fonctionner avec votre Codex.",
+  "warning.unmeasured": "Ce sur quoi elle s'appuie n'a pas été mesuré avec cette version de Codex.",
+  "warning.failed_here": "Une vérification de compatibilité de ce sur quoi elle s'appuie a échoué sur cet ordinateur.",
+  "warning.incompatible": "Selon les données de compatibilité, ce sur quoi elle s'appuie ne fonctionne pas avec cette version de Codex.",
+  "warning.local_check_failed": "Une vérification sur cet ordinateur a constaté qu'il manque à cette version de Codex ce sur quoi elle s'appuie.",
+  "warning.compat_unknown": "On ne sait pas si ce sur quoi elle s'appuie fonctionne avec cette version de Codex.",
+  "warning.engine_unknown": "La version de Codex n'est pas encore connue. Si vous l'activez, elle se désactivera dès que la version sera connue, pour que vous puissiez confirmer cette version."
 }

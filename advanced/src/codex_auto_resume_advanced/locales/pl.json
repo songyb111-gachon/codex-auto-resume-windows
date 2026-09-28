@@ -11,5 +11,14 @@
   "field.stop": "Jak ją zatrzymać",
   "state.armed": "Włączona",
   "state.off": "Wyłączona",
-  "state.shadow": "Obserwacja"
+  "state.shadow": "Obserwacja",
+  "warning.title": "Ostrzeżenia",
+  "warning.note": "Żadne z nich nie blokuje włączenia. Włączenie potwierdza, że zostały przeczytane; jeśli później pojawi się nowy problem, funkcja wyłączy się sama.",
+  "warning.measurement_failed": "Pomiar tego, na czym się opiera, nie powiódł się. Może nie działać z Twoim Codex.",
+  "warning.unmeasured": "To, na czym się opiera, nie zostało zmierzone w tej wersji Codex.",
+  "warning.failed_here": "Sprawdzenie zgodności tego, na czym się opiera, nie powiodło się na tym komputerze.",
+  "warning.incompatible": "Według danych o zgodności to, na czym się opiera, nie działa z tą wersją Codex.",
+  "warning.local_check_failed": "Sprawdzenie na tym komputerze wykazało, że w tej wersji Codex brakuje tego, na czym się opiera.",
+  "warning.compat_unknown": "Nie wiadomo, czy to, na czym się opiera, działa z tą wersją Codex.",
+  "warning.engine_unknown": "Wersja Codex nie jest jeszcze znana. Po włączeniu funkcja wyłączy się ponownie, gdy tylko wersja stanie się znana, aby można było potwierdzić tę wersję."
 }

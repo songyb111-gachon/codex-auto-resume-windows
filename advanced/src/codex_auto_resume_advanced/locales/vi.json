@@ -11,5 +11,14 @@
   "field.stop": "Cách dừng nó",
   "state.armed": "Bật",
   "state.off": "Tắt",
-  "state.shadow": "Đang quan sát"
+  "state.shadow": "Đang quan sát",
+  "warning.title": "Cảnh báo",
+  "warning.note": "Không cảnh báo nào ngăn bạn bật nó. Bật nó nghĩa là bạn xác nhận đã đọc các cảnh báo này; nếu sau này xuất hiện vấn đề mới, nó sẽ tự tắt.",
+  "warning.measurement_failed": "Phép đo phần mà nó dựa vào đã thất bại. Nó có thể không hoạt động với Codex của bạn.",
+  "warning.unmeasured": "Phần mà nó dựa vào chưa được đo với phiên bản Codex này.",
+  "warning.failed_here": "Kiểm tra tương thích của phần mà nó dựa vào đã thất bại trên máy tính này.",
+  "warning.incompatible": "Theo dữ liệu tương thích, phần mà nó dựa vào không hoạt động với phiên bản Codex này.",
+  "warning.local_check_failed": "Một kiểm tra trên máy tính này cho thấy phiên bản Codex này thiếu phần mà nó dựa vào.",
+  "warning.compat_unknown": "Chưa rõ phần mà nó dựa vào có hoạt động với phiên bản Codex này hay không.",
+  "warning.engine_unknown": "Chưa biết phiên bản Codex. Nếu bạn bật nó, nó sẽ tắt lại ngay khi biết phiên bản, để bạn xác nhận phiên bản đó."
 }

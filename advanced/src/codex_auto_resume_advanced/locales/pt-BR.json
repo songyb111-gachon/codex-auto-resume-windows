@@ -11,5 +11,14 @@
   "field.stop": "Como parar",
   "state.armed": "Ligado",
   "state.off": "Desligado",
-  "state.shadow": "Em observação"
+  "state.shadow": "Em observação",
+  "warning.title": "Avisos",
+  "warning.note": "Nenhum deles impede que você o ative. Ativá-lo confirma que você os leu; se um problema novo aparecer depois, ele se desativa sozinho.",
+  "warning.measurement_failed": "Uma medição daquilo em que ele se apoia falhou. Ele pode não funcionar com o seu Codex.",
+  "warning.unmeasured": "Aquilo em que ele se apoia não foi medido com esta versão do Codex.",
+  "warning.failed_here": "Uma verificação de compatibilidade daquilo em que ele se apoia falhou neste computador.",
+  "warning.incompatible": "Os dados de compatibilidade dizem que aquilo em que ele se apoia não funciona com esta versão do Codex.",
+  "warning.local_check_failed": "Uma verificação neste computador constatou que falta a esta versão do Codex aquilo em que ele se apoia.",
+  "warning.compat_unknown": "Não se sabe se aquilo em que ele se apoia funciona com esta versão do Codex.",
+  "warning.engine_unknown": "A versão do Codex ainda não é conhecida. Se você o ativar, ele se desativa de novo assim que a versão for conhecida, para que você confirme essa versão."
 }

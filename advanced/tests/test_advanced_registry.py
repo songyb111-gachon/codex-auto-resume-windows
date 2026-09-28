@@ -21,7 +21,7 @@ from codex_auto_resume.domain.plug import Point  # noqa: E402
 from codex_auto_resume_advanced import registry, standards, statement  # noqa: E402
 from codex_auto_resume_advanced.registry import (CAPABILITY_POINTS, Ceilings, Registry,  # noqa: E402
                                                  RegistryError, problems)
-from codex_auto_resume_advanced.vocabulary import Field  # noqa: E402
+from codex_auto_resume_advanced.vocabulary import ArmingWarning, Field, Measurement  # noqa: E402
 
 # Where the owner keeps the standards file: beside the repository, not in it.
 STANDARDS_FILE = ac.ROOT.parent / standards.BASIS
@@ -78,6 +78,7 @@ class DefinitionTests(unittest.TestCase):
             "journal_prefix": dict(journal_prefix="t.w"),
             "codes": dict(codes=("woke", "woke")),
             "make": dict(make=None),
+            "measurements": dict(measurements=("m1",)),
         }
         for rule, change in cases.items():
             with self.subTest(rule):
@@ -86,6 +87,9 @@ class DefinitionTests(unittest.TestCase):
         self.assertIn("ceilings", problems(ac.definition(ceilings=Ceilings(per_day=300, per_conversation=1))))
         self.assertIn("ceilings", problems(ac.definition(ceilings=Ceilings(per_day=6, per_conversation=6))))
         self.assertEqual(problems("not a definition"), ["not a definition"])
+        self.assertIn("measurements", problems(ac.definition(measurements=[Measurement.M1])))
+        self.assertIn("measurements", problems(ac.definition(measurements=(Measurement.M1,) * 2)))
+        self.assertEqual(problems(ac.definition(measurements=(Measurement.M1, Measurement.MW))), [])
 
     def test_a_capability_never_holds_the_claim_ledger_or_a_surface(self):
         """Nor the moves core tells of, which the tripwires read (P14)."""
@@ -154,6 +158,26 @@ class StatementTests(unittest.TestCase):
         self.assertEqual(shown["fields"][0]["title"], "하는 일")
         self.assertEqual(catalogs.statement(ac.definition(), "xx")["locale"], "en")
 
+    def test_the_statement_shows_the_warnings_it_is_given_above_its_fields_in_their_words(self):
+        """The warnings' words ship in every language, title and note too: a warning is read,
+        and confirmed, in the person's own language."""
+        catalogs = ac.catalogs(self.where, ac.definition())
+        shown = catalogs.statement(ac.definition(), "ko", warnings=(ArmingWarning.FAILED_HERE,
+                                                                    ArmingWarning.UNMEASURED))
+        self.assertEqual([item["warning"] for item in shown["warnings"]["items"]],
+                         ["failed_here", "unmeasured"])
+        self.assertEqual(shown["warnings"]["title"], "경고")
+        self.assertIn("켤 수 있습니다", shown["warnings"]["note"])
+        self.assertIn("컴퓨터", shown["warnings"]["items"][0]["text"])
+        self.assertEqual(catalogs.statement(ac.definition(), "en")["warnings"]["items"], [])
+        for locale in l10n.LOCALES:
+            with self.subTest(locale):
+                table = catalogs.own(locale)
+                for name in statement.WARNING_KEYS:
+                    self.assertTrue(table.get(name, "").strip(), name)
+                    if locale != "en":
+                        self.assertNotEqual(table[name], catalogs.own("en")[name], name)
+
     def test_a_language_whose_catalog_breaks_is_english_underneath(self):
         catalogs = ac.catalogs(self.where, ac.definition())
         (self.where / "locales" / "fr.json").write_text("{", encoding="utf-8")
@@ -173,7 +197,9 @@ class ShippedCatalogTests(unittest.TestCase):
         self.assertEqual(english, {statement.SENTINEL_KEY, statement.ALL_OFF_KEY}
                          | set(statement.EDITION_KEYS)
                          | {statement.title_key(field) for field in statement.FIELDS}
-                         | {"state.off", "state.shadow", "state.armed"})
+                         | {"state.off", "state.shadow", "state.armed"}
+                         | set(statement.WARNING_KEYS))
+        self.assertEqual(len(statement.WARNING_KEYS), 2 + len(ArmingWarning))
         for locale, table in tables.items():
             with self.subTest(locale):
                 self.assertEqual(set(table), english)

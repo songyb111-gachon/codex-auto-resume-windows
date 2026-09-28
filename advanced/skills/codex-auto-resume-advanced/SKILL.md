@@ -42,6 +42,13 @@ asks what the advanced edition does, say that. Do not describe capabilities from
   does less. When the user asks, use `disarm_advanced_capability` with the exact id
   `list_advanced_capabilities` gives, or `disarm_all_advanced`. `list_advanced_capabilities`
   only reads.
+- A statement may show warnings: a measurement the capability relies on failed or was never
+  made for this version of Codex, or its compatibility check failed or is unknown. A warning
+  does not stop the user turning the capability on; turning it on confirms they read it. Never
+  call a capability unavailable because of a warning. Only an administrator's policy can keep
+  one from being turned on.
+- A capability that turned itself off after a problem appeared can be turned on again in the
+  Dashboard, by the user, like any other.
 - Pause stops every capability along with everything else.
 
 ## Moving between editions

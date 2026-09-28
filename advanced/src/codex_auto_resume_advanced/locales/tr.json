@@ -11,5 +11,14 @@
   "field.stop": "Nasıl durdurulur",
   "state.armed": "Açık",
   "state.off": "Kapalı",
-  "state.shadow": "İzleniyor"
+  "state.shadow": "İzleniyor",
+  "warning.title": "Uyarılar",
+  "warning.note": "Bunların hiçbiri onu açmanızı engellemez. Açmak, bunları okuduğunuzu onaylar; daha sonra yeni bir sorun çıkarsa kendiliğinden kapanır.",
+  "warning.measurement_failed": "Dayandığı şeyin ölçümü başarısız oldu. Codex'inizde çalışmayabilir.",
+  "warning.unmeasured": "Dayandığı şey Codex'in bu sürümünde ölçülmedi.",
+  "warning.failed_here": "Dayandığı şeyin uyumluluk denetimi bu bilgisayarda başarısız oldu.",
+  "warning.incompatible": "Uyumluluk verilerine göre dayandığı şey Codex'in bu sürümüyle çalışmıyor.",
+  "warning.local_check_failed": "Bu bilgisayardaki bir denetim, Codex'in bu sürümünde dayandığı şeyin bulunmadığını gördü.",
+  "warning.compat_unknown": "Dayandığı şeyin Codex'in bu sürümüyle çalışıp çalışmadığı bilinmiyor.",
+  "warning.engine_unknown": "Codex'in sürümü henüz bilinmiyor. Açarsanız, sürüm öğrenildiği anda yeniden kapanır; böylece o sürümü onaylayabilirsiniz."
 }

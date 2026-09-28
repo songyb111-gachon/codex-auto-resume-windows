@@ -11,5 +11,14 @@
   "field.stop": "Wie man sie stoppt",
   "state.armed": "An",
   "state.off": "Aus",
-  "state.shadow": "Wird beobachtet"
+  "state.shadow": "Wird beobachtet",
+  "warning.title": "Warnungen",
+  "warning.note": "Keine davon hindert Sie daran, sie einzuschalten. Mit dem Einschalten bestätigen Sie, dass Sie sie gelesen haben; tritt später ein neues Problem auf, schaltet sie sich selbst aus.",
+  "warning.measurement_failed": "Eine Messung dessen, worauf sie sich stützt, ist fehlgeschlagen. Mit Ihrem Codex funktioniert sie womöglich nicht.",
+  "warning.unmeasured": "Worauf sie sich stützt, wurde mit dieser Codex-Version nicht gemessen.",
+  "warning.failed_here": "Eine Kompatibilitätsprüfung dessen, worauf sie sich stützt, ist auf diesem Computer fehlgeschlagen.",
+  "warning.incompatible": "Laut den Kompatibilitätsdaten funktioniert das, worauf sie sich stützt, mit dieser Codex-Version nicht.",
+  "warning.local_check_failed": "Eine Prüfung auf diesem Computer hat ergeben, dass dieser Codex-Version fehlt, worauf sie sich stützt.",
+  "warning.compat_unknown": "Es ist nicht bekannt, ob das, worauf sie sich stützt, mit dieser Codex-Version funktioniert.",
+  "warning.engine_unknown": "Die Codex-Version ist noch nicht bekannt. Schalten Sie sie ein, schaltet sie sich wieder aus, sobald die Version bekannt ist, damit Sie diese Version bestätigen können."
 }

@@ -13,7 +13,10 @@ lives in this package's own catalogs (`edition.*`); core surfaces keep their own
 The bridge is the Dashboard's (controlcli.serve, the long-lived form; the one-shot form never
 reaches a plug). It is where a person reads a capability's statement and turns it on, watches
 it, turns it off, turns everything off, lowers the global ceiling, or runs a measurement by
-hand (`measure <id>`, measure.py) - every request made as the Dashboard.
+hand (`measure <id>`, measure.py) - every request made as the Dashboard. The statement carries
+the warnings that hold now and the Codex version an "on" acknowledges; the request to turn it on
+sends both back as the person's confirmation, and a warning is never what refuses it
+(arming.py).
 
 MCP is a model's. It can list the capabilities, turn one off and turn all of them off, and that
 is all: turning something off only ever does less, as a Pause does. There is no tool that turns
@@ -43,7 +46,7 @@ ARGUMENTS = {
     BridgeCommand.ADVANCED_LIST: frozenset(),
     BridgeCommand.ADVANCED_STATEMENT: frozenset({"capability", "locale"}),
     BridgeCommand.ADVANCED_ARM: frozenset({"capability", "state", "revision", "generation",
-                                           "engine_version"}),
+                                           "engine_version", "warnings"}),
     BridgeCommand.ADVANCED_DISARM: frozenset({"capability"}),
     BridgeCommand.ADVANCED_DISARM_ALL: frozenset(),
     BridgeCommand.ADVANCED_CEILING: frozenset({"global_hourly", "generation"}),
@@ -125,11 +128,12 @@ def bridge(runtime, command, argument):
             return {"done": False, "refusal": Refusal.UNKNOWN_CAPABILITY}
         locale = argument.get("locale")
         locale = l10n.resolve(locale) if isinstance(locale, str) and locale else l10n.current()
-        return dict(arming.catalogs.statement(definition, locale), done=True)
+        return dict(arming.statement(definition, locale), done=True)
     if command == BridgeCommand.ADVANCED_ARM:
         return arming.arm(argument.get("capability"), state=argument.get("state"),
                           revision=argument.get("revision"), generation=argument.get("generation"),
-                          acknowledged_version=argument.get("engine_version"), actor=Actor.DASHBOARD)
+                          acknowledged_version=argument.get("engine_version"),
+                          warnings=argument.get("warnings"), actor=Actor.DASHBOARD)
     if command == BridgeCommand.ADVANCED_DISARM:
         return arming.disarm(argument.get("capability"), actor=Actor.DASHBOARD)
     if command == BridgeCommand.ADVANCED_DISARM_ALL:
