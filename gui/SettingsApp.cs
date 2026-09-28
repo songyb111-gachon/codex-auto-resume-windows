@@ -614,6 +614,8 @@ namespace CodexAutoResume
                 Padding measured = InvisibleFrame();
                 if (measured != Padding.Empty) invisibleFrame = measured;
                 BuildEditorsLater();
+                // Only a window build/capture_window.ps1 started, which says when it may be photographed.
+                WatchForStill();
             };
             FormClosed += delegate { StopClock(); bridge.Stop(); };
         }

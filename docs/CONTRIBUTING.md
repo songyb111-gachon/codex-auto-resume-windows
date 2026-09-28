@@ -446,6 +446,25 @@ popup and the notification card are drawn in each Design other than Soft - Class
 English and the light theme, as `docs/images/design-<design>-<surface>.png`.
 They are documentation only and never copied into `assets/`.
 
+**Only what moved is drawn, side by side.** Both steps first hold the manifest against the working
+tree and draw only the pictures whose inputs moved, whose files are not the bytes the manifest
+records, or - for the window - that were captured at another display scaling; the rest are kept as
+they are. A change to the generator itself draws everything, and so does `--all`
+(`python build/make_screenshots.py --all`, `python build/make_screenshots.py --breathe --all`). What
+is drawn is drawn side by side, each job - one language's window pages, one panel, one popup - in a
+process of its own: the windows' jobs all at once, and the others half the processors at a time and
+never more than eight (`--jobs N` says how many). The window is photographed as soon as it says that the page it opened on is drawn from the
+bridge's answers and holds still, rather than a fixed fifteen seconds after it started:
+`build/capture_window.ps1` hands it the name of an event to set, through a variable only the capture
+sets, and still waits no longer than those fifteen seconds; a window still busy then is photographed
+once it answers, as before. Two windows may be on screen at once, and no more: a window spends most
+of its start drawing text through parts of Windows every process shares, and a dozen started
+together each took two minutes. Each is photographed with PrintWindow, which draws a window whatever
+covers it, and one at a time from the moment its caption is painted inactive to the moment it is
+closed. None of them takes the foreground - a new window otherwise does once nobody has typed for a
+while, and the foreground window's caption comes out active - and a picture whose caption is active
+all the same is taken again, and after five tries not kept.
+
 It needs Windows, Microsoft Edge (it is what renders the panel), and
 `build/CodexAutoResumeSettings.exe` already built — run
 `powershell -ExecutionPolicy Bypass -File build/make_gui.ps1` first. The first run also

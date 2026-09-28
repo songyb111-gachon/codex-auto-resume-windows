@@ -41,6 +41,7 @@ from __future__ import annotations
 import ast
 from contextlib import ExitStack
 import hashlib
+import inspect
 import json
 import os
 from pathlib import Path
@@ -1122,7 +1123,8 @@ class ContentTests(unittest.TestCase):
                           make_screenshots.render_panel, make_screenshots.render_popup):
             self.assertIsNone(inspect.signature(published).parameters["theme"].default, published.__name__)
             self.assertIsNone(inspect.signature(published).parameters["design"].default, published.__name__)
-        for whole_run in (make_screenshots.main, make_screenshots.render_inputs):
+        for whole_run in (make_screenshots.main, make_screenshots.render_inputs, make_screenshots.run_job,
+                          make_screenshots.window_job, make_screenshots.job_targets):
             self.assertNotIn("theme=", inspect.getsource(whole_run).replace("theme=THEME", ""),
                              "a published picture is drawn in THEME")
             self.assertNotIn("design=\"", inspect.getsource(whole_run),
@@ -2244,6 +2246,228 @@ class AuditSheetTests(unittest.TestCase):
         self.assertEqual(MANIFEST.read_bytes(), manifest)
         self.assertEqual(self.published(), published)
         self.assertFalse((ROOT / "docs" / "images" / "audit").exists())
+
+
+class FasterRunTests(unittest.TestCase):
+    """A whole run draws only what is stale, side by side, and photographs a window when it says it is ready (v0.6.11).
+
+    Until then a run drew every picture, one after another, and waited a fixed fifteen seconds for each window - a
+    quarter of an hour on a busy machine - and the watcher's mutex was held for 40 s and 20 s a page, so a late page
+    of a slow run was photographed with no watcher and the run stopped. The pictures themselves are the same bytes;
+    these hold the machinery that makes them sooner to what it promises.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.generator = generator()
+        cls.manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+
+    def test_the_capture_waits_for_the_window_s_word_with_the_old_wait_as_its_limit(self):
+        g = self.generator
+        script = (ROOT / "build" / "capture_window.ps1").read_text(encoding="utf-8")
+        self.assertNotIn("Start-Sleep -Seconds $Wait", script)
+        for needle in ("$env:CODEX_AR_STILL_READY = $readyName", "EventWaitHandle", "$ready.WaitOne(",
+                       "Remove-Item Env:\\CODEX_AR_STILL_READY"):
+            self.assertIn(needle, script)
+        # The moment of capture one at a time, from the inactive caption until the window is gone.
+        taken = script.index("$turn.WaitOne()")
+        self.assertLess(script.index("$ready.WaitOne("), taken)
+        self.assertLess(taken, script.index("SendMessage($handle, 0x0086"))
+        self.assertLess(script.index("Stop-Process -Id $process.Id"), script.index("$turn.ReleaseMutex()"))
+        # Taken again while Windows has painted the caption active since it was told otherwise.
+        printed = script.index("::PrintWindow($handle")
+        self.assertLess(printed, script.index("if (-not [CaptureNative.Win]::CaptionActive($handle)) { break }"))
+        self.assertLess(script.index("while ($true) {"), script.index("SendMessage($handle, 0x0086"))
+        # And the window a capture starts never takes the foreground, whose caption the redraw would paint active.
+        window = guiscan.whole()
+        self.assertIn("return Soft.StillReady != null || base.ShowWithoutActivation;", window)
+        self.assertIn("if (Soft.StillReady != null) created.ExStyle |= 0x08000000;", window)
+        # A window that is busy when the wait runs out is waited for before the turn is taken, not while holding it.
+        self.assertLess(script.index("SendMessage($handle, 0x0000"), taken)
+        # The old wait is the limit, and the generator asks for it.
+        self.assertEqual(g.CAPTURE_WAIT, 15)
+        self.assertIn('"-Wait", str(CAPTURE_WAIT)', inspect.getsource(g.render_window))
+        # The window reads the name once, beside the other two things only a picture asks of it, and sets the event
+        # in one place; nothing the product runs names it.
+        named = {path.name for path in guiscan.sources() if "CODEX_AR_STILL_READY" in path.read_text(encoding="utf-8")}
+        self.assertEqual(named, {"SoftTheme.cs"})
+        setting = {path.name for path in guiscan.sources() if "EventWaitHandle" in path.read_text(encoding="utf-8")}
+        self.assertEqual(setting, {"DashboardData.cs"})
+        self.assertEqual([path for path in srcscan.package_files()
+                          if "CODEX_AR_STILL_READY" in srcscan.read(path)], [])
+
+    def test_two_windows_are_open_at_a_time_and_a_third_waits_its_turn(self):
+        """Twelve windows started together each took two minutes to answer; one alone took ten seconds."""
+        import threading
+        import uuid
+        g = self.generator
+        self.assertEqual(g.WINDOWS_AT_ONCE, 2)
+        source = inspect.getsource(g.render_window)
+        self.assertLess(source.index("with window_turn():"), source.index('"powershell.exe"'))
+        if os.name != "nt":
+            self.skipTest("a turn is a Windows semaphore")
+        # A name of this test's own, so a generator running on this machine is neither waited for nor held up.
+        with patch.object(g, "WINDOW_TURNS", "Local\\CodexAutoResume.Test.%s" % uuid.uuid4().hex):
+            third = threading.Event()
+
+            def waiting():
+                with g.window_turn():
+                    third.set()
+
+            with g.window_turn():
+                with g.window_turn():
+                    waiter = threading.Thread(target=waiting, daemon=True)
+                    waiter.start()
+                    self.assertFalse(third.wait(0.5), "a third window opened beside two")
+                self.assertTrue(third.wait(10), "and it opens once one of the two has closed")
+            waiter.join(10)
+
+    def test_a_capture_leaves_nothing_it_started_running(self):
+        """A capture killed for its time left its window open, which then reopened itself in the defaults."""
+        g = self.generator
+        self.assertIn("run_contained(", inspect.getsource(g.render_window))
+        if os.name != "nt":
+            self.skipTest("a Windows job")
+        import ctypes
+        starts = ("import subprocess, sys; child = subprocess.Popen([sys.executable, '-c', 'import time; "
+                  "time.sleep(60)'], creationflags=0x08000000); print(child.pid)")
+        done = g.run_contained([sys.executable, "-c", starts], timeout=60, env=dict(os.environ))
+        self.assertEqual(done.returncode, 0, done.stderr)
+        child = int(done.stdout.split()[-1])
+        kernel32 = ctypes.WinDLL("kernel32")
+        kernel32.OpenProcess.restype = ctypes.c_void_p
+        kernel32.WaitForSingleObject.argtypes = (ctypes.c_void_p, ctypes.c_ulong)
+        kernel32.CloseHandle.argtypes = (ctypes.c_void_p,)
+        handle = kernel32.OpenProcess(0x00100000, False, child)          # SYNCHRONIZE
+        if handle:
+            try:
+                self.assertEqual(kernel32.WaitForSingleObject(handle, 10000), 0, "what it started is still running")
+            finally:
+                kernel32.CloseHandle(handle)
+
+    def test_the_mutex_holder_lives_exactly_as_long_as_its_capture(self):
+        """No timer: it holds until its standard input closes, which `render_window` does, or its parent ends."""
+        import subprocess
+        g = self.generator
+        self.assertNotIn("time.time() - started <", g.HOLD_MUTEX)
+        self.assertIn("sys.stdin.buffer.read()", g.HOLD_MUTEX)
+        self.assertIn("release(holder)", inspect.getsource(g.render_window))
+        self.assertNotIn("holder.kill()", inspect.getsource(g.render_window))
+        with tempfile.TemporaryDirectory() as scratch:
+            home = Path(scratch) / "home"
+            holder = subprocess.Popen([sys.executable, "-c", g.HOLD_MUTEX, str(ROOT / "src"), str(home), "unknown"],
+                                      stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                      text=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            try:
+                self.assertEqual(holder.stdout.readline().strip(), "held")
+                with self.assertRaises(subprocess.TimeoutExpired):
+                    holder.wait(2.5)
+                g.release(holder)
+                self.assertEqual(holder.returncode, 0, holder.stderr.read())
+            finally:
+                if holder.poll() is None:
+                    holder.kill()
+                    holder.wait(10)
+                holder.stdout.close()
+                holder.stderr.close()
+
+    def test_every_picture_is_drawn_by_one_job_or_copied_from_one(self):
+        g = self.generator
+        drawn = [g.manifest_key(path) for job in g.whole_run_jobs() for path in g.job_targets(job).values()]
+        self.assertEqual(len(drawn), len(set(drawn)), "no picture is drawn by two jobs")
+        copies, extras = g.picture_set()
+        self.assertEqual([g.manifest_key(path) for path in list(copies) + list(copies.values()) + extras],
+                         list(self.manifest["images"]), "the manifest lists the pictures in the order it always did")
+        self.assertEqual(sorted(drawn), sorted(g.manifest_key(path) for path in list(copies) + extras))
+        # Every input a job is judged by is one the manifest records.
+        for job in g.whole_run_jobs():
+            for name in g.job_inputs(job):
+                self.assertIn(name, self.manifest["inputs"], job)
+
+    def test_a_job_is_stale_exactly_when_what_it_is_drawn_from_moved(self):
+        g = self.generator
+        jobs, recorded = g.whole_run_jobs(), self.manifest
+        inputs, dpi = dict(recorded["inputs"]), recorded["system_dpi"]
+
+        def stale_with(**changes):
+            moved = dict(inputs)
+            for name, value in changes.get("inputs", {}).items():
+                moved[name] = value
+            return [(job["kind"], job["locale"], job["design"]) for job in jobs
+                    if g.stale(job, changes.get("recorded", recorded), moved, changes.get("dpi", dpi))]
+
+        self.assertEqual(stale_with(), [], "the committed pictures are what the manifest records")
+        self.assertEqual(stale_with(inputs={"<bridge envelope:ko>": "moved"}), [("window", "ko", None)])
+        self.assertEqual(stale_with(inputs={"<card render:ja>": "moved"}), [("card", "ja", None)])
+        self.assertEqual(stale_with(inputs={"<panel render:en:plain>": "moved"}), [("panel", "en", "plain")])
+        self.assertEqual(stale_with(inputs={"<icon motion>": "moved"}), [("icon", None, None)])
+        windows = [(job["kind"], job["locale"], job["design"]) for job in jobs if job["kind"] == "window"]
+        self.assertEqual(stale_with(inputs={"<window sources>": "moved"}), windows)
+        self.assertEqual(stale_with(dpi=dpi + 1), windows)
+        self.assertEqual(len(stale_with(inputs={"build/make_screenshots.py": "moved"})), len(jobs),
+                         "a change to the generator draws everything")
+        self.assertEqual(len(stale_with(recorded=None)), len(jobs))
+        # A picture that is not the bytes recorded, or has no lights recorded, is drawn again with its job.
+        other = json.loads(json.dumps(recorded))
+        other["images"]["docs/images/tray-popup-de.png"]["sha256"] = "0" * 64
+        del other["lights"]["docs/images/design-classic-card.png"]
+        self.assertEqual(stale_with(recorded=other), [("popup", "de", None), ("card", "en", "classic")])
+
+    def run_main(self, *arguments):
+        """`main(arguments)` with the inputs, the scaling and the jobs stood in for, into a copy of the manifest;
+        (the jobs asked for, the manifest it wrote)."""
+        from contextlib import redirect_stdout
+        import io
+        from unittest.mock import MagicMock
+        g = self.generator
+        jobs = MagicMock(return_value=({}, 0))
+        with tempfile.TemporaryDirectory() as scratch:
+            manifest = Path(scratch) / "screenshots.json"
+            manifest.write_bytes(MANIFEST.read_bytes())
+            with ExitStack() as stack:
+                stack.enter_context(patch.object(g, "MANIFEST", manifest))
+                stack.enter_context(patch.object(g, "render_inputs", MagicMock(return_value=dict(self.manifest["inputs"]))))
+                stack.enter_context(patch.object(g, "system_dpi", MagicMock(return_value=self.manifest["system_dpi"])))
+                stack.enter_context(patch.object(g, "run_jobs", jobs))
+                stack.enter_context(patch.object(g, "copy_file", MagicMock(side_effect=AssertionError("copied"))))
+                stack.enter_context(redirect_stdout(io.StringIO()))
+                self.assertEqual(g.main(list(arguments)), 0)
+            return [call.args[0] for call in jobs.call_args_list], manifest.read_bytes()
+
+    def test_a_run_with_nothing_stale_draws_nothing_and_writes_the_manifest_it_read(self):
+        asked, written = self.run_main()
+        self.assertEqual(asked, [[]])
+        self.assertEqual(written, MANIFEST.read_bytes())
+
+    def test_all_draws_every_job(self):
+        asked, written = self.run_main("--all", "--jobs", "3")
+        self.assertEqual(asked, [self.generator.whole_run_jobs()])
+        self.assertEqual(written, MANIFEST.read_bytes(), "every record kept, since the stand-in drew nothing")
+
+    def test_breathing_draws_only_the_pictures_that_do_not_move_yet(self):
+        from contextlib import redirect_stdout
+        import io
+        from unittest.mock import MagicMock
+        g = self.generator
+        for everything in (False, True):
+            jobs = MagicMock(return_value=({}, 0))
+            with tempfile.TemporaryDirectory() as scratch, ExitStack() as stack:
+                manifest = Path(scratch) / "screenshots.json"
+                manifest.write_bytes(MANIFEST.read_bytes())
+                stack.enter_context(patch.object(g, "MANIFEST", manifest))
+                stack.enter_context(patch.object(g, "run_jobs", jobs))
+                stack.enter_context(redirect_stdout(io.StringIO()))
+                g.breathe_pictures(everything=everything)
+                self.assertEqual(manifest.read_bytes(), MANIFEST.read_bytes())
+            asked = [job["picture"] for job in jobs.call_args.args[0]]
+            if not everything:
+                self.assertEqual(asked, [], "every committed capture moves already")
+                continue
+            copies = {g.manifest_key(copy) for locale in g.LOCALES for copy in g.paths_for(locale).values()}
+            self.assertEqual(asked, sorted(key for key, record in self.manifest["lights"].items()
+                                           if record["surface"] in g.CAPTURED and key not in copies
+                                           and g.light_timeline(record) is not None))
+            self.assertTrue(asked)
 
 
 if __name__ == "__main__":

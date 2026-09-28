@@ -18,6 +18,20 @@
         window's own client rectangle rather than guessed at: the caption is kept, and
         the sides and the bottom lose exactly the frame Windows did not give us.
 
+    It waits for the window to say it is ready rather than for a fixed time. The window is given
+    the name of an event (CODEX_AR_STILL_READY, which nothing else sets) and sets it once the page
+    it opened on is drawn from the bridge's answers and holds still (SettingsForm.WatchForStill);
+    -Wait is the longest that may take. Until v0.6.11 it was simply how long every picture waited,
+    fifteen seconds each, whatever the window was doing. A window that does not say so in time is
+    photographed as it was then, as before, and the output says it was not ready.
+
+    Several may run at once, each with its own window: PrintWindow draws a window that is covered.
+    (build/make_screenshots.py opens two at a time: WINDOWS_AT_ONCE.) The one thing they share is
+    which window is active, and a window that closes hands activation to another - which would
+    paint that one's caption active in the middle of its capture. So the moment of capture, from
+    the inactive caption to the window being closed, is taken one at a time, under a lock every
+    capture on this machine shares.
+
     Run: powershell -ExecutionPolicy Bypass -File build/capture_window.ps1 `
              -Exe <path to exe> -Out <path to png> [-Wait 6] [-Arguments '--page=pending']
 #>
@@ -25,6 +39,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$Exe,
     [Parameter(Mandatory = $true)][string]$Out,
+    # The longest, in seconds, the window may take to say it is ready to be photographed.
     [int]$Wait = 6,
     # Passed to the window as its command line - which page it opens on.
     [string]$Arguments = ''
@@ -42,32 +57,74 @@ Add-Type -Namespace CaptureNative -Name Win -MemberDefinition @'
 [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
 [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
 [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr h);
+[DllImport("user32.dll")] public static extern bool GetWindowInfo(IntPtr h, ref WINDOWINFO info);
 public struct RECT { public int L, T, R, B; }
 public struct POINT { public int X, Y; }
+public struct WINDOWINFO {
+    public uint cbSize; public RECT rcWindow; public RECT rcClient; public uint dwStyle; public uint dwExStyle;
+    public uint dwWindowStatus; public uint cxWindowBorders; public uint cyWindowBorders;
+    public ushort atomWindowType; public ushort wCreatorVersion;
+}
+// Whether the window's frame is drawn active (WS_ACTIVECAPTION): what the last WM_NCACTIVATE it
+// was sent - by this script or by Windows - left it as.
+public static bool CaptionActive(IntPtr h) {
+    var info = new WINDOWINFO();
+    info.cbSize = (uint)Marshal.SizeOf(typeof(WINDOWINFO));
+    return GetWindowInfo(h, ref info) && (info.dwWindowStatus & 1) != 0;
+}
 '@
 
 # PER_MONITOR_AWARE_V2. Ignored on Windows older than 1703, where the script would
 # already have been given real coordinates.
 [void][CaptureNative.Win]::SetProcessDpiAwarenessContext([IntPtr](-4))
 
-# Every status light is held at the brightest moment of its breath (Soft.StillLightMs), so the
-# same window photographed twice comes out the same. Without it a picture changed whenever it
-# was taken, and the difference looked like a change to the source.
-$env:CODEX_AR_STILL_LIGHT = '0'
+$turn = $null
+$held = $false
+$process = $null
+$ready = $null
 try {
-    if ($Arguments) {
-        $process = Start-Process $Exe -ArgumentList $Arguments -PassThru
-    } else {
-        $process = Start-Process $Exe -PassThru
+    # Every status light is held at the brightest moment of its breath (Soft.StillLightMs), so the
+    # same window photographed twice comes out the same. Without it a picture changed whenever it
+    # was taken, and the difference looked like a change to the source.
+    $env:CODEX_AR_STILL_LIGHT = '0'
+    # The event the window sets once it may be photographed (Soft.StillReady), named for this capture alone.
+    $readyName = 'Local\CodexAutoResume.Still.' + [guid]::NewGuid().ToString('N')
+    $ready = New-Object System.Threading.EventWaitHandle($false, [System.Threading.EventResetMode]::ManualReset, $readyName)
+    $env:CODEX_AR_STILL_READY = $readyName
+    try {
+        if ($Arguments) {
+            $process = Start-Process $Exe -ArgumentList $Arguments -PassThru
+        } else {
+            $process = Start-Process $Exe -PassThru
+        }
+    } finally {
+        Remove-Item Env:\CODEX_AR_STILL_LIGHT -ErrorAction SilentlyContinue
+        Remove-Item Env:\CODEX_AR_STILL_READY -ErrorAction SilentlyContinue
     }
-} finally {
-    Remove-Item Env:\CODEX_AR_STILL_LIGHT -ErrorAction SilentlyContinue
-}
-try {
-    Start-Sleep -Seconds $Wait
+
+    $waited = [System.Diagnostics.Stopwatch]::StartNew()
+    $said = $ready.WaitOne([Math]::Max(0, $Wait) * 1000)
+    $waited.Stop()
     $process.Refresh()
     $handle = $process.MainWindowHandle
+    # A window still being made when the wait ran out has no handle yet: it is given two minutes more to
+    # appear at all, where until v0.6.11 the capture failed at once.
+    $appearing = [System.Diagnostics.Stopwatch]::StartNew()
+    while ($handle -eq [IntPtr]::Zero -and -not $process.HasExited -and $appearing.Elapsed.TotalSeconds -lt 120) {
+        Start-Sleep -Milliseconds 200
+        $process.Refresh()
+        $handle = $process.MainWindowHandle
+    }
     if ($handle -eq [IntPtr]::Zero) { throw 'The window did not appear.' }
+
+    # A window that is still busy when the wait runs out answers nothing until it is done, and the capture
+    # below would wait for it holding every other capture's turn: it waits for the window here instead.
+    # WM_NULL, which a window answers by doing nothing, returns once the window reads its messages again.
+    [void][CaptureNative.Win]::SendMessage($handle, 0x0000, [IntPtr]::Zero, [IntPtr]::Zero)
+
+    # One capture at a time from here until its window is closed (see the top of this file).
+    $turn = New-Object System.Threading.Mutex($false, 'Local\CodexAutoResume.Capture')
+    try { $held = $turn.WaitOne() } catch [System.Threading.AbandonedMutexException] { $held = $true }
 
     # Paint everything now, synchronously, before looking. A child that had been invalidated
     # but not yet repainted was captured as its erased background: the Korean screenshot
@@ -80,27 +137,43 @@ try {
     # source. Every picture is taken of an inactive window: WM_NCACTIVATE(FALSE) paints the
     # frame as the window looks when somebody is working elsewhere, which is also how a
     # screenshot in a document is read.
-    [void][CaptureNative.Win]::SendMessage($handle, 0x0086, [IntPtr]::Zero, [IntPtr]::Zero)
-    # The focus ring and the access-key underlines are Windows' keyboard cues, and a new window
-    # takes their state from how the last input reached the machine - so the Settings picture
-    # carried a ring round the Overview tab in some releases and not in others, with nothing in
-    # the source moved. Every picture is taken with the cues hidden, as a window looks to a person
-    # using the mouse: WM_CHANGEUISTATE(UIS_SET, UISF_HIDEFOCUS | UISF_HIDEACCEL) on the top-level
-    # window, which passes it to every child as WM_UPDATEUISTATE, and the redraw below paints it.
-    [void][CaptureNative.Win]::SendMessage($handle, 0x0127, [IntPtr](0x00030001), [IntPtr]::Zero)
-    [void][CaptureNative.Win]::RedrawWindow($handle, [IntPtr]::Zero, [IntPtr]::Zero, 0x0001 -bor 0x0004 -bor 0x0080 -bor 0x0100 -bor 0x0400)
-    Start-Sleep -Milliseconds 300
+    # That holds only for a window that is not in fact the foreground window: the redraw below
+    # paints the frame of the foreground window active again, whatever it was told. Which window
+    # has the foreground was never the capture's to decide - a window takes it as it opens once
+    # nobody has typed for a while, and is handed it when the window in front of it closes - and a
+    # Japanese Overview captured beside other windows came out active (v0.6.11). So the window a
+    # capture starts never takes it (SettingsForm.ShowWithoutActivation, WS_EX_NOACTIVATE), and the
+    # caption is read back once the picture is taken: still active, and it is taken again; still
+    # active five times over, and the capture fails rather than keep a picture of an active window.
+    $attempt = 0
+    while ($true) {
+        [void][CaptureNative.Win]::SendMessage($handle, 0x0086, [IntPtr]::Zero, [IntPtr]::Zero)
+        # The focus ring and the access-key underlines are Windows' keyboard cues, and a new window
+        # takes their state from how the last input reached the machine - so the Settings picture
+        # carried a ring round the Overview tab in some releases and not in others, with nothing in
+        # the source moved. Every picture is taken with the cues hidden, as a window looks to a person
+        # using the mouse: WM_CHANGEUISTATE(UIS_SET, UISF_HIDEFOCUS | UISF_HIDEACCEL) on the top-level
+        # window, which passes it to every child as WM_UPDATEUISTATE, and the redraw below paints it.
+        [void][CaptureNative.Win]::SendMessage($handle, 0x0127, [IntPtr](0x00030001), [IntPtr]::Zero)
+        [void][CaptureNative.Win]::RedrawWindow($handle, [IntPtr]::Zero, [IntPtr]::Zero, 0x0001 -bor 0x0004 -bor 0x0080 -bor 0x0100 -bor 0x0400)
+        Start-Sleep -Milliseconds 300
 
-    $rect = New-Object CaptureNative.Win+RECT
-    [void][CaptureNative.Win]::GetWindowRect($handle, [ref]$rect)
-    $width = $rect.R - $rect.L
-    $height = $rect.B - $rect.T
+        $rect = New-Object CaptureNative.Win+RECT
+        [void][CaptureNative.Win]::GetWindowRect($handle, [ref]$rect)
+        $width = $rect.R - $rect.L
+        $height = $rect.B - $rect.T
 
-    $bitmap = New-Object System.Drawing.Bitmap $width, $height
-    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-    $dc = $graphics.GetHdc()
-    [void][CaptureNative.Win]::PrintWindow($handle, $dc, 2)
-    $graphics.ReleaseHdc($dc)
+        $bitmap = New-Object System.Drawing.Bitmap $width, $height
+        $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+        $dc = $graphics.GetHdc()
+        [void][CaptureNative.Win]::PrintWindow($handle, $dc, 2)
+        $graphics.ReleaseHdc($dc)
+        if (-not [CaptureNative.Win]::CaptionActive($handle)) { break }
+        $graphics.Dispose()
+        $bitmap.Dispose()
+        $attempt++
+        if ($attempt -ge 5) { throw 'The window was made active during each of five captures.' }
+    }
 
     # The frame Windows draws and PrintWindow does not: the client rectangle says where the
     # window's own pixels begin and end, so the black band each side and along the bottom is
@@ -151,10 +224,20 @@ try {
     }
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $Out) | Out-Null
     $cut.Save($Out, [System.Drawing.Imaging.ImageFormat]::Png)
-    Write-Host ('captured ' + $cut.Width + 'x' + $cut.Height + ' to ' + $Out)
+    $readiness = if ($said) { 'ready after ' + [Math]::Round($waited.Elapsed.TotalSeconds, 1) + ' s' }
+                 else { 'not ready after ' + $Wait + ' s' }
+    if ($attempt -gt 0) { $readiness += ', taken again ' + $attempt + ' time(s): it was made active' }
+    Write-Host ('captured ' + $cut.Width + 'x' + $cut.Height + ' to ' + $Out + ' (' + $readiness + ')')
     if (-not [object]::ReferenceEquals($cut, $bitmap)) { $cut.Dispose() }
     $graphics.Dispose()
     $bitmap.Dispose()
 } finally {
-    if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
+    if ($process -ne $null -and -not $process.HasExited) {
+        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+        # Gone before the next capture takes its turn, and whatever it hands activation to with it.
+        [void]$process.WaitForExit(5000)
+    }
+    if ($held) { $turn.ReleaseMutex() }
+    if ($turn -ne $null) { $turn.Dispose() }
+    if ($ready -ne $null) { $ready.Dispose() }
 }

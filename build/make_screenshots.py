@@ -18,7 +18,7 @@ signature and it is not checked at runtime - `tests/test_screenshots.py` compare
 recorded input hashes against the working tree and fails when the sources moved and the
 images did not. That is the part that could not be done by remembering.
 
-    python build/make_screenshots.py
+    python build/make_screenshots.py             # every picture whose inputs moved (--all: every one)
     python build/make_screenshots.py --breathe   # then: every captured light that moves, moving
     python build/make_screenshots.py --cards     # only the notification card's pictures
     python build/make_screenshots.py --icon      # only the icon's motion, as a GIF
@@ -32,6 +32,10 @@ The popup and the notification card are drawn off-screen by their own renderers,
 neither the window nor Edge; the icon's motion is drawn from the icon's own frames and needs nothing
 of Windows at all. The window and the panel are captured still, and `--breathe` then draws their
 lights moving over the capture (see "pictures that breathe").
+
+Both steps draw their pictures side by side, each job in a process of its own (see "jobs"), and
+only what is stale: a picture the manifest says was drawn from what the working tree holds now is
+kept as it is. `--all` draws every one; `--jobs N` runs N at a time.
 
 Two things it deliberately does NOT do:
 
@@ -2132,7 +2136,7 @@ def breathe_frames(rgb: bytes, width: int, height: int, record: dict, where: str
     return timeline.delay, first, later
 
 
-def breathe_pictures(paths=None) -> list:
+def breathe_pictures(paths=None, everything: bool = False, workers: int | None = None) -> list:
     """Draw every captured light that moves, moving, and say which pictures now move.
 
     The second step of a whole regeneration, after `python build/make_screenshots.py`:
@@ -2143,7 +2147,9 @@ def breathe_pictures(paths=None) -> list:
     window's and the panel's pictures (CAPTURED); the popup's and the card's move already. A documentation copy is
     copied rather than drawn again: two encodings of one picture are two files, and the suite holds each copy to be
     its canonical asset byte for byte. A picture that already moves is drawn again from its first frame, which is
-    the same picture: running this twice changes nothing.
+    the same picture: running this twice changes nothing - so, since v0.6.11, only a picture that does not move yet
+    is drawn, unless `everything` (`--breathe --all`) asks for every one. Each is drawn in a process of its own,
+    `workers` at a time (`run_jobs`).
     """
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     records = manifest.get("lights", {})
@@ -2151,26 +2157,49 @@ def breathe_pictures(paths=None) -> list:
     for locale in LOCALES:
         copies.update(paths_for(locale))
     copied = set(copies.values())
-    done = []
+    jobs = []
     for key in sorted(records):
         path, record = ROOT / key, records[key]
         if record["surface"] not in CAPTURED or path in copied:
             continue
         if paths is not None and path not in paths:
             continue
-        if breathe_picture(path, record):
-            done.append(path)
-            print("  %s  %s" % (path.relative_to(ROOT), dimensions(path)))
-            copy = copies.get(path)
-            if copy is not None:
-                copy_file(path, copy)
-                done.append(copy)
+        if light_timeline(record) is None or (not everything and path.is_file() and moves(path)):
+            continue
+        jobs.append({"kind": "breathe", "picture": key})
+    print("breathing      : %d picture(s), %d at a time" % (len(jobs), workers or job_workers()))
+    drawn, failed = run_jobs(jobs, workers)
+    done = []
+    for job in jobs:
+        path = ROOT / job["picture"]
+        if path not in drawn:
+            continue
+        done.append(path)
+        copy = copies.get(path)
+        if copy is not None:
+            copy_file(path, copy)
+            done.append(copy)
+    if failed:
+        raise SystemExit("%d picture(s) could not be drawn moving; the manifest is as it was" % failed)
     for path in done:
         key = str(path.relative_to(ROOT)).replace("\\", "/")
         manifest["images"][key] = {"sha256": sha256(path.read_bytes()), "size": dimensions(path)}
     MANIFEST.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    print("manifest       : %s (the pictures that breathe)" % MANIFEST.relative_to(ROOT))
+    print("manifest       : %s (the pictures that breathe)" % shown_path(MANIFEST))
     return done
+
+
+def moves(path: Path) -> bool:
+    """Whether a picture is already an animated PNG: its acTL comes before its first IDAT."""
+    raw, at = Path(path).read_bytes(), 8
+    while at + 8 <= len(raw):
+        length, kind = struct.unpack(">I4s", raw[at:at + 8])
+        if kind == b"acTL":
+            return True
+        if kind == b"IDAT":
+            return False
+        at += 12 + length
+    return False
 
 
 def breathe_picture(path: Path, record: dict) -> bool:
@@ -2696,24 +2725,53 @@ def scratch_installation(workspace: Path, theme: str | None = None, design: str 
 # things the window reads to say a watcher is running and checking - and nothing else. No
 # engine, no source, no Codex. The heartbeat carries the word the watcher's compatibility
 # check gave for the scratch installation (`seed_compatibility`), as a real watcher's does.
+#
+# It lives exactly as long as its capture: until its standard input closes - when `render_window`
+# closes it, or when the generator ends however it ends - or it is killed; never on a timer. Until
+# v0.6.11 it ended itself after 40 s and 20 s a page, so on a busy machine a late page was
+# photographed with no watcher running, and the run stopped: "screenshot-settings-ko.png: 0 lights
+# of the colour active".
 HOLD_MUTEX = """
-import os, sys, time
+import os, sys, threading, time
 sys.path.insert(0, sys.argv[1])
 from codex_auto_resume import config
 from codex_auto_resume.app import App
 from codex_auto_resume.store import Store
 paths = config.Paths(sys.argv[2])
 started = time.time()
+ended = threading.Event()
+
+def until_the_capture_ends():
+    try:
+        sys.stdin.buffer.read()
+    finally:
+        ended.set()
+
+threading.Thread(target=until_the_capture_ends, daemon=True).start()
 with App(paths, console=False, enable_logging=False).mutex(timeout=0):
     sys.stdout.write("held\\n")
     sys.stdout.flush()
-    while time.time() - started < float(sys.argv[3]):
+    while not ended.is_set():
         with Store(paths.state_dir) as store:
             store.heartbeat(time.time(), pid=os.getpid(), session_id="screenshot",
-                            started_at=started - 5400, ok=True, engine_state=sys.argv[4],
+                            started_at=started - 5400, ok=True, engine_state=sys.argv[3],
                             code_version=config.version())
-        time.sleep(1)
+        ended.wait(1)
 """
+
+
+def release(holder) -> None:
+    """Ends a capture's mutex holder: its standard input closed, which is what it waits for, and
+    killed only if it is still there ten seconds later."""
+    try:
+        holder.stdin.close()
+    except OSError:
+        pass
+    try:
+        holder.wait(10)
+    except subprocess.TimeoutExpired:
+        holder.kill()
+        holder.wait(10)
 
 # Which page of the window each picture is of, as the window's own command line names it.
 # Every page the window has. The README shows three of them; the other three are here
@@ -2742,7 +2800,8 @@ def owner_only(folder: Path) -> None:
                    check=True, capture_output=True, creationflags=NO_WINDOW)
 
 
-def render_window(targets: dict, theme: str | None = None, design: str | None = None) -> dict:
+def render_window(targets: dict, theme: str | None = None, design: str | None = None,
+                  captured=None) -> dict:
     """Capture each page of the window, with the watcher's mutex held but no watcher running.
 
     The window reports "watching" when the single-instance mutex is taken, so taking it
@@ -2754,6 +2813,11 @@ def render_window(targets: dict, theme: str | None = None, design: str | None = 
     every page, so the pages show the same records at nearly the same moment. `theme` is stored in
     it, THEME unless the audit sheets ask for the other, and `design`, Soft unless the picture is of
     another design (DESIGNS_PICTURED): the window reads both in one parse before its first control.
+    `captured(page, target)`, when given, is called as each page's picture is written, while the
+    others are captured.
+
+    Each page is captured as soon as its window says it holds still, CAPTURE_WAIT seconds at the
+    longest (build/capture_window.ps1), and what the capture said is printed beside the picture.
     """
     with tempfile.TemporaryDirectory() as name:
         workspace = Path(name)
@@ -2781,8 +2845,9 @@ def render_window(targets: dict, theme: str | None = None, design: str | None = 
             environment.pop(override, None)
         holder = subprocess.Popen(
             [str(home / "runtime" / "python.exe"), "-c", HOLD_MUTEX,
-             str(home / "app" / "src"), str(home), str(40 + 20 * len(targets)), word],
-            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+             str(home / "app" / "src"), str(home), word],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+            creationflags=NO_WINDOW)
         try:
             if (holder.stdout.readline() or "").strip() != "held":
                 raise SystemExit("could not hold the watcher mutex for the capture")
@@ -2794,20 +2859,145 @@ def render_window(targets: dict, theme: str | None = None, design: str | None = 
                             "sys.exit(main(['--home', sys.argv[2], 'enabled', sys.argv[3]]))",
                             str(home / "app" / "src"), str(home),
                             json.dumps({"enabled": True})],
-                           check=True, capture_output=True, timeout=120)
-            for page, target in targets.items():
-                subprocess.run(
-                    ["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy",
-                     "Bypass", "-File", str(ROOT / "build" / "capture_window.ps1"),
-                     "-Exe", str(home / "CodexAutoResumeSettings.exe"),
-                     "-Out", str(target), "-Wait", "15", "-Arguments",
-                     # The Settings page opens on the section with the most to show.
-                     "--page=settings --section=continuation" if page == "settings"
-                     else "--page=" + page],
-                    check=True, capture_output=True, timeout=300, env=environment)
+                           check=True, capture_output=True, timeout=120, creationflags=NO_WINDOW)
+            printing = threading.Lock()
+
+            def capture(page, target):
+                with window_turn():
+                    done = run_contained(
+                        ["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy",
+                         "Bypass", "-File", str(ROOT / "build" / "capture_window.ps1"),
+                         "-Exe", str(home / "CodexAutoResumeSettings.exe"),
+                         "-Out", str(target), "-Wait", str(CAPTURE_WAIT), "-Arguments",
+                         # The Settings page opens on the section with the most to show.
+                         "--page=settings --section=continuation" if page == "settings"
+                         else "--page=" + page],
+                        timeout=300, env=environment)
+                if done.returncode != 0:
+                    raise SystemExit("the capture of %s failed:\n%s%s" % (
+                        shown_path(target), done.stdout.decode("utf-8", "replace"),
+                        done.stderr.decode("utf-8", "replace")))
+                said = re.search(r"\((?:not )?ready after [^)]*\)", done.stdout.decode("utf-8", "replace"))
+                with printing:
+                    print("  %s  %s  %s" % (shown_path(target), dimensions(target),
+                                            said.group(0) if said else "(the capture did not say when)"))
+                if captured is not None:
+                    captured(page, target)
+
+            # Every page asked for at once, each its own window on the one installation, as `window_turn`
+            # lets them open. They read the same records through bridges of their own, and none writes
+            # anything another reads but the cache of the window's words, which each writes whole and each
+            # can do without.
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=max(1, len(targets))) as pages:
+                for running in [pages.submit(capture, page, target) for page, target in targets.items()]:
+                    running.result()
         finally:
-            holder.kill()
+            release(holder)
     return {page: dimensions(target) for page, target in targets.items()}
+
+
+# The longest a window may take to say it holds still, in seconds (build/capture_window.ps1): what
+# every picture waited, whatever its window was doing, until v0.6.11.
+CAPTURE_WAIT = 15
+
+# How many of the generator's windows are open at once on the machine, from every job and every run.
+# A window spends most of its start drawing text, and text is drawn through parts of Windows every
+# process shares: twelve windows started together each took two minutes to answer, where one alone
+# took ten seconds, and three together took each about twice as long as one - so a third buys
+# nothing, and a fourth costs.
+WINDOWS_AT_ONCE = 2
+WINDOW_TURNS = "Local\\CodexAutoResume.Windows"
+
+
+@contextmanager
+def window_turn():
+    """One of WINDOWS_AT_ONCE turns to have a window open, for as long as the block runs: a named
+    semaphore every generator process on this machine shares, waited for as long as it takes. Off
+    Windows there are no windows to take turns with."""
+    if os.name != "nt":
+        yield
+        return
+    import ctypes
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateSemaphoreW.restype = ctypes.c_void_p
+    kernel32.CreateSemaphoreW.argtypes = (ctypes.c_void_p, ctypes.c_long, ctypes.c_long, ctypes.c_wchar_p)
+    kernel32.WaitForSingleObject.argtypes = (ctypes.c_void_p, ctypes.c_ulong)
+    kernel32.ReleaseSemaphore.argtypes = (ctypes.c_void_p, ctypes.c_long, ctypes.c_void_p)
+    kernel32.CloseHandle.argtypes = (ctypes.c_void_p,)
+    turns = kernel32.CreateSemaphoreW(None, WINDOWS_AT_ONCE, WINDOWS_AT_ONCE, WINDOW_TURNS)
+    if not turns:
+        raise OSError(ctypes.get_last_error(), "could not open the windows' turns")
+    try:
+        if kernel32.WaitForSingleObject(turns, 0xFFFFFFFF) != 0:
+            raise OSError(ctypes.get_last_error(), "could not wait for a window's turn")
+        try:
+            yield
+        finally:
+            kernel32.ReleaseSemaphore(turns, 1, None)
+    finally:
+        kernel32.CloseHandle(turns)
+
+
+def run_contained(argv, timeout, env) -> subprocess.CompletedProcess:
+    """`subprocess.run(argv)`, its output captured, in a Windows job that ends with it: whatever it started -
+    the window a capture opens, and the window's bridge - is ended when it has, however it ended.
+
+    A capture that ran out of time was killed and its window went on: open on the desktop, its scratch
+    installation deleted under it, it read the missing settings as the defaults and opened itself again in
+    them. Started suspended, put in the job and then let go, so nothing it starts can begin outside it.
+    Off Windows, or where a job cannot be made, it is `subprocess.run`."""
+    if os.name != "nt":
+        return subprocess.run(argv, capture_output=True, timeout=timeout, env=env)
+    import ctypes
+    from ctypes import wintypes
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateJobObjectW.restype = wintypes.HANDLE
+    kernel32.CreateJobObjectW.argtypes = (ctypes.c_void_p, ctypes.c_wchar_p)
+    kernel32.SetInformationJobObject.argtypes = (wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD)
+    kernel32.AssignProcessToJobObject.argtypes = (wintypes.HANDLE, wintypes.HANDLE)
+    kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+    ntdll = ctypes.WinDLL("ntdll")
+    ntdll.NtResumeProcess.argtypes = (wintypes.HANDLE,)
+
+    class Limits(ctypes.Structure):          # JOBOBJECT_EXTENDED_LIMIT_INFORMATION
+        _fields_ = [("PerProcessUserTimeLimit", ctypes.c_int64), ("PerJobUserTimeLimit", ctypes.c_int64),
+                    ("LimitFlags", wintypes.DWORD), ("MinimumWorkingSetSize", ctypes.c_size_t),
+                    ("MaximumWorkingSetSize", ctypes.c_size_t), ("ActiveProcessLimit", wintypes.DWORD),
+                    ("Affinity", ctypes.c_size_t), ("PriorityClass", wintypes.DWORD),
+                    ("SchedulingClass", wintypes.DWORD), ("IoInfo", ctypes.c_uint64 * 6),
+                    ("ProcessMemoryLimit", ctypes.c_size_t), ("JobMemoryLimit", ctypes.c_size_t),
+                    ("PeakProcessMemoryUsed", ctypes.c_size_t), ("PeakJobMemoryUsed", ctypes.c_size_t)]
+
+    job = kernel32.CreateJobObjectW(None, None)
+    limits = Limits(LimitFlags=0x2000)       # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+    if not job or not kernel32.SetInformationJobObject(job, 9, ctypes.byref(limits), ctypes.sizeof(limits)):
+        if job:
+            kernel32.CloseHandle(job)
+        return subprocess.run(argv, capture_output=True, timeout=timeout, env=env, creationflags=NO_WINDOW)
+    try:
+        process = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env,
+                                   creationflags=NO_WINDOW | 0x4)          # CREATE_SUSPENDED
+        try:
+            # A process Windows will not put in the job - only where jobs cannot nest - runs outside it.
+            kernel32.AssignProcessToJobObject(job, int(process._handle))
+            ntdll.NtResumeProcess(int(process._handle))
+            out, err = process.communicate(timeout=timeout)
+        except BaseException:
+            process.kill()
+            process.communicate()
+            raise
+        return subprocess.CompletedProcess(argv, process.returncode, out, err)
+    finally:
+        kernel32.CloseHandle(job)
+
+
+def shown_path(path) -> str:
+    """A picture's path as the generator prints it: from the checkout, when it is in it."""
+    try:
+        return str(Path(path).relative_to(ROOT))
+    except ValueError:
+        return str(path)
 
 
 # ------------------------------------------------------------ what the window is shown
@@ -3544,103 +3734,313 @@ def audit_main(argv) -> int:
     return 0
 
 
-def main(argv=None) -> int:
-    # Before anything is made under docs/ or assets/: the audit writes nothing there.
-    if list(sys.argv[1:] if argv is None else argv)[:1] == ["--audit"]:
-        return audit_main(list(sys.argv[1:] if argv is None else argv)[1:])
-    ASSETS.mkdir(parents=True, exist_ok=True)
-    DOCS.mkdir(parents=True, exist_ok=True)
-    if list(sys.argv[1:] if argv is None else argv) == ["--cards"]:
-        render_cards()
-        return 0
-    if list(sys.argv[1:] if argv is None else argv) == ["--icon"]:
-        render_icon_only()
-        return 0
-    if list(sys.argv[1:] if argv is None else argv) == ["--light"]:
-        render_light_only()
-        return 0
-    if list(sys.argv[1:] if argv is None else argv) == ["--breathe"]:
-        breathe_pictures()
-        return 0
+# ------------------------------------------------------------------------ jobs
+# A whole run is a set of jobs, drawn side by side (v0.6.11).
+#
+# Until then everything was drawn one after another - about twenty-five window pictures at a fixed
+# fifteen seconds each, then the panels, the popups, the cards and the motions - which took a
+# quarter of an hour on a busy machine. A job is the pictures one call draws together: one locale's
+# window pages, from their one scratch installation, one panel, one popup, one locale's cards, the
+# icon's motion or the light's. Each runs in a process of its own, `python build/make_screenshots.py
+# --job ...`, with the language set as the run one after another set it by then and the process
+# aware of the display's scaling, as `window_record` had made that run's before anything was drawn
+# in it. So what one job patches for the length of a call - the clock, the environment, the modules
+# a compatibility report is made with - no other job can see, and each picture is drawn by exactly
+# the code, in exactly the state, it was drawn in before. The windows are captured side by side too,
+# WINDOWS_AT_ONCE at a time on the whole machine: each language has its installation, PrintWindow draws
+# a window another one covers, and build/capture_window.ps1 takes the moment of capture one at a time.
+#
+# And only what is stale is drawn (`stale`). A job whose inputs are, in the manifest, what the
+# working tree gives now, whose pictures are the bytes the manifest records, with their lights, and
+# - for the window - whose pictures were captured at this machine's scaling, is kept as it is. The
+# generator is an input of every job, so a change to this file draws everything, as `--all` does.
+JOB_RESULT = "CAR-JOB:"
 
-    print("version        : %s" % config.version())
-    print("theme          : %s" % THEME)
-    copies = {}
-    # What each picture holds of the status light (`picture_record`), for `--breathe` and the suite.
-    lights = {}
 
-    def windowed(targets):
-        for page, size in render_window(targets).items():
-            lights[targets[page]] = window_record(targets[page])
-            print("  %s  %s" % (targets[page].relative_to(ROOT), size))
+def job_workers() -> int:
+    """How many jobs other than the windows' run at once unless `--jobs` says: half the processors, and no
+    more than eight - Edge and the drawing each want a processor of their own. The windows' jobs all start
+    at once and take turns to open their windows (`window_turn`)."""
+    return max(1, min(8, (os.cpu_count() or 2) // 2))
 
+
+def whole_run_jobs() -> list:
+    """Every job of a whole run, the longest first: the windows, then the panels, the popups, the cards and
+    the two motions. A job is {"kind", "locale", "design"}: a design other than Soft only for its own pictures."""
+    jobs = []
+    for kind in ("window", "panel", "popup", "card"):
+        jobs.extend({"kind": kind, "locale": locale, "design": None} for locale in LOCALES + EXTRA_LOCALES)
+        jobs.extend({"kind": kind, "locale": DESIGN_LOCALE, "design": design} for design in DESIGNS_PICTURED[1:])
+    jobs.append({"kind": "icon", "locale": None, "design": None})
+    jobs.append({"kind": "light", "locale": None, "design": None})
+    return jobs
+
+
+def job_targets(job: dict) -> dict:
+    """What a job draws: {a window's page, a card's theme or the job's kind: the picture it is drawn into}."""
+    kind, locale, design = job["kind"], job.get("locale"), job.get("design")
+    if kind == "icon":
+        return {"icon": ICON_MOTION_APNG}
+    if kind == "light":
+        return {"light": LIGHT_MOTION_APNG}
+    if design is not None:
+        if kind == "window":
+            return {"overview": design_picture(design, "dashboard")}
+        return {THEME if kind == "card" else kind: design_picture(design, kind)}
+    tag = "" if locale == "en" else "-" + locale
+    if kind == "window":
+        if locale in LOCALES:
+            return window_targets(locale)
+        return {page: DOCS / ("%s%s.png" % (WINDOW_NAMES_BY_PAGE[page][1], tag)) for page in EXTRA_PAGES}
+    if kind == "panel":
+        return {"panel": next(iter(paths_for(locale))) if locale in LOCALES
+                else DOCS / ("settings-panel%s.png" % tag)}
+    if kind == "popup":
+        return {"popup": DOCS / ("tray-popup%s.png" % tag)}
+    return {theme: asset or copy for theme, (asset, copy) in card_paths(locale).items()}
+
+
+def job_inputs(job: dict) -> list:
+    """The manifest's inputs a job's pictures are drawn from, the generator among them."""
+    kind, locale, design = job["kind"], job.get("locale"), job.get("design")
+    if kind in ("icon", "light"):
+        return ["build/make_screenshots.py", "<%s motion>" % kind]
+    named = locale if design is None else "%s:%s" % (locale, design)
+    if kind == "window":
+        return list(WINDOW_INPUTS) + ["<bridge envelope:%s>" % named]
+    return ["build/make_screenshots.py", "<%s render:%s>" % (kind, named)]
+
+
+def manifest_key(path) -> str:
+    return str(Path(path).relative_to(ROOT)).replace("\\", "/")
+
+
+def stale(job: dict, recorded, inputs: dict, dpi: int) -> str | None:
+    """Why a job's pictures must be drawn again, or None when the manifest says they are what the working tree
+    draws: every input it names is the one recorded, every picture is the bytes recorded and has its lights
+    recorded, and a window's were captured at this machine's scaling."""
+    if not recorded:
+        return "no manifest"
+    for name in job_inputs(job):
+        if recorded.get("inputs", {}).get(name) != inputs.get(name):
+            return "%s moved" % name
+    if job["kind"] == "window" and recorded.get("system_dpi") != dpi:
+        return "captured at %s DPI" % recorded.get("system_dpi")
+    for target in job_targets(job).values():
+        key = manifest_key(target)
+        image = recorded.get("images", {}).get(key)
+        if not target.is_file() or image is None:
+            return "%s missing" % key
+        if image.get("sha256") != sha256(target.read_bytes()):
+            return "%s is not the picture recorded" % key
+        if job["kind"] not in ("icon", "light") and key not in recorded.get("lights", {}):
+            return "%s has no lights recorded" % key
+    return None
+
+
+def run_job(job: dict) -> dict:
+    """Draws one job's pictures (see "jobs"); returns {picture: its record, or None for a motion}."""
+    kind, locale, design = job["kind"], job.get("locale"), job.get("design")
+    if kind == "breathe":
+        # One picture of `--breathe`: drawn from the capture and its record, as `breathe_pictures` drew it.
+        path = ROOT / job["picture"]
+        record = json.loads(MANIFEST.read_text(encoding="utf-8"))["lights"][job["picture"]]
+        moved = breathe_picture(path, record)
+        if moved:
+            print("  %s  %s" % (shown_path(path), dimensions(path)))
+        return {path: None} if moved else {}
+    # As a run one after another had it by the time it drew anything in its own process: aware of the
+    # display's scaling (`window_record` asked `system_dpi`), and the language every surface resolves.
+    system_dpi()
+    if locale is None:
+        os.environ.pop(l10n.ENV_LANG, None)
+    else:
+        os.environ[l10n.ENV_LANG] = locale
+    targets = job_targets(job)
+    if kind == "window":
+        return window_job(targets, design)
+    records = {}
+    for key, target in targets.items():
+        if kind == "panel":
+            records[target] = render_panel(target, design=design)
+        elif kind == "popup":
+            records[target] = render_popup(target, locale, design=design)
+        elif kind == "card":
+            records[target] = render_card(target, locale, key, design=design)
+        elif kind == "icon":
+            render_icon_motion(target)
+            records[target] = None
+        else:
+            render_light_motion(target)
+            records[target] = None
+        print("  %s  %s" % (shown_path(target), dimensions(target)))
+    return records
+
+
+def window_job(targets: dict, design) -> dict:
+    """One installation's pages, captured one after another, each picture's record read while the next page is
+    captured. The fixture every record's light is read from is read first, as the panel read it before the window
+    was captured when all this ran one after another: reading it patches the clock, which the capture must not see."""
+    from concurrent.futures import ThreadPoolExecutor
+    fixture_light()
+    with ThreadPoolExecutor(max_workers=1) as reader:
+        reading = {}
+
+        def captured(_page, target):
+            reading[target] = reader.submit(window_record, target, design=design)
+
+        render_window(targets, design=design, captured=captured)
+        return {target: reading[target].result() for target in targets.values()}
+
+
+def job_main(text: str) -> int:
+    """`--job JSON`: one job, drawn in this process; its records are the last line printed (JOB_RESULT)."""
+    records = run_job(json.loads(text))
+    print(JOB_RESULT + json.dumps({manifest_key(path): record for path, record in records.items()},
+                                  ensure_ascii=True))
+    return 0
+
+
+def run_jobs(jobs: list, workers: int | None = None) -> tuple:
+    """Runs each job in a process of its own and prints what each drew as it ends: every window's job at once,
+    since each waits for its windows' turns (`window_turn`), and the others `workers` at a time, in the order
+    given. Returns ({picture: record} of every job that finished, how many failed)."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    drawn, failed = {}, 0
+    if not jobs:
+        return drawn, failed
+
+    def run(job):
+        begun = time.monotonic()
+        done = subprocess.run([sys.executable, "-X", "utf8", str(Path(__file__).resolve()), "--job",
+                               json.dumps(job)],
+                              capture_output=True, text=True, encoding="utf-8", errors="replace",
+                              cwd=str(ROOT), timeout=3600, creationflags=NO_WINDOW)
+        return done, time.monotonic() - begun
+
+    windows = [job for job in jobs if job["kind"] == "window"]
+    others = [job for job in jobs if job["kind"] != "window"]
+    with ThreadPoolExecutor(max_workers=max(1, len(windows))) as capturing, \
+            ThreadPoolExecutor(max_workers=workers or job_workers()) as drawing:
+        running = {capturing.submit(run, job): job for job in windows}
+        running.update({drawing.submit(run, job): job for job in others})
+        for future in as_completed(running):
+            job = running[future]
+            name = " ".join(str(job[key]) for key in ("kind", "locale", "design", "picture") if job.get(key))
+            try:
+                done, seconds = future.result()
+            except Exception as error:                  # noqa: BLE001 - reported, and the run fails
+                failed += 1
+                print("failed         : %s: %s" % (name, error))
+                continue
+            lines = done.stdout.splitlines()
+            result = [line for line in lines if line.startswith(JOB_RESULT)]
+            for line in lines:
+                if not line.startswith(JOB_RESULT):
+                    print(line)
+            if done.returncode != 0 or not result:
+                failed += 1
+                print("failed         : %s (exit %s)\n%s" % (name, done.returncode, done.stderr.strip()))
+                continue
+            for key, record in json.loads(result[-1][len(JOB_RESULT):]).items():
+                drawn[ROOT / key] = record
+            print("done           : %s in %.1f s" % (name, seconds))
+    return drawn, failed
+
+
+def picture_set() -> tuple:
+    """(copies, extras) of a whole run, in the order the manifest lists them: {canonical asset: its documentation
+    copy} for the README languages, and every documentation-only picture."""
+    copies, extras = {}, []
     for locale in LOCALES:
-        print("locale         : %s" % locale)
-        # The engine resolves the language from the environment, so the environment is
-        # what the generator sets. Nothing here passes a language into a renderer: the
-        # screenshots go through exactly the path a user's machine goes through.
-        os.environ[l10n.ENV_LANG] = locale
-        pairs = paths_for(locale)
-        panel = next(iter(pairs))
-        lights[panel] = render_panel(panel)
-        print("  %s  %s" % (panel.relative_to(ROOT), dimensions(panel)))
-        windowed(window_targets(locale))
-        copies.update(pairs)
-    extras = []
+        copies.update(paths_for(locale))
     for locale in LOCALES + EXTRA_LOCALES:
-        os.environ[l10n.ENV_LANG] = locale
         tag = "" if locale == "en" else "-" + locale
-        popup = DOCS / ("tray-popup%s.png" % tag)
-        lights[popup] = render_popup(popup, locale)
-        extras.append(popup)
-        print("  %s  %s" % (popup.relative_to(ROOT), dimensions(popup)))
-        for theme, (asset, copy) in card_paths(locale).items():
-            lights[asset or copy] = render_card(asset or copy, locale, theme)
+        extras.append(DOCS / ("tray-popup%s.png" % tag))
+        for _theme, (asset, copy) in card_paths(locale).items():
             if asset is not None:
                 copies[asset] = copy
             else:
                 extras.append(copy)
-            print("  %s  %s" % ((asset or copy).relative_to(ROOT), dimensions(asset or copy)))
         if locale in EXTRA_LOCALES:
-            panel = DOCS / ("settings-panel%s.png" % tag)
-            lights[panel] = render_panel(panel)
-            extras.append(panel)
-            print("  %s  %s" % (panel.relative_to(ROOT), dimensions(panel)))
-            targets = {page: DOCS / ("%s%s.png" % (WINDOW_NAMES_BY_PAGE[page][1], tag))
-                       for page in EXTRA_PAGES}
-            windowed(targets)
-            extras.extend(targets.values())
-    # The designs (v0.6.10): the four surfaces a person meets first, in each design but Soft, whose
-    # pictures are the ones above.
-    os.environ[l10n.ENV_LANG] = DESIGN_LOCALE
+            extras.append(DOCS / ("settings-panel%s.png" % tag))
+            extras.extend(DOCS / ("%s%s.png" % (WINDOW_NAMES_BY_PAGE[page][1], tag)) for page in EXTRA_PAGES)
     for design in DESIGNS_PICTURED[1:]:
-        print("design         : %s" % design)
-        target = design_picture(design, "dashboard")
-        render_window({"overview": target}, design=design)
-        lights[target] = window_record(target, design=design)
-        target = design_picture(design, "panel")
-        lights[target] = render_panel(target, design=design)
-        target = design_picture(design, "popup")
-        lights[target] = render_popup(target, DESIGN_LOCALE, design=design)
-        target = design_picture(design, "card")
-        lights[target] = render_card(target, DESIGN_LOCALE, THEME, design=design)
-        for surface in DESIGN_SURFACES:
-            extras.append(design_picture(design, surface))
-            print("  %s  %s" % (design_picture(design, surface).relative_to(ROOT),
-                                dimensions(design_picture(design, surface))))
-    os.environ.pop(l10n.ENV_LANG, None)
-    render_icon_motion(ICON_MOTION_APNG)
-    extras.append(ICON_MOTION_APNG)
-    print("  %s  %s" % (ICON_MOTION_APNG.relative_to(ROOT), dimensions(ICON_MOTION_APNG)))
-    render_light_motion(LIGHT_MOTION_APNG)
-    extras.append(LIGHT_MOTION_APNG)
-    print("  %s  %s" % (LIGHT_MOTION_APNG.relative_to(ROOT), dimensions(LIGHT_MOTION_APNG)))
+        extras.extend(design_picture(design, surface) for surface in DESIGN_SURFACES)
+    extras.extend((ICON_MOTION_APNG, LIGHT_MOTION_APNG))
+    return copies, extras
 
+
+def main(argv=None) -> int:
+    argv = list(sys.argv[1:] if argv is None else argv)
+    # Before anything is made under docs/ or assets/: the audit writes nothing there.
+    if argv[:1] == ["--audit"]:
+        return audit_main(argv[1:])
+    if argv[:1] == ["--job"] and len(argv) == 2:
+        return job_main(argv[1])
+    ASSETS.mkdir(parents=True, exist_ok=True)
+    DOCS.mkdir(parents=True, exist_ok=True)
+    if argv == ["--cards"]:
+        render_cards()
+        return 0
+    if argv == ["--icon"]:
+        render_icon_only()
+        return 0
+    if argv == ["--light"]:
+        render_light_only()
+        return 0
+    import argparse
+    parser = argparse.ArgumentParser(prog="make_screenshots.py",
+                                     description="Render the screenshots from the working tree: every picture "
+                                                 "whose inputs moved, or with --all every one; then --breathe.")
+    parser.add_argument("--breathe", action="store_true", help="draw the captured lights moving")
+    parser.add_argument("--all", action="store_true", help="draw every picture, stale or not")
+    parser.add_argument("--jobs", type=int, default=None, help="how many to draw at once")
+    options = parser.parse_args(argv)
+    workers = max(1, options.jobs) if options.jobs else None
+    if options.breathe:
+        breathe_pictures(everything=options.all, workers=workers)
+        return 0
+
+    print("version        : %s" % config.version())
+    print("theme          : %s" % THEME)
+    # Aware of the display's scaling first, as the run one after another was by the time it asked for the
+    # inputs, which it did last.
+    dpi = system_dpi()
+    inputs = render_inputs()
+    try:
+        recorded = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        recorded = None
+    jobs = whole_run_jobs()
+    todo = []
+    for job in jobs:
+        why = "--all" if options.all else stale(job, recorded, inputs, dpi)
+        if why is not None:
+            todo.append(job)
+    print("drawing        : %d of %d jobs, %d at a time%s"
+          % (len(todo), len(jobs), workers or job_workers(),
+             "" if len(todo) == len(jobs) else " - the rest are what the manifest records"))
+    drawn, failed = run_jobs(todo, workers)
+    if failed:
+        raise SystemExit("%d job(s) failed; the manifest is as it was" % failed)
+
+    copies, extras = picture_set()
+    # What each picture holds of the status light (`picture_record`), for `--breathe` and the suite: what a job
+    # drew said it, and a picture kept keeps what the manifest says.
+    lights = {}
+    for path in [source for source in copies] + extras:
+        if path in drawn:
+            if drawn[path] is not None:
+                lights[path] = drawn[path]
+        elif path not in (ICON_MOTION_APNG, LIGHT_MOTION_APNG):
+            lights[path] = recorded["lights"][manifest_key(path)]
     for source, copy in copies.items():
-        copy_file(source, copy)
+        if source in drawn or not copy.is_file() or copy.read_bytes() != source.read_bytes():
+            copy_file(source, copy)
+            print("copied         : %s -> %s" % (source.relative_to(ROOT), copy.relative_to(ROOT)))
         if source in lights:
             lights[copy] = lights[source]
-        print("copied         : %s -> %s" % (source.relative_to(ROOT), copy.relative_to(ROOT)))
 
     def named(path):
         return str(path.relative_to(ROOT)).replace("\\", "/")
@@ -3660,13 +4060,13 @@ def main(argv=None) -> int:
         "locales": list(LOCALES),
         "documentation_locales": list(EXTRA_LOCALES),
         "designs": list(DESIGNS_PICTURED),
-        "system_dpi": system_dpi(),
-        "inputs": render_inputs(),
+        "system_dpi": dpi,
+        "inputs": inputs,
         "images": {named(path): {"sha256": sha256(path.read_bytes()), "size": dimensions(path)}
                    for path in list(copies) + list(copies.values()) + extras},
         "lights": {named(path): record for path, record in sorted(lights.items(), key=lambda item: named(item[0]))},
     }, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    print("manifest       : %s" % MANIFEST.relative_to(ROOT))
+    print("manifest       : %s" % shown_path(MANIFEST))
     print("then           : python build/make_screenshots.py --breathe")
     return 0
 

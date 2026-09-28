@@ -1198,7 +1198,11 @@ class SourceRuleTests(unittest.TestCase):
         self.assertIn("Soft.ReduceMotion", self.block("internal static bool Allowed(Control control)"))
         self.assertNotIn("internal static bool ControlsStill", self.controls)
         transition = self.block("internal sealed class Transition ", "\n    }\n")
-        self.assertIn("timer.Stop();", self.block("private void Tick()"), "the timer stops when it arrives")
+        self.assertIn("Halt();", self.block("private void Tick()"), "the timer stops when it arrives")
+        # Halt is the one way it stops, and it counts what is still on its way (SettingsForm.WatchForStill).
+        self.assertIn("timer.Stop();", self.block("private void Halt()"))
+        self.assertEqual(transition.count("timer.Stop();"), 1)
+        self.assertEqual(transition.count("timer.Start();"), 1)
         self.assertNotIn("PerformLayout", transition, "paint only")
 
     def test_a_switch_changes_by_painting_alone(self):

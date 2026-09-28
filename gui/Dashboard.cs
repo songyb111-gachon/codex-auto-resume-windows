@@ -71,7 +71,20 @@ namespace CodexAutoResume
 
         internal bool Available { get { return once.Available; } }
 
+        private int calls;
+
+        /// How many calls are on their way, on either bridge: a picture is taken only while none is
+        /// (SettingsForm.WatchForStill).
+        internal int InFlight { get { return System.Threading.Volatile.Read(ref calls); } }
+
         internal Dictionary<string, object> Call(string command, string argument)
+        {
+            System.Threading.Interlocked.Increment(ref calls);
+            try { return CallCounted(command, argument); }
+            finally { System.Threading.Interlocked.Decrement(ref calls); }
+        }
+
+        private Dictionary<string, object> CallCounted(string command, string argument)
         {
             if (closed) throw new ObjectDisposedException("the window is closing");
             lock (gate)
@@ -105,7 +118,9 @@ namespace CodexAutoResume
         internal Dictionary<string, object> CallOnce(string command, string argument)
         {
             if (closed) throw new ObjectDisposedException("the window is closing");
-            return once.Call(command, argument);
+            System.Threading.Interlocked.Increment(ref calls);
+            try { return once.Call(command, argument); }
+            finally { System.Threading.Interlocked.Decrement(ref calls); }
         }
 
         private Dictionary<string, object> Ask(string command, string argument)

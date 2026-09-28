@@ -574,6 +574,28 @@ namespace CodexAutoResume
         /// moment its records are seeded at. Read once, at start, and never set by the product.
         internal static readonly double StillNow = ReadStillNow();
 
+        /// The name of an event to set once the page the window opened on is drawn from the bridge's
+        /// answers and holds still (SettingsForm.WatchForStill), or null - which is what anybody running
+        /// the product gets.
+        ///
+        /// Nothing said when a window was ready to be photographed, so every picture was taken a fixed
+        /// fifteen seconds after its window started, whatever the window was doing by then: about
+        /// twenty-five pictures, one after another, spent six minutes waiting. CODEX_AR_STILL_READY=&lt;name&gt;
+        /// makes the window say so; build/capture_window.ps1 creates the event, sets this, and waits for
+        /// it with the old wait as its limit. Read once, at start, and never set by the product.
+        internal static readonly string StillReady = ReadStillReady();
+
+        private static string ReadStillReady()
+        {
+            try
+            {
+                string set = Environment.GetEnvironmentVariable("CODEX_AR_STILL_READY");
+                if (!string.IsNullOrEmpty(set) && set.Length <= 200) return set;
+            }
+            catch (Exception) { }
+            return null;
+        }
+
         private static double ReadStillNow()
         {
             try
@@ -1251,6 +1273,24 @@ namespace CodexAutoResume
             timer.Tick += delegate { Tick(); };
         }
 
+        /// How many transitions in this window are on their way: a picture is taken only while none is
+        /// (SettingsForm.WatchForStill). Counted on the window's own thread, where every one runs.
+        internal static int Moving;
+
+        private void Run()
+        {
+            if (timer.Enabled) return;
+            timer.Start();
+            Moving++;
+        }
+
+        private void Halt()
+        {
+            if (!timer.Enabled) return;
+            timer.Stop();
+            Moving--;
+        }
+
         /// What the owner repaints each frame, in its coordinates; the whole of it when empty.
         internal Rectangle Area;
 
@@ -1283,7 +1323,7 @@ namespace CodexAutoResume
             to = target;
             if (!animate || now == target)
             {
-                timer.Stop();
+                Halt();
                 from = target;
                 Repaint();
                 return;
@@ -1291,7 +1331,7 @@ namespace CodexAutoResume
             from = now;
             clock.Reset();
             clock.Start();
-            if (!timer.Enabled) timer.Start();
+            Run();
             Repaint();
         }
 
@@ -1299,7 +1339,7 @@ namespace CodexAutoResume
         {
             if (clock.Elapsed.TotalMilliseconds >= Motion.Duration || owner.IsDisposed || !Soft.Shown(owner) || !owner.Visible)
             {
-                timer.Stop();
+                Halt();
                 from = to;
             }
             Repaint();
@@ -1319,7 +1359,7 @@ namespace CodexAutoResume
 
         public void Dispose()
         {
-            timer.Stop();
+            Halt();
             timer.Dispose();
         }
     }
