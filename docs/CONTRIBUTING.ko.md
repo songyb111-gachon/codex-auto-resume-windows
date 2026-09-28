@@ -62,7 +62,7 @@ suite는 깁니다. 2026년 9월 GitHub 러너에서 한 레인이 78~103분 걸
 python scripts/test_parts.py --parallel 8                   # 8개 부분을 한꺼번에: 요약 하나, 종료 코드 하나
 python scripts/test_parts.py --part 3/8                     # 8개 중 세 번째 부분만
 python scripts/test_parts.py --lane advanced --parallel 8   # 고급 에디션의 레인
-python scripts/test_parts.py                                # suite 전체를 한 번에
+python scripts/test_parts.py                                # suite 전체: `unittest discover` 그 자체
 ```
 
 레인에 맞는 `PYTHONPATH`와 `CODEX_AR_EDITION`은 스크립트가 직접 설정합니다. 레인은 `standard`,
@@ -74,7 +74,9 @@ python scripts/test_parts.py                                # suite 전체를 �
 
 워크플로가 쓰는 모든 부분 수에 대해, 부분들을 합치면 `unittest discover`가 찾는 테스트와 정확히 같고 각각
 한 번씩입니다. `tests/test_split_runs.py`가 이것을 증명합니다. 부분의 결과가 전체 실행의 결과와 같은지는
-테스트 자체에 달린 문제이고, 여러분의 컴퓨터에서 스크립트가 답해 줍니다.
+테스트 자체에 달린 문제이고, 여러분의 컴퓨터에서 스크립트가 답해 줍니다. `--part`도 `--parallel`도 없이
+돌리면 suite를 나누기 전에 CI가 돌리던 그대로 `python -m unittest discover` 자체를 suite마다 돌리고 각
+테스트의 결과를 기록합니다. `--compare`는 그 결과를 부분들의 결과와 테스트 하나하나 맞춰 봅니다.
 
 ```bash
 python scripts/test_parts.py --outcomes whole.json

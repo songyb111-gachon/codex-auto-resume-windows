@@ -618,6 +618,24 @@ class TagsAreFetchedWhereTheSuiteRunsTests(unittest.TestCase):
                               "%s runs the suite, which reads tagged releases' source, so "
                               "its checkout has to fetch the history and the tags" % name)
 
+    def test_every_job_that_runs_the_suite_checks_out_the_tags(self):
+        """Per job, not per file: since the suite runs in parts (scripts/test_parts.py), release.yml has
+        a job that tests and another that builds, and a file-wide look would be satisfied by either."""
+        running = 0
+        for name, source in self.workflows_that_run_the_suite():
+            jobs = source[re.search(r"(?m)^jobs:\s*$", source).end():]
+            for key in re.findall(r"(?m)^  ([A-Za-z0-9_-]+):\s*$", jobs):
+                body = job(source, key)
+                if not re.search(r"unittest discover|loadTestsFromNames|scripts/test_parts\.py", body):
+                    continue
+                running += 1
+                with self.subTest(workflow=name, job=key):
+                    checkouts = len(re.findall(r"uses: actions/checkout@", body))
+                    self.assertGreater(checkouts, 0)
+                    self.assertEqual(body.count("fetch-depth: 0"), checkouts)
+                    self.assertEqual(body.count("persist-credentials: false"), checkouts)
+        self.assertGreaterEqual(running, 3, "release.yml's test job, sync-ko.yml's and test.yml's")
+
     def test_fetching_the_history_does_not_come_with_a_token_on_disk(self):
         """The two options sit together, and only one of them is about privilege."""
         for name, text in self.workflows_that_run_the_suite():

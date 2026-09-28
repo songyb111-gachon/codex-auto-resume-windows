@@ -6,7 +6,7 @@ by how long each file took when it was last measured, and runs them. It is the o
 written: CI's lanes (.github/workflows/test.yml), the release's suite (release.yml) and the ko sync
 (sync-ko.yml) all run it, and nothing else decides which file goes where.
 
-    python scripts/test_parts.py                          # the whole suite, as one run
+    python scripts/test_parts.py                          # the whole suite: unittest discover itself
     python scripts/test_parts.py --parallel 8             # the same suite in 8 parts at once
     python scripts/test_parts.py --part 2/8               # only the second of 8 parts
     python scripts/test_parts.py --lane advanced ...      # the advanced edition's lane
@@ -16,12 +16,17 @@ written: CI's lanes (.github/workflows/test.yml), the release's suite (release.y
     python scripts/test_parts.py --list --parts 8         # show how 8 parts are dealt
     python scripts/test_parts.py --check                  # prove the parts are the discovered suite
 
-What a part runs is what `python -m unittest discover -s <suite>` runs, restricted to its files: the same
-file rule (discover's pattern `test*.py` and its module-name rule), the same loading call - discover
-itself, once per file - in the same order, the same runner settings (the warnings filter, verbosity), the
-same `sys.path[0]` and `sys.argv`, one fresh interpreter for each suite, as CI has always run them.
-`--check` proves the first half: for every suite, the files loaded one by one are exactly the tests
-discover finds, in its order, and for every N the parts together are each of them exactly once.
+With neither --part nor --parallel it runs the whole suite as CI always ran it: `python -m unittest
+discover -s <suite>` itself (unittest.main, as `-m unittest` calls it), one fresh interpreter for each suite,
+recording each test id's outcome as it goes. That is the run the parts are compared with (--compare).
+
+What a part runs is that, restricted to its files: the same file rule (discover's pattern `test*.py` and
+its module-name rule), the same loading call - discover itself, once per file - in the same order, the same
+runner settings (the warnings filter, verbosity), the same `sys.path[0]` and `sys.argv`, one fresh
+interpreter for each suite. `--check` proves the first half: for every suite, the files loaded one by one
+are exactly the tests discover finds, in its order, and for every N the parts together are each of them
+exactly once. Whether each test's outcome is the same is the tests' own business - a file that leans on
+another having run first, or on a name no other process may use - and `--compare` answers it.
 
 A lane is the suites one CI job runs and how each is run (LANES):
 
@@ -36,7 +41,8 @@ parts as child processes, each with a temporary directory of its own (TEMP and T
 summary with one exit code. Every child gets CREATE_NO_WINDOW and is python.exe, never pythonw.exe: a
 console program started by a process with no console opens a window (tests/test_no_console_windows.py).
 
-The durations are tests/data/durations.json, seconds per file, measured on a whole run; a file with no
+The durations are tests/data/durations.json, seconds per file - its tests and their class and module
+fixtures, from the end of one test to the end of the next - measured on a whole run; a file with no
 measurement yet is dealt round-robin after the measured ones. `--record-durations` rewrites the file from
 the run it ends, keeping entries for files the run did not include and dropping files that are gone.
 """
@@ -146,27 +152,25 @@ def parse_part(text: str) -> tuple[int, int]:
 
 # --- the worker: one suite, some of its files, in a fresh interpreter ------------------------------
 
-class Timed(unittest.TestSuite):
-    """One file's tests, adding the time they take to run to `clock[name]`."""
-
-    def __init__(self, tests, name, clock):
-        super().__init__(tests)
-        self.name, self.clock = name, clock
-
-    def run(self, result, debug=False):
-        started = time.perf_counter()
-        try:
-            return super().run(result, debug)
-        finally:
-            self.clock[self.name] = self.clock.get(self.name, 0.0) + time.perf_counter() - started
-
-
 class Recorder(unittest.TextTestResult):
-    """The text result `unittest` prints, which also keeps each test id's outcome."""
+    """The text result `unittest` prints, which also keeps each test id's outcome, and the seconds from the
+    end of one test to the end of the next under the next one's module: its test, and the class and module
+    fixtures set up before it. Nothing about the run changes; the result only listens."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.outcomes = {}
+        self.outcomes, self.modules = {}, {}
+        self.clock = time.perf_counter()
+
+    def startTestRun(self):
+        super().startTestRun()
+        self.clock = time.perf_counter()
+
+    def stopTest(self, test):
+        super().stopTest(test)
+        now, module = time.perf_counter(), type(test).__module__
+        self.modules[module] = self.modules.get(module, 0.0) + now - self.clock
+        self.clock = now
 
     def _put(self, test, word):
         key = test.id()
@@ -205,26 +209,32 @@ class Recorder(unittest.TextTestResult):
             self._put(test, word)
 
 
+class Runner(unittest.TextTestRunner):
+    resultclass = Recorder
+
+
 def work(suite: str, names: list[str], report: str, verbose: bool) -> int:
-    """What `python -m unittest discover -s <suite>` does, for `names` only, and the record of it."""
+    """What `python -m unittest discover -s <suite>` does - all of it when `names` is empty, else for
+    `names` only - and the record of it."""
     # `python -m` puts the working directory first on the path, where running this file put scripts/.
     sys.path[0] = os.getcwd()
     sys.argv = ["python -m unittest", "discover", "-s", suite] + (["-v"] if verbose else [])
-    loader = unittest.TestLoader()
-    seconds, files = {}, []
-    for name in names:
-        started = time.perf_counter()
-        # discover itself, with the file's own name as the pattern: the same import, the same handling
+    if not names:
+        # The whole suite: what `python -m unittest` runs - unittest.main(module=None) - with a result
+        # that only listens.
+        result = unittest.main(module=None, argv=list(sys.argv), testRunner=Runner, exit=False).result
+    else:
+        loader = unittest.TestLoader()
+        # discover itself, with each file's own name as the pattern: the same import, the same handling
         # of a file that cannot be imported, the same tests in the same order as a whole discover.
-        found = loader.discover(suite, pattern=name)
-        seconds[name] = time.perf_counter() - started
-        files.append(Timed(found, name, seconds))
-    runner = unittest.TextTestRunner(verbosity=2 if verbose else 1, resultclass=Recorder,
-                                     warnings=None if sys.warnoptions else "default")
-    result = runner.run(unittest.TestSuite(files))
+        files = [loader.discover(suite, pattern=name) for name in names]
+        runner = Runner(verbosity=2 if verbose else 1, warnings=None if sys.warnoptions else "default")
+        result = runner.run(unittest.TestSuite(files))
+    mine = set(suite_files(suite))
     record = {
         "outcomes": result.outcomes,
-        "seconds": {"%s/%s" % (suite, name): round(value, 3) for name, value in seconds.items()},
+        "seconds": {"%s/%s.py" % (suite, module): round(value, 3) for module, value in result.modules.items()
+                    if module + ".py" in mine},
         "counts": counts_of(result),
         "ok": result.wasSuccessful(),
     }
@@ -262,7 +272,8 @@ def say(text: str) -> None:
 
 
 def run_worker(suite: str, names: list[str], env: dict, verbose: bool) -> tuple[int, bytes, dict]:
-    """One suite's files in a fresh interpreter, its output passed through as it comes."""
+    """One suite's files - all of it, as discover runs it, when `names` is empty - in a fresh interpreter,
+    its output passed through as it comes."""
     handle, report = tempfile.mkstemp(prefix="test-parts-", suffix=".json")
     os.close(handle)
     try:
@@ -307,19 +318,21 @@ def annotation(suite: str, where: str, output: bytes) -> str:
     return "::error title=test suite failed (%s, %s)::%s" % (suite, where, text)
 
 
-def run_part(lane: str, part: int, count: int, *, verbose: bool = False, annotate: bool = False,
+def run_part(lane: str, part: int | None, count: int, *, verbose: bool = False, annotate: bool = False,
              worker=run_worker) -> dict:
-    """Part `part` of `count` of a lane: every suite with files in the part, each in its own worker. Every
-    suite runs, and the part has failed if any of them did."""
-    mine = set(deal(lane_files(lane), count, load_durations())[part - 1])
-    where = "part %d of %d" % (part, count)
+    """Part `part` of `count` of a lane - the whole lane, each suite as discover runs it, when `part` is
+    None: every suite with files in the part, each in its own worker. Every suite runs, and the part has
+    failed if any of them did."""
+    mine = set(lane_files(lane) if part is None else deal(lane_files(lane), count, load_durations())[part - 1])
+    where = "the whole suite" if part is None else "part %d of %d" % (part, count)
     merged = {"outcomes": {}, "seconds": {}, "counts": {}, "ok": True, "suites": []}
     for suite, env in LANES[lane]:
         names = [name for name in suite_files(suite) if "%s/%s" % (suite, name) in mine]
         if not names:
             continue
         say("%s, lane %s: %s, %d of its files" % (where, lane, suite, len(names)))
-        code, output, record = worker(suite, names, env, verbose)
+        # The whole suite is discover's to find; a part names its files.
+        code, output, record = worker(suite, [] if part is None else names, env, verbose)
         passed = code == 0 and record.get("ok") is True
         if not record:
             say("%s: the interpreter running %s ended with exit code %d before it reported: it died, "
@@ -474,7 +487,8 @@ def check(counts: list[int]) -> tuple[bool, list]:
 
 def write_outcomes(path: str, lane: str, parts, merged: dict) -> None:
     document = {"lane": lane, "parts": parts, "python": sys.version.split()[0],
-                "counts": merged["counts"], "outcomes": dict(sorted(merged["outcomes"].items()))}
+                "counts": merged["counts"], "outcomes": dict(sorted(merged["outcomes"].items())),
+                "seconds": dict(sorted(merged["seconds"].items()))}
     Path(path).write_text(json.dumps(document, indent=1) + "\n", encoding="utf-8")
 
 
@@ -498,7 +512,7 @@ def record_durations(seconds: dict, path: Path = DURATIONS) -> None:
     kept.update({key: round(value, 1) for key, value in seconds.items()})
     present = {key for lane in LANES for key in lane_files(lane)}
     document = {
-        "about": "Seconds each test file took (import and run) on the last whole run that recorded them, "
+        "about": "Seconds each test file took (its tests and their fixtures) on the last run that recorded them, "
                  "for scripts/test_parts.py to balance its parts by. Refresh with --record-durations.",
         "seconds": {key: kept[key] for key in sorted(kept) if key in present},
     }
@@ -574,7 +588,7 @@ def main(argv=None) -> int:
         merged, parts = run_parallel(lane, options.parallel, verbose=options.verbose)
         count = options.parallel
     else:
-        part, count = options.part or (1, 1)
+        part, count = options.part or (None, 1)
         merged = run_part(lane, part, count, verbose=options.verbose, annotate=options.annotate)
         parts = None
     elapsed = time.perf_counter() - started

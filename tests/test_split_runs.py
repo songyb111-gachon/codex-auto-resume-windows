@@ -8,14 +8,16 @@ result a whole run gives. What is held here:
   Loaded in fresh interpreters: importing every test module into this one would put other files' import
   side effects into whichever part runs this test, which is the kind of sharing the split must not have.
 * DealTests - the deal is a partition, the same every time, and balanced by the recorded durations.
-* WorkerTests - a real worker on a small suite records each test id's outcome as unittest reports it.
+* WorkerTests - a real worker on a small suite records each test id's outcome as unittest reports it, and
+  the whole run - `unittest discover` itself, the run the parts are compared with - records the same.
 * PartTests - every suite of a part runs, and the part fails after the last if any of them failed.
 * LaneTests - what each lane runs, and with what on the path.
 * WorkflowPartsTests - test.yml and release.yml run every part of every lane, and what a lane checks
   once still runs once.
 
 The comparison of a whole run with a parallel one, test id by test id, is in CONTRIBUTING.md; it takes
-as long as the suite, so it is a command rather than a test.
+as long as the suite, so it is a command rather than a test. It was made for both editions' lanes before
+the workflows were switched to parts (the commit that did so says with what result).
 """
 from __future__ import annotations
 
@@ -77,16 +79,24 @@ def declared_parts(text: str) -> int:
     return int(count.group(1))
 
 
+def documented_counts() -> set[int]:
+    """The part counts CONTRIBUTING.md tells a contributor to run on their own machine."""
+    text = (ROOT / "docs" / "CONTRIBUTING.md").read_text(encoding="utf-8")
+    return {int(value) for value in re.findall(r"test_parts\.py[^\n`]*?--(?:parallel |part \d+/|parts )(\d+)", text)}
+
+
 def counts_used() -> list[int]:
-    """Every part count a workflow uses, and 1: the whole suite as one part."""
+    """Every part count a workflow uses, every count CONTRIBUTING.md shows, and 1: the whole suite as
+    one part."""
     return sorted({1, declared_parts(workflow("test.yml")), declared_parts(job(workflow("release.yml"), "test")),
-                   declared_parts(job(workflow("sync-ko.yml"), "test"))})
+                   declared_parts(job(workflow("sync-ko.yml"), "test"))} | documented_counts())
 
 
 class DiscoveredSuiteTests(unittest.TestCase):
     def test_every_count_used_splits_every_suite_into_exactly_the_discovered_tests(self):
         counts = counts_used()
         self.assertGreater(max(counts), 1)
+        self.assertTrue(documented_counts() - {1}, "the counts CONTRIBUTING.md shows are no longer read")
         done = subprocess.run([sys.executable, str(RUNNER), "--check", "--counts", ",".join(map(str, counts))],
                               cwd=str(ROOT), capture_output=True, stdin=subprocess.DEVNULL, timeout=900,
                               creationflags=NO_WINDOW)
@@ -209,30 +219,49 @@ class Broken(unittest.TestCase):
         "helper.py": "raise RuntimeError('not a test file, never imported')\n",
     }
 
-    def test_the_outcomes_are_unittests(self):
+    OUTCOMES = {
+        "test_one.One.test_passes": "pass",
+        "test_one.One.test_fails": "fail",
+        "test_one.One.test_errs": "error",
+        "test_one.One.test_skipped": "skip",
+        "test_one.One.test_a_subtest_fails": "fail",
+        "test_one.One.test_a_subtest_fails (value=2)": "fail",
+        "test_one.One.test_expected": "expected-failure",
+        "setUpClass (test_two.Broken)": "error",
+        "unittest.loader._FailedTest.test_three": "error",
+    }
+
+    def run_in(self, names):
+        """The worker on the suite above: its files by name, or all of it as discover finds it."""
         with tempfile.TemporaryDirectory() as folder:
             for name, text in self.FILES.items():
                 Path(folder, name).write_text(text.lstrip(), encoding="utf-8")
             self.assertEqual(parts.suite_files(folder), ["test_one.py", "test_three.py", "test_two.py"])
             with mock.patch.object(parts, "write_out"):
-                code, output, record = parts.run_worker(folder, parts.suite_files(folder), {}, False)
+                code, output, record = parts.run_worker(folder, parts.suite_files(folder) if names else [],
+                                                        {}, False)
         self.assertEqual(code, 1, output)
-        self.assertEqual(record["outcomes"], {
-            "test_one.One.test_passes": "pass",
-            "test_one.One.test_fails": "fail",
-            "test_one.One.test_errs": "error",
-            "test_one.One.test_skipped": "skip",
-            "test_one.One.test_a_subtest_fails": "fail",
-            "test_one.One.test_a_subtest_fails (value=2)": "fail",
-            "test_one.One.test_expected": "expected-failure",
-            "setUpClass (test_two.Broken)": "error",
-            "unittest.loader._FailedTest.test_three": "error",
-        })
+        self.assertFalse(record["ok"])
+        # A file's seconds are its tests' and their fixtures'; test_two's never started, and test_three is
+        # the loader's stand-in for a module that could not be imported.
+        self.assertEqual(sorted(record["seconds"]), ["%s/test_one.py" % folder])
+        return record
+
+    def test_the_whole_suite_is_discover_itself_and_comes_out_as_its_files_do(self):
+        whole = self.run_in(names=False)
+        self.assertEqual(whole["outcomes"], self.OUTCOMES)
+        self.assertEqual(whole["counts"], self.run_in(names=True)["counts"])
+
+    def test_the_whole_suite_is_run_by_unittest_main_as_python_m_unittest_runs_it(self):
+        source = RUNNER.read_text(encoding="utf-8")
+        self.assertIn("unittest.main(module=None, argv=list(sys.argv), testRunner=Runner, exit=False)", source)
+        self.assertIn("part, count = options.part or (None, 1)", source)
+
+    def test_the_outcomes_are_unittests(self):
+        record = self.run_in(names=True)
+        self.assertEqual(record["outcomes"], self.OUTCOMES)
         self.assertEqual(record["counts"], {"run": 7, "failures": 2, "errors": 3, "skipped": 1,
                                             "expected failures": 1, "unexpected successes": 0})
-        self.assertEqual(sorted(record["seconds"]),
-                         sorted("%s/%s" % (folder, name) for name in ("test_one.py", "test_two.py", "test_three.py")))
-        self.assertFalse(record["ok"])
 
 
 class PartTests(unittest.TestCase):
@@ -257,6 +286,18 @@ class PartTests(unittest.TestCase):
         self.assertEqual(len(annotations), 1)
         self.assertTrue(annotations[0].startswith("::error title=test suite failed (tests, part 1 of 1)::FAIL:"))
         self.assertNotIn("::", annotations[0].split("::", 2)[2], "a '::' in the text would end the command")
+
+    def test_the_whole_lane_leaves_finding_its_files_to_discover(self):
+        seen = []
+
+        def worker(suite, names, env, verbose):
+            seen.append((suite, list(names)))
+            return 0, b"", {"ok": True, "outcomes": {"%s.T.test" % suite: "pass"}, "counts": {"run": 1}}
+
+        with mock.patch.object(parts, "say"):
+            merged = parts.run_part("advanced", None, 1, worker=worker)
+        self.assertEqual(seen, [("tests", []), ("advanced/tests", [])])
+        self.assertTrue(merged["ok"])
 
     def test_a_worker_that_died_fails_its_part(self):
         with mock.patch.object(parts, "say"):

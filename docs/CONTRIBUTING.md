@@ -67,7 +67,7 @@ same order, one fresh Python per suite.
 python scripts/test_parts.py --parallel 8                   # all 8 parts at once: one summary, one exit code
 python scripts/test_parts.py --part 3/8                     # only the third of 8 parts
 python scripts/test_parts.py --lane advanced --parallel 8   # the advanced edition's lane
-python scripts/test_parts.py                                # the whole suite as one run
+python scripts/test_parts.py                                # the whole suite: `unittest discover` itself
 ```
 
 It sets `PYTHONPATH` and `CODEX_AR_EDITION` for the lane itself - `standard`, `advanced`, or
@@ -79,7 +79,10 @@ in every language at five scalings - is a floor no number of parts goes below.
 
 The parts together are exactly the tests `unittest discover` finds, each once, for every part count
 the workflows use: `tests/test_split_runs.py` proves it. Whether a part's results are a whole run's
-is a question about the tests themselves, and the runner answers it on your machine:
+is a question about the tests themselves, and the runner answers it on your machine. Run with neither
+`--part` nor `--parallel`, it runs `python -m unittest discover` itself, suite by suite, as CI ran the
+suite before it was split, and records each test's outcome; `--compare` holds that to the parts, test
+by test:
 
 ```bash
 python scripts/test_parts.py --outcomes whole.json

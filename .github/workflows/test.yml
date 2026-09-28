@@ -38,6 +38,13 @@ jobs:
     # proves that for every count used here, and a whole run and a parallel one were compared test
     # by test before this was switched on. What a lane checks once - the compile and the smoke test -
     # runs in its first part only, so it still runs exactly once per lane.
+    #
+    # Four parts, from measurement (2026-09-29). The eight lanes' test steps took 65 to 125 minutes
+    # in the last five runs, and a public repository gets about 20 jobs at once. Laid onto 20 slots,
+    # those times give: 2 parts, 51 minutes to the last green (67 on the slowest runs seen); 3 parts,
+    # 61 - 24 jobs, and the last 4 wait for a whole part; 4 parts, 48 (57); 5 parts, 43 alone but 64
+    # once a release's or the ko sync's four jobs hold slots too. And tests/test_gui_layout.py, one
+    # file of one probe, is a floor of about 20 minutes on a runner that no count goes below.
     strategy:
       fail-fast: false
       matrix:
