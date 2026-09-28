@@ -221,10 +221,12 @@ function Get-PluginVersion {
     # Strict semver, because the version is spliced into a URL. Anything else stops here
     # rather than reaching the network. The two suffixes are the literal -alpha and -beta of a
     # planned pre-release (v0.6.9-alpha, v0.6.11-beta), each naming its own tag and archive -
-    # in lower case, as tags are: -cnotmatch, because -notmatch ignores case. \z, not $, which
-    # .NET also matches before a final line break; [0-9], not \d, which takes any script's digits.
+    # in lower case, as tags are: -cnotmatch, because -notmatch ignores case. A stage's later
+    # pre-releases number it from .2 to .999 with no leading zero (v0.6.11-beta.2): the plain
+    # word is its first, so there is no .0 or .1. \z, not $, which .NET also matches before a
+    # final line break; [0-9], not \d, which takes any script's digits.
     # The same rule as every other check of this product's version (tests/test_version_rule.py).
-    if ($version -cnotmatch '^[0-9]+\.[0-9]+\.[0-9]+(-alpha|-beta)?\z') {
+    if ($version -cnotmatch '^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta)(\.([2-9]|[1-9][0-9]{1,2}))?)?\z') {
         throw ('The plugin manifest declares an unusable version: ' + $version)
     }
     return $version
@@ -296,15 +298,21 @@ function Assert-TrustedHost {
 function Get-VersionParts {
     param([string]$Version)
     # Get-PluginVersion's rule, with a ceiling on each number so it stays an integer.
-    if ($Version -cnotmatch '^([0-9]{1,6})\.([0-9]{1,6})\.([0-9]{1,6})(-alpha|-beta)?\z') {
+    if ($Version -cnotmatch '^([0-9]{1,6})\.([0-9]{1,6})\.([0-9]{1,6})(?:-(alpha|beta)(?:\.([2-9]|[1-9][0-9]{1,2}))?)?\z') {
         throw ('Not a version this product uses: ' + $Version)
     }
-    # A fourth part orders the pre-releases just before their own release:
-    # 0.6.11-alpha < 0.6.11-beta < 0.6.11.
+    # A fourth and a fifth part order the pre-releases just before their own release - the
+    # stage, then its number, where the plain word is the stage's first:
+    # 0.6.11-alpha < 0.6.11-alpha.2 < 0.6.11-beta < 0.6.11-beta.2 < 0.6.11.
     $stage = 2
-    if ($Matches[4] -ceq '-alpha') { $stage = 0 }
-    elseif ($Matches[4] -ceq '-beta') { $stage = 1 }
-    return @([int]$Matches[1], [int]$Matches[2], [int]$Matches[3], $stage)
+    $number = 0
+    if ($Matches[4] -ceq 'alpha') { $stage = 0 }
+    elseif ($Matches[4] -ceq 'beta') { $stage = 1 }
+    if ($stage -lt 2) {
+        $number = 1
+        if ($Matches[5]) { $number = [int]$Matches[5] }
+    }
+    return @([int]$Matches[1], [int]$Matches[2], [int]$Matches[3], $stage, $number)
 }
 
 function Format-UnreadVersion {
@@ -323,7 +331,7 @@ function Compare-ProductVersion {
     # minor release of a line would look like a downgrade.
     $a = Get-VersionParts $Left
     $b = Get-VersionParts $Right
-    for ($i = 0; $i -lt 4; $i++) {
+    for ($i = 0; $i -lt 5; $i++) {
         if ($a[$i] -lt $b[$i]) { return -1 }
         if ($a[$i] -gt $b[$i]) { return 1 }
     }
@@ -760,6 +768,7 @@ if ($CheckOnly -or $Update) {
 # the published v0.6.10 and v0.6.11-alpha bootstraps knew -alpha and not -beta, took an installed
 # 0.6.11-beta for nothing installed, and installed their own older release over it. Those copies
 # cannot be changed; this one refuses instead, until -Force says to replace what it cannot read.
+# Every copy published before the numbered pre-releases (-beta.2) cannot read those either.
 #
 # The "newer" case is the one -Update creates and nothing else did: an update leaves the
 # machine ahead of the plugin tree it was started from, because Codex's copy of the plugin

@@ -60,10 +60,11 @@ $normalizer = Join-Path $Root 'build\normalize_pe.py'
 $pluginManifest = Get-Content (Join-Path $Root '.codex-plugin\plugin.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 $version = [string]$pluginManifest.version
 # The rule every check of this product's version applies (tests/test_version_rule.py): ASCII
-# digits, one of the two words in lower case, and nothing after it - \z, because .NET's $ also
-# matches before a final line break.
-if ($version -cnotmatch '^([0-9]+\.[0-9]+\.[0-9]+)(-alpha|-beta)?\z') { throw ('plugin.json version is not MAJOR.MINOR.PATCH(-alpha|-beta): ' + $version) }
-# A version resource holds numbers only; a pre-release keeps its full name in the informational version.
+# digits, one of the two words in lower case, a number from 2 to 999 after it if any, and nothing
+# after that - \z, because .NET's $ also matches before a final line break.
+if ($version -cnotmatch '^([0-9]+\.[0-9]+\.[0-9]+)(-(alpha|beta)(\.([2-9]|[1-9][0-9]{1,2}))?)?\z') { throw ('plugin.json version is not MAJOR.MINOR.PATCH, optionally -alpha or -beta, optionally .2 to .999: ' + $version) }
+# A version resource holds numbers only - MAJOR.MINOR.PATCH.0 for every build of a version; a
+# pre-release keeps its full name, number and all, in the informational version.
 $numericVersion = $Matches[1]
 $publisher = [string]$pluginManifest.author.name
 $product = [string]$pluginManifest.interface.displayName

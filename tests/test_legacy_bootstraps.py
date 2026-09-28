@@ -61,14 +61,18 @@ def this_tree() -> legacy.Bootstrap:
 class OrderTests(unittest.TestCase):
     def test_versions_sort_as_releases_do(self):
         ordered = ["0.5.2", "0.5.10", "0.6.6-alpha", "0.6.6-beta", "0.6.6", "0.6.9-alpha", "0.6.9",
-                   "0.6.10-alpha", "0.6.10", "0.6.11-alpha", "0.6.11-beta", "0.6.11", "0.6.12-alpha"]
+                   "0.6.10-alpha", "0.6.10", "0.6.11-alpha", "0.6.11-alpha.2", "0.6.11-beta",
+                   "0.6.11-beta.2", "0.6.11-beta.3", "0.6.11-beta.10", "0.6.11", "0.6.12-alpha"]
         self.assertEqual(sorted(reversed(ordered), key=legacy.order), ordered)
 
     def test_anything_else_is_not_a_version(self):
         """The two suffixes scripts/bootstrap.ps1 accepts, and no other word: one that sorted by its
-        spelling would put an `rc` after a `beta` by accident, and a `gamma` too."""
+        spelling would put an `rc` after a `beta` by accident, and a `gamma` too. A number after one
+        is 2 to 999: the plain word is its stage's first."""
         for bad in ("0.6", "0.6.1.2", "v0.6.1", "0.6.1-RC1", "0.6.1-rc", "0.6.1-gamma", "0.6.1-Beta",
-                    "0.6.1-alpha1", "0.6.1-alpha-beta", "0.6.1\n", "0.6.1-beta\n", ""):
+                    "0.6.1-alpha1", "0.6.1-alpha-beta", "0.6.1\n", "0.6.1-beta\n", "",
+                    "0.6.1-beta.1", "0.6.1-beta.0", "0.6.1-beta.02", "0.6.1-beta.1000", "0.6.1-beta.2.1",
+                    "0.6.1-rc.2", "0.6.1-beta.2\n"):
             with self.subTest(bad), self.assertRaises(ValueError):
                 legacy.order(bad)
 
@@ -111,6 +115,8 @@ class PublishedBootstrapTests(unittest.TestCase):
         # A later pre-release of the same version is checked against the earlier one's bootstrap.
         self.assertIn("v0.6.11-alpha", legacy.published(ROOT, "0.6.11-beta"))
         self.assertNotIn("v0.6.11-beta", legacy.published(ROOT, "0.6.11-beta"))
+        # And a stage's numbered pre-release against the stage's first.
+        self.assertIn("v0.6.11-alpha", legacy.published(ROOT, "0.6.11-alpha.2"))
         self.assertEqual(legacy.published(ROOT, "0.6.9"), self.tags[:self.tags.index("v0.6.9")])
 
     def test_every_published_bootstrap_takes_an_archive_shaped_like_this_release(self):
@@ -212,6 +218,22 @@ class CopiesThatCannotReadThisVersionTests(unittest.TestCase):
                                  {"v0.5.7": "unguarded", "v0.6.8": "refuses", "v0.6.10": "reads"}.items()
                                  if tag in tags})
         self.assertEqual(legacy.readers([this_tree()], self.version), {"this tree": "reads"})
+
+    def test_a_numbered_pre_release_is_read_by_this_copy_and_by_no_published_one_before_it(self):
+        """A stage's later pre-releases (-alpha.2, -beta.2) came after v0.6.11-alpha: the copies
+        published up to it read the plain words at most, as they read -alpha and not -beta before,
+        so an installation at one is one they cannot tell from none. This tree's copy reads them,
+        and still refuses a number the rule does not give."""
+        tags = [tag for tag in ("v0.5.7", "v0.6.8", "v0.6.10", "v0.6.11-alpha") if tag in self.tags]
+        published = [legacy.lift(ROOT, tag) for tag in tags]
+        for version in ("0.6.11-alpha.2", "0.6.11-beta.2", "0.6.12-beta.10"):
+            with self.subTest(version):
+                self.assertEqual(legacy.readers(published, version),
+                                 {tag: "unguarded" if tag == "v0.5.7" else "refuses" for tag in tags})
+                self.assertEqual(legacy.readers([this_tree()], version), {"this tree": "reads"})
+        for version in ("0.6.11-beta.1", "0.6.11-beta.02", "0.6.11-beta.1000"):
+            with self.subTest(version):
+                self.assertEqual(legacy.readers([this_tree()], version), {"this tree": "refuses"})
 
     def test_the_changelog_names_the_published_copies_that_cannot_read_this_version(self):
         if self.answers[self.tags[-1]] != "refuses":

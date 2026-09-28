@@ -1,8 +1,11 @@
 r"""One rule for this product's own version, wherever it is checked.
 
 A version is MAJOR.MINOR.PATCH in ASCII digits, then `-alpha`, `-beta` or nothing, in exactly
-that case, and nothing before or after it: no space, no line break, no other word, no other
-script's digits. It is checked in six places, and each says it applies the rule the others do:
+that case, then - after a word, if the build is a stage's later pre-release - `.N` with N from 2 to
+999 and no leading zero, and nothing before or after it: no space, no line break, no other word, no
+other script's digits. The plain word is a stage's first pre-release, so there is no `.1` and no
+`.0`, and the order is 0.6.11-alpha, 0.6.11-alpha.2, 0.6.11-beta, 0.6.11-beta.2, 0.6.11 (ORDER).
+It is checked in six places, and each says it applies the rule the others do:
 the bootstrap's Get-PluginVersion (the version it splices into a URL) and Get-VersionParts (the
 one it compares), the settings window's build (build/make_gui.ps1), the release workflow's build
 job, the order the published bootstraps are checked in (build/legacy_bootstraps.py), and the
@@ -44,11 +47,22 @@ WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
 POWERSHELL = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
               / "WindowsPowerShell" / "v1.0" / "powershell.exe")
 
-ACCEPTED = ["0.6.11", "0.6.11-alpha", "0.6.11-beta", "10.20.30", "0.0.0"]
+ACCEPTED = ["0.6.11", "0.6.11-alpha", "0.6.11-beta", "10.20.30", "0.0.0",
+            # A stage's later pre-releases: 2 to 999, no leading zero.
+            "0.6.11-alpha.2", "0.6.11-beta.2", "0.6.11-beta.3", "0.6.11-beta.9", "0.6.11-beta.10",
+            "0.6.11-alpha.99", "0.6.11-beta.100", "0.6.11-beta.999", "10.20.30-beta.2"]
 REFUSED = [
     # Another word, another case, or more after one of the two.
     "0.6.11-gamma", "0.6.11-rc", "0.6.11-rc1", "0.6.11-Beta", "0.6.11-BETA", "0.6.11-Alpha",
-    "0.6.11-beta.1", "0.6.11-beta1", "0.6.11-alpha-beta", "0.6.11-", "0.6.11-betaa",
+    "0.6.11-beta1", "0.6.11-alpha-beta", "0.6.11-", "0.6.11-betaa",
+    # A number the rule does not give: the plain word is the first, so no .1 and no .0; no
+    # leading zero, no fourth digit, nothing after it, and never on a release or another word.
+    "0.6.11-beta.1", "0.6.11-alpha.1", "0.6.11-beta.0", "0.6.11-beta.00", "0.6.11-beta.01",
+    "0.6.11-beta.02", "0.6.11-beta.010", "0.6.11-beta.1000", "0.6.11-beta.9999", "0.6.11-beta.",
+    "0.6.11-beta..2", "0.6.11-beta.2.1", "0.6.11-beta.2.", "0.6.11-beta.2-alpha", "0.6.11-beta-2",
+    "0.6.11-beta2", "0.6.11-beta.x", "0.6.11-beta.+2", "0.6.11-beta.-2", "0.6.11-Beta.2",
+    "0.6.11-rc.2", "0.6.11.2", "0.6.11-.2", "0.6.11-beta.2 ", "0.6.11-beta.2\n", "0.6.11-beta.2\r\n",
+    " 0.6.11-beta.2", "0.6.11-beta.\uff12", "0.6.11-beta.\u0662", "0.6.11-beta.\u00b2",
     # Anything around it: `$` in .NET takes a final "\n" as the end.
     " 0.6.11", "0.6.11 ", "0.6.11-beta ", "0.6.11\n", "0.6.11-beta\n", "0.6.11-alpha\n",
     "0.6.11-beta\r\n", "\n0.6.11", "0.6.11\t",
@@ -58,6 +72,10 @@ REFUSED = [
     "0.6", "0.6.11.1", "v0.6.11", "", "0.6.x",
 ]
 CASES = [(version, True) for version in ACCEPTED] + [(version, False) for version in REFUSED]
+# In the order they are published and compared: each stage's pre-releases just before the next,
+# the numbers as numbers (.9 before .10), and the release after all of them.
+ORDER = ["0.6.10", "0.6.11-alpha", "0.6.11-alpha.2", "0.6.11-alpha.10", "0.6.11-beta", "0.6.11-beta.2",
+         "0.6.11-beta.3", "0.6.11-beta.9", "0.6.11-beta.10", "0.6.11-beta.999", "0.6.11", "0.6.12-alpha"]
 
 
 def applied_pattern(path: Path, variable: str) -> tuple:
@@ -74,7 +92,7 @@ Set-StrictMode -Version 2.0
 $errors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile($env:CAR_BOOTSTRAP, [ref]$null, [ref]$errors)
 if ($errors -and $errors.Count) { throw 'bootstrap.ps1 does not parse' }
-$wanted = @('Read-Json', 'Get-PluginVersion', 'Get-VersionParts')
+$wanted = @('Read-Json', 'Get-PluginVersion', 'Get-VersionParts', 'Compare-ProductVersion')
 foreach ($node in $ast.FindAll({ param($n)
         $n -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)) {
     if ($wanted -contains $node.Name) { Invoke-Expression $node.Extent.Text }
@@ -102,7 +120,14 @@ foreach ($version in $input_.versions) {
     }
     $answers += [pscustomobject]$answer
 }
-ConvertTo-Json -InputObject @($answers) -Compress
+# Every ordered pair of ORDER, as Compare-ProductVersion signs it.
+$signs = @()
+foreach ($left in $input_.order) {
+    foreach ($right in $input_.order) {
+        $signs += [int](Compare-ProductVersion -Left ([string]$left) -Right ([string]$right))
+    }
+}
+ConvertTo-Json -InputObject ([ordered]@{ answers = @($answers); signs = @($signs) }) -Depth 4 -Compress
 """
 
 
@@ -115,6 +140,11 @@ class PythonTests(unittest.TestCase):
                 else:
                     with self.assertRaises(ValueError):
                         legacy.order(version)
+
+    def test_the_published_bootstraps_order_is_the_order_releases_are_made_in(self):
+        self.assertEqual(sorted(reversed(ORDER), key=legacy.order), ORDER)
+        self.assertEqual(len({legacy.order(version) for version in ORDER}), len(ORDER),
+                         "two versions sort as one")
 
     def test_the_product_reads_exactly_the_rule(self):
         from codex_auto_resume.compat import files
@@ -136,15 +166,17 @@ class PowerShellTests(unittest.TestCase):
         cls.lines = lines
         with tempfile.TemporaryDirectory() as folder:
             source = Path(folder) / "input.json"
-            source.write_text(json.dumps({"versions": [version for version, _ in CASES], "lines": lines}),
-                              encoding="utf-8")
+            source.write_text(json.dumps({"versions": [version for version, _ in CASES], "lines": lines,
+                                          "order": ORDER}), encoding="utf-8")
             done = subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-Command", PROBE],
                                   capture_output=True, text=True, encoding="utf-8", errors="replace",
                                   timeout=300, env=dict(os.environ, CAR_BOOTSTRAP=str(BOOTSTRAP),
                                                         CAR_INPUT=str(source),
                                                         CAR_PLUGIN=str(Path(folder) / "plugin")))
         cls.done = done
-        cls.answers = json.loads(done.stdout) if done.returncode == 0 and done.stdout.strip() else None
+        found = json.loads(done.stdout) if done.returncode == 0 and done.stdout.strip() else None
+        cls.answers = found["answers"] if found else None
+        cls.signs = found["signs"] if found else None
 
     def setUp(self):
         if self.answers is None:
@@ -164,6 +196,14 @@ class PowerShellTests(unittest.TestCase):
 
     def test_the_bootstrap_compares_exactly_the_rule(self):
         self.check("parts")
+
+    def test_the_bootstrap_compares_in_the_order_releases_are_made_in(self):
+        """Every pair, both ways round: the one comparison an update check makes."""
+        signs = iter(self.signs)
+        for i, left in enumerate(ORDER):
+            for j, right in enumerate(ORDER):
+                with self.subTest(left=left, right=right):
+                    self.assertEqual(next(signs), (i > j) - (i < j))
 
     def test_the_windows_build_takes_exactly_the_rule(self):
         self.assertEqual(self.lines["make_gui"]["operator"], "-cnotmatch")

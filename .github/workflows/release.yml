@@ -37,10 +37,12 @@ on:
     # A suffixed tag - v0.6.6-alpha, v0.6.6-beta - used to only ever rename a release that was
     # already published; its archive is attached and its version is the plain one, so a build
     # would refuse the tag and leave a red run. Nothing is built for any other suffix. The
-    # exceptions are the pre-releases planned as ones (v0.6.9-alpha, v0.6.11-beta): the manifest
-    # says the suffixed version, so each is built, and published as a pre-release that never
-    # becomes the latest release.
-    tags: ["v*", "!v*-*", "v*.*.*-alpha", "v*.*.*-beta"]
+    # exceptions are the pre-releases planned as ones (v0.6.9-alpha, v0.6.11-beta) and the later
+    # ones of a stage, numbered from .2 (v0.6.11-beta.2): the manifest says the suffixed version,
+    # so each is built, and published as a pre-release that never becomes the latest release. A
+    # tag the two numbered patterns take and the version rule does not (v0.6.11-beta.1) is
+    # refused by the build job's first check.
+    tags: ["v*", "!v*-*", "v*.*.*-alpha", "v*.*.*-beta", "v*.*.*-alpha.*", "v*.*.*-beta.*"]
   workflow_dispatch:
     inputs:
       ref:
@@ -101,10 +103,10 @@ jobs:
           $declared = [string]$manifest.version
           # The version names files and a release, and later steps read it. It is checked
           # here, once, so nothing downstream ever handles a value shaped like anything
-          # but a version: ASCII digits, and nothing after the word - \z, because .NET's $
-          # also matches before a final line break (tests/test_version_rule.py).
-          if ($declared -cnotmatch '^[0-9]+\.[0-9]+\.[0-9]+(-alpha|-beta)?\z') {
-            throw "plugin.json version '$declared' is not MAJOR.MINOR.PATCH, MAJOR.MINOR.PATCH-alpha or MAJOR.MINOR.PATCH-beta"
+          # but a version: ASCII digits, and nothing after the word and its number - \z, because
+          # .NET's $ also matches before a final line break (tests/test_version_rule.py).
+          if ($declared -cnotmatch '^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta)(\.([2-9]|[1-9][0-9]{1,2}))?)?\z') {
+            throw "plugin.json version '$declared' is not MAJOR.MINOR.PATCH, optionally -alpha or -beta, optionally .2 to .999"
           }
           if ($env:GITHUB_REF -like 'refs/tags/*') {
             $tagged = $env:GITHUB_REF -replace '^refs/tags/v', ''
@@ -311,7 +313,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-alpha|-beta)?$ ]] || { echo "bad version '$VERSION'"; exit 1; }
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta)(\.([2-9]|[1-9][0-9]{1,2}))?)?$ ]] || { echo "bad version '$VERSION'"; exit 1; }
           [[ "$GITHUB_REF" == "refs/tags/v$VERSION" ]] || { echo "tag $GITHUB_REF does not match v$VERSION"; exit 1; }
           for zip in "$STANDARD_ZIP" "$ADVANCED_ZIP"; do
             recorded="$(cut -d' ' -f1 "$zip.sha256")"

@@ -117,6 +117,41 @@ Dependabot proposes updates as pull requests; `.github/dependabot.yml` turns on 
 merging, and each one is meant to be reviewed and merged by a person. Nothing in the repository
 checks its own settings on GitHub.
 
+### Alpha, beta and the release
+
+A version built in stages ships each finished stage as a pre-release while the next stage is
+built, so one version can have more pre-releases than one `-alpha` and one `-beta`. The word a
+pre-release carries says how far it can be relied on:
+
+- **`-alpha`, then `-alpha.2`, `-alpha.3`, and so on**, while the stage is not yet for real use:
+  groundwork with nothing to switch on; a feature that cannot yet be said to work end to end,
+  because a live measurement is still pending or a known gap blocks it; or a stored format that
+  may still change before the release.
+- **`-beta`, then `-beta.2`, `-beta.3`, and so on**, once every feature in it works end to end,
+  has passed review and both editions' tests and has been shown to the maintainer as a before and
+  after, and what it stores is what the release will keep. Once a version has had a beta, every
+  later pre-release of it is a `-beta.N`; it never goes back to an alpha.
+- **No suffix** - the release - once every stage is done and live acceptance
+  ([`docs/LIVE_ACCEPTANCE.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/LIVE_ACCEPTANCE.md))
+  has passed in both editions.
+
+The plain word is its stage's first pre-release, so the second is `.2`: there is no `.0` or `.1`,
+and the number is written in ASCII digits, from 2 to 999, with no leading zero. The words are in
+lower case and nothing follows the number. They sort in the order they are made:
+`X.Y.Z-alpha` < `X.Y.Z-alpha.2` < `X.Y.Z-beta` < `X.Y.Z-beta.2` < `X.Y.Z-beta.3` < `X.Y.Z`, the
+numbers compared as numbers (`.9` before `.10`). Every place that reads this product's version
+applies that one rule - the bootstrap, the settings window's build, the release workflow, the
+check of the published bootstraps and the product itself - and `tests/test_version_rule.py` holds
+them to it. The release workflow builds each such tag and publishes it as a pre-release that never
+becomes the latest release; the executables' file version is `X.Y.Z.0` for every one of them, and
+the product version beside it carries the whole name.
+
+A bootstrap reads only the words and numbers of its own day: the ones published before the
+numbered pre-releases read no number after `-alpha` or `-beta`, and cannot tell an installation at
+one from none. They cannot be changed, so a pre-release whose version the newest published
+bootstrap cannot read says so in its changelog entry, naming those copies
+(`tests/test_legacy_bootstraps.py` fails until it does).
+
 ### Making the build reproducible
 
 The build is designed so that, from a fresh clone, with the same build of the in-box

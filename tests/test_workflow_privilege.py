@@ -94,21 +94,23 @@ class WorkflowPrivilegeTests(unittest.TestCase):
         # -cnotmatch: -notmatch ignores case, and a tag is lower case. [0-9] and \z: \d takes any
         # script's digits, and .NET's $ matches before a final line break (tests/test_version_rule.py
         # runs the line's own pattern).
-        self.assertIn(r"-cnotmatch '^[0-9]+\.[0-9]+\.[0-9]+(-alpha|-beta)?\z'", text("release.yml"))
+        rule = r"^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta)(\.([2-9]|[1-9][0-9]{1,2}))?)?"
+        self.assertIn("-cnotmatch '" + rule + r"\z'", text("release.yml"))
         # The tag is held to the manifest in its case too.
         self.assertIn("$tagged -cne $declared", text("release.yml"))
         # And again in the publish job, which runs none of the repository's code: the same two
-        # suffixes and no others. Bash's $ is the end of the string.
+        # suffixes, numbered from .2 or not, and nothing else. Bash's $ is the end of the string.
         publish = job(text("release.yml"), "publish")
-        self.assertIn(r"^[0-9]+\.[0-9]+\.[0-9]+(-alpha|-beta)?$", publish)
+        self.assertIn('[[ "$VERSION" =~ ' + rule + "$ ]]", publish)
 
     def test_a_pre_release_never_becomes_the_latest_release(self):
         publish = job(text("release.yml"), "publish")
         self.assertIn("prerelease=(--prerelease --latest=false)", publish)
-        # Both planned pre-release tags build; any other suffix does not.
+        # Both planned pre-release tags build, and a stage's numbered ones after them; any other
+        # suffix does not.
         workflow = text("release.yml")
         self.assertIn('"!v*-*"', workflow)
-        for pattern in ('"v*.*.*-alpha"', '"v*.*.*-beta"'):
+        for pattern in ('"v*.*.*-alpha"', '"v*.*.*-beta"', '"v*.*.*-alpha.*"', '"v*.*.*-beta.*"'):
             self.assertIn(pattern, workflow)
 
     def test_no_expression_is_spliced_into_a_run_script(self):
