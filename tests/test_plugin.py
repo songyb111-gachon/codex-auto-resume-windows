@@ -628,6 +628,15 @@ class ReleaseNotesTests(unittest.TestCase):
         self.assertEqual(self.notes.section(text, "0.6.6-alpha"), "alpha")
         with self.assertRaises(SystemExit):
             self.notes.section("## v0.6.6-beta - earlier\n\nbeta\n", "0.6.6")
+        # A stage's numbered pre-releases too: none is read as the stage's first, or as another
+        # whose number it begins.
+        text = "\n\n".join(["## v0.6.11-beta.2 - second", "second", "## v0.6.11-beta - first", "first",
+                            "## v0.6.11-beta.20 - twentieth", "twentieth"]) + "\n"
+        self.assertEqual(self.notes.section(text, "0.6.11-beta"), "first")
+        self.assertEqual(self.notes.section(text, "0.6.11-beta.2"), "second")
+        self.assertEqual(self.notes.section(text, "v0.6.11-beta.20"), "twentieth")
+        with self.assertRaises(SystemExit):
+            self.notes.section("## v0.6.11-beta.20 - twentieth\n\nbody\n", "0.6.11-beta.2")
 
     def test_the_newest_changelog_entry_is_the_current_version(self):
         import re
