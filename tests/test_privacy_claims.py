@@ -146,7 +146,11 @@ class CodePropertyTests(unittest.TestCase):
         # passes `chatgpt_base_url="https://chatgpt.com/backend-api/"` so a hostile local
         # config cannot redirect the queue call elsewhere. It is a constant handed to the
         # official binary, not a host this code connects to.
+        # api.github.com (v0.6.11) is here for one address alone, the update check's list of this
+        # repository's releases, which it reads for a newer pre-release; any other use of that host
+        # is still a host nobody expected.
         allowed = re.compile(r"^https://(?:github\.com|[a-z-]+\.githubusercontent\.com|"
+                             r"api\.github\.com/repos/songyb111-gachon/codex-auto-resume-windows/releases\?per_page=10$|"
                              r"chatgpt\.com/backend-api/|"
                              r"www\.python\.org|agent-plugins\.org|schemas\.microsoft\.com|"
                              r"docs\.microsoft\.com|learn\.microsoft\.com)/?", re.I)
@@ -239,6 +243,23 @@ class WordingTests(unittest.TestCase):
             # lost the download itself, when the README was shortened.
             self.assertRegex(row[0], r"(?i)download|내려받",
                              "%s's privacy row must say setup downloads from GitHub" % name)
+
+    def test_every_privacy_summary_names_the_list_the_update_check_reads(self):
+        """From v0.6.11 the same press of Check for updates makes a second request: to api.github.com, for this
+        repository's list of releases, where a newer pre-release is found. The README's summary row and what
+        Codex tells people (the skill) said only that it asks GitHub which release is newest."""
+        for name in documents_here(("README.md", "README.ko.md", "docs/GUIDE.md", "docs/GUIDE.ko.md")):
+            with self.subTest(name):
+                text = (ROOT / name).read_text(encoding="utf-8")
+                row = [line for line in text.splitlines()
+                       if line.startswith("|") and re.search(r"(?i)telemetry|텔레메트리", line)]
+                self.assertTrue(row, "%s has no privacy row in its summary table" % name)
+                self.assertIn("api.github.com", row[0], "%s's privacy row names one request of two" % name)
+        skill = (ROOT / "skills" / "codex-auto-resume" / "SKILL.md").read_text(encoding="utf-8")
+        start = skill.index("- Its own runtime has no network code")
+        passage = re.split(r"\n(?:- |\n)", skill[start + 2:], maxsplit=1)[0]
+        self.assertIn("which release is newest", passage)
+        self.assertIn("api.github.com", passage, "the skill tells Codex of one request of two")
 
     def test_no_released_version_has_lost_its_changelog_section(self):
         """A guard against over-correcting.

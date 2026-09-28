@@ -14,8 +14,9 @@ If you find a security issue, please open an issue on this repository.
 This project operates no service of its own - no server, no endpoint, no telemetry - so there is no
 vendor backend to notify. The only service the code this project ships contacts is GitHub
 (github.com, and the GitHub storage hosts it redirects release downloads to), when setup downloads
-a release and when you press *Check for updates*, and, from v0.6.5, raw.githubusercontent.com, when
-you ask for the compatibility data refresh. The Codex processes it starts talk to OpenAI with your
+a release and when you press *Check for updates* - which from v0.6.11 also reads this repository's
+list of releases at api.github.com - and, from v0.6.5, raw.githubusercontent.com, when you ask for
+the compatibility data refresh. The Codex processes it starts talk to OpenAI with your
 existing sign-in, as Codex does (see *No network code in the recovery runtime* below). A finding in GitHub or in Codex itself
 belongs to that vendor's own reporting process, not here.
 
@@ -139,6 +140,25 @@ this product's plugin and marketplace).
   refused, and the version is rebuilt from its three numbers before it can reach a download
   URL. This tool sends nothing to its developer; there is no
   service of the developer's to send it to.
+
+  From v0.6.11 the same press asks one more question once github.com has answered, because
+  `releases/latest` never names a pre-release: one unauthenticated `GET` to GitHub's list of this
+  repository's ten newest releases
+  (`api.github.com/repos/songyb111-gachon/codex-auto-resume-windows/releases?per_page=10`), with no
+  redirect followed and nothing about the machine in it. It is the one body the update check
+  parses, and it is read for one thing: the newest published pre-release - not a draft, tagged
+  `vMAJOR.MINOR.PATCH-alpha` or `-beta` with a stage's number - that is newer than both the version
+  installed and the newest release. A list that cannot be read, is over 2 MiB, is not a list or
+  has not arrived within the time the check has left - a deadline for the whole request, not only
+  for its first byte - offers nothing and changes nothing else in the answer. What it finds is only
+  offered, and only where there is no release to offer first, in a question whose default button is
+  *Not now*: a pre-release is installed only when you say yes, and the yes asks both questions
+  again, so a release published while the question was open is reported instead and nothing is
+  downloaded. It is installed only while the list still names it as published and it is newer than
+  the newest release, only over an older version, in the edition you have and with your state
+  kept, and - since no pre-release is ever pinned - verified against the `.sha256` published beside
+  it, the trust-on-first-use case `docs/PLUGIN.md` describes. The watcher, the panel and the MCP tools
+  never install one.
 
   No compatibility refresh runs unless you ask for it either. From v0.6.5 the Codex
   compatibility data refresh happens at exactly two moments: *Refresh compatibility data* on the

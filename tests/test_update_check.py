@@ -90,10 +90,25 @@ ORDERING = [
     ("0.6.11-beta", "0.6.10", 1),
     ("0.6.11-beta", "0.6.11-beta", 0),
     ("0.6.12-alpha", "0.6.11-beta", 1),
+    # A stage's later pre-releases, numbered from .2: after the stage's first, before the next
+    # stage, and compared as numbers - .10 after .9, which text would put first.
+    ("0.6.11-alpha", "0.6.11-alpha.2", -1),
+    ("0.6.11-alpha.2", "0.6.11-beta", -1),
+    ("0.6.11-beta", "0.6.11-beta.2", -1),
+    ("0.6.11-beta.2", "0.6.11-beta", 1),
+    ("0.6.11-beta.2", "0.6.11-beta.3", -1),
+    ("0.6.11-beta.9", "0.6.11-beta.10", -1),
+    ("0.6.11-beta.999", "0.6.11", -1),
+    ("0.6.11", "0.6.11-beta.2", 1),
+    ("0.6.11-beta.2", "0.6.10", 1),
+    ("0.6.11-beta.2", "0.6.11-beta.2", 0),
+    ("0.6.12-alpha", "0.6.11-beta.999", 1),
 ]
 
 MALFORMED = ["1.2", "1.2.3.4", "v1.2.3", "1.2.3-rc1", "1.2.3-rc", "1.2.3-beta1", "1.2.3-Beta",
-             "1.2.3-alpha-beta", "1.2.3-alpha1", "", "1.2.x", "1234567.0.0"]
+             "1.2.3-alpha-beta", "1.2.3-alpha1", "", "1.2.x", "1234567.0.0",
+             "1.2.3-beta.1", "1.2.3-beta.0", "1.2.3-beta.02", "1.2.3-beta.1000", "1.2.3-beta.2.1",
+             "1.2.3-beta.", "1.2.3-rc.2", "1.2.3-Beta.2"]
 
 PROBE = r"""
 $ErrorActionPreference = 'Stop'
@@ -332,6 +347,7 @@ class EndToEndTests(unittest.TestCase):
         release = json.loads((ROOT / "scripts" / "release.json").read_text(encoding="utf-8"))
         # Refused at once, with no name to look up and no packet leaving the machine.
         release["latest"] = "https://127.0.0.1:1/releases/latest"
+        release["releases"] = "https://127.0.0.1:1/releases/list"
         (root / "scripts" / "release.json").write_text(
             json.dumps(release, indent=2), encoding="utf-8")
         cls.script = root / "scripts" / "bootstrap.ps1"
@@ -415,6 +431,7 @@ class NeverGoesBackwardsTests(unittest.TestCase):
         # Nothing is listening, so any download attempt is an unmistakable failure.
         release["download"] = "https://127.0.0.1:1/releases/download/v{version}/"
         release["latest"] = "https://127.0.0.1:1/releases/latest"
+        release["releases"] = "https://127.0.0.1:1/releases/list"
         (cls.root / "scripts" / "release.json").write_text(
             json.dumps(release, indent=2), encoding="utf-8")
         cls.script = cls.root / "scripts" / "bootstrap.ps1"
@@ -523,7 +540,7 @@ class UnknownInstalledVersionTests(unittest.TestCase):
 
     PLUGIN = "1.2.3-beta"
     # Words this copy does not know, after a version it would otherwise call newer.
-    UNKNOWN = ("1.2.4-gamma", "1.2.4-rc1", "1.2.4-Beta")
+    UNKNOWN = ("1.2.4-gamma", "1.2.4-rc1", "1.2.4-Beta", "1.2.4-beta.1")
 
     def setUp(self):
         folder = tempfile.TemporaryDirectory()
@@ -539,6 +556,7 @@ class UnknownInstalledVersionTests(unittest.TestCase):
         release = json.loads((ROOT / "scripts" / "release.json").read_text(encoding="utf-8"))
         release["download"] = "https://127.0.0.1:1/releases/download/v{version}/"
         release["latest"] = "https://127.0.0.1:1/releases/latest"
+        release["releases"] = "https://127.0.0.1:1/releases/list"
         (plugin / "scripts" / "release.json").write_text(json.dumps(release), encoding="utf-8")
         self.script = plugin / "scripts" / "bootstrap.ps1"
         self.temp = self.root / "temp"
@@ -607,6 +625,18 @@ class UnknownInstalledVersionTests(unittest.TestCase):
                         self.assertNotIn(wrong, output)
                     self.assertIn("This says nothing about whether an update exists", output)
                     self.assertEqual(asked, ["Head"], "only the question is asked: " + output[-1500:])
+
+    def test_a_numbered_pre_release_is_not_an_unknown_word(self):
+        """A stage's later pre-release, `-beta.2`, is read by this copy: an installation at one is
+        compared, and the update check answers with it rather than "unavailable"."""
+        code, output, asked = self.run_it(self.installation("1.2.4-beta.2", "-numbered"), "CheckOnly")
+        self.assertEqual(code, 10, output[-1500:])
+        self.assertIn("update: available 1.2.4-beta.2 1.2.5", output)
+        self.assertNotIn("cannot read", output)
+        # The question, and then the list of releases for a pre-release, which the stub cannot
+        # answer: nothing is offered, and the answer above stands.
+        self.assertEqual(asked, ["Head", "Get"], "only the two questions are asked: " + output[-1500:])
+        self.assertNotIn("prerelease:", output)
 
 
 class InstalledCopyCanAskTests(unittest.TestCase):

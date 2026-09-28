@@ -2,13 +2,13 @@
 
 > 🌐 한국어 문서입니다. English version: [`main` 브랜치의 docs/VERIFY.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/VERIFY.md)
 
-설치하려는 압축 파일이 이 프로젝트가 게시한 바로 그 파일인지 확인하는 방법, Codex 플러그인이
+설치하려는 설치 파일이나 압축 파일이 이 프로젝트가 게시한 바로 그 파일인지 확인하는 방법, Codex 플러그인이
 대신 확인해 주는 것, 릴리스를 직접 다시 빌드하는 방법, 그리고 이 모든 것이 다루지 못하는 부분을
 적어 둡니다.
 
 ## 왜 확인해야 하는가
 
-릴리스 압축 파일에서 풀어낸 것은 사용자 본인의 권한으로 실행됩니다. 따로 끄지 않는 한 로그인할
+릴리스 압축 파일에서 풀어낸 것은(설치 파일이 대신 풀어 주는 것도) 사용자 본인의 권한으로 실행됩니다. 따로 끄지 않는 한 로그인할
 때마다 시작되어 Codex 대화에 메시지를 대기열로 넣을 수 있는 워처를 설치하고, Codex가 실행하는
 플러그인을 등록합니다.
 
@@ -21,6 +21,50 @@
 C++ 런타임 DLL 두 개에는 Microsoft의 서명입니다. [코드 서명](#코드-서명) 참고),
 보통이라면 게시자를 알려 줄 Windows 대화 상자가 이 파일들에 대해서는 알려 줄 게시자가 없습니다.
 다이제스트가 곧 확인 수단입니다.
+
+## 내려받은 설치 파일을 실행하기 전에
+
+`CodexAutoResume-Setup-vX.Y.Z.exe`는 릴리스 압축 파일을 파일 하나에 담은 것입니다.
+`CodexAutoResume-vX.Y.Z-win-x64.zip`을 바이트 그대로 담고 있고, 임시 폴더 안에 새로 만든 자기만의 폴더에
+그것을 풀어 그곳에서 그 압축 파일의 `Install.cmd`를 실행한 뒤 폴더를 지웁니다. 그러니 설치 파일을
+확인하는 것은 그 안에 담긴 것을 확인하는 일입니다.
+[릴리스 페이지](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases)에서 설치 파일과 그 옆에
+게시된 `.sha256` 파일을 내려받습니다. 아직 실행하지 마세요. 저장한 폴더에서 PowerShell로 다음을 합니다.
+
+1. **옆에 게시된 `.sha256`과 비교합니다.**
+
+   ```powershell
+   $hash = (Get-FileHash .\CodexAutoResume-Setup-vX.Y.Z.exe -Algorithm SHA256).Hash
+   $hash -eq ((Get-Content .\CodexAutoResume-Setup-vX.Y.Z.exe.sha256 -Raw) -split '\s+')[0]
+   ```
+
+2. **GitHub CLI가 있다면 빌드 출처(provenance)를 확인합니다.** 아래 압축 파일 목록의 4단계와 같은
+   방법입니다. 릴리스 하나의 attestation은 그 릴리스가 게시하는 모든 파일을 담고 있으며, 설치 파일도
+   그 안에 있습니다.
+
+   ```powershell
+   gh attestation verify .\CodexAutoResume-Setup-vX.Y.Z.exe `
+       --repo songyb111-gachon/codex-auto-resume-windows `
+       --signer-workflow songyb111-gachon/codex-auto-resume-windows/.github/workflows/release.yml `
+       --source-ref refs/tags/vX.Y.Z
+   ```
+
+그다음 더블클릭합니다. 코드 서명이 없으므로 SmartScreen이 *Windows의 PC 보호*(Windows protected your PC)
+창을 띄울 수 있습니다. **추가 정보**를 누른 뒤 **실행**을 누릅니다([코드 서명](#코드-서명) 참고).
+
+`scripts/release.json`은 설치 파일이 아니라 압축 파일의 다이제스트를 고정하므로, 압축 파일 목록의
+3단계에 해당하는 것은 여기에 없습니다. 설치 파일을 그 고정값에 이어 주는 것은 그 안에 담긴 압축
+파일입니다. 그 태그를 체크아웃하고, 게시된 압축 파일과 설치 파일, 설치 파일의 `.sha256`을 `build/dist`에 둔 채
+`python build/make_setup.py --check`를 실행하면, 설치 파일에서 압축 파일을 꺼내 옆의 압축 파일과 바이트
+단위로 비교하고, 그 압축 파일로 설치 파일을 다시 빌드해 둘을 비교합니다
+([릴리스를 직접 다시 빌드하기](#릴리스를-직접-다시-빌드하기) 참고). 그러고 나면 압축 파일 자신의
+다이제스트가 3단계에서 비교하는 바로 그 값입니다.
+
+설치 파일은 담고 있는 압축 파일을 함께 컴파일된 SHA-256과 대조하고, 다르면 멈춥니다. 이것은 손상된
+다운로드나 디스크를 잡아낼 뿐, 바꿔치기된 파일은 잡아내지 못합니다. 안의 압축 파일을 바꿀 수 있는
+사람이라면 옆의 다이제스트도 바꿀 수 있기 때문입니다. 이 프로젝트가 게시한 그 파일인지는 위의 확인이
+알려 줍니다. 설치 파일이 생기기 전에 게시된 릴리스에는 설치 파일이 없으며, 그 압축 파일은 아래와 같이
+확인합니다.
 
 ## 내려받은 압축 파일을 풀기 전에
 
@@ -113,8 +157,9 @@ C++ 런타임 DLL 두 개에는 Microsoft의 서명입니다. [코드 서명](#�
 마세요. 파일을 지우고, 버전과 얻은 값을 적어 이슈를 열어 주세요.
 
 접미사가 붙은 태그로 내는 프리 릴리스(`vX.Y.Z-alpha` 같은 것)도 고정 표에 넣지 않습니다. 일부러 그렇게 합니다.
-표의 열쇠는 릴리스이고, `releases/latest`가 프리 릴리스를 답하지 않으므로 아무에게도 배달되지 않기 때문입니다.
-프리 릴리스는 1, 2, 4단계가 확인의 전부이며, 4단계에서는 `--source-ref refs/tags/vX.Y.Z-alpha`처럼 적고,
+표의 열쇠는 릴리스이고, `releases/latest`는 프리 릴리스를 답하지 않기 때문입니다. 이번 릴리스부터 대시보드의
+업데이트 확인은 더 새로운 프리 릴리스를 제안할 수 있으며, 사용자가 예라고 답할 때만 옆에 공개된 `.sha256`과
+대조해 설치합니다. 위 목록의 1단계를 대신 해 주는 셈입니다. 프리 릴리스는 1, 2, 4단계가 확인의 전부이며, 4단계에서는 `--source-ref refs/tags/vX.Y.Z-alpha`처럼 적고,
 3단계는 해당하지 않습니다.
 
 v0.5.0과 v0.5.1은 `sha256` 고정 표보다 먼저 나왔으므로 항목이 없습니다. 이 두 버전에는 `.sha256`과
@@ -255,6 +300,13 @@ Get-Content .\build\dist\CodexAutoResume-vX.Y.Z-win-x64.zip.sha256
 게시된 `.sha256`, 그리고 `main`에 고정된 다이제스트와 같아야 합니다. 같다면 게시된 압축 파일은 정확히
 그 소스가 만들어 내는 것입니다.
 
+설치 파일을 게시하는 릴리스라면 `build/make_release.py`는 압축 파일 옆에
+`CodexAutoResume-Setup-vX.Y.Z.exe`도 그 압축 파일을 담아 컴파일해 쓰고, 그 `.sha256`도 따로 씁니다. 이것도
+게시된 것과 같아야 합니다. 대신 게시된 설치 파일을 게시된 압축 파일과 맞춰 보려면, 둘을 설치 파일의
+`.sha256`과 함께 `build\dist`에 두고 `python build/make_setup.py --check`를 실행합니다. 설치 파일에서 압축
+파일을 꺼내 옆의 압축 파일과 바이트 단위로 비교하고, 설치 파일을 그 `.sha256`과 비교하고, 그 압축 파일로
+설치 파일을 다시 빌드해 둘을 비교합니다. 릴리스 워크플로도 게시하기 전에 같은 확인을 합니다.
+
 `build/make_gui.ps1`은 사용한 컴파일러(버전이 적힌 `compiler` 줄)와 빌드한 각 실행 파일의 SHA-256을 출력합니다. 저장소 Actions
 탭에 있는 릴리스 실행 로그에도 GitHub가 그 실행의 로그를 보관하는 동안에는 같은 줄이 있습니다. 보관 기간은 저장소의 보존 기간(따로 정하지 않았다면 90일)이고,
 GitHub는 그 로그를 로그인한 사용자에게만 보여 줍니다. 그 로그에서는 실행 파일을 두 번째로 빌드하는 단계가 각각의 다이제스트를 다시 출력합니다. 이것들을 비교하면
@@ -336,7 +388,7 @@ clone해 다시 빌드한 압축 파일의 SHA-256이 같았습니다. 안에 �
 
 ## 코드 서명
 
-이 프로젝트가 빌드하는 것에는 Authenticode 서명이 없습니다. 두 실행 파일도, `Install.cmd`와
+이 프로젝트가 빌드하는 것에는 Authenticode 서명이 없습니다. 두 실행 파일도, 설치 파일도, `Install.cmd`와
 `Uninstall.cmd`도, PowerShell 스크립트도 서명되어 있지 않습니다. 함께
 들어 있는 Python 인터프리터 - python.org embeddable 런타임의 `pythonw.exe`, `python.exe`와 그 DLL -
 는 배포될 때의 서명을 그대로 가지고 있습니다. Python Software Foundation의 서명이고, Visual C++ 런타임
@@ -346,8 +398,8 @@ DLL 두 개(`vcruntime140.dll`과 `vcruntime140_1.dll`)에는 Microsoft의 서�
   시작이 켜져 있다면, Windows는 함께 들어 있는 `pythonw.exe`를 시작합니다. 그 인터프리터가 실행하는
   Python 코드는 이 프로젝트의 것이고 서명되어 있지 않습니다.
 - **서명되지 않은 것:** 설정 창 `CodexAutoResumeSettings.exe`, Codex가 플러그인의 도구와 패널을 위해
-  시작하는 MCP 런처 `codex-auto-resume-mcp.exe`, `Install.cmd`와 `Uninstall.cmd`, 그리고 이 프로젝트의
-  스크립트들입니다. `.cmd` 파일은 애초에 Authenticode 서명을 담을 수 없습니다.
+  시작하는 MCP 런처 `codex-auto-resume-mcp.exe`, 설치 파일 `CodexAutoResume-Setup-vX.Y.Z.exe`,
+  `Install.cmd`와 `Uninstall.cmd`, 그리고 이 프로젝트의 스크립트들입니다. `.cmd` 파일은 애초에 Authenticode 서명을 담을 수 없습니다.
 - v0.6.0부터는 두 실행 파일에 버전 리소스가 있어서 **Properties → Details**(한국어 Windows에서는
   속성 → 자세히)에 제품 이름, 버전, 그리고 작성자 이름이 적힌 저작권 줄이 보입니다. 이것은 v0.6.0에
   들어 있고, v0.5.0부터 v0.5.7까지의 실행 파일은 그 제품 정보 없이
@@ -361,9 +413,12 @@ DLL 두 개(`vcruntime140.dll`과 `vcruntime140_1.dll`)에는 Microsoft의 서�
   *Windows protected your PC* 창(한국어 Windows에서는 "Windows의 PC 보호")이 뜰 수 있습니다. 이 경고는
   파일이 서명되지 않았고 널리 보이는 파일이 아니라는 뜻이지, 어떤 검사에 실패했다는 뜻이 아닙니다. 그것이
   게시된 파일임을 알려 주는 것은 위의 다이제스트 확인입니다.
+- **SmartScreen, 설치 파일에서.** 내려받은 설치 파일을 실행할 때도 같은 *Windows protected your PC* 창이 뜰
+  수 있으며, **추가 정보**를 누른 뒤 **실행**을 누르면 시작됩니다. 묻는 것은 설치 파일 하나뿐입니다. 설치
+  파일이 푼 것에는 웹 표시가 없으므로, 그 안의 `Install.cmd`는 다시 묻지 않습니다.
 - **스마트 앱 컨트롤(Smart App Control).** 켜져 있는 PC에서는 서명되지 않은 프로그램과 스크립트를
   차단할 수 있고, 파일 하나만 예외로 두는 방법은 없습니다. 워처의 프로세스는 서명된 인터프리터입니다.
-  차단은 그 대상이 된 것에 적용됩니다 - 예를 들어 설정 창, 플러그인의 도구와 패널, `Install.cmd`,
+  차단은 그 대상이 된 것에 적용됩니다 - 예를 들어 설치 파일, 설정 창, 플러그인의 도구와 패널, `Install.cmd`,
   설치 프로그램의 PowerShell 스크립트, 또는 시작 메뉴 바로 가기를 만들려고 설정 과정이 PowerShell로
   컴파일하는 C# 코드. 이 목록을 스마트 앱 컨트롤로 시험해 보지는 않았습니다. 이 프로젝트는 스마트 앱
   컨트롤을 끄라고 요청하지 않습니다.
@@ -382,7 +437,8 @@ DLL 두 개(`vcruntime140.dll`과 `vcruntime140_1.dll`)에는 Microsoft의 서�
   `scripts/release.json`에 `0.6.6`으로 고정된 값과 견주는데, 그것은 접미사 없는 태그 `v0.6.6`에 게시된
   릴리스의 값이지 둘 중 어느 쪽의 값도 아닙니다. 그래서 어느 사전 릴리스의 페이지에서 받은 파일이든 비교에서
   어긋나며, 그것이 비교가 제 일을 하는 모습입니다. 무엇도 그것들을 가져가지 않습니다. 업데이트 확인은 `releases/latest`가 끝나는 URL에서 태그를 읽어
-  `vMAJOR.MINOR.PATCH`만 받아들입니다.
+  `vMAJOR.MINOR.PATCH`만 받아들이고, 이번 릴리스부터 제안할 수 있는 사전 릴리스는 설치된 버전과 최신
+  릴리스보다 모두 새로워야 하는데, 이 둘은 결코 그렇지 않습니다.
 
 - **릴리스는 GitHub의 immutable release가 아닙니다.** GitHub는 v0.5.0부터 v0.6.0까지의 릴리스를 모두
   immutable이 아니라고 표시합니다. v0.6.0도 발행한 뒤에 API에 직접 물어보았고 마찬가지였습니다. immutable release는 게시된 릴리스의 파일을 바꾸거나 태그를 옮기는

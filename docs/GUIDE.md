@@ -35,7 +35,7 @@ v0.6.0).
 | **Configure it** | a Windows window from the Start Menu — from v0.6.0, a Dashboard whose settings are one of its six pages — a settings panel inside Codex, or the command line |
 | **Languages** | English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia — in the Dashboard, the notification-area popup, Windows notifications, the panel inside Codex and the continuation message sent to Codex. It follows Windows unless you choose one; see [Languages](#languages) |
 | **Tells you** | Notifications when a task is interrupted, when recovery starts, how it went, and when it gives up - from v0.6.5 as a card of the product's own beside the notification area, with Windows' own notification wherever a card must not show. While the watcher runs it also shows a notification-area icon, whose tooltip says whether recovery is paused, how many recoveries are waiting, how many are running in Codex, and how long until the next check |
-| **Privacy** | no telemetry, no analytics, no automatic update check, never reads your credentials. *Check for updates* in the window asks GitHub which release is newest, and only when you press it; it and *Refresh compatibility data* also fetch the Codex compatibility data from raw.githubusercontent.com, sending nothing about your machine. The watcher has no network code; the usage check, the resumed turn and what the plugin's tools and commands return in a conversation go to OpenAI through Codex, as Codex's traffic always does; setup downloads the release from GitHub; and the v0.5.7 installer has Codex refresh every Git marketplace you have configured (naming only this one is new in v0.6.0) |
+| **Privacy** | no telemetry, no analytics, no automatic update check, never reads your credentials. *Check for updates* in the window asks GitHub which release is newest - and, from v0.6.11, reads its list of releases on api.github.com for a newer pre-release, which it installs only if you say yes - and only when you press it; it and *Refresh compatibility data* also fetch the Codex compatibility data from raw.githubusercontent.com, sending nothing about your machine. The watcher has no network code; the usage check, the resumed turn and what the plugin's tools and commands return in a conversation go to OpenAI through Codex, as Codex's traffic always does; setup downloads the release from GitHub; and the v0.5.7 installer has Codex refresh every Git marketplace you have configured (naming only this one is new in v0.6.0) |
 
 > **One honest limitation, up front.** Codex has to currently have that conversation open for a
 > recovery to be delivered. If the app restarted since, open the conversation once and recovery
@@ -49,6 +49,45 @@ them, re-surveyed on 2026-09-12, saying what each does better than this one.
 ## Install
 
 **Windows 10/11. No Python needed. No administrator rights.**
+
+### With the setup program
+
+Download `CodexAutoResume-Setup-vX.Y.Z.exe` from the
+[latest release](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest) and
+double-click it. That is the whole install: there is nothing to unzip. Setup programs are published from
+v0.6.11 on: while the latest release is older than that, only the v0.6.11 pre-releases on the
+[releases page](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases) carry one.
+
+The setup program is the release archive of [From the release archive](#from-the-release-archive)
+in one file. It carries that archive byte for byte, with the archive's SHA-256 beside it. When you
+start it, it checks the archive against that digest and stops if they differ, unpacks it into a new
+folder of its own in your temporary folder, runs the archive's own `Install.cmd` there - the same
+installer, asking the same questions in the same console window, and ending the same way - and then
+removes that folder. It downloads nothing, needs no administrator rights and brings no Python of its
+own: the installation runs on the Python inside the archive. It loads DLLs from Windows' System32
+folder only, so a DLL lying beside it in Downloads is never loaded, and it stops if a `.config` file
+is beside it. Started from a command line, it passes switches such as `-SkipStartup` on to
+`Install.cmd`, and refuses anything but switches and plain words.
+
+It is not code-signed (see the end of [From the release archive](#from-the-release-archive)), so
+SmartScreen may show *Windows protected your PC* when you start it. Choose **More info**, then
+**Run anyway**. That warning says the file is unsigned and has no reputation with Microsoft yet; it
+does not say whether this is the file this project published. The `.sha256` published beside it and
+its attestation do. In PowerShell, in the folder you downloaded it to:
+
+```powershell
+(Get-FileHash .\CodexAutoResume-Setup-vX.Y.Z.exe -Algorithm SHA256).Hash
+gh attestation verify .\CodexAutoResume-Setup-vX.Y.Z.exe --repo songyb111-gachon/codex-auto-resume-windows
+```
+
+The first value must match the `.sha256` file. `scripts/release.json` pins archives, not setup
+programs; the archive a setup program carries is the pinned one, and
+[`docs/VERIFY.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/VERIFY.md)
+shows how to check that as well. The digest the program checks by itself catches a damaged
+download, not a replaced one: whoever could change the archive inside could change the digest
+beside it. Where Smart App Control is turned on, it may block the setup program outright, with no
+**Run anyway**, as it may block the unsigned files the other routes run; this project does not ask
+you to turn it off.
 
 ### From Codex (recommended)
 
@@ -136,11 +175,13 @@ installer names only this product's marketplace, which does nothing for the loca
 registration it has just made; Codex fetches only if an earlier GitHub registration of that
 marketplace survived the repoint.
 
-Nothing this project builds is Authenticode-signed: not the two executables, not `Install.cmd`
-or `Uninstall.cmd`, and not its PowerShell or Python scripts. The bundled Python interpreter
+Nothing this project builds is Authenticode-signed: not the two executables, not the setup
+program, not `Install.cmd` or `Uninstall.cmd`, and not its PowerShell or Python scripts. The bundled Python interpreter
 keeps the Python Software Foundation's signature (`pythonw.exe`, `python.exe` and the Python
 DLLs; its two Visual C++ runtime DLLs are signed by Microsoft), and the watcher runs under that
-`pythonw.exe`. On either route, Smart App Control, where it is turned on, may block the two
+`pythonw.exe`. On the setup program's route SmartScreen asks about the setup program alone: what
+it unpacks carries no downloaded-file mark, so the `Install.cmd` inside is not asked about again.
+On every route, Smart App Control, where it is turned on, may block the two
 unsigned executables: the settings window `CodexAutoResumeSettings.exe` and
 `codex-auto-resume-mcp.exe`, which Codex starts for the plugin's tools and panel. On this manual
 route it may also block `Install.cmd` and `Uninstall.cmd`, and SmartScreen may warn of an
@@ -150,8 +191,8 @@ tell you whether the file is the one this project published. Step 2 does.
 
 ### Either way
 
-Both routes end at the same installation, by default in `%USERPROFILE%\.codex-auto-resume`: one
-watcher, one database, one settings file, one sign-in entry. Running either again is the
+Every route ends at the same installation, by default in `%USERPROFILE%\.codex-auto-resume`: one
+watcher, one database, one settings file, one sign-in entry. Running any of them again is the
 upgrade and the repair path, and keeps anything already waiting to resume. An upgrade asks the
 running watcher to stop and waits up to a minute so the new version takes over; it never kills
 it, and if the old one is still finishing it leaves it running and says so. If Codex cannot
@@ -163,6 +204,18 @@ copy of the plugin waits until you close the ChatGPT/Codex app and run the insta
 v0.6.11, when the installation changed edition, the installer says which edition that copy still is,
 and the Dashboard's Diagnostics says so too until the copy is replaced. `Uninstall.cmd`, or asking
 Codex to remove it, removes it; see [Uninstall](#uninstall) for what each route leaves behind.
+
+**Check for updates**, on the Dashboard's Diagnostics page, asks GitHub whether a newer release has
+been published and offers to install it. From v0.6.11 it also looks for a newer *pre-release*: an
+`-alpha` or `-beta` build published before its release is finished, and tested less than a release.
+When there is one newer than both the version you have and the newest release, and no release to
+offer first, it asks whether to install it - and **Not now** is the button Enter presses. Saying yes
+installs that pre-release over the version you have, in the edition you have, after checking it
+against the checksum published beside it, and keeps your settings, your pause, everything waiting
+and the sign-in choice. Nothing else installs a pre-release: not the watcher, not the panel inside
+Codex and not Codex's tools, and `scripts/bootstrap.ps1 -Update` still installs releases only. From
+a command line, `-CheckOnly` prints the pre-release it found on a line of its own
+(`prerelease: v<version>`), and `-Version <version>` installs it.
 
 Afterwards, change anything from **Start Menu → Codex Auto Resume**, or by asking Codex to
 *open auto resume settings*.
@@ -1276,12 +1329,14 @@ to wherever your other Git marketplaces are hosted:
   after that, `Install.cmd` downloads nothing itself, but it does ask Codex to refresh
   marketplaces (next item).
 - **GitHub, when you ask.** *Check for updates* on the Diagnostics page asks github.com which
-  release is newest, with one `HEAD` request that reads no page. From v0.6.5, *Refresh
+  release is newest, with one `HEAD` request that reads no page. From v0.6.11 it then reads
+  GitHub's list of this repository's ten newest releases from api.github.com, with one `GET` that
+  carries nothing about your machine, for a newer pre-release, which it only offers. From v0.6.5, *Refresh
   compatibility data* on the same page - and a *Check for updates* that github.com answered -
   fetches the Codex compatibility data with one `GET` to one fixed address on
   raw.githubusercontent.com, with nothing about your machine in it; this installation's own
-  validator keeps it only if it is valid, and it can only make the watcher more careful. Neither
-  happens unless you ask for it. What other people report about a Codex version is not fetched at
+  validator keeps it only if it is valid, and it can only make the watcher more careful. None of
+  it happens unless you ask for it. What other people report about a Codex version is not fetched at
   all: its counts come with the release, and your own report reaches GitHub only as a pull request
   you open with the separate reporter.
 - **Marketplace hosts, while an installer runs.** v0.6.0 names only

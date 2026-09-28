@@ -3,7 +3,7 @@
 The standard archive is built from a list of trees that does not name `advanced/`
 (build/make_release.py), so it cannot hold the advanced code - by construction. This is the
 proof that does not take the build script's word for it. It reads the archives that were built,
-the repository they were built from, and nothing else, and fails the build on any of seven findings:
+the repository they were built from, and nothing else, and fails the build on any of eight findings:
 
   (a) an entry of the standard archive lies where the advanced edition's files go;
   (b) an entry of the standard archive is, byte for byte, a file of the advanced tree;
@@ -23,9 +23,13 @@ the repository they were built from, and nothing else, and fails the build on an
   (g) a binary entry holds the package's, the skill's or the sentinel's name, in UTF-8 or
       UTF-16, or is compiled Python outside the runtime - or is an archive the audit cannot
       open. (a), (b), (c) and (g) read every member of an entry that is itself a ZIP (`expand`)
-      as they read an entry, so a zipped copy of the package is found where a copy would be.
+      as they read an entry, so a zipped copy of the package is found where a copy would be;
+  (h) a setup program (build/make_setup.py) does not carry its edition's archive byte for byte, or
+      not its SHA-256; the standard one holds, outside the archive it carries, a name or a literal (d)
+      looks for, the package's, the skill's or the sentinel's name, or the advanced archive's digest;
+      or the standard one built again, around (e)'s rebuilt archive, is not the same file.
 
-Run in the release build job after both archives are built:
+Run in the release build job after both archives and both setup programs are built:
 
     python build/edition_audit.py [--dist build/dist]
 
@@ -59,6 +63,7 @@ if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
 import make_release  # noqa: E402
+import make_setup  # noqa: E402
 
 PACKAGE = make_release.ADVANCED_PACKAGE
 SKILL = make_release.ADVANCED_SKILL
@@ -315,7 +320,8 @@ def inventory(root: Path = ROOT) -> Inventory:
                 for name in tracked(root, *("advanced/" + tree for tree in SHIPPED))}
     python = [(root / name).read_text(encoding="utf-8") for name in tracked(root, "src", "scripts")
               if name.endswith(".py")]
-    csharp_sources = [(root / name).read_text(encoding="utf-8") for name in tracked(root, "gui")
+    # The setup program's C# is the core's as much as the window's is: both editions compile it.
+    csharp_sources = [(root / name).read_text(encoding="utf-8") for name in tracked(root, "gui", "build/setup")
                       if name.endswith(".cs")]
     scripts = [(root / name).read_text(encoding="utf-8-sig")
                for name in tracked(root, "scripts", "build/install") if name.endswith(".ps1")]
@@ -542,6 +548,47 @@ def _manifests(standard: bytes, advanced: bytes) -> list:
     return []
 
 
+# ------------------------------------------------------------------------------ the setup programs
+def check_setups(standard_zip: bytes, advanced_zip: bytes, standard_setup: bytes, advanced_setup: bytes,
+                 advanced: Inventory) -> list:
+    """(h) Each setup program carries its own edition's archive, byte for byte, with that archive's
+    SHA-256 beside it; and the standard one holds nothing of the advanced edition outside the archive
+    it carries - whose bytes (a) to (g) have read already, as the standard archive."""
+    found = []
+    for label, image, archive in (("standard", standard_setup, standard_zip),
+                                  ("advanced", advanced_setup, advanced_zip)):
+        try:
+            start, end = make_setup.carried_span(image)
+        except ValueError as exc:
+            found.append("(h) the %s setup program: %s" % (label, exc))
+            continue
+        if image[start:end] != archive:
+            found.append("(h) the %s setup program does not carry the %s archive byte for byte" % (label, label))
+        if hashlib.sha256(archive).hexdigest().encode("utf-16-le") not in image[:start] + image[end:]:
+            found.append("(h) the %s setup program does not hold the %s archive's SHA-256" % (label, label))
+        if label != "standard":
+            continue
+        outside = image[:start] + image[end:]
+        for name in sorted(advanced.window | {PACKAGE, SKILL, SENTINEL}):
+            if _holds(outside, name, word=name not in (PACKAGE, SKILL, SENTINEL)):
+                found.append("(h) the standard setup program holds %s" % name)
+        for literal in sorted(advanced.literals):
+            if _holds(outside, literal, word=False):
+                found.append("(h) the standard setup program holds the literal %r" % literal)
+        if _holds(outside, hashlib.sha256(advanced_zip).hexdigest(), word=False):
+            found.append("(h) the standard setup program holds the advanced archive's SHA-256")
+    return found
+
+
+def check_setup_rebuild(standard_setup: Path, rebuilt: Path) -> list:
+    """(h) The standard setup program and the one built again around (e)'s rebuilt archive are one file."""
+    if not rebuilt.is_file():
+        return ["(h) the rebuild made no %s" % rebuilt.name]
+    if standard_setup.read_bytes() != rebuilt.read_bytes():
+        return ["(h) %s is not the one built again from `git archive HEAD` without advanced/" % standard_setup.name]
+    return []
+
+
 # ------------------------------------------------------------------------------- (e)'s rebuild
 def _powershell() -> str:
     """pwsh where there is one, as the release workflow runs the build; Windows PowerShell
@@ -584,9 +631,10 @@ def rebuild_standard(root: Path, work: Path) -> Path:
 
 
 # -------------------------------------------------------------------------------------- main
-def audit(standard: Path, advanced: Path, root: Path = ROOT, rebuild=rebuild_standard) -> list:
-    """Every finding, (a) to (g), as a sentence each. None means the standard archive holds
-    nothing of the advanced edition, and the advanced one adds only its own."""
+def audit(standard: Path, advanced: Path, root: Path = ROOT, rebuild=rebuild_standard, setups=None) -> list:
+    """Every finding, (a) to (h), as a sentence each. None means the standard archive holds
+    nothing of the advanced edition, and the advanced one adds only its own. (h) reads the two
+    setup programs when `setups` names them, standard first."""
     tree = inventory(root)
     ours, theirs = entries(standard), entries(advanced)
     opened = expand(ours)
@@ -595,8 +643,14 @@ def audit(standard: Path, advanced: Path, root: Path = ROOT, rebuild=rebuild_sta
     found += check_executables(ours, tree)
     found += check_binaries(opened)
     with tempfile.TemporaryDirectory(prefix="edition-audit-") as work:
-        found += check_rebuild(standard, rebuild(root, Path(work)))
+        rebuilt = rebuild(root, Path(work))
+        found += check_rebuild(standard, rebuilt)
+        if setups:
+            found += check_setup_rebuild(setups[0], rebuilt.parent / setups[0].name)
     found += check_superset(ours, theirs)
+    if setups:
+        found += check_setups(standard.read_bytes(), advanced.read_bytes(), setups[0].read_bytes(),
+                              setups[1].read_bytes(), tree)
     return found
 
 
@@ -611,14 +665,19 @@ def main(argv=None) -> int:
     for archive in (standard, advanced):
         if not archive.is_file():
             raise SystemExit("missing %s - build both editions first" % archive)
-    print("edition audit of %s and %s" % (standard.name, advanced.name))
-    found = audit(standard, advanced)
+    setups = tuple(Path(args.dist) / make_setup.setup_name(edition, release) for edition in make_setup.EDITIONS)
+    for setup in setups:
+        if not setup.is_file():
+            raise SystemExit("missing %s - build/make_release.py builds it beside its archive" % setup)
+    print("edition audit of %s and %s, and %s and %s" % (standard.name, advanced.name, setups[0].name,
+                                                          setups[1].name))
+    found = audit(standard, advanced, setups=setups)
     for line in found:
         print("  " + line)
     if found:
         print("the standard archive is not proven free of the advanced edition")
         return 1
-    print("  (a)-(g) found nothing: the standard archive holds none of the advanced edition")
+    print("  (a)-(h) found nothing: the standard archive and setup program hold none of the advanced edition")
     return 0
 
 

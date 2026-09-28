@@ -1,12 +1,13 @@
 # Verifying a release
 
-How to check that the archive you are about to install is the one this project published,
-what the Codex plugin checks for you, how to rebuild a release yourself, and what none of
-that covers.
+How to check that the setup program or the archive you are about to install is the one this
+project published, what the Codex plugin checks for you, how to rebuild a release yourself, and
+what none of that covers.
 
 ## Why it is worth doing
 
-What you extract from the release archive runs as you. It installs a watcher that, unless
+What you extract from the release archive - or what the setup program unpacks for you - runs as
+you. It installs a watcher that, unless
 you opt out, starts at every sign-in and can queue messages to your Codex conversations,
 and it registers a plugin that Codex runs.
 
@@ -20,6 +21,51 @@ interpreter keeps the signatures it was published with: the Python Software Foun
 and Microsoft's on the two Visual C++ runtime DLLs; see [Code signing](#code-signing)), so
 the Windows dialog that would normally name a publisher has no publisher to name for them.
 The digest is the check.
+
+## Before you run a downloaded setup program
+
+`CodexAutoResume-Setup-vX.Y.Z.exe` is the release archive in one file: it carries
+`CodexAutoResume-vX.Y.Z-win-x64.zip` byte for byte, unpacks it into a new folder of its own in
+your temporary folder, runs that archive's `Install.cmd` there and removes the folder. So checking
+the setup program is checking what it carries. From the
+[releases page](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases), download
+it and the `.sha256` file published beside it. Do not run it yet. In PowerShell, in the folder you
+saved them to:
+
+1. **Compare it with the `.sha256` published beside it.**
+
+   ```powershell
+   $hash = (Get-FileHash .\CodexAutoResume-Setup-vX.Y.Z.exe -Algorithm SHA256).Hash
+   $hash -eq ((Get-Content .\CodexAutoResume-Setup-vX.Y.Z.exe.sha256 -Raw) -split '\s+')[0]
+   ```
+
+2. **If you have the GitHub CLI, check the build provenance**, as step 4 of the archive's list
+   below does: the one attestation of a release names every file it publishes, the setup programs
+   too.
+
+   ```powershell
+   gh attestation verify .\CodexAutoResume-Setup-vX.Y.Z.exe `
+       --repo songyb111-gachon/codex-auto-resume-windows `
+       --signer-workflow songyb111-gachon/codex-auto-resume-windows/.github/workflows/release.yml `
+       --source-ref refs/tags/vX.Y.Z
+   ```
+
+Then double-click it. It is not code-signed, so SmartScreen may show *Windows protected your PC*:
+choose **More info**, then **Run anyway** (see [Code signing](#code-signing)).
+
+`scripts/release.json` pins archives, not setup programs, so step 3 of the archive's list has no
+counterpart here. What ties a setup program to that pin is the archive it carries: in a checkout of
+the tag, with the published archive, setup program and its `.sha256` in `build/dist`,
+`python build/make_setup.py --check` reads the archive out of the setup program and compares it
+with the one beside it byte for byte, and builds the setup program again around that archive and
+compares the two (see [Rebuilding a release yourself](#rebuilding-a-release-yourself)); the
+archive's own digest is then the one step 3 compares.
+
+The setup program checks the archive it carries against the SHA-256 compiled in beside it, and
+stops when they differ. That catches a damaged download or disk, not a replaced file: whoever could
+change the archive inside could change the digest beside it. The checks above are what tell you it
+is the file this project published. A release published before the setup programs existed has
+none; its archive is checked as below.
 
 ## Before you extract a downloaded archive
 
@@ -119,8 +165,10 @@ them disagrees, do not extract it: delete the file and open an issue with the ve
 the values you got.
 
 A pre-release - a tag with a suffix, such as `vX.Y.Z-alpha` - is never in the pin table either, and
-that is deliberate: the table's keys are releases, and nothing is ever served a pre-release, because
-`releases/latest` does not answer with one. For a pre-release, steps 1, 2 and 4 are the whole check,
+that is deliberate: the table's keys are releases, and `releases/latest` does not answer with a
+pre-release. From v0.6.11 the Dashboard's update check can offer a newer one, and installs it only
+when you say yes, checked against the `.sha256` published beside it - step 1 of the list above, done
+for you. For a pre-release, steps 1, 2 and 4 are the whole check,
 with `--source-ref refs/tags/vX.Y.Z-alpha` in step 4, and step 3 does not apply.
 
 v0.5.0 and v0.5.1 predate the `sha256` pin table and have no entry. For them only the `.sha256`
@@ -278,6 +326,15 @@ Get-Content .\build\dist\CodexAutoResume-vX.Y.Z-win-x64.zip.sha256
 names. The last line should match the published `.sha256` and the digest pinned on
 `main`. If it does, the published archive is exactly what that source produces.
 
+For a release that publishes setup programs, `build/make_release.py` also writes
+`CodexAutoResume-Setup-vX.Y.Z.exe` beside the archive, compiled around it, with its own `.sha256`;
+that should match the published one too. To check a published setup program against a published
+archive instead, put both, with the setup program's `.sha256`, in `build\dist` and run
+`python build/make_setup.py --check`: it reads the archive out of the setup program and compares it
+with the one beside it byte for byte, compares the setup program with its `.sha256`, and builds the
+setup program again around that archive and compares the two. The release workflow runs the same
+check before anything is published.
+
 `build/make_gui.ps1` prints the compiler it used (a `compiler` line with its version) and the
 SHA-256 of each executable it built. The release run's log in the repository's Actions tab has
 the same lines while GitHub retains the run's logs, which is for the repository's retention
@@ -371,8 +428,8 @@ tampering:
 
 ## Code signing
 
-Nothing this project builds is Authenticode-signed: not the two executables, not
-`Install.cmd` or `Uninstall.cmd`, and not the PowerShell scripts. The bundled Python interpreter - `pythonw.exe`, `python.exe` and its DLLs,
+Nothing this project builds is Authenticode-signed: not the two executables, not the setup
+programs, not `Install.cmd` or `Uninstall.cmd`, and not the PowerShell scripts. The bundled Python interpreter - `pythonw.exe`, `python.exe` and its DLLs,
 from the python.org embeddable runtime - keeps the signatures it was published with: the
 Python Software Foundation's, and Microsoft's on the two Visual C++ runtime DLLs
 (`vcruntime140.dll` and `vcruntime140_1.dll`).
@@ -381,8 +438,9 @@ Python Software Foundation's, and Microsoft's on the two Visual C++ runtime DLLs
   the release archive with sign-in start on, Windows starts its bundled `pythonw.exe`. The
   Python code it runs is this project's own and is not signed.
 - **What is not signed:** the settings window `CodexAutoResumeSettings.exe`, the MCP launcher
-  `codex-auto-resume-mcp.exe` that Codex starts for the plugin's tools and panel,
-  `Install.cmd` and `Uninstall.cmd`, and the project's scripts. A `.cmd` file cannot carry an
+  `codex-auto-resume-mcp.exe` that Codex starts for the plugin's tools and panel, the setup
+  program `CodexAutoResume-Setup-vX.Y.Z.exe`, `Install.cmd` and `Uninstall.cmd`, and the
+  project's scripts. A `.cmd` file cannot carry an
   Authenticode signature at all.
 - From v0.6.0, the two executables carry a version resource, so **Properties → Details**
   shows the product name, the version, and a copyright line naming the author. That ships in
@@ -397,10 +455,13 @@ What you may see because of that:
   show *Windows protected your PC* with an unknown publisher. That warning says the file
   is unsigned and not widely seen. It does not say the file failed a check. The digest
   checks above are what tell you it is the published file.
+- **SmartScreen, on the setup program.** Running the downloaded setup program may show the same
+  *Windows protected your PC*; **More info**, then **Run anyway**, starts it. It is asked about
+  alone: what it unpacks carries no mark of the web, so its `Install.cmd` is not asked about again.
 - **Smart App Control.** On a PC where it is on, it may block the unsigned programs and
   scripts, and it offers no exception for a single file. The watcher's process is the
-  signed interpreter. A block applies to what it hits - for example the settings window,
-  the plugin's tools and panel, `Install.cmd`, the installer's PowerShell scripts, or the
+  signed interpreter. A block applies to what it hits - for example the setup program, the
+  settings window, the plugin's tools and panel, `Install.cmd`, the installer's PowerShell scripts, or the
   C# code that setup compiles through PowerShell to create the Start Menu shortcut. That
   list has not been tested against Smart App Control. This project does not ask you to turn Smart App
   Control off.
@@ -420,7 +481,9 @@ If either one blocks you, please open an issue naming the file and the message.
   `scripts/release.json`, which is the release published at the tag `v0.6.6` and neither of those -
   so a download taken from either pre-release's page fails the comparison, which is the comparison
   doing its job. Nothing fetches them: the update check reads the tag out of the URL
-  `releases/latest` ends at and accepts `vMAJOR.MINOR.PATCH` alone.
+  `releases/latest` ends at and accepts `vMAJOR.MINOR.PATCH` alone, and the pre-release it can
+  offer from v0.6.11 has to be newer than both the version installed and the newest release, which
+  these two never are.
 
 - **The releases are not GitHub immutable releases.** GitHub reports every release from
   v0.5.0 through v0.6.0 as not immutable, v0.6.0 included - the API was asked after it was

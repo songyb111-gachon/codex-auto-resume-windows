@@ -52,14 +52,49 @@ CASES = {
     "with_refresh":       ("compatibility: refreshed 12\nupdate: current 0.6.0", 0, "current"),
     "with_refusal":       ("compatibility: refused from_the_future\nupdate: available 0.5.7 0.6.0", 10, "available"),
     "with_no_refresh":    ("compatibility: unavailable\nupdate: current 0.6.0", 0, "current"),
+    # v0.6.11: the check's question about pre-releases answers on a line of its own, and never
+    # changes the update's answer either.
+    "with_prerelease":    ("prerelease: v0.6.1-beta\nupdate: current 0.6.0", 0, "current"),
+    "prerelease_and_newer_local": ("prerelease: v0.7.1-alpha.2\nupdate: newer-local 0.7.0 0.6.0", 11, "newer-local"),
+    "prerelease_alone":   ("prerelease: v0.6.1-beta", 0, "failed"),
 }
 
 # What the window reads from each case's `compatibility:` line (CompatibilityLine): the words, or null.
 COMPATIBILITY = {"with_refresh": "refreshed 12", "with_refusal": "refused from_the_future",
                  "with_no_refresh": "unavailable"}
 
+# What the window reads from each case's `prerelease:` line (PrereleaseLine): the version, or null.
+PRERELEASE = {"with_prerelease": "0.6.1-beta", "prerelease_and_newer_local": "0.7.1-alpha.2",
+              "prerelease_alone": "0.6.1-beta"}
+
+# The `prerelease:` line alone, as PrereleaseLine reads it: what the window would put on the
+# bootstrap's command line after a yes, or None. Every version of the version rule's table is
+# added below, as `prerelease: v<version>`; these are the ways the line itself can be wrong.
+PRERELEASE_LINES = {
+    "prerelease: v0.6.12-alpha": "0.6.12-alpha",
+    "  prerelease: v0.6.12-beta.2  ": "0.6.12-beta.2",
+    "prerelease: 0.6.12-alpha": None,                       # no v
+    "prerelease: V0.6.12-alpha": None,
+    "prerelease: v0.6.12": None,                            # a release is not a pre-release
+    "prerelease: v0.06.12-alpha": None,                     # a leading zero names another tag
+    "prerelease: v00.6.12-alpha": None,
+    "prerelease: v0.6.12-alpha -Force": None,               # nothing more on the command line
+    "prerelease: v0.6.12-alpha;calc": None,
+    "prerelease: v0.6.12-alpha\"": None,
+    "prerelease: v1234567.0.0-alpha": None,
+    "prerelease:v0.6.12-alpha": None,
+    "prerelease: ": None,
+    "update: current 0.6.0": None,
+    # The last line counts, as the `update:` line's does.
+    "prerelease: v0.6.12-alpha\nprerelease: nonsense": None,
+    "prerelease: nonsense\nprerelease: v0.6.12-beta": "0.6.12-beta",
+}
+
 PROBE = r"""
 $ErrorActionPreference = 'Stop'
+# The lines below carry other scripts' digits, and the answer is read as UTF-8: left to the
+# console, it would be written in whatever code page the parent console has.
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
 $assembly = [Reflection.Assembly]::LoadFile($env:CAR_EXE)
 $form = $assembly.GetType('CodexAutoResume.SettingsForm', $true)
 $run = $form.GetMethod('RunBootstrap', [Reflection.BindingFlags]'Static,NonPublic,Public')
@@ -77,31 +112,57 @@ foreach ($case in (ConvertFrom-Json $env:CAR_CASES).PSObject.Properties) {
     $body += ('exit ' + $case.Value[1])
     [IO.File]::WriteAllText($script, ($body -join "`r`n"), (New-Object Text.UTF8Encoding $false))
     # out parameters come back through the array .NET was handed.
-    $arguments = [object[]]@($work, $script, '-CheckOnly', 60000, $null, $null, $null, $null, $null)
+    $arguments = [object[]]@($work, $script, '-CheckOnly', 60000, $null, $null, $null, $null, $null, $null)
     $null = $run.Invoke($null, $arguments)
     $out[$case.Name] = @{
         answer  = $arguments[4]
         current = $arguments[5]
         latest  = $arguments[6]
         compatibility = $arguments[8]
+        prerelease = $arguments[9]
     }
+}
+
+# The `prerelease:` line on its own, through the window's own reader.
+$line = $form.GetMethod('PrereleaseLine', [Reflection.BindingFlags]'Static,NonPublic,Public')
+if (-not $line) { throw 'SettingsForm has no PrereleaseLine' }
+$out['lines'] = @()
+foreach ($text in (ConvertFrom-Json $env:CAR_LINES)) {
+    $out['lines'] += ,@([string]$text, $line.Invoke($null, [object[]]@([string]$text)))
 }
 
 # A child that does not finish is not killed: it may be part way through an installation.
 $slow = [string](Join-Path $work 'slow.ps1')
 [IO.File]::WriteAllText($slow, "Start-Sleep -Seconds 30`r`nexit 0", (New-Object Text.UTF8Encoding $false))
-$arguments = [object[]]@($work, $slow, '-CheckOnly', 1500, $null, $null, $null, $null, $null)
+$arguments = [object[]]@($work, $slow, '-CheckOnly', 1500, $null, $null, $null, $null, $null, $null)
 $null = $run.Invoke($null, $arguments)
 $out['slow'] = @{ answer = $arguments[4]; current = $arguments[5]; latest = $arguments[6] }
 
 # A script that is not there at all.
 $arguments = [object[]]@($work, [string](Join-Path $work 'absent.ps1'), '-CheckOnly',
-                         60000, $null, $null, $null, $null, $null)
+                         60000, $null, $null, $null, $null, $null, $null)
 $null = $run.Invoke($null, $arguments)
 $out['absent'] = @{ answer = $arguments[4]; current = $arguments[5]; latest = $arguments[6] }
 
 $out | ConvertTo-Json -Depth 5 -Compress
 """
+
+
+def prerelease_lines() -> dict:
+    """PRERELEASE_LINES, and every version of the version rule's table as a `prerelease:` line:
+    the window takes exactly the rule's pre-releases, as the bootstrap does."""
+    import test_version_rule
+    rule = {version for version, accepted in test_version_rule.CASES if accepted and "-" in version}
+    lines = dict(PRERELEASE_LINES)
+    for version, _ in test_version_rule.CASES:
+        if "\n" in version or "\r" in version:
+            continue                    # a line break ends the line; the cases above cover that
+        # The window trims the line it reads, as it does the `update:` line, so what follows the
+        # `v` is the version when the trimmed line's version is one by the rule.
+        text = "prerelease: v" + version
+        said = text.strip()[len("prerelease: v"):]
+        lines[text] = said if said in rule else None
+    return lines
 
 
 @unittest.skipUnless(CSC.is_file() and POWERSHELL.is_file(),
@@ -128,7 +189,8 @@ class BootstrapReadingTests(unittest.TestCase):
             capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600,
             env=dict(os.environ, CAR_EXE=str(exe), CAR_WORK=str(work),
                      CAR_CASES=json.dumps({name: [printed, code]
-                                           for name, (printed, code, _) in CASES.items()})))
+                                           for name, (printed, code, _) in CASES.items()}),
+                     CAR_LINES=json.dumps(list(prerelease_lines()))))
         cls.result = result
         cls.answer = json.loads(result.stdout) if result.returncode == 0 and result.stdout.strip() else {}
 
@@ -152,6 +214,23 @@ class BootstrapReadingTests(unittest.TestCase):
         for name in CASES:
             with self.subTest(name):
                 self.assertEqual(self.answer[name].get("compatibility"), COMPATIBILITY.get(name))
+
+    def test_the_prerelease_line_is_read_beside_the_update_line(self):
+        """v0.6.11: the check's question about pre-releases answers on its own line, and the window
+        reads it without letting it change the update's answer."""
+        for name in CASES:
+            with self.subTest(name):
+                self.assertEqual(self.answer[name].get("prerelease"), PRERELEASE.get(name))
+
+    def test_only_a_pre_release_by_the_rule_reaches_the_command_line(self):
+        """What PrereleaseLine gives back is put on the bootstrap's command line after a yes, so it
+        is the pre-release rule's and nothing else - no release, no leading zero, no second word."""
+        expected = prerelease_lines()
+        read = {text: version for text, version in self.answer["lines"]}
+        self.assertEqual(set(read), set(expected))
+        for text, version in sorted(expected.items()):
+            with self.subTest(ascii(text)):
+                self.assertEqual(read[text], version)
 
     def test_the_versions_come_out_of_the_line(self):
         self.assertEqual(self.answer["available"]["current"], "0.5.7")
@@ -201,6 +280,30 @@ class ButtonTests(unittest.TestCase):
                                    "its own definition and the button")
         clock = self.source[self.source.index("private void StartClock()"):]
         self.assertNotIn("CheckForUpdates", clock[:clock.index("\n        }")])
+
+    def test_a_pre_release_is_offered_only_when_there_is_no_release_to_offer(self):
+        """v0.6.11: the check's pre-release is offered where the answer is "current" or "newer-local"
+        and a `prerelease:` line was read; a release that can be installed is offered first."""
+        check = self.source[self.source.index("private void CheckForUpdates()"):]
+        check = check[:check.index("\n        }\n")]
+        self.assertLess(check.index('if (answer == "available") OfferUpdate('),
+                        check.index("OfferPrerelease("))
+        self.assertIn('else if ((answer == "current" || answer == "newer-local") && prerelease != null)\n'
+                      "                        OfferPrerelease(root, script, prerelease);", check)
+        self.assertEqual(self.source.count("OfferPrerelease("), 2, "defined once, called by the check alone")
+
+    def test_the_offer_says_what_it_is_and_not_now_is_the_default(self):
+        offer = self.source[self.source.index("private void OfferPrerelease("):]
+        offer = offer[:offer.index("\n        }\n")]
+        self.assertIn('S("confirm.prerelease",', offer)
+        self.assertIn('S("action.install_prerelease", "Install pre-release"), S("action.not_now", "Not now")', offer)
+        self.assertIn("if (!Dialog(", offer, "the question whose safe answer is the default")
+        # A yes installs exactly the version the check printed, through -Version.
+        self.assertIn('InstallUpdate(root, script, "-Version " + prerelease, prerelease);', offer)
+
+    def test_only_the_offer_installs_a_pre_release(self):
+        """The one -Version in the window is the offer's yes; nothing else passes it."""
+        self.assertEqual(self.source.count('"-Version "'), 1)
 
     def test_the_watcher_identity_is_the_start_time_not_the_version(self):
         """An old watcher reads its version out of the files under it, so a changed

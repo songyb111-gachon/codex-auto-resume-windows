@@ -74,7 +74,9 @@ Change the edition only when the user asks for the other one by name, and say fi
 changes. Then add `-Edition Advanced -Force`, or `-Edition Standard -Force` to go back;
 the script says what the change means before it downloads anything, keeps their
 settings and pending recoveries, and starts every advanced capability off. Never add
-`-Edition` on your own, and never together with `-Update`, which refuses it.
+`-Edition` on your own, and never together with `-Update`, which refuses it. Never pass
+`-Version` either: it installs a pre-release, and a pre-release is installed only when the
+user says yes to it in the Dashboard's Check for updates.
 
 Tell the user plainly what it is about to do before running it: it downloads this
 version's release archive from the project's GitHub releases over HTTPS, checks its
@@ -399,8 +401,9 @@ why.
   continuation to that one conversation, and its App Server withdraws that same message
   when it has to.
 - Its own runtime has no network code and no telemetry. It never checks for updates on its
-  own: the Diagnostics page has a button that asks GitHub which release is newest, and that
-  request happens only when a person presses it. The setup script
+  own: the Diagnostics page has a button that asks GitHub which release is newest and reads
+  this repository's list of releases on api.github.com for a newer pre-release, and those
+  requests happen only when a person presses it. The setup script
   downloads the release from GitHub. The Codex processes it starts use the user's existing
   sign-in to check usage, and the resumed turn goes to OpenAI like any turn the user starts.
   What these tools and commands return becomes part of this conversation.

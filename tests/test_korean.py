@@ -111,10 +111,13 @@ PLANS = {"ROADMAP.ko.md"}
 
 def version_key(version: str) -> tuple:
     """A version in order, the pre-releases just before their release: v0.6.11-alpha, then
-    v0.6.11-beta, then v0.6.11. Any other suffix - Codex's `-alpha.2` among them - sorts as an alpha."""
+    v0.6.11-alpha.2, then v0.6.11-beta, then v0.6.11-beta.2, then v0.6.11. Any other suffix -
+    Codex's `-alpha.2.1` among them - sorts as a stage's first alpha."""
     number, _, suffix = version.lstrip("v").partition("-")
-    stage = {"beta": 1}.get(suffix.split(".")[0], 0) if suffix else 2
-    return tuple(int(part) for part in number.split(".")) + (stage,)
+    word, _, count = suffix.partition(".")
+    stage = {"beta": 1}.get(word, 0) if suffix else 2
+    later = int(count) if count.isascii() and count.isdigit() else (1 if suffix else 0)
+    return tuple(int(part) for part in number.split(".")) + (stage, later)
 
 
 def versions_named_as_current(current: str) -> list:
@@ -455,7 +458,8 @@ class ClaimTests(unittest.TestCase):
 
 class VersionKeyTests(unittest.TestCase):
     def test_both_pre_releases_come_before_their_release_in_order(self):
-        ordered = ["v0.6.10", "v0.6.11-alpha", "0.6.11-beta", "v0.6.11", "0.6.12-alpha"]
+        ordered = ["v0.6.10", "v0.6.11-alpha", "v0.6.11-alpha.2", "0.6.11-beta", "0.6.11-beta.2",
+                   "v0.6.11-beta.10", "v0.6.11", "0.6.12-alpha"]
         self.assertEqual(sorted(reversed(ordered), key=version_key), ordered)
 
 

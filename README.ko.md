@@ -28,7 +28,7 @@ Codex Auto Resume는 한도가 풀릴 때까지 기다렸다가, 이어 가도 �
 | **식별 방식** | 정확한 대화 UUID 하나. `--last`도, "가장 최근 것"도, 제목이나 폴더 이름도 쓰지 않습니다 |
 | **설정 방법** | 시작 메뉴에서 여는 대시보드, Codex 안의 설정 패널, 명령줄 |
 | **언어** | English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia |
-| **개인정보** | 텔레메트리 없음, 분석 없음, 자동 업데이트 확인 없음. Codex에서 설치하면 GitHub에서 릴리스를 내려받고, 창의 *업데이트 확인*은 눌렀을 때만 GitHub에 가장 최근 릴리스를 묻습니다. 워처에는 네트워크 코드가 없으며, 사용량 확인과 재개된 턴은 여느 Codex 통신처럼 Codex를 통해 OpenAI로 갑니다 |
+| **개인정보** | 텔레메트리 없음, 분석 없음, 자동 업데이트 확인 없음. Codex에서 설치하면 GitHub에서 릴리스를 내려받고, 창의 *업데이트 확인*은 눌렀을 때만 GitHub에 가장 최근 릴리스를 묻고, 더 새로운 사전 릴리스가 있는지 api.github.com에서 릴리스 목록을 읽습니다. 워처에는 네트워크 코드가 없으며, 사용량 확인과 재개된 턴은 여느 Codex 통신처럼 Codex를 통해 OpenAI로 갑니다 |
 
 > **먼저 알아두실 제한 하나.** 복구 메시지가 전달되려면 Codex가 그 대화를 열어 둔 상태여야 합니다.
 > 앱을 재시작했다면 그 대화를 한 번만 열어 주시면 이후는 알아서 진행됩니다.
@@ -37,6 +37,24 @@ Codex Auto Resume는 한도가 풀릴 때까지 기다렸다가, 이어 가도 �
 ## 설치
 
 **Windows 10/11. Python 불필요. 관리자 권한 불필요.**
+
+### 설치 파일로 설치
+
+[최신 릴리스](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest)에서
+`CodexAutoResume-Setup-vX.Y.Z.exe`를 받아 더블클릭합니다. 설치 파일은 이번 릴리스부터 게시되므로, 최신 릴리스가
+그보다 오래된 동안에는 [릴리스 목록](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases)에 있는 이번 릴리스의 사전 릴리스에만 들어 있습니다.
+압축을 풀 필요가 없습니다. 아래의 릴리스
+압축 파일을 바이트 그대로 담고 있어서, 그것을 확인한 뒤 그 압축 파일의 `Install.cmd`를 실행하고(같은
+설치기가 같은 질문을 합니다) 풀어 놓았던 것을 지웁니다.
+
+코드 서명이 없으므로 *Windows의 PC 보호*(Windows protected your PC) 창이 뜰 수 있습니다. **추가 정보**를
+누른 뒤 **실행**을 누릅니다. 이 경고는 파일에 서명이 없고 Microsoft에 아직 알려지지 않았다는 뜻일 뿐,
+확인에 실패했다는 뜻이 아닙니다. 이 프로젝트가 게시한 그 파일인지는 옆에 게시된 `.sha256` 파일과
+비교하거나 [GitHub CLI](https://cli.github.com/)로 확인합니다.
+
+```powershell
+gh attestation verify .\CodexAutoResume-Setup-vX.Y.Z.exe --repo songyb111-gachon/codex-auto-resume-windows
+```
 
 ### Codex에서 설치 (권장)
 
@@ -68,7 +86,7 @@ codex plugin add codex-auto-resume@codex-auto-resume-windows
 
 ### 어느 쪽이든
 
-두 경로 모두 같은 설치본 한 곳(기본값 `%USERPROFILE%\.codex-auto-resume`)에 설치됩니다. 어느 쪽이든 다시
+어느 경로든 같은 설치본 한 곳(기본값 `%USERPROFILE%\.codex-auto-resume`)에 설치됩니다. 어느 것이든 다시
 실행하면 업그레이드이자 복구 경로이며, 대기 중인 재개를 그대로 유지합니다.
 
 ## 처음 할 일
