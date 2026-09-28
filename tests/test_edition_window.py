@@ -9,7 +9,8 @@ specification: once on a program small enough to read, and once on the window it
 build/make_gui.ps1 from a copy of its sources and from the same copy with every point cut out.
 
 The advanced window is built from that copy too, with a probe listed on its overlay in place of
-the empty real one: the probe's names and strings are in the advanced executable, none of them are
+the real one's sources (the Advanced features page, which advanced/tests/test_advanced_page.py
+builds and holds): the probe's names and strings are in the advanced executable, none of them are
 in the standard one, and build/edition_audit.py's check (d) reads the two the same way.
 
 GUI test module: compiles real executables, so it runs on its own.
@@ -205,8 +206,12 @@ class WindowTests(unittest.TestCase):
         cls.work = Path(tempfile.mkdtemp(prefix="edition-window-"))
         root = copy_window(cls.work / "root")
         (root / "advanced" / "gui" / "Probe.cs").write_text(PROBE, encoding="utf-8")
-        with open(root / "advanced" / "gui" / "window.sources", "a", encoding="utf-8") as overlay:
-            overlay.write("advanced/gui/Probe.cs\n")
+        # The probe in place of the overlay's own sources, which give the same points bodies of their own; the
+        # overlay's words and its one group stay as they are.
+        overlay = root / "advanced" / "gui" / "window.sources"
+        kept = [line for line in overlay.read_text(encoding="utf-8").splitlines()
+                if not line.strip() or line.lstrip().startswith(("#", "["))]
+        overlay.write_text("\n".join(kept + ["advanced/gui/Probe.cs"]) + "\n", encoding="utf-8")
         cut = copy_window(cls.work / "cut")
         cls.cut_lines = cut_points(cut)
         cls.runs = [make_gui(root, "-Out", str(cls.work / "standard")),

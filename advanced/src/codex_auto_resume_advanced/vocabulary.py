@@ -146,6 +146,11 @@ class BridgeCommand(StrEnum):
     capability can work on this Codex (measure.py). It is the Dashboard's like the rest; nothing
     runs it unless the person asks, and no MCP tool exposes it."""
     ADVANCED_LIST = "advanced-list"
+    # The words of the Dashboard's Advanced features page in the person's language - its own, the
+    # capabilities' names and the three states' (statement.Catalogs.words) - which the page is
+    # built from once this edition has answered: the window's own catalog is core's, and holds
+    # none of them.
+    ADVANCED_WORDS = "advanced-words"
     ADVANCED_STATEMENT = "advanced-statement"
     ADVANCED_ARM = "advanced-arm"
     ADVANCED_DISARM = "advanced-disarm"

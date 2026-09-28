@@ -19,6 +19,16 @@ moved, and `import` merges them back, checks them, and records what they were ma
     py build/l10n.py prune ja                 # drop keys English no longer has
     py build/l10n.py check                    # exit 1 if anything is incomplete
 
+`--advanced` before the command does all of it for the advanced edition's own catalogs -
+its capabilities' statements and its Dashboard page's words - with their basis in
+`build/l10n/advanced/`. They are the same eighteen languages, held to the same rules, and
+kept apart only because the standard edition carries none of them:
+
+    py build/l10n.py --advanced export ko > work.json
+
+The advanced catalogs keep their `_edition` line first (build/edition_audit.py looks for it
+at the top); the files are written in key order, which puts it there.
+
 Nothing here reaches the network. The basis files live under `build/`, which is not part
 of a release.
 """
@@ -36,6 +46,11 @@ from codex_auto_resume import l10n  # noqa: E402
 
 CATALOGS = ROOT / "src" / "codex_auto_resume" / "locales"
 BASIS = ROOT / "build" / "l10n"
+# The advanced edition's (`--advanced`). The directory is found rather than named: this file is
+# the standard edition's, and names no module of the other.
+ADVANCED_CATALOGS = next(iter(sorted((ROOT / "advanced" / "src").glob("*/locales"))),
+                         ROOT / "advanced" / "src" / "locales")
+ADVANCED_BASIS = BASIS / "advanced"
 
 
 def digest(text: str) -> str:
@@ -220,6 +235,10 @@ COMMANDS = {"status": cmd_status, "export": cmd_export, "import": cmd_import,
 
 
 def main(argv) -> int:
+    global CATALOGS, BASIS
+    if argv and argv[0] == "--advanced":
+        CATALOGS, BASIS = ADVANCED_CATALOGS, ADVANCED_BASIS
+        argv = argv[1:]
     if not argv or argv[0] not in COMMANDS:
         print(__doc__)
         return 2
