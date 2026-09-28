@@ -1138,7 +1138,6 @@ recognise the exact turn it started. **Continuation language** decides the langu
 | Standard (default) | Says why the task stopped, then asks Codex to retry |
 | Detailed | Also asks Codex to check the work so far and not to repeat what is already done |
 | Custom | Your own words |
-| Careful (from v0.6.11) | The Standard message, and a request to check what already happened and not to repeat any step that already changed files, pushed, sent or published something |
 
 A **Custom** message is sent exactly as you typed it and is never translated or reworded. You can
 write one message for every interruption, or one for each kind; an empty one falls back to the
@@ -1147,6 +1146,9 @@ message for every interruption, then to Standard. It may use `{reason}`, `{categ
 your prompt, the reply, a title, a path, your account or a token into the message is refused by
 name — and it is at most 2000 characters. **Preview** shows the exact text that would be sent for
 each kind of interruption, built by the same code the watcher sends with.
+
+v0.6.11-beta had a fifth style, Careful, which asked what Detailed already asks; it is folded into
+Detailed. If you chose it, Detailed is chosen now, and its message is what is sent.
 
 From v0.6.11 one conversation can have a message of its own: **Message for this conversation...** on
 its task's row in the Dashboard's Pending page. It is sent instead of the continuation message every

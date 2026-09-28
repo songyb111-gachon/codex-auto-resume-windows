@@ -537,8 +537,7 @@
                   "minimal",
                   "standard",
                   "detailed",
-                  "custom",
-                  "careful"
+                  "custom"
                 ],
                 "group": "continuation"
               },

@@ -182,8 +182,9 @@ FIELDS["continuation_language"] = (FOLLOW_INTERFACE,
                                    lambda v, d: _choice(v, d, CONTINUATION_LANGUAGES))
 
 # -------------------------------------------------------- continuation message
+# A folded style (continuation.FOLDED_STYLES) reads as the style it became; a write of one is refused.
 FIELDS["continuation_style"] = (continuation.DEFAULT_STYLE,
-                                lambda v, d: _choice(v, d, continuation.STYLES))
+                                lambda v, d: _choice(continuation.fold_style(v), d, continuation.STYLES))
 FIELDS["custom_message_mode"] = (continuation.DEFAULT_CUSTOM_MODE,
                                  lambda v, d: _choice(v, d, continuation.CUSTOM_MODES))
 
@@ -297,7 +298,8 @@ def is_custom_text(name) -> bool:
 # useless when it is free text: "invalid value for custom_message" does not say that
 # the problem is a placeholder that would have leaked the conversation. The one choice
 # this version no longer has - v0.6.10's design "still" (FOLDED_DESIGN) - is answered with
-# the designs it has (`_refuse`); every other refusal says what it said in v0.6.10.
+# the designs it has (`_refuse`), and so is v0.6.11-beta's style "careful" (continuation.FOLDED_STYLES)
+# with the styles there are; every other refusal says what it said in v0.6.10.
 EXPLAIN = {name: lambda value: continuation.validate_custom(value)
            for name in FIELDS if is_custom_text(name) and name != continuation.BY_THREAD_FIELD}
 
@@ -393,6 +395,9 @@ def _refuse(name: str, value):
             raise SettingsError(str(exc)) from None
     if name == "design" and value == FOLDED_DESIGN:
         raise SettingsError("invalid value for design: expected one of %s" % ", ".join(DESIGNS))
+    if name == "continuation_style" and isinstance(value, str) and value in continuation.FOLDED_STYLES:
+        raise SettingsError("invalid value for continuation_style: expected one of %s"
+                            % ", ".join(continuation.STYLES))
     raise SettingsError("invalid value for %s" % name)
 
 
@@ -533,6 +538,16 @@ def _fold_design(raw: dict) -> dict:
     return dict(raw, design=DEFAULT_DESIGN, reduce_motion=True)
 
 
+# v0.6.11-beta's Careful, folded into Detailed (continuation.FOLDED_STYLES): read as Detailed, and the
+# next save writes Detailed, which every earlier version reads too; CONFIG_VERSION stays, as for Still.
+def _fold_style(raw: dict) -> dict:
+    """A stored folded style as the style it became; any other file as it is."""
+    style = raw.get("continuation_style")
+    if not isinstance(style, str) or style not in continuation.FOLDED_STYLES:
+        return raw
+    return dict(raw, continuation_style=continuation.FOLDED_STYLES[style])
+
+
 def _migrate(raw) -> dict:
     """Bring an older settings file forward without losing what the user chose."""
     if not isinstance(raw, dict):
@@ -541,9 +556,9 @@ def _migrate(raw) -> dict:
     if not isinstance(version, int) or version < 1:
         # v0.4.x wrote a flat file with no version marker. Its field names that still
         # exist keep their values; everything else takes the new default. A hand-written
-        # file with no marker may hold a Still too, and keeps its picture like any other.
-        return _fold_design({name: raw[name] for name in FIELDS if name in raw})
-    return _fold_design(raw)
+        # file with no marker may hold a Still or a Careful too, and keeps its choice like any other.
+        return _fold_style(_fold_design({name: raw[name] for name in FIELDS if name in raw}))
+    return _fold_style(_fold_design(raw))
 
 
 def load(path: Path) -> dict:

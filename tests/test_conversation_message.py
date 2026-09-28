@@ -1,21 +1,24 @@
-"""v0.6.11: a message for one conversation, and the Careful style - and the Standard text as it was.
+"""v0.6.11: a message for one conversation, the Careful style folded into Detailed - and the texts as they were.
 
 A conversation may have a message of its own (`custom_message_by_thread`, at most 50): a Custom
 message in every way - checked by `continuation.validate_custom`, sent exactly as typed, only for a
 category that is continued - which wins over every style for that conversation alone. It is written
 from the conversation's row in the Dashboard (Control.set_conversation_message) and nowhere else: no
 settings editor draws it, update_settings over MCP refuses it, and the diagnostics bundle records only
-that it is set. Careful is a style of its own, off unless chosen: the Standard message, whole, with a
-sentence asking Codex to check what already happened and not to repeat a step that changed files,
-pushed, sent or published something. The Standard text itself stays byte for byte what v0.6.10 sent,
-in every language (StandardTextTests, against the tagged v0.6.10).
+that it is set. v0.6.11-beta's Careful style asked what Detailed already asks, so the final has four
+styles again - Minimal, Standard, Detailed, Custom last - and a stored "careful" is Detailed, on load and
+in the migration (FoldedStyleTests). The Standard text stays byte for byte what v0.6.10 sent, in every
+language (StandardTextTests, against the tagged v0.6.10), and every style's words stay byte for byte
+what they were at 9678fd68, where Careful was folded (StyleTextTests).
 """
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import unittest
 
 _HERE = str(Path(__file__).resolve().parent)
@@ -41,31 +44,129 @@ def row(thread=THREAD, category="usage_limit"):
     return {"thread_id": thread, "category": category, "recovery_attempts": 0, "reset_at": None}
 
 
-class CarefulTests(unittest.TestCase):
-    def test_it_is_the_standard_message_with_the_guard_after_it_in_every_language(self):
+class FoldedStyleTests(unittest.TestCase):
+    """Careful is gone: four styles, Custom last, and a stored "careful" reads as Detailed."""
+
+    def test_the_styles_are_minimal_standard_detailed_and_custom_last(self):
+        self.assertEqual(tuple(continuation.STYLES), ("minimal", "standard", "detailed", "custom"))
+        self.assertEqual(settings.defaults()["continuation_style"], "standard")
+        style = next(entry for entry in settings.describe() if entry["name"] == "continuation_style")
+        self.assertEqual(style["choices"], ["minimal", "standard", "detailed", "custom"])
+
+    def test_a_stored_careful_is_detailed_on_load_and_in_the_migration(self):
+        self.assertEqual(continuation.FOLDED_STYLES, {"careful": "detailed"})
+        for stored in ({"config_version": 2, "continuation_style": "careful"},
+                       {"continuation_style": "careful"}):
+            with self.subTest(marked="config_version" in stored):
+                self.assertEqual(settings._migrate(stored)["continuation_style"], "detailed")
+                with tempfile.TemporaryDirectory() as scratch:
+                    path = Path(scratch) / "settings.json"
+                    path.write_text(json.dumps(stored), encoding="utf-8")
+                    self.assertEqual(settings.load(path)["continuation_style"], "detailed")
+                    # The next save writes the style it became, which every earlier version reads.
+                    settings.update(path, {"max_recovery_attempts": 5})
+                    self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["continuation_style"], "detailed")
+        self.assertEqual(settings.coerce({"continuation_style": "careful"})["continuation_style"], "detailed")
+        self.assertEqual(continuation.style_from({"continuation_style": "careful"}), "detailed")
+        # Anything else that is not a style is still the default, and folds nothing on the way.
+        for other in (["careful"], {"careful": 1}, 5, None, "Careful"):
+            with self.subTest(other=other):
+                self.assertEqual(settings.coerce(settings._migrate({"continuation_style": other}))
+                                 ["continuation_style"], "standard")
+
+    def test_it_sends_the_detailed_message_wherever_it_is_read(self):
         for locale in l10n.LOCALES:
             for category in reasons.RECOVERABLE:
                 with self.subTest(locale=locale, category=category):
-                    standard = continuation.build(category, locale=locale)
-                    careful = continuation.build(category, locale=locale, style="careful")
-                    guard = l10n.text("continuation.careful", locale)
-                    self.assertTrue(careful.startswith(standard), "the Standard message, whole, first")
-                    self.assertEqual(careful, guard.replace("{message}", standard))
-                    self.assertGreater(len(careful), len(standard))
+                    detailed = continuation.build(category, locale=locale, style="detailed")
+                    self.assertEqual(continuation.build(category, locale=locale, style="careful"), detailed)
+                    chosen = values(continuation_language=locale, continuation_style="careful")
+                    self.assertEqual(continuation.for_settings(category, chosen, row=row(category=category)),
+                                     continuation.for_settings(category, dict(chosen, continuation_style="detailed"),
+                                                               row=row(category=category)))
 
-    def test_it_is_offered_last_and_is_not_the_default(self):
-        self.assertEqual(continuation.STYLES[-1], "careful")
-        self.assertEqual(settings.defaults()["continuation_style"], "standard")
-        self.assertEqual(settings.validate_update({"continuation_style": "careful"}), {"continuation_style": "careful"})
-        style = next(entry for entry in settings.describe() if entry["name"] == "continuation_style")
-        self.assertIn("careful", style["choices"])
+    def test_a_write_that_names_it_is_refused_with_the_styles_there_are(self):
+        with self.assertRaises(settings.SettingsError) as caught:
+            settings.validate_update({"continuation_style": "careful"})
+        self.assertEqual(str(caught.exception),
+                         "invalid value for continuation_style: expected one of minimal, standard, detailed, custom")
 
-    def test_its_words_are_the_catalogs_and_name_no_placeholder_but_the_message(self):
+    def test_no_catalog_has_its_words(self):
         for locale in l10n.LOCALES:
             with self.subTest(locale):
-                self.assertEqual(l10n.placeholders(l10n.catalog(locale)["continuation.careful"]), {"message"})
-                for key in ("choice.style.careful", "help.style.careful"):
-                    self.assertTrue(l10n.catalog(locale)[key].strip())
+                table = l10n.catalog(locale)
+                for key in ("continuation.careful", "choice.style.careful", "help.style.careful"):
+                    self.assertNotIn(key, table)
+
+
+class StyleTextTests(unittest.TestCase):
+    """Every style's words, in every catalog, are byte for byte what they were at 9678fd68 - the commit
+    Careful was folded from - and so is every message `build` makes of them.
+
+    Pinned as digests, since a shallow checkout has no 9678fd68 to read. They are `digest()` of each
+    catalog as `git show 9678fd68:src/codex_auto_resume/locales/<locale>.json` has it, and `built()` as
+    9678fd68's own code made it."""
+
+    STYLES = ("minimal", "standard", "detailed", "custom")
+    # locale -> (how many keys, SHA-256 of them as sorted JSON), at 9678fd68.
+    PINNED = {
+        "en": (21, "9e261dd88ae6d36baecae8ccfc0df72f2a38aad4f6bd3b79abb2727b8c2fc189"),
+        "ko": (21, "3e9a433ed6fed077ec0ad354ebb3bb1928081fee03e683c4bd9488c83f825f9b"),
+        "ja": (21, "ad8fd555e3c74fe3b548db87127c042ef3d8911e8260eac7a1ae837020a3a00e"),
+        "zh-CN": (21, "38b2bd45267d6f0ea04a345d044d59fa917aae52966aa448127c8f3389333970"),
+        "zh-TW": (21, "84acc7c1bda29c5acf32d903684d6b37cfea6081a065162741239ff75a8af63d"),
+        "es": (21, "bb466762ebd70300bfa7b698cfae25a904e31ada65782d0dac627adbe7111eb9"),
+        "de": (21, "32fe24c1c71a487fd934e9f1ba62d00847e9b57937031d44ccc4acb1eff50d94"),
+        "fr": (21, "c55c41441eb6dffa0012f8a0d4979c21d81cc447c6087c7f3718b79a0895af6f"),
+        "pt-BR": (21, "69c43933afdd5c43e2dbd51cdc6aac8fc808338579aed4c2ae02e4c38eafdc2d"),
+        "ru": (21, "293e4f4624ef50b4877c590b773685e649569ab4612410f3542a4d0aee2eabd6"),
+        "it": (21, "38939104b17d36fd5f9fe9865fcb0cb6f27b2cca31a5bbe91e65478464a0dde4"),
+        "tr": (21, "04ea4bdfaf5ddafc2616e0336a6634529601a193caa03c6f331770ad18c25a12"),
+        "pl": (21, "3b519e07787402f180de43e3ffdb2cdd087135da82b144a13f793f1d4bcbf8d4"),
+        "uk": (21, "75a8d14f5cc16f1813131a0169644fd3608579271df5d286ea3c9da95f33da7e"),
+        "vi": (21, "032b9922ef974c3fc61550673643d83897f6fc9278f78a9ed598dbbb38ada887"),
+        "id": (21, "9be5552253fc82eb6f75513d8343b44a8b1dcda18d147d73a715dd5f22c55d33"),
+        "ar": (21, "fa298a044ab678cce44b5f00470a3ab46e6007ff6cf4e3bd29851613c11224d5"),
+        "he": (21, "84036925d8835461b2c12f4c3e2042050ca961bab24d38f0941164693558b1fd"),
+    }
+    # Every locale x recoverable category x style `build` makes, in that order, at 9678fd68.
+    BUILT = (432, "6128c4b647ba0664c7310534da60142549738eddccef11a9d2960790680f003f")
+
+    @classmethod
+    def keys(cls, table):
+        """The style keys a catalog has: the messages, and each style's name and help."""
+        named = {"%s.style.%s" % (kind, style) for kind in ("choice", "help") for style in cls.STYLES}
+        return sorted(key for key in table if key == "continuation.minimal" or key in named
+                      or key.startswith(("continuation.standard.", "continuation.detailed.")))
+
+    @classmethod
+    def digest(cls, table):
+        chosen = {key: table[key] for key in cls.keys(table)}
+        return len(chosen), hashlib.sha256(json.dumps(chosen, ensure_ascii=False, sort_keys=True)
+                                           .encode("utf-8")).hexdigest()
+
+    @classmethod
+    def built(cls):
+        made, count = hashlib.sha256(), 0
+        for locale in l10n.LOCALES:
+            for category in sorted(reasons.RECOVERABLE):
+                for style in cls.STYLES:
+                    made.update(("%s|%s|%s|" % (locale, category, style)).encode())
+                    made.update(continuation.build(category, locale=locale, style=style).encode("utf-8"))
+                    made.update(b"\n")
+                    count += 1
+        return count, made.hexdigest()
+
+    def test_every_catalogs_style_words_are_9678fd68s(self):
+        self.assertEqual(set(self.PINNED), set(l10n.LOCALES))
+        folder = ROOT / "src" / "codex_auto_resume" / "locales"
+        for locale in l10n.LOCALES:
+            with self.subTest(locale):
+                table = json.loads((folder / ("%s.json" % locale)).read_text(encoding="utf-8"))
+                self.assertEqual(self.digest(table), self.PINNED[locale])
+
+    def test_every_message_the_styles_build_is_9678fd68s(self):
+        self.assertEqual(self.built(), self.BUILT)
 
 
 class StandardTextTests(unittest.TestCase):

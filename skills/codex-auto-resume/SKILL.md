@@ -324,8 +324,7 @@ for the user or adds a line to its notification, and never sends anything sooner
 notifications appear, the interface language, the theme (light, dark, or following the system), the
 panel's own theme in Codex (`panel_theme`: the same as the theme, Codex's, light or dark), the
 continuation language, the message style
-(Minimal, Standard, Detailed, Custom or, from v0.6.11, Careful - the Standard message with a request
-not to repeat anything that already changed files, pushed, sent or published something), and whether
+(Minimal, Standard, Detailed or Custom), and whether
 a Custom message is one message for every
 interruption or one per kind. The window has things `update_settings` does not offer: the
 notification-area icon, Reduce motion (the one way to stop the animations), the Design (Soft, Classic

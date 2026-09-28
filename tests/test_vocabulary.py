@@ -106,8 +106,8 @@ LISTS = {
     # v0.6.11: not_postponed and too_many_messages - Don't postpone, and one conversation's message.
     "control.ERROR_CODES": ("set", 33, "8b10b9748945e26c"),
     "control.FALLBACK_CODE": "request_failed",
-    # v0.6.11: careful, last, so every style there was stays where it was.
-    "continuation.STYLES": ("tuple", 5, "683478cd89ef6df8"),
+    # v0.6.11: v0.6.10's four again - v0.6.11-beta's careful was folded into detailed.
+    "continuation.STYLES": ("tuple", 4, "a390c91bf5107f3f"),
     "continuation.CUSTOM_MODES": ("tuple", 2, "a4a918de1aaec837"),
     "continuation.DEFAULT_STYLE": "standard",
     "continuation.DEFAULT_CUSTOM_MODE": "global",

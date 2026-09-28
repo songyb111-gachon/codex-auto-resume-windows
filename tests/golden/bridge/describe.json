@@ -327,8 +327,7 @@
               "minimal",
               "standard",
               "detailed",
-              "custom",
-              "careful"
+              "custom"
             ],
             "group": "continuation"
           },
@@ -1147,8 +1146,7 @@
               "minimal",
               "standard",
               "detailed",
-              "custom",
-              "careful"
+              "custom"
             ],
             "group": "continuation"
           },

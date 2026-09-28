@@ -696,7 +696,7 @@ namespace CodexAutoResume
             styleGroup.AccessibleName = S("field.continuation_style", "Message style");
             Dictionary<string, object> styleField;
             List<object> styles = fields.TryGetValue("continuation_style", out styleField) ? Items(styleField, "choices") : null;
-            if (styles == null) styles = new List<object> { "minimal", "standard", "detailed", "custom", "careful" };
+            if (styles == null) styles = new List<object> { "minimal", "standard", "detailed", "custom" };
             foreach (object choice in styles)
             {
                 string style = Convert.ToString(choice, CultureInfo.InvariantCulture);

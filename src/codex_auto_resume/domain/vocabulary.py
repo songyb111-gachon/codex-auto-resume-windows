@@ -419,8 +419,6 @@ class ContinuationStyle(StrEnum):
     STANDARD = "standard"
     DETAILED = "detailed"
     CUSTOM = "custom"
-    # v0.6.11: Standard, and a sentence asking Codex not to repeat what already wrote, pushed or sent.
-    CAREFUL = "careful"
 
 
 class CustomMode(StrEnum):

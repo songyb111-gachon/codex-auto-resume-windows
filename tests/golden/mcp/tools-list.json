@@ -255,8 +255,7 @@
                   "minimal",
                   "standard",
                   "detailed",
-                  "custom",
-                  "careful"
+                  "custom"
                 ],
                 "description": "See the settings documentation."
               },
