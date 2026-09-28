@@ -97,7 +97,12 @@ class PolicyTests(unittest.TestCase):
                 self.assertEqual(described[name]["group"], "notifications")
                 self.assertFalse(described[name].get("master"))
         self.assertEqual(described["stall_after"]["choices"], list(needsyou.STALL_WAITS))
-        for bad in ({"stall_after": "m20"}, {"stall_after": 10}, {"needs_you_sound": 1}):
+        # v0.6.11: a stall of the person's own (Custom...), in whole minutes from 5 of them to a week.
+        self.assertEqual(settings.validate_update({"stall_after": "m20"}), {"stall_after": "m20"})
+        self.assertEqual(needsyou.stall_seconds({"notifications": True, "notify_needs_you": True, "stall_after": "h36"}),
+                         36 * 3600)
+        for bad in ({"stall_after": "m4"}, {"stall_after": "h169"}, {"stall_after": "s330"}, {"stall_after": 10},
+                    {"needs_you_sound": 1}):
             with self.subTest(bad), self.assertRaises(settings.SettingsError):
                 settings.validate_update(bad)
 

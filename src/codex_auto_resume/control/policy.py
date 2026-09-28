@@ -66,6 +66,19 @@ class SettingsMixin:
             self._observe_only(saved)
         return saved
 
+    def check_setting(self, name, value) -> dict:
+        """Whether one setting would take `value`, and as what (v0.6.11): the settings validator's own
+        answer, which the Dashboard's Custom... asks before it shows a value of the person's own - the
+        window holds no bound of its own (ownvalues.py). Nothing is written: Save writes it, through
+        update_settings, and is answered by the same validator."""
+        if not isinstance(name, str):
+            raise ControlError("name a setting", code="request_failed")
+        try:
+            clean = settings.validate_update({name: value})
+        except settings.SettingsError as exc:
+            raise ControlError(str(exc), code="request_failed") from None
+        return {"name": name, "value": clean[name]}
+
     def set_conversation_message(self, thread_id, text) -> dict:
         """One conversation's own continuation message (v0.6.11): `text` for it, or None - or text of
         nothing but spaces - to take it away. A Custom message in every way: checked by the same

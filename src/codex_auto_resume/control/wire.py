@@ -284,6 +284,22 @@ class CompatView(TypedDict):
     reported: CompatReported
 
 
+class OwnValue(TypedDict):
+    """v0.6.11: what a drop-down takes of a person's own besides its choices (ownvalues.published): the
+    kind, the words' pattern, and where they mean something the bounds, the units, a count's prefix and
+    catalog words, and the days with the sets a choice names."""
+    kind: str
+    pattern: str
+    min: NotRequired[int]
+    max: NotRequired[int]
+    units: NotRequired[list[str]]
+    prefix: NotRequired[str]
+    amount: NotRequired[str]
+    label: NotRequired[str]
+    days: NotRequired[list[str]]
+    named: NotRequired[dict[str, list[str]]]
+
+
 class SchemaField(TypedDict):
     """One setting as `describe` publishes it, which the window builds its editor from."""
     name: str
@@ -306,10 +322,12 @@ class SchemaField(TypedDict):
     seconds: NotRequired[dict[str, int]]
     # v0.6.11: an administrator's policy key decides it, so it is drawn greyed (managed.py).
     managed: NotRequired[bool]
+    # v0.6.11: Custom... - a value of the person's own it takes besides its choices.
+    custom: NotRequired[OwnValue]
 
 
 # Every contract, by name, for the test that holds each to the goldens.
 CONTRACTS = (RecordView, PendingRow, TimelineEvent, Receipt, UsageWindow, UsageReading, WatcherView,
              StatusSnapshot, Outcomes, Statistics, CompatEngine, CompatData, CompatCapability,
-             CompatReported, CompatView, SchemaField, DemoRow, DemoReply, LogLine, LogSearch,
+             CompatReported, CompatView, SchemaField, OwnValue, DemoRow, DemoReply, LogLine, LogSearch,
              StateAccessReply)

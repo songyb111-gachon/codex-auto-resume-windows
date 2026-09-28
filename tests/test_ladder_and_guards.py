@@ -141,7 +141,11 @@ class LadderTests(unittest.TestCase):
     def test_the_ceiling(self):
         self.assertIsNone(ladder.ceiling(settings.defaults()))
         self.assertEqual(ladder.ceiling({"chain_time_ceiling": "h3"}), 3 * 3600)
-        self.assertIsNone(ladder.ceiling({"chain_time_ceiling": "h2"}), "not one of its choices")
+        # v0.6.11: a ceiling of the person's own (Custom...), from 15 minutes to a week; nothing past it.
+        self.assertEqual(ladder.ceiling({"chain_time_ceiling": "h2"}), 2 * 3600)
+        self.assertEqual(ladder.ceiling({"chain_time_ceiling": "m90"}), 90 * 60)
+        for outside in ("m10", "h169", "s3630", "h02", "2h"):
+            self.assertIsNone(ladder.ceiling({"chain_time_ceiling": outside}), outside)
 
 
 class CeilingGateTests(unittest.TestCase):
@@ -650,8 +654,16 @@ class SettingsTests(unittest.TestCase):
                 "retry_jitter": True, "chain_time_ceiling": "h24", "task_changed_guard": "tell",
                 "context_guard": "above_1m"}
         self.assertEqual(settings.validate_update(good), good)
+        # v0.6.11: a value of the person's own within its bounds is taken, in its one spelling (Custom...).
+        own = {"retry_wait_1": "s90", "retry_wait_2": "m45", "retry_wait_5": "h5", "chain_time_ceiling": "h2",
+               "context_guard": "above_2m"}
+        self.assertEqual(settings.validate_update(own), own)
+        self.assertEqual(settings.validate_update({"retry_wait_3": "m120", "context_guard": "above_300000"}),
+                         {"retry_wait_3": "h2", "context_guard": "above_300k"})
         for bad in ({"retry_wait_2": "s5"}, {"retry_wait_1": "h6"}, {"retry_wait_1": 5}, {"retry_timing": "fast"},
-                    {"chain_time_ceiling": "h2"}, {"task_changed_guard": True}, {"context_guard": "above_2m"},
+                    {"retry_wait_1": "s4"}, {"retry_wait_2": "m14"}, {"retry_wait_2": "s930"}, {"retry_wait_4": "h7"},
+                    {"chain_time_ceiling": "m5"}, {"chain_time_ceiling": "h169"}, {"task_changed_guard": True},
+                    {"context_guard": "above_5k"}, {"context_guard": "above_300500"}, {"context_guard": "above_11m"},
                     {"retry_jitter": 1}):
             with self.subTest(bad=bad), self.assertRaises(settings.SettingsError):
                 settings.validate_update(bad)
@@ -675,7 +687,9 @@ class SettingsTests(unittest.TestCase):
             with self.subTest(name):
                 self.assertIn(name, schema)
                 self.assertNotEqual(schema[name]["description"], "See the settings documentation.")
-        self.assertEqual(schema["retry_wait_2"]["enum"], list(ladder.LATER_WAITS))
+        # v0.6.11: a choice, or a wait of the person's own in the same words (ownvalues.py).
+        self.assertEqual(schema["retry_wait_2"]["anyOf"][0]["enum"], list(ladder.LATER_WAITS))
+        self.assertIn("from 15 minutes to 6 hours", schema["retry_wait_2"]["description"])
 
 
 class BudgetDisplayTests(ControlTestCase):

@@ -100,7 +100,8 @@ class Waking:
             return self.let_go()
         if self._stretch is None:
             self._stretch = now
-        if not self._spent and now - self._stretch >= power.awake_cap(values):
+        cap = power.awake_cap(values)
+        if not self._spent and cap is not None and now - self._stretch >= cap:
             self._spent = True
             if self.awake_since is not None:
                 self._log("kept this PC awake for the hours chosen; it may sleep again")

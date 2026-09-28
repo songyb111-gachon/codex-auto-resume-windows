@@ -807,8 +807,9 @@ while it is on. Then:
   long? Compact it or start a new one in Codex."), a content policy stopped the turn, Codex needs you
   to sign in again, or Codex gave up on the turn.
   One check box per kind picks which of the four are told. A turn you stopped yourself is never told.
-- With **When a turn has not moved for** set to a time from 10 minutes to 2 hours, a conversation
-  whose latest turn is still in progress and has recorded nothing new for that long raises one too:
+- With **When a turn has not moved for** set to a time from 10 minutes to 2 hours, or one of your
+  own, a conversation whose latest turn is still in progress and has recorded nothing new for that
+  long raises one too:
   "Nothing new in this turn for 20 minutes. Look at it in Codex." That is all it
   knows. It reads only the turn's own columns and when its newest item was recorded, never what any
   item says, so it never says why; the turn may simply still be working.
@@ -862,14 +863,51 @@ You cannot switch off a safety property, because none of them is a setting. Ther
 that retries an unclassified failure, resolves a conversation by title, resends an uncertain
 submission or forces a send — by design, not by omission.
 
+### Values of your own: Custom... and Unlimited
+
+From v0.6.11 every drop-down of a value - a wait, a time of day, the days quiet hours start on, a
+number of hours, megabytes or tokens - ends in **Custom...**, in the Dashboard and in the panel in
+Codex alike. It takes a value of your own besides the list, and says the range it may be in:
+
+| Setting | Custom... takes |
+| --- | --- |
+| Quiet hours from, Quiet hours until | any minute of the day, 00:00 to 23:59 |
+| Quiet hours on | any days you tick, Monday to Sunday |
+| Custom timing: first wait | 5 seconds to 2 hours |
+| Custom timing: second to fifth wait | 15 minutes to 6 hours, in whole minutes |
+| Stop a task that keeps failing after | 15 minutes to 7 days, in whole minutes |
+| Tokens a conversation has used (Hold above) | 10,000 to 10,000,000, in whole thousands |
+| When a turn has not moved for | 5 minutes to 7 days, in whole minutes |
+| Ask me after a sleep longer than | 5 minutes to 7 days, in whole minutes |
+| Keep it awake for at most | 15 minutes to 7 days, in whole minutes - or **Unlimited** |
+| Too much memory is more than | 128 to 16384 MB |
+
+In the Dashboard, Custom... opens a small dialog - a number and its unit, the hour and the minute, or
+the seven days - and **Use this value** asks the settings' own validator before the drop-down shows
+the value; one it does not take is said so in the dialog, with the range, and nothing changes. In the
+panel the same fields open under the setting, and Save is answered by the same validator, as every
+other change is. A value is kept in its shortest exact form - 60 minutes is kept as 1 hour, and days
+that one of the choices names are that choice - so no two stored values mean the same thing.
+
+**Unlimited** is there only where the limit is yours alone: how long this PC is kept awake while a task
+waits, which it then is for as long as any task waits - and let go, as always, when none does, when
+recovery is paused and when the watcher stops. Every other such list already starts with **Off**,
+which is no limit, and a second word for it would be two ways to one result. No bound that keeps
+recovery safe has Unlimited or a value past it: a retry wait stays between its list's first and last,
+the attempt budgets stay numbers in their ranges, and the watcher's own floor - one continuation per
+conversation every 15 minutes, five in any 24 hours - is not a setting at all.
+
+A settings file written before still loads as it was. A version before this one reads a value of your
+own as that setting's default.
+
 ### Quiet hours and how a conversation resumes
 
 From v0.6.11 two more settings, under Advanced, can hold a recovery back. Both are off by default,
 where the watcher behaves as it always did, and neither can make anything be sent sooner or skip a
 check.
 
-**Quiet hours** - from, until, and on which days they start - make a recovery that falls due in them
-wait until they end. Hours that run past midnight belong to the day they start on, and the times are
+**Quiet hours** - from, until, and on which days they start, each a choice or, with Custom..., any
+minute and any days - make a recovery that falls due in them wait until they end. Hours that run past midnight belong to the day they start on, and the times are
 your clock's, across a change to or from summer time. Time spent in quiet hours does not count toward
 giving up on a usage limit that never lifts. *Why it is waiting* says "Quiet hours until 08:00".
 
@@ -924,8 +962,8 @@ From v0.6.11 Advanced has four more things. Each is off, or unused, by default, 
 waits and sends exactly as it always did. None can send anything sooner or skip a check: each can only
 make a recovery wait longer, stop sooner or wait for you.
 
-**Retry timing** gains **Custom**: five waits you pick from lists, for a task that fails with a
-temporary error. The first comes before the task's first continuation, the second after a continuation
+**Retry timing** gains **Custom**: five waits you pick from lists - or, with Custom..., of your own
+within each list's range - for a task that fails with a temporary error. The first comes before the task's first continuation, the second after a continuation
 of the same task failed again, and so on, and the fifth is used for every attempt after it. The first
 may be as short as 5 seconds; each later one starts at 15 minutes, which is the watcher's own floor
 and not a setting - whatever is chosen, one conversation gets a continuation at most every 15 minutes
@@ -936,7 +974,8 @@ each continuation fails at once - for Normal, 5 seconds and then about 15 minute
 in Codex says the same. **Add up to a fifth to each wait** (jitter) lengthens every wait of a temporary
 failure by a random amount of up to a fifth, and never shortens one.
 
-**Stop a task that keeps failing after** is off by default. From 1 to 24 hours, it stops a task whose
+**Stop a task that keeps failing after** is off by default. From 1 to 24 hours - or a time of your own
+from 15 minutes to 7 days - it stops a task whose
 temporary failures have gone on for longer than that, measured from its first failure to its latest
 less the time it waited for anything but its own retries: time spent paused, postponed, in an
 objection window, in quiet hours or waiting for the app never counts, while the retry waits and the
@@ -955,7 +994,8 @@ all. Only a digest of the three is kept. It applies to interruptions detected af
 
 **Tokens a conversation has used** - the context-cost guard - reads Codex's own count when an
 interruption is detected, where Codex's list of conversations keeps one as a number. **Show them in
-Pending** puts the count beside the task; **Hold above** 100,000 to 1,000,000 also keeps a task whose
+Pending** puts the count beside the task; **Hold above** 100,000 to 1,000,000 - or a count of your
+own - also keeps a task whose
 conversation has used more waiting for you from the start. Where Codex keeps no such count, the guard
 does nothing. It applies to interruptions detected after it is chosen.
 
@@ -970,7 +1010,8 @@ From v0.6.11 three more things, each off by default. Off, the watcher asks Windo
 and waits exactly as it always did; on, none of them sends anything, skips a check or makes a
 recovery go sooner than its time.
 
-**Ask me after a sleep longer than**, under Advanced - 30 minutes to 12 hours - holds, for you, every
+**Ask me after a sleep longer than**, under Advanced - 30 minutes to 12 hours, or a time of your own -
+holds, for you, every
 waiting recovery that fell due while this PC slept for longer than that. One notification says how
 long it slept and how many tasks wait, with one button, **Open Dashboard**, at Pending; each task's
 **Let it continue** lets it go, and **Cancel** stops it. *Why it is waiting* says it fell due
@@ -980,7 +1021,8 @@ says the PC has woken still sees the sleep. A task whose time had not come by th
 
 **Keep this PC awake while a task waits**, under General > Windows - **On mains power only** or
 **Always** - asks Windows not to let the PC sleep on its own while a task waits, for at most the hours
-chosen under **Keep it awake for at most** (6 by default) each time tasks start waiting. It is a
+chosen under **Keep it awake for at most** (6 by default; a time of your own, or Unlimited) each time
+tasks start waiting. It is a
 request the watcher makes and takes back, the kind `powercfg /requests` lists: when nothing waits,
 when the hours are up, when recovery is paused and when the watcher stops, and Windows ends it with
 the watcher in any case. The display may still turn off, closing the lid or choosing Sleep still
@@ -1011,7 +1053,8 @@ one, so never while a continuation is being sent - the same way a Stop does, and
 notification says so, with one button that opens the Overview. Nothing waiting is lost, and nothing
 starts the watcher again on its own: sign-in's launcher does not, and there is no other process that
 would. Start it again from the Dashboard, the panel or the Start Menu when you are ready. The limit is
-**Too much memory is more than**, 256 to 2048 MB, 1024 by default.
+**Too much memory is more than**, 256 to 2048 MB - or, with Custom..., any from 128 to 16384 - 1024 by
+default.
 
 A watcher that stops on purpose - a Stop, an upgrade, the memory guard - says so as it goes. One that
 is gone without having said so, in this same Windows sign-in, is shown as **stopped unexpectedly at**

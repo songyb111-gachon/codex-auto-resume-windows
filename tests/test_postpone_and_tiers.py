@@ -81,7 +81,10 @@ class QuietHoursTests(unittest.TestCase):
 
     def test_a_window_whose_end_is_its_start_is_none(self):
         self.assertIsNone(quiet.window(hours("22:00", "22:00")))
-        self.assertIsNone(quiet.window(hours("22:15", "07:00")), "not a half hour: not a window")
+        self.assertIsNone(quiet.window(hours("22:15", "22:15")))
+        self.assertIsNone(quiet.window(hours("24:00", "07:00")), "not a time of day: not a window")
+        # v0.6.11: any minute of the day is a time of the person's own (Custom...), and any days they pick.
+        self.assertEqual(quiet.window(hours("22:15", "06:45", "mon,wed")), (22 * 60 + 15, 6 * 60 + 45, frozenset({0, 2})))
 
     def test_a_window_across_midnight(self):
         night = hours("22:00", "07:00")                       # 1 January 2027 is a Friday
@@ -139,8 +142,12 @@ class QuietHoursTests(unittest.TestCase):
         self.assertEqual(len(settings.QUIET_TIMES), 48)
         self.assertEqual(settings.validate_update(hours("22:30", "06:00", "weekdays")),
                          hours("22:30", "06:00", "weekdays"))
-        for bad in ({"quiet_hours_start": "22:15"}, {"quiet_hours_end": "off"},
-                    {"quiet_hours_days": "sundays"}, {"default_tier": "sometimes"},
+        # v0.6.11: Custom... - any minute of the day, and any days, each in its one spelling.
+        self.assertEqual(settings.validate_update(hours("22:15", "6:45", "fri,mon")), hours("22:15", "06:45", "mon,fri"))
+        self.assertEqual(settings.validate_update({"quiet_hours_days": "sat,sun"}), {"quiet_hours_days": "weekends"})
+        for bad in ({"quiet_hours_start": "24:00"}, {"quiet_hours_start": "22:60"}, {"quiet_hours_end": "off"},
+                    {"quiet_hours_start": "10pm"}, {"quiet_hours_days": "sundays"}, {"quiet_hours_days": ""},
+                    {"quiet_hours_days": "mon,,tue"}, {"default_tier": "sometimes"},
                     {"objection_minutes": 0}, {"objection_minutes": 61}):
             with self.subTest(bad=bad), self.assertRaises(settings.SettingsError):
                 settings.validate_update(bad)

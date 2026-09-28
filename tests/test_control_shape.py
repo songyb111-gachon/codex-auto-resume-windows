@@ -71,6 +71,8 @@ METHODS = {
     "state_access", "show_demo",
     # and which edition Codex's copy of this plugin is, asked from Diagnostics (control/watcher.py).
     "plugin_copy",
+    # and whether a setting takes a value of the person's own, which Custom... asks (control/policy.py).
+    "check_setting",
     "list_pending", "preview_continuation", "request_retry_now", "reset_recovery_budget",
     "restore_defaults", "set_enabled", "set_interruption_recovery", "set_startup_enabled",
     "set_thread_enabled", "settings_path", "start_for_codex", "start_watcher",

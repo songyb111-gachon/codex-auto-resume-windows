@@ -20,8 +20,8 @@ import os
 from pathlib import Path
 import tempfile
 
-from . import (continuation, failures, guards, l10n, ladder, memguard, needsyou, power, projects, quiet,
-               reasons, statusfile)
+from . import (continuation, failures, guards, l10n, ladder, memguard, needsyou, ownvalues, power, projects,
+               quiet, reasons, statusfile)
 from .domain.vocabulary import (Design, ImportanceTier, NewConversationPolicy, NotifyEvent,
                                 ProjectPolicy, Theme)
 
@@ -49,9 +49,8 @@ CONFIGURABLE_CATEGORIES = (
 # Notification events, each independently suppressible.
 NOTIFICATION_EVENTS = tuple(NotifyEvent)
 
-# Retry timing presets. Raw ladders are not exposed: a preset cannot produce a zero
-# delay or an unbounded one, which a free-form number could. v0.6.11 adds Custom, five waits
-# each chosen from a closed list for the same reason (ladder.py); the presets are unchanged.
+# Retry timing presets, unchanged since v0.6.10. v0.6.11's Custom is five waits, each a choice or one of the
+# person's own within its bounds (ladder.py, ownvalues.py), so none is ever zero or unbounded.
 RETRY_TIMING = ladder.PRESETS
 RETRY_TIMINGS = ladder.TIMINGS
 DEFAULT_TIMING = ladder.DEFAULT_TIMING
@@ -82,6 +81,9 @@ DEFAULT_PANEL_THEME = PANEL_THEME_SAME
 # motion stops the motion in each; no design stops it on its own (see _migrate for the one that did).
 DESIGNS = tuple(Design)
 DEFAULT_DESIGN = "soft"
+
+# v0.6.11: the drop-downs that also take a value of the person's own, bounded by its module (ownvalues.py).
+OWN = {**quiet.OWN, **ladder.OWN, **power.OWN, **needsyou.OWN, **memguard.OWN, **guards.OWN}
 
 
 class SettingsError(ValueError):
@@ -162,7 +164,7 @@ for _event in NOTIFICATION_EVENTS:
 # is here, in Settings - never on the notice itself (A28).
 for _field in needsyou.KIND_FIELDS.values():
     FIELDS[_field] = (True, _boolean)
-FIELDS[needsyou.STALL_FIELD] = (needsyou.DEFAULT_STALL, lambda v, d: _choice(v, d, needsyou.STALL_WAITS))
+FIELDS[needsyou.STALL_FIELD] = (needsyou.DEFAULT_STALL, ownvalues.coercer(needsyou.STALL_WAITS, OWN["stall_after"]))
 FIELDS[needsyou.SOUND_FIELD] = (False, _boolean)
 
 # ------------------------------------------------------------------- language
@@ -220,9 +222,9 @@ FIELDS[CONVERSATION_MESSAGES] = (None, continuation.coerce_by_thread)
 # that falls due wait until they end, and a tier that asks first holds an interruption for a
 # person, or gives them the objection window's minutes to stop it first (quiet.py).
 QUIET_STARTS, QUIET_TIMES, QUIET_DAYS = quiet.STARTS, quiet.TIMES, quiet.DAYS
-FIELDS["quiet_hours_start"] = (quiet.DEFAULT_START, lambda v, d: _choice(v, d, QUIET_STARTS))
-FIELDS["quiet_hours_end"] = (quiet.DEFAULT_END, lambda v, d: _choice(v, d, QUIET_TIMES))
-FIELDS["quiet_hours_days"] = (quiet.DEFAULT_DAYS, lambda v, d: _choice(v, d, QUIET_DAYS))
+FIELDS["quiet_hours_start"] = (quiet.DEFAULT_START, ownvalues.coercer(QUIET_STARTS, OWN["quiet_hours_start"]))
+FIELDS["quiet_hours_end"] = (quiet.DEFAULT_END, ownvalues.coercer(QUIET_TIMES, OWN["quiet_hours_end"]))
+FIELDS["quiet_hours_days"] = (quiet.DEFAULT_DAYS, ownvalues.coercer(QUIET_DAYS, OWN["quiet_hours_days"]))
 # The tier a conversation without one of its own has, least asking first; and how long the
 # objection window gives a person to stop a continuation before it is sent.
 TIERS = tuple(ImportanceTier)
@@ -254,23 +256,23 @@ FIELDS[projects.NEVER] = ("", projects.coerce_keys)
 # and context-cost guards (guards.py). Each defaults to what v0.6.10 did: the waits are inert under
 # a preset, jitter and the ceiling are off, and neither guard reads or holds anything.
 for _field, _default in zip(ladder.STEP_FIELDS, ladder.DEFAULT_STEPS):
-    FIELDS[_field] = (_default, lambda v, d, _allowed=ladder.choices_for(_field): _choice(v, d, _allowed))
+    FIELDS[_field] = (_default, ownvalues.coercer(ladder.choices_for(_field), OWN[_field]))
 FIELDS["retry_jitter"] = (False, _boolean)
 STEP_FIELDS = ladder.STEP_FIELDS
 CHAIN_CEILINGS, TASK_GUARDS, CONTEXT_GUARDS = ladder.CEILINGS, guards.TASK_GUARDS, guards.CONTEXT_GUARDS
-FIELDS["chain_time_ceiling"] = (ladder.DEFAULT_CEILING, lambda v, d: _choice(v, d, CHAIN_CEILINGS))
+FIELDS["chain_time_ceiling"] = (ladder.DEFAULT_CEILING, ownvalues.coercer(CHAIN_CEILINGS, OWN["chain_time_ceiling"]))
 FIELDS["task_changed_guard"] = (guards.DEFAULT_TASK_GUARD, lambda v, d: _choice(v, d, TASK_GUARDS))
-FIELDS["context_guard"] = (guards.DEFAULT_CONTEXT_GUARD, lambda v, d: _choice(v, d, CONTEXT_GUARDS))
+FIELDS["context_guard"] = (guards.DEFAULT_CONTEXT_GUARD, ownvalues.coercer(CONTEXT_GUARDS, OWN["context_guard"]))
 
 # ------------------------------------------- sleep, keeping awake and the network (v0.6.11)
 # What fell due during a long sleep waits for a person; a due recovery waits while Windows reports no
 # internet; this PC is kept awake while a task waits, for at most the hours chosen (power.py). Each is
 # off by default, and then nothing is asked of Windows for it and the watcher waits as v0.6.10 did.
 KEEP_AWAKE_MODES, AWAKE_CAPS, SLEEP_WAITS = power.KEEP_AWAKE_MODES, power.AWAKE_CAPS, power.SLEEP_WAITS
-FIELDS[power.SLEEP_FIELD] = (power.DEFAULT_SLEEP, lambda v, d: _choice(v, d, SLEEP_WAITS))
+FIELDS[power.SLEEP_FIELD] = (power.DEFAULT_SLEEP, ownvalues.coercer(SLEEP_WAITS, OWN[power.SLEEP_FIELD]))
 FIELDS[power.NETWORK_FIELD] = (False, _boolean)
 FIELDS[power.KEEP_AWAKE_FIELD] = (power.DEFAULT_KEEP_AWAKE, lambda v, d: _choice(v, d, KEEP_AWAKE_MODES))
-FIELDS[power.AWAKE_CAP_FIELD] = (power.DEFAULT_AWAKE_CAP, lambda v, d: _choice(v, d, AWAKE_CAPS))
+FIELDS[power.AWAKE_CAP_FIELD] = (power.DEFAULT_AWAKE_CAP, ownvalues.coercer(AWAKE_CAPS, OWN[power.AWAKE_CAP_FIELD]))
 
 # ------------------------------------------------- the watcher's memory, and a status file (v0.6.11)
 # The memory guard - off, warn, or warn and stop between ticks - and its limit, which is read only while
@@ -278,7 +280,7 @@ FIELDS[power.AWAKE_CAP_FIELD] = (power.DEFAULT_AWAKE_CAP, lambda v, d: _choice(v
 # then the watcher does what v0.6.10's did: it only shows its memory's peak, which it always does now.
 MEMORY_GUARD_MODES, MEMORY_LIMITS = memguard.MODES, memguard.LIMITS
 FIELDS[memguard.GUARD_FIELD] = (memguard.DEFAULT_MODE, lambda v, d: _choice(v, d, MEMORY_GUARD_MODES))
-FIELDS[memguard.LIMIT_FIELD] = (memguard.DEFAULT_LIMIT, lambda v, d: _choice(v, d, MEMORY_LIMITS))
+FIELDS[memguard.LIMIT_FIELD] = (memguard.DEFAULT_LIMIT, ownvalues.coercer(MEMORY_LIMITS, OWN[memguard.LIMIT_FIELD]))
 FIELDS[statusfile.FIELD] = (False, _boolean)
 
 
@@ -293,20 +295,16 @@ def is_custom_text(name) -> bool:
     """
     return name.startswith("custom_message") and name != "custom_message_mode"
 
-# A refusal a person can act on. `validate_update` reports "invalid value for X" for
-# most fields, which is enough when the field is a number with a published range and
-# useless when it is free text: "invalid value for custom_message" does not say that
-# the problem is a placeholder that would have leaked the conversation. The one choice
-# this version no longer has - v0.6.10's design "still" (FOLDED_DESIGN) - is answered with
-# the designs it has (`_refuse`), and so is v0.6.11-beta's style "careful" (continuation.FOLDED_STYLES)
-# with the styles there are; every other refusal says what it said in v0.6.10.
+# A refusal a person can act on. "invalid value for X" is enough for a number with a published range and
+# useless for free text: "invalid value for custom_message" does not say the problem is a placeholder that
+# would have leaked the conversation. A choice this version folded - v0.6.10's design "still" (FOLDED_DESIGN),
+# v0.6.11-beta's style "careful" (continuation.FOLDED_STYLES) - is answered with the ones it has (`_refuse`).
 EXPLAIN = {name: lambda value: continuation.validate_custom(value)
            for name in FIELDS if is_custom_text(name) and name != continuation.BY_THREAD_FIELD}
 
 DEFAULTS = {name: default for name, (default, _coerce) in FIELDS.items()}
 
-# Ranges published to the user interfaces so a slider or spin box cannot offer a value
-# the validator would reject.
+# Ranges published to the user interfaces so a spin box cannot offer a value the validator would reject.
 # v0.6.11: a limit above its "high" gets a warning beside it on every surface that edits it - a
 # task that keeps failing may then be continued many times, each one using the person's Codex usage.
 HIGH_LIMITS = {"max_recovery_attempts": 8, "max_no_progress": 5, "max_chain_continuations": 8}
@@ -439,11 +437,13 @@ def validate_update(changes) -> dict:
         # read as "unchanged" and written. Which wrong types those were depended on the
         # default, so `{"reduce_motion": 0}` was taken and `{"notifications": 0}` refused,
         # and `{"max_no_progress": 3.0}` was taken and 5.0 refused. Asking the type first
-        # closes it for every field at once and leaves the range check exactly as it was.
+        # closes it for every field at once and leaves the range check exactly as it was. v0.6.11: a value of the
+        # person's own spelled another exact way (`m60`) is taken as its one spelling (`h1`), never refused for it.
         if not _right_type(name, value):
             _refuse(name, value)
         coerced = coercer(value, default)
-        if coerced != value and not (name == "codex_exe" and value is None):
+        if (coerced != value and not (name == "codex_exe" and value is None)
+                and not (name in OWN and ownvalues.canonical(OWN[name], value) == coerced)):
             _refuse(name, value)
         clean[name] = coerced
     return clean
@@ -643,6 +643,8 @@ def describe() -> list:
         entry = {"name": name, "default": default, "type": field_type(name)}
         if name in RANGES:
             entry.update(RANGES[name])
+        if name in OWN:
+            entry["custom"] = ownvalues.published(OWN[name])
         if name.startswith("recover_"):
             entry["group"] = "recovery"
             entry["category"] = name[len("recover_"):]

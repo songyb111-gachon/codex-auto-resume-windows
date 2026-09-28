@@ -244,10 +244,11 @@ this product's plugin and marketplace).
 - **Least privilege.** No administrator rights are required. Optional autostart writes a single value
   under the current user's `Run` key. No service, no scheduled task, nothing system-wide. From
   v0.6.11 **Keep this PC awake while a task waits**, off by default, is the watcher's own request to
-  Windows (`SetThreadExecutionState`), which it takes back when nothing waits, after the hours chosen,
-  on a pause and when it stops, and which Windows ends with the watcher; no power setting is changed,
-  and nothing wakes a sleeping PC. The memory guard (from v0.6.11, off by default) stops the watcher
-  itself, between two checks, through the same stop a person asks for; it leaves with an exit code
+  Windows (`SetThreadExecutionState`), which it takes back when nothing waits, after the hours chosen
+  (with Unlimited, not while a task waits), on a pause and when it stops, and which Windows ends with
+  the watcher; no power setting is changed, and nothing wakes a sleeping PC. The memory guard (from
+  v0.6.11, off by default) stops the watcher itself, between two checks, through the same stop a
+  person asks for; it leaves with an exit code
   of its own that the sign-in launcher never starts again, and the standard edition has no
   supervisor or other process that would. A status file for other tools (off by default) is a file
   in the watcher's own `config\`, written whole: no port is opened and nothing listens.

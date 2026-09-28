@@ -12,9 +12,11 @@ here is asked, no Windows call is made for it and the watcher waits exactly as v
   so a tick that runs before the wake is heard still sees the sleep.
 * Keeping awake. The watcher asks Windows not to let this PC sleep on its own while a task waits
   (SetThreadExecutionState, from the thread that ticks), on mains power only or always, for at most
-  the hours chosen. It lets go when nothing waits, when the hours are up, when recovery is paused,
-  when a tick fails and when it stops. The display may still turn off, and closing the lid or
-  choosing Sleep still sleeps the PC. No setting of Windows is changed (F1).
+  the hours chosen - a choice, a time of the person's own, or Unlimited, which is theirs to choose:
+  nothing about recovery is bounded by it (v0.6.11, ownvalues.py). It lets go when nothing waits,
+  when the hours are up, when recovery is paused, when a tick fails and when it stops. The display
+  may still turn off, and closing the lid or choosing Sleep still sleeps the PC. No setting of
+  Windows is changed (F1).
 * The network. With Wait for an internet connection on, a recovery that is due asks Windows
   (INetworkListManager, win/network.py) just before usage would be read; while Windows reports no
   internet it waits (`offline`), and no App Server is started for it. When Windows cannot be asked,
@@ -28,6 +30,7 @@ from __future__ import annotations
 
 import math
 
+from . import ownvalues
 from .domain.public import eligible_at
 from .domain.vocabulary import AwakeCap, HoldKind, KeepAwake, ReasonCode, SleepWait
 
@@ -39,11 +42,13 @@ DEFAULT_KEEP_AWAKE, DEFAULT_AWAKE_CAP, DEFAULT_SLEEP = KeepAwake.OFF.value, Awak
 # network under - both words the store and every surface already know.
 HOLD = HoldKind.AFTER_SLEEP.value
 OFFLINE = ReasonCode.OFFLINE.value
-_SECONDS = {"m30": 1800, "h1": 3600, "h2": 7200, "h3": 3 * 3600, "h6": 6 * 3600, "h12": 12 * 3600,
-            "h24": 24 * 3600}
 # Less than this between the two clocks is no sleep: they drift apart by a little on their own, and a
 # wall clock set right by a few seconds is not a PC that slept.
 MIN_SLEEP_SECONDS = 60.0
+# Custom... (ownvalues.py): a sleep, or a stretch kept awake, of the person's own - from 5 and 15 minutes to a
+# week, in whole minutes. Off, never asking, is its list's own first choice; Unlimited is the stretch's last.
+OWN = {SLEEP_FIELD: ownvalues.Own(ownvalues.DURATION, 5 * 60, ownvalues.WEEK, ("m", "h")),
+       AWAKE_CAP_FIELD: ownvalues.Own(ownvalues.DURATION, 15 * 60, ownvalues.WEEK, ("m", "h"))}
 
 
 def _values(values) -> dict:
@@ -56,17 +61,20 @@ def keep_awake(values) -> str:
     return chosen if chosen in KEEP_AWAKE_MODES else DEFAULT_KEEP_AWAKE
 
 
-def awake_cap(values) -> int:
-    """For how many seconds, at most, the PC is kept awake for tasks that go on waiting."""
+def awake_cap(values):
+    """For how many seconds, at most, the PC is kept awake for tasks that go on waiting - None for
+    Unlimited, while anything waits."""
     chosen = _values(values).get(AWAKE_CAP_FIELD)
-    return _SECONDS[chosen if chosen in AWAKE_CAPS else DEFAULT_AWAKE_CAP]
+    if chosen == AwakeCap.UNLIMITED:
+        return None
+    own = ownvalues.amount(OWN[AWAKE_CAP_FIELD], chosen)
+    return own if own is not None else ownvalues.amount(OWN[AWAKE_CAP_FIELD], DEFAULT_AWAKE_CAP)
 
 
 def sleep_threshold(values):
     """How long a sleep must last, in seconds, before what fell due during it waits for a person -
     None, never, at the default."""
-    chosen = _values(values).get(SLEEP_FIELD)
-    return _SECONDS.get(chosen) if chosen in SLEEP_WAITS else None
+    return ownvalues.amount(OWN[SLEEP_FIELD], _values(values).get(SLEEP_FIELD))
 
 
 def waits_for_network(values) -> bool:

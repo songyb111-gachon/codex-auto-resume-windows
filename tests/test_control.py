@@ -559,7 +559,9 @@ class BridgeTests(ControlTestCase):
             # what happens, whose rows are made up and whose card only draws; Don't postpone, which
             # takes a person's own postponement away and skips no gate; and one conversation's own
             # message, which is text the watcher sends later, under every check, as a Custom message.
-            "state-access", "logs", "demo", "unpostpone", "conversation-message"]))
+            "state-access", "logs", "demo", "unpostpone", "conversation-message",
+            # v0.6.11: whether a setting takes a value of the person's own - the validator asked, nothing written.
+            "check-setting"]))
 
     def test_serve_answers_every_line_with_exactly_one_line(self):
         requests = "\n".join([

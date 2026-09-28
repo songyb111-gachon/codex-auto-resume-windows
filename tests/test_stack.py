@@ -92,7 +92,9 @@ ITEM = {_q(name): item for item, names in {
                # and the watcher's memory guard, and the status file for other tools.
                "memguard", "statusfile",
                # and Show me what happens: the made-up task both surfaces take the demo from.
-               "demo"),
+               "demo",
+               # and a value of a person's own beside a drop-down's choices, which the settings coerce with.
+               "ownvalues"),
     "machine": ("machine", "domain", "domain.errors", "domain.ids", "domain.public",
                 "domain.states", "domain.vocabulary",
                 # v0.6.11: the registry's vocabularies, out of domain/vocabulary.py.

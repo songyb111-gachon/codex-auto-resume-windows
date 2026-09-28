@@ -897,6 +897,14 @@ namespace CodexAutoResume
                     string name = "retry_wait_" + step.ToString(CultureInfo.InvariantCulture);
                     var seconds = limitSchema.TryGetValue(name, out field) ? Map(field, "seconds") : null;
                     object value;
+                    // v0.6.11: a wait of the person's own is read from its words (SettingsOwn.cs); every one of them lies
+                    // within its bounds, which start at the floor after the first, so the floor adds nothing to it.
+                    double own = seconds == null || chosen == null || seconds.ContainsKey(chosen) ? -1 : OwnAmount(Map(field, "custom"), chosen);
+                    if (own >= 0)
+                    {
+                        found.Add(own);
+                        continue;
+                    }
                     if (seconds == null || chosen == null || !seconds.TryGetValue(chosen, out value) || !(value is double))
                         return new List<double>();
                     found.Add((double)value);
@@ -966,19 +974,27 @@ namespace CodexAutoResume
             string name = Str(field, "name");
             List<object> choices = Items(field, "choices") ?? new List<object>();
             string value = name == null ? null : Str(current, name);
-            int index = 0, widest = 0;
+            var items = new List<Choice>();
             foreach (object choice in choices)
             {
                 string text = Convert.ToString(choice, CultureInfo.InvariantCulture);
-                string label = S(prefix + text, text);
-                if (text == value) index = combo.Items.Count;
-                combo.Items.Add(new Choice(text, label));
-                widest = Math.Max(widest, TextRenderer.MeasureText(label, Font).Width);
+                items.Add(new Choice(text, S(prefix + text, text)));
+            }
+            // v0.6.11: a value of the person's own, and Custom... last, where the schema offers one (SettingsOwn.cs).
+            var custom = Map(field, "custom");
+            if (custom != null) OwnItems(custom, value, items);
+            int index = 0, widest = 0;
+            foreach (Choice item in items)
+            {
+                if (item.Value == value) index = combo.Items.Count;
+                combo.Items.Add(item);
+                widest = Math.Max(widest, TextRenderer.MeasureText(item.ToString(), Font).Width);
             }
             // As wide as its longest choice in the well's padding, beside the chevron: "Use system
             // setting" is longer than any choice a drop-down here had before, in every language.
             combo.Width = Math.Max(Px(150), Math.Min(Px(300), widest + Px(Brand.SelectPadLeft + Brand.SelectPadRight + 4)));
             if (combo.Items.Count > 0) combo.SelectedIndex = index;
+            if (custom != null) Own(combo, field, custom);
             return combo;
         }
 

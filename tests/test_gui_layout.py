@@ -365,10 +365,14 @@ class NumericInsetTests(unittest.TestCase):
         self.assertNotIn("TextAlign", self.method,
                          "the number stays left aligned; only the margin changed")
 
-    def test_only_the_two_numeric_fields_ask_for_it(self):
+    def test_only_the_numeric_fields_ask_for_it(self):
         """Retry timing is a ComboBox and is deliberately left alone."""
-        self.assertEqual(self.source.count("GiveTextRoom(spin)"), 1,
-                         "one call site, on the NumericUpDown the two Limits rows share")
+        self.assertEqual(self.source.count("GiveTextRoom(spin)"), 2,
+                         "one call site on the NumericUpDown the two Limits rows share, and, from v0.6.11, one on "
+                         "the number of a value of the person's own (SettingsOwn.cs)")
+        self.assertEqual(self.source.count("GiveTextRoom(number.Spin)"), 1,
+                         "and one on the hour and the minute of a time of day of the person's own")
+        self.assertEqual(self.source.count("GiveTextRoom("), 4, "the declaration and those three calls")
         # Every drop-down on the page is built by ChoiceCombo or LanguageCombo.
         for builder in ("private SoftCombo ChoiceCombo(", "private SoftCombo LanguageCombo("):
             start = self.source.index(builder)

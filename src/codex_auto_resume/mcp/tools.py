@@ -82,6 +82,9 @@ QUIET_AND_TIERS = {
     "context_guard": "Codex's token count for a conversation, where Codex keeps one: off (the "
                      "default, nothing is read), show (on Pending), or above_100k to above_1m (also "
                      "hold a recovery whose conversation has used more, for a person).",
+    # And how long a turn may not move before a needs-you notice says so (needsyou.py).
+    "stall_after": "How long a turn may record nothing new before a notice says its conversation may need a "
+                   "person: off (the default, never) or m10 to h2. Nothing is resumed or sent for it.",
     # And a long sleep, and the internet (power.py).
     "ask_after_sleep_minutes": "After this PC slept for longer than this - off (the default) or m30 to "
                                "h12 - a recovery that fell due while it slept waits for a person, who "
@@ -90,6 +93,33 @@ QUIET_AND_TIERS = {
                         "before usage is read, and waits while it reports none; nothing is sent to "
                         "find out. false (the default) reads usage as before.",
 }
+
+
+def _span(seconds: int) -> str:
+    """A bound of a wait in words: the largest whole unit that says it exactly."""
+    for size, unit in ((86400, "day"), (3600, "hour"), (60, "minute"), (1, "second")):
+        if seconds % size == 0:
+            count = seconds // size
+            return "%d %s%s" % (count, unit, "" if count == 1 else "s")
+    return "%d seconds" % seconds
+
+
+def own_words(custom: dict) -> str:
+    """What a setting takes of a person's own besides its choices (v0.6.11, ownvalues.published), for a
+    model choosing one. The bounds are said here; the validator holds them and refuses a value past them."""
+    kind = custom["kind"]
+    if kind == "clock":
+        return "Or any time of day, as HH:MM from 00:00 to 23:59."
+    if kind == "days":
+        return "Or any days, comma-separated: %s." % ", ".join(custom["days"])
+    if kind == "duration":
+        examples = {"s": "s90 is 90 seconds", "m": "m45 is 45 minutes", "h": "h36 is 36 hours"}
+        return ("Or a time of its own: %s and a whole number (%s), from %s to %s." % (
+            "/".join(custom["units"]), ", ".join(examples[unit] for unit in custom["units"]),
+            _span(custom["min"]), _span(custom["max"])))
+    return ("Or a number of its own after %s, from %d to %d, in whole %s." % (
+        custom["prefix"], custom["min"], custom["max"],
+        "thousands (above_300k, or above_300000)" if "k" in custom["units"] else "units"))
 
 
 def _thread_schema() -> dict:
@@ -133,7 +163,11 @@ def settings_schema() -> dict:
             described["minimum"] = entry["min"]
         if "max" in entry:
             described["maximum"] = entry["max"]
-        if "choices" in entry:
+        if "choices" in entry and "custom" in entry:
+            # v0.6.11: a choice, or a value of the person's own in the same words (ownvalues.py). Its bounds are
+            # said in the description, since a pattern cannot say them, and the validator refuses what is past them.
+            described["anyOf"] = [{"enum": list(entry["choices"])}, {"pattern": entry["custom"]["pattern"]}]
+        elif "choices" in entry:
             described["enum"] = list(entry["choices"])
         if name.startswith("recover_"):
             described["description"] = ("Recover interruptions classified as %s. "
@@ -149,6 +183,8 @@ def settings_schema() -> dict:
         elif name in QUIET_AND_TIERS:
             described["description"] = QUIET_AND_TIERS[name]
         described.setdefault("description", "See the settings documentation.")
+        if "custom" in entry:
+            described["description"] += " " + own_words(entry["custom"])
         properties[name] = described
     return {"type": "object", "properties": properties, "additionalProperties": False}
 

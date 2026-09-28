@@ -57,6 +57,8 @@ WHERE = {
     # never carries it (tests/test_compat_surfaces.py).
     wire.CompatReported: [(source, path + ".reported") for source, path in COMPAT],
     wire.SchemaField: [("bridge:describe", "schema[]")],
+    # v0.6.11: Custom... - what a drop-down takes of a person's own.
+    wire.OwnValue: [("bridge:describe", "schema[].custom")],
     # v0.6.11: Diagnostics' own tools - Show me what happens, the log searched, the state folder.
     wire.DemoRow: [("bridge:demo", "result.pending"), ("bridge:demo", "result.history")],
     wire.DemoReply: [("bridge:demo", "result")],

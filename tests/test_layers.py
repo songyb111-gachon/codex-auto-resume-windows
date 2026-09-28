@@ -77,7 +77,9 @@ LAYER = {_q(name): layer for layer, names in {
                # and the watcher's memory guard, and the status file for other tools.
                "memguard", "statusfile",
                # and Show me what happens: made-up rows and a made-up task, reading no state.
-               "demo"),
+               "demo",
+               # and a value of a person's own beside a drop-down's choices, Custom... and Unlimited.
+               "ownvalues"),
     "adapters": ("store", "openstate", "codex", "windows", "compat", "compatio", "startup", "shortcut",
                  # v0.6.10-alpha: compat.py and compatio.py became compat/.
                  "compat.model", "compat.standing", "compat.report", "compat.permits", "compat.files", "compat.cache", "compat.probes", "compat.views", "compat.evaluator",

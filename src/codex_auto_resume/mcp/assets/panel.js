@@ -957,6 +957,8 @@ function choiceField(entry, options, help, onChange) {
   var input = document.createElement('select');
   input.id = 'car-' + entry.name;
   var chosen = value(entry.name);
+  // v0.6.11: a value of the person's own, and Custom... last, where the schema offers one (ownvalues.py).
+  if (entry.custom) options = ownOptions(entry.custom, options, chosen);
   options.forEach(function (option) {
     var node = element('option', null, option.text);
     node.value = option.value;
@@ -965,18 +967,232 @@ function choiceField(entry, options, help, onChange) {
   });
   input.disabled = !HOST || !!entry.managed;
   if (entry.managed) help = t('settings.managed', 'Set by your administrator.') + (help ? ' ' + help : '');
+  var own = entry.custom ? ownEditor(entry, input, onChange) : null;
   input.addEventListener('change', function () {
-    DRAFT[entry.name] = input.value;
+    if (own) own.follow();
+    DRAFT[entry.name] = EDITORS[entry.name]();
     edited(entry.name);
     if (onChange) onChange(input.value);
   });
-  EDITORS[entry.name] = function () { return input.value; };
+  EDITORS[entry.name] = function () { return own && input.value === OWN_ITEM ? own.read() : input.value; };
   var field = combo(input);
   var built = settingRow(label(entry.name), help, field.node, 'has-select');
   field.labelled(built.label, built.help);
+  if (own) {
+    built.row.appendChild(own.node);
+    own.follow();
+  }
   built.select = input;
-  built.sync = field.sync;
+  built.sync = function () {
+    field.sync();
+    if (own) own.follow();
+  };
   return built;
+}
+
+// ------------------------------------------------------------------ Custom... (v0.6.11)
+// A value of the person's own beside a drop-down's choices: Custom..., last, opens an editor under its row - a
+// number and its unit, a time of day, or the days of the week - with the range it may be in said above it, from
+// the schema (ownvalues.published). Whether it is taken is never decided here: the page composes the words the
+// settings store (`m45`, `13:15`, `mon,wed,fri`, `above_300000`) and update_settings answers when it is saved,
+// with the one rule every surface has, which refuses a value past its range. The Dashboard's is SettingsOwn.cs.
+var OWN_ITEM = '\u0001own';
+var OWN_UNITS = {duration: {s: 1, m: 60, h: 3600}, count: {'': 1, k: 1000, m: 1000000}};
+
+// What a value of the person's own measures - seconds, or a count - read from its words, or -1. How it is shown
+// and where its editor starts, never whether it is allowed.
+function ownAmount(custom, text) {
+  if (!custom || typeof text !== 'string' || !OWN_UNITS[custom.kind]) return -1;
+  var digits = text, unit = '';
+  if (custom.kind === 'duration') {
+    unit = text.charAt(0);
+    digits = text.slice(1);
+  } else {
+    var prefix = custom.prefix || '';
+    if (text.indexOf(prefix) !== 0) return -1;
+    digits = text.slice(prefix.length);
+    if (/[km]$/.test(digits)) {
+      unit = digits.slice(-1);
+      digits = digits.slice(0, -1);
+    }
+  }
+  var size = OWN_UNITS[custom.kind][unit];
+  return size && /^[0-9]+$/.test(digits) ? Number(digits) * size : -1;
+}
+
+// A wait, in the words the page's waits are said in - in whole days where it is some.
+function ownDuration(seconds) {
+  return seconds >= 86400 && seconds % 86400 === 0 ? fill('time.days', '{n}d', {n: seconds / 86400}) : duration(seconds);
+}
+
+// A count in its words where the schema names them - "{n} MB", in plain digits as the choices beside it are -
+// or as a number grouped as the page groups one.
+function ownCount(custom, amount, words) {
+  var plain = !!words && words === custom.amount;
+  var number = plain ? String(amount) : groupDigits(amount);
+  return words && words.indexOf('own.') === 0 ? fill('own.' + words.slice(4), '{n}', {n: number}) : number;
+}
+
+// A value of the person's own as its drop-down item says it.
+function ownLabel(custom, text) {
+  if (custom.kind === 'clock') return text;
+  if (custom.kind === 'days') {
+    return text.split(',').map(function (day) { return t('day.' + day, day); }).join(t('own.days_join', ', '));
+  }
+  var amount = ownAmount(custom, text);
+  if (amount < 0) return text;
+  return custom.kind === 'duration' ? ownDuration(amount) : ownCount(custom, amount, custom.label || custom.amount);
+}
+
+// What the editor says above its fields: the range, or what a time of day and the days are.
+function ownHint(custom) {
+  if (custom.kind === 'clock') return t('own.clock', 'A time of day, from 00:00 to 23:59.');
+  if (custom.kind === 'days') return t('own.days', 'Choose at least one day.');
+  var said = custom.kind === 'duration' ? ownDuration : function (amount) { return ownCount(custom, amount, custom.amount); };
+  return fill('own.range', 'From {low} to {high}.', {low: said(custom.min), high: said(custom.max)});
+}
+
+// The drop-down's items: its choices, the value of the person's own it holds now when that is none of them, and
+// Custom..., last.
+function ownOptions(custom, options, chosen) {
+  var listed = options.some(function (option) { return option.value === chosen; });
+  var items = options.slice();
+  if (!listed && typeof chosen === 'string' && chosen) items.push({value: chosen, text: ownLabel(custom, chosen)});
+  items.push({value: OWN_ITEM, text: t('choice.custom_value', 'Custom...')});
+  return items;
+}
+
+// The editor under a row, shown while Custom... is picked: it starts at the value the drop-down held before.
+function ownEditor(entry, select, onChange) {
+  var custom = entry.custom;
+  var node = element('div', 'own');
+  node.hidden = true;
+  node.appendChild(element('p', 'help', ownHint(custom)));
+  var fields = element('div', 'own-fields');
+  node.appendChild(fields);
+  var inputs = [], read, start, unit = null;
+  var name = label(entry.name);
+  function changed() {
+    DRAFT[entry.name] = read();
+    edited(entry.name);
+    if (onChange) onChange(select.value);
+  }
+  if (custom.kind === 'clock') {
+    // Two numbers, the hour and the minute: no field on this page can hold words (CustomTextBoundaryTests).
+    var clock = [t('own.unit.h', 'hours'), t('own.unit.m', 'minutes')].map(function (unitName, index) {
+      var part = element('input');
+      part.type = 'number';
+      part.min = '0';
+      part.max = '99';
+      part.setAttribute('aria-label', name + ' - ' + unitName);
+      if (index) fields.appendChild(element('span', 'own-colon', ':'));
+      fields.appendChild(part);
+      inputs.push(part);
+      return part;
+    });
+    var twoDigits = function (input) {
+      var digits = String(input.value || '').trim();
+      return digits.length === 1 ? '0' + digits : digits;
+    };
+    read = function () { return twoDigits(clock[0]) + ':' + twoDigits(clock[1]); };
+    start = function (from) {
+      var parts = /^([0-9]{1,2}):([0-9]{2})$/.exec(from || '') || [null, '0', '00'];
+      clock[0].value = String(Number(parts[1]));
+      clock[1].value = parts[2];
+    };
+  } else if (custom.kind === 'days') {
+    var group = element('div', 'own-days');
+    group.setAttribute('role', 'group');
+    group.setAttribute('aria-label', name);
+    var named = custom.named || {};
+    var working = named.weekdays || [];
+    var boxes = {};
+    (custom.days || []).forEach(function (day) {
+      var item = element('label', 'own-day');
+      var box = element('input', 'check');
+      box.type = 'checkbox';
+      item.appendChild(box);
+      item.appendChild(element('span', null, t('day.' + day, day)));
+      group.appendChild(item);
+      // The working days on one line and the weekend on the next, as the choices name them.
+      if (day === working[working.length - 1]) group.appendChild(element('span', 'own-break'));
+      boxes[day] = box;
+      inputs.push(box);
+    });
+    fields.appendChild(group);
+    read = function () {
+      return (custom.days || []).filter(function (day) { return boxes[day].checked; }).join(',');
+    };
+    start = function (from) {
+      var picked = named[from] || (typeof from === 'string' ? from.split(',') : []);
+      (custom.days || []).forEach(function (day) { boxes[day].checked = picked.indexOf(day) >= 0; });
+    };
+  } else {
+    var number = element('input');
+    number.type = 'number';
+    number.min = '0';
+    number.step = String(custom.kind === 'count' ? OWN_UNITS.count[(custom.units || [''])[0]] || 1 : 1);
+    number.setAttribute('aria-label', name);
+    fields.appendChild(number);
+    inputs.push(number);
+    if (custom.kind === 'duration') {
+      unit = document.createElement('select');
+      unit.id = 'car-' + entry.name + '-unit';
+      (custom.units || []).forEach(function (letter) {
+        var option = element('option', null, t('own.unit.' + letter, letter));
+        option.value = letter;
+        unit.appendChild(option);
+      });
+      var unitField = combo(unit);
+      // Named by the setting's own name, as its drop-down is (combo's `labelled` gives that name this id); what it
+      // holds - minutes, hours - says it is the unit.
+      unitField.box.setAttribute('aria-labelledby', 'car-' + entry.name + '-label');
+      unitField.list.setAttribute('aria-labelledby', 'car-' + entry.name + '-label');
+      unit.addEventListener('change', changed);
+      fields.appendChild(unitField.node);
+      inputs.push(unit);
+      unit.sync = unitField.sync;
+    }
+    read = function () {
+      var digits = String(number.value || '').trim();
+      return unit ? unit.value + digits : (custom.prefix || '') + digits;
+    };
+    start = function (from) {
+      var amount = ownAmount(custom, from);
+      if (amount < 0) amount = custom.min;
+      if (!unit) {
+        number.value = String(amount);
+        return;
+      }
+      // The largest unit that says it exactly, as the settings spell it.
+      var shown = (custom.units || ['s'])[0];
+      (custom.units || []).forEach(function (letter) {
+        if (amount % OWN_UNITS.duration[letter] === 0) shown = letter;
+      });
+      unit.value = shown;
+      unit.sync();
+      number.value = String(amount / OWN_UNITS.duration[shown]);
+    };
+  }
+  inputs.forEach(function (input) {
+    if (input !== unit) input.addEventListener(input.type === 'checkbox' ? 'change' : 'input', changed);
+  });
+  var held = value(entry.name);
+  select.addEventListener('change', function () {
+    if (select.value !== OWN_ITEM) held = select.value;
+  });
+  return {
+    node: node,
+    read: read,
+    // Shown while Custom... is picked, starting where the drop-down was; its fields as usable as the drop-down.
+    follow: function () {
+      var picked = select.value === OWN_ITEM;
+      if (picked && node.hidden) start(held);
+      node.hidden = !picked;
+      inputs.forEach(function (input) { input.disabled = select.disabled; });
+      if (unit && unit.sync) unit.sync();
+    }
+  };
 }
 
 function segmented(entry, onChange) {
@@ -1620,8 +1836,16 @@ function retryPreview(limits) {
     for (var step = 1; step <= 5; step++) {
       var entry = byName['retry_wait_' + step];
       var table = entry && entry.seconds;
-      if (!table || typeof table[read(entry.name)] !== 'number') return '';
-      seconds.push(table[read(entry.name)]);
+      var wait = entry ? read(entry.name) : null;
+      // v0.6.11: a wait of the person's own is read from its words; each lies within its bounds, which start at
+      // the floor after the first, so the floor adds nothing to it.
+      var own = table && typeof table[wait] !== 'number' ? ownAmount(entry.custom, wait) : -1;
+      if (own > 0) {
+        seconds.push(own);
+        continue;
+      }
+      if (!table || typeof table[wait] !== 'number') return '';
+      seconds.push(table[wait]);
     }
   } else {
     seconds = (timing.waits && timing.waits[chosen]) || [];

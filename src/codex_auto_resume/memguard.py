@@ -11,7 +11,8 @@ The guard is a setting, `memory_guard`, off unless a person turns it on:
     warn    the first time the watcher is over the limit, one notification says so; it goes on
     stop    the same, and the watcher then stops, between two ticks, the way a Stop stops it
 
-`memory_guard_limit` is the limit, 256 MiB to 2 GiB, read only while the guard is on. A stop happens
+`memory_guard_limit` is the limit, 256 MiB to 2 GiB - or, with Custom..., from 128 MiB to 16 GiB in
+whole MiB (ownvalues.py) - read only while the guard is on. A stop happens
 only after a tick has ended - never inside one, so never while a continuation is being sent - and the
 watcher leaves with its own exit code (runtime/loop.py, EXIT_MEMORY_GUARD), which the launcher does
 not start again (scripts/watcher_launcher.py). Nothing is lost: every claim is durable before a send
@@ -22,6 +23,7 @@ Pure: settings and numbers in, answers out.
 """
 from __future__ import annotations
 
+from . import ownvalues
 from .domain.vocabulary import MemoryGuard, MemoryLimit
 
 GUARD_FIELD, LIMIT_FIELD = "memory_guard", "memory_guard_limit"
@@ -30,6 +32,7 @@ DEFAULT_MODE, DEFAULT_LIMIT = MemoryGuard.OFF.value, MemoryLimit.MB1024.value
 MIB = 1024 * 1024
 # What the guard answers after a tick: nothing to do, say so once, or stop.
 OK, WARN, STOP = "ok", "warn", "stop"
+OWN = {LIMIT_FIELD: ownvalues.Own(ownvalues.COUNT, 128, 16 * 1024, ("",), prefix="mb", amount="own.mb")}
 
 
 def _values(values) -> dict:
@@ -44,8 +47,8 @@ def mode(values) -> str:
 
 def limit_mib(values) -> int:
     """The limit, in MiB."""
-    chosen = _values(values).get(LIMIT_FIELD)
-    return int((chosen if chosen in LIMITS else DEFAULT_LIMIT)[len("mb"):])
+    own = ownvalues.amount(OWN[LIMIT_FIELD], _values(values).get(LIMIT_FIELD))
+    return own if own is not None else ownvalues.amount(OWN[LIMIT_FIELD], DEFAULT_LIMIT)
 
 
 def mib(count) -> int | None:
