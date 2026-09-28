@@ -9,9 +9,9 @@ Unreleased source changes do not change any published release's bytes.
 
 From v0.6.11 this tree builds two editions. Everything below describes the standard edition, and
 holds for the advanced edition too unless a passage names it: the advanced edition's capabilities
-are each off until a person turns one on in the Dashboard, and
+are each off until a person turns one on, through the local bridge the Dashboard uses, and
 [The advanced edition](#the-advanced-edition) says what each does, once it is on, beyond what the
-rest of this page promises.
+rest of this page promises - and what its measurement harness does when a person runs it.
 
 ## Reporting
 
@@ -114,7 +114,10 @@ it while reading. Codex's state changes when the product asks official Codex int
 `codex plugin` / `codex plugin marketplace` at install and uninstall (register, refresh or remove
 this product's plugin and marketplace). The advanced edition asks for two more, each only while
 the capability that uses it is on: `thread/queue/add` (add one message, with no marker) and
-`thread/goal/set` (set active again a goal the usage limit paused).
+`thread/goal/set` (set active again a goal the usage limit paused). Its measurement harness, when
+a person runs a measurement by hand, asks for more whether or not any capability is on - among
+them `thread/goal/set`, `thread/queue/add` with words this product wrote, and `turn/start` (see
+*The measurement harness* under [The advanced edition](#the-advanced-edition)).
 
 ## Enforced properties
 
@@ -368,7 +371,10 @@ the capability that uses it is on: `thread/queue/add` (add one message, with no 
   switch and the per-task switch - and imports nothing that can put a continuation into
   Codex. **Cancel all** on the Pending page cancels every pending recovery one exact record
   at a time. Cancelling is the only action offered in bulk, because it can only reduce what
-  the tool does; there is deliberately no bulk retry.
+  the tool does; there is deliberately no bulk retry. The advanced edition has one exception: a
+  measurement a person runs by hand is carried out by the bridge process itself, not the
+  watcher, and some measurements put words into the conversation they are pointed at (*The
+  measurement harness*, below).
 - **Compatibility data can only restrict.** New in v0.6.5. The Codex Compatibility Registry's
   data ships in the release and can be refreshed from this repository on request (above), so data
   from outside the release reaches a decision the watcher makes - and it is built so that it can
@@ -458,9 +464,14 @@ the capability that uses it is on: `thread/queue/add` (add one message, with no 
 New in v0.6.11. The advanced edition is the standard edition plus capabilities that each depart,
 on purpose, from at least one of the standards the standard edition keeps, and each one's
 statement - what it does, what the standard edition does instead, which standards it departs
-from, what can go wrong and how to stop it - names them. While none is on, everything above holds
-for it as written. Once one is on, everything above still holds except what that capability's
-paragraph under *What each does* says.
+from, what can go wrong and how to stop it - names them. While none is on and no measurement is
+being run, everything above holds for it as written. Once one is on, everything above still holds
+except what that capability's paragraph under *What each does* says; and while a person runs a
+measurement, it does what *The measurement harness* says.
+
+The standards are the project's own list, kept by the owner and not in this repository, so where
+this section names one by its id it says in a few words what that standard is, as each
+capability's statement does.
 
 **How the two editions are kept apart.**
 
@@ -482,15 +493,20 @@ paragraph under *What each does* says.
 
 **Who turns a capability on, and what turns it off.**
 
-- **Only the Dashboard turns one on.** Every capability starts off, and entering the edition turns
-  every one off. A capability is turned on, or set to watch first, one at a time and only by a
-  request the Dashboard makes over its bridge, which must still carry what the Dashboard has just
-  shown the person: the statement revision they read, the generation the list was read at - so
-  that nothing turned off since is undone by a window that had not seen it - the warnings shown,
-  and, for on, the Codex version shown. Every other surface may only turn capabilities off, and
-  no MCP tool turns one on, whatever a client sends (`advanced/tests/test_advanced_arming.py`,
-  `advanced/tests/test_advanced_surfaces.py`). A capability watched first journals what it would
-  have done and does nothing, and nothing moves it from watched to on but a person.
+- **Only the Dashboard's bridge turns one on.** Every capability starts off, and entering the
+  edition turns every one off. A capability is turned on, or set to watch first, one at a time and
+  only by a request on the local bridge the Dashboard uses (`controlcli serve`), which must still
+  carry what the person has just been shown: the statement revision they read, the generation the
+  list was read at - so that nothing turned off since is undone by a request that had not seen it -
+  the warnings shown, and, for on, the Codex version shown. Every other surface may only turn
+  capabilities off, and no MCP tool turns one on, whatever a client sends
+  (`advanced/tests/test_advanced_arming.py`, `advanced/tests/test_advanced_surfaces.py`). This
+  tree's window has no page for the advanced edition yet (`advanced/gui/window.sources` lists no
+  source), so until it has one, that request is written to the bridge by hand, as
+  [LIVE_ACCEPTANCE.md](LIVE_ACCEPTANCE.md#the-v0611-checklist-per-edition) shows. Like every
+  request on that bridge, it is open to anything running as you; what cannot make it is a model
+  through the plugin's MCP tools. A capability watched first journals what it would have done and
+  does nothing, and nothing moves it from watched to on but a request of this kind.
 - **A warning is confirmed, never refused.** A measurement its route rests on that failed or was
   never made for the Codex in force, a compatibility grade of Failed here, Incompatible or Unknown,
   or a Codex version not yet known is shown in its statement as a warning, and turning it on
@@ -504,7 +520,7 @@ paragraph under *What each does* says.
   confirm that says what it stands on went wrong - its compatibility failed here or is
   incompatible, a local check failed, or a measurement its route rests on failed; one of its hooks
   raising; a send it paid for becoming `submission_unknown`; and, for one that is on, a new Codex
-  version. Whatever turned it off, a person can turn it on again in the Dashboard, with its
+  version. Whatever turned it off, a person can turn it on again over the same bridge, with its
   statement as it reads then.
 - **Pause and consent come first.** A capability answers only where core asks it, after core's own
   checks: a paused watcher asks no capability anything, a conversation switched off or a cancelled
@@ -513,27 +529,33 @@ paragraph under *What each does* says.
   send passes, the durable claim and the last look before the send stay core's.
 - **Ceilings.** Each capability has its own sends a day and in one conversation, spent when the
   claim is made, before anything is asked of Codex. Over them stands one ceiling for every
-  capability together, 12 an hour, which a person may lower in the Dashboard and never raise, and
+  capability together, 12 an hour, which a person may lower over the same bridge and never raise, and
   every claim still counts against core's own caps for the conversation.
 
 **What each does, once it is on.**
 
-- **Start with Codex, through WMI** (departs from C4 and F6). When Codex starts the plugin's MCP
-  server, and recovery is not paused, no watcher runs, no installation is in progress and this
-  installation's launcher is there, the server starts the watcher. Where Codex's job would end what
-  the server starts, it asks WMI to (`Win32_Process.Create`): one constant PowerShell script, run by
-  PowerShell's full System32 path with the command line in an environment variable, windowless. The
-  watcher's parent is then WMI's own host, outside Codex's job, so closing Codex does not end it.
-  The command line is core's, built from this installation's own launcher; the route never starts
-  a second watcher, sends nothing and claims nothing.
-- **The marker-free continuation** (departs from A2, A4, B3 and B4). The continuation's words go
-  without the marker, added to the conversation's queue through `codex app-server --stdio`'s
-  `thread/queue/add` under a client id derived from the interruption, and delivery is proven by
-  that id alone. A send it cannot prove - the app server refuses, does not answer, or the item never
-  shows - is held as `submission_unknown`, never sent again, and turns the capability off. At most
-  24 a day, and 5 in one conversation.
-- **The goal continuation** (departs from 0.5, A2, A11, B3 and B4). For a usage limit only. Where
-  the app does not hold the conversation and the limit paused its goal, it sets that existing goal
+- **Start with Codex, through WMI.** It departs from C4 (nothing happens on its own, and nothing at
+  start) and F6 (the processes the product starts are a fixed list, and a route through WMI is not
+  on it). When Codex starts the plugin's MCP server, and recovery is not paused, no watcher runs, no
+  installation is in progress and this installation's launcher is there, the server starts the
+  watcher. Where Codex's job would end what the server starts, it asks WMI to
+  (`Win32_Process.Create`): one constant PowerShell script, run by PowerShell's full System32 path
+  with the command line in an environment variable, windowless. The watcher's parent is then WMI's
+  own host, outside Codex's job, so closing Codex does not end it. The command line is core's, built
+  from this installation's own launcher; the route never starts a second watcher, sends nothing and
+  claims nothing.
+- **The marker-free continuation.** It departs from A2 (one channel only, `codex queue`), A4 (every
+  continuation carries its marker, and counts as delivered only when the marker is found), B3
+  (Codex's state changes only through `codex queue`, `thread/queue/delete` and the plugin commands)
+  and B4 (the app server is asked only for usage and to withdraw a queued message). The
+  continuation's words go without the marker, added to the conversation's queue through `codex
+  app-server --stdio`'s `thread/queue/add` under a client id derived from the interruption, and
+  delivery is proven by that id alone. A send it cannot prove - the app server refuses, does not
+  answer, or the item never shows - is held as `submission_unknown`, never sent again, and turns the
+  capability off. At most 24 a day, and 5 in one conversation.
+- **The goal continuation.** It departs from 0.5 (a goal's state is never changed), A2, A11 (nothing
+  is done for a conversation the app does not hold), B3 and B4. For a usage limit only. Where the
+  app does not hold the conversation and the limit paused its goal, it sets that existing goal
   active again through `thread/goal/set` - the thread and the status alone: no goal is created, and
   its words are never read or written - so that Codex carries the goal on when the app next opens
   the conversation. The set is made only while core's own look, made again once the session is up,
@@ -542,13 +564,44 @@ paragraph under *What each does* says.
   measurement M2b passed for the Codex in force, setting the goal active and then adding the
   continuation with `thread/queue/add`; anywhere else the standard route stands. Which goal a
   conversation has, its status and when it changed are read from Codex's goals database, opened
-  read-only. At most 12 a day, and 3 in one conversation.
+  read-only - while the capability is watched as well as while it is on. At most 12 a day, and 3 in
+  one conversation.
 
 Each capability's session with the app server is started as core starts its own, with the same
 arguments and environment. It may call only the methods that capability declares
-(`codex/protocol.py`), answers every request Codex makes of it with that request's refusal, and
-never calls a sign-in, token or attestation method. The advanced edition adds no network code: its
-package imports no networking module either (`tests/test_privacy_claims.py`).
+(`codex/protocol.py`), and never calls a sign-in, token or attestation method. It answers the
+approval, permission, input and elicitation requests Codex may make of it - seven methods - with
+the refusal Codex's own schema gives each (`DECLINE_ANSWERS`), and every other request, a token
+refresh, an attestation or a tool call among them, with an error. The advanced edition adds no
+network code: its package imports no networking module either (`tests/test_privacy_claims.py`).
+
+**The measurement harness.** The advanced edition's archive also carries `measure`
+(`advanced/src/codex_auto_resume_advanced/measure.py`), with which the owner finds out whether a
+capability's route can work on a given Codex. It is not a capability: nothing turns it on, and it
+runs whether or not any capability is on - once for each request, when a person sends
+`measure <id>` over the same bridge, with a conversation id where they give one. No MCP tool
+reaches it, and the window offers it nowhere. Each measurement opens a `codex app-server --stdio`
+session of its own, limited to the methods it declares (`MEASUREMENT_METHODS` in
+`codex/protocol.py`) and answering Codex's requests as a capability's session does, and some of
+those methods change Codex's state or start work in the conversation named:
+
+- M2 and M2b set the conversation's existing goal active (`thread/goal/set`).
+- M2b and M7 add a message this product wrote to its queue (`thread/queue/add`) - *Reply with the
+  single word: ok.* and `/compact` - which the Codex app runs as a turn once it takes it; M3 adds
+  an empty one.
+- M6 resumes the conversation in its own session and starts one model turn there (`thread/resume`,
+  `turn/start`), asking Codex to run `whoami` under the strictest approval policy and a read-only
+  sandbox. It declines every approval it is asked for, interrupts the turn if it has not ended
+  within three minutes (`turn/interrupt`), and unsubscribes.
+- MW starts two throwaway processes of its own - a helper inside a job built the way Codex builds
+  its plugins' jobs, and a heartbeat the helper asks WMI to start - and ends both.
+- M1, M4, M5, MH and MA only read: the loaded conversations, a queue, the hooks, the account's
+  state (`account/read`, of which the record keeps only that it was read).
+
+Without a conversation id, the calls carry a placeholder id that is no one's. A record is written
+only into a source checkout's `docs/evidence/live/`, and holds booleans, counts and closed words
+(`evidence.py`). An installed copy has no such folder, so there the record is refused - but only
+after the calls were made. Run a measurement only on a throwaway conversation.
 
 ## Destructive-operation safety
 
@@ -893,9 +946,10 @@ that conversation has waiting, switching the conversation back on does not reviv
 giving attempts back refuses a cancelled recovery. What it costs is unfinished work left
 unresumed, never a message sent twice. - Whether Codex shows an approval prompt for the tools
 marked destructive is up to Codex's approval settings, not this product. - Nothing this project
-builds is Authenticode-signed (the two executables, `Install.cmd`, `Uninstall.cmd` and the
-PowerShell scripts); the bundled Python interpreter keeps the signatures it was published with:
-the Python Software Foundation's on `pythonw.exe`, `python.exe` and the Python DLLs, and
+builds is Authenticode-signed (the two executables, the setup programs, `Install.cmd`,
+`Uninstall.cmd` and the PowerShell scripts); the bundled Python interpreter keeps the signatures
+it was published with: the Python Software Foundation's on `pythonw.exe`, `python.exe` and the
+Python DLLs, and
 Microsoft's on the two Visual C++ runtime DLLs. Releases are not GitHub-immutable. Trust in a
 download rests on the pinned digest and the provenance attestation (*Release integrity*,
 *Verifying a release*). - Archives v0.5.0 through v0.5.7 were built by
@@ -924,8 +978,11 @@ refuses. A watcher started with Codex through WMI outlives Codex. A marker-free 
 proven delivered only by the client id it was queued under, which Codex keeps on the message; that
 `thread/queue/add` takes such an id and delivers the words as plain text was measured once, on one
 Codex version (M7), and no marker-free continuation has yet been followed to its turn on a real
-Codex. A goal set active is carried on by Codex itself, under Codex's own
-settings, when the app next opens the conversation, and turning the capability off leaves a goal it
-already set active as it is. Each rests on a measurement of one Codex version, and a failed or
-missing one is a warning the person confirmed rather than a refusal. The policy keys that can
-forbid them are what a cooperating installation obeys, not a lock.
+Codex. A goal set active is left for Codex itself to carry on, under Codex's own settings, when
+the app next opens the conversation - which no record shows yet: M2 found only that the app does
+not take such a goal up while it holds the conversation - and turning the capability off leaves a
+goal it already set active as it is. Each rests on a measurement of one Codex version, and a failed
+or missing one is a warning the person confirmed rather than a refusal. The policy keys that can
+forbid them are what a cooperating installation obeys, not a lock. And a measurement run by hand
+makes its calls into the conversation it names from an installed copy as from a source checkout;
+only its record is refused where there is no `docs/evidence/live/`.

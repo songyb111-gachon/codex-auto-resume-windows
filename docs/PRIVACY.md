@@ -4,9 +4,10 @@ Codex Auto Resume runs on your machine. It has no server, no account and no tele
 the watcher makes no outbound network request of its own.
 
 This page describes the standard edition. From v0.6.11 there is an advanced edition as well: it
-does everything described here and, only for a capability a person has turned on in the Dashboard,
-what [The advanced edition](#the-advanced-edition) adds. With none turned on, what it adds is
-little more than a word in the status saying which edition it is.
+does everything described here and, only for a capability a person has turned on, or while a
+person runs one of its measurements by hand, what [The advanced edition](#the-advanced-edition)
+adds. With none turned on and no measurement run, what it adds is little more than a word in the
+status saying which edition it is.
 
 It does cause network traffic, though, and that is worth stating up front rather than in a
 footnote. There are four kinds, and they are genuinely different:
@@ -700,20 +701,21 @@ language Windows lists on this machine; a language you choose is stored in
 ## The advanced edition
 
 From v0.6.11 there is a second edition, and this section is what it adds to everything above. Its
-capabilities are each off until a person turns one on in the Dashboard. With none on, and no
-measurement asked for, it runs nothing more and asks Codex for nothing more; it reads more only
-when its capabilities are listed or one is being turned on, and Codex's tools learn which edition
-it is and that none is on. It adds no network code: its package imports no networking module, which a test checks as it
-checks the standard edition's code (`tests/test_privacy_claims.py`), and what its capabilities ask
-of anything, they ask of the Codex already on this machine.
+capabilities are each off until a person turns one on, over the local bridge the Dashboard uses;
+this tree's window has no page for them yet. With none on, and no measurement asked for, it runs
+nothing more and asks Codex for nothing more; it reads more only when its capabilities are listed or
+one is being turned on, and Codex's tools learn which edition it is and that none is on. It adds no
+network code: its package imports no networking module, which a test checks as it checks the
+standard edition's code (`tests/test_privacy_claims.py`), and what its capabilities ask of anything,
+they ask of the Codex already on this machine.
 
 - **What it reads.** Three values an administrator may set under
   `Software\Policies\CodexAutoResume`, in `HKEY_LOCAL_MACHINE` and `HKEY_CURRENT_USER` -
   `ForbidAdvanced`, `ForceShadow` and `AllowedCapabilities` - read and never written: when the
-  capabilities are listed, in the Dashboard or by `list_advanced_capabilities`, when one is being
-  turned on, and at each look while one is on or watched. While the goal continuation is on, from Codex's
-  goals database, opened read-only: which goal a conversation has, its status and when it changed.
-  The goal's words are never selected.
+  capabilities are listed, over that bridge or by `list_advanced_capabilities`, when one is being
+  turned on, and at each look while one is on or watched. While the goal continuation is on or
+  watched, from Codex's goals database, opened read-only: which goal a conversation has, its status
+  and when it changed. The goal's words are never selected.
 - **What it runs.** While start with Codex is on, when Codex starts the plugin's MCP server and
   Codex's job would end what the server starts: one constant PowerShell script, by its full path,
   that asks WMI (`Win32_Process.Create`) to start this installation's own launcher, windowless, and
@@ -724,10 +726,11 @@ of anything, they ask of the Codex already on this machine.
   pinned ChatGPT address - that call, after `initialize`, `thread/queue/add` (the continuation's
   words, under a client id derived from the interruption) and `thread/goal/set` (a goal's status),
   and nothing else.
-- **What reaches OpenAI.** Nothing new: the resumed turn still runs in your Codex desktop app. A
-  marker-free continuation arrives without the `[codex-auto-resume:…]` marker, and Codex keeps the
-  client id on the message. A goal set active is carried on by Codex when the app next opens the
-  conversation, under your own Codex settings.
+- **What reaches OpenAI.** Nothing new from a capability: the resumed turn still runs in your
+  Codex desktop app. A marker-free continuation arrives without the `[codex-auto-resume:…]` marker,
+  and Codex keeps the client id on the message. A goal set active is left for Codex to carry on when
+  the app next opens the conversation, under your own Codex settings. A measurement is the
+  exception, below.
 - **What it stores.** `config/advanced/advanced.sqlite`, made only when something is first turned
   on or changed: each capability's state, since when, from which surface and why, the statement
   revision and the Codex version it was turned on for, and the warnings confirmed; each unit a
@@ -740,10 +743,17 @@ of anything, they ask of the Codex already on this machine.
   [When you use it from Codex](#when-you-use-it-from-codex).
 - **Measurements.** The harness that measures whether a capability's route can work on this Codex
   (`measure`) is in the edition's archive and runs only when a person asks for it over the
-  Dashboard's bridge, and on a conversation they name where it needs one. Each run opens one app
-  server session limited to the methods that measurement declares. It writes a record only where a
-  source checkout's `docs/evidence/live/` is - an installed copy has none - and a record holds
-  booleans, counts, closed words and ids as aliases, never a path or a conversation's text.
+  Dashboard's bridge, whether or not any capability is on, and on a conversation they name where it
+  needs one. Each run opens one app server session limited to the methods that measurement
+  declares, and some of them send the conversation words this product wrote, which then reach
+  OpenAI through Codex, under your account, as any turn does: M6 starts a model turn there itself,
+  asking Codex to run `whoami`; M2b and M7 queue *Reply with the single word: ok.* and `/compact`,
+  which the app runs as a turn once it takes them; M2 and M2b set the conversation's goal active,
+  which Codex may then carry on. MA reads the account's state from Codex, and keeps only that it
+  could. A record is written only where a source checkout's `docs/evidence/live/` is, and holds
+  booleans, counts, closed words and ids as aliases, never a path or a conversation's text. An
+  installed copy has no such folder, and there the record is refused only after the calls were
+  made, so run a measurement only on a throwaway conversation.
 
 ## Third parties
 

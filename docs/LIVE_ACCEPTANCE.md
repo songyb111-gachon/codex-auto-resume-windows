@@ -686,6 +686,29 @@ Between step 13 and step 14, change the installation step 13 left to the advance
 checks below, and change it back before step 14, so that steps 14 and 15 run on the standard
 edition as written.
 
+**Turning a capability on, by hand.** This tree's window has no page for the advanced edition yet
+(`advanced/gui/window.sources` lists no source), so a capability is turned on by writing, by hand,
+the request such a page would make on the bridge the Dashboard uses. In PowerShell, in the
+installation folder (by default `%USERPROFILE%\.codex-auto-resume`), start that bridge as the
+Dashboard does:
+
+```powershell
+.\runtime\python.exe -c "import sys;sys.path.insert(0,sys.argv[1]);from codex_auto_resume.controlcli import main;sys.exit(main(sys.argv[2:]))" app\src serve
+```
+
+Then type one request per line; each reply is one line. `{"id": 1, "command": "advanced-list",
+"argument": {}}` lists the capabilities: note the one you want by its `id`, its `revision` and
+`warnings`, and the list's `generation` and `engine_version`. `{"id": 2, "command":
+"advanced-statement", "argument": {"capability": "start_with_codex"}}` returns its statement: read
+every field and every warning, since the next request says you did. Then `{"id": 3, "command":
+"advanced-arm", "argument": {"capability": "start_with_codex", "state": "armed", "revision": 1,
+"generation": 0, "engine_version": "codex-cli 0.158.0", "warnings": []}}`, with the revision,
+generation, Codex version (a string, or `null`) and warnings exactly as listed - the values here are
+only an example. A reply with `"done": false` names what refused it and changed nothing; list again
+and repeat. `advanced-disarm` with the capability, or `advanced-disarm-all` with an empty argument,
+turns it off. End the bridge with Ctrl+Z and Enter. The ids are `start_with_codex`,
+`marker_free_continuation` and `goal_continuation`.
+
 | Check | Do it during | Where it is written | Result |
 | --- | --- | --- | --- |
 | The edition change, standard to advanced and back | After step 13 | `upgrade-keeps-decisions` | not run |
@@ -703,38 +726,39 @@ and pending recoveries are what they were; after the change to advanced the stat
 advanced edition with nothing on, and every capability is off; after the change back the status has
 no edition line and the program holds no advanced package.
 
-**Start with Codex surviving Codex closing.** Turn *start with Codex* on in the Dashboard, after
-reading its statement and confirming any warning it shows. Stop the watcher, quit the ChatGPT/Codex
+**Start with Codex surviving Codex closing.** Turn `start_with_codex` on, as above, after reading
+its statement and confirming any warning it shows. Stop the watcher, quit the ChatGPT/Codex
 app completely, and start it again. Then close the app once more. *A pass:* a watcher starts when
 Codex starts - `logs\codex-start.log` gains a line that says it was started, through WMI where
 Codex's job would have ended it - and it is still running, with its icon, after the app is closed.
 Then stop the watcher, turn the capability off and start the app again: no watcher starts, and the
 new line says it is off.
 
-**The marker-free continuation.** Turn it on in the Dashboard, then induce a transient
-interruption in a throwaway conversation as step 4 describes, with the conversation loaded, and let
-the schedule come round. *A pass:* the continuation arrives in that conversation alone and without
-the `[codex-auto-resume:…]` marker; the record is followed to the turn it started and given an
-outcome, as steps 6 and 7 describe; nothing is sent twice. Turn it off afterwards, and confirm the
-next continuation carries the marker again.
+**The marker-free continuation.** Turn `marker_free_continuation` on, as above, then induce a
+transient interruption in a throwaway conversation as step 4 describes, with the conversation
+loaded, and let the schedule come round. *A pass:* the continuation arrives in that conversation
+alone and without the `[codex-auto-resume:…]` marker; the record is followed to the turn it started
+and given an outcome, as steps 6 and 7 describe; nothing is sent twice. Turn it off afterwards, and
+confirm the next continuation carries the marker again.
 
 **The goal continuation.** It acts only on a usage limit, which cannot be summoned, so this check
-waits for one to happen in a throwaway conversation that has a goal. Turn it on in the Dashboard.
-When the limit comes, restart the app and leave that conversation unopened, so that the app does
-not hold it, and wait past the reset; then open the conversation. *A pass:* Codex carries the goal
-on as the conversation opens, that turn supersedes the record, and no continuation was queued for
-it. If no usage limit came, write *not reached*.
+waits for one to happen in a throwaway conversation that has a goal. Turn `goal_continuation` on, as
+above. When the limit comes, restart the app and leave that conversation unopened, so that the app
+does not hold it, and wait past the reset; then open the conversation. *A pass:* Codex carries the
+goal on as the conversation opens, that turn supersedes the record, and no continuation was queued
+for it. If no usage limit came, write *not reached*.
 
 **M2b.** The measurement writes its record only into a source checkout's `docs/evidence/live/` - an
-installed copy has none, and the harness says so rather than write anywhere else - so this one runs
-from a checkout of the release being accepted, over the advanced edition's long-lived bridge, against
-the Codex installed on this machine. On a throwaway conversation with a goal, which the app holds
-open, let the goal pause - a usage limit, or pausing it by hand - then run `measure m2b` with that
-conversation's id, and watch the conversation. Record what you saw with `measure-verdict m2b`, as
-the harness asks: `pass as_expected`, `fail not_as_expected` where the turn did not run, or
-`fail partial` where it ran and the goal did not carry on. *A pass:* the queued turn ran, and the
-goal stayed active and carried on after it. Until M2b passes for a Codex version, the goal
-continuation leaves a conversation the app holds to the standard continuation.
+installed copy has none, and the harness says so rather than write anywhere else, though only after
+it has made every call - so this one runs from a checkout of the release being accepted, over the
+advanced edition's long-lived bridge, against the Codex installed on this machine. On a throwaway
+conversation with a goal, which the app holds open, let the goal pause - a usage limit, or pausing
+it by hand - then run `measure m2b` with that conversation's id, and watch the conversation. Record
+what you saw with `measure-verdict m2b`, as the harness asks: `pass as_expected`, `fail
+not_as_expected` where the turn did not run, or `fail partial` where it ran and the goal did not
+carry on. *A pass:* the queued turn ran, and the goal stayed active and carried on after it. Until
+M2b passes for a Codex version, the goal continuation leaves a conversation the app holds to the
+standard continuation.
 
 ## What this procedure does not prove
 

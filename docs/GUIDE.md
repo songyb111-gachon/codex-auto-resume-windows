@@ -447,12 +447,15 @@ repository and with one version. The **standard** edition is the one this guide 
 every one of the project's standards - what [Safety model](#safety-model) and [Privacy](#privacy)
 promise among them - and what it gains keeps them too, each addition off, or doing what the release
 before it did, until you change it. The **advanced** edition is the standard one plus capabilities
-that break one of those standards on purpose. Each says which it breaks, is off until you turn it
-on in the Dashboard after reading that, and turns itself off again when what you agreed to stops
-being true. Their code is left out of the standard edition's archive, and `build/edition_audit.py`
-proves from the archive's own bytes, in every release build, that none of it is there. An
-installation updates within its edition; moving to the other is a reinstall. The
-[roadmap](ROADMAP.md) says what each has, and what is still to come.
+that break one of those standards on purpose. Each says which it breaks, is off until you turn it on
+after reading that, and turns itself off again when what you agreed to stops being true. Turning one
+on is a request on the local bridge the Dashboard uses; the window has no page for it yet, so for
+now that request is written by hand, as
+[LIVE_ACCEPTANCE.md](LIVE_ACCEPTANCE.md#the-v0611-checklist-per-edition) shows. Their code is left
+out of the standard edition's archive, and `build/edition_audit.py` proves from the archive's own
+bytes, in every release build, that none of it is there. An installation updates within its edition;
+moving to the other is a reinstall. The [roadmap](ROADMAP.md) says what each has, and what is still
+to come.
 
 The advanced edition's state is the one exception to *a second state database*: which capability is
 on, what each has spent and what it did are kept in `config/advanced/advanced.sqlite`, apart from

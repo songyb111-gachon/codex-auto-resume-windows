@@ -453,8 +453,9 @@ to the standard edition. The final **v0.6.11** is the advanced edition's first c
 what came with them.
 
 The plan had four more stages of capabilities after the first, each to be published as a numbered
-beta. On 2026-09-28 the owner found that too many steps before a release, so v0.6.11 goes out
-with what is finished, and the capabilities those stages held move, whole, to v0.6.12, below.
+beta. On 2026-09-28 the owner judged that this left too many steps before a release, so v0.6.11
+goes out with what is finished, and the capabilities those stages held move, whole, to v0.6.12,
+below.
 
 ### v0.6.11-alpha ✅ — The ground both editions stand on (a pre-release)
 
@@ -476,8 +477,9 @@ asked for one, ahead of the final that brings the advanced edition's capabilitie
 
 What the final adds to the two pre-releases:
 
-- **Three capabilities in the advanced edition**, each off until a person turns it on in the
-  Dashboard after reading what it does and which standards it departs from
+- **Three capabilities in the advanced edition**, each off until a person turns it on, after
+  reading what it does and which standards it departs from, over the local bridge the Dashboard
+  uses - the window has no page for them in this tree yet
   (`advanced/src/codex_auto_resume_advanced/registry.py`):
   - **Start with Codex, through WMI.** Codex ends what its plugins start (v0.6.9, above). A watcher
     that WMI starts has WMI's own host for a parent, outside Codex's job, so closing Codex does not
@@ -487,7 +489,9 @@ What the final adds to the two pre-releases:
     that id alone (measurement M7). A send it cannot prove is held, never sent again.
   - **Goal continuation.** For a usage limit in a conversation the app does not hold, the goal the
     limit paused is set active again through the app server - an existing goal only, never its
-    words - and Codex carries it on when the app next opens the conversation (measurement M2).
+    words - so that Codex carries it on when the app next opens the conversation. That is not
+    measured yet: M2 found only that the app does not take such a goal up while it holds the
+    conversation, which is why it acts where the app does not.
 - **A warning, not a refusal.** A measurement a capability rests on that failed or was never made
   for the Codex in force, or a compatibility grade of Failed here, Incompatible or Unknown, is a
   warning in its statement that turning it on confirms. Only an administrator's policy still
@@ -497,12 +501,16 @@ What the final adds to the two pre-releases:
   rule for when a stage is an alpha and when a beta ([CONTRIBUTING.md](CONTRIBUTING.md)).
 - **The update check offers a pre-release.** *Check for updates* also reads this repository's list
   of releases, and offers a pre-release newer than both the installed version and the latest
-  release, installed only if you say yes. The owner amended two standards for it, C5 and I12.
+  release, installed only if you say yes. The owner amended two of the project's standards for it:
+  C5, under which the update check asked for the latest release alone and took only a plain
+  version, and I12, under which an update never went to a pre-release.
 - **A setup program per edition.** Each release also carries `CodexAutoResume-Setup-v<version>.exe`
   and `CodexAutoResume-Advanced-Setup-v<version>.exe`: one file holding its edition's archive, which
   runs that archive's own `Install.cmd`, with nothing to unzip.
-- **Interface work built beside it:** the edition shown beside the version, a version and edition
-  picker in the Dashboard, the Careful style removed, and Custom values and Unlimited beside presets.
+- **Interface work being built beside it**, on a branch of its own and not in this tree yet, and in
+  the final only if it is finished in time: the edition shown beside the version, a version and
+  edition picker in the Dashboard, the Careful style folded into Detailed, and Custom values and
+  Unlimited beside presets.
 
 v0.6.11 and v0.6.12 go further than every release so far. Together they are planned to offer,
 aggressively, as many capabilities as any comparable program does, and more: before they were
