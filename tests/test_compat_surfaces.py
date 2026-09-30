@@ -28,9 +28,13 @@ from codex_auto_resume import (compat, compatio, config, control, controlcli, di
                                mcpserver, settings, windows)
 
 ROOT = Path(__file__).resolve().parents[1]
+# Every document these tests import is newer than the bundled baseline, whatever sequence the
+# data on main has reached: a literal would turn into a rollback the day the data passed it.
+BASE = compatio.load_bundled()[0]["sequence"]
 
 
-def a_document(sequence=5, **extra):
+def a_document(sequence=None, **extra):
+    sequence = BASE + 1 if sequence is None else sequence
     value = {"format": compat.FORMAT, "sequence": sequence, "published_at": "2026-09-18T00:00:00Z",
              "expires_at": "2027-06-01T00:00:00Z", "min_product": "0.6.4",
              "requires_signature": False, "engines": [], "advisories": []}
@@ -164,7 +168,7 @@ class BridgeTests(unittest.TestCase):
         reply = json.loads(out.getvalue())
         self.assertEqual(code, 0)
         self.assertEqual(reply["result"]["imported"], True)
-        self.assertEqual(reply["result"]["sequence"], 5)
+        self.assertEqual(reply["result"]["sequence"], BASE + 1)
         self.assertTrue(self.fixture.paths.compat_cache_file.is_file())
 
     def test_a_refused_import_is_an_answer_with_a_code(self):
@@ -235,7 +239,7 @@ class CommandLineTests(unittest.TestCase):
         download.write_text(json.dumps(a_document()), encoding="utf-8")
         code, out = self.cli("compat", "--import", str(download))
         self.assertEqual(code, 0)
-        self.assertIn("imported registry data #5", out)
+        self.assertIn("imported registry data #%d" % (BASE + 1), out)
         download.write_text("{}", encoding="utf-8")
         code, out = self.cli("compat", "--import", str(download))
         self.assertEqual(code, 1)
@@ -317,7 +321,7 @@ class CommandLineTests(unittest.TestCase):
     def import_verified(self):
         claim = {"state": "VERIFIED", "evidence": ["docs/evidence/loaded-thread-delivery.json"]}
         download = Path(self.fixture.folder.name) / "verified.json"
-        download.write_text(json.dumps(a_document(9, engines=[{
+        download.write_text(json.dumps(a_document(BASE + 5, engines=[{
             "version": "codex-cli 0.155.0",
             "capabilities": {"engine_present": claim, "exact_thread_recovery": claim}}])),
             encoding="utf-8")
@@ -345,7 +349,7 @@ class CommandLineTests(unittest.TestCase):
     def test_an_advisory_is_named_on_the_engine_line_too(self):
         from codex_auto_resume import startup
         download = Path(self.fixture.folder.name) / "advisory.json"
-        download.write_text(json.dumps(a_document(9, advisories=[{
+        download.write_text(json.dumps(a_document(BASE + 5, advisories=[{
             "id": "CAR-2026-0100", "match": {"version_gte": "0.0.0"}, "state": "INCOMPATIBLE",
             "capabilities": ["exact_thread_recovery"], "reason": "queue_interface_changed"}])),
             encoding="utf-8")
