@@ -139,10 +139,11 @@ account is under *Rejected*.
 ### Rejected — a deliberate choice, not an omission
 
 From v0.6.11 there are two editions, and a refusal here is the standard edition's: it keeps every
-one. The advanced edition builds what they ruled out, each capability off until a person turns it
-on, over the local bridge the Dashboard uses, after reading which of the standard edition's rules it
-breaks - except what both editions refuse. The middle column is what the advanced edition offers
-today; what it is still to build is under *Deferred*, below.
+one. The advanced edition builds what they ruled out, each capability off until a person turns it on
+in the Dashboard, after reading which of the standard edition's rules it breaks - except what both
+editions refuse. The middle column is what the advanced edition offers today; what it is still to
+build is under *Deferred*, below. Those rules are listed by id in [STANDARDS.md](STANDARDS.md), and
+[EDITIONS.md](EDITIONS.md) says what each edition is.
 
 | Feature | The standard edition refuses | The advanced edition offers, opt-in | Both refuse |
 | --- | --- | --- | --- |

@@ -686,28 +686,12 @@ Between step 13 and step 14, change the installation step 13 left to the advance
 checks below, and change it back before step 14, so that steps 14 and 15 run on the standard
 edition as written.
 
-**Turning a capability on, by hand.** This tree's window has no page for the advanced edition yet
-(`advanced/gui/window.sources` lists no source), so a capability is turned on by writing, by hand,
-the request such a page would make on the bridge the Dashboard uses. In PowerShell, in the
-installation folder (by default `%USERPROFILE%\.codex-auto-resume`), start that bridge as the
-Dashboard does:
-
-```powershell
-.\runtime\python.exe -c "import sys;sys.path.insert(0,sys.argv[1]);from codex_auto_resume.controlcli import main;sys.exit(main(sys.argv[2:]))" app\src serve
-```
-
-Then type one request per line; each reply is one line. `{"id": 1, "command": "advanced-list",
-"argument": {}}` lists the capabilities: note the one you want by its `id`, its `revision` and
-`warnings`, and the list's `generation` and `engine_version`. `{"id": 2, "command":
-"advanced-statement", "argument": {"capability": "start_with_codex"}}` returns its statement: read
-every field and every warning, since the next request says you did. Then `{"id": 3, "command":
-"advanced-arm", "argument": {"capability": "start_with_codex", "state": "armed", "revision": 1,
-"generation": 0, "engine_version": "codex-cli 0.158.0", "warnings": []}}`, with the revision,
-generation, Codex version (a string, or `null`) and warnings exactly as listed - the values here are
-only an example. A reply with `"done": false` names what refused it and changed nothing; list again
-and repeat. `advanced-disarm` with the capability, or `advanced-disarm-all` with an empty argument,
-turns it off. End the bridge with Ctrl+Z and Enter. The ids are `start_with_codex`,
-`marker_free_continuation` and `goal_continuation`.
+**Turning a capability on.** In the Dashboard, open **Advanced features**, the last tab after
+Settings, and choose the capability: Start with Codex, Marker-free continuation or Goal continuation.
+Read its statement and every warning it shows, since turning it on says you did, then choose **Turn
+on** and answer yes. If the page says something changed, it shows the capability as it now stands:
+read it again and choose again. **Turn off** on the same capability, or **Turn every advanced
+feature off**, turns it off.
 
 | Check | Do it during | Where it is written | Result |
 | --- | --- | --- | --- |
@@ -726,7 +710,7 @@ and pending recoveries are what they were; after the change to advanced the stat
 advanced edition with nothing on, and every capability is off; after the change back the status has
 no edition line and the program holds no advanced package.
 
-**Start with Codex surviving Codex closing.** Turn `start_with_codex` on, as above, after reading
+**Start with Codex surviving Codex closing.** Turn **Start with Codex** on, as above, after reading
 its statement and confirming any warning it shows. Stop the watcher, quit the ChatGPT/Codex
 app completely, and start it again. Then close the app once more. *A pass:* a watcher starts when
 Codex starts - `logs\codex-start.log` gains a line that says it was started, through WMI where
@@ -734,7 +718,7 @@ Codex's job would have ended it - and it is still running, with its icon, after 
 Then stop the watcher, turn the capability off and start the app again: no watcher starts, and the
 new line says it is off.
 
-**The marker-free continuation.** Turn `marker_free_continuation` on, as above, then induce a
+**The marker-free continuation.** Turn **Marker-free continuation** on, as above, then induce a
 transient interruption in a throwaway conversation as step 4 describes, with the conversation
 loaded, and let the schedule come round. *A pass:* the continuation arrives in that conversation
 alone and without the `[codex-auto-resume:…]` marker; the record is followed to the turn it started
@@ -742,8 +726,8 @@ and given an outcome, as steps 6 and 7 describe; nothing is sent twice. Turn it 
 confirm the next continuation carries the marker again.
 
 **The goal continuation.** It acts only on a usage limit, which cannot be summoned, so this check
-waits for one to happen in a throwaway conversation that has a goal. Turn `goal_continuation` on, as
-above. When the limit comes, restart the app and leave that conversation unopened, so that the app
+waits for one to happen in a throwaway conversation that has a goal. Turn **Goal continuation** on,
+as above. When the limit comes, restart the app and leave that conversation unopened, so that the app
 does not hold it, and wait past the reset; then open the conversation. *A pass:* Codex carries the
 goal on as the conversation opens, that turn supersedes the record, and no continuation was queued
 for it. If no usage limit came, write *not reached*.

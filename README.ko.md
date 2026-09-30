@@ -169,6 +169,10 @@ Codex 안의 패널입니다. Codex 창을 찍은 사진이 아니라, 플러그
 - 플러그인 계층, 설치 스크립트가 가져오고 확인하는 것, 업데이트와 제거: [docs/PLUGIN.ko.md](docs/PLUGIN.ko.md)
 - 같은 영역의 다른 프로젝트들, 그리고 각각이 이 제품보다 잘하는 점: [docs/COMPARISON.ko.md](docs/COMPARISON.ko.md)
 - 앞으로의 방향(약속이 아니라 계획): [docs/ROADMAP.ko.md](docs/ROADMAP.ko.md)
+- 표준판과 고급판이 각각 무엇인지, 고급 기능 하나하나가 무엇을 하고 무엇을 감수하는지, 판을 고르고 바꾸는 방법:
+  [EDITIONS.ko.md](docs/EDITIONS.ko.md)
+- 이 제품이 지키는 모든 기준을 id별로, 저마다 어떻게 지켜지는지와 그것을 지키는 테스트와 함께:
+  [STANDARDS.ko.md](docs/STANDARDS.ko.md)
 - 무엇을 읽고, 무엇을 저장하고, 무엇을 어디로 보내는지: [PRIVACY.ko.md](docs/PRIVACY.ko.md)
 - 보안 모델과 취약점 신고: [SECURITY.ko.md](docs/SECURITY.ko.md)
 - 문제 종류별로 어디에 신고하는지, 그리고 공개 이슈에 붙여넣으면 안 되는 것: [SUPPORT.ko.md](docs/SUPPORT.ko.md)
