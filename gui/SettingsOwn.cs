@@ -462,15 +462,24 @@ namespace CodexAutoResume
                 {
                     dialog.TopLevel = false;
                     string where = "custom value " + Str(field, "name");
+                    // Unless the screen this runs on is smaller than the dialog: no form is ever larger than the largest
+                    // window the screen allows (SystemInformation.MaxWindowTrackSize), so Windows has made it smaller than
+                    // what it holds was laid out for - 1980 wide at 200% and the largest text size, on a screen 1024 wide.
+                    // The window opens only at a text size whose dialogs its screen holds (TextScale.Fitting).
+                    Size most = SystemInformation.MaxWindowTrackSize;
+                    bool whole = dialog.Width < most.Width && dialog.Height < most.Height;
                     Materialise(dialog);
                     dialog.PerformLayout();
-                    Walk(dialog, where, findings);
-                    // And with the refusal said above it, the longest the line gets.
-                    ownHint.Text = S("own.refused", "This value can't be used. {hint}", "hint", OwnHint(custom));
-                    dialog.PerformLayout();
-                    int needs = dialog.Controls[0].GetPreferredSize(new Size(dialog.ClientSize.Width, 0)).Height;
-                    int room = dialog.ClientSize.Height - dialog.Controls[1].Height;
-                    if (needs > room) findings.Add(where + " :: the refusal needs " + needs + " high, the dialog gives " + room);
+                    if (whole)
+                    {
+                        Walk(dialog, where, findings);
+                        // And with the refusal said above it, the longest the line gets.
+                        ownHint.Text = S("own.refused", "This value can't be used. {hint}", "hint", OwnHint(custom));
+                        dialog.PerformLayout();
+                        int needs = dialog.Controls[0].GetPreferredSize(new Size(dialog.ClientSize.Width, 0)).Height;
+                        int room = dialog.ClientSize.Height - dialog.Controls[1].Height;
+                        if (needs > room) findings.Add(where + " :: the refusal needs " + needs + " high, the dialog gives " + room);
+                    }
                     AuditSpoken(where, dialog, findings);
                 }
             }
