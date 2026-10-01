@@ -622,7 +622,7 @@ namespace CodexAutoResume
             TableLayoutPanel health = MakeCard(S("diag.health", "Health"));
             health.Margin = GridGap(0, false);
             TableLayoutPanel facts = Facts(health);
-            diagVersion = Fact(facts, S("diag.version", "Version"));
+            diagVersion = Fact(facts, S("diag.version", "Version"), new VersionLabel());
             diagWatcher = Fact(facts, S("diag.watcher", "Watcher"));
             diagLastCheck = Fact(facts, S("diag.last_check", "Last check"));
             diagEngine = Fact(facts, S("diag.engine", "Codex engine"));
