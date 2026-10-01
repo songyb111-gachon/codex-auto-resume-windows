@@ -13,11 +13,22 @@
 Codex stops mid-task and tells you to try again at 6:34 AM. You are asleep at 6:34 AM, and in
 the morning the task is exactly where it stopped.
 
-Codex Auto Resume waits out the reset, checks that continuing is genuinely safe, and then
-continues **that exact conversation**, by sending one continuation message through the official
-`codex queue` command. It also recovers temporary rate limits, network failures, timeouts, server
-errors and interrupted streams - but only a failure it can name, and only where it is safe to retry.
-**It deliberately does not retry everything.**
+**Typical use:** you leave the Codex desktop app on Windows working overnight, or on a long task
+while you are away, and it hits a usage limit - the "5-hour limit", as many people call it, or the
+weekly one. Once the limit resets, Codex Auto Resume continues the task in that same conversation.
+As long as the PC is awake and the app still has that conversation open, nobody needs to be there
+to type "continue".
+
+Codex Auto Resume waits for the reset time Codex itself reports, not a fixed number of hours,
+checks that continuing is genuinely safe, and then continues **that exact conversation** by sending
+one continuation message through the official `codex queue` command. It finds the conversation by
+its thread UUID - never a guess with `--last` or "the most recent session" - and never types into
+the Codex window.
+
+It also recovers temporary rate limits (HTTP 429), network failures, timeouts, server errors and
+interrupted streams - but only a failure it can name, and only where it is safe to retry.
+**It deliberately does not retry everything**, and it fails closed: when it is unsure, it waits or
+stops rather than sends, and it never resends a message that may already have been delivered.
 
 This page is the short version. **[The full guide](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/GUIDE.md)** has everything else: every
 setting, the notification, the command line, the safety model and privacy in full.

@@ -9,7 +9,8 @@ Everything about Codex Auto Resume in one place. The [README](../README.md) is t
 Codex stops mid-task and tells you to try again at 6:34 AM. You are asleep at 6:34 AM, and in
 the morning the task is exactly where it stopped.
 
-Codex Auto Resume waits out the reset, checks that continuing is genuinely safe, and then
+Codex Auto Resume waits until the reset time Codex reports for your usage window (a 5-hour or a
+weekly one, for example), checks that continuing is genuinely safe, and then
 continues **that exact conversation** — so you come back to finished work instead of a stopped
 task. It also recovers temporary rate limits, network failures, timeouts, server errors and
 interrupted streams, but only where the failure is one it can name and is safe to retry.
