@@ -13,11 +13,19 @@
 Codex stops mid-task and tells you to try again at 6:34 AM. You are asleep at 6:34 AM, and in
 the morning the task is exactly where it stopped.
 
-Codex Auto Resume waits out the reset, checks that continuing is genuinely safe, and then
-continues **that exact conversation**, by sending one continuation message through the official
-`codex queue` command. It also recovers temporary rate limits, network failures, timeouts, server
-errors and interrupted streams - but only a failure it can name, and only where it is safe to retry.
-**It deliberately does not retry everything.**
+**Typical use:** the Codex desktop app on Windows, left working overnight or on a long task, hits
+a usage limit - the "5-hour limit", as many people call it, or the weekly one - and should carry
+on in the same conversation once the limit resets.
+
+Codex Auto Resume waits for the reset time Codex itself reports, not a fixed number of hours,
+checks that continuing is genuinely safe, and sends one continuation message to **that exact
+conversation** through the official `codex queue` command - found by its thread UUID, never
+guessed with `--last`, and never by typing into the Codex window.
+
+It also recovers temporary rate limits (HTTP 429), network failures, timeouts, server errors and
+interrupted streams - but only a failure it can name, and only where it is safe to retry.
+**It deliberately does not retry everything**, and it fails closed: when unsure it waits rather
+than sends, and never resends a message that may already have been delivered.
 
 This page is the short version. **[The full guide](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/GUIDE.md)** has everything else: every
 setting, the notification, the command line, the safety model and privacy in full.
@@ -39,25 +47,6 @@ setting, the notification, the command line, the safety model and privacy in ful
 
 **Windows 10/11. No Python needed. No administrator rights.**
 
-### With the setup program
-
-Download `CodexAutoResume-Setup-vX.Y.Z.exe` from the
-[latest release](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest)
-and double-click it. Setup programs are published from v0.6.11 on: while the latest release is older
-than that, only the v0.6.11 pre-releases on the [releases page](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases) carry one. There is nothing to
-unzip: it carries the release archive below, byte for byte,
-checks it, runs that archive's own `Install.cmd` - the same installer, asking the same questions -
-and removes what it unpacked.
-
-It is not code-signed, so Windows may say *Windows protected your PC*: choose **More info**, then
-**Run anyway**. That warning means the file is unsigned and new to Microsoft, not that it failed a
-check. To check it is the file this project published, compare it with the `.sha256` file beside it,
-or use the [GitHub CLI](https://cli.github.com/):
-
-```powershell
-gh attestation verify .\CodexAutoResume-Setup-vX.Y.Z.exe --repo songyb111-gachon/codex-auto-resume-windows
-```
-
 ### From Codex (recommended)
 
 Add the plugin, then ask Codex to **set up auto resume**.
@@ -67,10 +56,20 @@ codex plugin marketplace add songyb111-gachon/codex-auto-resume-windows
 codex plugin add codex-auto-resume@codex-auto-resume-windows
 ```
 
-The setup script downloads the matching release from this repository over HTTPS, checks its SHA-256
-against the digest recorded for that version in
+The plugin's setup script downloads the matching release from this repository over HTTPS, checks
+its SHA-256 against the digest recorded for that version in
 [`scripts/release.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/scripts/release.json),
 and installs it for your Windows account only.
+
+### With the setup program
+
+Download `CodexAutoResume-Setup-vX.Y.Z.exe` from the
+[releases page](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases) (from the
+v0.6.11-beta.2 pre-release on) and double-click it. It carries the release archive below and
+runs its `Install.cmd`, so there is nothing to unzip. It is not code-signed: if Windows says
+*Windows protected your PC*, choose **More info**, then **Run anyway**.
+[docs/VERIFY.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/VERIFY.md#before-you-run-a-downloaded-setup-program)
+shows how to check it first.
 
 ### From the release archive
 
