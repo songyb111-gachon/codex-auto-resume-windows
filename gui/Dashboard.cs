@@ -73,9 +73,34 @@ namespace CodexAutoResume
 
         private int calls;
 
-        /// How many calls are on their way, on either bridge: a picture is taken only while none is
-        /// (SettingsForm.WatchForStill).
+        /// How many calls are on their way, on either bridge, and how many reads handed to Queue have not yet
+        /// handed their answer to the window: a picture is taken only while none is (SettingsForm.WatchForStill).
         internal int InFlight { get { return System.Threading.Volatile.Read(ref calls); } }
+
+        /// Runs `work` - a read on this bridge, and the BeginInvoke that hands its answer to the window - on a
+        /// worker, counted in InFlight from this moment, on the window's thread, until the work has returned. Call
+        /// alone counts a read only once a worker has started it: on a loaded machine one queued as the Preview's
+        /// timer stopped had not started a clock tick later, nothing said it was coming, and the window could say it
+        /// held still without its answer. The answer is posted before the count drops, and the window looks at the
+        /// count on a timer, whose message comes only after every posted one: the answer is applied first. A read
+        /// that sets a flag Settled reads before it is queued - refreshing, loadingCompat, busy - is counted by it.
+        internal void Queue(Action work)
+        {
+            System.Threading.Interlocked.Increment(ref calls);
+            try
+            {
+                System.Threading.ThreadPool.QueueUserWorkItem(delegate
+                {
+                    try { work(); }
+                    finally { System.Threading.Interlocked.Decrement(ref calls); }
+                });
+            }
+            catch (Exception)
+            {
+                System.Threading.Interlocked.Decrement(ref calls);
+                throw;
+            }
+        }
 
         internal Dictionary<string, object> Call(string command, string argument)
         {

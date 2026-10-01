@@ -2390,6 +2390,51 @@ class FasterRunTests(unittest.TestCase):
         for page in self.generator.WINDOW_PAGES:
             self.assertIn('"%s"' % page, window, page)
 
+    def test_every_read_the_window_queues_is_counted_from_the_moment_it_is_queued(self):
+        """Call counts a read only once a worker has started it. The Preview's - queued as its timer stopped - the
+        status line's, and Diagnostics' plugin copy and state folder set nothing Settled reads before they were
+        queued, so on a loaded machine whose worker started a clock tick late the window could say it held still
+        without their answers. They go through PersistentBridge.Queue, counted on the window's thread before they
+        are queued; every other read the window queues sets a flag Settled reads first."""
+        bridge = guiscan.type_body("PersistentBridge")
+        queue = guiscan._block(bridge, bridge.index("internal void Queue(Action work)"))
+        self.assertLess(queue.index("Interlocked.Increment(ref calls)"), queue.index("ThreadPool.QueueUserWorkItem("),
+                        "counted before a worker can take it")
+        self.assertRegex(queue, r"try \{ work\(\); \}\s*finally \{ System\.Threading\.Interlocked\.Decrement\(ref calls\); \}",
+                         "and until the work, which posts the answer, has returned")
+        for name in ("RunPreview", "RefreshStatusAsync", "LoadPluginCopy", "LoadStateAccess"):
+            body = guiscan.member_body("SettingsForm", name)
+            self.assertIn("bridge.Queue(delegate", body, name)
+            self.assertNotIn("QueueUserWorkItem", body, name)
+        # The flags, each set on the window's thread, and each one Settled reads.
+        flags = {"refreshing = true": "refreshing", "loadingCompat = true": "loadingCompat",
+                 "loadingStats = true": "loadingStats", "readingFailure = true": "readingFailure",
+                 "acknowledging = true": "acknowledging", "readingSettings = true": "readingSettings",
+                 "reopening = true": "reopening", "SetBusy(true)": "busy > 0"}
+        settled = guiscan.member_body("SettingsForm", "Settled")
+        for read in flags.values():
+            self.assertIn(read, settled)
+        self.assertIn("busy = Math.Max(0, busy + (on ? 1 : -1));", guiscan.member_body("SettingsForm", "SetBusy"))
+        # No picture reaches these: the constructor's queued work refreshes the cached words on disk, which the window
+        # does not show; a click starts the watcher; the per-conversation message and the log are dialogs of their own.
+        unreached = {"SettingsForm", "StartWatcher", "BuildConversationMessage", "BuildLogs"}
+        signature = re.compile(r"(?m)^ {8}(?:(?:%s) )*[\w<>\[\]\.\?]+(?:, [\w<>\[\]\.\?]+)* (\w+)\("
+                               % "|".join(guiscan.MODIFIERS))
+        queued = {}
+        for part in guiscan.parts_of("SettingsForm"):
+            for found in signature.finditer(part):
+                body = guiscan._block(part, found.start())
+                if "ThreadPool.QueueUserWorkItem(" in body:
+                    queued[found.group(1)] = body[:body.index("ThreadPool.QueueUserWorkItem(")]
+        self.assertLessEqual(unreached, set(queued))
+        self.assertGreaterEqual(len(set(queued) - unreached), 10, "the scan finds the window's reads")
+        for name, before in sorted(queued.items()):
+            if name in unreached:
+                continue
+            with self.subTest(name):
+                self.assertTrue(any(flag in before for flag in flags),
+                                name + " queues a read that nothing counts until a worker starts it")
+
     def test_as_many_windows_are_open_at_once_as_asked_and_one_more_waits_its_turn(self):
         """Twelve windows started together each took two minutes to answer; one alone took ten seconds. And a session
         crashed while several were captured, so one is the default and more are asked for (`--windows N`)."""
@@ -2896,6 +2941,125 @@ class PinnedClockTests(unittest.TestCase):
         self.assertIn(".ToLocalTime()", guiscan.member_body("SettingsForm", "OnTheClock"))
         self.assertNotIn("DateTime.Now.Date", window)
         self.assertIn("CODEX_AR_STILL_CLOCK=repr(WINDOW_CLOCK)", inspect.getsource(g.render_window))
+
+
+# PersistentBridge.Queue in the compiled window, on a bridge rooted where nothing is - no call is made on it. The pool is
+# filled first, as a loaded machine fills it, so the read waits for a worker: it is counted all the same.
+QUEUE_PROBE = r"""
+$ErrorActionPreference = 'Stop'
+Add-Type -TypeDefinition @'
+using System;
+using System.Reflection;
+using System.Threading;
+public static class Held {
+    public static readonly ManualResetEvent Pool = new ManualResetEvent(false);
+    public static readonly ManualResetEvent Release = new ManualResetEvent(false);
+    public static int Started;
+    public static int Last = -1;
+    // Every worker the pool may run, busy until Pool is set: nothing queued meanwhile can start.
+    public static bool Fill() {
+        int workers, ports;
+        ThreadPool.GetMaxThreads(out workers, out ports);
+        if (!ThreadPool.SetMaxThreads(Environment.ProcessorCount, ports)) return false;
+        for (int i = 0; i < Environment.ProcessorCount; i++) ThreadPool.QueueUserWorkItem(delegate { Pool.WaitOne(); });
+        DateTime deadline = DateTime.UtcNow.AddSeconds(60);
+        while (DateTime.UtcNow < deadline) {
+            int available, unused;
+            ThreadPool.GetAvailableThreads(out available, out unused);
+            if (available == 0) return true;
+            Thread.Sleep(20);
+        }
+        return false;
+    }
+    // A read's stand-in: starts, holds until Release, and reads the count as its last act - where a read posts its answer.
+    public static Action Work(object bridge) {
+        PropertyInfo inFlight = bridge.GetType().GetProperty("InFlight", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+        return delegate {
+            Interlocked.Increment(ref Started);
+            Release.WaitOne();
+            Last = (int)inFlight.GetValue(bridge, null);
+        };
+    }
+    public static bool Until(Func<bool> done) {
+        DateTime deadline = DateTime.UtcNow.AddSeconds(60);
+        while (!done()) { if (DateTime.UtcNow > deadline) return false; Thread.Sleep(10); }
+        return true;
+    }
+}
+'@
+$assembly = [Reflection.Assembly]::LoadFile($env:CAR_EXE)
+$instance = [Reflection.BindingFlags]'Instance,NonPublic,Public'
+$bridgeType = $assembly.GetType('CodexAutoResume.Bridge', $true)
+$persistentType = $assembly.GetType('CodexAutoResume.PersistentBridge', $true)
+$nowhere = [string](Join-Path $env:CAR_WORK 'nowhere')
+$once = $bridgeType.GetConstructors($instance)[0].Invoke([object[]]@($nowhere))
+$bridge = $persistentType.GetConstructors($instance)[0].Invoke([object[]]@($nowhere, $once))
+$queue = $persistentType.GetMethod('Queue', $instance)
+if (-not $queue) { throw 'PersistentBridge has no Queue' }
+$inFlight = $persistentType.GetProperty('InFlight', $instance)
+$out = @{}
+$out.before = [int]$inFlight.GetValue($bridge, $null)
+$out.full = [Held]::Fill()
+$null = $queue.Invoke($bridge, [object[]]@([Held]::Work($bridge)))
+$out.queued = [int]$inFlight.GetValue($bridge, $null)
+$out.startedWhileFull = [Held]::Started
+[void][Held]::Pool.Set()
+$out.started = [Held]::Until([Func[bool]]{ [Held]::Started -eq 1 })
+$out.running = [int]$inFlight.GetValue($bridge, $null)
+[void][Held]::Release.Set()
+$out.returned = [Held]::Until([Func[bool]]{ [int]$inFlight.GetValue($bridge, $null) -eq 0 })
+$out.after = [int]$inFlight.GetValue($bridge, $null)
+$out.last = [Held]::Last
+$out | ConvertTo-Json -Compress
+"""
+
+
+@unittest.skipUnless(os.name == "nt" and CSC.is_file() and POWERSHELL.is_file(), "needs the in-box compiler and PowerShell")
+class QueuedReadTests(unittest.TestCase):
+    """A read handed to PersistentBridge.Queue is on its way - InFlight says so - from the moment it is queued, on the
+    window's thread, even while every worker is busy and none has started it, and until its work, which posts the
+    answer, has returned. Counted only inside Call, a queued Preview was not yet on its way a clock tick later on a
+    loaded machine, and the window could say it held still without it (SettingsForm.WatchForStill)."""
+
+    @classmethod
+    def setUpClass(cls):
+        import subprocess
+        cls.folder = tempfile.TemporaryDirectory()
+        work = Path(cls.folder.name)
+        exe = work / "CodexAutoResumeSettings.exe"
+        subprocess.run([str(CSC), "/nologo", "/target:winexe", "/platform:x64", "/out:" + str(exe),
+                        "/reference:System.dll", "/reference:System.Drawing.dll", "/reference:System.Windows.Forms.dll",
+                        *[str(path) for path in guiscan.sources()]],
+                       check=True, capture_output=True, timeout=600)
+        probe = work / "queue.ps1"
+        probe.write_text(QUEUE_PROBE, encoding="utf-8")
+        cls.result = subprocess.run(
+            [str(POWERSHELL), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(probe)],
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600,
+            env=dict(os.environ, CAR_EXE=str(exe), CAR_WORK=str(work)))
+        cls.answer = (json.loads(cls.result.stdout)
+                      if cls.result.returncode == 0 and cls.result.stdout.strip() else {})
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.folder.cleanup()
+
+    def setUp(self):
+        if not self.answer:
+            self.fail("the probe did not run: " + (self.result.stderr or self.result.stdout)[-4000:])
+
+    def test_a_queued_read_is_counted_before_a_worker_takes_it(self):
+        self.assertEqual(self.answer["before"], 0)
+        self.assertTrue(self.answer["full"], "every worker of the pool is busy")
+        self.assertEqual(self.answer["startedWhileFull"], 0, "so no worker has started the read")
+        self.assertEqual(self.answer["queued"], 1, "and it is counted all the same")
+
+    def test_it_is_counted_until_its_work_has_posted_the_answer_and_returned(self):
+        self.assertTrue(self.answer["started"])
+        self.assertEqual(self.answer["running"], 1)
+        self.assertEqual(self.answer["last"], 1, "still counted at the work's last act, where a read posts its answer")
+        self.assertTrue(self.answer["returned"])
+        self.assertEqual(self.answer["after"], 0)
 
 
 if __name__ == "__main__":

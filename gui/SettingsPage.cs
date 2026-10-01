@@ -1159,8 +1159,9 @@ namespace CodexAutoResume
             int token = ++previewToken;
             string argument = payload.ToString();
             // Not CallAsync: a Preview is not an action, so it neither waits for one nor makes
-            // the window's buttons wait for it.
-            System.Threading.ThreadPool.QueueUserWorkItem(delegate
+            // the window's buttons wait for it. Counted from here (PersistentBridge.Queue): the timer
+            // that asked for it has stopped, and nothing else says a Preview is coming.
+            bridge.Queue(delegate
             {
                 Dictionary<string, object> reply = null;
                 try { reply = bridge.Call("preview-continuation", argument); }
@@ -1231,7 +1232,7 @@ namespace CodexAutoResume
         /// last word instead of racing the read for it.
         private void RefreshStatusAsync(Action after)
         {
-            System.Threading.ThreadPool.QueueUserWorkItem(delegate
+            bridge.Queue(delegate
             {
                 Dictionary<string, object> reply = null;
                 try { reply = bridge.Call("status", null); }

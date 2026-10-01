@@ -392,7 +392,7 @@ namespace CodexAutoResume
         private void LoadPluginCopy()
         {
             if (diagPlugin == null) return;
-            System.Threading.ThreadPool.QueueUserWorkItem(delegate
+            bridge.Queue(delegate
             {
                 Dictionary<string, object> reply;
                 try { reply = bridge.Call("plugin-copy", null); }
