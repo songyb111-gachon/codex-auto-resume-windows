@@ -686,6 +686,22 @@ class DocsTests(unittest.TestCase):
                 if not name.endswith(".ko.md"):
                     self.assertIn("v0.6.11", section, "the release the setup programs start with")
 
+    def test_the_recommended_route_comes_first(self):
+        """The owner, 2026-10-02: the recommended route belongs at the top. The setup program's route, new in
+        v0.6.11, had been put above it."""
+        installs = {"README.md": ("## Install", "### From Codex (recommended)"),
+                    "README.ko.md": ("## 설치", "### Codex에서 설치 (권장)"),
+                    "docs/GUIDE.md": ("## Install", "### From Codex (recommended)"),
+                    "docs/GUIDE.ko.md": ("## 설치", "### Codex에서 설치 (권장)")}
+        for name, (install, recommended) in installs.items():
+            if not (ROOT / name).is_file():
+                continue
+            with self.subTest(name):
+                text = (ROOT / name).read_text(encoding="utf-8")
+                start = text.index("\n%s\n" % install)
+                first = text.index("\n### ", start)
+                self.assertEqual(text[first + 1:first + 1 + len(recommended)], recommended)
+
 
 if __name__ == "__main__":
     unittest.main()
