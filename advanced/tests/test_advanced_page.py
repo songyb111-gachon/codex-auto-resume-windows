@@ -13,8 +13,9 @@ person's language; the open one shows its statement's five fields, its warnings,
 and its limits; Turn on and Watch first ask in the dialog with the statement and every warning, send
 exactly what the page showed - which the real bridge then accepts - and ask again, with what holds now,
 when the bridge says something changed; a refusal is told; Turn off and Turn every advanced feature off
-send theirs; the page is audited in every language at every scaling; and the standard window holds
-nothing of it.
+send theirs; the lowered hourly limit is one the real bridge takes; the list is read again after every
+action and when the snapshot's badge says it changed; the page is audited in every language at every
+scaling; and the standard window holds nothing of it.
 
 GUI test module: compiles real executables, so it runs on its own.
 
@@ -356,6 +357,18 @@ class PageTests(unittest.TestCase):
         return "en", {"script": script, "steps": steps}, {"listing": script["advanced-list"][0]["result"]}
 
     @classmethod
+    def scenario_followed(cls, bridge):
+        """Away from the page, a snapshot whose badge says nothing changed reads nothing, and one whose badge changed -
+        a capability turned on or off, here or anywhere - reads the list again; on the page, every snapshot does."""
+        script = cls.opening(bridge, "en")
+        steps = [{"do": "snapshot", "reply": snapshot()}, {"do": "snapshot", "reply": snapshot()}, {"do": "look"},
+                 {"do": "snapshot", "reply": snapshot()}, {"do": "look"},
+                 {"do": "snapshot", "reply": snapshot(on=1)}, {"do": "look"},
+                 {"do": "show"}, {"do": "look"},
+                 {"do": "snapshot", "reply": snapshot(on=1)}, {"do": "look"}]
+        return "en", {"script": script, "steps": steps}, {}
+
+    @classmethod
     def scenario_keys(cls, bridge):
         """Ctrl+Tab goes from Settings to this page and on to the Overview; Ctrl+Shift+Tab back."""
         script = cls.opening(bridge, "en")
@@ -538,6 +551,32 @@ class PageTests(unittest.TestCase):
                                                         "chosen": expected["listing"]["global_hourly"]})
         self.assertEqual(sent(result, "advanced-ceiling"),
                          [{"global_hourly": 5, "generation": expected["listing"]["generation"]}])
+
+    def test_the_hourly_request_is_one_the_real_bridge_takes(self):
+        with tempfile.TemporaryDirectory() as home:
+            bridge = Bridge(Path(home))
+            try:
+                (line,) = [line for line in self.of("scenario_hourly")[0]["sent"] if line.startswith("advanced-ceiling ")]
+                self.assertTrue(bridge.request(line)["result"]["done"])
+                self.assertEqual(bridge("advanced-list", {})["result"]["global_hourly"], 5)
+            finally:
+                bridge.close()
+
+    def test_the_list_is_read_again_when_the_snapshot_says_it_changed(self):
+        result, _ = self.of("scenario_followed")
+        commands = [line.split(" ", 1)[0] for line in result["sent"]]
+        counts = [int(look["requests"]) for look in result["looks"]]
+        read = ["advanced-list", "advanced-statement"]
+        # The words, the list and the statement once this edition answers; then, with the first badge seen, read again.
+        self.assertEqual(commands[:counts[0]], ["advanced-words"] + read + read)
+        # Away from the page, the same badge: nothing read.
+        self.assertEqual(counts[1], counts[0])
+        # Away from the page, a badge that changed: the list read again, and the open capability's statement.
+        self.assertEqual(commands[counts[1]:counts[2]], read)
+        # The tab pressed, and then on the page, each snapshot: read again.
+        self.assertEqual(commands[counts[2]:counts[3]], read)
+        self.assertEqual(commands[counts[3]:counts[4]], read)
+        self.assertEqual(result["page"], "advanced")
 
     def test_ctrl_tab_goes_from_settings_to_this_page_and_on(self):
         pages = [look["page"] for look in self.of("scenario_keys")[0]["looks"]]

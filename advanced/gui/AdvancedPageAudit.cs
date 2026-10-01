@@ -278,7 +278,7 @@ namespace CodexAutoResume
 
         /// What the page shows: its tab, the page on screen, each row's name and state as the list draws them, the
         /// capability open, the text of each of its cards in order - its heading first - what each button may do, the
-        /// note beside them and the hourly limit's choices.
+        /// note beside them, the number of requests made so far and the hourly limit's choices.
         private Dictionary<string, object> Look()
         {
             var look = new Dictionary<string, object>();
@@ -318,6 +318,8 @@ namespace CodexAutoResume
             }
             look["buttons"] = buttons;
             look["note"] = advancedNote == null ? null : advancedNote.Text;
+            // How many requests the page had made by then, so a test can tell which step made which.
+            look["requests"] = (double)advancedSent.Count;
             if (advancedHourly != null)
             {
                 var hourly = new Dictionary<string, object>();
