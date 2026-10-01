@@ -45,7 +45,8 @@ REFRESH_SECONDS = 5.0
 # The points whose answer, if it is not a restriction, leads to a send of the record it was
 # given - so the capability pays a unit for it at that record's claim. Which argument the record
 # is, at each.
-SENDING = {Point.GATES: 1, Point.TEXT: 0, Point.SENDER: 0, Point.SCHEDULE: 0, Point.OUTCOME: 0}
+SENDING = {Point.GATES: 1, Point.TEXT: 0, Point.SENDER: 0, Point.SCHEDULE: 0, Point.OUTCOME: 0,
+           Point.DELIVERY: 0, Point.UNLOADED: 0}
 # Journal lines written once per capability, point, answer and record in a process, not once a
 # poll; forgotten, all at once, past this many.
 NOTED_LIMIT = 4096
@@ -61,6 +62,8 @@ def _taken(point, answer) -> bool:
             return True
         if point == Point.SENDER:
             return callable(getattr(answer, "send", None))
+        if point == Point.UNLOADED:
+            return callable(getattr(answer, "resume", None))
     except Exception:                              # unhashable, refused, a `send` that raises
         return False
     return True                                    # the tick's answer is not read
@@ -247,7 +250,7 @@ class Runtime:
         from . import measure
         session_factory, backend = self._measure_session_factory, self._measure_backend
         if session_factory is None:
-            backend = backend if backend is not None else measure.live_backend()
+            backend = backend if backend is not None else measure.live_backend(self.paths)
             session_factory = measure.live_session_factory(self.paths, backend)
         launcher = self._measure_launcher
         if launcher is None:
@@ -266,6 +269,6 @@ class Runtime:
         from . import measure
         backend = self._measure_backend
         if backend is None and self._measure_session_factory is None:
-            backend = measure.live_backend()
+            backend = measure.live_backend(self.paths)
         return measure.complete(measurement, verdict, note, backend=backend,
                                 directory=self._evidence_dir, clock=self.clock)

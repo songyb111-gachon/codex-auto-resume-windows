@@ -11,6 +11,9 @@ and simulated backend the engine's scenarios use (tests/codexsim.py):
   HOLD - the one answer it has - keeps the record waiting for one poll and nothing more;
 * its words go out only as a person's Custom message would; a channel it names gets the one
   send, after the one claim and the pre-send look, inside the launch guard;
+* a continuation it asks to send with no marker (P15) goes through its channel under the client
+  id core derives from the interruption, and is followed, taken back and proven by that id alone
+  - and never sent twice, whatever becomes of the plug;
 * its ledger is asked inside the claim, can refuse one and never grant one, and what it writes
   there commits with the claim or not at all - and the standard edition's is never asked;
 * every move of a record the engine writes is told to it once written, a Pause's too, and
@@ -48,12 +51,13 @@ from test_control import ControlTestCase  # noqa: E402
 from test_engine import T1, T2, TURN_A, EngineCase  # noqa: E402
 from test_ports import ENGINE_TO_STORE  # noqa: E402
 from codex_auto_resume import (config, continuation, control, controlcli, diagnostics,  # noqa: E402
-                               edition, mcpserver, settings, windows)
+                               edition, mcpserver, settings, startup, windows)
+from codex_auto_resume.domain import ids  # noqa: E402
 from codex_auto_resume.domain.plug import (DEFER, EXTRA, Alternative, Guarded, Plug,  # noqa: E402
                                            Point, Surface, guard)
 from codex_auto_resume.engine import Engine  # noqa: E402
 from codex_auto_resume.engine.options import VIEW_READS  # noqa: E402
-from codex_auto_resume.machine import STATES  # noqa: E402
+from codex_auto_resume.machine import STATES, WAITING  # noqa: E402
 from codex_auto_resume.mcp.tools import TOOLS as MCP_TOOLS  # noqa: E402
 from codex_auto_resume.runtime.app import App  # noqa: E402
 from codex_auto_resume.store import Store  # noqa: E402
@@ -120,6 +124,12 @@ class Asked(Plug):
 
     def moved(self, record, state):
         return self._answer("moved", record, state)
+
+    def delivery(self, record):
+        return self._answer("delivery", record)
+
+    def unloaded(self, record):
+        return self._answer("unloaded", record)
 
     def hooks(self):
         return [hook for hook, _ in self.asked]
@@ -420,6 +430,510 @@ class SenderTests(PluggedCase):
         self.plugged(Asked(sender="the app server"))
         self.h.tick()
         self.assertEqual(len(self.h.backend.send_calls), 1)
+
+
+class QueueAdd:
+    """A channel as the advanced edition's marker-free continuation is one (P15): it puts the words
+    into Codex's queue under the client id core hands it - codexsim's queue, here, as
+    thread/queue/add does in Codex - and the desktop app starts them at once or leaves them queued.
+    `outcome` is what it reports: accepted, unknown (nothing queued, or `queued` anyway), or
+    not_started."""
+
+    def __init__(self, h, *, outcome="accepted", queued=True, dispatch=True, client=None):
+        self.h, self.outcome, self.queued, self.dispatch, self.client = h, outcome, queued, dispatch, client
+        self.calls = []
+
+    def send(self, thread_id, prompt, *, launch_guard=None, client_id=None):
+        with launch_guard as permitted:
+            self.calls.append((thread_id, prompt, client_id, permitted))
+        if self.outcome == "not_started":
+            return {"outcome": "not_started", "error_code": "queue_spawn_failed"}
+        queue_id = None
+        if self.queued:
+            queue_id = self.h.home.enqueue(thread_id, prompt, client_id=self.client or client_id)
+            if self.dispatch:
+                self.h.home.dispatch(thread_id)
+        if self.outcome == "accepted":
+            return {"outcome": "accepted", "queue_id": queue_id}
+        return {"outcome": "unknown"}
+
+
+class DeliveryTests(PluggedCase):
+    """P15: the marker, as core has always carried a continuation - or, where the plug asks for it
+    and names a channel, no marker and the client id core derives from the interruption, which
+    everything that follows the send looks for instead."""
+
+    def marker_free(self, channel):
+        return Asked(sender=channel, delivery=Alternative.CLIENT_ID)
+
+    def test_no_marker_goes_out_under_the_derived_id_and_that_id_proves_it_arrived(self):
+        self.due()
+        key = self.h.record()["interruption_id"]
+        channel = QueueAdd(self.h)
+        self.plugged(self.marker_free(channel))
+        self.h.tick()
+        self.assert_no_send()
+        ((thread_id, prompt, client_id, permitted),) = channel.calls
+        self.assertEqual((thread_id, client_id, permitted), (T1, ids.continuation_client_id(key), True))
+        self.assertNotIn(ids.MARKER_PREFIX, prompt)
+        self.assertEqual(self.h.record()["recovery_client_id"], client_id)
+        ours = self.h.turn_ids()[-1]
+        self.follow()
+        row = self.h.record()
+        self.assertEqual((row["state"], row["recovery_turn_id"]), ("recovered", ours))
+        self.h.tick(advance=3600)
+        self.assertEqual(len(channel.calls), 1, "a recovered interruption is never resent")
+
+    def test_the_same_interruption_always_has_the_same_id_and_another_never_does(self):
+        self.assertEqual(ids.continuation_client_id("a" * 64), ids.continuation_client_id("a" * 64))
+        self.assertNotEqual(ids.continuation_client_id("a" * 64), ids.continuation_client_id("b" * 64))
+        made = ids.continuation_client_id("a" * 64)
+        self.assertTrue(ids.is_uuid(made) and ids.is_client_id(made) and ids.is_delivery_proof(made))
+        self.assertFalse(ids.is_delivery_proof("a"))
+
+    def test_without_a_channel_it_is_the_marker_core_has_always_sent(self):
+        """Core's own backend is `codex queue`, which takes no client id."""
+        self.due()
+        self.plugged(Asked(delivery=Alternative.CLIENT_ID))
+        self.h.tick()
+        row = self.h.record()
+        self.assertTrue(self.prompt().endswith(row["marker"]))
+        self.assertNotEqual(row["recovery_client_id"], ids.continuation_client_id(row["interruption_id"]))
+        self.follow()
+        self.assertEqual(self.h.record()["state"], "recovered")
+
+    def test_any_other_answer_is_the_marker(self):
+        for answer in (DEFER, Alternative.HOLD, "client_id ", "marker_free", object()):
+            with self.subTest(answer=answer):
+                h = self.fresh()
+                self.due(h)
+                channel = QueueAdd(h)
+                self.plugged(Asked(sender=channel, delivery=answer), h)
+                h.tick()
+                ((_thread, prompt, client_id, _permitted),) = channel.calls
+                self.assertIsNone(client_id)
+                self.assertTrue(prompt.endswith(h.record()["marker"]))
+
+    def test_the_ledger_is_told_the_send_carries_the_plugs_way_of_carrying_it(self):
+        self.due()
+        told = []
+
+        def claim_ledger(connection, record, now, carried):
+            told.append(carried)
+            return DEFER
+        plug = Asked(sender=QueueAdd(self.h), delivery=Alternative.CLIENT_ID, claim_ledger=claim_ledger)
+        self.plugged(plug)
+        self.h.tick()
+        self.assertEqual(told, [frozenset({Point.SENDER, Point.DELIVERY})])
+
+    def test_an_uncertain_marker_free_send_is_held_as_the_marker_path_holds_one_and_never_resent(self):
+        """The app server refused, timed out, or the item never showed: no id to find, so the
+        record is an uncertain submission - told to the plug as one - and nothing sends it again."""
+        self.due()
+        channel = QueueAdd(self.h, outcome="unknown", queued=False)
+        plug = self.marker_free(channel)
+        self.plugged(plug)
+        self.h.tick()
+        self.assertEqual(self.h.record()["state"], "submission_unknown")
+        self.assertIn(("moved", "submission_unknown"),
+                      [(hook, arguments[1]) for hook, arguments in plug.asked if hook == "moved"])
+        for _ in range(12):
+            self.h.tick(advance=900)
+        self.assertEqual(len(channel.calls), 1)
+        self.assert_no_send()
+        self.assertEqual(self.h.record()["state"], "submission_unknown")
+
+    def test_one_the_watch_finds_queued_by_its_id_after_an_unknown_answer_is_followed(self):
+        self.due()
+        channel = QueueAdd(self.h, outcome="unknown", dispatch=False)
+        self.plugged(self.marker_free(channel))
+        self.h.tick()
+        self.assertEqual(self.h.record()["state"], "submission_unknown")
+        self.h.watch(advance=1)
+        row = self.h.record()
+        self.assertEqual(self.h.home.queued(T1), [row["queue_id"]])
+        self.h.home.dispatch(T1)
+        self.follow()
+        self.assertEqual(self.h.record()["state"], "recovered")
+        self.assertEqual(len(channel.calls), 1)
+
+    def test_a_message_under_another_client_id_is_not_ours(self):
+        """Only the id proves it: an item Codex holds under another client id is not our send."""
+        self.due()
+        channel = QueueAdd(self.h, dispatch=False, client=ids.continuation_client_id("f" * 64))
+        self.plugged(self.marker_free(channel))
+        self.h.tick()
+        self.h.watch(advance=1)
+        row = self.h.record()
+        self.assertEqual((row["state"], row["last_error"]), ("handed_over", "queued_item_edited"))
+        self.assertEqual(len(channel.calls), 1)
+
+    def test_a_pause_takes_a_marker_free_item_back_by_its_id(self):
+        self.due()
+        channel = QueueAdd(self.h, dispatch=False)
+        self.plugged(self.marker_free(channel))
+        self.h.tick()
+        queued = self.h.home.queued(T1)
+        self.assertEqual(len(queued), 1)
+        self.h.store.set_enabled(False, self.h.now)
+        self.h.watch(advance=1)
+        self.assertEqual(self.h.backend.deleted, [(T1, queued[0])])
+        self.assertEqual(self.h.record()["state"], "withdrawn_unconfirmed")
+
+    def test_given_back_unsent_it_goes_by_its_marker_next_time_with_the_id_taken_away(self):
+        self.due()
+        channel = QueueAdd(self.h, outcome="not_started")
+        self.plugged(self.marker_free(channel))
+        self.h.tick()
+        row = self.h.record()
+        self.assertEqual(row["state"], "waiting_retry")
+        self.assertEqual(row["recovery_client_id"], ids.continuation_client_id(row["interruption_id"]))
+        self.plugged(None)
+        self.h.now = max(row["next_retry_at"], self.h.now + 901)     # past the retry and the cooldown
+        self.h.tick()
+        self.assertEqual(len(self.h.backend.send_calls), 1)
+        self.assertTrue(self.prompt().endswith(row["marker"]))
+        self.assertNotEqual(self.h.record()["recovery_client_id"],
+                            ids.continuation_client_id(row["interruption_id"]))
+        self.follow()
+        self.assertEqual(self.h.record()["state"], "recovered")
+
+    def test_the_standard_edition_follows_a_marker_free_send_it_did_not_make_and_sends_nothing(self):
+        """EditionRoundTrip, core's half: sent with no marker, then the plug is gone - the standard
+        edition's engine on the same state follows the record by the id it holds, to its end, and
+        sends nothing of its own."""
+        self.due()
+        channel = QueueAdd(self.h, dispatch=False)
+        self.plugged(self.marker_free(channel))
+        self.h.tick()
+        self.assertEqual(self.h.record()["state"], "queued")
+        self.plugged(None)
+        self.h.watch(advance=1)
+        self.assertEqual(self.h.record()["state"], "queued")
+        self.h.home.dispatch(T1)
+        self.follow()
+        self.assertEqual(self.h.record()["state"], "recovered")
+        self.h.tick(advance=3600)
+        self.assert_no_send()
+        self.assertEqual(len(channel.calls), 1)
+
+    def test_a_copy_with_the_marker_already_there_stops_a_marker_free_send(self):
+        """One with the marker already in Codex is the same continuation: never sent again with none."""
+        self.due()
+        row = self.h.record()
+        self.h.home.add_item(T1, TURN_A, "userMessage", "go on " + row["marker"])
+        channel = QueueAdd(self.h)
+        self.plugged(self.marker_free(channel))
+        self.h.tick()
+        self.assertEqual(channel.calls, [])
+        self.assertEqual((self.h.record()["state"], self.h.record()["last_error"]),
+                         ("superseded", "duplicate_owner"))
+
+
+class Resume:
+    """A route as the advanced edition's goal continuation is one (P16): asked to continue a
+    conversation the app does not hold, it reports what came of it - accepted, not_started or
+    unknown - or raises. It sends nothing and queues nothing."""
+
+    def __init__(self, outcome="accepted", before=None):
+        self.outcome, self.calls, self.looks = outcome, [], []
+        # Called as the route's session would start, before its look (the app opening the
+        # conversation in those seconds, say).
+        self.before = before
+
+    def resume(self, thread_id, *, launch_guard=None, still_unloaded=None):
+        with launch_guard as permitted:
+            self.calls.append((thread_id, permitted))
+        if self.before is not None:
+            self.before()
+        self.looks.append(still_unloaded())
+        if self.looks[-1] is not True:
+            return {"outcome": "not_started", "error_code": "queue_preflight_failed"}
+        if self.outcome == "raise":
+            raise RuntimeError("the route broke")
+        if self.outcome == "not_started":
+            return {"outcome": "not_started", "error_code": "queue_spawn_failed"}
+        return {"outcome": self.outcome}
+
+
+class UnloadedTests(PluggedCase):
+    """P16: a conversation the app does not hold waits for it to be opened (A11) - unless the plug
+    names a route, which core carries out as it carries out a send: every gate a send passes, the
+    one claim the plug's ledger pays for, the pre-send look, and the route called once inside the
+    launch guard. Nothing is queued, so nothing is watched; what came of it is settled here."""
+
+    def due_unloaded(self, h=None):
+        """A usage-limit failure whose reset has passed, in a conversation the app does not hold."""
+        self.ready_after_reset(h, loaded=False)
+
+    def test_deferring_it_waits_for_the_app_to_open_it_as_it_always_did(self):
+        self.due_unloaded()
+        plug = Asked()
+        self.plugged(plug)
+        self.h.tick()
+        self.assert_no_send()
+        row = self.h.record()
+        self.assertEqual((row["state"], row["last_error"], row["attempt_count"]),
+                         ("waiting_for_loaded_thread", "notLoaded", 0))
+        self.assertEqual(json.loads(row["gate_eval"])["thread_available"], ["WAIT", "notLoaded"])
+        self.assertEqual([arguments[0]["interruption_id"] for hook, arguments in plug.asked
+                          if hook == "unloaded"], [row["interruption_id"]])
+
+    def test_a_route_is_carried_out_once_after_the_claim_inside_the_launch_guard(self):
+        self.due_unloaded()
+        route = Resume()
+        plug = Asked(unloaded=route)
+        self.plugged(plug)
+        self.h.tick()
+        self.assert_no_send()
+        self.assertEqual(route.calls, [(T1, True)])
+        self.assertEqual(self.h.home.queued(T1), [], "a route queues nothing")
+        row = self.h.record()
+        # Accepted: it waits again, its claim counted - never given back.
+        self.assertEqual((row["state"], row["last_error"], row["submitted_at"], row["attempt_count"]),
+                         ("waiting_retry", "notLoaded", None, 1))
+        self.assertIsNotNone(row["last_claim_at"])
+        self.assertEqual(row["chain_continuations"], 1)
+        self.assertEqual(json.loads(row["gate_eval"])["thread_available"], ["PASS", "plugged"])
+        hooks = plug.hooks()
+        self.assertLess(hooks.index("unloaded"), hooks.index("claim_ledger"))
+        # A route is not words, a channel or a way of carrying them: none of those is asked.
+        self.assertEqual(set(hooks) & {"text", "sender", "delivery"}, set())
+        self.assertIn("submitting", [arguments[1] for hook, arguments in plug.asked if hook == "moved"])
+
+    def test_the_ledger_is_told_the_claim_carries_the_route(self):
+        self.due_unloaded()
+        told = []
+
+        def claim_ledger(connection, record, now, carried):
+            told.append(carried)
+            return DEFER
+        self.plugged(Asked(unloaded=Resume(), claim_ledger=claim_ledger))
+        self.h.tick()
+        self.assertEqual(told, [frozenset({Point.UNLOADED})])
+
+    def test_a_ledger_that_holds_the_claim_calls_no_route(self):
+        self.due_unloaded()
+        route = Resume()
+        self.plugged(Asked(unloaded=route, claim_ledger=Alternative.HOLD))
+        self.h.tick()
+        self.assertEqual(route.calls, [])
+        row = self.h.record()
+        self.assertEqual((row["attempt_count"], row["submitted_at"]), (0, None))
+
+    def test_once_resumed_the_conversations_own_next_turn_supersedes_it_and_nothing_is_sent(self):
+        self.due_unloaded()
+        route = Resume()
+        self.plugged(Asked(unloaded=route))
+        self.h.tick()
+        # The app opens the conversation, and what the route set going carries it on.
+        self.h.backend.loaded_map[T1] = "loaded"
+        self.h.home.add_turn(T1, status="inProgress")
+        self.h.tick(advance=61)
+        row = self.h.record()
+        self.assertEqual((row["state"], row["last_error"]), ("superseded_by_user", "later_turn_exists"))
+        self.assert_no_send()
+        self.assertEqual(len(route.calls), 1)
+
+    def test_with_the_plug_gone_the_standard_edition_sends_only_what_it_would(self):
+        """EditionRoundTrip, core's half: resumed through a route, then the plug is gone. The
+        standard edition's engine waits for the app as it always does, keeps the claim's cooldown,
+        and - nothing having carried the conversation on - sends the one continuation it would."""
+        self.due_unloaded()
+        self.plugged(Asked(unloaded=Resume()))
+        self.h.tick()
+        self.plugged(None)
+        self.h.tick(advance=61)
+        self.assertEqual(self.h.record()["last_error"], "notLoaded")
+        self.h.backend.loaded_map[T1] = "loaded"
+        self.h.tick(advance=61)
+        self.assertEqual(self.h.record()["last_error"], "thread_submission_cooldown")
+        self.assert_no_send()
+        self.h.tick(advance=901)
+        self.assertEqual(len(self.h.backend.send_calls), 1)
+        self.assertTrue(self.prompt().endswith(self.h.record()["marker"]))
+
+    def test_a_route_that_never_started_gives_the_claim_back_and_keeps_its_time(self):
+        self.due_unloaded()
+        route = Resume("not_started")
+        self.plugged(Asked(unloaded=route))
+        self.h.tick()
+        row = self.h.record()
+        self.assertIn(row["state"], WAITING)
+        self.assertEqual((row["last_error"], row["submitted_at"], row["chain_continuations"]),
+                         ("released_before_send", None, 0))
+        self.assertIsNotNone(row["last_claim_at"])
+        self.h.tick(advance=61)
+        self.assertEqual(len(route.calls), 1, "the claim's time still counts for the cooldown")
+        self.assertEqual(self.h.record()["last_error"], "thread_submission_cooldown")
+
+    def test_an_uncertain_route_is_held_and_never_tried_again(self):
+        for outcome in ("unknown", "raise", "strange"):
+            with self.subTest(outcome):
+                h = self.fresh()
+                self.due_unloaded(h)
+                route = Resume(outcome)
+                plug = Asked(unloaded=route)
+                self.plugged(plug, h)
+                h.tick()
+                row = h.record()
+                self.assertEqual((row["state"], row["last_error"]),
+                                 ("submission_unknown", "queue_result_unknown_do_not_resend"))
+                self.assertIn("submission_unknown",
+                              [arguments[1] for hook, arguments in plug.asked if hook == "moved"])
+                h.backend.loaded_map[T1] = "loaded"
+                for _ in range(12):
+                    h.tick(advance=900)
+                self.assertEqual(len(route.calls), 1)
+                self.assertEqual(h.backend.send_calls, [])
+
+    def test_a_pause_that_commits_after_the_pre_send_look_stops_the_route_at_the_guard(self):
+        self.due_unloaded()
+        route = Resume()
+        self.plugged(Asked(unloaded=route))
+        look = Engine.presend_problem
+
+        def look_then_pause(engine, claim):
+            found = look(engine, claim)
+            engine.store.set_enabled(False, engine.clock())
+            return found
+        with patch.object(Engine, "presend_problem", look_then_pause):
+            self.h.tick()
+        self.assertEqual(route.calls, [], "the route is never called once consent has gone")
+        row = self.h.record()
+        self.assertIn(row["state"], WAITING)
+        self.assertEqual((row["last_error"], row["submitted_at"]), ("released_before_send", None))
+
+    def test_it_is_asked_only_where_core_would_wait_for_the_app_and_consent_holds(self):
+        cases = {
+            "the app cannot say": lambda h: h.backend.loaded_map.__setitem__(T1, "unknown"),
+            "observe only": lambda h: h.store.set_observe_only(True),
+            "conversation off": lambda h: h.store.set_thread_enabled(T1, False, at=h.now),
+            "loaded": lambda h: h.backend.loaded_map.__setitem__(T1, "loaded"),
+        }
+        for name, change in cases.items():
+            with self.subTest(name):
+                h = self.fresh()
+                self.due_unloaded(h)
+                change(h)
+                route = Resume()
+                plug = Asked(unloaded=route)
+                self.plugged(plug, h)
+                h.tick()
+                self.assertNotIn("unloaded", plug.hooks())
+                self.assertEqual(route.calls, [])
+
+    def test_a_conversation_opened_before_the_claim_is_not_resumed(self):
+        """The route is for a conversation the app does not hold, rechecked under the dispatch lock."""
+        self.due_unloaded()
+        route = Resume()
+
+        def opened(record):
+            self.h.backend.loaded_map[T1] = "loaded"
+            return route
+        self.plugged(Asked(unloaded=opened))
+        self.h.tick()
+        self.assertEqual(route.calls, [])
+        row = self.h.record()
+        self.assertEqual((row["state"], row["last_error"]),
+                         ("waiting_for_loaded_thread", "loaded_recheck_failed"))
+
+    def test_the_route_is_handed_cores_own_look_made_again_when_it_asks(self):
+        """A route's session takes seconds to start, and the app may open the conversation in
+        them. The route is handed core's look - the app that was checked still there, and saying
+        notLoaded now, never the cached answer - to ask at its last moment; a route that finds the
+        app holds the conversation changes nothing, and its claim is given back."""
+        def app_opens_it(h):
+            h.backend.loaded_map[T1] = "loaded"
+
+        def new_app(h):
+            h.backend.app = dict(h.backend.app, pid=h.backend.app.get("pid", 0) + 1)
+
+        def look_breaks(h):
+            h.backend.loaded = lambda *arguments: (_ for _ in ()).throw(OSError("gone"))
+
+        for name, change, seen in (("still not held", None, True), ("the app opened it", app_opens_it, False),
+                                   ("another app", new_app, False), ("a look that fails", look_breaks, False)):
+            with self.subTest(name):
+                h = self.fresh()
+                self.due_unloaded(h)
+                route = Resume(before=None if change is None else (lambda h=h, change=change: change(h)))
+                self.plugged(Asked(unloaded=route), h)
+                h.tick()
+                self.assertEqual((route.calls, route.looks), ([(T1, True)], [seen]))
+                row = h.record()
+                if seen:
+                    self.assertEqual((row["state"], row["last_error"], row["attempt_count"]),
+                                     ("waiting_retry", "notLoaded", 1))
+                    continue
+                self.assertIn(row["state"], WAITING)
+                self.assertEqual((row["last_error"], row["submitted_at"], row["chain_continuations"]),
+                                 ("released_before_send", None, 0))
+                self.assertEqual(h.backend.send_calls, [])
+
+    def test_the_gates_that_follow_still_hold(self):
+        cases = {
+            "someone's queued input": lambda h: h.home.enqueue(T1, "mine"),
+            "no usage": lambda h: h.backend.usage_result.update(available=False, reason="unavailable"),
+        }
+        for name, change in cases.items():
+            with self.subTest(name):
+                h = self.fresh()
+                self.due_unloaded(h)
+                change(h)
+                route = Resume()
+                self.plugged(Asked(unloaded=route), h)
+                h.tick()
+                self.assertEqual(route.calls, [])
+                row = h.record()
+                self.assertIsNone(row["submitted_at"])
+                self.assertIn(row["last_error"], ("user_input_queued", "usage_unavailable"))
+
+    def test_what_is_not_a_route_is_the_wait(self):
+        class Lookup:
+            @property
+            def resume(self):
+                raise RuntimeError("no")
+        for answer in ("resume", 1, object(), Lookup(), Careless(), type("N", (), {"resume": 2})()):
+            with self.subTest(answer=type(answer).__name__):
+                h = self.fresh()
+                self.due_unloaded(h)
+                self.plugged(Asked(unloaded=answer), h)
+                h.tick()
+                row = h.record()
+                self.assertEqual((row["state"], row["last_error"], row["attempt_count"]),
+                                 ("waiting_for_loaded_thread", "notLoaded", 0))
+
+    def test_a_hook_that_raises_is_the_wait(self):
+        self.due_unloaded()
+        self.plugged(Asked(unloaded=RuntimeError("broke")))
+        self.h.tick()
+        self.assertEqual(self.h.record()["last_error"], "notLoaded")
+        self.assertEqual(self.h.engine.plug.failures, 1)
+
+class ProofReaderTests(PluggedCase):
+    """The history reader looks for a proof - a marker, or a continuation's client id - and for
+    nothing wider: what it is handed bounds the only message text that ever leaves Codex's
+    database to our own continuation's."""
+
+    def test_a_client_id_is_found_on_the_message_and_not_in_its_words(self):
+        cid = ids.continuation_client_id("c" * 64)
+        self.h.home.add_turn(T1, user_text="about " + cid)                    # quoted, not ours
+        turn = self.h.home.add_turn(T1, user_text="please go on", client_id=cid)
+        found = self.h.source.marker_rows(T1, cid)
+        self.assertEqual([row["turn_id"] for row in found], [turn])
+        self.assertEqual(found[0]["client_id"], cid)
+        self.h.home.enqueue(T1, "and " + cid)                                 # quoted, not ours
+        queued = self.h.home.enqueue(T1, "please go on", client_id=cid)
+        self.assertEqual([row["id"] for row in self.h.source.queued_rows(T1, cid)], [queued])
+
+    def test_nothing_wider_than_a_proof_is_looked_for(self):
+        for wrong in ("a", "", "codex", T1, "[codex-auto-resume:zz]", None, 7):
+            with self.subTest(wrong=wrong):
+                with self.assertRaises(Exception):
+                    self.h.source.marker_rows(T1, wrong)
+                with self.assertRaises(Exception):
+                    self.h.source.marker_presence(T1, wrong)
 
 
 class LedgerTests(PluggedCase):
@@ -790,8 +1304,10 @@ MOVERS = frozenset({"reserve_detailed", "release_claim", "release_withdrawn", "c
 # is told of them: P14 tells what the engine writes.
 PERSONS = frozenset({"cancel_interruption", "cancel_thread", "restore_budget_detailed"})
 # Where the engine makes those calls today - so a new one is seen, and has to tell the plug too.
+# v0.6.11 stage 3b: and the claim of a route the plug names for a conversation not held (P16).
 MOVING = frozenset({"AnnounceMixin.transition", "AnnounceMixin._release", "DispatchMixin.dispatch",
-                    "ReconcileMixin.withdraw", "ReconcileMixin.settle", "ReconcileMixin.correlate"})
+                    "ReconcileMixin.withdraw", "ReconcileMixin.settle", "ReconcileMixin.correlate",
+                    "DeliveryMixin._resume_unloaded"})
 
 
 def _moves_a_record(function, call) -> bool:
@@ -1038,7 +1554,7 @@ class MovedTests(PluggedCase):
                                         self.assertTrue(_told_after(block, index),
                                                         "moves a record and does not tell the plug")
         self.assertEqual(set(moving), MOVING)
-        self.assertEqual(len(moving), 8, "every store call that moves a record, counted")
+        self.assertEqual(len(moving), 9, "every store call that moves a record, counted")
 
     def test_a_persons_own_moves_are_not_told_and_the_contract_says_so(self):
         """P14 tells what the engine writes. A cancel, or the attempts given back, is written by
@@ -1327,11 +1843,12 @@ class StartRouteTests(unittest.TestCase):
             patcher.start()
             self.addCleanup(patcher.stop)
 
-    def test_the_refusal_stands_whatever_the_plug_answers(self):
-        """Asked only where core refuses - with the setting on and nothing running - and no
-        route of a plug's is carried out yet."""
+    def test_the_refusal_stands_when_the_plug_names_no_route(self):
+        """Asked only where core refuses - with the setting on and nothing running. A plug that
+        answers with anything core cannot call - DEFER, a word, an exception - keeps the refusal
+        (Guarded.start_route drops it), and nothing is launched."""
         job = {"in_job": True, "kill_on_close": True, "breakaway_ok": False}
-        for answer in (DEFER, Alternative.HOLD, "wmi", RuntimeError("no")):
+        for answer in (DEFER, Alternative.HOLD, "wmi", 3, object(), RuntimeError("no")):
             with self.subTest(answer=answer):
                 plug = Asked(start_route=answer)
                 layer = control.Control(self.paths, plug=plug)
@@ -1342,15 +1859,80 @@ class StartRouteTests(unittest.TestCase):
                 self.assertEqual(decision, "not started: this Codex ends what its plugins start")
                 self.assertEqual(plug.asked, [("start_route", (job,))])
 
-    def test_a_start_core_makes_or_declines_itself_asks_nothing(self):
+    def test_a_named_route_is_carried_out_outside_the_job(self):
+        """A route the plug names - an object with `start` - is called with the command line core
+        built from the stable launcher, and the pid it hands back is the line core writes."""
+        job = {"in_job": True, "kill_on_close": True, "breakaway_ok": False}
+        seen = {}
+
+        class Route:
+            def start(self, command):
+                seen["command"] = command
+                return {"pid": 4242}
+
+        plug = Asked(start_route=Route())
+        layer = control.Control(self.paths, plug=plug)
+        layer.update_settings({"start_with_codex": True})
+        with patch.object(startup, "python_launcher", return_value=Path("pythonw.exe")), \
+                patch.object(control.Control, "_launch_watcher") as launch:
+            decision = layer._start_for_codex(dict(job))
+        launch.assert_not_called()          # core never launches inside the job itself
+        self.assertEqual(decision, "started through WMI pid 4242")
+        self.assertIn("watcher-launcher.py", seen["command"])
+        self.assertTrue(seen["command"].endswith(' "run"') or seen["command"].endswith(" run"))
+
+    def test_a_route_that_refuses_records_the_code_and_starts_nothing(self):
+        job = {"in_job": True, "kill_on_close": True, "breakaway_ok": False}
+
+        class Route:
+            def start(self, command):
+                return {"code": 21}
+
+        layer = control.Control(self.paths, plug=Asked(start_route=Route()))
+        layer.update_settings({"start_with_codex": True})
+        with patch.object(startup, "python_launcher", return_value=Path("pythonw.exe")):
+            decision = layer._start_for_codex(dict(job))
+        self.assertEqual(decision, "not started: WMI refused (21)")
+
+    def test_a_route_is_not_taken_while_an_installation_is_in_progress(self):
+        """The install lock is looked at once more immediately before the launch, so an install
+        that began after the first look stops the route."""
+        job = {"in_job": True, "kill_on_close": True, "breakaway_ok": False}
+        started = []
+
+        class Route:
+            def start(self, command):
+                started.append(command)
+                return {"pid": 1}
+
+        layer = control.Control(self.paths, plug=Asked(start_route=Route()))
+        layer.update_settings({"start_with_codex": True})
+        with patch.object(windows, "install_in_progress", side_effect=[False, True]):
+            decision = layer._start_for_codex(dict(job))
+        self.assertEqual(decision, "not started: an installation is in progress")
+        self.assertEqual(started, [])
+
+    def test_a_start_core_makes_itself_with_the_setting_on_asks_nothing(self):
+        """With the setting on, core is starting on its own account: it launches itself and asks
+        the plug for no route, in a job that would not end the watcher or out of one."""
         plug = Asked()
         layer = control.Control(self.paths, plug=plug)
-        self.assertEqual(layer._start_for_codex({"in_job": False}), "off")
         layer.update_settings({"start_with_codex": True})
         with patch.object(control.Control, "_launch_watcher",
                           return_value=type("Process", (), {"pid": 7})()):
             self.assertEqual(layer._start_for_codex({"in_job": False}), "started pid 7")
         self.assertEqual(plug.asked, [])
+
+    def test_a_decline_with_the_setting_off_asks_only_for_a_route(self):
+        """With the setting off, the one way core learns whether an advanced capability has turned
+        the start on is to ask the plug for a route; a plug that names none is declined as "off",
+        and the standard edition's NULL plug is asked nothing at all (it names no route by kind)."""
+        plug = Asked()
+        layer = control.Control(self.paths, plug=plug)
+        self.assertEqual(layer._start_for_codex({"in_job": False}), "off")
+        self.assertEqual(plug.asked, [("start_route", ({"in_job": False},))])
+        standard = control.Control(self.paths)
+        self.assertEqual(standard._start_for_codex({"in_job": False}), "off")
 
 
 class SupervisionTests(unittest.TestCase):

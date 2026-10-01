@@ -63,14 +63,19 @@ class SpendMixin:
         if prune_every(connection.execute("SELECT last_insert_rowid()").fetchone()[0]):
             self._prune_spend(connection, schema, now)
 
-    def spends_since(self, capability, since) -> list:
-        """The interruption ids a capability spent a unit on since `since`, newest first: what
-        the submission_unknown tripwire looks at (arming.py)."""
+    def spends_since(self, capability, since) -> dict:
+        """{interruption id: the times of the units a capability spent on it} since `since`, from
+        the newest 500 units: what the submission_unknown tripwire looks at (arming.py). A unit is
+        spent inside the claim it pays for, at the claim's own time (ledger.py), so its time says
+        which of a record's sends it paid for."""
         with self._read() as connection:
             if connection is None:
-                return []
+                return {}
             rows = connection.execute(
-                "SELECT DISTINCT interruption_id FROM spend WHERE capability=? AND at>=? AND "
+                "SELECT interruption_id, at FROM spend WHERE capability=? AND at>=? AND "
                 "interruption_id IS NOT NULL ORDER BY spend_id DESC LIMIT 500",
                 (capability, since)).fetchall()
-        return [row[0] for row in rows]
+        spent = {}
+        for key, at in rows:
+            spent.setdefault(key, []).append(at)
+        return {key: tuple(times) for key, times in spent.items()}

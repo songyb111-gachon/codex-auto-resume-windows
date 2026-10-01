@@ -46,15 +46,34 @@ class OffReason(StrEnum):
     INCOMPATIBLE = "incompatible"
     HOOK_EXCEPTION = "hook_exception"
     STATEMENT_CHANGED = "statement_changed"
+    MEASUREMENT_FAILED = "measurement_failed"
 
 
 TRIPWIRES = frozenset({OffReason.SUBMISSION_UNKNOWN, OffReason.LOCAL_CHECK_FAILED,
                        OffReason.FAILED_HERE, OffReason.INCOMPATIBLE, OffReason.HOOK_EXCEPTION,
-                       OffReason.STATEMENT_CHANGED})
+                       OffReason.STATEMENT_CHANGED, OffReason.MEASUREMENT_FAILED})
+
+
+class ArmingWarning(StrEnum):
+    """What a capability's statement warns of, above its five fields, before a person turns it
+    on or watches it (arming.warnings_for). A warning never refuses: the person reads it, and
+    turning the capability on is their confirmation of every warning shown, which is stored
+    beside the state. What stands behind a warning getting worse afterwards - one the person did
+    not confirm appearing - is a tripwire's, as it always was (arming.standing). The owner's
+    rule of 2026-09-26, which replaced decision C7's refusals."""
+    MEASUREMENT_FAILED = "measurement_failed"  # a measurement its route rests on failed
+    UNMEASURED = "unmeasured"                # ... has no pass or fail for the Codex in force
+    FAILED_HERE = "failed_here"              # what it stands on failed a local check here
+    INCOMPATIBLE = "incompatible"            # the Compatibility Registry's data says incompatible
+    LOCAL_CHECK_FAILED = "local_check_failed"  # a local check found it incompatible
+    COMPAT_UNKNOWN = "compat_unknown"        # nothing is known of it for this Codex
+    ENGINE_UNKNOWN = "engine_unknown"        # no Codex version to acknowledge
 
 
 class Refusal(StrEnum):
-    """Why a request to move a capability, or the ceiling, was refused."""
+    """Why a request to move a capability, or the ceiling, was refused. Of these, only the three
+    policy words say a capability may not be on; every other one says the request was not the
+    person's own, current confirmation, which the Dashboard can ask for again."""
     UNKNOWN_CAPABILITY = "unknown_capability"
     NOT_THE_DASHBOARD = "not_the_dashboard"
     INVALID_REQUEST = "invalid_request"
@@ -64,7 +83,10 @@ class Refusal(StrEnum):
     FORBIDDEN_BY_POLICY = "forbidden_by_policy"
     NOT_ALLOWED_BY_POLICY = "not_allowed_by_policy"
     SHADOW_FORCED_BY_POLICY = "shadow_forced_by_policy"
-    NOT_PERMITTED = "not_permitted"          # compat.permits said no; its reason goes beside
+    # What the person confirmed - the statement's warnings, or the Codex version - is not what
+    # holds now: something changed after the Dashboard showed it. Shown again, it can be
+    # confirmed at once; it never says the capability cannot be turned on.
+    STALE_CONFIRMATION = "stale_confirmation"
     STATE_UNAVAILABLE = "state_unavailable"
 
 
@@ -139,11 +161,16 @@ class BridgeCommand(StrEnum):
 
 
 class Measurement(StrEnum):
-    """What the owner measures on a real machine before a capability that depends on it may be
-    offered (measure.py, decision C7 and the roadmap's M-list). Each writes one content-free
-    record to docs/evidence/live/."""
+    """What the owner measures on a real machine for a capability whose route depends on it
+    (measure.py and the roadmap's M-list). Each writes one content-free record to
+    docs/evidence/live/; what a release ships of them is measured.py, and a capability whose
+    measurement failed or was never made for the Codex in force says so in its statement as a
+    warning (ArmingWarning), never by being withheld."""
     M1 = "m1"                                # a notLoaded queue item is delivered on open
     M2 = "m2"                                # thread/goal/set reaches a Desktop-loaded goal
+    # A goal set active and a turn queued while the Desktop holds the conversation: the turn runs,
+    # and the goal stays active and carries on after it (the owner, 2026-09-28; measure._m2b).
+    M2B = "m2b"
     M3 = "m3"                                # an empty thread/queue/add is dispatched, correlatable
     M4 = "m4"                                # plugin Stop hooks run after a failed turn
     M5 = "m5"                                # TUI and IDE servers dispatch codex queue items
@@ -152,6 +179,18 @@ class Measurement(StrEnum):
     MH = "mh"                                # the Desktop runs on a second CODEX_HOME
     MA = "ma"                                # the running app picks up an account logout+login
     MW = "mw"                                # re-proof of the WMI escape, with the job words
+
+
+class GoalStatus(StrEnum):
+    """A Codex goal's status, as goals_<N>.sqlite stores it (codex-rs state/goals_migrations:
+    thread_goals.status, a CHECK of exactly these six). The goal continuation reads the status
+    and nothing the goal says (codex/goals.py); a word outside these is no status it acts on."""
+    ACTIVE = "active"
+    PAUSED = "paused"
+    BLOCKED = "blocked"
+    USAGE_LIMITED = "usage_limited"
+    BUDGET_LIMITED = "budget_limited"
+    COMPLETE = "complete"
 
 
 class Verdict(StrEnum):

@@ -27,7 +27,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = ROOT / ".github" / "workflows"
 # Every workflow, named: a new one is looked at here before anything else.
-KNOWN = ["community-file.yml", "community-report.yml", "release.yml", "sync-ko.yml", "test.yml"]
+KNOWN = ["community-file.yml", "community-report.yml", "ko-watch.yml", "release.yml", "sync-ko.yml", "test.yml"]
 
 
 def text(name):
@@ -227,6 +227,82 @@ class KoSyncPrivilegeTests(unittest.TestCase):
         self.assertEqual(self.source.count("secrets.GITHUB_TOKEN"), 1)
         push = self.source[self.source.index("- name: Publish the branch"):]
         self.assertIn("secrets.GITHUB_TOKEN", push)
+
+    def test_the_part_that_runs_the_trees_code_can_only_read(self):
+        self.assertRegex(self.source, r"(?m)^permissions: \{\}\s*$")
+        test, publish = job(self.source, "test"), job(self.source, "publish")
+        self.assertIn("contents: read", test)
+        self.assertEqual(re.findall(r"(?m)^\s+[a-z-]+: write\s*$", test), [])
+        self.assertNotIn("secrets.", test)
+        self.assertIn("contents: write", publish)
+        self.assertNotIn("unittest", publish, "the job that can write runs none of the tree's tests")
+
+    def test_every_part_of_the_suite_runs(self):
+        """The matrix and SHARDS are one number written twice; a part dropped is tests never run."""
+        test = job(self.source, "test")
+        shards = re.search(r"(?m)^\s*shard: \[([0-9, ]+)\]\s*$", test)
+        count = re.search(r'(?m)^\s*SHARDS: "(\d+)"\s*$', test)
+        self.assertTrue(shards and count)
+        self.assertEqual([int(x) for x in shards.group(1).split(",")], list(range(int(count.group(1)))))
+        self.assertIn("index % shards == shard", test)
+        self.assertIn("fail-fast: false", test)
+
+    def test_the_split_is_exactly_the_discovered_suite(self):
+        """What the parts load, together, is what `unittest discover -s tests` finds - no more, no less."""
+        import sys
+        loader = unittest.TestLoader()
+
+        def ids(suite):
+            for item in suite:
+                if isinstance(item, unittest.TestSuite):
+                    yield from ids(item)
+                else:
+                    yield item.id()
+
+        names = sorted(path.stem for path in (ROOT / "tests").glob("test_*.py"))
+        added = str(ROOT / "tests") not in sys.path
+        if added:
+            sys.path.insert(0, str(ROOT / "tests"))
+        try:
+            parts = [list(ids(loader.loadTestsFromNames([n for i, n in enumerate(names) if i % 4 == k])))
+                     for k in range(4)]
+        finally:
+            if added:
+                sys.path.remove(str(ROOT / "tests"))
+        found = sorted(ids(unittest.TestLoader().discover(str(ROOT / "tests"), top_level_dir=str(ROOT / "tests"))))
+        self.assertEqual(sorted(x for part in parts for x in part), found)
+
+    def test_only_the_tested_tree_is_published(self):
+        test, publish = job(self.source, "test"), job(self.source, "publish")
+        self.assertIn('echo "tree=$(git write-tree)" >> "$GITHUB_OUTPUT"', test)
+        self.assertIn("needs: test", publish)
+        self.assertIn("TESTED_TREE: ${{ needs.test.outputs.tree }}", publish)
+        self.assertIn('[ "$built" != "$TESTED_TREE" ]', publish)
+        self.assertLess(publish.index("TESTED_TREE"), publish.index("- name: Publish the branch"))
+
+
+class KoWatchTests(unittest.TestCase):
+    """ko-watch.yml reads two things through the API and fails when ko has fallen behind."""
+
+    def setUp(self):
+        self.source = text("ko-watch.yml")
+
+    def test_it_reads_and_runs_nothing_of_ours(self):
+        self.assertRegex(self.source, r"(?m)^permissions: \{\}\s*$")
+        grants = re.findall(r"(?m)^      ([a-z-]+): (read|write|none)\s*$", self.source)
+        self.assertEqual(sorted(grants), [("actions", "read"), ("contents", "read")])
+        for forbidden in ("actions/checkout", "python", "git push", ": write"):
+            self.assertNotIn(forbidden, self.source.split("\njobs:", 1)[1])
+
+    def test_it_runs_on_a_schedule_and_is_bounded(self):
+        self.assertIn("schedule:", self.source)
+        self.assertIn("timeout-minutes: 5", self.source)
+        self.assertIn("runs-on: ubuntu-latest", self.source)
+
+    def test_it_knows_what_a_sync_commit_says(self):
+        """The message it parses is the one sync-ko.yml writes."""
+        self.assertIn('git commit -m "Generate ko from main@${source_sha}"', text("sync-ko.yml"))
+        self.assertIn(r"s/^Generate ko from main@\([0-9a-f]\{40\}\).*/\1/p", self.source)
 
 
 class CommunityReportPrivilegeTests(unittest.TestCase):
@@ -505,7 +581,7 @@ class TagsAreFetchedWhereTheSuiteRunsTests(unittest.TestCase):
         found = []
         for path in sorted(WORKFLOWS.glob("*.yml")):
             text = path.read_text(encoding="utf-8")
-            if "unittest discover" in text:
+            if "unittest discover" in text or "loadTestsFromNames" in text:
                 found.append((path.name, text))
         return found
 

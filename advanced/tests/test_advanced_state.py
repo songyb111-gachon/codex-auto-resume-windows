@@ -28,10 +28,13 @@ from codex_auto_resume.store import Store  # noqa: E402
 from codex_auto_resume.store.schema import _TABLES_V4  # noqa: E402
 from codex_auto_resume_advanced import vocabulary  # noqa: E402
 from codex_auto_resume_advanced.state import (ATTACHED, EVENT_LIMIT, EVENT_MAX_AGE,  # noqa: E402
-                                              FILE_NAME, TABLES, AdvancedState, StateError)
+                                              FILE_NAME, SCHEMA_VERSION, TABLES, AdvancedState,
+                                              StateError)
+from codex_auto_resume_advanced.state import schema as schema_module  # noqa: E402
 from codex_auto_resume_advanced.state import journal as journal_module  # noqa: E402
-from codex_auto_resume_advanced.vocabulary import (Actor, ArmingState, JournalCode,  # noqa: E402
-                                                   OffReason, OverrideKind, RecordState)
+from codex_auto_resume_advanced.vocabulary import (Actor, ArmingState, ArmingWarning,  # noqa: E402
+                                                   JournalCode, OffReason, OverrideKind,
+                                                   RecordState)
 from test_cli import FakeWinreg, _reset_logging  # noqa: E402
 
 DAY = 86400
@@ -67,7 +70,7 @@ class VocabularyTests(unittest.TestCase):
     def test_every_tripwire_is_a_reason_a_capability_is_off(self):
         self.assertEqual({str(word) for word in vocabulary.TRIPWIRES},
                          {"submission_unknown", "local_check_failed", "failed_here", "incompatible",
-                          "hook_exception", "statement_changed"})
+                          "hook_exception", "statement_changed", "measurement_failed"})
 
 
 class FileTests(StateCase):
@@ -110,14 +113,14 @@ class FileTests(StateCase):
         self.assertEqual(sorted(path.name for path in self.paths.advanced_dir.iterdir()),
                          sorted([FILE_NAME, config.OWNER_MARKER]))
         connection = self.raw(state)
-        self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 1)
+        self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION)
         self.assertEqual({row[0] for row in connection.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")},
             set(TABLES))
 
     def test_a_file_that_is_not_exactly_this_schema_is_refused_not_repaired(self):
         for damage in ("CREATE TABLE extra (x)", "ALTER TABLE journal ADD COLUMN words TEXT",
-                       "PRAGMA user_version=2", "DELETE FROM meta"):
+                       "PRAGMA user_version=3", "PRAGMA user_version=1", "DELETE FROM meta"):
             with self.subTest(damage):
                 self.home = self.home.parent / ("home-%d" % abs(hash(damage)))
                 self.paths = config.Paths(self.home)
@@ -129,6 +132,46 @@ class FileTests(StateCase):
                     connection.commit()
                 with self.assertRaises(StateError):
                     self.state().arming()
+
+    def version_one(self, *rows):
+        """A file exactly as v0.6.11-alpha made it - version 1, no `warnings` column - holding
+        `rows` of the arming table, each (capability, state, revision, engine version)."""
+        self.paths.advanced_dir.mkdir(parents=True)
+        (self.paths.advanced_dir / config.OWNER_MARKER).write_text(config.OWNER_TEXT, encoding="utf-8")
+        path = self.paths.advanced_dir / FILE_NAME
+        with contextlib.closing(sqlite3.connect(path)) as connection:
+            for statement in schema_module.STATEMENTS:
+                statement = statement.replace(",\n        %s" % schema_module.WARNINGS_COLUMN, "")
+                connection.execute(statement.replace("user_version=%d" % SCHEMA_VERSION, "user_version=1"))
+            for capability, state, revision, version in rows:
+                connection.execute("INSERT INTO arming VALUES (?,?,?,?,?,?,?)",
+                                   (capability, state, self.now, "dashboard", None, revision, version))
+            connection.commit()
+            self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 1)
+        return path
+
+    def test_a_version_one_file_is_brought_to_this_version_when_it_is_first_read(self):
+        """v0.6.11-alpha made version 1, with no column for the warnings a person confirmed. It
+        is upgraded - a read's opening too - and every row keeps what it held; a row from then
+        confirmed no warning, the strictest reading of it."""
+        path = self.version_one(("test_wake", "armed", 1, ac.ENGINE))
+        state = self.state()
+        row = state.arming()["test_wake"]
+        self.assertEqual((row["state"], row["statement_revision"], row["engine_version"], row["warnings"]),
+                         (ArmingState.ARMED, 1, ac.ENGINE, ()))
+        state.close()
+        with contextlib.closing(sqlite3.connect(path)) as connection:
+            self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION)
+            self.assertEqual(AdvancedState._tables(connection), TABLES)
+        self.assertEqual(self.state().meta(), {"generation": 0, "global_hourly": 12})
+
+    def test_a_version_one_file_that_is_not_exactly_version_one_is_refused(self):
+        path = self.version_one()
+        with contextlib.closing(sqlite3.connect(path)) as connection:
+            connection.execute("ALTER TABLE journal ADD COLUMN words TEXT")
+            connection.commit()
+        with self.assertRaises(StateError):
+            self.state().arming()
 
     def test_a_junction_out_of_the_home_is_never_opened_or_purged(self):
         """A junction is not a symbolic link to `is_symlink`, but it is one to `config.is_link`,
@@ -229,6 +272,10 @@ class ClosedWordTests(StateCase):
                      lambda: state.move("test_wake", ArmingState.OFF, actor="somebody"),
                      lambda: state.move("test_wake", ArmingState.OFF, actor=Actor.MCP, reason="bored"),
                      lambda: state.move("not_a_capability", ArmingState.SHADOW, actor=Actor.DASHBOARD),
+                     lambda: state.move("test_wake", ArmingState.SHADOW, actor=Actor.DASHBOARD,
+                                        warnings=("failed_here", "worrying")),
+                     lambda: state.move("test_wake", ArmingState.SHADOW, actor=Actor.DASHBOARD,
+                                        warnings="failed_here"),
                      lambda: state.add_record(ac.KEY, "test_wake", "not a thread"),
                      lambda: state.add_record("short", "test_wake", ac.THREAD),
                      lambda: state.add_override(ac.KEY, "test_wake", "forever"),
@@ -245,10 +292,42 @@ class ClosedWordTests(StateCase):
                           "INSERT INTO records VALUES ('%s','test_wake','%s','sent',1,NULL,0,NULL)"
                           % (ac.KEY, ac.THREAD),
                           "INSERT INTO overrides VALUES ('%s','test_wake','forever',1,NULL)" % ac.KEY,
-                          "UPDATE meta SET global_hourly=13"):
+                          "UPDATE meta SET global_hourly=13",
+                          "UPDATE arming SET warnings='failed here'",
+                          "UPDATE arming SET warnings='FAILED_HERE'"):
             with self.subTest(statement):
                 with self.assertRaises(sqlite3.IntegrityError):
                     connection.execute(statement)
+
+    def test_the_warnings_a_person_confirmed_are_kept_in_the_vocabularys_words_and_order(self):
+        """Stored in its order whatever order they came in, read back the same way; none is
+        NULL; and a word the vocabulary does not hold, put there by hand, was never confirmed -
+        a row can only ever confirm less."""
+        state = self.state()
+        state.move("test_wake", ArmingState.ARMED, actor=Actor.DASHBOARD, revision=1,
+                   engine_version=ac.ENGINE, warnings=["compat_unknown", "unmeasured"])
+        connection = self.raw(state)
+        self.assertEqual(connection.execute("SELECT warnings FROM arming").fetchone()[0],
+                         "unmeasured,compat_unknown")
+        self.assertEqual(state.arming()["test_wake"]["warnings"],
+                         (ArmingWarning.UNMEASURED, ArmingWarning.COMPAT_UNKNOWN))
+        connection.execute("UPDATE arming SET warnings='failed_here,made_up'")
+        connection.commit()
+        self.assertEqual(state.arming()["test_wake"]["warnings"], (ArmingWarning.FAILED_HERE,))
+        state.move("test_wake", ArmingState.SHADOW, actor=Actor.DASHBOARD, revision=1, warnings=())
+        self.assertIsNone(connection.execute("SELECT warnings FROM arming").fetchone()[0])
+        state.move("test_wake", ArmingState.SHADOW, actor=Actor.DASHBOARD, revision=1,
+                   warnings=("failed_here",))
+        state.move("test_wake", ArmingState.OFF, actor=Actor.MCP, reason=OffReason.DISARMED)
+        self.assertEqual(state.arming()["test_wake"]["warnings"], ())
+        self.assertIsNone(connection.execute("SELECT warnings FROM arming").fetchone()[0])
+
+    def test_turning_everything_off_forgets_what_was_confirmed(self):
+        state = self.state()
+        state.move("test_wake", ArmingState.SHADOW, actor=Actor.DASHBOARD, revision=1,
+                   warnings=("failed_here",))
+        self.assertEqual(state.all_off(actor=Actor.MCP, reason=OffReason.ALL_OFF)[0], 1)
+        self.assertIsNone(self.raw(state).execute("SELECT warnings FROM arming").fetchone()[0])
 
     def test_the_journal_writes_other_for_a_word_it_does_not_know_and_reads_the_same_way(self):
         state = self.state()

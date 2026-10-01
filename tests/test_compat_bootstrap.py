@@ -30,6 +30,10 @@ BOOTSTRAP = ROOT / "scripts" / "bootstrap.ps1"
 POWERSHELL = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
               / "WindowsPowerShell" / "v1.0" / "powershell.exe")
 RAW = "https://raw.githubusercontent.com/songyb111-gachon/codex-auto-resume-windows/main/src/codex_auto_resume/data/codex_compat.json"
+# The document these tests hand the validator is one newer than the bundled baseline, whatever
+# sequence the data on main has reached: a literal turns into a rollback the day the data passes it.
+NEWER = json.loads((ROOT / "src" / "codex_auto_resume" / "data" / "codex_compat.json")
+                   .read_text(encoding="utf-8"))["sequence"] + 1
 
 PROBE = r"""
 $ErrorActionPreference = 'Stop'
@@ -89,7 +93,7 @@ $requests = @([IO.File]::ReadAllLines($env:CAR_REQUESTS) | Where-Object { $_ })
 """
 
 
-def a_document(sequence=4, **extra):
+def a_document(sequence=NEWER, **extra):
     value = {"format": "codex-auto-resume-compat/1", "sequence": sequence,
              "published_at": "2026-09-18T00:00:00Z", "expires_at": "2027-06-01T00:00:00Z",
              "min_product": "0.6.4", "requires_signature": False, "engines": [], "advisories": []}
@@ -135,9 +139,9 @@ class RefreshFunctionTests(unittest.TestCase):
 
     def test_a_valid_document_is_imported_by_the_validator(self):
         result = self.run_probe(json.dumps(a_document()).encode("utf-8"))
-        self.assertEqual((result["answer"], result["exit"]), ("refreshed 4", 0))
+        self.assertEqual((result["answer"], result["exit"]), ("refreshed %d" % NEWER, 0))
         envelope = json.loads(self.cache.read_text(encoding="utf-8"))
-        self.assertEqual((envelope["origin"], envelope["document"]["sequence"]), ("main", 4))
+        self.assertEqual((envelope["origin"], envelope["document"]["sequence"]), ("main", NEWER))
 
     def test_one_get_to_the_one_constant(self):
         result = self.run_probe(json.dumps(a_document()).encode("utf-8"))
@@ -196,7 +200,7 @@ class RefreshFunctionTests(unittest.TestCase):
         """An update check used to contact raw.githubusercontent.com without a word, right
         after saying it was asking github.com and reading no page."""
         result = self.run_probe(json.dumps(a_document()).encode("utf-8"))
-        self.assertEqual(result["answer"], "refreshed 4")
+        self.assertEqual(result["answer"], "refreshed %d" % NEWER)
         self.assertIn("raw.githubusercontent.com", result["printed"])
         self.assertIn("Codex compatibility data", result["printed"])
 
@@ -214,7 +218,7 @@ class RefreshFunctionTests(unittest.TestCase):
         if requests and isinstance(requests[0], str):
             requests = [requests]
         self.assertEqual([request[2] for request in requests], [17])
-        self.assertEqual(result["answer"], "refreshed 4")
+        self.assertEqual(result["answer"], "refreshed %d" % NEWER)
 
     def test_a_download_still_arriving_at_its_deadline_is_given_up_and_leaves_nothing(self):
         """Under Windows PowerShell 5.1 -TimeoutSec bounds only the wait for a response to begin, and a body that

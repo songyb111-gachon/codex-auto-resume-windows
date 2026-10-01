@@ -3,7 +3,7 @@
 A record's state, a public code, a reason, a gate, a failure category, an error code, a
 setting's choice, a registry state - each is a string from a closed list, and each list is
 also a contract: the store validates against it, the window and the panel look words up by it,
-the catalogs carry a sentence for each member, and the Rust core of v0.6.8 has to write the same
+the catalogs carry a sentence for each member, and the Rust core of v0.6.14 has to write the same
 strings. v0.6.5 gives every list one home, `domain/vocabulary.py`, as an `enum.StrEnum`, and
 keeps each old constant under its old name so that every `x in STATES` still works.
 
@@ -78,13 +78,15 @@ LISTS = {
     # v0.6.11: `held`, a gate core passed and the edition's plug held (domain/plug.py, HOLD);
     # and schema 4's `postponed`, `quiet_hours` and `observe_only`, reasons of consent and schedule;
     # and `offline`, the usage gate's while Windows reports no internet (power.py).
-    "machine.GATE_REASONS": ("set", 82, "3dbd66cb47afb5a9"),
+    # v0.6.11 stage 3b: `plugged`, thread_available passed for a route the plug named (P16).
+    "machine.GATE_REASONS": ("set", 83, "825dc860ee610342"),
     "machine.PASS": "PASS",
     "machine.WAIT": "WAIT",
     "machine.BLOCK": "BLOCK",
     "machine.UNKNOWN": "UNKNOWN",
     "machine.NOT_CHECKED": "not_checked",
     "machine.HELD": "held",
+    "machine.PLUGGED": "plugged",
     "machine.POSTPONED": "postponed",
     "machine.QUIET_HOURS": "quiet_hours",
     "machine.OBSERVE_ONLY": "observe_only",
@@ -180,9 +182,11 @@ LISTS = {
     # v0.6.11: the two editions, and the plug that is the whole difference between them.
     "edition.EDITIONS": ("tuple", 2, "49cc206af3867704"),
     "edition.PLUG_FAILURES": ("tuple", 4, "4414d548d1f8f251"),
-    # P14 joined the twelve: core tells the plug of each move of a record as it writes it.
-    "domain.plug.POINTS": ("tuple", 13, "2d6643b1732de1ca"),
-    "domain.plug.ANSWERS": ("set", 1, "b4686ae67262ac33"),
+    # P14 joined the twelve: core tells the plug of each move of a record as it writes it. P15 too:
+    # how a continuation is carried and proven, where CLIENT_ID - no marker - joined HOLD. And P16:
+    # what continues a conversation the app does not hold, a route core carries out (stage 3b).
+    "domain.plug.POINTS": ("tuple", 15, "c7fb0dccc0944c5d"),
+    "domain.plug.ANSWERS": ("set", 2, "284268ee15d0f48c"),
     "domain.plug.SURFACES": ("tuple", 5, "d41ac5a6d67be21b"),
     "domain.plug.EXTRA": "advanced",
 }

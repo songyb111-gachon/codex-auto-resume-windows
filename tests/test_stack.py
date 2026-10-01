@@ -1,6 +1,6 @@
 """Where every module goes when the core is Rust, and what may call what once it is.
 
-`docs/ROADMAP.md` names the stack v0.6.13 is planned to arrive at: the Windows interface in
+`docs/ROADMAP.md` names the stack v0.6.14 is planned to arrive at: the Windows interface in
 C# and the core in Rust, in eight parts -
 
     Watcher · Recovery engine · Classifier / Policy · State machine ·
@@ -72,7 +72,9 @@ ITEM = {_q(name): item for item, names in {
                # v0.6.11: the waits and the two guards, as the engine asks them.
                "engine.guard",
                # and the needs-you notices, as the engine raises them.
-               "engine.notices"),
+               "engine.notices",
+               # and how a continuation is carried and proven, and the last look before it goes.
+               "engine.delivery"),
     "policy": ("failures", "reasons", "settings", "continuation", "openstate", "domain.gates",
                # what may be done at a tier, and with whose word: policy, not registry data
                "compat.permits",

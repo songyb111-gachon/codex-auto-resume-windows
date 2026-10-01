@@ -11,9 +11,14 @@ asked to agree to and everything the plug holds it to:
   capability off until they have read that one (a tripwire, arming.py);
 * `departs_from` - the standards it breaks (standards.py). Never empty: a capability that keeps
   every standard belongs in the standard edition, so the rule for which edition a capability is
-  in is this field;
-* `compat` - the Compatibility Registry capability it stands on, which `compat.permits` is asked
-  about at the experimental tier before it may act (arming.py);
+  in is this field. Only the standard edition's standards may be named (standards.DEPARTABLE):
+  family K is the advanced edition's own rules, which every capability keeps;
+* `compat` - the Compatibility Registry capability it stands on. Its grade here is shown in the
+  statement - FAILED_HERE, INCOMPATIBLE or UNKNOWN as a warning the person confirms - and a
+  failure the person did not confirm turns it off (arming.py);
+* `measurements` - the measurements its route rests on (measure.py), if any. One that failed, or
+  has no pass for the Codex in force (measured.py), is a warning in its statement, never a
+  reason to withhold it;
 * `ceilings` - how many sends it may make in a day, overall and in one conversation. Beside them
   stands one global ceiling for every capability together, GLOBAL_HOURLY an hour, which a person
   may lower and never raise (state.AdvancedState.set_global_hourly);
@@ -22,9 +27,9 @@ asked to agree to and everything the plug holds it to:
 * `make` - the factory for its code: given the installation's paths, it returns an object whose
   methods are the plug's hooks for its points, each answering as a plug would.
 
-There is no capability yet. DEFINITIONS is empty, so the registry the edition ships offers
-nothing and its plug answers everywhere as the standard edition's does; the tests define one of
-their own to hold every rule here.
+The edition ships three capabilities now: start-with-Codex, at P9 (control/codexstart.py); the
+goal continuation, at P16, P3 and P5 (engine/goal.py); and the marker-free continuation, at P5 and
+P15 (engine/markerfree.py). The tests define one of their own to hold every rule here.
 """
 from __future__ import annotations
 
@@ -34,7 +39,11 @@ from typing import Callable
 
 from codex_auto_resume.domain.plug import Point
 
-from .standards import STANDARDS
+from .control.codexstart import make as make_start_with_codex
+from .engine.goal import make as make_goal_continuation
+from .engine.markerfree import make as make_marker_free
+from .standards import DEPARTABLE
+from .vocabulary import Measurement
 
 # The one ceiling over every capability together: advanced sends an hour. It is also the highest
 # value a person may set it to - it can be lowered and never raised.
@@ -78,6 +87,7 @@ class CapabilityDef:
     journal_prefix: str
     make: Callable
     codes: tuple = ()
+    measurements: tuple = ()
 
     def code(self, word) -> str | None:
         """`word` as this capability's journal writes it, or None if it is not one of its own."""
@@ -107,8 +117,8 @@ def problems(definition) -> list:
     if not isinstance(departs, tuple) or not departs:
         found.append("departs_from is empty: it keeps every standard, so it is standard")
     elif (not all(isinstance(standard, str) for standard in departs)
-          or len(set(departs)) != len(departs) or not set(departs) <= set(STANDARDS)):
-        found.append("departs_from names a standard the standards file does not hold")
+          or len(set(departs)) != len(departs) or not set(departs) <= set(DEPARTABLE)):
+        found.append("departs_from names a standard the standard edition does not keep")
     if not isinstance(definition.compat, str) or not ID_SHAPE.fullmatch(definition.compat):
         found.append("compat")
     ceilings = definition.ceilings
@@ -126,6 +136,11 @@ def problems(definition) -> list:
         found.append("codes")
     if not callable(definition.make):
         found.append("make")
+    measurements = definition.measurements
+    if (not isinstance(measurements, tuple)
+            or not all(isinstance(measurement, Measurement) for measurement in measurements)
+            or len(set(measurements)) != len(measurements)):
+        found.append("measurements")
     return found
 
 
@@ -166,6 +181,90 @@ class Registry:
         return len(self.definitions)
 
 
-# The capabilities this edition ships. None yet.
-DEFINITIONS = ()
+# The capabilities this edition ships.
+#
+# start-with-Codex (decision C9): the one route out of Codex's kill-on-close job, at P9. It sends
+# nothing and claims nothing - it starts the watcher - so it answers at START_ROUTE alone, no
+# point it answers at is a sending point, and its ceilings never bind: a surface that shows them
+# says so (arming.listing marks a non-sending capability). Its journal is the runtime's own -
+# WOULD_HAVE where it is watched, ACTED where core takes its route - so it declares no codes of
+# its own: nothing here would ever write one. It departs from C4 (nothing at start) and F6 (a
+# process-creation route beyond the listed ones), rests on engine_present (the installed Codex is
+# the one we start a watcher for, with local checks), and on measurement MW (the WMI escape still
+# leaves a process outside the job); a version of Codex MW has not passed for is a warning in its
+# statement, never a reason to withhold it. The ceilings are the schema's floor - the smallest a
+# definition may name - because for a capability that never spends they are nominal.
+START_WITH_CODEX = CapabilityDef(
+    id="start_with_codex",
+    points=frozenset({Point.START_ROUTE}),
+    revision=1,
+    departs_from=("C4", "F6"),
+    compat="engine_present",
+    ceilings=Ceilings(per_day=1, per_conversation=1),
+    journal_prefix="swc",
+    make=make_start_with_codex,
+    measurements=(Measurement.MW,),
+)
+
+# The marker-free continuation (v0.6.11 stage 3a, the owner's request of 2026-09-26): each
+# continuation goes with no marker, queued through the app server's thread/queue/add under the
+# client id core derives from the interruption, and core proves delivery by that id alone
+# (domain/plug.py, P15). It is the channel at P5 and answers CLIENT_ID at P15, so it pays one unit
+# at the claim of each send it carries, and past its ceilings core sends with the marker as the
+# standard edition does. It departs from A2 (one channel only: `codex queue`), A4 (the marker
+# proves delivery), B3 (Codex's state changes only through `codex queue`, thread/queue/delete and
+# the plugin command) and B4 (the app server is asked only initialize, account/rateLimits/read and
+# thread/queue/delete) - the last two because its session calls thread/queue/add, as the goal
+# continuation's does (codex/protocol.CAPABILITY_METHODS); revision 2 names them, where revision 1
+# named A2 and A4 alone. It stands on recovery_turn_tracking - the history and queue tables the
+# proof is read from, with local checks - and on measurement M7, where thread/queue/add with a
+# clientUserMessageId was accepted and delivered as plain text. A send it cannot prove is held as
+# core holds any uncertain one, and the tripwire for a paid send gone submission_unknown turns it
+# off. Its ceilings: core's own five a conversation a day, and two dozen a day in all.
+MARKER_FREE = CapabilityDef(
+    id="marker_free_continuation",
+    points=frozenset({Point.SENDER, Point.DELIVERY}),
+    revision=2,
+    departs_from=("A2", "A4", "B3", "B4"),
+    compat="recovery_turn_tracking",
+    ceilings=Ceilings(per_day=24, per_conversation=CORE_DAILY_CAP),
+    journal_prefix="mfc",
+    make=make_marker_free,
+    measurements=(Measurement.M7,),
+)
+
+# The goal continuation (v0.6.11 stage 3b, the owner's request of 2026-09-26): for a usage limit in
+# a conversation the app does not hold, it is the route core carries out at P16 - the conversation's
+# goal, paused by the limit, set active again through the app server's thread/goal/set, an existing
+# goal only and never its words - so Codex carries the goal on when the app next opens it (M2: a goal
+# set so is not seen while the app holds the conversation, and is live once it loads it again). At
+# P3 it holds the standard continuation back while that goal is active, so the two never both run;
+# at P5, only where M2b passed for the Codex in force, it is the channel that sets the goal active
+# before the continuation it queues. Anywhere else the standard queue route stands.
+#
+# It departs from 0.5 (goal-state manipulation is rejected from the product), A2 (one channel only),
+# A11 (nothing is done for a conversation the app does not hold), B3 (Codex's state changes only
+# through the queue and the plugin command) and B4 (the app server's three methods). It stands on
+# loaded_state_detection - whether the app holds the conversation, with local checks, which is what
+# decides its route - and reads the goals table's columns itself at every use, doing what the
+# standard edition does where they are not there. Core's own goal_continuation entry in the
+# Compatibility Registry has no local check and stays 'unsupported' (G12), as the standard
+# edition's. Its route rests on M2, which failed for a conversation the app holds - a warning in its
+# statement the person confirms; M2b only widens where it acts, and is read where it is used.
+# Ceilings: three a conversation a day - a usage limit resets a few times a day at most - and a dozen
+# a day in all. It comes before the marker-free continuation, so where both are on and the goal
+# applies its channel carries the send, under the client id P15 gives it.
+GOAL_CONTINUATION = CapabilityDef(
+    id="goal_continuation",
+    points=frozenset({Point.UNLOADED, Point.GATES, Point.SENDER}),
+    revision=1,
+    departs_from=("0.5", "A2", "A11", "B3", "B4"),
+    compat="loaded_state_detection",
+    ceilings=Ceilings(per_day=12, per_conversation=3),
+    journal_prefix="goal",
+    make=make_goal_continuation,
+    measurements=(Measurement.M2,),
+)
+
+DEFINITIONS = (START_WITH_CODEX, GOAL_CONTINUATION, MARKER_FREE)
 REGISTRY = Registry(DEFINITIONS)

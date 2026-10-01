@@ -29,7 +29,6 @@ import subprocess
 import sys
 import tempfile
 import threading
-import time
 import unittest
 
 _HERE = str(Path(__file__).resolve().parent)
@@ -65,13 +64,12 @@ def short(calls):
     return json.loads(MARKER.sub(lambda found: "[codex-auto-resume:%s]" % found.group(1)[:16], json.dumps(calls)))
 
 
-def run_all(ids, source: Path, *, count=None, timeout=1800) -> tuple:
+def run_all(ids, source: Path, *, count=None, stall=neutral.STALL) -> tuple:
     """Every scenario in `ids` under the package in `source`: (the package's file, id -> result)."""
     pending = queue.Queue()
     for test_id in sorted(ids, key=lambda name: name.split(".", 1)[0] not in neutral.FIRST):
         pending.put(test_id)
     results, packages, lock = {}, set(), threading.Lock()
-    deadline = time.monotonic() + timeout
 
     def work(home):
         environment = dict(os.environ, PYTHONPATH=os.pathsep.join([str(source), str(HERE)]),
@@ -86,20 +84,23 @@ def run_all(ids, source: Path, *, count=None, timeout=1800) -> tuple:
             first = process.stdout.readline()
             with lock:
                 packages.add(json.loads(first)["package"] if first else None)
-            while first and time.monotonic() < deadline:
+            while first:
                 try:
                     test_id = pending.get_nowait()
                 except queue.Empty:
                     break
-                process.stdin.write(test_id + "\n")
-                process.stdin.flush()
-                line = process.stdout.readline()
-                result = json.loads(line) if line else {"id": test_id, "error": "the worker ended"}
+                line, stalled = neutral.answer(process, test_id, stall)
+                if line and not stalled:
+                    result = json.loads(line)
+                else:
+                    result = {"id": test_id, "error": ("no answer in %d seconds; the worker was stopped" % stall)
+                              if stalled else "the worker ended"}
                 with lock:
                     results[test_id] = result
-                if not line:
+                if stalled or not line:
                     break
-            process.stdin.close()
+            if process.poll() is None:
+                process.stdin.close()
 
     homes = [tempfile.TemporaryDirectory(prefix="released-calls-") for _ in range(count or neutral.workers())]
     try:
@@ -126,7 +127,6 @@ class ReleasedCallsTests(unittest.TestCase):
         source = released.package(TAG)
         ids = neutral.scenarios(tuple(name for name in neutral.MODULES if name not in AFTER))
         self.assertGreater(len(ids), 250, "the listing itself looks wrong")
-        started = time.monotonic()
         then_packages, then = run_all(ids, source)
         now_packages, now = run_all(ids, ROOT / "src")
         self.assertEqual([Path(path).resolve().parent.parent for path in then_packages], [source.resolve()],
@@ -158,7 +158,6 @@ class ReleasedCallsTests(unittest.TestCase):
                              "every kind of call is compared somewhere")
         driven = [key for key in ids if now[key]["engines"]]
         self.assertGreater(len(driven), 200)
-        self.assertLess(time.monotonic() - started, 1800)
 
     def test_the_comparison_sees_a_call_that_differs(self):
         call = ["send", ["0a1b2c3d-0001-7000-8000-000000000001",

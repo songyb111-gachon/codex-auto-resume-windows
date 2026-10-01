@@ -176,6 +176,8 @@ its provenance marker), and Windows registrations that belong to this installati
 | [docs/PLUGIN.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/PLUGIN.md) | The Codex plugin layer: what setup fetches and checks, updates and removal. |
 | [docs/COMPARISON.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/COMPARISON.md) | Other projects in this space, and what each does better than this one. |
 | [docs/ROADMAP.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/ROADMAP.md) | Where the project is heading, release by release: a planned direction, not a promise. |
+| [docs/EDITIONS.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/EDITIONS.md) | The standard and the advanced edition: what each is, what each advanced capability does and risks, and how to choose and switch. |
+| [docs/STANDARDS.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/STANDARDS.md) | Every rule the product keeps, by id, with how each is held and the tests that hold it. |
 | [PRIVACY.md](docs/PRIVACY.md) | What is read, what is stored, and what is sent anywhere. |
 | [SECURITY.md](docs/SECURITY.md) | The threat model and how to report a vulnerability. |
 | [SUPPORT.md](docs/SUPPORT.md) | Where to report each kind of problem, and what not to paste into a public issue. |

@@ -56,6 +56,9 @@ MIXINS = (state.StateMixin, seen.SeenMixin, policy.SettingsMixin, records.Record
 METHODS = {
     "__init__", "_confirm_watcher", "_described", "_launch_watcher", "_newest_failure", "_open",
     "_seen_file", "_start_for_codex", "_watcher", "acknowledge_failure", "cancel_all_pending",
+    # v0.6.11 stage 3: carrying out an armed advanced start-with-Codex route through WMI, and
+    # the pause it and core's own start both stop for (control/codexstart.py).
+    "_start_through_route", "_paused",
     "cancel_interruption", "cancel_thread", "clear_history", "describe_settings",
     "failure_seen_at", "failure_unseen", "get_settings", "get_status", "history",
     "launch_ends_with_job",

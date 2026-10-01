@@ -377,7 +377,9 @@ Three branches carry the documents three ways:
   tests pass - and it is force-updated: main's code, with the Korean sources of the dev commit
   main was promoted from written over the English pages. A pull request against `ko` cannot be
   merged and an edit made there is lost at the next sync, so please do not spend an evening on
-  one.
+  one. The sync tests the tree in four parts at once before publishing it, and
+  `.github/workflows/ko-watch.yml` fails a scheduled run when ko is still behind main six hours
+  after main moved - a stalled sync used to read only as "cancelled".
 
 CI holds the split: on a push to `main` no `*.ko.md` may exist, and on a push to `dev` every
 mapped one must (`tests/languages.py`, `tests/test_korean.py`), so dev cannot quietly skip its
@@ -563,6 +565,29 @@ fail without it:
 
 If you are unsure whether a change crosses one of those lines, open an issue first and say
 what you are trying to achieve — there is usually a way to get there that keeps the property.
+
+## The standards
+
+[STANDARDS.md](STANDARDS.md) is every rule the product keeps, by id, and
+[EDITIONS.md](EDITIONS.md) says what they mean for the two editions: the standard edition keeps
+families 0 and A to J, each advanced capability names the ones it departs from, and family K binds
+every capability. The list is the owner's; adding or changing a rule is the owner's decision, made
+in a commit like any other.
+
+- **Adding a rule.** It takes the next number in its family. Ids are never renumbered or reused,
+  because capability statements, the registry and the other documents cite them. Its line under
+  the rule says how it is held - tested, code, docs, model or planned - and names the tests that
+  hold it. In the same commit, the table of families in the advanced package's `standards.py`
+  (under `advanced/src/`) gets the family's new count: `advanced/tests/test_advanced_registry.py`
+  fails while the file and that table disagree, family by family, and while a test the file names
+  is not in the repository.
+- **Changing a rule.** It keeps its id and its place, and its sentence ends with who changed it and
+  when: *(amended by the owner on 2026-09-28)*. If a capability's statement describes the rule, the
+  statement changes with it, under a new revision, which turns that capability off until a person
+  has read the new one (K7).
+- **Both languages.** `docs/STANDARDS.ko.md` changes in the same commit, rule by rule:
+  the test above also requires the same ids in the same order, naming the same tests. Then record
+  it with `python scripts/ko_sync.py --reviewed docs/STANDARDS.md`.
 
 ## Sending a compatibility report
 

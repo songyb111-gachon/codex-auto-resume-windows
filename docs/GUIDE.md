@@ -448,6 +448,27 @@ its popup are not an exception: the watcher owns both, so they cannot show a wat
 there, and everything their menus, buttons and switches offer goes through the same control layer
 as the other surfaces.
 
+**Two editions.** From v0.6.11 the product is built and released as two editions, from one repository
+and with one version. The **standard** edition is the one this guide describes: it keeps every one of
+the project's standards - what [Safety model](#safety-model) and [Privacy](#privacy) promise among
+them - and what it gains keeps them too, each addition off, or doing what the release before it did,
+until you change it. The **advanced** edition is the standard one plus capabilities that break one of
+those standards on purpose. Each says which it breaks, is off until you turn it on after reading
+that, and turns itself off again when what you agreed to stops being true. You turn one on in the
+Dashboard, on the page that edition adds, **Advanced features**, and nowhere else. Their code is left
+out of the standard edition's archive, and `build/edition_audit.py` proves from the archive's own
+bytes, in every release build, that none of it is there. An installation updates within its edition;
+moving to the other is a reinstall. The [roadmap](ROADMAP.md) says what each has, and what is still
+to come. [EDITIONS.md](EDITIONS.md) says what each edition is and what each capability does, and
+[STANDARDS.md](STANDARDS.md) lists every standard by its id, with how it is held.
+
+The advanced edition's state is the one exception to *a second state database*: which capability is
+on, what each has spent and what it did are kept in `config/advanced/advanced.sqlite`, apart from
+the watcher's own state, so nothing in the standard edition's database changes for it
+(`advanced/tests/test_advanced_state.py`). It exists only in the advanced edition, and is made
+there only when something in it is first turned on or changed; the standard edition never creates
+it, and `Uninstall.cmd -Purge` removes it with the rest of `config\`.
+
 ## Features
 
 - Recovers usage limits and clearly classified temporary failures, on separate policies. Never

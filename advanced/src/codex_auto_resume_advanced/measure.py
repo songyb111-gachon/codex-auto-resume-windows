@@ -1,13 +1,16 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
 """The measurement harness: what the owner runs by hand to find whether a capability can work.
 
-Nine of this edition's capabilities depend on a fact only a live machine can give - that a
+Several of this edition's capabilities depend on a fact only a live machine can give - that a
 queued message reaches a notLoaded thread when it is opened, that a headless turn behaves when
-its approvals are declined, that the WMI escape still leaves a process outside Codex's job. An
+its approvals are declined, that the WMI escape still leaves a process outside Codex's job, that a
+goal set active beside a queued turn carries on while the app holds the conversation (M2b). An
 agent never learns these: it never touches the real install (the whole product turns on that
 rule). So the owner runs `measure <id>` on a throwaway conversation, once per Codex version, and
-each run writes one content-free record to docs/evidence/live/ (evidence.py). A capability whose
-measurement has not passed for the Codex in force ships built but unavailable (decision C7).
+each run writes one content-free record to docs/evidence/live/ (evidence.py), and what a release
+carries of them is measured.py. A capability whose measurement failed, or has not passed for the
+Codex in force, says so as a warning in its statement, which the person confirms by turning it on
+(arming.warnings_for; the owner's rule of 2026-09-26, which replaced decision C7).
 
 Nothing here runs unless a person asks for it. A measurement opens a one-turn session
 (codex/protocol.Session) restricted to the methods it declared, reads what it can, and records a
@@ -28,6 +31,7 @@ from codex_auto_resume.diagnostics import Redactor
 from codex_auto_resume.domain.ids import is_uuid
 
 from . import evidence
+from .codex import inuse
 from .codex.protocol import Session, SessionRefused, methods_for
 from .vocabulary import Measurement, NoteCode, Verdict
 
@@ -114,6 +118,76 @@ def _m2(ctx):
     observed = {"goal_read": isinstance(before, dict), "goal_set": isinstance(after, dict)}
     return _blocked("confirm the Desktop continued the goal at its next idle, then set the "
                     "verdict", **observed)
+
+
+def _m2b(ctx):
+    """A goal set active and a turn queued while the Desktop holds the conversation: does the turn
+    run, and does the goal stay active and carry on after it? (the owner, 2026-09-28)
+
+    M2 found a goal set from another app server is not seen while the app holds the conversation.
+    The goal continuation therefore sets a goal only where the app does not hold it - and on one the
+    app holds only if this passes. The harness does what the capability would do there: it reads
+    the goal (its status alone - never its words, which no record holds), sets that existing goal
+    active - never creating one - adds one short turn to the conversation's queue, follows the queue
+    for up to _M2B_QUEUE_SECONDS to see the Desktop take the item, and reads the goal's status again.
+    That the turn ran, and that the goal stayed active and carried on after it, is what the person
+    watching confirms.
+
+    How the owner runs it, on a throwaway conversation only: give it a goal in the Codex app and
+    let it pause (a usage limit, or pause it by hand), keep it open in the Desktop, then run
+    `measure m2b <thread-uuid>` from the long-lived bridge; watch the conversation, and record what
+    was seen with `measure-verdict m2b pass as_expected` - or `fail not_as_expected` where the turn
+    did not run, `fail partial` where it ran and the goal did not carry on after it."""
+    with ctx.open() as session:
+        before = _goal_status(session.call("thread/goal/get", {"threadId": ctx.probe_thread}))
+        if before is None:
+            return _blocked("give the throwaway conversation a goal, pause it, keep the conversation "
+                            "open in the Desktop, then run m2b again", goal_found=False)
+        session.call("thread/goal/set", {"threadId": ctx.probe_thread, "status": "active"})
+        set_active = _goal_status(session.call("thread/goal/get", {"threadId": ctx.probe_thread}))
+        added = session.call("thread/queue/add", {"threadId": ctx.probe_thread,
+                                                  "clientUserMessageId": _SAMPLE_M2B_CLIENT_ID,
+                                                  "input": [{"type": "text", "text": _M2B_PROMPT}]})
+        taken = _await_taken(session, ctx.probe_thread, _SAMPLE_M2B_CLIENT_ID, _M2B_QUEUE_SECONDS)
+        after = _goal_status(session.call("thread/goal/get", {"threadId": ctx.probe_thread}))
+    observed = {"goal_found": True, "goal_was_active": before == "active",
+                "goal_set_active": set_active == "active",
+                "queue_add_accepted": isinstance(added, dict), "queued_turn_taken": taken,
+                "goal_active_after": after == "active"}
+    return _blocked("watch the conversation: confirm the queued turn ran and the goal stayed active "
+                    "and carried on after it, then set the verdict", **observed)
+
+
+# M2b's turn: one short, harmless message. What the turn answers is never read.
+_M2B_PROMPT = "Reply with the single word: ok."
+_M2B_QUEUE_SECONDS = 60.0        # how long the harness follows the queue for the Desktop to take it
+_M2B_POLL_SECONDS = 1.0
+
+
+def _goal_status(result):
+    """The status a thread/goal/get answered, as the protocol words it - or None for no goal. Only
+    the status is looked at; the goal's objective is in the answer and is never read."""
+    goal = result.get("goal") if isinstance(result, dict) else None
+    status = goal.get("status") if isinstance(goal, dict) else None
+    return status if isinstance(status, str) else None
+
+
+def _await_taken(session, thread, client_id, seconds) -> bool:
+    """Whether the queued item under `client_id` left the conversation's queue within `seconds` -
+    the Desktop took it to run. False when it is still there, or the queue could not be read."""
+    deadline = time.monotonic() + seconds
+    while True:
+        try:
+            listed = session.call("thread/queue/list", {"threadId": thread})
+        except AdapterError:
+            return False
+        items = listed.get("data") if isinstance(listed, dict) else None
+        if isinstance(items, list) and not any(
+                isinstance(item, dict) and item.get("clientUserMessageId") == client_id for item in items):
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(_M2B_POLL_SECONDS)
 
 
 def _m3(ctx):
@@ -274,9 +348,9 @@ def _mw(ctx):
 
 
 PROBES = {
-    Measurement.M1: _m1, Measurement.M2: _m2, Measurement.M3: _m3, Measurement.M4: _m4,
-    Measurement.M5: _m5, Measurement.M6: _m6, Measurement.M7: _m7, Measurement.MH: _mh,
-    Measurement.MA: _ma, Measurement.MW: _mw,
+    Measurement.M1: _m1, Measurement.M2: _m2, Measurement.M2B: _m2b, Measurement.M3: _m3,
+    Measurement.M4: _m4, Measurement.M5: _m5, Measurement.M6: _m6, Measurement.M7: _m7,
+    Measurement.MH: _mh, Measurement.MA: _ma, Measurement.MW: _mw,
 }
 
 # A conversation and a message id of no one's: the shape a call takes, never a real id. A probe
@@ -284,6 +358,7 @@ PROBES = {
 # put here; on their machine this constant is what a call carries when they have not.
 _SAMPLE_THREAD = "00000000-0000-7000-8000-000000000000"
 _SAMPLE_CLIENT_ID = "00000000-0000-7000-8000-000000000001"
+_SAMPLE_M2B_CLIENT_ID = "00000000-0000-7000-8000-000000000002"
 
 
 def _completed_status(events, thread, turn_id) -> str | None:
@@ -338,8 +413,8 @@ def run(measurement, *, session_factory=None, launcher=None, backend=None, versi
     into the record, which keeps only whether one was given.
 
     A record that cannot say which Codex it measured is not written, and nothing is run for it:
-    a measurement decides, per Codex version, whether a capability ships (C7), and "unknown"
-    would decide it for every version at once.
+    a measurement speaks for one Codex version - a pass counts only there, as the statement's
+    warnings read it (arming.warnings_for) - and "unknown" would speak for every version at once.
     """
     measurement = Measurement(measurement)
     if thread is not None and not is_uuid(thread):
@@ -380,14 +455,11 @@ def _versions(backend) -> dict:
             "windows_build": build or "10.0.0"}
 
 
-def live_backend():
-    """The installed Codex, found as core finds it and checked, so its `engine_version` is the
-    version a record says it measured."""
-    from codex_auto_resume.codex.transport import Backend
-    exe = config.discover_codex_exe(None, lambda path: Backend(config.codex_home(), path)._compatible())
-    backend = Backend(config.codex_home(), exe)
-    backend._compatible()
-    return backend
+def live_backend(paths=None):
+    """The Codex the installation at `paths` drives, checked, so its `engine_version` is the
+    version a record says it measured: the one its watcher told the plug, else the one the
+    watcher would find - the `codex_exe` setting, or discovery (codex/inuse.py)."""
+    return inuse.backend(paths)
 
 
 def live_session_factory(paths, backend=None):
@@ -399,7 +471,7 @@ def live_session_factory(paths, backend=None):
     is the one the run's record reads its Codex version from, so the session and the record are
     of the same Codex."""
     def factory(measurement):
-        return Session(backend if backend is not None else live_backend(), measurement)
+        return Session(backend if backend is not None else live_backend(paths), measurement)
 
     return factory
 

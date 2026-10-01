@@ -68,7 +68,7 @@ class PlugFailure(StrEnum):
 
 class Point(StrEnum):
     """Where core asks the plug (POINTS), numbered P2-P13 as the v0.6.11 plan numbers them, and
-    P14, which the plan did not have.
+    P14 and P15, which the plan did not have.
 
     There is no P1. Classifying a turn into a core category would write a category that does
     not describe it, so an advanced record stays in the advanced store and reaches core through
@@ -82,7 +82,18 @@ class Point(StrEnum):
     finds where they left a record at its next P2 or P8. A plug that read the moves back instead
     - out of the journal - would decide by a second source of truth, which a pruned entry or a
     retention bound changes; and the record's state alone, read at P8, has already moved on when
-    the watch that runs before P8 settled it."""
+    the watch that runs before P8 settled it.
+
+    P15 (v0.6.11 stage 3) is how a continuation is carried and how its arrival is proven. Core
+    has always ended the words with the record's marker and proven delivery by finding it in
+    Codex's history (A4); a plug may answer CLIENT_ID instead, and core sends the words with no
+    marker, under a client id it derives from the interruption, and proves delivery by that id.
+
+    P16 (v0.6.11 stage 3b) is what continues a record whose conversation the app does not hold.
+    Core has always waited for the app to open it (A11); a plug may name a route instead - an
+    object with a `resume` - and core carries it out itself, as it carries out the send: its one
+    claim, its pre-send look and its launch guard, the route called once, and what came of it
+    settled by core's own rules (engine/delivery.py)."""
     RECORDS = "records"                      # P2  records of the advanced store, due now
     GATES = "gates"                          # P3  the gates a record passes before it is sent
     TEXT = "text"                            # P4  what the continuation says
@@ -96,12 +107,17 @@ class Point(StrEnum):
     CONCURRENCY = "concurrency"              # P12 how due records are divided for dispatch
     SUPERVISION = "supervision"              # P13 how the launcher keeps the watcher running
     MOVED = "moved"                          # P14 a record core holds moved to another state
+    DELIVERY = "delivery"                    # P15 how a continuation is carried and proven
+    UNLOADED = "unloaded"                    # P16 what continues one the app does not hold
 
 
 class Alternative(StrEnum):
     """What a plug may answer at a decision point instead of DEFER (ANSWERS). Core carries out
     every one of them itself."""
     HOLD = "hold"                            # not now: the record keeps waiting, as on a WAIT
+    # P15: no marker; queued under the client id core derives from the interruption
+    # (ids.continuation_client_id), which is what proves it arrived.
+    CLIENT_ID = "client_id"
 
 
 class Surface(StrEnum):
@@ -227,10 +243,38 @@ class Plug:
         attempts given back - are not told (Point, P14). Its answer is not read."""
         return DEFER
 
+    def delivery(self, record):                       # P15
+        """How a continuation of `record` is carried and how its arrival is proven, asked once
+        a dispatch has its words and its sender, before the claim. DEFER is core's own way: the
+        record's marker at the end of the words, found in Codex's history. CLIENT_ID is no
+        marker: core queues the words through the channel the plug named at P5, under the client
+        id it derives from the interruption, and proves delivery by that id alone - so without a
+        channel, core's own backend being unable to name one, it is DEFER."""
+        return DEFER
+
+    def unloaded(self, record):                       # P16
+        """What continues `record` while the app does not hold its conversation, asked once
+        every gate before that one has passed, its consent included, and the app has said the
+        conversation is notLoaded - never when it could not say. DEFER is core's own way: the
+        record waits for the app to open it (A11). A route - an object with a callable `resume`
+        - is carried out by core instead: the gates that follow, its one claim, the pre-send look,
+        and the route called once inside the launch guard (engine/delivery.py)."""
+        return DEFER
+
     def edition_changed(self, previous):
         """The installer has just replaced an installation of edition `previous` with this one.
 
         Not a point: it is called once, by `install --edition-from`, never during a tick."""
+        return None
+
+    def codex(self, codex_exe, codex_home):
+        """The Codex this process drives: the codex.exe the watcher found and checked - its
+        `--codex-exe`, the `codex_exe` setting, or the one discovery chose - and the Codex home it
+        runs it with, `--codex-home` or CODEX_HOME's. A plug whose own session with Codex has to
+        be that very Codex, and whose reads have to be of that home, is told them here, once the
+        watcher has built its backend (runtime/app.py), rather than finding a Codex of its own.
+
+        Not a point: nothing is decided by it and its answer is not read. NULL keeps nothing."""
         return None
 
 
@@ -240,7 +284,8 @@ HOOKS = {
     Point.OUTCOME: "outcome", Point.SCHEDULE: "schedule", Point.TICK: "tick",
     Point.START_ROUTE: "start_route", Point.SURFACES: "surface",
     Point.CLAIM_LEDGER: "claim_ledger", Point.CONCURRENCY: "partition",
-    Point.SUPERVISION: "supervise", Point.MOVED: "moved",
+    Point.SUPERVISION: "supervise", Point.MOVED: "moved", Point.DELIVERY: "delivery",
+    Point.UNLOADED: "unloaded",
 }
 
 # A hook may always restrict. HOLD keeps a record waiting, exactly as a gate that says WAIT
@@ -252,19 +297,33 @@ RESTRICTIONS = frozenset({Alternative.HOLD})
 # and core checks it where it takes it, as it checks its own.
 #
 # An empty set is a point core asks and carries nothing out at yet. An advanced record tried
-# like core's own, something that follows a finished turn, another way to start the watcher, a
-# division of the due records and a restart each relax what core does alone, so each waits for
-# the commit that teaches core to carry it out - and then joins its point's set, or leaves this
-# table for a value core checks.
+# like core's own, something that follows a finished turn, a division of the due records and a
+# restart each relax what core does alone, so each waits for the commit that teaches core to
+# carry it out - and then joins its point's set, or leaves this table for a value core checks.
+#
+# START_ROUTE has left this table: v0.6.11 stage 3 taught core to carry out a start route (the
+# start with Codex), and it does so the way the sender does - the plug names a route, an object
+# with a `start`, that core calls with the command line it built (Guarded.start_route). So the
+# start route is a value point now, not a decision point with a closed set of words.
+#
+# UNLOADED (P16) is one the same way, from v0.6.11 stage 3b: a plug names a route, an object with
+# a `resume`, and core carries it out through its own claim, pre-send look and launch guard
+# (Guarded.unloaded, engine/delivery.py). Its words are none of this table's.
+#
+# DELIVERY (P15) takes CLIENT_ID, which core learned to carry out in the same commit: the words
+# with no marker, the one send made through the plug's channel with the client id core derived,
+# and every look that proves or disproves delivery made for that id (engine/delivery.py). It
+# relaxes no gate - every one of them has passed before it is asked - so it is not a restriction,
+# and it is the one answer here that is not.
 ALTERNATIVES = {
     Point.RECORDS: frozenset(),
     Point.GATES: RESTRICTIONS,
     Point.OUTCOME: frozenset(),
     Point.SCHEDULE: RESTRICTIONS,
-    Point.START_ROUTE: frozenset(),
     Point.CLAIM_LEDGER: RESTRICTIONS,
     Point.CONCURRENCY: frozenset(),
     Point.SUPERVISION: frozenset(),
+    Point.DELIVERY: frozenset({Alternative.CLIENT_ID}),
 }
 
 # Every alternative some point accepts. The vocabulary is exactly these
@@ -369,18 +428,50 @@ class _Channel:
     advanced state's too once the claim has attached it, so a Pause from the settings window,
     a disarm on another thread and the channel's own write to the advanced state all waited
     for it - and failed, past SQLite's ten seconds. A Pause that commits once consent was read
-    finds a send started, as it finds one of the backend's after its launch."""
+    finds a send started, as it finds one of the backend's after its launch.
+
+    `client_id` is handed on only when core gives one - a continuation it sends with no marker
+    (P15) - so a channel that was never asked for that is called exactly as before."""
     __slots__ = ("_send",)
 
     def __init__(self, send):
         self._send = send
 
-    def send(self, thread_id, prompt, *, launch_guard=None):
+    def send(self, thread_id, prompt, *, launch_guard=None, client_id=None):
         with launch_guard if launch_guard is not None else nullcontext(True) as permitted:
             pass
         if permitted is not True:
             return {"outcome": "not_started", "error_code": "queue_consent_refused"}
-        return self._send(thread_id, prompt, launch_guard=nullcontext(True))
+        if client_id is None:
+            return self._send(thread_id, prompt, launch_guard=nullcontext(True))
+        return self._send(thread_id, prompt, launch_guard=nullcontext(True), client_id=client_id)
+
+
+class _Route:
+    """A route a plug named at P16, held to the launch guard as a channel is (`_Channel`).
+
+    Consent is read under the store's write lock, and the route is called only if it held, with
+    a guard already decided and the lock let go - the route is the plug's code, and a transport
+    core cannot see into, and a Pause or a disarm must never wait behind it. `resume` is the
+    route's one method, and the only thing of it core ever calls.
+
+    `still_unloaded` is core's own look at whether the app still does not hold the conversation
+    (engine/delivery.py), handed on for the route to ask at the last moment before it changes
+    anything in Codex: its session takes seconds to start, and the app may open the conversation
+    in them. It is handed on only when core gives one."""
+    __slots__ = ("_resume",)
+
+    def __init__(self, resume):
+        self._resume = resume
+
+    def resume(self, thread_id, *, launch_guard=None, still_unloaded=None):
+        with launch_guard if launch_guard is not None else nullcontext(True) as permitted:
+            pass
+        if permitted is not True:
+            return {"outcome": "not_started", "error_code": "queue_consent_refused"}
+        if still_unloaded is None:
+            return self._resume(thread_id, launch_guard=nullcontext(True))
+        return self._resume(thread_id, launch_guard=nullcontext(True), still_unloaded=still_unloaded)
 
 
 class Guarded:
@@ -463,7 +554,21 @@ class Guarded:
         self._ask(Point.TICK, view)
 
     def start_route(self, request):
-        return self._ask(Point.START_ROUTE, request)
+        """A route to start the watcher outside Codex's job, or DEFER.
+
+        DEFER keeps core's own answer, which is today's refusal. Anything else is a route only
+        if it has a callable `start`, which core calls with the command line it built itself; a
+        word, a number, or an object without one is DEFER, so a hook that answers with something
+        core cannot call changes nothing. The route is the plug's own code, held to the launch
+        the way the sender's channel is: core decides when to call it, and with what."""
+        answer = self._ask(Point.START_ROUTE, request)
+        if answer is DEFER:
+            return DEFER
+        try:
+            start = getattr(answer, "start", None)
+        except Exception:                              # a `start` that raises when it is looked up
+            return DEFER
+        return answer if callable(start) else DEFER
 
     def surface(self, name, facts):
         """Fields for surface `name` (a Surface), or DEFER."""
@@ -492,6 +597,38 @@ class Guarded:
     def moved(self, record, state):
         """P14. The record goes as a copy (`consult`), and the answer is not read."""
         self._ask(Point.MOVED, record, state)
+
+    def delivery(self, record):
+        """P15: CLIENT_ID, or DEFER - which is the marker, as core has always carried it. Core
+        takes CLIENT_ID only for a send it hands to a channel (engine/dispatch.py)."""
+        return self._ask(Point.DELIVERY, record)
+
+    def unloaded(self, record):
+        """P16: the route the plug names for a record whose conversation the app does not hold,
+        held to the launch guard (`_Route`), or DEFER - which is core's own wait (A11).
+
+        A route is something with a callable `resume`; a word, a number, or an object without one
+        is DEFER, so a hook that answers with something core cannot call changes nothing. Core
+        calls it once, after its claim and its pre-send look (engine/delivery.py)."""
+        answer = self._ask(Point.UNLOADED, record)
+        if answer is DEFER:
+            return DEFER
+        try:
+            resume = getattr(answer, "resume", None)
+        except Exception:                              # a `resume` that raises when it is looked up
+            return DEFER
+        return _Route(resume) if callable(resume) else DEFER
+
+    def codex(self, codex_exe, codex_home):
+        """Tell the plug which Codex this process drives (Plug.codex). Not a point, so not asked
+        through `consult`: NULL is told nothing, and a plug that raises is counted in `failures`
+        and has changed nothing of core's."""
+        if self.plug is NULL:
+            return
+        try:
+            self.plug.codex(codex_exe, codex_home)
+        except Exception:
+            self.failures += 1
 
 
 def guard(plug) -> Guarded:
