@@ -11,7 +11,7 @@ asks first; v0.6.11-beta and the copies before it never offer a pre-release. It 
 with the one thing that pre-release lacked: the advanced edition's Dashboard page that turns a
 capability on, which the owner asked on 2026-10-02 to follow at once. With it, everything of the
 v0.6.11 final is done but the version and edition picker. The standard edition gains nothing here but
-the edition's new look beside the version ([below](#the-edition-as-a-badge)), and does what
+the edition's new look beside the version ([below](#the-edition-quiet-beside-the-version)), and does what
 v0.6.11-beta.2 did; its window has no such page, and the two points the page needs in the window's
 shared code have no body there, so the compiler leaves them out. The watcher's state
 and the advanced edition's file are v0.6.11-beta.2's, so going back to it takes only its
@@ -96,10 +96,14 @@ only turn capabilities off. [EDITIONS.md](EDITIONS.md) says what each capability
   to it. An advanced installation whose own part could not be loaded runs as the standard edition and
   shows no such tab.
 
-### The edition, as a badge
+### The edition, quiet beside the version
 
-- **The edition beside the version is now a small badge**, set apart from the version, where
-  v0.6.11-beta.2 wrote it as more of the version's own text, in the same type and size.
+- **The edition beside the version is now quiet secondary text**: a space after the version with no
+  ` · ` before it, smaller (0.62 of the version, never under 10 px), in the standard secondary grey in
+  both editions, and on the version's baseline - at the foot of the Dashboard, in the Version row of
+  its Diagnostics page and in the heading of the panel in Codex. v0.6.11-beta.2 wrote it as more of
+  the version's own text, in the same type and size. The notification-area icon's tooltip is
+  unchanged.
 
 ### Going back from v0.6.11-beta.3
 
