@@ -14,6 +14,8 @@ result a whole run gives. What is held here:
 * LaneTests - what each lane runs, and with what on the path.
 * WorkflowPartsTests - test.yml and release.yml run every part of every lane, and what a lane checks
   once still runs once.
+* MainTreeTests - test.yml's main-tree job runs the release's lane on dev's tree with every Korean
+  source taken off, as main and the release will hold it.
 
 The comparison of a whole run with a parallel one, test id by test id, is in CONTRIBUTING.md; it takes
 as long as the suite, so it is a command rather than a test. It was made on both editions' lanes, and
@@ -34,6 +36,10 @@ import unittest
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "tests"))
+
+import languages  # noqa: E402
+
 WORKFLOWS = ROOT / ".github" / "workflows"
 RUNNER = ROOT / "scripts" / "test_parts.py"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
@@ -89,7 +95,9 @@ def documented_counts() -> set[int]:
 def counts_used() -> list[int]:
     """Every part count a workflow uses, every count CONTRIBUTING.md shows, and 1: the whole suite as
     one part."""
-    return sorted({1, declared_parts(workflow("test.yml")), declared_parts(job(workflow("release.yml"), "test")),
+    tests = workflow("test.yml")
+    return sorted({1, declared_parts(job(tests, "test")), declared_parts(job(tests, "main-tree")),
+                   declared_parts(job(workflow("release.yml"), "test")),
                    declared_parts(job(workflow("sync-ko.yml"), "test"))} | documented_counts())
 
 
@@ -331,7 +339,7 @@ class LaneTests(unittest.TestCase):
 
 class WorkflowPartsTests(unittest.TestCase):
     def setUp(self):
-        self.tests = workflow("test.yml")
+        self.tests = job(workflow("test.yml"), "test")
         self.matrix = self.tests[self.tests.index("\n    strategy:"):self.tests.index("\n    steps:")]
 
     def test_every_lane_runs_in_parts_and_each_part_names_its_lane(self):
@@ -379,6 +387,62 @@ class WorkflowPartsTests(unittest.TestCase):
         self.assertIn('if [ -f scripts/test_parts.py ]; then\n'
                       '            exec python scripts/test_parts.py --lane standard --part "$PART/$PARTS"\n'
                       '          fi', test)
+
+
+class MainTreeTests(unittest.TestCase):
+    """dev holds every document in English and Korean, and a promotion deletes every *.ko.md before main
+    and the release see the tree (scripts/promote.py). A test that read a Korean source without asking
+    tests/languages.py whether this checkout holds one passed dev's CI and failed main's and the release
+    on 2026-10-02. test.yml's main-tree job runs the release's lane on dev's tree with the Korean taken
+    off, and tells the branch check which tree it is."""
+
+    STRIP = "Take every Korean source off, as a promotion to main does"
+    SUITE = "Run the release lane on main's tree, this part"
+
+    def setUp(self):
+        self.source = workflow("test.yml")
+        self.main = job(self.source, "main-tree")
+        self.release = job(workflow("release.yml"), "test")
+
+    def test_it_is_the_releases_lane_in_the_releases_parts_on_the_releases_python(self):
+        self.assertEqual(declared_parts(self.main), declared_parts(self.release))
+        pinned = r'python-version: "(3\.\d+)"'
+        self.assertEqual(re.findall(pinned, self.main), re.findall(pinned, self.release))
+        suite = step(self.main, self.SUITE)
+        self.assertIn('run: python scripts/test_parts.py --lane release --part "$env:PART/$env:PARTS" -v --annotate',
+                      suite)
+        self.assertIn("PART: ${{ matrix.part }}", suite)
+        self.assertIn("fail-fast: false", self.main)
+        self.assertNotIn("continue-on-error", self.main, "a Korean read on main must fail the run")
+
+    def test_it_takes_every_korean_source_off_the_index_before_the_suite_runs(self):
+        strip = step(self.main, self.STRIP)
+        self.assertIn("git rm -q --ignore-unmatch -- '*.ko.md'", strip)
+        self.assertIn("test -z \"$(git ls-files -- '*.ko.md')\"", strip)
+        self.assertLess(self.main.index("- name: " + self.STRIP), self.main.index("- name: " + self.SUITE))
+
+    def test_the_pathspec_takes_off_what_a_promotion_takes_off(self):
+        """scripts/promote.py deletes every tracked path ending in .ko.md, at any depth; the job's pathspec
+        must name the same files, README.ko.md at the root among them."""
+        def listed(*pathspec):
+            done = subprocess.run(["git", "-C", str(ROOT), "ls-files", "-z", "--", *pathspec],
+                                  capture_output=True, stdin=subprocess.DEVNULL, creationflags=NO_WINDOW)
+            self.assertEqual(done.returncode, 0, done.stderr.decode("utf-8", "replace"))
+            return sorted(name for name in done.stdout.decode("utf-8").split("\0") if name)
+        korean = listed("*.ko.md")
+        self.assertEqual(korean, [name for name in listed() if name.endswith(".ko.md")])
+        if languages.both_languages():
+            for name in ("README.ko.md", "docs/GUIDE.ko.md"):
+                self.assertIn(name, korean)
+
+    def test_the_suite_is_told_the_tree_is_mains_and_only_there(self):
+        self.assertIn("%s: main" % languages.TREE, step(self.main, self.SUITE))
+        self.assertEqual(languages.RULES["main"], "english")
+        self.assertNotIn(languages.TREE, job(self.source, "test"))
+
+    def test_it_runs_wherever_the_tree_is_not_already_mains(self):
+        self.assertRegex(self.main, r"(?m)^    if: github\.ref != 'refs/heads/main' && github\.base_ref != 'main'\s*$")
+        self.assertEqual(len(re.findall(r"(?m)^\s+if:", self.main)), 1, "every step runs in every part")
 
 
 if __name__ == "__main__":

@@ -146,3 +146,50 @@ jobs:
           python src\auto_resume.py --home "${{ runner.temp }}\ar-home" --quiet install
           python src\auto_resume.py --home "${{ runner.temp }}\ar-home" --quiet uninstall
           python src\auto_resume.py --home "${{ runner.temp }}\ar-home" --quiet uninstall
+
+  main-tree:
+    # The release lane on the tree main will hold: dev's, with every Korean source taken off.
+    #
+    # dev carries each document in English and Korean; a promotion to main deletes every *.ko.md
+    # (scripts/promote.py), and the release builds from main. So a test that reads a Korean source
+    # without asking whether this checkout holds one (tests/languages.py) passes every lane here and
+    # fails on main and in the release - which is how docs/GUIDE.ko.md got there on 2026-10-02. This
+    # job finds it before the promotion does. One lane, in the release's parts on the release's
+    # Python, and not on main or a pull request into it, whose tree already is main's.
+    if: github.ref != 'refs/heads/main' && github.base_ref != 'main'
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # PARTS below is the length of this list; tests/test_split_runs.py holds the two together.
+        part: [1, 2, 3, 4]
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Checked out as the test job checks out, for the same reasons.
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Take every Korean source off, as a promotion to main does
+        # Removed from the index too: the suite lists files with `git ls-files`, and main's index has
+        # none of them. The pathspec matches at every depth, README.ko.md included.
+        shell: bash
+        run: |
+          git rm -q --ignore-unmatch -- '*.ko.md'
+          test -z "$(git ls-files -- '*.ko.md')"
+
+      - name: Run the release lane on main's tree, this part
+        # CODEX_AR_TREE tells tests/languages.py this tree is main's, so the branch check holds it to
+        # main's rule - no Korean at all - on a push to dev and on a pull request into it.
+        shell: pwsh
+        env:
+          CODEX_AR_TREE: main
+          PART: ${{ matrix.part }}
+          PARTS: "4"
+        run: python scripts/test_parts.py --lane release --part "$env:PART/$env:PARTS" -v --annotate
