@@ -49,7 +49,11 @@ ROOT = Path(__file__).resolve().parents[1]
 _BUILD = str(ROOT / "build")
 if _BUILD not in sys.path:
     sys.path.insert(0, _BUILD)
+_TESTS = str(Path(__file__).resolve().parent)
+if _TESTS not in sys.path:
+    sys.path.insert(0, _TESTS)
 
+import languages  # noqa: E402
 import make_setup  # noqa: E402
 
 CSC = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Microsoft.NET" / "Framework64" / "v4.0.30319" / "csc.exe"
@@ -666,6 +670,15 @@ class ReleaseTests(unittest.TestCase):
 RELEASES = "https://github.com/songyb111-gachon/codex-auto-resume-windows/releases"
 
 
+def _install_documents(english, korean):
+    """Each document with install instructions here, with what it is written in: dev has both languages, main
+    English only, and the generated ko branch has the Korean text under the English names."""
+    on_ko = languages.generated_ko_branch()
+    documents = {"README.md": on_ko, "README.ko.md": True, "docs/GUIDE.md": on_ko, "docs/GUIDE.ko.md": True}
+    return {name: ((korean if is_korean else english), is_korean)
+            for name, is_korean in documents.items() if (ROOT / name).is_file()}
+
+
 class DocsTests(unittest.TestCase):
     """Where the install instructions send a person for the setup program."""
 
@@ -673,18 +686,25 @@ class DocsTests(unittest.TestCase):
         """A pre-release is published with --latest=false, so releases/latest stays on the newest release - one
         from before the setup programs, until a release that carries one ships. A route that pointed there alone
         sent everyone to a file that was not there; it names the releases page, where the pre-releases are, too."""
-        headings = {"README.md": "### With the setup program", "README.ko.md": "### 설치 파일로 설치",
-                    "docs/GUIDE.md": "### With the setup program", "docs/GUIDE.ko.md": "### 설치 파일로 설치"}
-        for name, heading in headings.items():
-            if not (ROOT / name).is_file():
-                continue
+        for name, (heading, korean) in _install_documents("### With the setup program", "### 설치 파일로 설치").items():
             with self.subTest(name):
                 text = (ROOT / name).read_text(encoding="utf-8")
                 section = text[text.index(heading):]
                 section = section[:section.index("\n### ", len(heading))]
                 self.assertIn("](%s)" % RELEASES, section, "the releases page, where a pre-release is listed")
-                if not name.endswith(".ko.md"):
+                if not korean:
                     self.assertIn("v0.6.11", section, "the release the setup programs start with")
+
+    def test_the_recommended_route_comes_first(self):
+        """The owner, 2026-10-02: the recommended route belongs at the top. The setup program's route, new in
+        v0.6.11, had been put above it."""
+        for name, ((install, recommended), _) in _install_documents(
+                ("## Install", "### From Codex (recommended)"), ("## 설치", "### Codex에서 설치 (권장)")).items():
+            with self.subTest(name):
+                text = (ROOT / name).read_text(encoding="utf-8")
+                start = text.index("\n%s\n" % install)
+                first = text.index("\n### ", start)
+                self.assertEqual(text[first + 1:first + 1 + len(recommended)], recommended)
 
 
 if __name__ == "__main__":

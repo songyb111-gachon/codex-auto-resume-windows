@@ -9,7 +9,8 @@ Everything about Codex Auto Resume in one place. The [README](../README.md) is t
 Codex stops mid-task and tells you to try again at 6:34 AM. You are asleep at 6:34 AM, and in
 the morning the task is exactly where it stopped.
 
-Codex Auto Resume waits out the reset, checks that continuing is genuinely safe, and then
+Codex Auto Resume waits until the reset time Codex reports for your usage window (a 5-hour or a
+weekly one, for example), checks that continuing is genuinely safe, and then
 continues **that exact conversation** — so you come back to finished work instead of a stopped
 task. It also recovers temporary rate limits, network failures, timeouts, server errors and
 interrupted streams, but only where the failure is one it can name and is safe to retry.
@@ -50,45 +51,6 @@ them, re-surveyed on 2026-09-12, saying what each does better than this one.
 
 **Windows 10/11. No Python needed. No administrator rights.**
 
-### With the setup program
-
-Download `CodexAutoResume-Setup-vX.Y.Z.exe` from the
-[latest release](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest) and
-double-click it. That is the whole install: there is nothing to unzip. Setup programs are published from
-v0.6.11 on: while the latest release is older than that, only the v0.6.11 pre-releases on the
-[releases page](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases) carry one.
-
-The setup program is the release archive of [From the release archive](#from-the-release-archive)
-in one file. It carries that archive byte for byte, with the archive's SHA-256 beside it. When you
-start it, it checks the archive against that digest and stops if they differ, unpacks it into a new
-folder of its own in your temporary folder, runs the archive's own `Install.cmd` there - the same
-installer, asking the same questions in the same console window, and ending the same way - and then
-removes that folder. It downloads nothing, needs no administrator rights and brings no Python of its
-own: the installation runs on the Python inside the archive. It loads DLLs from Windows' System32
-folder only, so a DLL lying beside it in Downloads is never loaded, and it stops if a `.config` file
-is beside it. Started from a command line, it passes switches such as `-SkipStartup` on to
-`Install.cmd`, and refuses anything but switches and plain words.
-
-It is not code-signed (see the end of [From the release archive](#from-the-release-archive)), so
-SmartScreen may show *Windows protected your PC* when you start it. Choose **More info**, then
-**Run anyway**. That warning says the file is unsigned and has no reputation with Microsoft yet; it
-does not say whether this is the file this project published. The `.sha256` published beside it and
-its attestation do. In PowerShell, in the folder you downloaded it to:
-
-```powershell
-(Get-FileHash .\CodexAutoResume-Setup-vX.Y.Z.exe -Algorithm SHA256).Hash
-gh attestation verify .\CodexAutoResume-Setup-vX.Y.Z.exe --repo songyb111-gachon/codex-auto-resume-windows
-```
-
-The first value must match the `.sha256` file. `scripts/release.json` pins archives, not setup
-programs; the archive a setup program carries is the pinned one, and
-[`docs/VERIFY.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/VERIFY.md)
-shows how to check that as well. The digest the program checks by itself catches a damaged
-download, not a replaced one: whoever could change the archive inside could change the digest
-beside it. Where Smart App Control is turned on, it may block the setup program outright, with no
-**Run anyway**, as it may block the unsigned files the other routes run; this project does not ask
-you to turn it off.
-
 ### From Codex (recommended)
 
 Add the plugin, then ask Codex to **set up auto resume**.
@@ -128,9 +90,47 @@ that release. That is why there is a download, and why it is worth reading
 [`docs/PLUGIN.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/PLUGIN.md)
 if you would rather know exactly what the script will and will not do before running it.
 
+### With the setup program
+
+Download `CodexAutoResume-Setup-vX.Y.Z.exe` from the
+[releases page](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases) (from the
+v0.6.11-beta.2 pre-release on) and double-click it. That is the whole install: there is nothing to
+unzip.
+
+The setup program is the release archive of [From the release archive](#from-the-release-archive)
+in one file. It carries that archive byte for byte, with the archive's SHA-256 beside it. When you
+start it, it checks the archive against that digest and stops if they differ, unpacks it into a new
+folder of its own in your temporary folder, runs the archive's own `Install.cmd` there - the same
+installer, asking the same questions in the same console window, and ending the same way - and then
+removes that folder. It downloads nothing, needs no administrator rights and brings no Python of its
+own: the installation runs on the Python inside the archive. It loads DLLs from Windows' System32
+folder only, so a DLL lying beside it in Downloads is never loaded, and it stops if a `.config` file
+is beside it. Started from a command line, it passes switches such as `-SkipStartup` on to
+`Install.cmd`, and refuses anything but switches and plain words.
+
+It is not code-signed (see the end of [From the release archive](#from-the-release-archive)), so
+SmartScreen may show *Windows protected your PC* when you start it. Choose **More info**, then
+**Run anyway**. That warning says the file is unsigned and has no reputation with Microsoft yet; it
+does not say whether this is the file this project published. The `.sha256` published beside it and
+its attestation do. In PowerShell, in the folder you downloaded it to:
+
+```powershell
+(Get-FileHash .\CodexAutoResume-Setup-vX.Y.Z.exe -Algorithm SHA256).Hash
+gh attestation verify .\CodexAutoResume-Setup-vX.Y.Z.exe --repo songyb111-gachon/codex-auto-resume-windows
+```
+
+The first value must match the `.sha256` file. `scripts/release.json` pins archives, not setup
+programs; the archive a setup program carries is the pinned one, and
+[`docs/VERIFY.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/VERIFY.md)
+shows how to check that as well. The digest the program checks by itself catches a damaged
+download, not a replaced one: whoever could change the archive inside could change the digest
+beside it. Where Smart App Control is turned on, it may block the setup program outright, with no
+**Run anyway**, as it may block the unsigned files the other routes run; this project does not ask
+you to turn it off.
+
 ### From the release archive
 
-If you would rather download the release yourself instead of having the setup script do it:
+If you would rather download the release yourself instead of having the plugin's setup script do it:
 
 1. Download `CodexAutoResume-vX.Y.Z-win-x64.zip` from the
    [latest release](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest).
