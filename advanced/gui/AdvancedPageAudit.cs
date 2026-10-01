@@ -156,13 +156,20 @@ namespace CodexAutoResume
         }
 
         /// The window as narrow as it goes on a screen `screen` px wide (HoldTabs), audited there (AuditNarrowest).
+        ///
+        /// Held from a window wider than any Windows allows here (SystemInformation.MaxWindowTrackSize), whose Width
+        /// Windows has held to that while its client area is the one asked for - the state the larger scalings reach
+        /// on a screen smaller than they are, which a window measuring its frame from the two read as a frame of
+        /// -184 px at 200% on a screen 1440 wide (FrameWidth). So every scaling is held from it on every machine, not
+        /// only those whose screen is smaller than the window, and the window is then made as wide as HoldTabs held it
+        /// - not its MinimumSize read back, which Windows keeps within this machine's own screen.
         private void AuditNarrowestOn(int screen, string where, List<string> findings)
         {
             advancedScreen = screen;
             MinimumSize = Size.Empty;
-            HoldTabs();
-            int frame = Width - ClientSize.Width;
-            ClientSize = new Size(Math.Max(Px(800) - Px(16), MinimumSize.Width - frame), ClientSize.Height);
+            ClientSize = new Size(SystemInformation.MaxWindowTrackSize.Width + Px(100), ClientSize.Height);
+            int least = HoldTabs();
+            ClientSize = new Size(Math.Max(Px(800) - Px(16), least - FrameWidth), ClientSize.Height);
             FitTabs();
             AuditNarrowest(where, findings);
         }

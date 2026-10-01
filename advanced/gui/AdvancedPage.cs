@@ -232,10 +232,12 @@ namespace CodexAutoResume
         /// a tab past the strip's edge could be reached only with Ctrl+Tab. There the strip takes a second row, every
         /// tab whole, rather than make the person's text smaller; on any screen that holds it the strip is the one row
         /// the standard window has.
-        private void HoldTabs()
+        ///
+        /// What it returns is the width it holds the window to, frame included: what the tabs need, or the screen's.
+        private int HoldTabs()
         {
             Control strip = advancedTab == null ? null : advancedTab.Parent;
-            if (strip == null) return;
+            if (strip == null) return MinimumSize.Width;
             // The strip as it is now, less what the chosen tab's heavier words add to it, plus the most any tab's would:
             // whichever page is on screen, its tab is set in nav_current (ShowPage).
             int now = 0, heaviest = 0;
@@ -249,7 +251,7 @@ namespace CodexAutoResume
                 heaviest = Math.Max(heaviest, TextRenderer.MeasureText(tab.Text, Soft.RoleFont("nav_current"), any,
                                                                        TextFormatFlags.SingleLine).Width - regular);
             }
-            int least = strip.PreferredSize.Width - now + heaviest + nav.Padding.Horizontal + (Width - ClientSize.Width);
+            int least = strip.PreferredSize.Width - now + heaviest + nav.Padding.Horizontal + FrameWidth;
             int room = ScreenRoom();
             bool rows = least > room;
             if (rows) least = room;
@@ -260,6 +262,18 @@ namespace CodexAutoResume
                 FitTabs();
             }
             if (MinimumSize.Width < least) MinimumSize = new Size(least, MinimumSize.Height);
+            return least;
+        }
+
+        /// What the window's frame adds to its width, as Windows works it out from the window's style
+        /// (SizeFromClientSize) - not its Width less its ClientSize.Width, which is the frame only while Windows has
+        /// given the window the size it was asked for. No form is wider than the largest window the screen allows
+        /// (SystemInformation.MaxWindowTrackSize), and one asked to be wider keeps the client area it was asked for
+        /// inside a Width held to that: on a screen 1440 wide, the window at 200% measured a frame of -184 px, its
+        /// tabs 184 px narrower than they are, and kept them on one row cut off where they needed two (v0.6.11-beta.3).
+        private int FrameWidth
+        {
+            get { return SizeFromClientSize(Size.Empty).Width; }
         }
 
         /// The width of the working area of the screen the window is on, or of the one the audit stands in.

@@ -809,7 +809,9 @@ class LayoutTests(unittest.TestCase):
                     self.assertEqual(found["report"], "", "\n" + "\n".join(found["report"].splitlines()[:40]))
                     # Each capability open, the list unread, and the narrowest window - on a screen that holds the
                     # tabs on one row, and on the narrowest screen the window opens on at this scaling, where they take
-                    # two rather than be cut off.
+                    # two rather than be cut off. Both held from a window wider than Windows allows (AuditNarrowestOn),
+                    # so a frame measured from its held Width shows here on any machine, not only on a screen smaller
+                    # than the window at 200% (v0.6.11-beta.3: eight languages cut off on a screen 1440 wide).
                     self.assertEqual(found["audited"], len(IDS) + 3)
 
     def test_the_audit_finds_what_does_not_fit(self):
