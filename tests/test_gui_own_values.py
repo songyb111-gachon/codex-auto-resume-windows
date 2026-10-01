@@ -284,6 +284,32 @@ class SourceTests(unittest.TestCase):
                     self.assertIsNone(written.search(OWN_SOURCE))
                     self.assertIsNone(written.search(PANEL_OWN))
 
+    def test_every_other_drop_down_in_the_window_holds_no_setting_s_value(self):
+        # ChoiceCombo is the one place Custom... is added, from the schema. Every other drop-down the window builds is
+        # named here with what it holds - and the Statistics page's Period, a span that page counts over, is no setting
+        # and is not kept, which the guide says beside Custom... in both languages.
+        built = []
+        for path in guiscan.sources():
+            text = Path(path).read_text(encoding="utf-8")
+            for found in re.finditer(r"(\w+) = new SoftCombo\(\)", text):
+                method = re.findall(r"\n\s+(?:private|internal|public)[^\n(=;]*?\s(\w+)\(", text[:found.start()])[-1]
+                built.append("%s.%s" % (method, found.group(1)))
+        self.assertEqual(sorted(built), sorted([
+            "ChoiceCombo.combo",            # a setting's choices, and Custom... where the schema offers it
+            "LanguageCombo.combo",          # a language, by its endonym
+            "BuildContinuation.perReasonCombo",  # which kind of interruption a message is for
+            "BuildContinuation.previewReason",   # which kind the preview shows
+            "BuildOwnValue.unitCombo",      # the Custom... dialog's own unit
+            "BuildStatistics.period",       # how far back the Statistics page counts: no setting, never kept
+        ]))
+        for name, heading, words in (
+                ("GUIDE.md", "### Values of your own", "**Period** on the Statistics page"),
+                ("GUIDE.ko.md", "### 직접 정한 값", "통계 페이지의 **기간**")):
+            with self.subTest(name):
+                guide = (ROOT / "docs" / name).read_text(encoding="utf-8")
+                section = guide[guide.index(heading):]
+                self.assertIn(words, section[:section.index("\n### ")])
+
     def test_every_drop_down_with_a_value_of_its_own_is_one_the_schema_says(self):
         self.assertEqual({name for name, entry in DESCRIBED.items() if "custom" in entry}, set(settings.OWN))
 

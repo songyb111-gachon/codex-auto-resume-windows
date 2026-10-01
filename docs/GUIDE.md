@@ -889,6 +889,10 @@ panel the same fields open under the setting, and Save is answered by the same v
 other change is. A value is kept in its shortest exact form - 60 minutes is kept as 1 hour, and days
 that one of the choices names are that choice - so no two stored values mean the same thing.
 
+**Period** on the Statistics page - Last 7 days, Last 30 days, All time - has no Custom...: it only says
+how far back that page counts, it is not a setting, and nothing of it is kept, so the window opens at
+Last 7 days each time.
+
 **Unlimited** is there only where the limit is yours alone: how long this PC is kept awake while a task
 waits, which it then is for as long as any task waits - and let go, as always, when none does, when
 recovery is paused and when the watcher stops. Every other such list already starts with **Off**,
