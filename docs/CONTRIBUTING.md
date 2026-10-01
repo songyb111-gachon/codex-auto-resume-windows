@@ -577,10 +577,10 @@ in a commit like any other.
 - **Adding a rule.** It takes the next number in its family. Ids are never renumbered or reused,
   because capability statements, the registry and the other documents cite them. Its line under
   the rule says how it is held - tested, code, docs, model or planned - and names the tests that
-  hold it. In the same commit, `FAMILIES` in
-  `advanced/src/codex_auto_resume_advanced/standards.py` gets the family's new count:
-  `advanced/tests/test_advanced_registry.py` fails while the file and `FAMILIES` disagree, family by
-  family, and while a test the file names is not in the repository.
+  hold it. In the same commit, the table of families in the advanced package's `standards.py`
+  (under `advanced/src/`) gets the family's new count: `advanced/tests/test_advanced_registry.py`
+  fails while the file and that table disagree, family by family, and while a test the file names
+  is not in the repository.
 - **Changing a rule.** It keeps its id and its place, and its sentence ends with who changed it and
   when: *(amended by the owner on 2026-09-28)*. If a capability's statement describes the rule, the
   statement changes with it, under a new revision, which turns that capability off until a person

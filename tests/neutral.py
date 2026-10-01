@@ -361,7 +361,12 @@ def workers() -> int:
 # slow runners (one took two hours for the suite) reached it with 129 scenarios still queued: the
 # test failed with "scenarios that never ran" when nothing had hung and nothing was wrong. A limit
 # per scenario catches a hang just as surely, whatever the speed of the machine.
-STALL = 600
+# It was ten minutes, and on 2026-09-30 two advanced lanes went past that with one scenario that
+# had not hung: test_outcomes' T18 usage chain simulates a week of 15-minute ticks and runs three
+# times in the advanced lane. Here it takes 46 seconds alone and 96 with eight workers beside it,
+# the slowest of them all, and it ends every time; so the limit is half an hour, far above
+# any slow runner's time for it and still a finite wait for a worker that really hangs.
+STALL = 1800
 
 
 def answer(process, test_id: str, stall: float = STALL) -> tuple:

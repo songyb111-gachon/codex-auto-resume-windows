@@ -78,7 +78,6 @@ class NeutralPlugTests(unittest.TestCase):
     def test_every_codexsim_scenario_is_the_same_with_a_plug_that_always_defers(self):
         ids = neutral.scenarios()
         self.assertGreater(len(ids), 250, "the listing itself looks wrong")
-        started = time.monotonic()
         results = neutral.run_all(ids)
         self.assertEqual(sorted(set(ids) - set(results)), [], "scenarios that never ran")
         self.assertEqual({key: result["error"] for key, result in results.items() if "error" in result}, {})
@@ -108,7 +107,7 @@ class NeutralPlugTests(unittest.TestCase):
         asked = set().union(*(set(result["asked"]) for result in results.values()))
         self.assertLessEqual({str(point) for point in neutral.ENGINE_POINTS}, asked,
                              "a point the engine asks that no scenario reached")
-        self.assertLess(time.monotonic() - started, 1800)
+        # No limit on the whole run's time: a slow runner is not a failure (STALL, in neutral.py).
 
 
 class HarnessTests(unittest.TestCase):

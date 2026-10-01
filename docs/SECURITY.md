@@ -569,19 +569,20 @@ capability, in plain words.
 
 Each capability's session with the app server is started as core starts its own, with the same
 arguments and environment. It may call only the methods that capability declares
-(`codex/protocol.py`), and never calls a sign-in, token or attestation method. It answers the
-approval, permission, input and elicitation requests Codex may make of it - seven methods - with
-the refusal Codex's own schema gives each (`DECLINE_ANSWERS`), and every other request, a token
+(the advanced package's `codex/protocol.py`), and never calls a sign-in, token or attestation
+method. It answers the approval, permission, input and elicitation requests Codex may make of it -
+seven methods - with the refusal Codex's own schema gives each (a table in the same file), and
+every other request, a token
 refresh, an attestation or a tool call among them, with an error. The advanced edition adds no
 network code: its package imports no networking module either (`tests/test_privacy_claims.py`).
 
-**The measurement harness.** The advanced edition's archive also carries `measure`
-(`advanced/src/codex_auto_resume_advanced/measure.py`), with which the owner finds out whether a
+**The measurement harness.** The advanced edition's archive also carries `measure` (the advanced
+package's `measure.py`), with which the owner finds out whether a
 capability's route can work on a given Codex. It is not a capability: nothing turns it on, and it
 runs whether or not any capability is on - once for each request, when a person sends
 `measure <id>` over the same bridge, with a conversation id where they give one. No MCP tool
 reaches it, and the window offers it nowhere. Each measurement opens a `codex app-server --stdio`
-session of its own, limited to the methods it declares (`MEASUREMENT_METHODS` in
+session of its own, limited to the requests the harness declares it may make (in the same
 `codex/protocol.py`) and answering Codex's requests as a capability's session does, and some of
 those methods change Codex's state or start work in the conversation named:
 
