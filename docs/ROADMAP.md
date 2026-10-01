@@ -493,10 +493,10 @@ but the version and edition picker; the final comes after it.
 
 ### v0.6.11 ✅ — The final: the advanced edition's first capabilities
 
-What the final adds to v0.6.11-alpha and v0.6.11-beta - all of it already in v0.6.11-beta.3, the
-**Advanced features** page included. The version and edition picker was not finished in time, and is
-the first thing v0.6.12 adds, below. What the final carries for a person coming from v0.6.10 is its
-entry in [CHANGELOG.md](CHANGELOG.md).
+What it carries for a person coming from v0.6.10 is its entry in [CHANGELOG.md](CHANGELOG.md). The
+version and edition picker was not finished in time, and is the first thing v0.6.12 adds, below. What
+the final adds to v0.6.11-alpha and v0.6.11-beta - all of it already in v0.6.11-beta.3, the
+**Advanced features** page included:
 
 - **Three capabilities in the advanced edition**, each off until a person turns it on in the
   Dashboard's **Advanced features** page, after reading what it does and which standards it departs
