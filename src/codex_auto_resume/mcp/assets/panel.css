@@ -14,6 +14,9 @@
   /* The line a control's one line of words stands in - a button's, a segment's, a chip's and a drop-down's
      - which Windows' text size makes taller with the words in it (v0.6.11, panel.text_scale_style). */
   --line-control: 20px;
+  /* The edition after the version in the heading (v0.6.11, .edition): .62 of the eyebrow's size, never under 10px. Made
+     of --type-small, so Windows' text size makes it larger with the eyebrow (panel.text_scale_style). */
+  --type-edition: max(10px, calc(var(--type-small) * .62));
   /* The light's easing: half a raised cosine, to within 0.002 of each phase, so the cycle the
      stylesheet draws is the same curve brand.glow() gives the window and the popup. */
   --glow-ease: cubic-bezier(.37, 0, .63, 1);
@@ -86,6 +89,11 @@ button, select, input { font: inherit; }
    alone, with the halo saying the same thing for a reader who glances. */
 .hero { display: grid; gap: var(--size-hero-gap); padding: var(--size-hero-pad); }
 .eyebrow { font-size: var(--type-small); color: var(--muted); }
+/* The edition after the version (v0.6.11; the owner's decision of 2026-10-02): quiet secondary text, a space after
+   the version and no separator, .62 of its size - 10px beside 16 in the mock he approved - but never under those
+   10px, muted whichever edition it is, and on the version's baseline. The window's VersionLabel takes the same two
+   numbers (Soft.AsideShare, Soft.AsideLeast). */
+.edition { font-size: var(--type-edition); color: var(--muted); vertical-align: baseline; }
 .hero-state { display: flex; align-items: center; gap: 18px; padding-block: 8px 4px; padding-inline: 9px 0; }
 .hero h1 { font-size: var(--type-display); line-height: var(--lh-display); font-weight: 600;
            letter-spacing: -.01em; }

@@ -77,6 +77,282 @@ namespace CodexAutoResume
         }
     }
 
+    /// The version, and after it the edition that runs as quiet secondary text: the save bar's version and
+    /// Diagnostics' Version row (v0.6.11). The owner's decision of 2026-10-02 on "v0.6.11 · Standard": no separator,
+    /// the edition a space of the version's font after it, smaller (Soft.AsidePoints), in the theme's secondary
+    /// colour whichever edition it is - Advanced is not blue - and with its baseline on the version's, not centred
+    /// beside it. The panel's heading says it the same way (panel.css, .edition).
+    ///
+    /// Its Text is the whole line, "v0.6.11 Standard", which is what a screen reader reads and what anything that
+    /// measures the label's text measures; it is drawn in two runs. Without an edition - or with a Text set some
+    /// other way - it is the WrapLabel it always was, letter for letter.
+    internal sealed class VersionLabel : WrapLabel
+    {
+        private string version = "", edition;
+        private Font aside, asideOf;
+
+        internal VersionLabel()
+        {
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint, true);
+        }
+
+        /// The version and the edition's word (null or "" for none), shown together.
+        internal void Set(string versionText, string editionText)
+        {
+            version = versionText ?? "";
+            edition = string.IsNullOrEmpty(editionText) ? null : editionText;
+            string text = edition == null ? version : version + " " + edition;
+            if (Text != text) Text = text;
+            else Invalidate();
+        }
+
+        internal string Version { get { return version; } }
+        internal string Edition { get { return edition; } }
+
+        /// The colour the edition is drawn in: the theme's secondary text, for every edition.
+        internal static Color EditionColor { get { return Palette.Secondary; } }
+
+        /// The colour the edition was last drawn in, for the tests; empty until it has been.
+        internal Color EditionDrawn { get; private set; }
+
+        /// Whether it is drawn in two runs: an edition, and the Text Set wrote.
+        internal bool Split { get { return edition != null && Text == version + " " + edition; } }
+
+        /// The edition's font: the label's own face, regular, at Soft.AsidePoints of the label's size.
+        internal Font AsideFont
+        {
+            get
+            {
+                if (aside == null || !ReferenceEquals(asideOf, Font))
+                {
+                    if (aside != null) aside.Dispose();
+                    asideOf = Font;
+                    aside = new Font(Font.FontFamily, Soft.AsidePoints(Font.SizeInPoints), FontStyle.Regular,
+                                     GraphicsUnit.Point, Font.GdiCharSet);
+                }
+                return aside;
+            }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && aside != null)
+            {
+                aside.Dispose();
+                aside = null;
+            }
+            base.Dispose(disposing);
+        }
+
+        /// The version's line, as Label draws one line: its own padding, its mnemonic as it is set.
+        private TextFormatFlags LineFormat
+        {
+            get { return TextFormatFlags.SingleLine | (UseMnemonic ? TextFormatFlags.Default : TextFormatFlags.NoPrefix); }
+        }
+
+        /// The edition's, without padding: one line beside the version, or wrapped under it (`below`).
+        private TextFormatFlags EditionFormat(bool below)
+        {
+            return (below ? TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl : TextFormatFlags.SingleLine) |
+                   TextFormatFlags.NoPadding | (UseMnemonic ? TextFormatFlags.Default : TextFormatFlags.NoPrefix);
+        }
+
+        /// The two runs in a face `width` wide (int.MaxValue: as wide as they ask), from the top left of what they
+        /// make together, which is returned. The version as Label draws it, its own padding included, so its letters
+        /// stand where they always stood; the edition without padding, a space of the version's font after the
+        /// version's last letter, its top as far below the version's as its ascent is shorter - GDI's ascent of the
+        /// font TextRenderer draws each in (Baseline) - so the two share a baseline, inside the version's line. Where
+        /// the face is too narrow for both, the edition goes under the version (`below`), wrapped in what is left.
+        internal Size Arrange(int width, out Rectangle versionBox, out Rectangle editionBox, out bool below)
+        {
+            Measure();
+            versionBox = new Rectangle(0, 0, whole.Width, whole.Height);
+            below = false;
+            editionBox = Rectangle.Empty;
+            if (edition == null) return whole;
+            if (width == int.MaxValue || after + word.Width + pad <= width)
+            {
+                editionBox = new Rectangle(after, drop, word.Width, word.Height);
+                return new Size(after + word.Width + pad, whole.Height);
+            }
+            below = true;
+            int room = Math.Max(1, width - 2 * pad);
+            TextFormatFlags wrap = EditionFormat(true);
+            Size block = Soft.Measure(Soft.Wrap(edition, AsideFont, room, wrap), AsideFont, room, wrap);
+            editionBox = new Rectangle(pad, whole.Height, room, block.Height);
+            return new Size(Math.Max(whole.Width, pad + block.Width + pad), whole.Height + block.Height);
+        }
+
+        // What Arrange lays out, measured once for each font, words and format (a layout asks for the label's size
+        // again and again, and Label caches its own measurement): the version's line with and without its padding, the
+        // padding either side, where the edition starts - a space of the version's font after its last letter - how far
+        // below the version's top the edition's is, and the edition's line.
+        private Font measuredFont;
+        private string measuredVersion, measuredEdition;
+        private TextFormatFlags measuredFormat;
+        private Size whole, word;
+        private int pad, after, drop;
+
+        private void Measure()
+        {
+            TextFormatFlags line = LineFormat;
+            if (ReferenceEquals(measuredFont, Font) && measuredVersion == version && measuredEdition == edition &&
+                measuredFormat == line)
+                return;
+            var unbounded = new Size(int.MaxValue, int.MaxValue);
+            whole = TextRenderer.MeasureText(version, Font, unbounded, line);
+            if (edition != null)
+            {
+                TextFormatFlags bare = line | TextFormatFlags.NoPadding;
+                int letters = TextRenderer.MeasureText(version, Font, unbounded, bare).Width;
+                int space = TextRenderer.MeasureText("x x", Font, unbounded, bare).Width
+                          - TextRenderer.MeasureText("xx", Font, unbounded, bare).Width;
+                pad = Math.Max(0, (whole.Width - letters) / 2);
+                after = pad + letters + Math.Max(1, space);
+                word = TextRenderer.MeasureText(edition, AsideFont, unbounded, EditionFormat(false));
+                drop = Baseline(Font) - Baseline(AsideFont);
+            }
+            measuredFont = Font;
+            measuredVersion = version;
+            measuredEdition = edition;
+            measuredFormat = line;
+        }
+
+        public override Size GetPreferredSize(Size proposedSize)
+        {
+            if (!Split) return base.GetPreferredSize(proposedSize);
+            // As WrapLabel answers: a width of 0 or 1 is none, and the label's maximum holds.
+            int width = proposedSize.Width > 1 ? proposedSize.Width : int.MaxValue;
+            if (MaximumSize.Width > 0) width = Math.Min(width, MaximumSize.Width);
+            int inner = width == int.MaxValue ? int.MaxValue : Math.Max(1, width - Padding.Horizontal);
+            Rectangle versionBox, editionBox;
+            bool below;
+            Size text = Arrange(inner, out versionBox, out editionBox, out below);
+            var size = new Size(text.Width + Padding.Horizontal, text.Height + Padding.Vertical);
+            if (MaximumSize.Width > 0) size.Width = Math.Min(size.Width, MaximumSize.Width);
+            if (MaximumSize.Height > 0) size.Height = Math.Min(size.Height, MaximumSize.Height);
+            return new Size(Math.Max(size.Width, MinimumSize.Width), Math.Max(size.Height, MinimumSize.Height));
+        }
+
+        /// Where the two runs are drawn in the label as it stands: the block Arrange makes, placed in the label's
+        /// face as its TextAlign places text.
+        internal void Placed(out Rectangle versionBox, out Rectangle editionBox, out bool below)
+        {
+            var face = new Rectangle(Padding.Left, Padding.Top, Math.Max(0, ClientSize.Width - Padding.Horizontal),
+                                     Math.Max(0, ClientSize.Height - Padding.Vertical));
+            Size block = Arrange(face.Width, out versionBox, out editionBox, out below);
+            const ContentAlignment middle = ContentAlignment.MiddleLeft | ContentAlignment.MiddleCenter | ContentAlignment.MiddleRight;
+            const ContentAlignment bottom = ContentAlignment.BottomLeft | ContentAlignment.BottomCenter | ContentAlignment.BottomRight;
+            const ContentAlignment centre = ContentAlignment.TopCenter | ContentAlignment.MiddleCenter | ContentAlignment.BottomCenter;
+            const ContentAlignment right = ContentAlignment.TopRight | ContentAlignment.MiddleRight | ContentAlignment.BottomRight;
+            int x = (TextAlign & centre) != 0 ? face.X + (face.Width - block.Width) / 2
+                  : (TextAlign & right) != 0 ? face.Right - block.Width : face.X;
+            int y = (TextAlign & middle) != 0 ? face.Y + (face.Height - block.Height) / 2
+                  : (TextAlign & bottom) != 0 ? face.Bottom - block.Height : face.Y;
+            versionBox.Offset(x, y);
+            editionBox.Offset(x, y);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            if (!Split)
+            {
+                base.OnPaint(e);
+                return;
+            }
+            Rectangle versionBox, editionBox;
+            bool below;
+            Placed(out versionBox, out editionBox, out below);
+            // Label's disabled ink (TextRenderer.DisabledTextColor) for both, as WrapLabel draws it.
+            Color disabled = Palette.Contrast ? SystemColors.GrayText
+                           : BackColor.GetBrightness() < SystemColors.Control.GetBrightness() ? ControlPaint.Dark(BackColor)
+                           : SystemColors.ControlDark;
+            Color ink = Enabled ? ForeColor : disabled;
+            Color quiet = Enabled ? EditionColor : disabled;
+            TextRenderer.DrawText(e.Graphics, version, Font, versionBox, ink, LineFormat);
+            TextFormatFlags format = EditionFormat(below);
+            string word = below ? Soft.Wrap(edition, AsideFont, Math.Max(1, editionBox.Width), format) : edition;
+            TextRenderer.DrawText(e.Graphics, word, AsideFont, editionBox, quiet, format);
+            EditionDrawn = quiet;
+        }
+
+        // ------------------------------------------------------------------ the baseline
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct TextMetric
+        {
+            public int Height, Ascent, Descent, InternalLeading, ExternalLeading, AveCharWidth, MaxCharWidth, Weight,
+                       Overhang, DigitizedAspectX, DigitizedAspectY;
+            public char FirstChar, LastChar, DefaultChar, BreakChar;
+            public byte Italic, Underlined, StruckOut, PitchAndFamily, CharacterSet;
+        }
+
+        private const int LogPixelsY = 90;
+        private static readonly Dictionary<string, int> baselines = new Dictionary<string, int>();
+
+        [DllImport("gdi32.dll")] private static extern IntPtr CreateCompatibleDC(IntPtr dc);
+        [DllImport("gdi32.dll")] private static extern bool DeleteDC(IntPtr dc);
+        [DllImport("gdi32.dll")] private static extern int GetDeviceCaps(IntPtr dc, int index);
+        [DllImport("gdi32.dll")] private static extern IntPtr SelectObject(IntPtr dc, IntPtr gdiObject);
+        [DllImport("gdi32.dll")] private static extern bool DeleteObject(IntPtr gdiObject);
+        [DllImport("gdi32.dll", CharSet = CharSet.Unicode)]
+        private static extern IntPtr CreateFontW(int height, int width, int escapement, int orientation, int weight,
+            uint italic, uint underline, uint strikeOut, uint charSet, uint outPrecision, uint clipPrecision,
+            uint quality, uint pitchAndFamily, string face);
+        [DllImport("gdi32.dll", CharSet = CharSet.Unicode)]
+        private static extern bool GetTextMetricsW(IntPtr dc, out TextMetric metric);
+
+        /// How far below the top of its line TextRenderer sets the baseline of `font`: GDI's ascent of the font
+        /// TextRenderer makes of it - its face, its em in pixels rounded up at the measuring DC's DPI, bold or not
+        /// (WindowsFont.FromFont) - selected into a DC like TextRenderer's own measuring one. Asked once per font.
+        internal static int Baseline(Font font)
+        {
+            string face = font.FontFamily.Name;
+            if (face.Length > 1 && face[0] == '@') face = face.Substring(1);
+            string key = face + "|" + font.SizeInPoints.ToString("R", System.Globalization.CultureInfo.InvariantCulture) + "|" +
+                         ((int)font.Style).ToString(System.Globalization.CultureInfo.InvariantCulture) + "|" +
+                         font.GdiCharSet.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            lock (baselines)
+            {
+                int known;
+                if (baselines.TryGetValue(key, out known)) return known;
+                // Should Windows not answer: the face's own ascent at the font's height, as GDI+ has it.
+                int found = (int)Math.Round(font.GetHeight() * font.FontFamily.GetCellAscent(font.Style)
+                                            / font.FontFamily.GetLineSpacing(font.Style));
+                IntPtr dc = CreateCompatibleDC(IntPtr.Zero);
+                if (dc != IntPtr.Zero)
+                {
+                    try
+                    {
+                        int pixels = (int)Math.Ceiling(GetDeviceCaps(dc, LogPixelsY) * font.SizeInPoints / 72f);
+                        IntPtr made = CreateFontW(-pixels, 0, 0, 0, (font.Style & FontStyle.Bold) != 0 ? 700 : 400,
+                                                  (font.Style & FontStyle.Italic) != 0 ? 1u : 0u,
+                                                  (font.Style & FontStyle.Underline) != 0 ? 1u : 0u,
+                                                  (font.Style & FontStyle.Strikeout) != 0 ? 1u : 0u,
+                                                  font.GdiCharSet, 0, 0, 0, 0, face);
+                        if (made != IntPtr.Zero)
+                        {
+                            IntPtr previous = SelectObject(dc, made);
+                            try
+                            {
+                                TextMetric metric;
+                                if (GetTextMetricsW(dc, out metric)) found = metric.Ascent;
+                            }
+                            finally
+                            {
+                                SelectObject(dc, previous);
+                                DeleteObject(made);
+                            }
+                        }
+                    }
+                    finally { DeleteDC(dc); }
+                }
+                baselines[key] = found;
+                return found;
+            }
+        }
+    }
+
     /// A list whose rows are drawn by the page that owns it, double-buffered so a five-second
     /// refresh does not flicker.
     internal sealed class SoftList : ListView

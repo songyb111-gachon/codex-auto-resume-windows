@@ -718,7 +718,8 @@ namespace CodexAutoResume
                       statsRetry, statsKinds;
         private OutcomeChart chart;
         // Diagnostics
-        private Label diagVersion, diagWatcher, diagLastCheck, diagEngine, diagRecovery, diagStartup,
+        private VersionLabel diagVersion;
+        private Label diagWatcher, diagLastCheck, diagEngine, diagRecovery, diagStartup,
                       diagUpgrade, diagUpdate, diagMemory, diagPlugin, diagStateAccess, diagStateNote, diagWaiting;
         // v0.6.11: Diagnostics' Show me what happens, which waits while an action runs.
         private Button demoButton;
@@ -925,7 +926,11 @@ namespace CodexAutoResume
         private Label Value(string text)
         {
             // A value that wraps breaks Korean between its words (WrapLabel).
-            var label = new WrapLabel();
+            return Value(new WrapLabel(), text);
+        }
+
+        private Label Value(WrapLabel label, string text)
+        {
             label.Text = text;
             label.AutoSize = true;
             label.ForeColor = Ink;
@@ -983,10 +988,16 @@ namespace CodexAutoResume
 
         private Label Fact(TableLayoutPanel grid, string label)
         {
+            return Fact(grid, label, new WrapLabel());
+        }
+
+        /// A fact whose value is `value`: a WrapLabel, or one that draws itself otherwise (Diagnostics' Version, VersionLabel).
+        private T Fact<T>(TableLayoutPanel grid, string label, T value) where T : WrapLabel
+        {
             var name = Value(label);
             name.ForeColor = Secondary;
             name.Margin = Pad(0, 3, 18, 3);
-            var value = Value("-");
+            Value(value, "-");
             grid.Controls.Add(name);
             grid.Controls.Add(value);
             return value;

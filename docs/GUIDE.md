@@ -358,10 +358,11 @@ are waiting, how many are running in Codex and how long until the next check - o
 seen it, that a recovery failed.
 
 From v0.6.11 every place that shows the version also names the edition installed, in the interface
-language: the version at the foot of the Dashboard (`v0.6.11 · Standard`), the Version row on its
-Diagnostics page and the heading of the panel in Codex. The icon's tooltip names it after the
-product's name. An Advanced installation whose own part could not be loaded runs as the Standard
-edition and says *Advanced - not loaded* there instead.
+language: the version at the foot of the Dashboard, the Version row on its Diagnostics page and the
+heading of the panel in Codex, each with the edition after the version in smaller grey text
+(`v0.6.11` *Standard*). The icon's tooltip names it after the product's name. An Advanced
+installation whose own part could not be loaded runs as the Standard edition and says *Advanced -
+not loaded* there instead.
 
 The icon moves, in the mark it already has. While the watcher watches, the head - the bright dot at
 the end of the ring - breathes, dimming toward the icon's deep blue and back every 4.4 seconds, and
