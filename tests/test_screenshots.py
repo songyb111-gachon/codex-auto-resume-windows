@@ -2275,6 +2275,31 @@ def process_ended(pid: int, wait: float = 10) -> bool:
         kernel32.CloseHandle(handle)
 
 
+def end_process(pid: int) -> None:
+    """Ends the process `pid` if it still runs: a test's own leftovers, cleared whatever it found."""
+    if process_ended(pid, wait=0):
+        return
+    if os.name != "nt":
+        import signal
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        return
+    import ctypes
+    kernel32 = ctypes.WinDLL("kernel32")
+    kernel32.OpenProcess.restype = ctypes.c_void_p
+    kernel32.TerminateProcess.argtypes = (ctypes.c_void_p, ctypes.c_uint)
+    kernel32.CloseHandle.argtypes = (ctypes.c_void_p,)
+    handle = kernel32.OpenProcess(0x0001 | 0x00100000, False, pid)          # PROCESS_TERMINATE | SYNCHRONIZE
+    if handle:
+        try:
+            kernel32.TerminateProcess(handle, 1)
+        finally:
+            kernel32.CloseHandle(handle)
+    process_ended(pid, wait=10)
+
+
 class FasterRunTests(unittest.TestCase):
     """A whole run draws only what is stale, side by side, and photographs a window when it says it is ready (v0.6.11).
 
@@ -2323,45 +2348,77 @@ class FasterRunTests(unittest.TestCase):
         self.assertEqual([path for path in srcscan.package_files()
                           if "CODEX_AR_STILL_READY" in srcscan.read(path)], [])
 
-    def test_two_windows_are_open_at_a_time_and_a_third_waits_its_turn(self):
-        """Twelve windows started together each took two minutes to answer; one alone took ten seconds."""
+    def test_as_many_windows_are_open_at_once_as_asked_and_one_more_waits_its_turn(self):
+        """Twelve windows started together each took two minutes to answer; one alone took ten seconds. And a session
+        crashed while several were captured, so one is the default and more are asked for (`--windows N`)."""
         import threading
         import uuid
         g = self.generator
-        self.assertEqual(g.WINDOWS_AT_ONCE, 2)
+        self.assertEqual(g.WINDOWS_AT_ONCE, 1)
         source = inspect.getsource(g.render_window)
         self.assertLess(source.index("with window_turn():"), source.index('"powershell.exe"'))
         if os.name != "nt":
             self.skipTest("a turn is a Windows mutex")
-        # A name of this test's own, so a generator running on this machine is neither waited for nor held up.
-        with patch.object(g, "WINDOW_TURNS", "Local\\CodexAutoResume.Test.%s" % uuid.uuid4().hex):
-            # Each turn in a thread of its own, as each capture takes one: a turn is a mutex, which the thread
-            # holding it would simply take again.
-            holding = [threading.Event(), threading.Event()]
-            give_back = [threading.Event(), threading.Event()]
-            third = threading.Event()
+        for count in (1, 2, 3):
+            # A name of this test's own, so a generator running on this machine is neither waited for nor held up.
+            with self.subTest(windows=count), patch.object(g, "WINDOWS_AT_ONCE", count), \
+                    patch.object(g, "WINDOW_TURNS", "Local\\CodexAutoResume.Test.%s" % uuid.uuid4().hex):
+                # Each turn in a thread of its own, as each capture takes one: a turn is a mutex, which the thread
+                # holding it would simply take again.
+                holding = [threading.Event() for _turn in range(count)]
+                give_back = [threading.Event() for _turn in range(count)]
+                one_more = threading.Event()
 
-            def hold(number):
-                with g.window_turn():
-                    holding[number].set()
-                    give_back[number].wait(30)
+                def hold(number):
+                    with g.window_turn():
+                        holding[number].set()
+                        give_back[number].wait(30)
 
-            def waiting():
-                with g.window_turn():
-                    third.set()
+                def waiting():
+                    with g.window_turn():
+                        one_more.set()
 
-            holders = [threading.Thread(target=hold, args=(number,), daemon=True) for number in (0, 1)]
-            for holder in holders:
-                holder.start()
-            self.assertTrue(all(event.wait(10) for event in holding), "two windows may be open at once")
-            waiter = threading.Thread(target=waiting, daemon=True)
-            waiter.start()
-            self.assertFalse(third.wait(0.5), "a third window opened beside two")
-            give_back[1].set()
-            self.assertTrue(third.wait(10), "and it opens once one of the two has closed")
-            give_back[0].set()
-            for thread in holders + [waiter]:
-                thread.join(10)
+                holders = [threading.Thread(target=hold, args=(number,), daemon=True) for number in range(count)]
+                for holder in holders:
+                    holder.start()
+                self.assertTrue(all(event.wait(10) for event in holding), "%d window(s) may be open at once" % count)
+                waiter = threading.Thread(target=waiting, daemon=True)
+                waiter.start()
+                self.assertFalse(one_more.wait(0.5), "one more window opened beside %d" % count)
+                give_back[-1].set()
+                self.assertTrue(one_more.wait(10), "and it opens once one of them has closed")
+                for event in give_back:
+                    event.set()
+                for thread in holders + [waiter]:
+                    thread.join(10)
+
+    def test_the_number_of_windows_at_once_is_asked_for_on_the_command_line_and_reaches_every_job(self):
+        from contextlib import redirect_stderr, redirect_stdout
+        import io
+        g = self.generator
+        for text, count in (("1", 1), ("2", 2), (" 4 ", 4), (str(g.WINDOWS_AT_MOST), g.WINDOWS_AT_MOST)):
+            self.assertEqual(g.windows_at_once(text), count)
+        for text in ("0", "-1", str(g.WINDOWS_AT_MOST + 1), "two", "", "1.5"):
+            with self.subTest(text=text), self.assertRaises(SystemExit):
+                g.windows_at_once(text)
+        # A job is a process of its own, and its windows take their turns within the run's number.
+        job = {"kind": "window", "locale": "ko", "design": None}
+        with patch.object(g, "WINDOWS_AT_ONCE", 3):
+            self.assertEqual(g.job_command(job)[-4:], ["--job", json.dumps(job), "--windows", "3"])
+        self.assertEqual(g.job_command(job)[-2:], ["--windows", "1"])
+        seen = []
+        with patch.object(g, "WINDOWS_AT_ONCE", 1), \
+                patch.object(g, "run_job", lambda asked: seen.append((asked, g.WINDOWS_AT_ONCE)) or {}), \
+                redirect_stdout(io.StringIO()):
+            self.assertEqual(g.main(["--job", json.dumps(job), "--windows", "3"]), 0)
+            self.assertEqual(seen, [(job, 3)])
+        # A run's own option, and the turns read it as they are asked for.
+        self.assertIn("count = windows_at_once(WINDOWS_AT_ONCE)", inspect.getsource(g.window_turn))
+        self.assertEqual(self.run_main("--windows", "2")[2], 2)
+        self.assertEqual(self.run_main()[2], 1)
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            g.main(["--windows", "0"])
+        self.assertEqual(g.WINDOWS_AT_ONCE, 1)
 
     def test_a_turn_held_by_a_process_that_was_killed_is_given_back(self):
         """A job killed holding a turn - for its time, or with its run - gives it back to whoever waits for one.
@@ -2377,10 +2434,12 @@ class FasterRunTests(unittest.TestCase):
             self.skipTest("a turn is a Windows mutex")
         name = "Local\\CodexAutoResume.Test.%s" % uuid.uuid4().hex
         takes = ("import sys, time; sys.path.insert(0, sys.argv[1]); import make_screenshots as g; "
-                 "g.WINDOW_TURNS = sys.argv[2]; turn = g.window_turn(); turn.__enter__(); "
-                 "print('held', flush=True); time.sleep(60)")
+                 "g.WINDOW_TURNS = sys.argv[2]; g.WINDOWS_AT_ONCE = int(sys.argv[3]); turn = g.window_turn(); "
+                 "turn.__enter__(); print('held', flush=True); time.sleep(60)")
+        # Two turns, so the one given back is not simply the only one there is.
+        count = 2
         holders, takers = [], []
-        taken = [threading.Event() for _turn in range(g.WINDOWS_AT_ONCE)]
+        taken = [threading.Event() for _turn in range(count)]
         done = threading.Event()
 
         def take(number):
@@ -2388,10 +2447,10 @@ class FasterRunTests(unittest.TestCase):
                 taken[number].set()
                 done.wait(30)
 
-        with patch.object(g, "WINDOW_TURNS", name):
+        with patch.object(g, "WINDOW_TURNS", name), patch.object(g, "WINDOWS_AT_ONCE", count):
             try:
-                for _turn in range(g.WINDOWS_AT_ONCE):
-                    holder = subprocess.Popen([sys.executable, "-c", takes, str(ROOT / "build"), name],
+                for _turn in range(count):
+                    holder = subprocess.Popen([sys.executable, "-c", takes, str(ROOT / "build"), name, str(count)],
                                               stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
                                               creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
                     holders.append(holder)
@@ -2544,6 +2603,52 @@ class FasterRunTests(unittest.TestCase):
                 holder.stdout.close()
                 holder.stderr.close()
 
+    def test_the_mutex_holder_ends_with_the_capture_that_started_it_however_that_ends(self):
+        """A capture killed outright - for its time, or with its run - closes nothing itself: its end of the holder's
+        standard input is closed by Windows as the process goes, and the holder, reading it, ends at once. Nothing
+        else holds that end open: it is not handed to any process the capture starts."""
+        import subprocess
+        import time
+        g = self.generator
+        source = inspect.getsource(g.render_window)
+        self.assertIn("stdin=subprocess.PIPE", source[source.index("holder = subprocess.Popen("):])
+        # The capture, as `render_window` starts its holder; and, as `render_window` does, it starts another
+        # process after it, which must not keep the holder's input open either.
+        capture = ("import subprocess, sys\n"
+                   "holder = subprocess.Popen([sys.executable, '-c', sys.argv[1], sys.argv[2], sys.argv[3], 'unknown'],\n"
+                   "                          stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,\n"
+                   "                          text=True, creationflags=0x08000000)\n"
+                   "assert holder.stdout.readline().strip() == 'held'\n"
+                   "other = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'],\n"
+                   "                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=0x08000000)\n"
+                   "print(holder.pid, other.pid, flush=True)\n"
+                   "import time; time.sleep(60)\n")
+        with tempfile.TemporaryDirectory() as scratch:
+            home = Path(scratch) / "home"
+            parent = subprocess.Popen([sys.executable, "-c", capture, g.HOLD_MUTEX, str(ROOT / "src"), str(home)],
+                                      stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                      creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            pids = []
+            try:
+                line = parent.stdout.readline()
+                pids = [int(word) for word in line.split()]
+                self.assertEqual(len(pids), 2, line + parent.stderr.read() if parent.poll() is not None else line)
+                holder = pids[0]
+                self.assertFalse(process_ended(holder, wait=1), "the holder ended while its capture ran")
+                parent.kill()
+                parent.wait(10)
+                begun = time.monotonic()
+                self.assertTrue(process_ended(holder, wait=20), "the holder outlived the capture that started it")
+                self.assertLess(time.monotonic() - begun, 15)
+            finally:
+                if parent.poll() is None:
+                    parent.kill()
+                    parent.wait(10)
+                for pid in pids:
+                    end_process(pid)
+                parent.stdout.close()
+                parent.stderr.close()
+
     def test_every_picture_is_drawn_by_one_job_or_copied_from_one(self):
         g = self.generator
         drawn = [g.manifest_key(path) for job in g.whole_run_jobs() for path in g.job_targets(job).values()]
@@ -2588,16 +2693,24 @@ class FasterRunTests(unittest.TestCase):
 
     def run_main(self, *arguments):
         """`main(arguments)` with the inputs, the scaling and the jobs stood in for, into a copy of the manifest;
-        (the jobs asked for, the manifest it wrote)."""
+        (the jobs asked for, the manifest it wrote, how many windows its jobs were to have open at once)."""
         from contextlib import redirect_stdout
         import io
         from unittest.mock import MagicMock
         g = self.generator
-        jobs = MagicMock(return_value=({}, 0))
+        windows = []
+
+        def drawn(_jobs, _workers=None):
+            windows.append(g.WINDOWS_AT_ONCE)
+            return {}, 0
+
+        jobs = MagicMock(side_effect=drawn)
         with tempfile.TemporaryDirectory() as scratch:
             manifest = Path(scratch) / "screenshots.json"
             manifest.write_bytes(MANIFEST.read_bytes())
             with ExitStack() as stack:
+                # main sets the number of windows for the run it is: given back after it.
+                stack.enter_context(patch.object(g, "WINDOWS_AT_ONCE", g.WINDOWS_AT_ONCE))
                 stack.enter_context(patch.object(g, "MANIFEST", manifest))
                 stack.enter_context(patch.object(g, "render_inputs", MagicMock(return_value=dict(self.manifest["inputs"]))))
                 stack.enter_context(patch.object(g, "system_dpi", MagicMock(return_value=self.manifest["system_dpi"])))
@@ -2605,17 +2718,18 @@ class FasterRunTests(unittest.TestCase):
                 stack.enter_context(patch.object(g, "copy_file", MagicMock(side_effect=AssertionError("copied"))))
                 stack.enter_context(redirect_stdout(io.StringIO()))
                 self.assertEqual(g.main(list(arguments)), 0)
-            return [call.args[0] for call in jobs.call_args_list], manifest.read_bytes()
+            return [call.args[0] for call in jobs.call_args_list], manifest.read_bytes(), windows[-1]
 
     def test_a_run_with_nothing_stale_draws_nothing_and_writes_the_manifest_it_read(self):
-        asked, written = self.run_main()
+        asked, written, _windows = self.run_main()
         self.assertEqual(asked, [[]])
         self.assertEqual(written, MANIFEST.read_bytes())
 
     def test_all_draws_every_job(self):
-        asked, written = self.run_main("--all", "--jobs", "3")
+        asked, written, windows = self.run_main("--all", "--jobs", "3", "--windows", "2")
         self.assertEqual(asked, [self.generator.whole_run_jobs()])
         self.assertEqual(written, MANIFEST.read_bytes(), "every record kept, since the stand-in drew nothing")
+        self.assertEqual(windows, 2)
 
     def test_breathing_draws_only_the_pictures_that_do_not_move_yet(self):
         from contextlib import redirect_stdout

@@ -35,7 +35,8 @@ lights moving over the capture (see "pictures that breathe").
 
 Both steps draw their pictures side by side, each job in a process of its own (see "jobs"), and
 only what is stale: a picture the manifest says was drawn from what the working tree holds now is
-kept as it is. `--all` draws every one; `--jobs N` runs N at a time.
+kept as it is. `--all` draws every one; `--jobs N` runs N at a time; `--windows N` lets N of the
+window's pictures be captured at once (one unless it says).
 
 Two things it deliberately does NOT do:
 
@@ -2908,13 +2909,29 @@ CAPTURE_WAIT = 15
 # A slow window is waited for; a picture taken of it is the same bytes (see CAPTURE_WAIT).
 CAPTURE_LIMIT = 30 * 60
 
-# How many of the generator's windows are open at once on the machine, from every job and every run.
-# A window spends most of its start drawing text, and text is drawn through parts of Windows every
-# process shares: twelve windows started together each took two minutes to answer, where one alone
-# took ten seconds, and three together took each about twice as long as one - so a third buys
-# nothing, and a fourth costs.
-WINDOWS_AT_ONCE = 2
+# How many of the generator's windows are open at once on the machine, from every job and every run:
+# one, unless `--windows N` asks for more (`windows_at_once`). A window spends most of its start
+# drawing text, and text is drawn through parts of Windows every process shares: twelve windows
+# started together each took two minutes to answer, where one alone took ten seconds, and three
+# together took each about twice as long as one. And a session on this machine crashed once while
+# several windows were being captured (2026-09-29), so more than one is a trial somebody asks for,
+# never the default.
+WINDOWS_AT_ONCE = 1
+# The most `--windows` may ask for: the turns are waited for together, and Windows waits for no more
+# than 64 objects at once (MAXIMUM_WAIT_OBJECTS).
+WINDOWS_AT_MOST = 64
 WINDOW_TURNS = "Local\\CodexAutoResume.Windows"
+
+
+def windows_at_once(text) -> int:
+    """`--windows N`, read: a whole number from 1 to WINDOWS_AT_MOST, or SystemExit saying what it may be."""
+    try:
+        count = int(str(text).strip())
+    except ValueError:
+        count = 0
+    if not 1 <= count <= WINDOWS_AT_MOST:
+        raise SystemExit("--windows takes a whole number from 1 to %d, not %r" % (WINDOWS_AT_MOST, text))
+    return count
 
 
 @contextmanager
@@ -2926,10 +2943,12 @@ def window_turn():
     back - Windows abandons it to the next waiter - where a semaphore's count is simply lost: a job killed
     for its time, or with the run it belonged to (`run_jobs`), left one turn fewer to every run on the
     machine after it, and two such left none. A turn is taken and given back by one thread, as a mutex
-    must be. Off Windows there are no windows to take turns with."""
+    must be. The number is read as the turn is asked for, so a job takes the one its run was given
+    (`job_command`). Off Windows there are no windows to take turns with."""
     if os.name != "nt":
         yield
         return
+    count = windows_at_once(WINDOWS_AT_ONCE)
     import ctypes
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     kernel32.CreateMutexW.restype = ctypes.c_void_p
@@ -2938,17 +2957,17 @@ def window_turn():
     kernel32.WaitForMultipleObjects.restype = ctypes.c_ulong
     kernel32.ReleaseMutex.argtypes = (ctypes.c_void_p,)
     kernel32.CloseHandle.argtypes = (ctypes.c_void_p,)
-    turns = (ctypes.c_void_p * WINDOWS_AT_ONCE)()
+    turns = (ctypes.c_void_p * count)()
     try:
-        for number in range(WINDOWS_AT_ONCE):
+        for number in range(count):
             turns[number] = kernel32.CreateMutexW(None, False, "%s.%d" % (WINDOW_TURNS, number))
             if not turns[number]:
                 raise OSError(ctypes.get_last_error(), "could not open the windows' turns")
-        got = kernel32.WaitForMultipleObjects(WINDOWS_AT_ONCE, turns, False, 0xFFFFFFFF)
+        got = kernel32.WaitForMultipleObjects(count, turns, False, 0xFFFFFFFF)
         # WAIT_OBJECT_0 + n, or WAIT_ABANDONED_0 + n: the turn of a process that ended holding it, ours now.
-        if got < WINDOWS_AT_ONCE:
+        if got < count:
             mine = got
-        elif 0x80 <= got < 0x80 + WINDOWS_AT_ONCE:
+        elif 0x80 <= got < 0x80 + count:
             mine = got - 0x80
         else:
             raise OSError(ctypes.get_last_error(), "could not wait for a window's turn")
@@ -3798,9 +3817,10 @@ def audit_main(argv) -> int:
 # aware of the display's scaling, as `window_record` had made that run's before anything was drawn
 # in it. So what one job patches for the length of a call - the clock, the environment, the modules
 # a compatibility report is made with - no other job can see, and each picture is drawn by exactly
-# the code, in exactly the state, it was drawn in before. The windows are captured side by side too,
-# WINDOWS_AT_ONCE at a time on the whole machine: each language has its installation, PrintWindow draws
-# a window another one covers, and build/capture_window.ps1 takes the moment of capture one at a time.
+# the code, in exactly the state, it was drawn in before. The windows may be captured side by side too,
+# WINDOWS_AT_ONCE at a time on the whole machine (`--windows N`; one unless it says): each language has its
+# installation, PrintWindow draws a window another one covers, and build/capture_window.ps1 takes the moment
+# of capture one at a time.
 #
 # And only what is stale is drawn (`stale`). A job whose inputs are, in the manifest, what the
 # working tree gives now, whose pictures are the bytes the manifest records, with their lights, and
@@ -3951,8 +3971,12 @@ def window_job(targets: dict, design) -> dict:
         return {target: reading[target].result() for target in targets.values()}
 
 
-def job_main(text: str) -> int:
-    """`--job JSON`: one job, drawn in this process; its records are the last line printed (JOB_RESULT)."""
+def job_main(text: str, windows=None) -> int:
+    """`--job JSON [--windows N]`: one job, drawn in this process, its windows WINDOWS_AT_ONCE at a time on the
+    machine as its run was told (`job_command`); its records are the last line printed (JOB_RESULT)."""
+    global WINDOWS_AT_ONCE
+    if windows is not None:
+        WINDOWS_AT_ONCE = windows_at_once(windows)
     records = run_job(json.loads(text))
     print(JOB_RESULT + json.dumps({manifest_key(path): record for path, record in records.items()},
                                   ensure_ascii=True))
@@ -4048,8 +4072,10 @@ def run_jobs(jobs: list, workers: int | None = None) -> tuple:
 
 
 def job_command(job: dict) -> list:
-    """The command line that draws one job in a process of its own (`job_main`)."""
-    return [sys.executable, "-X", "utf8", str(Path(__file__).resolve()), "--job", json.dumps(job)]
+    """The command line that draws one job in a process of its own (`job_main`), with the number of windows the
+    run may have open at once (`--windows`), which every job's windows take turns within."""
+    return [sys.executable, "-X", "utf8", str(Path(__file__).resolve()), "--job", json.dumps(job),
+            "--windows", str(windows_at_once(WINDOWS_AT_ONCE))]
 
 
 def finishing(futures):
@@ -4087,12 +4113,15 @@ def picture_set() -> tuple:
 
 
 def main(argv=None) -> int:
+    global WINDOWS_AT_ONCE
     argv = list(sys.argv[1:] if argv is None else argv)
     # Before anything is made under docs/ or assets/: the audit writes nothing there.
     if argv[:1] == ["--audit"]:
         return audit_main(argv[1:])
     if argv[:1] == ["--job"] and len(argv) == 2:
         return job_main(argv[1])
+    if argv[:1] == ["--job"] and len(argv) == 4 and argv[2] == "--windows":
+        return job_main(argv[1], argv[3])
     ASSETS.mkdir(parents=True, exist_ok=True)
     DOCS.mkdir(parents=True, exist_ok=True)
     if argv == ["--cards"]:
@@ -4111,8 +4140,11 @@ def main(argv=None) -> int:
     parser.add_argument("--breathe", action="store_true", help="draw the captured lights moving")
     parser.add_argument("--all", action="store_true", help="draw every picture, stale or not")
     parser.add_argument("--jobs", type=int, default=None, help="how many to draw at once")
+    parser.add_argument("--windows", type=windows_at_once, default=WINDOWS_AT_ONCE, metavar="N",
+                        help="how many windows may be open at once on this machine (default %d)" % WINDOWS_AT_ONCE)
     options = parser.parse_args(argv)
     workers = max(1, options.jobs) if options.jobs else None
+    WINDOWS_AT_ONCE = options.windows
     if options.breathe:
         breathe_pictures(everything=options.all, workers=workers)
         return 0
@@ -4133,8 +4165,8 @@ def main(argv=None) -> int:
         why = "--all" if options.all else stale(job, recorded, inputs, dpi)
         if why is not None:
             todo.append(job)
-    print("drawing        : %d of %d jobs, %d at a time%s"
-          % (len(todo), len(jobs), workers or job_workers(),
+    print("drawing        : %d of %d jobs, %d at a time and %d window(s) at once%s"
+          % (len(todo), len(jobs), workers or job_workers(), WINDOWS_AT_ONCE,
              "" if len(todo) == len(jobs) else " - the rest are what the manifest records"))
     drawn, failed = run_jobs(todo, workers)
     if failed:

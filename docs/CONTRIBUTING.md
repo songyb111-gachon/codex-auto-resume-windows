@@ -462,9 +462,11 @@ answers and holds still, rather than a fixed fifteen seconds after it started:
 sets, and still waits no longer than those fifteen seconds; a window still busy then is photographed
 once it answers, as before, and the picture is the same. A capture is given up only thirty minutes
 after its window started: it was five, and a machine whose processors were all taken by other work
-outran that with windows that were only slow. Two windows may be on screen at once, and no more: a window spends most
-of its start drawing text through parts of Windows every process shares, and a dozen started
-together each took two minutes. Each is photographed with PrintWindow, which draws a window whatever
+outran that with windows that were only slow. One window is on screen at a time unless
+`--windows N` asks for more (`python build/make_screenshots.py --windows 2`): a window spends most
+of its start drawing text through parts of Windows every process shares, a dozen started together
+each took two minutes, and a session once crashed while several windows were being captured at
+once. Each is photographed with PrintWindow, which draws a window whatever
 covers it, and one at a time from the moment its caption is painted inactive to the moment it is
 closed. None of them takes the foreground - a new window otherwise does once nobody has typed for a
 while, and the foreground window's caption comes out active - and a picture whose caption is active

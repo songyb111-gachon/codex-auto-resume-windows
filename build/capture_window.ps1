@@ -26,11 +26,11 @@
     photographed as it was then, as before, and the output says it was not ready.
 
     Several may run at once, each with its own window: PrintWindow draws a window that is covered.
-    (build/make_screenshots.py opens two at a time: WINDOWS_AT_ONCE.) The one thing they share is
-    which window is active, and a window that closes hands activation to another - which would
-    paint that one's caption active in the middle of its capture. So the moment of capture, from
-    the inactive caption to the window being closed, is taken one at a time, under a lock every
-    capture on this machine shares.
+    (build/make_screenshots.py opens one at a time, or as many as its --windows says: WINDOWS_AT_ONCE.)
+    The one thing they share is which window is active, and a window that closes hands activation
+    to another - which would paint that one's caption active in the middle of its capture. So the
+    moment of capture, from the inactive caption to the window being closed, is taken one at a
+    time, under a lock every capture on this machine shares.
 
     Run: powershell -ExecutionPolicy Bypass -File build/capture_window.ps1 `
              -Exe <path to exe> -Out <path to png> [-Wait 6] [-Arguments '--page=pending']
