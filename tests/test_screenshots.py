@@ -1289,8 +1289,10 @@ class EnvelopeTests(unittest.TestCase):
         # One moment: the envelope's, the popup's and the panel page's clock, and the card's reset is
         # the usage limit's. The window is seeded by the same function, with the same offsets, at the
         # moment it is photographed - the bridge behind it runs with the real clock - and is told that
-        # moment; so its countdowns agree with the others and its wall-clock times are the run's.
+        # moment, so its countdowns agree with the others; and it is told to print that moment as
+        # POPUP_NOW, so its dates and times of day agree with them too, and with every other run's.
         self.assertEqual(g.ENVELOPE_NOW, g.POPUP_NOW)
+        self.assertEqual(g.WINDOW_CLOCK, g.POPUP_NOW)
         self.assertEqual({row[3]: row[6] - g.POPUP_NOW for row in window},
                          {"usage_limit": g.USAGE_RESET_IN, "network_transient": g.RETRY_IN})
         self.assertEqual(g.CARD_RESET_AT - g.POPUP_NOW, g.USAGE_RESET_IN)
@@ -1302,7 +1304,7 @@ class EnvelopeTests(unittest.TestCase):
                         "the page's clock is pinned before the panel's own script reads it")
         capture = inspect.getsource(g.render_window)
         self.assertIn("seed_window_state(home, codex, now)", capture)
-        self.assertIn("CODEX_AR_STILL_NOW=repr(now)", capture)
+        self.assertIn("CODEX_AR_STILL_NOW=repr(now), CODEX_AR_STILL_CLOCK=repr(WINDOW_CLOCK)", capture)
 
     def test_the_diagnostics_card_reads_the_report_the_watcher_writes(self):
         """Not "not checked yet", and no word the product cannot say. The Diagnostics card reads the
@@ -2755,6 +2757,105 @@ class FasterRunTests(unittest.TestCase):
                                            if record["surface"] in g.CAPTURED and key not in copies
                                            and g.light_timeline(record) is not None))
             self.assertTrue(asked)
+
+
+CSC = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Microsoft.NET" / "Framework64" / "v4.0.30319" / "csc.exe"
+POWERSHELL = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
+              / "WindowsPowerShell" / "v1.0" / "powershell.exe")
+
+# Calls the compiled window's own When and ClockTime on each of CAR_STAMPS, in a process whose environment is the
+# capture's (or a person's): the variables are read once, as the window starts.
+CLOCK_PROBE = r"""
+$ErrorActionPreference = 'Stop'
+$assembly = [Reflection.Assembly]::LoadFile($env:CAR_EXE)
+$form = $assembly.GetType('CodexAutoResume.SettingsForm', $true)
+$flags = [Reflection.BindingFlags]'Static,NonPublic,Public'
+$when = $form.GetMethod('When', $flags)
+$clock = $form.GetMethod('ClockTime', $flags)
+if (-not $when -or -not $clock) { throw 'SettingsForm has no When or no ClockTime' }
+$when_ = New-Object System.Collections.ArrayList
+$clock_ = New-Object System.Collections.ArrayList
+foreach ($stamp in ($env:CAR_STAMPS | ConvertFrom-Json)) {
+    [void]$when_.Add([string]$when.Invoke($null, @([double]$stamp)))
+    [void]$clock_.Add([string]$clock.Invoke($null, @([double]$stamp)))
+}
+@{ when = $when_; clock = $clock_ } | ConvertTo-Json -Compress
+"""
+
+
+@unittest.skipUnless(os.name == "nt" and CSC.is_file() and POWERSHELL.is_file(), "needs the in-box compiler and PowerShell")
+class PinnedClockTests(unittest.TestCase):
+    """History printed the day of the run - its records are seeded at the real moment of the capture, since the bridge
+    behind the window runs on the real clock - so every run of the generator rewrote its pictures (and their copies),
+    and no two runs could be compared byte for byte. The window, told by a variable only the generator sets, prints
+    every date and time of day as if the moment it is told it is were a pinned one, in UTC; a person's window prints
+    this PC's time, as it always did."""
+
+    SEEDED = 1_759_400_000.0              # the real moment a capture seeded its records at
+    PINNED = 1_800_000_000.0              # 2027-01-15 08:00 UTC
+
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = tempfile.TemporaryDirectory()
+        work = Path(cls.folder.name)
+        cls.exe = work / "CodexAutoResumeSettings.exe"
+        import subprocess
+        subprocess.run([str(CSC), "/nologo", "/target:winexe", "/platform:x64", "/out:" + str(cls.exe),
+                        "/reference:System.dll", "/reference:System.Drawing.dll", "/reference:System.Windows.Forms.dll",
+                        *[str(path) for path in guiscan.sources()]],
+                       check=True, capture_output=True, timeout=600)
+        cls.probe = work / "clock.ps1"
+        cls.probe.write_text(CLOCK_PROBE, encoding="utf-8")
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.folder.cleanup()
+
+    def printed(self, stamps, **variables) -> dict:
+        import subprocess
+        env = {key: value for key, value in os.environ.items() if not key.startswith("CODEX_AR_STILL_")}
+        env.update(variables, CAR_EXE=str(self.exe), CAR_STAMPS=json.dumps(stamps))
+        done = subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+                               "-File", str(self.probe)],
+                              capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600, env=env)
+        self.assertEqual(done.returncode, 0, done.stderr[-2000:])
+        return json.loads(done.stdout)
+
+    def test_a_picture_prints_its_dates_and_times_as_the_pinned_moment_in_utc(self):
+        from datetime import datetime, timezone
+        hour = 3600
+        # The moment itself; earlier that day; the day before; a week before; later that day.
+        stamps = [self.SEEDED, self.SEEDED - 3 * hour, self.SEEDED - 9 * hour, self.SEEDED - 5 * 24 * hour,
+                  self.SEEDED + 620]
+        printed = self.printed(stamps, CODEX_AR_STILL_NOW=repr(self.SEEDED), CODEX_AR_STILL_CLOCK=repr(self.PINNED))
+        utc = [datetime.fromtimestamp(stamp - self.SEEDED + self.PINNED, timezone.utc) for stamp in stamps]
+        self.assertEqual(printed["when"], [moment.strftime("%Y-%m-%d %H:%M") for moment in utc])
+        self.assertEqual(printed["when"][:2], ["2027-01-15 08:00", "2027-01-15 05:00"])
+        # A moment on the pinned day by its time alone, any other with its date, as ClockTime prints today's.
+        self.assertEqual(printed["clock"], ["08:00", "05:00", "2027-01-14 23:00", "2027-01-10 08:00", "08:10"])
+
+    def test_a_person_s_window_prints_this_pc_s_time_and_a_pinned_clock_needs_the_pinned_moment(self):
+        from datetime import datetime
+        stamps = [1_780_000_000.0, 1_780_000_000.0 - 3 * 24 * 3600]
+        local = [datetime.fromtimestamp(stamp).strftime("%Y-%m-%d %H:%M") for stamp in stamps]
+        for variables in ({}, {"CODEX_AR_STILL_CLOCK": repr(self.PINNED)}):
+            with self.subTest(variables=sorted(variables)):
+                printed = self.printed(stamps, **variables)
+                self.assertEqual(printed["when"], local)
+                # Neither is today, on this PC's clock.
+                self.assertEqual(printed["clock"], local)
+
+    def test_only_the_window_s_clock_reads_the_variable_and_the_generator_sets_it(self):
+        g = generator()
+        named = {path.name for path in guiscan.sources() if "CODEX_AR_STILL_CLOCK" in path.read_text(encoding="utf-8")}
+        self.assertEqual(named, {"SoftTheme.cs"})
+        self.assertEqual([path for path in srcscan.package_files() if "CODEX_AR_STILL_CLOCK" in srcscan.read(path)], [])
+        # Every date the window prints goes through the one place that knows the pinned clock.
+        window = guiscan.whole()
+        self.assertEqual(window.count(".ToLocalTime()"), 1)
+        self.assertIn(".ToLocalTime()", guiscan.member_body("SettingsForm", "OnTheClock"))
+        self.assertNotIn("DateTime.Now.Date", window)
+        self.assertIn("CODEX_AR_STILL_CLOCK=repr(WINDOW_CLOCK)", inspect.getsource(g.render_window))
 
 
 if __name__ == "__main__":

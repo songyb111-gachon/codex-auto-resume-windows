@@ -275,8 +275,18 @@ namespace CodexAutoResume
         private static string When(double stamp)
         {
             if (stamp <= 0) return "";
-            DateTime local = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(stamp).ToLocalTime();
-            return local.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
+            return OnTheClock(stamp).ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
+        }
+
+        /// A moment as the clock shows it: this PC's time - and, in a picture whose clock is pinned
+        /// (Soft.StillClock), as far from the pinned moment as it is from the one the window is told it
+        /// is (Soft.StillNow), in UTC, so the picture prints the same dates and times whenever and
+        /// wherever it is taken.
+        private static DateTime OnTheClock(double stamp)
+        {
+            DateTime epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            if (Soft.StillClock > 0) return epoch.AddSeconds(stamp - Soft.StillNow + Soft.StillClock);
+            return epoch.AddSeconds(stamp).ToLocalTime();
         }
 
         /// v0.6.11: a watcher that is not running, as it ended (control/watcher.how_it_ended): stopped by the memory guard,
@@ -302,9 +312,9 @@ namespace CodexAutoResume
         private static string ClockTime(double stamp)
         {
             if (stamp <= 0) return "";
-            DateTime local = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(stamp).ToLocalTime();
-            return local.Date == DateTime.Now.Date ? local.ToString("HH:mm", CultureInfo.InvariantCulture)
-                                                   : When(stamp);
+            DateTime local = OnTheClock(stamp);
+            return local.Date == OnTheClock(Now()).Date ? local.ToString("HH:mm", CultureInfo.InvariantCulture)
+                                                        : When(stamp);
         }
 
         private string Ago(double stamp)

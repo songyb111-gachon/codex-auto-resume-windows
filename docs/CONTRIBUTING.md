@@ -530,10 +530,12 @@ real one publishes it permanently.
 back the way each surface reads them: the popup's rows and the panel's rows are the window's two
 waiting recoveries, with the same names, states and times, and the panel's page is told that moment
 and reads clock times in UTC, as the card does. The window itself is seeded again when it is
-photographed, with the same offsets, because the bridge behind it runs on the real clock. So a
-countdown, a chip and a count say the same on all four pictures, but a wall-clock time need not: the
-times the window prints, such as History's, are those of the day the pictures were drawn. Compare
-the four by their relative times only.
+photographed, with the same offsets, because the bridge behind it runs on the real clock, and it is
+told, through a variable only the generator sets, to print that moment as the popup's and the
+panel's, in UTC: every date and time of day it prints, such as History's, is moved by as much. So a
+countdown, a chip, a count and a time of day say the same on all four pictures, a run on another day
+draws History again byte for byte, and its times do not depend on the PC's time zone; until
+v0.6.12-alpha History printed the day the pictures were drawn.
 
 **To audit the look, draw both themes side by side.** The committed pictures are the light theme's
 only. For a change to how the product looks, draw contact sheets of the window's Overview and

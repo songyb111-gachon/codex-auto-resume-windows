@@ -225,8 +225,9 @@ def write_settings(home: Path, theme: str | None = None, design: str | None = No
 # The window is not: the bridge behind it runs with the real clock, so `render_window` writes the
 # same seed, with the same offsets (USAGE_RESET_IN, RETRY_IN), at the moment it is photographed
 # and tells the window that moment (CODEX_AR_STILL_NOW). So a countdown, a chip and a count read the
-# same on all four, and only times relative to the moment are comparable across them: a wall-clock
-# time the window prints, such as History's, is the day of the run's, not POPUP_NOW's.
+# same on all four. And the window prints a date or a time of day, such as History's, as if that
+# moment were POPUP_NOW (WINDOW_CLOCK, CODEX_AR_STILL_CLOCK), so those are the same on all four too,
+# and in every run: until v0.6.12-alpha they were the day of the run's.
 _FIXTURE = {}
 
 
@@ -813,6 +814,13 @@ def panel_html(theme=None, design=None) -> str:
 # same every time.
 POPUP_SCALE = 2.0
 POPUP_NOW = 1_800_000_000.0
+
+# The moment the window's pictures show on the clock (Soft.StillClock, CODEX_AR_STILL_CLOCK): the popup's and
+# the panel's, so the four surfaces are one moment on the clock as they are in their countdowns. The records the
+# window reads are still seeded at the real moment of its capture (`render_window`), since the bridge behind it
+# runs on the real clock; the window prints every date and time of day as if that moment were this one, in UTC
+# as the card prints its reset. Until v0.6.12-alpha History printed the day of the run, and every run rewrote it.
+WINDOW_CLOCK = POPUP_NOW
 
 
 def popup_status() -> dict:
@@ -2837,11 +2845,12 @@ def render_window(targets: dict, theme: str | None = None, design: str | None = 
         # own clock (Soft.StillNow). Every page is then photographed at one moment rather than at
         # whatever second its capture began, so a countdown reads the same on the Overview and on
         # Pending. The records themselves are still seeded at the real clock, because the bridge
-        # behind the window runs with the real one: what moves between two runs is the wall-clock
-        # time printed in History, and pinning that means giving the product a clock it can be
-        # told, which is not something to add for a picture.
+        # behind the window runs with the real one - giving the product a clock it can be told is
+        # not something to add for a picture - so the window is told too which moment to print
+        # that one as (Soft.StillClock, WINDOW_CLOCK): History's dates and times were the run's,
+        # and the only thing that moved between two runs.
         environment = dict(os.environ, CODEX_HOME=str(codex), LOCALAPPDATA=str(local.resolve()),
-                           CODEX_AR_STILL_NOW=repr(now))
+                           CODEX_AR_STILL_NOW=repr(now), CODEX_AR_STILL_CLOCK=repr(WINDOW_CLOCK))
         for override in (config.ENV_HOME, config.ENV_CODEX_EXE):
             environment.pop(override, None)
         holder = subprocess.Popen(

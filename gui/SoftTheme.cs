@@ -574,6 +574,19 @@ namespace CodexAutoResume
         /// moment its records are seeded at. Read once, at start, and never set by the product.
         internal static readonly double StillNow = ReadStillNow();
 
+        /// The moment a picture shows StillNow as on the clock, in seconds since 1970, or -1 - which is
+        /// what anybody running the product gets.
+        ///
+        /// The bridge behind the window runs on the real clock, so the records a picture is of are seeded
+        /// at the real moment it is taken, and History printed that day's dates and times: every picture
+        /// of it changed whenever it was made again, for a reason that was not the source.
+        /// CODEX_AR_STILL_CLOCK=&lt;epoch&gt; makes every date and time of day the window prints (When,
+        /// ClockTime) read as if StillNow were that moment, in UTC, as the notification card prints its
+        /// reset: moved by as much, so they stay as far apart as they were, and the same whichever day,
+        /// and in whichever zone, a picture is taken. build/make_screenshots.py sets it to the panel's and
+        /// the popup's moment. Only with StillNow; read once, at start, and never set by the product.
+        internal static readonly double StillClock = StillNow > 0 ? ReadMoment("CODEX_AR_STILL_CLOCK") : -1;
+
         /// The name of an event to set once the page the window opened on is drawn from the bridge's
         /// answers and holds still (SettingsForm.WatchForStill), or null - which is what anybody running
         /// the product gets.
@@ -598,10 +611,16 @@ namespace CodexAutoResume
 
         private static double ReadStillNow()
         {
+            return ReadMoment("CODEX_AR_STILL_NOW");
+        }
+
+        /// A moment a picture names in the variable `name`, in seconds since 1970, or -1 where it names none.
+        private static double ReadMoment(string name)
+        {
             try
             {
                 double seconds;
-                string set = Environment.GetEnvironmentVariable("CODEX_AR_STILL_NOW");
+                string set = Environment.GetEnvironmentVariable(name);
                 if (!string.IsNullOrEmpty(set) &&
                     double.TryParse(set, System.Globalization.NumberStyles.Float,
                                     System.Globalization.CultureInfo.InvariantCulture, out seconds) &&
