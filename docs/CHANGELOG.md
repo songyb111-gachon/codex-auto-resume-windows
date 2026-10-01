@@ -10,9 +10,10 @@ made that way gets it. An installation of v0.6.11-beta.2 is offered it by *Check
 asks first; v0.6.11-beta and the copies before it never offer a pre-release. It is v0.6.11-beta.2
 with the one thing that pre-release lacked: the advanced edition's Dashboard page that turns a
 capability on, which the owner asked on 2026-10-02 to follow at once. With it, everything of the
-v0.6.11 final is done but the version and edition picker. The standard edition gains nothing here
-and does what v0.6.11-beta.2 did; its window has no such page, and the two points the page needs in
-the window's shared code have no body there, so the compiler leaves them out. The watcher's state
+v0.6.11 final is done but the version and edition picker. The standard edition gains nothing here but
+the edition's new look beside the version ([below](#the-edition-as-a-badge)), and does what
+v0.6.11-beta.2 did; its window has no such page, and the two points the page needs in the window's
+shared code have no body there, so the compiler leaves them out. The watcher's state
 and the advanced edition's file are v0.6.11-beta.2's, so going back to it takes only its
 `Install.cmd` ([Going back](#going-back-from-v0611-beta3)).
 
