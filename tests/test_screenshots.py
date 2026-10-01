@@ -2350,6 +2350,46 @@ class FasterRunTests(unittest.TestCase):
         self.assertEqual([path for path in srcscan.package_files()
                           if "CODEX_AR_STILL_READY" in srcscan.read(path)], [])
 
+    def test_the_window_says_it_is_ready_only_once_the_requested_page_is_drawn_from_every_answer(self):
+        """The word is worth only what it waits for: the page the capture asked for, showing, every read it made
+        answered and applied, nothing gliding - and every read counted, so one that bypassed the count would let a
+        picture be taken before its answer arrived."""
+        settled = guiscan.member_body("SettingsForm", "Settled")
+        self.assertIn("currentPage != firstPage", settled, "the page the command line asked for")
+        self.assertIn("bridge.InFlight > 0", settled, "no read on its way")
+        self.assertIn("Transition.Moving > 0", settled, "nothing gliding")
+        for page, needle in (("settings", "previewToken > 0"), ("statistics", "statsToken > 0"),
+                             ("diagnostics", "compatView != null || compatUnreadable")):
+            self.assertIn('firstPage == "%s"' % page, settled)
+            self.assertIn(needle, settled, page)
+        self.assertIn("if (snapshot == null) return false;", settled, "every other page is drawn from the snapshot")
+        watch = guiscan.member_body("SettingsForm", "WatchForStill")
+        self.assertIn("Soft.StillReady == null", watch, "a person's window watches for nothing")
+        self.assertIn("auditing", watch, "nor does an audit")
+        self.assertIn("ticks == stillSince", watch, "and it waits for a tick of the window's clock")
+        # Every read is counted: the one-shot bridge is called only through the two counted calls of the long-lived
+        # one, and the window makes no bridge of its own but through it.
+        bridge = guiscan.type_body("PersistentBridge")
+
+        def method(name):
+            # By its braces; guiscan.member_body reads a return type with no space in it, and these return a
+            # Dictionary<string, object>.
+            return guiscan._block(bridge, bridge.index(" Dictionary<string, object> %s(" % name))
+
+        self.assertEqual(bridge.count("once.Call("), 2)
+        for name in ("Call", "CallOnce"):
+            self.assertIn("Interlocked.Increment(ref calls)", method(name), name)
+        self.assertIn("CallCounted(command, argument)", method("Call"))
+        self.assertIn("once.Call(", method("CallCounted"))
+        self.assertIn("once.Call(", method("CallOnce"))
+        window = guiscan.whole()
+        self.assertEqual(window.count("CallCounted("), 2, "declared once, and called from Call alone")
+        self.assertEqual(len(re.findall(r"new Bridge\(", window)),
+                         len(re.findall(r"new PersistentBridge\([^;]*new Bridge\(|var bridge = new Bridge\(", window)))
+        # The pages the generator asks for are the ones the window's command line names.
+        for page in self.generator.WINDOW_PAGES:
+            self.assertIn('"%s"' % page, window, page)
+
     def test_as_many_windows_are_open_at_once_as_asked_and_one_more_waits_its_turn(self):
         """Twelve windows started together each took two minutes to answer; one alone took ten seconds. And a session
         crashed while several were captured, so one is the default and more are asked for (`--windows N`)."""
