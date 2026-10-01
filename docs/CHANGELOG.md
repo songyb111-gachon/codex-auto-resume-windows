@@ -1,5 +1,222 @@
 # Changelog
 
+## v0.6.11-beta.2 — The advanced edition's first capabilities, before the page that turns them on
+
+[The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.11-beta...v0.6.11-beta.2)
+
+**A pre-release, published from `main`.** It is a GitHub pre-release, so `releases/latest` never
+answers with it. It is on `main`, though, and the plugin's own route installs what `main`'s manifest
+says, so an installation made that way gets it. v0.6.11-beta and the copies before it never offer
+a pre-release in their update check; from this one on, *Check for updates* does, and asks first
+([below](#numbered-pre-releases-and-an-update-check-that-offers-them)). It is here because the owner
+asked on 2026-10-01 for everything of v0.6.11's final that was finished: the advanced edition's
+first three capabilities and the warnings that replace refusals, numbered pre-releases, the
+pre-release offer, a setup program per edition, and the interface work. The standard edition at its
+defaults still does what v0.6.11-beta did: the advanced edition's code is left out of its archive,
+the two new places where core asks are answered by nothing there, and the scenario comparisons with
+the tagged v0.6.10 are unchanged. What changes with nothing turned on is what is said and drawn -
+the edition beside the version, **Custom...** at the end of every drop-down of a value - and *Check
+for updates*, which also reads the list of releases. The watcher's state is v0.6.11-beta's, so going
+back to it takes only its `Install.cmd` ([Going back](#going-back-from-this-pre-release)).
+
+**This pre-release does not have the Dashboard's Advanced features page.** That page is the one
+place a capability is turned on, and it is still being built; it arrives with the v0.6.11 final.
+So in this beta a capability cannot be turned on from the window: the advanced edition carries the
+three capabilities, each off, and does what the standard edition does. [EDITIONS.md](EDITIONS.md),
+the guide and the security and privacy pages already describe that page as the final will have it;
+until then, read what they say of it as what comes next. Codex's tools list the capabilities and
+turn them off, never on.
+
+**An older copy of the plugin cannot read this version, and a published copy cannot be changed.**
+Every bootstrap published before this one, v0.6.0's to v0.6.11-beta's, reads no number after
+`-alpha` or `-beta`, so none of them can compare `0.6.11-beta.2` with anything. Codex keeps its copy
+of the plugin until an installer replaces it, which an installer cannot do while Codex is open. Run
+from a copy of v0.6.0 to v0.6.11-alpha, a plain setup or repair takes this installation for none
+and installs that copy's own, older release over it - and v0.6.11-alpha and v0.6.10 refuse the state
+this one keeps and send nothing - while `-CheckOnly` and `-Update` stop with an error and print no
+`update:` line. Run from v0.6.11-beta's copy, setup refuses instead, until `-Force` says to replace
+what it cannot read, and its update check answers `update: unavailable`. So with this pre-release
+installed, set up and repair with the installation's own copy,
+`%USERPROFILE%\.codex-auto-resume\app\scripts\bootstrap.ps1`, or with a plugin at this version; if an
+older copy has already replaced it, run this pre-release's setup program or `Install.cmd` again. This
+copy and every later one read `-alpha.N` and `-beta.N`.
+
+How it was checked: each capability is tested off, watched (asked wherever it would act, doing
+nothing), and turned on end to end against the simulated Codex through the real session and a fake
+app server - its unit spent before it sends, a turn-off that wins at the claim, its ceilings, the
+tripwires that turn it off, turning it on again, a warning confirmed, Codex's tools unable to turn it
+on, and an installation moved to the standard edition and back. A review after the capabilities
+reproduced four problems: they found Codex by a discovery of their own, ignoring the `codex_exe`
+setting and the Codex home the watcher runs with, so with two engines installed every send was "not
+started"; the marker-free continuation did not say that it departs from B3 and B4, as it does; a
+later standard send of the same record going unknown turned off a capability that had paid for an
+earlier one; and the app could open a conversation between the goal continuation's look and its set.
+Each is fixed, with a test that failed before.
+
+### The advanced edition's first three capabilities
+
+Each is off until a person turns it on after reading its statement, which says what it does, what
+the standard edition does instead, which standards it departs from, what can go wrong and how to
+stop it; and each turns itself off again when what was agreed to stops being true. A pause stops all
+of them, and every check a send passes stays the standard edition's. [EDITIONS.md](EDITIONS.md) has
+each one in full.
+
+- **Start with Codex, through WMI.** Codex ends what its plugins start (measured for v0.6.9): its MCP
+  servers run in a job that ends with it. On, start-with-Codex starts the watcher whenever Codex
+  starts, and where Codex's job would end it, starts it through WMI (`Win32_Process` `Create`, with no
+  window), whose own host is its parent, outside the job - so closing Codex does not end it
+  (measurement MW). Off, the advanced edition answers exactly as the standard edition does, before a
+  single probe.
+- **A continuation with no marker.** The words go without the `[codex-auto-resume:` marker, into the
+  conversation's queue through Codex's app server (`thread/queue/add`) under a client id derived from
+  the interruption, and delivery is proven by that id alone (measurement M7). A send it cannot prove
+  is held as uncertain, never sent again, and turns the capability off. Past its ceilings - five a
+  conversation, 24 a day - continuations carry the marker, as the standard edition's do.
+- **Goal continuation.** For a usage limit whose reset has passed, in a conversation the Codex app
+  does not hold, the goal the limit paused is set active again through the app server
+  (`thread/goal/set`) - an existing goal only, by its id and status, never its words - so that Codex
+  carries it on when the app next opens the conversation. M2 found that the app does not take such a
+  goal up while it holds the conversation, and saw the goal live again once the app loaded it; so it
+  acts only where the app does not, and looks again just before the set. Nobody has yet followed
+  Codex carrying such a goal on by itself. Ceilings: three a conversation, twelve a day.
+- **A warning, not a refusal.** A measurement a capability rests on that failed or was never made for
+  the Codex in force, a compatibility grade of Failed here, Incompatible or Unknown, or a Codex version
+  nobody knows is a warning in its statement, and turning it on confirms exactly those warnings - the
+  owner's rule of 2026-09-26, in place of a refusal. Only an administrator's policy still refuses.
+  What turns a capability off by itself stays: a new statement, a new Codex version, a failure the
+  person did not confirm, or a send it paid for whose delivery became uncertain.
+- **The Codex the watcher drives.** The capabilities use the `codex.exe` and the Codex home the
+  watcher found and checked, its `codex_exe` setting and `--codex-home` included.
+- **What they stand on.** MA and MH, the two measurements that needed the owner at the app, passed on
+  codex-cli 0.158.0-alpha.2.1 on 2026-09-28 (`docs/evidence/live/`). The harness gains M2b, which sets
+  an existing paused goal active in a throwaway conversation the Desktop has open; until it passes,
+  the goal continuation never acts on a conversation the app holds.
+
+### Numbered pre-releases, and an update check that offers them
+
+- **Numbered pre-releases.** A version built in stages ships each finished stage as a pre-release, so
+  it can have more than one alpha and one beta: `-alpha.2`, `-beta.2` and on, from 2 to 999 with no
+  leading zero, the plain word being a stage's first. They sort as they are made - `0.6.11-beta`
+  before `0.6.11-beta.2` before `0.6.11` - and every place that reads this product's version applies
+  the one rule: the bootstrap, the settings window's build, the release workflow, the check of the
+  published bootstraps, the product itself and the community report (`tests/test_version_rule.py`).
+- **Alpha or beta.** The word says how far a pre-release can be relied on. An alpha is not yet for real
+  use: groundwork, a feature not yet shown to work end to end, or a stored format that may still
+  change. A beta works end to end, has passed review and both editions' tests, and stores what the
+  release will keep; once a version has had a beta, every later pre-release of it is a `-beta.N`
+  ([CONTRIBUTING.md](CONTRIBUTING.md)).
+- **The update check offers a newer pre-release, and asks.** The owner amended two of the project's
+  standards for it: C5, under which the update check asked for the latest release alone and took
+  only a plain version, and I12, under which an update never went to a pre-release. *Check for
+  updates* now also reads the list of this repository's ten newest releases - one unauthenticated
+  request to api.github.com, which carries nothing about your machine. Where there is no release to
+  offer first and a published pre-release is newer than both the installed version and the newest
+  release, it asks whether to install it, saying which version and that it is tested less than a
+  release, with **Not now** as the button Enter presses. Only a yes installs it: in the edition you
+  have, after asking the check's questions again and checking it against the `.sha256` published
+  beside it, keeping your settings, a pause, everything waiting and the sign-in choice. Nothing else
+  installs a pre-release - not the watcher, not the panel, not Codex's tools - and `-Update` still
+  installs releases only. From a command line, `-CheckOnly` prints `prerelease: v<version>` on a line
+  of its own, and `-Version <version>` installs it.
+- **A deadline for the whole request.** Under Windows PowerShell 5.1 a timeout bounds only the wait
+  for an answer to begin, so a slow list or compatibility document could keep the check running past
+  the window's two minutes. Both are now given up at their deadline.
+
+### A setup program for each edition
+
+Each release from this one also carries `CodexAutoResume-Setup-v<version>.exe` and
+`CodexAutoResume-Advanced-Setup-v<version>.exe`: its edition's release archive in one file, byte for
+byte, with the archive's SHA-256 beside it. Double-click it and there is nothing to unzip: it checks
+what it carries, unpacks it into a new folder of its own in the temporary folder, runs that archive's
+own `Install.cmd` in the same console, and removes the folder afterwards - also when its console
+window is closed, and from a temporary folder whose paths run past 260 characters. It takes DLLs from
+System32 alone and stops if a `.config` file is beside it. It is unsigned, as the window's executables
+are, so SmartScreen may ask about it; it is published with a `.sha256` of its own and named in the
+release's one attestation, and [VERIFY.md](VERIFY.md) says how to check it before running it. The
+archives and every other route are unchanged; v0.6.11-beta and the releases before it carry no
+setup program.
+
+### Custom..., Unlimited, the edition beside the version, and four styles again
+
+- **The edition beside the version.** The Dashboard's save bar and its Diagnostics' Version row read
+  `v<version> · Standard` (or `Advanced`), the panel's heading `Codex Auto Resume · v<version> ·
+  Standard`, and the notification-area icon's tooltip names the edition after the product, in every
+  language. An advanced installation whose package could not be loaded runs as the standard edition
+  and says so. `get_status` carries the edition as a code beside the version.
+- **Custom... at the end of every drop-down of a value**, in the Dashboard and in the panel: quiet
+  hours at any minute and on any days, a Custom retry wait within its list's range, **Stop a task that
+  keeps failing after**, **When a turn has not moved for** and **Ask me after a sleep longer than**
+  from minutes to a week, the memory limit from 128 to 16384 MB, and the context-cost limit from
+  10,000 to 10,000,000 tokens - [the guide](GUIDE.md) has the table. In the
+  Dashboard a small dialog takes the number and its unit, the hour and the minute, or the seven days,
+  and **Use this value** asks the settings' own validator before the drop-down shows it; in the panel
+  Save asks the same validator. A value is kept in its shortest exact form, and one past its bounds is
+  refused on write and read as the default. The Statistics page's Period is not a setting, so it has no
+  Custom... item.
+- **Unlimited** for **Keep it awake for at most**: the PC is then kept awake for as long as a task
+  waits, and let go, as always, when none does, on a pause and when the watcher stops. Only a limit
+  that is yours alone has it: no bound that keeps recovery safe has Unlimited or a value past it, and
+  the watcher's own floor, one continuation per conversation every 15 minutes and five in any 24
+  hours, is not a setting.
+- **Four message styles again.** v0.6.11-beta's fifth style, Careful, asked what Detailed already
+  asks, so it is folded into Detailed: Minimal, Standard, Detailed, and Custom last. A stored Careful
+  is Detailed on load and in the migration, the next save writes `detailed`, and a write that names
+  Careful is refused. Every other style's words are byte for byte what they were, in every language.
+- **Reviewed before it shipped.** The panel's retry preview no longer promises a wait of your own that
+  is past its bounds; the panel groups a count's thousands as its language does, as the Dashboard
+  does; the German range ends in one full stop, and the Japanese and Korean hint over the seven days
+  asks for a day of the week; and a drop-down is measured again when a value of your own is taken, so
+  a long list of days is not cut off.
+
+### Compatibility data 5
+
+The bundled compatibility data is sequence 5, written by the owner's compatibility tool from that
+machine's own records of real recoveries: codex-cli 0.159.0 is CHECKED in all twelve of its
+capabilities, and codex-cli 0.158.0-alpha.2.1 in two, the engine's presence and exact-thread recovery.
+None is VERIFIED yet. The recordings are under `docs/evidence/compat/`.
+
+### The standards and the two editions, published
+
+- **[STANDARDS.md](STANDARDS.md)** lists all 172 of the project's standards by their ids - families 0
+  and A to J, which the standard edition keeps, and K, the advanced edition's own rules, which no
+  capability may depart from - each with how it is held and the tests that hold it. The code reads its
+  ids from it, and a test checks that every test it names exists.
+- **[EDITIONS.md](EDITIONS.md)** says what each edition is, what each advanced capability does, risks
+  and departs from, and how to choose, switch, update and verify. The guide, the README and the
+  security, privacy, comparison, verification and acceptance pages link both and say what each edition
+  does wherever the two differ. They describe the Advanced features page as the final will have it
+  (above).
+
+### Going back from this pre-release
+
+- **The watcher's state is unchanged.** `state.sqlite` is still schema 4, as v0.6.11-beta wrote it, so
+  going back to v0.6.11-beta takes only that release's `Install.cmd`. Going back to v0.6.11-alpha or
+  v0.6.10 still takes `downgrade-state --to 3` from this release first, as v0.6.11-beta's entry says.
+- **The settings.** v0.6.11-beta reads what this version writes: Detailed in place of Careful as
+  Detailed, and a value of your own taken with Custom..., or Unlimited, as that setting's default.
+- **The advanced edition's own file.** `config\advanced\advanced.sqlite`, where one exists, goes from
+  version 1 to version 2 the first time this version opens it: a column for the warnings a person
+  confirmed is added, and every row keeps what it held. v0.6.11-alpha's and v0.6.11-beta's advanced
+  edition refuse a version-2 file: they read every capability as off - they have none to turn on - and
+  write nothing to it, and the file is left as it is for this version or a later one to read again.
+  Nothing takes it back to version 1. The standard edition has no such file.
+
+### Fixed along the way
+
+- **The Korean branch's sync no longer runs out of time.** The suite takes 77 minutes on a runner, so
+  v0.6.11-beta's sync hit its 60-minute limit and was reported as cancelled. Its tests now run in four
+  parts at once, the publishing job publishes only the tree those parts tested, and a scheduled check,
+  `ko-watch`, fails when the Korean branch is still behind `main` six hours after `main` moved.
+- **A slow scenario is not a hung one.** The scenario comparisons gave all their scenarios one
+  30-minute deadline, which slow runners reached with nothing hung. Each scenario now has a limit of
+  its own, half an hour, and a worker that says nothing that long is stopped and its scenario named.
+- **The compatibility tests are no longer tied to the published sequence.** They built their document
+  at sequence 4, so publishing compatibility data 5 made it a rollback and failed every lane. Their
+  document is now the bundled sequence plus one, whatever sequence that is.
+- **The standard archive's documents name no advanced identifier.** Two of them spelled names of the
+  advanced package that the edition audit refuses in the standard archive; they now say the same in
+  words.
+
 ## v0.6.11-beta — The standard edition's additions, and v0.6.10's behaviour at its defaults
 
 [The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.11-alpha...v0.6.11-beta)
