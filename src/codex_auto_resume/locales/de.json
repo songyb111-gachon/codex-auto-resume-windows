@@ -646,7 +646,7 @@
   "own.days_join": ", ",
   "own.hold_above": "Über {n} zurückhalten",
   "own.mb": "{n} MB",
-  "own.range": "Von {low} bis {high}.",
+  "own.range": "Der Wert muss zwischen {low} und {high} liegen.",
   "own.refused": "Dieser Wert ist nicht möglich. {hint}",
   "own.unit": "Einheit",
   "own.unit.h": "Stunden",

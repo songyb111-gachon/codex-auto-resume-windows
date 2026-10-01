@@ -642,7 +642,7 @@
   "overview.waiting_count": "{n}개 대기 중",
   "overview.week": "최근 7일",
   "own.clock": "00:00부터 23:59까지의 시각을 입력하세요.",
-  "own.days": "하루 이상 고르세요.",
+  "own.days": "요일을 하나 이상 고르세요.",
   "own.days_join": "·",
   "own.hold_above": "{n} 넘으면 보류",
   "own.mb": "{n}MB",

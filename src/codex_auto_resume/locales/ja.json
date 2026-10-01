@@ -642,7 +642,7 @@
   "overview.waiting_count": "{n} 件待機中",
   "overview.week": "過去 7 日間",
   "own.clock": "時刻を 00:00～23:59 で指定します。",
-  "own.days": "1 日以上選択してください。",
+  "own.days": "曜日を1つ以上選択してください。",
   "own.days_join": "・",
   "own.hold_above": "{n} を超えたら保留",
   "own.mb": "{n} MB",
