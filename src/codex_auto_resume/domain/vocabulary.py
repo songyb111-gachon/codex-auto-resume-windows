@@ -419,8 +419,6 @@ class ContinuationStyle(StrEnum):
     STANDARD = "standard"
     DETAILED = "detailed"
     CUSTOM = "custom"
-    # v0.6.11: Standard, and a sentence asking Codex not to repeat what already wrote, pushed or sent.
-    CAREFUL = "careful"
 
 
 class CustomMode(StrEnum):
@@ -545,13 +543,14 @@ class KeepAwake(StrEnum):
 
 
 class AwakeCap(StrEnum):
-    """For how long, at most, it is kept awake for tasks that go on waiting (power.AWAKE_CAPS)."""
+    """For how long, at most, it is kept awake for tasks that go on waiting (power.AWAKE_CAPS); Unlimited last."""
     H1 = "h1"
     H2 = "h2"
     H3 = "h3"
     H6 = "h6"
     H12 = "h12"
     H24 = "h24"
+    UNLIMITED = "unlimited"
 
 
 class SleepWait(StrEnum):

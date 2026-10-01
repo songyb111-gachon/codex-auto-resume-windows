@@ -77,7 +77,9 @@ LAYER = {_q(name): layer for layer, names in {
                # and the watcher's memory guard, and the status file for other tools.
                "memguard", "statusfile",
                # and Show me what happens: made-up rows and a made-up task, reading no state.
-               "demo"),
+               "demo",
+               # and a value of a person's own beside a drop-down's choices, Custom... and Unlimited.
+               "ownvalues"),
     "adapters": ("store", "openstate", "codex", "windows", "compat", "compatio", "startup", "shortcut",
                  # v0.6.10-alpha: compat.py and compatio.py became compat/.
                  "compat.model", "compat.standing", "compat.report", "compat.permits", "compat.files", "compat.cache", "compat.probes", "compat.views", "compat.evaluator",
@@ -122,7 +124,9 @@ LAYER = {_q(name): layer for layer, names in {
                # v0.6.11: the waits and the two guards, as the engine asks them.
                "engine.guard",
                # and the needs-you notices, as the engine raises them.
-               "engine.notices"),
+               "engine.notices",
+               # and how a continuation is carried and proven, and the last look before it goes.
+               "engine.delivery"),
     # v0.6.10-alpha: control.py became control/, ten files, `Control` composed from eight
     # mixins. `layer` is where the composition lives, so that the front holds no code.
     "control": ("control", "control.actions", "control.codexstart", "control.errors",

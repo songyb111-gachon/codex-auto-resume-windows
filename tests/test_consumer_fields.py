@@ -131,6 +131,9 @@ _RECEIVERS = {
         # retry preview and the high-limit notice read (v0.6.11).
         "fields": [("bridge:describe", "schema{name}")],
         "limitSchema": [("bridge:describe", "schema{name}")],
+        # v0.6.11: what a drop-down takes of a person's own (Custom...), and the sets of days a choice names.
+        "custom": [("bridge:describe", "schema[].custom")],
+        "named": [("bridge:describe", "schema[].custom.named")],
         # The Save request, built by setting name: each must be a setting the bridge stores.
         "jsonValues": SETTINGS,
         # LayoutAudit's input: a dashboard reply, with the compatibility reply's view beside it.
@@ -195,6 +198,8 @@ UNCHECKED = {
     ("gui/DashboardActions.cs", "gates", "name"): "each gate, in GateOrder, which "
                                             "tests/test_gui_decisions.py holds to machine.GATES",
     ("gui/SettingsPage.cs", "current", "name"): "each field the schema names, read back by that name",
+    ("gui/SettingsOwn.cs", "named", "current"): "the days a choice of days names, by that choice (v0.6.11): "
+                                               "every_day, weekdays or weekends, as the schema carries them",
     ("gui/DashboardTools.cs", "held", "thread"): "one conversation's own message, by that conversation's id "
                                                  "(v0.6.11); the map is empty in every golden",
 }
@@ -238,7 +243,7 @@ _TYPED = {
     },
     "gui/SettingsApp.cs": {
         "status": wire.StatusSnapshot,
-        "field": wire.SchemaField, "styleField": wire.SchemaField,
+        "field": wire.SchemaField, "styleField": wire.SchemaField, "custom": wire.OwnValue,
     },
 }
 TYPED = {(name, receiver): contract for name, table in _spread(_TYPED).items()

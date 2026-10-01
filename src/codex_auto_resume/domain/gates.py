@@ -22,6 +22,11 @@ NOT_CHECKED = "not_checked"
 # edition's plug holds nothing, so no standard record is ever stored with it. From schema 4 it is
 # also the consent gate's word for a record that waits for a person (`interruptions.hold`).
 HELD = "held"
+# v0.6.11 stage 3b: a gate core would have waited at, passed because the edition's plug named a
+# route core carries out itself instead (domain/plug.py, P16) - thread_available, for a
+# conversation the app does not hold. The standard edition's plug names no route, so no standard
+# record is ever stored with it.
+PLUGGED = "plugged"
 # Schema 4 (v0.6.11): a record a person postponed (`interruptions.not_before`), a moment inside the
 # quiet hours, and the watcher told to watch and never send (`settings.observe_only`). Each is a
 # reason of a gate there already was - consent or schedule - so A8's thirteen gates, and their
@@ -32,7 +37,7 @@ GATE_REASONS = REASONS | frozenset({
     NOT_CHECKED, "paused", "thread_disabled", "cancel_requested", "not_due", "possibly_sent",
     "engine_incompatible", "engine_unknown", "projection_table_missing",
     "home_lock_unavailable", "identity_unreadable", "not_recoverable", "usage_available",
-    "ok", HELD, POSTPONED, QUIET_HOURS, OBSERVE_ONLY,
+    "ok", HELD, POSTPONED, QUIET_HOURS, OBSERVE_ONLY, PLUGGED,
 })
 
 

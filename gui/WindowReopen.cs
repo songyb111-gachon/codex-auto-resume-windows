@@ -413,6 +413,8 @@ namespace CodexAutoResume
                 else if (combo != null)
                 {
                     var chosen = combo.SelectedItem as Choice;
+                    // Custom... is no value (SettingsOwn.cs): while its dialog is open the setting is left as it was.
+                    if (chosen != null && chosen.Value == OwnItem) continue;
                     values[pair.Key] = Json.Escape(chosen == null ? null : chosen.Value);
                 }
             }

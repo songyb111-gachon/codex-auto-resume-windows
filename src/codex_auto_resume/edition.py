@@ -24,7 +24,7 @@ import importlib.util
 import logging
 from pathlib import Path
 
-from .domain.plug import NULL, PLUG_API, DamagedPlug, Edition, Plug, PlugFailure
+from .domain.plug import NULL, PLUG_API, DamagedPlug, Edition, Guarded, Plug, PlugFailure
 
 ADVANCED_PACKAGE = "codex_auto_resume_advanced"
 # The directory this package sits in, which is where the advanced package has to sit too.
@@ -102,6 +102,17 @@ def load(paths, src=SRC) -> Plug:
     if not isinstance(made, Plug) or isinstance(made, DamagedPlug) or made.edition != Edition.ADVANCED:
         return _damaged(PlugFailure.FACTORY_FAILED)
     return made
+
+
+def shown(plug) -> str:
+    """The edition every surface that shows the version names beside it (v0.6.11), as a code the
+    catalogs say in each language (`edition.<code>`): `standard` or `advanced` - the edition that runs -
+    or NOT_LOADED for an advanced installation whose package could not be taken, which runs as the
+    standard edition and says so. `plug` is a plug, or one as core holds it (Guarded)."""
+    held = plug.plug if isinstance(plug, Guarded) else plug
+    if isinstance(held, DamagedPlug):
+        return NOT_LOADED
+    return str(held.edition) if isinstance(held, Plug) else str(Edition.STANDARD)
 
 
 def plug(paths) -> Plug:

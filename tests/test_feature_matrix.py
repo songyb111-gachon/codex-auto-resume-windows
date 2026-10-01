@@ -30,21 +30,23 @@ KOREAN = ROOT / "docs" / "FEATURE_MATRIX.ko.md"
 
 # `tests/test_engine.py:CorrelationTests.test_T01_...`, and what follows one in the same cell without
 # repeating the module: a class (`WindowsTests`), a class and a test (`WindowsTests.test_x`), or a bare
-# test (`test_x`), each read in the module the cell last named.
-CITATION = re.compile(r"tests/(test_[A-Za-z0-9_]+)\.py:([A-Za-z_][A-Za-z0-9_]*)"
+# test (`test_x`), each read in the module the cell last named. The advanced edition's own tests are
+# cited as `advanced/tests/test_advanced_arming.py:...` (v0.6.11, §18), and are held the same way.
+CITATION = re.compile(r"((?:advanced/)?tests)/(test_[A-Za-z0-9_]+)\.py:([A-Za-z_][A-Za-z0-9_]*)"
                       r"(?:\.(test_[A-Za-z0-9_]+))?")
 TOKEN = re.compile(r"`([^`]+)`")
 CONTINUED = re.compile(r"(?:([A-Z][A-Za-z0-9_]*Tests)(?:\.(test_[A-Za-z0-9_]+))?|(test_[A-Za-z0-9_]+))")
 # A path in backticks that points into this repository rather than at a command.
-PATH = re.compile(r"`((?:src|tests|scripts|build|gui|docs|assets|install|skills)/[^`\s]+)`")
+PATH = re.compile(r"`((?:src|tests|scripts|build|gui|docs|assets|install|skills|advanced)/[^`\s]+)`")
 LEVELS = ("IMPLEMENTED", "UNIT TESTED", "INTEGRATION TESTED", "REAL WINDOWS TESTED",
           "REAL CODEX PROTOCOL TESTED", "REAL CODEX VISUALLY TESTED", "PUBLISHED",
           "UNVERIFIED")
 
 
-def members(module: str) -> dict:
-    """Every class in a test module, with the test methods it defines."""
-    source = (ROOT / "tests" / (module + ".py")).read_text(encoding="utf-8")
+def members(module) -> dict:
+    """Every class in a test module, with the test methods it defines. `module` is (folder, name)."""
+    folder, name = module
+    source = (ROOT / folder / (name + ".py")).read_text(encoding="utf-8")
     found = {}
     for node in ast.walk(ast.parse(source)):
         if isinstance(node, ast.ClassDef):
@@ -64,28 +66,30 @@ def unresolved(text: str, cache: dict, name: str) -> list:
             for token in TOKEN.findall(cell):
                 full = CITATION.fullmatch(token) or CITATION.match(token)
                 if full:
-                    module, klass, method = full.groups()
-                    if not (ROOT / "tests" / (module + ".py")).is_file():
-                        missing.append("%s: tests/%s.py does not exist" % (name, module))
+                    folder, stem, klass, method = full.groups()
+                    module = (folder, stem)
+                    if not (ROOT / folder / (stem + ".py")).is_file():
+                        missing.append("%s: %s/%s.py does not exist" % (name, folder, stem))
                         module = None
                         continue
                     classes = cache.setdefault(module, members(module))
                     if klass not in classes:
-                        missing.append("%s: tests/%s.py has no class %s" % (name, module, klass))
+                        missing.append("%s: %s/%s.py has no class %s" % (name, folder, stem, klass))
                     elif method and method not in classes[klass]:
-                        missing.append("%s: tests/%s.py:%s has no %s" % (name, module, klass, method))
+                        missing.append("%s: %s/%s.py:%s has no %s" % (name, folder, stem, klass, method))
                     continue
                 continued = CONTINUED.fullmatch(token)
                 if module is None or not continued:
                     continue
                 classes = cache.setdefault(module, members(module))
                 klass, method, bare = continued.groups()
+                where = "%s/%s.py" % module
                 if bare and not any(bare in tests for tests in classes.values()):
-                    missing.append("%s: tests/%s.py has no %s" % (name, module, bare))
+                    missing.append("%s: %s has no %s" % (name, where, bare))
                 elif klass and klass not in classes:
-                    missing.append("%s: tests/%s.py has no class %s" % (name, module, klass))
+                    missing.append("%s: %s has no class %s" % (name, where, klass))
                 elif klass and method and method not in classes[klass]:
-                    missing.append("%s: tests/%s.py:%s has no %s" % (name, module, klass, method))
+                    missing.append("%s: %s:%s has no %s" % (name, where, klass, method))
     return missing
 
 
@@ -110,6 +114,14 @@ class CitationTests(unittest.TestCase):
         cell = "| x | UNIT TESTED | `tests/test_feature_matrix.py:CitationTests` (2 tests, incl. `test_no_such_thing`) | - |"
         self.assertEqual(unresolved(cell, {}, "row"),
                          ["row: tests/test_feature_matrix.py has no test_no_such_thing"])
+
+    def test_an_advanced_citation_is_read_in_the_advanced_tree(self):
+        """A citation under advanced/tests/ used to match nothing here, so it was never checked."""
+        cell = ("| x | UNIT TESTED | `advanced/tests/test_advanced_arming.py:DashboardOnlyTests` (10 tests), "
+                "`NoSuchTests`; `advanced/tests/test_advanced_nothing.py:X` | - |")
+        self.assertEqual(unresolved(cell, {}, "row"),
+                         ["row: advanced/tests/test_advanced_arming.py has no class NoSuchTests",
+                          "row: advanced/tests/test_advanced_nothing.py does not exist"])
 
     def test_every_file_it_points_at_is_in_the_repository(self):
         """Not merely on the machine that wrote the sentence.

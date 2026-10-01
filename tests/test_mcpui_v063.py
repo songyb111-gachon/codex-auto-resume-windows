@@ -38,9 +38,11 @@ from codex_auto_resume import (brand,
                                compat,
                                continuation,
                                control,
+                               edition,
                                l10n,
                                machine,
                                mcpserver,
+                               ownvalues,
                                reasons,
                                runtime)
 from codex_auto_resume.mcp import panel as mcpui
@@ -447,6 +449,14 @@ class CatalogTests(unittest.TestCase):
         "compat.source.": compat.DATA_SOURCES,
         # The refreshed data's standings that are more than "in force", said as the window says them.
         "compat.cache.": tuple(state for state in compat.CACHE_STATES if state not in ("absent", "ok")),
+        # v0.6.11: the edition beside the version in the heading (edition.shown).
+        "edition.": tuple(str(name) for name in edition.EDITIONS) + (edition.NOT_LOADED,),
+        # v0.6.11: Custom... - the days, a count's words and a duration's units, as the schema names them.
+        "day.": ownvalues.DAY_NAMES,
+        "own.": tuple(sorted({getattr(spec, part)[len("own."):] for spec in policy.OWN.values()
+                              for part in ("amount", "label") if getattr(spec, part)})),
+        "own.unit.": tuple(sorted({unit for spec in policy.OWN.values() if spec.kind == ownvalues.DURATION
+                                   for unit in spec.units})),
     }
 
     def test_every_key_the_script_names_exists_in_english(self):

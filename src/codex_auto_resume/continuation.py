@@ -34,11 +34,17 @@ from .domain.vocabulary import ContinuationStyle, CustomMode
 
 # Minimal is short on purpose and says nothing about the cause. Standard names the
 # safely known reason. Detailed asks for the work to be continued from where it
-# stopped. Custom is the user's own words. Careful (v0.6.11) is Standard with one more
-# sentence, asking Codex to check what already happened and not to repeat anything that
-# wrote, pushed or sent; Standard itself is left exactly as it was.
+# stopped. Custom is the user's own words, and is offered last.
 STYLES = tuple(ContinuationStyle)
 DEFAULT_STYLE = "standard"
+
+# A style a pre-release had and a release does not, and the one it reads as. v0.6.11-beta's
+# Careful was the Standard message with a sentence asking Codex to check what already happened
+# and not to repeat a step that already changed something; Detailed already asks Codex to check
+# the state of the work and not to repeat what is complete, so two styles said one thing, and
+# Careful was folded into Detailed before the final. A stored "careful" is Detailed wherever it
+# is read - the settings file's migration and the field's coercer (settings.py), and here.
+FOLDED_STYLES = {"careful": "detailed"}
 
 # v0.6.11: a message for one conversation, which wins over every style for that conversation
 # alone - the setting that holds them (a UUID -> text object), and how many it may hold. Each
@@ -240,10 +246,11 @@ def build(category, *, locale=l10n.DEFAULT, style=DEFAULT_STYLE, custom=None,
     per-reason message if this category has a usable one, otherwise the global one,
     otherwise the localized Standard message for this category. An empty continuation
     is never produced - every path ends at a template that exists, and Custom text that
-    fills in to nothing is not usable.
+    fills in to nothing is not usable. A folded style is the style it became (FOLDED_STYLES).
     """
     entry = reasons.get(category)
     values = _message_values(entry, locale, metadata)
+    style = fold_style(style)
 
     own = _conversation_choice(entry, custom, values)
     if own is not None:
@@ -266,12 +273,7 @@ def build(category, *, locale=l10n.DEFAULT, style=DEFAULT_STYLE, custom=None,
     # long before here - so Minimal's is the shape of a bug, not a message anyone receives.
     # It still has to be text rather than an exception, because a Preview of a
     # non-recoverable category is a legitimate thing for a settings page to ask for.
-    standard = _fill(l10n.text(entry.standard_key or "continuation.minimal", locale), values)
-    if style == "careful":
-        # The Standard message, whole, inside the catalog's sentence that adds the guard; the
-        # translator places it, so the space between two sentences is the language's own.
-        return l10n.text("continuation.careful", locale).replace("{message}", standard, 1)
-    return standard
+    return _fill(l10n.text(entry.standard_key or "continuation.minimal", locale), values)
 
 
 def _message_values(entry, locale, metadata):
@@ -338,8 +340,14 @@ def resolve_locale(values, environ=None) -> str:
     return l10n.resolve(values.get("interface_language"), environ)
 
 
+def fold_style(style):
+    """A stored style as this version reads it: a folded one as the style it became (FOLDED_STYLES),
+    anything else as it is."""
+    return FOLDED_STYLES.get(style, style) if isinstance(style, str) else style
+
+
 def style_from(values) -> str:
-    style = (values or {}).get("continuation_style")
+    style = fold_style((values or {}).get("continuation_style"))
     return style if style in STYLES else DEFAULT_STYLE
 
 

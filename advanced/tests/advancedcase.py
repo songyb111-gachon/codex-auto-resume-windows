@@ -5,8 +5,9 @@ and the surfaces is held here against a capability defined by the tests: `defini
 one, `Code` is its code - it answers what a test tells it to - and `catalogs()` writes its
 statement into a copy of the shipped catalogs, in all nine languages.
 
-Nothing here reaches the real machine. Every runtime is given a policy and a Compatibility
-Registry view of the test's own (`AdvancedCase.policy`, `AdvancedCase.compat`), so no test reads
+Nothing here reaches the real machine. Every runtime is given a policy, a Compatibility Registry
+view and a table of measurements of the test's own (`AdvancedCase.policy`, `AdvancedCase.compat`,
+`AdvancedCase.measured`), so no test reads
 the real Software\\Policies keys or the real Codex installation, and every home is a temporary
 directory.
 
@@ -113,11 +114,13 @@ class AdvancedCase(unittest.TestCase):
         self.now = NOW
         self.policy = policy.NONE
         self.compat = view()
+        self.measured = {}
         self.catalogs = catalogs(temporary.name, definition())
 
     def options(self, *definitions) -> dict:
         return dict(registry=Registry(definitions or (definition(),)), clock=lambda: self.now,
-                    policy=lambda: self.policy, view=lambda: self.compat, catalogs=self.catalogs)
+                    policy=lambda: self.policy, view=lambda: self.compat,
+                    measured=lambda: self.measured, catalogs=self.catalogs)
 
     def runtime(self, *definitions) -> Runtime:
         made = Runtime(self.paths, **self.options(*definitions))

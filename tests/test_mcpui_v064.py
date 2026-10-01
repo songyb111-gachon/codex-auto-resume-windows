@@ -242,6 +242,11 @@ class ControlKindTests(unittest.TestCase):
                   pending: inputsOf(S['panel.pending_title'])};
         })()"""))
         recover = [e for e in policy.describe() if e["name"].startswith("recover_")]
+        # v0.6.11: the days Custom... offers for quiet hours pick which items of a list apply: check boxes.
+        days = [i for i in observed["recovery"] if i["rowClass"] == "own-day"]
+        self.assertEqual(len(days), 7)
+        self.assertEqual({(i["cls"], i["role"], i["first"]) for i in days}, {("check", None, True)})
+        observed["recovery"] = [i for i in observed["recovery"] if i["rowClass"] != "own-day"]
         # v0.6.11: Observe only, under the kinds of interruption, turns something that runs on or off.
         observe = [i for i in observed["recovery"] if i["text"] == ENGLISH["field.observe_only"]]
         self.assertEqual(len(observe), 1)

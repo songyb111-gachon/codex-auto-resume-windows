@@ -665,6 +665,11 @@ RULES = {
     "how a front end states UTF-8": (
         calls("reconfigure"),
         {"controlcli.py": "use_utf8"}),
+    # v0.6.11: a value of a person's own (Custom...) is read and spelled in one module; the days a set of them
+    # may hold are written out there, and every surface is handed them in the schema (ownvalues.published).
+    "the days of the week, written out": (
+        lambda node: listed(node) == {"mon", "tue", "wed", "thu", "fri", "sat", "sun"},
+        {"ownvalues.py": ""}),
     "the window's pages": (
         lambda node: (listed(node) or set()) >= {"overview", "statistics", "diagnostics"},
         {"domain/vocabulary.py": "Page"}),
@@ -728,6 +733,7 @@ class OneImplementationTests(unittest.TestCase):
             "how many days a statistics request may cover": "x = 1 <= days <= 3650",
             "where an installed copy keeps its home": 'x = root.parent if root.name == "app" else None',
             "how a front end states UTF-8": 'sys.stdout.reconfigure(encoding="utf-8")',
+            "the days of the week, written out": 'x = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")',
             "the window's pages": 'x = ("overview", "pending", "history", "statistics", "diagnostics", "settings")',
             "a plausible time's bounds": "x = 0 <= v <= 253402300799",
             "parsing a UUID": "x = str(uuid.UUID(value)) == value",

@@ -6,6 +6,19 @@
 대신 확인해 주는 것, 릴리스를 직접 다시 빌드하는 방법, 그리고 이 모든 것이 다루지 못하는 부분을
 적어 둡니다.
 
+이번 릴리스부터 릴리스는 두 판을 게시하며, 아래의 확인은 설치에 쓰는 네 파일 모두에 저마다의 이름과
+`.sha256`으로 똑같이 들어맞습니다.
+
+| 판 | 압축 파일 | 설치 파일 |
+| --- | --- | --- |
+| 표준판 | `CodexAutoResume-vX.Y.Z-win-x64.zip` | `CodexAutoResume-Setup-vX.Y.Z.exe` |
+| 고급판 | `CodexAutoResume-Advanced-vX.Y.Z-win-x64.zip` | `CodexAutoResume-Advanced-Setup-vX.Y.Z.exe` |
+
+아래 명령은 표준판의 이름을 씁니다. 고급판이라면 그 자리에 고급판의 이름을 넣으세요. attestation 하나가 네
+파일을 모두 담고 있으므로 `gh attestation verify`는 어느 파일을 주든 그것을 찾아내며, 설치 파일과 압축 파일
+모두에 해 볼 만합니다. 판마다 압축 파일은 `scripts/release.json`에 자기 고정값이 따로 있습니다(아래 3단계).
+v0.6.10까지의 릴리스에는 표준판 압축 파일만 있습니다.
+
 ## 왜 확인해야 하는가
 
 릴리스 압축 파일에서 풀어낸 것은(설치 파일이 대신 풀어 주는 것도) 사용자 본인의 권한으로 실행됩니다. 따로 끄지 않는 한 로그인할
@@ -40,7 +53,7 @@ C++ 런타임 DLL 두 개에는 Microsoft의 서명입니다. [코드 서명](#�
 
 2. **GitHub CLI가 있다면 빌드 출처(provenance)를 확인합니다.** 아래 압축 파일 목록의 4단계와 같은
    방법입니다. 릴리스 하나의 attestation은 그 릴리스가 게시하는 모든 파일을 담고 있으며, 설치 파일도
-   그 안에 있습니다.
+   그 안에 있습니다. 두 판의 압축 파일과 두 판의 설치 파일이 모두 들어 있습니다.
 
    ```powershell
    gh attestation verify .\CodexAutoResume-Setup-vX.Y.Z.exe `
@@ -48,6 +61,8 @@ C++ 런타임 DLL 두 개에는 Microsoft의 서명입니다. [코드 서명](#�
        --signer-workflow songyb111-gachon/codex-auto-resume-windows/.github/workflows/release.yml `
        --source-ref refs/tags/vX.Y.Z
    ```
+
+   고급판 설치 파일이라면 같은 명령에 `.\CodexAutoResume-Advanced-Setup-vX.Y.Z.exe`를 넣습니다.
 
 그다음 더블클릭합니다. 코드 서명이 없으므로 SmartScreen이 *Windows의 PC 보호*(Windows protected your PC)
 창을 띄울 수 있습니다. **추가 정보**를 누른 뒤 **실행**을 누릅니다([코드 서명](#코드-서명) 참고).
@@ -58,7 +73,7 @@ C++ 런타임 DLL 두 개에는 Microsoft의 서명입니다. [코드 서명](#�
 `python build/make_setup.py --check`를 실행하면, 설치 파일에서 압축 파일을 꺼내 옆의 압축 파일과 바이트
 단위로 비교하고, 그 압축 파일로 설치 파일을 다시 빌드해 둘을 비교합니다
 ([릴리스를 직접 다시 빌드하기](#릴리스를-직접-다시-빌드하기) 참고). 그러고 나면 압축 파일 자신의
-다이제스트가 3단계에서 비교하는 바로 그 값입니다.
+다이제스트가 3단계에서 비교하는 바로 그 값입니다. 고급판의 두 파일이라면 `--edition advanced`를 붙입니다.
 
 설치 파일은 담고 있는 압축 파일을 함께 컴파일된 SHA-256과 대조하고, 다르면 멈춥니다. 이것은 손상된
 다운로드나 디스크를 잡아낼 뿐, 바꿔치기된 파일은 잡아내지 못합니다. 안의 압축 파일을 바꿀 수 있는
@@ -94,7 +109,9 @@ C++ 런타임 DLL 두 개에는 Microsoft의 서명입니다. [코드 서명](#�
 
 3. **`main`에 고정된 그 버전의 다이제스트와 비교합니다.**
    [main 브랜치의 `scripts/release.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/scripts/release.json)을
-   열고, `sha256` 표에서 앞의 `v`를 뺀 버전 번호를 찾습니다. 그다음:
+   열고, `sha256` 표에서 앞의 `v`를 뺀 버전 번호를 찾습니다. 고급판 압축 파일이라면 `advanced` 안의
+   `sha256` 표에서 찾으며, 이 표는 이번 릴리스부터 시작합니다. 한 버전은 같은 커밋에서 두 표에 함께
+   고정됩니다. 그다음:
 
    ```powershell
    $hash -eq '<X.Y.Z에 적힌 값>'
@@ -180,6 +197,10 @@ v0.5.0과 v0.5.1은 `sha256` 고정 표보다 먼저 나왔으므로 항목이 �
 Codex에서 설치하면 플러그인의 `scripts/bootstrap.ps1`이, 압축 파일 안의 무엇이든 실행하기 전에 스스로
 다음을 확인합니다.
 
+- 이번 릴리스부터는 설치된 판의 압축 파일을 그 판의 이름으로 가져와 그 판의 고정값과 대조합니다. 업데이트는
+  설치된 판 안에 머뭅니다. 다른 판의 압축 파일은 거부합니다. 표준판을 요청했는데 고급판 패키지의 무엇이라도
+  들어 있는 압축 파일, 고급판을 요청했는데 그 패키지가 없는 압축 파일입니다. 다른 판으로 옮기는 것은 사람이
+  요청하는 재설치이며, 무엇이든 가져오기 전에 그렇다고 알립니다.
 - URL 형태 하나로만 내려받습니다. `scripts/release.json`의 상수와 플러그인 자신의 매니페스트에 적힌
   버전으로 만듭니다. "latest"는 없고, 사용자가 입력한 어떤 것도 URL의 일부가 되지 않습니다.
 - TLS 1.2 이상의 HTTPS를 쓰고, 리디렉션을 거친 최종 호스트가 `github.com`,
@@ -307,6 +328,20 @@ Get-Content .\build\dist\CodexAutoResume-vX.Y.Z-win-x64.zip.sha256
 파일을 꺼내 옆의 압축 파일과 바이트 단위로 비교하고, 설치 파일을 그 `.sha256`과 비교하고, 그 압축 파일로
 설치 파일을 다시 빌드해 둘을 비교합니다. 릴리스 워크플로도 게시하기 전에 같은 확인을 합니다.
 
+이번 릴리스부터 나오는 고급판도 같은 방법으로 비교하되, 고급판의 창과 압축 파일도 빌드합니다.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File build/make_gui.ps1 -Edition advanced
+python build/make_release.py --edition advanced
+Get-Content .\build\dist\CodexAutoResume-Advanced-vX.Y.Z-win-x64.zip.sha256
+python build/edition_audit.py
+```
+
+마지막 명령은 릴리스 워크플로가 무엇이든 게시하기 전에 실행하는 증명입니다. `build\dist`의 두 압축 파일과 두
+설치 파일을 읽어, 표준판 쪽에 고급판의 것이 하나도 없다는 것, `advanced/`를 지우고 다시 만든 표준판 압축 파일이
+같은 파일이라는 것, 표준판의 모든 항목이 고급판 압축 파일에 바뀌지 않은 채 들어 있다는 것을 확인합니다. 그러려고
+표준판을 다시 빌드하므로, 릴리스 빌드에 필요한 것이 모두 필요합니다.
+
 `build/make_gui.ps1`은 사용한 컴파일러(버전이 적힌 `compiler` 줄)와 빌드한 각 실행 파일의 SHA-256을 출력합니다. 저장소 Actions
 탭에 있는 릴리스 실행 로그에도 GitHub가 그 실행의 로그를 보관하는 동안에는 같은 줄이 있습니다. 보관 기간은 저장소의 보존 기간(따로 정하지 않았다면 90일)이고,
 GitHub는 그 로그를 로그인한 사용자에게만 보여 줍니다. 그 로그에서는 실행 파일을 두 번째로 빌드하는 단계가 각각의 다이제스트를 다시 출력합니다. 이것들을 비교하면
@@ -398,8 +433,8 @@ DLL 두 개(`vcruntime140.dll`과 `vcruntime140_1.dll`)에는 Microsoft의 서�
   시작이 켜져 있다면, Windows는 함께 들어 있는 `pythonw.exe`를 시작합니다. 그 인터프리터가 실행하는
   Python 코드는 이 프로젝트의 것이고 서명되어 있지 않습니다.
 - **서명되지 않은 것:** 설정 창 `CodexAutoResumeSettings.exe`, Codex가 플러그인의 도구와 패널을 위해
-  시작하는 MCP 런처 `codex-auto-resume-mcp.exe`, 설치 파일 `CodexAutoResume-Setup-vX.Y.Z.exe`,
-  `Install.cmd`와 `Uninstall.cmd`, 그리고 이 프로젝트의 스크립트들입니다. `.cmd` 파일은 애초에 Authenticode 서명을 담을 수 없습니다.
+  시작하는 MCP 런처 `codex-auto-resume-mcp.exe`, 설치 파일 `CodexAutoResume-Setup-vX.Y.Z.exe`와
+  `CodexAutoResume-Advanced-Setup-vX.Y.Z.exe`, `Install.cmd`와 `Uninstall.cmd`, 그리고 이 프로젝트의 스크립트들입니다. `.cmd` 파일은 애초에 Authenticode 서명을 담을 수 없습니다.
 - v0.6.0부터는 두 실행 파일에 버전 리소스가 있어서 **Properties → Details**(한국어 Windows에서는
   속성 → 자세히)에 제품 이름, 버전, 그리고 작성자 이름이 적힌 저작권 줄이 보입니다. 이것은 v0.6.0에
   들어 있고, v0.5.0부터 v0.5.7까지의 실행 파일은 그 제품 정보 없이
@@ -471,6 +506,10 @@ DLL 두 개(`vcruntime140.dll`과 `vcruntime140_1.dll`)에는 Microsoft의 서�
   그대로 다시 빌드할 수 없습니다.
 - **`Install.cmd`는 압축 파일을 확인하지 않고**, **플러그인 경로는 attestation을 확인하지 않습니다.**
 - **v0.5.4보다 앞선 압축 파일에는 attestation이 없습니다.**
+- **고급판 압축 파일은 아직 하나도 고정되지 않았습니다.** `scripts/release.json`의 `advanced` 안 `sha256` 표는
+  고급판을 게시하는 첫 릴리스가 고정될 때까지 비어 있으며, 고급판을 먼저 실어 나른 두 프리 릴리스는 고정되지
+  않습니다. 그때까지 고급판 압축 파일에는 `.sha256`과 attestation이 있고, 플러그인 경로는 `.sha256`으로 대신
+  확인하며 그렇다고 알립니다.
 - **제안된 액션 업그레이드 넷이 모두 들어갔고, 그중 둘은 아무것도 시험해 볼 수 없다.** Dependabot이
   `actions/checkout`을 v7.0.1로, `actions/setup-python`을 v7.0.0으로,
   `actions/attest-build-provenance`를 v4.2.2로, 산출물 한 쌍을 `upload-artifact` v7.0.1과

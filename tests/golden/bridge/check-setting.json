@@ -1,0 +1,71 @@
+{
+  "command": "check-setting",
+  "cases": [
+    {
+      "case": "a stall of the person's own, in its one spelling",
+      "argument": {
+        "name": "stall_after",
+        "value": "m60"
+      },
+      "reply": {
+        "ok": true,
+        "result": {
+          "name": "stall_after",
+          "value": "h1"
+        }
+      }
+    },
+    {
+      "case": "any days quiet hours start on",
+      "argument": {
+        "name": "quiet_hours_days",
+        "value": "fri,mon"
+      },
+      "reply": {
+        "ok": true,
+        "result": {
+          "name": "quiet_hours_days",
+          "value": "mon,fri"
+        }
+      }
+    },
+    {
+      "case": "keeping this PC awake without a limit",
+      "argument": {
+        "name": "keep_awake_hours",
+        "value": "unlimited"
+      },
+      "reply": {
+        "ok": true,
+        "result": {
+          "name": "keep_awake_hours",
+          "value": "unlimited"
+        }
+      }
+    },
+    {
+      "case": "a retry wait under the engine's floor is refused",
+      "argument": {
+        "name": "retry_wait_2",
+        "value": "m5"
+      },
+      "reply": {
+        "ok": false,
+        "error": "invalid value for retry_wait_2",
+        "error_code": "request_failed"
+      }
+    },
+    {
+      "case": "a setting that does not exist is refused",
+      "argument": {
+        "name": "no_such_setting",
+        "value": "h1"
+      },
+      "reply": {
+        "ok": false,
+        "error": "unknown setting: no_such_setting",
+        "error_code": "request_failed"
+      }
+    }
+  ]
+}

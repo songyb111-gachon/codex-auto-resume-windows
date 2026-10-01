@@ -82,7 +82,9 @@ WITH_ARGUMENT = ("update", "enabled", "startup", "cancel", "reset-budget", "retr
                  # and Always or Never for the project of the row's conversation.
                  "project-rule",
                  # v0.6.11: Don't postpone, one conversation's own message, and the log searched.
-                 "unpostpone", "conversation-message", "logs")
+                 "unpostpone", "conversation-message", "logs",
+                 # and whether a setting takes a value of the person's own, as Custom... asks.
+                 "check-setting")
 # Big enough for the largest Save the settings layer accepts: eight Custom messages of 2000
 # characters each, and the window writes every line break as a six-character escape, so a
 # valid Save can come to nearly 100 KiB. At 64 KiB such a Save was refused as "request too
@@ -438,6 +440,8 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
                 raise ControlError("a custom message has to be text")
             return {"ok": True, "result": control.set_conversation_message(payload.get("thread_id"),
                                                                            payload.get("text"))}
+        if command == "check-setting":
+            return {"ok": True, "result": control.check_setting(payload.get("name"), payload.get("value"))}
         if command == "logs":
             return {"ok": True, "result": control.search_logs(payload.get("query"),
                                                               payload.get("limit", 500))}

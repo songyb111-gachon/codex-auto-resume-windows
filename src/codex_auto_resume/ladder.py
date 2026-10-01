@@ -5,8 +5,9 @@ with them: every interruption of a temporary kind waits the preset's first step 
 (a rate limit at least a minute, standard A22), and the engine's own floor - a continuation to one
 conversation at most every 15 minutes, five in any 24 hours (A20) - does the rest.
 
-Custom (v0.6.11) is five waits a person picks, each from a closed list - never a number a person or a
-model types, so no wait can be zero or unbounded. The n-th attempt at a task waits the n-th of them,
+Custom (v0.6.11) is five waits a person picks, each from a list or, with Custom..., a wait of their own
+between that list's first and last (ownvalues.py) - so no wait can be zero or unbounded, whoever typed
+it. The n-th attempt at a task waits the n-th of them,
 and the fifth again after that. The engine floor is not a setting and binds whatever is picked, which
 is why the second to fifth waits start at 15 minutes: a shorter one would be the floor anyway, and a
 list that offered it would show a person a wait the watcher never keeps (`preview`).
@@ -26,6 +27,7 @@ from __future__ import annotations
 
 import math
 
+from . import ownvalues
 from .domain.vocabulary import ChainCeiling, RetryTiming, RetryWait
 
 # The presets, v0.6.10's own (settings.RETRY_TIMING is this table).
@@ -67,6 +69,11 @@ CEILING_SECONDS = {ChainCeiling.OFF: None, ChainCeiling.H1: 3600, ChainCeiling.H
                    ChainCeiling.H6: 6 * 3600, ChainCeiling.H12: 12 * 3600, ChainCeiling.H24: 24 * 3600}
 # Jitter: up to this share of a wait added to it, never taken off.
 JITTER_SHARE = 0.2
+# Custom... (ownvalues.py): a wait of a person's own between its list's first and last, in whole seconds for
+# the first and whole minutes after it; and a ceiling from the engine's 15 minutes to a week - Off is none.
+OWN = {STEP_FIELDS[0]: ownvalues.Own(ownvalues.DURATION, 5, 2 * 3600, ("s", "m", "h")),
+       **{field: ownvalues.Own(ownvalues.DURATION, SPACING, 6 * 3600, ("m", "h")) for field in STEP_FIELDS[1:]},
+       "chain_time_ceiling": ownvalues.Own(ownvalues.DURATION, SPACING, ownvalues.WEEK, ("m", "h"))}
 
 
 def choices_for(field: str) -> tuple:
@@ -85,11 +92,15 @@ def timing(values) -> str:
 
 
 def custom_steps(values) -> tuple:
-    """The five Custom waits in seconds; a step that is not one of its own choices is its default."""
+    """The five Custom waits in seconds; a step that is neither one of its choices nor a wait of the person's
+    own within its bounds is its default."""
     found = []
     for field, default in zip(STEP_FIELDS, DEFAULT_STEPS):
         chosen = _values(values).get(field)
-        found.append(WAIT_SECONDS[RetryWait(chosen if chosen in choices_for(field) else default)])
+        own = ownvalues.amount(OWN[field], chosen)
+        if own is None:
+            own = WAIT_SECONDS[RetryWait(chosen if chosen in choices_for(field) else default)]
+        found.append(own)
     return tuple(found)
 
 
@@ -143,6 +154,8 @@ def jittered(delay, values, draw) -> int:
 
 
 def ceiling(values):
-    """The time ceiling in seconds, or None: off, the default."""
+    """The time ceiling in seconds, or None: off, the default, and anything it would not store."""
     chosen = _values(values).get("chain_time_ceiling")
-    return CEILING_SECONDS[ChainCeiling(chosen)] if chosen in CEILINGS else None
+    if chosen in CEILINGS:
+        return CEILING_SECONDS[ChainCeiling(chosen)]
+    return ownvalues.amount(OWN["chain_time_ceiling"], chosen)

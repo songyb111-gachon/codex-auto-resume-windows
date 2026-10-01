@@ -148,10 +148,11 @@ class SliceTests(unittest.TestCase):
         # a line's whole text in the window's colours, and TextScale, Windows' text size, beside Theme. 61 with
         # Typeface beside it: which face a language is set in (win/typeface.py's rule).
         self.assertEqual(len(set(declared)), 61, "the window's types")
-        # v0.6.11: DashboardTools.cs, the Dashboard's own tools, an eleventh part in a twelfth source.
-        self.assertEqual(len(declared) - len(set(declared)), 10,
+        # v0.6.11: DashboardTools.cs, the Dashboard's own tools, an eleventh part in a twelfth source; and
+        # SettingsOwn.cs, Custom... beside a drop-down's choices, a twelfth part in a thirteenth.
+        self.assertEqual(len(declared) - len(set(declared)), 11,
                          "`partial class SettingsForm` written once per file that holds part "
-                         "of it, which is eleven of the window's twelve sources")
+                         "of it, which is twelve of the window's thirteen sources")
         for source, count in counts.items():
             with self.subTest(source):
                 self.assertGreater(count, 0)

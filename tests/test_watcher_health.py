@@ -106,7 +106,11 @@ class PolicyTests(unittest.TestCase):
         self.assertFalse(statusfile.wanted(settings.defaults()))
 
     def test_the_settings_take_only_their_closed_lists(self):
-        for name, value in (("memory_guard", "kill"), ("memory_guard", True), ("memory_guard_limit", "mb300"),
+        # v0.6.11: a limit of the person's own (Custom...), in whole MiB from 128 to 16384.
+        self.assertEqual(settings.validate_update({"memory_guard_limit": "mb300"}), {"memory_guard_limit": "mb300"})
+        self.assertEqual(memguard.limit_mib({"memory_guard_limit": "mb300"}), 300)
+        for name, value in (("memory_guard", "kill"), ("memory_guard", True), ("memory_guard_limit", "mb100"),
+                            ("memory_guard_limit", "mb16385"), ("memory_guard_limit", "mb1k"),
                             ("memory_guard_limit", 512), ("status_file", "true"), ("status_file", 1)):
             with self.subTest(name=name, value=value):
                 with self.assertRaises(settings.SettingsError):

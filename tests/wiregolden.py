@@ -556,6 +556,14 @@ BRIDGE_CASES = {
         Case("the text must be named, even to take it away", {"thread_id": T1}),
         Case("taken away", {"thread_id": T1, "text": None}),
         Case("not a conversation id", {"thread_id": "latest", "text": "go"})],
+    # v0.6.11: whether a setting takes a value of the person's own (Custom...): the validator's answer, and
+    # the value as it would be stored; nothing is written.
+    "check-setting": [
+        Case("a stall of the person's own, in its one spelling", {"name": "stall_after", "value": "m60"}),
+        Case("any days quiet hours start on", {"name": "quiet_hours_days", "value": "fri,mon"}),
+        Case("keeping this PC awake without a limit", {"name": "keep_awake_hours", "value": "unlimited"}),
+        Case("a retry wait under the engine's floor is refused", {"name": "retry_wait_2", "value": "m5"}),
+        Case("a setting that does not exist is refused", {"name": "no_such_setting", "value": "h1"})],
     # v0.6.11: the log searched, newest last.
     "logs": [
         Case("no log yet", {}),

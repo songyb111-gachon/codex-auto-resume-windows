@@ -259,6 +259,16 @@
               "h1",
               "h2"
             ],
+            "custom": {
+              "kind": "duration",
+              "pattern": "^[smh][1-9][0-9]*$",
+              "min": 300,
+              "max": 604800,
+              "units": [
+                "m",
+                "h"
+              ]
+            },
             "group": "notifications",
             "master": false
           },
@@ -327,8 +337,7 @@
               "minimal",
               "standard",
               "detailed",
-              "custom",
-              "careful"
+              "custom"
             ],
             "group": "continuation"
           },
@@ -459,6 +468,10 @@
               "23:00",
               "23:30"
             ],
+            "custom": {
+              "kind": "clock",
+              "pattern": "^[0-9]{1,2}:[0-9]{2}$"
+            },
             "group": "limits"
           },
           {
@@ -515,6 +528,10 @@
               "23:00",
               "23:30"
             ],
+            "custom": {
+              "kind": "clock",
+              "pattern": "^[0-9]{1,2}:[0-9]{2}$"
+            },
             "group": "limits"
           },
           {
@@ -526,6 +543,41 @@
               "weekdays",
               "weekends"
             ],
+            "custom": {
+              "kind": "days",
+              "pattern": "^(mon|tue|wed|thu|fri|sat|sun)(,(mon|tue|wed|thu|fri|sat|sun))*$",
+              "days": [
+                "mon",
+                "tue",
+                "wed",
+                "thu",
+                "fri",
+                "sat",
+                "sun"
+              ],
+              "named": {
+                "every_day": [
+                  "mon",
+                  "tue",
+                  "wed",
+                  "thu",
+                  "fri",
+                  "sat",
+                  "sun"
+                ],
+                "weekdays": [
+                  "mon",
+                  "tue",
+                  "wed",
+                  "thu",
+                  "fri"
+                ],
+                "weekends": [
+                  "sat",
+                  "sun"
+                ]
+              }
+            },
             "group": "limits"
           },
           {
@@ -605,6 +657,17 @@
               "h1": 3600,
               "h2": 7200
             },
+            "custom": {
+              "kind": "duration",
+              "pattern": "^[smh][1-9][0-9]*$",
+              "min": 5,
+              "max": 7200,
+              "units": [
+                "s",
+                "m",
+                "h"
+              ]
+            },
             "group": "limits"
           },
           {
@@ -626,6 +689,16 @@
               "h2": 7200,
               "h3": 10800,
               "h6": 21600
+            },
+            "custom": {
+              "kind": "duration",
+              "pattern": "^[smh][1-9][0-9]*$",
+              "min": 900,
+              "max": 21600,
+              "units": [
+                "m",
+                "h"
+              ]
             },
             "group": "limits"
           },
@@ -649,6 +722,16 @@
               "h3": 10800,
               "h6": 21600
             },
+            "custom": {
+              "kind": "duration",
+              "pattern": "^[smh][1-9][0-9]*$",
+              "min": 900,
+              "max": 21600,
+              "units": [
+                "m",
+                "h"
+              ]
+            },
             "group": "limits"
           },
           {
@@ -670,6 +753,16 @@
               "h2": 7200,
               "h3": 10800,
               "h6": 21600
+            },
+            "custom": {
+              "kind": "duration",
+              "pattern": "^[smh][1-9][0-9]*$",
+              "min": 900,
+              "max": 21600,
+              "units": [
+                "m",
+                "h"
+              ]
             },
             "group": "limits"
           },
@@ -693,6 +786,16 @@
               "h3": 10800,
               "h6": 21600
             },
+            "custom": {
+              "kind": "duration",
+              "pattern": "^[smh][1-9][0-9]*$",
+              "min": 900,
+              "max": 21600,
+              "units": [
+                "m",
+                "h"
+              ]
+            },
             "group": "limits"
           },
           {
@@ -713,6 +816,16 @@
               "h12",
               "h24"
             ],
+            "custom": {
+              "kind": "duration",
+              "pattern": "^[smh][1-9][0-9]*$",
+              "min": 900,
+              "max": 604800,
+              "units": [
+                "m",
+                "h"
+              ]
+            },
             "group": "limits"
           },
           {
@@ -738,6 +851,18 @@
               "above_500k",
               "above_1m"
             ],
+            "custom": {
+              "kind": "count",
+              "pattern": "^above_[1-9][0-9]*(k|m)?$",
+              "min": 10000,
+              "max": 10000000,
+              "units": [
+                "k",
+                "m"
+              ],
+              "prefix": "above_",
+              "label": "own.hold_above"
+            },
             "group": "limits"
           },
           {
@@ -753,6 +878,16 @@
               "h6",
               "h12"
             ],
+            "custom": {
+              "kind": "duration",
+              "pattern": "^[smh][1-9][0-9]*$",
+              "min": 300,
+              "max": 604800,
+              "units": [
+                "m",
+                "h"
+              ]
+            },
             "group": "limits"
           },
           {
@@ -782,8 +917,19 @@
               "h3",
               "h6",
               "h12",
-              "h24"
+              "h24",
+              "unlimited"
             ],
+            "custom": {
+              "kind": "duration",
+              "pattern": "^[smh][1-9][0-9]*$",
+              "min": 900,
+              "max": 604800,
+              "units": [
+                "m",
+                "h"
+              ]
+            },
             "group": "windows"
           },
           {
@@ -809,6 +955,17 @@
               "mb1536",
               "mb2048"
             ],
+            "custom": {
+              "kind": "count",
+              "pattern": "^mb[1-9][0-9]*$",
+              "min": 128,
+              "max": 16384,
+              "units": [
+                ""
+              ],
+              "prefix": "mb",
+              "amount": "own.mb"
+            },
             "group": "windows"
           },
           {
@@ -1079,6 +1236,16 @@
               "h1",
               "h2"
             ],
+            "custom": {
+              "kind": "duration",
+              "pattern": "^[smh][1-9][0-9]*$",
+              "min": 300,
+              "max": 604800,
+              "units": [
+                "m",
+                "h"
+              ]
+            },
             "group": "notifications",
             "master": false
           },
@@ -1147,8 +1314,7 @@
               "minimal",
               "standard",
               "detailed",
-              "custom",
-              "careful"
+              "custom"
             ],
             "group": "continuation"
           },
@@ -1279,6 +1445,10 @@
               "23:00",
               "23:30"
             ],
+            "custom": {
+              "kind": "clock",
+              "pattern": "^[0-9]{1,2}:[0-9]{2}$"
+            },
             "group": "limits",
             "managed": true
           },
@@ -1336,6 +1506,10 @@
               "23:00",
               "23:30"
             ],
+            "custom": {
+              "kind": "clock",
+              "pattern": "^[0-9]{1,2}:[0-9]{2}$"
+            },
             "group": "limits",
             "managed": true
           },
@@ -1348,6 +1522,41 @@
               "weekdays",
               "weekends"
             ],
+            "custom": {
+              "kind": "days",
+              "pattern": "^(mon|tue|wed|thu|fri|sat|sun)(,(mon|tue|wed|thu|fri|sat|sun))*$",
+              "days": [
+                "mon",
+                "tue",
+                "wed",
+                "thu",
+                "fri",
+                "sat",
+                "sun"
+              ],
+              "named": {
+                "every_day": [
+                  "mon",
+                  "tue",
+                  "wed",
+                  "thu",
+                  "fri",
+                  "sat",
+                  "sun"
+                ],
+                "weekdays": [
+                  "mon",
+                  "tue",
+                  "wed",
+                  "thu",
+                  "fri"
+                ],
+                "weekends": [
+                  "sat",
+                  "sun"
+                ]
+              }
+            },
             "group": "limits",
             "managed": true
           },
@@ -1429,6 +1638,17 @@
               "h1": 3600,
               "h2": 7200
             },
+            "custom": {
+              "kind": "duration",
+              "pattern": "^[smh][1-9][0-9]*$",
+              "min": 5,
+              "max": 7200,
+              "units": [
+                "s",
+                "m",
+                "h"
+              ]
+            },
             "group": "limits"
           },
           {
@@ -1450,6 +1670,16 @@
               "h2": 7200,
               "h3": 10800,
               "h6": 21600
+            },
+            "custom": {
+              "kind": "duration",
+              "pattern": "^[smh][1-9][0-9]*$",
+              "min": 900,
+              "max": 21600,
+              "units": [
+                "m",
+                "h"
+              ]
             },
             "group": "limits"
           },
@@ -1473,6 +1703,16 @@
               "h3": 10800,
               "h6": 21600
             },
+            "custom": {
+              "kind": "duration",
+              "pattern": "^[smh][1-9][0-9]*$",
+              "min": 900,
+              "max": 21600,
+              "units": [
+                "m",
+                "h"
+              ]
+            },
             "group": "limits"
           },
           {
@@ -1494,6 +1734,16 @@
               "h2": 7200,
               "h3": 10800,
               "h6": 21600
+            },
+            "custom": {
+              "kind": "duration",
+              "pattern": "^[smh][1-9][0-9]*$",
+              "min": 900,
+              "max": 21600,
+              "units": [
+                "m",
+                "h"
+              ]
             },
             "group": "limits"
           },
@@ -1517,6 +1767,16 @@
               "h3": 10800,
               "h6": 21600
             },
+            "custom": {
+              "kind": "duration",
+              "pattern": "^[smh][1-9][0-9]*$",
+              "min": 900,
+              "max": 21600,
+              "units": [
+                "m",
+                "h"
+              ]
+            },
             "group": "limits"
           },
           {
@@ -1537,6 +1797,16 @@
               "h12",
               "h24"
             ],
+            "custom": {
+              "kind": "duration",
+              "pattern": "^[smh][1-9][0-9]*$",
+              "min": 900,
+              "max": 604800,
+              "units": [
+                "m",
+                "h"
+              ]
+            },
             "group": "limits"
           },
           {
@@ -1562,6 +1832,18 @@
               "above_500k",
               "above_1m"
             ],
+            "custom": {
+              "kind": "count",
+              "pattern": "^above_[1-9][0-9]*(k|m)?$",
+              "min": 10000,
+              "max": 10000000,
+              "units": [
+                "k",
+                "m"
+              ],
+              "prefix": "above_",
+              "label": "own.hold_above"
+            },
             "group": "limits"
           },
           {
@@ -1577,6 +1859,16 @@
               "h6",
               "h12"
             ],
+            "custom": {
+              "kind": "duration",
+              "pattern": "^[smh][1-9][0-9]*$",
+              "min": 300,
+              "max": 604800,
+              "units": [
+                "m",
+                "h"
+              ]
+            },
             "group": "limits"
           },
           {
@@ -1606,8 +1898,19 @@
               "h3",
               "h6",
               "h12",
-              "h24"
+              "h24",
+              "unlimited"
             ],
+            "custom": {
+              "kind": "duration",
+              "pattern": "^[smh][1-9][0-9]*$",
+              "min": 900,
+              "max": 604800,
+              "units": [
+                "m",
+                "h"
+              ]
+            },
             "group": "windows"
           },
           {
@@ -1633,6 +1936,17 @@
               "mb1536",
               "mb2048"
             ],
+            "custom": {
+              "kind": "count",
+              "pattern": "^mb[1-9][0-9]*$",
+              "min": 128,
+              "max": 16384,
+              "units": [
+                ""
+              ],
+              "prefix": "mb",
+              "amount": "own.mb"
+            },
             "group": "windows"
           },
           {

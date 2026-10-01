@@ -16,6 +16,7 @@
           ],
           "structuredContent": {
             "version": "<version>",
+            "edition": "standard",
             "enabled": true,
             "observe_only": false,
             "watcher_running": true,
@@ -233,6 +234,7 @@
           ],
           "structuredContent": {
             "version": "<version>",
+            "edition": "standard",
             "enabled": true,
             "observe_only": true,
             "watcher_running": true,

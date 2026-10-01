@@ -17,7 +17,8 @@ Both places are read, and every restriction either one makes holds: a switch set
 the lower ceiling is the ceiling, and each place's quiet hours hold. A value of the wrong type, out
 of its range or not in its form is ignored, as if it were not there; nothing here can be read as a
 restriction lifted, because there is no value that lifts one. Times are on the hour or the half hour,
-as the settings' own quiet hours are.
+as the settings' own list of quiet hours has them; any minute and any days are a person's own Custom...
+(v0.6.11, ownvalues.py), and a key's form stays what it was.
 
 A value that is there and could not be read (REG_UNREADABLE: access denied, say) is never taken for
 one that is not there - that would lift what an administrator set. It holds the most it could: a

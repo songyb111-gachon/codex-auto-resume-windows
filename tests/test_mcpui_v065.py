@@ -29,7 +29,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 import guiscan                                                             # noqa: E402
 import srcscan                                                             # noqa: E402
-from codex_auto_resume import brand, l10n                          # noqa: E402
+from codex_auto_resume import brand, l10n, mcpserver               # noqa: E402
 from codex_auto_resume.mcp import panel as mcpui
 from codex_auto_resume import settings as policy                          # noqa: E402
 from test_mcpui_v063 import (FORCED, REDUCED, RULES, ROOT_TOKENS, SUPPORTS_MIX,  # noqa: E402
@@ -155,10 +155,16 @@ class ComboMarkupTests(unittest.TestCase):
                                               # and how long a turn may not move before a needs-you notice.
                                               "car-stall_after",
                                               # and after how long a sleep what fell due waits for a person.
-                                              "car-ask_after_sleep_minutes"]))
+                                              "car-ask_after_sleep_minutes"]
+                                             # v0.6.11: and the unit of each wait of the person's own (Custom...).
+                                             + ["car-%s-unit" % name for name in policy.OWN
+                                                if policy.OWN[name].kind == "duration"
+                                                and name in mcpserver.settings_schema()["properties"]]))
         for drawn in observed:
             with self.subTest(drawn["id"]):
                 name = drawn["id"]
+                # A unit under Custom... is named by its setting's own name.
+                named = name[:-len("-unit")] if name.endswith("-unit") else name
                 # The select is still there and still the value, and nothing can reach it.
                 self.assertEqual((drawn["hidden"], drawn["aria"], drawn["tab"], drawn["wrap"], drawn["first"]),
                                  (True, "true", "-1", "combo", True))
@@ -167,10 +173,10 @@ class ComboMarkupTests(unittest.TestCase):
                 self.assertEqual((drawn["role"], drawn["popup"], drawn["expanded"], drawn["controls"], drawn["boxId"],
                                   drawn["boxTab"]),
                                  ("combobox", "listbox", "false", name + "-list", name + "-box",
-                                  None if name == "car-stall_after" else "0"))
+                                  None if named == "car-stall_after" else "0"))
                 self.assertEqual((drawn["listId"], drawn["listRole"], drawn["listHidden"], drawn["listTab"],
                                   drawn["listLabel"]),
-                                 (name + "-list", "listbox", True, "-1", name + "-label"))
+                                 (name + "-list", "listbox", True, "-1", named + "-label"))
                 # The card holds one thing, what scrolls inside its padding, and it says nothing of its own:
                 # its options are the listbox's.
                 self.assertEqual(drawn["scroll"], [1, "combo-scroll", "none"])
