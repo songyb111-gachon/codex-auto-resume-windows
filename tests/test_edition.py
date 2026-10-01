@@ -134,29 +134,35 @@ class ClosedAlternativeTests(unittest.TestCase):
                 self.assertIs(plug.consult(RecordingPlug(gate=answer), Point.GATES, 1, 2, 3), DEFER)
         taken = plug.consult(RecordingPlug(gate="hold"), Point.GATES, 1, 2, 3)
         self.assertIs(taken, Alternative.HOLD)
-        # A word of another point is no word here: nothing at all relaxes a start yet.
-        self.assertIs(plug.consult(RecordingPlug(start_route=Alternative.HOLD), Point.START_ROUTE, 1), DEFER)
+        # A word of another point is no word at an empty-set point: records carries nothing out.
+        self.assertIs(plug.consult(RecordingPlug(records=Alternative.HOLD), Point.RECORDS, 1), DEFER)
 
     def test_every_decision_point_accepts_a_restriction_or_nothing(self):
         """A hook may always restrict and may relax only as core has learned to carry out, which
         is not at all yet. A relaxation joins its point's set in the commit that teaches core to
-        carry it out, and this test changes with it. v0.6.11-alpha: the claim ledger holds a
-        claim as a gate holds a record; a record served, a follow-up, a route, a division of the
-        due records and a restart are asked for, and none is carried out."""
-        self.assertEqual(plug.ANSWERS, plug.RESTRICTIONS)
+        carry it out, and this test changes with it. v0.6.11 stage 3: the claim ledger holds a
+        claim as a gate holds a record; the start route left this table for a value core checks
+        (Guarded.start_route); a record served, a follow-up, a division of the due records and a
+        restart are asked for, and none is carried out. And P15 takes CLIENT_ID, which core
+        carries out in the commit that added it: no marker, and the client id core derives - no
+        gate relaxed, so no restriction either, and the one answer that is not one."""
+        self.assertEqual(plug.ANSWERS, plug.RESTRICTIONS | {Alternative.CLIENT_ID})
         self.assertEqual(plug.ANSWERS, frozenset(Alternative))
         for point, accepted in plug.ALTERNATIVES.items():
             with self.subTest(point):
                 self.assertIn(point, Point)
-                self.assertLessEqual(accepted, plug.RESTRICTIONS)
+                if point is not Point.DELIVERY:
+                    self.assertLessEqual(accepted, plug.RESTRICTIONS)
+        self.assertEqual(plug.ALTERNATIVES[Point.DELIVERY], frozenset({Alternative.CLIENT_ID}))
         self.assertEqual({point for point, accepted in plug.ALTERNATIVES.items() if accepted},
-                         {Point.GATES, Point.SCHEDULE, Point.CLAIM_LEDGER})
+                         {Point.GATES, Point.SCHEDULE, Point.CLAIM_LEDGER, Point.DELIVERY})
         self.assertEqual({point for point, accepted in plug.ALTERNATIVES.items() if not accepted},
-                         {Point.RECORDS, Point.OUTCOME, Point.START_ROUTE, Point.CONCURRENCY,
-                          Point.SUPERVISION})
+                         {Point.RECORDS, Point.OUTCOME, Point.CONCURRENCY, Point.SUPERVISION})
+        # The start route is no longer a decision point: core checks the value it hands back.
+        self.assertNotIn(Point.START_ROUTE, plug.ALTERNATIVES)
         for point, accepted in plug.ALTERNATIVES.items():
-            for answer in ([object()], {"records": []}, "go", Alternative.HOLD):
-                if answer is Alternative.HOLD and answer in accepted:
+            for answer in ([object()], {"records": []}, "go", Alternative.HOLD, Alternative.CLIENT_ID):
+                if answer in (Alternative.HOLD, Alternative.CLIENT_ID) and answer in accepted:
                     continue
                 with self.subTest(point=point, answer=answer):
                     asked = RecordingPlug(**{plug.HOOKS[point]: answer})
@@ -270,6 +276,42 @@ class GuardTests(unittest.TestCase):
         for answer in (None, "backend", object(), Lookup(), type("NotCallable", (), {"send": 1})()):
             with self.subTest(answer=answer):
                 self.assertIs(guard(RecordingPlug(sender=answer)).sender({}, backend), backend)
+
+    def test_a_route_is_something_with_a_resume_held_to_the_launch_guard_or_it_is_defer(self):
+        """P16: what a plug names for a conversation the app does not hold. Core calls its
+        `resume` and nothing else of it, only inside the launch guard and only while it permits,
+        handing it a guard already held; anything without a callable `resume` is DEFER."""
+        class Route:
+            def __init__(self):
+                self.calls = []
+
+            def resume(self, thread_id, *, launch_guard=None):
+                with launch_guard as permitted:
+                    self.calls.append((thread_id, permitted))
+                return {"outcome": "accepted"}
+
+        class Lookup:
+            @property
+            def resume(self):
+                raise RuntimeError("no")
+
+        route = Route()
+        held = guard(RecordingPlug(unloaded=route)).unloaded({})
+        self.assertIsNot(held, route)
+        entered = []
+
+        @contextlib.contextmanager
+        def launch_guard(permitted):
+            entered.append(permitted)
+            yield permitted
+        self.assertEqual(held.resume("t", launch_guard=launch_guard(True)), {"outcome": "accepted"})
+        self.assertEqual(held.resume("t", launch_guard=launch_guard(False)),
+                         {"outcome": "not_started", "error_code": "queue_consent_refused"})
+        self.assertEqual((entered, route.calls), ([True, False], [("t", True)]))
+        for answer in (None, "resume", object(), Lookup(), type("NotCallable", (), {"resume": 1})()):
+            with self.subTest(answer=answer):
+                self.assertIs(guard(RecordingPlug(unloaded=answer)).unloaded({}), DEFER)
+        self.assertIs(guard(NULL).unloaded({}), DEFER)
 
     def test_a_strange_answer_is_a_failure_or_nothing_and_never_escapes_the_guard(self):
         """An answer's own hashing, comparison and iteration are the plug's code running. At a
@@ -742,6 +784,78 @@ class EditionFromTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("could not be set up", err)
         self.assertNotIn("disk full", err)
+
+
+class CodexToldTests(unittest.TestCase):
+    """Plug.codex: the Codex the watcher drives - its codex.exe, pinned by `--codex-exe` or the
+    `codex_exe` setting or chosen by discovery, and its Codex home - told to the plug once the
+    watcher has built its backend, so a capability's own session is with that very Codex. Not a
+    point: NULL is told nothing, and a plug that raises is counted and changes nothing."""
+
+    def watcher(self, told):
+        """A watcher over temporary homes, pinned to one of two installed engines, with `told` as
+        its plug. Nothing is started: the engine check is stood in for."""
+        from codex_auto_resume.codex import transport
+        from codex_auto_resume.control import policy as control_policy
+        from codex_auto_resume.runtime.app import App
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        root = Path(folder.name)
+        engines = []
+        for name in ("aaaa1111", "bbbb2222"):
+            (root / "bin" / name).mkdir(parents=True)
+            engines.append(root / "bin" / name / "codex.exe")
+            engines[-1].write_bytes(b"MZ")
+        (root / "codex").mkdir()
+        for target, name, value in ((transport.Backend, "_compatible", lambda backend: {}),
+                                    (config, "candidate_codex_exes", lambda: list(engines))):
+            patcher = patch.object(target, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        with patch.object(control_policy, "managed_policy", return_value=control_policy.managed.NONE):
+            app = App(config.Paths(root / "home"), codex_exe=str(engines[1]), codex_home=root / "codex",
+                      enable_logging=False)
+        if told is not None:
+            app._plug = guard(told)
+        return app, engines[1].resolve(), (root / "codex").resolve()
+
+    def test_null_keeps_nothing_and_is_told_nothing(self):
+        self.assertIsNone(NULL.codex("codex.exe", "home"))
+        with patch.object(Plug, "codex", side_effect=AssertionError("NULL was told")):
+            guard(NULL).codex("codex.exe", "home")
+            app, _exe, _home = self.watcher(None)
+            app.backend()
+        self.assertIs(app.plug.plug, NULL)
+
+    def test_the_watcher_tells_its_plug_the_codex_it_drives_once_it_has_found_it(self):
+        calls = []
+
+        class Told(Plug):
+            __slots__ = ()
+            edition = Edition.ADVANCED
+
+            def codex(self, codex_exe, codex_home):
+                calls.append((codex_exe, codex_home))
+
+        app, exe, home = self.watcher(Told())
+        self.assertEqual(calls, [], "nothing is told before the watcher has found its Codex")
+        backend = app.backend()
+        self.assertEqual(calls, [(exe, home)])
+        self.assertEqual((backend.codex_exe, backend.codex_home), (exe, home))
+        app.backend()
+        self.assertEqual(len(calls), 1, "once, with the backend the watcher keeps")
+
+    def test_a_plug_that_raises_when_told_is_counted_and_nothing_else(self):
+        class Raising(Plug):
+            __slots__ = ()
+            edition = Edition.ADVANCED
+
+            def codex(self, codex_exe, codex_home):
+                raise RuntimeError("broken")
+
+        app, exe, _home = self.watcher(Raising())
+        self.assertEqual(app.backend().codex_exe, exe)
+        self.assertEqual(app.plug.failures, 1)
 
 
 if __name__ == "__main__":

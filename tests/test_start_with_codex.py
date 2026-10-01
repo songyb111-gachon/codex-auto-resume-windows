@@ -340,6 +340,27 @@ class StartWatcherFromCodexTests(unittest.TestCase):
                     self.assertEqual(notice(state, told, locale), expected)
 
 
+class StarterThreadTests(unittest.TestCase):
+    def test_the_start_for_codex_thread_is_a_daemon(self):
+        """A finished server waits STARTER_GRACE_SECONDS for the start and never more: the thread
+        is a daemon, so the interpreter does not wait for it - nor for the advanced route's 30 s
+        PowerShell on it - at exit, and the process does not linger past the grace."""
+        from codex_auto_resume.mcp import server as mcp_server
+        made = {}
+        real = threading.Thread
+
+        def capture(*args, **kwargs):
+            made["thread"] = real(*args, **kwargs)
+            return made["thread"]
+
+        with tempfile.TemporaryDirectory() as home, \
+                patch("threading.Thread", capture), \
+                patch.object(mcp_server, "Control"), patch.object(mcp_server, "Server"):
+            mcpserver.main(["--home", home])
+        self.assertEqual(made["thread"].name, "start-for-codex")
+        self.assertTrue(made["thread"].daemon)
+
+
 class ContextWordsTests(unittest.TestCase):
     def test_the_words_say_only_fixed_things(self):
         words = control._context_words

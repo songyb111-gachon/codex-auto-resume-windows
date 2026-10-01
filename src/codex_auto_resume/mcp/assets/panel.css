@@ -359,6 +359,15 @@ label.setting { cursor: pointer; }
 .has-select .setting-control { flex: 0 1 280px; }
 .has-select .combo { width: 100%; }
 .setting.stack { display: grid; grid-template-columns: minmax(0, 1fr); justify-content: stretch; gap: 8px; }
+/* v0.6.11: Custom... - a value of the person's own, on a line of its own under its drop-down's row: the range,
+   then its fields - a number and its unit, the hour and the minute, or the days - drawn as every row's are. */
+.own { flex: 1 0 100%; display: grid; gap: 6px; min-width: 0; }
+.own[hidden] { display: none; }
+.own-fields { display: flex; flex-wrap: wrap; align-items: center; gap: 8px var(--size-row-gap); min-width: 0; }
+.own-fields .combo { width: auto; flex: 0 1 180px; }
+.own-days { display: flex; flex-wrap: wrap; gap: 6px var(--size-row-gap); }
+.own-day { display: inline-flex; align-items: flex-start; gap: var(--size-check-gap); cursor: pointer; }
+.own-break { flex-basis: 100%; height: 0; }
 .card > h2 + *, .card-head + * { margin-top: var(--size-card-first-gap); }
 
 .toggles { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));

@@ -1,6 +1,10 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
 """Where each capability stands, as stored: the arming rows, the generation and the ceiling.
 
+A row that is not off also holds what the person confirmed when they moved it there: the
+statement revision, for "on" the Codex version, and the statement's warnings (ArmingWarning),
+which arming.standing reads so that a warning they confirmed never trips what they turned on.
+
 This is only the writing. Who may move a capability, and when, is `arming.py`'s to decide; here
 each move is one transaction that checks its words, bumps the generation and journals itself.
 
@@ -13,11 +17,29 @@ in the way of turning something off.
 from __future__ import annotations
 
 from ..registry import GLOBAL_HOURLY
-from ..vocabulary import Actor, ArmingState, JournalCode, OffReason
+from ..vocabulary import Actor, ArmingState, ArmingWarning, JournalCode, OffReason
 from .session import StaleGeneration, StateError, _word
 
 # The journal line each move writes.
 _CODES = {ArmingState.ARMED: JournalCode.ARMED, ArmingState.SHADOW: JournalCode.WATCHED}
+
+
+def _joined(warnings) -> str | None:
+    """The warnings a person confirmed, as the column holds them: the vocabulary's words in its
+    own order, joined by commas, and NULL for none. StateError for a word it does not hold."""
+    if warnings is None:
+        return None
+    if isinstance(warnings, str) or not isinstance(warnings, (tuple, list, set, frozenset)):
+        raise StateError("invalid warnings")
+    chosen = {_word(word, ArmingWarning, "warning") for word in warnings}
+    return ",".join(str(word) for word in ArmingWarning if word in chosen) or None
+
+
+def _confirmed(value) -> tuple:
+    """The column read back: the words the vocabulary holds, in its order. A word it does not
+    hold was never confirmed, so it is left out - a row can only ever confirm less."""
+    words = set(value.split(",")) if isinstance(value, str) else set()
+    return tuple(word for word in ArmingWarning if str(word) in words)
 
 
 def _row(row) -> dict:
@@ -30,7 +52,8 @@ def _row(row) -> dict:
             "actor": row["actor"] if row["actor"] in tuple(Actor) else None,
             "reason": row["reason"] if row["reason"] in tuple(OffReason) else None,
             "statement_revision": revision if type(revision) is int else None,
-            "engine_version": version if isinstance(version, str) and len(version) <= 64 else None}
+            "engine_version": version if isinstance(version, str) and len(version) <= 64 else None,
+            "warnings": _confirmed(row["warnings"])}
 
 
 class ArmingMixin:
@@ -53,15 +76,17 @@ class ArmingMixin:
                 if self.registry.get(row["capability"]) is not None}
 
     def move(self, capability, state, *, actor, reason=None, revision=None, engine_version=None,
-             generation=None, at=None) -> tuple:
+             warnings=None, generation=None, at=None) -> tuple:
         """Put one capability in `state`. (moved, generation after).
 
-        `generation`, when given, must be the current one, or StaleGeneration is raised and
-        nothing is written. A move to off never needs one, and does not make the file: with no
-        file there is nothing on to turn off. A move to where it already stands writes nothing."""
+        `warnings` are the statement's warnings the person confirmed with the move. `generation`,
+        when given, must be the current one, or StaleGeneration is raised and nothing is written.
+        A move to off never needs one, and does not make the file: with no file there is nothing
+        on to turn off. A move to where it already stands, as it stands, writes nothing."""
         state = _word(state, ArmingState, "state")
         actor = _word(actor, Actor, "actor")
         reason = None if reason is None else _word(reason, OffReason, "reason")
+        warnings = _joined(warnings)
         if self.registry.get(capability) is None:
             raise StateError("unknown capability")
         now = self._now(at)
@@ -73,16 +98,17 @@ class ArmingMixin:
                 raise StaleGeneration("stale generation")
             before = connection.execute("SELECT * FROM arming WHERE capability=?", (capability,)).fetchone()
             if state == ArmingState.OFF:
-                revision = engine_version = None
+                revision = engine_version = warnings = None
                 if before is None or _row(before)["state"] == ArmingState.OFF:
                     return False, current
             elif before is not None and _row(before)["state"] == state and (
-                    before["statement_revision"], before["engine_version"]) == (revision, engine_version):
+                    before["statement_revision"], before["engine_version"], before["warnings"]) == (
+                    revision, engine_version, warnings):
                 return False, current
             connection.execute(
                 "INSERT OR REPLACE INTO arming (capability, state, since, actor, reason, "
-                "statement_revision, engine_version) VALUES (?,?,?,?,?,?,?)",
-                (capability, state, now, actor, reason, revision, engine_version))
+                "statement_revision, engine_version, warnings) VALUES (?,?,?,?,?,?,?,?)",
+                (capability, state, now, actor, reason, revision, engine_version, warnings))
             connection.execute("UPDATE meta SET generation = generation + 1")
             code = _CODES.get(state) or (JournalCode.TRIPPED if actor == Actor.TRIPWIRE
                                          else JournalCode.RESET if actor in (Actor.EDITION_ENTRY, Actor.ENGINE_CHANGE)
@@ -107,7 +133,7 @@ class ArmingMixin:
                 return 0, current
             connection.execute(
                 "UPDATE arming SET state='off', since=?, actor=?, reason=?, statement_revision=NULL, "
-                "engine_version=NULL WHERE state <> 'off'", (now, actor, reason))
+                "engine_version=NULL, warnings=NULL WHERE state <> 'off'", (now, actor, reason))
             connection.execute("UPDATE meta SET generation = generation + 1")
             self._note(connection, now, JournalCode.RESET if actor == Actor.EDITION_ENTRY
                        else JournalCode.ALL_OFF, reason=reason, actor=actor)

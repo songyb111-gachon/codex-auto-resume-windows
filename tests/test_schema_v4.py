@@ -294,7 +294,9 @@ NOTICES = re.compile(r"\bnotices\b", re.IGNORECASE)
 READS_NOTICES = re.compile(r"\b(FROM|JOIN)\s+notices\b", re.IGNORECASE)
 # What decides a send: the engine's dispatch, the claim and its ledger.
 DISPATCH_MODULES = ("codex_auto_resume/engine/dispatch.py", "codex_auto_resume/store/claims.py",
-                    "codex_auto_resume/store/ledger.py")
+                    "codex_auto_resume/store/ledger.py",
+                    # v0.6.11: the last look before a send, and what proves it arrived.
+                    "codex_auto_resume/engine/delivery.py")
 
 
 def docstrings(tree):

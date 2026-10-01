@@ -83,10 +83,11 @@ $window.Location = New-Object Drawing.Point -4000, -4000
 $window.Show()
 [Windows.Forms.Application]::DoEvents()
 $say = @($formType.GetMethods($instance) | Where-Object { $_.Name -eq 'Say' })[0]
+$careful = @($formType.GetMethods($instance) | Where-Object { $_.Name -eq 'Dialog' })[0]
 
 # The dialog holds the thread in ShowDialog, so a timer looks at it and presses a button for us.
 $script:seen = $null
-function Ask([string]$text, $affirm, [string]$press) {
+function Ask([string]$text, $affirm, [string]$press, $away = $null) {
     $script:seen = $null
     $timer = New-Object Windows.Forms.Timer
     $timer.Interval = 400
@@ -130,12 +131,14 @@ function Ask([string]$text, $affirm, [string]$press) {
         $look.selected = if ($look.well) { [int]$box.SelectionLength } else { -1 }
         $script:seen = $look
         $target = if ($press -eq 'accept') { $dialog.AcceptButton } else { $dialog.CancelButton }
+        if ($press -eq 'act') { $target = @($row.Controls | Where-Object { $_.Text -eq $affirm })[0] }
         $target.PerformClick()
         } catch { $script:seen = @{ failed = [string]$_ } }
         if (-not $dialog.IsDisposed) { $dialog.Close() }
     })
     $timer.Start()
-    $answered = $say.Invoke($window, [object[]]@($text, $affirm))
+    $answered = if ($away) { $careful.Invoke($window, [object[]]@($text, $affirm, $away)) }
+                else { $say.Invoke($window, [object[]]@($text, $affirm)) }
     $out = $script:seen
     if ($out -eq $null) { throw "the dialog was never seen" }
     if ($out.ContainsKey('failed')) { throw $out.failed }
@@ -147,6 +150,9 @@ $result = @{}
 $result.taken = Ask $env:CAR_QUESTION 'Cancel' 'accept'
 $result.left = Ask $env:CAR_QUESTION 'Cancel' 'cancel'
 $result.named = Ask $env:CAR_QUESTION 'Clear history' 'accept'
+# v0.6.11: the question whose safe answer is the default - the update check's offer of a pre-release.
+$result.careful = Ask $env:CAR_QUESTION 'Install pre-release' 'accept' 'Not now'
+$result.careful_act = Ask $env:CAR_QUESTION 'Install pre-release' 'act' 'Not now'
 $result.notice = Ask $env:CAR_NOTICE $null 'accept'
 $result.long = Ask $env:CAR_LONG $null 'accept'
 $result.work = @([Windows.Forms.Screen]::PrimaryScreen.WorkingArea.Width,
@@ -205,6 +211,21 @@ class DialogTests(unittest.TestCase):
         self.assertEqual([button[0] for button in buttons], ["Clear history", "Cancel"])
         self.assertGreater(buttons[0][1], buttons[1][2], "the action is to the right of the dismissal")
         self.assertEqual([button[3] for button in buttons], [True, False], "one accent button, and it acts")
+
+    def test_where_the_safe_answer_is_the_default_enter_gives_it(self):
+        """v0.6.11: the offer of a pre-release asks with Not now as the default. The keyboard starts on
+        it, Enter and Escape both press it, and it wears the accent; the button that installs keeps
+        the action's place on the right and says yes only when it is pressed itself."""
+        careful, act = self.answer["careful"], self.answer["careful_act"]
+        self.assertFalse(careful["answer"], "Enter keeps what is installed")
+        self.assertEqual(careful["accept"], "Not now")
+        self.assertEqual(careful["cancel"], "Not now")
+        self.assertEqual(careful["focus"], "Not now")
+        buttons = careful["buttons"]
+        self.assertEqual([button[0] for button in buttons], ["Install pre-release", "Not now"])
+        self.assertGreater(buttons[0][1], buttons[1][2], "the action is still to the right of the dismissal")
+        self.assertEqual([button[3] for button in buttons], [False, True], "the accent marks what Enter presses")
+        self.assertTrue(act["answer"], "the action's own button says yes")
 
     def test_the_sentence_and_the_buttons_keep_the_same_inset(self):
         """A right-to-left flow lays out from its width less both sides of its padding, so a row padded
@@ -278,7 +299,7 @@ class DialogTests(unittest.TestCase):
 
 # Every label the window can put on the button that acts. `action.failed` is a sentence, not a
 # button, and is deliberately not among them.
-AFFIRMS = ("action.cancel", "action.cancel_all", "action.reset_budget", "action.thread_off",
+AFFIRMS = ("action.cancel", "action.cancel_all", "action.reset_budget", "action.thread_off", "action.install_prerelease",
            "action.thread_on", "action.resume", "action.clear_history", "action.stop_watcher",
            "action.repair", "action.install", "action.restore")
 

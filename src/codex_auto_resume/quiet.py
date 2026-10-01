@@ -1,7 +1,8 @@
 """Quiet hours, and the times a postponement may name: local clock time, worked out in one place.
 
-Quiet hours are three settings: when they start - `off`, the default, or a half hour - when they
-end, and which days they start on. A recovery that falls due inside them waits until they end,
+Quiet hours are three settings: when they start - `off`, the default, a half hour or a minute of a
+person's own - when they end, and which days they start on: a named choice, or any days a person
+picks (ownvalues.py). A recovery that falls due inside them waits until they end,
 and nothing else about it changes: the thirteen gates, the budgets and the caps are the ones they
 were, and quiet time is a reason of the schedule gate (domain/gates.py), asked by the engine, again
 inside the claim and again at the last look before the send. Off, nothing here is ever asked.
@@ -20,6 +21,7 @@ from __future__ import annotations
 import math
 import time
 
+from . import ownvalues
 from .domain.vocabulary import QuietDays
 
 OFF = "off"
@@ -29,9 +31,10 @@ TIMES = tuple("%02d:%02d" % divmod(minute, 60) for minute in range(0, 24 * 60, 3
 STARTS = (OFF,) + TIMES
 DAYS = tuple(QuietDays)
 DEFAULT_START, DEFAULT_END, DEFAULT_DAYS = OFF, "07:00", QuietDays.EVERY_DAY.value
-# The day a window starts on, as `time.struct_time.tm_wday` counts it: Monday is 0.
-_WEEKDAYS = {QuietDays.EVERY_DAY: frozenset(range(7)), QuietDays.WEEKDAYS: frozenset(range(5)),
-             QuietDays.WEEKENDS: frozenset({5, 6})}
+# v0.6.11: Custom... - any minute of the day for either end, and any days (ownvalues.py). A set of days is
+# read as `time.struct_time.tm_wday` counts it: Monday is 0; each choice names one (ownvalues.NAMED_DAYS).
+OWN = {"quiet_hours_start": ownvalues.Own(ownvalues.CLOCK), "quiet_hours_end": ownvalues.Own(ownvalues.CLOCK),
+       "quiet_hours_days": ownvalues.Own(ownvalues.DAYS)}
 
 # A postponement: the choices every surface offers, and the furthest ahead one may be.
 MAX_POSTPONE_SECONDS = 7 * 86400
@@ -51,11 +54,12 @@ def window(values):
     Read the way the settings layer reads them, so anything it would not store is off. A window
     whose end is its start is none at all, never the whole day."""
     values = values if isinstance(values, dict) else {}
-    start, end = values.get("quiet_hours_start"), values.get("quiet_hours_end")
-    days = values.get("quiet_hours_days", DEFAULT_DAYS)
-    if start not in TIMES or end not in TIMES or start == end or days not in _WEEKDAYS:
+    start = ownvalues.amount(OWN["quiet_hours_start"], values.get("quiet_hours_start"))
+    end = ownvalues.amount(OWN["quiet_hours_end"], values.get("quiet_hours_end"))
+    days = ownvalues.amount(OWN["quiet_hours_days"], values.get("quiet_hours_days", DEFAULT_DAYS))
+    if start is None or end is None or start == end or not days:
         return None
-    return _minutes(start), _minutes(end), _WEEKDAYS[QuietDays(days)]
+    return start, end, days
 
 
 def _local(day, minute, *, mktime):

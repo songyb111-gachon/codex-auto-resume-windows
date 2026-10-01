@@ -776,11 +776,17 @@ def installed_releases():
     import subprocess
     listed = subprocess.run(["git", "-C", str(ROOT), "tag", "-l", "v*"], capture_output=True, text=True,
                             encoding="utf-8").stdout.split()
+    # The one rule for this product's tags and their order, numbered pre-releases among them
+    # (tests/test_version_rule.py).
+    import sys
+    build = str(ROOT / "build")
+    if build not in sys.path:
+        sys.path.insert(0, build)
+    import legacy_bootstraps
     found = []
     for tag in listed:
-        match = re.fullmatch(r"v(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta))?", tag)
-        if match:
-            key = tuple(int(part) for part in match.groups()[:3]) + ({"alpha": 0, "beta": 1}.get(match.group(4), 2),)
+        if legacy_bootstraps.TAG.fullmatch(tag):
+            key = legacy_bootstraps.order(tag[1:])
             if key[:3] >= (0, 6, 5):
                 found.append((key, tag))
     return [tag for _key, tag in sorted(found)]

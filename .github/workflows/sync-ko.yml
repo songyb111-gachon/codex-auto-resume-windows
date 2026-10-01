@@ -17,6 +17,9 @@ name: sync ko
 # Why it cannot loop: `workflow_run` fires on the *tests* workflow, and the tests workflow
 # runs on pushes to main. This pushes to ko, never to main, so nothing it does can start
 # it again.
+#
+# If ko falls behind anyway, ko-watch.yml says so: a stalled sync fails a scheduled run there
+# instead of sitting in this list as one more grey "cancelled".
 
 on:
   workflow_run:
@@ -35,8 +38,9 @@ on:
         description: "Commit on main to build ko from. Defaults to main's head."
         required: false
 
-permissions:
-  contents: write
+# Nothing at the top level: the part that runs the tree's own code reads, and only the job that
+# publishes, which runs none of it, may write.
+permissions: {}
 
 # One sync at a time, and never cancel one that is running: a cancelled force-push can
 # leave ko pointing at a tree that no run ever finished writing. Out-of-order completion
@@ -46,7 +50,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  sync:
+  test:
     # Only a green tests run, only from this repository, and only from main. A fork's
     # pull request cannot satisfy `head_repository.full_name == github.repository`, and
     # a red main cannot satisfy the conclusion.
@@ -59,13 +63,25 @@ jobs:
     # suite against the tree about to be published, and a suite that ran somewhere the
     # product does not support would prove nothing about the branch it is guarding.
     runs-on: windows-latest
-    # Above the suite's own time on a runner, with room to spare. This was 20 while the suite
-    # took 22 to 31 minutes there, so every sync was killed part way through the step that runs
-    # it - and a job stopped by `timeout-minutes` is reported as *cancelled*, which is the same
-    # word the concurrency note above explains away. So nothing ever failed, nobody was told, and
-    # ko sat 122 commits behind for four days while the runs looked like ordinary cancellations.
-    # Whoever makes the suite slower must move this with it.
+    permissions:
+      contents: read
+    # The suite, in four parts at once. It was one job, and its limit was raised after the suite
+    # outgrew it: 20 while the suite took 22 to 31 minutes, then 60 - and on 2026-09-28 the suite
+    # took 77 minutes on a runner, so the v0.6.11-beta sync was stopped part way through again. A
+    # job stopped by `timeout-minutes` is reported as *cancelled*, the same word the concurrency
+    # note above explains away, so each time nothing failed and nobody was told: ko sat 122
+    # commits behind for four days the first time, and missed a release the second. Four parts
+    # take about a quarter each, so the suite can double before this limit is near.
     timeout-minutes: 60
+    strategy:
+      # Every part runs to the end, so one run shows every failure there is.
+      fail-fast: false
+      matrix:
+        # SHARDS below is the length of this list; tests/test_workflow_privilege.py holds the two
+        # together, so no part of the suite can be dropped by changing one of them.
+        shard: [0, 1, 2, 3]
+    outputs:
+      tree: ${{ steps.stage.outputs.tree }}
 
     steps:
       # The tested commit, not main's current head. On a workflow_run event the default
@@ -117,7 +133,11 @@ jobs:
       # Staging it in the publish step meant it was still untracked while the tests ran,
       # so they refused to skip and the run failed. It did exactly what it is for: it
       # would not publish a tree whose tests do not pass.
+      #
+      # The staged tree's id goes to the publish job, which builds the tree again and publishes
+      # it only if it is this one - the tree the parts tested, not merely one built the same way.
       - name: Stage the generated tree
+        id: stage
         shell: bash
         run: |
           set -euo pipefail
@@ -126,6 +146,7 @@ jobs:
           git add -A
           # Force, because main gitignores it: the marker is legitimate only here.
           git add -f .github/GENERATED-BRANCH.md
+          echo "tree=$(git write-tree)" >> "$GITHUB_OUTPUT"
 
       # GITHUB_TOKEN may not push a change under .github/workflows. Nothing here should
       # be producing one - the mapping only names documents - so this turns a server-side
@@ -150,11 +171,79 @@ jobs:
         with:
           python-version: "3.12"
 
+      # What `python -m unittest discover -s tests` runs, dealt out by file: the files in name
+      # order, every SHARDS-th to one part. The tests have no package and no load_tests, so the
+      # four parts together are exactly the discovered suite (4123 tests in 4 parts of 1115,
+      # 1095, 933 and 980 when this was written). A file that cannot be imported stops its part
+      # with the error, where discover would have reported it as one failed test.
       - name: Test the tree that is about to be published
         shell: bash
         env:
           PYTHONPATH: src
-        run: python -m unittest discover -s tests
+          SHARD: ${{ matrix.shard }}
+          SHARDS: "4"
+        run: |
+          python - <<'PY'
+          import os, sys, unittest
+          from pathlib import Path
+          shard, shards = int(os.environ["SHARD"]), int(os.environ["SHARDS"])
+          names = sorted(path.stem for path in Path("tests").glob("test_*.py"))
+          mine = [name for index, name in enumerate(names) if index % shards == shard]
+          print("part %d of %d: %d of %d test files" % (shard + 1, shards, len(mine), len(names)))
+          sys.path.insert(0, "tests")
+          suite = unittest.defaultTestLoader.loadTestsFromNames(mine)
+          result = unittest.TextTestRunner(verbosity=1).run(suite)
+          sys.exit(0 if result.wasSuccessful() else 1)
+          PY
+
+  publish:
+    # Only once every part has passed.
+    needs: test
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.event.inputs.sha || 'main' }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Refuse anything that is not on main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor HEAD FETCH_HEAD; then
+            echo "::error::$(git rev-parse HEAD) is not on main; ko is only ever built from main"
+            exit 1
+          fi
+
+      - name: Replace the English documents with their Korean counterparts
+        shell: bash
+        run: python scripts/ko_sync.py --root . --bring-korean
+
+      - name: Stage the generated tree, and publish only the tree that was tested
+        shell: bash
+        env:
+          TESTED_TREE: ${{ needs.test.outputs.tree }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git add -f .github/GENERATED-BRANCH.md
+          built="$(git write-tree)"
+          if [ -z "$TESTED_TREE" ] || [ "$built" != "$TESTED_TREE" ]; then
+            echo "::error::built tree $built is not the tree the tests passed on (${TESTED_TREE:-none})"
+            exit 1
+          fi
+          if ! git diff --cached --quiet -- .github/workflows; then
+            echo "ko_sync.py changed .github/workflows, which GITHUB_TOKEN cannot push."
+            exit 1
+          fi
 
       - name: Publish the branch
         shell: bash

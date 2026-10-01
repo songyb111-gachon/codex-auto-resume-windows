@@ -71,6 +71,8 @@ class DashboardTests(SurfaceCase):
         statement = self.bridge("advanced-statement", {"capability": "test_wake", "locale": "ko"})["result"]
         self.assertEqual((statement["revision"], statement["locale"]), (1, "ko"))
         self.assertEqual(len(statement["fields"]), 5)
+        self.assertEqual((statement["warnings"]["items"], statement["engine_version"]), ([], ac.ENGINE))
+        self.assertEqual((item["warnings"], item["confirmed_warnings"]), ([], []))
         self.assertFalse(self.bridge("advanced-statement", {"capability": "nope"})["result"]["done"])
 
     def test_the_dashboard_watches_arms_and_turns_off(self):
@@ -87,6 +89,25 @@ class DashboardTests(SurfaceCase):
         self.assertTrue(self.bridge("advanced-arm", {"capability": "test_wake", "state": "shadow",
                                                      "revision": 1, "generation": 3})["result"]["done"])
         self.assertEqual(self.bridge("advanced-disarm-all", {})["result"]["count"], 1)
+
+    def test_the_statements_warnings_go_back_as_the_persons_confirmation(self):
+        """A grade the tests' capability should not have: the statement warns of it, in the
+        person's language, and the same words sent back turn it on. Left out, the request is a
+        stale confirmation that hands back what holds now - never a refusal of the capability."""
+        self.compat = ac.view("FAILED_HERE", reason="local_check_failed_here")
+        statement = self.bridge("advanced-statement", {"capability": "test_wake", "locale": "ko"})["result"]
+        (item,) = statement["warnings"]["items"]
+        self.assertEqual((item["warning"], statement["warnings"]["title"]), ("failed_here", "경고"))
+        request = {"capability": "test_wake", "state": "armed", "revision": 1, "generation": 0,
+                   "engine_version": statement["engine_version"]}
+        stale = self.bridge("advanced-arm", request)["result"]
+        self.assertEqual((stale["done"], stale["refusal"], stale["warnings"]),
+                         (False, Refusal.STALE_CONFIRMATION, ["failed_here"]))
+        arm = self.bridge("advanced-arm", dict(request, warnings=[item["warning"]]))["result"]
+        self.assertEqual((arm["done"], arm["warnings"]), (True, ["failed_here"]))
+        listed = self.bridge("advanced-list", {})["result"]
+        self.assertEqual(listed["on"], 1)
+        self.assertEqual(listed["capabilities"][0]["confirmed_warnings"], ["failed_here"])
 
     def test_a_stale_revision_or_generation_is_refused(self):
         stale = self.bridge("advanced-arm", {"capability": "test_wake", "state": "shadow",
@@ -160,6 +181,9 @@ class McpTests(SurfaceCase):
         attempts = [("arm_advanced_capability", {"capability": "test_wake"}),
                     ("advanced-arm", {"capability": "test_wake", "state": "armed", "revision": 1,
                                       "generation": 0, "engine_version": ac.ENGINE}),
+                    ("advanced-arm", {"capability": "test_wake", "state": "armed", "revision": 1,
+                                      "generation": 0, "engine_version": ac.ENGINE, "warnings": []}),
+                    ("disarm_advanced_capability", {"capability": "test_wake", "warnings": []}),
                     ("disarm_advanced_capability", {"capability": "test_wake", "state": "armed"}),
                     ("disarm_all_advanced", {"state": "armed", "revision": 1, "generation": 0}),
                     ("list_advanced_capabilities", {"arm": True}),

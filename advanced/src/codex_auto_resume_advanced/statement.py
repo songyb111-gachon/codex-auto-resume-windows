@@ -12,7 +12,9 @@ are held to core's rules by core's own code (`l10n.read_catalog`, `l10n.fill`): 
 only, no key twice, English as the layer every other language is laid over, `{name}`
 placeholders filled and nothing else touched. A capability's fields are the keys
 `statement.<id>.<field>`; the titles of the fields, the words for the three states and the
-kill switch's name are this edition's own and ship now, with no capability yet.
+kill switch's name are this edition's own and ship now, with no capability yet. So do the words
+of the warnings a statement shows above its fields (`warning.<word>`, vocabulary.ArmingWarning),
+with their title and the note that none of them stops the person turning the capability on.
 
 The first key of every catalog is `_edition`, which holds the line every shipped file of this
 edition carries, for the audit of the standard archive to look for.
@@ -23,7 +25,7 @@ from pathlib import Path
 
 from codex_auto_resume import l10n
 
-from .vocabulary import ArmingState, Field
+from .vocabulary import ArmingState, ArmingWarning, Field
 
 DIRECTORY = Path(__file__).resolve().parent / "locales"
 FIELDS = tuple(Field)
@@ -37,6 +39,9 @@ BADGE_KEY = "edition.badge"
 NOT_LOADED_KEY = "edition.not_loaded"
 SUMMARY_KEY = "edition.summary"
 EDITION_KEYS = (BADGE_KEY, NOT_LOADED_KEY, SUMMARY_KEY)
+# The warnings' words: a title, the note under it, and one line for each warning.
+WARNING_TITLE_KEY = "warning.title"
+WARNING_NOTE_KEY = "warning.note"
 
 
 def key(capability, field) -> str:
@@ -50,6 +55,13 @@ def title_key(field) -> str:
 
 def state_key(state) -> str:
     return "state.%s" % ArmingState(state)
+
+
+def warning_key(warning) -> str:
+    return "warning.%s" % ArmingWarning(warning)
+
+
+WARNING_KEYS = (WARNING_TITLE_KEY, WARNING_NOTE_KEY) + tuple(warning_key(word) for word in ArmingWarning)
 
 
 class Catalogs:
@@ -114,13 +126,20 @@ class Catalogs:
         """Whether one language has every field of `definition`'s statement in its own words."""
         return all(found != locale for found, _field in self.missing(definition))
 
-    def statement(self, definition, locale=None) -> dict:
+    def statement(self, definition, locale=None, *, warnings=()) -> dict:
         """What the Dashboard shows before the choice: the five fields, each with its title,
-        the revision the choice will name, and the ids of the standards it departs from."""
+        the revision the choice will name, the ids of the standards it departs from, and above
+        them `warnings` - the words of what holds now (arming.warnings_for), each with its line,
+        which the choice confirms and never has to overcome."""
         locale = l10n.current() if locale is None else locale
         return {"capability": definition.id, "revision": definition.revision,
                 "locale": locale if locale in l10n.LOCALES else l10n.DEFAULT,
                 "departs_from": list(definition.departs_from),
+                "warnings": {"title": self.text(WARNING_TITLE_KEY, locale),
+                             "note": self.text(WARNING_NOTE_KEY, locale),
+                             "items": [{"warning": str(ArmingWarning(word)),
+                                        "text": self.text(warning_key(word), locale)}
+                                       for word in warnings]},
                 "fields": [{"field": str(field), "title": self.text(title_key(field), locale),
                             "text": self.text(key(definition.id, field), locale)}
                            for field in FIELDS]}

@@ -565,7 +565,9 @@ namespace CodexAutoResume
             // window's text. Measured in the window's font - the label has no parent yet, and would
             // measure itself in the default one.
             label.Margin = new Padding(0, Math.Max(0, (SoftCombo.FieldHeight - TextRenderer.MeasureText("Ag", Font).Height) / 2), Px(12), 0);
-            // A well, as every other drop-down in the window is.
+            // A well, as every other drop-down in the window is. No Custom... (SettingsOwn.cs): how far back this page
+            // counts is not a setting and nothing of it is kept, so it is not one of the values a person's own may
+            // replace (docs/GUIDE.md, Values of your own).
             period = new SoftCombo();
             period.Width = Px(180);
             IgnoreWheel(period);

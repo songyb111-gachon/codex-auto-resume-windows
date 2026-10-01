@@ -263,6 +263,12 @@ class ReleaseManifestTests(unittest.TestCase):
                          "https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/download/v{version}/")
         self.assertEqual(self.release["archive"], "CodexAutoResume-v{version}-win-x64.zip")
 
+    def test_the_releases_list_is_exactly_this(self):
+        """The one list the update check reads for a pre-release (v0.6.11): this repository's, on
+        GitHub's API host, the ten newest, and nothing about the machine in it."""
+        self.assertEqual(self.release["releases"],
+                         "https://api.github.com/repos/songyb111-gachon/codex-auto-resume-windows/releases?per_page=10")
+
     def test_a_tagged_current_version_is_pinned(self):
         """Once the current version has been tagged here, its pin must not go missing.
 
@@ -469,18 +475,32 @@ class BootstrapTests(unittest.TestCase):
         constant, and nothing a caller passes reaches it. -Edition (v0.6.11) carries a value,
         but one of two words the parameter itself closes, and the word only chooses which of
         two constant templates in release.json names the archive; it is never spliced.
+        -Version (v0.6.11) carries the pre-release a person said yes to, and it is not spliced
+        either: Get-PrereleaseVersion accepts a pre-release in the product's grammar alone and
+        rebuilds it from integers and one of two words, which `tests/test_version_rule.py` and
+        `tests/test_prerelease_offer.py` run against the shipped function.
         """
         parameters = re.search(r"param\((.*?)\n\)", self.text, re.S).group(1)
         self.assertEqual(set(re.findall(r"\$(\w+)", parameters)),
                          {"Force", "NoStartup", "ArchivePath", "CheckOnly", "Update",
-                          "Compatibility", "Edition"})
+                          "Compatibility", "Edition", "Version"})
         values = [name for name in re.findall(r"\[(\w+)\]\$(\w+)", parameters)]
-        self.assertEqual([name for kind, name in values if kind != "switch"], ["ArchivePath", "Edition"])
+        self.assertEqual([name for kind, name in values if kind != "switch"],
+                         ["ArchivePath", "Edition", "Version"])
         self.assertIn("[ValidateSet('Standard', 'Advanced')]\n    [string]$Edition", parameters)
-        # And neither value reaches the URL the archive is fetched from.
+        # The typed version is read in one place, and what goes on from there is the rebuilt one.
+        self.assertEqual(re.findall(r"Get-PrereleaseVersion \$Version\b", self.text),
+                         ["Get-PrereleaseVersion $Version"])
+        self.assertIn("try { $target = Get-PrereleaseVersion $Version }", self.text)
+        # PowerShell's names ignore case, so nothing at the script's level may be called $version:
+        # it would overwrite -Version.
+        run = self.text[self.text.index("# " + "-" * 76 + " run"):]
+        self.assertNotRegex(run, r"(?i)\$version\s*=")
+        # And no value reaches the URL the archive is fetched from.
         fetch = self.text[self.text.index("$base = $release.download"):]
         self.assertNotIn("$ArchivePath", fetch[:fetch.index("Get-Remote")])
         self.assertNotIn("$Edition", fetch[:fetch.index("Get-Remote")])
+        self.assertNotRegex(fetch[:fetch.index("Get-Remote")], r"(?i)\$version\b")
         named = self.text[self.text.index("    $name = "):]
         named = named[:named.index("\n")]
         self.assertNotIn("$Edition", named, "the typed word, rather than the settled one")
@@ -532,10 +552,21 @@ class BootstrapTests(unittest.TestCase):
         calls = [i for i in range(len(self.text))
                  if self.text.startswith("Get-NewestPublishedVersion", i)
                  and i != definition + len("function ")]
-        self.assertEqual(len(calls), 1, "the resolver is reached from more than one place")
-        # And that one call sits inside the branch only a switch opens.
+        # v0.6.11: from two places, each inside a branch only a switch opens - the check, and -Version, which
+        # a person's yes to the check's offer starts and which asks the check's questions again.
+        self.assertEqual(len(calls), 2, "the resolver is reached from more places than the check and -Version")
         guarded = block(self.text, "if ($CheckOnly -or $Update) {", "    $target = $newest")
         self.assertIn("Get-NewestPublishedVersion -Release $release", guarded)
+        chosen = block(self.text, "if ($Version) {\n    try { $target = Get-PrereleaseVersion", "if ($CheckOnly -or $Update) {")
+        self.assertIn("Get-NewestPublishedVersion -Release $release", chosen)
+        # So is the list of releases: -CheckOnly's part of the check's branch, and -Version.
+        self.assertEqual(len(re.findall(r"Get-NewerPrerelease -Release", self.text)), 1,
+                         "the offer is made from more than one place")
+        offer = block(guarded, "    if ($CheckOnly) {", "    if ($order -lt 0)")
+        self.assertIn("Get-NewerPrerelease -Release $release -Installed $current -Stable $newest", offer)
+        readers = [match.start() for match in re.finditer(r"Get-PublishedPrereleases -Release", self.text)]
+        self.assertEqual(len(readers), 2, "the list is read from more places than the offer and -Version")
+        self.assertIn("Get-PublishedPrereleases -Release $release -TimeoutSec $ReleasesVersionTimeout", chosen)
 
     def test_required_contents_match_the_release_workflow(self):
         # Two lists of the same thing, in two languages, in two files. They drift.

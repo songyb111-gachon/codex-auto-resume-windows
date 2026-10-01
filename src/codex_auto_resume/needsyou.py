@@ -20,6 +20,7 @@ words out.
 """
 from __future__ import annotations
 
+from . import ownvalues
 from .domain.vocabulary import StallWait
 
 # The failures that need a person, each with the setting that switches it and its next step.
@@ -39,12 +40,12 @@ STALL_FIELD = "stall_after"
 
 STALL_WAITS = tuple(StallWait)
 DEFAULT_STALL = StallWait.OFF.value
-STALL_SECONDS = {StallWait.M10: 600, StallWait.M15: 900, StallWait.M30: 1800,
-                 StallWait.H1: 3600, StallWait.H2: 7200}
 # A failure or a stopped turn older than this is never told: the longest look-back detection has
 # (A16) - and a notice kept past a day more than it may be let go, since nothing older is looked at.
 WINDOW_SECONDS = 7 * 86400
 KEEP_SECONDS = WINDOW_SECONDS + 86400
+# Custom... (ownvalues.py): a stall of the person's own, in whole minutes, from 5 of them to that week.
+OWN = {STALL_FIELD: ownvalues.Own(ownvalues.DURATION, 5 * 60, WINDOW_SECONDS, ("m", "h"))}
 
 
 def _on(values, name) -> bool:
@@ -67,8 +68,7 @@ def stall_seconds(values):
     """How long a turn may record nothing new before it is told, or None - never, at the defaults."""
     if not told(values):
         return None
-    chosen = values.get(STALL_FIELD)
-    return STALL_SECONDS.get(chosen) if chosen in STALL_WAITS else None
+    return ownvalues.amount(OWN[STALL_FIELD], values.get(STALL_FIELD))
 
 
 def minutes(seconds) -> int:

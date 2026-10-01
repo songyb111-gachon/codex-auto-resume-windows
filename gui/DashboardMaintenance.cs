@@ -229,9 +229,9 @@ namespace CodexAutoResume
             diagUpdate.Text = S("diag.update_asking", "asking...");
             System.Threading.ThreadPool.QueueUserWorkItem(delegate
             {
-                string answer, current, latest, detail, compatibility;
+                string answer, current, latest, detail, compatibility, prerelease;
                 RunBootstrap(root, script, "-CheckOnly", CheckMilliseconds,
-                             out answer, out current, out latest, out detail, out compatibility);
+                             out answer, out current, out latest, out detail, out compatibility, out prerelease);
                 Dictionary<string, object> live = CheckAfterRefresh(bridge, compatibility);
                 MethodInvoker finish = delegate
                 {
@@ -241,6 +241,10 @@ namespace CodexAutoResume
                     // card before the update's own answer is.
                     ReportCompatibilityLine(compatibility, live);
                     if (answer == "available") OfferUpdate(root, script, current, latest);
+                    // v0.6.11: a pre-release newer than both, offered where there is no release to offer first - and
+                    // installed only on a yes. Not now leaves the answer on the card as it stands.
+                    else if ((answer == "current" || answer == "newer-local") && prerelease != null)
+                        OfferPrerelease(root, script, prerelease);
                     else ReportUpdate(answer, current, latest, detail);
                 };
                 try { if (IsHandleCreated && !IsDisposed) BeginInvoke(finish); }
@@ -258,6 +262,26 @@ namespace CodexAutoResume
                 ReportUpdate("available", current, latest, null);
                 return;
             }
+            InstallUpdate(root, script, "-Update", latest);
+        }
+
+        /// A pre-release the check found (PrereleaseLine), offered for what it is: which version, that it is a
+        /// pre-release and tested less than a release. Not now is the answer Enter gives. A yes runs the bootstrap's
+        /// -Version with that version, which installs it only over an older one, in this edition, with its state kept,
+        /// and verified by the checksum published beside it.
+        private void OfferPrerelease(string root, string script, string prerelease)
+        {
+            if (!Dialog(S("confirm.prerelease",
+                          "Version {version} is a pre-release: published before its release is finished, and tested less than a release. Install it? It is checked against its published checksum before anything runs, it stays in the edition you have, and your settings, your pause, everything waiting and the sign-in choice are all kept.",
+                          "version", prerelease),
+                        S("action.install_prerelease", "Install pre-release"), S("action.not_now", "Not now"))) return;
+            InstallUpdate(root, script, "-Version " + prerelease, prerelease);
+        }
+
+        /// Runs the bootstrap to install one version - `-Update` for the release the check found, `-Version <v>` for the
+        /// pre-release a person said yes to - and says how it went.
+        private void InstallUpdate(string root, string script, string flag, string version)
+        {
             // Who is running now. `code_version` is no use for this: an old watcher reads the
             // version out of the files under it and starts reporting the new one the moment
             // they are replaced, so only a start time that moved says a watcher restarted.
@@ -266,15 +290,15 @@ namespace CodexAutoResume
             diagUpdate.Text = S("diag.update_installing", "installing...");
             System.Threading.ThreadPool.QueueUserWorkItem(delegate
             {
-                string answer, from, to, detail, compatibility;
-                RunBootstrap(root, script, "-Update", UpdateMilliseconds,
-                             out answer, out from, out to, out detail, out compatibility);
+                string answer, from, to, detail, compatibility, prerelease;
+                RunBootstrap(root, script, flag, UpdateMilliseconds,
+                             out answer, out from, out to, out detail, out compatibility, out prerelease);
                 Dictionary<string, object> live = CheckAfterRefresh(bridge, compatibility);
                 MethodInvoker finish = delegate
                 {
                     SetBusy(false);
                     ReportCompatibilityLine(compatibility, live);
-                    if (answer == "installed") AfterUpdate(before, latest, detail);
+                    if (answer == "installed") AfterUpdate(before, version, detail);
                     else
                     {
                         diagUpdate.Text = UpdateFact(answer, from, to);
@@ -341,17 +365,19 @@ namespace CodexAutoResume
 
         /// Runs scripts/bootstrap.ps1 with one switch and reads the line it prints for a
         /// caller - and, since v0.6.5, the `compatibility:` line before it, the answer to the
-        /// check's second request (CompatibilityLine; null when it made none). The lines are
-        /// the contract; the rest of the output is for a person.
+        /// check's second request (CompatibilityLine; null when it made none), and since v0.6.11
+        /// the `prerelease:` line of its question about pre-releases (PrereleaseLine; null when
+        /// there is none). The lines are the contract; the rest of the output is for a person.
         private static void RunBootstrap(string root, string script, string flag, int milliseconds,
                                          out string answer, out string current, out string latest,
-                                         out string detail, out string compatibility)
+                                         out string detail, out string compatibility, out string prerelease)
         {
             answer = "failed";
             current = null;
             latest = null;
             detail = "";
             compatibility = null;
+            prerelease = null;
             string powershell = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),
                                              "WindowsPowerShell", "v1.0", "powershell.exe");
             // By full path, never by bare name: a `powershell.exe` earlier on PATH is the
@@ -385,6 +411,7 @@ namespace CodexAutoResume
                     string printed = output.IsCompleted ? output.Result : "";
                     detail = Tail(printed + "\n" + (failure.IsCompleted ? failure.Result : ""));
                     compatibility = CompatibilityLine(printed);
+                    prerelease = PrereleaseLine(printed);
                     string line = null;
                     foreach (string raw in (printed ?? "").Replace("\r", "").Split('\n'))
                     {
@@ -447,6 +474,30 @@ namespace CodexAutoResume
                 text += Environment.NewLine + Environment.NewLine + detail;
             Tell(text);
         }
+
+        /// The version on the `prerelease:` line an update check prints when GitHub's list of this repository's
+        /// releases has a pre-release newer than both the installed version and the newest release
+        /// (scripts/bootstrap.ps1), without its `v` - or null when there is none, or the line says anything else.
+        /// The last one counts, as the `update:` line's does. A yes puts the version on the bootstrap's command line,
+        /// so it is held here to the pre-release rule the bootstrap rebuilds it by: three numbers with no leading
+        /// zero, `-alpha` or `-beta`, and a stage's number from 2 to 999 - nothing a command line reads as more.
+        internal static string PrereleaseLine(string printed)
+        {
+            string line = null;
+            foreach (string raw in (printed ?? "").Replace("\r", "").Split('\n'))
+            {
+                string trimmed = raw.Trim();
+                if (trimmed.StartsWith("prerelease: ", StringComparison.Ordinal)) line = trimmed.Substring("prerelease: ".Length);
+            }
+            if (line == null || !line.StartsWith("v", StringComparison.Ordinal)) return null;
+            string version = line.Substring(1);
+            return PrereleaseRule.IsMatch(version) ? version : null;
+        }
+
+        private static readonly System.Text.RegularExpressions.Regex PrereleaseRule =
+            new System.Text.RegularExpressions.Regex(
+                @"^(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})-(alpha|beta)(\.([2-9]|[1-9][0-9]{1,2}))?\z",
+                System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 
         private void ReportRepair(string outcome, string detail)
         {

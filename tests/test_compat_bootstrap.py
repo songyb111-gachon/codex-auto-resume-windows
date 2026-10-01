@@ -2,7 +2,9 @@ r"""The bootstrap's compatibility refresh: one GET, one host, one writer.
 
 The real function definitions are lifted out of `scripts/bootstrap.ps1` by the PowerShell
 parser, as tests/test_update_check.py does, into a session where `Invoke-WebRequest` is a
-stub that writes a canned body - so the shipped code runs and no test reaches the network.
+stub that writes a canned body - so the shipped code runs and no test reaches the network. The
+download is asked from a runspace of its own, with a deadline (Invoke-BoundedWebRequest), which
+carries the stub over by its text alone: so the stub keeps what it was asked in a file.
 The validator it hands the download to is the real one: this repository's own
 `controlcli compat-import`, run by the interpreter running the tests, against a scratch
 installation home.
@@ -39,7 +41,7 @@ Set-StrictMode -Version 2.0
 $errors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile($env:CAR_BOOTSTRAP, [ref]$null, [ref]$errors)
 if ($errors -and $errors.Count) { throw 'bootstrap.ps1 does not parse' }
-$wanted = @('Step', 'Get-FinalUri', 'Assert-TrustedHost', 'Get-Remote',
+$wanted = @('Step', 'Get-FinalUri', 'Assert-TrustedHost', 'Invoke-BoundedWebRequest', 'Get-Remote',
             'Update-CompatibilityData', 'Get-CompatibilityExit')
 foreach ($node in $ast.FindAll({ param($n)
         $n -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)) {
@@ -54,12 +56,17 @@ foreach ($name in @('$AllowedHosts', '$CompatibilityUrl', '$CompatibilityHosts',
     Invoke-Expression $found[0].Extent.Text
 }
 
-$script:Requests = @()
+[IO.File]::WriteAllText($env:CAR_REQUESTS, '')
 function Invoke-WebRequest {
     param([string]$Uri, [string]$OutFile, [switch]$UseBasicParsing, [switch]$PassThru,
           [int]$MaximumRedirection, [int]$TimeoutSec, [string]$Method)
-    $script:Requests += ,@($Uri, $Method, $TimeoutSec)
+    [IO.File]::AppendAllText($env:CAR_REQUESTS, (ConvertTo-Json -Compress @($Uri, $Method, $TimeoutSec)) + "`n")
     if ($env:CAR_MODE -eq 'throw') { throw 'the network is not there' }
+    # A download that is still arriving long after it was given up on: half of it is written, then it waits.
+    if ($env:CAR_MODE -eq 'slow') {
+        [IO.File]::WriteAllBytes($OutFile, [byte[]](1, 2, 3))
+        Start-Sleep -Seconds 120
+    }
     [IO.File]::WriteAllBytes($OutFile, [IO.File]::ReadAllBytes($env:CAR_BODY))
     $base = New-Object psobject
     $base | Add-Member -MemberType NoteProperty -Name ResponseUri -Value ([Uri]$env:CAR_FINAL)
@@ -75,9 +82,12 @@ function Get-Workfolders {
 $before = Get-Workfolders
 $arguments = @{ Home_ = $env:CAR_HOME; Python = $env:CAR_PYTHON; Source = $env:CAR_SOURCE }
 if ($env:CAR_TIMEOUT) { $arguments['TimeoutSec'] = [int]$env:CAR_TIMEOUT }
+$clock = [Diagnostics.Stopwatch]::StartNew()
 $answer = Update-CompatibilityData @arguments
+$seconds = $clock.Elapsed.TotalSeconds
 $leftovers = @(Get-Workfolders | Where-Object { $before -notcontains $_ })
-@{ answer = $answer; exit = (Get-CompatibilityExit $answer); requests = $script:Requests;
+$requests = @([IO.File]::ReadAllLines($env:CAR_REQUESTS) | Where-Object { $_ })
+@{ answer = $answer; exit = (Get-CompatibilityExit $answer); requests = $requests; seconds = $seconds;
    url = $CompatibilityUrl; hosts = $CompatibilityHosts; leftovers = $leftovers } |
     ConvertTo-Json -Depth 5 -Compress
 """
@@ -107,7 +117,7 @@ class RefreshFunctionTests(unittest.TestCase):
         environment = dict(os.environ, CAR_BOOTSTRAP=str(BOOTSTRAP), CAR_HOME=str(self.home),
                            CAR_PYTHON=str(python or sys.executable),
                            CAR_SOURCE=str(source or ROOT / "src"), CAR_BODY=str(self.body),
-                           CAR_FINAL=final, CAR_MODE=mode)
+                           CAR_FINAL=final, CAR_MODE=mode, CAR_REQUESTS=str(self.root / "requests.txt"))
         environment.pop("PYTHONPATH", None)
         environment.pop("CAR_TIMEOUT", None)
         if timeout is not None:
@@ -119,6 +129,8 @@ class RefreshFunctionTests(unittest.TestCase):
         lines = done.stdout.strip().splitlines()
         result = json.loads(lines[-1])
         result["printed"] = "\n".join(lines[:-1])
+        requests = result["requests"]
+        result["requests"] = [json.loads(line) for line in ([requests] if isinstance(requests, str) else requests or [])]
         return result
 
     @property
@@ -207,6 +219,16 @@ class RefreshFunctionTests(unittest.TestCase):
             requests = [requests]
         self.assertEqual([request[2] for request in requests], [17])
         self.assertEqual(result["answer"], "refreshed %d" % NEWER)
+
+    def test_a_download_still_arriving_at_its_deadline_is_given_up_and_leaves_nothing(self):
+        """Under Windows PowerShell 5.1 -TimeoutSec bounds only the wait for a response to begin, and a body that
+        arrives slowly is read for as long as it keeps coming - which made an update check "running" in the
+        window. The time the refresh is given is a deadline for all of it."""
+        result = self.run_probe(json.dumps(a_document()).encode("utf-8"), mode="slow", timeout=5)
+        self.assertEqual((result["answer"], result["exit"]), ("unavailable", 12))
+        self.assertLess(result["seconds"], 15, "the refresh waited for the download")
+        self.assertEqual(result["leftovers"], [] if isinstance(result["leftovers"], list) else None)
+        self.assertFalse(self.cache.exists())
 
 
 TIMEOUT_PROBE = r"""
@@ -306,6 +328,7 @@ class WholeScriptTests(unittest.TestCase):
         shutil.copyfile(ROOT / ".codex-plugin" / "plugin.json", root / ".codex-plugin" / "plugin.json")
         release = json.loads((ROOT / "scripts" / "release.json").read_text(encoding="utf-8"))
         release["latest"] = "https://127.0.0.1:1/releases/latest"
+        release["releases"] = "https://127.0.0.1:1/releases/list"
         release["download"] = "https://127.0.0.1:1/releases/download/v{version}/"
         (root / "scripts" / "release.json").write_text(json.dumps(release), encoding="utf-8")
         cls.script = root / "scripts" / "bootstrap.ps1"
@@ -404,7 +427,8 @@ class UpdateCheckWholeScriptTests(unittest.TestCase):
         (root / "scripts" / "bootstrap.ps1").write_text(text, encoding="utf-8")
         cls.release = json.loads((ROOT / "scripts" / "release.json").read_text(encoding="utf-8"))
         release = dict(cls.release, latest="https://127.0.0.1:1/releases/latest",
-                       download="https://127.0.0.1:1/releases/download/v{version}/")
+                       download="https://127.0.0.1:1/releases/download/v{version}/",
+                       releases="https://127.0.0.1:1/releases/list")
         (root / "scripts" / "release.json").write_text(json.dumps(release), encoding="utf-8")
         cls.script = root / "scripts" / "bootstrap.ps1"
         manifest = json.loads((ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8-sig"))
@@ -442,8 +466,13 @@ class UpdateCheckWholeScriptTests(unittest.TestCase):
         self.assertIn("compatibility: unavailable", done.stdout)
         self.assertLess(done.stdout.index("compatibility: "), done.stdout.index("update: "))
         self.assertIn("no installation here", done.stdout)
-        self.assertEqual([request[0] for request in requests], ["Head"],
+        # The question, then the list of releases for a pre-release (v0.6.11), which this stub
+        # answers with no list - and nothing for the data in between.
+        self.assertEqual([request[:2] for request in requests],
+                         [["Head", "https://127.0.0.1:1/releases/latest"],
+                          ["Get", "https://127.0.0.1:1/releases/list"]],
                          "with nothing to validate it, the data is not asked for")
+        self.assertNotIn("prerelease:", done.stdout)
 
     def test_an_installation_is_told_the_host_and_given_only_the_time_that_is_left(self):
         home = Path(self.folder.name) / "installed"
@@ -457,11 +486,14 @@ class UpdateCheckWholeScriptTests(unittest.TestCase):
         self.assertIn("update: current " + self.version, done.stdout)
         self.assertIn("Asking raw.githubusercontent.com for the Codex compatibility data", done.stdout)
         self.assertIn("compatibility: unavailable", done.stdout)
-        self.assertEqual(len(requests), 2, requests)
+        # The question, the data, and then the list of releases (v0.6.11): the refresh keeps its
+        # place, and its share of the check's time is taken before the list's.
+        self.assertEqual(len(requests), 3, requests)
         method, uri, timeout = requests[1] if len(requests[1]) == 3 else [""] + requests[1]
         self.assertEqual(uri, "https://127.0.0.1:1/codex_compat.json")
         self.assertLessEqual(int(timeout), 30, "a share of the check's time, not the refresh's own 60 s")
         self.assertGreaterEqual(int(timeout), 5)
+        self.assertEqual(requests[2][:2], ["Get", "https://127.0.0.1:1/releases/list"])
         self.assertFalse((home / "config").exists(), "nothing the validator did not accept is kept")
 
 

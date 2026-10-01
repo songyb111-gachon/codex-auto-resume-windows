@@ -43,11 +43,11 @@ class DetectMixin:
         if not candidates:
             return None
         try:
-            present = set(self.source.turn_markers(thread_id, turn_id, [row["marker"] for row in candidates]))
+            present = set(self.source.turn_markers(thread_id, turn_id, [self.proof(row) for row in candidates]))
         except Exception:
             return None
         for row in candidates:
-            if row["marker"] in present:
+            if self.proof(row) in present:
                 return row["interruption_id"]
         return None
 

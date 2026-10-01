@@ -117,6 +117,41 @@ Dependabot proposes updates as pull requests; `.github/dependabot.yml` turns on 
 merging, and each one is meant to be reviewed and merged by a person. Nothing in the repository
 checks its own settings on GitHub.
 
+### Alpha, beta and the release
+
+A version built in stages ships each finished stage as a pre-release while the next stage is
+built, so one version can have more pre-releases than one `-alpha` and one `-beta`. The word a
+pre-release carries says how far it can be relied on:
+
+- **`-alpha`, then `-alpha.2`, `-alpha.3`, and so on**, while the stage is not yet for real use:
+  groundwork with nothing to switch on; a feature that cannot yet be said to work end to end,
+  because a live measurement is still pending or a known gap blocks it; or a stored format that
+  may still change before the release.
+- **`-beta`, then `-beta.2`, `-beta.3`, and so on**, once every feature in it works end to end,
+  has passed review and both editions' tests and has been shown to the maintainer as a before and
+  after, and what it stores is what the release will keep. Once a version has had a beta, every
+  later pre-release of it is a `-beta.N`; it never goes back to an alpha.
+- **No suffix** - the release - once every stage is done and live acceptance
+  ([`docs/LIVE_ACCEPTANCE.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/LIVE_ACCEPTANCE.md))
+  has passed in both editions.
+
+The plain word is its stage's first pre-release, so the second is `.2`: there is no `.0` or `.1`,
+and the number is written in ASCII digits, from 2 to 999, with no leading zero. The words are in
+lower case and nothing follows the number. They sort in the order they are made:
+`X.Y.Z-alpha` < `X.Y.Z-alpha.2` < `X.Y.Z-beta` < `X.Y.Z-beta.2` < `X.Y.Z-beta.3` < `X.Y.Z`, the
+numbers compared as numbers (`.9` before `.10`). Every place that reads this product's version
+applies that one rule - the bootstrap, the settings window's build, the release workflow, the
+check of the published bootstraps and the product itself - and `tests/test_version_rule.py` holds
+them to it. The release workflow builds each such tag and publishes it as a pre-release that never
+becomes the latest release; the executables' file version is `X.Y.Z.0` for every one of them, and
+the product version beside it carries the whole name.
+
+A bootstrap reads only the words and numbers of its own day: the ones published before the
+numbered pre-releases read no number after `-alpha` or `-beta`, and cannot tell an installation at
+one from none. They cannot be changed, so a pre-release whose version the newest published
+bootstrap cannot read says so in its changelog entry, naming those copies
+(`tests/test_legacy_bootstraps.py` fails until it does).
+
 ### Making the build reproducible
 
 The build is designed so that, from a fresh clone, with the same build of the in-box
@@ -205,9 +240,10 @@ So, once the release is up:
 3. Put that digest in `scripts/release.json` under the version, and commit.
 
 A planned pre-release - a suffixed tag such as `v0.6.9-alpha` - is not pinned at all. The
-table's keys are releases, `releases/latest` never answers with a pre-release, so nothing is
-served one, and the check that a tagged version carries a pin is told about it by the
-`prerelease` list in `scripts/release.json` instead. That list may name the version under
+table's keys are releases, `releases/latest` never answers with a pre-release, and the check that
+a tagged version carries a pin is told about it by the `prerelease` list in `scripts/release.json`
+instead. From v0.6.11 the update check can offer a newer pre-release, and installs it only on a
+person's yes, against the `.sha256` published beside it - the weaker case below, said as such. That list may name the version under
 development and nothing else, so the next bump has to remove the entry
 (`tests/test_convergence.py` fails until it does).
 
@@ -341,7 +377,9 @@ Three branches carry the documents three ways:
   tests pass - and it is force-updated: main's code, with the Korean sources of the dev commit
   main was promoted from written over the English pages. A pull request against `ko` cannot be
   merged and an edit made there is lost at the next sync, so please do not spend an evening on
-  one.
+  one. The sync tests the tree in four parts at once before publishing it, and
+  `.github/workflows/ko-watch.yml` fails a scheduled run when ko is still behind main six hours
+  after main moved - a stalled sync used to read only as "cancelled".
 
 CI holds the split: on a push to `main` no `*.ko.md` may exist, and on a push to `dev` every
 mapped one must (`tests/languages.py`, `tests/test_korean.py`), so dev cannot quietly skip its
@@ -527,6 +565,29 @@ fail without it:
 
 If you are unsure whether a change crosses one of those lines, open an issue first and say
 what you are trying to achieve — there is usually a way to get there that keeps the property.
+
+## The standards
+
+[STANDARDS.md](STANDARDS.md) is every rule the product keeps, by id, and
+[EDITIONS.md](EDITIONS.md) says what they mean for the two editions: the standard edition keeps
+families 0 and A to J, each advanced capability names the ones it departs from, and family K binds
+every capability. The list is the owner's; adding or changing a rule is the owner's decision, made
+in a commit like any other.
+
+- **Adding a rule.** It takes the next number in its family. Ids are never renumbered or reused,
+  because capability statements, the registry and the other documents cite them. Its line under
+  the rule says how it is held - tested, code, docs, model or planned - and names the tests that
+  hold it. In the same commit, the table of families in the advanced package's `standards.py`
+  (under `advanced/src/`) gets the family's new count: `advanced/tests/test_advanced_registry.py`
+  fails while the file and that table disagree, family by family, and while a test the file names
+  is not in the repository.
+- **Changing a rule.** It keeps its id and its place, and its sentence ends with who changed it and
+  when: *(amended by the owner on 2026-09-28)*. If a capability's statement describes the rule, the
+  statement changes with it, under a new revision, which turns that capability off until a person
+  has read the new one (K7).
+- **Both languages.** `docs/STANDARDS.ko.md` changes in the same commit, rule by rule:
+  the test above also requires the same ids in the same order, naming the same tests. Then record
+  it with `python scripts/ko_sync.py --reviewed docs/STANDARDS.md`.
 
 ## Sending a compatibility report
 

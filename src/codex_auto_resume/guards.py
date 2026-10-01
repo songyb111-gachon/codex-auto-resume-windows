@@ -12,9 +12,10 @@ is read.
 
 The context-cost guard, only where Codex's threads table has a numeric `tokens_used` column (read the
 way every other column is: only if it is there, standard B5), read when an interruption is detected.
-Show puts the count on Pending; a limit also holds, from the start, a recovery whose conversation has
-used more (`context_cost`) - a count grows only with a new turn, and a new turn supersedes the
-interruption, so it is judged once and Let it continue lets it go. A conversation whose count cannot
+Show puts the count on Pending; a limit - a choice, or with Custom... a count of the person's own
+(ownvalues.py) - also holds, from the start, a recovery whose conversation has used more
+(`context_cost`) - a count grows only with a new turn, and a new turn supersedes the interruption,
+so it is judged once and Let it continue lets it go. A conversation whose count cannot
 be read is not held for it: where Codex does not keep the count, the guard is left out, as the plan
 for it says. Off by default, and then nothing is read.
 
@@ -26,6 +27,7 @@ from __future__ import annotations
 
 import hashlib
 
+from . import ownvalues
 from .domain import ids
 from .domain.vocabulary import ContextGuard, HoldKind, TaskGuard
 
@@ -33,8 +35,10 @@ TASK_GUARDS = tuple(TaskGuard)
 CONTEXT_GUARDS = tuple(ContextGuard)
 DEFAULT_TASK_GUARD = TaskGuard.OFF.value
 DEFAULT_CONTEXT_GUARD = ContextGuard.OFF.value
-LIMITS = {ContextGuard.ABOVE_100K: 100_000, ContextGuard.ABOVE_250K: 250_000,
-          ContextGuard.ABOVE_500K: 500_000, ContextGuard.ABOVE_1M: 1_000_000}
+# A limit is what its word says (`above_250k`), a choice or, with Custom..., a count of the person's own in whole
+# thousands from 10,000 to 10,000,000 (ownvalues.py).
+OWN = {"context_guard": ownvalues.Own(ownvalues.COUNT, 10_000, 10_000_000, ("k", "m"), prefix="above_",
+                                     label="own.hold_above")}
 # The holds each guard puts on a record.
 TASK_HOLD = HoldKind.WORKSPACE_CHANGED.value
 CONTEXT_HOLD = HoldKind.CONTEXT_COST.value
@@ -60,8 +64,9 @@ def watches_task(values) -> bool:
 
 
 def context_mode(values) -> str:
+    """off, show, a limit's choice or a limit of the person's own - off for anything the settings would not store."""
     chosen = _values(values).get("context_guard")
-    return chosen if chosen in CONTEXT_GUARDS else DEFAULT_CONTEXT_GUARD
+    return ownvalues.coerce(chosen, DEFAULT_CONTEXT_GUARD, CONTEXT_GUARDS, OWN["context_guard"])
 
 
 def counts_tokens(values) -> bool:
@@ -71,7 +76,7 @@ def counts_tokens(values) -> bool:
 
 def context_limit(values):
     """The count above which a recovery is held, or None: off, or Show alone."""
-    return LIMITS.get(context_mode(values))
+    return ownvalues.amount(OWN["context_guard"], context_mode(values))
 
 
 def fingerprint(model, approval, head) -> str:

@@ -31,8 +31,10 @@ if _BUILD not in sys.path:
 
 import edition_audit as audit  # noqa: E402
 import make_release  # noqa: E402
+import make_setup  # noqa: E402
 
 PACKAGE, SKILL, SENTINEL = audit.PACKAGE, audit.SKILL, audit.SENTINEL
+CSC = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Microsoft.NET" / "Framework64" / "v4.0.30319" / "csc.exe"
 POWERSHELL = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
               / "WindowsPowerShell" / "v1.0" / "powershell.exe")
 LAUNCHER = "payload/app/mcp/" + make_release.MCP_EXE
@@ -507,11 +509,87 @@ class AllowanceTests(unittest.TestCase):
         self.assertEqual(audit.check_digests(self.shipped, self.tree), [])
 
 
+@unittest.skipUnless(CSC.is_file(), "the in-box C# compiler is not available")
+class SetupProgramTests(unittest.TestCase):
+    """(h), on setup programs built by build/make_setup.py around the small archives above: each carries
+    its own edition's archive, and the standard one holds nothing of the advanced edition outside it."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.work = Path(tempfile.mkdtemp(prefix="edition-setups-"))
+        standard, advanced = pair()
+        cls.standard_zip = write_zip(cls.work / "standard.zip", standard)
+        cls.advanced_zip = write_zip(cls.work / "advanced.zip", advanced)
+        cls.standard = make_setup.build(cls.standard_zip, cls.work, "standard", "0.6.11")
+        cls.advanced = make_setup.build(cls.advanced_zip, cls.work, "advanced", "0.6.11")
+        cls.tree = inventory()
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.work, ignore_errors=True)
+
+    def check(self, standard_setup: bytes, advanced_setup: bytes | None = None) -> list:
+        return audit.check_setups(self.standard_zip.read_bytes(), self.advanced_zip.read_bytes(), standard_setup,
+                                  advanced_setup or self.advanced.read_bytes(), self.tree)
+
+    def test_h_a_clean_pair_has_no_finding(self):
+        self.assertEqual(self.check(self.standard.read_bytes()), [])
+
+    def test_h_a_setup_program_around_the_other_editions_archive(self):
+        swapped = make_setup.build(self.advanced_zip, self.work / "swapped", "standard", "0.6.11").read_bytes()
+        self.assertEqual(self.check(swapped), [
+            "(h) the standard setup program does not carry the standard archive byte for byte",
+            "(h) the standard setup program does not hold the standard archive's SHA-256",
+            "(h) the standard setup program holds the advanced archive's SHA-256"])
+        self.assertEqual(self.check(self.standard.read_bytes(), self.standard.read_bytes()), [
+            "(h) the advanced setup program does not carry the advanced archive byte for byte",
+            "(h) the advanced setup program does not hold the advanced archive's SHA-256"])
+
+    def test_h_a_name_or_a_literal_of_the_advanced_edition_outside_the_archive(self):
+        image = self.standard.read_bytes()
+        for added, finding in ((PACKAGE.encode("utf-8"), "(h) the standard setup program holds %s" % PACKAGE),
+                               ("ArmingPage".encode("utf-16-le"), "(h) the standard setup program holds ArmingPage"),
+                               ("Watch first, then turn on".encode("utf-16-le"),
+                                "(h) the standard setup program holds the literal 'Watch first, then turn on'")):
+            with self.subTest(finding):
+                self.assertEqual(self.check(image + added), [finding])
+
+    def test_h_what_is_no_setup_program_proves_nothing(self):
+        found = self.check(b"MZ" + bytes(100))
+        self.assertEqual(len(found), 1)
+        self.assertTrue(found[0].startswith("(h) the standard setup program: not a setup program"), found)
+
+    def test_h_the_rebuild_is_the_same_file_or_a_finding(self):
+        self.assertEqual(audit.check_setup_rebuild(self.standard, self.standard), [])
+        self.assertEqual(audit.check_setup_rebuild(self.standard, self.advanced),
+                         ["(h) %s is not the one built again from `git archive HEAD` without advanced/"
+                          % self.standard.name])
+        self.assertEqual(audit.check_setup_rebuild(self.standard, self.work / "nothing.exe"),
+                         ["(h) the rebuild made no nothing.exe"])
+
+    def test_h_the_whole_audit_reads_the_setup_programs(self):
+        setups = (self.standard, self.advanced)
+        rebuild = lambda root, where: self.standard_zip  # noqa: E731 - its folder holds the standard setup
+        self.assertEqual(audit.audit(self.standard_zip, self.advanced_zip, rebuild=rebuild, setups=setups), [])
+        found = audit.audit(self.standard_zip, self.advanced_zip, rebuild=rebuild, setups=setups[::-1])
+        self.assertTrue(found and all(line.startswith("(h)") for line in found), found)
+
+
 class CommandLineTests(unittest.TestCase):
     def test_it_wants_both_archives(self):
         with tempfile.TemporaryDirectory() as empty, self.assertRaises(SystemExit) as refused:
             audit.main(["--dist", empty])
         self.assertIn("build both editions first", str(refused.exception))
+
+    def test_it_wants_both_setup_programs(self):
+        release = make_release.version()
+        with tempfile.TemporaryDirectory() as dist:
+            for edition in make_release.EDITIONS:
+                write_zip(Path(dist) / make_release.archive_name(edition, release), {"x": b""})
+            with self.assertRaises(SystemExit) as refused:
+                audit.main(["--dist", dist])
+        self.assertIn(make_setup.setup_name("standard", release), str(refused.exception))
+        self.assertIn("builds it beside its archive", str(refused.exception))
 
 
 if __name__ == "__main__":

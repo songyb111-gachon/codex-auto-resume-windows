@@ -242,7 +242,10 @@ class RefusalTests(unittest.TestCase):
             "reporter.tool_version": [lambda r: r["reporter"].update(tool_version="1.1"),
                                       lambda r: r["reporter"].update(tool_version="0.9.0")],
             "v0.6.0 or later": [lambda r: r["reporter"].update(product_version="0.5.7"),
-                                lambda r: r["reporter"].update(product_version="v0.6.9")],
+                                lambda r: r["reporter"].update(product_version="v0.6.9"),
+                                # A number the version rule does not give (tests/test_version_rule.py).
+                                lambda r: r["reporter"].update(product_version="0.6.11-beta.1"),
+                                lambda r: r["reporter"].update(product_version="0.6.11-beta.02")],
             "not one of this repository's releases": [lambda r: r["reporter"].update(product_version="0.6.99")],
             "not released yet when the report was written": [
                 lambda r: r["reporter"].update(product_version="0.6.10-alpha")],
@@ -278,6 +281,13 @@ class RefusalTests(unittest.TestCase):
                                    "a name Windows keeps for a device")
         for login in ("com10", "nul0", "console", "lpt", "ExampleUser"):
             self.assertTrue(reader.login_name(login), login)
+
+    def test_a_numbered_pre_release_is_a_release_of_this_product(self):
+        """A stage's later pre-release (v0.6.11-beta.2) is published like any other, and a report
+        made with it counts once it exists."""
+        change = lambda r: r["reporter"].update(product_version="0.6.11-beta.2")  # noqa: E731
+        self.assertEqual(refusals(change, releases=dict(RELEASES, **{"v0.6.11-beta.2": RELEASES["v0.6.0"]})), [])
+        self.assertRefused(refusals(change), "not one of this repository's releases")
 
     def test_the_release_rule_is_only_skipped_when_no_releases_are_given(self):
         change = lambda r: r["reporter"].update(product_version="0.6.99")  # noqa: E731

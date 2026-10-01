@@ -74,7 +74,9 @@ Change the edition only when the user asks for the other one by name, and say fi
 changes. Then add `-Edition Advanced -Force`, or `-Edition Standard -Force` to go back;
 the script says what the change means before it downloads anything, keeps their
 settings and pending recoveries, and starts every advanced capability off. Never add
-`-Edition` on your own, and never together with `-Update`, which refuses it.
+`-Edition` on your own, and never together with `-Update`, which refuses it. Never pass
+`-Version` either: it installs a pre-release, and a pre-release is installed only when the
+user says yes to it in the Dashboard's Check for updates.
 
 Tell the user plainly what it is about to do before running it: it downloads this
 version's release archive from the project's GitHub releases over HTTPS, checks its
@@ -322,10 +324,14 @@ for the user or adds a line to its notification, and never sends anything sooner
 notifications appear, the interface language, the theme (light, dark, or following the system), the
 panel's own theme in Codex (`panel_theme`: the same as the theme, Codex's, light or dark), the
 continuation language, the message style
-(Minimal, Standard, Detailed, Custom or, from v0.6.11, Careful - the Standard message with a request
-not to repeat anything that already changed files, pushed, sent or published something), and whether
+(Minimal, Standard, Detailed or Custom), and whether
 a Custom message is one message for every
-interruption or one per kind. The window has things `update_settings` does not offer: the
+interruption or one per kind. From v0.6.11 a setting chosen from a list also takes a value of the
+user's own in the same words, within the range its schema description gives - quiet hours at any
+minute (`13:15`) and on any days (`mon,wed,fri`), a custom wait, the time ceiling, the stall or the
+sleep as `m45` or `h36`, the context-cost limit as `above_300k` - and a value past that range is
+refused; never offer one past it or say a safety limit can be lifted. The window has things
+`update_settings` does not offer: the
 notification-area icon, Reduce motion (the one way to stop the animations), the Design (Soft, Classic
 or Plain), the notification card, and, from v0.6.11, Keep this PC awake while a task waits (and for how
 many hours at most), the memory guard (and its limit), and the status file for other tools - each a
@@ -399,8 +405,9 @@ why.
   continuation to that one conversation, and its App Server withdraws that same message
   when it has to.
 - Its own runtime has no network code and no telemetry. It never checks for updates on its
-  own: the Diagnostics page has a button that asks GitHub which release is newest, and that
-  request happens only when a person presses it. The setup script
+  own: the Diagnostics page has a button that asks GitHub which release is newest and reads
+  this repository's list of releases on api.github.com for a newer pre-release, and those
+  requests happen only when a person presses it. The setup script
   downloads the release from GitHub. The Codex processes it starts use the user's existing
   sign-in to check usage, and the resumed turn goes to OpenAI like any turn the user starts.
   What these tools and commands return becomes part of this conversation.

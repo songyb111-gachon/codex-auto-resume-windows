@@ -167,6 +167,25 @@ def complete(measurement, verdict, note, *, codex_version, recorded_at, director
     return target
 
 
+def outcome(record):
+    """(verdict, Codex version) that `record` settles, or None where it settles nothing.
+
+    A pass or a fail is what the probe found; a blocked probe settles only through a person's
+    completion beside it (`complete`), whose verdict it then is. A blocked record nobody
+    completed, or anything that is not a measurement record, is no verdict at all - which a
+    capability's statement shows as a route not measured, never as a pass (arming.warnings_for)."""
+    if not isinstance(record, dict) or record.get("format") != MEASUREMENT_FORMAT:
+        return None
+    verdict = record.get("verdict")
+    completion = record.get("completion")
+    if verdict == str(Verdict.BLOCKED) and isinstance(completion, dict):
+        verdict = completion.get("verdict")
+    version = record.get("codex_version")
+    if verdict not in (str(Verdict.PASS), str(Verdict.FAIL)) or not isinstance(version, str):
+        return None
+    return Verdict(verdict), version
+
+
 def write(record, *, directory=None) -> Path:
     """Write one record. The directory has to be there already (the source tree's), so the
     harness run from an installed copy, which has none, is refused rather than inventing one."""

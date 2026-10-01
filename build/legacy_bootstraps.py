@@ -51,10 +51,11 @@ import make_release  # noqa: E402
 # scripts/bootstrap.ps1 at all.
 FIRST = (0, 5, 2)
 # How this project tags a release: vMAJOR.MINOR.PATCH, or a pre-release with -alpha or -beta
-# after it (v0.6.9-alpha, v0.6.11-beta) - the two words scripts/bootstrap.ps1 accepts, in ASCII
-# digits as it takes them: \d would take any script's. Anything else is not a release of ours.
-# Always applied with fullmatch (tests/test_version_rule.py).
-TAG = re.compile(r"v([0-9]+)\.([0-9]+)\.([0-9]+)(?:-(alpha|beta))?")
+# after it (v0.6.9-alpha, v0.6.11-beta) - the two words scripts/bootstrap.ps1 accepts - and a
+# stage's later pre-releases numbered from 2 to 999 with no leading zero (v0.6.11-beta.2), the
+# plain word being its first. In ASCII digits as it takes them: \d would take any script's.
+# Anything else is not a release of ours. Always applied with fullmatch (tests/test_version_rule.py).
+TAG = re.compile(r"v([0-9]+)\.([0-9]+)\.([0-9]+)(?:-(alpha|beta)(?:\.([2-9]|[1-9][0-9]{1,2}))?)?")
 # Where each stage sorts among its version's builds: alpha, then beta, then the release.
 STAGES = {"alpha": 0, "beta": 1, None: 2}
 POWERSHELL = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
@@ -147,13 +148,14 @@ class Bootstrap:
 
 
 def order(version: str) -> tuple:
-    """A version as something to sort by: 0.6.11-alpha before 0.6.11-beta before 0.6.11, and
-    0.6.10 after 0.6.9."""
+    """A version as something to sort by: 0.6.11-alpha before 0.6.11-alpha.2 before 0.6.11-beta
+    before 0.6.11-beta.2 before 0.6.11, and 0.6.10 after 0.6.9. A stage's plain word is its 1."""
     match = TAG.fullmatch("v" + version)
     if not match:
         raise ValueError("not a version this product uses: %s" % version)
-    major, minor, patch, stage = match.groups()
-    return (int(major), int(minor), int(patch), STAGES[stage])
+    major, minor, patch, stage, number = match.groups()
+    return (int(major), int(minor), int(patch), STAGES[stage],
+            int(number) if number else (0 if stage is None else 1))
 
 
 def _git(root: Path, *arguments: str) -> bytes:
@@ -240,8 +242,9 @@ def readers(bootstraps, version: str) -> dict:
 
     One that refuses cannot tell the installation from none. Run from a plugin copy Codex still
     holds, it installs its own, older release over it (the published v0.6.10 and v0.6.11-alpha
-    over 0.6.11-beta), and with -CheckOnly or -Update it stops with no answer. It cannot be
-    changed, so the release that introduces such a version says so (tests/test_legacy_bootstraps.py).
+    over 0.6.11-beta; every copy published before the numbered pre-releases over 0.6.11-beta.2),
+    and with -CheckOnly or -Update it stops with no answer. It cannot be changed, so the release
+    that introduces such a version says so (tests/test_legacy_bootstraps.py).
     """
     if not POWERSHELL.is_file():
         raise SystemExit("the published bootstraps are Windows PowerShell; %s is missing" % POWERSHELL)

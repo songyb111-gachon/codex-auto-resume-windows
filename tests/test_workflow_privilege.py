@@ -27,7 +27,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = ROOT / ".github" / "workflows"
 # Every workflow, named: a new one is looked at here before anything else.
-KNOWN = ["community-file.yml", "community-report.yml", "release.yml", "sync-ko.yml", "test.yml"]
+KNOWN = ["community-file.yml", "community-report.yml", "ko-watch.yml", "release.yml", "sync-ko.yml", "test.yml"]
 
 
 def text(name):
@@ -94,21 +94,23 @@ class WorkflowPrivilegeTests(unittest.TestCase):
         # -cnotmatch: -notmatch ignores case, and a tag is lower case. [0-9] and \z: \d takes any
         # script's digits, and .NET's $ matches before a final line break (tests/test_version_rule.py
         # runs the line's own pattern).
-        self.assertIn(r"-cnotmatch '^[0-9]+\.[0-9]+\.[0-9]+(-alpha|-beta)?\z'", text("release.yml"))
+        rule = r"^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta)(\.([2-9]|[1-9][0-9]{1,2}))?)?"
+        self.assertIn("-cnotmatch '" + rule + r"\z'", text("release.yml"))
         # The tag is held to the manifest in its case too.
         self.assertIn("$tagged -cne $declared", text("release.yml"))
         # And again in the publish job, which runs none of the repository's code: the same two
-        # suffixes and no others. Bash's $ is the end of the string.
+        # suffixes, numbered from .2 or not, and nothing else. Bash's $ is the end of the string.
         publish = job(text("release.yml"), "publish")
-        self.assertIn(r"^[0-9]+\.[0-9]+\.[0-9]+(-alpha|-beta)?$", publish)
+        self.assertIn('[[ "$VERSION" =~ ' + rule + "$ ]]", publish)
 
     def test_a_pre_release_never_becomes_the_latest_release(self):
         publish = job(text("release.yml"), "publish")
         self.assertIn("prerelease=(--prerelease --latest=false)", publish)
-        # Both planned pre-release tags build; any other suffix does not.
+        # Both planned pre-release tags build, and a stage's numbered ones after them; any other
+        # suffix does not.
         workflow = text("release.yml")
         self.assertIn('"!v*-*"', workflow)
-        for pattern in ('"v*.*.*-alpha"', '"v*.*.*-beta"'):
+        for pattern in ('"v*.*.*-alpha"', '"v*.*.*-beta"', '"v*.*.*-alpha.*"', '"v*.*.*-beta.*"'):
             self.assertIn(pattern, workflow)
 
     def test_no_expression_is_spliced_into_a_run_script(self):
@@ -142,16 +144,18 @@ class WorkflowPrivilegeTests(unittest.TestCase):
 
 
 class ReleaseAttestationTests(unittest.TestCase):
-    """Every archive a release publishes is attested, by one step, before it is published.
+    """Every file a release publishes is attested, by one step, before it is published.
 
     Build provenance is how a download is traced back to the run and the commit that made it
     (docs/VERIFY.md). Until v0.6.11 nothing asserted that the step making it exists - only that
     the build job could not make one - and two editions are what made that worth closing: a
     second archive is a second subject, and a step naming only the first would publish the
-    other unattested with every check green.
+    other unattested with every check green. The setup programs (build/make_setup.py) are two more.
     """
 
     ARCHIVES = ("STANDARD_ZIP", "ADVANCED_ZIP")
+    SETUPS = ("STANDARD_SETUP", "ADVANCED_SETUP")
+    FILES = ARCHIVES + SETUPS
 
     def setUp(self):
         self.source = text("release.yml")
@@ -168,6 +172,12 @@ class ReleaseAttestationTests(unittest.TestCase):
         for path in named.values():
             self.assertRegex(path, r"^dist/CodexAutoResume-(Advanced-)?v\$\{\{ needs\.build\.outputs\.version \}\}-win-x64\.zip$")
 
+    def test_the_publish_job_names_one_setup_program_per_edition(self):
+        named = dict(re.findall(r"(?m)^      ([A-Z]+_SETUP): (.+?)\s*$", self.publish))
+        self.assertEqual(sorted(named), sorted(self.SETUPS))
+        for path in named.values():
+            self.assertRegex(path, r"^dist/CodexAutoResume-(Advanced-)?Setup-v\$\{\{ needs\.build\.outputs\.version \}\}\.exe$")
+
     def test_one_step_attests_every_archive(self):
         self.assertEqual(self.source.count("uses: actions/attest-build-provenance@"), 1)
         step = self.step("Attest the archives")
@@ -175,7 +185,7 @@ class ReleaseAttestationTests(unittest.TestCase):
         subjects = re.search(r"subject-path: \|\n((?:            \S.*\n?)+)", step)
         self.assertIsNotNone(subjects, "the attestation names no list of subjects")
         self.assertEqual([line.strip() for line in subjects.group(1).splitlines()],
-                         ["${{ env.%s }}" % name for name in self.ARCHIVES])
+                         ["${{ env.%s }}" % name for name in self.FILES])
 
     def test_only_the_publish_job_can_attest(self):
         for grant in ("id-token: write", "attestations: write"):
@@ -196,10 +206,11 @@ class ReleaseAttestationTests(unittest.TestCase):
         publish = self.step("Publish the GitHub release")
         command = publish[publish.index('gh release create "v$VERSION"'):publish.index("--title")]
         self.assertEqual(re.findall(r'"(\$[A-Z_]+(?:\.sha256)?)"', command),
-                         ["$STANDARD_ZIP", "$STANDARD_ZIP.sha256", "$ADVANCED_ZIP", "$ADVANCED_ZIP.sha256"])
+                         [form % ("$" + name) for name in self.FILES for form in ("%s", "%s.sha256")])
 
-    def test_both_archives_are_checked_again_here(self):
-        self.assertIn('for zip in "$STANDARD_ZIP" "$ADVANCED_ZIP"; do', self.step("Check it again, here"))
+    def test_every_file_is_checked_again_here(self):
+        self.assertIn('for file in "$STANDARD_ZIP" "$ADVANCED_ZIP" "$STANDARD_SETUP" "$ADVANCED_SETUP"; do',
+                      self.step("Check it again, here"))
 
 
 class KoSyncPrivilegeTests(unittest.TestCase):
@@ -216,6 +227,82 @@ class KoSyncPrivilegeTests(unittest.TestCase):
         self.assertEqual(self.source.count("secrets.GITHUB_TOKEN"), 1)
         push = self.source[self.source.index("- name: Publish the branch"):]
         self.assertIn("secrets.GITHUB_TOKEN", push)
+
+    def test_the_part_that_runs_the_trees_code_can_only_read(self):
+        self.assertRegex(self.source, r"(?m)^permissions: \{\}\s*$")
+        test, publish = job(self.source, "test"), job(self.source, "publish")
+        self.assertIn("contents: read", test)
+        self.assertEqual(re.findall(r"(?m)^\s+[a-z-]+: write\s*$", test), [])
+        self.assertNotIn("secrets.", test)
+        self.assertIn("contents: write", publish)
+        self.assertNotIn("unittest", publish, "the job that can write runs none of the tree's tests")
+
+    def test_every_part_of_the_suite_runs(self):
+        """The matrix and SHARDS are one number written twice; a part dropped is tests never run."""
+        test = job(self.source, "test")
+        shards = re.search(r"(?m)^\s*shard: \[([0-9, ]+)\]\s*$", test)
+        count = re.search(r'(?m)^\s*SHARDS: "(\d+)"\s*$', test)
+        self.assertTrue(shards and count)
+        self.assertEqual([int(x) for x in shards.group(1).split(",")], list(range(int(count.group(1)))))
+        self.assertIn("index % shards == shard", test)
+        self.assertIn("fail-fast: false", test)
+
+    def test_the_split_is_exactly_the_discovered_suite(self):
+        """What the parts load, together, is what `unittest discover -s tests` finds - no more, no less."""
+        import sys
+        loader = unittest.TestLoader()
+
+        def ids(suite):
+            for item in suite:
+                if isinstance(item, unittest.TestSuite):
+                    yield from ids(item)
+                else:
+                    yield item.id()
+
+        names = sorted(path.stem for path in (ROOT / "tests").glob("test_*.py"))
+        added = str(ROOT / "tests") not in sys.path
+        if added:
+            sys.path.insert(0, str(ROOT / "tests"))
+        try:
+            parts = [list(ids(loader.loadTestsFromNames([n for i, n in enumerate(names) if i % 4 == k])))
+                     for k in range(4)]
+        finally:
+            if added:
+                sys.path.remove(str(ROOT / "tests"))
+        found = sorted(ids(unittest.TestLoader().discover(str(ROOT / "tests"), top_level_dir=str(ROOT / "tests"))))
+        self.assertEqual(sorted(x for part in parts for x in part), found)
+
+    def test_only_the_tested_tree_is_published(self):
+        test, publish = job(self.source, "test"), job(self.source, "publish")
+        self.assertIn('echo "tree=$(git write-tree)" >> "$GITHUB_OUTPUT"', test)
+        self.assertIn("needs: test", publish)
+        self.assertIn("TESTED_TREE: ${{ needs.test.outputs.tree }}", publish)
+        self.assertIn('[ "$built" != "$TESTED_TREE" ]', publish)
+        self.assertLess(publish.index("TESTED_TREE"), publish.index("- name: Publish the branch"))
+
+
+class KoWatchTests(unittest.TestCase):
+    """ko-watch.yml reads two things through the API and fails when ko has fallen behind."""
+
+    def setUp(self):
+        self.source = text("ko-watch.yml")
+
+    def test_it_reads_and_runs_nothing_of_ours(self):
+        self.assertRegex(self.source, r"(?m)^permissions: \{\}\s*$")
+        grants = re.findall(r"(?m)^      ([a-z-]+): (read|write|none)\s*$", self.source)
+        self.assertEqual(sorted(grants), [("actions", "read"), ("contents", "read")])
+        for forbidden in ("actions/checkout", "python", "git push", ": write"):
+            self.assertNotIn(forbidden, self.source.split("\njobs:", 1)[1])
+
+    def test_it_runs_on_a_schedule_and_is_bounded(self):
+        self.assertIn("schedule:", self.source)
+        self.assertIn("timeout-minutes: 5", self.source)
+        self.assertIn("runs-on: ubuntu-latest", self.source)
+
+    def test_it_knows_what_a_sync_commit_says(self):
+        """The message it parses is the one sync-ko.yml writes."""
+        self.assertIn('git commit -m "Generate ko from main@${source_sha}"', text("sync-ko.yml"))
+        self.assertIn(r"s/^Generate ko from main@\([0-9a-f]\{40\}\).*/\1/p", self.source)
 
 
 class CommunityReportPrivilegeTests(unittest.TestCase):
@@ -494,7 +581,7 @@ class TagsAreFetchedWhereTheSuiteRunsTests(unittest.TestCase):
         found = []
         for path in sorted(WORKFLOWS.glob("*.yml")):
             text = path.read_text(encoding="utf-8")
-            if "unittest discover" in text:
+            if "unittest discover" in text or "loadTestsFromNames" in text:
                 found.append((path.name, text))
         return found
 
