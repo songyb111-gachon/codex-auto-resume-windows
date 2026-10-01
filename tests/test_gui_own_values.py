@@ -21,6 +21,7 @@ import tempfile
 import unittest
 
 import guiscan
+import languages
 from codex_auto_resume import l10n, ladder, ownvalues, settings
 from codex_auto_resume.mcp import panel as mcpui
 from test_mcpui_v064 import NODE, run_page, say, snapshot
@@ -302,9 +303,13 @@ class SourceTests(unittest.TestCase):
             "BuildOwnValue.unitCombo",      # the Custom... dialog's own unit
             "BuildStatistics.period",       # how far back the Statistics page counts: no setting, never kept
         ]))
-        for name, heading, words in (
-                ("GUIDE.md", "### Values of your own", "**Period** on the Statistics page"),
-                ("GUIDE.ko.md", "### 직접 정한 값", "통계 페이지의 **기간**")):
+        # main has no Korean documents, and the generated ko branch writes GUIDE.md in Korean.
+        english = ("### Values of your own", "**Period** on the Statistics page")
+        korean = ("### 직접 정한 값", "통계 페이지의 **기간**")
+        guides = [("GUIDE.md",) + (korean if languages.generated_ko_branch() else english)]
+        if languages.both_languages():
+            guides.append(("GUIDE.ko.md",) + korean)
+        for name, heading, words in guides:
             with self.subTest(name):
                 guide = (ROOT / "docs" / name).read_text(encoding="utf-8")
                 section = guide[guide.index(heading):]
