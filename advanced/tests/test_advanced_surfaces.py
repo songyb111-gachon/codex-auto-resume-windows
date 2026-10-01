@@ -75,6 +75,17 @@ class DashboardTests(SurfaceCase):
         self.assertEqual((item["warnings"], item["confirmed_warnings"]), ([], []))
         self.assertFalse(self.bridge("advanced-statement", {"capability": "nope"})["result"]["done"])
 
+    def test_the_dashboard_reads_its_page_s_words_in_the_person_s_language(self):
+        """The Advanced features page is built from these: the window's own catalog is core's, and holds none."""
+        reply = self.bridge("advanced-words", {"locale": "ko"})
+        self.assertTrue(reply["ok"])
+        words = reply["result"]
+        self.assertEqual((words["done"], words["locale"]), (True, "ko"))
+        self.assertEqual(words["words"], self.catalogs.words("ko"))
+        self.assertEqual((words["words"]["page.nav"], words["words"]["state.shadow"]), ("고급 기능", "지켜보는 중"))
+        self.assertEqual(self.bridge("advanced-words", {"locale": "ko", "capability": "test_wake"})["result"],
+                         {"done": False, "refusal": Refusal.INVALID_REQUEST})
+
     def test_the_dashboard_watches_arms_and_turns_off(self):
         watch = self.bridge("advanced-arm", {"capability": "test_wake", "state": "shadow",
                                               "revision": 1, "generation": 0})["result"]

@@ -8,6 +8,9 @@
 # file, so a type declared in a source listed here cannot reach the standard executable. No
 # source of the standard window names one either (advanced/tests/test_advanced_package.py).
 #
-# Empty until the advanced edition has a page of its own.
+# The Dashboard's Advanced features page, which joins the standard window through the `partial void`
+# points gui/Dashboard.cs declares (DashboardBuilt, SnapshotApplied), and the page's own audit.
 
 [advanced]
+advanced/gui/AdvancedPage.cs
+advanced/gui/AdvancedPageAudit.cs
