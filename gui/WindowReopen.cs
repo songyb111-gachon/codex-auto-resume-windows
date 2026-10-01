@@ -164,6 +164,7 @@ namespace CodexAutoResume
                 {
                     if (IsFocusName(value)) request.Focus = value;
                 }
+                ArgumentParsed(argument, request);
             }
             return request;
         }
@@ -253,6 +254,7 @@ namespace CodexAutoResume
             arguments.Add("--design=" + Design.Preference(design));
             arguments.Add("--reopened=" + Math.Max(1, Math.Min(9, generation)).ToString(CultureInfo.InvariantCulture));
             if (IsFocusName(focus)) arguments.Add("--focus=" + focus);
+            ReopenArgumentsWritten(page, focus, arguments);
             return string.Join(" ", arguments.ToArray());
         }
 

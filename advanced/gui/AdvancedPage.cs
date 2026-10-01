@@ -30,8 +30,9 @@
 // warning it carries (ArmQuestion); the safe answer is the default, so only the button that names the action says
 // yes. What is sent is exactly what was shown - the generation the page read the list at, the statement's
 // revision, its warnings and the Codex version it named (ArmArgument) - and when the bridge answers that something
-// changed since, the page reads the list and the statement again and asks again, with what holds now. Turning off
-// asks nothing: it only ever does less.
+// changed since, the page reads the list and the statement again and asks again, with what holds now - or, where what
+// holds now cannot be asked for (it could not be read again, or an administrator's policy now refuses it), tells the
+// person who said yes why nothing was turned on (ArmHeld). Turning off asks nothing: it only ever does less.
 //
 // advanced/gui/AdvancedPageAudit.cs is this page's audit, and the hooks its tests drive it through.
 //
@@ -72,7 +73,7 @@ namespace CodexAutoResume
         private TableLayoutPanel advancedStack;
         private NoteLabel advancedNote;
         private Button advancedOn, advancedWatch, advancedOff, advancedAllOff;
-        private SoftCombo advancedHourly;
+        private SoftNumber advancedHourly;
         private Timer hourlyTimer;
         // The hourly limit the person stopped on, which the pause sends whatever the cards were rebuilt to meanwhile.
         private int hourlyChosen;
@@ -88,6 +89,15 @@ namespace CodexAutoResume
         private bool advancedAsking, advancedReading, advancedReadAgain, advancedFilling, hourlyFilling;
         // What waits for the read in flight to finish, in order (ReadAdvanced).
         private readonly List<MethodInvoker> advancedThen = new List<MethodInvoker>();
+        // The capabilities whose statement the last read of it could not read: their cards say so where the statement
+        // would be, rather than leave Turn on and Watch first greyed with no reason given.
+        private readonly HashSet<string> advancedUnread = new HashSet<string>();
+        // The width of the working area of the screen the window is held to (HoldTabs): the screen's own, or one the
+        // page's audit stands in (AdvancedLayoutAudit). 0 is the screen's.
+        private int advancedScreen;
+        // Whether this window replaces one that had this page on screen (ArgumentParsed), and shows it again once this
+        // edition has answered (ReturnToAdvanced).
+        private bool advancedReturning;
 
         // ---------------------------------------------------------------- joining the window
         partial void DashboardBuilt()
@@ -111,6 +121,13 @@ namespace CodexAutoResume
             settings.Parent.Controls.Add(tab);
             navButtons[AdvancedPageName] = tab;
             advancedTab = tab;
+            // A window that replaces one with this page on screen opens on the Overview, as the standard window opens
+            // on a page it does not have, and comes back here once the page can be shown (ReturnToAdvanced).
+            advancedReturning = firstPage == AdvancedPageName;
+            // The strip as tall as its rows where it has had to take two (HoldTabs): again whenever the window's width
+            // or font changes, after the standard window's own fitting of it to one row.
+            nav.SizeChanged += delegate { FitTabs(); };
+            FontChanged += delegate { FitTabs(); };
             // Asked once the window opens, as its other reads are; a window the layout audit builds never opens.
             Load += delegate { if (!auditing) ReadAdvancedWords(); };
         }
@@ -202,12 +219,19 @@ namespace CodexAutoResume
             advancedTab.AccessibleName = advancedTab.Text;
             advancedTab.Visible = true;
             HoldTabs();
+            ReturnToAdvanced();
         }
 
-        /// The window no narrower than its tabs, this page's among them. The strip neither wraps nor scrolls, and in some
-        /// languages the standard six fill nearly all of the standard window's narrowest width (800), so a seventh
-        /// would be cut off there: the narrowest this window goes is as wide as the strip, and never wider than the
-        /// screen it is on (KeepOnScreen). A window narrower than that is made that wide.
+        /// The window no narrower than its tabs, this page's among them. The standard strip neither wraps nor scrolls,
+        /// and in some languages the standard six fill nearly all of the standard window's narrowest width (800), so a
+        /// seventh would be cut off there: the narrowest this window goes is as wide as the strip, and never wider than
+        /// the screen it is on (KeepOnScreen). A window narrower than that is made that wide.
+        ///
+        /// A screen narrower than the strip - a 4:3, 5:4 or portrait one at a large Windows text size, which the window's
+        /// text size is fitted to as if it had six tabs (TextScale.Fitting) - cannot hold it on one row at any width, and
+        /// a tab past the strip's edge could be reached only with Ctrl+Tab. There the strip takes a second row, every
+        /// tab whole, rather than make the person's text smaller; on any screen that holds it the strip is the one row
+        /// the standard window has.
         private void HoldTabs()
         {
             Control strip = advancedTab == null ? null : advancedTab.Parent;
@@ -226,9 +250,67 @@ namespace CodexAutoResume
                                                                        TextFormatFlags.SingleLine).Width - regular);
             }
             int least = strip.PreferredSize.Width - now + heaviest + nav.Padding.Horizontal + (Width - ClientSize.Width);
-            try { least = Math.Min(least, Screen.FromControl(this).WorkingArea.Width); }
-            catch (Exception) { }
+            int room = ScreenRoom();
+            bool rows = least > room;
+            if (rows) least = room;
+            var flow = strip as FlowLayoutPanel;
+            if (flow != null && flow.WrapContents != rows)
+            {
+                flow.WrapContents = rows;
+                FitTabs();
+            }
             if (MinimumSize.Width < least) MinimumSize = new Size(least, MinimumSize.Height);
+        }
+
+        /// The width of the working area of the screen the window is on, or of the one the audit stands in.
+        private int ScreenRoom()
+        {
+            if (advancedScreen > 0) return advancedScreen;
+            try { return Screen.FromControl(this).WorkingArea.Width; }
+            catch (Exception) { return int.MaxValue; }
+        }
+
+        /// The strip of tabs as tall as its rows at the width it has, where it takes more than one (HoldTabs); one row is
+        /// the standard window's own fitting, left as it is.
+        private void FitTabs()
+        {
+            var strip = advancedTab == null ? null : advancedTab.Parent as FlowLayoutPanel;
+            if (strip == null || !strip.WrapContents) return;
+            int width = nav.ClientSize.Width - nav.Padding.Horizontal;
+            if (width <= 0) return;
+            int height = strip.GetPreferredSize(new Size(width, 0)).Height + nav.Padding.Vertical;
+            if (nav.Height != height) nav.Height = height;
+        }
+
+        /// A window that replaced one with this page on screen - reopened for a theme, a language or Windows' colours
+        /// (Reopen) - shows it again as soon as it can, with the keyboard on its tab where that window had it there,
+        /// unless the person has gone to another page meanwhile.
+        private void ReturnToAdvanced()
+        {
+            if (!advancedReturning || advancedWords == null) return;
+            advancedReturning = false;
+            if (currentPage != null && currentPage != PageOrder[0]) return;
+            NavButton opened;
+            bool keyed = request.Focus == "page." + AdvancedPageName && navButtons.TryGetValue(PageOrder[0], out opened) &&
+                         FocusedControl() == opened;
+            ShowAdvanced();
+            if (keyed && advancedTab.CanFocus) ActiveControl = advancedTab;
+        }
+
+        /// The window's command line as ParseArguments reads it, with this page's name where a page or the keyboard's
+        /// place may be named: `--page=advanced` and `--focus=page.advanced`, which the standard window ignores.
+        static partial void ArgumentParsed(string argument, OpenRequest request)
+        {
+            if (argument == "--page=" + AdvancedPageName) request.Page = AdvancedPageName;
+            else if (argument == "--focus=page." + AdvancedPageName) request.Focus = "page." + AdvancedPageName;
+        }
+
+        /// What a window that reopens itself passes on, with this page where it is the one on screen or where the
+        /// keyboard is: the standard arguments name only the standard window's pages.
+        static partial void ReopenArgumentsWritten(string page, string focus, List<string> arguments)
+        {
+            if (page == AdvancedPageName) arguments.Insert(0, "--page=" + AdvancedPageName);
+            if (focus == "page." + AdvancedPageName) arguments.Add("--focus=" + focus);
         }
 
         // ---------------------------------------------------------------- showing the page
@@ -488,8 +570,16 @@ namespace CodexAutoResume
         /// on or watched from a statement nobody has read.
         private void ShowAdvancedStatement(string id, Dictionary<string, object> result)
         {
-            if (AdvancedDone(result) && Str(result, "capability") == id) advancedStatements[id] = result;
-            else advancedStatements.Remove(id);
+            if (AdvancedDone(result) && Str(result, "capability") == id)
+            {
+                advancedStatements[id] = result;
+                advancedUnread.Remove(id);
+            }
+            else
+            {
+                advancedStatements.Remove(id);
+                advancedUnread.Add(id);
+            }
             ShowAdvancedDetail();
         }
 
@@ -609,7 +699,8 @@ namespace CodexAutoResume
             Dictionary<string, object> item = AdvancedItem(advancedOpen);
             Dictionary<string, object> statement = item == null ? null : AdvancedStatement(advancedOpen);
             string shown = (advancedListing == null ? "unread" : "read") + "|" + AdvancedWritten(item) + "|" +
-                           AdvancedWritten(statement) + "|" + AdvancedWritten(Get(advancedListing, "policy")) + "|" +
+                           AdvancedWritten(statement) + "|" + (advancedUnread.Contains(advancedOpen ?? "") ? "unreadable" : "") + "|" +
+                           AdvancedWritten(Get(advancedListing, "policy")) + "|" +
                            AdvancedWritten(Get(advancedListing, "global_hourly"));
             if (shown == advancedShown)
             {
@@ -646,6 +737,16 @@ namespace CodexAutoResume
             TableLayoutPanel head = NewGroup(AdvancedName(id), advancedStack);
             TableLayoutPanel facts = Facts(head);
             Fact(facts, Word("page.col_state", "State")).Text = StateWord(Str(item, "state"));
+            // That it turned itself off, and why, where it did - a tripwire, or a new version of Codex - in the accent, as
+            // what a policy refuses is: a person who turned it on finds it off, and is told it was not someone else.
+            string tripped = TrippedText(item);
+            if (tripped != null)
+            {
+                Label line = HelpText(tripped);
+                line.ForeColor = Accent;
+                line.Margin = Pad(0, Brand.SpaceS, 0, 0);
+                head.Controls.Add(line);
+            }
             // What an administrator's policy refuses, in the accent, as Diagnostics says what needs noticing under its facts
             // (diagUpgrade, diagPlugin). Lines rather than callouts: a callout holds each of its words whole, and this
             // column is narrower than the compatibility card's, where a sentence of Japanese - one word to it - fits.
@@ -679,7 +780,14 @@ namespace CodexAutoResume
             }
 
             // Its statement: the five fields, each under its title, in the person's language - the standards it departs
-            // from among them, glossed in words.
+            // from among them, glossed in words. One that could not be read says so where it would be: it is why Turn on
+            // and Watch first cannot be pressed.
+            if (statement == null && advancedUnread.Contains(id))
+            {
+                TableLayoutPanel about = NewGroup(Word("page.about", "About this feature"), advancedStack);
+                about.Controls.Add(HelpText(Word("page.statement_unavailable",
+                    "What this feature does cannot be read right now, so it cannot be turned on or watched.")));
+            }
             if (statement != null)
             {
                 TableLayoutPanel about = NewGroup(Word("page.about", "About this feature"), advancedStack);
@@ -707,7 +815,7 @@ namespace CodexAutoResume
             Fact(numbers, Word("page.per_conversation", "Sends a day in any one conversation")).Text = CeilingText(Get(ceilings, "per_conversation"));
             if (Equals(Get(item, "sends"), false))
                 limits.Controls.Add(HelpText(Word("page.nominal", "It sends nothing itself, so these limits never come into play.")));
-            advancedHourly = HourlyCombo();
+            advancedHourly = HourlyNumber();
             limits.Controls.Add(NewRow(Word("page.hourly", "Sends an hour, all advanced features together"), advancedHourly));
             limits.Controls.Add(HelpText(Word("page.hourly_note", "You can lower this limit. It never goes above {n}.", "n", HourlyMost())));
         }
@@ -730,6 +838,42 @@ namespace CodexAutoResume
             if (Equals(Get(policy, "force_shadow"), true))
                 return Word("page.policy.shadow_only", "Your administrator's Windows policy lets this feature be watched, not turned on.");
             return null;
+        }
+
+        /// What an administrator's Windows policy refuses of asking for `state` of `id`, in words, or null where it
+        /// refuses nothing of it: every state where it forbids the capability, and "on" where it lets it only be watched.
+        private string PolicyRefusalOf(string id, string state)
+        {
+            if (!PolicyAdmits(id)) return PolicyRefusal(id);
+            if (state == StateArmed && Equals(Get(Map(advancedListing, "policy"), "force_shadow"), true)) return PolicyRefusal(id);
+            return null;
+        }
+
+        /// That `item` turned itself off, and why, in words - a tripwire (arming.TRIPWIRES) or a new version of Codex -
+        /// or null where it is not off, or a person or the edition's entry turned it off.
+        private string TrippedText(Dictionary<string, object> item)
+        {
+            if ((Str(item, "stored") ?? StateOff) != StateOff) return null;
+            string by = Str(item, "by"), reason = Str(item, "reason");
+            if (by != "tripwire" && by != "engine_change") return null;
+            string said = null;
+            if (reason == "measurement_failed")
+                said = Word("page.tripped.measurement_failed", "It turned itself off because a measurement of what it relies on failed.");
+            else if (reason == "failed_here")
+                said = Word("page.tripped.failed_here", "It turned itself off because a compatibility check of what it relies on failed on this computer.");
+            else if (reason == "incompatible")
+                said = Word("page.tripped.incompatible", "It turned itself off because the compatibility data says what it relies on does not work with this version of Codex.");
+            else if (reason == "local_check_failed")
+                said = Word("page.tripped.local_check_failed", "It turned itself off because a check on this computer found that this version of Codex lacks what it relies on.");
+            else if (reason == "submission_unknown")
+                said = Word("page.tripped.submission_unknown", "It turned itself off because it could not prove that a continuation it sent arrived.");
+            else if (reason == "hook_exception")
+                said = Word("page.tripped.hook_exception", "It turned itself off after an error of its own.");
+            else if (reason == "statement_changed")
+                said = Word("page.tripped.statement_changed", "It turned itself off because what it does has changed. Read it again before you turn it on.");
+            else if (reason == "engine_changed")
+                said = Word("page.tripped.engine_changed", "It turned itself off because the version of Codex changed. Turn it on again for this version if you want it.");
+            return said ?? Word("page.tripped", "It turned itself off.");
         }
 
         private bool PolicyAdmits(string id)
@@ -765,30 +909,32 @@ namespace CodexAutoResume
             return Math.Max(1, Whole(Get(advancedListing, "global_hourly_default")));
         }
 
-        /// A choice of 1 to the registry's limit, at what the list says it is now. A choice is sent once the person
-        /// stops on it (HourlyPause).
-        private SoftCombo HourlyCombo()
+        /// The number, from 1 to the registry's limit, at what the list says it is now: a number with a ceiling, edited as
+        /// the Settings page edits every one (SoftNumber, its spin box held to the schema's minimum and maximum). A value
+        /// is sent once the person stops on it (HourlyPause).
+        private SoftNumber HourlyNumber()
         {
-            var combo = new SoftCombo();
-            IgnoreWheel(combo);
+            var number = new SoftNumber();
+            NumericUpDown spin = number.Spin;
+            GiveTextRoom(spin);
             int most = HourlyMost(), now = Math.Max(1, Math.Min(most, Whole(Get(advancedListing, "global_hourly"))));
             hourlyFilling = true;
             try
             {
-                for (int n = 1; n <= most; n++)
-                    combo.Items.Add(new Choice(n.ToString(CultureInfo.InvariantCulture), n.ToString(CultureInfo.CurrentCulture)));
-                combo.SelectedIndex = now - 1;
+                spin.Minimum = 1;
+                spin.Maximum = most;
+                spin.Value = now;
             }
             finally
             {
                 hourlyFilling = false;
             }
-            combo.Width = Px(150);
-            combo.AccessibleName = Word("page.hourly", "Sends an hour, all advanced features together");
-            combo.SelectedIndexChanged += delegate
+            IgnoreWheel(spin);
+            spin.AccessibleName = Word("page.hourly", "Sends an hour, all advanced features together");
+            spin.ValueChanged += delegate
             {
                 if (hourlyFilling) return;
-                hourlyChosen = combo.SelectedIndex + 1;
+                hourlyChosen = (int)spin.Value;
                 if (hourlyTimer == null)
                 {
                     hourlyTimer = new Timer();
@@ -803,7 +949,7 @@ namespace CodexAutoResume
                 hourlyTimer.Stop();
                 hourlyTimer.Start();
             };
-            return combo;
+            return number;
         }
 
         /// The limit for every capability together set to `value`, from 1 to the registry's, with the generation the
@@ -836,8 +982,15 @@ namespace CodexAutoResume
         /// because something changed after it was shown.
         private void ArmAdvanced(string id, string state, int round)
         {
+            // Asked again, after something changed: what holds now may not be askable at all, and the person who said
+            // yes is told why nothing was turned on (ArmHeld). The first time, the button could not have been pressed.
+            string held = ArmHeld(id, state);
+            if (held != null)
+            {
+                if (round > 0) TellAdvanced(held);
+                return;
+            }
             Dictionary<string, object> item = AdvancedItem(id), statement = AdvancedStatement(id);
-            if (item == null || statement == null || advancedListing == null || busy > 0) return;
             string name = AdvancedName(id);
             // What is sent is decided here, from what the dialog is about to show, and from nothing read later.
             string argument = ArmArgument(id, state, Whole(Get(advancedListing, "generation")), statement);
@@ -859,16 +1012,26 @@ namespace CodexAutoResume
                 if (StaleRefusal(refusal) && round + 1 < AdvancedAsks)
                 {
                     // Something changed after the page showed it - a capability turned off elsewhere, a new statement, a
-                    // warning, a Codex version: what holds now is read, and asked about again.
-                    ReadAdvanced(delegate
-                    {
-                        if (advancedOpen == id && AdvancedStatement(id) != null) ArmAdvanced(id, state, round + 1);
-                    });
+                    // warning, a Codex version: what holds now is read, and asked about again - or, where it cannot be,
+                    // the person is told why not.
+                    ReadAdvanced(delegate { ArmAdvanced(id, state, round + 1); });
                     return;
                 }
                 ReadAdvanced(null);
                 TellAdvanced(AdvancedRefusal(result));
             });
+        }
+
+        /// Why `state` of `id` cannot be asked for now, in words, or null where it can: another action under way, or the
+        /// page on another capability, means it changed under the person; a list or a statement that could not be read
+        /// means it could not be shown again; and an administrator's policy says what it refuses, as the page does.
+        private string ArmHeld(string id, string state)
+        {
+            if (busy > 0 || advancedOpen != id)
+                return Word("page.refused.changed", "It kept changing while you read it, so nothing was turned on. Try again in a moment.");
+            if (advancedListing == null || AdvancedItem(id) == null || AdvancedStatement(id) == null)
+                return Word("page.refused.unread", "Something changed after this was shown, and how it stands now could not be read, so nothing was turned on. Try again in a moment.");
+            return PolicyRefusalOf(id, state);
         }
 
         /// The advanced-arm request for what the page shows: the capability, the state asked for, the statement's

@@ -754,6 +754,12 @@ namespace CodexAutoResume
         // A snapshot has been shown (ApplySnapshot), or there is none and the pages say so
         // (MarkUnavailable, with null). A page of the advanced edition follows the same read.
         partial void SnapshotApplied(Dictionary<string, object> reply);
+        // One argument of the window's command line has been read (ParseArguments): a page of
+        // the advanced edition's, or the keyboard on its tab, is one the standard checks refuse.
+        static partial void ArgumentParsed(string argument, OpenRequest request);
+        // The arguments a window that reopens itself passes on have been written (ReopenArguments),
+        // with only the standard window's pages and places among them.
+        static partial void ReopenArgumentsWritten(string page, string focus, List<string> arguments);
 
         // ----------------------------------------------------------------- chrome
         private void BuildDashboard()

@@ -12,10 +12,13 @@ Held here: the page's rows are every capability in the registry's order, by name
 person's language; the open one shows its statement's five fields, its warnings, what a policy refuses
 and its limits; Turn on and Watch first ask in the dialog with the statement and every warning, send
 exactly what the page showed - which the real bridge then accepts - and ask again, with what holds now,
-when the bridge says something changed; a refusal is told; Turn off and Turn every advanced feature off
-send theirs; the lowered hourly limit is one the real bridge takes; the list is read again after every
-action and when the snapshot's badge says it changed; the page is audited in every language at every
-scaling; and the standard window holds nothing of it.
+when the bridge says something changed, or say why they cannot (it could not be read again, or a policy
+now refuses it); a refusal is told; a capability that turned itself off says so and why; Turn off and
+Turn every advanced feature off send theirs; the hourly limit is a spin box, and the lowered limit is one
+the real bridge takes; the list is read again after every action and when the snapshot's badge says it
+changed; a window that reopens itself on the page comes back to it; the page is audited in every
+language at every scaling, its tabs on the narrowest screen too; and the standard window holds nothing
+of it.
 
 GUI test module: compiles real executables, so it runs on its own.
 
@@ -377,6 +380,98 @@ class PageTests(unittest.TestCase):
         return "en", {"script": script, "steps": steps}, {}
 
     @classmethod
+    def scenario_changed_unreadable(cls, bridge):
+        """Turn on, answered yes; the bridge says the confirmation is stale, and the statement read again cannot be
+        read. Nothing can be asked again: the person is told so, and the page says why it cannot be turned on."""
+        script = cls.opening(bridge, "en")
+        steps = [{"do": "snapshot", "reply": snapshot()}, {"do": "show"},
+                 {"do": "reply", "key": "advanced-statement " + IDS[0], "with": [{"ok": False, "error": "timed out"}]},
+                 {"do": "reply", "key": "advanced-arm",
+                  "with": [{"ok": True, "result": {"done": False, "refusal": "stale_confirmation"}}]},
+                 {"do": "press", "button": "on"}]
+        return "en", {"answers": [True, True], "script": script, "steps": steps}, {
+            "words": script["advanced-words"][0]["result"]["words"]}
+
+    @classmethod
+    def scenario_changed_unlisted(cls, bridge):
+        """As above, but it is the list read again that cannot be read."""
+        script = cls.opening(bridge, "en")
+        steps = [{"do": "snapshot", "reply": snapshot()}, {"do": "show"},
+                 {"do": "reply", "key": "advanced-list", "with": [{"ok": False, "error": "timed out"}]},
+                 {"do": "reply", "key": "advanced-arm",
+                  "with": [{"ok": True, "result": {"done": False, "refusal": "stale_generation"}}]},
+                 {"do": "press", "button": "on"}]
+        return "en", {"answers": [True, True], "script": script, "steps": steps}, {
+            "words": script["advanced-words"][0]["result"]["words"]}
+
+    @classmethod
+    def scenario_changed_to_policy(cls, bridge):
+        """Turn on, answered yes; meanwhile an administrator's policy came to forbid every capability. The list read
+        again says so: the person is not asked to confirm what the page knows cannot happen, but told why."""
+        script = cls.opening(bridge, "en")
+        bridge.policy = policy.Policy(forbid=True)
+        forbidden = bridge("advanced-list", {})
+        steps = [{"do": "snapshot", "reply": snapshot()}, {"do": "show"},
+                 {"do": "reply", "key": "advanced-list", "with": [forbidden]},
+                 {"do": "reply", "key": "advanced-arm",
+                  "with": [{"ok": True, "result": {"done": False, "refusal": "stale_generation"}},
+                           {"ok": True, "result": {"done": False, "refusal": "forbidden_by_policy"}}]},
+                 {"do": "press", "button": "on"}]
+        return "en", {"answers": [True, True], "script": script, "steps": steps}, {
+            "words": script["advanced-words"][0]["result"]["words"]}
+
+    @classmethod
+    def scenario_tripped(cls, bridge):
+        """Marker-free continuation turned on with the statement's own confirmation, and then the measurement it rests
+        on failed: the real bridge's list says a tripwire turned it off, and why. The page says so; then, for the
+        same capability turned off by a person, it says nothing of the kind; and for one Codex's new version turned
+        off, it says that."""
+        capability = "marker_free_continuation"
+        shown = bridge("advanced-statement", {"capability": capability, "locale": "en"})["result"]
+        armed = bridge("advanced-arm", {"capability": capability, "state": "armed", "revision": shown["revision"],
+                                        "generation": bridge("advanced-list", {})["result"]["generation"],
+                                        "engine_version": shown["engine_version"],
+                                        "warnings": [item["warning"] for item in shown["warnings"]["items"]]})
+        assert armed["result"]["done"], armed
+        bridge.measured = dict(bridge.measured, **{Measurement.M7: (Verdict.FAIL, ac.ENGINE)})
+        script = cls.opening(bridge, "en")
+        listing = script["advanced-list"][0]
+        item = next(entry for entry in listing["result"]["capabilities"] if entry["id"] == capability)
+        by_person, by_engine = copy.deepcopy(listing), copy.deepcopy(listing)
+        for changed, (by, reason) in ((by_person, ("dashboard", "disarmed")), (by_engine, ("engine_change", "engine_changed"))):
+            entry = next(entry for entry in changed["result"]["capabilities"] if entry["id"] == capability)
+            entry["by"], entry["reason"] = by, reason
+        steps = [{"do": "snapshot", "reply": snapshot()}, {"do": "show"}, {"do": "choose", "id": capability},
+                 {"do": "look"},
+                 {"do": "reply", "key": "advanced-list", "with": [by_person]}, {"do": "snapshot", "reply": snapshot()},
+                 {"do": "look"},
+                 {"do": "reply", "key": "advanced-list", "with": [by_engine]}, {"do": "snapshot", "reply": snapshot()},
+                 {"do": "look"}]
+        return "en", {"script": script, "steps": steps}, {
+            "item": item, "words": script["advanced-words"][0]["result"]["words"]}
+
+    # What a window on this page passes on when it reopens itself (ReopenArguments): the page, and the keyboard on its tab.
+    REOPENED = ("--page=advanced --section=general --bounds=100,100,1000,700 --theme=system --design=soft --reopened=1 "
+                "--focus=page.advanced")
+
+    @classmethod
+    def scenario_reopen(cls, bridge):
+        """On this page, a reopen - a theme, a language, Windows' colours - names it for the window that replaces it."""
+        script = cls.opening(bridge, "en")
+        steps = [{"do": "snapshot", "reply": snapshot()}, {"do": "show"}, {"do": "reopen"},
+                 {"do": "page", "name": "history"}, {"do": "reopen"}]
+        return "en", {"script": script, "steps": steps}, {}
+
+    @classmethod
+    def scenario_reopened(cls, bridge):
+        """The window that replaces it opens on the Overview, as one asked for a page it does not have yet, and comes
+        back to this page once this edition has answered."""
+        script = cls.opening(bridge, "en")
+        steps = [{"do": "open", "arguments": cls.REOPENED}, {"do": "look"}, {"do": "snapshot", "reply": snapshot()},
+                 {"do": "look"}]
+        return "en", {"script": script, "steps": steps}, {}
+
+    @classmethod
     def scenario_unloaded(cls, bridge):
         """An installation whose advanced package could not be loaded answers every advanced command as unknown:
         no tab, and nothing but the one question, asked again with each read."""
@@ -426,7 +521,9 @@ class PageTests(unittest.TestCase):
                            "the standards are glossed in words, not listed as ids")
         self.assertEqual(limits[0], words["page.limits"])
         self.assertIn(words["page.hourly"], limits)
-        self.assertEqual(result["hourly"], {"choices": registry.GLOBAL_HOURLY, "chosen": registry.GLOBAL_HOURLY})
+        # A number with a ceiling, edited as the Settings page edits every one: a spin box from 1 to the registry's.
+        self.assertEqual(result["hourly"], {"minimum": 1, "maximum": registry.GLOBAL_HOURLY,
+                                            "value": registry.GLOBAL_HOURLY})
         # It was read in Korean.
         self.assertEqual({json.loads(line.split(" ", 1)[1]).get("locale") for line in result["sent"]
                           if line.startswith("advanced-statement ")}, {"ko"})
@@ -547,8 +644,9 @@ class PageTests(unittest.TestCase):
 
     def test_the_hourly_limit_is_lowered_with_the_generation_read(self):
         result, expected = self.of("scenario_hourly")
-        self.assertEqual(result["looks"][0]["hourly"], {"choices": expected["listing"]["global_hourly_default"],
-                                                        "chosen": expected["listing"]["global_hourly"]})
+        self.assertEqual(result["looks"][0]["hourly"], {"minimum": 1,
+                                                        "maximum": expected["listing"]["global_hourly_default"],
+                                                        "value": expected["listing"]["global_hourly"]})
         self.assertEqual(sent(result, "advanced-ceiling"),
                          [{"global_hourly": 5, "generation": expected["listing"]["generation"]}])
 
@@ -581,6 +679,57 @@ class PageTests(unittest.TestCase):
     def test_ctrl_tab_goes_from_settings_to_this_page_and_on(self):
         pages = [look["page"] for look in self.of("scenario_keys")[0]["looks"]]
         self.assertEqual(pages, ["advanced", "overview", "advanced"])
+
+    def test_a_confirmation_that_went_stale_and_cannot_be_read_again_is_told(self):
+        """The person said yes and nothing was turned on: they are told, never left with a page that did nothing."""
+        result, expected = self.of("scenario_changed_unreadable")
+        words = expected["words"]
+        self.assertEqual(len(sent(result, "advanced-arm")), 1)
+        self.assertEqual(len(result["asked"]), 1)
+        self.assertEqual(result["told"], [words["page.refused.unread"]])
+        # Where the statement would be, why it cannot be turned on or watched.
+        self.assertEqual(result["cards"][1], [words["page.about"], words["page.statement_unavailable"]])
+        self.assertEqual((result["buttons"]["on"], result["buttons"]["watch"]), (False, False))
+        result, expected = self.of("scenario_changed_unlisted")
+        self.assertEqual(len(result["asked"]), 1)
+        self.assertEqual(result["told"], [expected["words"]["page.refused.unread"]])
+        self.assertEqual(result["cards"], [[expected["words"]["page.nav"], expected["words"]["page.unavailable"]]])
+
+    def test_a_confirmation_that_went_stale_is_not_asked_again_where_a_policy_now_refuses_it(self):
+        result, expected = self.of("scenario_changed_to_policy")
+        forbid = expected["words"]["page.policy.forbid"]
+        self.assertEqual(len(result["asked"]), 1, "nothing a policy refuses is asked for")
+        self.assertEqual(len(sent(result, "advanced-arm")), 1)
+        self.assertEqual(result["told"], [forbid])
+        self.assertIn(forbid, result["cards"][0])
+        self.assertEqual((result["buttons"]["on"], result["buttons"]["watch"]), (False, False))
+
+    def test_a_capability_that_turned_itself_off_says_so_and_why(self):
+        result, expected = self.of("scenario_tripped")
+        words, item = expected["words"], expected["item"]
+        self.assertEqual((item["stored"], item["state"], item["by"], item["reason"]),
+                         ("off", "off", "tripwire", "measurement_failed"))
+        tripped, by_person, by_engine = result["looks"]
+        self.assertEqual(tripped["open"], "marker_free_continuation")
+        self.assertEqual(tripped["cards"][0][:4], [words["name.marker_free_continuation"], words["page.col_state"],
+                                                   words["state.off"], words["page.tripped.measurement_failed"]])
+        said = {key: words[key] for key in words if key.startswith("page.tripped")}
+        self.assertFalse(set(by_person["cards"][0]) & set(said.values()), "a person's own turning off is not a tripwire")
+        self.assertIn(words["page.tripped.engine_changed"], by_engine["cards"][0])
+
+    def test_a_window_that_reopens_on_this_page_comes_back_to_it(self):
+        result, _ = self.of("scenario_reopen")
+        here, elsewhere = result["reopened"]
+        self.assertEqual(here, self.REOPENED)
+        self.assertNotIn("advanced", elsewhere)
+        self.assertTrue(elsewhere.startswith("--page=history "), elsewhere)
+        result, _ = self.of("scenario_reopened")
+        opened, answered = result["looks"]
+        self.assertEqual((opened["page"], opened["tab_visible"]), ("overview", False))
+        self.assertEqual((answered["page"], answered["tab_visible"], answered["focus"]),
+                         ("advanced", True, "page.advanced"))
+        self.assertEqual([row[0] for row in answered["rows"]],
+                         [statement.CATALOGS.words("en")["name." + capability] for capability in IDS])
 
     def test_an_installation_that_cannot_answer_shows_no_tab(self):
         result, _ = self.of("scenario_unloaded")
@@ -632,6 +781,8 @@ class LayoutTests(unittest.TestCase):
             canary = audit_data("en", bridge)
             canary["words"]["page.limits"] = "W" * 400
             canary["words"]["name." + IDS[0]] = "N" * 400
+            # A tab wider than any screen: on the narrowest screen no second row holds it.
+            canary["words"]["page.nav"] = "T" * 400
             for part in ("words", "listing", "statements"):
                 (work / ("%s-canary.json" % part)).write_text(json.dumps(canary[part]), encoding="utf-8")
             jobs.append({"kind": "audit", "name": "canary", "scale": 1.0, "strings": "strings-en.json",
@@ -656,8 +807,10 @@ class LayoutTests(unittest.TestCase):
                 found = self.answer["%s %.2f" % (locale, scale)]
                 with self.subTest(locale=locale, scale=scale):
                     self.assertEqual(found["report"], "", "\n" + "\n".join(found["report"].splitlines()[:40]))
-                    # Each capability open, the list unread, and the narrowest window.
-                    self.assertEqual(found["audited"], len(IDS) + 2)
+                    # Each capability open, the list unread, and the narrowest window - on a screen that holds the
+                    # tabs on one row, and on the narrowest screen the window opens on at this scaling, where they take
+                    # two rather than be cut off.
+                    self.assertEqual(found["audited"], len(IDS) + 3)
 
     def test_the_audit_finds_what_does_not_fit(self):
         report = self.answer["canary"]["report"]
@@ -665,6 +818,9 @@ class LayoutTests(unittest.TestCase):
         self.assertRegex(report, r"advanced/%s/[^\n]*Label'NNNN[^\n]* :: needs " % IDS[0],
                          "a name 400 characters wide over the open capability's cards went unreported, so a quiet report "
                          "on them proves nothing")
+        self.assertRegex(report, r"at the narrowest on the narrowest screen/[^\n]*NavButton'TTTT",
+                         "a tab wider than the narrowest screen went unreported, so a quiet report on the tabs there "
+                         "proves nothing")
 
 
 class StandardWindowTests(unittest.TestCase):

@@ -82,6 +82,9 @@ namespace CodexAutoResume
                     form.TopLevel = false;
                     form.MinimumSize = Size.Empty;
                     form.ClientSize = new Size(form.Px(OpeningWidth), form.Px(OpeningHeight));
+                    // On a screen as wide as anything needs, whatever this machine's is: the window holds its tabs on one
+                    // row (HoldTabs), and the narrow screen is one the audit stands in on purpose (AuditNarrowestOn).
+                    form.advancedScreen = int.MaxValue;
                     use(form);
                 }
             }
@@ -106,9 +109,12 @@ namespace CodexAutoResume
         /// with what a policy refuses of it and every warning its statement carries - then with a list that could not
         /// be read. At each: the standard audit's Walk (anything cut off, a page that would scroll sideways, a field
         /// that is not a field high), a control with no name a screen reader can say, a pinned control out of its
-        /// corner, and the list's columns wider than it is. Last, the narrowest window there is - 800 wide less a
-        /// sizable frame's 8 px each side, as the standard audit's narrowest (AuditReopenNote), or as wide as the tabs,
-        /// this page's among them, where they need more (HoldTabs) - held to its tabs and its list (AuditNarrowest).
+        /// corner, and the list's columns wider than it is. Last, the narrowest window there is, held to its tabs and its
+        /// list (AuditNarrowest), on two screens that do not depend on this machine's: one as wide as anything needs,
+        /// where the window is 800 wide less a sizable frame's 8 px each side, as the standard audit's narrowest
+        /// (AuditReopenNote), or as wide as the tabs, this page's among them, where they need more (HoldTabs); and the
+        /// narrowest screen the window opens on at this scaling, TextScale.NarrowestWidth wide - the text size is fitted
+        /// so that one holds the standard window - where the tabs take a second row rather than be cut off.
         internal static string AdvancedLayoutAudit(string stringsJson, string wordsJson, string listingJson, string statementsJson,
                                                    double scale)
         {
@@ -141,13 +147,24 @@ namespace CodexAutoResume
                 {
                     form.ShowAdvancedList(listing);
                     form.OpenAdvanced(ids[0]);
-                    int frame = form.Width - form.ClientSize.Width;
-                    int narrowest = Math.Max(form.Px(800) - form.Px(16), form.MinimumSize.Width - frame);
-                    form.ClientSize = new Size(narrowest, form.ClientSize.Height);
-                    form.AuditNarrowest("advanced/" + ids[0] + " at the narrowest", findings);
+                    form.AuditNarrowestOn(int.MaxValue, "advanced/" + ids[0] + " at the narrowest", findings);
+                    form.AuditNarrowestOn(form.Px(TextScale.NarrowestWidth),
+                                          "advanced/" + ids[0] + " at the narrowest on the narrowest screen", findings);
                 }
             });
             return string.Join("\n", findings.ToArray());
+        }
+
+        /// The window as narrow as it goes on a screen `screen` px wide (HoldTabs), audited there (AuditNarrowest).
+        private void AuditNarrowestOn(int screen, string where, List<string> findings)
+        {
+            advancedScreen = screen;
+            MinimumSize = Size.Empty;
+            HoldTabs();
+            int frame = Width - ClientSize.Width;
+            ClientSize = new Size(Math.Max(Px(800) - Px(16), MinimumSize.Width - frame), ClientSize.Height);
+            FitTabs();
+            AuditNarrowest(where, findings);
         }
 
         /// The narrowest window, held to what it must never give up: every tab whole in the strip (the Walk of the
@@ -190,6 +207,11 @@ namespace CodexAutoResume
         ///   {"do": "reply", "key": ..., "with": [...]}        what the bridge answers from now on
         ///   {"do": "answer", "with": [...]}                   what the person answers the next questions
         ///   {"do": "look"}                                    what the page shows now, into "looks"
+        ///   {"do": "reopen"}                                  the arguments a reopen would start the next window with,
+        ///                                                     here (ReopenArguments), into "reopened"
+        ///   {"do": "open", "arguments": "..."}                a window opened with these arguments: read as Main and
+        ///                                                     BuildDashboard read them, and its first page shown as Load
+        ///                                                     shows it
         /// What it returns is the page as it was left (Look), with every look taken, every request sent ("<command>
         /// <argument>"), every question asked, every notice told, and each press of a button that could not be
         /// pressed.
@@ -205,6 +227,7 @@ namespace CodexAutoResume
                 foreach (object answer in Items(scenario, "answers") ?? new List<object>()) form.advancedAnswers.Add(Equals(answer, true));
                 var looks = new List<object>();
                 var disabled = new List<object>();
+                var reopened = new List<object>();
                 foreach (object entry in Items(scenario, "steps") ?? new List<object>())
                 {
                     var step = entry as Dictionary<string, object>;
@@ -232,7 +255,7 @@ namespace CodexAutoResume
                         if (form.advancedHourly == null || !form.advancedHourly.Enabled) disabled.Add("hourly");
                         else
                         {
-                            form.advancedHourly.SelectedIndex = Whole(Get(step, "value")) - 1;
+                            form.advancedHourly.Spin.Value = Whole(Get(step, "value"));
                             if (form.hourlyTimer != null) form.hourlyTimer.Stop();
                             form.SetHourly(form.hourlyChosen);
                         }
@@ -249,6 +272,20 @@ namespace CodexAutoResume
                     else if (what == "answer")
                         foreach (object answer in Items(step, "with") ?? new List<object>()) form.advancedAnswers.Add(Equals(answer, true));
                     else if (what == "look") looks.Add(form.Look());
+                    else if (what == "reopen")
+                        reopened.Add(ReopenArguments(form.currentPage ?? form.firstPage, form.currentSection,
+                                                     new Rectangle(100, 100, 1000, 700), false, "system", "soft", 1,
+                                                     Padding.Empty, form.FocusName()));
+                    else if (what == "open")
+                    {
+                        OpenRequest parsed = ParseArguments((Str(step, "arguments") ?? "").Split(' '));
+                        form.request.Page = parsed.Page;
+                        form.request.Focus = parsed.Focus;
+                        // BuildDashboard's first page, and the page's note of it (DashboardBuilt); then Load's ShowPage.
+                        if (parsed.Page != null) form.firstPage = parsed.Page;
+                        form.advancedReturning = form.firstPage == AdvancedPageName;
+                        form.ShowPage(form.firstPage);
+                    }
                 }
                 foreach (KeyValuePair<string, object> pair in form.Look()) result[pair.Key] = pair.Value;
                 result["looks"] = looks;
@@ -256,6 +293,7 @@ namespace CodexAutoResume
                 result["asked"] = new List<object>(form.advancedAsked.ToArray());
                 result["told"] = new List<object>(form.advancedTold.ToArray());
                 result["disabled"] = disabled;
+                result["reopened"] = reopened;
             });
             return Json.Write(result);
         }
@@ -285,6 +323,8 @@ namespace CodexAutoResume
             look["tab"] = advancedTab == null ? null : advancedTab.Text;
             look["tab_visible"] = advancedTab != null && OwnVisible(advancedTab);
             look["page"] = currentPage;
+            // Where a reopen would say the keyboard is (FocusName): on a window never shown, the tab of the page on screen.
+            look["focus"] = FocusName();
             var rows = new List<object>();
             if (advancedList != null)
                 foreach (ListViewItem item in advancedList.Items)
@@ -322,9 +362,11 @@ namespace CodexAutoResume
             look["requests"] = (double)advancedSent.Count;
             if (advancedHourly != null)
             {
+                // A number in a well, as every limit on the Settings page is (SoftNumber): its least, its most, its value.
                 var hourly = new Dictionary<string, object>();
-                hourly["choices"] = (double)advancedHourly.Items.Count;
-                hourly["chosen"] = (double)(advancedHourly.SelectedIndex + 1);
+                hourly["minimum"] = (double)advancedHourly.Spin.Minimum;
+                hourly["maximum"] = (double)advancedHourly.Spin.Maximum;
+                hourly["value"] = (double)advancedHourly.Spin.Value;
                 look["hourly"] = hourly;
             }
             else look["hourly"] = null;

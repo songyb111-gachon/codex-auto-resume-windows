@@ -76,7 +76,11 @@ PAGE_KEYS = tuple(PAGE_PREFIX + name for name in (
     "turn_on", "watch", "turn_off", "all_off",
     "confirm.on", "confirm.watch", "confirm.changed", "confirm.version",
     "done.on", "done.watch", "done.off", "done.all_off", "done.hourly",
-    "refused.changed", "refused.unavailable", "refused.other", "refused.hourly"))
+    "refused.changed", "refused.unavailable", "refused.other", "refused.hourly",
+    "statement_unavailable", "refused.unread",
+    "tripped", "tripped.measurement_failed", "tripped.failed_here", "tripped.incompatible",
+    "tripped.local_check_failed", "tripped.submission_unknown", "tripped.hook_exception",
+    "tripped.statement_changed", "tripped.engine_changed"))
 
 
 def name_key(capability) -> str:

@@ -70,5 +70,16 @@
   "page.refused.changed": "It kept changing while you read it, so nothing was turned on. Try again in a moment.",
   "page.refused.unavailable": "The advanced features could not be changed right now. Nothing was changed.",
   "page.refused.other": "That request was refused. Nothing was changed.",
-  "page.refused.hourly": "Something changed while you were choosing, so the limit stays as it was. Choose again."
+  "page.refused.hourly": "Something changed while you were choosing, so the limit stays as it was. Choose again.",
+  "page.statement_unavailable": "What this feature does cannot be read right now, so it cannot be turned on or watched.",
+  "page.refused.unread": "Something changed after this was shown, and how it stands now could not be read, so nothing was turned on. Try again in a moment.",
+  "page.tripped": "It turned itself off.",
+  "page.tripped.measurement_failed": "It turned itself off because a measurement of what it relies on failed.",
+  "page.tripped.failed_here": "It turned itself off because a compatibility check of what it relies on failed on this computer.",
+  "page.tripped.incompatible": "It turned itself off because the compatibility data says what it relies on does not work with this version of Codex.",
+  "page.tripped.local_check_failed": "It turned itself off because a check on this computer found that this version of Codex lacks what it relies on.",
+  "page.tripped.submission_unknown": "It turned itself off because it could not prove that a continuation it sent arrived.",
+  "page.tripped.hook_exception": "It turned itself off after an error of its own.",
+  "page.tripped.statement_changed": "It turned itself off because what it does has changed. Read it again before you turn it on.",
+  "page.tripped.engine_changed": "It turned itself off because the version of Codex changed. Turn it on again for this version if you want it."
 }

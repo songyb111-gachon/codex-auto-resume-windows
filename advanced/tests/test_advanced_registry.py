@@ -334,6 +334,28 @@ class ShippedCatalogTests(unittest.TestCase):
                 for kind in ("missing", "stale", "extra", "placeholders", "empty"):
                     self.assertEqual(found[kind], [], "%s %s" % (locale, kind))
 
+    def test_each_language_reads_as_one_voice(self):
+        """The Advanced features page shows the statements beside its own words and joins both in one question
+        (ArmQuestion), so a language says them in one voice: German in Sie throughout, as core's catalog and the page
+        are, with the feature as "sie" (die Funktion) in its titles and its text alike; Korean and Japanese with one
+        word for the standard edition, in the field's title and under it; and Korean's Watch first saying that the
+        feature is consulted, not that the person will be asked."""
+        tables = self.tables()
+        for key, value in tables["de"].items():
+            with self.subTest(locale="de", key=key):
+                self.assertIsNone(re.search(r"\b(du|dich|dir|dein\w*|Schalte|pausiere)\b", value, re.I), value)
+                self.assertIsNone(re.search(r"\b(setzt|handelt|beruht|registriert) es\b"
+                                            r"|\bEs (setzt|startet|registriert|beruht|handelt)\b|\bSein einziger\b",
+                                            value), value)
+                self.assertNotIn("Standardedition", value)
+        for definition in registry.DEFINITIONS:
+            self.assertIn("Schalten Sie", tables["de"][statement.key(definition.id, Field.STOP)])
+        for locale, edition, other in (("ko", "표준판", "표준 에디션"), ("ja", "標準版", "標準エディション")):
+            with self.subTest(locale=locale):
+                self.assertIn(edition, tables[locale][statement.title_key(Field.INSTEAD)])
+                self.assertFalse([key for key, value in tables[locale].items() if other in value])
+        self.assertNotIn("물어보고", tables["ko"]["page.confirm.watch"])
+
     def test_the_sentinel_is_the_first_key_so_the_audit_finds_it_at_the_top(self):
         for locale in l10n.LOCALES:
             with self.subTest(locale):
