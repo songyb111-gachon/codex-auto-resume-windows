@@ -983,19 +983,28 @@ namespace CodexAutoResume
             // v0.6.11: a value of the person's own, and Custom... last, where the schema offers one (SettingsOwn.cs).
             var custom = Map(field, "custom");
             if (custom != null) OwnItems(custom, value, items);
-            int index = 0, widest = 0;
+            int index = 0;
             foreach (Choice item in items)
             {
                 if (item.Value == value) index = combo.Items.Count;
                 combo.Items.Add(item);
-                widest = Math.Max(widest, TextRenderer.MeasureText(item.ToString(), Font).Width);
             }
-            // As wide as its longest choice in the well's padding, beside the chevron: "Use system
-            // setting" is longer than any choice a drop-down here had before, in every language.
-            combo.Width = Math.Max(Px(150), Math.Min(Px(300), widest + Px(Brand.SelectPadLeft + Brand.SelectPadRight + 4)));
+            FitChoices(combo);
             if (combo.Items.Count > 0) combo.SelectedIndex = index;
             if (custom != null) Own(combo, field, custom);
             return combo;
+        }
+
+        /// As wide as its longest choice in the well's padding, beside the chevron: "Use system setting" is longer
+        /// than any choice a drop-down here had before, in every language. Measured again whenever its items change -
+        /// a value of the person's own taken with Custom... (TakeOwn) - so it is as wide as the window would draw it
+        /// opened with that value stored, never cut off until then.
+        private void FitChoices(SoftCombo combo)
+        {
+            int widest = 0;
+            foreach (object item in combo.Items)
+                widest = Math.Max(widest, TextRenderer.MeasureText(item.ToString(), Font).Width);
+            combo.Width = Math.Max(Px(150), Math.Min(Px(300), widest + Px(Brand.SelectPadLeft + Brand.SelectPadRight + 4)));
         }
 
         private SoftTextArea TextArea(string text, string name)

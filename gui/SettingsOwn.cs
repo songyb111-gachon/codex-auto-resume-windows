@@ -156,6 +156,8 @@ namespace CodexAutoResume
                     at = Math.Max(0, combo.Items.Count - 1);
                     combo.Items.Insert(at, item);
                 }
+                // Its words may be longer than any item it was measured for.
+                FitChoices(combo);
             }
             combo.SelectedIndex = at;
         }

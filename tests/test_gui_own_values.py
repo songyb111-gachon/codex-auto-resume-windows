@@ -81,6 +81,32 @@ foreach ($case in (ConvertFrom-Json $env:CAR_COMBOS)) {
     $out.combos[[string]$case.name + '=' + [string]$case.value] = @{ items = $items; selected = $combo.SelectedIndex }
 }
 
+# A value taken with Custom... (TakeOwn), and the same value stored when the window opens: one width.
+$takeOwn = $formType.GetMethod('TakeOwn', $flags)
+$pickType = $assembly.GetType('CodexAutoResume.SettingsForm+OwnPick', $true)
+$out.takes = @{}
+foreach ($case in (ConvertFrom-Json $env:CAR_TAKES)) {
+    $field = $byName[[string]$case.name]
+    [Collections.Generic.Dictionary[string,object]]$before = New-Object 'System.Collections.Generic.Dictionary[string,object]'
+    $before.Add([string]$case.name, [string]$case.from)
+    $combo = $choiceCombo.Invoke($form, [object[]]@($field, $before, 'choice.'))
+    $built = [int]$combo.Width
+    $state = [Activator]::CreateInstance($pickType, $true)
+    $pickType.GetField('Field', $flags).SetValue($state, $field)
+    $pickType.GetField('Custom', $flags).SetValue($state, $field['custom'])
+    $choices = $pickType.GetField('Choices', $flags).GetValue($state)
+    foreach ($choice in $field['choices']) { $choices.Add([string]$choice) | Out-Null }
+    $takeOwn.Invoke($form, [object[]]@($combo, $state, [string]$case.take)) | Out-Null
+    [Collections.Generic.Dictionary[string,object]]$after = New-Object 'System.Collections.Generic.Dictionary[string,object]'
+    $after.Add([string]$case.name, [string]$case.take)
+    $reopened = $choiceCombo.Invoke($form, [object[]]@($field, $after, 'choice.'))
+    $out.takes[[string]$case.name + '=' + [string]$case.from] = @{ built = $built; taken = [int]$combo.Width;
+        reopened = [int]$reopened.Width; shown = [string]$combo.SelectedItem.ToString(); count = [int]$combo.Items.Count;
+        reopenedCount = [int]$reopened.Items.Count }
+    $combo.Dispose()
+    $reopened.Dispose()
+}
+
 function Walk($control, $found) {
     foreach ($child in $control.Controls) {
         $found.Add($child) | Out-Null
@@ -118,6 +144,10 @@ COMBOS = [{"name": "keep_awake_hours", "value": "m45"}, {"name": "keep_awake_hou
 DIALOGS = {"keep_awake_hours": "h36", "retry_wait_1": "s90", "quiet_hours_start": "07:05",
            "quiet_hours_days": "mon,fri", "memory_guard_limit": "mb1280", "context_guard": "unlimited"}
 STEPS = ["s90", "m45", "h1", "m300", "h5"]
+# Taken with Custom... from a drop-down built at `from`: a choice, and a value of the person's own it replaces.
+TAKES = [{"name": "quiet_hours_days", "from": "every_day", "take": "mon,tue,wed,thu,sat,sun"},
+         {"name": "quiet_hours_days", "from": "mon,fri", "take": "mon,tue,wed,thu,sat,sun"},
+         {"name": "keep_awake_hours", "from": "h1", "take": "m10079"}]
 
 
 @unittest.skipUnless(CSC.is_file() and POWERSHELL.is_file(), "needs the in-box compiler and PowerShell")
@@ -145,7 +175,7 @@ class WindowTests(unittest.TestCase):
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             env=dict(os.environ, CAR_EXE=str(exe), CAR_SCHEMA=json.dumps(settings.describe()), CAR_STRINGS=str(strings),
                      CAR_TAKEN=json.dumps(STORED), CAR_COMBOS=json.dumps(COMBOS), CAR_DIALOGS=json.dumps(DIALOGS),
-                     CAR_STEPS=json.dumps(STEPS)))
+                     CAR_STEPS=json.dumps(STEPS), CAR_TAKES=json.dumps(TAKES)))
         if result.returncode != 0:
             raise AssertionError(result.stderr)
         cls.seen = json.loads(result.stdout.strip().splitlines()[-1])
@@ -216,6 +246,19 @@ class WindowTests(unittest.TestCase):
                          "a value that is not one of its own starts at the least")
         self.assertEqual(dialogs["quiet_hours_days"]["checks"],
                          [[day, day in ("Mon", "Fri")] for day in ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")])
+
+    def test_a_value_taken_is_as_wide_as_the_window_opened_with_it(self):
+        # The drop-down was measured for its choices when it was built; a value of the person's own taken after that
+        # was cut off with an ellipsis until the window was opened again.
+        for case in TAKES:
+            key = case["name"] + "=" + case["from"]
+            with self.subTest(key):
+                seen = self.seen["takes"][key]
+                self.assertEqual(seen["count"], seen["reopenedCount"], "one item of the person's own")
+                self.assertEqual(seen["taken"], seen["reopened"])
+        days = self.seen["takes"]["quiet_hours_days=every_day"]
+        self.assertEqual(days["shown"], "Mon, Tue, Wed, Thu, Sat, Sun")
+        self.assertGreater(days["taken"], days["built"], "longer than any item it was built with")
 
     def test_the_retry_preview_reads_waits_of_the_persons_own(self):
         values = dict(settings.defaults(), retry_timing="custom",
@@ -347,7 +390,7 @@ class PanelTests(unittest.TestCase):
         # Typed and not yet saved: update_settings refuses s1, m1 and h99 at Save, and the watcher keeps the waits
         # it has. The line under the switch says nothing until every wait is one it would keep.
         def typed(name, unit, number):
-            return (self.pick(name, "own") + """
+            return (self.pick(name, "\u0001own") + """
               var editor = byId('car-%s').parentNode.parentNode.parentNode;
               var number = editor.all(function (n) { return n.tagName === 'input'; })[0];
               number.value = %s; number.fire('input');
