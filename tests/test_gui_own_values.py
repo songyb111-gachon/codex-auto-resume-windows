@@ -22,6 +22,7 @@ import unittest
 
 import guiscan
 from codex_auto_resume import l10n, ladder, ownvalues, settings
+from codex_auto_resume.mcp import panel as mcpui
 from test_mcpui_v064 import NODE, run_page, say, snapshot
 from test_own_values import TAKEN
 
@@ -323,6 +324,24 @@ class PanelTests(unittest.TestCase):
             ".map(function (n) { return n.textContent; })"), **values)
         self.assertEqual(len(observed), 1)
         self.assertIn("1m 30s · 45m · 1h · 5h · 5h", observed[0])
+
+    def test_a_count_is_grouped_as_the_choices_beside_it_are(self):
+        # 300,000 reads as 300 with decimals in German; the choices beside it say 100.000, and so does the Dashboard.
+        def spaced(text):
+            return re.sub("[\u00a0\u202f]", " ", text)
+        for locale in sorted(mcpui.panel_catalogs()):
+            catalog = l10n.catalog(locale)
+            apart = re.search(r"100(\D+)000", catalog["choice.above_100k"]).group(1)
+            observed = _panel("OPEN.limits = true; render();" + say("""(function () {
+              var s = byId('car-context_guard');
+              var editor = s.parentNode.parentNode.parentNode.children.filter(function (n) { return n.className === 'own'; })[0];
+              return {item: s.options[s.options.length - 2].textContent, hint: editor.children[0].textContent}; })()"""),
+                              interface_language=str(locale), context_guard="above_300k")
+            with self.subTest(str(locale)):
+                self.assertEqual(spaced(observed["item"]),
+                                 spaced(catalog["own.hold_above"].replace("{n}", "300" + apart + "000")))
+                self.assertEqual(spaced(observed["hint"]), spaced(catalog["own.range"].replace(
+                    "{low}", "10" + apart + "000").replace("{high}", "10" + apart + "000" + apart + "000")))
 
     def test_the_retry_preview_promises_no_wait_past_its_bounds(self):
         # Typed and not yet saved: update_settings refuses s1, m1 and h99 at Save, and the watcher keeps the waits

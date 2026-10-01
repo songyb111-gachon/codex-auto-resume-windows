@@ -1026,7 +1026,7 @@ function ownDuration(seconds) {
 }
 
 // A count in its words where the schema names them - "{n} MB", in plain digits as the choices beside it are -
-// or as a number grouped as the page groups one.
+// or as a number grouped as the page's language groups one (groupDigits).
 function ownCount(custom, amount, words) {
   var plain = !!words && words === custom.amount;
   var number = plain ? String(amount) : groupDigits(amount);
@@ -1485,9 +1485,19 @@ function pendingRow(row) {
   return item;
 }
 
-// A count with its thousands apart, the same in every language the page speaks.
+// A count with its thousands apart as the page's language groups them - 300.000 in German, 300 000 in Russian - as
+// the choices beside a value of the person's own are written and as the Dashboard groups it (OwnCount, N0), in the
+// digits every number on the page is in. A comma where the page speaks no language yet, or has no Intl.
 function groupDigits(count) {
-  return String(Math.max(0, Math.floor(count))).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  var whole = Math.max(0, Math.floor(count));
+  try {
+    if (LOCALE && typeof Intl === 'object' && typeof Intl.NumberFormat === 'function') {
+      return new Intl.NumberFormat(LOCALE + '-u-nu-latn', {useGrouping: true, maximumFractionDigits: 0}).format(whole);
+    }
+  } catch (unknown) {
+    // A language Intl does not know: grouped as below.
+  }
+  return String(whole).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
 function threadSwitch(row, shown) {
