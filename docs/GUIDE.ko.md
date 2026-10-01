@@ -9,10 +9,11 @@ Codex Auto Resume의 모든 내용을 한곳에 모은 안내서입니다. 짧�
 Codex가 작업 도중에 멈추고 오전 6시 34분에 다시 해 보라고 말합니다. 오전 6시 34분에 사용자는
 자고 있고, 아침에 보면 작업은 멈춘 그 자리 그대로입니다.
 
-Codex Auto Resume는 한도가 풀릴 때까지 기다렸다가, 이어 가도 정말 안전한지 확인한 뒤 **바로 그
-대화**를 이어서 진행시킵니다. 돌아왔을 때 멈춰 있는 작업이 아니라 끝난 작업을 보게 됩니다. 일시적인
-rate limit, 네트워크 장애, 시간 초과, 서버 오류, 끊긴 스트림도 복구하지만, 이름을 댈 수 있고 다시
-시도해도 안전한 장애일 때만 그렇게 합니다.
+Codex Auto Resume는 Codex가 알려 주는 사용량 한도(예를 들어 5시간 한도나 주간 한도)의 초기화
+시각까지 기다렸다가, 이어 가도 정말 안전한지 확인한 뒤 **바로 그 대화**를 이어서 진행시킵니다.
+돌아왔을 때 멈춰 있는 작업이 아니라 끝난 작업을 보게 됩니다. 일시적인 rate limit, 네트워크 장애,
+시간 초과, 서버 오류, 끊긴 스트림도 복구하지만, 이름을 댈 수 있고 다시 시도해도 안전한 장애일 때만
+그렇게 합니다.
 
 Windows ChatGPT/Codex 데스크톱 앱을 위한 작은 로컬 watcher입니다. Codex의 로컬 상태를 읽기 전용으로 관찰하고, 무엇이 실패했는지 분류한 뒤,
 공식 `codex queue` 명령으로 continuation 메시지 한 건을 보냅니다. watcher 자체에는 네트워크 코드가 없고, 이 프로젝트로 전송되는 것도
@@ -45,42 +46,6 @@ Codex에서 설치할 때는 GitHub에서 릴리스를 내려받습니다. 그�
 ## 설치
 
 **Windows 10/11. Python 불필요. 관리자 권한 불필요.**
-
-### 설치 파일로 설치
-
-[최신 릴리스](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest)에서
-`CodexAutoResume-Setup-vX.Y.Z.exe`를 받아 더블클릭합니다. 설치는 그것으로 끝이며, 압축을 풀 필요가 없습니다.
-설치 파일은 이번 릴리스부터 게시되므로, 최신 릴리스가 그보다 오래된 동안에는 [릴리스 목록](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases)에 있는
-이번 릴리스의 사전 릴리스에만 들어 있습니다.
-
-설치 파일은 [릴리스 압축 파일로 설치](#릴리스-압축-파일로-설치)의 릴리스 압축 파일을 파일 하나에 담은
-것입니다. 그 압축 파일을 바이트 그대로, 압축 파일의 SHA-256과 함께 담고 있습니다. 실행하면 압축 파일을 그
-digest와 대조해 다르면 멈추고, 임시 폴더 안에 새로 만든 자기만의 폴더에 압축을 푼 뒤, 그곳에서 그 압축
-파일의 `Install.cmd`를 실행합니다. 같은 설치기가 같은 콘솔 창에서 같은 질문을 하고 같은 결과로
-끝납니다. 그다음 그 폴더를 지웁니다. 아무것도 내려받지 않고, 관리자 권한이 필요 없으며, 자체 Python도
-가져오지 않습니다. 설치본은 압축 파일 안의 Python으로 실행됩니다. DLL은 Windows의 System32 폴더에서만
-불러오므로 다운로드 폴더에서 옆에 놓인 DLL은 절대 불러오지 않으며, 옆에 `.config` 파일이 있으면
-멈춥니다. 명령줄에서 실행하면 `-SkipStartup` 같은 스위치를 `Install.cmd`에 그대로 넘기며, 스위치와 평범한
-단어가 아닌 것은 거절합니다.
-
-코드 서명이 없으므로([릴리스 압축 파일로 설치](#릴리스-압축-파일로-설치)의 끝 참조), 실행할 때
-SmartScreen이 *Windows의 PC 보호*(Windows protected your PC) 창을 띄울 수 있습니다. **추가 정보**를 누른 뒤
-**실행**을 누릅니다. 이 경고는 파일에 서명이 없고 Microsoft에서 아직 평판이 쌓이지 않았다는 뜻일 뿐, 이
-프로젝트가 게시한 그 파일인지는 알려 주지 않습니다. 그것은 옆에 게시된 `.sha256`과 attestation이 알려
-줍니다. 내려받은 폴더에서 PowerShell로 다음을 실행합니다.
-
-```powershell
-(Get-FileHash .\CodexAutoResume-Setup-vX.Y.Z.exe -Algorithm SHA256).Hash
-gh attestation verify .\CodexAutoResume-Setup-vX.Y.Z.exe --repo songyb111-gachon/codex-auto-resume-windows
-```
-
-첫 값이 `.sha256` 파일의 값과 같아야 합니다. `scripts/release.json`은 설치 파일이 아니라 압축 파일의
-digest를 고정합니다. 설치 파일이 담은 압축 파일이 바로 그 고정된 압축 파일이며, 그것까지 확인하는
-방법은 [`docs/VERIFY.ko.md`](VERIFY.ko.md)에 있습니다. 설치 파일이 스스로 하는 digest 확인은 손상된
-다운로드를 잡아낼 뿐, 바꿔치기된 파일은 잡아내지 못합니다. 안의 압축 파일을 바꿀 수 있는 사람이라면 옆의
-digest도 바꿀 수 있기 때문입니다. Smart App Control을 켜 두었다면 설치 파일이 **실행** 선택지 없이
-차단될 수 있으며, 다른 경로가 실행하는 서명 없는 파일도 마찬가지로 차단될 수 있습니다. 이 프로젝트는
-Smart App Control을 끄라고 요청하지 않습니다.
 
 ### Codex에서 설치 (권장)
 
@@ -117,9 +82,44 @@ GitHub에서 추가한 플러그인에는 스킬과 그 설치 스크립트와 �
 [`docs/PLUGIN.ko.md`](PLUGIN.ko.md)를
 읽어 보세요.
 
+### 설치 파일로 설치
+
+[릴리스 목록](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases)에서
+`CodexAutoResume-Setup-vX.Y.Z.exe`를 받아(이번 릴리스의 두 번째 베타부터) 더블클릭합니다. 설치는 그것으로
+끝이며, 압축을 풀 필요가 없습니다.
+
+설치 파일은 [릴리스 압축 파일로 설치](#릴리스-압축-파일로-설치)의 릴리스 압축 파일을 파일 하나에 담은
+것입니다. 그 압축 파일을 바이트 그대로, 압축 파일의 SHA-256과 함께 담고 있습니다. 실행하면 압축 파일을 그
+digest와 대조해 다르면 멈추고, 임시 폴더 안에 새로 만든 자기만의 폴더에 압축을 푼 뒤, 그곳에서 그 압축
+파일의 `Install.cmd`를 실행합니다. 같은 설치기가 같은 콘솔 창에서 같은 질문을 하고 같은 결과로
+끝납니다. 그다음 그 폴더를 지웁니다. 아무것도 내려받지 않고, 관리자 권한이 필요 없으며, 자체 Python도
+가져오지 않습니다. 설치본은 압축 파일 안의 Python으로 실행됩니다. DLL은 Windows의 System32 폴더에서만
+불러오므로 다운로드 폴더에서 옆에 놓인 DLL은 절대 불러오지 않으며, 옆에 `.config` 파일이 있으면
+멈춥니다. 명령줄에서 실행하면 `-SkipStartup` 같은 스위치를 `Install.cmd`에 그대로 넘기며, 스위치와 평범한
+단어가 아닌 것은 거절합니다.
+
+코드 서명이 없으므로([릴리스 압축 파일로 설치](#릴리스-압축-파일로-설치)의 끝 참조), 실행할 때
+SmartScreen이 *Windows의 PC 보호*(Windows protected your PC) 창을 띄울 수 있습니다. **추가 정보**를 누른 뒤
+**실행**을 누릅니다. 이 경고는 파일에 서명이 없고 Microsoft에서 아직 평판이 쌓이지 않았다는 뜻일 뿐, 이
+프로젝트가 게시한 그 파일인지는 알려 주지 않습니다. 그것은 옆에 게시된 `.sha256`과 attestation이 알려
+줍니다. 내려받은 폴더에서 PowerShell로 다음을 실행합니다.
+
+```powershell
+(Get-FileHash .\CodexAutoResume-Setup-vX.Y.Z.exe -Algorithm SHA256).Hash
+gh attestation verify .\CodexAutoResume-Setup-vX.Y.Z.exe --repo songyb111-gachon/codex-auto-resume-windows
+```
+
+첫 값이 `.sha256` 파일의 값과 같아야 합니다. `scripts/release.json`은 설치 파일이 아니라 압축 파일의
+digest를 고정합니다. 설치 파일이 담은 압축 파일이 바로 그 고정된 압축 파일이며, 그것까지 확인하는
+방법은 [`docs/VERIFY.ko.md`](VERIFY.ko.md)에 있습니다. 설치 파일이 스스로 하는 digest 확인은 손상된
+다운로드를 잡아낼 뿐, 바꿔치기된 파일은 잡아내지 못합니다. 안의 압축 파일을 바꿀 수 있는 사람이라면 옆의
+digest도 바꿀 수 있기 때문입니다. Smart App Control을 켜 두었다면 설치 파일이 **실행** 선택지 없이
+차단될 수 있으며, 다른 경로가 실행하는 서명 없는 파일도 마찬가지로 차단될 수 있습니다. 이 프로젝트는
+Smart App Control을 끄라고 요청하지 않습니다.
+
 ### 릴리스 압축 파일로 설치
 
-설치 스크립트에 맡기지 않고 릴리스를 직접 내려받고 싶다면:
+플러그인의 설치 스크립트에 맡기지 않고 릴리스를 직접 내려받고 싶다면:
 
 1. [최신 릴리스](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest)에서
    `CodexAutoResume-vX.Y.Z-win-x64.zip`을 받습니다.
