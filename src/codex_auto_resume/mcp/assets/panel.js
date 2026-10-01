@@ -1044,6 +1044,19 @@ function ownLabel(custom, text) {
   return custom.kind === 'duration' ? ownDuration(amount) : ownCount(custom, amount, custom.label || custom.amount);
 }
 
+// What a value of the person's own measures, where the schema's words for its range say it is in that range - its
+// bounds, and its first unit as the finest - or -1. Only for what the page says of a value before Save: the retry
+// preview promises no wait the watcher would never keep. Whether a value is taken is still update_settings' answer.
+function ownWithin(custom, text) {
+  var amount = ownAmount(custom, text);
+  if (amount < 0 || !/^[a-z_]*[1-9][0-9]*[km]?$/.test(text)) return -1;
+  var finest = custom.kind === 'duration' ? OWN_UNITS.duration[(custom.units || ['s'])[0]] || 1
+    : OWN_UNITS.count[(custom.units || [''])[0]] || 1;
+  if (typeof custom.min === 'number' && amount < custom.min) return -1;
+  if (typeof custom.max === 'number' && amount > custom.max) return -1;
+  return amount % finest === 0 ? amount : -1;
+}
+
 // What the editor says above its fields: the range, or what a time of day and the days are.
 function ownHint(custom) {
   if (custom.kind === 'clock') return t('own.clock', 'A time of day, from 00:00 to 23:59.');
@@ -1777,6 +1790,7 @@ function renderRecovery(status, schema, now) {
     var high = element('p', 'callout', t('warn.high_limits', 'These limits are high: a task that keeps failing can be continued many times before it stops, and every continuation uses your Codex usage.'));
     var retell = function () {
       waits.textContent = retryPreview(limits);
+      waits.hidden = !waits.textContent;
       high.hidden = !highLimits(limits);
     };
     limits.forEach(function (entry) {
@@ -1837,9 +1851,10 @@ function retryPreview(limits) {
       var entry = byName['retry_wait_' + step];
       var table = entry && entry.seconds;
       var wait = entry ? read(entry.name) : null;
-      // v0.6.11: a wait of the person's own is read from its words; each lies within its bounds, which start at
-      // the floor after the first, so the floor adds nothing to it.
-      var own = table && typeof table[wait] !== 'number' ? ownAmount(entry.custom, wait) : -1;
+      // v0.6.11: a wait of the person's own is read from its words. One the watcher keeps lies within its bounds,
+      // which start at the floor after the first, so the floor adds nothing to it; one past them - typed, not yet
+      // saved, and refused when it is - gives no line at all rather than a wait that would never be kept.
+      var own = table && typeof table[wait] !== 'number' && entry.custom ? ownWithin(entry.custom, wait) : -1;
       if (own > 0) {
         seconds.push(own);
         continue;

@@ -324,6 +324,30 @@ class PanelTests(unittest.TestCase):
         self.assertEqual(len(observed), 1)
         self.assertIn("1m 30s · 45m · 1h · 5h · 5h", observed[0])
 
+    def test_the_retry_preview_promises_no_wait_past_its_bounds(self):
+        # Typed and not yet saved: update_settings refuses s1, m1 and h99 at Save, and the watcher keeps the waits
+        # it has. The line under the switch says nothing until every wait is one it would keep.
+        def typed(name, unit, number):
+            return (self.pick(name, "own") + """
+              var editor = byId('car-%s').parentNode.parentNode.parentNode;
+              var number = editor.all(function (n) { return n.tagName === 'input'; })[0];
+              number.value = %s; number.fire('input');
+              var u = byId('car-%s-unit'); u.value = %s; u.fire('change');
+              """ % (name, json.dumps(number), name, json.dumps(unit)))
+        line = say("ROOT_NODE.all(function (n) { return n.tagName === 'p' && !n.hidden"
+                   " && n.textContent.indexOf('Waits before') === 0; }).map(function (n) { return n.textContent; })")
+        observed = _panel("OPEN.limits = true; render();" + typed("retry_wait_1", "s", "1") + typed("retry_wait_2", "m", "1")
+                          + typed("retry_wait_3", "h", "99") + "var past = " + line.replace("process.stdout.write(", "(")
+                          + typed("retry_wait_1", "s", "5") + typed("retry_wait_2", "m", "45")
+                          + typed("retry_wait_3", "h", "6") + "var kept = " + line.replace("process.stdout.write(", "(")
+                          + say("{past: JSON.parse(past), kept: JSON.parse(kept)}"), retry_timing="custom")
+        self.assertEqual(observed["past"], [])
+        self.assertEqual(len(observed["kept"]), 1)
+        self.assertIn("5s · 45m · 6h · 15m · 15m", observed["kept"][0])
+        for name, step in (("retry_wait_1", "s1"), ("retry_wait_2", "m1"), ("retry_wait_3", "h99")):
+            with self.subTest(step):
+                self.assertIsNone(ownvalues.canonical(settings.OWN[name], step), "the rule refuses it too")
+
 
 if __name__ == "__main__":
     unittest.main()
