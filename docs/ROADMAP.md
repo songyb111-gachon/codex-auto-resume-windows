@@ -441,7 +441,7 @@ opens the pull request.
 
 ## v0.6.11 — Two editions, and the advanced edition's first capabilities
 
-**In development: the final release, after two pre-releases.**
+**In development: the final release, after three pre-releases.**
 
 
 v0.6.11 arrives in stages. **v0.6.11-alpha**, a pre-release, is the ground both editions stand on
@@ -449,8 +449,9 @@ and nothing else: the two editions built, audited and published together, update
 their edition, the places where core asks, and the advanced edition's own state, switches and
 measurements - with no capability yet to switch on. That is not a release on its own, and
 everything after it is built on it. **v0.6.11-beta**, a pre-release too, is everything v0.6.11 adds
-to the standard edition. The final **v0.6.11** is the advanced edition's first capabilities, and
-what came with them.
+to the standard edition. **v0.6.11-beta.2**, a third, is all of the final but the page that turns
+its capabilities on. The final **v0.6.11** is the advanced edition's first capabilities, and what
+came with them.
 
 The plan had four more stages of capabilities after the first, each to be published as a numbered
 beta. On 2026-09-28 the owner judged that this left too many steps before a release, so v0.6.11
@@ -473,9 +474,20 @@ person changes it, so that at its defaults the standard edition behaves as v0.6.
 a release on its own, so it is a beta and not a second alpha; it is a pre-release because the owner
 asked for one, ahead of the final that brings the advanced edition's capabilities.
 
+### v0.6.11-beta.2 ✅ — The final, but for the Advanced features page (a pre-release)
+
+Published as a pre-release; what it carries is in [CHANGELOG.md](CHANGELOG.md). The owner asked for
+it on 2026-10-01, carrying everything of the final's list below that was finished: the three
+capabilities, warnings in place of refusals, numbered pre-releases, the pre-release offer, a setup
+program per edition and the interface work. The Dashboard's **Advanced features** page was not
+finished, and it is the one place a capability is turned on, so in this pre-release the three are in
+the advanced edition's archive and none can be turned on from the window. The page comes with the
+final.
+
 ### v0.6.11 — The final: the advanced edition's first capabilities
 
-What the final adds to the two pre-releases:
+What the final adds to v0.6.11-alpha and v0.6.11-beta - all of it already in v0.6.11-beta.2 but the
+**Advanced features** page, and the picker below if it is finished in time:
 
 - **Three capabilities in the advanced edition**, each off until a person turns it on in the
   Dashboard's **Advanced features** page, after reading what it does and which standards it departs
@@ -507,10 +519,9 @@ What the final adds to the two pre-releases:
 - **A setup program per edition.** Each release also carries `CodexAutoResume-Setup-v<version>.exe`
   and `CodexAutoResume-Advanced-Setup-v<version>.exe`: one file holding its edition's archive, which
   runs that archive's own `Install.cmd`, with nothing to unzip.
-- **Interface work being built beside it**, on a branch of its own and not in this tree yet, and in
-  the final only if it is finished in time: the edition shown beside the version, a version and
-  edition picker in the Dashboard, the Careful style folded into Detailed, and Custom values and
-  Unlimited beside presets.
+- **Interface work.** The edition shown beside the version, the Careful style folded into Detailed,
+  and **Custom...** and **Unlimited** beside the presets are done. A version and edition picker in
+  the Dashboard is not, and is in the final only if it is finished in time.
 
 v0.6.11 and v0.6.12 go further than every release so far. Together they are planned to offer,
 aggressively, as many capabilities as any comparable program does, and more: before they were
@@ -849,10 +860,11 @@ Python modularization and a tidier landing page on GitHub, in a pre-release
 
         ↓
 
-v0.6.11-alpha → v0.6.11-beta → v0.6.11
+v0.6.11-alpha → v0.6.11-beta → v0.6.11-beta.2 → v0.6.11
 The ground both editions stand on, in a pre-release
 + the standard edition's additions, in a second pre-release
-+ the advanced edition's first capabilities, a pre-release offer and a setup program, in the final
++ the advanced edition's first capabilities, a pre-release offer and a setup program, in a third
++ the page that turns those capabilities on, in the final
 
         ↓
 
