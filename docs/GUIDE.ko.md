@@ -46,6 +46,41 @@ Codex에서 설치할 때는 GitHub에서 릴리스를 내려받습니다. 그�
 
 **Windows 10/11. Python 불필요. 관리자 권한 불필요.**
 
+### Codex에서 설치 (권장)
+
+플러그인을 추가한 뒤, Codex에게 **auto resume 설정해줘** 라고 말하면 됩니다.
+
+```
+codex plugin marketplace add songyb111-gachon/codex-auto-resume-windows
+codex plugin add codex-auto-resume@codex-auto-resume-windows
+```
+
+그러면 플러그인의 설치 스크립트가 실행됩니다. 이 저장소의 릴리스에서 해당 버전 압축 파일을
+HTTPS로 내려받아, 플러그인의
+[`scripts/release.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/scripts/release.json)에
+그 버전용으로 기록된 digest와 SHA-256을 대조합니다. 이 digest는 릴리스가 게시된 뒤 이 저장소에
+커밋되는 것으로, 릴리스 자체에서 오는 값이 아닙니다. 플러그인에 들어 있는 `release.json`에
+digest가 없는 버전이면 릴리스에 함께 게시된 `.sha256`과 대조하고, 그렇게 했다고 알려 줍니다.
+digest가 기록된 마지막 버전보다 새로운 버전이 여기에 해당하고, 설치된 플러그인 자신의 버전은
+언제나 여기에 해당합니다. 릴리스는 자기 자신의 digest를 담을 수 없고, 설치한 뒤에는 플러그인이 설치된
+사본에서 실행되기 때문입니다. 이어서 내용이 정말 이 제품의 이 버전인지 확인한 다음에야, 현재
+Windows 사용자에게만 설치합니다. 설치되는 것은 설치 폴더(기본값 `%USERPROFILE%\.codex-auto-resume`)
+안의 파일, 시작 메뉴 항목(알림이 켜져 있을 때이며, 기본값은 켜짐입니다), 사용자 단위 레지스트리 값, 그리고 Codex에 등록되는 이 플러그인과 그
+마켓플레이스(그 설치본을 가리킵니다)입니다. 플러그인의 지침에 따라 Codex가 실행하기 전에 무엇을
+할지 먼저 알려 줍니다.
+
+이 경로는 게시된 압축 파일을 내려받으며, v0.5.0부터 v0.5.7까지의 압축 파일은 모두 예전의 단일 작업(single-job) 릴리스
+워크플로가 빌드했습니다. 이 워크플로는 GitHub Actions를 고정되지 않은 태그로 참조했고, 그 실행 파일은 바이트 단위로 똑같이 다시 빌드할 수 없습니다. 무엇이
+이를 대신하는지는 [릴리스 압축 파일로 설치](#릴리스-압축-파일로-설치)의 2단계에 있습니다. 그 변경은 v0.6.0부터입니다.
+
+GitHub에서 추가한 플러그인에는 스킬과 그 설치 스크립트와 엔진의 Python 소스가 들어 있지만, 그
+소스를 실행할 인터프리터가 없고, 매니페스트에는 MCP 서버가 선언되어 있지 않습니다(함께 들어 있는
+`.mcp.json`이 가리키는 실행 파일은 릴리스에만 있습니다). 실제로 실행되는 워처와 설정 창과 패널의
+서버와 Windows 런타임은 모두 그 릴리스에서 옵니다.
+그래서 다운로드가 필요하며, 스크립트가 무엇을 하고 무엇을 하지 않는지 미리 확인하고 싶다면
+[`docs/PLUGIN.ko.md`](PLUGIN.ko.md)를
+읽어 보세요.
+
 ### 설치 파일로 설치
 
 [최신 릴리스](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest)에서
@@ -82,44 +117,9 @@ digest도 바꿀 수 있기 때문입니다. Smart App Control을 켜 두었다�
 차단될 수 있으며, 다른 경로가 실행하는 서명 없는 파일도 마찬가지로 차단될 수 있습니다. 이 프로젝트는
 Smart App Control을 끄라고 요청하지 않습니다.
 
-### Codex에서 설치 (권장)
-
-플러그인을 추가한 뒤, Codex에게 **auto resume 설정해줘** 라고 말하면 됩니다.
-
-```
-codex plugin marketplace add songyb111-gachon/codex-auto-resume-windows
-codex plugin add codex-auto-resume@codex-auto-resume-windows
-```
-
-그러면 플러그인의 설치 스크립트가 실행됩니다. 이 저장소의 릴리스에서 해당 버전 압축 파일을
-HTTPS로 내려받아, 플러그인의
-[`scripts/release.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/scripts/release.json)에
-그 버전용으로 기록된 digest와 SHA-256을 대조합니다. 이 digest는 릴리스가 게시된 뒤 이 저장소에
-커밋되는 것으로, 릴리스 자체에서 오는 값이 아닙니다. 플러그인에 들어 있는 `release.json`에
-digest가 없는 버전이면 릴리스에 함께 게시된 `.sha256`과 대조하고, 그렇게 했다고 알려 줍니다.
-digest가 기록된 마지막 버전보다 새로운 버전이 여기에 해당하고, 설치된 플러그인 자신의 버전은
-언제나 여기에 해당합니다. 릴리스는 자기 자신의 digest를 담을 수 없고, 설치한 뒤에는 플러그인이 설치된
-사본에서 실행되기 때문입니다. 이어서 내용이 정말 이 제품의 이 버전인지 확인한 다음에야, 현재
-Windows 사용자에게만 설치합니다. 설치되는 것은 설치 폴더(기본값 `%USERPROFILE%\.codex-auto-resume`)
-안의 파일, 시작 메뉴 항목(알림이 켜져 있을 때이며, 기본값은 켜짐입니다), 사용자 단위 레지스트리 값, 그리고 Codex에 등록되는 이 플러그인과 그
-마켓플레이스(그 설치본을 가리킵니다)입니다. 플러그인의 지침에 따라 Codex가 실행하기 전에 무엇을
-할지 먼저 알려 줍니다.
-
-이 경로는 게시된 압축 파일을 내려받으며, v0.5.0부터 v0.5.7까지의 압축 파일은 모두 예전의 단일 작업(single-job) 릴리스
-워크플로가 빌드했습니다. 이 워크플로는 GitHub Actions를 고정되지 않은 태그로 참조했고, 그 실행 파일은 바이트 단위로 똑같이 다시 빌드할 수 없습니다. 무엇이
-이를 대신하는지는 [릴리스 압축 파일로 설치](#릴리스-압축-파일로-설치)의 2단계에 있습니다. 그 변경은 v0.6.0부터입니다.
-
-GitHub에서 추가한 플러그인에는 스킬과 그 설치 스크립트와 엔진의 Python 소스가 들어 있지만, 그
-소스를 실행할 인터프리터가 없고, 매니페스트에는 MCP 서버가 선언되어 있지 않습니다(함께 들어 있는
-`.mcp.json`이 가리키는 실행 파일은 릴리스에만 있습니다). 실제로 실행되는 워처와 설정 창과 패널의
-서버와 Windows 런타임은 모두 그 릴리스에서 옵니다.
-그래서 다운로드가 필요하며, 스크립트가 무엇을 하고 무엇을 하지 않는지 미리 확인하고 싶다면
-[`docs/PLUGIN.ko.md`](PLUGIN.ko.md)를
-읽어 보세요.
-
 ### 릴리스 압축 파일로 설치
 
-설치 스크립트에 맡기지 않고 릴리스를 직접 내려받고 싶다면:
+플러그인의 설치 스크립트에 맡기지 않고 릴리스를 직접 내려받고 싶다면:
 
 1. [최신 릴리스](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest)에서
    `CodexAutoResume-vX.Y.Z-win-x64.zip`을 받습니다.
