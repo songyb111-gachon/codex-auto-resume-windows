@@ -84,8 +84,8 @@ GitHub에서 추가한 플러그인에는 스킬과 그 설치 스크립트와 �
 
 ### 설치 파일로 설치
 
-[릴리스 목록](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases)에서
-`CodexAutoResume-Setup-vX.Y.Z.exe`를 받아(이번 릴리스의 두 번째 베타부터) 더블클릭합니다. 설치는 그것으로
+[최신 릴리스](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest)에서
+`CodexAutoResume-Setup-vX.Y.Z.exe`를 받아(v0.6.10과 그 전의 릴리스에는 없습니다) 더블클릭합니다. 설치는 그것으로
 끝이며, 압축을 풀 필요가 없습니다.
 
 설치 파일은 [릴리스 압축 파일로 설치](#릴리스-압축-파일로-설치)의 릴리스 압축 파일을 파일 하나에 담은
