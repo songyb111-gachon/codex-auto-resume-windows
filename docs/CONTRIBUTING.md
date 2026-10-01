@@ -426,7 +426,10 @@ Three branches carry the documents three ways:
 
 CI holds the split: on a push to `main` no `*.ko.md` may exist, and on a push to `dev` every
 mapped one must (`tests/languages.py`, `tests/test_korean.py`), so dev cannot quietly skip its
-Korean checks and main cannot grow a Korean file back.
+Korean checks and main cannot grow a Korean file back. And dev is tested as main will hold it:
+`test.yml`'s `main-tree` job takes every `*.ko.md` off dev's tree, as a promotion does, and runs the
+release's suite on what is left, so a test that reads a Korean page without asking `tests/languages.py`
+whether this checkout holds one fails on dev - not on main, or in the release.
 
 `ko` was an independent fork until v0.5.5, with its own copy of the engine, the installer,
 the workflows and the tests. It ended up three releases behind while still telling Korean
