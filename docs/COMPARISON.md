@@ -42,6 +42,12 @@ each wait, a Cancel all with no retry-all beside it, and a Custom continuation m
 moves one entry out of *not exposed*. The deferred and rejected entries were re-read against
 this project's own reasons, and all of them stand.
 
+From v0.6.11 the product comes in two editions, built from one repository and released together.
+The **standard** edition is the one this file has always described, and every *this project* below
+means it unless a row says otherwise. The **advanced** edition adds capabilities the standard one
+refuses, each off until a person turns it on; *Rejected* says, row by row, which exist today and
+which both editions refuse.
+
 ## Others in the same space
 
 Re-surveyed on 2026-09-12: every project below was checked against its repository that day, and
@@ -58,7 +64,7 @@ being explicit about rather than quiet about.
 | [`Matrtex/codex-auto-retry-plugin`](https://github.com/Matrtex/codex-auto-retry-plugin) | A Python Codex plugin that retries high-demand, 429, 5xx and transient stream or network errors | Similar failure classes; a plugin rather than a background watcher, so it acts while Codex is running rather than waiting out a reset after you close the app |
 | [`ravhello/claude-codex-queue`](https://github.com/ravhello/claude-codex-queue) | A queue that continues Claude Code sessions and Codex App tasks after usage limits, preserving prompt order | Covers Claude Code as well, and is a queue rather than a failure classifier: it decides *when* to run queued work, where this decides *whether* a specific failure may be resumed at all |
 | [`StylesDevelopments/agent-autoresume`](https://github.com/StylesDevelopments/agent-autoresume) | Auto-resume for Claude Code and Codex across usage-limit resets, with iTerm2 and tmux watchers | macOS and Linux, and terminal-shaped: it watches and drives a terminal session. This is Windows-only and watches the desktop app's own state |
-| [`qxd-ljy/codex-goal-auto-retry-build`](https://github.com/qxd-ljy/codex-goal-auto-retry-build) | A Rust patch to Codex's own Goal auto-continuation, with reproducible source validation | It changes Codex; this does not. Goal state is something this project deliberately does not read or set |
+| [`qxd-ljy/codex-goal-auto-retry-build`](https://github.com/qxd-ljy/codex-goal-auto-retry-build) | A Rust patch to Codex's own Goal auto-continuation, with reproducible source validation | It changes Codex; this does not, in either edition. The standard edition never reads or sets goal state; the advanced edition's goal continuation, off until a person turns it on, sets an existing goal that a usage limit paused back to active through Codex's own app server |
 | [`tidingman/codex-retry-watcher`](https://github.com/tidingman/codex-retry-watcher) | A macOS menu-bar app that presses Codex Desktop's Retry button when the model is at capacity | Other platform, and the method this project rules out: it clicks the button for you |
 | [`Justin1491/codex-dashboard`](https://github.com/Justin1491/codex-dashboard) | A dashboard for understanding Codex usage and resets | Shows usage; recovers nothing |
 | [`terryso/claude-auto-resume`](https://github.com/terryso/claude-auto-resume) | The most-starred tool in this space (820 stars), resuming Claude CLI tasks when limits lift | Claude only, not Codex. Listed because it is where most people in this space have ended up, and because its one-line description is a lesson in being findable |
@@ -87,11 +93,14 @@ architecture, from its own reading of Codex's local state.
 | Classification | message and wrapper matching | structured `codexErrorInfo`, then HTTP status |
 | Unloaded threads | woken through a shared app-server | left alone until you open them |
 | Long-lived processes | supervisor, worker, optional app-server, MCP server | one watcher, plus an MCP server while Codex runs and one control process while the window is open |
-| Interface | tray icon, settings window, Codex panel | Start Menu Dashboard (Overview, Pending, History, Statistics, Diagnostics, Settings), notification-area icon with a popup, Codex panel, notifications with Don't resume and Open Dashboard; nine interface languages |
+| Interface | tray icon, settings window, Codex panel | Start Menu Dashboard (Overview, Pending, History, Statistics, Diagnostics, Settings), notification-area icon with a popup, Codex panel, notifications with Don't resume and Open Dashboard; sixteen interface languages |
 
 Neither column is a criticism. Retrying an unknown failure is a reasonable choice for a tool whose
 goal is to recover as much as possible. It is the wrong choice for this one, whose promise is
 narrower and, because of that, easier to trust: **it acts only on failures it can name.**
+The right-hand column is the standard edition. The advanced edition moves some of its answers
+toward the left, one capability at a time and only for a person who turns each on; the row-by-row
+account is under *Rejected*.
 
 ## Feature by feature
 
@@ -129,24 +138,40 @@ narrower and, because of that, easier to trust: **it acts only on failures it ca
 
 ### Rejected — a deliberate choice, not an omission
 
-| Feature | Why not |
-| --- | --- |
-| **Retrying unknown provider failures** on a separate budget | The single line that defines this project. A failure it cannot name is a failure it does not act on |
-| **Retrying authentication failures**, even with a lower limit | An auth failure needs a person. Retrying it can only burn attempts or lock an account |
-| **A shared local app-server** (`CODEX_APP_SERVER_WS_URL`) | It means owning a piece of Codex's own transport, and a bug in it degrades Codex itself rather than degrading recovery |
-| **Waking unloaded threads** via `thread/resume` | Follows from the above. The one route anybody has demonstrated - restoring an unloaded parent with its persisted settings - runs through that shared app-server, which means Codex pointing at an endpoint this project owns. Re-examined for v0.6.0 and still refused: an unloaded thread waits here until the user opens it, and the README states that limitation rather than engineering around it |
-| **Injecting items into a thread** (`thread/inject_items`) | Writing into a conversation by any route other than the documented queue is not something this tool should be able to do |
-| **Goal-state manipulation** | Reading and setting Codex's native goal state is a second model of what a task *is*, and every ambiguity in it becomes a way to resume the wrong work |
-| **Subagent recovery** | Recovering a child thread on a parent's behalf multiplies the identity problem that this project's safety rests on |
-| **Restoring model, provider, service tier, reasoning and permission settings** before recovery | It requires reading and replaying a slice of Codex's own session configuration. Here the thread is resumed as the user left it |
-| **Dispatching several due tasks at once** | Sequential dispatch under one lock is what makes the no-duplicate-send argument short enough to check |
+From v0.6.11 there are two editions, and a refusal here is the standard edition's: it keeps every
+one. The advanced edition builds what they ruled out, each capability off until a person turns it on
+in the Dashboard, after reading which of the standard edition's rules it breaks - except what both
+editions refuse. The middle column is what the advanced edition offers today; what it is still to
+build is under *Deferred*, below. Those rules are listed by id in [STANDARDS.md](STANDARDS.md), and
+[EDITIONS.md](EDITIONS.md) says what each edition is.
+
+| Feature | The standard edition refuses | The advanced edition offers, opt-in | Both refuse |
+| --- | --- | --- | --- |
+| **Retrying unknown provider failures** on a separate budget | The single line that defines this project. A failure it cannot name is a failure it does not act on | Not yet (v0.6.12) | Rules matched against a failure's text: the advanced edition's rules will read Codex's structured error tags only |
+| **Retrying authentication failures**, even with a lower limit | An auth failure needs a person. Retrying it can only burn attempts or lock an account | Not yet (v0.6.12) | Reading Codex's credentials; retrying a policy, permission or cancelled turn, which would get around a limit or override the person's own decision |
+| **A shared local app-server** (`CODEX_APP_SERVER_WS_URL`) | It means owning a piece of Codex's own transport, and a bug in it degrades Codex itself rather than degrading recovery | Not this. The marker-free and goal continuations start a short-lived `codex app-server` of their own for each send - one call, or at most two for the goal continuation where the app holds the conversation (`thread/goal/set`, then `thread/queue/add`) - which nothing else talks to (`advanced/src/codex_auto_resume_advanced/codex/protocol.py`) | Owning Codex's transport: a shared app-server, a proxy or a retry gateway would mean changing how Codex starts or connects |
+| **Waking unloaded threads** via `thread/resume` | Follows from the above. The one route anybody has demonstrated - restoring an unloaded parent with its persisted settings - runs through that shared app-server, which means Codex pointing at an endpoint this project owns. Re-examined for v0.6.0 and still refused: an unloaded thread waits here until the user opens it, and the README states that limitation rather than engineering around it | Nothing is woken. For a usage limit, the goal continuation sets the paused goal of a conversation the app does not hold active again, so that Codex carries it on when the app next opens that conversation - which no record shows yet: measurement M2 found only that the app does not take such a goal up while it holds the conversation. Waking one is v0.6.12's | — |
+| **Injecting items into a thread** (`thread/inject_items`) | Writing into a conversation by any route other than the documented queue is not something this tool should be able to do | The marker-free continuation adds its message to the conversation's own queue through the app server (`thread/queue/add`), the queue `codex queue` fills | `thread/inject_items`, and writing into a subagent's thread |
+| **Goal-state manipulation** | Reading and setting Codex's native goal state is a second model of what a task *is*, and every ambiguity in it becomes a way to resume the wrong work | The goal continuation: for a usage limit, the conversation's existing goal that the limit paused is set active again (`thread/goal/set`), its status read back | Creating a goal, and reading or changing what a goal says |
+| **Subagent recovery** | Recovering a child thread on a parent's behalf multiplies the identity problem that this project's safety rests on | Not yet (v0.6.12) | Writing into the child's thread: v0.6.12 recovers through the parent |
+| **Restoring model, provider, service tier, reasoning and permission settings** before recovery | It requires reading and replaying a slice of Codex's own session configuration. Here the thread is resumed as the user left it | Not yet (v0.6.12) | — |
+| **Dispatching several due tasks at once** | Sequential dispatch under one lock is what makes the no-duplicate-send argument short enough to check | Not yet (v0.6.12) | More than one send in flight in one conversation |
+| **Starting the watcher when Codex starts** | Codex runs a plugin's server in a job that ends everything it starts, a few seconds later (measured for v0.6.9), so the standard edition refuses where the job would end the watcher | Start with Codex, through WMI: the watcher is started outside Codex's job and outlives it (measurement MW) | — |
+| **A continuation with no marker** | The marker is how the standard edition proves which message arrived | The marker-free continuation: delivery proven by a client id derived from the interruption instead (measurement M7) | — |
+| **Failures only the desktop app's renderer sees** - `writerConflict`, `resumeError`, `sharedTaskUnavailable`, `threadHandoff` | — | — | They are events inside the app, not errors Codex writes to its history; reaching them would mean injecting into the app |
+| **Priming a usage window**, or keep-alive messages | — | — | A message whose only purpose is to start, align or keep a usage window shapes the service's limits instead of doing the person's work |
+| **Rotating accounts**, or switching automatically when a limit hits | — | — | Its purpose is to evade a usage limit. v0.6.12 switches the active account on the person's command only |
+| **Patching Codex, UI automation or code injection** - clicking Retry, a DevTools hook, a patched app or binary | — | — | Both editions act on Codex only through its official interfaces: `codex queue`, its app server and its plugin |
+| **Answering approval or permission prompts automatically** | — | — | The app's approval requests go only to its own private server, and granting one unattended takes away the person's own safety decision; every request a session of the advanced edition receives is declined |
 
 ### Deferred — reasonable, not now
 
 | Feature | Condition |
 | --- | --- |
-| **Empty-response recovery** — treating a completion with no assistant reply as a temporary failure | Re-examined for v0.6.0. Their handling is careful and privacy-bounded — a boolean for whether a final message was present, never its contents — and they now also note that Codex's own "finished a turn" popup fires before a completion can be classified, so a false completion cannot be un-notified. The failure is real and the detection can be content-free. It stays out because nothing in this repository has ever seen one: distinguishing it from a model that legitimately had nothing to say needs privacy-stripped structural captures from real Codex history, and there are none. It would ship default-off |
-| **A break-glass "safely disable" action** | Their version exists because shared mode can leave Codex pointing at a dead endpoint. Nothing here can put Codex in a state it needs rescuing from, so the action has nothing to undo. If that ever stops being true, this becomes required rather than optional |
+| **Empty-response recovery** — treating a completion with no assistant reply as a temporary failure | Re-examined for v0.6.0. Their handling is careful and privacy-bounded — a boolean for whether a final message was present, never its contents — and they now also note that Codex's own "finished a turn" popup fires before a completion can be classified, so a false completion cannot be un-notified. The failure is real and the detection can be content-free. It stays out of the standard edition because nothing in this repository has ever seen one: distinguishing it from a model that legitimately had nothing to say needs privacy-stripped structural captures from real Codex history, and there are none. The advanced edition plans it for v0.6.12, recognised by the kinds of item a turn left - no agent message and no progress - once per turn and off until a person turns it on |
+| **A break-glass "safely disable" action** | Their version exists because shared mode can leave Codex pointing at a dead endpoint. Nothing in either edition today can put Codex in a state it needs rescuing from, so the action has nothing to undo. v0.6.12 plans the first thing that could: the advanced edition writing Codex's own retry settings through its official configuration. That capability comes with the undo - the settings backed up, and put back when it is turned off or the product uninstalled |
+| **The rest of the advanced edition** - unknown failures on their own budget, a sign-in failure retried after proof, an unloaded conversation queued until it is opened or run headless, subagent recovery through the parent, several conversations at once, a headless run with the settings Codex saved for the conversation | v0.6.12, in the advanced edition only, each off until a person turns it on; the [roadmap](ROADMAP.md) lists them all. v0.6.11 was released with the first three capabilities, and the rest moved there whole |
+| **Watching several Codex homes** | v0.6.12, in the standard edition. It waited on a measurement of whether the desktop app runs on a second Codex home at all, which passed on 2026-09-28 |
 
 **Re-read for v0.6.3 on 2026-09-14**, against this project's own reasons rather than against
 the other projects, which were not re-surveyed for it. Empty-response recovery stays deferred:
@@ -154,6 +179,12 @@ there are still no privacy-stripped captures of a real one to tell it apart from
 had nothing to say. Waking unloaded threads, goal-state manipulation and subagent recovery stay
 rejected, for the reasons in their rows. v0.6.3 changed what the product says and shows, and
 nothing in it moved a condition any of those reasons rests on.
+
+**Re-read for v0.6.11 on 2026-09-28**, against this project's own reasons again; the other
+projects were not re-surveyed. Every refusal above still binds the standard edition, and nothing in
+v0.6.11 moved a condition any of them rests on. What changed is that the refusals are now the
+standard edition's, and *Rejected* says, beside each, what the advanced edition does instead - goal
+state and a continuation with no marker among them - and what both editions still refuse.
 
 ## The line that decides
 
@@ -167,3 +198,8 @@ under exactly that test: they change how the product is *configured and explaine
 them can recover anything. So were v0.6.3's - nine languages, the continuation message's styles
 and Custom text, a popup and a redesign - and the classifier, the gates and the one watcher
 allowed to send are the ones v0.6.2 had.
+
+This is the standard edition's line, and it keeps it. The advanced edition exists so that a person
+who wants more can have it without the standard edition's code holding any of it: its capabilities
+are left out of the standard archive, and `build/edition_audit.py` proves from the archives' own
+bytes, in every release build, that none of them is there.

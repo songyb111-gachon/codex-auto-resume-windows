@@ -74,7 +74,7 @@ class NewLanguagesTests(unittest.TestCase):
     def test_every_new_language_has_its_own_text_for_every_style_and_reason(self):
         later = [locale for locale in l10n.LOCALES if locale not in self.V0610]
         self.assertEqual(len(later), 9)
-        self.assertIn("careful", self.WITH_TEXT)
+        self.assertEqual(self.WITH_TEXT, ("minimal", "standard", "detailed"))
         for locale in later:
             for style in self.WITH_TEXT:
                 for category in reasons.RECOVERABLE:

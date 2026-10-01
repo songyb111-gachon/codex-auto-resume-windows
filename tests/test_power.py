@@ -54,8 +54,11 @@ class PolicyTests(unittest.TestCase):
         self.assertFalse(power.listens(defaults))
 
     def test_the_settings_take_only_their_closed_lists(self):
-        for name, good, bad in (("ask_after_sleep_minutes", "h2", "h5"), ("keep_awake", "on_ac", "on"),
-                                ("keep_awake_hours", "h24", "h48"), ("wait_for_network", True, "true")):
+        # v0.6.11: a sleep or a stretch awake of the person's own (Custom...) is within its bounds or refused.
+        for name, good, bad in (("ask_after_sleep_minutes", "h2", "h169"), ("ask_after_sleep_minutes", "h5", "m4"),
+                                ("keep_awake", "on_ac", "on"), ("keep_awake_hours", "h24", "m10"),
+                                ("keep_awake_hours", "h48", "h169"), ("keep_awake_hours", "unlimited", "forever"),
+                                ("wait_for_network", True, "true")):
             with self.subTest(name):
                 self.assertEqual(settings.validate_update({name: good}), {name: good})
                 with self.assertRaises(settings.SettingsError):
@@ -68,6 +71,9 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual(power.awake_cap(values()), 6 * HOUR)
         self.assertEqual(power.awake_cap(values(keep_awake_hours="h1")), HOUR)
         self.assertEqual(power.awake_cap({"keep_awake_hours": "forever"}), 6 * HOUR)
+        self.assertEqual(power.awake_cap(values(keep_awake_hours="m45")), 45 * 60)
+        self.assertIsNone(power.awake_cap(values(keep_awake_hours="unlimited")), "Unlimited: no cap while a task waits")
+        self.assertEqual(power.sleep_threshold(values(ask_after_sleep_minutes="m45")), 45 * 60)
         self.assertTrue(power.listens(values(ask_after_sleep_minutes="h1")))
         self.assertTrue(power.listens(values(keep_awake="always")))
 

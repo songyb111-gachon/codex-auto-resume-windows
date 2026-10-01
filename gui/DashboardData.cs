@@ -418,7 +418,7 @@ namespace CodexAutoResume
                 }
                 if (diagVersion != null)
                 {
-                    diagVersion.Text = "v" + Convert.ToString(Get(status, "version"), CultureInfo.InvariantCulture);
+                    diagVersion.Text = VersionLine(status);
                     diagWatcher.Text = watcherFull;
                     diagEngine.Text = engineText;
                     diagLastCheck.Text = Ago(last);

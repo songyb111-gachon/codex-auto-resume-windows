@@ -371,6 +371,8 @@ class WatcherMixin:
                 pending = sum(count for state, count in counts.items() if state not in TERMINAL)
         status = {
             "version": _version(),
+            # v0.6.11: the edition, which every surface that shows the version names beside it (edition.shown).
+            "edition": edition.shown(self.plug),
             # v0.6.11: an administrator's DisableAutoResume is a pause at once, before the watcher has
             # written it into the state (runtime/app.py).
             "enabled": bool(stored["enabled"]) and not held.disable_auto_resume,

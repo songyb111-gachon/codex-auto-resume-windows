@@ -324,10 +324,14 @@ for the user or adds a line to its notification, and never sends anything sooner
 notifications appear, the interface language, the theme (light, dark, or following the system), the
 panel's own theme in Codex (`panel_theme`: the same as the theme, Codex's, light or dark), the
 continuation language, the message style
-(Minimal, Standard, Detailed, Custom or, from v0.6.11, Careful - the Standard message with a request
-not to repeat anything that already changed files, pushed, sent or published something), and whether
+(Minimal, Standard, Detailed or Custom), and whether
 a Custom message is one message for every
-interruption or one per kind. The window has things `update_settings` does not offer: the
+interruption or one per kind. From v0.6.11 a setting chosen from a list also takes a value of the
+user's own in the same words, within the range its schema description gives - quiet hours at any
+minute (`13:15`) and on any days (`mon,wed,fri`), a custom wait, the time ceiling, the stall or the
+sleep as `m45` or `h36`, the context-cost limit as `above_300k` - and a value past that range is
+refused; never offer one past it or say a safety limit can be lifted. The window has things
+`update_settings` does not offer: the
 notification-area icon, Reduce motion (the one way to stop the animations), the Design (Soft, Classic
 or Plain), the notification card, and, from v0.6.11, Keep this PC awake while a task waits (and for how
 many hours at most), the memory guard (and its limit), and the status file for other tools - each a

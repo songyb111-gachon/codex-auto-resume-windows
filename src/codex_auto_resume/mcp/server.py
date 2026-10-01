@@ -48,7 +48,11 @@ from .tools import RESOURCES, SETTINGS_UI, TOOLS, plugged_tools, settings_schema
 PROTOCOL_VERSION = "2025-06-18"
 SUPPORTED_PROTOCOLS = (PROTOCOL_VERSION, "2025-03-26", "2024-11-05")
 SERVER_NAME = "codex-auto-resume"
-# How long a finished server waits for its start-with-Codex launch (control.start_for_codex).
+# How long a finished server waits for its start-with-Codex launch (control.start_for_codex),
+# and never more: the thread is a daemon, so once the grace is up the interpreter does not wait
+# for it at exit. Without that, the advanced WMI route's PowerShell runs on this thread under a
+# 30 s timeout (advanced control/codexstart.py), and a finished server process could linger for
+# up to that long. The watcher's own single-instance mutex settles any launch cut short here.
 STARTER_GRACE_SECONDS = 3.0
 
 # JSON-RPC error codes we actually use.
@@ -503,7 +507,8 @@ def main(argv=None) -> int:
     starter = None
     if home:
         import threading
-        starter = threading.Thread(target=control.start_for_codex, name="start-for-codex")
+        starter = threading.Thread(target=control.start_for_codex, name="start-for-codex",
+                                   daemon=True)
         starter.start()
     try:
         return Server(control).serve()

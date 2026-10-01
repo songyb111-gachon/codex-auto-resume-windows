@@ -194,6 +194,8 @@ namespace CodexAutoResume
                         form.AuditLogs(findings);
                         form.AuditConversationMessage(snapshot, findings);
                     }
+                    // v0.6.11: the dialog of a value of the person's own, of each kind the schema offers (SettingsOwn.cs).
+                    form.AuditOwnValues(schema, findings);
                     // The Start button shows only while the watcher is stopped: shown for this, and hidden again.
                     form.startButton.Visible = true;
                     Materialise(form);

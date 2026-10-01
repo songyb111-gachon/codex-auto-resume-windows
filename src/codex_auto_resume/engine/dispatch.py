@@ -1,14 +1,17 @@
 """Sending one continuation, and everything checked at the last moment.
 
-`attempt` gathers the facts and evaluates the gates, `dispatch` claims the right to send and
-starts the queue process, and `presend_problem` is the look taken after the claim and before
-the process - the only moment where giving the claim back is still provably safe.
+`attempt` gathers the facts and evaluates the gates, and `dispatch` claims the right to send and
+starts the queue process, after `presend_problem` (engine/delivery.py), the look taken after the
+claim and before the process - the only moment where giving the claim back is still provably safe.
 
-The edition's plug is asked here at five points, every one of them after the consent gate: the
+The edition's plug is asked here at seven points, every one of them after the consent gate: the
 schedule (P7) and the gates (P3) once core's own evaluation has passed, where the one thing it
-can answer yet is HOLD; the words (P4) and what the send is handed to (P5) before the claim;
-and its ledger (P11) inside the claim. Whatever it answers, the send is still this module's
-one call, made after the one claim, the pre-send look and inside the launch guard.
+can answer yet is HOLD; what continues a conversation the app does not hold (P16,
+engine/delivery.py) where core would wait for it to be opened; the words (P4), what the send is
+handed to (P5) and how it is carried and proven (P15, engine/delivery.py) before the claim; and
+its ledger (P11) inside the claim. Whatever it answers, the send is still this module's one call,
+made after the one claim, the pre-send look (engine/delivery.py) and inside the launch guard, and
+a route named at P16 is carried out the same way in its place.
 """
 from __future__ import annotations
 
@@ -112,17 +115,21 @@ class DispatchMixin:
             self._wait(row, "waiting_for_app", "desktop_app_unavailable", poll, vector)
             return
         loaded = self.backend.loaded(row["thread_id"], app)
-        if loaded != "loaded":
+        # P16: a conversation the app does not hold waits for it to be opened (A11), unless the
+        # plug names a route that continues it otherwise, which core carries out (engine/delivery.py).
+        route = self._unloaded(row, loaded, vector)
+        if route is None and loaded != "loaded":
             reason = "notLoaded" if loaded == "notLoaded" else "loaded_state_unknown"
             vector["thread_available"] = machine.gate(
                 machine.WAIT if loaded == "notLoaded" else machine.UNKNOWN, reason)
             self._wait(row, "waiting_for_loaded_thread", reason, poll, vector)
             return
-        vector["thread_available"] = machine.gate(machine.PASS)
-        if self._plugged("thread_available", row, vector):
-            return
-        if row["state"] != "waiting_for_usage":
-            self.log(row["thread_id"], "loaded", None)
+        if route is None:
+            vector["thread_available"] = machine.gate(machine.PASS)
+            if self._plugged("thread_available", row, vector):
+                return
+            if row["state"] != "waiting_for_usage":
+                self.log(row["thread_id"], "loaded", None)
         if self.source.foreign_queued(row["thread_id"], row["marker"]):
             # Somebody already queued something for this conversation. It goes first,
             # and it may well make our continuation unnecessary.
@@ -161,7 +168,7 @@ class DispatchMixin:
         # v0.6.11: the task-changed guard, which reads nothing at the defaults (engine/guard.py).
         if self._guarded(row, vector, now) or self._objection(row, vector, now):
             return
-        self.dispatch(row, app, vector, limits)
+        self.dispatch(row, app, vector, limits, route)
 
     def _plugged(self, name, row, vector) -> bool:
         """P3: gate `name`, which core has just passed, put to the plug. True if it held. Never asked
@@ -205,9 +212,11 @@ class DispatchMixin:
         except Exception:
             return message, False
 
-    def dispatch(self, row, app, vector, limits):
+    def dispatch(self, row, app, vector, limits, route=None):
         """Claim, re-check, send. The only method that sends: to core's backend, or to the
-        channel the plug names at P5, and either way through the one call below."""
+        channel the plug names at P5, and either way through the one call below. With a `route`
+        (P16) there is no send: the conversation is still one the app does not hold, and the
+        route is carried out in its place (engine/delivery.py)."""
         key = row["interruption_id"]
         with self.dispatch_lock():
             current = self.store.get(key)
@@ -216,13 +225,18 @@ class DispatchMixin:
             if not self.valid_interruption(current):
                 self.transition(current, *self.supersede_reason(current))
                 return
-            # A fresh process identity prevents a prior app's status authorizing a new app.
+            # A fresh process identity prevents a prior app's status authorizing a new app. A
+            # route is for a conversation the app does not hold, and only while it still does not.
             if (self.backend.app_identity() != app
-                    or self.backend.loaded(current["thread_id"], app) != "loaded"):
+                    or self.backend.loaded(current["thread_id"], app) != (
+                        "loaded" if route is None else "notLoaded")):
                 self.transition(current, "waiting_for_loaded_thread", "loaded_recheck_failed", delay=60)
                 return
             if self.usage().get("available") is not True:
                 self.transition(current, "waiting_for_usage", "usage_recheck_failed", delay=900)
+                return
+            if route is not None:
+                self._resume_unloaded(current, vector, limits, route, app)
                 return
             # The text is decided before the claim, not after it. Building it reads catalogs
             # and settings; if either were ever broken, the failure has to happen while the
@@ -244,13 +258,17 @@ class DispatchMixin:
             # names a channel. The one binding of the one sender; whichever it is gets the one
             # send below, after the claim and the pre-send look, inside the launch guard.
             sender = self.plug.sender(current, self.backend)
+            # P15, decided like them before the claim, and written into the record before it.
+            client = self._delivery(current, sender)
             # P11 is asked inside the claim, once every check the store makes there has passed.
             # The claim is told which of the plug's answers the send carries - its words, its
-            # channel - as decided here, where words that fill in to nothing were dropped: those
-            # are paid for in its ledger, so a ledger that breaks holds the claim instead of
-            # letting them go out unpaid, and nothing core dropped is paid for or held.
+            # channel, its way of carrying them - as decided here, where words that fill in to
+            # nothing were dropped: those are paid for in its ledger, so a ledger that breaks holds
+            # the claim instead of letting them go out unpaid, and nothing core dropped is paid
+            # for or held.
             carried = frozenset(point for point, taken in ((Point.TEXT, worded),
-                                                           (Point.SENDER, sender is not self.backend))
+                                                           (Point.SENDER, sender is not self.backend),
+                                                           (Point.DELIVERY, client is not None))
                                 if taken)
             at = self.clock()
             claimed, gate, reason = self.store.reserve_detailed(
@@ -262,6 +280,9 @@ class DispatchMixin:
             self.moved(current, "submitting")
             claim = self.store.get(key)
             problem = self.presend_problem(claim)
+            if problem is None and client is not None and self.proof(claim) != client:
+                # Never sent under an id the watch would not look for (engine/delivery.py).
+                problem = ("waiting_retry", "released_before_send", self.options["state_poll_seconds"])
             if problem is not None:
                 target, why, delay = problem
                 self._release(key, claim, target, why, delay)
@@ -271,11 +292,13 @@ class DispatchMixin:
             # Reservation is durable before any external process can accept the message.
             # The conversation and the marker are the claimed row's, read back from the store
             # after the claim - the row the pre-send look and the launch guard judged - and not
-            # the dict the plug's points were asked about before it.
+            # the dict the plug's points were asked about before it. With no marker (P15), the
+            # client id that row holds goes with the words instead (engine/delivery.py).
+            words, carrying = ((message, {"client_id": client}) if client is not None
+                               else (message + "\n\n" + claim["marker"], {}))
             try:
-                response = sender.send(claim["thread_id"],
-                                       message + "\n\n" + claim["marker"],
-                                       launch_guard=self.store.submission_guard(key))
+                response = sender.send(claim["thread_id"], words,
+                                       launch_guard=self.store.submission_guard(key), **carrying)
             except Exception:
                 response = {"outcome": "unknown"}
             if not isinstance(response, dict):
@@ -316,34 +339,3 @@ class DispatchMixin:
                                 retry_count=retry, submitted_at=None, delay=delay)
         else:
             self.transition(reserved, "submission_unknown", "queue_result_unknown_do_not_resend", delay=1)
-
-    def presend_problem(self, claim):
-        """The last look before the queue process starts. Returns (target, reason,
-        delay) to give the claim back, or None to send.
-
-        Anything that changed since the gates ran - a cancel, a Pause, a disabled
-        thread, a newer turn, somebody else's queued message, another copy of our
-        marker - is caught here, where giving the claim back is still proven safe.
-        """
-        poll = self.options["state_poll_seconds"]
-        if claim is None or claim["state"] != "submitting" or claim["queue_id"] is not None:
-            return "waiting_retry", "released_before_send", poll
-        if claim["cancel_requested"]:
-            return "cancelled", "user_cancelled", 0
-        now = self.clock()
-        if (not self.allowed(claim) or (claim.get("not_before") or 0) > now    # schema 4's, and
-                or self.quiet_until(now) is not None):                         # quiet hours
-            return self.waiting_state(claim), "released_before_send", poll
-        if not self.valid_interruption(claim):
-            state, reason = self.supersede_reason(claim)
-            return state, reason, 0
-        if self._projection_now(claim["thread_id"]) is not True:
-            return "waiting_for_loaded_thread", "projection_stale", poll
-        if self.source.foreign_queued(claim["thread_id"], claim["marker"]):
-            return "waiting_retry", "user_input_queued", poll
-        presence = self.source.marker_presence(claim["thread_id"], claim["marker"])
-        if presence.get("history") or presence.get("queue"):
-            return "superseded", "duplicate_owner", 0
-        if not self.home_lock():
-            return "waiting_for_app", "home_lock_unavailable", poll
-        return None

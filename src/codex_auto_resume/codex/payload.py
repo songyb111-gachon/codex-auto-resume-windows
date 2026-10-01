@@ -1,7 +1,8 @@
 """Reading one interruption out of what Codex recorded.
 
-`detect` turns a failed turn into the record the engine keeps, and the two marker checks answer
-whether a continuation of ours is already sitting in Codex's queue.
+`detect` turns a failed turn into the record the engine keeps, and the two checks after it answer
+whether a message in Codex's history or queue is a continuation of ours: by its marker, or - for
+one sent with none - by the client id it was queued under.
 """
 from __future__ import annotations
 
@@ -44,8 +45,23 @@ def _queue_has_marker(payload, marker):
     # protocol/src/turn_input.rs derives serde without tag/rename attributes:
     # {"UserInput": {"content": [...], "client_id": ...}}.
     content = payload.get("UserInput")
-    return (set(payload) == {"UserInput"} and isinstance(content, dict)
-            and _content_has_marker(content.get("content"), marker))
+    if not (set(payload) == {"UserInput"} and isinstance(content, dict)):
+        return False
+    if ids.is_marker(marker):
+        return _content_has_marker(content.get("content"), marker)
+    # A marker-free continuation (v0.6.11, domain/plug.py P15) is ours by the client id it was
+    # queued under, and by nothing in its words.
+    return content.get("client_id") == marker
+
+
+def _item_is_ours(payload, proof):
+    """Whether a history row's user message is our continuation: it carries our marker in its
+    words, or - sent with none (P15) - Codex keeps our client id on it as `clientId`."""
+    if not (isinstance(payload, dict) and payload.get("type") == "userMessage"):
+        return False
+    if ids.is_marker(proof):
+        return _content_has_marker(payload.get("content"), proof)
+    return payload.get("clientId") == proof
 
 
 def _choose_reset(buckets, completed_at):

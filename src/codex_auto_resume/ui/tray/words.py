@@ -12,9 +12,14 @@ TIP_CHARS = 128
 
 
 
-def tooltip(snapshot: dict, strings: dict, now: float) -> str:
-    """What hovering over the icon says. Built from the last tick; counted down locally."""
+def tooltip(snapshot: dict, strings: dict, now: float, edition: str | None = None) -> str:
+    """What hovering over the icon says. Built from the last tick; counted down locally.
+
+    `edition` is the code of the edition that runs (edition.shown): the title names it, in the catalog's
+    word, as every surface that shows the version does (v0.6.11). Without one the title is the name alone."""
     title = strings.get("tray.title", "Codex Auto Resume")
+    if edition:
+        title += " · " + strings.get("edition." + edition, edition)
     if not snapshot:
         return title
     if snapshot.get("failed"):

@@ -80,7 +80,7 @@ FIRST = ("test_outcomes",)
 # have to reach every one, or a point nothing reaches would pass for a neutral one.
 ENGINE_POINTS = frozenset({Point.RECORDS, Point.GATES, Point.TEXT, Point.SENDER, Point.OUTCOME,
                            Point.SCHEDULE, Point.TICK, Point.CLAIM_LEDGER, Point.CONCURRENCY,
-                           Point.MOVED})
+                           Point.MOVED, Point.DELIVERY, Point.UNLOADED})
 # What a moment read off the wall clock while a pair ran is written as, in rows and calls alike.
 WALL_CLOCK = "<wall clock>"
 # What a scenario is asked of Codex: every call the engine can make of a backend.
@@ -154,6 +154,14 @@ class DeferringPlug(Plug):
     def moved(self, record, state):
         self.asked.add(Point.MOVED)
         return super().moved(record, state)
+
+    def delivery(self, record):
+        self.asked.add(Point.DELIVERY)
+        return super().delivery(record)
+
+    def unloaded(self, record):
+        self.asked.add(Point.UNLOADED)
+        return super().unloaded(record)
 
 
 def scenarios(modules=MODULES) -> list[str]:
@@ -348,7 +356,43 @@ def workers() -> int:
     return max(1, min(os.cpu_count() or 1, 8))
 
 
-def run_all(ids, *, count=None, timeout=1800) -> dict:
+# How long one scenario may go without an answer before its worker is taken to have hung. There
+# was a deadline for the whole run instead, 30 minutes, and on 2026-09-28 two advanced lanes on
+# slow runners (one took two hours for the suite) reached it with 129 scenarios still queued: the
+# test failed with "scenarios that never ran" when nothing had hung and nothing was wrong. A limit
+# per scenario catches a hang just as surely, whatever the speed of the machine.
+# It was ten minutes, and on 2026-09-30 two advanced lanes went past that with one scenario that
+# had not hung: test_outcomes' T18 usage chain simulates a week of 15-minute ticks and runs three
+# times in the advanced lane. Here it takes 46 seconds alone and 96 with eight workers beside it,
+# the slowest of them all, and it ends every time; so the limit is half an hour, far above
+# any slow runner's time for it and still a finite wait for a worker that really hangs.
+STALL = 1800
+
+
+def answer(process, test_id: str, stall: float = STALL) -> tuple:
+    """Hand one scenario to a `serve` worker and read its one line of answer: (line, stalled).
+
+    A worker that says nothing for `stall` seconds is killed and `stalled` is True; its line is
+    then empty, and the worker is not to be handed anything more."""
+    process.stdin.write(test_id + "\n")
+    process.stdin.flush()
+    stalled = threading.Event()
+
+    def stop():
+        stalled.set()
+        process.kill()
+
+    timer = threading.Timer(stall, stop)
+    timer.daemon = True
+    timer.start()
+    try:
+        line = process.stdout.readline()
+    finally:
+        timer.cancel()
+    return line, stalled.is_set()
+
+
+def run_all(ids, *, count=None, stall=STALL) -> dict:
     """Every scenario in `ids`, compared, in `count` worker processes: id -> result.
 
     Each worker is handed the next scenario as it finishes one, and the slowest module's go
@@ -361,32 +405,32 @@ def run_all(ids, *, count=None, timeout=1800) -> dict:
     path = [str(ROOT / "src"), str(HERE)] + ([str(ADVANCED_SRC)] if advanced_lane() else [])
     env["PYTHONPATH"] = os.pathsep.join(path)
     env["PYTHONIOENCODING"] = "utf-8"
-    deadline = time.monotonic() + timeout
 
     def work(path):
         with open(path, "w", encoding="utf-8") as log, subprocess.Popen(
                 [sys.executable, "-c", "import neutral; neutral.serve()"], stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE, stderr=log, text=True, encoding="utf-8", cwd=str(ROOT),
                 env=env) as process:
-            while time.monotonic() < deadline:
+            while True:
                 try:
                     test_id = pending.get_nowait()
                 except queue.Empty:
                     break
-                process.stdin.write(test_id + "\n")
-                process.stdin.flush()
-                line = process.stdout.readline()
-                if line:
+                line, stalled = answer(process, test_id, stall)
+                if line and not stalled:
                     result = json.loads(line)
+                elif stalled:
+                    result = {"id": test_id, "error": "no answer in %d seconds; the worker was stopped" % stall}
                 else:
                     log.flush()
                     said = Path(path).read_text(encoding="utf-8", errors="replace")[-2000:]
                     result = {"id": test_id, "error": "the worker ended: " + said}
                 with lock:
                     results[test_id] = result
-                if not line:
+                if stalled or not line:
                     break
-            process.stdin.close()
+            if process.poll() is None:
+                process.stdin.close()
 
     with tempfile.TemporaryDirectory() as logs:
         threads = [threading.Thread(target=work, args=(Path(logs) / ("worker-%d.log" % index),),

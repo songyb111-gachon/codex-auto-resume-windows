@@ -365,10 +365,14 @@ class NumericInsetTests(unittest.TestCase):
         self.assertNotIn("TextAlign", self.method,
                          "the number stays left aligned; only the margin changed")
 
-    def test_only_the_two_numeric_fields_ask_for_it(self):
+    def test_only_the_numeric_fields_ask_for_it(self):
         """Retry timing is a ComboBox and is deliberately left alone."""
-        self.assertEqual(self.source.count("GiveTextRoom(spin)"), 1,
-                         "one call site, on the NumericUpDown the two Limits rows share")
+        self.assertEqual(self.source.count("GiveTextRoom(spin)"), 2,
+                         "one call site on the NumericUpDown the two Limits rows share, and, from v0.6.11, one on "
+                         "the number of a value of the person's own (SettingsOwn.cs)")
+        self.assertEqual(self.source.count("GiveTextRoom(number.Spin)"), 1,
+                         "and one on the hour and the minute of a time of day of the person's own")
+        self.assertEqual(self.source.count("GiveTextRoom("), 4, "the declaration and those three calls")
         # Every drop-down on the page is built by ChoiceCombo or LanguageCombo.
         for builder in ("private SoftCombo ChoiceCombo(", "private SoftCombo LanguageCombo("):
             start = self.source.index(builder)
@@ -422,7 +426,10 @@ def fullest_snapshot(now: float) -> dict:
                finished(6, "no_progress", "server_5xx", "flaky-integration-tests-in-the-sync-service", 26),
                finished(7, "submission_unknown", "stream_interrupted", "release-notes-and-changelog-for-the-next-version", 50)]
     return {"ok": True,
-            "status": {"version": "0.6.4", "enabled": True, "watcher_running": True, "upgrade_pending": False,
+            # v0.6.11: the edition beside the version, at its longest word - an advanced installation whose
+            # package could not be loaded - in the save bar and in Diagnostics' Version row (VersionLine).
+            "status": {"version": "0.6.4", "edition": "advanced_not_loaded",
+                       "enabled": True, "watcher_running": True, "upgrade_pending": False,
                        "startup_enabled": True, "pending": len(waiting),
                        "watcher": {"running": True, "ticking": True, "engine_state": "verified", "last_tick_at": now,
                                    # v0.6.11: the last usage reading, under Waiting - Codex's two windows, both

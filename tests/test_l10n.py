@@ -247,6 +247,26 @@ class ChoiceNamingTests(unittest.TestCase):
         self.assertTrue(turkish["msg.enabled"].startswith(turkish["pending.col_resume"]))
 
 
+class OwnValueWordsTests(unittest.TestCase):
+    """v0.6.11: the words Custom... says a range and the days of the week in, in every catalog."""
+
+    def test_a_range_never_ends_in_two_full_stops(self):
+        """German writes its durations with an abbreviation point - 7 Tg. - so a range that ended on {high} and its
+        own full stop read "Von 5 Min. bis 7 Tg..", in the Dashboard's dialog and in the panel."""
+        for locale in l10n.LOCALES:
+            table = l10n._read(locale)
+            for unit in ("time.seconds", "time.minutes", "time.hours", "time.days"):
+                said = table[unit].replace("{n}", "5")
+                with self.subTest(locale=locale, unit=unit):
+                    self.assertNotIn("..", table["own.range"].replace("{low}", said).replace("{high}", said))
+
+    def test_the_days_hint_asks_for_days_of_the_week_not_a_length_of_a_day(self):
+        """Above the seven boxes 月 火 水 ... the hint asks for weekdays: 1 日以上 and 하루 이상 read as a span of one
+        day or more."""
+        self.assertIn("曜日", l10n._read("ja")["own.days"])
+        self.assertIn("요일", l10n._read("ko")["own.days"])
+
+
 class OneNameTests(unittest.TestCase):
     """The window has one name, the Dashboard (v0.6.10).
 

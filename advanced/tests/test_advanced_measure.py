@@ -674,6 +674,99 @@ class ThreadTests(unittest.TestCase):
         self.assertFalse(result["done"])
 
 
+class GoalSession(FakeSession):
+    """M2b's session: a conversation whose goal is paused (or which has none), which thread/goal/set
+    makes active as Codex's would, and whose queue the Desktop takes the added item from - or does
+    not (`taken`). Every goal it answers carries the goal's words, as Codex's does."""
+
+    OBJECTIVE = "Finish the migration and keep every test green"
+
+    def __init__(self, measurement, *, goal="usageLimited", taken=True):
+        super().__init__(measurement)
+        self.goal, self.taken, self.queued = goal, taken, []
+
+    def call(self, method, params=None):
+        if method not in self.allowed:
+            raise protocol.SessionRefused("not permitted for this measurement")
+        self.calls.append(method)
+        self.params.append((method, params))
+        if method == "thread/goal/get":
+            return {"goal": None if self.goal is None else {"status": self.goal, "objective": self.OBJECTIVE}}
+        if method == "thread/goal/set":
+            self.goal = params["status"]
+            return {"goal": {"status": self.goal, "objective": self.OBJECTIVE}}
+        if method == "thread/queue/add":
+            self.queued.append(params["clientUserMessageId"])
+            return {"queuedSubmission": {"id": "x", "clientUserMessageId": params["clientUserMessageId"]}}
+        if method == "thread/queue/list":
+            data = [] if self.taken else [{"id": "x", "clientUserMessageId": client} for client in self.queued]
+            return {"data": data}
+        raise AssertionError(method)
+
+
+class M2bTests(unittest.TestCase):
+    """M2b: a goal set active and a turn queued while the Desktop holds the conversation. The probe
+    sets an existing goal - never one it made - adds one short turn, follows the queue, reads the
+    goal's status again, and leaves the verdict to the person watching, recording booleans only."""
+
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: shutil.rmtree(self.dir, ignore_errors=True))
+        for name, value in (("_M2B_QUEUE_SECONDS", 0.05), ("_M2B_POLL_SECONDS", 0.01)):
+            patcher = patch.object(measure, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def run_one(self, **session):
+        made = []
+
+        def opening(measurement):
+            made.append(GoalSession(measurement, **session))
+            return made[-1]
+        summary = measure.run(Measurement.M2B, session_factory=opening, thread=SAMPLE_THREAD,
+                              versions={"product_version": "0.6.11-beta", "codex_version": "0.158.0",
+                                        "windows_build": "10.0.26200"},
+                              clock=lambda: 1_800_000_000.0, directory=self.dir)
+        record = json.loads(Path(summary["recorded"]).read_text(encoding="utf-8"))
+        return summary, record, made[0]
+
+    def test_it_sets_the_existing_goal_queues_one_turn_and_records_booleans_only(self):
+        summary, record, session = self.run_one()
+        self.assertEqual(session.calls, ["thread/goal/get", "thread/goal/set", "thread/goal/get",
+                                         "thread/queue/add", "thread/queue/list", "thread/goal/get"])
+        sets = [params for method, params in session.params if method == "thread/goal/set"]
+        self.assertEqual(sets, [{"threadId": SAMPLE_THREAD, "status": "active"}], "never the goal's words")
+        (add,) = [params for method, params in session.params if method == "thread/queue/add"]
+        self.assertEqual(len(add["input"]), 1)
+        self.assertEqual(record["verdict"], str(Verdict.BLOCKED))
+        self.assertEqual(record["observed"], {
+            "goal_found": True, "goal_was_active": False, "goal_set_active": True,
+            "queue_add_accepted": True, "queued_turn_taken": True, "goal_active_after": True,
+            "thread_given": True})
+        text = json.dumps(record)
+        self.assertNotIn(GoalSession.OBJECTIVE, text)
+        self.assertNotIn(SAMPLE_THREAD, text)
+        self.assertEqual(live_evidence.content_refusals(record), [])
+        self.assertIn("note", record)
+
+    def test_with_no_goal_it_makes_none_and_says_what_to_set_up(self):
+        summary, record, session = self.run_one(goal=None)
+        self.assertEqual(session.calls, ["thread/goal/get"])
+        self.assertEqual(record["verdict"], str(Verdict.BLOCKED))
+        self.assertEqual(record["observed"], {"goal_found": False, "thread_given": True})
+
+    def test_an_item_the_desktop_does_not_take_is_recorded_as_not_taken(self):
+        summary, record, session = self.run_one(taken=False)
+        self.assertIs(record["observed"]["queued_turn_taken"], False)
+        self.assertGreaterEqual(session.calls.count("thread/queue/list"), 2)
+
+    def test_its_session_may_call_only_what_it_declared(self):
+        self.assertEqual(protocol.methods_for(Measurement.M2B),
+                         frozenset({"initialize", "initialized", "thread/goal/get", "thread/goal/set",
+                                    "thread/queue/add", "thread/queue/list"}))
+        self.assertNotIn("thread/resume", protocol.methods_for(Measurement.M2B))
+
+
 class _UnusedRuntime:
     def run_measurement(self, *a, **k):     # pragma: no cover - a bad request never reaches this
         raise AssertionError("a bad request must not reach the runtime")
@@ -888,7 +981,7 @@ class InvocationTests(ac.AdvancedCase):
 
     def test_a_record_says_which_codex_it_measured(self):
         """The Dashboard's run opens the installed Codex and records the version it checked -
-        the one fact a measurement decides a capability by (C7). It recorded "unknown" always,
+        the one fact a statement's warnings read a measurement by. It recorded "unknown" always,
         since the backend it opened was never handed to the record."""
         opened = []
 
