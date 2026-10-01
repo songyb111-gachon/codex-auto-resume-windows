@@ -83,10 +83,9 @@ GitHub에서 추가한 플러그인에는 스킬과 그 설치 스크립트와 �
 
 ### 설치 파일로 설치
 
-[최신 릴리스](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest)에서
-`CodexAutoResume-Setup-vX.Y.Z.exe`를 받아 더블클릭합니다. 설치는 그것으로 끝이며, 압축을 풀 필요가 없습니다.
-설치 파일은 이번 릴리스부터 게시되므로, 최신 릴리스가 그보다 오래된 동안에는 [릴리스 목록](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases)에 있는
-이번 릴리스의 사전 릴리스에만 들어 있습니다.
+[릴리스 목록](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases)에서
+`CodexAutoResume-Setup-vX.Y.Z.exe`를 받아(이번 릴리스의 두 번째 베타부터) 더블클릭합니다. 설치는 그것으로
+끝이며, 압축을 풀 필요가 없습니다.
 
 설치 파일은 [릴리스 압축 파일로 설치](#릴리스-압축-파일로-설치)의 릴리스 압축 파일을 파일 하나에 담은
 것입니다. 그 압축 파일을 바이트 그대로, 압축 파일의 SHA-256과 함께 담고 있습니다. 실행하면 압축 파일을 그

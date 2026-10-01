@@ -92,10 +92,9 @@ if you would rather know exactly what the script will and will not do before run
 ### With the setup program
 
 Download `CodexAutoResume-Setup-vX.Y.Z.exe` from the
-[latest release](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest) and
-double-click it. That is the whole install: there is nothing to unzip. Setup programs are published from
-v0.6.11 on: while the latest release is older than that, only the v0.6.11 pre-releases on the
-[releases page](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases) carry one.
+[releases page](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases) (from the
+v0.6.11-beta.2 pre-release on) and double-click it. That is the whole install: there is nothing to
+unzip.
 
 The setup program is the release archive of [From the release archive](#from-the-release-archive)
 in one file. It carries that archive byte for byte, with the archive's SHA-256 beside it. When you

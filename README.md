@@ -48,16 +48,16 @@ codex plugin marketplace add songyb111-gachon/codex-auto-resume-windows
 codex plugin add codex-auto-resume@codex-auto-resume-windows
 ```
 
-The setup script downloads the matching release from this repository over HTTPS, checks its SHA-256
-against the digest recorded for that version in
+The plugin's setup script downloads the matching release from this repository over HTTPS, checks
+its SHA-256 against the digest recorded for that version in
 [`scripts/release.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/scripts/release.json),
 and installs it for your Windows account only.
 
 ### With the setup program
 
 Download `CodexAutoResume-Setup-vX.Y.Z.exe` from the
-[releases page](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases) (from
-v0.6.11 on, pre-releases included) and double-click it. It carries the release archive below and
+[releases page](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases) (from the
+v0.6.11-beta.2 pre-release on) and double-click it. It carries the release archive below and
 runs its `Install.cmd`, so there is nothing to unzip. It is not code-signed: if Windows says
 *Windows protected your PC*, choose **More info**, then **Run anyway**.
 [docs/VERIFY.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/VERIFY.md#before-you-run-a-downloaded-setup-program)

@@ -47,14 +47,14 @@ codex plugin marketplace add songyb111-gachon/codex-auto-resume-windows
 codex plugin add codex-auto-resume@codex-auto-resume-windows
 ```
 
-설치 스크립트가 이 저장소의 릴리스에서 해당 버전 압축 파일을 HTTPS로 내려받아,
+플러그인의 설치 스크립트가 이 저장소의 릴리스에서 해당 버전 압축 파일을 HTTPS로 내려받아,
 [`scripts/release.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/scripts/release.json)에 그 버전용으로 기록된 digest와 SHA-256을
 대조한 뒤 이 Windows 계정에만 설치합니다.
 
 ### 설치 파일로 설치
 
 [릴리스 목록](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases)에서
-`CodexAutoResume-Setup-vX.Y.Z.exe`를 받아(이번 릴리스부터, 사전 릴리스 포함) 더블클릭합니다. 아래의
+`CodexAutoResume-Setup-vX.Y.Z.exe`를 받아(이번 릴리스의 두 번째 베타부터) 더블클릭합니다. 아래의
 릴리스 압축 파일을 담고 있어 그 `Install.cmd`를 실행하므로 압축을 풀 필요가 없습니다. 코드 서명이 없어
 *Windows의 PC 보호*(Windows protected your PC) 창이 뜰 수 있는데, 그때는 **추가 정보**를 누른 뒤 **실행**을 누릅니다.
 먼저 확인하는 방법은 [docs/VERIFY.ko.md](docs/VERIFY.ko.md#내려받은-설치-파일을-실행하기-전에)에 있습니다.
