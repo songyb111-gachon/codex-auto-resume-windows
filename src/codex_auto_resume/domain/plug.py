@@ -89,7 +89,7 @@ class Point(StrEnum):
     Codex's history (A4); a plug may answer CLIENT_ID instead, and core sends the words with no
     marker, under a client id it derives from the interruption, and proves delivery by that id.
 
-    P16 (v0.6.11 stage 3b) is what continues a record whose conversation the app does not hold.
+    P16 (v0.6.11 stage 3a) is what continues a record whose conversation the app does not hold.
     Core has always waited for the app to open it (A11); a plug may name a route instead - an
     object with a `resume` - and core carries it out itself, as it carries out the send: its one
     claim, its pre-send look and its launch guard, the route called once, and what came of it
@@ -306,7 +306,7 @@ RESTRICTIONS = frozenset({Alternative.HOLD})
 # with a `start`, that core calls with the command line it built (Guarded.start_route). So the
 # start route is a value point now, not a decision point with a closed set of words.
 #
-# UNLOADED (P16) is one the same way, from v0.6.11 stage 3b: a plug names a route, an object with
+# UNLOADED (P16) is one the same way, from v0.6.11 stage 3a: a plug names a route, an object with
 # a `resume`, and core carries it out through its own claim, pre-send look and launch guard
 # (Guarded.unloaded, engine/delivery.py). Its words are none of this table's.
 #

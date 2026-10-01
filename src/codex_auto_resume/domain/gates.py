@@ -22,7 +22,7 @@ NOT_CHECKED = "not_checked"
 # edition's plug holds nothing, so no standard record is ever stored with it. From schema 4 it is
 # also the consent gate's word for a record that waits for a person (`interruptions.hold`).
 HELD = "held"
-# v0.6.11 stage 3b: a gate core would have waited at, passed because the edition's plug named a
+# v0.6.11 stage 3a: a gate core would have waited at, passed because the edition's plug named a
 # route core carries out itself instead (domain/plug.py, P16) - thread_available, for a
 # conversation the app does not hold. The standard edition's plug names no route, so no standard
 # record is ever stored with it.

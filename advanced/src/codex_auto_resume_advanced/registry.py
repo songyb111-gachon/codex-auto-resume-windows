@@ -233,7 +233,7 @@ MARKER_FREE = CapabilityDef(
     measurements=(Measurement.M7,),
 )
 
-# The goal continuation (v0.6.11 stage 3b, the owner's request of 2026-09-26): for a usage limit in
+# The goal continuation (v0.6.11 stage 3a, the owner's request of 2026-09-26): for a usage limit in
 # a conversation the app does not hold, it is the route core carries out at P16 - the conversation's
 # goal, paused by the limit, set active again through the app server's thread/goal/set, an existing
 # goal only and never its words - so Codex carries the goal on when the app next opens it (M2: a goal

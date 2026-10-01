@@ -689,9 +689,10 @@ edition as written.
 **Turning a capability on.** In the Dashboard, open **Advanced features**, the last tab after
 Settings, and choose the capability: Start with Codex, Marker-free continuation or Goal continuation.
 Read its statement and every warning it shows, since turning it on says you did, then choose **Turn
-on** and answer yes. If the page says something changed, it shows the capability as it now stands:
-read it again and choose again. **Turn off** on the same capability, or **Turn every advanced
-feature off**, turns it off.
+on** and answer yes. If something changed while you read, the page asks again with the capability
+as it now stands: read it again before you answer. If it says nothing was turned on, it says why.
+**Turn off** on the same capability, or **Turn every advanced feature off**, turns it off. A
+capability that turned itself off says so under its state, with the reason.
 
 | Check | Do it during | Where it is written | Result |
 | --- | --- | --- | --- |
