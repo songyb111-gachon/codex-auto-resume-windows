@@ -63,6 +63,30 @@ def warning_key(warning) -> str:
 
 WARNING_KEYS = (WARNING_TITLE_KEY, WARNING_NOTE_KEY) + tuple(warning_key(word) for word in ArmingWarning)
 
+# The Dashboard's Advanced features page (advanced/gui/AdvancedPage.cs): its own words, each
+# capability's name (`name.<id>`) and the three states' words, handed over whole by the bridge's
+# advanced-words (`words`). The window's catalog is core's, so a word of this page lives here and
+# nowhere in core, and the standard edition carries none of them.
+PAGE_PREFIX = "page."
+NAME_PREFIX = "name."
+PAGE_KEYS = tuple(PAGE_PREFIX + name for name in (
+    "nav", "col_feature", "col_state", "choose", "unavailable",
+    "policy.forbid", "policy.not_allowed", "policy.shadow_only",
+    "about", "limits", "per_day", "per_conversation", "nominal", "hourly", "hourly_note",
+    "turn_on", "watch", "turn_off", "all_off",
+    "confirm.on", "confirm.watch", "confirm.changed", "confirm.version",
+    "done.on", "done.watch", "done.off", "done.all_off", "done.hourly",
+    "refused.changed", "refused.unavailable", "refused.other", "refused.hourly",
+    "statement_unavailable", "refused.unread",
+    "tripped", "tripped.measurement_failed", "tripped.failed_here", "tripped.incompatible",
+    "tripped.local_check_failed", "tripped.submission_unknown", "tripped.hook_exception",
+    "tripped.statement_changed", "tripped.engine_changed"))
+
+
+def name_key(capability) -> str:
+    """The catalog key of a capability's name, as the page lists it."""
+    return NAME_PREFIX + capability
+
 
 class Catalogs:
     """One directory of catalogs, read once each: this package's, or a test's."""
@@ -106,6 +130,14 @@ class Catalogs:
         if not loaded:
             return self.text(NOT_LOADED_KEY, locale)
         return self.text(SUMMARY_KEY, locale, n=on)
+
+    def words(self, locale=None) -> dict:
+        """The Advanced features page's words in `locale`, English underneath: every `page.*`
+        and `name.*` entry, and the three states'. Unfilled - the window fills `{name}` and `{n}`
+        itself, as it fills core's."""
+        table = self.catalog(l10n.current() if locale is None else locale)
+        return {name: value for name, value in table.items()
+                if name.startswith((PAGE_PREFIX, NAME_PREFIX, "state."))}
 
     def missing(self, definition) -> list:
         """(locale, field) for every field of `definition`'s statement a language does not have

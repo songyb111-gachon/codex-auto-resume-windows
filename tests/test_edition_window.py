@@ -9,7 +9,8 @@ specification: once on a program small enough to read, and once on the window it
 build/make_gui.ps1 from a copy of its sources and from the same copy with every point cut out.
 
 The advanced window is built from that copy too, with a probe listed on its overlay in place of
-the empty real one: the probe's names and strings are in the advanced executable, none of them are
+the real one's sources (the Advanced features page, which advanced/tests/test_advanced_page.py
+builds and holds): the probe's names and strings are in the advanced executable, none of them are
 in the standard one, and build/edition_audit.py's check (d) reads the two the same way.
 
 GUI test module: compiles real executables, so it runs on its own.
@@ -43,8 +44,9 @@ POWERSHELL = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
               / "WindowsPowerShell" / "v1.0" / "powershell.exe")
 WINDOW = "CodexAutoResumeSettings.exe"
 LAUNCHER = "codex-auto-resume-mcp.exe"
-# The points core declares, one per line and with no body, and each call a statement of its own.
-DECLARATION = re.compile(r"^\s*partial void (\w+)\(([^)]*)\)\s*;\s*$")
+# The points core declares, one per line and with no body, and each call a statement of its own. A point
+# a static method reaches - the command line's reading and writing - is a static one.
+DECLARATION = re.compile(r"^\s*(?:static\s+)?partial void (\w+)\(([^)]*)\)\s*;\s*$")
 
 PROGRAM = """
 using System;
@@ -135,11 +137,12 @@ class PointTests(unittest.TestCase):
 
     def test_the_standard_window_declares_the_points_and_gives_none_a_body(self):
         found = points()
-        self.assertEqual(found, {"DashboardBuilt": "gui/Dashboard.cs", "SnapshotApplied": "gui/Dashboard.cs"})
+        self.assertEqual(found, {"DashboardBuilt": "gui/Dashboard.cs", "SnapshotApplied": "gui/Dashboard.cs",
+                                 "ArgumentParsed": "gui/Dashboard.cs", "ReopenArgumentsWritten": "gui/Dashboard.cs"})
         # No other shape of partial method: one with a body in a standard source would be
         # compiled into the standard window, which is the whole thing this rules out.
         whole = guiscan.whole()
-        self.assertEqual(len(re.findall(r"^[ \t]*partial[ \t]+void\b", whole, re.M)), len(found))
+        self.assertEqual(len(re.findall(r"^[ \t]*(?:static[ \t]+)?partial[ \t]+void\b", whole, re.M)), len(found))
 
     def test_each_call_is_a_statement_of_its_own(self):
         """So cutting a point out, below, is cutting whole lines, and nothing else changes."""
@@ -150,7 +153,8 @@ class PointTests(unittest.TestCase):
                     if re.search(r"\b%s\(" % point, line) and not DECLARATION.match(line):
                         self.assertRegex(line, r"^\s*%s\([^;]*\);\s*$" % point)
                         calls[point] = calls.get(point, 0) + 1
-        self.assertEqual(calls, {"DashboardBuilt": 1, "SnapshotApplied": 2})
+        self.assertEqual(calls, {"DashboardBuilt": 1, "SnapshotApplied": 2, "ArgumentParsed": 1,
+                                 "ReopenArgumentsWritten": 1})
 
 
 def copy_window(target: Path) -> Path:
@@ -205,8 +209,12 @@ class WindowTests(unittest.TestCase):
         cls.work = Path(tempfile.mkdtemp(prefix="edition-window-"))
         root = copy_window(cls.work / "root")
         (root / "advanced" / "gui" / "Probe.cs").write_text(PROBE, encoding="utf-8")
-        with open(root / "advanced" / "gui" / "window.sources", "a", encoding="utf-8") as overlay:
-            overlay.write("advanced/gui/Probe.cs\n")
+        # The probe in place of the overlay's own sources, which give the same points bodies of their own; the
+        # overlay's words and its one group stay as they are.
+        overlay = root / "advanced" / "gui" / "window.sources"
+        kept = [line for line in overlay.read_text(encoding="utf-8").splitlines()
+                if not line.strip() or line.lstrip().startswith(("#", "["))]
+        overlay.write_text("\n".join(kept + ["advanced/gui/Probe.cs"]) + "\n", encoding="utf-8")
         cut = copy_window(cls.work / "cut")
         cls.cut_lines = cut_points(cut)
         cls.runs = [make_gui(root, "-Out", str(cls.work / "standard")),
@@ -228,7 +236,7 @@ class WindowTests(unittest.TestCase):
     def test_the_standard_window_is_the_file_it_would_be_without_the_points(self):
         """The measurement the plan asked for: declaring the points and calling them changes
         not one byte of the standard executable."""
-        self.assertEqual(self.cut_lines, 2 + 3, "two declarations and three calls")
+        self.assertEqual(self.cut_lines, 4 + 5, "four declarations and five calls")
         self.assertEqual(self.standard, (self.work / "without" / WINDOW).read_bytes())
         self.assertEqual((self.work / "standard" / LAUNCHER).read_bytes(),
                          (self.work / "without" / LAUNCHER).read_bytes())

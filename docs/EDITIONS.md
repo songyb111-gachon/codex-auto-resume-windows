@@ -43,7 +43,10 @@ which standards it departs from, what can go wrong and how to stop it, and any w
 now. **Turn on** asks once more, with the statement and every warning in front of you; saying yes
 confirms them, for the version of Codex shown. **Watch first** instead has it asked wherever it
 would act, and note what it would have done, while it does nothing. If anything changed while you
-were reading, the page reads it again and asks again with what holds now (K3).
+were reading, the page reads it again and asks again with what holds now (K3); where it cannot read
+it again, or your administrator's policy now refuses it, it says that nothing was turned on, and why.
+The page reads the list again after everything you do there, and whenever the watcher says a
+capability was turned on or off, here or anywhere else.
 
 **Everywhere else, only off.** Nothing else - the panel inside Codex, the notification-area icon,
 a card - can turn a capability on. Codex's tools (MCP) can list the capabilities and turn one, or
@@ -57,7 +60,8 @@ record that it was claimed and the last look before it stay the standard edition
 
 **Ceilings.** Each capability may send only so many times a day, in all and in any one
 conversation, counted when the send is claimed. Over them stands one ceiling for all capabilities
-together, 12 sends an hour, which you can lower on the page and never raise. Every send also counts
+together, 12 sends an hour, which you can lower on the page, as far as one an hour, and never raise
+past 12. The page shows a capability's own ceilings beside its statement. Every send also counts
 against the standard edition's own limits for the conversation: five in any 24 hours, at least 15
 minutes apart (A20).
 
@@ -68,8 +72,9 @@ capability on; turning it on confirms you read it (K6).
 
 **Tripwires.** A capability turns itself off when its statement gets a new revision; when a warning
 you did not confirm says that what it stands on went wrong; when one of its parts fails; when a send
-it made becomes one whose delivery cannot be proven; and, while it is on, when Codex is updated. You
-can turn it on again, with its statement as it then reads (K7).
+it made becomes one whose delivery cannot be proven; and, while it is on, when Codex is updated. The
+page says so under the capability's state, and why. You can turn it on again, with its statement as
+it then reads (K7).
 
 **Your administrator's policy.** Three values under `Software\Policies\CodexAutoResume`, in
 `HKEY_LOCAL_MACHINE` or `HKEY_CURRENT_USER`, read and never written: `ForbidAdvanced` (nothing may be

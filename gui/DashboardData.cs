@@ -418,7 +418,7 @@ namespace CodexAutoResume
                 }
                 if (diagVersion != null)
                 {
-                    diagVersion.Text = VersionLine(status);
+                    ShowVersion(diagVersion, status);
                     diagWatcher.Text = watcherFull;
                     diagEngine.Text = engineText;
                     diagLastCheck.Text = Ago(last);
