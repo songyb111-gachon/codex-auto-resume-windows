@@ -571,6 +571,8 @@ The Rust core carries both (v0.6.14).
 
 ## v0.6.12 — The rest of the advanced edition
 
+**In development: v0.6.12-alpha, the first of its pre-releases, is out.**
+
 What the plan put in v0.6.11's later stages, moved here whole when v0.6.11 was cut short, in as
 many pre-releases as it needs: each finished stage is published as one while the next is built.
 Every capability here is the advanced edition's alone, off until a person turns it on, with a
@@ -578,9 +580,21 @@ statement that names the standards it departs from, as v0.6.11's are. Some rest 
 of the real Codex; one that fails narrows the route, or becomes a warning the person confirms, and
 does not drop the capability.
 
+### v0.6.12-alpha ✅ — The tests in parts, and faster pictures (a pre-release)
+
+Published as a pre-release; what it carries is in [CHANGELOG.md](CHANGELOG.md). It is upkeep for the
+people who build the project, so it is an alpha, with nothing in it for a person to use, and nothing
+changes for one: the test suite runs in four parts in every CI lane, proven test by test to give a
+whole run's results, beside a lane that tests `dev` as `main` will hold it; and the pictures are
+taken when the window says it is ready, only the stale ones are drawn, and a window being
+photographed answers no pointer. The owner asked for it on 2026-09-30, as the first of v0.6.12's
+pre-releases.
+
 ### First: another version, and a power action after a usage limit
 
-Before the capabilities below, v0.6.12 adds two things people asked for:
+**v0.6.12-beta**, the next pre-release, comes first with these two, and the stages below follow it,
+each published as a numbered beta once it is finished. Before the capabilities below, v0.6.12 adds two
+things people asked for:
 
 - **Install another version or edition from the Dashboard** - any release or pre-release of either
   edition, from the list of releases the update check already reads. It says first what the change
@@ -625,7 +639,11 @@ Before the capabilities below, v0.6.12 adds two things people asked for:
   measurement M3),
 - a continuation inside the turn, through a Codex Stop hook,
 - Codex's own retry settings, written through its official configuration and put back when the
-  capability is turned off or the product uninstalled.
+  capability is turned off or the product uninstalled,
+- chatting with a Codex conversation inside the Dashboard - reading it and sending it a message -
+  which the owner asked for on 2026-10-02: advanced only, off by default, and on this PC only, never
+  through a remote channel; with no live output, only "in progress" while a turn runs and the result
+  once it ends; and approvals are still answered in Codex.
 
 ### Around recovery
 
@@ -894,8 +912,9 @@ The ground both editions stand on, in a pre-release
 
         ↓
 
-v0.6.12
-Another version or edition from the Dashboard, and a power action after a usage limit, first
+v0.6.12-alpha → v0.6.12-beta → … → v0.6.12
+The tests in parts and faster pictures, for developers, in a first pre-release
++ another version or edition from the Dashboard, and a power action after a usage limit, in the beta
 + the rest of the advanced edition, in as many pre-releases as it needs
 + several Codex homes, Arabic and Hebrew mirrored, winget, compatibility reports from the app
 
@@ -922,4 +941,5 @@ Final Rust audit and stabilization: the Rust bug hunt
 Maintenance
 ```
 
-This document records the current direction; v0.6.11 is out, and v0.6.12 is next.
+This document records the current direction; v0.6.11 is out, v0.6.12-alpha is the first of v0.6.12's
+pre-releases, and v0.6.12-beta is next.
