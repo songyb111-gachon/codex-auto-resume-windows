@@ -5,8 +5,9 @@
 [The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.10...v0.6.11)
 
 **What changed since v0.6.10, in one place.** This release was published first in four
-pre-releases, each with an entry below that has the detail and how it was checked: the ground both
-editions stand on ([v0.6.11-alpha](CHANGELOG.md#two-editions-from-one-repository)), the standard
+pre-releases, each with an entry of its own in the changelog that has the detail and how it was
+checked: the ground both editions stand on
+([v0.6.11-alpha](CHANGELOG.md#two-editions-from-one-repository)), the standard
 edition's additions ([v0.6.11-beta](CHANGELOG.md#what-waits-and-what-it-says)), the advanced
 edition's first capabilities, the pre-release offer and the setup programs
 ([v0.6.11-beta.2](CHANGELOG.md#the-advanced-editions-first-three-capabilities)), and the page that
