@@ -47,6 +47,19 @@ setting, the notification, the command line, the safety model and privacy in ful
 
 **Windows 10/11. No Python needed. No administrator rights.**
 
+It comes in two editions, of which you install one:
+
+- **Standard** is the default, and the one the routes below install. It keeps every one of the
+  project's standards, every promise on this page among them.
+- **Advanced** is the same program plus capabilities that each depart from at least one of those
+  standards on purpose, and say which. Every one is off until you turn it on in the Dashboard's
+  **Advanced features** page, after reading its warnings. To install it instead, take the files
+  with `Advanced` in their name, or ask Codex to set up the advanced edition.
+  [docs/EDITIONS.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/EDITIONS.md) says what each capability does and risks.
+- **Switching**: an update stays in the edition you have. To change edition, install the other one
+  over it. It says first what the change means, keeps your settings and everything waiting to
+  resume, and starts every advanced capability off.
+
 ### From Codex (recommended)
 
 Add the plugin, then ask Codex to **set up auto resume**.
