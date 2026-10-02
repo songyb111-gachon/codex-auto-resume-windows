@@ -571,7 +571,7 @@ The Rust core carries both (v0.6.14).
 
 ## v0.6.12 — The rest of the advanced edition
 
-**In development: v0.6.12-alpha, the first of its pre-releases, is out.**
+**In development: v0.6.12-alpha and v0.6.12-alpha.2, its first two pre-releases, are out.**
 
 What the plan put in v0.6.11's later stages, moved here whole when v0.6.11 was cut short, in as
 many pre-releases as it needs: each finished stage is published as one while the next is built.
@@ -589,6 +589,14 @@ whole run's results, beside a lane that tests `dev` as `main` will hold it; and 
 taken when the window says it is ready, only the stale ones are drawn, and a window being
 photographed answers no pointer. The owner asked for it on 2026-09-30, as the first of v0.6.12's
 pre-releases.
+
+### v0.6.12-alpha.2 ✅ — Every lane's test parts even (a pre-release)
+
+Published as a pre-release; what it carries is in [CHANGELOG.md](CHANGELOG.md). It is v0.6.12-alpha
+with the test parts of every CI lane dealt by that lane's own times on GitHub's runners, where one
+table for every lane had left the advanced lane's four parts 21 to 41 minutes long. It is upkeep for
+the people who build the project too, so it is an alpha, and nothing changes for a person using it.
+The owner asked for it on 2026-10-03.
 
 ### First: another version, and a power action after a usage limit
 
@@ -912,8 +920,9 @@ The ground both editions stand on, in a pre-release
 
         ↓
 
-v0.6.12-alpha → v0.6.12-beta → … → v0.6.12
+v0.6.12-alpha → v0.6.12-alpha.2 → v0.6.12-beta → … → v0.6.12
 The tests in parts and faster pictures, for developers, in a first pre-release
++ every lane's test parts even, in a second
 + another version or edition from the Dashboard, and a power action after a usage limit, in the beta
 + the rest of the advanced edition, in as many pre-releases as it needs
 + several Codex homes, Arabic and Hebrew mirrored, winget, compatibility reports from the app
@@ -941,5 +950,5 @@ Final Rust audit and stabilization: the Rust bug hunt
 Maintenance
 ```
 
-This document records the current direction; v0.6.11 is out, v0.6.12-alpha is the first of v0.6.12's
-pre-releases, and v0.6.12-beta is next.
+This document records the current direction; v0.6.11 is out, v0.6.12-alpha and v0.6.12-alpha.2 are
+the first of v0.6.12's pre-releases, and v0.6.12-beta is next.

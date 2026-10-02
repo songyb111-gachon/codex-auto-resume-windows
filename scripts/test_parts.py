@@ -2,7 +2,7 @@
 
 The suite took 78 to 103 minutes a lane on GitHub's runners in September 2026, and the ko sync's four
 round-robin parts took 9, 18, 18 and 32 minutes of it. This deals the test files into N parts, balanced
-by how long each file took when it was last measured, and runs them. It is the only place the split is
+by how long each file took in that lane when it was last measured, and runs them. It is the only place the split is
 written: CI's lanes (.github/workflows/test.yml), the release's suite (release.yml) and the ko sync
 (sync-ko.yml) all run it, and nothing else decides which file goes where.
 
@@ -44,10 +44,16 @@ parts as child processes, each with a temporary directory of its own (TEMP and T
 summary with one exit code. Every child gets CREATE_NO_WINDOW and is python.exe, never pythonw.exe: a
 console program started by a process with no console opens a window (tests/test_no_console_windows.py).
 
-The durations are tests/data/durations.json, seconds per file - its tests and their class and module
-fixtures, from the end of one test to the end of the next - measured on a whole run; a file with no
-measurement yet is dealt round-robin after the measured ones. `--record-durations` rewrites the file from
-the run it ends, keeping entries for files the run did not include and dropping files that are gone.
+The durations are tests/data/durations.json: seconds per file - its tests and their class and module
+fixtures, from the end of one test to the end of the next - measured on whole runs, in a table for each
+lane (`lanes`). One file can take one lane far longer than another: tests/test_neutral_plug.py took
+1305 s in the advanced lane, with the advanced package beside core, and 841 s in the standard one; dealt
+by one table for every lane, the advanced lane's four parts took 21 to 41 minutes on GitHub's runners.
+So a lane deals its files by its own table; a file its table lacks, by the figure for every lane
+(`seconds`); a file with neither, round-robin after the measured ones. The same files, count and tables
+always give the same deal. `--record-durations` writes the run it ends into its lane's table, keeping
+that table's other files and the other lanes'; a file the figures for every lane lack takes this run's
+figure there too, so the other lanes deal it by a measurement; a file that is gone is dropped everywhere.
 """
 from __future__ import annotations
 
@@ -117,13 +123,38 @@ def lane_files(lane: str) -> list[str]:
     return ["%s/%s" % (suite, name) for suite, _ in LANES[lane] for name in suite_files(suite)]
 
 
-def load_durations(path: Path = DURATIONS) -> dict:
-    try:
-        seconds = json.loads(path.read_text(encoding="utf-8"))["seconds"]
-    except (OSError, ValueError, KeyError, TypeError):
+def seconds_table(value) -> dict:
+    """A table of seconds per file, as the durations file holds one: every entry a number not below zero.
+    Anything else in it is left out, and anything that is not a table is an empty one."""
+    if not isinstance(value, dict):
         return {}
-    return {key: float(value) for key, value in seconds.items()
-            if isinstance(value, (int, float)) and value >= 0}
+    return {key: float(seconds) for key, seconds in value.items()
+            if isinstance(key, str) and isinstance(seconds, (int, float)) and not isinstance(seconds, bool)
+            and seconds >= 0}
+
+
+def read_durations(path: Path | None = None) -> tuple[dict, dict]:
+    """The durations file's two halves: the figures for every lane (`seconds`), and each lane's own table
+    (`lanes`), for the lanes there are. A file that cannot be read holds neither."""
+    try:
+        document = json.loads((path or DURATIONS).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}, {}
+    if not isinstance(document, dict):
+        return {}, {}
+    lanes = document.get("lanes")
+    lanes = lanes if isinstance(lanes, dict) else {}
+    return seconds_table(document.get("seconds")), {
+        lane: seconds_table(table) for lane, table in lanes.items() if lane in LANES}
+
+
+def load_durations(lane: str | None = None, path: Path | None = None) -> dict:
+    """The seconds a lane's files are dealt by: the lane's own table, and for a file it lacks the figure
+    for every lane. With no lane, the figures for every lane alone."""
+    seconds, lanes = read_durations(path)
+    if lane is not None:
+        seconds.update(lanes.get(lane, {}))
+    return seconds
 
 
 def deal(files: list[str], count: int, seconds: dict) -> list[list[str]]:
@@ -326,7 +357,7 @@ def run_part(lane: str, part: int | None, count: int, *, verbose: bool = False, 
     """Part `part` of `count` of a lane - the whole lane, each suite as discover runs it, when `part` is
     None: every suite with files in the part, each in its own worker. Every suite runs, and the part has
     failed if any of them did."""
-    mine = set(lane_files(lane) if part is None else deal(lane_files(lane), count, load_durations())[part - 1])
+    mine = set(lane_files(lane) if part is None else deal(lane_files(lane), count, load_durations(lane))[part - 1])
     where = "the whole suite" if part is None else "part %d of %d" % (part, count)
     merged = {"outcomes": {}, "seconds": {}, "counts": {}, "ok": True, "suites": [],
               "files": [name for name in lane_files(lane) if name in mine]}
@@ -375,7 +406,7 @@ def failure_text(log: bytes) -> str:
 
 def run_parallel(lane: str, count: int, *, verbose: bool = False) -> tuple[dict, list]:
     """All `count` parts at once, as child processes with a temporary directory each."""
-    dealt = deal(lane_files(lane), count, load_durations())   # a count that cannot be dealt is refused here
+    dealt = deal(lane_files(lane), count, load_durations(lane))   # a count that cannot be dealt is refused here
     base = Path(tempfile.mkdtemp(prefix="tp"))
     children = []
     try:
@@ -454,10 +485,10 @@ def check_suite(suite: str, counts: list[int]) -> dict:
     by_file = {name: test_ids(loader.discover(suite, pattern=name)) for name in suite_files(suite)}
     joined = [key for name in suite_files(suite) for key in by_file[name]]
     wrong = []
-    seconds = load_durations()
     for lane, suites in sorted(LANES.items()):
         if suite not in dict(suites):
             continue
+        seconds = load_durations(lane)
         for count in counts:
             parts = deal(lane_files(lane), count, seconds)
             ids = [[key for name in part if name.rsplit("/", 1)[0] == suite
@@ -563,17 +594,30 @@ def compare(first: str, second: str) -> int:
     return 1 if differ else 0
 
 
-def record_durations(seconds: dict, path: Path = DURATIONS) -> None:
-    kept = load_durations(path)
-    kept.update({key: round(value, 1) for key, value in seconds.items()})
-    present = {key for lane in LANES for key in lane_files(lane)}
+def record_durations(seconds: dict, lane: str, path: Path | None = None) -> None:
+    """This run's seconds into its lane's table, over what that table held for the same files; the other
+    lanes' tables as they were; and in the figures for every lane, this run's for a file they lack. A file
+    no lane runs any more is dropped from all of them."""
+    path = path or DURATIONS
+    every, lanes = read_durations(path)
+    measured = {key: round(value, 1) for key, value in seconds.items()}
+    lanes[lane] = dict(lanes.get(lane, {}))
+    lanes[lane].update(measured)
+    for key, value in measured.items():
+        every.setdefault(key, value)
+    present = {name: set(lane_files(name)) for name in LANES}
+    everywhere = set().union(*present.values())
     document = {
-        "about": "Seconds each test file took (its tests and their fixtures) on the last run that recorded them, "
-                 "for scripts/test_parts.py to balance its parts by. Refresh with --record-durations.",
-        "seconds": {key: kept[key] for key in sorted(kept) if key in present},
+        "about": "Seconds each test file took (its tests and their fixtures), for scripts/test_parts.py to balance "
+                 "its parts by: `lanes` holds each lane's own table, which that lane deals its files by, and "
+                 "`seconds` the figure for every lane, for a file a lane's table lacks. The %s lane's table was "
+                 "last written by --record-durations from a run of it; the rest are kept from before." % lane,
+        "seconds": {key: every[key] for key in sorted(every) if key in everywhere},
+        "lanes": {name: {key: table[key] for key in sorted(table) if key in present[name]}
+                  for name, table in sorted(lanes.items())},
     }
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(document, indent=1) + "\n", encoding="utf-8")
+    path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
 
 
 def summary(merged: dict, seconds: float, parts=None) -> str:
@@ -609,7 +653,7 @@ def main(argv=None) -> int:
                         help="with --check: the part counts to prove, comma separated")
     parser.add_argument("--outcomes", metavar="FILE", help="write every test id's outcome as JSON")
     parser.add_argument("--record-durations", action="store_true",
-                        help="write this run's per-file seconds to tests/data/durations.json")
+                        help="write this run's per-file seconds into its lane's table in tests/data/durations.json")
     parser.add_argument("--annotate", action="store_true", help="a GitHub error annotation per failed suite")
     parser.add_argument("--report", help=argparse.SUPPRESS)
     parser.add_argument("-v", "--verbose", action="store_true", help="name every test as it runs")
@@ -630,11 +674,11 @@ def main(argv=None) -> int:
         print(json.dumps({"ok": ok, "suites": answers}))
         return 0 if ok else 1
     if options.list:
-        seconds = load_durations()
+        seconds = load_durations(lane)
         for index, part in enumerate(deal(lane_files(lane), options.parts, seconds), 1):
             known = sum(seconds.get(name, 0.0) for name in part)
-            say("part %d of %d: %d files, %.0f s measured, %d not measured" % (
-                index, options.parts, len(part), known, sum(name not in seconds for name in part)))
+            say("part %d of %d, lane %s: %d files, %.0f s measured, %d not measured" % (
+                index, options.parts, lane, len(part), known, sum(name not in seconds for name in part)))
             for name in part:
                 say("  %s%s" % (name, "  %.1f s" % seconds[name] if name in seconds else ""))
         return 0
@@ -653,7 +697,7 @@ def main(argv=None) -> int:
     if options.outcomes:
         write_outcomes(options.outcomes, lane, count, merged)
     if options.record_durations:
-        record_durations(merged["seconds"])
+        record_durations(merged["seconds"], lane)
     if not merged["counts"].get("run"):
         merged["ok"] = False
     say(summary(merged, elapsed, parts))

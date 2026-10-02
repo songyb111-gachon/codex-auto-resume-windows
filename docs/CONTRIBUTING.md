@@ -59,9 +59,9 @@ no suite can make - a real install, a real interruption, a real send - are the p
 The suite is long - a lane took 78 to 103 minutes on GitHub's runners in September 2026 - so CI runs
 every lane in parts, one job each, and you can run it in parts on your own machine.
 `scripts/test_parts.py` is the one place the suite is split. It deals the test files into N parts,
-balanced by how long each file took when it was last measured (`tests/data/durations.json`), and runs
-each part the way `unittest discover` runs the suite: the same files, loaded by discover itself, in the
-same order, one fresh Python per suite.
+balanced by how long each file took in that lane when it was last measured (`tests/data/durations.json`),
+and runs each part the way `unittest discover` runs the suite: the same files, loaded by discover itself,
+in the same order, one fresh Python per suite.
 
 ```bash
 python scripts/test_parts.py --parallel 8                   # all 8 parts at once: one summary, one exit code
@@ -108,8 +108,10 @@ names, and which is worth making unique although CI never meets it. What still d
 files share something in one interpreter - a fixed temporary path, the working directory, the
 environment, a module global, a setting one of them changes and never puts back - and the fix is to make
 them independent, never to keep them in one part. After adding a test file or changing how long one takes, refresh the durations from a whole run
-with `--record-durations` so the parts stay even; a file never measured is dealt round-robin after
-the measured ones. `--list --parts 8` shows the deal.
+with `--record-durations` so the parts stay even. Each lane has a table of its own, because one file can
+take one lane much longer than another; the run writes the lane it ran and keeps the others. A file a
+lane's table lacks is dealt by the figure for every lane, and a file never measured at all round-robin
+after the measured ones. `--list --parts 8` shows the deal, and `--lane` another lane's.
 
 ## Measuring the window
 

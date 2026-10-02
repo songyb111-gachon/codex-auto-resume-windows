@@ -8,6 +8,8 @@ result a whole run gives. What is held here:
   Loaded in fresh interpreters: importing every test module into this one would put other files' import
   side effects into whichever part runs this test, which is the kind of sharing the split must not have.
 * DealTests - the deal is a partition, the same every time, and balanced by the recorded durations.
+* LaneDurationsTests - each lane is dealt by its own seconds, then by the figure for every lane, then
+  round-robin; a recorded run writes its own lane; and each lane's parts come out about even.
 * WorkerTests - a real worker on a small suite records each test id's outcome as unittest reports it, and
   the whole run - `unittest discover` itself, the run the parts are compared with - records the same.
 * PartTests - every suite of a part runs, and the part fails after the last if any of them failed.
@@ -20,9 +22,9 @@ result a whole run gives. What is held here:
   source taken off, as main and the release will hold it.
 
 The comparison of a whole run with a parallel one, test id by test id, is in CONTRIBUTING.md; it takes
-as long as the suite, so it is a command rather than a test. It was made on both editions' lanes, and
-tests/data/durations.json was recorded from its whole runs: the commit that recorded them says with what
-result.
+as long as the suite, so it is a command rather than a test. It was made on both editions' lanes.
+tests/data/durations.json holds each lane's seconds on GitHub's runners, read from CI's job logs; its
+`about` names the runs.
 """
 from __future__ import annotations
 
@@ -135,9 +137,8 @@ class DealTests(unittest.TestCase):
     FILES = ["tests/test_%s.py" % letter for letter in "abcdefghij"]
 
     def test_every_lane_in_every_count_used_is_a_partition(self):
-        seconds = parts.load_durations()
         for lane in parts.LANES:
-            files = parts.lane_files(lane)
+            files, seconds = parts.lane_files(lane), parts.load_durations(lane)
             for count in counts_used():
                 with self.subTest(lane=lane, count=count):
                     dealt = parts.deal(files, count, seconds)
@@ -177,12 +178,135 @@ class DealTests(unittest.TestCase):
         present = {name for lane in parts.LANES for name in parts.lane_files(lane)}
         self.assertLessEqual(set(document["seconds"]), present)
         self.assertGreater(len(document["seconds"]), len(present) // 2, "most files were never measured")
+        self.assertEqual(sorted(document["lanes"]), sorted(parts.LANES), "a lane with no table of its own")
+        for lane, table in document["lanes"].items():
+            with self.subTest(lane):
+                self.assertLessEqual(set(table), set(parts.lane_files(lane)), "a file the lane does not run")
+                self.assertGreater(len(table), len(parts.lane_files(lane)) // 2, "most files were never measured")
+                self.assertEqual(parts.seconds_table(table), table, "an entry that is not a number of seconds")
 
     def test_a_part_is_read_as_k_of_n(self):
         self.assertEqual(parts.parse_part("2/8"), (2, 8))
         for wrong in ("0/4", "5/4", "2", "a/b", ""):
             with self.subTest(wrong), self.assertRaises(Exception):
                 parts.parse_part(wrong)
+
+
+class LaneDurationsTests(unittest.TestCase):
+    """Each lane is dealt by its own seconds. One table for every lane - the medians over all of them - left
+    the advanced lane's four parts 21 to 41 minutes long on GitHub's runners (dev's CI run 37056482710),
+    where the standard lane's took 19 to 29: a file can take one lane far longer than another, as
+    tests/test_neutral_plug.py takes 1305 s with the advanced package beside core and 841 s without it."""
+
+    # The longest part of a lane, at most this many times its shortest, by the lane's own table. Dealt by
+    # the one table for every lane, the parts today's lane tables predict are 1.21 times apart in the
+    # standard lane, 1.24 in the advanced one and 1.45 in the release one; dealt by each lane's own, under
+    # 1.01 in all three. These are the tables' figures: measured, the one table's release deal came out
+    # 1.30 times apart on dev's CI run 37056482710 and 1.12 in v0.6.12-alpha's release run 37061200703.
+    SPREAD = 1.2
+
+    def durations(self, document) -> Path:
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        path = Path(folder.name, "durations.json")
+        path.write_text(json.dumps(document), encoding="utf-8")
+        return path
+
+    def test_a_lane_takes_its_own_table_then_the_figure_for_every_lane(self):
+        path = self.durations({
+            "seconds": {"tests/test_a.py": 1, "tests/test_b.py": 9, "tests/test_c.py": -1},
+            "lanes": {"advanced": {"tests/test_a.py": 10, "tests/test_c.py": 2, "tests/test_d.py": True,
+                                   "tests/test_e.py": "5", "tests/test_f.py": -3},
+                      "release": [1, 2], "nowhere": {"tests/test_a.py": 99}}})
+        self.assertEqual(parts.load_durations("advanced", path),
+                         {"tests/test_a.py": 10.0, "tests/test_b.py": 9.0, "tests/test_c.py": 2.0})
+        for lane in ("standard", "release", None):
+            with self.subTest(lane):
+                self.assertEqual(parts.load_durations(lane, path), {"tests/test_a.py": 1.0, "tests/test_b.py": 9.0})
+        self.assertEqual(parts.read_durations(path)[1], {"advanced": {"tests/test_a.py": 10.0, "tests/test_c.py": 2.0},
+                                                         "release": {}})
+        # The file of v0.6.12-alpha, with one table for every lane, is read as it was.
+        self.assertEqual(parts.load_durations("advanced", self.durations({"seconds": {"tests/test_a.py": 4}})),
+                         {"tests/test_a.py": 4.0})
+        for wrong in ([1, 2], {"seconds": "no"}, "not json"):
+            with self.subTest(wrong=wrong):
+                broken = self.durations(wrong)
+                if wrong == "not json":
+                    broken.write_text("{", encoding="utf-8")
+                self.assertEqual(parts.load_durations("advanced", broken), {})
+        self.assertEqual(parts.read_durations(path.with_name("absent.json")), ({}, {}))
+
+    def test_the_runner_deals_each_lane_by_its_own_table(self):
+        """One file as long as all the rest together goes alone into part 1 of 2: a different file in each
+        lane's table, and the figure for every lane where a lane has no table."""
+        files = parts.lane_files("advanced")
+        first, last = parts.lane_files("standard")[0], files[-1]
+        self.assertEqual(set(files), set(parts.lane_files("standard")) | set(parts.lane_files("release")))
+        path = self.durations({"seconds": dict({name: 1 for name in files}, **{first: 1000}),
+                               "lanes": {"advanced": {last: 1000, first: 1}}})
+        worker = lambda suite, names, env, verbose: (0, b"", {"ok": True, "outcomes": {}, "counts": {"run": 1}})
+
+        class Child:
+            def __init__(self, argv, **options):
+                Path(argv[argv.index("--report") + 1]).write_text(
+                    json.dumps({"ok": True, "outcomes": {}, "counts": {"run": 1}}), encoding="utf-8")
+                self.returncode = 0
+
+            def poll(self):
+                return 0
+
+        said = []
+        with mock.patch.object(parts, "DURATIONS", path), mock.patch.object(parts, "say", said.append):
+            for lane, alone in (("advanced", last), ("standard", first), ("release", first)):
+                with self.subTest(lane):
+                    self.assertEqual(parts.run_part(lane, 1, 2, worker=worker)["files"], [alone])
+                    with mock.patch.object(parts.subprocess, "Popen", Child):
+                        self.assertEqual(parts.run_parallel(lane, 2)[0]["deal"][0], [alone])
+            self.assertEqual(parts.main(["--list", "--lane", "advanced", "--parts", "2"]), 0)
+        self.assertIn("part 1 of 2, lane advanced: 1 files, 1000 s measured, 0 not measured", said)
+        self.assertIn("  %s  1000.0 s" % last, said)
+
+    def test_a_recorded_run_writes_its_own_lane_and_keeps_the_rest(self):
+        a, b, c = parts.lane_files("standard")[:3]
+        gone = "tests/test_no_such_file_any_more.py"
+        path = self.durations({"seconds": {a: 1.0, gone: 5.0},
+                               "lanes": {"standard": {a: 2.0, b: 3.0, gone: 4.0}, "release": {a: 7.0}}})
+
+        def record(lane, seconds):
+            merged = {"ok": True, "outcomes": {}, "counts": {"run": 1}, "seconds": seconds}
+            with mock.patch.object(parts, "DURATIONS", path), mock.patch.object(parts, "say"), \
+                    mock.patch.object(parts, "run_part", return_value=merged) as ran:
+                self.assertEqual(parts.main(["--lane", lane, "--part", "1/4", "--record-durations"]), 0)
+            self.assertEqual(ran.call_args[0][:3], (lane, 1, 4))
+            return json.loads(path.read_text(encoding="utf-8"))
+
+        # A lane with no table yet gets one; the figures for every lane take what they lacked, and keep
+        # what they had; a file no lane runs is dropped from every table.
+        document = record("advanced", {b: 30.04, c: 40.0})
+        self.assertEqual(document["lanes"], {"advanced": {b: 30.0, c: 40.0}, "release": {a: 7.0},
+                                             "standard": {a: 2.0, b: 3.0}})
+        self.assertEqual(document["seconds"], {a: 1.0, b: 30.0, c: 40.0})
+        self.assertIn("The advanced lane's table", document["about"])
+        # A lane's table keeps the files the run did not include.
+        document = record("standard", {a: 9.0})
+        self.assertEqual(document["lanes"]["standard"], {a: 9.0, b: 3.0})
+        self.assertEqual(document["lanes"]["advanced"], {b: 30.0, c: 40.0})
+        self.assertEqual(document["seconds"], {a: 1.0, b: 30.0, c: 40.0})
+
+    def test_each_lanes_parts_take_about_as_long_as_each_other(self):
+        """At every count a workflow deals a lane into, by the lane's own seconds."""
+        tests = workflow("test.yml")
+        counts = sorted({declared_parts(job(tests, "test")), declared_parts(job(tests, "main-tree")),
+                         declared_parts(job(workflow("release.yml"), "test")),
+                         declared_parts(job(workflow("sync-ko.yml"), "test"))})
+        for lane in parts.LANES:
+            seconds = parts.load_durations(lane)
+            for count in counts:
+                with self.subTest(lane=lane, count=count):
+                    totals = [sum(seconds.get(name, 0.0) for name in part)
+                              for part in parts.deal(parts.lane_files(lane), count, seconds)]
+                    self.assertLessEqual(max(totals), self.SPREAD * min(totals),
+                                         "the %s lane's parts would take %s s" % (lane, [round(t) for t in totals]))
 
 
 class WorkerTests(unittest.TestCase):
@@ -370,7 +494,7 @@ class CompareTests(unittest.TestCase):
         worker = lambda suite, names, env, verbose: (0, b"", {"ok": True, "outcomes": {}, "counts": {"run": 1}})
         with mock.patch.object(parts, "say"):
             merged = parts.run_part("release", 2, 3, worker=worker)
-        dealt = parts.deal(parts.lane_files("release"), 3, parts.load_durations())
+        dealt = parts.deal(parts.lane_files("release"), 3, parts.load_durations("release"))
         self.assertEqual(merged["files"], dealt[1])
         self.assertEqual(merged["part"], "2/3")
         with tempfile.TemporaryDirectory() as folder:
@@ -391,7 +515,7 @@ class CompareTests(unittest.TestCase):
 
         with mock.patch.object(parts.subprocess, "Popen", Child), mock.patch.object(parts, "say"):
             merged, _ = parts.run_parallel("standard", 3)
-        self.assertEqual(merged["deal"], parts.deal(parts.lane_files("standard"), 3, parts.load_durations()))
+        self.assertEqual(merged["deal"], parts.deal(parts.lane_files("standard"), 3, parts.load_durations("standard")))
         self.assertEqual(merged["files"], parts.lane_files("standard"))
 
 
