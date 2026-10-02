@@ -1058,6 +1058,8 @@ namespace CodexAutoResume
             TakeOwnTaskbarIdentity();
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
+            // Only a window build/capture_window.ps1 started: the mouse changes nothing it draws.
+            SettingsForm.ShutOutPointer();
 
             string root = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
             var bridge = new Bridge(root);

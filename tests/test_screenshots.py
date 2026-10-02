@@ -3062,5 +3062,177 @@ class QueuedReadTests(unittest.TestCase):
         self.assertEqual(self.answer["after"], 0)
 
 
+# The compiled window's own message cards and page in a window of the probe's own, far off the screen and shown without
+# taking activation, as a capture's window is: a Custom message card, and a page with more on it than fits, so its soft
+# bar shows. The pointer's messages are posted, so they come through the thread's message loop as Windows' own do - a
+# move over the card and over the bar's thumb, and a turn of the wheel over the page - and what each control made of
+# them is read the moment it was handed one. Run once as a person's window and once as a capture's (CODEX_AR_STILL_READY,
+# which the window reads once, at start); both make the call Program.Main makes.
+POINTER_PROBE = r"""
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Drawing
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -ReferencedAssemblies System.Windows.Forms, System.Drawing -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+using System.Windows.Forms;
+public class QuietForm : Form {
+    protected override bool ShowWithoutActivation { get { return true; } }
+    protected override CreateParams CreateParams { get { CreateParams cp = base.CreateParams; cp.ExStyle |= 0x08000000 | 0x80; return cp; } }
+}
+public static class Pointer {
+    [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr window, int message, IntPtr wParam, IntPtr lParam);
+    public static IntPtr At(int x, int y) { return new IntPtr(((y & 0xFFFF) << 16) | (x & 0xFFFF)); }
+    public static IntPtr Turn(int delta) { return new IntPtr((delta & 0xFFFF) << 16); }
+}
+'@
+$assembly = [Reflection.Assembly]::LoadFile($env:CAR_EXE)
+$static = [Reflection.BindingFlags]'Static,NonPublic,Public'
+$instance = [Reflection.BindingFlags]'Instance,NonPublic,Public'
+$t = @{}
+foreach ($n in 'Palette','Soft','SettingsForm','ChoiceCard','SoftPage','SoftBar') { $t[$n] = $assembly.GetType('CodexAutoResume.' + $n, $true) }
+function P($target, [string]$name) { return $target.GetType().GetProperty($name, $instance).GetValue($target, $null) }
+function F($target, [string]$name) { return $target.GetType().GetField($name, $instance).GetValue($target) }
+function Hex([Drawing.Color]$c) { return ('#{0:X2}{1:X2}{2:X2}' -f $c.R, $c.G, $c.B) }
+function Pump([int]$ms) { $sw = [Diagnostics.Stopwatch]::StartNew(); do { [Windows.Forms.Application]::DoEvents(); Start-Sleep -Milliseconds 3 } while ($sw.ElapsedMilliseconds -lt $ms) }
+$out = @{}
+$out.capture = [bool]($t.Soft.GetField('StillReady', $static).GetValue($null) -ne $null)
+# What Program.Main does before anything else is made (a window from before v0.6.11's has nothing to call).
+$shut = $t.SettingsForm.GetMethod('ShutOutPointer', $static)
+if ($shut) { $null = $shut.Invoke($null, @()) }
+$null = $t.Palette.GetMethod('Adopt', $static).Invoke($null, [object[]]@('light'))
+$t.Soft.GetField('ReduceMotionSetting', $static).SetValue($null, $true)
+$out.surface = Hex ($t.Palette.GetField('Surface', $static).GetValue($null))
+$out.raised = Hex ($t.Palette.GetField('Raised', $static).GetValue($null))
+$edge = $t.SoftBar.GetMethod('ThumbEdge', $static)
+$out.edgeResting = Hex ($edge.Invoke($null, [object[]]@(0, $false)))
+$out.edgeUnderPointer = Hex ($edge.Invoke($null, [object[]]@(1, $false)))
+
+$form = New-Object QuietForm
+$form.FormBorderStyle = 'None'
+$form.ShowInTaskbar = $false
+$form.StartPosition = 'Manual'
+$form.Location = New-Object Drawing.Point -30000, -30000
+$form.Size = New-Object Drawing.Size 760, 420
+$form.BackColor = $t.Palette.GetField('Canvas', $static).GetValue($null)
+$card = $t.ChoiceCard.GetConstructors($instance)[0].Invoke([object[]]@('custom', 'Custom', 'Your own words'))
+$card.Location = New-Object Drawing.Point 20, 20
+$card.Size = New-Object Drawing.Size 320, 80
+$page = [Activator]::CreateInstance($t.SoftPage, $true)
+$page.Location = New-Object Drawing.Point 380, 20
+$page.Size = New-Object Drawing.Size 320, 300
+$tall = New-Object Windows.Forms.Panel
+$tall.Location = New-Object Drawing.Point 0, 0
+$tall.Size = New-Object Drawing.Size 200, 2000
+$page.Controls.Add($tall)
+$page.GetType().GetProperty('Scrolls', $instance).SetValue($page, $true, $null)
+$form.Controls.Add($card)
+$form.Controls.Add($page)
+$script:entered = 0; $script:cardHover = $false; $script:moved = 0; $script:barState = 0
+$card.add_MouseEnter({ $script:entered++; $script:cardHover = [bool](F $card 'hover') })
+# After the bar's own handler, which was added with Scrolls: what it made of the move.
+$page.add_MouseMove({ $script:moved++; $script:barState = [int](P (P $page 'Bar') 'State') })
+$form.Show()
+$page.PerformLayout()
+Pump 100
+$out.overflowing = [bool](P $page 'Overflowing')
+$thumb = P (P $page 'Bar') 'Thumb'
+$null = [Pointer]::PostMessage($card.Handle, 0x0200, [IntPtr]::Zero, [Pointer]::At(40, 40))
+$null = [Pointer]::PostMessage($page.Handle, 0x0200, [IntPtr]::Zero, [Pointer]::At($thumb.X + [int]($thumb.Width / 2), $thumb.Y + 10))
+$centre = $page.PointToScreen((New-Object Drawing.Point 100, 100))
+$null = [Pointer]::PostMessage($page.Handle, 0x020A, [Pointer]::Turn(-120), [Pointer]::At($centre.X, $centre.Y))
+Pump 400
+$out.cardEntered = $script:entered
+$out.cardHover = $script:cardHover
+$out.barMoves = $script:moved
+$out.barState = $script:barState
+$out.offset = [int](P $page 'Offset')
+$form.Close()
+$out | ConvertTo-Json -Compress
+"""
+
+
+@unittest.skipUnless(os.name == "nt" and CSC.is_file() and POWERSHELL.is_file(), "needs the in-box compiler and PowerShell")
+class PointerShutOutTests(unittest.TestCase):
+    """A window a capture started answers no pointer (v0.6.11, SettingsForm.ShutOutPointer).
+
+    Windows hands a window that appears under a pointer standing still a move of its own, and the control under it
+    takes its hover: the Settings pictures made for v0.6.11-beta.3 show the Custom message card filled with the
+    Surface colour (#F6F8FB) where Minimal and Detailed are Raised (#FBFCFE), and the proof that compared the two
+    generators found four pictures whose soft scroll bar's thumb had the edge it has under the pointer (#A6B2C0, not
+    #D3DCE7) - pictures of the same page, settled, differing by where somebody had left the mouse. The person's half
+    of this probe makes the same two states with nothing but the pointer's messages; the capture's half makes none."""
+
+    @classmethod
+    def setUpClass(cls):
+        import subprocess
+        cls.folder = tempfile.TemporaryDirectory()
+        work = Path(cls.folder.name)
+        exe = work / "CodexAutoResumeSettings.exe"
+        subprocess.run([str(CSC), "/nologo", "/target:winexe", "/platform:x64", "/out:" + str(exe),
+                        "/reference:System.dll", "/reference:System.Drawing.dll", "/reference:System.Windows.Forms.dll",
+                        *[str(path) for path in guiscan.sources()]],
+                       check=True, capture_output=True, timeout=600)
+        probe = work / "pointer.ps1"
+        probe.write_text(POINTER_PROBE, encoding="utf-8")
+        cls.results, cls.answers = {}, {}
+        for who, ready in (("person", None), ("capture", "Local\\CodexAutoResume.Still.pointer-probe")):
+            env = {key: value for key, value in os.environ.items() if key.upper() != "CODEX_AR_STILL_READY"}
+            if ready:
+                env["CODEX_AR_STILL_READY"] = ready
+            env["CAR_EXE"] = str(exe)
+            result = subprocess.run(
+                [str(POWERSHELL), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(probe)],
+                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600, env=env)
+            cls.results[who] = result
+            cls.answers[who] = (json.loads(result.stdout)
+                                if result.returncode == 0 and result.stdout.strip() else {})
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.folder.cleanup()
+
+    def answer(self, who):
+        if not self.answers[who]:
+            result = self.results[who]
+            self.fail("the %s probe did not run: %s" % (who, (result.stderr or result.stdout)[-4000:]))
+        return self.answers[who]
+
+    def test_the_states_the_pictures_differed_by_are_the_pointer_s(self):
+        person = self.answer("person")
+        self.assertFalse(person["capture"])
+        self.assertEqual((person["surface"], person["raised"]), ("#F6F8FB", "#FBFCFE"),
+                         "a card under the pointer is filled Surface, one resting Raised")
+        self.assertEqual((person["edgeUnderPointer"], person["edgeResting"]), ("#A6B2C0", "#D3DCE7"),
+                         "the thumb's edge under the pointer, and resting")
+
+    def test_a_person_s_window_answers_the_pointer_as_always(self):
+        person = self.answer("person")
+        self.assertTrue(person["overflowing"], "the page shows its bar")
+        self.assertEqual(person["cardEntered"], 1)
+        self.assertTrue(person["cardHover"], "the card under the pointer is drawn hovered")
+        self.assertGreaterEqual(person["barMoves"], 1)
+        self.assertEqual(person["barState"], 1, "the thumb under the pointer is drawn with its darker edge")
+        self.assertGreater(person["offset"], 0, "and the wheel scrolls the page")
+
+    def test_a_capture_s_window_answers_no_pointer(self):
+        capture = self.answer("capture")
+        self.assertTrue(capture["capture"])
+        self.assertTrue(capture["overflowing"], "the page shows its bar")
+        self.assertEqual(capture["cardEntered"], 0, "no move reaches the card")
+        self.assertFalse(capture["cardHover"])
+        self.assertEqual(capture["barMoves"], 0, "nor the page")
+        self.assertEqual(capture["barState"], 0)
+        self.assertEqual(capture["offset"], 0, "and the wheel scrolls nothing")
+
+    def test_main_shuts_the_pointer_out_before_the_window_is_made_and_only_for_a_capture(self):
+        main = guiscan.member_body("Program", "Main")
+        self.assertIn("SettingsForm.ShutOutPointer();", main)
+        self.assertLess(main.index("SettingsForm.ShutOutPointer();"), main.index("new SettingsForm("))
+        shut = guiscan.member_body("SettingsForm", "ShutOutPointer")
+        self.assertIn("Soft.StillReady == null", shut, "a person's window answers the mouse as always")
+        self.assertIn("Application.AddMessageFilter(", shut)
+
+
 if __name__ == "__main__":
     unittest.main()

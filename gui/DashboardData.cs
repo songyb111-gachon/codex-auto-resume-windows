@@ -128,6 +128,34 @@ namespace CodexAutoResume
             }
         }
 
+        /// A window build/capture_window.ps1 started answers no pointer: from before its first control is made, the
+        /// thread's message loop drops every move, press, wheel, hover and leave of the mouse in its client area and
+        /// every move over its frame, so a pointer that stands or passes over it changes nothing drawn. Windows hands
+        /// a window that appears under a pointer standing still a move of its own (SoftDropList.Moved says so
+        /// too), and the card or the scroll bar under it took its hover: the Settings pictures of v0.6.11-beta.3 show
+        /// the Custom message card hovered, and pictures made twice differed by where somebody had left the mouse.
+        /// A press on the frame still goes through, so the window can still be moved or closed by hand. A person's
+        /// window is never given a capture's event, and answers the mouse as always. Called by Program.Main.
+        internal static void ShutOutPointer()
+        {
+            if (Soft.StillReady == null || pointerShut != null) return;
+            pointerShut = new PointerShut();
+            Application.AddMessageFilter(pointerShut);
+        }
+
+        private static PointerShut pointerShut;
+
+        private sealed class PointerShut : IMessageFilter
+        {
+            public bool PreFilterMessage(ref Message m)
+            {
+                int message = m.Msg;
+                return (message >= 0x0200 && message <= 0x020E)      // WM_MOUSEMOVE to WM_MOUSEHWHEEL: moves, presses, wheels
+                    || message == 0x02A1 || message == 0x02A3          // WM_MOUSEHOVER, WM_MOUSELEAVE
+                    || message == 0x00A0 || message == 0x02A0 || message == 0x02A2;   // WM_NCMOUSEMOVE, WM_NCMOUSEHOVER, WM_NCMOUSELEAVE
+            }
+        }
+
         /// Whether the page the window opened on is drawn from every answer it asked for, and nothing is moving.
         private bool Settled()
         {
