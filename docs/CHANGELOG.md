@@ -50,7 +50,7 @@ takes one command first ([below](#the-state-and-going-back)).
   project's standards by id, each with how it is held and the tests that hold it, and
   [EDITIONS.md](EDITIONS.md) says what each edition is, what each advanced capability does, risks and
   departs from, and how to choose, switch, update and verify. The guide, the README and the security,
-  privacy, comparison, verification and acceptance pages link both.
+  privacy and comparison pages link both.
 
 ### The advanced edition's first capabilities, and the page that turns them on
 
