@@ -574,12 +574,53 @@ namespace CodexAutoResume
         /// moment its records are seeded at. Read once, at start, and never set by the product.
         internal static readonly double StillNow = ReadStillNow();
 
+        /// The moment a picture shows StillNow as on the clock, in seconds since 1970, or -1 - which is
+        /// what anybody running the product gets.
+        ///
+        /// The bridge behind the window runs on the real clock, so the records a picture is of are seeded
+        /// at the real moment it is taken, and History printed that day's dates and times: every picture
+        /// of it changed whenever it was made again, for a reason that was not the source.
+        /// CODEX_AR_STILL_CLOCK=&lt;epoch&gt; makes every date and time of day the window prints (When,
+        /// ClockTime) read as if StillNow were that moment, in UTC, as the notification card prints its
+        /// reset: moved by as much, so they stay as far apart as they were, and the same whichever day,
+        /// and in whichever zone, a picture is taken. build/make_screenshots.py sets it to the panel's and
+        /// the popup's moment. Only with StillNow; read once, at start, and never set by the product.
+        internal static readonly double StillClock = StillNow > 0 ? ReadMoment("CODEX_AR_STILL_CLOCK") : -1;
+
+        /// The name of an event to set once the page the window opened on is drawn from the bridge's
+        /// answers and holds still (SettingsForm.WatchForStill), or null - which is what anybody running
+        /// the product gets.
+        ///
+        /// Nothing said when a window was ready to be photographed, so every picture was taken a fixed
+        /// fifteen seconds after its window started, whatever the window was doing by then: about
+        /// twenty-five pictures, one after another, spent six minutes waiting. CODEX_AR_STILL_READY=&lt;name&gt;
+        /// makes the window say so; build/capture_window.ps1 creates the event, sets this, and waits for
+        /// it with the old wait as its limit. Read once, at start, and never set by the product.
+        internal static readonly string StillReady = ReadStillReady();
+
+        private static string ReadStillReady()
+        {
+            try
+            {
+                string set = Environment.GetEnvironmentVariable("CODEX_AR_STILL_READY");
+                if (!string.IsNullOrEmpty(set) && set.Length <= 200) return set;
+            }
+            catch (Exception) { }
+            return null;
+        }
+
         private static double ReadStillNow()
+        {
+            return ReadMoment("CODEX_AR_STILL_NOW");
+        }
+
+        /// A moment a picture names in the variable `name`, in seconds since 1970, or -1 where it names none.
+        private static double ReadMoment(string name)
         {
             try
             {
                 double seconds;
-                string set = Environment.GetEnvironmentVariable("CODEX_AR_STILL_NOW");
+                string set = Environment.GetEnvironmentVariable(name);
                 if (!string.IsNullOrEmpty(set) &&
                     double.TryParse(set, System.Globalization.NumberStyles.Float,
                                     System.Globalization.CultureInfo.InvariantCulture, out seconds) &&
@@ -1264,6 +1305,24 @@ namespace CodexAutoResume
             timer.Tick += delegate { Tick(); };
         }
 
+        /// How many transitions in this window are on their way: a picture is taken only while none is
+        /// (SettingsForm.WatchForStill). Counted on the window's own thread, where every one runs.
+        internal static int Moving;
+
+        private void Run()
+        {
+            if (timer.Enabled) return;
+            timer.Start();
+            Moving++;
+        }
+
+        private void Halt()
+        {
+            if (!timer.Enabled) return;
+            timer.Stop();
+            Moving--;
+        }
+
         /// What the owner repaints each frame, in its coordinates; the whole of it when empty.
         internal Rectangle Area;
 
@@ -1296,7 +1355,7 @@ namespace CodexAutoResume
             to = target;
             if (!animate || now == target)
             {
-                timer.Stop();
+                Halt();
                 from = target;
                 Repaint();
                 return;
@@ -1304,7 +1363,7 @@ namespace CodexAutoResume
             from = now;
             clock.Reset();
             clock.Start();
-            if (!timer.Enabled) timer.Start();
+            Run();
             Repaint();
         }
 
@@ -1312,7 +1371,7 @@ namespace CodexAutoResume
         {
             if (clock.Elapsed.TotalMilliseconds >= Motion.Duration || owner.IsDisposed || !Soft.Shown(owner) || !owner.Visible)
             {
-                timer.Stop();
+                Halt();
                 from = to;
             }
             Repaint();
@@ -1332,7 +1391,7 @@ namespace CodexAutoResume
 
         public void Dispose()
         {
-            timer.Stop();
+            Halt();
             timer.Dispose();
         }
     }

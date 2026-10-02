@@ -506,6 +506,32 @@ popup and the notification card are drawn in each Design other than Soft - Class
 English and the light theme, as `docs/images/design-<design>-<surface>.png`.
 They are documentation only and never copied into `assets/`.
 
+**Only what moved is drawn, side by side.** Both steps first hold the manifest against the working
+tree and draw only the pictures whose inputs moved, whose files are not the bytes the manifest
+records, or - for the window - that were captured at another display scaling; the rest are kept as
+they are. A change to the generator itself draws everything, and so does `--all`
+(`python build/make_screenshots.py --all`, `python build/make_screenshots.py --breathe --all`). What
+is drawn is drawn side by side, each job - one language's window pages, one panel, one popup - in a
+process of its own: the windows' jobs all at once, and the others half the processors at a time and
+never more than eight (`--jobs N` says how many). Stopping a run - Ctrl+C, or a job the run cannot
+read - ends every job it started and starts no other, and a job ended so closes its windows with it;
+a run killed outright takes its jobs with it too, since they run in a Windows job of the run's.
+The window is photographed as soon as it says that the page it opened on is drawn from the bridge's
+answers and holds still, rather than a fixed fifteen seconds after it started:
+`build/capture_window.ps1` hands it the name of an event to set, through a variable only the capture
+sets, and still waits no longer than those fifteen seconds; a window still busy then is photographed
+once it answers, as before, and the picture is the same. A capture is given up only thirty minutes
+after its window started: it was five, and a machine whose processors were all taken by other work
+outran that with windows that were only slow. One window is on screen at a time unless
+`--windows N` asks for more (`python build/make_screenshots.py --windows 2`): a window spends most
+of its start drawing text through parts of Windows every process shares, a dozen started together
+each took two minutes, and a session once crashed while several windows were being captured at
+once. Each is photographed with PrintWindow, which draws a window whatever
+covers it, and one at a time from the moment its caption is painted inactive to the moment it is
+closed. None of them takes the foreground - a new window otherwise does once nobody has typed for a
+while, and the foreground window's caption comes out active - and a picture whose caption is active
+all the same is taken again, and after five tries not kept.
+
 It needs Windows, Microsoft Edge (it is what renders the panel), and
 `build/CodexAutoResumeSettings.exe` already built — run
 `powershell -ExecutionPolicy Bypass -File build/make_gui.ps1` first. The first run also
@@ -564,10 +590,12 @@ real one publishes it permanently.
 back the way each surface reads them: the popup's rows and the panel's rows are the window's two
 waiting recoveries, with the same names, states and times, and the panel's page is told that moment
 and reads clock times in UTC, as the card does. The window itself is seeded again when it is
-photographed, with the same offsets, because the bridge behind it runs on the real clock. So a
-countdown, a chip and a count say the same on all four pictures, but a wall-clock time need not: the
-times the window prints, such as History's, are those of the day the pictures were drawn. Compare
-the four by their relative times only.
+photographed, with the same offsets, because the bridge behind it runs on the real clock, and it is
+told, through a variable only the generator sets, to print that moment as the popup's and the
+panel's, in UTC: every date and time of day it prints, such as History's, is moved by as much. So a
+countdown, a chip, a count and a time of day say the same on all four pictures, a run on another day
+draws History again byte for byte, and its times do not depend on the PC's time zone; until
+v0.6.12-alpha History printed the day the pictures were drawn.
 
 **To audit the look, draw both themes side by side.** The committed pictures are the light theme's
 only. For a change to how the product looks, draw contact sheets of the window's Overview and

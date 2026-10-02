@@ -614,6 +614,8 @@ namespace CodexAutoResume
                 Padding measured = InvisibleFrame();
                 if (measured != Padding.Empty) invisibleFrame = measured;
                 BuildEditorsLater();
+                // Only a window build/capture_window.ps1 started, which says when it may be photographed.
+                WatchForStill();
             };
             FormClosed += delegate { StopClock(); bridge.Stop(); };
         }
@@ -1056,6 +1058,8 @@ namespace CodexAutoResume
             TakeOwnTaskbarIdentity();
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
+            // Only a window build/capture_window.ps1 started: the mouse changes nothing it draws.
+            SettingsForm.ShutOutPointer();
 
             string root = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
             var bridge = new Bridge(root);

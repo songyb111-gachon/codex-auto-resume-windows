@@ -66,6 +66,111 @@ namespace CodexAutoResume
             if (clock != null) clock.Stop();
         }
 
+        // -------------------------------------------------------------- held still
+        // For build/make_screenshots.py only: the window says when it may be photographed (Soft.StillReady).
+        private Timer stillCheck;
+        private int stillSince = -1;            // the clock's tick when everything was first found settled
+        private readonly Stopwatch stillFor = new Stopwatch();
+
+        /// Sets the event Soft.StillReady names once the page the window opened on holds still: that page is
+        /// showing, every read it and the header asked for has been answered and applied - the settings and their
+        /// editors, the Dashboard's snapshot, the page's own reads, the Preview - nothing is on its way on the
+        /// bridge, nothing glides, and all of it has held for a quarter of a second and through one tick of the
+        /// clock, which writes what a read brought into the countdowns and the header (UpdateCountdowns). Looked
+        /// at on a timer, whose message Windows hands over only once every other one - each answer's
+        /// BeginInvoke, each paint - has been handled. A window with no event named does none of this.
+        private void WatchForStill()
+        {
+            if (Soft.StillReady == null || stillCheck != null || auditing) return;
+            stillCheck = new Timer();
+            stillCheck.Interval = 50;
+            stillCheck.Tick += delegate
+            {
+                if (!Settled())
+                {
+                    stillSince = -1;
+                    return;
+                }
+                if (stillSince < 0)
+                {
+                    stillSince = ticks;
+                    stillFor.Restart();
+                    return;
+                }
+                if (ticks == stillSince || stillFor.ElapsedMilliseconds < 250) return;
+                stillCheck.Stop();
+                try
+                {
+                    using (var ready = System.Threading.EventWaitHandle.OpenExisting(Soft.StillReady)) ready.Set();
+                }
+                catch (Exception) { }
+            };
+            stillCheck.Start();
+        }
+
+        /// A window build/capture_window.ps1 started is never made the foreground window: not as it opens, and not
+        /// when the window in front of it closes, which Windows otherwise hands the foreground to. The capture tells
+        /// the caption it is inactive (WM_NCACTIVATE), but its redraw of the frame paints the caption of a window
+        /// that is in fact active as active again - which is what a Japanese Overview came out with when it was
+        /// captured beside other windows. A person's window is never given a capture's event, and opens as always.
+        protected override bool ShowWithoutActivation
+        {
+            get { return Soft.StillReady != null || base.ShowWithoutActivation; }
+        }
+
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                CreateParams created = base.CreateParams;
+                if (Soft.StillReady != null) created.ExStyle |= 0x08000000;          // WS_EX_NOACTIVATE
+                return created;
+            }
+        }
+
+        /// A window build/capture_window.ps1 started answers no pointer: from before its first control is made, the
+        /// thread's message loop drops every move, press, wheel, hover and leave of the mouse in its client area and
+        /// every move over its frame, so a pointer that stands or passes over it changes nothing drawn. Windows hands
+        /// a window that appears under a pointer standing still a move of its own (SoftDropList.Moved says so
+        /// too), and the card or the scroll bar under it took its hover: the Settings pictures of v0.6.11-beta.3 show
+        /// the Custom message card hovered, and pictures made twice differed by where somebody had left the mouse.
+        /// A press on the frame still goes through, so the window can still be moved or closed by hand. A person's
+        /// window is never given a capture's event, and answers the mouse as always. Called by Program.Main.
+        internal static void ShutOutPointer()
+        {
+            if (Soft.StillReady == null || pointerShut != null) return;
+            pointerShut = new PointerShut();
+            Application.AddMessageFilter(pointerShut);
+        }
+
+        private static PointerShut pointerShut;
+
+        private sealed class PointerShut : IMessageFilter
+        {
+            public bool PreFilterMessage(ref Message m)
+            {
+                int message = m.Msg;
+                return (message >= 0x0200 && message <= 0x020E)      // WM_MOUSEMOVE to WM_MOUSEHWHEEL: moves, presses, wheels
+                    || message == 0x02A1 || message == 0x02A3          // WM_MOUSEHOVER, WM_MOUSELEAVE
+                    || message == 0x00A0 || message == 0x02A0 || message == 0x02A2;   // WM_NCMOUSEMOVE, WM_NCMOUSEHOVER, WM_NCMOUSELEAVE
+            }
+        }
+
+        /// Whether the page the window opened on is drawn from every answer it asked for, and nothing is moving.
+        private bool Settled()
+        {
+            if (!shown || currentPage != firstPage) return false;
+            if (!settingsRead || readingSettings || reopening || pendingSchema != null || buildQueued) return false;
+            if (busy > 0 || refreshing || loadingStats || loadingCompat || readingFailure || acknowledging) return false;
+            if (bridge.InFlight > 0 || Transition.Moving > 0) return false;
+            if (previewTimer != null && previewTimer.Enabled) return false;
+            if (firstPage == "settings") return previewToken > 0;
+            if (snapshot == null) return false;
+            if (firstPage == "statistics") return statsToken > 0;
+            if (firstPage == "diagnostics") return compatView != null || compatUnreadable;
+            return true;
+        }
+
         // A read for its own sake: the clock, a page switch, F5.
         private void RefreshNow()
         {
@@ -198,8 +303,18 @@ namespace CodexAutoResume
         private static string When(double stamp)
         {
             if (stamp <= 0) return "";
-            DateTime local = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(stamp).ToLocalTime();
-            return local.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
+            return OnTheClock(stamp).ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
+        }
+
+        /// A moment as the clock shows it: this PC's time - and, in a picture whose clock is pinned
+        /// (Soft.StillClock), as far from the pinned moment as it is from the one the window is told it
+        /// is (Soft.StillNow), in UTC, so the picture prints the same dates and times whenever and
+        /// wherever it is taken.
+        private static DateTime OnTheClock(double stamp)
+        {
+            DateTime epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            if (Soft.StillClock > 0) return epoch.AddSeconds(stamp - Soft.StillNow + Soft.StillClock);
+            return epoch.AddSeconds(stamp).ToLocalTime();
         }
 
         /// v0.6.11: a watcher that is not running, as it ended (control/watcher.how_it_ended): stopped by the memory guard,
@@ -225,9 +340,9 @@ namespace CodexAutoResume
         private static string ClockTime(double stamp)
         {
             if (stamp <= 0) return "";
-            DateTime local = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(stamp).ToLocalTime();
-            return local.Date == DateTime.Now.Date ? local.ToString("HH:mm", CultureInfo.InvariantCulture)
-                                                   : When(stamp);
+            DateTime local = OnTheClock(stamp);
+            return local.Date == OnTheClock(Now()).Date ? local.ToString("HH:mm", CultureInfo.InvariantCulture)
+                                                        : When(stamp);
         }
 
         private string Ago(double stamp)
