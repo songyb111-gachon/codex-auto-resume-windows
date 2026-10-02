@@ -69,7 +69,8 @@ codex plugin add codex-auto-resume@codex-auto-resume-windows
 
 플러그인의 설치 스크립트가 이 저장소의 릴리스에서 해당 버전 압축 파일을 HTTPS로 내려받아,
 [`scripts/release.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/scripts/release.json)에 그 버전용으로 기록된 digest와 SHA-256을
-대조한 뒤 이 Windows 계정에만 설치합니다.
+대조한 뒤 이 Windows 계정에만 설치합니다. 고급판은 아직 거기 기록된 digest가 없어, 내려받은 파일을 그 옆에
+게시된 `.sha256`과 대조합니다.
 
 ### 설치 파일로 설치
 
@@ -91,6 +92,7 @@ codex plugin add codex-auto-resume@codex-auto-resume-windows
 
    출력된 값이 압축 파일 옆에 게시된 `.sha256` 파일의 값, 그리고
    [`scripts/release.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/scripts/release.json)에 그 버전용으로 기록된 값과 같아야 합니다.
+   이름에 `Advanced`가 들어간 압축 파일은 아직 거기 기록된 값이 없으므로, `.sha256` 파일의 값과 같으면 됩니다.
    자세한 확인 방법은 [docs/VERIFY.ko.md](docs/VERIFY.ko.md)에 있습니다.
 3. 압축을 풀고 `Install.cmd`를 실행합니다.
 

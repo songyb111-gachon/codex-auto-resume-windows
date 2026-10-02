@@ -72,7 +72,8 @@ codex plugin add codex-auto-resume@codex-auto-resume-windows
 The plugin's setup script downloads the matching release from this repository over HTTPS, checks
 its SHA-256 against the digest recorded for that version in
 [`scripts/release.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/scripts/release.json),
-and installs it for your Windows account only.
+and installs it for your Windows account only. The advanced edition has no digest recorded there
+yet, so its download is checked against the `.sha256` published beside it instead.
 
 ### With the setup program
 
@@ -96,6 +97,7 @@ shows how to check it first.
 
    The value must match the `.sha256` file published beside the archive and the digest for that
    version in [`scripts/release.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/scripts/release.json).
+   An archive with `Advanced` in its name has no digest there yet: it must match its `.sha256` file.
    [docs/VERIFY.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/VERIFY.md) has the full check.
 3. Extract it and run `Install.cmd`.
 
