@@ -255,7 +255,7 @@ not use the file at all and re-runs setup instead, unless you also pass `-Force`
 The v0.6.3 archive is checked like any other, before it is extracted: the steps above, with
 v0.6.3's own file and values. v0.6.2's pin on `main` vouches for v0.6.2's file and nothing
 else. v0.6.3 is published and its own pin is committed, so step 3 has a digest to compare
-with, and so are v0.6.4, v0.6.5, v0.6.6, v0.6.7, v0.6.8, v0.6.9, v0.6.10 and their pins. A release that has just been published has no
+with, and so are v0.6.4, v0.6.5, v0.6.6, v0.6.7, v0.6.8, v0.6.9, v0.6.10, v0.6.11 and their pins. A release that has just been published has no
 pin for a little while - until the pin is committed, step 3 has nothing to compare its archive
 with, which is the case [a new release has no pin for a while](#what-is-not-verified)
 describes.
@@ -566,10 +566,10 @@ If either one blocks you, please open an issue naming the file and the message.
 - **`Install.cmd` does not check the archive**, and **the plugin route does not check the
   attestation.**
 - **Archives before v0.5.4 have no attestation.**
-- **No advanced archive is pinned yet.** The `advanced` table's `sha256` in `scripts/release.json`
-  is empty until v0.6.11, the first release that publishes the advanced edition, is pinned; the
-  four pre-releases that carried it before, v0.6.11-alpha, v0.6.11-beta, v0.6.11-beta.2 and
-  v0.6.11-beta.3, are never pinned. Until then an advanced archive has its `.sha256` and the
+- **Advanced archives are pinned from v0.6.11 on.** The `advanced` table's `sha256` in
+  `scripts/release.json` starts with v0.6.11, the first release that publishes the advanced edition.
+  The four pre-releases that carried it before, v0.6.11-alpha, v0.6.11-beta, v0.6.11-beta.2 and
+  v0.6.11-beta.3, are never pinned: for them an advanced archive has its `.sha256` and the
   attestation, and the plugin route falls back to the `.sha256` and says so.
 - **All four proposed action upgrades are in, and two of them nothing can test.**
   Dependabot opened pull requests raising `actions/checkout` to v7.0.1,
