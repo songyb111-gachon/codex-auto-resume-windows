@@ -560,7 +560,7 @@ class BranchTests(unittest.TestCase):
 
     def test_the_rule_follows_the_tree_that_was_checked_out(self):
         """A push is held to its branch only when HEAD is the pushed commit; a pull request to its
-        base; anything else to nothing."""
+        base; a tree a job made into another branch's to that branch's; anything else to nothing."""
         from unittest import mock
         head = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True,
                               text=True, encoding="utf-8").stdout.strip()
@@ -574,13 +574,24 @@ class BranchTests(unittest.TestCase):
             ({"GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_REF_NAME": "main"}, None),
             ({"GITHUB_EVENT_NAME": "workflow_run", "GITHUB_REF_NAME": "main"}, None),
             ({"GITHUB_EVENT_NAME": "push", "GITHUB_REF_NAME": "v0.6.10", "GITHUB_SHA": head}, None),
+            # test.yml's main-tree job: dev's tree with every Korean source taken off is main's, on a
+            # push to dev and on a pull request to it alike, and a local run can ask for it too.
+            ({"GITHUB_EVENT_NAME": "push", "GITHUB_REF_NAME": "dev", "GITHUB_SHA": head,
+              languages.TREE: "main"}, "english"),
+            ({"GITHUB_EVENT_NAME": "pull_request", "GITHUB_BASE_REF": "dev", languages.TREE: "main"}, "english"),
+            ({languages.TREE: "main"}, "english"),
+            ({languages.TREE: "dev"}, "both"),
         ]
         import os
-        kept = {key: value for key, value in os.environ.items() if not key.startswith("GITHUB_")}
+        kept = {key: value for key, value in os.environ.items()
+                if not key.startswith("GITHUB_") and key != languages.TREE}
         for env, expected in cases:
             # Every other GITHUB_ variable goes, PATH and the rest stay: git must still run.
             with self.subTest(env), mock.patch.dict("os.environ", dict(kept, **env), clear=True):
                 self.assertEqual(languages.branch_rule(), expected)
+        with mock.patch.dict("os.environ", dict(kept, **{languages.TREE: "ko"}), clear=True):
+            with self.assertRaises(AssertionError, msg="a tree no rule is written for is refused, not skipped"):
+                languages.branch_rule()
 
     def test_a_tree_with_some_korean_sources_is_refused(self):
         """Neither branch: a half-deleted checkout. It must fail, not skip."""

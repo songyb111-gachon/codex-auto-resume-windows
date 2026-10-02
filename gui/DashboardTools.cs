@@ -434,7 +434,7 @@ namespace CodexAutoResume
         private void LoadStateAccess()
         {
             if (diagStateAccess == null) return;
-            System.Threading.ThreadPool.QueueUserWorkItem(delegate
+            bridge.Queue(delegate
             {
                 Dictionary<string, object> reply;
                 try { reply = bridge.Call("state-access", null); }

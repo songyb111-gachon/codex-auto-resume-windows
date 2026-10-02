@@ -1,5 +1,98 @@
 # Changelog
 
+## v0.6.12-alpha — The tests in parts, and pictures taken when the window is ready
+
+[The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.11...v0.6.12-alpha)
+
+**A pre-release for developers, published from `main`.** It is a GitHub pre-release, so
+`releases/latest` never answers with it, and the plugin's own route installs what `main`'s manifest
+says, so an installation made that way gets it. An installation of v0.6.11 is offered it by
+*Check for updates*, which asks first and says it is tested less. An installation of v0.6.11-beta.2
+or v0.6.11-beta.3 is offered v0.6.11 first, because a release is offered before a pre-release, and
+this alpha only once it is on v0.6.11; v0.6.11-beta and the copies before it never offer a
+pre-release. It is an alpha - not yet for real use - because there is nothing in it to use: it is
+upkeep of how this project is tested and how its pictures are made, the first of v0.6.12's
+pre-releases, ahead of the version and edition picker and the power action.
+**Nothing changes for a person using it.** Both editions do what v0.6.11 does, say and draw what it
+says and draws, and make the same calls to Codex. The settings window's new code acts only in a
+window the picture generator starts, through variables only the generator sets; a person's window
+behaves as before. So unless you are testing the project itself, **Not now** is the answer to the
+offer. Going back takes only v0.6.11's setup program ([below](#going-back-from-v0612-alpha)).
+
+**A plugin copy older than v0.6.9-alpha's cannot read this version.** The bootstraps published from
+v0.6.0 to v0.6.8 read no word after a version, so none of them can compare `0.6.12-alpha` with
+anything, as at every alpha since v0.6.9-alpha; every copy from v0.6.9-alpha's on reads it. Set up
+and repair with the installation's own copy, `%USERPROFILE%\.codex-auto-resume\app\scripts\bootstrap.ps1`,
+or with a plugin at v0.6.9-alpha or later.
+
+### The suite in parts
+
+- **One place splits the suite, by measured time.** `scripts/test_parts.py` deals the test files
+  into parts balanced by how long each took when it was last measured (`tests/data/durations.json`),
+  and runs each part as `unittest discover` runs the suite: the same files, loaded by discover
+  itself, in the same order, with a fresh Python for each suite. Every CI lane, the suite the release
+  runs before it builds, and the ko sync now run it in four parts, a job each; a lane took 78 to 103
+  minutes as one job. `tests/test_split_runs.py` proves that the parts together are exactly the
+  tests discover finds, each once.
+- **Proven to give a whole run's results.** On the owner's PC each lane was run whole - `unittest
+  discover` itself - and in four parts, and the two were compared test by test. Of the tests that
+  ran both ways, 4,268 of the standard lane's 4,274 and 4,595 of the advanced lane's 4,596 came out
+  the same. All but five of the differences were a probe that ran out of time or a check sensitive
+  to timing, under the load of four parts and other work on one PC, and each passes alone, both
+  ways. The five were a real leak, now fixed: `tests/test_gui_own_values.py` set the process's
+  interface language to English and never gave it back, and `tests/test_locale.py` passed in a whole
+  run only because `tests/test_l10n.py` ran between them and reset it. Dealt into different parts,
+  five of its tests - 30 checks - failed. The window tests give the language back when they end now,
+  and that part, run again, came out as the whole run did in every test.
+- **Parts run at once on one PC are not a whole run.** They contend for one desktop and one
+  processor, which CI's parts - a runner each - never do. `--compare` names the part each differing
+  test ran in, prints the command that runs that part alone, and holds it to the whole run; the
+  contributing guide says what it means when they then agree, and when they still differ
+  ([In parts](CONTRIBUTING.md#in-parts)). On that PC, under its load, four parts at once took about
+  half the time: the standard lane 60 minutes against 123.
+- **A CI lane sees the tree as `main` does.** On `dev` and pull requests into it, the `main-tree`
+  job takes every Korean document off the tree, as a promotion to `main` does, and runs the
+  release's suite on what is left. A test that reads a Korean page without asking whether the
+  checkout holds one now fails on `dev`, before it reaches `main`.
+
+### Faster pictures
+
+- **A window is photographed when it says it may be.** The picture generator photographed each
+  window a fixed fifteen seconds after it started, whatever it was doing by then. Now the window
+  sets an event once the page it opened on is drawn from every answer it asked for and holds still -
+  nothing on its way from the bridge, nothing gliding, and a tick of its clock since - and
+  `build/capture_window.ps1` waits for that, with the fifteen seconds as its limit. None of these
+  windows takes the foreground, and a picture whose caption still comes out active is taken again.
+- **Only stale pictures are drawn.** A run draws only the pictures whose inputs moved, whose files
+  are not the bytes the manifest records, or that were captured at another display scaling, each
+  job in a process of its own, side by side; `--all` draws every one. Measured on the owner's PC
+  while other work ran, a full run took 1,144 s and `--breathe` 126 s before, and 479 s and 30 s
+  after, with two windows at a time; with nothing stale, 7 s.
+- **One window at a time, unless `--windows N` asks for more.** A session once crashed while
+  several windows were being captured at once, so more than one is a trial a person asks for.
+- **A window being photographed answers no pointer.** Windows hands a window that appears under a
+  pointer standing still a mouse move of its own, so a control under a mouse somebody had left there
+  was drawn hovered: v0.6.11-beta.3's Settings pictures show the Custom message card hovered, and
+  pictures made twice differed by where the mouse had been. A window the generator starts now drops
+  the mouse's moves, presses, wheel turns, hover and leave before any control sees them; a person's
+  window answers the mouse as always.
+- **History's clock is pinned.** The window's pictures print every date and time as one moment, the
+  popup's and the panel's, in UTC. History is drawn again byte for byte on another day and in
+  another time zone, where it printed the day the pictures were made.
+
+How it was checked: in a scratch copy, against the generator before it, 63 of 67 pictures came out
+byte for byte the same, and the other four differed only in History's times of day, which two runs
+of the old generator also differ in. A second comparison found seven pictures that differed where
+nothing should have, and in each the old generator's window had had the pointer over it - the case
+the change above closes.
+
+### Going back from v0.6.12-alpha
+
+- **The state, the settings and the advanced edition's file are v0.6.11's.** `state.sqlite` is
+  still schema 4 and `config\advanced\advanced.sqlite` still version 2, so going back to v0.6.11
+  takes only its setup program or `Install.cmd`, in the edition you have. Going back further is as
+  v0.6.11's entry says ([The state, and going back](CHANGELOG.md#the-state-and-going-back)).
+
 ## v0.6.11 — Two editions, and the advanced edition's first capabilities
 
 [The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.10...v0.6.11)

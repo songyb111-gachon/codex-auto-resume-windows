@@ -41,6 +41,7 @@ from __future__ import annotations
 import ast
 from contextlib import ExitStack
 import hashlib
+import inspect
 import json
 import os
 from pathlib import Path
@@ -1122,7 +1123,8 @@ class ContentTests(unittest.TestCase):
                           make_screenshots.render_panel, make_screenshots.render_popup):
             self.assertIsNone(inspect.signature(published).parameters["theme"].default, published.__name__)
             self.assertIsNone(inspect.signature(published).parameters["design"].default, published.__name__)
-        for whole_run in (make_screenshots.main, make_screenshots.render_inputs):
+        for whole_run in (make_screenshots.main, make_screenshots.render_inputs, make_screenshots.run_job,
+                          make_screenshots.window_job, make_screenshots.job_targets):
             self.assertNotIn("theme=", inspect.getsource(whole_run).replace("theme=THEME", ""),
                              "a published picture is drawn in THEME")
             self.assertNotIn("design=\"", inspect.getsource(whole_run),
@@ -1287,8 +1289,10 @@ class EnvelopeTests(unittest.TestCase):
         # One moment: the envelope's, the popup's and the panel page's clock, and the card's reset is
         # the usage limit's. The window is seeded by the same function, with the same offsets, at the
         # moment it is photographed - the bridge behind it runs with the real clock - and is told that
-        # moment; so its countdowns agree with the others and its wall-clock times are the run's.
+        # moment, so its countdowns agree with the others; and it is told to print that moment as
+        # POPUP_NOW, so its dates and times of day agree with them too, and with every other run's.
         self.assertEqual(g.ENVELOPE_NOW, g.POPUP_NOW)
+        self.assertEqual(g.WINDOW_CLOCK, g.POPUP_NOW)
         self.assertEqual({row[3]: row[6] - g.POPUP_NOW for row in window},
                          {"usage_limit": g.USAGE_RESET_IN, "network_transient": g.RETRY_IN})
         self.assertEqual(g.CARD_RESET_AT - g.POPUP_NOW, g.USAGE_RESET_IN)
@@ -1300,7 +1304,7 @@ class EnvelopeTests(unittest.TestCase):
                         "the page's clock is pinned before the panel's own script reads it")
         capture = inspect.getsource(g.render_window)
         self.assertIn("seed_window_state(home, codex, now)", capture)
-        self.assertIn("CODEX_AR_STILL_NOW=repr(now)", capture)
+        self.assertIn("CODEX_AR_STILL_NOW=repr(now), CODEX_AR_STILL_CLOCK=repr(WINDOW_CLOCK)", capture)
 
     def test_the_diagnostics_card_reads_the_report_the_watcher_writes(self):
         """Not "not checked yet", and no word the product cannot say. The Diagnostics card reads the
@@ -2244,6 +2248,990 @@ class AuditSheetTests(unittest.TestCase):
         self.assertEqual(MANIFEST.read_bytes(), manifest)
         self.assertEqual(self.published(), published)
         self.assertFalse((ROOT / "docs" / "images" / "audit").exists())
+
+
+def process_ended(pid: int, wait: float = 10) -> bool:
+    """Whether the process `pid` has ended, or does within `wait` seconds."""
+    import time
+    if os.name != "nt":
+        end = time.monotonic() + wait
+        while True:
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                return True
+            if time.monotonic() > end:
+                return False
+            time.sleep(0.1)
+    import ctypes
+    kernel32 = ctypes.WinDLL("kernel32")
+    kernel32.OpenProcess.restype = ctypes.c_void_p
+    kernel32.WaitForSingleObject.argtypes = (ctypes.c_void_p, ctypes.c_ulong)
+    kernel32.CloseHandle.argtypes = (ctypes.c_void_p,)
+    handle = kernel32.OpenProcess(0x00100000, False, pid)          # SYNCHRONIZE
+    if not handle:
+        return True
+    try:
+        return kernel32.WaitForSingleObject(handle, int(wait * 1000)) == 0
+    finally:
+        kernel32.CloseHandle(handle)
+
+
+def end_process(pid: int) -> None:
+    """Ends the process `pid` if it still runs: a test's own leftovers, cleared whatever it found."""
+    if process_ended(pid, wait=0):
+        return
+    if os.name != "nt":
+        import signal
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        return
+    import ctypes
+    kernel32 = ctypes.WinDLL("kernel32")
+    kernel32.OpenProcess.restype = ctypes.c_void_p
+    kernel32.TerminateProcess.argtypes = (ctypes.c_void_p, ctypes.c_uint)
+    kernel32.CloseHandle.argtypes = (ctypes.c_void_p,)
+    handle = kernel32.OpenProcess(0x0001 | 0x00100000, False, pid)          # PROCESS_TERMINATE | SYNCHRONIZE
+    if handle:
+        try:
+            kernel32.TerminateProcess(handle, 1)
+        finally:
+            kernel32.CloseHandle(handle)
+    process_ended(pid, wait=10)
+
+
+class FasterRunTests(unittest.TestCase):
+    """A whole run draws only what is stale, side by side, and photographs a window when it says it is ready (v0.6.11).
+
+    Until then a run drew every picture, one after another, and waited a fixed fifteen seconds for each window - a
+    quarter of an hour on a busy machine - and the watcher's mutex was held for 40 s and 20 s a page, so a late page
+    of a slow run was photographed with no watcher and the run stopped. The pictures themselves are the same bytes;
+    these hold the machinery that makes them sooner to what it promises.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.generator = generator()
+        cls.manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+
+    def test_the_capture_waits_for_the_window_s_word_with_the_old_wait_as_its_limit(self):
+        g = self.generator
+        script = (ROOT / "build" / "capture_window.ps1").read_text(encoding="utf-8")
+        self.assertNotIn("Start-Sleep -Seconds $Wait", script)
+        for needle in ("$env:CODEX_AR_STILL_READY = $readyName", "EventWaitHandle", "$ready.WaitOne(",
+                       "Remove-Item Env:\\CODEX_AR_STILL_READY"):
+            self.assertIn(needle, script)
+        # The moment of capture one at a time, from the inactive caption until the window is gone.
+        taken = script.index("$turn.WaitOne()")
+        self.assertLess(script.index("$ready.WaitOne("), taken)
+        self.assertLess(taken, script.index("SendMessage($handle, 0x0086"))
+        self.assertLess(script.index("Stop-Process -Id $process.Id"), script.index("$turn.ReleaseMutex()"))
+        # Taken again while Windows has painted the caption active since it was told otherwise.
+        printed = script.index("::PrintWindow($handle")
+        self.assertLess(printed, script.index("if (-not [CaptureNative.Win]::CaptionActive($handle)) { break }"))
+        self.assertLess(script.index("while ($true) {"), script.index("SendMessage($handle, 0x0086"))
+        # And the window a capture starts never takes the foreground, whose caption the redraw would paint active.
+        window = guiscan.whole()
+        self.assertIn("return Soft.StillReady != null || base.ShowWithoutActivation;", window)
+        self.assertIn("if (Soft.StillReady != null) created.ExStyle |= 0x08000000;", window)
+        # A window that is busy when the wait runs out is waited for before the turn is taken, not while holding it.
+        self.assertLess(script.index("SendMessage($handle, 0x0000"), taken)
+        # The old wait is the limit, and the generator asks for it.
+        self.assertEqual(g.CAPTURE_WAIT, 15)
+        self.assertIn('"-Wait", str(CAPTURE_WAIT)', inspect.getsource(g.render_window))
+        # The window reads the name once, beside the other two things only a picture asks of it, and sets the event
+        # in one place; nothing the product runs names it.
+        named = {path.name for path in guiscan.sources() if "CODEX_AR_STILL_READY" in path.read_text(encoding="utf-8")}
+        self.assertEqual(named, {"SoftTheme.cs"})
+        setting = {path.name for path in guiscan.sources() if "EventWaitHandle" in path.read_text(encoding="utf-8")}
+        self.assertEqual(setting, {"DashboardData.cs"})
+        self.assertEqual([path for path in srcscan.package_files()
+                          if "CODEX_AR_STILL_READY" in srcscan.read(path)], [])
+
+    def test_the_window_says_it_is_ready_only_once_the_requested_page_is_drawn_from_every_answer(self):
+        """The word is worth only what it waits for: the page the capture asked for, showing, every read it made
+        answered and applied, nothing gliding - and every read counted, so one that bypassed the count would let a
+        picture be taken before its answer arrived."""
+        settled = guiscan.member_body("SettingsForm", "Settled")
+        self.assertIn("currentPage != firstPage", settled, "the page the command line asked for")
+        self.assertIn("bridge.InFlight > 0", settled, "no read on its way")
+        self.assertIn("Transition.Moving > 0", settled, "nothing gliding")
+        for page, needle in (("settings", "previewToken > 0"), ("statistics", "statsToken > 0"),
+                             ("diagnostics", "compatView != null || compatUnreadable")):
+            self.assertIn('firstPage == "%s"' % page, settled)
+            self.assertIn(needle, settled, page)
+        self.assertIn("if (snapshot == null) return false;", settled, "every other page is drawn from the snapshot")
+        watch = guiscan.member_body("SettingsForm", "WatchForStill")
+        self.assertIn("Soft.StillReady == null", watch, "a person's window watches for nothing")
+        self.assertIn("auditing", watch, "nor does an audit")
+        self.assertIn("ticks == stillSince", watch, "and it waits for a tick of the window's clock")
+        # Every read is counted: the one-shot bridge is called only through the two counted calls of the long-lived
+        # one, and the window makes no bridge of its own but through it.
+        bridge = guiscan.type_body("PersistentBridge")
+
+        def method(name):
+            # By its braces; guiscan.member_body reads a return type with no space in it, and these return a
+            # Dictionary<string, object>.
+            return guiscan._block(bridge, bridge.index(" Dictionary<string, object> %s(" % name))
+
+        self.assertEqual(bridge.count("once.Call("), 2)
+        for name in ("Call", "CallOnce"):
+            self.assertIn("Interlocked.Increment(ref calls)", method(name), name)
+        self.assertIn("CallCounted(command, argument)", method("Call"))
+        self.assertIn("once.Call(", method("CallCounted"))
+        self.assertIn("once.Call(", method("CallOnce"))
+        window = guiscan.whole()
+        self.assertEqual(window.count("CallCounted("), 2, "declared once, and called from Call alone")
+        self.assertEqual(len(re.findall(r"new Bridge\(", window)),
+                         len(re.findall(r"new PersistentBridge\([^;]*new Bridge\(|var bridge = new Bridge\(", window)))
+        # The pages the generator asks for are the ones the window's command line names.
+        for page in self.generator.WINDOW_PAGES:
+            self.assertIn('"%s"' % page, window, page)
+
+    def test_every_read_the_window_queues_is_counted_from_the_moment_it_is_queued(self):
+        """Call counts a read only once a worker has started it. The Preview's - queued as its timer stopped - the
+        status line's, and Diagnostics' plugin copy and state folder set nothing Settled reads before they were
+        queued, so on a loaded machine whose worker started a clock tick late the window could say it held still
+        without their answers. They go through PersistentBridge.Queue, counted on the window's thread before they
+        are queued; every other read the window queues sets a flag Settled reads first."""
+        bridge = guiscan.type_body("PersistentBridge")
+        queue = guiscan._block(bridge, bridge.index("internal void Queue(Action work)"))
+        self.assertLess(queue.index("Interlocked.Increment(ref calls)"), queue.index("ThreadPool.QueueUserWorkItem("),
+                        "counted before a worker can take it")
+        self.assertRegex(queue, r"try \{ work\(\); \}\s*finally \{ System\.Threading\.Interlocked\.Decrement\(ref calls\); \}",
+                         "and until the work, which posts the answer, has returned")
+        for name in ("RunPreview", "RefreshStatusAsync", "LoadPluginCopy", "LoadStateAccess"):
+            body = guiscan.member_body("SettingsForm", name)
+            self.assertIn("bridge.Queue(delegate", body, name)
+            self.assertNotIn("QueueUserWorkItem", body, name)
+        # The flags, each set on the window's thread, and each one Settled reads.
+        flags = {"refreshing = true": "refreshing", "loadingCompat = true": "loadingCompat",
+                 "loadingStats = true": "loadingStats", "readingFailure = true": "readingFailure",
+                 "acknowledging = true": "acknowledging", "readingSettings = true": "readingSettings",
+                 "reopening = true": "reopening", "SetBusy(true)": "busy > 0"}
+        settled = guiscan.member_body("SettingsForm", "Settled")
+        for read in flags.values():
+            self.assertIn(read, settled)
+        self.assertIn("busy = Math.Max(0, busy + (on ? 1 : -1));", guiscan.member_body("SettingsForm", "SetBusy"))
+        # No picture reaches these: the constructor's queued work refreshes the cached words on disk, which the window
+        # does not show; a click starts the watcher; the per-conversation message and the log are dialogs of their own.
+        unreached = {"SettingsForm", "StartWatcher", "BuildConversationMessage", "BuildLogs"}
+        signature = re.compile(r"(?m)^ {8}(?:(?:%s) )*[\w<>\[\]\.\?]+(?:, [\w<>\[\]\.\?]+)* (\w+)\("
+                               % "|".join(guiscan.MODIFIERS))
+        queued = {}
+        for part in guiscan.parts_of("SettingsForm"):
+            for found in signature.finditer(part):
+                body = guiscan._block(part, found.start())
+                if "ThreadPool.QueueUserWorkItem(" in body:
+                    queued[found.group(1)] = body[:body.index("ThreadPool.QueueUserWorkItem(")]
+        self.assertLessEqual(unreached, set(queued))
+        self.assertGreaterEqual(len(set(queued) - unreached), 10, "the scan finds the window's reads")
+        for name, before in sorted(queued.items()):
+            if name in unreached:
+                continue
+            with self.subTest(name):
+                self.assertTrue(any(flag in before for flag in flags),
+                                name + " queues a read that nothing counts until a worker starts it")
+
+    def test_as_many_windows_are_open_at_once_as_asked_and_one_more_waits_its_turn(self):
+        """Twelve windows started together each took two minutes to answer; one alone took ten seconds. And a session
+        crashed while several were captured, so one is the default and more are asked for (`--windows N`)."""
+        import threading
+        import uuid
+        g = self.generator
+        self.assertEqual(g.WINDOWS_AT_ONCE, 1)
+        source = inspect.getsource(g.render_window)
+        self.assertLess(source.index("with window_turn():"), source.index('"powershell.exe"'))
+        if os.name != "nt":
+            self.skipTest("a turn is a Windows mutex")
+        for count in (1, 2, 3):
+            # A name of this test's own, so a generator running on this machine is neither waited for nor held up.
+            with self.subTest(windows=count), patch.object(g, "WINDOWS_AT_ONCE", count), \
+                    patch.object(g, "WINDOW_TURNS", "Local\\CodexAutoResume.Test.%s" % uuid.uuid4().hex):
+                # Each turn in a thread of its own, as each capture takes one: a turn is a mutex, which the thread
+                # holding it would simply take again.
+                holding = [threading.Event() for _turn in range(count)]
+                give_back = [threading.Event() for _turn in range(count)]
+                one_more = threading.Event()
+
+                def hold(number):
+                    with g.window_turn():
+                        holding[number].set()
+                        give_back[number].wait(30)
+
+                def waiting():
+                    with g.window_turn():
+                        one_more.set()
+
+                holders = [threading.Thread(target=hold, args=(number,), daemon=True) for number in range(count)]
+                for holder in holders:
+                    holder.start()
+                self.assertTrue(all(event.wait(10) for event in holding), "%d window(s) may be open at once" % count)
+                waiter = threading.Thread(target=waiting, daemon=True)
+                waiter.start()
+                self.assertFalse(one_more.wait(0.5), "one more window opened beside %d" % count)
+                give_back[-1].set()
+                self.assertTrue(one_more.wait(10), "and it opens once one of them has closed")
+                for event in give_back:
+                    event.set()
+                for thread in holders + [waiter]:
+                    thread.join(10)
+
+    def test_the_number_of_windows_at_once_is_asked_for_on_the_command_line_and_reaches_every_job(self):
+        from contextlib import redirect_stderr, redirect_stdout
+        import io
+        g = self.generator
+        for text, count in (("1", 1), ("2", 2), (" 4 ", 4), (str(g.WINDOWS_AT_MOST), g.WINDOWS_AT_MOST)):
+            self.assertEqual(g.windows_at_once(text), count)
+        for text in ("0", "-1", str(g.WINDOWS_AT_MOST + 1), "two", "", "1.5"):
+            with self.subTest(text=text), self.assertRaises(SystemExit):
+                g.windows_at_once(text)
+        # A job is a process of its own, and its windows take their turns within the run's number.
+        job = {"kind": "window", "locale": "ko", "design": None}
+        with patch.object(g, "WINDOWS_AT_ONCE", 3):
+            self.assertEqual(g.job_command(job)[-4:], ["--job", json.dumps(job), "--windows", "3"])
+        self.assertEqual(g.job_command(job)[-2:], ["--windows", "1"])
+        seen = []
+        with patch.object(g, "WINDOWS_AT_ONCE", 1), \
+                patch.object(g, "run_job", lambda asked: seen.append((asked, g.WINDOWS_AT_ONCE)) or {}), \
+                redirect_stdout(io.StringIO()):
+            self.assertEqual(g.main(["--job", json.dumps(job), "--windows", "3"]), 0)
+            self.assertEqual(seen, [(job, 3)])
+        # A run's own option, and the turns read it as they are asked for.
+        self.assertIn("count = windows_at_once(WINDOWS_AT_ONCE)", inspect.getsource(g.window_turn))
+        self.assertEqual(self.run_main("--windows", "2")[2], 2)
+        self.assertEqual(self.run_main()[2], 1)
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            g.main(["--windows", "0"])
+        self.assertEqual(g.WINDOWS_AT_ONCE, 1)
+
+    def test_a_turn_held_by_a_process_that_was_killed_is_given_back(self):
+        """A job killed holding a turn - for its time, or with its run - gives it back to whoever waits for one.
+
+        A semaphore's count is lost with a process killed holding it, for as long as anybody keeps the semaphore
+        open - here the waiting run, as another generator run on the machine would: a mutex is abandoned to the
+        next waiter."""
+        import subprocess
+        import threading
+        import uuid
+        g = self.generator
+        if os.name != "nt":
+            self.skipTest("a turn is a Windows mutex")
+        name = "Local\\CodexAutoResume.Test.%s" % uuid.uuid4().hex
+        takes = ("import sys, time; sys.path.insert(0, sys.argv[1]); import make_screenshots as g; "
+                 "g.WINDOW_TURNS = sys.argv[2]; g.WINDOWS_AT_ONCE = int(sys.argv[3]); turn = g.window_turn(); "
+                 "turn.__enter__(); print('held', flush=True); time.sleep(60)")
+        # Two turns, so the one given back is not simply the only one there is.
+        count = 2
+        holders, takers = [], []
+        taken = [threading.Event() for _turn in range(count)]
+        done = threading.Event()
+
+        def take(number):
+            with g.window_turn():
+                taken[number].set()
+                done.wait(30)
+
+        with patch.object(g, "WINDOW_TURNS", name), patch.object(g, "WINDOWS_AT_ONCE", count):
+            try:
+                for _turn in range(count):
+                    holder = subprocess.Popen([sys.executable, "-c", takes, str(ROOT / "build"), name, str(count)],
+                                              stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+                                              creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                    holders.append(holder)
+                    self.assertEqual(holder.stdout.readline().strip(), "held")
+                # This run waits for every turn, each in a thread of its own, while the others hold them all.
+                takers = [threading.Thread(target=take, args=(number,), daemon=True) for number in range(len(taken))]
+                for taker in takers:
+                    taker.start()
+                self.assertFalse(taken[0].wait(0.5), "a turn was taken while every one was held")
+                for holder in holders:
+                    holder.kill()
+                    holder.wait(10)
+                self.assertTrue(all(event.wait(10) for event in taken), "a killed process kept its window's turn")
+            finally:
+                done.set()
+                for taker in takers:
+                    taker.join(10)
+                for holder in holders:
+                    if holder.poll() is None:
+                        holder.kill()
+                        holder.wait(10)
+                    holder.stdout.close()
+
+    def test_a_run_that_is_stopped_ends_every_job_it_started_and_starts_no_other(self):
+        """The jobs have no console, so a Ctrl+C never reached them: they went on drawing after the run had ended."""
+        from contextlib import redirect_stdout
+        import io
+        import time
+        g = self.generator
+        with tempfile.TemporaryDirectory() as scratch:
+            marks = Path(scratch)
+            waits = "import os, sys, time; open(sys.argv[1], 'w').write(str(os.getpid())); time.sleep(60)"
+            # Once both others are running, a result the run cannot read: the run itself fails.
+            breaks = ("import os, sys, time; end = time.time() + 30\n"
+                      "while time.time() < end and not all(os.path.exists(p) for p in sys.argv[1:]): time.sleep(0.1)\n"
+                      "print('%s{', flush=True)" % g.JOB_RESULT)
+
+            def command(job):
+                if job["locale"] == "breaks":
+                    return [sys.executable, "-c", breaks, str(marks / "a"), str(marks / "b")]
+                return [sys.executable, "-c", waits, str(marks / job["locale"])]
+
+            queued = ["q1", "q2", "q3"]
+            jobs = [{"kind": "panel", "locale": name, "design": None} for name in ["a", "b", "breaks"] + queued]
+            begun = time.monotonic()
+            with patch.object(g, "job_command", command), redirect_stdout(io.StringIO()):
+                with self.assertRaises(ValueError):
+                    g.run_jobs(jobs, workers=3)
+            self.assertLess(time.monotonic() - begun, 40, "the run waited for its jobs instead of ending them")
+            started = sorted(path.name for path in marks.iterdir())
+            # The worker "breaks" leaves may take the next job before the run has read what "breaks" printed: that
+            # one is ended with the rest. No other is started.
+            self.assertIn("a", started)
+            self.assertIn("b", started)
+            self.assertLessEqual(len([name for name in started if name in queued]), 1, started)
+            for name in started:
+                # Empty only for a job ended between opening its mark and writing it.
+                pid = (marks / name).read_text()
+                self.assertTrue(not pid or process_ended(int(pid)), "job %s is still running" % name)
+            time.sleep(1.5)
+            self.assertEqual(sorted(path.name for path in marks.iterdir()), started,
+                             "a job was started after the run had stopped")
+
+    def test_a_run_killed_outright_ends_every_job_it_started(self):
+        """A run killed from outside - by whatever ran it, with no Ctrl+C to act on - left its jobs drawing on."""
+        import subprocess
+        import time
+        if os.name != "nt":
+            self.skipTest("a Windows job")
+        # Each job writes its process id once it runs, whole (written aside and renamed), and waits.
+        waits = ("import os, sys, time; p = sys.argv[1]; open(p + '.new', 'w').write(str(os.getpid())); "
+                 "os.replace(p + '.new', p); time.sleep(60)")
+        run = ("import os, sys; sys.path.insert(0, sys.argv[1]); import make_screenshots as g; "
+               "g.job_command = lambda job: [sys.executable, '-c', %r, os.path.join(sys.argv[2], job['locale'])]; "
+               "g.run_jobs([{'kind': 'panel', 'locale': name, 'design': None} for name in ('a', 'b')], workers=2)"
+               % waits)
+        with tempfile.TemporaryDirectory() as scratch:
+            marks = Path(scratch)
+            generator_run = subprocess.Popen([sys.executable, "-c", run, str(ROOT / "build"), str(marks)],
+                                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            try:
+                end = time.monotonic() + 60
+                while time.monotonic() < end and not all((marks / name).is_file() for name in ("a", "b")):
+                    time.sleep(0.1)
+                self.assertTrue(all((marks / name).is_file() for name in ("a", "b")), "the jobs did not start")
+            finally:
+                generator_run.kill()
+                generator_run.wait(10)
+            for name in ("a", "b"):
+                self.assertTrue(process_ended(int((marks / name).read_text())), "job %s outlived its run" % name)
+
+    def test_a_slow_window_is_waited_for_rather_than_failing_the_run(self):
+        """With every processor taken by other work, windows took more than the five minutes a capture was given, and
+        four of seven window jobs failed a run over windows that were only slow; the last job took 45 minutes."""
+        g = self.generator
+        self.assertIn("timeout=CAPTURE_LIMIT", inspect.getsource(g.render_window))
+        self.assertIn("timeout=JOB_LIMIT", inspect.getsource(g.run_jobs))
+        self.assertGreaterEqual(g.CAPTURE_LIMIT, 30 * 60)
+        self.assertGreater(g.JOB_LIMIT, 45 * 60)
+        # A window is still photographed after CAPTURE_WAIT whether it said it was ready or not.
+        self.assertLess(g.CAPTURE_WAIT, g.CAPTURE_LIMIT)
+
+    def test_a_capture_leaves_nothing_it_started_running(self):
+        """A capture killed for its time left its window open, which then reopened itself in the defaults."""
+        g = self.generator
+        self.assertIn("run_contained(", inspect.getsource(g.render_window))
+        if os.name != "nt":
+            self.skipTest("a Windows job")
+        import ctypes
+        starts = ("import subprocess, sys; child = subprocess.Popen([sys.executable, '-c', 'import time; "
+                  "time.sleep(60)'], creationflags=0x08000000); print(child.pid)")
+        done = g.run_contained([sys.executable, "-c", starts], timeout=60, env=dict(os.environ))
+        self.assertEqual(done.returncode, 0, done.stderr)
+        child = int(done.stdout.split()[-1])
+        kernel32 = ctypes.WinDLL("kernel32")
+        kernel32.OpenProcess.restype = ctypes.c_void_p
+        kernel32.WaitForSingleObject.argtypes = (ctypes.c_void_p, ctypes.c_ulong)
+        kernel32.CloseHandle.argtypes = (ctypes.c_void_p,)
+        handle = kernel32.OpenProcess(0x00100000, False, child)          # SYNCHRONIZE
+        if handle:
+            try:
+                self.assertEqual(kernel32.WaitForSingleObject(handle, 10000), 0, "what it started is still running")
+            finally:
+                kernel32.CloseHandle(handle)
+
+    def test_the_mutex_holder_lives_exactly_as_long_as_its_capture(self):
+        """No timer: it holds until its standard input closes, which `render_window` does, or its parent ends."""
+        import subprocess
+        g = self.generator
+        self.assertNotIn("time.time() - started <", g.HOLD_MUTEX)
+        self.assertIn("sys.stdin.buffer.read()", g.HOLD_MUTEX)
+        self.assertIn("release(holder)", inspect.getsource(g.render_window))
+        self.assertNotIn("holder.kill()", inspect.getsource(g.render_window))
+        with tempfile.TemporaryDirectory() as scratch:
+            home = Path(scratch) / "home"
+            holder = subprocess.Popen([sys.executable, "-c", g.HOLD_MUTEX, str(ROOT / "src"), str(home), "unknown"],
+                                      stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                      text=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            try:
+                self.assertEqual(holder.stdout.readline().strip(), "held")
+                with self.assertRaises(subprocess.TimeoutExpired):
+                    holder.wait(2.5)
+                g.release(holder)
+                self.assertEqual(holder.returncode, 0, holder.stderr.read())
+            finally:
+                if holder.poll() is None:
+                    holder.kill()
+                    holder.wait(10)
+                holder.stdout.close()
+                holder.stderr.close()
+
+    def test_the_mutex_holder_ends_with_the_capture_that_started_it_however_that_ends(self):
+        """A capture killed outright - for its time, or with its run - closes nothing itself: its end of the holder's
+        standard input is closed by Windows as the process goes, and the holder, reading it, ends at once. Nothing
+        else holds that end open: it is not handed to any process the capture starts."""
+        import subprocess
+        import time
+        g = self.generator
+        source = inspect.getsource(g.render_window)
+        self.assertIn("stdin=subprocess.PIPE", source[source.index("holder = subprocess.Popen("):])
+        # The capture, as `render_window` starts its holder; and, as `render_window` does, it starts another
+        # process after it, which must not keep the holder's input open either.
+        capture = ("import subprocess, sys\n"
+                   "holder = subprocess.Popen([sys.executable, '-c', sys.argv[1], sys.argv[2], sys.argv[3], 'unknown'],\n"
+                   "                          stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,\n"
+                   "                          text=True, creationflags=0x08000000)\n"
+                   "assert holder.stdout.readline().strip() == 'held'\n"
+                   "other = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'],\n"
+                   "                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=0x08000000)\n"
+                   "print(holder.pid, other.pid, flush=True)\n"
+                   "import time; time.sleep(60)\n")
+        with tempfile.TemporaryDirectory() as scratch:
+            home = Path(scratch) / "home"
+            parent = subprocess.Popen([sys.executable, "-c", capture, g.HOLD_MUTEX, str(ROOT / "src"), str(home)],
+                                      stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                      creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            pids = []
+            try:
+                line = parent.stdout.readline()
+                pids = [int(word) for word in line.split()]
+                self.assertEqual(len(pids), 2, line + parent.stderr.read() if parent.poll() is not None else line)
+                holder = pids[0]
+                self.assertFalse(process_ended(holder, wait=1), "the holder ended while its capture ran")
+                parent.kill()
+                parent.wait(10)
+                begun = time.monotonic()
+                self.assertTrue(process_ended(holder, wait=20), "the holder outlived the capture that started it")
+                self.assertLess(time.monotonic() - begun, 15)
+            finally:
+                if parent.poll() is None:
+                    parent.kill()
+                    parent.wait(10)
+                for pid in pids:
+                    end_process(pid)
+                parent.stdout.close()
+                parent.stderr.close()
+
+    def test_every_picture_is_drawn_by_one_job_or_copied_from_one(self):
+        g = self.generator
+        drawn = [g.manifest_key(path) for job in g.whole_run_jobs() for path in g.job_targets(job).values()]
+        self.assertEqual(len(drawn), len(set(drawn)), "no picture is drawn by two jobs")
+        copies, extras = g.picture_set()
+        self.assertEqual([g.manifest_key(path) for path in list(copies) + list(copies.values()) + extras],
+                         list(self.manifest["images"]), "the manifest lists the pictures in the order it always did")
+        self.assertEqual(sorted(drawn), sorted(g.manifest_key(path) for path in list(copies) + extras))
+        # Every input a job is judged by is one the manifest records.
+        for job in g.whole_run_jobs():
+            for name in g.job_inputs(job):
+                self.assertIn(name, self.manifest["inputs"], job)
+
+    def test_a_job_is_stale_exactly_when_what_it_is_drawn_from_moved(self):
+        g = self.generator
+        jobs, recorded = g.whole_run_jobs(), self.manifest
+        inputs, dpi = dict(recorded["inputs"]), recorded["system_dpi"]
+
+        def stale_with(**changes):
+            moved = dict(inputs)
+            for name, value in changes.get("inputs", {}).items():
+                moved[name] = value
+            return [(job["kind"], job["locale"], job["design"]) for job in jobs
+                    if g.stale(job, changes.get("recorded", recorded), moved, changes.get("dpi", dpi))]
+
+        self.assertEqual(stale_with(), [], "the committed pictures are what the manifest records")
+        self.assertEqual(stale_with(inputs={"<bridge envelope:ko>": "moved"}), [("window", "ko", None)])
+        self.assertEqual(stale_with(inputs={"<card render:ja>": "moved"}), [("card", "ja", None)])
+        self.assertEqual(stale_with(inputs={"<panel render:en:plain>": "moved"}), [("panel", "en", "plain")])
+        self.assertEqual(stale_with(inputs={"<icon motion>": "moved"}), [("icon", None, None)])
+        windows = [(job["kind"], job["locale"], job["design"]) for job in jobs if job["kind"] == "window"]
+        self.assertEqual(stale_with(inputs={"<window sources>": "moved"}), windows)
+        self.assertEqual(stale_with(dpi=dpi + 1), windows)
+        self.assertEqual(len(stale_with(inputs={"build/make_screenshots.py": "moved"})), len(jobs),
+                         "a change to the generator draws everything")
+        self.assertEqual(len(stale_with(recorded=None)), len(jobs))
+        # A picture that is not the bytes recorded, or has no lights recorded, is drawn again with its job.
+        other = json.loads(json.dumps(recorded))
+        other["images"]["docs/images/tray-popup-de.png"]["sha256"] = "0" * 64
+        del other["lights"]["docs/images/design-classic-card.png"]
+        self.assertEqual(stale_with(recorded=other), [("popup", "de", None), ("card", "en", "classic")])
+
+    def run_main(self, *arguments):
+        """`main(arguments)` with the inputs, the scaling and the jobs stood in for, into a copy of the manifest;
+        (the jobs asked for, the manifest it wrote, how many windows its jobs were to have open at once)."""
+        from contextlib import redirect_stdout
+        import io
+        from unittest.mock import MagicMock
+        g = self.generator
+        windows = []
+
+        def drawn(_jobs, _workers=None):
+            windows.append(g.WINDOWS_AT_ONCE)
+            return {}, 0
+
+        jobs = MagicMock(side_effect=drawn)
+        with tempfile.TemporaryDirectory() as scratch:
+            manifest = Path(scratch) / "screenshots.json"
+            manifest.write_bytes(MANIFEST.read_bytes())
+            with ExitStack() as stack:
+                # main sets the number of windows for the run it is: given back after it.
+                stack.enter_context(patch.object(g, "WINDOWS_AT_ONCE", g.WINDOWS_AT_ONCE))
+                stack.enter_context(patch.object(g, "MANIFEST", manifest))
+                stack.enter_context(patch.object(g, "render_inputs", MagicMock(return_value=dict(self.manifest["inputs"]))))
+                stack.enter_context(patch.object(g, "system_dpi", MagicMock(return_value=self.manifest["system_dpi"])))
+                stack.enter_context(patch.object(g, "run_jobs", jobs))
+                stack.enter_context(patch.object(g, "copy_file", MagicMock(side_effect=AssertionError("copied"))))
+                stack.enter_context(redirect_stdout(io.StringIO()))
+                self.assertEqual(g.main(list(arguments)), 0)
+            return [call.args[0] for call in jobs.call_args_list], manifest.read_bytes(), windows[-1]
+
+    def test_a_run_with_nothing_stale_draws_nothing_and_writes_the_manifest_it_read(self):
+        asked, written, _windows = self.run_main()
+        self.assertEqual(asked, [[]])
+        self.assertEqual(written, MANIFEST.read_bytes())
+
+    def test_all_draws_every_job(self):
+        asked, written, windows = self.run_main("--all", "--jobs", "3", "--windows", "2")
+        self.assertEqual(asked, [self.generator.whole_run_jobs()])
+        self.assertEqual(written, MANIFEST.read_bytes(), "every record kept, since the stand-in drew nothing")
+        self.assertEqual(windows, 2)
+
+    def test_breathing_draws_only_the_pictures_that_do_not_move_yet(self):
+        from contextlib import redirect_stdout
+        import io
+        from unittest.mock import MagicMock
+        g = self.generator
+        for everything in (False, True):
+            jobs = MagicMock(return_value=({}, 0))
+            with tempfile.TemporaryDirectory() as scratch, ExitStack() as stack:
+                manifest = Path(scratch) / "screenshots.json"
+                manifest.write_bytes(MANIFEST.read_bytes())
+                stack.enter_context(patch.object(g, "MANIFEST", manifest))
+                stack.enter_context(patch.object(g, "run_jobs", jobs))
+                stack.enter_context(redirect_stdout(io.StringIO()))
+                g.breathe_pictures(everything=everything)
+                self.assertEqual(manifest.read_bytes(), MANIFEST.read_bytes())
+            asked = [job["picture"] for job in jobs.call_args.args[0]]
+            if not everything:
+                self.assertEqual(asked, [], "every committed capture moves already")
+                continue
+            copies = {g.manifest_key(copy) for locale in g.LOCALES for copy in g.paths_for(locale).values()}
+            self.assertEqual(asked, sorted(key for key, record in self.manifest["lights"].items()
+                                           if record["surface"] in g.CAPTURED and key not in copies
+                                           and g.light_timeline(record) is not None))
+            self.assertTrue(asked)
+
+
+CSC = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Microsoft.NET" / "Framework64" / "v4.0.30319" / "csc.exe"
+POWERSHELL = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
+              / "WindowsPowerShell" / "v1.0" / "powershell.exe")
+
+# Calls the compiled window's own When and ClockTime on each of CAR_STAMPS, in a process whose environment is the
+# capture's (or a person's): the variables are read once, as the window starts.
+CLOCK_PROBE = r"""
+$ErrorActionPreference = 'Stop'
+$assembly = [Reflection.Assembly]::LoadFile($env:CAR_EXE)
+$form = $assembly.GetType('CodexAutoResume.SettingsForm', $true)
+$flags = [Reflection.BindingFlags]'Static,NonPublic,Public'
+$when = $form.GetMethod('When', $flags)
+$clock = $form.GetMethod('ClockTime', $flags)
+if (-not $when -or -not $clock) { throw 'SettingsForm has no When or no ClockTime' }
+$when_ = New-Object System.Collections.ArrayList
+$clock_ = New-Object System.Collections.ArrayList
+foreach ($stamp in ($env:CAR_STAMPS | ConvertFrom-Json)) {
+    [void]$when_.Add([string]$when.Invoke($null, @([double]$stamp)))
+    [void]$clock_.Add([string]$clock.Invoke($null, @([double]$stamp)))
+}
+@{ when = $when_; clock = $clock_ } | ConvertTo-Json -Compress
+"""
+
+
+@unittest.skipUnless(os.name == "nt" and CSC.is_file() and POWERSHELL.is_file(), "needs the in-box compiler and PowerShell")
+class PinnedClockTests(unittest.TestCase):
+    """History printed the day of the run - its records are seeded at the real moment of the capture, since the bridge
+    behind the window runs on the real clock - so every run of the generator rewrote its pictures (and their copies),
+    and no two runs could be compared byte for byte. The window, told by a variable only the generator sets, prints
+    every date and time of day as if the moment it is told it is were a pinned one, in UTC; a person's window prints
+    this PC's time, as it always did."""
+
+    SEEDED = 1_759_400_000.0              # the real moment a capture seeded its records at
+    PINNED = 1_800_000_000.0              # 2027-01-15 08:00 UTC
+
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = tempfile.TemporaryDirectory()
+        work = Path(cls.folder.name)
+        cls.exe = work / "CodexAutoResumeSettings.exe"
+        import subprocess
+        subprocess.run([str(CSC), "/nologo", "/target:winexe", "/platform:x64", "/out:" + str(cls.exe),
+                        "/reference:System.dll", "/reference:System.Drawing.dll", "/reference:System.Windows.Forms.dll",
+                        *[str(path) for path in guiscan.sources()]],
+                       check=True, capture_output=True, timeout=600)
+        cls.probe = work / "clock.ps1"
+        cls.probe.write_text(CLOCK_PROBE, encoding="utf-8")
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.folder.cleanup()
+
+    def printed(self, stamps, **variables) -> dict:
+        import subprocess
+        env = {key: value for key, value in os.environ.items() if not key.startswith("CODEX_AR_STILL_")}
+        env.update(variables, CAR_EXE=str(self.exe), CAR_STAMPS=json.dumps(stamps))
+        done = subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+                               "-File", str(self.probe)],
+                              capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600, env=env)
+        self.assertEqual(done.returncode, 0, done.stderr[-2000:])
+        return json.loads(done.stdout)
+
+    def test_a_picture_prints_its_dates_and_times_as_the_pinned_moment_in_utc(self):
+        from datetime import datetime, timezone
+        hour = 3600
+        # The moment itself; earlier that day; the day before; a week before; later that day.
+        stamps = [self.SEEDED, self.SEEDED - 3 * hour, self.SEEDED - 9 * hour, self.SEEDED - 5 * 24 * hour,
+                  self.SEEDED + 620]
+        printed = self.printed(stamps, CODEX_AR_STILL_NOW=repr(self.SEEDED), CODEX_AR_STILL_CLOCK=repr(self.PINNED))
+        utc = [datetime.fromtimestamp(stamp - self.SEEDED + self.PINNED, timezone.utc) for stamp in stamps]
+        self.assertEqual(printed["when"], [moment.strftime("%Y-%m-%d %H:%M") for moment in utc])
+        self.assertEqual(printed["when"][:2], ["2027-01-15 08:00", "2027-01-15 05:00"])
+        # A moment on the pinned day by its time alone, any other with its date, as ClockTime prints today's.
+        self.assertEqual(printed["clock"], ["08:00", "05:00", "2027-01-14 23:00", "2027-01-10 08:00", "08:10"])
+
+    def test_a_person_s_window_prints_this_pc_s_time_and_a_pinned_clock_needs_the_pinned_moment(self):
+        from datetime import datetime
+        stamps = [1_780_000_000.0, 1_780_000_000.0 - 3 * 24 * 3600]
+        local = [datetime.fromtimestamp(stamp).strftime("%Y-%m-%d %H:%M") for stamp in stamps]
+        for variables in ({}, {"CODEX_AR_STILL_CLOCK": repr(self.PINNED)}):
+            with self.subTest(variables=sorted(variables)):
+                printed = self.printed(stamps, **variables)
+                self.assertEqual(printed["when"], local)
+                # Neither is today, on this PC's clock.
+                self.assertEqual(printed["clock"], local)
+
+    def test_only_the_window_s_clock_reads_the_variable_and_the_generator_sets_it(self):
+        g = generator()
+        named = {path.name for path in guiscan.sources() if "CODEX_AR_STILL_CLOCK" in path.read_text(encoding="utf-8")}
+        self.assertEqual(named, {"SoftTheme.cs"})
+        self.assertEqual([path for path in srcscan.package_files() if "CODEX_AR_STILL_CLOCK" in srcscan.read(path)], [])
+        # Every date the window prints goes through the one place that knows the pinned clock.
+        window = guiscan.whole()
+        self.assertEqual(window.count(".ToLocalTime()"), 1)
+        self.assertIn(".ToLocalTime()", guiscan.member_body("SettingsForm", "OnTheClock"))
+        self.assertNotIn("DateTime.Now.Date", window)
+        self.assertIn("CODEX_AR_STILL_CLOCK=repr(WINDOW_CLOCK)", inspect.getsource(g.render_window))
+
+
+# PersistentBridge.Queue in the compiled window, on a bridge rooted where nothing is - no call is made on it. The pool is
+# filled first, as a loaded machine fills it, so the read waits for a worker: it is counted all the same.
+QUEUE_PROBE = r"""
+$ErrorActionPreference = 'Stop'
+Add-Type -TypeDefinition @'
+using System;
+using System.Reflection;
+using System.Threading;
+public static class Held {
+    public static readonly ManualResetEvent Pool = new ManualResetEvent(false);
+    public static readonly ManualResetEvent Release = new ManualResetEvent(false);
+    public static int Started;
+    public static int Last = -1;
+    // Every worker the pool may run, busy until Pool is set: nothing queued meanwhile can start.
+    public static bool Fill() {
+        int workers, ports;
+        ThreadPool.GetMaxThreads(out workers, out ports);
+        if (!ThreadPool.SetMaxThreads(Environment.ProcessorCount, ports)) return false;
+        for (int i = 0; i < Environment.ProcessorCount; i++) ThreadPool.QueueUserWorkItem(delegate { Pool.WaitOne(); });
+        DateTime deadline = DateTime.UtcNow.AddSeconds(60);
+        while (DateTime.UtcNow < deadline) {
+            int available, unused;
+            ThreadPool.GetAvailableThreads(out available, out unused);
+            if (available == 0) return true;
+            Thread.Sleep(20);
+        }
+        return false;
+    }
+    // A read's stand-in: starts, holds until Release, and reads the count as its last act - where a read posts its answer.
+    public static Action Work(object bridge) {
+        PropertyInfo inFlight = bridge.GetType().GetProperty("InFlight", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+        return delegate {
+            Interlocked.Increment(ref Started);
+            Release.WaitOne();
+            Last = (int)inFlight.GetValue(bridge, null);
+        };
+    }
+    public static bool Until(Func<bool> done) {
+        DateTime deadline = DateTime.UtcNow.AddSeconds(60);
+        while (!done()) { if (DateTime.UtcNow > deadline) return false; Thread.Sleep(10); }
+        return true;
+    }
+}
+'@
+$assembly = [Reflection.Assembly]::LoadFile($env:CAR_EXE)
+$instance = [Reflection.BindingFlags]'Instance,NonPublic,Public'
+$bridgeType = $assembly.GetType('CodexAutoResume.Bridge', $true)
+$persistentType = $assembly.GetType('CodexAutoResume.PersistentBridge', $true)
+$nowhere = [string](Join-Path $env:CAR_WORK 'nowhere')
+$once = $bridgeType.GetConstructors($instance)[0].Invoke([object[]]@($nowhere))
+$bridge = $persistentType.GetConstructors($instance)[0].Invoke([object[]]@($nowhere, $once))
+$queue = $persistentType.GetMethod('Queue', $instance)
+if (-not $queue) { throw 'PersistentBridge has no Queue' }
+$inFlight = $persistentType.GetProperty('InFlight', $instance)
+$out = @{}
+$out.before = [int]$inFlight.GetValue($bridge, $null)
+$out.full = [Held]::Fill()
+$null = $queue.Invoke($bridge, [object[]]@([Held]::Work($bridge)))
+$out.queued = [int]$inFlight.GetValue($bridge, $null)
+$out.startedWhileFull = [Held]::Started
+[void][Held]::Pool.Set()
+$out.started = [Held]::Until([Func[bool]]{ [Held]::Started -eq 1 })
+$out.running = [int]$inFlight.GetValue($bridge, $null)
+[void][Held]::Release.Set()
+$out.returned = [Held]::Until([Func[bool]]{ [int]$inFlight.GetValue($bridge, $null) -eq 0 })
+$out.after = [int]$inFlight.GetValue($bridge, $null)
+$out.last = [Held]::Last
+$out | ConvertTo-Json -Compress
+"""
+
+
+@unittest.skipUnless(os.name == "nt" and CSC.is_file() and POWERSHELL.is_file(), "needs the in-box compiler and PowerShell")
+class QueuedReadTests(unittest.TestCase):
+    """A read handed to PersistentBridge.Queue is on its way - InFlight says so - from the moment it is queued, on the
+    window's thread, even while every worker is busy and none has started it, and until its work, which posts the
+    answer, has returned. Counted only inside Call, a queued Preview was not yet on its way a clock tick later on a
+    loaded machine, and the window could say it held still without it (SettingsForm.WatchForStill)."""
+
+    @classmethod
+    def setUpClass(cls):
+        import subprocess
+        cls.folder = tempfile.TemporaryDirectory()
+        work = Path(cls.folder.name)
+        exe = work / "CodexAutoResumeSettings.exe"
+        subprocess.run([str(CSC), "/nologo", "/target:winexe", "/platform:x64", "/out:" + str(exe),
+                        "/reference:System.dll", "/reference:System.Drawing.dll", "/reference:System.Windows.Forms.dll",
+                        *[str(path) for path in guiscan.sources()]],
+                       check=True, capture_output=True, timeout=600)
+        probe = work / "queue.ps1"
+        probe.write_text(QUEUE_PROBE, encoding="utf-8")
+        cls.result = subprocess.run(
+            [str(POWERSHELL), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(probe)],
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600,
+            env=dict(os.environ, CAR_EXE=str(exe), CAR_WORK=str(work)))
+        cls.answer = (json.loads(cls.result.stdout)
+                      if cls.result.returncode == 0 and cls.result.stdout.strip() else {})
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.folder.cleanup()
+
+    def setUp(self):
+        if not self.answer:
+            self.fail("the probe did not run: " + (self.result.stderr or self.result.stdout)[-4000:])
+
+    def test_a_queued_read_is_counted_before_a_worker_takes_it(self):
+        self.assertEqual(self.answer["before"], 0)
+        self.assertTrue(self.answer["full"], "every worker of the pool is busy")
+        self.assertEqual(self.answer["startedWhileFull"], 0, "so no worker has started the read")
+        self.assertEqual(self.answer["queued"], 1, "and it is counted all the same")
+
+    def test_it_is_counted_until_its_work_has_posted_the_answer_and_returned(self):
+        self.assertTrue(self.answer["started"])
+        self.assertEqual(self.answer["running"], 1)
+        self.assertEqual(self.answer["last"], 1, "still counted at the work's last act, where a read posts its answer")
+        self.assertTrue(self.answer["returned"])
+        self.assertEqual(self.answer["after"], 0)
+
+
+# The compiled window's own message cards and page in a window of the probe's own, far off the screen and shown without
+# taking activation, as a capture's window is: a Custom message card, and a page with more on it than fits, so its soft
+# bar shows. The pointer's messages are posted, so they come through the thread's message loop as Windows' own do - a
+# move over the card and over the bar's thumb, and a turn of the wheel over the page - and what each control made of
+# them is read the moment it was handed one. Run once as a person's window and once as a capture's (CODEX_AR_STILL_READY,
+# which the window reads once, at start); both make the call Program.Main makes.
+POINTER_PROBE = r"""
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Drawing
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -ReferencedAssemblies System.Windows.Forms, System.Drawing -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+using System.Windows.Forms;
+public class QuietForm : Form {
+    protected override bool ShowWithoutActivation { get { return true; } }
+    protected override CreateParams CreateParams { get { CreateParams cp = base.CreateParams; cp.ExStyle |= 0x08000000 | 0x80; return cp; } }
+}
+public static class Pointer {
+    [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr window, int message, IntPtr wParam, IntPtr lParam);
+    public static IntPtr At(int x, int y) { return new IntPtr(((y & 0xFFFF) << 16) | (x & 0xFFFF)); }
+    public static IntPtr Turn(int delta) { return new IntPtr((delta & 0xFFFF) << 16); }
+}
+'@
+$assembly = [Reflection.Assembly]::LoadFile($env:CAR_EXE)
+$static = [Reflection.BindingFlags]'Static,NonPublic,Public'
+$instance = [Reflection.BindingFlags]'Instance,NonPublic,Public'
+$t = @{}
+foreach ($n in 'Palette','Soft','SettingsForm','ChoiceCard','SoftPage','SoftBar') { $t[$n] = $assembly.GetType('CodexAutoResume.' + $n, $true) }
+function P($target, [string]$name) { return $target.GetType().GetProperty($name, $instance).GetValue($target, $null) }
+function F($target, [string]$name) { return $target.GetType().GetField($name, $instance).GetValue($target) }
+function Hex([Drawing.Color]$c) { return ('#{0:X2}{1:X2}{2:X2}' -f $c.R, $c.G, $c.B) }
+function Pump([int]$ms) { $sw = [Diagnostics.Stopwatch]::StartNew(); do { [Windows.Forms.Application]::DoEvents(); Start-Sleep -Milliseconds 3 } while ($sw.ElapsedMilliseconds -lt $ms) }
+$out = @{}
+$out.capture = [bool]($t.Soft.GetField('StillReady', $static).GetValue($null) -ne $null)
+# What Program.Main does before anything else is made (a window from before v0.6.11's has nothing to call).
+$shut = $t.SettingsForm.GetMethod('ShutOutPointer', $static)
+if ($shut) { $null = $shut.Invoke($null, @()) }
+$null = $t.Palette.GetMethod('Adopt', $static).Invoke($null, [object[]]@('light'))
+$t.Soft.GetField('ReduceMotionSetting', $static).SetValue($null, $true)
+$out.surface = Hex ($t.Palette.GetField('Surface', $static).GetValue($null))
+$out.raised = Hex ($t.Palette.GetField('Raised', $static).GetValue($null))
+$edge = $t.SoftBar.GetMethod('ThumbEdge', $static)
+$out.edgeResting = Hex ($edge.Invoke($null, [object[]]@(0, $false)))
+$out.edgeUnderPointer = Hex ($edge.Invoke($null, [object[]]@(1, $false)))
+
+$form = New-Object QuietForm
+$form.FormBorderStyle = 'None'
+$form.ShowInTaskbar = $false
+$form.StartPosition = 'Manual'
+$form.Location = New-Object Drawing.Point -30000, -30000
+$form.Size = New-Object Drawing.Size 760, 420
+$form.BackColor = $t.Palette.GetField('Canvas', $static).GetValue($null)
+$card = $t.ChoiceCard.GetConstructors($instance)[0].Invoke([object[]]@('custom', 'Custom', 'Your own words'))
+$card.Location = New-Object Drawing.Point 20, 20
+$card.Size = New-Object Drawing.Size 320, 80
+$page = [Activator]::CreateInstance($t.SoftPage, $true)
+$page.Location = New-Object Drawing.Point 380, 20
+$page.Size = New-Object Drawing.Size 320, 300
+$tall = New-Object Windows.Forms.Panel
+$tall.Location = New-Object Drawing.Point 0, 0
+$tall.Size = New-Object Drawing.Size 200, 2000
+$page.Controls.Add($tall)
+$page.GetType().GetProperty('Scrolls', $instance).SetValue($page, $true, $null)
+$form.Controls.Add($card)
+$form.Controls.Add($page)
+$script:entered = 0; $script:cardHover = $false; $script:moved = 0; $script:barState = 0
+$card.add_MouseEnter({ $script:entered++; $script:cardHover = [bool](F $card 'hover') })
+# After the bar's own handler, which was added with Scrolls: what it made of the move.
+$page.add_MouseMove({ $script:moved++; $script:barState = [int](P (P $page 'Bar') 'State') })
+$form.Show()
+$page.PerformLayout()
+Pump 100
+$out.overflowing = [bool](P $page 'Overflowing')
+$thumb = P (P $page 'Bar') 'Thumb'
+$null = [Pointer]::PostMessage($card.Handle, 0x0200, [IntPtr]::Zero, [Pointer]::At(40, 40))
+$null = [Pointer]::PostMessage($page.Handle, 0x0200, [IntPtr]::Zero, [Pointer]::At($thumb.X + [int]($thumb.Width / 2), $thumb.Y + 10))
+$centre = $page.PointToScreen((New-Object Drawing.Point 100, 100))
+$null = [Pointer]::PostMessage($page.Handle, 0x020A, [Pointer]::Turn(-120), [Pointer]::At($centre.X, $centre.Y))
+Pump 400
+$out.cardEntered = $script:entered
+$out.cardHover = $script:cardHover
+$out.barMoves = $script:moved
+$out.barState = $script:barState
+$out.offset = [int](P $page 'Offset')
+$form.Close()
+$out | ConvertTo-Json -Compress
+"""
+
+
+@unittest.skipUnless(os.name == "nt" and CSC.is_file() and POWERSHELL.is_file(), "needs the in-box compiler and PowerShell")
+class PointerShutOutTests(unittest.TestCase):
+    """A window a capture started answers no pointer (v0.6.11, SettingsForm.ShutOutPointer).
+
+    Windows hands a window that appears under a pointer standing still a move of its own, and the control under it
+    takes its hover: the Settings pictures made for v0.6.11-beta.3 show the Custom message card filled with the
+    Surface colour (#F6F8FB) where Minimal and Detailed are Raised (#FBFCFE), and the proof that compared the two
+    generators found four pictures whose soft scroll bar's thumb had the edge it has under the pointer (#A6B2C0, not
+    #D3DCE7) - pictures of the same page, settled, differing by where somebody had left the mouse. The person's half
+    of this probe makes the same two states with nothing but the pointer's messages; the capture's half makes none."""
+
+    @classmethod
+    def setUpClass(cls):
+        import subprocess
+        cls.folder = tempfile.TemporaryDirectory()
+        work = Path(cls.folder.name)
+        exe = work / "CodexAutoResumeSettings.exe"
+        subprocess.run([str(CSC), "/nologo", "/target:winexe", "/platform:x64", "/out:" + str(exe),
+                        "/reference:System.dll", "/reference:System.Drawing.dll", "/reference:System.Windows.Forms.dll",
+                        *[str(path) for path in guiscan.sources()]],
+                       check=True, capture_output=True, timeout=600)
+        probe = work / "pointer.ps1"
+        probe.write_text(POINTER_PROBE, encoding="utf-8")
+        cls.results, cls.answers = {}, {}
+        for who, ready in (("person", None), ("capture", "Local\\CodexAutoResume.Still.pointer-probe")):
+            env = {key: value for key, value in os.environ.items() if key.upper() != "CODEX_AR_STILL_READY"}
+            if ready:
+                env["CODEX_AR_STILL_READY"] = ready
+            env["CAR_EXE"] = str(exe)
+            result = subprocess.run(
+                [str(POWERSHELL), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(probe)],
+                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600, env=env)
+            cls.results[who] = result
+            cls.answers[who] = (json.loads(result.stdout)
+                                if result.returncode == 0 and result.stdout.strip() else {})
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.folder.cleanup()
+
+    def answer(self, who):
+        if not self.answers[who]:
+            result = self.results[who]
+            self.fail("the %s probe did not run: %s" % (who, (result.stderr or result.stdout)[-4000:]))
+        return self.answers[who]
+
+    def test_the_states_the_pictures_differed_by_are_the_pointer_s(self):
+        person = self.answer("person")
+        self.assertFalse(person["capture"])
+        self.assertEqual((person["surface"], person["raised"]), ("#F6F8FB", "#FBFCFE"),
+                         "a card under the pointer is filled Surface, one resting Raised")
+        self.assertEqual((person["edgeUnderPointer"], person["edgeResting"]), ("#A6B2C0", "#D3DCE7"),
+                         "the thumb's edge under the pointer, and resting")
+
+    def test_a_person_s_window_answers_the_pointer_as_always(self):
+        person = self.answer("person")
+        self.assertTrue(person["overflowing"], "the page shows its bar")
+        self.assertEqual(person["cardEntered"], 1)
+        self.assertTrue(person["cardHover"], "the card under the pointer is drawn hovered")
+        self.assertGreaterEqual(person["barMoves"], 1)
+        self.assertEqual(person["barState"], 1, "the thumb under the pointer is drawn with its darker edge")
+        self.assertGreater(person["offset"], 0, "and the wheel scrolls the page")
+
+    def test_a_capture_s_window_answers_no_pointer(self):
+        capture = self.answer("capture")
+        self.assertTrue(capture["capture"])
+        self.assertTrue(capture["overflowing"], "the page shows its bar")
+        self.assertEqual(capture["cardEntered"], 0, "no move reaches the card")
+        self.assertFalse(capture["cardHover"])
+        self.assertEqual(capture["barMoves"], 0, "nor the page")
+        self.assertEqual(capture["barState"], 0)
+        self.assertEqual(capture["offset"], 0, "and the wheel scrolls nothing")
+
+    def test_main_shuts_the_pointer_out_before_the_window_is_made_and_only_for_a_capture(self):
+        main = guiscan.member_body("Program", "Main")
+        self.assertIn("SettingsForm.ShutOutPointer();", main)
+        self.assertLess(main.index("SettingsForm.ShutOutPointer();"), main.index("new SettingsForm("))
+        shut = guiscan.member_body("SettingsForm", "ShutOutPointer")
+        self.assertIn("Soft.StillReady == null", shut, "a person's window answers the mouse as always")
+        self.assertIn("Application.AddMessageFilter(", shut)
 
 
 if __name__ == "__main__":

@@ -32,6 +32,10 @@ NOTICE = ".github/GENERATED-BRANCH.md"
 
 # Where each Korean text is checked when this checkout does not hold it.
 ON_DEV = "the Korean sources live on dev, and their checks run there; main is English only"
+# Set by a CI job that changed the tree it checked out into another branch's: test.yml's main-tree job
+# takes every `*.ko.md` off dev's tree, as a promotion does, and runs the suite on what main will hold.
+TREE = "CODEX_AR_TREE"
+RULES = {"main": "english", "dev": "both"}
 
 
 @lru_cache(maxsize=None)
@@ -87,7 +91,17 @@ def branch_rule() -> str | None:
     main's rule was a false red. So on a push the rule applies only when HEAD is the pushed commit,
     and on a pull request it is the base's rule - the tree tested is the merge into that base, so
     a pull request that would take Korean off dev, or put it back on main, fails before it lands.
+
+    A job that turned the checked-out tree into another branch's names that branch in CODEX_AR_TREE,
+    and is held to its rule whatever the event: dev's tree with its Korean taken off is main's, and
+    must hold no Korean at all - which is also what proves the job took every source off.
     """
+    named = os.environ.get(TREE, "")
+    if named:
+        if named not in RULES:
+            raise AssertionError("%s=%r names no branch with a rule; it is one of %s"
+                                 % (TREE, named, ", ".join(sorted(RULES))))
+        return RULES[named]
     event = os.environ.get("GITHUB_EVENT_NAME", "")
     if event == "pull_request":
         name = os.environ.get("GITHUB_BASE_REF", "")
@@ -99,4 +113,4 @@ def branch_rule() -> str | None:
         name = os.environ.get("GITHUB_REF_NAME", "")
     else:
         return None
-    return {"main": "english", "dev": "both"}.get(name)
+    return RULES.get(name)

@@ -116,7 +116,7 @@ class WorkflowAgreementTests(unittest.TestCase):
         that nobody adds an `if` to spare the pre-release lane the work.
         """
         text = workflow("test.yml")
-        self.assertIn("unittest discover", text)
+        self.assertIn("scripts/test_parts.py", text)
         self.assertIn("compileall", text)
         for guard in ("if: matrix.experimental", "if: ${{ matrix.experimental",
                       "if: !matrix.experimental", "if: ${{ !matrix.experimental"):
@@ -136,9 +136,10 @@ class WorkflowAgreementTests(unittest.TestCase):
                                   "%s builds on a version nothing tests" % name)
 
     def test_the_release_workflow_uses_the_version_the_policy_names(self):
-        """The archive's bytes depend on it, so it is named rather than incidental."""
+        """The archive's bytes depend on it, so it is named rather than incidental - and the suite's
+        parts, which the build waits for, run on the same one: the tests pass on the Python that builds."""
         pinned = re.findall(r'python-version:\s*"(3\.\d+)"', workflow("release.yml"))
-        self.assertEqual(pinned, [POLICY["release_build"]])
+        self.assertEqual(pinned, [POLICY["release_build"]] * 2, "one for the test job and one for the build")
 
 
 class BundledRuntimeTests(unittest.TestCase):

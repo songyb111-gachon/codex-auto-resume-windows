@@ -210,15 +210,15 @@ An update stays in the edition you have. **Check for updates** fetches the insta
 archive, and an archive of the other edition is refused. Like every download, the archive is checked
 against the digest pinned for that edition and version in the installed copy's `scripts/release.json`
 where there is one, and otherwise against the `.sha256` published beside it, as the [guide](GUIDE.md)
-explains. No pre-release and no advanced archive has a pinned digest yet, so each is checked against
-its published checksum. A pre-release it offers is your edition's too, and is installed only if you
+explains. A pre-release never has a pinned digest, so it is checked against its published checksum;
+finals are pinned for both editions from v0.6.11 on. A pre-release it offers is your edition's too, and is installed only if you
 say yes (C5, I12, K2).
 
 ## Verifying
 
 Each release publishes four files to install from - each edition's archive and setup program - each
 with its `.sha256` beside it, and one build attestation names all four. `scripts/release.json` keeps
-a table of pinned digests for each edition; the advanced edition's is still empty.
+a table of pinned digests for each edition; the advanced edition's starts with v0.6.11.
 [VERIFY.md](VERIFY.md) says how to check them, and how to rebuild either edition yourself.
 
 ## What comes next

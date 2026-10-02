@@ -31,12 +31,29 @@ jobs:
     # is the same suite with the package importable, and the package's own tests after it.
     # tests/test_edition.py (StandardRunGuard, EditionLaneTests) holds each lane to the edition
     # it names and this list to the editions there are.
+    #
+    # And each lane in parts, one job each (2026-09-28). A lane took 78 to 103 minutes as one job;
+    # scripts/test_parts.py deals its test files into PARTS parts balanced by their measured
+    # durations, and the parts together are exactly the suite one job ran - tests/test_split_runs.py
+    # proves that for every count used here, and a whole run and a parallel one were compared test
+    # by test before this was switched on. What a lane checks once - the compile and the smoke test -
+    # runs in its first part only, so it still runs exactly once per lane.
+    #
+    # Four parts, from measurement (2026-09-29). The eight lanes' test steps took 65 to 125 minutes
+    # in the last five runs, and a public repository gets about 20 jobs at once. Laid onto 20 slots,
+    # those times give: 2 parts, 51 minutes to the last green (67 on the slowest runs seen); 3 parts,
+    # 61 - 24 jobs, and the last 4 wait for a whole part; 4 parts, 48 (57); 5 parts, 43 alone but 64
+    # once a release's or the ko sync's four jobs hold slots too. And tests/test_gui_layout.py, one
+    # file of one probe, is a floor of about 20 minutes on a runner that no count goes below.
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.12", "3.13", "3.14"]
         experimental: [false]
         edition: [standard, advanced]
+        # PARTS below is the length of this list; tests/test_split_runs.py holds the two together,
+        # so no part of a lane can be dropped by changing one of them.
+        part: [1, 2, 3, 4]
         include:
           # The next Python, while it is still a release candidate. It is not decoration:
           # it compiles the sources and runs the same suite, and a failure is annotated
@@ -45,14 +62,16 @@ jobs:
           # not a defect in this product - and finding out about a real one in October,
           # from a user, is worse than finding out now from a lane nobody had to merge.
           #
-          # Once per edition, like every other Python. An entry that sets a new Python makes
-          # a lane of its own rather than joining the ones above, so each edition is named.
-          - python-version: "3.15"
-            experimental: true
-            edition: standard
-          - python-version: "3.15"
-            experimental: true
-            edition: advanced
+          # Once per edition and part, like every other Python. An entry that sets a new Python
+          # makes one job of its own rather than joining the ones above, so each is named.
+          - {python-version: "3.15", experimental: true, edition: standard, part: 1}
+          - {python-version: "3.15", experimental: true, edition: standard, part: 2}
+          - {python-version: "3.15", experimental: true, edition: standard, part: 3}
+          - {python-version: "3.15", experimental: true, edition: standard, part: 4}
+          - {python-version: "3.15", experimental: true, edition: advanced, part: 1}
+          - {python-version: "3.15", experimental: true, edition: advanced, part: 2}
+          - {python-version: "3.15", experimental: true, edition: advanced, part: 3}
+          - {python-version: "3.15", experimental: true, edition: advanced, part: 4}
     # Only the pre-release lane is allowed to fail the job without failing the run.
     continue-on-error: ${{ matrix.experimental }}
 
@@ -84,7 +103,9 @@ jobs:
 
       - name: Compile all sources
         # advanced/ in every lane: it is source this repository ships, and a file that does not
-        # compile on a Python is worth knowing about whichever edition the lane tests.
+        # compile on a Python is worth knowing about whichever edition the lane tests. Once per
+        # lane, in its first part.
+        if: matrix.part == 1
         run: python -m compileall -q src tests scripts advanced
 
       - name: Run the automated test suite
@@ -92,54 +113,31 @@ jobs:
         # and never send a message to any Codex conversation.
         # CODEX_AR_LIVE is deliberately unset, so the live checks stay skipped.
         #
-        # A failure is repeated as a workflow error annotation, not just written to the
-        # log. Reading a run's log needs repository admin rights; annotations are part
-        # of the run's public status, so "which test failed" is answerable by anyone
-        # looking at the failure - including from a machine that cannot reproduce it.
+        # This job's part of its lane. A failure is repeated as a workflow error annotation
+        # (--annotate), not just written to the log. Reading a run's log needs repository admin
+        # rights; annotations are part of the run's public status, so "which test failed" is
+        # answerable by anyone looking at the failure - including from a machine that cannot
+        # reproduce it.
         #
         # The lane says which edition it tests in CODEX_AR_EDITION, and StandardRunGuard holds
-        # it to that. The standard lane imports core alone. The advanced lane puts the
-        # repository's advanced/src on the path too, so the package is importable - from there
-        # and nowhere else - and then runs the package's own tests. Core takes the package only
-        # from beside itself (src/codex_auto_resume/edition.py), so the core suite there is the
-        # standard edition with an advanced checkout on its path, which must change nothing; the
-        # package beside a copy of core is the loader's cases, run in both lanes.
+        # it to that. scripts/test_parts.py's LANES says what each lane runs: the standard lane
+        # imports core alone. The advanced lane puts the repository's advanced/src on the path
+        # too, so the package is importable - from there and nowhere else - and then runs the
+        # package's own tests. Core takes the package only from beside itself
+        # (src/codex_auto_resume/edition.py), so the core suite there is the standard edition with
+        # an advanced checkout on its path, which must change nothing; the package beside a copy of
+        # core is the loader's cases, run in both lanes. Every suite in the part runs, and the part
+        # fails after the last if any of them failed.
         shell: pwsh
         env:
           CODEX_AR_EDITION: ${{ matrix.edition }}
-          PYTHONPATH: ${{ matrix.edition == 'advanced' && 'src;advanced/src' || 'src' }}
-        run: |
-          $suites = @('tests')
-          if ($env:CODEX_AR_EDITION -eq 'advanced') { $suites += 'advanced/tests' }
-          # Every suite runs, and the lane fails after the last if any of them failed: a failure
-          # in the core suite is no reason not to learn about the advanced one's.
-          $failed = $false
-          foreach ($suite in $suites) {
-            $output = python -m unittest discover -s $suite -v 2>&1 | Out-String
-            $broke = $LASTEXITCODE -ne 0
-            Write-Host $output
-            if ($broke) {
-              $failed = $true
-              # Only the failures, not the roll-call of passing tests. An annotation is
-              # capped at 4096 characters, and a verbose run fills that with "ok" lines
-              # long before it reaches the part that says what went wrong.
-              $lines = $output -split "`r?`n"
-              $first = ($lines | Select-String -Pattern '^(FAIL|ERROR):' | Select-Object -First 1)
-              $detail = if ($first) {
-                ($lines | Select-Object -Skip ($first.LineNumber - 1) | Where-Object { $_.Trim() })
-              } else {
-                # No failure header at all means the process died rather than failed a
-                # test; the tail is then the only evidence there is.
-                ($lines | Where-Object { $_.Trim() } | Select-Object -Last 25)
-              }
-              $text = ($detail -join '%0A') -replace '::', ':'
-              if ($text.Length -gt 3800) { $text = $text.Substring(0, 3800) }
-              Write-Host "::error title=test suite failed ($suite)::$text"
-            }
-          }
-          if ($failed) { exit 1 }
+          PART: ${{ matrix.part }}
+          PARTS: "4"
+        run: python scripts/test_parts.py --lane $env:CODEX_AR_EDITION --part "$env:PART/$env:PARTS" -v --annotate
 
       - name: CLI smoke test in an isolated home
+        # Once per lane, in its first part.
+        if: matrix.part == 1
         env:
           PYTHONPATH: src
         run: |
@@ -148,3 +146,50 @@ jobs:
           python src\auto_resume.py --home "${{ runner.temp }}\ar-home" --quiet install
           python src\auto_resume.py --home "${{ runner.temp }}\ar-home" --quiet uninstall
           python src\auto_resume.py --home "${{ runner.temp }}\ar-home" --quiet uninstall
+
+  main-tree:
+    # The release lane on the tree main will hold: dev's, with every Korean source taken off.
+    #
+    # dev carries each document in English and Korean; a promotion to main deletes every *.ko.md
+    # (scripts/promote.py), and the release builds from main. So a test that reads a Korean source
+    # without asking whether this checkout holds one (tests/languages.py) passes every lane here and
+    # fails on main and in the release - which is how docs/GUIDE.ko.md got there on 2026-10-02. This
+    # job finds it before the promotion does. One lane, in the release's parts on the release's
+    # Python, and not on main or a pull request into it, whose tree already is main's.
+    if: github.ref != 'refs/heads/main' && github.base_ref != 'main'
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # PARTS below is the length of this list; tests/test_split_runs.py holds the two together.
+        part: [1, 2, 3, 4]
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Checked out as the test job checks out, for the same reasons.
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Take every Korean source off, as a promotion to main does
+        # Removed from the index too: the suite lists files with `git ls-files`, and main's index has
+        # none of them. The pathspec matches at every depth, README.ko.md included.
+        shell: bash
+        run: |
+          git rm -q --ignore-unmatch -- '*.ko.md'
+          test -z "$(git ls-files -- '*.ko.md')"
+
+      - name: Run the release lane on main's tree, this part
+        # CODEX_AR_TREE tells tests/languages.py this tree is main's, so the branch check holds it to
+        # main's rule - no Korean at all - on a push to dev and on a pull request into it.
+        shell: pwsh
+        env:
+          CODEX_AR_TREE: main
+          PART: ${{ matrix.part }}
+          PARTS: "4"
+        run: python scripts/test_parts.py --lane release --part "$env:PART/$env:PARTS" -v --annotate

@@ -572,9 +572,10 @@ class EditionLaneTests(unittest.TestCase):
     """CI runs this suite once for each edition, on every Python, and tells each run which.
 
     StandardRunGuard holds one run to the edition it names; this holds .github/workflows/test.yml
-    to naming both, with the path each needs, and the release job to running the advanced tests
-    before it builds. Read as text, as the other workflow tests read them: PyYAML is no
-    dependency of this suite, and a test that skipped without it would guard nothing in CI.
+    to naming both, the runner (scripts/test_parts.py, LANES) to giving each lane the path it needs,
+    and the release to running the advanced tests before it builds. Read as text, as the other
+    workflow tests read them: PyYAML is no dependency of this suite, and a test that skipped without
+    it would guard nothing in CI. How the lanes are split into parts is tests/test_split_runs.py's.
     """
 
     def setUp(self):
@@ -582,6 +583,9 @@ class EditionLaneTests(unittest.TestCase):
         self.matrix = self.text[self.text.index("\n    strategy:"):self.text.index("\n    steps:")]
         step = self.text[self.text.index("- name: Run the automated test suite"):]
         self.step = step[:step.index("\n      - name:")]
+        spec = importlib.util.spec_from_file_location("test_parts_for_the_lanes", ROOT / "scripts" / "test_parts.py")
+        self.runner = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.runner)
 
     def test_the_axis_is_the_editions_there_are(self):
         axis = re.search(r"(?m)^        edition: \[([^\]]+)\]\s*$", self.matrix)
@@ -589,45 +593,56 @@ class EditionLaneTests(unittest.TestCase):
         self.assertEqual([part.strip() for part in axis.group(1).split(",")], list(Edition))
 
     def test_the_future_python_runs_each_edition_too(self):
-        """An `include` entry that sets a Python the axis does not list makes a lane of its own
+        """An `include` entry that sets a Python the axis does not list makes a job of its own
         and joins no other, so an entry without an edition would test neither by name."""
         include = self.matrix[self.matrix.index("include:"):]
-        entries = re.split(r"(?m)^          - ", include)[1:]
+        entries = re.findall(r"(?m)^          - (\{.*\})\s*$", include)
         self.assertTrue(entries, "the future Python has no lane")
-        named = [re.search(r"(?m)^            edition: (\w+)\s*$", entry) for entry in entries]
+        named = [re.search(r"\bedition: (\w+)", entry) for entry in entries]
         self.assertNotIn(None, named, "an include entry names no edition")
-        self.assertEqual(sorted(found.group(1) for found in named), sorted(Edition))
+        self.assertEqual(sorted({found.group(1) for found in named}), sorted(Edition))
         pythons = {re.search(r'python-version: "([\d.]+)"', entry).group(1) for entry in entries}
         self.assertEqual(len(pythons), 1, "each future lane is one Python in both editions")
 
     def test_each_lane_says_which_edition_it_tests(self):
         self.assertIn("%s: ${{ matrix.edition }}" % editions.LEG, self.step)
+        self.assertIn("--lane $env:%s" % editions.LEG, self.step)
 
     def test_only_the_advanced_lane_has_the_package_on_its_path_and_it_runs_its_tests(self):
         advanced_src = editions.ADVANCED_SRC.relative_to(ROOT).as_posix()
         advanced_tests = (editions.ADVANCED / "tests").relative_to(ROOT).as_posix()
         self.assertTrue((ROOT / advanced_tests).is_dir())
-        self.assertIn("PYTHONPATH: ${{ matrix.edition == 'advanced' && 'src;%s' || 'src' }}"
-                      % advanced_src, self.step)
-        self.assertIn("$suites = @('tests')", self.step)
-        self.assertIn("if ($env:%s -eq 'advanced') { $suites += '%s' }" % (editions.LEG, advanced_tests),
-                      self.step)
-        self.assertIn("python -m unittest discover -s $suite -v", self.step)
-        # Every suite runs before the lane gives its verdict.
-        self.assertLess(self.step.index("foreach ($suite in $suites)"), self.step.index("if ($failed) { exit 1 }"))
-        self.assertEqual(self.step.count("exit 1"), 1, "a suite's failure ends the lane before the next")
+        lanes = self.runner.LANES
+        self.assertEqual(sorted(set(lanes) - {"release"}), sorted(Edition), "a lane for each edition")
+        self.assertEqual([suite for suite, _ in lanes[Edition.STANDARD]], ["tests"])
+        self.assertEqual([suite for suite, _ in lanes[Edition.ADVANCED]], ["tests", advanced_tests])
+        for lane, suites in lanes.items():
+            for suite, env in suites:
+                with self.subTest(lane=lane, suite=suite):
+                    path = env["PYTHONPATH"].split(os.pathsep)
+                    self.assertEqual(path[0], "src")
+                    # The package is on the path exactly when the run says it tests that edition.
+                    self.assertEqual(advanced_src in path, env[editions.LEG] == Edition.ADVANCED)
+                    self.assertEqual(env[editions.LEG], Edition.ADVANCED if lane == Edition.ADVANCED
+                                     or suite == advanced_tests else Edition.STANDARD)
+        # Every suite runs before the lane gives its verdict (tests/test_split_runs.py, PartTests).
 
     def test_every_lane_compiles_the_advanced_tree(self):
         self.assertIn("python -m compileall -q src tests scripts advanced", self.text)
 
     def test_the_release_runs_the_advanced_tests_before_it_builds(self):
         release = (WORKFLOWS / "release.yml").read_text(encoding="utf-8")
-        start = release.index("- name: Run the advanced edition's tests")
-        step = release[start:release.index("\n      - name:", start)]
-        self.assertIn("PYTHONPATH: src;%s" % editions.ADVANCED_SRC.relative_to(ROOT).as_posix(), step)
-        self.assertIn("%s: advanced" % editions.LEG, step)
-        self.assertIn("run: python -m unittest discover -s advanced/tests", step)
-        self.assertLess(start, release.index("- name: Build the release archive"))
+        start = release.index("- name: Run the automated test suite, this part")
+        step = release[start:release.index("\n\n", start)]
+        self.assertIn("--lane release", step)
+        suites = dict(self.runner.LANES["release"])
+        advanced = suites[(editions.ADVANCED / "tests").relative_to(ROOT).as_posix()]
+        self.assertEqual(advanced["PYTHONPATH"].split(os.pathsep),
+                         ["src", editions.ADVANCED_SRC.relative_to(ROOT).as_posix()])
+        self.assertEqual(advanced[editions.LEG], Edition.ADVANCED)
+        self.assertEqual(suites["tests"][editions.LEG], Edition.STANDARD)
+        self.assertLess(start, release.index("\n  build:"))
+        self.assertIn("\n    needs: test\n", release[release.index("\n  build:"):])
 
 
 class SpellingTests(unittest.TestCase):

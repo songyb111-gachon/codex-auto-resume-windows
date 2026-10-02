@@ -54,6 +54,63 @@ What a green run does and does not establish is set out capability by capability
 no suite can make - a real install, a real interruption, a real send - are the procedure in
 [`docs/LIVE_ACCEPTANCE.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/LIVE_ACCEPTANCE.md).
 
+### In parts
+
+The suite is long - a lane took 78 to 103 minutes on GitHub's runners in September 2026 - so CI runs
+every lane in parts, one job each, and you can run it in parts on your own machine.
+`scripts/test_parts.py` is the one place the suite is split. It deals the test files into N parts,
+balanced by how long each file took when it was last measured (`tests/data/durations.json`), and runs
+each part the way `unittest discover` runs the suite: the same files, loaded by discover itself, in the
+same order, one fresh Python per suite.
+
+```bash
+python scripts/test_parts.py --parallel 8                   # all 8 parts at once: one summary, one exit code
+python scripts/test_parts.py --part 3/8                     # only the third of 8 parts
+python scripts/test_parts.py --lane advanced --parallel 8   # the advanced edition's lane
+python scripts/test_parts.py                                # the whole suite: `unittest discover` itself
+```
+
+It sets `PYTHONPATH` and `CODEX_AR_EDITION` for the lane itself - `standard`, `advanced`, or
+`release` (the two suites the release runs before it builds) - gives each part of a parallel run its
+own `TEMP` and `TMP`, and starts every child with no console window. Parallel parts share the machine,
+so the speed-up is what your processor has to spare. The window tests
+contend for one desktop, and the longest file - `tests/test_gui_layout.py`, which lays out every page
+in every language at five scalings - is a floor no number of parts goes below.
+
+The parts together are exactly the tests `unittest discover` finds, each once, for every part count
+the workflows use: `tests/test_split_runs.py` proves it. Whether a part's results are a whole run's
+is a question about the tests themselves, and the runner answers it on your machine. Run with neither
+`--part` nor `--parallel`, it runs `python -m unittest discover` itself, suite by suite, as CI ran the
+suite before it was split, and records each test's outcome; `--compare` holds that to the parts, test
+by test:
+
+```bash
+python scripts/test_parts.py --outcomes whole.json
+python scripts/test_parts.py --parallel 8 --outcomes parts.json
+python scripts/test_parts.py --compare whole.json parts.json
+```
+
+`--compare` prints every test id whose outcome differs and, for parts run at once, the part it ran in.
+Parts run at once on one machine contend for it, which a whole run and CI's parts - a runner each -
+never do: the window tests for one desktop, the probes' timeouts and the timing checks for one
+processor. So a local `--parallel` run is not a whole run's result, and a slow probe or a late UI
+Automation event can fail there and nowhere else. For each part with a difference, `--compare` prints
+the command that runs it alone; hold that to the whole run:
+
+```bash
+python scripts/test_parts.py --part 2/8 --outcomes part-2.json
+python scripts/test_parts.py --compare whole.json part-2.json   # only the files part 2 ran
+```
+
+What agrees there came from the parts running together: contention for the machine, or a name only one
+process on it may hold - a mutex or event name, a port, a fixed path outside `TEMP` - which the failure
+names, and which is worth making unique although CI never meets it. What still differs means two test
+files share something in one interpreter - a fixed temporary path, the working directory, the
+environment, a module global, a setting one of them changes and never puts back - and the fix is to make
+them independent, never to keep them in one part. After adding a test file or changing how long one takes, refresh the durations from a whole run
+with `--record-durations` so the parts stay even; a file never measured is dealt round-robin after
+the measured ones. `--list --parts 8` shows the deal.
+
 ## Measuring the window
 
 Speed is a claim like any other, and `build/measure_window.py` is how it is checked rather than
@@ -383,7 +440,10 @@ Three branches carry the documents three ways:
 
 CI holds the split: on a push to `main` no `*.ko.md` may exist, and on a push to `dev` every
 mapped one must (`tests/languages.py`, `tests/test_korean.py`), so dev cannot quietly skip its
-Korean checks and main cannot grow a Korean file back.
+Korean checks and main cannot grow a Korean file back. And dev is tested as main will hold it:
+`test.yml`'s `main-tree` job takes every `*.ko.md` off dev's tree, as a promotion does, and runs the
+release's suite on what is left, so a test that reads a Korean page without asking `tests/languages.py`
+whether this checkout holds one fails on dev - not on main, or in the release.
 
 `ko` was an independent fork until v0.5.5, with its own copy of the engine, the installer,
 the workflows and the tests. It ended up three releases behind while still telling Korean
@@ -446,6 +506,32 @@ popup and the notification card are drawn in each Design other than Soft - Class
 English and the light theme, as `docs/images/design-<design>-<surface>.png`.
 They are documentation only and never copied into `assets/`.
 
+**Only what moved is drawn, side by side.** Both steps first hold the manifest against the working
+tree and draw only the pictures whose inputs moved, whose files are not the bytes the manifest
+records, or - for the window - that were captured at another display scaling; the rest are kept as
+they are. A change to the generator itself draws everything, and so does `--all`
+(`python build/make_screenshots.py --all`, `python build/make_screenshots.py --breathe --all`). What
+is drawn is drawn side by side, each job - one language's window pages, one panel, one popup - in a
+process of its own: the windows' jobs all at once, and the others half the processors at a time and
+never more than eight (`--jobs N` says how many). Stopping a run - Ctrl+C, or a job the run cannot
+read - ends every job it started and starts no other, and a job ended so closes its windows with it;
+a run killed outright takes its jobs with it too, since they run in a Windows job of the run's.
+The window is photographed as soon as it says that the page it opened on is drawn from the bridge's
+answers and holds still, rather than a fixed fifteen seconds after it started:
+`build/capture_window.ps1` hands it the name of an event to set, through a variable only the capture
+sets, and still waits no longer than those fifteen seconds; a window still busy then is photographed
+once it answers, as before, and the picture is the same. A capture is given up only thirty minutes
+after its window started: it was five, and a machine whose processors were all taken by other work
+outran that with windows that were only slow. One window is on screen at a time unless
+`--windows N` asks for more (`python build/make_screenshots.py --windows 2`): a window spends most
+of its start drawing text through parts of Windows every process shares, a dozen started together
+each took two minutes, and a session once crashed while several windows were being captured at
+once. Each is photographed with PrintWindow, which draws a window whatever
+covers it, and one at a time from the moment its caption is painted inactive to the moment it is
+closed. None of them takes the foreground - a new window otherwise does once nobody has typed for a
+while, and the foreground window's caption comes out active - and a picture whose caption is active
+all the same is taken again, and after five tries not kept.
+
 It needs Windows, Microsoft Edge (it is what renders the panel), and
 `build/CodexAutoResumeSettings.exe` already built — run
 `powershell -ExecutionPolicy Bypass -File build/make_gui.ps1` first. The first run also
@@ -504,10 +590,12 @@ real one publishes it permanently.
 back the way each surface reads them: the popup's rows and the panel's rows are the window's two
 waiting recoveries, with the same names, states and times, and the panel's page is told that moment
 and reads clock times in UTC, as the card does. The window itself is seeded again when it is
-photographed, with the same offsets, because the bridge behind it runs on the real clock. So a
-countdown, a chip and a count say the same on all four pictures, but a wall-clock time need not: the
-times the window prints, such as History's, are those of the day the pictures were drawn. Compare
-the four by their relative times only.
+photographed, with the same offsets, because the bridge behind it runs on the real clock, and it is
+told, through a variable only the generator sets, to print that moment as the popup's and the
+panel's, in UTC: every date and time of day it prints, such as History's, is moved by as much. So a
+countdown, a chip, a count and a time of day say the same on all four pictures, a run on another day
+draws History again byte for byte, and its times do not depend on the PC's time zone; until
+v0.6.12-alpha History printed the day the pictures were drawn.
 
 **To audit the look, draw both themes side by side.** The committed pictures are the light theme's
 only. For a change to how the product looks, draw contact sheets of the window's Overview and
