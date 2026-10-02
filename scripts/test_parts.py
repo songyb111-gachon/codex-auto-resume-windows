@@ -26,7 +26,10 @@ runner settings (the warnings filter, verbosity), the same `sys.path[0]` and `sy
 interpreter for each suite. `--check` proves the first half: for every suite, the files loaded one by one
 are exactly the tests discover finds, in its order, and for every N the parts together are each of them
 exactly once. Whether each test's outcome is the same is the tests' own business - a file that leans on
-another having run first, or on a name no other process may use - and `--compare` answers it.
+another having run first, or on a name no other process may use - and `--compare` answers it. Parts run at
+once on one machine also contend for it - one desktop for the window tests, one processor for the probes'
+timeouts and the timing checks - which a runner of its own never does; so `--compare` names the part a
+differing test ran in, and holds that part run alone (`--part K/N`) to the whole run on the part's files.
 
 A lane is the suites one CI job runs and how each is run (LANES):
 
@@ -325,7 +328,10 @@ def run_part(lane: str, part: int | None, count: int, *, verbose: bool = False, 
     failed if any of them did."""
     mine = set(lane_files(lane) if part is None else deal(lane_files(lane), count, load_durations())[part - 1])
     where = "the whole suite" if part is None else "part %d of %d" % (part, count)
-    merged = {"outcomes": {}, "seconds": {}, "counts": {}, "ok": True, "suites": []}
+    merged = {"outcomes": {}, "seconds": {}, "counts": {}, "ok": True, "suites": [],
+              "files": [name for name in lane_files(lane) if name in mine]}
+    if part is not None:
+        merged["part"] = "%d/%d" % (part, count)
     for suite, env in LANES[lane]:
         names = [name for name in suite_files(suite) if "%s/%s" % (suite, name) in mine]
         if not names:
@@ -369,7 +375,7 @@ def failure_text(log: bytes) -> str:
 
 def run_parallel(lane: str, count: int, *, verbose: bool = False) -> tuple[dict, list]:
     """All `count` parts at once, as child processes with a temporary directory each."""
-    deal(lane_files(lane), count, load_durations())      # a count that cannot be dealt is refused here
+    dealt = deal(lane_files(lane), count, load_durations())   # a count that cannot be dealt is refused here
     base = Path(tempfile.mkdtemp(prefix="tp"))
     children = []
     try:
@@ -408,7 +414,7 @@ def run_parallel(lane: str, count: int, *, verbose: bool = False) -> tuple[dict,
             if entry["child"].poll() is None:
                 entry["child"].kill()
         raise
-    merged = {"outcomes": {}, "seconds": {}, "counts": {}, "ok": True}
+    merged = {"outcomes": {}, "seconds": {}, "counts": {}, "ok": True, "files": lane_files(lane), "deal": dealt}
     for entry in children:
         record = entry["record"]
         merged["ok"] = merged["ok"] and entry["ok"]
@@ -486,24 +492,74 @@ def check(counts: list[int]) -> tuple[bool, list]:
 # --- outcomes, durations and the command line ------------------------------------------------------
 
 def write_outcomes(path: str, lane: str, parts, merged: dict) -> None:
-    document = {"lane": lane, "parts": parts, "python": sys.version.split()[0],
-                "counts": merged["counts"], "outcomes": dict(sorted(merged["outcomes"].items())),
-                "seconds": dict(sorted(merged["seconds"].items()))}
+    """Every test id's outcome, and the files the run ran: the lane's, or one part's (`part`, `files`); a run
+    of parts at once also keeps which part ran which file (`deal`)."""
+    document = {"lane": lane, "parts": parts, "python": sys.version.split()[0]}
+    document.update({key: merged[key] for key in ("part", "files", "deal") if key in merged})
+    document.update({"counts": merged["counts"], "outcomes": dict(sorted(merged["outcomes"].items())),
+                     "seconds": dict(sorted(merged["seconds"].items()))})
     Path(path).write_text(json.dumps(document, indent=1) + "\n", encoding="utf-8")
 
 
+# A class or module fixture's id, as unittest reports one that failed: `setUpClass (module.Class)`.
+FIXTURE = re.compile(r"(?:setUpClass|tearDownClass|setUpModule|tearDownModule) \((.+)\)")
+
+
+def module_of(test_id: str) -> str:
+    """The module a test id came from: `module.Class.test`, a subtest's `module.Class.test (x=1)`, a failed
+    fixture's `setUpClass (module.Class)`, or the loader's stand-in for a file it could not import,
+    `unittest.loader._FailedTest.module`."""
+    found = FIXTURE.fullmatch(test_id)
+    name = found.group(1) if found else test_id.split(" ", 1)[0]
+    if name.startswith("unittest.loader._FailedTest."):
+        return name.rsplit(".", 1)[1]
+    return name.split(".", 1)[0]
+
+
 def compare(first: str, second: str) -> int:
-    a = json.loads(Path(first).read_text(encoding="utf-8"))["outcomes"]
-    b = json.loads(Path(second).read_text(encoding="utf-8"))["outcomes"]
-    differ = sorted(key for key in set(a) | set(b) if a.get(key) != b.get(key))
+    """Two --outcomes files, test id by test id. When they ran different files - a part alone against the
+    whole run - only the ids of the files both ran are held to each other. A difference in a run of parts at
+    once names its part and the run that checks that part without the others."""
+    documents = [json.loads(Path(name).read_text(encoding="utf-8")) for name in (first, second)]
+    a, b = (document["outcomes"] for document in documents)
+    keys = set(a) | set(b)
+    ran = [{Path(name).stem for name in document["files"]} if document.get("files") else None
+           for document in documents]
+    if None not in ran and ran[0] != ran[1]:
+        both, either = ran[0] & ran[1], ran[0] | ran[1]
+        # An id whose module is no file either run names is held only where both runs have it.
+        kept = {key for key in keys
+                if (module_of(key) in both if module_of(key) in either else key in a and key in b)}
+        say("the two runs ran different files: the %d both ran are held to each other; %d test ids of "
+            "files only one ran are left out" % (len(both), len(keys - kept)))
+        keys = kept
+    holders = {}
+    for document in documents:
+        dealt = document.get("deal") or []
+        for index, files in enumerate(dealt, 1):
+            for name in files:
+                holders.setdefault(Path(name).stem, (index, len(dealt), document.get("lane")))
+    differ = sorted(key for key in keys if a.get(key) != b.get(key))
+    checks = []
     for key in differ:
-        say("%s: %s / %s" % (key, a.get(key, "absent"), b.get(key, "absent")))
+        holder = holders.get(module_of(key))
+        say("%s: %s / %s%s" % (key, a.get(key, "absent"), b.get(key, "absent"),
+                               " (part %d of %d)" % holder[:2] if holder else ""))
+        if holder and holder not in checks:
+            checks.append(holder)
     tally = {}
-    for word in a.values():
-        tally[word] = tally.get(word, 0) + 1
+    for key in keys & set(a):
+        tally[a[key]] = tally.get(a[key], 0) + 1
     say("%d test ids in %s, %d in %s; %d differ; %s" % (
-        len(a), first, len(b), second, len(differ),
+        len(keys & set(a)), first, len(keys & set(b)), second, len(differ),
         ", ".join("%s %d" % (word, tally[word]) for word in OUTCOMES if word in tally)))
+    if checks:
+        say("Parts run at once contend for this machine, which a runner of its own does not. Run each part "
+            "with a difference alone and compare it with the whole run: what still differs, two test files "
+            "share; what agrees came from the parts running together (docs/CONTRIBUTING.md).")
+        for part, count, lane in sorted(checks, key=lambda holder: holder[:2]):
+            say("  python scripts/test_parts.py --lane %s --part %d/%d --outcomes part-%d.json"
+                % (lane or default_lane(), part, count, part))
     return 1 if differ else 0
 
 
@@ -545,7 +601,7 @@ def main(argv=None) -> int:
     which.add_argument("--parallel", type=int, metavar="N", help="run all N parts at once")
     which.add_argument("--list", action="store_true", help="show how --parts N deals the files")
     which.add_argument("--check", action="store_true", help="prove the parts are the discovered suite")
-    which.add_argument("--compare", nargs=2, metavar="FILE", help="compare two --outcomes files")
+    which.add_argument("--compare", nargs=2, metavar="FILE", help="compare two --outcomes files: a whole run, parts at once, or one part alone")
     which.add_argument("--worker", metavar="SUITE", help=argparse.SUPPRESS)
     which.add_argument("--check-suite", metavar="SUITE", help=argparse.SUPPRESS)
     parser.add_argument("--parts", type=int, default=4, help="with --list: how many parts")

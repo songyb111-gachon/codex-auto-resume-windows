@@ -90,10 +90,24 @@ python scripts/test_parts.py --parallel 8 --outcomes parts.json
 python scripts/test_parts.py --compare whole.json parts.json
 ```
 
-`--compare` prints every test id whose outcome differs. A difference means two test files share
-something - a fixed temporary path, a mutex or event name, a port, the working directory, the
-environment or a module global - and the fix is to make them independent, never to keep them in one
-part. After adding a test file or changing how long one takes, refresh the durations from a whole run
+`--compare` prints every test id whose outcome differs and, for parts run at once, the part it ran in.
+Parts run at once on one machine contend for it, which a whole run and CI's parts - a runner each -
+never do: the window tests for one desktop, the probes' timeouts and the timing checks for one
+processor. So a local `--parallel` run is not a whole run's result, and a slow probe or a late UI
+Automation event can fail there and nowhere else. For each part with a difference, `--compare` prints
+the command that runs it alone; hold that to the whole run:
+
+```bash
+python scripts/test_parts.py --part 2/8 --outcomes part-2.json
+python scripts/test_parts.py --compare whole.json part-2.json   # only the files part 2 ran
+```
+
+What agrees there came from the parts running together: contention for the machine, or a name only one
+process on it may hold - a mutex or event name, a port, a fixed path outside `TEMP` - which the failure
+names, and which is worth making unique although CI never meets it. What still differs means two test
+files share something in one interpreter - a fixed temporary path, the working directory, the
+environment, a module global, a setting one of them changes and never puts back - and the fix is to make
+them independent, never to keep them in one part. After adding a test file or changing how long one takes, refresh the durations from a whole run
 with `--record-durations` so the parts stay even; a file never measured is dealt round-robin after
 the measured ones. `--list --parts 8` shows the deal.
 

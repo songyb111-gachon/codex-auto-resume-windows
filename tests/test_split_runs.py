@@ -11,6 +11,8 @@ result a whole run gives. What is held here:
 * WorkerTests - a real worker on a small suite records each test id's outcome as unittest reports it, and
   the whole run - `unittest discover` itself, the run the parts are compared with - records the same.
 * PartTests - every suite of a part runs, and the part fails after the last if any of them failed.
+* CompareTests - a part run alone is held to a whole run on its own files, and a difference in parts run
+  at once names its part and the run that checks it alone.
 * LaneTests - what each lane runs, and with what on the path.
 * WorkflowPartsTests - test.yml and release.yml run every part of every lane, and what a lane checks
   once still runs once.
@@ -312,6 +314,85 @@ class PartTests(unittest.TestCase):
         with mock.patch.object(parts, "say"):
             merged = parts.run_part("standard", 1, 1, worker=lambda *arguments: (3, b"", {}))
         self.assertFalse(merged["ok"])
+
+
+class CompareTests(unittest.TestCase):
+    """--compare holds two --outcomes files to each other test id by test id. Parts run at once on one
+    machine contend with each other, so a test that differs there is checked by running its part alone and
+    holding that part to the whole run - on the part's own files, the only ones it ran."""
+
+    WHOLE = {"lane": "standard", "parts": 1, "files": ["tests/test_a.py", "tests/test_b.py"],
+             "outcomes": {"test_a.A.test_x": "pass", "test_b.B.test_y": "pass", "test_b.B.test_z": "skip"}}
+
+    def compare(self, first, second):
+        said = []
+        with tempfile.TemporaryDirectory() as folder:
+            names = []
+            for index, document in enumerate((first, second)):
+                Path(folder, "%d.json" % index).write_text(json.dumps(document), encoding="utf-8")
+                names.append(str(Path(folder, "%d.json" % index)))
+            with mock.patch.object(parts, "say", said.append):
+                code = parts.compare(*names)
+        return code, said
+
+    def test_a_part_alone_is_held_to_the_whole_run_on_its_own_files(self):
+        alone = {"lane": "standard", "parts": 2, "part": "2/2", "files": ["tests/test_b.py"],
+                 "outcomes": {"test_b.B.test_y": "pass", "test_b.B.test_z": "skip"}}
+        code, said = self.compare(self.WHOLE, alone)
+        self.assertEqual(code, 0, said)
+        self.assertFalse([line for line in said if line.startswith("test_a.")], said)
+        # A class whose fixture failed in the part leaves its tests absent there, and that still differs;
+        # so does a file the part could not import.
+        alone["outcomes"] = {"setUpClass (test_b.B)": "error", "unittest.loader._FailedTest.test_b": "error"}
+        code, said = self.compare(self.WHOLE, alone)
+        self.assertEqual(code, 1)
+        for line in ("setUpClass (test_b.B): absent / error", "test_b.B.test_y: pass / absent",
+                     "unittest.loader._FailedTest.test_b: absent / error"):
+            self.assertIn(line, said)
+        self.assertFalse([line for line in said if line.startswith("test_a.")], said)
+
+    def test_runs_of_the_same_files_and_files_that_do_not_say_are_held_whole(self):
+        at_once = dict(self.WHOLE, parts=2, outcomes={"test_b.B.test_y": "pass", "test_b.B.test_z": "skip"})
+        self.assertIn("test_a.A.test_x: pass / absent", self.compare(self.WHOLE, at_once)[1])
+        unsaid = {"outcomes": {"test_b.B.test_y": "pass"}}
+        self.assertIn("test_a.A.test_x: pass / absent", self.compare(self.WHOLE, unsaid)[1])
+
+    def test_a_difference_in_parts_run_at_once_names_its_part_and_the_run_that_checks_it(self):
+        at_once = dict(self.WHOLE, parts=2, deal=[["tests/test_a.py"], ["tests/test_b.py"]],
+                       outcomes={"test_a.A.test_x": "pass", "test_b.B.test_y": "fail", "test_b.B.test_z": "skip"})
+        code, said = self.compare(self.WHOLE, at_once)
+        self.assertEqual(code, 1)
+        self.assertIn("test_b.B.test_y: pass / fail (part 2 of 2)", said)
+        self.assertTrue([line for line in said if "--lane standard --part 2/2 --outcomes" in line], said)
+        self.assertFalse([line for line in said if "--part 1/2" in line], said)
+
+    def test_the_outcomes_say_which_files_the_run_ran(self):
+        worker = lambda suite, names, env, verbose: (0, b"", {"ok": True, "outcomes": {}, "counts": {"run": 1}})
+        with mock.patch.object(parts, "say"):
+            merged = parts.run_part("release", 2, 3, worker=worker)
+        dealt = parts.deal(parts.lane_files("release"), 3, parts.load_durations())
+        self.assertEqual(merged["files"], dealt[1])
+        self.assertEqual(merged["part"], "2/3")
+        with tempfile.TemporaryDirectory() as folder:
+            parts.write_outcomes(str(Path(folder, "o.json")), "release", 3, merged)
+            document = json.loads(Path(folder, "o.json").read_text(encoding="utf-8"))
+        self.assertEqual((document["files"], document["part"]), (dealt[1], "2/3"))
+
+    def test_parts_run_at_once_record_the_deal(self):
+        class Child:
+            def __init__(self, argv, **options):
+                report = argv[argv.index("--report") + 1]
+                Path(report).write_text(json.dumps({"ok": True, "outcomes": {}, "counts": {"run": 1}}),
+                                        encoding="utf-8")
+                self.returncode = 0
+
+            def poll(self):
+                return 0
+
+        with mock.patch.object(parts.subprocess, "Popen", Child), mock.patch.object(parts, "say"):
+            merged, _ = parts.run_parallel("standard", 3)
+        self.assertEqual(merged["deal"], parts.deal(parts.lane_files("standard"), 3, parts.load_durations()))
+        self.assertEqual(merged["files"], parts.lane_files("standard"))
 
 
 class LaneTests(unittest.TestCase):
