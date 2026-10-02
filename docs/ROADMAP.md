@@ -439,9 +439,9 @@ opens the pull request.
 
 ---
 
-## v0.6.11 — Two editions, and the advanced edition's first capabilities
+## v0.6.11 — Two editions, and the advanced edition's first capabilities ✅
 
-**In development: the final release, after four pre-releases.**
+**Released, after four pre-releases.**
 
 
 v0.6.11 arrives in stages. **v0.6.11-alpha**, a pre-release, is the ground both editions stand on
@@ -491,10 +491,12 @@ with the Dashboard's **Advanced features** page, the one place a capability is t
 owner asked on 2026-10-02 to follow at once. With it, everything of the final's list below is done
 but the version and edition picker; the final comes after it.
 
-### v0.6.11 — The final: the advanced edition's first capabilities
+### v0.6.11 ✅ — The final: the advanced edition's first capabilities
 
-What the final adds to v0.6.11-alpha and v0.6.11-beta - all of it already in v0.6.11-beta.3, the
-**Advanced features** page included, but the picker below, which is in it if it is finished in time:
+What it carries for a person coming from v0.6.10 is its entry in [CHANGELOG.md](CHANGELOG.md). The
+version and edition picker was not finished in time, and is the first thing v0.6.12 adds, below. What
+the final adds to v0.6.11-alpha and v0.6.11-beta - all of it already in v0.6.11-beta.3, the
+**Advanced features** page included:
 
 - **Three capabilities in the advanced edition**, each off until a person turns it on in the
   Dashboard's **Advanced features** page, after reading what it does and which standards it departs
@@ -527,8 +529,8 @@ What the final adds to v0.6.11-alpha and v0.6.11-beta - all of it already in v0.
   and `CodexAutoResume-Advanced-Setup-v<version>.exe`: one file holding its edition's archive, which
   runs that archive's own `Install.cmd`, with nothing to unzip.
 - **Interface work.** The edition shown beside the version, the Careful style folded into Detailed,
-  and **Custom...** and **Unlimited** beside the presets are done. A version and edition picker in
-  the Dashboard is not, and is in the final only if it is finished in time.
+  and **Custom...** and **Unlimited** beside the presets. A version and edition picker in the
+  Dashboard was not finished in time, and moved to v0.6.12.
 
 v0.6.11 and v0.6.12 go further than every release so far. Together they are planned to offer,
 aggressively, as many capabilities as any comparable program does, and more: before they were
@@ -575,6 +577,23 @@ Every capability here is the advanced edition's alone, off until a person turns 
 statement that names the standards it departs from, as v0.6.11's are. Some rest on a measurement
 of the real Codex; one that fails narrows the route, or becomes a warning the person confirms, and
 does not drop the capability.
+
+### First: another version, and a power action after a usage limit
+
+Before the capabilities below, v0.6.12 adds two things people asked for:
+
+- **Install another version or edition from the Dashboard** - any release or pre-release of either
+  edition, from the list of releases the update check already reads. It says first what the change
+  means - a change of edition turns every advanced capability off, a pre-release is tested less, and
+  an older version has the state converted first, with a copy, as `downgrade-state` does - and checks
+  what it downloads as every install does. It was planned for v0.6.11 and not finished in time.
+- **A power action once a usage limit's recoveries are done**
+  ([discussion #22](https://github.com/songyb111-gachon/codex-auto-resume-windows/discussions/22)):
+  sleep, hibernate or shut down the PC once every recovery waiting for a usage limit to reset has
+  ended - never while a recovery of a temporary error waits or runs, or while a turn runs or input is
+  queued in those conversations. A person arms it, for the next batch or always, and a grace period
+  with a way to cancel comes first. Which edition it belongs in is decided against the standards when
+  it is designed.
 
 ### Recovery through the channels already in use
 
@@ -867,7 +886,7 @@ Python modularization and a tidier landing page on GitHub, in a pre-release
 
         ↓
 
-v0.6.11-alpha → v0.6.11-beta → v0.6.11-beta.2 → v0.6.11-beta.3 → v0.6.11
+v0.6.11-alpha → v0.6.11-beta → v0.6.11-beta.2 → v0.6.11-beta.3 → v0.6.11  ✅ Released
 The ground both editions stand on, in a pre-release
 + the standard edition's additions, in a second pre-release
 + the advanced edition's first capabilities, a pre-release offer and a setup program, in a third
@@ -876,7 +895,8 @@ The ground both editions stand on, in a pre-release
         ↓
 
 v0.6.12
-The rest of the advanced edition, in as many pre-releases as it needs
+Another version or edition from the Dashboard, and a power action after a usage limit, first
++ the rest of the advanced edition, in as many pre-releases as it needs
 + several Codex homes, Arabic and Hebrew mirrored, winget, compatibility reports from the app
 
         ↓
@@ -902,5 +922,4 @@ Final Rust audit and stabilization: the Rust bug hunt
 Maintenance
 ```
 
-This document records the current direction; v0.6.11's two pre-releases are out, and its final
-release is next.
+This document records the current direction; v0.6.11 is out, and v0.6.12 is next.

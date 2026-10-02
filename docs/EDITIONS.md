@@ -223,10 +223,20 @@ a table of pinned digests for each edition; the advanced edition's is still empt
 
 ## What comes next
 
-v0.6.12 brings the rest of the advanced edition, each part published as a pre-release as it is
+v0.6.12 first adds two things people asked for. One is a way to install another version or
+edition from the Dashboard - any release or pre-release of either edition - which says first what
+the change means, as the installer does when you switch (a change of edition turns every advanced
+capability off), and checks what it downloads as every install does. It was planned for v0.6.11
+and not finished in time; until it comes, switching is the reinstall [above](#switching). The
+other is a power action - sleep, hibernate or shut down - once every recovery waiting for a usage
+limit to reset has ended; which edition it belongs in is decided against the standards when it is
+designed.
+
+Then v0.6.12 brings the rest of the advanced edition, each part published as a pre-release as it is
 finished. Each new capability is the advanced edition's alone, off until you turn it on, with a
 statement that names the standards it departs from. This is a direction, not a promise;
-[ROADMAP.md](ROADMAP.md) has the whole list in its v0.6.12 section, under the same four headings.
+[ROADMAP.md](ROADMAP.md) has the whole list in its v0.6.12 section: the two additions first, then
+the rest under the same four headings as below, and one more on compatibility reports from others.
 
 - **Recovery through the channels already in use** - short retries for capacity errors, failures it
   cannot name on a budget of their own, rules over Codex's own error tags, a request Codex gave up

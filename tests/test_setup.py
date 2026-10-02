@@ -668,6 +668,19 @@ class ReleaseTests(unittest.TestCase):
 
 
 RELEASES = "https://github.com/songyb111-gachon/codex-auto-resume-windows/releases"
+LATEST = RELEASES + "/latest"
+# The first release published with the setup programs.
+SETUP_SINCE = (0, 6, 11)
+
+
+def _latest_release() -> tuple:
+    """The release releases/latest answers with once this tree is published: the manifest's version when it is a
+    release, and otherwise the newest release whose digest is pinned. A pre-release is published with
+    --latest=false, so it never is the latest, and a release is pinned only once it is published."""
+    manifest = json.loads((ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"))["version"]
+    pinned = json.loads((ROOT / "scripts" / "release.json").read_text(encoding="utf-8"))["sha256"]
+    releases = [version for version, digest in pinned.items() if digest] + ([manifest] if "-" not in manifest else [])
+    return max(tuple(int(part) for part in version.split(".")) for version in releases)
 
 
 def _install_documents(english, korean):
@@ -682,18 +695,25 @@ def _install_documents(english, korean):
 class DocsTests(unittest.TestCase):
     """Where the install instructions send a person for the setup program."""
 
-    def test_the_setup_programs_route_names_where_one_is_found_while_no_release_has_one(self):
-        """A pre-release is published with --latest=false, so releases/latest stays on the newest release - one
-        from before the setup programs, until a release that carries one ships. A route that pointed there alone
-        sent everyone to a file that was not there; it names the releases page, where the pre-releases are, too."""
+    def test_the_setup_programs_route_points_at_the_latest_release_and_it_carries_one(self):
+        """The setup programs start with v0.6.11. Until it was out they were only on its pre-releases, which are
+        published with --latest=false, so releases/latest stayed on v0.6.10, which has none: a route that pointed
+        there sent everyone to a file that was not there, and it named the releases page instead. From v0.6.11
+        the latest release carries them, and the route points there again - only while that holds. So the release
+        releases/latest answers with for this tree has to be one with setup programs, and the route may name no
+        other release page: the list, or a tag, is a second place to look, and a tag can be one without."""
+        latest = _latest_release()
+        self.assertGreaterEqual(latest, SETUP_SINCE, "releases/latest answers with v%s, which has no setup program"
+                                % ".".join(map(str, latest)))
         for name, (heading, korean) in _install_documents("### With the setup program", "### 설치 파일로 설치").items():
             with self.subTest(name):
                 text = (ROOT / name).read_text(encoding="utf-8")
                 section = text[text.index(heading):]
                 section = section[:section.index("\n### ", len(heading))]
-                self.assertIn("](%s)" % RELEASES, section, "the releases page, where a pre-release is listed")
+                self.assertEqual(re.findall(r"\]\((%s[^)\s]*)\)" % re.escape(RELEASES), section), [LATEST],
+                                 "the latest release, which carries the setup programs, and no other release page")
                 if not korean:
-                    self.assertIn("v0.6.11", section, "the release the setup programs start with")
+                    self.assertIn("from v0.6.11 on", section, "the release the setup programs start with")
 
     def test_the_recommended_route_comes_first(self):
         """The owner, 2026-10-02: the recommended route belongs at the top. The setup program's route, new in

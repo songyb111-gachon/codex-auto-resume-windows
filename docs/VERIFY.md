@@ -567,10 +567,10 @@ If either one blocks you, please open an issue naming the file and the message.
   attestation.**
 - **Archives before v0.5.4 have no attestation.**
 - **No advanced archive is pinned yet.** The `advanced` table's `sha256` in `scripts/release.json`
-  is empty until the first release that publishes the advanced edition is pinned; the two
-  pre-releases that carried it, v0.6.11-alpha and v0.6.11-beta, are never pinned. Until then an
-  advanced archive has its `.sha256` and the attestation, and the plugin route falls back to the
-  `.sha256` and says so.
+  is empty until v0.6.11, the first release that publishes the advanced edition, is pinned; the
+  four pre-releases that carried it before, v0.6.11-alpha, v0.6.11-beta, v0.6.11-beta.2 and
+  v0.6.11-beta.3, are never pinned. Until then an advanced archive has its `.sha256` and the
+  attestation, and the plugin route falls back to the `.sha256` and says so.
 - **All four proposed action upgrades are in, and two of them nothing can test.**
   Dependabot opened pull requests raising `actions/checkout` to v7.0.1,
   `actions/setup-python` to v7.0.0, `actions/attest-build-provenance` to v4.2.2, and the
