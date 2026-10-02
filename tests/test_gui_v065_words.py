@@ -325,7 +325,12 @@ class WordSourceTests(unittest.TestCase):
 
     def test_help_notes_and_values_are_wrap_labels(self):
         self.assertIn("var label = new WrapLabel();", self.method(self.window, "private Label HelpText("))
-        self.assertIn("var label = new WrapLabel();", self.method(self.dashboard, "private Label Value("))
+        # A value is a WrapLabel, made in one place - and the version's (v0.6.11-beta.3) is one too, drawn by the same
+        # overload.
+        self.assertIn("return Value(new WrapLabel(), text);",
+                      self.method(self.dashboard, "private Label Value(string text)"))
+        self.assertIn("private Label Value(WrapLabel label, string text)", self.dashboard)
+        self.assertIn("internal sealed class VersionLabel : WrapLabel", guiscan.whole())
         self.assertIn("internal sealed class NoteLabel : WrapLabel", self.dashboard)
 
     def test_what_draws_its_own_words_wraps_them_the_same_way(self):
