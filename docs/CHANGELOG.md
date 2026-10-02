@@ -6,17 +6,18 @@
 
 **A pre-release for developers, published from `main`.** It is a GitHub pre-release, so
 `releases/latest` never answers with it, and the plugin's own route installs what `main`'s manifest
-says, so an installation made that way gets it. An installation of v0.6.11-beta.2 or later,
-v0.6.11 included, is offered it by *Check for updates*, which asks first and says it is tested less;
-v0.6.11-beta and the copies before it never offer a pre-release. It is an alpha - not yet for real
-use - because there is nothing in it to use: it is upkeep of how this project is tested and how its
-pictures are made, the first of v0.6.12's pre-releases, ahead of the version and edition picker and
-the power action. **Nothing changes for a person using it.** Both editions do what v0.6.11 does, say
-and draw what it says and draws, and make the same calls to Codex. The settings window's new code
-acts only in a window the picture generator starts, through variables only the generator sets; a
-person's window behaves as before. So unless you are testing the project itself, **Not now** is the
-answer to the offer. Going back takes only v0.6.11's setup program
-([below](#going-back-from-v0612-alpha)).
+says, so an installation made that way gets it. An installation of v0.6.11 is offered it by
+*Check for updates*, which asks first and says it is tested less. An installation of v0.6.11-beta.2
+or v0.6.11-beta.3 is offered v0.6.11 first, because a release is offered before a pre-release, and
+this alpha only once it is on v0.6.11; v0.6.11-beta and the copies before it never offer a
+pre-release. It is an alpha - not yet for real use - because there is nothing in it to use: it is
+upkeep of how this project is tested and how its pictures are made, the first of v0.6.12's
+pre-releases, ahead of the version and edition picker and the power action.
+**Nothing changes for a person using it.** Both editions do what v0.6.11 does, say and draw what it
+says and draws, and make the same calls to Codex. The settings window's new code acts only in a
+window the picture generator starts, through variables only the generator sets; a person's window
+behaves as before. So unless you are testing the project itself, **Not now** is the answer to the
+offer. Going back takes only v0.6.11's setup program ([below](#going-back-from-v0612-alpha)).
 
 **A plugin copy older than v0.6.9-alpha's cannot read this version.** The bootstraps published from
 v0.6.0 to v0.6.8 read no word after a version, so none of them can compare `0.6.12-alpha` with
@@ -90,7 +91,7 @@ the change above closes.
 - **The state, the settings and the advanced edition's file are v0.6.11's.** `state.sqlite` is
   still schema 4 and `config\advanced\advanced.sqlite` still version 2, so going back to v0.6.11
   takes only its setup program or `Install.cmd`, in the edition you have. Going back further is as
-  v0.6.11's entry says ([The state, and going back](#the-state-and-going-back)).
+  v0.6.11's entry says ([The state, and going back](CHANGELOG.md#the-state-and-going-back)).
 
 ## v0.6.11 — Two editions, and the advanced edition's first capabilities
 
