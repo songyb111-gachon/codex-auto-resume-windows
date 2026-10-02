@@ -1,5 +1,56 @@
 # Changelog
 
+## v0.6.12-alpha.2 — Every lane's test parts even, each dealt by its own times
+
+[The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.12-alpha...v0.6.12-alpha.2)
+
+**A pre-release for developers, published from `main`.** It is a GitHub pre-release, so
+`releases/latest` never answers with it, and the plugin's own route installs what `main`'s manifest
+says, so an installation made that way gets it. An installation of v0.6.11 or v0.6.12-alpha is
+offered it by *Check for updates*, which asks first and says it is tested less; what the older ones
+are offered is in v0.6.12-alpha's entry, below. It is v0.6.12-alpha with one change to how this
+project splits its tests, which the owner asked for on 2026-10-03, so it is an alpha too. **Nothing
+changes for a person using it.** Both editions do what v0.6.12-alpha does, say and draw what it says
+and draws, and make the same calls to Codex; what changed is a developer's tool and the times it
+reads. Going back takes only v0.6.12-alpha's or v0.6.11's setup program
+([below](#going-back-from-v0612-alpha2)).
+
+**A plugin copy older than v0.6.11-beta.2's cannot read this version.** The bootstraps published
+from v0.6.0 to v0.6.11-beta read no number after `-alpha`, so none of them can compare
+`0.6.12-alpha.2` with anything; v0.6.11-beta.2's copy and every later one read it. Set up and repair
+with the installation's own copy, `%USERPROFILE%\.codex-auto-resume\app\scripts\bootstrap.ps1`, or
+with a plugin at v0.6.11-beta.2 or later.
+
+### Every lane's parts even
+
+- **Each lane is dealt by its own times.** v0.6.12-alpha dealt every CI lane's test files into its
+  four parts by one table: each file's median over all the lanes of one CI run. A file does not take
+  every lane as long - `tests/test_neutral_plug.py` took 1,305 s in the advanced lane, where the
+  advanced package sits beside core, and 841 s in the standard one - so on a later CI run of `dev` the
+  standard lane's parts took 19 to 29 minutes, the `main-tree` job's (the release's lane on `main`'s
+  tree) 22 to 28, and the advanced lane's 21 to 41, its first part the heavy one.
+  `tests/data/durations.json` now holds a table for each lane: each file's median over that lane's
+  jobs in two of `dev`'s CI runs on GitHub's runners, read from the job logs. `scripts/test_parts.py`
+  deals a lane by its own table, a file that table lacks by the figure for every lane, which stays,
+  and a file measured nowhere round-robin after the rest, as before. Every workflow already names its
+  lane, so none of them changed.
+- **Before and after, by those tables.** Dealt by the one table, the four parts of each lane come to
+  20 to 24 minutes in the standard lane, 24 to 30 in the advanced and 18 to 32 in the release lane, up
+  to 1.76 times apart; dealt by its own, each lane's parts are within a second of each other, at 21.5,
+  26.7 and 23.8 minutes. `tests/test_split_runs.py` now holds every lane's parts within 1.2 times of
+  each other at the count the workflows use, which the one table fails in all three lanes; the parts
+  together are still exactly the tests `unittest discover` finds, each once, in every lane and every
+  count from one to eight.
+- **`--record-durations` writes the lane it ran.** It keeps that table's other files and the other
+  lanes' tables, and gives the figure for every lane to a file that had none, so the other lanes deal
+  it by a measurement too. `--list --parts 4 --lane advanced` shows a lane's deal.
+
+### Going back from v0.6.12-alpha.2
+
+- **The state, the settings and the advanced edition's file are v0.6.11's.** `state.sqlite` is
+  still schema 4 and `config\advanced\advanced.sqlite` still version 2, so going back to
+  v0.6.12-alpha or v0.6.11 takes only its setup program or `Install.cmd`, in the edition you have.
+
 ## v0.6.12-alpha — The tests in parts, and pictures taken when the window is ready
 
 [The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.11...v0.6.12-alpha)
