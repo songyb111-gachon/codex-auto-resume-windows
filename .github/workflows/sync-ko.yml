@@ -65,21 +65,23 @@ jobs:
     runs-on: windows-latest
     permissions:
       contents: read
-    # The suite, in four parts at once. It was one job, and its limit was raised after the suite
+    # The suite, in parts at once. It was one job, and its limit was raised after the suite
     # outgrew it: 20 while the suite took 22 to 31 minutes, then 60 - and on 2026-09-28 the suite
     # took 77 minutes on a runner, so the v0.6.11-beta sync was stopped part way through again. A
     # job stopped by `timeout-minutes` is reported as *cancelled*, the same word the concurrency
     # note above explains away, so each time nothing failed and nobody was told: ko sat 122
-    # commits behind for four days the first time, and missed a release the second. Four parts
-    # take about a quarter each, so the suite can double before this limit is near.
+    # commits behind for four days the first time, and missed a release the second. Split
+    # round-robin, the four parts took 9, 18, 18 and 32 minutes; scripts/test_parts.py deals them by
+    # each file's measured duration, so each takes about an equal share and the suite can grow
+    # several times over before this limit is near.
     timeout-minutes: 60
     strategy:
       # Every part runs to the end, so one run shows every failure there is.
       fail-fast: false
       matrix:
-        # SHARDS below is the length of this list; tests/test_workflow_privilege.py holds the two
+        # PARTS below is the length of this list; tests/test_workflow_privilege.py holds the two
         # together, so no part of the suite can be dropped by changing one of them.
-        shard: [0, 1, 2, 3]
+        part: [1, 2, 3, 4]
     outputs:
       tree: ${{ steps.stage.outputs.tree }}
 
@@ -171,22 +173,28 @@ jobs:
         with:
           python-version: "3.12"
 
-      # What `python -m unittest discover -s tests` runs, dealt out by file: the files in name
-      # order, every SHARDS-th to one part. The tests have no package and no load_tests, so the
-      # four parts together are exactly the discovered suite (4123 tests in 4 parts of 1115,
-      # 1095, 933 and 980 when this was written). A file that cannot be imported stops its part
-      # with the error, where discover would have reported it as one failed test.
+      # What `python -m unittest discover -s tests` runs, dealt out by file. scripts/test_parts.py is
+      # the one place the suite is split (CONTRIBUTING.md): balanced by each file's measured duration,
+      # and its parts together are exactly the discovered suite (tests/test_split_runs.py). A main
+      # commit from before it existed has no such script, and is split as it always was: the files
+      # in name order, every PARTS-th to one part. The tests have no package and no load_tests, so
+      # those parts together are the discovered suite too, and tests/test_workflow_privilege.py
+      # holds the two ways to the same set of tests. A file that cannot be imported stops that way's
+      # part with the error, where discover would have reported it as one failed test.
       - name: Test the tree that is about to be published
         shell: bash
         env:
           PYTHONPATH: src
-          SHARD: ${{ matrix.shard }}
-          SHARDS: "4"
+          PART: ${{ matrix.part }}
+          PARTS: "4"
         run: |
+          if [ -f scripts/test_parts.py ]; then
+            exec python scripts/test_parts.py --lane standard --part "$PART/$PARTS"
+          fi
           python - <<'PY'
           import os, sys, unittest
           from pathlib import Path
-          shard, shards = int(os.environ["SHARD"]), int(os.environ["SHARDS"])
+          shard, shards = int(os.environ["PART"]) - 1, int(os.environ["PARTS"])
           names = sorted(path.stem for path in Path("tests").glob("test_*.py"))
           mine = [name for index, name in enumerate(names) if index % shards == shard]
           print("part %d of %d: %d of %d test files" % (shard + 1, shards, len(mine), len(names)))

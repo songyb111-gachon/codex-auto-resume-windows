@@ -164,6 +164,9 @@ class WindowTests(unittest.TestCase):
                        check=True, capture_output=True, timeout=300,
                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         strings = work / "strings.json"
+        # The class speaks English, and gives the process its language back when it ends: the choice is one
+        # per process, and a later file that asks what Windows prefers must not be answered "en" by this one.
+        cls.addClassCleanup(l10n.set_preference, l10n.preference())
         l10n.set_preference("en")
         strings.write_text(json.dumps({"ok": True, "language": "en", "strings": l10n.catalog("en"), "preference": "en",
                                        "system_language": "en", "endonyms": l10n.offered_endonyms()}),

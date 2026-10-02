@@ -50,6 +50,62 @@ Windows에서 `CODEX_AR_LIVE=1`을 설정하지 않는 한 건너뜁니다.
 정리되어 있고, 어떤 suite도 대신할 수 없는 확인 — 실제 설치, 실제 중단, 실제 전송 — 은
 [docs/LIVE_ACCEPTANCE.ko.md](LIVE_ACCEPTANCE.ko.md)의 절차입니다.
 
+### 나눠서 돌리기
+
+suite는 깁니다. 2026년 9월 GitHub 러너에서 한 레인이 78~103분 걸렸습니다. 그래서 CI는 모든 레인을 여러
+부분으로 나눠 부분마다 job 하나로 돌리고, 여러분의 컴퓨터에서도 나눠서 돌릴 수 있습니다. suite를 나누는
+곳은 `scripts/test_parts.py` 한 곳뿐입니다. 테스트 파일을 N개 부분으로 나누되, 각 파일이 마지막으로 잰 때
+걸린 시간(`tests/data/durations.json`)으로 균형을 맞추고, 각 부분을 `unittest discover`가 suite를 돌리는
+방식 그대로 돌립니다. 같은 파일을, discover 자신이 불러와서, 같은 순서로, suite마다 새 Python 하나로 돌립니다.
+
+```bash
+python scripts/test_parts.py --parallel 8                   # 8개 부분을 한꺼번에: 요약 하나, 종료 코드 하나
+python scripts/test_parts.py --part 3/8                     # 8개 중 세 번째 부분만
+python scripts/test_parts.py --lane advanced --parallel 8   # 고급 에디션의 레인
+python scripts/test_parts.py                                # suite 전체: `unittest discover` 그 자체
+```
+
+레인에 맞는 `PYTHONPATH`와 `CODEX_AR_EDITION`은 스크립트가 직접 설정합니다. 레인은 `standard`,
+`advanced`, `release`(릴리스가 빌드 전에 돌리는 두 suite)입니다. 병렬 실행의 각 부분에는 자기만의 `TEMP`와
+`TMP`를 주고, 모든 자식 프로세스는 콘솔 창 없이 시작합니다. 병렬 부분들은 한 컴퓨터를 나눠 쓰므로, 빨라지는
+정도는 프로세서에 남는 여유만큼입니다. 창 테스트들은 데스크톱 하나를 두고 다투고, 가장 긴 파일인
+`tests/test_gui_layout.py`(모든 쪽을 모든 언어로 다섯 배율에서 배치해 보는 파일)는 부분을 아무리 늘려도
+그 아래로 내려가지 않는 바닥입니다.
+
+워크플로가 쓰는 모든 부분 수에 대해, 부분들을 합치면 `unittest discover`가 찾는 테스트와 정확히 같고 각각
+한 번씩입니다. `tests/test_split_runs.py`가 이것을 증명합니다. 부분의 결과가 전체 실행의 결과와 같은지는
+테스트 자체에 달린 문제이고, 여러분의 컴퓨터에서 스크립트가 답해 줍니다. `--part`도 `--parallel`도 없이
+돌리면 suite를 나누기 전에 CI가 돌리던 그대로 `python -m unittest discover` 자체를 suite마다 돌리고 각
+테스트의 결과를 기록합니다. `--compare`는 그 결과를 부분들의 결과와 테스트 하나하나 맞춰 봅니다.
+
+```bash
+python scripts/test_parts.py --outcomes whole.json
+python scripts/test_parts.py --parallel 8 --outcomes parts.json
+python scripts/test_parts.py --compare whole.json parts.json
+```
+
+`--compare`는 결과가 다른 테스트 id를 모두 찍고, 여러 부분을 한꺼번에 돌린 실행이면 그 테스트가 돈 부분도
+함께 찍습니다. 한 컴퓨터에서 한꺼번에 도는 부분들은 그 컴퓨터를 두고 다툽니다. 창 테스트는 데스크톱 하나를,
+프로브의 시간 제한과 타이밍 검사는 프로세서 하나를 두고 다툽니다. 전체 실행에서도, 부분마다 러너를 따로 쓰는
+CI에서도 일어나지 않는 일입니다. 그래서 로컬 `--parallel` 실행의 결과는 전체 실행의 결과가 아니며, 느린
+프로브나 늦게 온 UI Automation 이벤트가 거기서만 실패할 수 있습니다. 차이가 난 부분마다 `--compare`가 그
+부분을 따로 돌리는 명령을 찍어 주니, 그 결과를 전체 실행과 맞춰 보세요.
+
+```bash
+python scripts/test_parts.py --part 2/8 --outcomes part-2.json
+python scripts/test_parts.py --compare whole.json part-2.json   # 2번 부분이 돌린 파일만
+```
+
+거기서 같게 나온 차이는 부분들이 함께 돌았기 때문에 생긴 것입니다. 컴퓨터를 두고 다툰 것이거나, 한
+컴퓨터에서 한 프로세스만 쥘 수 있는 이름(mutex나 event 이름, 포트, `TEMP` 밖의 고정 경로)을 두 부분이 함께 쓴
+것이고, 어느 쪽인지는 실패 메시지가 말해 줍니다. 뒤의 경우는 CI가 만나지 않더라도 겹치지 않게 고칠 만합니다.
+따로 돌려도 여전히 다르면 두 테스트 파일이 한 인터프리터 안에서 무언가를 나눠 쓰고 있다는 뜻입니다. 고정된
+임시 경로, 작업 디렉터리, 환경 변수, 모듈 전역 변수, 한 파일이 바꾸고 되돌려 놓지 않은 설정 같은 것입니다.
+고치는 방법은 테스트를 서로 독립적으로 만드는 것이지, 한 부분에 묶어 두는 것이 아닙니다. 테스트
+파일을 추가했거나 걸리는 시간이 바뀌었다면, 부분들이 고르게 유지되도록 전체 실행에서 `--record-durations`로
+시간을 새로 기록하세요. 한 번도 재지 않은 파일은 잰 파일들 다음에 돌아가며 나눠집니다. `--list --parts 8`은
+어떻게 나눠지는지 보여 줍니다.
+
 ## 창을 재기
 
 빠르기도 다른 주장과 같아서, 믿는 대신 확인하는 방법이 `build/measure_window.py`입니다. `gui/*.cs`를 임시
@@ -345,7 +401,10 @@ python build/l10n.py check                  # 하나라도 불완전하면 종�
 
 CI가 이 나눔을 지킵니다. `main`에 푸시하면 `*.ko.md`가 하나도 없어야 하고, `dev`에 푸시하면 매핑된 것이
 모두 있어야 합니다(`tests/languages.py`, `tests/test_korean.py`). 그래서 dev는 한국어 검사를 조용히 건너뛸 수
-없고, main에는 한국어 파일이 다시 생길 수 없습니다.
+없고, main에는 한국어 파일이 다시 생길 수 없습니다. 그리고 dev는 main이 갖게 될 모습으로도 테스트됩니다.
+`test.yml`의 `main-tree` job이 승격처럼 dev의 트리에서 `*.ko.md`를 모두 빼고 남은 것에 릴리스의 suite를
+돌리므로, 이 체크아웃에 한국어 문서가 있는지 `tests/languages.py`에 묻지 않고 읽는 테스트는 main이나
+릴리스가 아니라 dev에서 실패합니다.
 
 v0.5.5까지는 독립적인 fork였고, 엔진, 설치 프로그램, 워크플로, 테스트의 사본을 따로 가지고 있었습니다.
 그러다 세 릴리스 뒤처진 채로, 한국어 독자에게는 여전히 이 도구가 네트워크 요청을 하지 않으며 설치란

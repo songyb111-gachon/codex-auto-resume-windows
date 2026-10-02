@@ -20,8 +20,14 @@ What these tests hold:
 """
 from __future__ import annotations
 
+import importlib.util
+import json
+import os
 from pathlib import Path
 import re
+import subprocess
+import sys
+import textwrap
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -69,11 +75,14 @@ class WorkflowPrivilegeTests(unittest.TestCase):
                 self.assertEqual(source.count("persist-credentials: false"), checkouts)
 
     def test_the_build_job_cannot_write(self):
-        build = job(text("release.yml"), "build")
-        self.assertIn("contents: read", build)
-        for grant in ("contents: write", "id-token: write", "attestations: write"):
-            self.assertNotIn(grant, build)
-        self.assertNotIn("secrets.", build, "the build job needs no secret at all")
+        # And the suite's parts, which run the same repository code before it.
+        for name in ("test", "build"):
+            with self.subTest(name):
+                runs_code = job(text("release.yml"), name)
+                self.assertIn("contents: read", runs_code)
+                for grant in ("contents: write", "id-token: write", "attestations: write"):
+                    self.assertNotIn(grant, runs_code)
+                self.assertNotIn("secrets.", runs_code, "the %s job needs no secret at all" % name)
 
     def test_the_publish_job_runs_no_repository_code(self):
         publish = job(text("release.yml"), "publish")
@@ -238,39 +247,52 @@ class KoSyncPrivilegeTests(unittest.TestCase):
         self.assertNotIn("unittest", publish, "the job that can write runs none of the tree's tests")
 
     def test_every_part_of_the_suite_runs(self):
-        """The matrix and SHARDS are one number written twice; a part dropped is tests never run."""
+        """The matrix and PARTS are one number written twice; a part dropped is tests never run."""
         test = job(self.source, "test")
-        shards = re.search(r"(?m)^\s*shard: \[([0-9, ]+)\]\s*$", test)
-        count = re.search(r'(?m)^\s*SHARDS: "(\d+)"\s*$', test)
-        self.assertTrue(shards and count)
-        self.assertEqual([int(x) for x in shards.group(1).split(",")], list(range(int(count.group(1)))))
+        parts = re.search(r"(?m)^\s*part: \[([0-9, ]+)\]\s*$", test)
+        count = re.search(r'(?m)^\s*PARTS: "(\d+)"\s*$', test)
+        self.assertTrue(parts and count)
+        self.assertEqual([int(x) for x in parts.group(1).split(",")], list(range(1, int(count.group(1)) + 1)))
+        self.assertIn('shard, shards = int(os.environ["PART"]) - 1, int(os.environ["PARTS"])', test)
         self.assertIn("index % shards == shard", test)
         self.assertIn("fail-fast: false", test)
 
-    def test_the_split_is_exactly_the_discovered_suite(self):
-        """What the parts load, together, is what `unittest discover -s tests` finds - no more, no less."""
-        import sys
-        loader = unittest.TestLoader()
+    def test_the_old_split_is_exactly_the_discovered_suite_as_the_runner_is(self):
+        """A main commit from before scripts/test_parts.py is split the old way: what those parts load,
+        together, is what `unittest discover -s tests` finds - no more, no less - which is what
+        tests/test_split_runs.py proves of the runner's parts, so the two ways run the same tests.
 
-        def ids(suite):
-            for item in suite:
-                if isinstance(item, unittest.TestSuite):
-                    yield from ids(item)
-                else:
-                    yield item.id()
-
-        names = sorted(path.stem for path in (ROOT / "tests").glob("test_*.py"))
-        added = str(ROOT / "tests") not in sys.path
-        if added:
-            sys.path.insert(0, str(ROOT / "tests"))
-        try:
-            parts = [list(ids(loader.loadTestsFromNames([n for i, n in enumerate(names) if i % 4 == k])))
-                     for k in range(4)]
-        finally:
-            if added:
-                sys.path.remove(str(ROOT / "tests"))
-        found = sorted(ids(unittest.TestLoader().discover(str(ROOT / "tests"), top_level_dir=str(ROOT / "tests"))))
-        self.assertEqual(sorted(x for part in parts for x in part), found)
+        In a fresh interpreter: loading every test module into this one would run the other files'
+        import-time code inside whichever part of a split run holds this test."""
+        shards = int(re.search(r'(?m)^\s*PARTS: "(\d+)"\s*$', job(self.source, "test")).group(1))
+        code = textwrap.dedent("""
+            import json, sys, unittest
+            from pathlib import Path
+            def ids(suite):
+                for item in suite:
+                    yield from (ids(item) if isinstance(item, unittest.TestSuite) else [item.id()])
+            shards = int(sys.argv[1])
+            names = sorted(path.stem for path in Path("tests").glob("test_*.py"))
+            sys.path.insert(0, "tests")
+            parts = [list(ids(unittest.TestLoader().loadTestsFromNames(
+                [n for i, n in enumerate(names) if i % shards == k]))) for k in range(shards)]
+            found = list(ids(unittest.TestLoader().discover("tests", top_level_dir="tests")))
+            print(json.dumps({"names": names, "parts": parts, "found": found}))
+            """)
+        env = dict(os.environ, PYTHONPATH="src")
+        done = subprocess.run([sys.executable, "-c", code, str(shards)], cwd=str(ROOT), env=env, capture_output=True,
+                              stdin=subprocess.DEVNULL, timeout=600,
+                              creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        self.assertEqual(done.returncode, 0, done.stderr.decode("utf-8", "replace")[-2000:])
+        answer = json.loads(done.stdout.decode("utf-8").strip().splitlines()[-1])
+        together = [x for part in answer["parts"] for x in part]
+        self.assertEqual(sorted(together), sorted(answer["found"]))
+        self.assertEqual(len(set(together)), len(together))
+        # The same files the runner deals, by the rule discover uses.
+        spec = importlib.util.spec_from_file_location("test_parts_for_the_old_split", ROOT / "scripts" / "test_parts.py")
+        runner = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(runner)
+        self.assertEqual(answer["names"], [name[:-3] for name in runner.suite_files("tests")])
 
     def test_only_the_tested_tree_is_published(self):
         test, publish = job(self.source, "test"), job(self.source, "publish")
@@ -581,7 +603,7 @@ class TagsAreFetchedWhereTheSuiteRunsTests(unittest.TestCase):
         found = []
         for path in sorted(WORKFLOWS.glob("*.yml")):
             text = path.read_text(encoding="utf-8")
-            if "unittest discover" in text or "loadTestsFromNames" in text:
+            if "unittest discover" in text or "loadTestsFromNames" in text or "scripts/test_parts.py" in text:
                 found.append((path.name, text))
         return found
 
@@ -595,6 +617,24 @@ class TagsAreFetchedWhereTheSuiteRunsTests(unittest.TestCase):
                 self.assertIn("fetch-depth: 0", text,
                               "%s runs the suite, which reads tagged releases' source, so "
                               "its checkout has to fetch the history and the tags" % name)
+
+    def test_every_job_that_runs_the_suite_checks_out_the_tags(self):
+        """Per job, not per file: since the suite runs in parts (scripts/test_parts.py), release.yml has
+        a job that tests and another that builds, and a file-wide look would be satisfied by either."""
+        running = 0
+        for name, source in self.workflows_that_run_the_suite():
+            jobs = source[re.search(r"(?m)^jobs:\s*$", source).end():]
+            for key in re.findall(r"(?m)^  ([A-Za-z0-9_-]+):\s*$", jobs):
+                body = job(source, key)
+                if not re.search(r"unittest discover|loadTestsFromNames|scripts/test_parts\.py", body):
+                    continue
+                running += 1
+                with self.subTest(workflow=name, job=key):
+                    checkouts = len(re.findall(r"uses: actions/checkout@", body))
+                    self.assertGreater(checkouts, 0)
+                    self.assertEqual(body.count("fetch-depth: 0"), checkouts)
+                    self.assertEqual(body.count("persist-credentials: false"), checkouts)
+        self.assertGreaterEqual(running, 3, "release.yml's test job, sync-ko.yml's and test.yml's")
 
     def test_fetching_the_history_does_not_come_with_a_token_on_disk(self):
         """The two options sit together, and only one of them is about privilege."""
