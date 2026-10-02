@@ -35,10 +35,12 @@ with a plugin at v0.6.11-beta.2 or later.
   and a file measured nowhere round-robin after the rest, as before. Every workflow already names its
   lane, so none of them changed.
 - **Before and after, by those tables.** Dealt by the one table, the four parts of each lane come to
-  20 to 24 minutes in the standard lane, 24 to 30 in the advanced and 18 to 32 in the release lane, up
-  to 1.76 times apart; dealt by its own, each lane's parts are within a second of each other, at 21.5,
-  26.7 and 23.8 minutes. `tests/test_split_runs.py` now holds every lane's parts within 1.2 times of
-  each other at the count the workflows use, which the one table fails in all three lanes; the parts
+  20 to 24 minutes in the standard lane, 24 to 30 in the advanced and 22 to 32 in the release lane, up
+  to 1.45 times apart, by the lane's own table; measured, the release lane's parts were closer than
+  that table says: 22 to 28 minutes on `dev` and 21 to 23 in v0.6.12-alpha's release run. Dealt by
+  its own table, each lane's parts are within a second of each other, at 21.4, 26.8 and 24.9 minutes.
+  `tests/test_split_runs.py` now holds every lane's parts, by its own table, within 1.2 times of each
+  other at the count the workflows use, which the one table's deal fails in all three lanes; the parts
   together are still exactly the tests `unittest discover` finds, each once, in every lane and every
   count from one to eight.
 - **`--record-durations` writes the lane it ran.** It keeps that table's other files and the other

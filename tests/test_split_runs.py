@@ -198,9 +198,11 @@ class LaneDurationsTests(unittest.TestCase):
     where the standard lane's took 19 to 29: a file can take one lane far longer than another, as
     tests/test_neutral_plug.py takes 1305 s with the advanced package beside core and 841 s without it."""
 
-    # The longest part of a lane, at most this many times its shortest. Dealt by the one table for every
-    # lane, the parts today's lane tables predict are 1.21 times apart in the standard lane, 1.26 in the
-    # advanced one and 1.76 in the release one; dealt by each lane's own, under 1.01 in all three.
+    # The longest part of a lane, at most this many times its shortest, by the lane's own table. Dealt by
+    # the one table for every lane, the parts today's lane tables predict are 1.21 times apart in the
+    # standard lane, 1.24 in the advanced one and 1.45 in the release one; dealt by each lane's own, under
+    # 1.01 in all three. These are the tables' figures: measured, the one table's release deal came out
+    # 1.30 times apart on dev's CI run 37056482710 and 1.12 in v0.6.12-alpha's release run 37061200703.
     SPREAD = 1.2
 
     def durations(self, document) -> Path:
