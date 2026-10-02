@@ -441,7 +441,7 @@ opens the pull request.
 
 ## v0.6.11 — Two editions, and the advanced edition's first capabilities
 
-**In development: the final release, after three pre-releases.**
+**In development: the final release, after four pre-releases.**
 
 
 v0.6.11 arrives in stages. **v0.6.11-alpha**, a pre-release, is the ground both editions stand on
@@ -450,8 +450,8 @@ their edition, the places where core asks, and the advanced edition's own state,
 measurements - with no capability yet to switch on. That is not a release on its own, and
 everything after it is built on it. **v0.6.11-beta**, a pre-release too, is everything v0.6.11 adds
 to the standard edition. **v0.6.11-beta.2**, a third, is all of the final but the page that turns
-its capabilities on. The final **v0.6.11** is the advanced edition's first capabilities, and what
-came with them.
+its capabilities on. **v0.6.11-beta.3**, a fourth, adds that page. The final **v0.6.11** is the
+advanced edition's first capabilities, and what came with them.
 
 The plan had four more stages of capabilities after the first, each to be published as a numbered
 beta. On 2026-09-28 the owner judged that this left too many steps before a release, so v0.6.11
@@ -481,13 +481,20 @@ it on 2026-10-01, carrying everything of the final's list below that was finishe
 capabilities, warnings in place of refusals, numbered pre-releases, the pre-release offer, a setup
 program per edition and the interface work. The Dashboard's **Advanced features** page was not
 finished, and it is the one place a capability is turned on, so in this pre-release the three are in
-the advanced edition's archive and none can be turned on from the window. The page comes with the
-final.
+the advanced edition's archive and none can be turned on from the window. The page came with
+v0.6.11-beta.3, below.
+
+### v0.6.11-beta.3 ✅ — The Advanced features page (a pre-release)
+
+Published as a pre-release; what it carries is in [CHANGELOG.md](CHANGELOG.md). It is v0.6.11-beta.2
+with the Dashboard's **Advanced features** page, the one place a capability is turned on, which the
+owner asked on 2026-10-02 to follow at once. With it, everything of the final's list below is done
+but the version and edition picker; the final comes after it.
 
 ### v0.6.11 — The final: the advanced edition's first capabilities
 
-What the final adds to v0.6.11-alpha and v0.6.11-beta - all of it already in v0.6.11-beta.2 but the
-**Advanced features** page, and the picker below if it is finished in time:
+What the final adds to v0.6.11-alpha and v0.6.11-beta - all of it already in v0.6.11-beta.3, the
+**Advanced features** page included, but the picker below, which is in it if it is finished in time:
 
 - **Three capabilities in the advanced edition**, each off until a person turns it on in the
   Dashboard's **Advanced features** page, after reading what it does and which standards it departs
@@ -860,11 +867,11 @@ Python modularization and a tidier landing page on GitHub, in a pre-release
 
         ↓
 
-v0.6.11-alpha → v0.6.11-beta → v0.6.11-beta.2 → v0.6.11
+v0.6.11-alpha → v0.6.11-beta → v0.6.11-beta.2 → v0.6.11-beta.3 → v0.6.11
 The ground both editions stand on, in a pre-release
 + the standard edition's additions, in a second pre-release
 + the advanced edition's first capabilities, a pre-release offer and a setup program, in a third
-+ the page that turns those capabilities on, in the final
++ the page that turns those capabilities on, in a fourth, and the final after it
 
         ↓
 

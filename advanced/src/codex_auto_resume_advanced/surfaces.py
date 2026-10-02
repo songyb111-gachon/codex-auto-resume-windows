@@ -13,7 +13,9 @@ v0.6.11 final, core itself names the edition beside the version in both editions
 `edition`, edition.shown), so what this badge adds there is the count.
 
 The bridge is the Dashboard's (controlcli.serve, the long-lived form; the one-shot form never
-reaches a plug). It is where a person reads a capability's statement and turns it on, watches
+reaches a plug). It is where the Dashboard's Advanced features page takes its words from (the
+window's catalog is core's, and holds none of this edition's), and where a person reads a
+capability's statement and turns it on, watches
 it, turns it off, turns everything off, lowers the global ceiling, or runs a measurement by
 hand (`measure <id>`, measure.py) - every request made as the Dashboard. The statement carries
 the warnings that hold now and the Codex version an "on" acknowledges; the request to turn it on
@@ -46,6 +48,7 @@ BADGE_SURFACES = frozenset({Surface.STATUS, Surface.TRAY, Surface.DIAGNOSTICS})
 # The arguments each bridge command takes. Anything else in a request refuses it.
 ARGUMENTS = {
     BridgeCommand.ADVANCED_LIST: frozenset(),
+    BridgeCommand.ADVANCED_WORDS: frozenset({"locale"}),
     BridgeCommand.ADVANCED_STATEMENT: frozenset({"capability", "locale"}),
     BridgeCommand.ADVANCED_ARM: frozenset({"capability", "state", "revision", "generation",
                                            "engine_version", "warnings"}),
@@ -124,13 +127,14 @@ def bridge(runtime, command, argument):
     arming = runtime.arming
     if command == BridgeCommand.ADVANCED_LIST:
         return dict(arming.listing(), done=True)
+    if command == BridgeCommand.ADVANCED_WORDS:
+        locale = _locale(argument.get("locale"))
+        return {"done": True, "locale": locale, "words": arming.catalogs.words(locale)}
     if command == BridgeCommand.ADVANCED_STATEMENT:
         definition = runtime.registry.get(argument.get("capability"))
         if definition is None:
             return {"done": False, "refusal": Refusal.UNKNOWN_CAPABILITY}
-        locale = argument.get("locale")
-        locale = l10n.resolve(locale) if isinstance(locale, str) and locale else l10n.current()
-        return dict(arming.statement(definition, locale), done=True)
+        return dict(arming.statement(definition, _locale(argument.get("locale"))), done=True)
     if command == BridgeCommand.ADVANCED_ARM:
         return arming.arm(argument.get("capability"), state=argument.get("state"),
                           revision=argument.get("revision"), generation=argument.get("generation"),
@@ -147,6 +151,12 @@ def bridge(runtime, command, argument):
                                argument.get("note"))
     return arming.set_global_hourly(argument.get("global_hourly"), generation=argument.get("generation"),
                                     actor=Actor.DASHBOARD)
+
+
+def _locale(asked):
+    """The locale a request's words are in: the Interface language the window names - `system`
+    included, which is Windows' - or, where it names none, the one this process resolved to."""
+    return l10n.resolve(asked) if isinstance(asked, str) and asked else l10n.current()
 
 
 def measure(runtime, measurement, thread=None):

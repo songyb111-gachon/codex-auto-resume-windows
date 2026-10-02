@@ -1027,6 +1027,19 @@ namespace CodexAutoResume
             return font;
         }
 
+        /// The edition after the version, quiet secondary text (VersionLabel; the owner's decision of 2026-10-02):
+        /// AsideShare of the version's size - 10 px beside a 16 px version in the mock he approved, after asking
+        /// twice for it smaller - but never under AsideLeast, those same 10 px at 96 DPI: at the window's usual 9 pt
+        /// the share alone would be 5.6 pt, too small to read, and from Windows' text size 135% up the share is what
+        /// sets it. Never larger than the version. The panel's heading takes the same two numbers (panel.css, .edition).
+        internal const float AsideShare = 0.62f;
+        internal const float AsideLeast = 7.5f;
+
+        internal static float AsidePoints(float version)
+        {
+            return Math.Min(version, Math.Max(AsideLeast, version * AsideShare));
+        }
+
         /// A CSS weight in GDI. 400 and 500 are Regular: Malgun Gothic and the CJK UI faces have
         /// no medium, and a medium Segoe UI would run wider than every label was measured at.
         /// 600 is the face's own semibold where it has one ("Segoe UI" and its variants), and

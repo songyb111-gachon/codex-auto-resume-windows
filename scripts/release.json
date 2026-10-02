@@ -81,7 +81,7 @@
     "0.6.10": "472f835380fad99afa21e4fadc6c626a0b4ff662dbc0541473b2d7f842f080a1"
   },
   "prerelease": [
-    "0.6.11-beta.2"
+    "0.6.11-beta.3"
   ],
   "advanced": {
     "archive": "CodexAutoResume-Advanced-v{version}-win-x64.zip",

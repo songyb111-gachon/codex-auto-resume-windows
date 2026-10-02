@@ -310,7 +310,7 @@ namespace CodexAutoResume
         private readonly SoftCard savebar = new SoftCard();
         private readonly Label headline = new Label();
         private readonly Label detail = new Label();
-        private readonly Label versionText = new Label();
+        private readonly VersionLabel versionText = new VersionLabel();
         private readonly HaloDot stateDot = new HaloDot();
         // v0.6.5: the notification-area icon's motion on the taskbar button (TaskbarMark), told the icon's state for what
         // the window read wherever stateDot is told its own (TellTaskbar); null in a window LayoutAudit builds, and

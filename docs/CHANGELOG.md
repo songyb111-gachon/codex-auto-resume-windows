@@ -1,5 +1,123 @@
 # Changelog
 
+## v0.6.11-beta.3 — The Advanced features page, where a capability is turned on
+
+[The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.11-beta.2...v0.6.11-beta.3)
+
+**A pre-release, published from `main`.** It is a GitHub pre-release, so `releases/latest` never
+answers with it, and the plugin's own route installs what `main`'s manifest says, so an installation
+made that way gets it. An installation of v0.6.11-beta.2 is offered it by *Check for updates*, which
+asks first; v0.6.11-beta and the copies before it never offer a pre-release. It is v0.6.11-beta.2
+with the one thing that pre-release lacked: the advanced edition's Dashboard page that turns a
+capability on, which the owner asked on 2026-10-02 to follow at once. With it, everything of the
+v0.6.11 final is done but the version and edition picker. The standard edition gains nothing here but
+the edition's new look beside the version ([below](#the-edition-quiet-beside-the-version)), and does what
+v0.6.11-beta.2 did; its window has no such page, and the two points the page needs in the window's
+shared code have no body there, so the compiler leaves them out. The watcher's state
+and the advanced edition's file are v0.6.11-beta.2's, so going back to it takes only its
+`Install.cmd` ([Going back](#going-back-from-v0611-beta3)).
+
+**An older copy of the plugin cannot read this version either.** What v0.6.11-beta.2's entry says
+holds here too: every bootstrap published before v0.6.11-beta.2, v0.6.0's to v0.6.11-beta's, reads
+no number after `-alpha` or `-beta`, so none of them can compare `0.6.11-beta.3` with anything.
+Codex keeps its copy of the plugin until an installer replaces it, which an installer cannot do
+while Codex is open. Run from a copy of v0.6.0 to v0.6.11-alpha, a plain setup or repair takes this
+installation for none and installs that copy's own, older release over it - and v0.6.11-alpha and
+v0.6.10 refuse the state this one keeps and send nothing - while `-CheckOnly` and `-Update` stop with
+an error and print no `update:` line. Run from v0.6.11-beta's copy, setup refuses instead, until
+`-Force` says to replace what it cannot read, and its update check answers `update: unavailable`.
+So with this pre-release installed, set up and repair with the installation's own copy,
+`%USERPROFILE%\.codex-auto-resume\app\scripts\bootstrap.ps1`, or with a plugin at v0.6.11-beta.2 or
+later; if an older copy has already replaced it, run this pre-release's setup program or
+`Install.cmd` again. v0.6.11-beta.2's copy and every later one read `-alpha.N` and `-beta.N`.
+
+How it was checked: `advanced/tests/test_advanced_page.py` compiles the advanced window and drives
+the page through the window's own hooks, never shown, against replies this edition's real bridge
+made in a temporary home with a policy, a compatibility view and measurements of the test's own -
+so it reads no real installation, policy or Codex. It holds every row and every field the page
+shows, that what Turn on and Watch first send is exactly what was shown and is what the real bridge
+accepts, the second question after something changed and the two answers that say nothing was
+turned on, every refusal, a capability that turned itself off, the hourly limit, the list read again
+when the watcher says something changed, and a window that reopens itself on the page; it audits the
+page in every language at every scaling, the tabs on the narrowest screen included, and holds that
+the standard window carries no name and no literal of it. A review of the page found that a
+confirmation gone stale could be asked again where it could not be read again or a policy now
+refused it, that a capability that turned itself off did not say why, that the seventh tab could be
+cut off on a 4:3, 5:4 or portrait screen at a large text size, that a window reopening itself
+forgot the page, and that its German, Japanese and Korean words were not consistent; each is fixed,
+with a test.
+
+### The Advanced features page
+
+The advanced edition's Dashboard has one more tab, **Advanced features**, after Settings. It is the
+one place a capability is turned on; Codex's tools, the panel and the notification-area icon still
+only turn capabilities off. [EDITIONS.md](EDITIONS.md) says what each capability does.
+
+- **What it shows.** Every capability as a row, in a fixed order, with its name and its state - off,
+  watched or on - in your language. Choose one and the page shows its statement: what it does, what
+  the standard edition does instead, which standards it departs from, what can go wrong and how to
+  stop it, every warning it carries now, and its own limits, a day in all and a day in any one
+  conversation. Start with Codex sends nothing, and the page says that those limits never come into
+  play for it.
+- **Turn on and Watch first.** Each asks first in the window's own dialog, with the statement and
+  every warning in front of you. Turn on also names the version of Codex it is turned on for, and
+  says that a new version turns it off until you turn it on again. A yes confirms those warnings and
+  sends exactly what was shown - the statement's revision, the generation the list was read at, the
+  warnings and the Codex version - and nothing else. Watch first has the capability asked wherever
+  it would act, noting what it would have done, while it does nothing.
+- **When something changed while you read.** If the list or the statement moved after it was shown,
+  the page reads them again and asks again with what holds now. Where they cannot be read again, or
+  keep changing, it says that nothing was turned on; where an administrator's policy now refuses the
+  capability, it says that, rather than asking you to confirm what cannot happen. A statement that
+  cannot be read says so where it would be, and then the capability cannot be turned on or watched.
+- **Warnings, not refusals.** A failed or missing measurement, a compatibility grade of Failed here,
+  Incompatible or Unknown, or a version of Codex not known yet is a warning in the statement, and
+  turning the capability on confirms it, as in v0.6.11-beta.2.
+- **Why it turned itself off.** A capability that a tripwire turned off says so under its state, and
+  why: a measurement or a compatibility check of what it relies on failed, the compatibility data
+  says that does not work with this version of Codex, it could not prove that a continuation it sent
+  arrived, an error of its own, a new statement to read first, or a new version of Codex. Turning it
+  off yourself shows no such line.
+- **Your administrator's policy.** Where `ForbidAdvanced`, `AllowedCapabilities` or `ForceShadow`
+  applies, the page says so in words, and Turn on and Watch first follow it: nothing can be turned on
+  or watched, this capability cannot be, or it can only be watched.
+- **Turn off and Turn every advanced feature off** do what they say, at once.
+- **The hourly limit.** One limit stands over all the capabilities together, 12 sends an hour. The
+  page shows it as a number you can set from 1 to 12 and never past 12; the change is sent with the
+  generation the page read, and if something changed while you chose, it is not made and the page
+  says so.
+- **It follows the watcher.** The page reads the list again after everything you do there, and
+  whenever the watcher's status says a capability was turned on or off - here, through Codex's tools
+  or by a tripwire.
+- **In every language, on every screen.** Its words are in all eighteen languages, kept as the
+  window's own are (`build/l10n.py --advanced`). Where the screen is narrower than the seven tabs at
+  a large Windows text size, the tabs take a second row instead of cutting the last one off. A
+  window that reopens itself on this page - for a theme, a language or Windows' colours - comes back
+  to it. An advanced installation whose own part could not be loaded runs as the standard edition and
+  shows no such tab.
+
+### The edition, quiet beside the version
+
+- **The edition beside the version is now quiet secondary text**: a space after the version with no
+  ` · ` before it, smaller (0.62 of the version, never under 10 px), in the standard secondary grey in
+  both editions, and on the version's baseline - at the foot of the Dashboard, in the Version row of
+  its Diagnostics page and in the heading of the panel in Codex. v0.6.11-beta.2 wrote it as more of
+  the version's own text, in the same type and size. The notification-area icon's tooltip is
+  unchanged.
+
+### Going back from v0.6.11-beta.3
+
+- **The watcher's state and the settings are unchanged.** `state.sqlite` is still schema 4 and the
+  settings are v0.6.11-beta.2's, so going back to v0.6.11-beta.2 or v0.6.11-beta takes only that
+  release's `Install.cmd`. Going back to v0.6.11-alpha or v0.6.10 still takes `downgrade-state --to 3`
+  from this release first, as v0.6.11-beta's entry says.
+- **The advanced edition's own file.** `config\advanced\advanced.sqlite` is still version 2, as
+  v0.6.11-beta.2 writes it, and that version reads it as it is: a capability turned on here is still
+  on there, and the hourly limit set here still holds. v0.6.11-beta.2 has no page to turn one on
+  again, only Codex's tools to turn one off, so turn off here first whatever you want off there.
+  v0.6.11-alpha's and v0.6.11-beta's advanced edition refuse a version-2 file, as v0.6.11-beta.2's
+  entry says.
+
 ## v0.6.11-beta.2 — The advanced edition's first capabilities, before the page that turns them on
 
 [The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.11-beta...v0.6.11-beta.2)

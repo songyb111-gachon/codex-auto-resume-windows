@@ -171,10 +171,20 @@ class WindowOverlayTests(unittest.TestCase):
         self.assertEqual(len(groups["advanced"]), len(set(groups["advanced"])))
 
     def test_no_standard_source_names_an_advanced_type(self):
-        declared = set()
+        """A type the overlay declares is named by no standard source. The window the overlay adds a page to is the
+        standard one's (`partial class SettingsForm`): the standard's own type, and nothing the overlay brings - its
+        part holds the bodies of the standard window's `partial void` points and what they use."""
+        standard = "\n".join(path.read_text(encoding="utf-8") for path in sorted((ROOT / "gui").glob("*.cs")))
+        standard_types = set(re.findall(r"\b(?:class|struct|enum|interface)\s+(\w+)", standard))
+        declared, extended = set(), set()
         for name in self.groups()["advanced"]:
             text = (ROOT / name).read_text(encoding="utf-8")
             declared |= set(re.findall(r"\b(?:class|struct|enum|interface)\s+(\w+)", text))
+            extended |= set(re.findall(r"\bpartial\s+class\s+(\w+)", text))
+        # A partial class of the overlay's is one of the standard window's, never a type of its own.
+        self.assertLessEqual(extended, standard_types)
+        self.assertIn("SettingsForm", extended, "the overlay's page is a part of the standard window")
+        declared -= extended
         for path in sorted((ROOT / "gui").glob("*.cs")):
             text = path.read_text(encoding="utf-8")
             for name in sorted(declared):

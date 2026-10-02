@@ -6,6 +6,7 @@ Run from the repository root:
 """
 from __future__ import annotations
 
+import importlib.util
 import json
 from pathlib import Path
 import re
@@ -363,6 +364,8 @@ class ShippedCatalogTests(unittest.TestCase):
                          | {statement.title_key(field) for field in statement.FIELDS}
                          | {"state.off", "state.shadow", "state.armed"}
                          | set(statement.WARNING_KEYS)
+                         | set(statement.PAGE_KEYS)
+                         | {statement.name_key(definition.id) for definition in registry.DEFINITIONS}
                          | shipped_statements)
         self.assertEqual(len(statement.WARNING_KEYS), 2 + len(ArmingWarning))
         for locale, table in tables.items():
@@ -372,6 +375,62 @@ class ShippedCatalogTests(unittest.TestCase):
                 self.assertEqual(table[statement.SENTINEL_KEY], tables["en"][statement.SENTINEL_KEY])
                 if locale != "en":
                     self.assertNotEqual(table[statement.ALL_OFF_KEY], tables["en"][statement.ALL_OFF_KEY])
+
+    def test_the_page_s_words_are_every_page_key_every_name_and_the_three_states(self):
+        """What advanced-words hands the Dashboard's Advanced features page: its own words, a name for every
+        capability the edition ships and the three states' words - in the person's language, each language's own."""
+        english = statement.CATALOGS.words("en")
+        wanted = (set(statement.PAGE_KEYS) | {"state.off", "state.shadow", "state.armed"}
+                  | {statement.name_key(definition.id) for definition in registry.DEFINITIONS})
+        self.assertEqual(set(english), wanted)
+        for locale in l10n.LOCALES:
+            with self.subTest(locale):
+                words = statement.CATALOGS.words(locale)
+                self.assertEqual(set(words), wanted)
+                self.assertEqual(words, {key: statement.CATALOGS.own(locale)[key] for key in wanted})
+                for key in wanted:
+                    self.assertEqual(l10n.placeholders(words[key]), l10n.placeholders(english[key]), key)
+                if locale != "en":
+                    # A page in the person's language: its tab, its buttons and the capabilities' names are theirs.
+                    for key in ("page.nav", "page.turn_on", "page.watch", "page.all_off"):
+                        self.assertNotEqual(words[key], english[key], key)
+
+    def test_every_translation_is_current_by_the_bookkeeping(self):
+        """build/l10n.py --advanced: each language's words are a translation of the English as it is now - its basis
+        in build/l10n/advanced/ records the English each was made from - with no key missing, stale, extra or with a
+        placeholder lost, as core's catalogs are held (tests/test_l10n.py)."""
+        spec = importlib.util.spec_from_file_location("l10n_tool", ac.ROOT / "build" / "l10n.py")
+        tool = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(tool)
+        self.assertEqual(tool.ADVANCED_CATALOGS.resolve(), statement.DIRECTORY.resolve())
+        tool.CATALOGS, tool.BASIS = tool.ADVANCED_CATALOGS, tool.ADVANCED_BASIS
+        for locale in tool.translations():
+            with self.subTest(locale):
+                found = tool.report(locale)
+                for kind in ("missing", "stale", "extra", "placeholders", "empty"):
+                    self.assertEqual(found[kind], [], "%s %s" % (locale, kind))
+
+    def test_each_language_reads_as_one_voice(self):
+        """The Advanced features page shows the statements beside its own words and joins both in one question
+        (ArmQuestion), so a language says them in one voice: German in Sie throughout, as core's catalog and the page
+        are, with the feature as "sie" (die Funktion) in its titles and its text alike; Korean and Japanese with one
+        word for the standard edition, in the field's title and under it; and Korean's Watch first saying that the
+        feature is consulted, not that the person will be asked."""
+        tables = self.tables()
+        for key, value in tables["de"].items():
+            with self.subTest(locale="de", key=key):
+                self.assertIsNone(re.search(r"\b(du|dich|dir|dein\w*|Schalte|pausiere)\b", value, re.I), value)
+                self.assertIsNone(re.search(r"\b(setzt|handelt|beruht|registriert) es\b"
+                                            r"|\bEs (setzt|startet|registriert|beruht|handelt)\b|\bSein einziger\b",
+                                            value), value)
+                self.assertNotIn("Standardedition", value)
+        for definition in registry.DEFINITIONS:
+            self.assertIn("Schalten Sie", tables["de"][statement.key(definition.id, Field.STOP)])
+        for locale, edition, other in (("ko", "표준판", "표준 에디션"), ("ja", "標準版", "標準エディション")):
+            with self.subTest(locale=locale):
+                self.assertIn(edition, tables[locale][statement.title_key(Field.INSTEAD)])
+                self.assertFalse([key for key, value in tables[locale].items() if other in value])
+        self.assertNotIn("물어보고", tables["ko"]["page.confirm.watch"])
 
     def test_the_sentinel_is_the_first_key_so_the_audit_finds_it_at_the_top(self):
         for locale in l10n.LOCALES:
