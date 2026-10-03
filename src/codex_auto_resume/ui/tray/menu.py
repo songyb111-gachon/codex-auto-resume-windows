@@ -33,6 +33,11 @@ from .words import tooltip
 # confirmations intact. (The popup's per-task switch is the other half: it names the
 # conversation beside the switch, and it is bound to that row's exact identities.)
 MENU_OPEN, MENU_TOGGLE, MENU_STOP, MENU_PENDING = 1, 2, 3, 4
+# v0.6.12: the power action after usage-limit recoveries, turned off - offered only while it is armed, and
+# never turned on here (H14). It reduces automation, as Pause does, so it asks nothing.
+MENU_POWER_OFF = 5
+POWER_OFF_WORDS = {"sleep": "Don't sleep after recoveries", "hibernate": "Don't hibernate after recoveries",
+                   "shut_down": "Don't shut down after recoveries"}
 
 # How the menu looks. Windows draws a popup menu itself, and draws it light unless the process has
 # asked for dark through uxtheme's preferred app mode - a call Windows exports by ordinal only, with
@@ -94,6 +99,10 @@ class MenuMixin:
             user32.AppendMenuW(menu, MF_STRING, MENU_TOGGLE,
                                self.strings.get("menu.resume", "Resume recovery") if paused
                                else self.strings.get("menu.pause", "Pause recovery"))
+            armed = self._power_armed()
+            if armed is not None:
+                user32.AppendMenuW(menu, MF_STRING, MENU_POWER_OFF,
+                                   self.strings.get("menu.power_off." + armed, POWER_OFF_WORDS[armed]))
             user32.AppendMenuW(menu, MF_SEPARATOR, 0, None)
             user32.AppendMenuW(menu, MF_STRING, MENU_STOP, self.strings.get("menu.stop", "Stop the watcher"))
             point = W.POINT()
@@ -113,12 +122,27 @@ class MenuMixin:
         try:
             if chosen == MENU_TOGGLE and self.on_toggle:
                 self.on_toggle(paused)          # paused -> resume; running -> pause
+            elif chosen == MENU_POWER_OFF and self.control is not None:
+                self.control.disarm_power_action(actor="tray")
             elif action:
                 action()
         except Exception as exc:
             self.log("tray action failed (%s)" % type(exc).__name__)
 
 
+
+    def _power_armed(self):
+        """The armed power action's word, read from its file as the menu opens - so the item is there
+        exactly while it is armed - or None: nothing armed, no control layer, or a file not read."""
+        view = getattr(self.control, "power_view", None)
+        if view is None:
+            return None
+        try:
+            armed = (view() or {}).get("armed")
+        except Exception:
+            return None
+        action = armed.get("action") if isinstance(armed, dict) else None
+        return action if action in POWER_OFF_WORDS else None
 
     def _theme_menu(self):
         """Ask for a dark menu when the popup beside it is dark, and for Windows' own look otherwise.

@@ -668,6 +668,22 @@
           }
         },
         {
+          "name": "turn_off_power_action",
+          "title": "Turn off the power action",
+          "description": "Turn off the power action after usage-limit recoveries, if it is on, so this PC is not put to sleep, hibernated or shut down when they finish. It only reduces automation, so it needs no confirmation. It cannot be turned on from Codex; only the Dashboard does that.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": false
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": false,
+            "idempotentHint": true,
+            "openWorldHint": false
+          }
+        },
+        {
           "name": "resume_auto_recovery",
           "title": "Resume automatic recovery",
           "description": "Undo a global pause. Recovery then continues under every usual check. This turns automation back on, so Codex asks the user before running it.",

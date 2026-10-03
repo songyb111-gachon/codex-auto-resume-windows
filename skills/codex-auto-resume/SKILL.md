@@ -18,7 +18,7 @@ This plugin also provides tools (`open_settings`, `get_status`, `list_pending`,
 `cancel_recovery`, `disable_conversation_recovery`, `enable_conversation_recovery`,
 `reset_recovery_budget`, `start_watcher`, `retry_now`, `postpone_recovery`, `release_hold`,
 `get_recovery_statistics`, `get_recovery_timeline`, `clear_recovery_history`,
-`preview_recovery_message`). When they are
+`preview_recovery_message`, `turn_off_power_action`). When they are
 available, use them instead of the commands below: they are typed, they refuse an invalid
 value instead of writing it, and `open_settings` shows the user a panel they can read and
 change directly.
@@ -28,6 +28,10 @@ interruption, under the current language and style. It saves nothing and sends n
 The user's own Custom message text cannot be written from Codex - not through
 `update_settings` and not through the preview. If the user wants to change it, tell them it
 is edited in the Dashboard, under Settings > Continuation message.
+
+`turn_off_power_action` turns off the power action after usage-limit recoveries (sleep, hibernate
+or shut down once they finish), so this PC stays on. Nothing in Codex turns it on: only the
+Dashboard does, and if the user asks for it, send them there.
 
 `resume_auto_recovery`, `enable_conversation_recovery`, `update_settings`,
 `restore_default_settings`, `cancel_recovery`, `reset_recovery_budget`, `start_watcher`,

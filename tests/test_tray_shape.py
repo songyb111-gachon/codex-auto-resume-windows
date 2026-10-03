@@ -60,6 +60,8 @@ METHODS = {
     "_watch_session", "_wndproc", "set_strings", "start", "stop", "update",
     # v0.6.11: Show me what happens - the demo event this icon makes, and its look at it once a second.
     "_open_demo", "_look_for_demo",
+    # v0.6.12: whether the power action after usage-limit recoveries is armed, as the menu opens.
+    "_power_armed",
 }
 
 
@@ -139,7 +141,7 @@ class CompositionTests(unittest.TestCase):
 
     def test_each_mixin_holds_the_methods_its_file_is_named_for(self):
         """Not vacuous: a method moved to another file would show up here before anywhere else."""
-        for mixin, expected in ((menu.MenuMixin, {"_menu", "_act", "_theme_menu"}),
+        for mixin, expected in ((menu.MenuMixin, {"_menu", "_act", "_theme_menu", "_power_armed"}),
                                 (cards.CardsMixin, {"_host_cards", "_card_look", "_drop_cards"}),
                                 (stored.StoredMixin, {"_stored_settings", "_adopt_settings",
                                                       "_adopt_reduce_motion"})):

@@ -718,6 +718,11 @@ MCP_CASES = {
     "restore_default_settings": [Case("every setting back to its default", {})],
     "pause_auto_recovery": [Case("paused", {})],
     "resume_auto_recovery": [Case("on again", {})],
+    # v0.6.12: the power action turned off from Codex - never on; there is no tool for that.
+    "turn_off_power_action": [
+        Case("nothing armed: nothing changes", {}, using=_power()),
+        Case("armed in the Dashboard, then turned off from Codex", {}, using=_power(arm=SLEEP_ONCE)),
+        Case("an argument it does not take is refused", {"action": "sleep"}, using=_power())],
     "cancel_recovery": [
         Case("a waiting recovery cancelled", {"interruption_id": WAITING_BACKOFF}),
         Case("no such interruption", {"interruption_id": NO_SUCH}),
