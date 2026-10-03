@@ -406,6 +406,31 @@ class ToolBehaviourTests(McpTestCase):
         self.assertIs(self.control.get_status()["enabled"], False)
         self.assertEqual(len(self.control.list_pending()), 1)
 
+    def test_the_power_action_is_turned_off_from_codex_and_never_on(self):
+        """v0.6.12 (H14): Codex may only turn the power action off. Its tool takes nothing, asks nothing
+        - it only reduces automation, as pausing does - and no tool arms it."""
+        from codex_auto_resume import poweraction
+        self.paths.power_action_file.write_text(json.dumps({
+            "format": poweraction.FORMAT, "shown": None, "last": None,
+            "armed": {"nonce": "0123456789abcdef", "action": "sleep", "after": "all_recovered", "repeat": "once",
+                      "grace_seconds": 300, "armed_at": 1_790_000_000.0, "since": 1_790_000_000.0, "carried": [],
+                      "stop_at": None}}), encoding="utf-8")
+        self.assertEqual(self.call("get_status")["result"]["structuredContent"]["power_action"]["armed"]["action"],
+                         "sleep")
+        result = self.call("turn_off_power_action", {})["result"]
+        self.assertNotIn("isError", result)
+        self.assertEqual(result["structuredContent"], {"changed": True})
+        self.assertIsNone(json.loads(self.paths.power_action_file.read_text(encoding="utf-8"))["armed"])
+        self.assertEqual(self.call("turn_off_power_action", {})["result"]["structuredContent"], {"changed": False})
+        self.assertIs(self.call("turn_off_power_action", {"action": "sleep"})["result"]["isError"], True)
+        tool = next(tool for tool in mcpserver.TOOLS if tool["name"] == "turn_off_power_action")
+        self.assertEqual(tool["inputSchema"]["properties"], {})
+        self.assertEqual(tool["annotations"], {"readOnlyHint": False, "destructiveHint": False,
+                                               "idempotentHint": True, "openWorldHint": False})
+        names = {tool["name"] for tool in mcpserver.TOOLS}
+        self.assertEqual({name for name in names if "power" in name}, {"turn_off_power_action"},
+                         "no tool arms it, chooses its action or stops one batch")
+
     def test_resume_turns_it_back_on(self):
         self.control.set_enabled(False)
         self.assertNotIn("isError", self.call("resume_auto_recovery", {})["result"])

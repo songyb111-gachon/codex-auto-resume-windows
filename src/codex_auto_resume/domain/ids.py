@@ -151,6 +151,18 @@ def is_interruption_id(value, *, as_stored: bool = False) -> bool:
     return is_digest(value)
 
 
+# v0.6.12: the nonce that names one batch of the power action (poweraction.py) - in its file, and in
+# the stop button a notice carries. Fresh at every arming and every batch's end, so a notice still in
+# the notification center names a batch that is over, and stops nothing.
+POWER_NONCE_LENGTH = 16
+
+
+def is_power_nonce(value) -> bool:
+    """Whether `value` is a power action's nonce: 16 lowercase hex digits, with nothing around them."""
+    return (isinstance(value, str) and len(value) == POWER_NONCE_LENGTH
+            and all(character in _HEX_DIGITS for character in value))
+
+
 def read_interruption_id(text: str):
     """The interruption id in `text` as a person or a link hands one over - surrounding white
     space dropped, capitals lowered - or None when what is left is not exactly an id."""

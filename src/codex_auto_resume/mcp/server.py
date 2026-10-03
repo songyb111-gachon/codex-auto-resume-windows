@@ -368,6 +368,12 @@ class Server:
         return self._reply("Automatic recovery is paused. Nothing will be sent until it is resumed.",
                            result)
 
+    def _tool_turn_off_power_action(self, _arguments) -> dict:
+        """v0.6.12: off, from Codex - always allowed, because it only reduces automation. Nothing here arms."""
+        result = self.control.disarm_power_action("mcp")
+        return self._reply("The power action is off: this PC stays on when the recoveries finish."
+                           if result["changed"] else "The power action was already off.", result)
+
     def _tool_resume_auto_recovery(self, _arguments) -> dict:
         result = self.control.set_enabled(True)
         return self._reply("Automatic recovery is on again. Every check still applies.", result)

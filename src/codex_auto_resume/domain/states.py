@@ -66,6 +66,23 @@ def may_be_queued(state, queue_id) -> bool:
     """
     return state in CLAIMED | IN_FLIGHT or (state == "submission_unknown" and queue_id is not None)
 
+
+def still_followed(row, now: float, window: float) -> bool:
+    """Whether an uncertain submission is still followed at `now`: one that owns a queue row, or one
+    sent - or, never stamped as sent, detected - no more than `window` seconds ago. After that it is
+    left as unknown, and nothing looks for it again.
+
+    The engine's watch skips any other (engine/reconcile.py), and the power action waits while one
+    is followed, because the continuation it stands for may still arrive (poweraction.py, v0.6.12).
+    One rule, so the two cannot disagree about which are still followed.
+    """
+    if row.get("state") != "submission_unknown":
+        return False
+    if row.get("queue_id") is not None:
+        return True
+    sent = row.get("submitted_at") or row.get("detected_at") or now
+    return now - sent <= window
+
 # Moves a plain `Store.update` may make. Everything else is either a dedicated store
 # operation (reserve, release_claim, release_withdrawn, restore_budget and
 # cancel_interruption, each of which proves its own precondition) or not allowed.

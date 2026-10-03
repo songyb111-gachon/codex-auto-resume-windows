@@ -1,0 +1,65 @@
+{
+  "tool": "turn_off_power_action",
+  "cases": [
+    {
+      "case": "nothing armed: nothing changes",
+      "arguments": {},
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "The power action was already off."
+            }
+          ],
+          "structuredContent": {
+            "changed": false
+          }
+        }
+      }
+    },
+    {
+      "case": "armed in the Dashboard, then turned off from Codex",
+      "arguments": {},
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "The power action is off: this PC stays on when the recoveries finish."
+            }
+          ],
+          "structuredContent": {
+            "changed": true
+          }
+        }
+      }
+    },
+    {
+      "case": "an argument it does not take is refused",
+      "arguments": {
+        "action": "sleep"
+      },
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "isError": true,
+          "content": [
+            {
+              "type": "text",
+              "text": "unrecognized tool arguments"
+            }
+          ],
+          "structuredContent": {
+            "error_code": "request_failed"
+          }
+        }
+      }
+    }
+  ]
+}

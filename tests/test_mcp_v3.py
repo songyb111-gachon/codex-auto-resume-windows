@@ -36,7 +36,8 @@ class ApprovalHintTests(unittest.TestCase):
         # Pausing and switching a conversation off only ever take automation away, so
         # asking would train people to click through the prompts that matter.
         by_name = {tool["name"]: tool for tool in mcpserver.TOOLS}
-        for name in ("pause_auto_recovery", "disable_conversation_recovery"):
+        # v0.6.12: and turning the power action after usage-limit recoveries off (H8's unmarked list).
+        for name in ("pause_auto_recovery", "disable_conversation_recovery", "turn_off_power_action"):
             self.assertFalse(by_name[name]["annotations"]["destructiveHint"], name)
 
 

@@ -269,11 +269,11 @@ them `thread/goal/set`, `thread/queue/add` with words this product wrote, and `t
   digest; the context-cost guard reads one number of Codex's, and only where it is a numeric column.
   A guard's hold is a hold like any other: the claim and the last look before the send refuse it, and
   only Let it continue, bound to the exact record, lets it go. Each is off by default.
-- **An administrator's policy keys only hold back.** From v0.6.11 six values under
+- **An administrator's policy keys only hold back.** From v0.6.11 seven values under
   `Software\Policies\CodexAutoResume`, in `HKEY_LOCAL_MACHINE` or `HKEY_CURRENT_USER`, are read and
   never written - `startup.py` is still the only code that writes the registry - and applied after the
   settings are read, never to the file: they can pause recovery, force Observe only, turn off the update
-  check or the status file, lower the attempts' ceiling and add quiet hours, and nothing else. Both
+  check or the status file, lower the attempts' ceiling, add quiet hours and, from v0.6.12-beta, turn the power action off, and nothing else. Both
   places' restrictions hold, a malformed value is ignored, one that is there and cannot be read holds the
   most it could, and a write that would loosen one is refused.
   `DisableAutoResume` is written into the state as a Pause before every check and refused by the engine
@@ -295,6 +295,22 @@ them `thread/goal/set`, `thread/queue/add` with words this product wrote, and `t
   of its own that the sign-in launcher never starts again, and the standard edition has no
   supervisor or other process that would. A status file for other tools (off by default) is a file
   in the watcher's own `config\`, written whole: no port is opened and nothing listens.
+- **The power action asks Windows, and starts nothing.** From v0.6.12-beta, off by default and turned
+  on only in the Dashboard, the watcher can put the PC to sleep, hibernate it or shut it down once
+  every usage-limit recovery has ended. It is the watcher's own call of `SetSuspendState`, or of
+  `ExitWindowsEx` with `EWX_POWEROFF` and no `EWX_FORCE` or `EWX_FORCEIFHUNG`, so every program may
+  refuse a shut down and Windows then does not shut down. Before the call it enables
+  `SeShutdownPrivilege` on its own token - a privilege a standard user holds, not administrator
+  rights - and disables it again if the call fails; an account without that privilege is offered
+  nothing. `powrprof.dll` and `wtsapi32.dll` are loaded from System32 only
+  (`LOAD_LIBRARY_SEARCH_SYSTEM32`), since neither is a KnownDLL. No process, scheduled task or
+  service is started (`shutdown.exe` and `rundll32` are never used), no Windows setting is changed -
+  Hibernate is never turned on and `powercfg` is never run - wake timers stay as Windows has them,
+  and it never shuts down while another person's session is signed in or disconnected. The batch is
+  written as done before Windows is asked, so a refusal is never retried. MCP, the icon and a notice
+  can only turn it off or stop one batch, named by an opaque id that every batch end replaces; an
+  administrator's `DisablePowerAction` turns it off. The code refuses to act whenever `unittest` is
+  loaded, so no test can make a real call.
 - **Named objects planted by a less-trusted process are refused.** This is new in v0.6.0. The watcher's single-instance mutex and its stop event have
   predictable names in the session namespace, where a process running at Low integrity may create
   objects. If either already exists with an integrity label below Medium (the level an ordinary

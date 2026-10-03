@@ -382,6 +382,51 @@ def _text_file(workspace, name, text) -> str:
     return str(target)
 
 
+class _PowerPort:
+    """win/powerdown.py as a golden needs it: whether each action is offered - `reasons` maps an action
+    to why it is not - and never an action. So `power-action` answers the same on every machine."""
+
+    def __init__(self, reasons):
+        self.reasons = dict(reasons)
+
+    def available(self, action):
+        reason = self.reasons.get(action)
+        return (True, None) if reason is None else (False, reason)
+
+    def act(self, action):
+        raise ProcessRefused("a wire golden never puts its machine to sleep")
+
+
+def _power(reasons=(), *, arm=None, end=None, show=None, **managed_values):
+    """The power action's port stood in for, for this one case (v0.6.12), and - in this order, through the
+    product's own control layer, and left as they are for the cases after it - an arming, the end of its
+    first batch, and what the watcher shows of the next. `managed_values` are an administrator's keys."""
+    @contextmanager
+    def using(workspace):
+        from codex_auto_resume import config, control, managed
+        from codex_auto_resume.control import policy, poweraction
+
+        with ExitStack() as stack:
+            stack.enter_context(patch.object(poweraction.PowerActionMixin, "power_port", _PowerPort(reasons)))
+            if managed_values:
+                stack.enter_context(patch.object(policy, "managed_policy",
+                                                 return_value=managed.Managed(**managed_values)))
+            layer = control.Control(config.Paths(workspace / "home"))
+            if arm is not None:
+                layer.arm_power_action(dict(arm))
+            if end is not None:
+                layer.power_batch_end(layer.read_power_action()[1]["armed"]["nonce"], end)
+            if show is not None:
+                layer.power_show(layer.read_power_action()[1]["armed"]["nonce"], dict(show))
+            yield
+    return using
+
+
+SLEEP_ONCE = {"action": "sleep", "after": "all_recovered", "repeat": "once", "grace_minutes": 5}
+SHUT_DOWN_ALWAYS = {"action": "shut_down", "after": "any_end", "repeat": "always", "grace_minutes": 30}
+NO_HIBERNATION = {"hibernate": "hibernate_off"}
+NONE_FOR_THIS_ACCOUNT = {action: "no_privilege" for action in ("sleep", "hibernate", "shut_down")}
+
 LONG_CUSTOM = "x" * 2001
 KOREAN_CUSTOM = "중단된 작업을 이어서 진행해 주세요."
 
@@ -391,7 +436,13 @@ BRIDGE_CASES = {
                # v0.6.11: paused by an administrator, with the keys in force named.
                Case("while an administrator's policy keys pause recovery and hold two settings",
                     using=_managed(disable_auto_resume=True, disable_update_check=True,
-                                   max_recovery_attempts=2, quiet_hours=(NIGHT,)))],
+                                   max_recovery_attempts=2, quiet_hours=(NIGHT,))),
+               # v0.6.12: the power action, said only while its file exists - here armed every time,
+               # after a batch a person stopped, and counting down.
+               Case("the power action counting down, after a batch a person stopped",
+                    using=_power(arm=SHUT_DOWN_ALWAYS, end="skipped",
+                                 show={"phase": "grace", "waiting_for": None,
+                                       "grace_until": generator.ENVELOPE_NOW + 1800}))],
     "settings": [Case("the stored settings")],
     "describe": [Case("the settings schema the Settings page is built from"),
                  Case("greyed where an administrator's policy key decides",
@@ -597,6 +648,30 @@ BRIDGE_CASES = {
         Case("a task that belongs to another conversation",
              {"interruption_id": WAITING_RESET, "thread_id": T2, "always": False}),
         Case("a finished task", {"interruption_id": RECOVERED, "thread_id": T3, "always": False})],
+    # v0.6.12: the power action after usage-limit recoveries - what Windows offers here (a stand-in port),
+    # armed only from the Dashboard, and turned off.
+    "power-action": [
+        Case("nothing armed, and every action offered", using=_power()),
+        Case("hibernation off in Windows", using=_power(NO_HIBERNATION)),
+        Case("an account Windows lets do none of them", using=_power(NONE_FOR_THIS_ACCOUNT)),
+        Case("while an administrator's DisablePowerAction is set", using=_power(disable_power_action=True)),
+        Case("armed to shut down every time", using=_power(arm=SHUT_DOWN_ALWAYS))],
+    "power-arm": [
+        Case("armed to sleep once, after every recovery succeeded", SLEEP_ONCE, using=_power()),
+        Case("a second arming replaces the first", SHUT_DOWN_ALWAYS, using=_power()),
+        Case("an action Windows does not offer here is refused", dict(SLEEP_ONCE, action="hibernate"),
+             using=_power(NO_HIBERNATION)),
+        Case("an action that is not one is refused", dict(SLEEP_ONCE, action="restart"), using=_power()),
+        Case("minutes as text are refused", dict(SLEEP_ONCE, grace_minutes="5"), using=_power()),
+        Case("a warning this does not offer is refused", dict(SLEEP_ONCE, grace_minutes=7), using=_power()),
+        Case("a key it does not take is refused", dict(SLEEP_ONCE, nonce="0123456789abcdef"), using=_power()),
+        Case("while an administrator's DisablePowerAction is set", SLEEP_ONCE,
+             using=_power(disable_power_action=True))],
+    "power-disarm": [
+        Case("nothing armed: nothing changes", {}, using=_power()),
+        Case("armed, then turned off", {}, using=_power(arm=SLEEP_ONCE)),
+        Case("again: nothing left to turn off", {}, using=_power()),
+        Case("an argument it does not take is refused", {"actor": "mcp"}, using=_power())],
     "compat-refresh": [
         Case("the bootstrap refreshed the data", {},
              using=_bootstrap("  Asking...\ncompatibility: refreshed 2\n", 0)),
@@ -643,6 +718,11 @@ MCP_CASES = {
     "restore_default_settings": [Case("every setting back to its default", {})],
     "pause_auto_recovery": [Case("paused", {})],
     "resume_auto_recovery": [Case("on again", {})],
+    # v0.6.12: the power action turned off from Codex - never on; there is no tool for that.
+    "turn_off_power_action": [
+        Case("nothing armed: nothing changes", {}, using=_power()),
+        Case("armed in the Dashboard, then turned off from Codex", {}, using=_power(arm=SLEEP_ONCE)),
+        Case("an argument it does not take is refused", {"action": "sleep"}, using=_power())],
     "cancel_recovery": [
         Case("a waiting recovery cancelled", {"interruption_id": WAITING_BACKOFF}),
         Case("no such interruption", {"interruption_id": NO_SUCH}),

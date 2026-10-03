@@ -1,10 +1,14 @@
 # Changelog
 
-## v0.6.12-beta — Install another version from the Dashboard
+## v0.6.12-beta — Install another version, and a power action when usage-limit recoveries finish
 
-**Not published yet: this entry is written as the beta is built.** It is the first beta of v0.6.12.
-This part is the version picker the owner asked for on 2026-09-28; the power action after a usage
-limit adds its own part.
+[The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.12-alpha.2...v0.6.12-beta)
+
+**The first beta of v0.6.12, published from `main`.** It is a GitHub pre-release, so `releases/latest`
+never answers with it; *Check for updates* offers it with a question to an installation of v0.6.11
+or a v0.6.12 pre-release. It brings the two features asked for first: installing another version or
+edition from the Dashboard (the owner, 2026-09-28) and a power action once usage-limit recoveries
+finish (Discussion #22). Both are in the standard edition and in both editions' windows.
 
 ### Install another version...
 
@@ -54,6 +58,60 @@ limit adds its own part.
   when you confirm; then only the version you confirmed is downloaded. The policy keys are read on
   this PC, read only, and the answer goes nowhere. Nothing is sent to Codex.
 
+### The power action after usage-limit recoveries
+
+Asked for in Discussion #22, and decided by the owner on 2026-09-30 and 2026-10-03. It is in the
+standard edition: it keeps every standard, with A28 amended by the owner for its stop button.
+
+- **Off by default, turned on only in the Dashboard.** Settings > General has a new last card, **When
+  usage-limit recoveries finish**: Then (Sleep, Hibernate or Shut down), When (every recovery succeeded;
+  each one succeeded or was handed over to you; each one ended, however it ended), How often (once, for
+  the next usage limit, or every time) and Warn me first for (2 to 30 minutes). **Turn on...** asks
+  first, with Cancel as the default. The card is not a setting: Save never changes it, and nothing
+  else moves on the page. A Once that no usage limit reaches within a day turns itself off.
+- **Only after usage-limit recoveries, and only when nothing else runs.** A recovery from a temporary
+  error never starts or decides it, though while one is open it holds it. The watcher acts only when
+  every usage-limit recovery of its batch has ended as chosen, no recovery waits, runs or may still be
+  delivered, Codex has finished recording every conversation written in the last hour, no turn runs
+  and no input is queued in Codex, nobody else is signed in (for a shut down), and nobody has used the
+  PC for 2 minutes. Anything it cannot read means it waits, and the card says what it waits for.
+- **A countdown with a stop button.** A notification says when it will happen, with **Don't sleep**
+  (or Don't hibernate, Don't shut down) and **Open Dashboard**. The stop, from the toast or the card,
+  is read before anything else, ends that batch, and never starts another countdown; it names its batch
+  by an opaque id that every batch end replaces, so an old notice cannot stop the next one. Any input,
+  a pause, a gap in the watcher's looks or a new recovery ends the countdown too. The power notices are
+  shown whatever the notification switches say.
+- **Turned off from anywhere, turned on from nowhere else.** The card's **Turn off**, a new item in the
+  notification-area icon's menu while it is on, pausing recovery, and a new MCP tool,
+  `turn_off_power_action`, which is not marked destructive, as pause is not. No tool turns it on.
+- **Windows' own calls, from the watcher.** SetSuspendState, or ExitWindowsEx(EWX_POWEROFF) with no
+  force flag, after the watcher enables SeShutdownPrivilege on its own token; an account without that
+  privilege is offered nothing. No process, task, service or administrator, no Windows setting changed
+  (Hibernate is never turned on), the two libraries loaded from System32 only, and no shut down while
+  someone else is signed in. The batch is recorded as done before Windows is asked, so a refusal is
+  said once and never tried again.
+- **A file of its own.** `config\power-action.json` holds ids, times and closed words, is read
+  strictly (anything else reads as off) and is written under a lock. There is no new setting and no
+  new database schema, so the version picker's older versions simply ignore it. Uninstall keeps it;
+  a purge removes it. `get_status` and the diagnostics export carry its state only while the file
+  exists.
+- **For administrators**, a seventh policy value, `DisablePowerAction`, turns it off and greys the card.
+- **Standards.** H14 (the power action's rule) and F15 (its Windows calls) are new; A28 is amended for
+  the stop button (by the owner, 2026-10-03); B16 names the three questions it asks Windows; H8's
+  unmarked tools include `turn_off_power_action`.
+- **Not yet called for real.** Every part is unit- and integration-tested with Windows stood in, and
+  the product refuses to act while a test runs. No running watcher has yet put a PC to sleep,
+  hibernated or shut one down; the owner's measurement MP, at live acceptance, does that first, and
+  until then Sleep is offered only where Windows reports S1 to S3.
+
+### Fixes
+
+- **The setup program removes its folder when its console window is closed.** Closing the window
+  just as Install.cmd ended could leave the whole unpacked archive in %TEMP%: taking away a Ctrl+C
+  handler waited for the close handler, which waited for the folder to be removed, until Windows
+  ended the program. The close handler is now the program's only handler, added once and never taken
+  away, and it answers Ctrl+C and Ctrl+Break from Install.cmd's start on.
+
 ### For developers
 
 - `scripts/bootstrap.ps1` gains `-Versions` (lists, exit 0, or `versions: unavailable`, exit 12) and
@@ -65,6 +123,14 @@ limit adds its own part.
   `tests/test_downgrade.py` the stop-watcher tests, the floor's proof against the tags and the reads
   under the install lock. The privacy test's api.github.com allowance is widened, deliberately, to
   exactly the two addresses of the list of releases, and each privacy summary names the picker.
+- Every CI test part uploads its seconds per file as an artifact (`scripts/test_parts.py --seconds`),
+  and `--merge-seconds` folds a downloaded run into `tests/data/durations.json` by `--record-durations`'
+  rules, so the durations no longer come from parsing job logs.
+- The power action's tests: `tests/test_power_action.py`, `test_power_action_control.py`,
+  `test_power_action_watcher.py`, `test_power_action_windows.py` and `test_gui_power_action.py`, with
+  additions in `test_cli`, `test_notify`, `test_notice_card`, `test_source`, `test_tray`, `test_mcp`
+  and `test_managed`. The product refuses the real power calls while `unittest` is loaded.
+
 
 ## v0.6.12-alpha.2 — Every lane's test parts even, each dealt by its own times
 

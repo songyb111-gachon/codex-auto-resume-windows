@@ -60,7 +60,9 @@ LAYER = {_q(name): layer for layer, names in {
                # registry's vocabularies, out of domain/vocabulary.py at its line budget.
                "domain.plug", "domain.compat_vocabulary",
                # and what a usage reading keeps of Codex's reply, and nothing else.
-               "domain.usage"),
+               "domain.usage",
+               # v0.6.12: the power action's words, out of domain/vocabulary.py at its line budget.
+               "domain.power_vocabulary"),
     "policy": ("", "settings", "continuation", "l10n", "messages", "interface", "config", "logbook",
                # v0.6.11: which edition this is, found by looking beside the package; and quiet
                # hours and a postponement's times, on the local clock.
@@ -79,7 +81,9 @@ LAYER = {_q(name): layer for layer, names in {
                # and Show me what happens: made-up rows and a made-up task, reading no state.
                "demo",
                # and a value of a person's own beside a drop-down's choices, Custom... and Unlimited.
-               "ownvalues"),
+               "ownvalues",
+               # v0.6.12: when the power action after usage-limit recoveries may act - pure.
+               "poweraction"),
     "adapters": ("store", "openstate", "codex", "windows", "compat", "compatio", "startup", "shortcut",
                  # v0.6.10-alpha: compat.py and compatio.py became compat/.
                  "compat.model", "compat.standing", "compat.report", "compat.permits", "compat.files", "compat.cache", "compat.probes", "compat.views", "compat.evaluator",
@@ -112,6 +116,8 @@ LAYER = {_q(name): layer for layer, names in {
                  "win.textsize",
                  # and the face its interface is set in, and which letters a face has.
                  "win.typeface",
+                 # v0.6.12: the power action's calls - may this account, is anyone here, and doing it.
+                 "win.powerdown",
                  # v0.6.10-alpha: source.py became source/, and every part of it reads Codex;
                  # windows.py's other half - the CLI, the App Server, the pairing - joined it.
                  "codex.appserver", "codex.errors", "codex.history", "codex.labels",
@@ -133,7 +139,9 @@ LAYER = {_q(name): layer for layer, names in {
                 "control.layer", "control.policy", "control.preview", "control.records",
                 "control.seen", "control.state", "control.watcher", "control.wire", "diagnostics",
                 # v0.6.11: Diagnostics' own tools - the log searched, the state folder's access, a demo.
-                "control.tools"),
+                "control.tools",
+                # v0.6.12: the power action's file, armed only from the Dashboard.
+                "control.poweraction"),
     "front": ("auto_resume", "cli", "controlcli", "mcpserver", "mcp.panel", "app", "ui.tray",
               # v0.6.10-alpha: app.py became runtime/ - the wiring, the loop and the toasts.
               "runtime", "runtime.app", "runtime.loop", "runtime.toasts",
@@ -141,6 +149,8 @@ LAYER = {_q(name): layer for layer, names in {
               "runtime.waking",
               # and of its own memory, how it ended and the status file.
               "runtime.health",
+              # v0.6.12: and of the power action after usage-limit recoveries.
+              "runtime.afterwork",
               # v0.6.10-alpha: cli.py's command bodies became commands/; cli.py is the parser.
               "commands", "commands.base", "commands.install", "commands.records",
               "commands.status", "commands.watcher",
@@ -247,6 +257,7 @@ LAZY_IMPORTS = {(_q(importer), _q(imported)): (kind, reason) for (importer, impo
     ("commands.install", "control"): ("cost", "the diagnostics command is the only one that goes through control"),
     ("commands.install", "diagnostics"): ("cost", "only the diagnostics command writes the export"),
     ("commands.watcher", "ui.tray"): ("cost", "activate opens the settings window through the icon's helper"),
+    ("commands.watcher", "control"): ("cost", "only a power action's stop button goes through the control layer"),
     ("compat.probes", "windows"): ("cost", "the registry's API and discovery checks read the "
                                            "adapter, only when they run"),
     ("config", "settings"): ("cost", "nearly everything imports config; the settings schema, and the "

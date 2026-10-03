@@ -1,7 +1,7 @@
 r"""The administrator's policy keys, read and never written (v0.6.11; managed.py says what they mean).
 
 Two places are asked, HKEY_LOCAL_MACHINE's first and then HKEY_CURRENT_USER's, each at
-`Software\Policies\CodexAutoResume`, and only for the six values managed.VALUES names, each opened
+`Software\Policies\CodexAutoResume`, and only for the seven values managed.VALUES names, each opened
 for reading alone. It is a content-free question - a switch, a number, two times of day - and the
 answer is handed to managed.parse as it came, data and type together, for it to judge.
 
@@ -22,7 +22,7 @@ import os
 # Imported by name only, so this module needs nothing of the package at import.
 KEY = r"Software\Policies\CodexAutoResume"
 NAMES = ("DisableAutoResume", "ForceObserveOnly", "DisableUpdateCheck", "DisableStatusFile",
-         "MaxRecoveryAttempts", "QuietHours")
+         "MaxRecoveryAttempts", "QuietHours", "DisablePowerAction")
 # A value that is there and could not be read, as (data, type): no registry type is negative, and
 # managed.REG_UNREADABLE is this one.
 UNREADABLE = (None, -1)
@@ -39,7 +39,7 @@ def _winreg():
 def read() -> list:
     """[HKEY_LOCAL_MACHINE's, HKEY_CURRENT_USER's]: each a mapping of a value's name to its
     (data, type), holding only the values that are there - and UNREADABLE for each one that is there
-    and could not be read, or for all six where the place is there and could not be opened. Only
+    and could not be read, or for all seven where the place is there and could not be opened. Only
     "not there" (FileNotFoundError) is an empty answer. Never raises."""
     winreg = _winreg()
     if winreg is None:

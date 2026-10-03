@@ -113,6 +113,16 @@ _MESSAGES = {
     ("needs_you_unavailable", None): "needs-you notices skipped this tick; nothing is sent either way",
     # v0.6.11: Ask after a long sleep (power.py), only when it is on.
     ("held_after_sleep", None): "{detail} waiting recoveries fell due while this PC slept; held for a person",
+    # v0.6.12: the power action after usage-limit recoveries (runtime/afterwork.py), only once it is armed.
+    ("power_armed", None): "power action armed in the Dashboard: {reason}; {detail} usage-limit recoveries open now",
+    ("power_off", None): "power action turned off ({reason})",
+    ("power_waiting", None): "power action waits: {reason}",
+    ("power_countdown", None): "every usage-limit recovery has ended; {reason} in {detail}s unless stopped",
+    ("power_countdown_ended", None): "power action countdown ended: {reason}",
+    ("power_batch_ended", None): "usage-limit recoveries ended without the power action: {reason}",
+    ("power_now", None): "power action now: {reason}",
+    ("power_failed", None): "Windows refused the power action (error {detail})",
+    ("power_file_invalid", None): "power-action.json cannot be read as written; treated as off",
 }
 
 

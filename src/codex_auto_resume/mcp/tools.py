@@ -259,6 +259,19 @@ TOOLS = [
                         "idempotentHint": True, "openWorldHint": False},
     },
     {
+        # v0.6.12: the power action after usage-limit recoveries, turned off. There is no tool that turns
+        # it on: only the Dashboard arms it (H14), so nothing a model reads can make this PC sleep.
+        "name": "turn_off_power_action",
+        "title": "Turn off the power action",
+        "description": "Turn off the power action after usage-limit recoveries, if it is on, so this PC "
+                       "is not put to sleep, hibernated or shut down when they finish. It only reduces "
+                       "automation, so it needs no confirmation. It cannot be turned on from Codex; "
+                       "only the Dashboard does that.",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+        "annotations": {"readOnlyHint": False, "destructiveHint": False,
+                        "idempotentHint": True, "openWorldHint": False},
+    },
+    {
         "name": "resume_auto_recovery",
         "title": "Resume automatic recovery",
         "description": "Undo a global pause. Recovery then continues under every usual "

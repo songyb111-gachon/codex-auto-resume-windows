@@ -112,6 +112,9 @@ ENGINE_TO_SOURCE = {
     "task_facts",
     # and the turns that stopped moving, asked only while a needs-you notice waits for one.
     "stalled_turns",
+    # v0.6.12: whether Codex's history has caught up and how many turns run and items wait, asked only
+    # for an armed power action whose own checks have passed - counts and sizes, never content.
+    "activity",
 }
 # v0.6.11: what core asks the edition's plug, which it holds as `Guarded` (domain/plug.py). The
 # engine asks at the points of a tick, a dispatch and an ended turn; the claim asks the ledger,

@@ -10,7 +10,8 @@ the half that runs off the icon's thread:
     complete(notice, shown)         how a notice the card took ends: its silent history copy
                                     once the card was seen, else today's toast after all
     Inbox                           hands a Notice from any thread to the icon's thread
-    activate(uri, ...)              a card button, done in process: cancel one, or open a page
+    activate(uri, ...)              a card button, done in process: cancel one, open a page, or
+                                    (v0.6.12) stop the power action for one batch
 
 **One builder, one set of words.** A `Notice` carries the toast's own content - the exact
 arguments `notify.show` has always been given, built by `notify.*_content` - and the card's
@@ -35,7 +36,8 @@ failed would leave two copies in the notification center, or none on the screen.
 **Nothing here can recover anything.** A card button reaches `activate`, which does in process
 what `cli.cmd_activate` does for a toast button: the URI is parsed by the same two parsers, a
 page must be one of the window's own, and the only change it can make is to *cancel* one exact
-interruption through the control layer, with the actor the toast has always used ("toast").
+interruption through the control layer, with the actor the toast has always used ("toast") - or, since
+v0.6.12, to stop the power action for the one batch its nonce names, which only keeps this PC on.
 """
 from __future__ import annotations
 
@@ -51,7 +53,7 @@ CARD_SETTING = "notification_card"
 
 # What each kind of notice is called and which brand status light it wears. The light is the
 # brand's own vocabulary (brand.STATUS_FILL); only the card draws it, the toast has none.
-STATUS = {
+NOTICE_STATUS = {
     "interruption": "waiting",      # detected, and it will be recovered
     "starting": "recovering",       # a continuation is being sent now
     "resumed": "monitoring",        # delivery proven: running again
@@ -65,6 +67,18 @@ STATUS = {
     "memory_stopped": "attention",  # v0.6.11: and stopped for it
     "demo": "waiting",              # v0.6.11: Show me what happens - made-up words, inert buttons
 }
+# v0.6.12: the power action after usage-limit recoveries (runtime/afterwork.py), whose kinds are words of
+# its own (domain/power_vocabulary.PowerNotice). Its notices are raised whatever the notification switches
+# say (runtime/app.py, Q8).
+POWER_STATUS = {
+    "power_grace": "attention",     # this PC goes to sleep, hibernates or shuts down at a time, unless stopped
+    "power_now": "attention",       # and it does so now
+    "power_failed": "failed",       # Windows did not do it
+    "power_not_met": "attention",   # a Once ended without it: not every recovery ended as chosen
+    "power_stopped": "paused",      # a person stopped it for this batch
+}
+STATUS = {**NOTICE_STATUS, **POWER_STATUS}
+POWER_EVENTS = tuple(POWER_STATUS)
 PROBES = ("notification_state", "notification_mode", "app_notifications", "screen_reader",
           "remote_session", "session_locked")
 
@@ -193,6 +207,10 @@ def build(event, detail, identity=None, *, sound=False):
         # v0.6.11: the memory guard (memguard.py). About the watcher, not a conversation, so it has no
         # key and replaces no card; its one button opens a page of the Dashboard.
         return _notice(event, notify.memory_content(event, detail.get("used"), detail.get("limit")), key=None)
+    if event in POWER_EVENTS:
+        # v0.6.12: the power action (runtime/afterwork.py). About this PC, not a conversation, so it has
+        # no key and replaces no card. Only the countdown's has a stop button, named by its batch (A28).
+        return _notice(event, notify.power_content(event, detail), key=None)
     if event == "stopped":
         reason = ("no_progress" if state == "no_progress_exhausted"
                   else "time" if detail.get("reason") == "chain_time_cap"
@@ -225,6 +243,11 @@ def show_demo(notice, *, inbox=None, setting=True, probe=None) -> bool:
                                         **{name: answers.get(name) for name in PROBES}):
         return False
     return inbox.post(notice)
+
+
+def build_power_stopped() -> Notice:
+    """What a power action's stop button says afterwards, from a card or a toast (v0.6.12)."""
+    return _notice("power_stopped", notify.power_content("power_stopped", {}), key=None)
 
 
 def build_cancelled(thread_id) -> Notice:
@@ -355,6 +378,7 @@ def activate(uri, *, control=None, open_dashboard=None, announce=None, log=None)
 
     "opened" / "not_installed"  an open URI: `open_dashboard(page)` for one of the window's pages
     "cancelled"                  a cancel URI: that one interruption, through the control layer
+    "stopped"                    a power-stop URI (v0.6.12): the power action stopped for its batch
     "refused" / "failed"         the control layer said no (a coded refusal) or broke
     "ignored"                    anything else, including every malformed URI
 
@@ -385,6 +409,9 @@ def activate(uri, *, control=None, open_dashboard=None, announce=None, log=None)
         say("dashboard opened from a notification card" if opened
             else "notification card: the Dashboard is not installed here")
         return "opened" if opened else "not_installed"
+    nonce = notify.parse_power_stop_uri(uri)
+    if nonce is not None:
+        return _power_stop(nonce, control, announce, say)
     interruption_id = notify.parse_cancel_uri(uri)
     if interruption_id is None or control is None:
         say("notification card: a button was ignored (%s)" % ("malformed or unsupported URI"
@@ -412,3 +439,36 @@ def activate(uri, *, control=None, open_dashboard=None, announce=None, log=None)
         except Exception:
             pass
     return "cancelled"
+
+
+def _power_stop(nonce, control, announce, say) -> str:
+    """A power action's stop button (v0.6.12, the A28 amendment), from a card or a toast - the toast's
+    `activate` (commands/watcher.py) comes here too, so the press does one thing on either route.
+
+    "stopped": the stop is written for the batch the nonce names, and the watcher ends that batch
+    skipped at its next look, whatever its countdown is doing; `announce` is given the notice that says
+    the PC stays on. "ignored": a nonce of a batch that is over, or no control layer. "refused" /
+    "failed": the control layer said no, or broke. One line in the log either way, never a nonce."""
+    if control is None:
+        say("notification: a power action's stop was ignored (no control layer)")
+        return "ignored"
+    try:
+        result = control.stop_power_countdown(nonce, actor="toast")
+    except Exception as exc:
+        code = getattr(exc, "code", None)
+        if isinstance(code, str) and code:
+            say("notification: the power action's stop was refused (%s)"
+                % (code if re.fullmatch(r"[a-z][a-z0-9_]{0,47}", code) else "unrecognised code"))
+            return "refused"
+        say("notification: the power action's stop failed (%s)" % type(exc).__name__)
+        return "failed"
+    if result != "stopped":
+        say("notification: a power action's stop named a batch that is over; nothing changed")
+        return "ignored"
+    say("power action stopped from a notification; this PC stays on this time")
+    if announce is not None:
+        try:
+            announce(build_power_stopped())
+        except Exception:
+            pass
+    return "stopped"

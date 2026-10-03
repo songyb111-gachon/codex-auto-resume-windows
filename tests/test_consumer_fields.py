@@ -63,6 +63,11 @@ COMPAT_VIEW = [("bridge:compatibility", "compatibility"),
                ("bridge:compat-refresh", "result.compatibility")]
 SETTINGS = [("bridge:settings", "settings"), ("bridge:update", "settings"),
             ("bridge:defaults", "settings"), ("bridge:status", "status.settings")]
+# v0.6.12: the power action as every surface is told it (poweraction.view): the card's own read, an arming's
+# answer, and the status every read brings while its file exists.
+POWER_VIEW = [("bridge:power-action", "result.view"), ("bridge:power-arm", "result"),
+              ("bridge:status", "status.power_action"), ("bridge:dashboard", "status.power_action")]
+POWER_OPTIONS = [("bridge:power-action", "result")]
 # Any request may be refused instead, and a refusal has one shape whatever was asked
 # (`controlcli._rejected`): the `serve` loop's own refusals are that shape.
 REFUSAL = ("bridge:_framing", "cases[].replies[].reply")
@@ -143,6 +148,13 @@ _RECEIVERS = {
         # Theme.Stored reads the settings file for the theme before the window has a bridge.
         "map": SETTINGS,
     },
+    # v0.6.12: the power action's card, beside what it has as a part of the Settings half (_spread).
+    "gui/SettingsPower.cs": {
+        "powerOptions": POWER_OPTIONS, "options": POWER_OPTIONS,
+        "offer": _under(POWER_OPTIONS, ".actions[]"), "choice": _under(POWER_OPTIONS, ".actions[]"),
+        "powerView": POWER_VIEW,
+        "armed": _under(POWER_VIEW, ".armed"), "shown": _under(POWER_VIEW, ".shown"), "last": _under(POWER_VIEW, ".last"),
+    },
     "panel": {
         "payload": [("@", "")],
         "row": PANEL_ROW,
@@ -178,12 +190,16 @@ HALVES = {
 
 
 def _spread(table):
-    """One entry per file, from an entry per half."""
+    """One entry per file, from an entry per half - and what a file has of its own beside it."""
     spread = dict(table)
     for half, names in HALVES.items():
         for name in names:
             if half in table:
-                spread[name] = table[half]
+                own = table.get(name)
+                merged = table[half]
+                if own:
+                    merged = merged | own if isinstance(merged, set) else dict(merged, **own)
+                spread[name] = merged
     return spread
 
 
@@ -244,6 +260,11 @@ _TYPED = {
     "gui/SettingsApp.cs": {
         "status": wire.StatusSnapshot,
         "field": wire.SchemaField, "styleField": wire.SchemaField, "custom": wire.OwnValue,
+    },
+    "gui/SettingsPower.cs": {
+        "powerOptions": wire.PowerOptions, "options": wire.PowerOptions,
+        "offer": wire.PowerChoice, "choice": wire.PowerChoice, "powerView": wire.PowerView,
+        "armed": wire.PowerArmed, "shown": wire.PowerShown, "last": wire.PowerLast,
     },
 }
 TYPED = {(name, receiver): contract for name, table in _spread(_TYPED).items()

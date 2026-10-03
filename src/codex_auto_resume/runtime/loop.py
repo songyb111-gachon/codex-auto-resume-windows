@@ -25,6 +25,7 @@ from ..domain.vocabulary import KeepAwake, WatcherEnd
 from ..store import (SCHEMA_VERSION, RecordSchemaMismatch, StateFromNewerVersion, Store,
                      StoreError)
 from ..windows import AdapterError, Mutex, StopEvent, wait_any
+from .afterwork import AfterWork
 from .health import Health
 from .waking import Waking
 
@@ -231,6 +232,33 @@ class WatchLoop:
             except Exception:
                 return None
 
+    def _new_afterwork(self):
+        """v0.6.12: the power action after usage-limit recoveries (runtime/afterwork.py): off unless a
+        person armed it in the Dashboard, and then asked once a tick. Costs nothing else when it cannot be
+        had."""
+        from ..control import Control
+        try:
+            return AfterWork(control=Control(self.paths, plug=self.plug), log=self.logger.info,
+                             notice=self._watcher_notice)
+        except Exception:
+            self._record_failure("the power action")
+            return None
+
+    def _after_work(self, afterwork, store, engine, ok, waking):
+        """v0.6.12: one look of the power action, after keeping this PC awake and on the same thread. With
+        no file it reads that one file and nothing more. A failure here ends any countdown and costs
+        nothing else - nothing is done for it."""
+        if afterwork is None:
+            return
+        try:
+            afterwork.look(store, engine, ok=ok, waking=waking, settings=self.settings, managed=self.managed)
+        except Exception:
+            self._record_failure("the power action")
+            try:
+                afterwork.halt()
+            except Exception:
+                pass
+
     def _new_reading(self, engine):
         """The engine's last usage reading, the first time the heartbeat is handed it (v0.6.11) - None
         otherwise, which leaves the one stored as it is. Asked of what the engine already read; this
@@ -301,6 +329,9 @@ class WatchLoop:
         # v0.6.11: sleep and keeping this PC awake (power.py), which ask Windows nothing at the defaults.
         # A wake heard is a Retry Now's wake event: the tick then runs, every gate included.
         waking = None if once else Waking(signal=lambda: self.wake_event().signal(), log=self.logger.info)
+        # v0.6.12: the power action after usage-limit recoveries, which reads nothing but its own file
+        # until a person arms it - and is never asked in a single tick.
+        afterwork = None if once else self._new_afterwork()
         try:
             while True:
                 ok = False
@@ -340,6 +371,7 @@ class WatchLoop:
                 except Exception:
                     self._record_failure("initialising Codex adapter" if engine is None else "tick")
                 awake = self._keep_awake(waking, store, ok)
+                self._after_work(afterwork, store, engine, ok, waking)
                 # v0.6.11: after the tick, never inside it - its memory, and whether the guard stops it.
                 stopping = self._memory(health, guard=not once)
                 self._heartbeat(store, session, started, ok, engine, awake, health)
@@ -359,6 +391,8 @@ class WatchLoop:
                     end, exit_code = WatcherEnd.MEMORY_GUARD, EXIT_MEMORY_GUARD
                     break
                 interval = self._poll_interval(store, poll)
+                if afterwork is not None:
+                    interval = afterwork.cap(interval)      # every 15 s while a countdown runs
                 if self._between_ticks(stop, wake, engine, interval, last_tick) == "stop":
                     self.logger.info("stop requested; watcher exiting")
                     end = WatcherEnd.CLEAN
@@ -367,6 +401,11 @@ class WatchLoop:
             self.logger.info("interrupted; watcher exiting")
             end = WatcherEnd.CLEAN
         finally:
+            if afterwork is not None:
+                try:
+                    afterwork.stop()        # a countdown simply ends: nothing is done
+                except Exception:
+                    self._record_failure("the power action")
             if waking is not None:
                 try:
                     waking.stop()           # on the thread that made the request, which holds it

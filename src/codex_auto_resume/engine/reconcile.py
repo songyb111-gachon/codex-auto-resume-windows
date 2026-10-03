@@ -66,8 +66,7 @@ class ReconcileMixin:
             if row["state"] == "submission_unknown" and row["queue_id"] is None:
                 if (row.get("next_retry_at") or 0) > now:
                     continue
-                submitted = row.get("submitted_at") or row.get("detected_at") or now
-                if now - submitted > self.options["unknown_reconcile_window_seconds"]:
+                if not machine.still_followed(row, now, self.options["unknown_reconcile_window_seconds"]):
                     continue
             try:
                 with self.dispatch_lock():

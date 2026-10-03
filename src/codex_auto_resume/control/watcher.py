@@ -394,6 +394,11 @@ class WatcherMixin:
         # no administrator manages is told exactly what it was told before.
         if held.active:
             status["managed"] = held.codes()
+        # v0.6.12: the power action (poweraction.view), only while its file is there - so at the
+        # defaults, where it has never been armed, the status is exactly what it was.
+        power = self.power_view()
+        if power is not None:
+            status["power_action"] = power
         # P10: what the edition's plug shows beside this, under its one key - on the Dashboard,
         # the panel and get_status alike. The standard edition adds nothing.
         added = self.plug.surface(Surface.STATUS, dict(status))

@@ -1122,6 +1122,55 @@ usage; *Why it is waiting* says "No internet (Windows reports)", and so does its
 Behind some proxies Windows reports no internet where there is, which is why it is off by default.
 When Windows cannot be asked or does not answer, usage is read as it always was.
 
+### Sleep, hibernate or shut down when usage-limit recoveries finish
+
+From v0.6.12-beta the watcher can put this PC to sleep, hibernate it or shut it down once every
+usage-limit recovery has ended - after a task left running overnight, say. It is off by default, and
+only the Dashboard turns it on: the last card under Settings > General, **When usage-limit recoveries
+finish**. Choose **Then** (Sleep, Hibernate or Shut down), **When** (Every recovery succeeded, Each one
+succeeded or was handed over to you, or Each one ended, however it ended), **How often** (Once, for
+the next usage limit, or Every time) and **Warn me first for** (2 to 30 minutes, 5 by default), then
+**Turn on...**. A confirmation repeats the choices, and its default button is Cancel. The card applies
+at once; Save does not change it. An action Windows will not do here is left out of Then, with a line
+saying why: Hibernate while it is off in Windows (this product never turns it on), Sleep while Windows
+reports no sleep state a program may start, and all three while this account does not hold Windows'
+shut-down privilege.
+
+**What counts.** Only recoveries from a usage limit start it and decide it. A recovery from a
+connection error, a timeout or another temporary failure never does, though while one waits or runs it
+holds the power action too. The recoveries that count are the usage limits waiting when it was turned
+on and every one detected after, the next limit a recovered task runs into included. **Once** is spent
+on them, and turns itself off if no usage limit comes within a day; **Every time** starts again after
+each such batch.
+
+**When it acts.** At each look, in this order: a stop pressed on its notice ends the batch, and nothing
+happens; a pause, Observe only or an administrator's `DisablePowerAction` holds it; every recovery of
+the batch has ended, and none still waits, runs or is followed for a continuation that may still
+arrive (up to a day); they ended as **When** says, or the batch ends without the action (a Once says so
+in a notification); Codex has finished recording every conversation written in the last hour, no turn
+is running in Codex and no input is queued there; for Shut down, nobody else is signed in to this PC;
+and nobody has used this PC for 2 minutes. The card's second line says what it waits for. Then a
+notification says when it will happen, with **Don't sleep** (or Don't hibernate, Don't shut down) and
+**Open Dashboard**, and the card shows the same time. Any input, a pause, a gap between the watcher's
+looks or anything above stopping being true ends the countdown, and a new one starts once all of it
+holds again. A batch whose recoveries ended more than an hour before the watcher saw them - after a
+restart, say - ends without the action. When the time is up, the watcher first records the batch as
+done, then says so in a last notification and asks Windows once. Windows may refuse - a shut down asks
+every program, and any of them may decline - and then a notification says so, nothing is tried again,
+and the card says Windows refused.
+
+**Turning it off.** **Turn off** on the card; **Don't sleep after recoveries** (or hibernate, shut down)
+in the notification-area icon's menu while it is on; the notice's button, for that batch; pausing
+recovery; or, from Codex, the tool `turn_off_power_action`. None of them can turn it on. Its notices are
+shown whatever the notification switches say, since they are how you stop it, though Windows' Do not
+disturb may still hide them.
+
+**What it does not check.** Only Codex in this Codex home is checked: other programs, downloads,
+playback and unsaved work are not, so save your work before choosing Shut down. It sends nothing to
+Codex, changes no Windows setting, starts no program and needs no administrator. Sleep and hibernate
+leave Windows' wake timers as they are, and a shut down forces no program closed. What it keeps is one
+file, `config\power-action.json`: ids, times and closed words, never a title or a path.
+
 ### The watcher's memory, how it stopped, and a status file
 
 From v0.6.11 the watcher asks Windows, after every check, how much memory its own process has
@@ -1188,7 +1237,7 @@ what it changes.
 
 ### Settings an administrator manages
 
-From v0.6.11 an administrator can set six values under `Software\Policies\CodexAutoResume` - in
+From v0.6.11 an administrator can set seven values under `Software\Policies\CodexAutoResume` - in
 `HKEY_LOCAL_MACHINE` for everyone who uses the PC, or in `HKEY_CURRENT_USER` for one person. This
 product reads them and never writes them, and each can only hold recovery back. A PC nobody manages
 has none, and then nothing is different.
@@ -1200,6 +1249,7 @@ has none, and then nothing is different.
 | `DisableUpdateCheck` | DWORD, not 0 | The Dashboard's **Check for updates** and **Install another version...** are greyed and ask nothing. |
 | `DisableStatusFile` | DWORD, not 0 | Keeps **Write a status file for other tools** off, and the watcher removes the file it wrote. |
 | `MaxRecoveryAttempts` | DWORD, 1 to 20 | The most attempts per interruption: a ceiling on that setting. |
+| `DisablePowerAction` | DWORD, not 0 | The power action after usage-limit recoveries is off and cannot be turned on; one turned on before stays, and does nothing (from v0.6.12-beta). |
 | `QuietHours` | String | Quiet hours that hold whatever else is set, as `22:00-07:00`, or with the days they start on: `22:00-07:00 weekdays` (or `weekends`, `every_day`). Times are on the hour or the half hour. |
 
 Both places are read, and every restriction either one makes holds: a switch set in either is set, the

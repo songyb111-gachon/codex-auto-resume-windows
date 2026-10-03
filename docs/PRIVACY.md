@@ -290,9 +290,9 @@ apps light or dark - the per-user `AppsUseLightTheme` value, which it reads and 
 the Dashboard, the popup and its menu can be drawn to match; and the integrity level of the
 watcher's single-instance mutex and stop event, a check that is new in v0.6.0. From v0.6.5 the
 notification card and the icon's motion ask a few more, all content-free and described under
-[Notifications](#notifications). From v0.6.11 an installed copy also reads, and never writes, the six
+[Notifications](#notifications). From v0.6.11 an installed copy also reads, and never writes, the seven
 values an administrator may set under `Software\Policies\CodexAutoResume` in `HKEY_LOCAL_MACHINE` and
-`HKEY_CURRENT_USER` - four switches, a number and a span of hours (the guide's *Settings an
+`HKEY_CURRENT_USER` - five switches, a number and a span of hours (the guide's *Settings an
 administrator manages*) - each time it reads its settings. Nothing else under that key is read, and a
 PC nobody manages has none. Also from v0.6.11, and only while the setting that needs it is on (each
 is off by default): how long the PC has been awake (`QueryUnbiasedInterruptTime`), which beside the
@@ -303,6 +303,19 @@ whether Windows reports this PC connected to the internet (the Network List Mana
 `GetConnectivity`), for **Wait for an internet connection** - a question Windows answers from what it
 already knows, with nothing sent to find out. **Keep this PC awake** is a request, not a question:
 `SetThreadExecutionState`, which the watcher makes and takes back and which changes no setting.
+From v0.6.12-beta the power action after usage-limit recoveries, which is off by default, asks
+Windows three more things. The first is whether this account holds the shut-down privilege
+(`GetTokenInformation` on its own token, `TokenPrivileges`) and which sleep states the PC offers
+(`GetPwrCapabilities`), which say whether Sleep, Hibernate and Shut down can be offered: the
+Dashboard asks it each time it shows the power action's card in Settings and when the power action
+is turned on, and the watcher while it is on. The other two the watcher asks only while it is turned
+on: how long ago the last keyboard or mouse input came (`GetLastInputInfo` - a time, never what was
+typed or where, with no hook); and, for Shut down, how many other sessions are signed in
+(`WTSEnumerateSessionsW` - a count, never a user name). For the same check it counts, in Codex's own
+database, the latest turns still in progress and the items queued in this Codex home, and compares
+the size of each conversation file written in the last hour - and of each of the recoveries' own -
+with how far Codex has recorded it: one look at the file's size and time, and the file is never
+opened. Only counts and a yes or no are kept, for that look.
 And from v0.6.11 at every setting, about the watcher itself: how much memory its own process has
 committed and the most it has (`K32GetProcessMemoryInfo`, of that process only); the number Windows
 gives the sign-in it runs in (`GetTokenInformation` on its own token, `TokenStatistics`, of which only
@@ -461,7 +474,11 @@ conversation to OpenAI like any tool output. That is:
   about that version, which is for you to read on the Dashboard. It no longer returns the installation
   directory's path, which normally includes your Windows user name; v0.5.0 through v0.5.7
   did, and a conversation held with one of them still carries it. In the advanced edition it also
-  carries which edition this is and how many of its capabilities are on, as codes;
+  carries which edition this is and how many of its capabilities are on, as codes. From v0.6.12-beta,
+  while the power action has its file, it also carries that action's state: what is turned on (the
+  action, when, once or every time, the warning's length and since when), what it waits for, when a
+  countdown ends and how the last batch ended - closed words and times, no id;
+- from `turn_off_power_action`, from v0.6.12-beta: whether the power action was on - one sentence;
 - from `list_pending`: the pending recoveries, with their conversation ids, interruption ids,
   states, categories, times and attempt counts, and the finished ones too when it is asked for
   them; `open_settings` returns those together with the status and settings above;
@@ -570,6 +587,14 @@ default (or wherever `CODEX_AUTO_RESUME_PLUGIN_HOME`, or failing that
   are red. Deleting it only means a failure is not shown red until the watcher starts again. It goes
   with the rest of `config/` under `Uninstall.cmd -Purge`, and the command line's `uninstall` deletes
   it unless you pass `--keep-state`;
+- `config/power-action.json`, from v0.6.12-beta, only once the power action after usage-limit
+  recoveries has been turned on in the Dashboard: what was chosen, in closed words; when it was turned
+  on; the ids of the recoveries it waits for (this product's own interruption ids, never a
+  conversation's); a random number naming the current batch, which the countdown notice's button
+  carries; what it last showed; and how the last batch ended, with the time. No title, path or
+  text. Deleting it turns the power action off. It goes with the rest of `config/` under
+  `Uninstall.cmd -Purge`, and the command line's `uninstall` deletes it unless you pass
+  `--keep-state`;
 - `logs/` — `auto-resume.log`, what the watcher did, by reason code and conversation UUID;
   `errors.log`, the Python traceback when something goes wrong; `launcher.log`, a line
   per launch (and why, if one failed); and, from v0.6.9, `codex-start.log`, a line each time Codex
