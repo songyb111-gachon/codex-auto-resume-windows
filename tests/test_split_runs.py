@@ -433,7 +433,8 @@ class SecondsFileTests(unittest.TestCase):
         for name, text in (("list.json", "[1, 2]"), ("broken.json", "{"),
                            ("nowhere.json", '{"lane": "nowhere", "seconds": {}}'),
                            ("no-seconds.json", '{"lane": "standard"}'),
-                           ("untimed.json", '{"lane": "standard", "seconds": {"tests/test_x.py": -1}}')):
+                           ("untimed.json", '{"lane": "standard", "seconds": {"tests/test_x.py": -1}}'),
+                           ("more.json", '{"lane": "standard", "seconds": {"tests/test_x.py": 1}, "counts": {}}')):
             with self.subTest(name):
                 wrong = self.folder / name
                 wrong.write_text(text, encoding="utf-8")
@@ -442,6 +443,16 @@ class SecondsFileTests(unittest.TestCase):
                 self.assertIn("seconds file", str(refused.exception))
                 self.assertEqual(merged.read_bytes(), before)
                 wrong.unlink()
+        # An --outcomes file has a lane and seconds too, and is still not what --seconds writes.
+        outcomes = self.folder / "outcomes.json"
+        self.assertEqual(self.finish(["--lane", "standard", "--part", "1/4", "--outcomes", str(outcomes)],
+                                     {self.a: 9.0}, self.folder / "untouched.json"), 0)
+        self.assertEqual(json.loads(outcomes.read_text(encoding="utf-8"))["seconds"], {self.a: 9.0})
+        for given in ((outcomes,), (good, outcomes)):
+            with self.subTest("outcomes", given=len(given)), self.assertRaises(SystemExit) as refused:
+                self.merge(merged, *given)
+            self.assertIn("is not a seconds file: it also holds counts, outcomes", str(refused.exception))
+            self.assertEqual(merged.read_bytes(), before)
         empty = self.folder / "empty"
         empty.mkdir()
         for absent in (empty, self.folder / "absent.json"):

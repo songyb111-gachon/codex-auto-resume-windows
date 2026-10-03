@@ -652,10 +652,15 @@ def write_durations(measured: dict, how: str, path: Path | None = None) -> None:
     path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
 
 
+# Everything a --seconds file holds: --merge-seconds refuses a file with anything else in it, such as an
+# --outcomes file, which has a lane and seconds too.
+SECONDS_KEYS = frozenset({"lane", "parts", "part", "python", "run", "seconds"})
+
+
 def write_seconds(path: str, lane: str, parts, merged: dict) -> None:
     """This run's seconds per file - the figures --record-durations would write into its lane's table - in
     a file of their own for --merge-seconds, with the lane, the part, the Python and, on GitHub's runners,
-    the run. The durations file is left as it is."""
+    the run (SECONDS_KEYS). The durations file is left as it is."""
     document = {"lane": lane, "parts": parts, "python": sys.version.split()[0]}
     document.update({key: merged[key] for key in ("part",) if key in merged})
     if os.environ.get("GITHUB_RUN_ID"):
@@ -678,8 +683,9 @@ def seconds_files(paths) -> list[Path]:
 def merge_seconds(paths, path: Path | None = None) -> dict:
     """The --seconds files under `paths` into the durations by record_durations' rules, each lane's into its
     own table; where several jobs timed one file in one lane - a job for each Python - their median. Every
-    file is read before anything is written, and one that is not a seconds file of a lane there is refuses
-    the merge. Returns, by lane, how many files its table took."""
+    file is read before anything is written, and one that is not a seconds file of a lane there is - one
+    that holds anything --seconds does not write, as an --outcomes file does - refuses the merge. Returns,
+    by lane, how many files its table took."""
     files = seconds_files(paths)
     if not files:
         raise Refused("no seconds files in %s" % ", ".join(map(str, paths)))
@@ -692,6 +698,9 @@ def merge_seconds(paths, path: Path | None = None) -> dict:
         if not (isinstance(document, dict) and document.get("lane") in LANES
                 and isinstance(document.get("seconds"), dict)):
             raise Refused("%s is not a seconds file of a lane there is (--seconds writes one)" % name)
+        if set(document) - SECONDS_KEYS:
+            raise Refused("%s is not a seconds file: it also holds %s, which --seconds never writes (an "
+                          "--outcomes file holds them)" % (name, ", ".join(sorted(set(document) - SECONDS_KEYS))))
         for key, value in seconds_table(document["seconds"]).items():
             timed.setdefault(document["lane"], {}).setdefault(key, []).append(value)
         if document.get("run"):
