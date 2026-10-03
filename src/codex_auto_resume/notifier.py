@@ -53,7 +53,7 @@ CARD_SETTING = "notification_card"
 
 # What each kind of notice is called and which brand status light it wears. The light is the
 # brand's own vocabulary (brand.STATUS_FILL); only the card draws it, the toast has none.
-STATUS = {
+NOTICE_STATUS = {
     "interruption": "waiting",      # detected, and it will be recovered
     "starting": "recovering",       # a continuation is being sent now
     "resumed": "monitoring",        # delivery proven: running again
@@ -66,15 +66,19 @@ STATUS = {
     "memory_warning": "attention",  # v0.6.11: the watcher uses more memory than the guard allows
     "memory_stopped": "attention",  # v0.6.11: and stopped for it
     "demo": "waiting",              # v0.6.11: Show me what happens - made-up words, inert buttons
-    # v0.6.12: the power action after usage-limit recoveries (runtime/afterwork.py).
+}
+# v0.6.12: the power action after usage-limit recoveries (runtime/afterwork.py), whose kinds are words of
+# its own (domain/power_vocabulary.PowerNotice). Its notices are raised whatever the notification switches
+# say (runtime/app.py, Q8).
+POWER_STATUS = {
     "power_grace": "attention",     # this PC goes to sleep, hibernates or shuts down at a time, unless stopped
     "power_now": "attention",       # and it does so now
     "power_failed": "failed",       # Windows did not do it
     "power_not_met": "attention",   # a Once ended without it: not every recovery ended as chosen
     "power_stopped": "paused",      # a person stopped it for this batch
 }
-# The power action's notices: raised whatever the notification switches say (runtime/app.py, Q8).
-POWER_EVENTS = ("power_grace", "power_now", "power_failed", "power_not_met", "power_stopped")
+STATUS = {**NOTICE_STATUS, **POWER_STATUS}
+POWER_EVENTS = tuple(POWER_STATUS)
 PROBES = ("notification_state", "notification_mode", "app_notifications", "screen_reader",
           "remote_session", "session_locked")
 

@@ -76,6 +76,17 @@ class PowerClass(StrEnum):
     OTHER = "other"
 
 
+class PowerNotice(StrEnum):
+    """What a power-action notification is about (notifier.POWER_STATUS, whose kinds end notifier.STATUS after
+    vocabulary.NoticeKind's): a countdown, the action now, Windows refused it, a Once ended without it, and a
+    person stopped it for its batch."""
+    POWER_GRACE = "power_grace"
+    POWER_NOW = "power_now"
+    POWER_FAILED = "power_failed"
+    POWER_NOT_MET = "power_not_met"
+    POWER_STOPPED = "power_stopped"
+
+
 class PowerUnavailable(StrEnum):
     """Why Windows will not do an action for this account on this PC (poweraction.UNAVAILABLE)."""
     NO_PRIVILEGE = "no_privilege"

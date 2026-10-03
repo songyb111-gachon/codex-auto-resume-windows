@@ -179,7 +179,12 @@ LISTS = {
     "ui.popup.ATTENTION_OVERLAYS": ("set", 4, "a707a2b300127033"),
     # v0.6.11: and the needs-you notice's light, attention; and a long sleep's, paused (power.py).
     # and Show me what happens' card, waiting.
-    "notifier.STATUS": ("dict", 12, "ccfbc4aee6adaf58"),
+    "notifier.NOTICE_STATUS": ("dict", 12, "ccfbc4aee6adaf58"),
+    # v0.6.12: the power action's five notices follow them, in a table of their own (PowerNotice), and the
+    # whole table is both.
+    "notifier.POWER_STATUS": ("dict", 5, "d403490eeafa7732"),
+    "notifier.POWER_EVENTS": ("tuple", 5, "e5a05bae37eb8e45"),
+    "notifier.STATUS": ("dict", 17, "2ec8a9e6e4566ab5"),
     "mcpserver.Server.START_WORDING": ("dict", 4, "f15e04a780f57870"),
     # v0.6.11: the two editions, and the plug that is the whole difference between them.
     "edition.EDITIONS": ("tuple", 2, "49cc206af3867704"),
@@ -345,7 +350,7 @@ HOMES = {
     v.LoadedState: ("returned", ("Backend.loaded", None)),
     v.ActivityState: ("list", "ui.popup.STATES"),
     v.IconState: ("list", "ui.tray.ICON_STATES"),
-    v.NoticeKind: ("keys", "notifier.STATUS"),
+    v.NoticeKind: ("keys", "notifier.NOTICE_STATUS"),
     v.CompatState: ("list", "compat.STATES"),
     v.LocalResult: ("list", "compat.RESULTS"),
     v.Tier: ("list", "compat.TIERS"),
@@ -379,6 +384,7 @@ HOMES = {
     pw.PowerEnd: ("list", "poweraction.ENDS"),
     pw.PowerClass: ("list", "poweraction.CLASSES"),
     pw.PowerUnavailable: ("list", "poweraction.UNAVAILABLE"),
+    pw.PowerNotice: ("keys", "notifier.POWER_STATUS"),
 }
 
 
@@ -465,11 +471,15 @@ class HomeTests(unittest.TestCase):
                                        l10n,
                                        machine,
                                        mcpserver,
+                                       notifier,
                                        codex,
                                        settings,
                                        windows)
         from codex_auto_resume.ui import popup as tray_popup
         self.assertLessEqual(set(v.WithdrawReason), set(v.ReasonCode))
+        # Every kind of notice is a word of one of the two lists, the power action's after the others (v0.6.12).
+        self.assertEqual(list(notifier.STATUS), list(v.NoticeKind) + list(pw.PowerNotice))
+        self.assertEqual(notifier.POWER_EVENTS, tuple(pw.PowerNotice))
         self.assertEqual(list(compat.COARSE.values()), list(v.EngineState))
         self.assertEqual(list(mcpserver.Server.START_WORDING), ["running", "already-running", "exited", "unconfirmed"])
         self.assertEqual(set(mcpserver.Server.START_WORDING), set(v.WatcherStartState))

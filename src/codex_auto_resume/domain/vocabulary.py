@@ -681,7 +681,7 @@ class IconState(StrEnum):
 
 
 class NoticeKind(StrEnum):
-    """What a notification is about, on the card and the toast (the keys of notifier.STATUS)."""
+    """What a notification is about, on the card and the toast (notifier.NOTICE_STATUS; the power action's: PowerNotice)."""
     INTERRUPTION = "interruption"
     STARTING = "starting"
     RESUMED = "resumed"
