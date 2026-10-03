@@ -314,7 +314,8 @@ them `thread/goal/set`, `thread/queue/add` with words this product wrote, and `t
   and it never shuts down while another person's session is signed in or disconnected. The batch is
   written as done before Windows is asked, so a refusal is never retried. MCP, the icon and a notice
   can only turn it off or stop one batch, named by an opaque id that every batch end replaces; an
-  administrator's `DisablePowerAction` turns it off. The code refuses to act whenever `unittest` is
+  administrator's `DisablePowerAction` holds it - one turned on before does nothing while the value is
+  set. The code refuses to act whenever `unittest` is
   loaded, so no test can make a real call.
 - **Named objects planted by a less-trusted process are refused.** This is new in v0.6.0. The watcher's single-instance mutex and its stop event have
   predictable names in the session namespace, where a process running at Low integrity may create

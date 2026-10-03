@@ -1160,8 +1160,9 @@ every program, and any of them may decline - and then a notification says so, no
 and the card says Windows refused.
 
 **Turning it off.** **Turn off** on the card; **Don't sleep after recoveries** (or hibernate, shut down)
-in the notification-area icon's menu while it is on; the notice's button, for that batch; pausing
-recovery; or, from Codex, the tool `turn_off_power_action`. None of them can turn it on. Its notices are
+in the notification-area icon's menu while it is on; the notice's button, for that batch; or, from
+Codex, the tool `turn_off_power_action`. None of them can turn it on. Pausing recovery is not one of
+them: it holds the power action and ends a countdown, and once you resume it acts as before. Its notices are
 shown whatever the notification switches say, since they are how you stop it, though Windows' Do not
 disturb may still hide them.
 

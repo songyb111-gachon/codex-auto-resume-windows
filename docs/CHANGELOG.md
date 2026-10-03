@@ -89,8 +89,9 @@ standard edition: it keeps every standard, with A28 amended by the owner for its
   a pause, a gap in the watcher's looks or a new recovery ends the countdown too. The power notices are
   shown whatever the notification switches say.
 - **Turned off from anywhere, turned on from nowhere else.** The card's **Turn off**, a new item in the
-  notification-area icon's menu while it is on, pausing recovery, and a new MCP tool,
-  `turn_off_power_action`, which is not marked destructive, as pause is not. No tool turns it on.
+  notification-area icon's menu while it is on, and a new MCP tool, `turn_off_power_action`, which is
+  not marked destructive, as pause is not. No tool turns it on. Pausing recovery holds it and ends a
+  countdown but does not turn it off: once recovery is resumed it acts as before.
 - **Windows' own calls, from the watcher.** SetSuspendState, or ExitWindowsEx(EWX_POWEROFF) with no
   force flag, after the watcher enables SeShutdownPrivilege on its own token; an account without that
   privilege is offered nothing. No process, task, service or administrator, no Windows setting changed
@@ -102,7 +103,8 @@ standard edition: it keeps every standard, with A28 amended by the owner for its
   new database schema, so the version picker's older versions simply ignore it. Uninstall keeps it;
   a purge removes it. `get_status` and the diagnostics export carry its state only while the file
   exists.
-- **For administrators**, a seventh policy value, `DisablePowerAction`, turns it off and greys the card.
+- **For administrators**, a seventh policy value, `DisablePowerAction`, holds it and greys the card:
+  it cannot be turned on, and one turned on before stays and does nothing until the value is removed.
 - **Standards.** H14 (the power action's rule) and F15 (its Windows calls) are new; A28 is amended for
   the stop button (by the owner, 2026-10-03); B16 names the three questions it asks Windows; H8's
   unmarked tools include `turn_off_power_action`.
