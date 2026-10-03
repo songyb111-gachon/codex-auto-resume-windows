@@ -296,6 +296,11 @@ class WatcherWriteTests(PowerControlCase):
         self.assertFalse(self.control.power_show("f" * 16, dict(shown, waiting_for="no_batch")))
         self.assertFalse(self.control.power_show(nonce, {"phase": "counting"}))
         self.assertFalse(self.control.power_show(nonce, dict(shown, phase="grace")), "grace needs its time")
+        for until in (float("nan"), float("inf")):
+            with self.subTest(until=until):
+                self.assertFalse(self.control.power_show(nonce, dict(shown, phase="grace", grace_until=until)),
+                                 "a time that is not a number is never written")
+        self.assertEqual(self.file.stat().st_mtime_ns, before)
         self.assertEqual(self.control.get_status()["power_action"]["shown"], shown)
 
     def test_a_countdown_that_runs_out_ends_done_unless_a_stop_came_first(self):

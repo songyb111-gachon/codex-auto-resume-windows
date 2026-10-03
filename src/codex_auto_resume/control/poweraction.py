@@ -157,7 +157,11 @@ class PowerActionMixin:
             written = change(why, document)
             if written is None:
                 return None
-            if poweraction.read_document(json.loads(json.dumps(written)), now) is None:
+            try:                                # what is about to be written, read back as the file would be
+                believed = poweraction.read_document(json.loads(json.dumps(written, allow_nan=False)), now)
+            except (ValueError, TypeError):     # a NaN or an infinity, which no JSON file may hold
+                believed = None
+            if believed is None:
                 raise ControlError(FAILED % "it would not be believed", code="request_failed")
             if not path.parent.is_dir() or not _write(path, written):
                 raise ControlError(FAILED % "the file could not be written", code="request_failed")
