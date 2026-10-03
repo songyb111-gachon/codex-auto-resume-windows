@@ -209,10 +209,52 @@ class ArmTests(PowerControlCase):
         self.assertFalse(self.file.exists())
 
     def test_a_write_windows_refuses_leaves_nothing_behind(self):
-        with patch.object(control_power.os, "replace", side_effect=PermissionError("denied")):
+        pauses = []
+        with patch.object(control_power.os, "replace", side_effect=PermissionError("denied")) as replace,                 patch.object(control_power.time, "sleep", side_effect=pauses.append):
             self.assertEqual(self.refusal(self.arm), "request_failed")
+        self.assertEqual(replace.call_count, control_power.REPLACE_TRIES, "tried for half a second, then refused")
+        self.assertEqual(pauses, [control_power.REPLACE_PAUSE] * (control_power.REPLACE_TRIES - 1))
         self.assertFalse(self.file.exists())
         self.assertEqual(list(self.paths.state_dir.glob("power-action.*.tmp")), [])
+
+    def test_a_reader_holding_the_file_delays_a_stop_and_never_loses_it(self):
+        """Windows refuses to replace a file a reader holds open, for as long as its one read takes: the
+        stop is tried again and written, where it was once refused and lost."""
+        self.arm()
+        nonce = self.stored()["armed"]["nonce"]
+        real, refused, pauses = os.replace, [], []
+
+        def held_for_three_tries(source, target):
+            if len(refused) < 3:
+                refused.append(target)
+                raise PermissionError("another process holds the file")
+            real(source, target)
+        with patch.object(control_power.os, "replace", side_effect=held_for_three_tries),                 patch.object(control_power.time, "sleep", side_effect=pauses.append):
+            self.assertEqual(self.control.stop_power_countdown(nonce), control.STOPPED)
+        self.assertEqual(len(refused), 3)
+        self.assertEqual(len(pauses), 3)
+        self.assertIsNotNone(self.stored()["armed"]["stop_at"])
+        self.assertEqual(list(self.paths.state_dir.glob("power-action.*.tmp")), [])
+
+    @unittest.skipUnless(sys.platform == "win32", "Windows refuses to replace an open file")
+    def test_a_real_reader_on_windows_holds_the_write_only_while_it_reads(self):
+        self.arm()
+        nonce = self.stored()["armed"]["nonce"]
+        real, refused = os.replace, []
+        reader = open(self.file, encoding="utf-8")       # as read_text holds it, for its one read
+        self.addCleanup(reader.close)
+
+        def reader_done_after_the_first_refusal(source, target):
+            try:
+                real(source, target)
+            except PermissionError:
+                refused.append(target)
+                reader.close()
+                raise
+        with patch.object(control_power.os, "replace", side_effect=reader_done_after_the_first_refusal):
+            self.assertEqual(self.control.stop_power_countdown(nonce), control.STOPPED)
+        self.assertEqual(len(refused), 1, "the open reader did refuse the first replace")
+        self.assertIsNotNone(self.stored()["armed"]["stop_at"])
 
 
 # ------------------------------------------------------------------------------ turning it off

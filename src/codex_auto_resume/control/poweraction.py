@@ -54,6 +54,24 @@ BUSY = "the state is busy"
 FAILED = "the request could not be completed: %s"
 UNAVAILABLE = "that power action is not available on this PC"
 MANAGED = "your administrator has set this"
+# Windows will not replace a file another handle holds open, and Python opens without FILE_SHARE_DELETE, so
+# a reader of the file - the watcher's look, a status read, the icon's menu - refuses a write for as long
+# as its one read takes. A write tries again for up to half a second, under the lock, before it is refused:
+# otherwise a stop pressed at such a moment would be lost.
+REPLACE_TRIES = 20
+REPLACE_PAUSE = 0.025
+
+
+def _replace(temporary, path):
+    """os.replace, tried again while a reader holds `path` open (PermissionError); the last refusal raises."""
+    for attempt in range(REPLACE_TRIES):
+        try:
+            os.replace(temporary, path)
+            return
+        except PermissionError:
+            if attempt == REPLACE_TRIES - 1:
+                raise
+            time.sleep(REPLACE_PAUSE)
 
 
 def _write(path, document) -> bool:
@@ -67,7 +85,7 @@ def _write(path, document) -> bool:
             json.dump(document, handle, allow_nan=False, sort_keys=True)
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(temporary, path)
+        _replace(temporary, path)
         return True
     except (OSError, ValueError, TypeError):
         try:
