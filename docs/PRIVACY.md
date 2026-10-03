@@ -284,9 +284,12 @@ It also asks Windows content-free questions, chiefly two: which ChatGPT and Code
 running (process id, parent and executable path), to find the desktop app; and, through the
 Restart Manager, which process has the conversation's lock file open, to tell whether the
 conversation is open in the app. The rest are content-free too: the path and start time of a
-process it found, to confirm it is still the same one; the per-user registry values it
-registered itself; whether High Contrast is on and, from v0.6.4, whether Windows is set to show
-apps light or dark - the per-user `AppsUseLightTheme` value, which it reads and never writes - so
+process it found, to confirm it is still the same one; where the app runs more than one
+process of the configured Codex engine, which of them has Codex's queue or state database open, asked
+of the Restart Manager too, to tell which is the app's own Codex server; the per-user
+registry values it registered itself; whether High Contrast is on and, from v0.6.4, whether
+Windows is set to show apps light or dark - the per-user `AppsUseLightTheme` value, which it
+reads and never writes - so
 the Dashboard, the popup and its menu can be drawn to match; and the integrity level of the
 watcher's single-instance mutex and stop event, a check that is new in v0.6.0. From v0.6.5 the
 notification card and the icon's motion ask a few more, all content-free and described under
