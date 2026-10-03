@@ -276,6 +276,24 @@ class WordingTests(unittest.TestCase):
         self.assertIn("which release is newest", passage)
         self.assertIn("api.github.com", passage, "the skill tells Codex of one request of two")
 
+    def test_every_privacy_summary_names_the_version_picker(self):
+        """From v0.6.12-beta Install another version... reads the whole list of releases on api.github.com,
+        paged, when it is opened and again on a confirmed pick, and downloads the version picked. A summary
+        row that named only Check for updates would leave that read unsaid, so each row names the picker
+        by its button's words in the document's language, and so does what Codex tells people (the skill)."""
+        for name in documents_here(("README.md", "README.ko.md", "docs/GUIDE.md", "docs/GUIDE.ko.md")):
+            with self.subTest(name):
+                text = (ROOT / name).read_text(encoding="utf-8")
+                row = [line for line in text.splitlines()
+                       if line.startswith("|") and re.search(r"(?i)telemetry|텔레메트리", line)]
+                self.assertTrue(row, "%s has no privacy row in its summary table" % name)
+                words = "다른 버전 설치" if name.endswith(".ko.md") else "Install another version"
+                self.assertIn(words, row[0], "%s's privacy row leaves the version picker's list unsaid" % name)
+        skill = (ROOT / "skills" / "codex-auto-resume" / "SKILL.md").read_text(encoding="utf-8")
+        start = skill.index("- Its own runtime has no network code")
+        passage = re.split(r"\n(?:- |\n)", skill[start + 2:], maxsplit=1)[0]
+        self.assertIn("Install another version", passage, "the skill tells Codex of the update check alone")
+
     def test_no_released_version_has_lost_its_changelog_section(self):
         """A guard against over-correcting.
 

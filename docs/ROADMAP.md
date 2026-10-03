@@ -609,6 +609,11 @@ things people asked for:
   means - a change of edition turns every advanced capability off, a pre-release is tested less, and
   an older version has the state converted first, with a copy, as `downgrade-state` does - and checks
   what it downloads as every install does. It was planned for v0.6.11 and not finished in time.
+  **Built for v0.6.12-beta:** *Install another version...*, last in the Diagnostics page's Tools
+  card, lists every version from v0.6.2 on in both editions, greys each it cannot install with the
+  reason, and converts the state for a version from v0.6.2 to v0.6.11-alpha only after the archive
+  passed its checks. For now it offers a pre-release only where the update check would offer that
+  same one; offering the others waits for I12 to be amended, in a commit of its own.
 - **A power action once a usage limit's recoveries are done**
   ([discussion #22](https://github.com/songyb111-gachon/codex-auto-resume-windows/discussions/22)):
   sleep, hibernate or shut down the PC once every recovery waiting for a usage limit to reset has

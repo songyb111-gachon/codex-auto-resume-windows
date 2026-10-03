@@ -191,6 +191,14 @@ when you say yes, checked against the `.sha256` published beside it - step 1 of 
 for you. For a pre-release, steps 1, 2 and 4 are the whole check,
 with `--source-ref refs/tags/vX.Y.Z-alpha` in step 4, and step 3 does not apply.
 
+*Install another version...* on the Dashboard's Diagnostics page checks a picked version the same
+way: against the digest pinned for that edition and version in the installed copy's
+`scripts/release.json` where there is one - it holds the pins of the releases published before the
+version you have - and otherwise against the `.sha256` published beside it, saying which; a version
+published with neither is greyed and never fetched. Its archive then goes through every contents
+check below, and nothing from it runs, and nothing of your state is converted, until all of them
+passed. It does not check the attestation either.
+
 v0.5.0 and v0.5.1 predate the `sha256` pin table and have no entry. For them only the `.sha256`
 and the release-page digest apply (they have no attestation either). Any other version
 that is on the releases page but missing from the table was published recently, and its

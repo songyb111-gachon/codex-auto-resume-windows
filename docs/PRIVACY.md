@@ -49,7 +49,16 @@ footnote. There are four kinds, and they are genuinely different:
   above. A list that cannot be read, or has not arrived within the time the check has left, changes
   nothing else in the answer.
 
-  Nothing about you is sent. Neither request carries an identifier this product invented — no
+  *Install another version...*, on the same page, reads that list as well, all of it, because it
+  shows every version you may pick: up to five HTTPS `GET` requests, without signing in, to
+  `api.github.com/repos/songyb111-gachon/codex-auto-resume-windows/releases?per_page=30&page={page}`,
+  where only the page number changes, with no redirect followed. It reads them when you press the
+  button and once more when you confirm a version, and at no other time; a page that cannot be read
+  lists nothing and installs nothing. Confirming then downloads that one version's archive, and its
+  checksum where no digest is pinned for it, as above. Whether your administrator has set a policy
+  for this product it reads from this PC's registry, read only, and that answer goes nowhere.
+
+  Nothing about you is sent. None of these requests carries an identifier this product invented — no
   installation id, no version of yours, no machine name, no account — and GitHub sees what
   it sees for any anonymous request to a public page or its API: an IP address, a time and a
   user agent. It happens when you press the button and at no other time.
@@ -763,7 +772,8 @@ already on this machine.
 you download the ZIP yourself; for the marketplace refresh described under
 [Installing it](#installing-it) when a marketplace it refreshes points at GitHub; for *Check
 for updates*, which from v0.6.11 also reads this repository's list of releases from
-api.github.com; and, from v0.6.5, for the Codex compatibility data from raw.githubusercontent.com
+api.github.com; for *Install another version...*, which reads that whole list there and downloads
+the version you confirm; and, from v0.6.5, for the Codex compatibility data from raw.githubusercontent.com
 when you ask for it. It is subject to GitHub's own privacy practices, as any download would be.
 
 **OpenAI**, only through the official Codex app and CLI already signed in on your machine:
