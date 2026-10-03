@@ -48,7 +48,7 @@ namespace CodexAutoResume
         private string powerOffered;
 
         /// Builds the card at the end of `stack` - Settings > General, right after Notifications - in the state it was
-        /// last known in, and asks the bridge what Windows offers here.
+        /// last known in, and asks the bridge what Windows offers here only if the card is being shown (B16).
         private void BuildPower(TableLayoutPanel stack)
         {
             powerCard = NewGroup(S("power.title", "When usage-limit recoveries finish"), stack);
@@ -93,6 +93,16 @@ namespace CodexAutoResume
             powerCard.Controls.Add(HelpText(S("power.help",
                 "Only Codex in this Codex home is checked: other programs, downloads and unsaved work are not. It never sends anything to Codex and changes no Windows setting. It applies at once; Save does not change it.")));
             ShowPower();
+            LoadPowerWhereShown();
+        }
+
+        /// Asks what Windows offers here - whether this account may shut down, which sleep states the PC has - each time
+        /// the card is shown: Settings is the page and General the section. The editors, this card with them, are built
+        /// at the first idle after the window opens whatever page it opened on, and that alone asks Windows nothing
+        /// (B16). ShowPage and ShowSection ask here as they show it; Turn on and Turn off ask again.
+        private void LoadPowerWhereShown()
+        {
+            if (currentPage != "settings" || currentSection != "general") return;
             LoadPower();
         }
 

@@ -927,6 +927,8 @@ namespace CodexAutoResume
             if (auditing) return;
             if (name == "statistics") LoadStatistics();
             if (name == "diagnostics") LoadCompatibility();
+            // The power action's card, if Settings opens on General: what Windows offers is asked once it is shown.
+            if (settings) LoadPowerWhereShown();
             // Not when the snapshot on screen is under two seconds old: switching pages straight
             // after a read asked for the same answer again - 17-87 ms of Python and up to 45 ms of
             // redrawing, for nothing new.

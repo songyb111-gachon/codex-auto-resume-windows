@@ -153,6 +153,25 @@ for _reason in ("installed", "unreadable", "needs-force", "force-not-needed", "c
                 "state"):
     PICKS["refused_" + _reason] = ("  [!] no\npick: refused " + _reason, 15, "refused", _reason, None, None)
 
+# name -> (the picked row, the version installed, whether the confirmation says Check for updates in that version
+# brings you back). Its check stays in its edition and offers a release from v0.6.2 on, a pre-release only from
+# v0.6.11-beta.2, the first bootstrap with Get-NewerPrerelease; v0.6.2 to v0.6.11-beta read releases/latest alone.
+WAY_BACK = {
+    "a_release_from_a_prerelease_that_offers_them": ("0.6.11 standard offered older,release,kept", "0.6.12-beta", True),
+    "the_first_that_offers_prereleases": ("0.6.11-beta.2 standard offered older,prerelease,kept", "0.6.12-beta", True),
+    "an_older_prerelease_of_this_line": ("0.6.12-alpha.2 standard offered older,prerelease,kept", "0.6.12-beta", True),
+    "one_that_reads_latest_alone": ("0.6.11-beta standard offered older,prerelease,kept", "0.6.12-beta", False),
+    "a_release_that_reads_latest_alone": ("0.6.10 standard offered older,release,convert3", "0.6.12-beta", False),
+    "the_floor_from_a_prerelease": ("0.6.2 standard offered older,release,convert3", "0.6.12-beta", False),
+    "the_floor_from_a_release": ("0.6.2 standard offered older,release,convert3", "0.6.12", True),
+    "an_advanced_release_from_a_prerelease": ("0.6.11 advanced offered older,release,kept", "0.6.12-beta", True),
+    "an_advanced_one_that_reads_latest_alone": ("0.6.11-alpha advanced offered older,prerelease,convert3,advanced-off",
+                                                "0.6.12-beta", False),
+    "another_edition_from_a_release": ("0.6.11 advanced offered older,release,kept,edition", "0.6.12", False),
+    "the_standard_edition_from_the_advanced": ("0.6.10 standard offered older,release,convert3,edition", "0.6.12", False),
+    "a_newer_one": ("0.6.13 standard offered newer,release,kept,latest", "0.6.12", False),
+}
+
 PROBE = r"""
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
@@ -162,8 +181,15 @@ $flags = [Reflection.BindingFlags]'Static,NonPublic,Public'
 $versions = $form.GetMethod('VersionsLines', $flags)
 $pick = $form.GetMethod('PickLine', $flags)
 $rule = $form.GetField('VersionRule', $flags).GetValue($null)
-if (-not $versions -or -not $pick -or -not $rule) { throw 'SettingsForm lacks a parser' }
-$out = @{ versions = @{}; picks = @{}; rule = @() }
+$wayBack = $form.GetMethod('WayBack', $flags)
+if (-not $versions -or -not $pick -or -not $rule -or -not $wayBack) { throw 'SettingsForm lacks a parser' }
+$out = @{ versions = @{}; picks = @{}; rule = @(); way_back = @{} }
+foreach ($case in (ConvertFrom-Json $env:CAR_WAY_BACK).PSObject.Properties) {
+    $arguments = New-Object 'object[]' 2
+    $arguments[0] = [string[]]([string]$case.Value[0]).Split(' ')
+    $arguments[1] = [string]$case.Value[1]
+    $out.way_back[$case.Name] = [bool]$wayBack.Invoke($null, $arguments)
+}
 foreach ($case in (ConvertFrom-Json $env:CAR_VERSIONS).PSObject.Properties) {
     $arguments = [object[]]@([string]$case.Value[0], [int]$case.Value[1], $null, $null)
     $state = $versions.Invoke($null, $arguments)
@@ -216,7 +242,8 @@ class ParserTests(unittest.TestCase):
             env=dict(os.environ, CAR_EXE=str(exe),
                      CAR_VERSIONS=json.dumps({name: [case[0], case[1]] for name, case in VERSIONS.items()}),
                      CAR_PICKS=json.dumps({name: [case[0], case[1]] for name, case in PICKS.items()}),
-                     CAR_RULE=json.dumps([text for text, _ in rule_cases()])))
+                     CAR_RULE=json.dumps([text for text, _ in rule_cases()]),
+                     CAR_WAY_BACK=json.dumps({name: [case[0], case[1]] for name, case in WAY_BACK.items()})))
         cls.result = result
         cls.answer = json.loads(result.stdout) if result.returncode == 0 and result.stdout.strip() else {}
 
@@ -250,6 +277,13 @@ class ParserTests(unittest.TestCase):
         for text, accepted in rule_cases():
             with self.subTest(ascii(text)):
                 self.assertEqual(read[text], accepted)
+
+    def test_the_way_back_is_said_only_where_that_versions_check_for_updates_brings_you_back(self):
+        """Check for updates in v0.6.2 to v0.6.11-beta reads releases/latest alone, so from a pre-release it can
+        never offer the one you came from, and no version's check changes the edition."""
+        for name, (_, _, said) in sorted(WAY_BACK.items()):
+            with self.subTest(name):
+                self.assertIs(self.answer["way_back"][name], said)
 
 
 class WindowTests(unittest.TestCase):
@@ -339,6 +373,16 @@ class WindowTests(unittest.TestCase):
         opened = self.body("OpenVersions")
         self.assertIn("if (!ConfirmPick(picked, listed)) return;", opened)
         self.assertIn('picked[2] != "offered"', opened, "only an offered row is ever asked about")
+
+    def test_the_way_back_is_said_only_where_it_holds(self):
+        """For an older row the confirmation said "To come back, use Check for updates in that version." whatever the
+        row: false from a pre-release for v0.6.2 to v0.6.11-beta, and after any change of edition (WayBack)."""
+        confirm = self.body("ConfirmPick")
+        self.assertIn('if (WayBack(row, listed[0]))\n                text.Add(S("pick.confirm.way_back"', confirm)
+        self.assertEqual(confirm.count('"pick.confirm.way_back"'), 1)
+        way_back = self.body("WayBack")
+        self.assertIn('!HasWord(row, "older") || HasWord(row, "edition")', way_back)
+        self.assertIn("CompareVersions(row[0], PrereleaseOffersSince) >= 0", way_back)
 
     def test_force_goes_with_an_older_row_or_the_other_edition_alone(self):
         install = self.body("InstallPick")

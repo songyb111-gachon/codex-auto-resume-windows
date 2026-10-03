@@ -67,6 +67,32 @@ class PlaceTests(unittest.TestCase):
         self.assertIn('Get(status, "watcher_running")', follow)
 
 
+class AskedWhenShownTests(unittest.TestCase):
+    """B16 and PRIVACY: whether this account may shut down and which sleep states the PC offers are asked when
+    the Dashboard shows the card, and when it turns the power action on or off - never because the card was
+    built. The Settings editors, the card with them, are built at the first idle after the window opens,
+    whatever page it opened on, and building them used to ask Windows on every opening of the Dashboard."""
+
+    def test_building_the_card_asks_only_where_it_is_shown(self):
+        build = body("BuildPower")
+        self.assertNotIn("LoadPower();", build)
+        self.assertIn("LoadPowerWhereShown();", build)
+        shown = body("LoadPowerWhereShown")
+        for condition in ('currentPage != "settings"', 'currentSection != "general") return;'):
+            with self.subTest(condition):
+                self.assertIn(condition, shown.split("LoadPower();")[0])
+        self.assertIn("LoadPower();", shown)
+
+    def test_showing_settings_or_its_general_section_asks(self):
+        for member in ("ShowPage", "ShowSection"):
+            with self.subTest(member):
+                self.assertIn("LoadPowerWhereShown();", body(member))
+
+    def test_nothing_else_asks(self):
+        self.assertEqual(len(re.findall(r"\bLoadPower\(\);", guiscan.whole())), 3,
+                         "where the card is shown, after Turn off and after Turn on")
+
+
 class NotAnEditorTests(unittest.TestCase):
     def test_none_of_its_controls_is_an_editor(self):
         source = card()

@@ -321,10 +321,50 @@ namespace CodexAutoResume
             text.Add(S("pick.confirm.checked", "The download is checked against its pinned digest or its published checksum before anything runs.") + " " +
                      (older ? S("pick.confirm.kept_older", "Every record, your pause and the sign-in choice are kept.")
                             : S("pick.confirm.kept", "Your settings, your pause, everything waiting and the sign-in choice are kept.")));
-            if (older)
+            if (WayBack(row, listed[0]))
                 text.Add(S("pick.confirm.way_back", "To come back, use Check for updates in that version."));
             return Dialog(string.Join(Environment.NewLine + Environment.NewLine, text.ToArray()),
                           S("action.install", "Install"), S("action.not_now", "Not now"));
+        }
+
+        /// The first version whose Check for updates offers a pre-release (the bootstrap's Get-NewerPrerelease): v0.6.2
+        /// to v0.6.11-beta read releases/latest alone, which never answers with one.
+        internal const string PrereleaseOffersSince = "0.6.11-beta.2";
+
+        /// Whether Check for updates in the older version the row names brings this installation back: that check
+        /// installs in its own edition, so only without a change of edition, and it offers the newest release from
+        /// v0.6.2 on but a pre-release only from PrereleaseOffersSince - so from a pre-release only a version that new.
+        internal static bool WayBack(string[] row, string installed)
+        {
+            if (!HasWord(row, "older") || HasWord(row, "edition")) return false;
+            if (installed.IndexOf('-') < 0) return true;
+            return CompareVersions(row[0], PrereleaseOffersSince) >= 0;
+        }
+
+        /// -1, 0 or 1 by the bootstrap's own rule (Compare-ProductVersion): three integers, then the stage - alpha, beta,
+        /// the release - and the stage's number, the plain word its first. A text no version by VersionRule sorts first.
+        internal static int CompareVersions(string left, string right)
+        {
+            int[] a = VersionParts(left), b = VersionParts(right);
+            if (a == null || b == null) return a == null ? (b == null ? 0 : -1) : 1;
+            for (int i = 0; i < a.Length; i++)
+                if (a[i] != b[i]) return a[i] < b[i] ? -1 : 1;
+            return 0;
+        }
+
+        private static int[] VersionParts(string version)
+        {
+            var match = VersionRule.Match(version ?? "");
+            if (!match.Success) return null;
+            int stage = 2, number = 0;
+            if (match.Groups[5].Success)
+            {
+                stage = match.Groups[5].Value == "alpha" ? 0 : 1;
+                number = match.Groups[7].Success ? int.Parse(match.Groups[7].Value, CultureInfo.InvariantCulture) : 1;
+            }
+            return new[] { int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture),
+                           int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture),
+                           int.Parse(match.Groups[3].Value, CultureInfo.InvariantCulture), stage, number };
         }
 
         // ------------------------------------------------------------------ the install

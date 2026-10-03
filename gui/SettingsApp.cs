@@ -798,6 +798,8 @@ namespace CodexAutoResume
                 // Cached: a switch used to create a font for every item in the list.
                 pair.Value.Font = Soft.RoleFont(pair.Key == name ? "nav_current" : "nav");
             }
+            // General holds the power action's card: what Windows offers is asked the first time it is shown.
+            LoadPowerWhereShown();
         }
 
         private const int WM_SETREDRAW = 0x000B;

@@ -270,8 +270,12 @@ included.
 
 Afterwards the window says whether the watcher now runs the version installed, and, where the state was
 converted, how many continuations were made final and how many conversations were switched off. Close
-the window and open it again so it runs the version installed. To come back, use *Check for updates* in
-that version. If the installer fails after the state was converted, the state stays converted - it
+the window and open it again so it runs the version installed. For an older version of the edition you
+have, the question also says to come back with *Check for updates* in that version - but only where that
+works: from a release, any version's check offers the newest release; from a pre-release, only a version
+from v0.6.11-beta.2 on, the first whose check offers pre-releases, and no check changes the edition.
+Otherwise come back with this version's setup program, from its release page. If the installer fails
+after the state was converted, the state stays converted - it
 sends less, never more - and the window says what stays; a copy of the state as it was is kept in the
 state folder.
 
