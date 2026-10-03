@@ -244,6 +244,9 @@ def collect(control, *, now=None, redact=None) -> dict:
         # v0.6.11: the administrator's policy keys in force, by name only - never their values.
         if "managed" in status:
             bundle["status"]["managed"] = list(status["managed"])
+        # v0.6.12: the power action's closed words and times - never its nonce, which the view leaves out.
+        if "power_action" in status:
+            bundle["status"]["power_action"] = status["power_action"]
     except Exception as exc:
         bundle["status"] = {"error": redact.text(str(exc))[:200]}
     try:

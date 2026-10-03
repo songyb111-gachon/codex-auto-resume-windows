@@ -13,7 +13,8 @@
     codexstart  the launch Codex asks for, and the note saying why it was refused
     watcher     whether it runs, whether it starts at sign-in, starting and stopping it
     tools       Diagnostics' own: the log searched, the state folder's access, a demo (v0.6.11)
-    layer       `Control` composed from the nine mixins above
+    poweraction the power action after usage-limit recoveries: its file, armed and turned off (v0.6.12)
+    layer       `Control` composed from the ten mixins above
 
 Nothing here sends. The watcher is the only thing that hands anything to Codex, and every
 method in `actions` changes a flag, a schedule or a budget and then stops - which is the rule
@@ -45,4 +46,5 @@ from .watcher import (TICK_STALE_SECONDS,
                       _version,
                       await_stopped,
                       await_watcher)  # noqa: F401
+from .poweraction import DISARM_ACTORS, IGNORED, STOP_ACTORS, STOPPED  # noqa: F401
 from .layer import Control  # noqa: F401

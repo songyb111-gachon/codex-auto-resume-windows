@@ -1,6 +1,6 @@
 """The control layer itself, assembled.
 
-`Control` is one class in nine files. It is composed here rather than in the package's
+`Control` is one class in ten files. It is composed here rather than in the package's
 `__init__`, so that the front beside this holds a docstring and re-exports and no code, which
 is what `tests/test_reexports.py` reads a front as.
 
@@ -19,6 +19,7 @@ from ..domain.plug import guard
 from .actions import ActionsMixin
 from .codexstart import CodexStartMixin
 from .policy import SettingsMixin
+from .poweraction import PowerActionMixin
 from .preview import PreviewMixin
 from .records import RecordsMixin
 from .seen import SeenMixin
@@ -28,7 +29,7 @@ from .watcher import WatcherMixin
 
 
 class Control(StateMixin, SeenMixin, SettingsMixin, RecordsMixin, PreviewMixin,
-              ActionsMixin, CodexStartMixin, WatcherMixin, ToolsMixin):
+              ActionsMixin, CodexStartMixin, WatcherMixin, ToolsMixin, PowerActionMixin):
     """Bound to one runtime home. Cheap to construct; opens the store per call."""
 
     def __init__(self, home=None, *, plug=None):

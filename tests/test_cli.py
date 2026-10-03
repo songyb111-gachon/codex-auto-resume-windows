@@ -497,6 +497,25 @@ class UninstallSafetyTests(unittest.TestCase):
         self.assertFalse((self.home / "config" / "state.sqlite").exists())
         self.assertTrue(stranger.exists(), "unmatched names in our own dir are still left alone")
 
+    def test_a_purge_takes_the_power_action_s_file_and_keep_state_keeps_it(self):
+        """v0.6.12: config/power-action.json is owned state (D10) - kept by the installer's ordinary
+        uninstall, which keeps state, and taken with the rest by a purge."""
+        for flags, kept in (((), False), (("--keep-state",), True)):
+            with self.subTest(flags=flags):
+                shutil.rmtree(self.home, ignore_errors=True)
+                self.cli("install")
+                paths = config.Paths(self.home)
+                paths.power_action_file.write_text(
+                    '{"format": "codex-auto-resume/power-action/1", "armed": null, "shown": null, "last": null}',
+                    encoding="utf-8")
+                left = paths.state_dir / "power-action.4242.tmp"
+                left.write_text("{}", encoding="utf-8")
+                with patch.object(startup, "_winreg", return_value=FakeWinreg()):
+                    code, _, _ = self.cli("uninstall", *flags)
+                self.assertEqual(code, 0)
+                self.assertEqual(paths.power_action_file.exists(), kept)
+                self.assertEqual(left.exists(), kept)
+
     def test_uninstall_aborts_when_watcher_state_is_unknown(self):
         self.cli("install")
         app = App(config.Paths(self.home), console=False, enable_logging=False)

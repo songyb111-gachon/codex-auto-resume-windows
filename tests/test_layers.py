@@ -139,7 +139,9 @@ LAYER = {_q(name): layer for layer, names in {
                 "control.layer", "control.policy", "control.preview", "control.records",
                 "control.seen", "control.state", "control.watcher", "control.wire", "diagnostics",
                 # v0.6.11: Diagnostics' own tools - the log searched, the state folder's access, a demo.
-                "control.tools"),
+                "control.tools",
+                # v0.6.12: the power action's file, armed only from the Dashboard.
+                "control.poweraction"),
     "front": ("auto_resume", "cli", "controlcli", "mcpserver", "mcp.panel", "app", "ui.tray",
               # v0.6.10-alpha: app.py became runtime/ - the wiring, the loop and the toasts.
               "runtime", "runtime.app", "runtime.loop", "runtime.toasts",

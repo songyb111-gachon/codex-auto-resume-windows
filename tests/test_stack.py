@@ -131,6 +131,8 @@ ITEM = {_q(name): item for item, names in {
                 "control.seen", "control.state", "control.watcher", "control.wire",
                 # v0.6.11: Diagnostics' own tools.
                 "control.tools",
+                # v0.6.12: the power action's file.
+                "control.poweraction",
                 "auto_resume", "cli", "controlcli", "diagnostics",
                 "commands", "commands.base", "commands.install", "commands.records",
                 "commands.status", "commands.watcher",
