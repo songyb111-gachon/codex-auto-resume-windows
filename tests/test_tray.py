@@ -108,7 +108,14 @@ class PowerMenuTests(unittest.TestCase):
         self.control = control.Control(self.paths)
         self.menu = menu
         self.logged = []
+        # The menu speaks the stored Interface language (_adopt_settings), whose default follows Windows:
+        # English is stored, so the words below are this PC's in no language but the one chosen.
+        self.choose_language("en")
         self.icon = tray.Tray(strings=dict(interface.STRINGS["en"]), control=self.control, log=self.logged.append)
+
+    def choose_language(self, language):
+        from codex_auto_resume import settings
+        settings.save(self.paths.settings_file, dict(settings.defaults(), interface_language=language))
 
     def arm(self, action):
         import json
@@ -143,6 +150,17 @@ class PowerMenuTests(unittest.TestCase):
         self.assertNotIn(tray.MENU_POWER_OFF, [identifier for identifier, _ in self.open()],
                          "a file that cannot be believed is off")
         self.assertEqual(self.logged, [])
+
+    def test_the_item_speaks_the_language_stored(self):
+        self.choose_language("ko")
+        self.icon = tray.Tray(strings=dict(interface.STRINGS["en"]), control=self.control, log=self.logged.append)
+        korean = interface.STRINGS["ko"]
+        for action in ("sleep", "hibernate", "shut_down"):
+            with self.subTest(action=action):
+                self.arm(action)
+                words = dict(self.open())[tray.MENU_POWER_OFF]
+                self.assertEqual(words, korean["menu.power_off." + action])
+                self.assertNotEqual(words, interface.STRINGS["en"]["menu.power_off." + action])
 
     def test_choosing_it_turns_it_off_as_the_icon(self):
         import json
