@@ -59,6 +59,9 @@ METHODS = {
     # v0.6.11 stage 3b: a route the plug names for a conversation the app does not hold (P16),
     # taken where core would wait, carried out through the one claim, and what came of it.
     "_unloaded", "_resume_unloaded", "_after_resume",
+    # v0.6.12: what may still run in Codex, for the power action after usage-limit recoveries - counts
+    # and sizes only, asked only once its own checks pass (engine/freshness.py).
+    "activity",
 }
 
 # What `from codex_auto_resume.engine import ...` has to keep answering (app.py, the tests).
