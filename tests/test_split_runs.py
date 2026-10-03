@@ -10,6 +10,9 @@ result a whole run gives. What is held here:
 * DealTests - the deal is a partition, the same every time, and balanced by the recorded durations.
 * LaneDurationsTests - each lane is dealt by its own seconds, then by the figure for every lane, then
   round-robin; a recorded run writes its own lane; and each lane's parts come out about even.
+* SecondsFileTests - --seconds writes a run's seconds to a file of their own and leaves the durations as
+  they are; --merge-seconds takes such files, a folder of them as `gh run download` leaves one, into the
+  durations exactly as --record-durations takes the same seconds, and refuses what is not one.
 * WorkerTests - a real worker on a small suite records each test id's outcome as unittest reports it, and
   the whole run - `unittest discover` itself, the run the parts are compared with - records the same.
 * PartTests - every suite of a part runs, and the part fails after the last if any of them failed.
@@ -20,11 +23,14 @@ result a whole run gives. What is held here:
   once still runs once.
 * MainTreeTests - test.yml's main-tree job runs the release's lane on dev's tree with every Korean
   source taken off, as main and the release will hold it.
+* WorkflowSecondsTests - every job of test.yml that runs a part keeps that part's seconds as an artifact,
+  failed or not, under a name no other job of the run has, with the read access the workflow has.
 
 The comparison of a whole run with a parallel one, test id by test id, is in CONTRIBUTING.md; it takes
 as long as the suite, so it is a command rather than a test. It was made on both editions' lanes.
-tests/data/durations.json holds each lane's seconds on GitHub's runners, read from CI's job logs; its
-`about` names the runs.
+tests/data/durations.json holds each lane's seconds on GitHub's runners; its `about` names the runs they
+came from. They were read from CI's job logs, where a test with a docstring was credited to the file after
+it; every part CI runs now keeps its own seconds, as the runner measured them, for --merge-seconds.
 """
 from __future__ import annotations
 
@@ -309,6 +315,146 @@ class LaneDurationsTests(unittest.TestCase):
                                          "the %s lane's parts would take %s s" % (lane, [round(t) for t in totals]))
 
 
+class SecondsFileTests(unittest.TestCase):
+    """--seconds writes a run's seconds per file - what --record-durations would record - to a file of their
+    own and leaves the durations alone. CI keeps one for each part, `gh run download <run> -p 'seconds-*'
+    -D <folder>` leaves a folder for each, and --merge-seconds takes them into the durations by
+    --record-durations' rules. Read from the job logs instead, a test with a docstring was credited to the
+    file after it."""
+
+    RUN = "37056482710"
+
+    def setUp(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.folder = Path(folder.name)
+        self.a, self.b, self.c, self.d = parts.lane_files("standard")[:4]
+        self.gone = "tests/test_no_such_file_any_more.py"
+        self.before = {"seconds": {self.a: 1.0, self.gone: 5.0},
+                       "lanes": {"standard": {self.a: 2.0, self.b: 3.0, self.gone: 4.0}, "release": {self.a: 7.0}}}
+
+    def durations(self, name: str) -> Path:
+        path = self.folder / name
+        path.write_text(json.dumps(self.before), encoding="utf-8")
+        return path
+
+    def finish(self, argv, seconds, path, part="1/4", ok=True, run=RUN):
+        """main() as a part's run ends, `seconds` what the part measured, `run` GitHub's run id if any."""
+        merged = {"ok": ok, "outcomes": {}, "counts": {"run": 1}, "seconds": dict(seconds), "part": part}
+        with mock.patch.object(parts, "DURATIONS", path), mock.patch.object(parts, "say"), \
+                mock.patch.object(parts, "run_part", return_value=merged), mock.patch.dict(os.environ):
+            os.environ.pop("GITHUB_RUN_ID", None)
+            if run:
+                os.environ["GITHUB_RUN_ID"] = run
+            return parts.main(argv)
+
+    def keep(self, lane, python, part, seconds, run=RUN) -> Path:
+        """One part's seconds file where `gh run download` puts it: in a folder named for its artifact."""
+        out = self.folder / "downloaded" / ("seconds-%s-%s-%s" % (lane, python, part)) / "seconds.json"
+        self.finish(["--lane", lane, "--part", "%s/4" % part, "--seconds", str(out)], seconds,
+                    self.folder / "untouched.json", part="%s/4" % part, run=run)
+        return out
+
+    def merge(self, path, *given):
+        said = []
+        with mock.patch.object(parts, "DURATIONS", path), mock.patch.object(parts, "say", said.append):
+            code = parts.main(["--merge-seconds"] + [str(name) for name in given])
+        return code, said
+
+    @staticmethod
+    def tables(path: Path) -> dict:
+        document = json.loads(path.read_text(encoding="utf-8"))
+        return {key: document[key] for key in ("seconds", "lanes")}
+
+    def test_a_run_writes_its_seconds_and_leaves_the_durations_as_they_are(self):
+        path = self.durations("durations.json")
+        before = path.read_bytes()
+        out = self.folder / "artifact" / "seconds.json"
+        self.assertEqual(self.finish(["--lane", "advanced", "--part", "2/4", "--seconds", str(out)],
+                                     {self.b: 30.04, self.c: 40.0}, path, part="2/4"), 0)
+        self.assertEqual(path.read_bytes(), before)
+        self.assertEqual(json.loads(out.read_text(encoding="utf-8")), {
+            "lane": "advanced", "parts": 4, "part": "2/4", "python": sys.version.split()[0], "run": self.RUN,
+            "seconds": {self.b: 30.04, self.c: 40.0}})
+        # A failed part timed its files too; off GitHub's runners there is no run to name.
+        self.assertEqual(self.finish(["--lane", "standard", "--part", "1/4", "--seconds", str(out)], {self.a: 2.5},
+                                     path, ok=False, run=None), 1)
+        document = json.loads(out.read_text(encoding="utf-8"))
+        self.assertEqual((document["lane"], document["seconds"]), ("standard", {self.a: 2.5}))
+        self.assertNotIn("run", document)
+        self.assertEqual(path.read_bytes(), before)
+
+    def test_merging_a_runs_parts_writes_what_record_durations_writes(self):
+        recorded, merged = self.durations("recorded.json"), self.durations("merged.json")
+        self.assertEqual(self.finish(["--lane", "advanced", "--part", "1/4", "--record-durations"],
+                                     {self.b: 30.04, self.c: 40.0, self.d: 0.5}, recorded), 0)
+        self.keep("advanced", "3.13", 1, {self.b: 30.04})
+        self.keep("advanced", "3.13", 2, {self.c: 40.0, self.d: 0.5})
+        code, said = self.merge(merged, self.folder / "downloaded")
+        self.assertEqual(code, 0)
+        self.assertIn("lane advanced: 3 files timed, written into its table", said)
+        self.assertEqual(self.tables(merged), self.tables(recorded))
+        self.assertEqual(self.tables(merged)["lanes"], {"advanced": {self.b: 30.0, self.c: 40.0, self.d: 0.5},
+                                                        "release": {self.a: 7.0}, "standard": {self.a: 2.0, self.b: 3.0}})
+        self.assertIn("The advanced lane's table was last written by --merge-seconds from 2 seconds files of CI run "
+                      "%s," % self.RUN, json.loads(merged.read_text(encoding="utf-8"))["about"])
+
+    def test_several_jobs_and_lanes_are_each_lanes_median_by_the_same_rules(self):
+        """A file timed by a job for each Python takes their median in its lane, and the lanes are taken in
+        LANES' order, as --record-durations would take them one after the other: the figure for every lane
+        that a file lacked is the first lane's."""
+        for python, figure in (("3.12", 10.0), ("3.13", 60.0), ("3.14", 20.0)):
+            self.keep("standard", python, 1, dict({self.a: figure}, **({self.b: 3.33} if python == "3.13" else {})))
+        for python, figure in (("3.12", 4.0), ("3.13", 6.0)):
+            self.keep("advanced", python, 3, {self.c: figure, self.b: 99.0, self.gone: 1.0})
+        alone = self.folder / "release.json"
+        alone.write_text(json.dumps({"lane": "release", "run": "37046753377", "seconds": {
+            self.d: 8.0, self.a: -1, self.b: True, self.c: "5"}}), encoding="utf-8")
+        merged = self.durations("merged.json")
+        code, said = self.merge(merged, self.folder / "downloaded", alone)
+        self.assertEqual(code, 0, said)
+        self.assertEqual(self.tables(merged), {
+            "seconds": {self.a: 1.0, self.b: 3.3, self.c: 5.0, self.d: 8.0},
+            "lanes": {"advanced": {self.b: 99.0, self.c: 5.0}, "release": {self.a: 7.0, self.d: 8.0},
+                      "standard": {self.a: 20.0, self.b: 3.3}}})
+        self.assertIn("The standard, advanced and release lanes' tables were last written by --merge-seconds from 6 "
+                      "seconds files of CI runs 37046753377, %s," % self.RUN,
+                      json.loads(merged.read_text(encoding="utf-8"))["about"])
+        recorded = self.durations("recorded.json")
+        for lane, seconds in (("standard", {self.a: 20.0, self.b: 3.33}), ("advanced", {self.c: 5.0, self.b: 99.0}),
+                              ("release", {self.d: 8.0})):
+            parts.record_durations(seconds, lane, recorded)
+        self.assertEqual(self.tables(merged), self.tables(recorded))
+
+    def test_what_is_not_a_seconds_file_refuses_the_merge_and_nothing_is_written(self):
+        good = self.keep("standard", "3.13", 1, {self.a: 9.0})
+        merged = self.durations("merged.json")
+        before = merged.read_bytes()
+        for name, text in (("list.json", "[1, 2]"), ("broken.json", "{"),
+                           ("nowhere.json", '{"lane": "nowhere", "seconds": {}}'),
+                           ("no-seconds.json", '{"lane": "standard"}'),
+                           ("untimed.json", '{"lane": "standard", "seconds": {"tests/test_x.py": -1}}')):
+            with self.subTest(name):
+                wrong = self.folder / name
+                wrong.write_text(text, encoding="utf-8")
+                with self.assertRaises(SystemExit) as refused:
+                    self.merge(merged, wrong) if name == "untimed.json" else self.merge(merged, good, wrong)
+                self.assertIn("seconds file", str(refused.exception))
+                self.assertEqual(merged.read_bytes(), before)
+                wrong.unlink()
+        empty = self.folder / "empty"
+        empty.mkdir()
+        for absent in (empty, self.folder / "absent.json"):
+            with self.subTest(absent.name), self.assertRaises(SystemExit):
+                self.merge(merged, absent)
+            self.assertEqual(merged.read_bytes(), before)
+
+    def test_the_runner_says_how_ci_keeps_them_and_how_they_come_in(self):
+        for said in ("--seconds FILE", "--merge-seconds <folder>", "gh run download <run> -p 'seconds-*' -D <folder>",
+                     "seconds-<lane>-<python>-<part>", "seconds-release-main-tree-<part>"):
+            self.assertIn(said, parts.__doc__)
+
+
 class WorkerTests(unittest.TestCase):
     """A real worker, on a suite made for it, records what unittest reports."""
 
@@ -572,7 +718,9 @@ class WorkflowPartsTests(unittest.TestCase):
             with self.subTest(name):
                 self.assertIn("if: matrix.part == 1", step(self.tests, name))
         self.assertEqual(self.tests.count("if: matrix.part == 1"), 2)
-        self.assertEqual(len(re.findall(r"(?m)^\s+if:", self.tests)), 2, "no other step is left out of a part")
+        # The seconds are kept in every part, whatever the suite did (WorkflowSecondsTests).
+        self.assertEqual(sorted(re.findall(r"(?m)^\s+if: (.+?)\s*$", self.tests)),
+                         ["always()", "matrix.part == 1", "matrix.part == 1"], "no other step is left out of a part")
 
     def test_the_release_builds_only_after_every_part_passed(self):
         release = workflow("release.yml")
@@ -647,7 +795,70 @@ class MainTreeTests(unittest.TestCase):
 
     def test_it_runs_wherever_the_tree_is_not_already_mains(self):
         self.assertRegex(self.main, r"(?m)^    if: github\.ref != 'refs/heads/main' && github\.base_ref != 'main'\s*$")
-        self.assertEqual(len(re.findall(r"(?m)^\s+if:", self.main)), 1, "every step runs in every part")
+        guards = re.findall(r"(?m)^\s+if: (.+?)\s*$", self.main)
+        self.assertEqual([guard for guard in guards if guard != "always()"], [guards[0]], "every step runs in every part")
+
+
+class WorkflowSecondsTests(unittest.TestCase):
+    """Every job of test.yml that runs a part of a lane writes that part's seconds (--seconds) and keeps them
+    as an artifact, failed or not, under a name no other job of the run has, so tests/data/durations.json is
+    refreshed from a run without reading its logs; pinned as the other workflows pin it, and with nothing
+    more than the read access the workflow has."""
+
+    KEEP = "Keep this part's seconds per file"
+    PIN = "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1"
+    JOBS = {"test": ("Run the automated test suite",
+                     "seconds-${{ matrix.edition }}-${{ matrix.python-version }}-${{ matrix.part }}"),
+            "main-tree": ("Run the release lane on main's tree, this part", "seconds-release-main-tree-${{ matrix.part }}")}
+
+    def setUp(self):
+        self.source = workflow("test.yml")
+
+    def test_every_part_writes_its_seconds_and_keeps_them_whatever_the_suite_did(self):
+        for name, (suite, artifact) in self.JOBS.items():
+            with self.subTest(name):
+                body = job(self.source, name)
+                self.assertRegex(step(body, suite), r'(?m)^        run: python scripts/test_parts\.py --lane .+ '
+                                                    r'--seconds "\$env:RUNNER_TEMP\\seconds\.json"\s*$')
+                keep = step(body, self.KEEP)
+                self.assertLess(body.index("- name: " + suite), body.index("- name: " + self.KEEP))
+                self.assertEqual(body.count("- name: " + self.KEEP), 1)
+                for line in ("if: always()", "uses: " + self.PIN):
+                    self.assertIn("\n        %s\n" % line, keep)
+                for line in ("name: " + artifact, "path: ${{ runner.temp }}/seconds.json", "retention-days: 30",
+                             "overwrite: true"):
+                    self.assertIn("\n          %s\n" % line, keep + "\n")
+        self.assertIn(self.PIN, workflow("release.yml"), "pinned as the release pins it")
+
+    def test_no_two_jobs_of_a_run_keep_their_seconds_under_one_name(self):
+        test = job(self.source, "test")
+        matrix = test[test.index("\n    strategy:"):test.index("\n    steps:")]
+
+        def axis(key):
+            listed = re.search(r"(?m)^        %s: \[([^\]]+)\]\s*$" % re.escape(key), matrix).group(1)
+            return [value.strip().strip('"') for value in listed.split(",")]
+
+        jobs = [{"python-version": python, "edition": edition, "part": part} for python in axis("python-version")
+                for edition in axis("edition") for part in axis("part")]
+        jobs += [{"python-version": python, "edition": edition, "part": part} for python, edition, part in re.findall(
+            r'(?m)^          - \{python-version: "([\d.]+)", experimental: true, edition: (\w+), part: (\d+)\}\s*$', matrix)]
+
+        def render(template, values):
+            return re.sub(r"\$\{\{ matrix\.([a-z-]+) \}\}", lambda found: values[found.group(1)], template)
+
+        names = [render(self.JOBS["test"][1], values) for values in jobs]
+        names += [render(self.JOBS["main-tree"][1], {"part": str(part)})
+                  for part in range(1, declared_parts(job(self.source, "main-tree")) + 1)]
+        self.assertEqual(len(jobs), (len(axis("python-version")) + 1) * len(axis("edition")) * declared_parts(test))
+        self.assertEqual(len(set(names)), len(names), sorted(names))
+        self.assertNotIn("release", axis("edition"), "the main-tree job's names are the release lane's alone")
+
+    def test_keeping_them_asks_for_nothing_more_than_reading(self):
+        self.assertRegex(self.source, r"(?m)^permissions:\n  contents: read\n")
+        self.assertEqual(re.findall(r"(?m)^ *permissions:", self.source), ["permissions:"], "a job asking for more")
+        for wanted in (": write", "write-all", "secrets.", "GITHUB_TOKEN", "download-artifact"):
+            self.assertNotIn(wanted, self.source)
+        self.assertEqual(self.source.count("actions/upload-artifact@"), len(self.JOBS))
 
 
 if __name__ == "__main__":

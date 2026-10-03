@@ -13,6 +13,8 @@ written: CI's lanes (.github/workflows/test.yml), the release's suite (release.y
     python scripts/test_parts.py --outcomes FILE ...      # every test id's outcome, as JSON
     python scripts/test_parts.py --compare A.json B.json  # two outcome files, test by test
     python scripts/test_parts.py --record-durations ...   # write this run's per-file times
+    python scripts/test_parts.py --seconds FILE ...       # the same times, to a file of their own
+    python scripts/test_parts.py --merge-seconds DIR      # such files, from CI, into the durations
     python scripts/test_parts.py --list --parts 8         # show how 8 parts are dealt
     python scripts/test_parts.py --check                  # prove the parts are the discovered suite
 
@@ -54,6 +56,23 @@ So a lane deals its files by its own table; a file its table lacks, by the figur
 always give the same deal. `--record-durations` writes the run it ends into its lane's table, keeping
 that table's other files and the other lanes'; a file the figures for every lane lack takes this run's
 figure there too, so the other lanes deal it by a measurement; a file that is gone is dropped everywhere.
+
+`--seconds FILE` writes the same figures - this run's, as the runner measured them - to a file of their
+own, with the lane, the part, the Python and the CI run, and leaves the durations as they are. Every part
+.github/workflows/test.yml runs keeps one as an artifact, `seconds-<lane>-<python>-<part>` (and
+`seconds-release-main-tree-<part>` for its main-tree job's), so a run's figures come in as
+
+    gh run download <run> -p 'seconds-*' -D <folder>
+    python scripts/test_parts.py --merge-seconds <folder>
+
+`--merge-seconds` reads every file it is given, and every `*.json` at any depth under a folder it is
+given - `gh run download` leaves a folder for each artifact - and writes them by --record-durations' rules:
+each into its lane's table, a file no job timed keeping its figure, the figures for every lane taking one
+only for a file they lack (from the lanes in LANES' order), a file that is gone dropped, and only numbers
+of seconds kept. Where several jobs timed one file in one lane - a job for each Python - it takes their
+median. A file that is not a seconds file of a lane there is refuses the merge, and nothing is written.
+They were read from the job logs' timestamps before, which name lines, not files: a test with a docstring
+was credited to the file after it.
 """
 from __future__ import annotations
 
@@ -65,6 +84,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import statistics
 import subprocess
 import sys
 import tempfile
@@ -598,26 +618,92 @@ def record_durations(seconds: dict, lane: str, path: Path | None = None) -> None
     """This run's seconds into its lane's table, over what that table held for the same files; the other
     lanes' tables as they were; and in the figures for every lane, this run's for a file they lack. A file
     no lane runs any more is dropped from all of them."""
+    write_durations({lane: seconds}, "by --record-durations from a run of it", path)
+
+
+def write_durations(measured: dict, how: str, path: Path | None = None) -> None:
+    """record_durations' rules for each lane in `measured`, the lanes in LANES' order: its seconds into its
+    table, over what that table held for the same files; the lanes not in it as they were; in the figures
+    for every lane, the first lane's figure for a file they lack; a file no lane runs any more dropped
+    from all of them. `how` says, in the `about`, what wrote the lanes it names."""
     path = path or DURATIONS
     every, lanes = read_durations(path)
-    measured = {key: round(value, 1) for key, value in seconds.items()}
-    lanes[lane] = dict(lanes.get(lane, {}))
-    lanes[lane].update(measured)
-    for key, value in measured.items():
-        every.setdefault(key, value)
+    named = [lane for lane in LANES if lane in measured]
+    for lane in named:
+        figures = {key: round(value, 1) for key, value in measured[lane].items()}
+        lanes[lane] = dict(lanes.get(lane, {}))
+        lanes[lane].update(figures)
+        for key, value in figures.items():
+            every.setdefault(key, value)
     present = {name: set(lane_files(name)) for name in LANES}
     everywhere = set().union(*present.values())
+    written = ("The %s lane's table was" % named[0] if len(named) == 1 else
+               "The %s and %s lanes' tables were" % (", ".join(named[:-1]), named[-1]))
     document = {
         "about": "Seconds each test file took (its tests and their fixtures), for scripts/test_parts.py to balance "
                  "its parts by: `lanes` holds each lane's own table, which that lane deals its files by, and "
-                 "`seconds` the figure for every lane, for a file a lane's table lacks. The %s lane's table was "
-                 "last written by --record-durations from a run of it; the rest are kept from before." % lane,
+                 "`seconds` the figure for every lane, for a file a lane's table lacks. %s last written %s; the "
+                 "rest are kept from before." % (written, how),
         "seconds": {key: every[key] for key in sorted(every) if key in everywhere},
         "lanes": {name: {key: table[key] for key in sorted(table) if key in present[name]}
                   for name, table in sorted(lanes.items())},
     }
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+
+
+def write_seconds(path: str, lane: str, parts, merged: dict) -> None:
+    """This run's seconds per file - the figures --record-durations would write into its lane's table - in
+    a file of their own for --merge-seconds, with the lane, the part, the Python and, on GitHub's runners,
+    the run. The durations file is left as it is."""
+    document = {"lane": lane, "parts": parts, "python": sys.version.split()[0]}
+    document.update({key: merged[key] for key in ("part",) if key in merged})
+    if os.environ.get("GITHUB_RUN_ID"):
+        document["run"] = os.environ["GITHUB_RUN_ID"]
+    document["seconds"] = dict(sorted(merged["seconds"].items()))
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    Path(path).write_text(json.dumps(document, indent=1) + "\n", encoding="utf-8")
+
+
+def seconds_files(paths) -> list[Path]:
+    """Each path given, and for a folder every `*.json` under it at any depth: `gh run download` leaves a
+    folder for each artifact."""
+    found = []
+    for given in paths:
+        path = Path(given)
+        found.extend(sorted(path.rglob("*.json")) if path.is_dir() else [path])
+    return found
+
+
+def merge_seconds(paths, path: Path | None = None) -> dict:
+    """The --seconds files under `paths` into the durations by record_durations' rules, each lane's into its
+    own table; where several jobs timed one file in one lane - a job for each Python - their median. Every
+    file is read before anything is written, and one that is not a seconds file of a lane there is refuses
+    the merge. Returns, by lane, how many files its table took."""
+    files = seconds_files(paths)
+    if not files:
+        raise Refused("no seconds files in %s" % ", ".join(map(str, paths)))
+    timed, runs = {}, set()
+    for name in files:
+        try:
+            document = json.loads(name.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as error:
+            raise Refused("%s cannot be read as a seconds file: %s" % (name, error))
+        if not (isinstance(document, dict) and document.get("lane") in LANES
+                and isinstance(document.get("seconds"), dict)):
+            raise Refused("%s is not a seconds file of a lane there is (--seconds writes one)" % name)
+        for key, value in seconds_table(document["seconds"]).items():
+            timed.setdefault(document["lane"], {}).setdefault(key, []).append(value)
+        if document.get("run"):
+            runs.add(str(document["run"]))
+    if not timed:
+        raise Refused("the seconds files given time no file: %s" % ", ".join(map(str, files)))
+    medians = {lane: {key: statistics.median(values) for key, values in table.items()}
+               for lane, table in timed.items()}
+    source = "" if not runs else " of CI run%s %s" % ("s" if len(runs) > 1 else "", ", ".join(sorted(runs)))
+    write_durations(medians, "by --merge-seconds from %d seconds file%s%s, each file's median over the jobs that "
+                             "timed it in that lane" % (len(files), "" if len(files) == 1 else "s", source), path)
+    return {lane: len(set(medians[lane]) & set(lane_files(lane))) for lane in LANES if lane in medians}
 
 
 def summary(merged: dict, seconds: float, parts=None) -> str:
@@ -646,6 +732,8 @@ def main(argv=None) -> int:
     which.add_argument("--list", action="store_true", help="show how --parts N deals the files")
     which.add_argument("--check", action="store_true", help="prove the parts are the discovered suite")
     which.add_argument("--compare", nargs=2, metavar="FILE", help="compare two --outcomes files: a whole run, parts at once, or one part alone")
+    which.add_argument("--merge-seconds", nargs="+", metavar="PATH",
+                       help="write --seconds files, or the folders `gh run download` leaves, into tests/data/durations.json")
     which.add_argument("--worker", metavar="SUITE", help=argparse.SUPPRESS)
     which.add_argument("--check-suite", metavar="SUITE", help=argparse.SUPPRESS)
     parser.add_argument("--parts", type=int, default=4, help="with --list: how many parts")
@@ -654,6 +742,8 @@ def main(argv=None) -> int:
     parser.add_argument("--outcomes", metavar="FILE", help="write every test id's outcome as JSON")
     parser.add_argument("--record-durations", action="store_true",
                         help="write this run's per-file seconds into its lane's table in tests/data/durations.json")
+    parser.add_argument("--seconds", metavar="FILE",
+                        help="write this run's per-file seconds to FILE, for --merge-seconds; the durations stay as they are")
     parser.add_argument("--annotate", action="store_true", help="a GitHub error annotation per failed suite")
     parser.add_argument("--report", help=argparse.SUPPRESS)
     parser.add_argument("-v", "--verbose", action="store_true", help="name every test as it runs")
@@ -669,6 +759,11 @@ def main(argv=None) -> int:
         return 0
     if options.compare:
         return compare(*options.compare)
+    if options.merge_seconds:
+        for name, count in merge_seconds(options.merge_seconds).items():
+            say("lane %s: %d files timed, written into its table" % (name, count))
+        say("written: %s" % DURATIONS)
+        return 0
     if options.check:
         ok, answers = check([int(value) for value in options.counts.split(",") if value.strip()])
         print(json.dumps({"ok": ok, "suites": answers}))
@@ -696,6 +791,8 @@ def main(argv=None) -> int:
         Path(options.report).write_text(json.dumps(merged), encoding="utf-8")
     if options.outcomes:
         write_outcomes(options.outcomes, lane, count, merged)
+    if options.seconds:
+        write_seconds(options.seconds, lane, count, merged)
     if options.record_durations:
         record_durations(merged["seconds"], lane)
     if not merged["counts"].get("run"):
