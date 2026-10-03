@@ -165,8 +165,8 @@ class ArmTests(PowerControlCase):
         for name, path in srcscan.modules().items():
             if "arm_power_action(" in srcscan.read(path).replace("disarm_power_action(", ""):
                 callers.add(name)
-        self.assertEqual(callers, {"codex_auto_resume.control.poweraction"},
-                         "only the bridge may call it, and it does not yet")
+        self.assertEqual(callers, {"codex_auto_resume.control.poweraction", "codex_auto_resume.controlcli"},
+                         "only the bridge may call it")
 
     def test_a_choice_that_is_not_one_is_refused(self):
         for bad in ({}, dict(CHOICE, grace_minutes=True), dict(CHOICE, grace_minutes=3), dict(CHOICE, action="reboot"),
@@ -404,6 +404,18 @@ class BoundaryTests(unittest.TestCase):
         acting = {name for name, path in srcscan.modules().items() if "._port.act(" in srcscan.read(path)
                   or "powerdown.act(" in srcscan.read(path)}
         self.assertEqual(acting, {"codex_auto_resume.runtime.afterwork"})
+
+    def test_only_the_dashboards_bridge_arms_it(self):
+        """H14: armed only in the Dashboard. The bridge's power-arm is the one caller of arm_power_action;
+        the MCP server, the icon, the notices and the watcher may only turn it off or stop it."""
+        callers = {name for name, path in srcscan.modules().items()
+                   if "arm_power_action(" in srcscan.read(path).replace("disarm_power_action(", "")
+                   and name != "codex_auto_resume.control.poweraction"}
+        self.assertEqual(callers, {"codex_auto_resume.controlcli"})
+        from codex_auto_resume import controlcli
+        self.assertIn("power-arm", controlcli.WITH_ARGUMENT)
+        self.assertIn("power-disarm", controlcli.WITH_ARGUMENT)
+        self.assertIn("power-action", controlcli.PLAIN)
 
     def test_nothing_here_sends(self):
         text = Path(control_power.__file__).read_text(encoding="utf-8")

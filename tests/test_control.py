@@ -561,7 +561,10 @@ class BridgeTests(ControlTestCase):
             # message, which is text the watcher sends later, under every check, as a Custom message.
             "state-access", "logs", "demo", "unpostpone", "conversation-message",
             # v0.6.11: whether a setting takes a value of the person's own - the validator asked, nothing written.
-            "check-setting"]))
+            "check-setting",
+            # v0.6.12: the power action after usage-limit recoveries - what Windows offers, armed from the
+            # Dashboard, turned off. A file write each, and nothing sent.
+            "power-action", "power-arm", "power-disarm"]))
 
     def test_serve_answers_every_line_with_exactly_one_line(self):
         requests = "\n".join([

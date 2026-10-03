@@ -1,0 +1,46 @@
+{
+  "command": "power-disarm",
+  "cases": [
+    {
+      "case": "nothing armed: nothing changes",
+      "argument": {},
+      "reply": {
+        "ok": true,
+        "result": {
+          "changed": false
+        }
+      }
+    },
+    {
+      "case": "armed, then turned off",
+      "argument": {},
+      "reply": {
+        "ok": true,
+        "result": {
+          "changed": true
+        }
+      }
+    },
+    {
+      "case": "again: nothing left to turn off",
+      "argument": {},
+      "reply": {
+        "ok": true,
+        "result": {
+          "changed": false
+        }
+      }
+    },
+    {
+      "case": "an argument it does not take is refused",
+      "argument": {
+        "actor": "mcp"
+      },
+      "reply": {
+        "ok": false,
+        "error": "power-disarm takes no argument",
+        "error_code": "request_failed"
+      }
+    }
+  ]
+}

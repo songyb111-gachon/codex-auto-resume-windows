@@ -34,6 +34,7 @@ ROW = [("bridge:pending", "pending[]"), ("bridge:pending-all", "pending[]"),
        ("bridge:history", "history[]"), ("bridge:dashboard", "pending[]"),
        ("bridge:dashboard", "history[]")]
 COMPAT = [("bridge:compatibility", "compatibility"), ("bridge:compat-refresh", "result.compatibility")]
+POWER = [("bridge:power-action", "result.view"), ("bridge:power-arm", "result"), ("bridge:status", "status.power_action")]
 
 # Every contract, and where on the wire its shape is found. The base RecordView has no place
 # of its own: it is PendingRow without the four keys the listings add, which is checked below.
@@ -65,6 +66,15 @@ WHERE = {
     wire.LogLine: [("bridge:logs", "result.lines[]")],
     wire.LogSearch: [("bridge:logs", "result")],
     wire.StateAccessReply: [("bridge:state-access", "result")],
+    # v0.6.12: the power action after usage-limit recoveries - what the card draws, what an arming
+    # answers, what the status carries while the file exists, and what turning it off says.
+    wire.PowerView: POWER,
+    wire.PowerArmed: [(source, path + ".armed") for source, path in POWER],
+    wire.PowerShown: [(source, path + ".shown") for source, path in POWER],
+    wire.PowerLast: [(source, path + ".last") for source, path in POWER],
+    wire.PowerChoice: [("bridge:power-action", "result.actions[]")],
+    wire.PowerOptions: [("bridge:power-action", "result")],
+    wire.PowerDisarmed: [("bridge:power-disarm", "result")],
 }
 
 

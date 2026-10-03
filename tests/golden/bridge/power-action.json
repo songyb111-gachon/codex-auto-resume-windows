@@ -1,0 +1,177 @@
+{
+  "command": "power-action",
+  "cases": [
+    {
+      "case": "nothing armed, and every action offered",
+      "argument": null,
+      "reply": {
+        "ok": true,
+        "result": {
+          "view": {
+            "armed": null,
+            "shown": null,
+            "last": null
+          },
+          "actions": [
+            {
+              "value": "sleep",
+              "available": true,
+              "reason": null
+            },
+            {
+              "value": "hibernate",
+              "available": true,
+              "reason": null
+            },
+            {
+              "value": "shut_down",
+              "available": true,
+              "reason": null
+            }
+          ],
+          "managed": false,
+          "upgrade_pending": false
+        }
+      }
+    },
+    {
+      "case": "hibernation off in Windows",
+      "argument": null,
+      "reply": {
+        "ok": true,
+        "result": {
+          "view": {
+            "armed": null,
+            "shown": null,
+            "last": null
+          },
+          "actions": [
+            {
+              "value": "sleep",
+              "available": true,
+              "reason": null
+            },
+            {
+              "value": "hibernate",
+              "available": false,
+              "reason": "hibernate_off"
+            },
+            {
+              "value": "shut_down",
+              "available": true,
+              "reason": null
+            }
+          ],
+          "managed": false,
+          "upgrade_pending": false
+        }
+      }
+    },
+    {
+      "case": "an account Windows lets do none of them",
+      "argument": null,
+      "reply": {
+        "ok": true,
+        "result": {
+          "view": {
+            "armed": null,
+            "shown": null,
+            "last": null
+          },
+          "actions": [
+            {
+              "value": "sleep",
+              "available": false,
+              "reason": "no_privilege"
+            },
+            {
+              "value": "hibernate",
+              "available": false,
+              "reason": "no_privilege"
+            },
+            {
+              "value": "shut_down",
+              "available": false,
+              "reason": "no_privilege"
+            }
+          ],
+          "managed": false,
+          "upgrade_pending": false
+        }
+      }
+    },
+    {
+      "case": "while an administrator's DisablePowerAction is set",
+      "argument": null,
+      "reply": {
+        "ok": true,
+        "result": {
+          "view": {
+            "armed": null,
+            "shown": null,
+            "last": null
+          },
+          "actions": [
+            {
+              "value": "sleep",
+              "available": true,
+              "reason": null
+            },
+            {
+              "value": "hibernate",
+              "available": true,
+              "reason": null
+            },
+            {
+              "value": "shut_down",
+              "available": true,
+              "reason": null
+            }
+          ],
+          "managed": true,
+          "upgrade_pending": false
+        }
+      }
+    },
+    {
+      "case": "armed to shut down every time",
+      "argument": null,
+      "reply": {
+        "ok": true,
+        "result": {
+          "view": {
+            "armed": {
+              "action": "shut_down",
+              "after": "any_end",
+              "repeat": "always",
+              "grace_seconds": 1800,
+              "armed_at": 1800000000.0,
+              "since": 1800000000.0
+            },
+            "shown": null,
+            "last": null
+          },
+          "actions": [
+            {
+              "value": "sleep",
+              "available": true,
+              "reason": null
+            },
+            {
+              "value": "hibernate",
+              "available": true,
+              "reason": null
+            },
+            {
+              "value": "shut_down",
+              "available": true,
+              "reason": null
+            }
+          ],
+          "managed": false,
+          "upgrade_pending": false
+        }
+      }
+    }
+  ]
+}

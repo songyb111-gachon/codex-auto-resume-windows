@@ -732,6 +732,7 @@
   "why.chain_time_cap": "This task kept failing for longer than Settings allow.",
   "msg.toast_time_cap_body": "It kept failing for longer than Settings allow, so automatic recovery stopped for this task.",
   "error.managed_by_policy": "your administrator has set this",
+  "error.power_unavailable": "that power action is not available on this PC",
   "settings.managed": "Set by your administrator.",
   "overview.off_managed": "paused by your administrator",
   "overview.managed": "{state} · managed by your administrator",

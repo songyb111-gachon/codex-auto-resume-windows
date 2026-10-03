@@ -1,0 +1,138 @@
+{
+  "command": "power-arm",
+  "cases": [
+    {
+      "case": "armed to sleep once, after every recovery succeeded",
+      "argument": {
+        "action": "sleep",
+        "after": "all_recovered",
+        "repeat": "once",
+        "grace_minutes": 5
+      },
+      "reply": {
+        "ok": true,
+        "result": {
+          "armed": {
+            "action": "sleep",
+            "after": "all_recovered",
+            "repeat": "once",
+            "grace_seconds": 300,
+            "armed_at": 1800000000.0,
+            "since": 1800000000.0
+          },
+          "shown": null,
+          "last": null
+        }
+      }
+    },
+    {
+      "case": "a second arming replaces the first",
+      "argument": {
+        "action": "shut_down",
+        "after": "any_end",
+        "repeat": "always",
+        "grace_minutes": 30
+      },
+      "reply": {
+        "ok": true,
+        "result": {
+          "armed": {
+            "action": "shut_down",
+            "after": "any_end",
+            "repeat": "always",
+            "grace_seconds": 1800,
+            "armed_at": 1800000000.0,
+            "since": 1800000000.0
+          },
+          "shown": null,
+          "last": null
+        }
+      }
+    },
+    {
+      "case": "an action Windows does not offer here is refused",
+      "argument": {
+        "action": "hibernate",
+        "after": "all_recovered",
+        "repeat": "once",
+        "grace_minutes": 5
+      },
+      "reply": {
+        "ok": false,
+        "error": "that power action is not available on this PC",
+        "error_code": "power_unavailable"
+      }
+    },
+    {
+      "case": "an action that is not one is refused",
+      "argument": {
+        "action": "restart",
+        "after": "all_recovered",
+        "repeat": "once",
+        "grace_minutes": 5
+      },
+      "reply": {
+        "ok": false,
+        "error": "the request could not be completed: action is one of sleep, hibernate, shut_down",
+        "error_code": "request_failed"
+      }
+    },
+    {
+      "case": "minutes as text are refused",
+      "argument": {
+        "action": "sleep",
+        "after": "all_recovered",
+        "repeat": "once",
+        "grace_minutes": "5"
+      },
+      "reply": {
+        "ok": false,
+        "error": "the request could not be completed: grace_minutes is one of 2, 5, 10, 15, 30",
+        "error_code": "request_failed"
+      }
+    },
+    {
+      "case": "a warning this does not offer is refused",
+      "argument": {
+        "action": "sleep",
+        "after": "all_recovered",
+        "repeat": "once",
+        "grace_minutes": 7
+      },
+      "reply": {
+        "ok": false,
+        "error": "the request could not be completed: grace_minutes is one of 2, 5, 10, 15, 30",
+        "error_code": "request_failed"
+      }
+    },
+    {
+      "case": "a key it does not take is refused",
+      "argument": {
+        "action": "sleep",
+        "after": "all_recovered",
+        "repeat": "once",
+        "grace_minutes": 5,
+        "nonce": "0123456789abcdef"
+      },
+      "reply": {
+        "ok": false,
+        "error": "the request could not be completed: exactly action, after, repeat, grace_minutes",
+        "error_code": "request_failed"
+      }
+    },
+    {
+      "case": "while an administrator's DisablePowerAction is set",
+      "argument": {
+        "action": "sleep",
+        "after": "all_recovered",
+        "repeat": "once",
+        "grace_minutes": 5
+      },
+      "reply": {
+        "ok": false,
+        "error": "your administrator has set this",
+        "error_code": "managed_by_policy"
+      }
+    }
+  ]
+}
