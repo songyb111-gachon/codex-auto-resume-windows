@@ -675,6 +675,9 @@ namespace CodexAutoResume
             stopButton = MakeButton(S("action.stop_watcher", "Stop watcher"), false, delegate { StopWatcher(); });
             // v0.6.11, after the five there were: the log searched, and a recovery played out with made-up words.
             demoButton = MakeButton(S("action.demo", "Show me what happens"), false, delegate { StartDemo(); });
+            // v0.6.12, last, so no button before it moves: any published version, in either edition, in place of this one
+            // (DashboardVersions.cs). Greyed with Check for updates by an administrator's DisableUpdateCheck.
+            versionsButton = MakeButton(S("action.pick_version", "Install another version..."), false, delegate { OpenVersions(); });
             foreach (Button button in new[] {
                 exportButton,
                 MakeButton(S("action.open_logs", "Open logs folder"), false, delegate { OpenLogs(); }),
@@ -682,7 +685,8 @@ namespace CodexAutoResume
                 repairButton,
                 stopButton,
                 MakeButton(S("action.search_logs", "Search the log..."), false, delegate { OpenLogSearch(); }),
-                demoButton })
+                demoButton,
+                versionsButton })
             {
                 button.Margin = Pad(0, 0, 0, 9);
                 tools.Controls.Add(button);

@@ -150,10 +150,11 @@ class SliceTests(unittest.TestCase):
         # after the version as quiet secondary text (the owner's decision of 2026-10-02).
         self.assertEqual(len(set(declared)), 62, "the window's types")
         # v0.6.11: DashboardTools.cs, the Dashboard's own tools, an eleventh part in a twelfth source; and
-        # SettingsOwn.cs, Custom... beside a drop-down's choices, a twelfth part in a thirteenth.
-        self.assertEqual(len(declared) - len(set(declared)), 11,
+        # SettingsOwn.cs, Custom... beside a drop-down's choices, a twelfth part in a thirteenth. v0.6.12:
+        # DashboardVersions.cs, Install another version..., a thirteenth part in a fourteenth.
+        self.assertEqual(len(declared) - len(set(declared)), 12,
                          "`partial class SettingsForm` written once per file that holds part "
-                         "of it, which is twelve of the window's thirteen sources")
+                         "of it, which is thirteen of the window's fourteen sources")
         for source, count in counts.items():
             with self.subTest(source):
                 self.assertGreater(count, 0)
