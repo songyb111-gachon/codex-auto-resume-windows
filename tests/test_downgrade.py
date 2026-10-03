@@ -14,9 +14,13 @@ becomes the schedule.
 """
 from __future__ import annotations
 
-from contextlib import closing
+from contextlib import closing, redirect_stderr, redirect_stdout
+import io
 import json
+import os
 from pathlib import Path
+import re
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -449,6 +453,515 @@ class DowngradeCommandTests(unittest.TestCase):
         for handler in list(logging.getLogger(logbook.LOGGER_NAME).handlers):
             logging.getLogger(logbook.LOGGER_NAME).removeHandler(handler)
             handler.close()
+
+
+# A watcher as far as the mutex and the stop event go: it holds the watcher's mutex and its stop event,
+# says so, and - unless it is told to ignore it - lets go when it is asked to stop.
+_HOLDER = r"""
+import sys, time
+sys.path.insert(0, sys.argv[1])
+from codex_auto_resume.windows import Mutex, StopEvent
+state, listens = sys.argv[2], sys.argv[3] == "listens"
+with StopEvent(state) as stop, Mutex(state, timeout=0):
+    print("held", flush=True)
+    if listens:
+        stopped = stop.wait(120)
+    else:
+        time.sleep(120)
+        stopped = False
+print("stopped" if stopped else "timeout", flush=True)
+"""
+
+
+@unittest.skipUnless(sys.platform == "win32", "Windows named objects")
+class DowngradeStopWatcherTests(unittest.TestCase):
+    """downgrade-state --stop-watcher, which the bootstrap's -Pick runs before an older release is
+    installed: it asks the watcher to stop, waits for it a minute at most, converts, and says what it did
+    on one closed line - and a watcher that does not stop is waited for, never killed."""
+
+    def setUp(self):
+        from unittest import mock
+        from codex_auto_resume import config
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        environment = mock.patch.dict(os.environ, {"LOCALAPPDATA": str(self.root / "no-codex"),
+                                                   "CODEX_HOME": str(self.root / "codex")})
+        environment.start()
+        self.addCleanup(environment.stop)
+        self.paths = config.Paths(str(self.root / "home"))
+        self.paths.ensure()
+        self.state = self.paths.state_dir
+        self.addCleanup(DowngradeCommandTests.close_log)
+
+    def holder(self, listens: bool):
+        holder = subprocess.Popen([sys.executable, "-c", _HOLDER, SRC, str(self.state),
+                                   "listens" if listens else "deaf"], stdout=subprocess.PIPE, text=True,
+                                  creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        self.addCleanup(self.end, holder)
+        self.assertEqual(holder.stdout.readline().strip(), "held")
+        return holder
+
+    @staticmethod
+    def end(holder):
+        if holder.poll() is None:
+            holder.kill()
+        holder.wait(timeout=30)
+        holder.stdout.close()
+
+    def downgrade(self, *more):
+        from test_cli import run_cli
+        return run_cli("--home", str(self.paths.home), "--codex-home", str(self.root / "codex"), "--quiet",
+                       "downgrade-state", "--to", "3", *more)
+
+    def schema(self):
+        with closing(sqlite3.connect(self.state / "state.sqlite")) as db:
+            return db.execute("PRAGMA user_version").fetchone()[0]
+
+    def test_a_watcher_that_stops_when_asked_is_waited_for_and_the_state_converted(self):
+        keys = DowngradeToV3Tests.v4_state(self, observe_only=True)
+        holder = self.holder(listens=True)
+        status, out, _ = self.downgrade("--stop-watcher")
+        self.assertEqual(status, 0, out)
+        sent = sum(1 for state in keys.values() if state in machine.CLAIMED | machine.IN_FLIGHT | machine.OBSERVING)
+        self.assertEqual(out.splitlines(), ["downgrade: converted %d %d 2 1 1" % (len(keys) + 3, sent)])
+        self.assertEqual(self.schema(), 3)
+        self.assertEqual(holder.stdout.readline().strip(), "stopped", "it was asked to stop, and stopped")
+        self.assertEqual(holder.wait(timeout=30), 0)
+        self.assertTrue(list(self.state.glob("state.v4-backup-*.sqlite")), "a forensic copy was taken")
+        log = self.paths.log_file.read_text(encoding="utf-8")
+        self.assertIn("downgrade-state asked the watcher to stop", log)
+
+    def test_a_watcher_that_does_not_stop_is_waited_for_and_left_running(self):
+        from codex_auto_resume.commands import install
+        with Store(self.state):
+            pass
+        holder = self.holder(listens=False)
+        from unittest import mock
+        with mock.patch.object(install, "STOP_WAIT_SECONDS", 2.0):
+            status, out, _ = self.downgrade("--stop-watcher")
+        self.assertEqual((status, out.splitlines()), (install.EXIT_WATCHER_RUNNING, ["downgrade: watcher-running"]))
+        self.assertEqual(install.EXIT_WATCHER_RUNNING, 3)
+        self.assertEqual(self.schema(), SCHEMA_VERSION, "nothing was converted")
+        self.assertIsNone(holder.poll(), "the watcher was killed")
+        self.assertEqual(list(self.state.glob("state.v*-backup-*.sqlite")), [])
+
+    def test_it_waits_a_minute_at_most(self):
+        from codex_auto_resume.commands import install
+        from codex_auto_resume.win import sync
+        self.assertEqual(install.STOP_WAIT_SECONDS, 60.0)
+        self.assertEqual(sync.Mutex("x", timeout=install.STOP_WAIT_SECONDS).timeout, 60.0)
+
+    def test_a_state_already_old_enough_is_nothing_to_do(self):
+        old = legacy_store_module("v0.5.7")
+        with old.Store(self.state):
+            pass
+        status, out, _ = self.downgrade("--stop-watcher")
+        self.assertEqual((status, out.splitlines()), (0, ["downgrade: nothing"]))
+
+    def test_a_state_that_cannot_be_converted_is_said_and_left_as_it_was(self):
+        with Store(self.state):
+            pass
+        with closing(sqlite3.connect(self.state / "state.sqlite")) as db:
+            db.execute("PRAGMA user_version=%d" % (SCHEMA_VERSION + 1))
+            db.commit()
+        status, out, _ = self.downgrade("--stop-watcher")
+        self.assertEqual((status, out.splitlines()), (1, ["downgrade: failed"]))
+        self.assertEqual(self.schema(), SCHEMA_VERSION + 1)
+
+    def test_without_it_a_running_watcher_is_still_refused(self):
+        with Store(self.state):
+            pass
+        holder = self.holder(listens=True)
+        status, out, _ = self.downgrade()
+        self.assertEqual(status, 1)
+        self.assertIn("stop it first", out)
+        self.assertIsNone(holder.poll(), "the watcher was asked to stop without --stop-watcher")
+        self.assertEqual(self.schema(), SCHEMA_VERSION)
+
+    def test_the_plugin_front_passes_it_through_for_schema_3_alone(self):
+        from unittest import mock
+        sys.path.insert(0, str(Path(SRC).parent / "scripts"))
+        import plugin_setup
+        parser = plugin_setup.build_parser()
+        with mock.patch.object(plugin_setup, "_cli", return_value=0) as cli,                 mock.patch.object(plugin_setup, "runtime_home", return_value=self.paths.home):
+            args = parser.parse_args(["downgrade-state", "--to", "3", "--stop-watcher"])
+            self.assertEqual(plugin_setup.COMMANDS[args.command](args), 0)
+            cli.assert_called_once_with(self.paths.home, ["--quiet", "downgrade-state", "--to", "3", "--stop-watcher"])
+        for refused in (["downgrade-state", "--to", "2"], ["downgrade-state"]):
+            with self.subTest(refused), self.assertRaises(SystemExit), redirect_stderr(io.StringIO()):
+                parser.parse_args(refused)
+
+
+# What a tagged release's own store makes of a state: its schema, and - where it opens it - every record's
+# state and the conversations switched off.
+_TAGGED_STORE = r"""
+import json, sys
+from pathlib import Path
+from codex_auto_resume import store as module
+root = Path(sys.argv[1])
+answer = {"schema": getattr(module, "SCHEMA_VERSION", None)}
+if sys.argv[2] == "open":
+    try:
+        opened = module.Store(root)
+    except Exception as exc:
+        answer["refused"] = "%s: %s" % (type(exc).__name__, exc)
+    else:
+        with opened:
+            answer["records"] = {row["interruption_id"]: row["state"] for row in opened.all_records()}
+            answer["disabled"] = sorted(opened.disabled_threads())
+print(json.dumps(answer))
+"""
+
+
+class PickerFloorTests(unittest.TestCase):
+    """What the bootstrap's picker assumes of the published releases, from the tags themselves
+    (scripts/bootstrap.ps1: $PickFloor, $EditionsSince, $StateSchemaSince). Skipped where the tags are not in
+    the checkout, and a failure on CI, which fetches them (tests/released.py)."""
+
+    @classmethod
+    def setUpClass(cls):
+        sys.path.insert(0, str(released.ROOT / "build"))
+        import legacy_bootstraps as legacy
+        text = (released.ROOT / "scripts" / "bootstrap.ps1").read_text(encoding="utf-8")
+        cls.floor = re.search(r"^\$PickFloor = '([^']+)'$", text, re.M).group(1)
+        cls.editions = re.search(r"^\$EditionsSince = '([^']+)'$", text, re.M).group(1)
+        rows = re.search(r"^\$StateSchemaSince = @\((.*)\)$", text, re.M).group(1)
+        cls.schemas = [(version, int(schema)) for version, schema in re.findall(r"@\('([^']+)', ([0-9]+)\)", rows)]
+        cls.order = staticmethod(legacy.order)
+        listed = subprocess.run(["git", "-C", str(released.ROOT), "tag", "--list", "v*"], capture_output=True,
+                                text=True, creationflags=released.NO_WINDOW).stdout.split()
+        tags = []
+        for tag in listed:
+            try:
+                tags.append((legacy.order(tag[1:]), tag))
+            except ValueError:
+                continue
+        cls.tags = [tag for _, tag in sorted(tags)]
+
+    def setUp(self):
+        if "v" + self.floor not in self.tags or "v" + self.editions not in self.tags:
+            if os.environ.get("CI"):
+                self.fail("the tags are not in this checkout; CI must fetch them")
+            self.skipTest("the tags are not in this checkout")
+
+    def shown(self, tag, path):
+        done = subprocess.run(["git", "-C", str(released.ROOT), "show", "%s:%s" % (tag, path)], capture_output=True,
+                              creationflags=released.NO_WINDOW)
+        return done.stdout.decode("utf-8", "replace") if done.returncode == 0 else None
+
+    def installer(self, tag):
+        for path in ("build/install/install.ps1", "install/install.ps1"):
+            text = self.shown(tag, path)
+            if text is not None:
+                return text
+        return ""
+
+    def schema_for(self, version):
+        for since, schema in self.schemas:
+            if self.order(version) >= self.order(since):
+                return schema
+        return None
+
+    def from_floor(self):
+        return [tag for tag in self.tags if self.order(tag[1:]) >= self.order(self.floor)]
+
+    def test_the_floor_is_the_first_release_the_dashboard_can_bring_a_person_back_from(self):
+        """From v0.6.2 every bootstrap computes its digest with .NET (v0.6.0 and v0.6.1 call Get-FileHash, which
+        did not resolve in the process the Dashboard starts) and every installer keeps the state on an upgrade
+        (`--keep-state`; v0.5.x's has none) - and the tag below the floor lacks one of them."""
+        def able(tag):
+            bootstrap = self.shown(tag, "scripts/bootstrap.ps1") or ""
+            return "Security.Cryptography.SHA256" in bootstrap and "--keep-state" in self.installer(tag)
+        offered = self.from_floor()
+        self.assertTrue(offered)
+        for tag in offered:
+            with self.subTest(tag):
+                self.assertTrue(able(tag))
+        below = [tag for tag in self.tags if self.order(tag[1:]) < self.order(self.floor)]
+        self.assertTrue(below, "no tag below the floor to hold it against")
+        self.assertFalse(able(below[-1]), "%s could be offered too" % below[-1])
+
+    def test_an_edition_change_reaches_only_installers_that_know_editions(self):
+        for tag in self.from_floor():
+            with self.subTest(tag):
+                knows = "AllowEditionChange" in self.installer(tag)
+                self.assertEqual(knows, self.order(tag[1:]) >= self.order(self.editions))
+        self.assertEqual(self.editions, json.loads((released.ROOT / "scripts" / "release.json").read_text(
+            encoding="utf-8"))["advanced"]["since"] + "-alpha", "the advanced edition began with its first alpha")
+
+    def test_every_offered_tags_schema_is_the_one_the_table_says(self):
+        self.assertEqual(self.schemas[0][1], SCHEMA_VERSION, "the table's first row is this version's schema")
+        with tempfile.TemporaryDirectory() as folder:
+            for tag in self.from_floor():
+                with self.subTest(tag):
+                    self.assertEqual(released.run(tag, _TAGGED_STORE, folder, "schema")["schema"],
+                                     self.schema_for(tag[1:]))
+
+    def test_every_schema_3_tag_opens_what_to_3_wrote_with_every_row(self):
+        """The picker converts with `--to 3` for every offered tag on schema 3, v0.6.2 to v0.6.11-alpha - so each
+        of them, its own store, opens the result and reads every record as it was written."""
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.state = Path(temporary.name) / "state"
+        DowngradeToV3Tests.v4_state(self)
+        downgrade_to_v3(self.state)
+        expected = {key: row["state"] for key, row in table(self.state / "state.sqlite", "interruptions").items()}
+        switched_off = sorted(key for key, row in table(self.state / "state.sqlite", "threads").items()
+                              if not row["enabled"])
+        tags = [tag for tag in self.from_floor() if self.schema_for(tag[1:]) == 3]
+        self.assertIn("v" + self.floor, tags)
+        self.assertIn("v0.6.11-alpha", tags)
+        for tag in tags:
+            with self.subTest(tag):
+                copy = Path(temporary.name) / tag
+                shutil.copytree(self.state, copy)
+                read = released.run(tag, _TAGGED_STORE, copy, "open")
+                self.assertNotIn("refused", read)
+                self.assertEqual(read["schema"], 3)
+                self.assertEqual(read["records"], expected)
+                self.assertEqual(read["disabled"], switched_off)
+
+
+
+@unittest.skipUnless(os.name == "nt", "the install lock is a Windows named mutex")
+class ConvertedStateUnderTheInstallLockTests(unittest.TestCase):
+    """Between -Pick's conversion and the older version's installer, the watcher is stopped and the
+    bootstrap holds the install lock. What reads the state then - through the control layer, the
+    Dashboard's five-second refresh, the panel, Codex's tools, or through the command line, a
+    notification's Cancel and the skill's status - reads it as it is and never upgrades it back,
+    which the older watcher would refuse. The installer's own setup switches through the older store,
+    and the watcher it starts upgrades. Once no installation holds the lock the current version
+    upgrades - unless that version's installer has replaced the files it runs, as after a pick."""
+
+    def setUp(self):
+        from unittest import mock
+        from codex_auto_resume import config, control, startup
+        from test_cli import FakeWinreg, _reset_logging
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        # The command line's App logs into the scratch home; its file is let go before that goes.
+        self.addCleanup(_reset_logging)
+        self.root = Path(temporary.name)
+        guards = (mock.patch.dict(os.environ, {"LOCALAPPDATA": str(self.root / "local"),
+                                               "CODEX_HOME": str(self.root / "codex")}),
+                  mock.patch.object(control.Control, "watcher_running", return_value=False),
+                  mock.patch.object(control.Control, "startup_enabled", return_value=False),
+                  mock.patch.object(startup, "_winreg", return_value=FakeWinreg()),
+                  # A name of the test's own, where install_in_progress reads it: the real
+                  # installer lock is never touched.
+                  mock.patch("codex_auto_resume.win.homelock.INSTALL_LOCK",
+                             "Local\\CodexAutoResume.Install.test-%d" % os.getpid()))
+        for guard in guards:
+            guard.start()
+            self.addCleanup(guard.stop)
+        self.paths = config.Paths(str(self.root / "home"))
+        self.paths.ensure()
+        self.state = self.paths.state_dir
+        self.control = control.Control(self.paths)
+        DowngradeToV3Tests.v4_state(self)
+        downgrade_to_v3(self.state)
+        self.assertEqual(self.schema(), 3)
+        self.rows = {key: row["state"] for key, row in table(self.state / "state.sqlite", "interruptions").items()}
+
+    def schema(self):
+        with closing(sqlite3.connect(self.state / "state.sqlite")) as db:
+            return db.execute("PRAGMA user_version").fetchone()[0]
+
+    def upgraded(self):
+        """Whether anything upgraded the state: every upgrade leaves its own copy of the older one."""
+        return [path.name for path in self.state.glob("state.v3-backup-*")]
+
+    def install_lock(self):
+        """The test's own install lock, held by a thread as an installer holds it, until the returned
+        function is called."""
+        import ctypes
+        import threading
+        from codex_auto_resume import windows
+        from codex_auto_resume.win import homelock
+        name, held, release = homelock.INSTALL_LOCK, threading.Event(), threading.Event()
+
+        def hold():
+            kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel.CreateMutexW.restype = ctypes.c_void_p
+            handle = kernel.CreateMutexW(None, True, name)
+            held.set()
+            release.wait(60)
+            kernel.ReleaseMutex(ctypes.c_void_p(handle))
+            kernel.CloseHandle(ctypes.c_void_p(handle))
+
+        holder = threading.Thread(target=hold)
+        holder.start()
+
+        def let_go():
+            release.set()
+            holder.join(30)
+        self.addCleanup(let_go)
+        self.assertTrue(held.wait(30))
+        self.assertIs(windows.install_in_progress(), True)
+        return let_go
+
+    def test_the_dashboards_refresh_under_the_lock_leaves_the_converted_state_as_it_is(self):
+        from codex_auto_resume import control, controlcli
+        let_go = self.install_lock()
+        for _ in range(3):
+            reply = controlcli.dispatch(self.control, "dashboard", {})
+            self.assertTrue(reply.get("ok"), reply)
+            self.assertTrue(reply["status"]["upgrade_pending"], "read as an older watcher's state")
+        self.assertTrue(self.control.get_status()["upgrade_pending"])
+        # What is not a reduction is refused, as under an older watcher, and upgrades nothing either.
+        with self.assertRaises(control.ControlError) as caught:
+            self.control.list_pending()
+        self.assertEqual(caught.exception.code, "upgrade_pending")
+        self.assertEqual((self.schema(), self.upgraded()), (3, []))
+        self.assertEqual({key: row["state"] for key, row in
+                          table(self.state / "state.sqlite", "interruptions").items()}, self.rows)
+        # Once no installation holds it - an older installer that failed after the conversion
+        # leaves this version installed - the next read is this version's, and upgrades it.
+        let_go()
+        reply = controlcli.dispatch(self.control, "dashboard", {})
+        self.assertFalse(reply["status"]["upgrade_pending"])
+        self.assertEqual(self.schema(), SCHEMA_VERSION)
+        self.assertEqual(len(self.upgraded()), 1)
+
+    def test_the_older_version_opens_what_the_held_reads_left_with_every_row(self):
+        from codex_auto_resume import controlcli
+        self.install_lock()
+        controlcli.dispatch(self.control, "dashboard", {})
+        read = released.run("v0.6.10", _TAGGED_STORE, self.state, "open")
+        self.assertNotIn("refused", read)
+        self.assertEqual((read["schema"], read["records"]), (3, self.rows))
+
+    def test_no_start_of_the_watcher_meanwhile_brings_the_state_back(self):
+        """Codex's start_watcher and the bridge's start-watcher, which the window's Start watcher
+        sends, are refused while the lock is held (the picker's Q7): this version's watcher, started
+        between the conversion and the older installer, would upgrade the converted state back."""
+        from unittest import mock
+        from codex_auto_resume import controlcli, mcpserver
+        (self.paths.home / "watcher-launcher.py").write_text("# launcher\n", encoding="utf-8")
+        self.install_lock()
+        server = mcpserver.Server(self.control, io.StringIO(), io.StringIO())
+        with mock.patch("subprocess.Popen", side_effect=AssertionError("a watcher was started")) as popen:
+            tool = server.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                                  "params": {"name": "start_watcher", "arguments": {}}})
+            bridge = controlcli.dispatch(self.control, "start-watcher", None)
+        popen.assert_not_called()
+        self.assertIs(tool["result"]["isError"], True)
+        self.assertEqual(tool["result"]["structuredContent"], {"error_code": "start_failed"})
+        self.assertEqual((bridge["ok"], bridge["error_code"]), (False, "start_failed"))
+        self.assertEqual((self.schema(), self.upgraded()), (3, []))
+        self.assertEqual({key: row["state"] for key, row in
+                          table(self.state / "state.sqlite", "interruptions").items()}, self.rows)
+
+    def test_a_lock_that_cannot_be_looked_at_holds_the_upgrade_too(self):
+        from unittest import mock
+        from codex_auto_resume import windows
+        with mock.patch.object(windows, "install_in_progress", return_value=None):
+            self.assertTrue(self.control.get_status()["upgrade_pending"])
+        self.assertEqual((self.schema(), self.upgraded()), (3, []))
+
+    def test_a_notifications_cancel_and_the_commands_under_the_lock_upgrade_nothing(self):
+        """A notification's Cancel pressed during a pick makes Windows run the command line's
+        `activate`, and the skill's command fallback and the Start Menu's run its `status`: under the
+        lock they read the converted state as an older watcher's, as the control layer does. The
+        cancel and a pause work through the older watcher's store; the status is refused, as it is
+        under an older watcher; nothing is upgraded, and the older version opens what is left."""
+        from unittest import mock
+        from codex_auto_resume import cli, notify
+        self.install_lock()
+        home = ["--home", str(self.paths.home), "--quiet"]
+        with mock.patch.object(notify, "show_content", return_value=True), \
+                redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            cancelled = cli.main(home + ["activate", notify.cancel_uri(released.key(0))])
+            status = cli.main(home + ["status"])
+            paused = cli.main(home + ["disable"])
+        self.assertEqual((cancelled, paused), (0, 0), "both work through the older watcher's store")
+        self.assertNotEqual(status, 0, "a status is refused, as under an older watcher")
+        self.assertEqual((self.schema(), self.upgraded()), (3, []))
+        read = released.run("v0.6.10", _TAGGED_STORE, self.state, "open")
+        self.assertNotIn("refused", read)
+        self.assertEqual(read["schema"], 3)
+
+    def test_the_installers_own_setup_switches_through_the_older_store_and_its_watcher_upgrades(self):
+        """An installer of this version runs its setup's `install` and `enable` through the command
+        line under its own lock: they read and switch through the older store and upgrade nothing,
+        and the watcher setup then starts upgrades the state under its mutex, as a watcher always has.
+        An opener that did not ask for the hold would upgrade under the lock - which is why every one
+        in the product asks (test_every_opener_in_the_product_holds_while_installing)."""
+        from codex_auto_resume import cli
+        from codex_auto_resume.app import App
+        from codex_auto_resume.openstate import open_state
+        self.install_lock()
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            enabled = cli.main(["--home", str(self.paths.home), "--quiet", "enable"])
+        self.assertEqual(enabled, 0)
+        self.assertEqual((self.schema(), self.upgraded()), (3, []))
+        for legacy in ("always", "never"):
+            with self.subTest(legacy=legacy):
+                state = self.root / legacy
+                shutil.copytree(self.state, state)
+                with open_state(state, legacy=legacy) as store:
+                    self.assertIsInstance(store, Store)
+                with closing(sqlite3.connect(state / "state.sqlite")) as db:
+                    self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION)
+        with App(self.paths, console=False)._open_for_watcher(None) as store:
+            self.assertIsInstance(store, Store)
+            self.assertTrue(store.settings()["enabled"], "the switch made through the older store holds")
+        self.assertEqual((self.schema(), len(self.upgraded())), (SCHEMA_VERSION, 1))
+
+    def test_every_opener_in_the_product_holds_while_installing(self):
+        """Every call of open_state passes hold_while_installing=True - the control layer's and the
+        command line's two - so a new opener that forgot it is caught here, before it upgrades a
+        converted state under the lock."""
+        import ast
+        callers = []
+        for path in sorted((Path(SRC) / "codex_auto_resume").rglob("*.py")):
+            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+                if isinstance(node, ast.Call) and getattr(node.func, "id", getattr(node.func, "attr", None)) == "open_state":
+                    held = any(keyword.arg == "hold_while_installing" and isinstance(keyword.value, ast.Constant)
+                               and keyword.value.value is True for keyword in node.keywords)
+                    callers.append((path.relative_to(Path(SRC)).as_posix(), held))
+        self.assertEqual(sorted(callers), [("codex_auto_resume/commands/base.py", True),
+                                           ("codex_auto_resume/control/state.py", True),
+                                           ("codex_auto_resume/runtime/app.py", True)])
+
+    def test_a_window_left_open_after_the_pick_never_upgrades_what_the_older_version_runs_on(self):
+        """After a pick the window that made it stays open until it is closed, and Codex's MCP server
+        may too: processes of this version whose files the older version's installer has replaced.
+        With the lock let go and no watcher holding the state - stopped from that window, or never
+        confirmed started - their reads leave the converted state as it is, which the older version
+        then opens. Where this version's files are still there, as when an older installer failed,
+        nothing is superseded and the next read upgrades the state, as before."""
+        from unittest import mock
+        from codex_auto_resume import config, controlcli, mcpserver, windows
+        from codex_auto_resume.control import state as control_state
+        replaced = self.root / "replaced"
+        (replaced / ".codex-plugin").mkdir(parents=True)
+        (replaced / ".codex-plugin" / "plugin.json").write_text(json.dumps({"version": "0.6.10"}),
+                                                                 encoding="utf-8")
+        self.assertIs(windows.install_in_progress(), False)
+        server = mcpserver.Server(self.control, io.StringIO(), io.StringIO())
+        with mock.patch.object(config, "PROJECT_ROOT", replaced):
+            self.assertTrue(control_state.superseded())
+            for _ in range(3):
+                reply = controlcli.dispatch(self.control, "dashboard", {})
+                self.assertTrue(reply.get("ok"), reply)
+                self.assertTrue(reply["status"]["upgrade_pending"], "read as an older watcher's state")
+            tool = server.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                                  "params": {"name": "get_status", "arguments": {}}})
+            self.assertTrue(tool["result"]["structuredContent"]["upgrade_pending"])
+        self.assertEqual((self.schema(), self.upgraded()), (3, []))
+        self.assertEqual({key: row["state"] for key, row in
+                          table(self.state / "state.sqlite", "interruptions").items()}, self.rows)
+        kept = self.root / "kept"
+        shutil.copytree(self.state, kept)
+        self.assertFalse(control_state.superseded())
+        reply = controlcli.dispatch(self.control, "dashboard", {})
+        self.assertFalse(reply["status"]["upgrade_pending"])
+        self.assertEqual((self.schema(), len(self.upgraded())), (SCHEMA_VERSION, 1))
+        read = released.run("v0.6.10", _TAGGED_STORE, kept, "open")
+        self.assertNotIn("refused", read)
+        self.assertEqual((read["schema"], read["records"]), (3, self.rows))
 
 
 if __name__ == "__main__":

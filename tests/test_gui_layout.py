@@ -1619,13 +1619,13 @@ class LayoutAuditTests(unittest.TestCase):
         """v0.6.5 (the person, with a screenshot): Windows' white horizontal bar under the Pending list. Pending and
         History with the fullest reply and with no rows, and the Timeline dialog's list, in every language at every
         scaling: their columns share their width (their findings are in the first test's reports). This holds the
-        audit to having looked at all five - six from v0.6.11, with the Log dialog's - and a list whose columns are
-        wider than it is to being reported."""
+        audit to having looked at all five - six from v0.6.11, with the Log dialog's, seven from v0.6.12, with Install
+        another version...'s - and a list whose columns are wider than it is to being reported."""
         self.assertEqual(sorted(self.answer["lists"]), sorted(l10n.LOCALES))
         for locale in l10n.LOCALES:
             for scale in SCALES:
                 with self.subTest(locale=locale, scale=scale):
-                    self.assertEqual(self.answer["lists"][locale]["%.2f" % scale], 6)
+                    self.assertEqual(self.answer["lists"][locale]["%.2f" % scale], 7)
         self.assertIn("canary :: scrolls sideways at the opening size, its columns 400 wide in ", self.answer["listCanary"])
 
     def test_the_lists_share_their_width_in_the_narrowest_window_too(self):

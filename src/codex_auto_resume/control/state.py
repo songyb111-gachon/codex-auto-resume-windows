@@ -5,6 +5,7 @@ that will not open becomes a refusal a front end can show.
 """
 from __future__ import annotations
 
+from .. import config
 from ..openstate import UPGRADE_PENDING, open_state
 from ..store import StateFromNewerVersion, StoreError, UpgradePending
 from .errors import ControlError
@@ -12,6 +13,17 @@ from .errors import ControlError
 
 NEWER_STATE = ("The recovery state was written by a newer version of Codex Auto Resume. "
                "Update this installation; do not delete the state.")
+
+# The version this process runs, as its files said when it first loaded this layer. A long-lived
+# process - the Dashboard's bridge, the MCP server - goes on running this code after another
+# version's installer has replaced those files under it, as a pick of an older version does.
+STARTED_AS = config.version()
+
+
+def superseded() -> bool:
+    """Whether the files this process was started from now say another version than it runs: an
+    installer has replaced them since, and the state is the installed version's to upgrade."""
+    return config.version() != STARTED_AS
 
 
 def _unavailable(exc) -> ControlError:
@@ -27,11 +39,16 @@ class StateMixin:
 
         While an older watcher still holds an older state, only the actions that reduce
         automation are offered its store (`legacy_ok`); everything else says the upgrade is
-        pending. A failed upgrade is reported as the state being unavailable.
+        pending. A failed upgrade is reported as the state being unavailable. While an
+        installation holds its lock nothing here upgrades the state: a version picked in the
+        Dashboard may have had it converted for it, and its watcher has not started yet. Nor
+        once that version's installer has replaced the files this process runs (`superseded`):
+        the window that made the pick, and Codex's MCP server, are still this version's code.
         """
         try:
             return open_state(self.paths.state_dir, legacy="if_reducing", reducing=legacy_ok,
-                              upgrade_failed=_unavailable)
+                              upgrade_failed=_unavailable, hold_while_installing=True,
+                              superseded=superseded)
         except UpgradePending:
             raise ControlError(UPGRADE_PENDING, code="upgrade_pending") from None
         except StateFromNewerVersion:

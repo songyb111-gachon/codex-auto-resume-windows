@@ -31,6 +31,7 @@
 gui/SettingsApp.cs
 gui/WindowJson.cs
 gui/SettingsPage.cs
+gui/SettingsPower.cs
 gui/SettingsOwn.cs
 gui/WindowReopen.cs
 gui/WindowAudit.cs
@@ -43,6 +44,7 @@ gui/DashboardData.cs
 gui/DashboardActions.cs
 gui/DashboardMaintenance.cs
 gui/DashboardTools.cs
+gui/DashboardVersions.cs
 
 [controls]
 gui/SoftTheme.cs

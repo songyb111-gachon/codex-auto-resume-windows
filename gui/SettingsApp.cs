@@ -317,6 +317,8 @@ namespace CodexAutoResume
         // without the product's own icon.
         private TaskbarMark taskbar;
         private Button startButton, closeButton;
+        // v0.6.12: while Start watcher's own start is in flight (StartWatcher), apart from the actions SetBusy counts.
+        private bool starting;
 
         // The interface vocabulary, in the language the engine resolved. Fetched once,
         // over the same bridge every other read goes through.
@@ -796,6 +798,8 @@ namespace CodexAutoResume
                 // Cached: a switch used to create a font for every item in the list.
                 pair.Value.Font = Soft.RoleFont(pair.Key == name ? "nav_current" : "nav");
             }
+            // General holds the power action's card: what Windows offers is asked the first time it is shown.
+            LoadPowerWhereShown();
         }
 
         private const int WM_SETREDRAW = 0x000B;

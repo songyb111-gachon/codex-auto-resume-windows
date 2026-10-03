@@ -107,11 +107,25 @@ process on it may hold - a mutex or event name, a port, a fixed path outside `TE
 names, and which is worth making unique although CI never meets it. What still differs means two test
 files share something in one interpreter - a fixed temporary path, the working directory, the
 environment, a module global, a setting one of them changes and never puts back - and the fix is to make
-them independent, never to keep them in one part. After adding a test file or changing how long one takes, refresh the durations from a whole run
-with `--record-durations` so the parts stay even. Each lane has a table of its own, because one file can
-take one lane much longer than another; the run writes the lane it ran and keeps the others. A file a
-lane's table lacks is dealt by the figure for every lane, and a file never measured at all round-robin
-after the measured ones. `--list --parts 8` shows the deal, and `--lane` another lane's.
+them independent, never to keep them in one part.
+
+After adding a test file or changing how long one takes, refresh the durations so the parts stay even.
+Each lane has a table of its own, because one file can take one lane much longer than another. The
+figures in the repository are GitHub's runners', where CI's parts run: every part the tests workflow
+(`.github/workflows/test.yml`) runs writes what each of its files took with `--seconds` and keeps it as an
+artifact for 30 days, and `--merge-seconds` takes a run's into the durations:
+
+```bash
+gh run download <run id> -p 'seconds-*' -D seconds
+python scripts/test_parts.py --merge-seconds seconds
+```
+
+Each lane's seconds go into its own table, and the other tables are kept; where several jobs timed one
+file in one lane, one for each Python, the merge takes their median. `--record-durations` does the same
+from a run on your own machine, into the lane it ran, with your machine's times rather than the
+runners'. A file a lane's table lacks is dealt by the figure for every lane, and a file never measured
+at all round-robin after the measured ones. `--list --parts 8` shows the deal, and `--lane` another
+lane's.
 
 ## Measuring the window
 

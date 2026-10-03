@@ -1,6 +1,6 @@
 r"""What an administrator has set: the standard edition's policy keys (v0.6.11).
 
-Six values under `Software\Policies\CodexAutoResume`, in HKEY_LOCAL_MACHINE for everyone who uses
+Seven values under `Software\Policies\CodexAutoResume`, in HKEY_LOCAL_MACHINE for everyone who uses
 the PC or in HKEY_CURRENT_USER for one person. This product reads them and never writes them
 (win/policykeys.py reads them; startup.py is still the only module that writes the registry), and
 each one can only hold recovery back:
@@ -12,6 +12,8 @@ each one can only hold recovery back:
     MaxRecoveryAttempts   REG_DWORD, 1-20    the most attempts a task gets: a ceiling on that setting
     QuietHours            REG_SZ             "22:00-07:00", or "22:00-07:00 weekdays" (or weekends,
                                              every_day): quiet hours that hold whatever else is set
+    DisablePowerAction    REG_DWORD, not 0   the power action after usage-limit recoveries is off and
+                                             cannot be armed; an arming made before stays, inert (v0.6.12)
 
 Both places are read, and every restriction either one makes holds: a switch set in either is set,
 the lower ceiling is the ceiling, and each place's quiet hours hold. A value of the wrong type, out
@@ -24,7 +26,7 @@ A value that is there and could not be read (REG_UNREADABLE: access denied, say)
 one that is not there - that would lift what an administrator set. It holds the most it could: a
 switch is set, the ceiling is the lowest a key may give, and quiet hours whose times cannot be read
 could be any hours, so nothing is sent at any of them, as ForceObserveOnly says. A place that is
-there and cannot be opened is six such values.
+there and cannot be opened is seven such values.
 
 They are applied after the settings are read and coerced (`clamp`), to the settings every part of
 the product works from - never to the file, so a person's own choices are kept and are what applies
@@ -50,11 +52,13 @@ DISABLE_UPDATE_CHECK = "DisableUpdateCheck"
 DISABLE_STATUS_FILE = "DisableStatusFile"
 MAX_RECOVERY_ATTEMPTS = "MaxRecoveryAttempts"
 QUIET_HOURS = "QuietHours"
+DISABLE_POWER_ACTION = "DisablePowerAction"
 # Every value this reads, in the order a list of them is shown (`codes`). Nothing else under the key
 # is read: a value this does not name is not asked for.
 VALUES = (DISABLE_AUTO_RESUME, FORCE_OBSERVE_ONLY, DISABLE_UPDATE_CHECK, DISABLE_STATUS_FILE,
-          MAX_RECOVERY_ATTEMPTS, QUIET_HOURS)
-_SWITCHES = (DISABLE_AUTO_RESUME, FORCE_OBSERVE_ONLY, DISABLE_UPDATE_CHECK, DISABLE_STATUS_FILE)
+          MAX_RECOVERY_ATTEMPTS, QUIET_HOURS, DISABLE_POWER_ACTION)
+_SWITCHES = (DISABLE_AUTO_RESUME, FORCE_OBSERVE_ONLY, DISABLE_UPDATE_CHECK, DISABLE_STATUS_FILE,
+             DISABLE_POWER_ACTION)
 
 # The registry's own type numbers (winreg.REG_*), so this module needs no Windows module to read them.
 REG_SZ, REG_EXPAND_SZ, REG_DWORD, REG_QWORD = 1, 2, 4, 11
@@ -80,6 +84,8 @@ class Managed:
     max_recovery_attempts: int | None = None
     # Each place's quiet hours, as the three settings that name a window, HKEY_LOCAL_MACHINE's first.
     quiet_hours: tuple = field(default=())
+    # v0.6.12: the power action is off, and holds no setting (control/poweraction.py).
+    disable_power_action: bool = False
 
     @property
     def active(self) -> bool:
@@ -90,7 +96,7 @@ class Managed:
         held = {DISABLE_AUTO_RESUME: self.disable_auto_resume, FORCE_OBSERVE_ONLY: self.force_observe_only,
                 DISABLE_UPDATE_CHECK: self.disable_update_check, DISABLE_STATUS_FILE: self.disable_status_file,
                 MAX_RECOVERY_ATTEMPTS: self.max_recovery_attempts is not None,
-                QUIET_HOURS: bool(self.quiet_hours)}
+                QUIET_HOURS: bool(self.quiet_hours), DISABLE_POWER_ACTION: self.disable_power_action}
         return [name for name in VALUES if held[name]]
 
 
@@ -158,7 +164,8 @@ def parse(places) -> Managed:
                    disable_update_check=DISABLE_UPDATE_CHECK in switches,
                    disable_status_file=DISABLE_STATUS_FILE in switches,
                    max_recovery_attempts=min(ceilings) if ceilings else None,
-                   quiet_hours=tuple(windows))
+                   quiet_hours=tuple(windows),
+                   disable_power_action=DISABLE_POWER_ACTION in switches)
 
 
 def fields(managed: Managed) -> frozenset:

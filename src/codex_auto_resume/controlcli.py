@@ -69,7 +69,9 @@ PLAIN = ("status", "settings", "describe", "defaults", "pending", "pending-all",
          "failure-seen",
          # v0.6.11: Diagnostics - the edition installed and the edition of Codex's copy of the plugin;
          # who may open the state folder; and Show me what happens.
-         "plugin-copy", "state-access", "demo")
+         "plugin-copy", "state-access", "demo",
+         # v0.6.12: what the power action after usage-limit recoveries offers here, and what is armed.
+         "power-action")
 WITH_ARGUMENT = ("update", "enabled", "startup", "cancel", "reset-budget", "retry-now",
                  "timeline", "statistics", "thread-enabled", "cancel-thread", "diagnostics",
                  "preview-continuation", "interruption-recovery",
@@ -84,7 +86,10 @@ WITH_ARGUMENT = ("update", "enabled", "startup", "cancel", "reset-budget", "retr
                  # v0.6.11: Don't postpone, one conversation's own message, and the log searched.
                  "unpostpone", "conversation-message", "logs",
                  # and whether a setting takes a value of the person's own, as Custom... asks.
-                 "check-setting")
+                 "check-setting",
+                 # v0.6.12: the power action armed - from the Dashboard, which is this bridge's only
+                 # caller that arms (H14) - and turned off.
+                 "power-arm", "power-disarm")
 # Big enough for the largest Save the settings layer accepts: eight Custom messages of 2000
 # characters each, and the window writes every line break as a six-character escape, so a
 # valid Save can come to nearly 100 KiB. At 64 KiB such a Save was refused as "request too
@@ -378,6 +383,17 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
         if command == "demo":
             # Made-up rows for the Dashboard, and a made-up card asked of the icon: nothing is sent.
             return {"ok": True, "result": control.show_demo()}
+        if command == "power-action":
+            # Read only: Windows is asked whether each action is available, and nothing is done.
+            return {"ok": True, "result": control.power_options()}
+        if command == "power-arm":
+            # The Dashboard's Turn on..., after its confirmation. The choice is checked whole - exact
+            # keys, closed words, whole minutes - by the control layer, the one place it is armed.
+            return {"ok": True, "result": control.arm_power_action(payload, actor="dashboard")}
+        if command == "power-disarm":
+            if payload:
+                raise ControlError("power-disarm takes no argument")
+            return {"ok": True, "result": control.disarm_power_action("dashboard")}
         if command == "dashboard":
             # What the Overview needs, in one round trip. Each part fails on its own:
             # a state that cannot be read must not also take the status away.

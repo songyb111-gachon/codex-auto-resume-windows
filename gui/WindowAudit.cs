@@ -88,6 +88,7 @@ namespace CodexAutoResume
             AuditedHero = 0;
             AuditedAlike = 0;
             AuditedWraps = 0;
+            AuditedPower = 0;
             var geometry = new StringBuilder();
             AuditedGeometry = "";
             System.Reflection.FieldInfo fallback = typeof(Control).GetField("defaultFont",
@@ -165,6 +166,9 @@ namespace CodexAutoResume
                             AuditSpoken("settings/" + section, form, findings);
                             form.AuditPins("settings/" + section, findings);
                         }
+                        // v0.6.12: the power action's card again, in the longest each of its lines says (AuditPower).
+                        form.AuditPower(findings);
+                        form.ShowSection(SectionOrder[SectionOrder.Length - 1]);
                     }
                     // The lists again with no rows at all, as a first installation or an unreadable store shows them: the
                     // columns then share the list's width by their headings alone - the person saw v0.6.4's empty Pending
@@ -192,6 +196,9 @@ namespace CodexAutoResume
                         // v0.6.11: and the Log dialog's list, built with lines as long as the log writes them, and the
                         // dialog of a conversation's own message, built for the reply's first waiting recovery.
                         form.AuditLogs(findings);
+                        // v0.6.12: and Install another version...'s list, built and filled with a fixed answer - never
+                        // asked for, so no audit reaches GitHub.
+                        form.AuditVersions(findings);
                         form.AuditConversationMessage(snapshot, findings);
                     }
                     // v0.6.11: the dialog of a value of the person's own, of each kind the schema offers (SettingsOwn.cs).
@@ -221,6 +228,101 @@ namespace CodexAutoResume
                 Soft.BaseFont = baseBefore;
             }
             return string.Join("\n", findings.ToArray());
+        }
+
+        /// How many states of the power action's card the last LayoutAudit laid out (AuditPower), so that a quiet report
+        /// is known to have looked at them.
+        internal static int AuditedPower;
+
+        /// v0.6.12: Settings > General with the power action's card (SettingsPower.cs) in the longest it says, as the
+        /// bridge could put it there - it asks nothing while auditing: counting down to a shut down, with a reason for
+        /// each action Windows does not offer and the longest outcome of a last batch; armed and waiting, with the
+        /// longest reason it waits in this language; and an administrator's DisablePowerAction on an account Windows
+        /// lets do none of them. tests/test_gui_power_action.py holds it to 150 % in Korean as well as every language
+        /// and scaling test_gui_layout.py audits. The card is left as the page was built: nothing read yet.
+        private void AuditPower(List<string> findings)
+        {
+            ShowSection("general");
+            double now = Now();
+            string longestWait = "stale", longestEnd = "stale";
+            foreach (string word in new[] { "no_batch", "recovery_open", "delivery_unknown", "turn_running", "queued_input",
+                                            "codex_unknown", "history_behind", "other_people", "person_active",
+                                            "idle_unknown", "paused", "watcher" })
+                if (TextRenderer.MeasureText(PowerWaitLine(word), Font).Width >
+                    TextRenderer.MeasureText(PowerWaitLine(longestWait), Font).Width) longestWait = word;
+            foreach (string end in new[] { "done", "failed", "skipped", "not_met", "stale", "lapsed", "unavailable" })
+                if (TextRenderer.MeasureText(PowerLastLine(PowerAuditLast(end, now)), Font).Width >
+                    TextRenderer.MeasureText(PowerLastLine(PowerAuditLast(longestEnd, now)), Font).Width) longestEnd = end;
+            var states = new[]
+            {
+                new KeyValuePair<string, Dictionary<string, object>>("counting down",
+                    PowerAuditOptions("grace", null, now + 1800, longestEnd, now, false, "no_sleep_state", "hibernate_off", null)),
+                new KeyValuePair<string, Dictionary<string, object>>("waiting (" + longestWait + ")",
+                    PowerAuditOptions("waiting", longestWait, 0, longestEnd, now, false, "no_sleep_state", "hibernate_off", null)),
+                new KeyValuePair<string, Dictionary<string, object>>("managed, with no privilege",
+                    PowerAuditOptions(null, null, 0, longestEnd, now, true, "no_privilege", "no_privilege", "no_privilege")),
+            };
+            foreach (KeyValuePair<string, Dictionary<string, object>> state in states)
+            {
+                ApplyPowerOptions(state.Value);
+                Audit("settings/general with the power action " + state.Key, findings);
+                AuditSpoken("settings/general with the power action " + state.Key, this, findings);
+                AuditedPower++;
+            }
+            powerOffered = null;
+            ApplyPowerOptions(null);
+        }
+
+        private static Dictionary<string, object> PowerAuditLast(string end, double now)
+        {
+            var last = new Dictionary<string, object>();
+            last["action"] = "shut_down";
+            last["result"] = end;
+            // Another day's, which the clock writes with its date.
+            last["at"] = now - 2 * 86400;
+            return last;
+        }
+
+        /// A `power-action` answer: armed to shut down when each recovery ended, however it ended, every time, in
+        /// `phase` (or not armed, for null), with the three actions' reasons (null: offered).
+        private static Dictionary<string, object> PowerAuditOptions(string phase, string waiting, double until, string end,
+                                                                   double now, bool managed, string sleep,
+                                                                   string hibernate, string shutDown)
+        {
+            var view = new Dictionary<string, object>();
+            if (phase != null)
+            {
+                var armed = new Dictionary<string, object>();
+                armed["action"] = "shut_down";
+                armed["after"] = "handed_over_too";
+                armed["repeat"] = "always";
+                armed["grace_seconds"] = 1800.0;
+                armed["armed_at"] = now - 3600;
+                armed["since"] = now - 3600;
+                view["armed"] = armed;
+                var shown = new Dictionary<string, object>();
+                shown["phase"] = phase;
+                shown["waiting_for"] = waiting;
+                shown["grace_until"] = until > 0 ? (object)until : null;
+                view["shown"] = shown;
+            }
+            view["last"] = PowerAuditLast(end, now);
+            var actions = new List<object>();
+            string[] reasons = { sleep, hibernate, shutDown };
+            for (int index = 0; index < PowerActions.Length; index++)
+            {
+                var choice = new Dictionary<string, object>();
+                choice["value"] = PowerActions[index];
+                choice["available"] = reasons[index] == null;
+                choice["reason"] = reasons[index];
+                actions.Add(choice);
+            }
+            var options = new Dictionary<string, object>();
+            options["view"] = view;
+            options["actions"] = actions;
+            options["managed"] = managed;
+            options["upgrade_pending"] = false;
+            return options;
         }
 
         /// Where everything was, page by page, as the last LayoutAudit laid it out (v0.6.10): one line per control
@@ -993,6 +1095,43 @@ namespace CodexAutoResume
                     AuditList("logs/" + AuditName(logsList), logsList, findings);
                 }
                 AuditSpoken("logs", dialog, findings);
+            }
+        }
+
+        /// A -Versions answer with every kind of row and the longest words a row says: what the audit fills Install
+        /// another version... with, through the parser the listing's answer goes through (VersionsLines).
+        internal const string AuditedVersions =
+            "version: 0.6.13 standard offered newer,release,kept,latest\n" +
+            "version: 0.6.13 advanced offered newer,release,kept,latest,edition\n" +
+            "version: 0.6.12-beta.2 standard refused not-offered\n" +
+            "version: 0.6.12-beta standard installed -\n" +
+            "version: 0.6.12-beta advanced offered same,prerelease,kept,edition\n" +
+            "version: 0.6.11-beta.2 standard refused older-prerelease\n" +
+            "version: 0.6.11 standard offered older,release,kept\n" +
+            "version: 0.6.11-alpha advanced offered older,prerelease,convert3,edition,advanced-off\n" +
+            "version: 0.6.10 standard offered older,release,convert3\n" +
+            "version: 0.6.6-alpha standard refused no-archive\n" +
+            "version: 0.6.5 standard refused no-checksum\n" +
+            "version: 0.6.4 standard refused managed-policy\n" +
+            "version: 0.6.2 advanced refused edition-first\n" +
+            "versions: listed 0.6.12-beta standard 0.6.13 v0.6.2 v0.6.11-alpha\n";
+
+        /// Install another version...'s dialog (v0.6.12), built by BuildVersions alone - which starts nothing - and filled
+        /// through ShowVersionRows with AuditedVersions, at its opening size and never shown (AuditList).
+        private void AuditVersions(List<string> findings)
+        {
+            List<string[]> rows;
+            string[] listed;
+            string state = VersionsLines(AuditedVersions, 0, out rows, out listed);
+            if (state != "listed") findings.Add("versions :: the audit's own answer reads as " + state);
+            using (Form dialog = BuildVersions())
+            {
+                dialog.TopLevel = false;
+                Materialise(dialog);
+                dialog.PerformLayout();
+                ShowVersionRows(state, rows, listed);
+                if (versionsList != null) AuditList("versions/" + AuditName(versionsList), versionsList, findings);
+                AuditSpoken("versions", dialog, findings);
             }
         }
 

@@ -2,12 +2,15 @@ import ast
 from contextlib import contextmanager
 from datetime import datetime, timezone, timedelta
 import json
+import os
 from pathlib import Path
 import re
 import sqlite3
 import sys
 import tempfile
+import time
 import unittest
+from unittest.mock import patch
 import uuid
 
 from codex_auto_resume.codex import LocalSource, SourceError, detect, normalize, _choose_reset
@@ -660,6 +663,116 @@ class LocalSourceTests(unittest.TestCase):
         with self.db("thread_history_1.sqlite") as db:
             db.execute("DELETE FROM thread_history_projection_state WHERE thread_id=?", (TID,))
         self.assertEqual(self.source.projection(TID), {"table": True, "fresh": None})
+
+    # ------------------------------------------------- activity (v0.6.12, the power action)
+    def grow(self, path=None):
+        """Codex appends to a conversation's file and has not projected it yet."""
+        with (path or self.rollout).open("ab") as stream:
+            stream.write(json.dumps({"type": "event_msg", "payload": {"type": "noise"}}).encode() + b"\n")
+
+    def age(self, seconds, path=None):
+        """The file was last written `seconds` ago."""
+        then = time.time() - seconds
+        os.utime(path or self.rollout, (then, then))
+
+    def activity(self, threads=()):
+        return self.source.activity(threads, time.time())
+
+    def test_activity_when_everything_is_current_and_nothing_runs(self):
+        self.assertEqual(self.activity(), {"history": True, "running": 0, "queued": 0})
+
+    def test_activity_counts_the_latest_turns_in_progress_and_every_queued_item(self):
+        self.later_turn(2, "inProgress")
+        other = self.later_turn(1, "inProgress", thread=SECOND)
+        self.later_turn(2, "completed", thread=SECOND)            # superseded: no longer running
+        self.enqueue(SECRET + " " + MARKER)
+        self.enqueue("a message of the user's", thread=SECOND)
+        found = self.activity()
+        self.assertEqual(found, {"history": True, "running": 1, "queued": 2})
+        self.assertContentFree(found)
+        self.assertNotIn(other, repr(found))
+
+    def test_a_crashed_turn_left_in_progress_holds_it_whatever_its_age(self):
+        """Q9: no time bound on the turns counted, unlike the needs-you stall reader."""
+        turn = self.later_turn(2, "inProgress")
+        self.set_turn(turn, started_at=946684800)
+        self.assertEqual(self.activity()["running"], 1)
+
+    def test_a_lagging_projection_of_a_recently_written_file_is_behind(self):
+        self.grow()
+        self.assertEqual(self.activity(), {"history": False, "running": None, "queued": None})
+        self.catch_up()
+        self.assertIs(self.activity()["history"], True)
+
+    def test_a_missing_projection_row_for_a_recently_written_file_is_behind(self):
+        with self.db("thread_history_1.sqlite") as db:
+            db.execute("DELETE FROM thread_history_projection_state WHERE thread_id=?", (TID,))
+        self.assertIs(self.activity()["history"], False)
+        self.age(2 * 3600)
+        self.assertIs(self.activity()["history"], True, "an hour-old file is not asked about")
+        self.assertIs(self.activity([TID])["history"], False, "unless it is the batch's own")
+
+    def test_a_missing_projection_table_is_unknown(self):
+        with self.db("thread_history_1.sqlite") as db:
+            db.execute("DROP TABLE thread_history_projection_state")
+        self.assertEqual(self.activity(), {"history": None, "running": None, "queued": None})
+
+    def test_a_lag_on_a_file_written_over_an_hour_ago_does_not_count_unless_it_is_a_member(self):
+        self.grow()
+        self.age(3601)
+        self.assertEqual(self.activity(), {"history": True, "running": 0, "queued": 0})
+        self.assertIs(self.activity([TID])["history"], False)
+        self.assertIs(self.activity(["not-a-conversation-id"])["history"], True)
+
+    def test_every_conversation_of_the_home_is_looked_at_not_only_the_desktop_app_s(self):
+        path = self.rollout.parent / ("rollout-" + SECOND + ".jsonl")
+        path.write_bytes(b"{}\n")
+        with self.db("state_5.sqlite") as db:
+            db.execute("INSERT INTO threads (id, rollout_path, source, thread_source, archived, history_mode) "
+                       "VALUES (?,?,'cli','user',1,'paginated')", (SECOND, str(path)))
+        self.assertIs(self.activity()["history"], False, "another client's conversation, never projected")
+        with self.db("thread_history_1.sqlite") as db:
+            db.execute("INSERT INTO thread_history_projection_state VALUES (?,?,0)", (SECOND, path.stat().st_size))
+        self.assertIs(self.activity()["history"], True)
+
+    def test_a_file_outside_the_sessions_folder_is_never_asked_about(self):
+        outside = self.home / ("rollout-" + SECOND + ".jsonl")
+        outside.write_bytes(b"{}\n")
+        with self.db("state_5.sqlite") as db:
+            db.execute("INSERT INTO threads (id, rollout_path, source, thread_source, archived, history_mode) "
+                       "VALUES (?,?,'vscode','user',0,'paginated')", (SECOND, str(outside)))
+        with patch.object(Path, "stat", autospec=True, side_effect=Path.stat) as stat:
+            self.assertIs(self.activity()["history"], True)
+        self.assertNotIn(outside, [call.args[0] for call in stat.call_args_list])
+
+    def test_a_deleted_file_is_nothing_to_project_and_one_that_cannot_be_stated_is_unknown(self):
+        self.rollout.unlink()
+        self.assertIs(self.activity([TID])["history"], True)
+        self.write_rollout()
+        self.catch_up()
+        real, rollout = Path.stat, self.rollout.resolve()
+
+        def stat(path, *args, **kwargs):
+            if path == rollout:
+                raise PermissionError("denied")
+            return real(path, *args, **kwargs)
+        with patch.object(Path, "stat", autospec=True, side_effect=stat):
+            self.assertEqual(self.activity(), {"history": None, "running": None, "queued": None})
+
+    def test_the_rollout_is_stated_never_opened(self):
+        self.grow()
+
+        def refuse(*args, **kwargs):
+            raise AssertionError("a conversation's file was opened")
+        with patch("builtins.open", refuse), patch.object(Path, "open", refuse),                 patch.object(Path, "read_bytes", refuse), patch.object(Path, "read_text", refuse):
+            self.assertIs(self.activity()["history"], False)
+            self.catch_up()
+            self.assertEqual(self.activity(), {"history": True, "running": 0, "queued": 0})
+
+    def test_a_count_that_cannot_be_read_is_none(self):
+        (self.home / "queue_1.sqlite").unlink()
+        self.assertEqual(self.activity(), {"history": True, "running": 0, "queued": None})
+        self.assertEqual(self.source.activity((), None), {"history": None, "running": None, "queued": None})
 
     # --------------------------------------------------------- schema drift
     def test_survives_a_schema_generation_bump(self):

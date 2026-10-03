@@ -349,7 +349,10 @@ class InterpreterTests(unittest.TestCase):
         panel = control.Control(config.Paths(home))
         with mock.patch.object(startup.sys, "executable", str(folder / "python.exe")), \
                 mock.patch.object(control.Control, "watcher_running", return_value=False), \
+                mock.patch("codex_auto_resume.win.homelock.INSTALL_LOCK",
+                           "Local\\CodexAutoResume.Install.test-%d" % os.getpid()), \
                 mock.patch("subprocess.Popen") as popen:
+            # The installer's lock under a name of the test's own: no installation refuses it first.
             with self.assertRaises(control.ControlError) as refused:
                 panel.start_watcher()
         self.assertEqual(refused.exception.code, "not_installed")

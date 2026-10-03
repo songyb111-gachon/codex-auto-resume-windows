@@ -62,7 +62,9 @@ from codex_auto_resume.store import session  # noqa: E402
 MODULES = ("test_compat_characterization", "test_compat_io", "test_correlation", "test_engine",
            "test_engine_gates", "test_outcomes", "test_pause_unknown", "test_recovery",
            # v0.6.11: the Custom waits, the time ceiling and the two guards, at their settings.
-           "test_ladder_and_guards")
+           "test_ladder_and_guards",
+           # v0.6.12: the app gate where the app main runs two of the configured engine.
+           "test_engine_children")
 NOT_SCENARIOS = {
     "test_codex_schema": "reads a Codex home through the source alone; it builds no engine",
     "test_source": "reads a Codex home through the source alone; it builds no engine",

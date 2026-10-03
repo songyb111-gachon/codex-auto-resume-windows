@@ -174,6 +174,63 @@ class WatcherView(TypedDict):
     ended_at: float | None
 
 
+class PowerArmed(TypedDict):
+    """What is armed of the power action after usage-limit recoveries (v0.6.12, control/poweraction.py):
+    the action, after what and how often - PowerAction, PowerAfter and PowerRepeat words - how long its
+    notice warns first, and when it was armed and its batch began. Never the batch's nonce, which only
+    a notice's stop button carries."""
+    action: str
+    after: str
+    repeat: str
+    grace_seconds: int
+    armed_at: float
+    since: float
+
+
+class PowerShown(TypedDict):
+    """What the watcher last showed of an arming: waiting (for a PowerWait word, or None) or counting
+    down (grace) to `grace_until`. Display only."""
+    phase: str
+    waiting_for: str | None
+    grace_until: float | None
+
+
+class PowerLast(TypedDict):
+    """How the last batch ended: its action, a PowerEnd word, and when."""
+    action: str
+    result: str
+    at: float
+
+
+class PowerView(TypedDict):
+    """The power action as every surface is told it (poweraction.view): each part None when there is none."""
+    armed: PowerArmed | None
+    shown: PowerShown | None
+    last: PowerLast | None
+
+
+class PowerChoice(TypedDict):
+    """One action, and whether Windows will do it for this account here - and why not, a
+    PowerUnavailable word, or None."""
+    value: str
+    available: bool
+    reason: str | None
+
+
+class PowerOptions(TypedDict):
+    """`power-action`: what the Dashboard's card draws - the view, each action, an administrator's
+    DisablePowerAction, and an older watcher holding the state."""
+    view: PowerView
+    actions: list[PowerChoice]
+    managed: bool
+    upgrade_pending: bool
+
+
+class PowerDisarmed(TypedDict):
+    """`power-disarm`: whether there was an arming to turn off."""
+    changed: bool
+
+
 class StatusSnapshot(TypedDict):
     """`status`, and the part of `dashboard` every page opens with."""
     enabled: bool
@@ -193,6 +250,8 @@ class StatusSnapshot(TypedDict):
     settings: dict[str, object]
     # v0.6.11: the administrator's policy keys in force, by name - only while one is (managed.py).
     managed: NotRequired[list[str]]
+    # v0.6.12: the power action after usage-limit recoveries - only while its file exists.
+    power_action: NotRequired[PowerView]
 
 
 class Outcomes(TypedDict):
@@ -330,4 +389,5 @@ class SchemaField(TypedDict):
 CONTRACTS = (RecordView, PendingRow, TimelineEvent, Receipt, UsageWindow, UsageReading, WatcherView,
              StatusSnapshot, Outcomes, Statistics, CompatEngine, CompatData, CompatCapability,
              CompatReported, CompatView, SchemaField, OwnValue, DemoRow, DemoReply, LogLine, LogSearch,
-             StateAccessReply)
+             StateAccessReply, PowerArmed, PowerShown, PowerLast, PowerView, PowerChoice, PowerOptions,
+             PowerDisarmed)

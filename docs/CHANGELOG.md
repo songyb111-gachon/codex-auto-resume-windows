@@ -1,5 +1,204 @@
 # Changelog
 
+## v0.6.12 — Another version from the Dashboard, a power action after usage limits, and recovery beside the Codex app's cloud-environment server
+
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.11...v0.6.12)
+
+**What changed since v0.6.11, in one place.** For a person, two additions and two fixes. In the
+Dashboard, *Install another version...* installs any version from v0.6.2 on, of either edition,
+pre-releases too ([below](#install-another-version)) - asked for by the owner on 2026-09-28. A power
+action can sleep, hibernate or shut down the PC once usage-limit recoveries finish, off until you
+turn it on ([below](#the-power-action-after-usage-limit-recoveries)) - asked for in Discussion #22.
+Both are in the standard edition, and in both editions' windows. The fixes: recovery beside the
+Codex app's cloud-environment server, without which no recovery was sent with the Codex app from
+26.930 on, and a setup program that removes its folder when its console window is closed
+([Fixes](#fixes)). Two pre-releases for the people who build the project came first, each with an
+entry of its own below that has the detail and how it was checked: the test suite in parts and
+pictures taken when the window is ready ([v0.6.12-alpha](CHANGELOG.md#the-suite-in-parts)), and
+every lane's test parts even ([v0.6.12-alpha.2](CHANGELOG.md#every-lanes-parts-even)). Nothing in
+them changes anything for a person. The additions and the fixes were not published as a pre-release
+first: their detail is this entry's.
+
+**From v0.6.11, it is an ordinary update.** It is the latest release, so v0.6.11's *Check for
+updates* offers it in the edition you have, and so does a v0.6.12 pre-release's; the plugin in
+Codex installs it too. Settings, a pause, everything waiting and the sign-in choice are kept, and
+nothing is converted: the watcher's state is still schema 4 and the advanced edition's own file
+still version 2. The picker and the power action do nothing until you use them, so at its
+defaults either edition does what v0.6.11 did, but for the fixes. Besides a new button and a new
+card, what changes is two content-free questions to Windows - whether this account may shut down
+and which sleep states the PC offers - asked each time the Dashboard shows that card
+([PRIVACY.md](PRIVACY.md)). Going back to v0.6.11 takes only its setup program, or *Install another
+version...* ([below](#going-back-from-v0612)). Coming from a version before v0.6.11, v0.6.11's entry
+says what the update converts ([The state, and going back](CHANGELOG.md#the-state-and-going-back)).
+
+**If recoveries have waited since the Codex app 26.930**, with *Why it is waiting* saying the Codex
+app is not running while it was, this is the release that sends them. Nothing was sent twice or to
+another conversation: they only waited. One still waiting when you update is sent by the new
+watcher once it passes the checks every recovery passes.
+
+**Every plugin copy from v0.6.0's on reads this version.** `0.6.12` has no word after its three
+numbers, and every bootstrap published from v0.6.0 on compares those, so none of them takes this
+installation for none. Only a pre-release's word needs a later copy: the entries of v0.6.12's
+pre-releases, below, say which.
+
+### Install another version...
+
+- **Any version, either edition, from the Dashboard.** *Install another version...*, appended last
+  to the Diagnostics page's Tools card so no button moves, opens a list of every version from v0.6.2
+  on in each edition it was published in (the advanced edition from v0.6.11-alpha), newest first,
+  and installs the row you confirm in place of the installation the window belongs to. A row it
+  cannot install stays in the list, greyed, with its reason: the version you have, no archive of that
+  edition under that number, no checksum to check it against, an installer that predates editions
+  (from the advanced edition, a standard version before v0.6.11-alpha), or your administrator's
+  policy that version would not keep. Versions before v0.6.2 are not offered: from v0.6.0 and v0.6.1
+  the Dashboard cannot check a download, and v0.5's installers do not keep a paused recovery paused. [The guide](GUIDE.md#installing-another-version) says the rest.
+- **Pre-releases too, older and newer.** Pre-releases are offered as releases are, in both editions:
+  one picked by name and confirmed is installed as a release would be, an older one only with
+  `-Force`, which the confirmation passes. The owner amended I12 for it on 2026-10-03: its two
+  pre-release clauses bind what *Check for updates* offers, which is still the newest pre-release
+  newer than both the version you have and the newest release.
+- **Asked first, and only what applies.** The confirmation is the careful one (*Not now* is what Enter
+  and Escape press) and says only what applies: a pre-release is tested less; an older version lacks
+  what came since, and a setting or value it does not know reads as its default there; the state is
+  converted first, and what that switches off; a change of edition takes the advanced features away or
+  starts every one of them off; an advanced version before v0.6.11-beta.2 cannot read this version's
+  advanced settings; and the download is checked before anything runs.
+- **Converted only after the archive passed.** Confirming reads the list again - a row no longer
+  offered as it was shown installs nothing - then downloads the archive, checks it against its pin or
+  its published `.sha256`, tests and unpacks it as every install does, and only then takes the
+  install lock. For a version from v0.6.2 to v0.6.11-alpha, which reads a state one schema older, the
+  installed version's own `downgrade-state --to 3 --stop-watcher` then asks the watcher to stop,
+  waits a minute at most, never kills it, and converts the state as `downgrade-state --to 3` always
+  has, with a copy beside it: what may already have gone to Codex becomes final and is never sent
+  again, and what could be sent twice is switched off. Then that version's own installer runs. The
+  result says whether the watcher changed hands and what the conversion switched off, by count.
+- **Start watcher waits too.** While an action of the Diagnostics page runs - this one or *Check
+  for updates* - the header's *Start watcher* is greyed with every other action button, so the window
+  cannot start the current watcher between a conversion and the installer.
+- **Nothing that reads the state puts it back.** While an installation holds its lock, the window,
+  the panel, Codex's tools and the command line read an older state as an older watcher's and never
+  upgrade it, so neither the Dashboard's own refresh, every five seconds, nor a notification's
+  *Cancel* pressed meanwhile, nor a status asked from Codex's skill or the Start Menu can bring a
+  converted state back to this version's schema before the older version's installer has run. An
+  installer's own setup switches through that older store, and the watcher it starts upgrades the
+  state, as a watcher always has. Once no installation holds the lock this version upgrades the state
+  again - except in a window or an MCP server left open from before the pick: once the older
+  version's installer has replaced the files they run from, they leave the state to that version.
+- **Nor does anything start the watcher meanwhile.** While an installation holds its lock, the
+  bridge's `start-watcher`, which the window's *Start watcher* sends, and Codex's `start_watcher` tool
+  start nothing and refuse with `start_failed` and the reason, as the start with Codex always has, so
+  no caller of either can start this version's watcher between a conversion and the installer.
+- **An administrator's policy is kept.** `DisableUpdateCheck` greys this button with *Check for
+  updates*. While any policy value an older version would stop applying is set - every one but
+  `DisablePowerAction`, which holds back what no older version has - or a policy key cannot be read,
+  no version before v0.6.11-beta - the first that reads them - is offered or picked.
+- **Privacy.** The list is read from one more api.github.com address, the same list of releases on
+  the same path, thirty to a page and at most five pages, only when you press the button and again
+  when you confirm; then only the version you confirmed is downloaded. The policy keys are read on
+  this PC, read only, and the answer goes nowhere. Nothing is sent to Codex.
+
+### The power action after usage-limit recoveries
+
+Asked for in Discussion #22, and decided by the owner on 2026-09-30 and 2026-10-03. It is in the
+standard edition: it keeps every standard, with A28 amended by the owner for its stop button.
+
+- **Off by default, turned on only in the Dashboard.** Settings > General has a new last card, **When
+  usage-limit recoveries finish**: Then (Sleep, Hibernate or Shut down), When (every recovery succeeded;
+  each one succeeded or was handed over to you; each one ended, however it ended), How often (once, for
+  the next usage limit, or every time) and Warn me first for (2 to 30 minutes). **Turn on...** asks
+  first, with Cancel as the default. The card is not a setting: Save never changes it, and nothing
+  else moves on the page. A Once that no usage limit reaches within a day turns itself off.
+- **Only after usage-limit recoveries, and only when nothing else runs.** A recovery from a temporary
+  error never starts or decides it, though while one is open it holds it. The watcher acts only when
+  every usage-limit recovery of its batch has ended as chosen, no recovery waits, runs or may still be
+  delivered, Codex has finished recording every conversation written in the last hour, no turn runs
+  and no input is queued in Codex, nobody else is signed in (for a shut down), and nobody has used the
+  PC for 2 minutes. Anything it cannot read means it waits, and the card says what it waits for.
+- **A countdown with a stop button.** A notification says when it will happen, with **Don't sleep**
+  (or Don't hibernate, Don't shut down) and **Open Dashboard**. The stop, from the toast or the card,
+  is read before anything else, ends that batch, and never starts another countdown; it names its batch
+  by an opaque id that every batch end replaces, so an old notice cannot stop the next one. Any input,
+  a pause, a gap in the watcher's looks or a new recovery ends the countdown too. The power notices are
+  shown whatever the notification switches say.
+- **Turned off from anywhere, turned on from nowhere else.** The card's **Turn off**, a new item in the
+  notification-area icon's menu while it is on, and a new MCP tool, `turn_off_power_action`, which is
+  not marked destructive, as pause is not. No tool turns it on. Pausing recovery holds it and ends a
+  countdown but does not turn it off: once recovery is resumed it acts as before.
+- **Windows' own calls, from the watcher.** SetSuspendState, or ExitWindowsEx(EWX_POWEROFF) with no
+  force flag, after the watcher enables SeShutdownPrivilege on its own token; an account without that
+  privilege is offered nothing. No process, task, service or administrator, no Windows setting changed
+  (Hibernate is never turned on), the two libraries loaded from System32 only, and no shut down while
+  someone else is signed in. The batch is recorded as done before Windows is asked, so a refusal is
+  said once and never tried again.
+- **A file of its own.** `config\power-action.json` holds ids, times and closed words, is read
+  strictly (anything else reads as off) and is written under a lock. There is no new setting and no
+  new database schema, so the version picker's older versions simply ignore it. Uninstall keeps it;
+  a purge removes it. `get_status` and the diagnostics export carry its state only while the file
+  exists.
+- **For administrators**, a seventh policy value, `DisablePowerAction`, holds it and greys the card:
+  it cannot be turned on, and one turned on before stays and does nothing until the value is removed.
+- **Standards.** H14 (the power action's rule) and F15 (its Windows calls) are new; A28 is amended for
+  the stop button (by the owner, 2026-10-03); B16 names the three questions it asks Windows; H8's
+  unmarked tools include `turn_off_power_action`.
+- **Not yet called for real.** Every part is unit- and integration-tested with Windows stood in, and
+  the product refuses to act while a test runs. No running watcher has yet put a PC to sleep,
+  hibernated or shut one down; the owner's measurement MP, at live acceptance, does that first, and
+  until then Sleep is offered only where Windows reports S1 to S3.
+
+### Going back from v0.6.12
+
+- **The state and the advanced edition's file are v0.6.11's.** `state.sqlite` is still schema 4 and
+  `config\advanced\advanced.sqlite` still version 2, so going back to v0.6.12-alpha.2, v0.6.12-alpha
+  or v0.6.11 takes only its setup program or `Install.cmd`, in the edition you have. *Install another
+  version...* goes back too, and for a version from v0.6.2 to v0.6.11-alpha converts the state first,
+  as above; by hand, going back that far is as v0.6.11's entry says
+  ([The state, and going back](CHANGELOG.md#the-state-and-going-back)).
+- **The power action's file.** `config\power-action.json` is this version's alone: an older version
+  leaves it as it is and never acts on it, and this version or a later one reads it again as it was
+  left.
+
+### Fixes
+
+- **The Codex app's own server is found beside its cloud-environment server.** The Codex app from
+  26.930 on can start a cloud-environment server (`codex.exe exec-server`) beside its own app server,
+  from the same binary, and then no recovery was sent: each one waited, saying the Codex app was not
+  running, because the watcher took a `codex.exe` the app started as the app's own server only when
+  it was the only one. Where the app has more than one of the configured engine, the watcher now asks
+  Windows' Restart Manager - as it already does to see which conversation the app holds - which of
+  them holds Codex's queue or state database open, both in one question, and takes that one. If
+  Windows cannot say, or none or more than one does, it waits as before. It reads no command line
+  and no process memory, and an app with one server is read exactly as before.
+  [PRIVACY.md](PRIVACY.md) names the question.
+- **The setup program removes its folder when its console window is closed.** Closing the window
+  just as Install.cmd ended could leave the whole unpacked archive in %TEMP%: taking away a Ctrl+C
+  handler waited for the close handler, which waited for the folder to be removed, until Windows
+  ended the program. The close handler is now the program's only handler, added once and never taken
+  away, and it answers Ctrl+C and Ctrl+Break from Install.cmd's start on.
+
+### For developers
+
+- `scripts/bootstrap.ps1` gains `-Versions` (lists, exit 0, or `versions: unavailable`, exit 12) and
+  `-Pick <version> -Edition <edition> [-Force]` (installs one offered row; refusals exit 15).
+  `scripts/release.json` gains `release_pages`. `downgrade-state` gains `--stop-watcher`, with its
+  one-line answer and exit 3 for a watcher that did not stop; `scripts/plugin_setup.py` passes it
+  through for `--to 3`. The window's one start of the bootstrap is now `StartBootstrap`.
+- New tests: `tests/test_version_picker.py`, `tests/test_gui_versions.py`, and in
+  `tests/test_downgrade.py` the stop-watcher tests, the floor's proof against the tags and the reads
+  under the install lock. The privacy test's api.github.com allowance is widened, deliberately, to
+  exactly the two addresses of the list of releases, and each privacy summary names the picker.
+- Every CI test part uploads its seconds per file as an artifact (`scripts/test_parts.py --seconds`),
+  and `--merge-seconds` folds a downloaded run into `tests/data/durations.json` by `--record-durations`'
+  rules, so the durations no longer come from parsing job logs.
+- The pairing's tests: `tests/test_windows.py`'s `SeveralEngineChildrenTests` (the Restart Manager's
+  holder among several children of the configured engine, and every way short of exactly one that
+  fails closed) and `tests/test_engine_children.py` (the app gate through the real transport against
+  codexsim, where the app runs two of the configured engine).
+- The power action's tests: `tests/test_power_action.py`, `test_power_action_control.py`,
+  `test_power_action_watcher.py`, `test_power_action_windows.py` and `test_gui_power_action.py`, with
+  additions in `test_cli`, `test_notify`, `test_notice_card`, `test_source`, `test_tray`, `test_mcp`
+  and `test_managed`. The product refuses the real power calls while `unittest` is loaded.
+
+
 ## v0.6.12-alpha.2 — Every lane's test parts even, each dealt by its own times
 
 [The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.12-alpha...v0.6.12-alpha.2)

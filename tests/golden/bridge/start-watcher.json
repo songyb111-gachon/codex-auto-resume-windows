@@ -26,6 +26,15 @@
           "started": true
         }
       }
+    },
+    {
+      "case": "refused while an installation holds the install lock",
+      "argument": null,
+      "reply": {
+        "ok": false,
+        "error": "could not start the watcher: an installation is in progress; start it once it has finished",
+        "error_code": "start_failed"
+      }
     }
   ]
 }

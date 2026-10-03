@@ -92,9 +92,15 @@ class HistoryMixin:
             return None
         with self._db("state") as connection:
             row = connection.execute("SELECT rollout_path FROM threads WHERE id=?", (thread_id,)).fetchone()
-        if row is None or not isinstance(row["rollout_path"], str):
+        return None if row is None else self._confined_rollout(thread_id, row["rollout_path"])
+
+    def _confined_rollout(self, thread_id, raw) -> Path | None:
+        """`raw`, the rollout path Codex's `threads` row names, if it is this conversation's file in the
+        Codex sessions folder: a .jsonl file whose name holds the id. None for anything else, which is
+        then neither opened nor asked about."""
+        if not ids.is_uuid(thread_id) or not isinstance(raw, str):
             return None
-        path = _safe_path(Path(row["rollout_path"]))
+        path = _safe_path(Path(raw))
         if (not path.is_relative_to(_safe_path(self.home / "sessions"))
                 or path.suffix != ".jsonl" or thread_id not in path.name):
             return None
@@ -610,3 +616,69 @@ class HistoryMixin:
         except OSError:
             return {"table": True, "fresh": None}
         return {"table": True, "fresh": size == row[0]}
+
+    def activity(self, threads=(), now=None, recent: float = 3600.0) -> dict:
+        """Whether anything may still run in this Codex home, for the power action (v0.6.12): sizes, times
+        and counts, and nothing of any conversation's content (B7). Two parts, in this order.
+
+        Codex's history has caught up first (A18). Every conversation whose file was written in the last
+        `recent` seconds, and every one of `threads` - the batch's own - whatever its age, must have been
+        projected exactly: its file's size, from one stat call (the file is never opened), is the byte
+        offset the projection has reached. There is no grace, as the engine allows before a send: nothing
+        is checked again after the PC sleeps or shuts down, so a turn just started without local input, or
+        a failure not projected yet, holds the action instead of reading as nothing running. A missing
+        projection row for such a file is behind too. `history` is True when all are current, False when
+        one is behind, and None when that cannot be told - the projection table itself missing, a
+        database that cannot be read, a file that cannot be stat'ed.
+
+        Then the counts, only once the history is current: the latest turns still in progress, in every
+        conversation of this home, and the items queued in Codex. Each is None when it cannot be read; a
+        turn left in progress by a crash is counted, and holds the action (Q9)."""
+        unknown = {"history": None, "running": None, "queued": None}
+        if not epoch(now) or type(recent) not in (int, float) or not recent >= 0:
+            return unknown
+        wanted = {thread for thread in threads if ids.is_uuid(thread)}
+        try:
+            with self._db("history") as connection:
+                if not connection.execute(
+                        "SELECT 1 FROM sqlite_master WHERE type='table' "
+                        "AND name='thread_history_projection_state'").fetchone():
+                    return unknown
+                offsets = {row[0]: row[1] for row in connection.execute(
+                    "SELECT thread_id,next_rollout_byte_offset FROM thread_history_projection_state")}
+            with self._db("state") as connection:
+                conversations = connection.execute("SELECT id,rollout_path FROM threads").fetchall()
+        except (SourceError, sqlite3.Error, OSError, ValueError):
+            return unknown
+        for row in conversations:
+            try:
+                path = self._confined_rollout(row["id"], row["rollout_path"])
+                if path is None:
+                    continue
+                info = path.stat()
+            except FileNotFoundError:
+                continue                    # no file: nothing Codex could still be projecting
+            except (OSError, ValueError):
+                return unknown
+            if row["id"] not in wanted and info.st_mtime < now - recent:
+                continue
+            offset = offsets.get(row["id"])
+            if type(offset) is not int or offset != info.st_size:
+                return {"history": False, "running": None, "queued": None}
+        found = {"history": True, "running": None, "queued": None}
+        try:
+            with self._db("history") as connection:
+                running = connection.execute(
+                    "SELECT count(*) FROM thread_turns t WHERE t.status='inProgress' "
+                    "AND NOT EXISTS (SELECT 1 FROM thread_turns n "
+                    "WHERE n.thread_id=t.thread_id AND n.rollout_ordinal>t.rollout_ordinal)").fetchone()[0]
+            found["running"] = running if type(running) is int else None
+        except (SourceError, sqlite3.Error, OSError, ValueError):
+            pass
+        try:
+            with self._db("queue") as connection:
+                queued = connection.execute("SELECT count(*) FROM queued_items").fetchone()[0]
+            found["queued"] = queued if type(queued) is int else None
+        except (SourceError, sqlite3.Error, OSError, ValueError):
+            pass
+        return found

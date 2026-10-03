@@ -232,6 +232,14 @@ def cmd_diagnostics(args) -> int:
     return EXIT_OK
 
 
+# downgrade-state --stop-watcher: the watcher did not let go of its mutex within STOP_WAIT_SECONDS
+# of being asked to stop. Nothing was converted. The number `run` exits with when another watcher
+# holds that mutex (EXIT_BUSY), for the same fact.
+EXIT_WATCHER_RUNNING = 3
+# As long as a wait for the watcher's mutex may be (win/sync.py caps it there).
+STOP_WAIT_SECONDS = 60.0
+
+
 def cmd_downgrade_state(args) -> int:
     """Rewrite the state so an older release can read it - schema 3 for v0.6.0 to v0.6.10,
     schema 2 for v0.5 - keeping every record.
@@ -240,9 +248,14 @@ def cmd_downgrade_state(args) -> int:
     watcher cannot be writing rows while their schema changes. Deleting the state is
     never the way back - it would forget which failures were already cancelled,
     exhausted or possibly sent, and which conversations were switched off.
+
+    With --stop-watcher (the bootstrap's -Pick) it asks a running watcher to stop and waits
+    for it instead (`_downgrade_stopping_watcher`).
     """
     app = _app(args)
     target = args.to
+    if getattr(args, "stop_watcher", False):
+        return _downgrade_stopping_watcher(app, target)
     try:
         with app.mutex(timeout=0.0):
             result = downgrade_state(app.paths.state_dir, target)
@@ -273,4 +286,41 @@ def cmd_downgrade_state(args) -> int:
                "want it to send")
     _print("install the older release now; starting this version's watcher again upgrades "
            "the state again")
+    return EXIT_OK
+
+
+def _downgrade_stopping_watcher(app, target: int) -> int:
+    """downgrade-state --stop-watcher: ask the watcher to stop, wait for its mutex at most
+    STOP_WAIT_SECONDS, convert, and say what happened on one closed line - the bootstrap reads it,
+    and holds it to the exit code:
+
+        downgrade: converted <rows> <made_final> <conversations_off> <unfollowed_off> <0|1>   0
+        downgrade: nothing          the state is already that schema or older              0
+        downgrade: watcher-running  it did not stop in time; nothing was converted        3
+        downgrade: failed           the state could not be converted, and is as it was    1
+
+    The watcher is asked to stop with its stop event and never killed: one still running at the
+    end of the wait goes on running, asked. The last field of `converted` is whether Observe only
+    became a pause."""
+    if app.stop_event().signal():
+        app.logger.info("downgrade-state asked the watcher to stop")
+    try:
+        with app.mutex(timeout=STOP_WAIT_SECONDS):
+            result = downgrade_state(app.paths.state_dir, target)
+    except AdapterError as exc:
+        if str(exc) == "mutex_busy":
+            _print("downgrade: watcher-running")
+            return EXIT_WATCHER_RUNNING
+        _print("downgrade: failed")
+        return EXIT_ERROR
+    except StoreError:
+        _print("downgrade: failed")
+        return EXIT_ERROR
+    if not result["changed"]:
+        _print("downgrade: nothing")
+        return EXIT_OK
+    app.logger.info("state downgraded to schema %d (%d records kept)", target, result["rows"])
+    _print("downgrade: converted %d %d %d %d %d" % (
+        result["rows"], result.get("made_final", 0), result.get("conversations_off", 0),
+        result.get("unfollowed_off", 0), 1 if result.get("observe_only_paused") else 0))
     return EXIT_OK

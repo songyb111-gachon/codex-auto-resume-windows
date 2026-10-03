@@ -61,7 +61,9 @@ class ParseTests(unittest.TestCase):
         for name, attribute in ((managed.DISABLE_AUTO_RESUME, "disable_auto_resume"),
                                 (managed.FORCE_OBSERVE_ONLY, "force_observe_only"),
                                 (managed.DISABLE_UPDATE_CHECK, "disable_update_check"),
-                                (managed.DISABLE_STATUS_FILE, "disable_status_file")):
+                                (managed.DISABLE_STATUS_FILE, "disable_status_file"),
+                                # v0.6.12: the power action after usage-limit recoveries.
+                                (managed.DISABLE_POWER_ACTION, "disable_power_action")):
             with self.subTest(name):
                 self.assertTrue(getattr(managed.parse([{name: (1, DWORD)}]), attribute))
                 self.assertTrue(getattr(managed.parse([{}, {name: (2, managed.REG_QWORD)}]), attribute))
@@ -114,7 +116,8 @@ class ParseTests(unittest.TestCase):
                                (managed.DISABLE_UPDATE_CHECK, held(disable_update_check=True)),
                                (managed.DISABLE_STATUS_FILE, held(disable_status_file=True)),
                                (managed.MAX_RECOVERY_ATTEMPTS, held(max_recovery_attempts=1)),
-                               (managed.QUIET_HOURS, held(force_observe_only=True))):
+                               (managed.QUIET_HOURS, held(force_observe_only=True)),
+                               (managed.DISABLE_POWER_ACTION, held(disable_power_action=True))):
             for places in ([{name: policykeys.UNREADABLE}, {}], [{}, {name: policykeys.UNREADABLE}]):
                 with self.subTest(name=name, places=places):
                     self.assertEqual(managed.parse(places), expected)
@@ -146,6 +149,17 @@ class ClampTests(unittest.TestCase):
     def test_a_ceiling_never_raises_what_a_person_chose(self):
         self.assertEqual(managed.clamp(dict(settings.defaults(), max_recovery_attempts=2),
                                        held(max_recovery_attempts=5))["max_recovery_attempts"], 2)
+
+    def test_disable_power_action_holds_no_setting(self):
+        """v0.6.12: the power action is no setting (control/poweraction.py), so its key holds none - it
+        turns the arming inert and refuses a new one, and every setting is the person's own still."""
+        key = held(disable_power_action=True)
+        self.assertTrue(key.active)
+        self.assertEqual(key.codes(), [managed.DISABLE_POWER_ACTION])
+        self.assertEqual(managed.fields(key), frozenset())
+        own = settings.defaults()
+        self.assertEqual(managed.clamp(own, key), own)
+        self.assertEqual(managed.VALUES[-1], "DisablePowerAction", "the seventh, last in the list")
 
     def test_the_status_file_is_held_off(self):
         """Item 17 made it a setting (statusfile.py), off by default; DisableStatusFile holds it there."""
@@ -280,7 +294,7 @@ class ReaderTests(unittest.TestCase):
         self.assertEqual(places, [dict.fromkeys(managed.VALUES, policykeys.UNREADABLE), {}])
         self.assertEqual(managed.parse(places), held(
             disable_auto_resume=True, force_observe_only=True, disable_update_check=True,
-            disable_status_file=True, max_recovery_attempts=1))
+            disable_status_file=True, max_recovery_attempts=1, disable_power_action=True))
 
         class ValueDenied(FakeRegistry):
             @staticmethod

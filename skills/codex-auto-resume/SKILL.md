@@ -18,7 +18,7 @@ This plugin also provides tools (`open_settings`, `get_status`, `list_pending`,
 `cancel_recovery`, `disable_conversation_recovery`, `enable_conversation_recovery`,
 `reset_recovery_budget`, `start_watcher`, `retry_now`, `postpone_recovery`, `release_hold`,
 `get_recovery_statistics`, `get_recovery_timeline`, `clear_recovery_history`,
-`preview_recovery_message`). When they are
+`preview_recovery_message`, `turn_off_power_action`). When they are
 available, use them instead of the commands below: they are typed, they refuse an invalid
 value instead of writing it, and `open_settings` shows the user a panel they can read and
 change directly.
@@ -28,6 +28,10 @@ interruption, under the current language and style. It saves nothing and sends n
 The user's own Custom message text cannot be written from Codex - not through
 `update_settings` and not through the preview. If the user wants to change it, tell them it
 is edited in the Dashboard, under Settings > Continuation message.
+
+`turn_off_power_action` turns off the power action after usage-limit recoveries (sleep, hibernate
+or shut down once they finish), so this PC stays on. Nothing in Codex turns it on: only the
+Dashboard does, and if the user asks for it, send them there.
 
 `resume_auto_recovery`, `enable_conversation_recovery`, `update_settings`,
 `restore_default_settings`, `cancel_recovery`, `reset_recovery_budget`, `start_watcher`,
@@ -76,7 +80,10 @@ the script says what the change means before it downloads anything, keeps their
 settings and pending recoveries, and starts every advanced capability off. Never add
 `-Edition` on your own, and never together with `-Update`, which refuses it. Never pass
 `-Version` either: it installs a pre-release, and a pre-release is installed only when the
-user says yes to it in the Dashboard's Check for updates.
+user says yes to it in the Dashboard's Check for updates. Never run `-Versions` or `-Pick`:
+they are the Dashboard's Install another version..., which shows the user every version,
+asks them and passes on only what they confirmed. If the user wants another version or
+edition, point them to it on the Diagnostics page.
 
 Tell the user plainly what it is about to do before running it: it downloads this
 version's release archive from the project's GitHub releases over HTTPS, checks its
@@ -407,7 +414,8 @@ why.
 - Its own runtime has no network code and no telemetry. It never checks for updates on its
   own: the Diagnostics page has a button that asks GitHub which release is newest and reads
   this repository's list of releases on api.github.com for a newer pre-release, and those
-  requests happen only when a person presses it. The setup script
+  requests happen only when a person presses it; Install another version... on the same page
+  reads that whole list there only when a person opens it and confirms a version. The setup script
   downloads the release from GitHub. The Codex processes it starts use the user's existing
   sign-in to check usage, and the resumed turn goes to OpenAI like any turn the user starts.
   What these tools and commands return becomes part of this conversation.

@@ -309,6 +309,41 @@ class CliTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("nothing", out)
 
+    def test_a_power_stop_from_a_toast_writes_the_stop_and_raises_the_stopped_toast(self):
+        """v0.6.12: Windows starts `activate` with the countdown toast's stop URI. It reaches
+        stop_power_countdown with the toast's actor through notifier.activate - the card's branch - so the
+        stop is written for the watcher to end that batch skipped, and the notice that the PC stays on is
+        raised as a toast. A nonce of a batch that is over, or one that is not a nonce, changes nothing."""
+        import json
+        import time as clock
+        from codex_auto_resume import notify, poweraction
+        paths = config.Paths(self.home)
+        paths.ensure()
+        now = clock.time()
+        nonce = "0123456789abcdef"
+        armed = {"nonce": nonce, "action": "shut_down", "after": "any_end", "repeat": "always",
+                 "grace_seconds": 300, "armed_at": now - 60, "since": now - 60, "carried": [], "stop_at": None}
+        paths.power_action_file.write_text(json.dumps(
+            {"format": poweraction.FORMAT, "armed": armed, "shown": None, "last": None}), encoding="utf-8")
+        raised = []
+        with patch.object(notify, "show", lambda title, body, **options: raised.append(title) or True),                 patch.object(Store, "cancel_interruption") as cancel:
+            for uri in (notify.power_stop_uri("f" * 16), "codex-auto-resume:power-stop?n=" + nonce.upper()):
+                with self.subTest(uri=uri):
+                    code, _, _ = self.cli("activate", uri)
+                    self.assertEqual(code, 1)
+                    self.assertIsNone(json.loads(paths.power_action_file.read_text(encoding="utf-8"))["armed"]["stop_at"])
+            self.assertEqual(raised, [])
+            code, _, _ = self.cli("activate", notify.power_stop_uri(nonce))
+        self.assertEqual(code, 0)
+        stop = json.loads(paths.power_action_file.read_text(encoding="utf-8"))["armed"]["stop_at"]
+        self.assertIsInstance(stop, float)
+        self.assertEqual(raised, [notify.l10n.message("toast_power_stopped")])
+        cancel.assert_not_called()
+        text = (self.home / "logs" / "auto-resume.log").read_text(encoding="utf-8")
+        self.assertIn("power action stopped from a notification", text)
+        self.assertIn("named a batch that is over", text)
+        self.assertNotIn(nonce, text)
+
     def test_stop_without_watcher(self):
         code, out, _ = self.cli("stop")
         self.assertEqual(code, 0)
@@ -496,6 +531,25 @@ class UninstallSafetyTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertFalse((self.home / "config" / "state.sqlite").exists())
         self.assertTrue(stranger.exists(), "unmatched names in our own dir are still left alone")
+
+    def test_a_purge_takes_the_power_action_s_file_and_keep_state_keeps_it(self):
+        """v0.6.12: config/power-action.json is owned state (D10) - kept by the installer's ordinary
+        uninstall, which keeps state, and taken with the rest by a purge."""
+        for flags, kept in (((), False), (("--keep-state",), True)):
+            with self.subTest(flags=flags):
+                shutil.rmtree(self.home, ignore_errors=True)
+                self.cli("install")
+                paths = config.Paths(self.home)
+                paths.power_action_file.write_text(
+                    '{"format": "codex-auto-resume/power-action/1", "armed": null, "shown": null, "last": null}',
+                    encoding="utf-8")
+                left = paths.state_dir / "power-action.4242.tmp"
+                left.write_text("{}", encoding="utf-8")
+                with patch.object(startup, "_winreg", return_value=FakeWinreg()):
+                    code, _, _ = self.cli("uninstall", *flags)
+                self.assertEqual(code, 0)
+                self.assertEqual(paths.power_action_file.exists(), kept)
+                self.assertEqual(left.exists(), kept)
 
     def test_uninstall_aborts_when_watcher_state_is_unknown(self):
         self.cli("install")

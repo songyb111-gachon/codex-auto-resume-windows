@@ -42,7 +42,7 @@ changed).
 **0.6** The deciding line: keep the engine small, local, conservative and fail-closed; spend complexity on install and control.  
 *docs*
 
-**0.7** The Rust core (v0.6.14) replaces the implementation, not the behaviour: exact-thread, fail-closed, the registry's semantics and both editions are kept.  
+**0.7** The Rust core (v0.6.15) replaces the implementation, not the behaviour: exact-thread, fail-closed, the registry's semantics and both editions are kept.  
 *planned*
 
 ## A. What it may send to Codex, and when
@@ -128,8 +128,9 @@ changed).
 **A27** The Custom message, and a conversation's own message, are written only in the Dashboard; MCP update_settings refuses both and the preview tool takes no text. Each is at most 2000 characters and sent exactly as typed. Placeholders come from a whitelist ({reason},{category},{attempt},{max_attempts},{reset_time}); dangerous ones are refused by name. It is re-checked on read, and text that fails the check is treated as not set.  
 *tested*: `test_continuation.py`, `test_mcp.py`, `test_conversation_message.py`
 
-**A28** A notification or card button can only cancel one exact interruption (an opaque 64-hex id) or open one page from a fixed list; anything else is ignored and logged, and a button never causes a send.  
-*tested*: `test_notify.py`, `test_notice_card.py`
+**A28** A notification or card button can only cancel one exact interruption (an opaque 64-hex id), stop the power action for one batch (named by that batch's opaque 16-hex id, which every batch end replaces), or open one page from a fixed list; anything else is ignored and logged, and a button never causes a send (amended by the owner on 2026-10-03).  
+*tested*: `test_notify.py`, `test_notice_card.py`, `test_cli.py`
+<!-- A28 amended at the owner's word, 2026-10-03: "예, 버튼 넣기" - a stop button for one batch, named by that batch's nonce, on the power action's notice and card. -->
 
 **A29** A switch click carries the exact interruption and conversation. A stale, finished or other-conversation click is refused and changes nothing, and a switch sends nothing.  
 *tested*: `test_control_continuation.py`, `test_tray_popup.py`
@@ -184,8 +185,8 @@ changed).
 **B15** Compatibility probes read only the schema's table and column names and whether folders exist, never a row.  
 *code*
 
-**B16** Windows is asked only content-free questions, and AppsUseLightTheme and TrayNotify are read, never written.  
-*code*
+**B16** Windows is asked only content-free questions, and AppsUseLightTheme and TrayNotify are read, never written. The power action asks three more. Whether this account holds SeShutdownPrivilege and which sleep states the PC offers is asked when the Dashboard shows the power action's card or turns it on, and while it is armed; how long ago the last input came (a time, never what it was, with no hook) and how many other sessions are signed in (a count, never a user name) only while it is armed.  
+*tested partly*: `test_power_action_windows.py`
 
 **B17** Layering: the engine imports no sqlite3, ctypes or subprocess and reaches Codex only through its injected adapters; the UI and MCP never import Codex's readers; the domain layer is pure standard library; only listed modules import subprocess.  
 *tested*: `test_layers.py`, `test_structural_invariants.py`
@@ -198,17 +199,17 @@ changed).
 **C2** Exactly one shipped file reaches the network: scripts/bootstrap.ps1. build/ downloads the pinned Python while a release is built; what ships from it - the install scripts and the setup program - reaches nothing.  
 *tested*: `test_privacy_claims.py`, `test_setup.py`
 
-**C3** No telemetry, analytics or crash reporting, and shipped files name no unexpected host.  
+**C3** No telemetry, analytics or crash reporting, and shipped files name no unexpected host. api.github.com is named for two addresses alone, both this repository's list of releases: the update check's ten newest, and the version picker's pages of thirty (amended by the owner on 2026-10-03).  
 *tested*: `test_privacy_claims.py`
 
 **C4** Nothing happens on its own: no update polling, no schedule, nothing at start, no automatic compatibility refresh.  
 *tested*: `test_convergence.py`, `test_gui_update.py`
 
-**C5** The update check runs only when a person presses the button. It sends one HEAD to a constant releases/latest URL and reads the version from the redirect under this exact repository, rebuilt from its integers. It also reads this repository's list of releases to find a newer pre-release, which it offers with a question and installs only on a yes (amended by the owner on 2026-09-28).  
-*tested*: `test_update_check.py`, `test_convergence.py`, `test_prerelease_offer.py`
+**C5** The update check runs only when a person presses the button. It sends one HEAD to a constant releases/latest URL and reads the version from the redirect under this exact repository, rebuilt from its integers. It also reads this repository's list of releases to find a newer pre-release, which it offers with a question and installs only on a yes. The version picker (*Install another version...*) reads this repository's whole list of releases, paged, only when a person opens it and again when they confirm, and installs the version and edition they picked - a release or a pre-release, older or newer - only after that confirmation, which is the yes (amended by the owner on 2026-09-28 and 2026-10-03).  
+*tested*: `test_update_check.py`, `test_convergence.py`, `test_prerelease_offer.py`, `test_version_picker.py`, `test_gui_versions.py`
 
-**C6** Setup download: HTTPS, at most 5 redirects, URL built from constants and the manifest version, final host one of three GitHub hosts (checked after the download, which is disclosed), at most the archive and its .sha256.  
-*tested*: `test_convergence.py`, `test_update_check.py`
+**C6** Setup download: HTTPS, at most 5 redirects, URL built from constants and the manifest version - or a version from the list of releases, rebuilt from its integers - final host one of three GitHub hosts (checked after the download, which is disclosed), at most the archive and its .sha256 (amended by the owner on 2026-10-03).  
+*tested*: `test_convergence.py`, `test_update_check.py`, `test_version_picker.py`
 
 **C7** Compatibility refresh only on request: one GET to a constant raw.githubusercontent.com URL with no query, at most 256 KiB, never parsed or run by PowerShell, never started by the watcher or any MCP tool.  
 *tested*: `test_compat_bootstrap.py`, `test_compat_surfaces.py`
@@ -298,8 +299,8 @@ changed).
 **E8** Stopping is always a request. An upgrade waits up to a minute and never kills; only this plugin's own MCP launchers (by path) and its own short-lived Codex helpers are ever terminated.  
 *tested*: `test_control.py`, `test_installer.py`, `test_upgrade_handover.py`
 
-**E9** Bootstrap runs nothing from the archive until every check passes, and any failure deletes the download.  
-*tested*: `test_convergence.py`
+**E9** Bootstrap runs nothing from the archive until every check passes, and any failure deletes the download. For an older version the state is converted only after the archive passed every check, while nothing from the archive has run yet (amended by the owner on 2026-10-03).  
+*tested*: `test_convergence.py`, `test_version_picker.py`
 
 **E10** If the download fails, the skill stops: no other source and no hand-assembled install.  
 *model*
@@ -359,6 +360,9 @@ changed).
 
 **F14** Starting the watcher when Codex starts is not offered in the standard edition: a watcher started from inside Codex ends when Codex closes (measured on Codex 26.915), so the setting exists and is not offered. The advanced edition's start-with-Codex does it outside Codex's job, through WMI.  
 *tested*: `test_start_with_codex.py`, `test_settings.py`
+
+**F15** The power action is the watcher's own call of SetSuspendState or ExitWindowsEx(EWX_POWEROFF) with no force flag, after enabling SeShutdownPrivilege on its own token, and offers no action to an account that does not hold that privilege. It starts no process, task or service, needs no administrator, changes no Windows setting and never shuts down while another person is signed in.  
+*tested*: `test_power_action_windows.py`
 
 ## G. The Compatibility Registry's authority
 
@@ -424,7 +428,7 @@ changed).
 **H7** Doing nothing resumes, except where a setting holds a recovery for the person - a conversation set to Ask me first or Only notify me; a project that Projects that may resume does not allow, or, under either list, one whose project cannot be read; a task the task-changed guard finds changed, set to Hold it for me; a conversation past the context-cost guard's Hold above; what fell due during a sleep longer than Ask me after a sleep longer than - and while Observe only is on, when nothing is sent. Don't resume / Don't retry only cancels.  
 *tested*: `test_notify.py`, `test_postpone_and_tiers.py`, `test_observe_and_admission.py`, `test_ladder_and_guards.py`, `test_power.py`
 
-**H8** MCP tools that add automation or cannot be undone carry destructiveHint (resume, enable_conversation, update_settings, restore_default_settings, cancel_recovery, reset_recovery_budget, start_watcher, release_hold, clear_recovery_history); pause, conversation-off, retry_now and postpone are unmarked. This is a request, not a lock.  
+**H8** MCP tools that add automation or cannot be undone carry destructiveHint (resume, enable_conversation, update_settings, restore_default_settings, cancel_recovery, reset_recovery_budget, start_watcher, release_hold, clear_recovery_history); pause, conversation-off, retry_now, postpone and turn_off_power_action are unmarked. This is a request, not a lock.  
 *tested*: `test_mcp.py`, `test_mcp_v3.py`, `test_postpone_and_tiers.py`
 
 **H9** If a marked tool is declined, the model must not run the matching command, must never "force" a resume, and must not work around a missing safety setting.  
@@ -441,6 +445,9 @@ changed).
 
 **H13** An explicit interface-language choice wins over Windows and CODEX_AUTO_RESUME_LANG and survives restarts, repairs and updates; motion stops under Reduce motion, Windows' animation setting, High Contrast, battery saver, a locked session and the overflow area.  
 *tested*: `test_locale.py`, `test_tray_icon_motion.py`
+
+**H14** The power action after usage-limit recoveries is off by default and armed only in the Dashboard, once or always. MCP, the icon and a notice may only turn it off or stop it for its batch, and a stop is honoured before anything else is looked at. It acts only when every usage-limit recovery of its batch has ended as the person chose, no recovery is open or followed, Codex's history has caught up, no Codex turn runs, no input is queued, nobody has used the PC for two minutes and a notice's countdown has run out. Anything it cannot read means it does nothing, and it sends nothing.  
+*tested*: `test_power_action.py`, `test_power_action_watcher.py`, `test_power_action_control.py`, `test_cli.py`
 
 ## I. Release and supply chain
 
@@ -477,7 +484,7 @@ changed).
 **I11** The repository manifest declares only skills; the MCP server is added at build time beside its runtime.  
 *tested*: `test_plugin.py`
 
-**I12** Updates never go to an older version without -Force, only to a version resolved under this exact repository, and install with --keep-state. A pre-release is installed only when the person says yes to it when the update check offers it, never older than what is installed, and checked against its published .sha256 (amended by the owner on 2026-09-28).  
+**I12** Updates never go to an older version without -Force, only to a version resolved under this exact repository, and install with --keep-state. A pre-release the update check offers is installed only when the person says yes to that offer, and the check never offers one older than what is installed. A version a person picks by name with *Install another version...* and confirms - a pre-release too, older or newer - follows the first sentence: older only with -Force, the confirmation being the yes. A pre-release is checked against its published .sha256 (amended by the owner on 2026-09-28 and 2026-10-03).  
 *tested*: `test_update_check.py`, `test_prerelease_offer.py`
 
 **I13** Nothing is Authenticode-signed, which is disclosed, and users are never asked to disable SmartScreen or Smart App Control.  

@@ -46,7 +46,8 @@ NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 # v0.6.10 had, or the two runs would not be of one scenario.
 HELPERS = ("codexsim", "frozen_registry", "srcscan")
 # What came after v0.6.10 and so has no v0.6.10 run to be compared with.
-AFTER = {"test_ladder_and_guards": "v0.6.11's Custom waits, time ceiling and guards, at their own settings"}
+AFTER = {"test_ladder_and_guards": "v0.6.11's Custom waits, time ceiling and guards, at their own settings",
+         "test_engine_children": "v0.6.12's app gate where the app main runs two of the configured engine"}
 MARKER = re.compile(r"\[codex-auto-resume:([0-9a-f]{64}|[0-9a-f]{16})\]")
 
 

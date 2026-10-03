@@ -108,9 +108,11 @@ class App(WatchLoop):
         """Open the state for one command, as any per-call opener must (openstate.open_state).
 
         An older schema is upgraded only under the watcher's mutex, and while an older watcher
-        holds it the command is refused (UpgradePending) until that watcher stops.
+        holds it the command is refused (UpgradePending) until that watcher stops - as it is
+        while an installation holds its lock, when the state may have been converted for the
+        version being installed.
         """
-        return open_state(self.paths.state_dir, legacy="never", check=check)
+        return open_state(self.paths.state_dir, legacy="never", check=check, hold_while_installing=True)
 
     def backend(self) -> Backend:
         if self._backend is None:
@@ -309,8 +311,8 @@ class App(WatchLoop):
         return announce
 
     def _watcher_notice(self, event, detail, *, final=False):
-        """A notice about the watcher itself (v0.6.11: the memory guard's, memguard.py), under the
-        notifications switch alone. Queued off the tick path like any other; but a `final` one - the
+        """A notice about the watcher itself (v0.6.11: the memory guard's, memguard.py; v0.6.12: the power
+        action's, runtime/afterwork.py, which no switch silences), under the notifications switch alone. Queued off the tick path like any other; but a `final` one - the
         watcher is stopping - is Windows' own toast, raised before it goes: the card lives on the icon's
         thread, which ends with this watcher, and a toast outlives it in the notification center."""
         if final:
@@ -320,7 +322,9 @@ class App(WatchLoop):
         return self._watcher_toasts(event, detail)
 
     def _show_watcher_notice(self, event, detail, final=False):
-        if not policy.notification_enabled(self.settings, event):
+        # v0.6.12: the power action's notices are raised whatever the notification switches say - the
+        # countdown's carries the promised way to stop it (Q8). Windows' Do not disturb may still hide one.
+        if event not in notifier.POWER_EVENTS and not policy.notification_enabled(self.settings, event):
             return False
         notice = notifier.build(event, detail)
         if notice is None:

@@ -745,6 +745,47 @@ carry on. *A pass:* the queued turn ran, and the goal stayed active and carried 
 M2b passes for a Codex version, the goal continuation leaves a conversation the app holds to the
 standard continuation.
 
+## The power action's checklist
+
+From v0.6.12 the standard edition can sleep, hibernate or shut the PC down once every usage-limit
+recovery has ended. No running watcher has made that call yet, so these checks are the owner's, on the
+owner's PC, and are never made by an agent or a script on its own. Each comes after steps 1 to 3, on
+the release being accepted, with nothing unsaved open. They are written in this table, in the same
+plain machine words as the checks above, with the date, `codex --version` and the Windows build; the
+validator knows none of them.
+
+| Check | Do it during | Where it is written | Result |
+| --- | --- | --- | --- |
+| MP: what each action's availability says, and each available action made once | Before any check below | This table | not run |
+| Sleep, after a usage limit really recovered | When a usage limit really happens | This table | not run |
+| Hibernate, after a usage limit really recovered | When a usage limit really happens, if Windows offers Hibernate | This table | not run |
+| Shut down, after a usage limit really recovered | When a usage limit really happens | This table | not run |
+| The stop button on the countdown notice | During any of the three | This table | not run |
+
+**MP.** The measurement the design names: on the owner's PC, ask Windows, through the product's own
+port, whether Sleep, Hibernate and Shut down are each available and why not, then make each available
+action once and note what the PC did - slept (S1 to S3, or on a Modern Standby PC what it really
+did), hibernated, or shut down - and whether Windows refused. It also notes whether this account holds
+the shut-down privilege, and whether the codex CLI's writes are recorded by Codex as the desktop app's
+are. There is no harness for it in this release: write the answers here by hand. *A pass:* each answer
+matches what the PC did. Until MP passes, Sleep is offered only where Windows reports S1 to S3.
+
+**Each action, after a real usage limit.** It acts only on a usage limit, which cannot be summoned,
+so each check waits for one to happen in a throwaway conversation. Before it does, in Settings >
+General, **When usage-limit recoveries finish**, choose the action under **Then**, Every recovery
+succeeded, Once and 2 minutes, choose **Turn on...** and answer **Turn on**. Let the recovery run and
+the turn it started end, and leave the PC alone. *A pass:* the card's second line names what it waits
+for at each stage and never says it is about to act while a turn runs; a notice with the time and
+**Don't sleep** (or Don't hibernate, Don't shut down) comes once nobody has used the PC for 2 minutes;
+when the time is up a last notice says it acts now, and the PC sleeps, hibernates or shuts down; on
+the next start the card says Last time and the time, and the Once is off. For Shut down, a program
+that asks to save may stop it: then the card says Windows refused, and nothing is tried again. If no
+usage limit came, write *not reached*.
+
+**The stop button.** In one of the three, press the notice's **Don't sleep** (or its twin) during the
+countdown. *A pass:* "The PC stays on this time" appears, the PC stays on, the card says you stopped
+it and when, and no second countdown starts for that batch.
+
 ## What this procedure does not prove
 
 - **That it works for anyone else.** One machine, one Codex, one Windows build. The

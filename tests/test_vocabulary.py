@@ -41,6 +41,7 @@ if _HERE not in sys.path:
 
 import srcscan  # noqa: E402
 from codex_auto_resume.domain import compat_vocabulary as c, plug as p, vocabulary as v  # noqa: E402
+from codex_auto_resume.domain import power_vocabulary as pw  # noqa: E402
 
 # "module.NAME" -> (kind, length, digest), or the text of a single word.
 LISTS = {
@@ -106,7 +107,8 @@ LISTS = {
     # v0.6.11: a postponement's three refusals, a record that is not held, a tier that is none, and
     # a project that cannot be read or one too many; and what an administrator's policy key decides.
     # v0.6.11: not_postponed and too_many_messages - Don't postpone, and one conversation's message.
-    "control.ERROR_CODES": ("set", 33, "8b10b9748945e26c"),
+    # v0.6.12: power_unavailable - an action Windows will not do for this account on this PC.
+    "control.ERROR_CODES": ("set", 34, "d4859a691c1a1d4f"),
     "control.FALLBACK_CODE": "request_failed",
     # v0.6.11: v0.6.10's four again - v0.6.11-beta's careful was folded into detailed.
     "continuation.STYLES": ("tuple", 4, "a390c91bf5107f3f"),
@@ -177,7 +179,12 @@ LISTS = {
     "ui.popup.ATTENTION_OVERLAYS": ("set", 4, "a707a2b300127033"),
     # v0.6.11: and the needs-you notice's light, attention; and a long sleep's, paused (power.py).
     # and Show me what happens' card, waiting.
-    "notifier.STATUS": ("dict", 12, "ccfbc4aee6adaf58"),
+    "notifier.NOTICE_STATUS": ("dict", 12, "ccfbc4aee6adaf58"),
+    # v0.6.12: the power action's five notices follow them, in a table of their own (PowerNotice), and the
+    # whole table is both.
+    "notifier.POWER_STATUS": ("dict", 5, "d403490eeafa7732"),
+    "notifier.POWER_EVENTS": ("tuple", 5, "e5a05bae37eb8e45"),
+    "notifier.STATUS": ("dict", 17, "2ec8a9e6e4566ab5"),
     "mcpserver.Server.START_WORDING": ("dict", 4, "f15e04a780f57870"),
     # v0.6.11: the two editions, and the plug that is the whole difference between them.
     "edition.EDITIONS": ("tuple", 2, "49cc206af3867704"),
@@ -343,7 +350,7 @@ HOMES = {
     v.LoadedState: ("returned", ("Backend.loaded", None)),
     v.ActivityState: ("list", "ui.popup.STATES"),
     v.IconState: ("list", "ui.tray.ICON_STATES"),
-    v.NoticeKind: ("keys", "notifier.STATUS"),
+    v.NoticeKind: ("keys", "notifier.NOTICE_STATUS"),
     v.CompatState: ("list", "compat.STATES"),
     v.LocalResult: ("list", "compat.RESULTS"),
     v.Tier: ("list", "compat.TIERS"),
@@ -368,14 +375,25 @@ HOMES = {
     p.Point: ("list", "domain.plug.POINTS"),
     p.Alternative: ("list", "domain.plug.ANSWERS"),
     p.Surface: ("list", "domain.plug.SURFACES"),
+    # v0.6.12: the power action's own words, beside domain/vocabulary.py at its line budget.
+    pw.PowerAction: ("list", "poweraction.ACTIONS"),
+    pw.PowerAfter: ("list", "poweraction.AFTERS"),
+    pw.PowerRepeat: ("list", "poweraction.REPEATS"),
+    pw.PowerPhase: ("list", "poweraction.PHASES"),
+    pw.PowerWait: ("list", "poweraction.WAITS"),
+    pw.PowerEnd: ("list", "poweraction.ENDS"),
+    pw.PowerClass: ("list", "poweraction.CLASSES"),
+    pw.PowerUnavailable: ("list", "poweraction.UNAVAILABLE"),
+    pw.PowerNotice: ("keys", "notifier.POWER_STATUS"),
 }
 
 
 def enums():
-    """Every vocabulary the three modules define: `domain/vocabulary.py`; `domain/compat_vocabulary.py`,
-    the registry's, out of it since v0.6.11 and named through it still; and `domain/plug.py`, whose five
-    are the plug interface's own. Each is held to every rule here all the same."""
-    return [value for module in (v, c, p) for value in vars(module).values()
+    """Every vocabulary the four modules define: `domain/vocabulary.py`; `domain/compat_vocabulary.py`,
+    the registry's, out of it since v0.6.11 and named through it still; `domain/plug.py`, whose five
+    are the plug interface's own; and `domain/power_vocabulary.py`, the power action's (v0.6.12). Each
+    is held to every rule here all the same."""
+    return [value for module in (v, c, p, pw) for value in vars(module).values()
             if inspect.isclass(value) and issubclass(value, StrEnum) and value is not StrEnum
             and value.__module__ == module.__name__]
 
@@ -453,11 +471,15 @@ class HomeTests(unittest.TestCase):
                                        l10n,
                                        machine,
                                        mcpserver,
+                                       notifier,
                                        codex,
                                        settings,
                                        windows)
         from codex_auto_resume.ui import popup as tray_popup
         self.assertLessEqual(set(v.WithdrawReason), set(v.ReasonCode))
+        # Every kind of notice is a word of one of the two lists, the power action's after the others (v0.6.12).
+        self.assertEqual(list(notifier.STATUS), list(v.NoticeKind) + list(pw.PowerNotice))
+        self.assertEqual(notifier.POWER_EVENTS, tuple(pw.PowerNotice))
         self.assertEqual(list(compat.COARSE.values()), list(v.EngineState))
         self.assertEqual(list(mcpserver.Server.START_WORDING), ["running", "already-running", "exited", "unconfirmed"])
         self.assertEqual(set(mcpserver.Server.START_WORDING), set(v.WatcherStartState))

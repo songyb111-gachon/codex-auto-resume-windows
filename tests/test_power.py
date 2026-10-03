@@ -597,12 +597,15 @@ class AdapterTests(unittest.TestCase):
         for name in ("power", "network"):
             with self.subTest(name):
                 self.assertLessEqual(self.imports(name), {"__future__", "ctypes", "os"})
+        # v0.6.12: the power action's calls, which read `sys` only for the guard that keeps a test from acting.
+        self.assertLessEqual(self.imports("powerdown"), {"__future__", "ctypes", "os", "sys"})
 
     def test_the_engine_is_handed_the_question_and_imports_no_windows_module(self):
         for path in (SRC / "engine").glob("*.py"):
             text = path.read_text(encoding="utf-8")
             self.assertNotIn("win.network", text, path.name)
             self.assertNotIn("win.power", text, path.name)
+            self.assertNotIn("powerdown", text, path.name)
 
 
 if __name__ == "__main__":

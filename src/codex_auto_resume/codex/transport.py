@@ -178,7 +178,7 @@ class Backend:
     def app_identity(self):
         try:
             self._compatible()
-            return desktop_pair(inventory(), self.codex_exe)
+            return desktop_pair(inventory(), self.codex_exe, self.codex_home)
         except (AdapterError, OSError, KeyError, TypeError):
             return None
 

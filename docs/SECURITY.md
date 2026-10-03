@@ -21,7 +21,8 @@ This project operates no service of its own - no server, no endpoint, no telemet
 vendor backend to notify. The only service the code this project ships contacts is GitHub
 (github.com, and the GitHub storage hosts it redirects release downloads to), when setup downloads
 a release and when you press *Check for updates* - which from v0.6.11 also reads this repository's
-list of releases at api.github.com - and, from v0.6.5, raw.githubusercontent.com, when you ask for
+list of releases at api.github.com - or *Install another version...*, which reads that whole list
+there, and, from v0.6.5, raw.githubusercontent.com, when you ask for
 the compatibility data refresh. The Codex processes it starts talk to OpenAI with your
 existing sign-in, as Codex does (see *No network code in the recovery runtime* below). A finding in GitHub or in Codex itself
 belongs to that vendor's own reporting process, not here.
@@ -175,6 +176,40 @@ them `thread/goal/set`, `thread/queue/add` with words this product wrote, and `t
   it, the trust-on-first-use case `docs/PLUGIN.md` describes. The watcher, the panel and the MCP tools
   never install one.
 
+  *Install another version...* on the same page is the bootstrap too (`-Versions`, then `-Pick`),
+  started by the window only when a person presses the button and again when they confirm a row;
+  building its dialog starts nothing, so the window audit never asks GitHub. It reads the whole list
+  of releases from a second api.github.com address on the same path - thirty to a page, at most five
+  pages, the page number the one thing put in, each page under the same size, redirect and host
+  checks and a deadline inside one budget - and any page that fails lists nothing, as does a fifth
+  page as full as the rest, which more may follow. A picked version
+  never reaches a URL as typed: it is rebuilt from its integers by the version rule, the row must
+  still be offered exactly as it was shown when the list is read again, and `-Force` is required for
+  an older version or the other edition and refused for anything else, so a stray `-Force` never
+  widens a pick. The archive is downloaded, checked against its pin or its published `.sha256`,
+  tested and unpacked as every install's is, and only then is the install lock
+  (`Local\CodexAutoResume.Install`) taken; a lock held elsewhere installs nothing. For a version that
+  reads an older state, the installed version's own `downgrade-state --to 3 --stop-watcher` then asks
+  the watcher to stop and waits a minute at most - it is never killed, and a watcher that has not
+  stopped gets nothing installed and the state left as it was, though the request stands and it may
+  stop later, with nothing to start it again - converts the state in one transaction after a copy, and
+  answers on one closed line that must agree with its exit code. A conversion that fails starts the
+  installed watcher again and installs nothing. Only then does the archive's installer run, with the
+  edition change passed to it only on a change and only to installers that know editions. While it
+  runs, the window greys every action button, the header's Start watcher included, so the window
+  cannot start the current watcher between the conversion and the installer. Nor does reading the
+  state put it back meanwhile: while an installation holds its lock, the window, the panel, Codex's
+  tools and the command line - a notification's Cancel, a status from Codex's skill, an installer's
+  own setup - read an older state as an older watcher's and never upgrade it; only a watcher, at its
+  start, does. A window or an MCP server left open from before the pick leaves it as it is after the
+  lock too, once the older version's installer has replaced the files it runs from. Nor can the control
+  layer start the current watcher meanwhile: while an installation holds its lock, the bridge's
+  `start-watcher`, which the window's Start watcher sends, and Codex's `start_watcher` tool refuse
+  (`start_failed`) and start nothing, as the start with Codex always has. The bootstrap's only
+  registry access is a read of the two policy keys' value names: while any policy value an older
+  version would stop applying is there - every one but `DisablePowerAction`, which holds back what no
+  older version has - or a key cannot be read, no version before v0.6.11-beta is offered.
+
   No compatibility refresh runs unless you ask for it either. From v0.6.5 the Codex
   compatibility data refresh happens at exactly two moments: *Refresh compatibility data* on the
   Diagnostics page (`scripts/bootstrap.ps1 -Compatibility`), and a *Check for updates* that
@@ -241,11 +276,11 @@ them `thread/goal/set`, `thread/queue/add` with words this product wrote, and `t
   digest; the context-cost guard reads one number of Codex's, and only where it is a numeric column.
   A guard's hold is a hold like any other: the claim and the last look before the send refuse it, and
   only Let it continue, bound to the exact record, lets it go. Each is off by default.
-- **An administrator's policy keys only hold back.** From v0.6.11 six values under
+- **An administrator's policy keys only hold back.** From v0.6.11 seven values under
   `Software\Policies\CodexAutoResume`, in `HKEY_LOCAL_MACHINE` or `HKEY_CURRENT_USER`, are read and
   never written - `startup.py` is still the only code that writes the registry - and applied after the
   settings are read, never to the file: they can pause recovery, force Observe only, turn off the update
-  check or the status file, lower the attempts' ceiling and add quiet hours, and nothing else. Both
+  check or the status file, lower the attempts' ceiling, add quiet hours and, from v0.6.12, turn the power action off, and nothing else. Both
   places' restrictions hold, a malformed value is ignored, one that is there and cannot be read holds the
   most it could, and a write that would loosen one is refused.
   `DisableAutoResume` is written into the state as a Pause before every check and refused by the engine
@@ -267,6 +302,23 @@ them `thread/goal/set`, `thread/queue/add` with words this product wrote, and `t
   of its own that the sign-in launcher never starts again, and the standard edition has no
   supervisor or other process that would. A status file for other tools (off by default) is a file
   in the watcher's own `config\`, written whole: no port is opened and nothing listens.
+- **The power action asks Windows, and starts nothing.** From v0.6.12, off by default and turned
+  on only in the Dashboard, the watcher can put the PC to sleep, hibernate it or shut it down once
+  every usage-limit recovery has ended. It is the watcher's own call of `SetSuspendState`, or of
+  `ExitWindowsEx` with `EWX_POWEROFF` and no `EWX_FORCE` or `EWX_FORCEIFHUNG`, so every program may
+  refuse a shut down and Windows then does not shut down. Before the call it enables
+  `SeShutdownPrivilege` on its own token - a privilege a standard user holds, not administrator
+  rights - and disables it again if the call fails; an account without that privilege is offered
+  nothing. `powrprof.dll` and `wtsapi32.dll` are loaded from System32 only
+  (`LOAD_LIBRARY_SEARCH_SYSTEM32`), since neither is a KnownDLL. No process, scheduled task or
+  service is started (`shutdown.exe` and `rundll32` are never used), no Windows setting is changed -
+  Hibernate is never turned on and `powercfg` is never run - wake timers stay as Windows has them,
+  and it never shuts down while another person's session is signed in or disconnected. The batch is
+  written as done before Windows is asked, so a refusal is never retried. MCP, the icon and a notice
+  can only turn it off or stop one batch, named by an opaque id that every batch end replaces; an
+  administrator's `DisablePowerAction` holds it - one turned on before does nothing while the value is
+  set. The code refuses to act whenever `unittest` is
+  loaded, so no test can make a real call.
 - **Named objects planted by a less-trusted process are refused.** This is new in v0.6.0. The watcher's single-instance mutex and its stop event have
   predictable names in the session namespace, where a process running at Low integrity may create
   objects. If either already exists with an integrity label below Medium (the level an ordinary
@@ -991,3 +1043,14 @@ or missing one is a warning the person confirmed rather than a refusal. The poli
 forbid them are what a cooperating installation obeys, not a lock. And a measurement run by hand
 makes its calls into the conversation it names from an installed copy as from a source checkout;
 only its record is refused where there is no `docs/evidence/live/`.
+- A version picked with *Install another version...* that reads an older state has the state
+converted before its installer runs. Between the two, reading the state no longer upgrades it - not
+through the window, the panel, Codex's tools or the command line - nor does a window or an MCP server
+left open after the pick, once the older version's files have replaced the ones it runs from; the
+control layer starts no watcher - the window's Start watcher, the bridge's `start-watcher` and
+Codex's `start_watcher` tool all wait for the install lock - but a watcher started outside it, from
+the command line as an installer's own setup does, would still bring the state back to the current
+schema; the older watcher would then refuse that state and send nothing. That fails closed, but
+recovery stays off until the installation is repaired. An older
+installer can also fail after the conversion: the state then stays converted, which sends less and
+never more, and the copy taken first is kept for forensics, not restored.

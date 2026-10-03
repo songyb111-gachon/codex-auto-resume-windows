@@ -45,6 +45,8 @@ def _open_state(app):
     """The state for a command that only switches things on or off, or cancels.
 
     While an older watcher still owns an unmigrated state, these keep working through
-    the schema that watcher understands; nothing else does until it stops.
+    the schema that watcher understands; nothing else does until it stops. So they do while an
+    installation holds its lock: a notification's Cancel pressed during a pick, or the
+    installer's own setup, works through that schema and upgrades nothing (openstate).
     """
-    return open_state(app.paths.state_dir, legacy="always")
+    return open_state(app.paths.state_dir, legacy="always", hold_while_installing=True)

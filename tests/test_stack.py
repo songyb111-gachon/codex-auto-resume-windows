@@ -66,7 +66,9 @@ ITEM = {_q(name): item for item, names in {
                 # v0.6.11: the watcher's side of sleep and of keeping this PC awake.
                 "runtime.waking",
                 # and of its own memory, how it ended and the status file.
-                "runtime.health"),
+                "runtime.health",
+                # v0.6.12: and of the power action after usage-limit recoveries.
+                "runtime.afterwork"),
     "engine": ("engine", "engine.announce", "engine.detect", "engine.dispatch", "engine.freshness",
                "engine.options", "engine.outcome",
                # v0.6.11: the waits and the two guards, as the engine asks them.
@@ -96,13 +98,17 @@ ITEM = {_q(name): item for item, names in {
                # and Show me what happens: the made-up task both surfaces take the demo from.
                "demo",
                # and a value of a person's own beside a drop-down's choices, which the settings coerce with.
-               "ownvalues"),
+               "ownvalues",
+               # v0.6.12: when the power action after usage-limit recoveries may act, which a person arms.
+               "poweraction"),
     "machine": ("machine", "domain", "domain.errors", "domain.ids", "domain.public",
                 "domain.states", "domain.vocabulary",
                 # v0.6.11: the registry's vocabularies, out of domain/vocabulary.py.
                 "domain.compat_vocabulary",
                 # and what a usage reading keeps of Codex's reply.
-                "domain.usage"),
+                "domain.usage",
+                # v0.6.12: the power action's words, out of domain/vocabulary.py.
+                "domain.power_vocabulary"),
     "scheduler": ("engine.reconcile",),
     "store": ("store", "store.actions", "store.claims", "store.columns", "store.downgrade",
               "store.errors", "store.journal", "store.legacy", "store.migrations", "store.policy",
@@ -127,6 +133,8 @@ ITEM = {_q(name): item for item, names in {
                 "control.seen", "control.state", "control.watcher", "control.wire",
                 # v0.6.11: Diagnostics' own tools.
                 "control.tools",
+                # v0.6.12: the power action's file.
+                "control.poweraction",
                 "auto_resume", "cli", "controlcli", "diagnostics",
                 "commands", "commands.base", "commands.install", "commands.records",
                 "commands.status", "commands.watcher",
@@ -156,6 +164,8 @@ ITEM = {_q(name): item for item, names in {
                  "win.acl",
                  # and the text size it is set to, and the face its interface is set in.
                  "win.textsize", "win.typeface",
+                 # v0.6.12: the power action's calls: offering, who is here, and doing it.
+                 "win.powerdown",
                  "pwsh", "shortcut", "startup"),
     "config": ("", "config", "logbook"),
 }.items() for name in names}

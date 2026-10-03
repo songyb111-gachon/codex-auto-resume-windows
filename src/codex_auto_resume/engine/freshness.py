@@ -90,6 +90,20 @@ class FreshnessMixin:
             return False
         return self._stale_seen.get(thread_id, float("-inf")) < since
 
+    def activity(self, threads=()) -> dict:
+        """What may still run in Codex, for the power action (v0.6.12; LocalSource.activity): whether its
+        history has caught up - every conversation written in the last hour, and each of `threads`, the
+        batch's own - and then how many turns run and how many items are queued. Read only when the
+        power action has passed every check of its own, and never at the defaults. Anything the source
+        cannot say, or a source that cannot be asked, is None: the power action then waits (E1)."""
+        try:
+            found = self.source.activity(tuple(threads), self.clock())
+        except Exception:
+            found = None
+        if not isinstance(found, dict):
+            return {"history": None, "running": None, "queued": None}
+        return {name: found.get(name) for name in ("history", "running", "queued")}
+
     def observe_projections(self):
         """Look at the history of every thread with something pending, so a lag that
         starts long before a record is due is already known when it becomes due."""

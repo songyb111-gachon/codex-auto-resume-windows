@@ -36,7 +36,7 @@ v0.6.0).
 | **Configure it** | a Windows window from the Start Menu — from v0.6.0, a Dashboard whose settings are one of its six pages — a settings panel inside Codex, or the command line |
 | **Languages** | English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia — in the Dashboard, the notification-area popup, Windows notifications, the panel inside Codex and the continuation message sent to Codex. It follows Windows unless you choose one; see [Languages](#languages) |
 | **Tells you** | Notifications when a task is interrupted, when recovery starts, how it went, and when it gives up - from v0.6.5 as a card of the product's own beside the notification area, with Windows' own notification wherever a card must not show. While the watcher runs it also shows a notification-area icon, whose tooltip says whether recovery is paused, how many recoveries are waiting, how many are running in Codex, and how long until the next check |
-| **Privacy** | no telemetry, no analytics, no automatic update check, never reads your credentials. *Check for updates* in the window asks GitHub which release is newest - and, from v0.6.11, reads its list of releases on api.github.com for a newer pre-release, which it installs only if you say yes - and only when you press it; it and *Refresh compatibility data* also fetch the Codex compatibility data from raw.githubusercontent.com, sending nothing about your machine. The watcher has no network code; the usage check, the resumed turn and what the plugin's tools and commands return in a conversation go to OpenAI through Codex, as Codex's traffic always does; setup downloads the release from GitHub; and the v0.5.7 installer has Codex refresh every Git marketplace you have configured (naming only this one is new in v0.6.0) |
+| **Privacy** | no telemetry, no analytics, no automatic update check, never reads your credentials. *Check for updates* in the window asks GitHub which release is newest - and, from v0.6.11, reads its list of releases on api.github.com for a newer pre-release, which it installs only if you say yes - and only when you press it; *Install another version...* reads that whole list there, page by page, when you open it and again when you confirm a version, and downloads only the version you confirmed; *Check for updates* and *Refresh compatibility data* also fetch the Codex compatibility data from raw.githubusercontent.com, sending nothing about your machine. The watcher has no network code; the usage check, the resumed turn and what the plugin's tools and commands return in a conversation go to OpenAI through Codex, as Codex's traffic always does; setup downloads the release from GitHub; and the v0.5.7 installer has Codex refresh every Git marketplace you have configured (naming only this one is new in v0.6.0) |
 
 > **One honest limitation, up front.** Codex has to currently have that conversation open for a
 > recovery to be delivered. If the app restarted since, open the conversation once and recovery
@@ -219,6 +219,65 @@ a command line, `-CheckOnly` prints the pre-release it found on a line of its ow
 
 Afterwards, change anything from **Start Menu → Codex Auto Resume**, or by asking Codex to
 *open auto resume settings*.
+
+### Installing another version
+
+**Install another version...**, last in the Tools card of the Dashboard's Diagnostics page, installs a
+version you choose, in the edition you choose, in place of the one you have: newer or older, standard
+or advanced. Two editions side by side are not possible - one watcher per Codex home, one plugin, one
+sign-in entry - so it always replaces the installation its window belongs to. It sends nothing to
+Codex, and nothing else offers it: not the watcher, not the panel inside Codex, not Codex's tools.
+
+When you press it, it asks GitHub for this repository's whole list of releases, up to five pages of
+thirty, and asks nothing before that. It shows every version from v0.6.2 on in each edition it was
+published in, newest first; the advanced edition begins with v0.6.11-alpha. A version it cannot install
+stays in the list, greyed, and says why: it is the version you have; no archive of that edition was
+published under that number; there is no checksum to check it against; its installer predates editions,
+so the edition has to be changed first; or your administrator's policy is set and that version does
+not keep it ([below](#settings-an-administrator-manages)). If GitHub cannot be asked, or its answer
+cannot be read, it says so and lists nothing. Versions before v0.6.2 are not offered: from v0.6.0 and
+v0.6.1 the Dashboard cannot check a download, and v0.5 installers do not keep a paused recovery paused,
+so from them the Dashboard could not bring you back.
+
+**Pre-releases too.** Pre-releases are offered as releases are, older and newer, in either edition: one
+you pick by name and confirm is installed as a release would be, an older one with your state converted
+first where it needs that. *Check for updates* still offers only the newest pre-release newer than both
+the version you have and the newest release; this list is where you choose any other.
+
+Choosing a row and pressing **Install...** asks first, and **Not now** is the button Enter and Escape
+press. The question says only what applies: that it is a pre-release, tested less than a release; that
+it is older, so what came since is not in it, and a setting or a value it does not know reads as its
+default there and is lost the next time it saves your settings; that your state is converted for it
+first (below); that a change to the standard edition takes the advanced features and their code away,
+and one to the advanced edition starts every advanced feature off; that an advanced version before
+v0.6.11-beta.2 cannot read this version's advanced settings, so every advanced feature is off there and
+the settings are kept for later; and that the download is checked against its pinned digest or its
+published checksum before anything runs.
+
+Saying yes reads the list again - a version no longer offered as it was shown installs nothing - then
+downloads that version's archive (and its `.sha256` where no digest is pinned for it), checks it and its
+contents as every install does, and only then takes the install lock. A version from v0.6.2 to
+v0.6.11-alpha reads a state one schema older, so for one of those it then asks the watcher to stop,
+waits up to a minute and never kills it, and converts the state as `downgrade-state --to 3` does: a copy
+of the state as it is now is kept beside it, a continuation that may already have gone to Codex becomes
+final and is never sent again, a conversation that waited for you or whose continuation Codex may still
+deliver is switched off, and Observe only, if it is on, becomes a pause. A watcher that does not stop
+within the minute gets nothing installed and its state left as it was, but it was asked to stop and may
+still do so afterwards, and nothing starts it again then: if the header says it is not running, press
+**Start watcher**. A conversion that fails starts the watcher again and installs nothing. Then the version's own installer runs, keeping every record, your pause and the
+sign-in choice. While all this runs, every action button on the page is greyed, **Start watcher**
+included.
+
+Afterwards the window says whether the watcher now runs the version installed, and, where the state was
+converted, how many continuations were made final and how many conversations were switched off. Close
+the window and open it again so it runs the version installed. For an older version of the edition you
+have, the question also says to come back with *Check for updates* in that version - but only where that
+works: from a release, any version's check offers the newest release; from a pre-release, only a version
+from v0.6.11-beta.2 on, the first whose check offers pre-releases, and no check changes the edition.
+Otherwise come back with this version's setup program, from its release page. If the installer fails
+after the state was converted, the state stays converted - it
+sends less, never more - and the window says what stays; a copy of the state as it was is kept in the
+state folder.
 
 ## What it looks like
 
@@ -725,7 +784,7 @@ records. `stop` asks a running watcher process to exit.
 | `install` | Create the owned directories and state (`--startup`). |
 | `uninstall` | Remove autostart and owned state/logs (`--keep-logs`, `--keep-state`). |
 | `diagnostics` | Write one redacted diagnostics file, to read before you share it (`--out`). |
-| `downgrade-state --to 3` | Rewrite the state file for a v0.6.0 to v0.6.10 release; stop the watcher first. A continuation that may already have gone out is marked final, and a conversation that waited for you to say so, or whose continuation Codex may still deliver, is switched off. |
+| `downgrade-state --to 3` | Rewrite the state file for a v0.6.0 to v0.6.10 release; stop the watcher first. A continuation that may already have gone out is marked final, and a conversation that waited for you to say so, or whose continuation Codex may still deliver, is switched off. With `--stop-watcher` it asks the watcher to stop instead, waits up to a minute and never kills it, and says what it did on one line; *Install another version...* uses it. |
 | `downgrade-state --to 2` | Rewrite the state file for a v0.5 release; stop the watcher first. |
 | `compat` | What the Codex Compatibility Registry says about this Codex, from the watcher's last report (`--live` to check now and write nothing, `--json`, `--import FILE` to validate a data file and keep it only if it passes). |
 
@@ -1068,6 +1127,56 @@ usage; *Why it is waiting* says "No internet (Windows reports)", and so does its
 Behind some proxies Windows reports no internet where there is, which is why it is off by default.
 When Windows cannot be asked or does not answer, usage is read as it always was.
 
+### Sleep, hibernate or shut down when usage-limit recoveries finish
+
+From v0.6.12 the watcher can put this PC to sleep, hibernate it or shut it down once every
+usage-limit recovery has ended - after a task left running overnight, say. It is off by default, and
+only the Dashboard turns it on: the last card under Settings > General, **When usage-limit recoveries
+finish**. Choose **Then** (Sleep, Hibernate or Shut down), **When** (Every recovery succeeded, Each one
+succeeded or was handed over to you, or Each one ended, however it ended), **How often** (Once, for
+the next usage limit, or Every time) and **Warn me first for** (2 to 30 minutes, 5 by default), then
+**Turn on...**. A confirmation repeats the choices, and its default button is Cancel. The card applies
+at once; Save does not change it. An action Windows will not do here is left out of Then, with a line
+saying why: Hibernate while it is off in Windows (this product never turns it on), Sleep while Windows
+reports no sleep state a program may start, and all three while this account does not hold Windows'
+shut-down privilege.
+
+**What counts.** Only recoveries from a usage limit start it and decide it. A recovery from a
+connection error, a timeout or another temporary failure never does, though while one waits or runs it
+holds the power action too. The recoveries that count are the usage limits waiting when it was turned
+on and every one detected after, the next limit a recovered task runs into included. **Once** is spent
+on them, and turns itself off if no usage limit comes within a day; **Every time** starts again after
+each such batch.
+
+**When it acts.** At each look, in this order: a stop pressed on its notice ends the batch, and nothing
+happens; a pause, Observe only or an administrator's `DisablePowerAction` holds it; every recovery of
+the batch has ended, and none still waits, runs or is followed for a continuation that may still
+arrive (up to a day); they ended as **When** says, or the batch ends without the action (a Once says so
+in a notification); Codex has finished recording every conversation written in the last hour, no turn
+is running in Codex and no input is queued there; for Shut down, nobody else is signed in to this PC;
+and nobody has used this PC for 2 minutes. The card's second line says what it waits for. Then a
+notification says when it will happen, with **Don't sleep** (or Don't hibernate, Don't shut down) and
+**Open Dashboard**, and the card shows the same time. Any input, a pause, a gap between the watcher's
+looks or anything above stopping being true ends the countdown, and a new one starts once all of it
+holds again. A batch whose recoveries ended more than an hour before the watcher saw them - after a
+restart, say - ends without the action. When the time is up, the watcher first records the batch as
+done, then says so in a last notification and asks Windows once. Windows may refuse - a shut down asks
+every program, and any of them may decline - and then a notification says so, nothing is tried again,
+and the card says Windows refused.
+
+**Turning it off.** **Turn off** on the card; **Don't sleep after recoveries** (or hibernate, shut down)
+in the notification-area icon's menu while it is on; the notice's button, for that batch; or, from
+Codex, the tool `turn_off_power_action`. None of them can turn it on. Pausing recovery is not one of
+them: it holds the power action and ends a countdown, and once you resume it acts as before. Its notices are
+shown whatever the notification switches say, since they are how you stop it, though Windows' Do not
+disturb may still hide them.
+
+**What it does not check.** Only Codex in this Codex home is checked: other programs, downloads,
+playback and unsaved work are not, so save your work before choosing Shut down. It sends nothing to
+Codex, changes no Windows setting, starts no program and needs no administrator. Sleep and hibernate
+leave Windows' wake timers as they are, and a shut down forces no program closed. What it keeps is one
+file, `config\power-action.json`: ids, times and closed words, never a title or a path.
+
 ### The watcher's memory, how it stopped, and a status file
 
 From v0.6.11 the watcher asks Windows, after every check, how much memory its own process has
@@ -1128,9 +1237,13 @@ recovery state, no action is offered on the made-up rows, and the card is never 
 so nothing of it is left in Windows' notification center. The watcher's icon hears the request through
 a Windows event of its own, which can ask for that card and nothing else.
 
+**Install another version...**, after it, installs a release or pre-release of either edition in place
+of the one you have; [Installing another version](#installing-another-version) says what it asks and
+what it changes.
+
 ### Settings an administrator manages
 
-From v0.6.11 an administrator can set six values under `Software\Policies\CodexAutoResume` - in
+From v0.6.11 an administrator can set seven values under `Software\Policies\CodexAutoResume` - in
 `HKEY_LOCAL_MACHINE` for everyone who uses the PC, or in `HKEY_CURRENT_USER` for one person. This
 product reads them and never writes them, and each can only hold recovery back. A PC nobody manages
 has none, and then nothing is different.
@@ -1139,9 +1252,10 @@ has none, and then nothing is different.
 | --- | --- | --- |
 | `DisableAutoResume` | DWORD, not 0 | Recovery is paused, and Resume is refused while the value is set. |
 | `ForceObserveOnly` | DWORD, not 0 | Observe only is on: every check runs, and nothing is sent. |
-| `DisableUpdateCheck` | DWORD, not 0 | The Dashboard's **Check for updates** is greyed and asks nothing. |
+| `DisableUpdateCheck` | DWORD, not 0 | The Dashboard's **Check for updates** and **Install another version...** are greyed and ask nothing. |
 | `DisableStatusFile` | DWORD, not 0 | Keeps **Write a status file for other tools** off, and the watcher removes the file it wrote. |
 | `MaxRecoveryAttempts` | DWORD, 1 to 20 | The most attempts per interruption: a ceiling on that setting. |
+| `DisablePowerAction` | DWORD, not 0 | The power action after usage-limit recoveries is off and cannot be turned on; one turned on before stays, and does nothing (from v0.6.12). |
 | `QuietHours` | String | Quiet hours that hold whatever else is set, as `22:00-07:00`, or with the days they start on: `22:00-07:00 weekdays` (or `weekends`, `every_day`). Times are on the hour or the half hour. |
 
 Both places are read, and every restriction either one makes holds: a switch set in either is set, the
@@ -1151,6 +1265,8 @@ A value that is there and cannot be read - access is denied, say, to it or to th
 taken for one that is not there: it holds the most it could. A switch is set, the ceiling is 1, and quiet
 hours whose times cannot be read send nothing at any hour, as `ForceObserveOnly` does.
 The watcher reads them at every check, the Dashboard and the panel whenever they read the settings.
+While any of the six values above is there, in either place, **Install another version...** offers no
+version before v0.6.11-beta, the first that reads them: an older one would stop keeping them.
 
 What a value decides is drawn greyed, with **Set by your administrator** under it, in the Dashboard's
 Settings and in the panel in Codex. The Overview says **managed by your administrator** beside
@@ -1161,8 +1277,8 @@ not resume recovery on its own - resuming is yours to do, as after an upgrade.
 
 These values are a statement this product obeys, not a lock. It is installed for one person, in their
 own folder, and someone who can change its program files can change what it does; a copy run from a
-source checkout reads no values at all. `DisableUpdateCheck` turns off the Dashboard's check, not a
-`bootstrap.ps1` you run yourself.
+source checkout reads no values at all. `DisableUpdateCheck` turns off the Dashboard's check and its
+list of versions, not a `bootstrap.ps1` you run yourself.
 
 ### Languages
 
@@ -1408,7 +1524,11 @@ to wherever your other Git marketplaces are hosted:
 - **GitHub, when you ask.** *Check for updates* on the Diagnostics page asks github.com which
   release is newest, with one `HEAD` request that reads no page. From v0.6.11 it then reads
   GitHub's list of this repository's ten newest releases from api.github.com, with one `GET` that
-  carries nothing about your machine, for a newer pre-release, which it only offers. From v0.6.5, *Refresh
+  carries nothing about your machine, for a newer pre-release, which it only offers. *Install another
+  version...* on the same page reads that list too, all of it, with up to five `GET` requests of thirty
+  releases each to one more api.github.com address, when you press it and again when you confirm a
+  version; then it downloads only the archive you confirmed, and its `.sha256` where no digest is pinned.
+  Whether an administrator's policy is set it reads from this PC's registry, and sends nowhere. From v0.6.5, *Refresh
   compatibility data* on the same page - and a *Check for updates* that github.com answered -
   fetches the Codex compatibility data with one `GET` to one fixed address on
   raw.githubusercontent.com, with nothing about your machine in it; this installation's own

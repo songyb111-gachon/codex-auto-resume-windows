@@ -35,7 +35,7 @@ for entry in (str(Path(_HERE).parent / "src"), _HERE):
 import srcscan  # noqa: E402
 from codex_auto_resume import control  # noqa: E402
 from codex_auto_resume.control import (actions, codexstart, layer, policy,  # noqa: E402
-                                       preview, records, seen, state, tools, watcher)
+                                       poweraction, preview, records, seen, state, tools, watcher)
 
 PACKAGE = "codex_auto_resume.control"
 
@@ -43,12 +43,13 @@ PACKAGE = "codex_auto_resume.control"
 # `wire`, the eleventh, which `__init__` does not import: the shapes the layer hands every
 # surface, written down as types, imported by the tests that hold them to the goldens and by
 # nothing that runs.
+# v0.6.12 adds `poweraction`, the power action's file, below everything but the composition.
 MODULES = ("errors", "state", "seen", "policy", "records", "preview", "actions",
-           "codexstart", "watcher", "tools", "layer", "wire")
+           "codexstart", "watcher", "tools", "poweraction", "layer", "wire")
 
 MIXINS = (state.StateMixin, seen.SeenMixin, policy.SettingsMixin, records.RecordsMixin,
           preview.PreviewMixin, actions.ActionsMixin, codexstart.CodexStartMixin,
-          watcher.WatcherMixin, tools.ToolsMixin)
+          watcher.WatcherMixin, tools.ToolsMixin, poweraction.PowerActionMixin)
 
 # What `Control` has, as the one class had it. Thirty-eight methods, counted the day the file
 # was split; one added or taken away is a decision, and this is where it is made. v0.6.10 adds
@@ -76,6 +77,13 @@ METHODS = {
     "plugin_copy",
     # and whether a setting takes a value of the person's own, which Custom... asks (control/policy.py).
     "check_setting",
+    # v0.6.12: the power action after usage-limit recoveries - read, offered, armed only from the Dashboard,
+    # turned off from anywhere, stopped for one batch, and ended and shown by the watcher (control/poweraction.py).
+    "read_power_action", "power_view", "power_options", "_power_available", "_power_change",
+    "arm_power_action", "disarm_power_action", "stop_power_countdown", "power_batch_end", "_fresh_nonce",
+    "power_show",
+    # and the countdown's own end, done or skipped under the one lock, and Windows' refusal remembered.
+    "power_batch_finish", "power_refused",
     "list_pending", "preview_continuation", "request_retry_now", "reset_recovery_budget",
     "restore_defaults", "set_enabled", "set_interruption_recovery", "set_startup_enabled",
     "set_thread_enabled", "settings_path", "start_for_codex", "start_watcher",

@@ -49,7 +49,16 @@ footnote. There are four kinds, and they are genuinely different:
   above. A list that cannot be read, or has not arrived within the time the check has left, changes
   nothing else in the answer.
 
-  Nothing about you is sent. Neither request carries an identifier this product invented — no
+  *Install another version...*, on the same page, reads that list as well, all of it, because it
+  shows every version you may pick: up to five HTTPS `GET` requests, without signing in, to
+  `api.github.com/repos/songyb111-gachon/codex-auto-resume-windows/releases?per_page=30&page={page}`,
+  where only the page number changes, with no redirect followed. It reads them when you press the
+  button and once more when you confirm a version, and at no other time; a page that cannot be read
+  lists nothing and installs nothing. Confirming then downloads that one version's archive, and its
+  checksum where no digest is pinned for it, as above. Whether your administrator has set a policy
+  for this product it reads from this PC's registry, read only, and that answer goes nowhere.
+
+  Nothing about you is sent. None of these requests carries an identifier this product invented — no
   installation id, no version of yours, no machine name, no account — and GitHub sees what
   it sees for any anonymous request to a public page or its API: an IP address, a time and a
   user agent. It happens when you press the button and at no other time.
@@ -275,15 +284,18 @@ It also asks Windows content-free questions, chiefly two: which ChatGPT and Code
 running (process id, parent and executable path), to find the desktop app; and, through the
 Restart Manager, which process has the conversation's lock file open, to tell whether the
 conversation is open in the app. The rest are content-free too: the path and start time of a
-process it found, to confirm it is still the same one; the per-user registry values it
-registered itself; whether High Contrast is on and, from v0.6.4, whether Windows is set to show
-apps light or dark - the per-user `AppsUseLightTheme` value, which it reads and never writes - so
+process it found, to confirm it is still the same one; where the app runs more than one
+process of the configured Codex engine, which of them has Codex's queue or state database open, asked
+of the Restart Manager too, to tell which is the app's own Codex server; the per-user
+registry values it registered itself; whether High Contrast is on and, from v0.6.4, whether
+Windows is set to show apps light or dark - the per-user `AppsUseLightTheme` value, which it
+reads and never writes - so
 the Dashboard, the popup and its menu can be drawn to match; and the integrity level of the
 watcher's single-instance mutex and stop event, a check that is new in v0.6.0. From v0.6.5 the
 notification card and the icon's motion ask a few more, all content-free and described under
-[Notifications](#notifications). From v0.6.11 an installed copy also reads, and never writes, the six
+[Notifications](#notifications). From v0.6.11 an installed copy also reads, and never writes, the seven
 values an administrator may set under `Software\Policies\CodexAutoResume` in `HKEY_LOCAL_MACHINE` and
-`HKEY_CURRENT_USER` - four switches, a number and a span of hours (the guide's *Settings an
+`HKEY_CURRENT_USER` - five switches, a number and a span of hours (the guide's *Settings an
 administrator manages*) - each time it reads its settings. Nothing else under that key is read, and a
 PC nobody manages has none. Also from v0.6.11, and only while the setting that needs it is on (each
 is off by default): how long the PC has been awake (`QueryUnbiasedInterruptTime`), which beside the
@@ -294,6 +306,19 @@ whether Windows reports this PC connected to the internet (the Network List Mana
 `GetConnectivity`), for **Wait for an internet connection** - a question Windows answers from what it
 already knows, with nothing sent to find out. **Keep this PC awake** is a request, not a question:
 `SetThreadExecutionState`, which the watcher makes and takes back and which changes no setting.
+From v0.6.12 the power action after usage-limit recoveries, which is off by default, asks
+Windows three more things. The first is whether this account holds the shut-down privilege
+(`GetTokenInformation` on its own token, `TokenPrivileges`) and which sleep states the PC offers
+(`GetPwrCapabilities`), which say whether Sleep, Hibernate and Shut down can be offered: the
+Dashboard asks it each time it shows the power action's card in Settings and when the power action
+is turned on, and the watcher while it is on. The other two the watcher asks only while it is turned
+on: how long ago the last keyboard or mouse input came (`GetLastInputInfo` - a time, never what was
+typed or where, with no hook); and, for Shut down, how many other sessions are signed in
+(`WTSEnumerateSessionsW` - a count, never a user name). For the same check it counts, in Codex's own
+database, the latest turns still in progress and the items queued in this Codex home, and compares
+the size of each conversation file written in the last hour - and of each of the recoveries' own -
+with how far Codex has recorded it: one look at the file's size and time, and the file is never
+opened. Only counts and a yes or no are kept, for that look.
 And from v0.6.11 at every setting, about the watcher itself: how much memory its own process has
 committed and the most it has (`K32GetProcessMemoryInfo`, of that process only); the number Windows
 gives the sign-in it runs in (`GetTokenInformation` on its own token, `TokenStatistics`, of which only
@@ -452,7 +477,11 @@ conversation to OpenAI like any tool output. That is:
   about that version, which is for you to read on the Dashboard. It no longer returns the installation
   directory's path, which normally includes your Windows user name; v0.5.0 through v0.5.7
   did, and a conversation held with one of them still carries it. In the advanced edition it also
-  carries which edition this is and how many of its capabilities are on, as codes;
+  carries which edition this is and how many of its capabilities are on, as codes. From v0.6.12,
+  while the power action has its file, it also carries that action's state: what is turned on (the
+  action, when, once or every time, the warning's length and since when), what it waits for, when a
+  countdown ends and how the last batch ended - closed words and times, no id;
+- from `turn_off_power_action`, from v0.6.12: whether the power action was on - one sentence;
 - from `list_pending`: the pending recoveries, with their conversation ids, interruption ids,
   states, categories, times and attempt counts, and the finished ones too when it is asked for
   them; `open_settings` returns those together with the status and settings above;
@@ -561,6 +590,14 @@ default (or wherever `CODEX_AUTO_RESUME_PLUGIN_HOME`, or failing that
   are red. Deleting it only means a failure is not shown red until the watcher starts again. It goes
   with the rest of `config/` under `Uninstall.cmd -Purge`, and the command line's `uninstall` deletes
   it unless you pass `--keep-state`;
+- `config/power-action.json`, from v0.6.12, only once the power action after usage-limit
+  recoveries has been turned on in the Dashboard: what was chosen, in closed words; when it was turned
+  on; the ids of the recoveries it waits for (this product's own interruption ids, never a
+  conversation's); a random number naming the current batch, which the countdown notice's button
+  carries; what it last showed; and how the last batch ended, with the time. No title, path or
+  text. Deleting it turns the power action off. It goes with the rest of `config/` under
+  `Uninstall.cmd -Purge`, and the command line's `uninstall` deletes it unless you pass
+  `--keep-state`;
 - `logs/` — `auto-resume.log`, what the watcher did, by reason code and conversation UUID;
   `errors.log`, the Python traceback when something goes wrong; `launcher.log`, a line
   per launch (and why, if one failed); and, from v0.6.9, `codex-start.log`, a line each time Codex
@@ -763,7 +800,8 @@ already on this machine.
 you download the ZIP yourself; for the marketplace refresh described under
 [Installing it](#installing-it) when a marketplace it refreshes points at GitHub; for *Check
 for updates*, which from v0.6.11 also reads this repository's list of releases from
-api.github.com; and, from v0.6.5, for the Codex compatibility data from raw.githubusercontent.com
+api.github.com; for *Install another version...*, which reads that whole list there and downloads
+the version you confirm; and, from v0.6.5, for the Codex compatibility data from raw.githubusercontent.com
 when you ask for it. It is subject to GitHub's own privacy practices, as any download would be.
 
 **OpenAI**, only through the official Codex app and CLI already signed in on your machine:

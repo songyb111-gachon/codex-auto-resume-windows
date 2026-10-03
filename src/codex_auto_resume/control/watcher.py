@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 import time
 
-from .. import config, edition, machine, managed, settings, startup
+from .. import config, edition, machine, managed, settings, startup, windows
 from ..domain.plug import DEFER, EXTRA, Surface
 from ..domain.vocabulary import WatcherEnd
 from ..store import TERMINAL, LegacyStore, Store, StoreError
@@ -36,6 +36,9 @@ WATCHER_START_INTERVAL = 0.1
 # here rather than a failure.
 WATCHER_STOP_TIMEOUT = 10.0
 WATCHER_STOP_INTERVAL = 0.25
+# The start's refusal while an installation holds its lock: start_failed, since the start is what
+# did not happen, with the reason and what to do in the sentence beside it.
+INSTALLING = "could not start the watcher: an installation is in progress; start it once it has finished"
 
 
 # A heartbeat older than this, from a watcher that holds the mutex, is not ticking.
@@ -257,6 +260,14 @@ class WatcherMixin:
         if running is True:
             return {"started": False, "confirmed": True,
                     "state": "already-running", "reason": "already running"}
+        # While an installation holds its lock nothing starts a watcher (win/homelock.py), as the
+        # start with Codex has always waited for it. A pick holds the lock from before it converts
+        # the state for an older version until that version's installer has run, and this version's
+        # watcher started in between - by Codex's start_watcher or any caller of the bridge - would
+        # upgrade the state back, which the older watcher then refuses. A lock that cannot be looked
+        # at holds the start too, as it holds the reads (openstate, hold_while_installing).
+        if windows.install_in_progress() is not False:
+            raise ControlError(INSTALLING, code="start_failed")
         try:
             process = self._launch_watcher()
         except OSError as exc:
@@ -394,6 +405,11 @@ class WatcherMixin:
         # no administrator manages is told exactly what it was told before.
         if held.active:
             status["managed"] = held.codes()
+        # v0.6.12: the power action (poweraction.view), only while its file is there - so at the
+        # defaults, where it has never been armed, the status is exactly what it was.
+        power = self.power_view()
+        if power is not None:
+            status["power_action"] = power
         # P10: what the edition's plug shows beside this, under its one key - on the Dashboard,
         # the panel and get_status alike. The standard edition adds nothing.
         added = self.plug.surface(Surface.STATUS, dict(status))

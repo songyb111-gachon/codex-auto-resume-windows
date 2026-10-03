@@ -927,6 +927,8 @@ namespace CodexAutoResume
             if (auditing) return;
             if (name == "statistics") LoadStatistics();
             if (name == "diagnostics") LoadCompatibility();
+            // The power action's card, if Settings opens on General: what Windows offers is asked once it is shown.
+            if (settings) LoadPowerWhereShown();
             // Not when the snapshot on screen is under two seconds old: switching pages straight
             // after a read asked for the same answer again - 17-87 ms of Python and up to 45 ms of
             // redrawing, for nothing new.
@@ -1349,7 +1351,8 @@ namespace CodexAutoResume
             var row = e.Item.Tag as Dictionary<string, object>;
             var cell = new Rectangle(e.Bounds.X + Px(10), e.Bounds.Y, Math.Max(0, e.Bounds.Width - Px(14)), e.Bounds.Height);
             string text = e.SubItem == null ? "" : e.SubItem.Text;
-            Color ink = Palette.Contrast && selected ? SystemColors.HighlightText : Ink;
+            // v0.6.12: a version Install another version... refused keeps its row, and its words go quiet (PickRefusedRow).
+            Color ink = Palette.Contrast && selected ? SystemColors.HighlightText : PickRefusedRow(row) ? Secondary : Ink;
             // The quieter columns and the focus mark too: in High Contrast a selected row is
             // Highlight, and anything mixed away from HighlightText fell to about 2.4:1 on it.
             Color quiet = Palette.Contrast && selected ? ink : Soft.Mix(ink, Secondary, 0.4);
@@ -1461,6 +1464,11 @@ namespace CodexAutoResume
                 code == "withdrawing")
                 return Palette.Warning;
             if (code == "failed_terminal" || code == "recovery_failed") return Palette.Danger;
+            // v0.6.12: Install another version...'s Kind chips (DashboardVersions.cs).
+            if (code == PickRelease) return Palette.Success;
+            if (code == PickPrerelease) return Palette.Warning;
+            if (code == PickInstalled) return Palette.Accent;
+            if (code == PickUnavailable) return Palette.Paused;
             return Palette.Paused;
         }
 

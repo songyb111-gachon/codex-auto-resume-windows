@@ -128,8 +128,8 @@ $errors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile($env:CAR_BOOTSTRAP, [ref]$null, [ref]$errors)
 if ($errors -and $errors.Count) { throw 'bootstrap.ps1 does not parse' }
 $wanted = @('Get-FinalUri', 'Assert-TrustedHost', 'Invoke-BoundedWebRequest', 'Get-VersionParts',
-            'Compare-ProductVersion', 'Format-UnreadVersion', 'Get-PrereleaseVersion', 'Get-PublishedPrereleases',
-            'Get-NewerPrerelease', 'Get-ReleasesListTimeout')
+            'Compare-ProductVersion', 'Format-UnreadVersion', 'Get-PrereleaseVersion', 'Read-ReleasesPage',
+            'Get-PublishedPrereleases', 'Get-NewerPrerelease', 'Get-ReleasesListTimeout')
 foreach ($node in $ast.FindAll({ param($n)
         $n -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)) {
     if ($wanted -contains $node.Name) { Invoke-Expression $node.Extent.Text }
@@ -260,7 +260,10 @@ class ListReadingTests(unittest.TestCase):
         text = BOOTSTRAP.read_text(encoding="utf-8")
         allowed = re.search(r"\$AllowedHosts\s*=\s*@\(([^)]*)\)", text).group(1)
         self.assertNotIn("api.github.com", allowed, "the archive's hosts do not grow")
+        # One reader of a page of the list, which the update check and the picker (v0.6.12) both read through.
         self.assertEqual(len(re.findall(r"-Hosts \$ReleasesHosts", text)), 1)
+        self.assertIn("-Hosts $ReleasesHosts", text[text.index("function Read-ReleasesPage"):
+                                                      text.index("function Get-PublishedPrereleases")])
 
     def test_it_asks_inside_what_is_left_of_the_checks_time(self):
         """The window waits a fixed time for -CheckOnly, so the list gets only what is left of the
@@ -327,8 +330,8 @@ $errors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile($env:CAR_BOOTSTRAP, [ref]$null, [ref]$errors)
 if ($errors -and $errors.Count) { throw 'bootstrap.ps1 does not parse' }
 $wanted = @('Get-FinalUri', 'Assert-TrustedHost', 'Invoke-BoundedWebRequest', 'Get-VersionParts',
-            'Compare-ProductVersion', 'Format-UnreadVersion', 'Get-PrereleaseVersion', 'Get-PublishedPrereleases',
-            'Get-NewerPrerelease')
+            'Compare-ProductVersion', 'Format-UnreadVersion', 'Get-PrereleaseVersion', 'Read-ReleasesPage',
+            'Get-PublishedPrereleases', 'Get-NewerPrerelease')
 foreach ($node in $ast.FindAll({ param($n)
         $n -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)) {
     if ($wanted -contains $node.Name) { Invoke-Expression $node.Extent.Text }

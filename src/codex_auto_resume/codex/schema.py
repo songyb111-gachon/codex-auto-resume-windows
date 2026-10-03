@@ -12,7 +12,7 @@ from pathlib import Path
 import re
 import sqlite3
 from .errors import SourceError
-from .paths import DB_KINDS, _safe_path
+from .paths import DB_KINDS, _safe_path, newest_generation
 
 
 class SchemaMixin:
@@ -43,23 +43,19 @@ class SchemaMixin:
         history and queue can be stale. Discover on every read so a running watcher
         never stays attached to the pre-migration database.
         """
-        pattern, tables = DB_KINDS[kind]
-        candidates = []
+        tables = DB_KINDS[kind][1]
         try:
-            for entry in self.home.iterdir():
-                match = pattern.fullmatch(entry.name)
-                if match and entry.is_file() and not entry.is_symlink():
-                    candidates.append((int(match.group(1)), entry))
+            path = newest_generation(self.home, kind)
         except OSError:
             raise SourceError("Codex local state unavailable or unsupported") from None
-        for _, path in sorted(candidates, key=lambda item: -item[0])[:1]:
+        if path is not None:
             connection = None
             try:
                 connection = self._connect(_safe_path(path))
                 if self._schema_ok(connection, tables):
                     return path.name
             except (sqlite3.Error, OSError, ValueError):
-                continue
+                pass
             finally:
                 if connection is not None:
                     connection.close()
