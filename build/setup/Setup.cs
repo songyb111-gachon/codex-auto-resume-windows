@@ -164,9 +164,9 @@ namespace CodexAutoResumeSetup
         // Install.cmd as Explorer runs a double-clicked one - cmd.exe /c with the script's full path, in the
         // script's folder - from System32 by its full path, with /d so no AutoRun command of the machine's runs
         // first and moves it elsewhere. It shares this console: the person answers its questions here. Ctrl+C
-        // is Install.cmd's to answer, so this program outlives it and still removes the folder. Closing the
-        // console window is not anyone's to answer: it ends Install.cmd, and this program waits a moment for
-        // that and goes on to remove the folder (Closing).
+        // is Install.cmd's to answer, so this program outlives it and still removes the folder
+        // (Closing.OutliveCtrlC). Closing the console window is not anyone's to answer: it ends Install.cmd, and
+        // this program waits a moment for that and goes on to remove the folder (Closing).
         static int Install(string folder, string[] arguments)
         {
             string script = Path.Combine(folder, "Install.cmd");
@@ -180,11 +180,7 @@ namespace CodexAutoResumeSetup
                               (arguments.Length > 0 ? " " + string.Join(" ", arguments) : "") + "\"";
             start.WorkingDirectory = folder;
             start.UseShellExecute = false;
-            ConsoleCancelEventHandler keep = delegate(object sender, ConsoleCancelEventArgs pressed)
-            {
-                pressed.Cancel = true;
-            };
-            bool kept = Say.Keep(keep, true);
+            Closing.OutliveCtrlC();
             try
             {
                 using (Process run = Process.Start(start))
@@ -206,13 +202,6 @@ namespace CodexAutoResumeSetup
             {
                 return Say.Stopped(Codes.NotStarted, "This setup program stops here: Install.cmd could not be " +
                                    "started (" + error.Message + ").", true);
-            }
-            finally
-            {
-                if (kept)
-                {
-                    Say.Keep(keep, false);
-                }
             }
         }
 
@@ -602,9 +591,19 @@ namespace CodexAutoResumeSetup
     // same at sign-out and shutdown) and ends each one when its handler returns, or after about five seconds.
     // Install.cmd and what it started end at once; this program's handler waits, up to Grace, for the folder to be
     // removed by the code that removes it anyway - Started's finally - which learns from Now that the window is
-    // going and that it has Left() milliseconds. Ctrl+C and Ctrl+Break are not this handler's.
+    // going and that it has Left() milliseconds.
+    //
+    // It is the one handler this program ever has: added once, before the folder is made, and never taken away.
+    // Windows holds its list of handlers while one of them runs, and this one runs for as long as the folder is
+    // being removed. Install used to add a handler for Ctrl+C (Console.CancelKeyPress) and take it away when
+    // Install.cmd ended; when the window was closed as Install.cmd ended, taking it away waited for this handler,
+    // which waited for the folder to be removed, until Windows ended the program with the folder still there.
+    // So Ctrl+C and Ctrl+Break are this handler's too: left to Windows' own handler, which ends the program,
+    // until Install.cmd is started, and answered here from then on (OutliveCtrlC).
     internal static class Closing
     {
+        const uint CTRL_C_EVENT = 0;
+        const uint CTRL_BREAK_EVENT = 1;
         const uint CTRL_CLOSE_EVENT = 2;
         const uint CTRL_LOGOFF_EVENT = 5;
         const uint CTRL_SHUTDOWN_EVENT = 6;
@@ -621,10 +620,19 @@ namespace CodexAutoResumeSetup
         static readonly ManualResetEvent cleaned = new ManualResetEvent(false);
         static readonly Stopwatch clock = Stopwatch.StartNew();
         static long closedAt = -1;
+        static volatile bool outliveCtrlC;
 
         public static void Watch()
         {
             SetConsoleCtrlHandler(heard, true);
+        }
+
+        // From Install.cmd's start to this program's end, Ctrl+C and Ctrl+Break are Install.cmd's to answer - it
+        // is told on its own, in the same console - and they do not end this program, which still removes the
+        // folder.
+        public static void OutliveCtrlC()
+        {
+            outliveCtrlC = true;
         }
 
         public static bool Now
@@ -646,6 +654,11 @@ namespace CodexAutoResumeSetup
 
         static bool Heard(uint type)
         {
+            if (type == CTRL_C_EVENT || type == CTRL_BREAK_EVENT)
+            {
+                // True is answered: Windows does not end the program. False goes on to Windows' own handler.
+                return outliveCtrlC;
+            }
             if (type != CTRL_CLOSE_EVENT && type != CTRL_LOGOFF_EVENT && type != CTRL_SHUTDOWN_EVENT)
             {
                 return false;
@@ -688,27 +701,6 @@ namespace CodexAutoResumeSetup
                 Console.In.ReadLine();
             }
             return code;
-        }
-
-        // Adds or takes away a Ctrl+C handler; false when there is no console to hear it.
-        public static bool Keep(ConsoleCancelEventHandler handler, bool add)
-        {
-            try
-            {
-                if (add)
-                {
-                    Console.CancelKeyPress += handler;
-                }
-                else
-                {
-                    Console.CancelKeyPress -= handler;
-                }
-                return true;
-            }
-            catch (IOException)
-            {
-                return false;
-            }
         }
     }
 

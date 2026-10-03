@@ -501,9 +501,12 @@ def run_in_a_console_then_close_it(exe: Path, environment: dict, cwd: Path, clos
         k32.CloseHandle(in_write)
 
 
-# An Install.cmd that says it started, and then waits as the real one's last "Press any key" does.
+# An Install.cmd that says it started, and then waits as the real one's last "Press any key" does - here on a
+# program it started in the folder, as it waits on the installer. That program writes to SETUP_TEST_WAITING once it
+# runs, and only then is Install.cmd waiting: a program started as the window closes is not told of the close, and
+# runs on in the folder, keeping it (one run in eight closed that early when "started" alone was waited for).
 WAITING_ENTRIES = {"Install.cmd": (b"@echo off\r\n>>\"%SETUP_TEST_RECORD%\" echo started\r\n"
-                                   b"\"%SystemRoot%\\System32\\PING.EXE\" -n 40 127.0.0.1 >nul\r\n"
+                                   b"\"%SystemRoot%\\System32\\PING.EXE\" -n 40 127.0.0.1 >\"%SETUP_TEST_WAITING%\"\r\n"
                                    b">>\"%SETUP_TEST_RECORD%\" echo finished\r\nexit /b 0\r\n"),
                    "install/install.ps1": b"# never run\r\n",
                    "payload/app/src/codex_auto_resume/__init__.py": b"",
@@ -521,19 +524,25 @@ def _pseudo_consoles() -> bool:
 class CloseTests(unittest.TestCase):
     """Closing the console window - most often at Install.cmd's last "Press any key" - used to end the setup
     program before its finally ran: the whole unpacked archive stayed in %TEMP%, about 27 MB under a new name
-    each time, which nothing removes later."""
+    each time, which nothing removes later. And then, when the window closed as Install.cmd ended, the setup
+    program's handler for the close waited for the folder to be removed while the code that removes it waited for
+    that handler (see SourceTests), until Windows ended the program with the folder still there.
+
+    The folder is looked at as soon as the setup program has ended, with no wait: it removes the folder before it
+    ends, and nothing removes it later."""
 
     def test_the_folder_is_removed_when_the_console_window_is_closed_while_install_cmd_runs(self):
         work = Path(tempfile.mkdtemp(prefix="s-"))
         self.addCleanup(shutil.rmtree, work, True)
         _, exe = build_around(WAITING_ENTRIES, work)
         scratch = Scratch(self)
+        waiting = scratch.base / "waiting.txt"
         environment = dict(os.environ, TEMP=str(scratch.temp), TMP=str(scratch.temp),
-                           SETUP_TEST_RECORD=str(scratch.record))
+                           SETUP_TEST_RECORD=str(scratch.record), SETUP_TEST_WAITING=str(waiting))
         seen = []
 
         def started():
-            if scratch.recorded() == ["started"]:
+            if scratch.recorded() == ["started"] and waiting.is_file() and waiting.stat().st_size > 0:
                 seen.extend(scratch.left())
                 return True
             return False
@@ -548,7 +557,7 @@ class CloseTests(unittest.TestCase):
 
 def method(name: str) -> str:
     """The text of a method of Setup.cs, from its signature to its closing brace."""
-    found = re.search(r"\n(\s+)(?:public |internal |private )?static \w+(?:<\w+>)? %s\(" % re.escape(name), SOURCE)
+    found = re.search(r"\n([ \t]+)(?:public |internal |private )?static \w+(?:<\w+>)? %s\(" % re.escape(name), SOURCE)
     if not found:
         raise AssertionError("Setup.cs has no method %s" % name)
     end = SOURCE.index("\n" + found.group(1) + "}\n", found.end())
@@ -626,6 +635,20 @@ class SourceTests(unittest.TestCase):
         self.assertLess(started.index("Closing.Watch();"), started.index("Folder.Fresh("))
         cleanup = started[started.index("finally"):]
         self.assertLess(cleanup.index("folder.Remove()"), cleanup.index("Closing.Done();"))
+
+    def test_no_console_handler_is_added_or_taken_away_after_the_one_that_waits_for_the_folder(self):
+        """Windows holds its list of console handlers while one of them runs, and Closing's runs until the folder
+        is removed. Install added Console.CancelKeyPress's handler for Ctrl+C and took it away as Install.cmd
+        ended: when the window closed at that moment, taking it away waited for Closing's handler, which waited
+        for the folder, until Windows ended the program with the folder there (CloseTests, on GitHub and here).
+        Ctrl+C is answered by Closing's handler instead, from Install.cmd's start on."""
+        code = "\n".join(line for line in SOURCE.splitlines() if not line.lstrip().startswith("//"))
+        self.assertNotIn("CancelKeyPress", code)
+        self.assertEqual(len(re.findall(r"\bSetConsoleCtrlHandler\(", code)), 2, "its declaration and Watch's call")
+        heard = method("Heard")
+        self.assertLess(heard.index("return outliveCtrlC;"), heard.index("cleaned.WaitOne("))
+        install = method("Install")
+        self.assertLess(install.index("Closing.OutliveCtrlC();"), install.index("Process.Start("))
 
     def test_it_unpacks_the_bytes_it_checked(self):
         started = method("Started")
