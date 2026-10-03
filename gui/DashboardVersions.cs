@@ -102,6 +102,8 @@ namespace CodexAutoResume
                             Col(S("pick.col_kind", "Kind"), 130),
                             Col(S("pick.col_edition", "Edition"), 110),
                             Col(S("pick.col_note", "What it means"), 300));
+            // After FitColumns, which List asked first: held to the list's width however narrow Windows makes the dialog.
+            view.ClientSizeChanged += delegate { HoldVersionColumns(view); };
             var host = new SoftListHost(view);
             host.Dock = DockStyle.Fill;
             var padding = new Panel();
@@ -212,6 +214,7 @@ namespace CodexAutoResume
             }
             versionsList.EndUpdate();
             MeasureCells(versionsList);
+            HoldVersionColumns(versionsList);
             versionsNotes.Text = shown
                 ? S("pick.floor", "Versions before {version} are not offered: from them, the Dashboard could not bring you back.", "version", listed[3]) +
                   Environment.NewLine +
@@ -222,6 +225,67 @@ namespace CodexAutoResume
                 versionsSaid.Text = S("pick.could_not_list", "GitHub could not be asked for the list of releases just now. Nothing was changed.");
             else if (!shown)
                 versionsSaid.Text = S("pick.list_failed", "The list of releases could not be read. Nothing was changed.");
+        }
+
+        // While HoldVersionColumns sets the columns: the list's own horizontal bar going as they narrow asks again.
+        private bool holdingVersions;
+
+        /// The list's columns held to its width where FitColumns leaves them wider (HeldColumns). No form is larger than
+        /// the largest window the screen allows (SystemInformation.MaxWindowTrackSize), so on a screen too small for the
+        /// dialog Windows makes it narrower than it was laid out for, and FitColumns keeps every column at its least
+        /// however narrow the list is: at 200% and the largest text size, on a screen 1024 wide, four columns 864 wide in
+        /// a list 856 wide, which scrolled sideways. Wherever the list holds its columns' least, FitColumns has fitted
+        /// them already and nothing changes. FitColumns is not asked while they are set - it would put them back as the
+        /// list's horizontal bar goes, and this would take them in again.
+        private void HoldVersionColumns(ListView list)
+        {
+            if (holdingVersions || list == null || list.IsDisposed) return;
+            var widths = new int[list.Columns.Count];
+            for (int i = 0; i < widths.Length; i++) widths[i] = list.Columns[i].Width;
+            // What it means down to an ellipsis and DrawCell's inset before any other column gives way.
+            int[] held = HeldColumns(widths, list.ClientSize.Width, Px(24));
+            bool same = true;
+            for (int i = 0; i < widths.Length; i++) same &= held[i] == widths[i];
+            if (same) return;
+            int[] weights;
+            bool fitted = columnWeights.TryGetValue(list, out weights);
+            holdingVersions = true;
+            columnWeights.Remove(list);
+            try
+            {
+                for (int i = 0; i < held.Length; i++)
+                    if (list.Columns[i].Width != held[i]) list.Columns[i].Width = held[i];
+            }
+            finally
+            {
+                if (fitted) columnWeights[list] = weights;
+                holdingVersions = false;
+            }
+        }
+
+        /// `widths` held to `room`: as they are if they fit; else What it means - the last, whose words the line under the
+        /// list says whole for the chosen row (ShowVersionChoice) - gives way first, down to `ellipsis`, and past that
+        /// every column in proportion to its width, the last taking what the others leave, so that they are `room` wide
+        /// together. Pure.
+        internal static int[] HeldColumns(int[] widths, int room, int ellipsis)
+        {
+            var held = (int[])widths.Clone();
+            int count = held.Length, total = 0;
+            foreach (int width in held) total += width;
+            if (count == 0 || room < 0 || total <= room) return held;
+            int last = count - 1;
+            int gives = Math.Min(total - room, Math.Max(0, held[last] - ellipsis));
+            held[last] -= gives;
+            total -= gives;
+            if (total <= room) return held;
+            int used = 0;
+            for (int i = 0; i < last; i++)
+            {
+                held[i] = (int)Math.Floor(held[i] * (double)room / total);
+                used += held[i];
+            }
+            held[last] = room - used;
+            return held;
         }
 
         /// The chosen row's reason or note under the list, and Install for an offered row alone.

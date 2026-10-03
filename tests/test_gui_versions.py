@@ -172,6 +172,18 @@ WAY_BACK = {
     "a_newer_one": ("0.6.13 standard offered newer,release,kept,latest", "0.6.12", False),
 }
 
+# SettingsForm.HeldColumns: name -> (the columns' widths, the list's width, the least What it means keeps before the
+# others give way, the widths held). No form is larger than the screen allows, so on GitHub's 1024 by 768 runners the
+# dialog at 200% and the largest text size (4.5 times) had a list 856 wide for four columns at their least, 864.
+HELD = {
+    "the_runners_screen": ([216, 216, 216, 216], 856, 108, [216, 216, 216, 208]),
+    "a_list_they_fit_at_100": ([105, 116, 80, 397], 698, 24, [105, 116, 80, 397]),
+    "a_list_they_fill_at_450": ([274, 473, 335, 1293], 2375, 108, [274, 473, 335, 1293]),
+    "what_it_means_down_to_its_ellipsis": ([576, 576, 576, 576], 2000, 144, [576, 576, 576, 272]),
+    "then_every_column_in_proportion": ([624, 624, 624, 624], 1800, 144, [557, 557, 557, 129]),
+    "no_room_at_all": ([216, 216, 216, 216], 0, 108, [0, 0, 0, 0]),
+}
+
 PROBE = r"""
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
@@ -182,8 +194,13 @@ $versions = $form.GetMethod('VersionsLines', $flags)
 $pick = $form.GetMethod('PickLine', $flags)
 $rule = $form.GetField('VersionRule', $flags).GetValue($null)
 $wayBack = $form.GetMethod('WayBack', $flags)
-if (-not $versions -or -not $pick -or -not $rule -or -not $wayBack) { throw 'SettingsForm lacks a parser' }
-$out = @{ versions = @{}; picks = @{}; rule = @(); way_back = @{} }
+$held = $form.GetMethod('HeldColumns', $flags)
+if (-not $versions -or -not $pick -or -not $rule -or -not $wayBack -or -not $held) { throw 'SettingsForm lacks a parser' }
+$out = @{ versions = @{}; picks = @{}; rule = @(); way_back = @{}; held = @{} }
+foreach ($case in (ConvertFrom-Json $env:CAR_HELD).PSObject.Properties) {
+    $arguments = [object[]]@([int[]]$case.Value[0], [int]$case.Value[1], [int]$case.Value[2])
+    $out.held[$case.Name] = @([int[]]$held.Invoke($null, $arguments))
+}
 foreach ($case in (ConvertFrom-Json $env:CAR_WAY_BACK).PSObject.Properties) {
     $arguments = New-Object 'object[]' 2
     $arguments[0] = [string[]]([string]$case.Value[0]).Split(' ')
@@ -243,7 +260,8 @@ class ParserTests(unittest.TestCase):
                      CAR_VERSIONS=json.dumps({name: [case[0], case[1]] for name, case in VERSIONS.items()}),
                      CAR_PICKS=json.dumps({name: [case[0], case[1]] for name, case in PICKS.items()}),
                      CAR_RULE=json.dumps([text for text, _ in rule_cases()]),
-                     CAR_WAY_BACK=json.dumps({name: [case[0], case[1]] for name, case in WAY_BACK.items()})))
+                     CAR_WAY_BACK=json.dumps({name: [case[0], case[1]] for name, case in WAY_BACK.items()}),
+                     CAR_HELD=json.dumps({name: list(case[:3]) for name, case in HELD.items()})))
         cls.result = result
         cls.answer = json.loads(result.stdout) if result.returncode == 0 and result.stdout.strip() else {}
 
@@ -284,6 +302,15 @@ class ParserTests(unittest.TestCase):
         for name, (_, _, said) in sorted(WAY_BACK.items()):
             with self.subTest(name):
                 self.assertIs(self.answer["way_back"][name], said)
+
+    def test_the_columns_are_held_to_the_list_however_narrow_windows_makes_the_dialog(self):
+        """As they are wherever they fit; else What it means - said whole for the chosen row under the list - gives
+        way first, down to an ellipsis, then every column in proportion, and never are they wider than the list."""
+        for name, (widths, room, ellipsis, held) in sorted(HELD.items()):
+            with self.subTest(name):
+                read = list(self.answer["held"][name])
+                self.assertEqual(read, held)
+                self.assertLessEqual(sum(read), max(room, 0))
 
 
 class WindowTests(unittest.TestCase):
@@ -364,6 +391,20 @@ class WindowTests(unittest.TestCase):
         apply = listing[listing.index("MethodInvoker apply"):]
         self.assertLess(apply.index("SetBusy(false);"), apply.index("if (mine != versionsToken || dialog.IsDisposed) return;"))
         self.assertNotIn("Kill", listing)
+
+    def test_the_list_never_scrolls_sideways_however_narrow_windows_makes_the_dialog(self):
+        """No form is larger than the screen allows, so where the screen is too small for the dialog its list is
+        narrower than its columns' least; after FitColumns they are held to it, as the list's width changes and as its
+        rows are measured, and FitColumns is not asked while they are set."""
+        built = self.body("BuildVersions")
+        self.assertIn("view.ClientSizeChanged += delegate { HoldVersionColumns(view); };", built)
+        self.assertLess(built.index("var view = List("), built.index("HoldVersionColumns(view)"),
+                        "after FitColumns, which List asks first")
+        shown = self.body("ShowVersionRows")
+        self.assertLess(shown.index("MeasureCells(versionsList);"), shown.index("HoldVersionColumns(versionsList);"))
+        hold = self.body("HoldVersionColumns")
+        self.assertIn("HeldColumns(widths, list.ClientSize.Width, Px(24))", hold)
+        self.assertLess(hold.index("columnWeights.Remove(list);"), hold.index("list.Columns[i].Width = held[i];"))
 
     def test_the_confirmation_is_the_careful_one(self):
         confirm = self.body("ConfirmPick")
