@@ -117,6 +117,8 @@ class DocumentTests(unittest.TestCase):
             armed(armed_at=True), armed(armed_at=float("nan")), armed(armed_at=float("inf")),
             armed(since=NOW - 2 * HOUR), armed(since=NOW + 301, armed_at=NOW), armed(armed_at="now"),
             armed(stop_at=False), armed(stop_at=-1), armed(stop_at=1e13),
+            # An integer too large to be a float, which JSON reads as written: refused, never an OverflowError.
+            armed(stop_at=10 ** 400), armed(armed_at=10 ** 400), armed(since=10 ** 400),
             armed(carried=[key(1), key(1)]), armed(carried=["ab" * 10]), armed(carried=[key(0xabc).upper()]),
             armed(carried=[key(n) for n in range(257)]), armed(carried=(key(1),)), armed(carried=None),
             dict(armed(), extra=1), {k: v for k, v in armed().items() if k != "stop_at"}]
@@ -133,6 +135,8 @@ class DocumentTests(unittest.TestCase):
                       document(shown=dict(shown, extra=1)),
                       document(last={"action": "sleep", "result": "maybe", "at": NOW}),
                       document(last={"action": "sleep", "result": "done", "at": True}),
+                      document(last={"action": "sleep", "result": "done", "at": 10 ** 400}),
+                      document(shown=dict(shown, phase="grace", grace_until=10 ** 400)),
                       document(last={"action": "sleep", "result": "done"}),
                       dict(document(), format="codex-auto-resume/power-action/2"),
                       dict(document(), extra=None),

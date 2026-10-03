@@ -350,12 +350,18 @@ class FileTests(PowerControlCase):
                            ("bool for int", json.dumps(dict(good, armed=dict(good["armed"], grace_seconds=True)))),
                            ("an unknown key", json.dumps(dict(good, extra=1))),
                            ("a future since", json.dumps(dict(good, armed=dict(good["armed"], armed_at=4e9, since=4e9)))),
+                           # A JSON integer too large to be a float: refused, where it once raised OverflowError
+                           # from every reader and from the watcher's look.
+                           ("a stop too large", json.dumps(dict(good, armed=dict(good["armed"], stop_at=10 ** 400)))),
+                           ("a last time too large",
+                            json.dumps(dict(good, last={"action": "sleep", "result": "done", "at": 10 ** 400}))),
                            ("too large", json.dumps(dict(good)) + " " * poweraction.FILE_LIMIT)):
             with self.subTest(name):
                 self.write(text)
                 self.assertEqual(self.control.read_power_action()[0], poweraction.READ_INVALID)
                 self.assertEqual(self.control.get_status()["power_action"],
                                  {"armed": None, "shown": None, "last": None})
+                self.assertEqual(self.control.power_options()["view"], {"armed": None, "shown": None, "last": None})
                 self.assertEqual(self.control.disarm_power_action("mcp"), {"changed": False})
                 self.assertEqual(self.control.stop_power_countdown(good["armed"]["nonce"]), control.IGNORED)
                 self.assertFalse(self.control.power_batch_end(good["armed"]["nonce"], "done"))

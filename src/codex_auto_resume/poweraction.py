@@ -107,7 +107,12 @@ _VIEW_SHOWN = ("phase", "waiting_for", "grace_until")
 
 # ------------------------------------------------------------------------------ the file
 def _time(value) -> bool:
-    return epoch(value, *EPOCH_STORE)
+    """A time in the store's window. A JSON integer too large to be a float is not one: math.isfinite
+    raises OverflowError for it (states.epoch), and a file holding one is refused like any other."""
+    try:
+        return epoch(value, *EPOCH_STORE)
+    except OverflowError:
+        return False
 
 
 def _word(value, words) -> bool:

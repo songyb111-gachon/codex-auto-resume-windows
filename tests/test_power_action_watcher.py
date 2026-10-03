@@ -217,6 +217,17 @@ class DefaultTests(WatcherCase):
         self.assertEqual(len([line for line in self.lines if "cannot be read" in line]), 1)
         self.assertEqual(self.paths.power_action_file.read_text(encoding="utf-8"), "{not json")
 
+    def test_a_time_too_large_to_be_a_number_is_off_and_raises_nothing(self):
+        """A JSON integer too large for a float once raised OverflowError from every look."""
+        self.ready(stop_at=10 ** 400)
+        text = self.paths.power_action_file.read_text(encoding="utf-8")
+        for _ in range(3):
+            self.look(advance=30.0)
+        self.assertEqual((self.port.calls, self.notices), ([], []))
+        self.assertEqual(len([line for line in self.lines if "cannot be read" in line]), 1)
+        self.assertEqual(len(self.lines), 1, "and nothing failed")
+        self.assertEqual(self.paths.power_action_file.read_text(encoding="utf-8"), text)
+
     def test_an_administrators_key_holds_it_inert(self):
         self.ready()
         self.managed = managed.Managed(disable_power_action=True)
