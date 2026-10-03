@@ -91,6 +91,22 @@
       bounds the wait for a response to begin, and a body that arrives slowly is read for as
       long as it keeps coming (Invoke-BoundedWebRequest).
 
+    Listing the versions a person may pick
+      -Versions is what the Dashboard's Install another version... asks when a person presses it,
+      and at no other time. It reads the same list of this repository's releases through the one
+      other address api.github.com is allowed for (`release_pages` in scripts/release.json): the
+      same host and path, one page of thirty at a time, at most five pages, whose page number is
+      the one thing put into it. Each page is checked as the update check's page is (Read-ReleasesPage),
+      and a page that cannot be read lists nothing at all: `versions: unavailable`, exit 12. It
+      downloads nothing, installs nothing and does not refresh the compatibility data.
+
+      Each version, in each edition, is offered or refused with its reason on a line of its own:
+      nothing older than v0.6.2, no archive or no checksum to check it by, an edition change to an
+      installer older than editions, a policy an administrator set that the version would stop
+      applying (the policy key is read, never written), and - while I12 says so - a pre-release the
+      update check would not offer. The list's versions are rebuilt from their integers like every
+      other version here (Get-ChosenVersion), and only the names of the assets are read.
+
     Which edition it installs
       There are two, and an installation is one or the other: the advanced edition is the
       standard one plus one package in app\src. Nothing is stamped anywhere to say which; the
@@ -138,6 +154,7 @@
          Add -Update to install one if there is.
          Add -Version <pre-release> to install the pre-release -CheckOnly offered.
          Add -Compatibility to refresh the Codex compatibility data and nothing else.
+         Add -Versions to list the versions the Dashboard may install instead, and install nothing.
          Add -Edition Standard or -Edition Advanced to choose the edition; over the other
          edition, add -Force as well, which is what replacing it takes.
 #>
@@ -156,7 +173,10 @@ param(
     # The pre-release a person said yes to when the update check offered it. Never spliced as
     # typed: Get-PrereleaseVersion accepts a pre-release in this product's grammar alone and
     # rebuilds it from its integers and one of two words.
-    [string]$Version
+    [string]$Version,
+    # Lists every version a person may pick in the Dashboard's Install another version..., and why
+    # each of the others cannot be. It installs nothing and takes no value.
+    [switch]$Versions
 )
 
 # Started before anything else runs, so an update check can tell how much of its caller's
@@ -193,7 +213,8 @@ $CompatibilityCheckTimeoutMax = 30
 $CompatibilityCheckTimeoutMin = 5
 
 # The update check's question about pre-releases: GitHub's list of this repository's releases,
-# on its API host, which is allowed for this request alone - the archive's list above does not
+# on its API host, which is allowed for that list alone - the update check's one page of it and the
+# picker's pages of it (-Versions, below), and nothing else; the archive's list above does not
 # grow. The list is the one body this script parses, so a larger one is refused before it is,
 # and a malformed one offers nothing. It shares the check's time too, after the refresh, so it
 # can make the check neither late nor "running": what is left of $CheckBudgetSeconds after a
@@ -223,6 +244,42 @@ $ExitCompatibilityRefused = 13
 # nothing changed. The installer refuses the same way with the same code, and Install.cmd
 # reads it as its cue to ask.
 $ExitOtherEdition = 14
+
+# Install another version... (v0.6.12): which versions a person may pick, and which not.
+# Nothing older than $PickFloor is offered: v0.6.0 and v0.6.1 verify with a cmdlet that did not
+# resolve in the process the Dashboard starts, so from them the Dashboard could not bring a person
+# back, and v0.5.x's installer has no --keep-state. The advanced edition begins at $EditionsSince,
+# and an installer below it cannot be told an edition change was asked for, so a change of edition
+# needs a target at least that new. The policy keys an administrator sets are read from
+# $PolicySince on; while any of $PolicyValues is set, an older version would stop applying it, so
+# none is offered. $PolicyValues are the values a version below $PolicySince would drop
+# (src/codex_auto_resume/managed.py, VALUES): a value that guards a feature no older version has
+# is not among them, since no older version could do what it holds back.
+$PickFloor = '0.6.2'
+$EditionsSince = '0.6.11-alpha'
+$PolicySince = '0.6.11-beta'
+$PolicyKeys = @('HKEY_LOCAL_MACHINE', 'HKEY_CURRENT_USER')
+$PolicyPath = 'Software\Policies\CodexAutoResume'
+$PolicyValues = @('DisableAutoResume', 'ForceObserveOnly', 'DisableUpdateCheck', 'DisableStatusFile',
+                  'MaxRecoveryAttempts', 'QuietHours')
+# The state's schema from each version on, newest first; the first row is this version's own. A
+# target on the schema before it is offered with the state converted first (downgrade-state --to 3);
+# a target on any other is not offered at all.
+$StateSchemaSince = @(@('0.6.11-beta', 4), @('0.6.0', 3))
+# The advanced settings' form from each version on, newest first; the first row is this version's
+# own. An advanced target on an older form cannot read them: every advanced feature is off there.
+$AdvancedStateSince = @(@('0.6.11-beta.2', 2), @('0.6.11-alpha', 1))
+# The list is read page by page, $PickPageSize to a page (release_pages in release.json), at most
+# $PickMaxPages of them - a page with fewer ends it - and all of it within $PickBudgetSeconds, each
+# page within $PickPageTimeoutMax. The window waits longer than that for the answer.
+$PickPageSize = 30
+$PickMaxPages = 5
+$PickBudgetSeconds = 150
+$PickPageTimeoutMax = 30
+# I12 as written: a pre-release is offered only where the update check would offer that same one -
+# never one older than what is installed, and of the newer ones only the check's own offer.
+$PickNewerPrereleases = $false
+$PickOlderPrereleases = $false
 
 function Step { param([string]$Text) Write-Host ('  ' + $Text) }
 function Ok   { param([string]$Text) Write-Host ('  [ok] ' + $Text) }
@@ -507,26 +564,39 @@ function Get-PrereleaseVersion {
     return $rebuilt
 }
 
-function Get-PublishedPrereleases {
+function Get-ChosenVersion {
     <#
-        Every pre-release GitHub's list of this repository's releases names as published, by this
-        product's version rule - or a throw where the list cannot be read.
-
-        One GET, unauthenticated, to the constant `releases` in scripts/release.json, with a deadline
-        of $TimeoutSec for all of it (Invoke-BoundedWebRequest). No redirect is followed, the answer
-        has to come from api.github.com for this exact owner and repository, and a body over
-        $ReleasesMaxChars is refused before it is parsed. An entry counts only when it is published
-        (`draft` false), a pre-release (`prerelease` true) and tagged `v` and a version
-        Get-PrereleaseVersion accepts; anything else in the list, or about an entry, is passed over.
+        Any version this product publishes, rebuilt, or a throw: a release, MAJOR.MINOR.PATCH, from
+        its three integers, or a pre-release by Get-PrereleaseVersion - the rule every check of this
+        product's version applies (tests/test_version_rule.py). What comes back has to be exactly
+        what came in, for the reason Get-PrereleaseVersion gives. It is what -Pick and a tag in the
+        list of releases are read through, so what reaches a URL from either is arithmetic.
     #>
-    param($Release, [int]$TimeoutSec = 15)
-    foreach ($name in @('owner', 'repo', 'releases')) {
-        if (-not $Release.PSObject.Properties.Match($name).Count) {
-            throw ('scripts/release.json has no "' + $name + '", so there is no list to read.')
-        }
+    param([string]$Text)
+    if ($Text -cmatch '^([0-9]{1,6})\.([0-9]{1,6})\.([0-9]{1,6})\z') {
+        $rebuilt = ([string][int]$Matches[1]) + '.' + ([string][int]$Matches[2]) + '.' + ([string][int]$Matches[3])
+        if ($rebuilt -cne $Text) { throw ('Not a version this product publishes: ' + (Format-UnreadVersion $Text)) }
+        return $rebuilt
     }
+    try { return Get-PrereleaseVersion $Text }
+    catch { throw ('Not a version this product publishes: ' + (Format-UnreadVersion $Text)) }
+}
+
+function Read-ReleasesPage {
+    <#
+        One page of GitHub's list of this repository's releases, as a list, or a throw where it
+        cannot be read. Both readers of the list - the update check's (Get-PublishedPrereleases) and
+        the picker's (Get-ReleasePages) - come through here, so neither checks less than the other.
+
+        One GET, unauthenticated, to $Uri, a constant of scripts/release.json, with a deadline of
+        $TimeoutSec for all of it (Invoke-BoundedWebRequest). No redirect is followed, the answer
+        has to come from api.github.com for this exact owner and repository, a body over
+        $ReleasesMaxChars is refused before it is parsed, and a body that is not a JSON list is no
+        list. What the entries hold is the caller's to read.
+    #>
+    param($Release, [string]$Uri, [int]$TimeoutSec)
     $response = Invoke-BoundedWebRequest -What 'The list of releases' -Seconds $TimeoutSec -Parameters @{
-        Uri = $Release.releases; UseBasicParsing = $true; Method = 'Get'; MaximumRedirection = 0
+        Uri = $Uri; UseBasicParsing = $true; Method = 'Get'; MaximumRedirection = 0
         TimeoutSec = $TimeoutSec }
     if ($null -eq $response) { throw 'The list of releases was empty.' }
     Assert-TrustedHost -Response $response -What 'The list of releases' -Hosts $ReleasesHosts
@@ -547,6 +617,26 @@ function Get-PublishedPrereleases {
     # both are made into the same list here.
     $list = @(ConvertFrom-Json -InputObject $body)
     if ($list.Count -eq 1 -and $list[0] -is [array]) { $list = @($list[0]) }
+    return ,$list
+}
+
+function Get-PublishedPrereleases {
+    <#
+        Every pre-release GitHub's list of this repository's releases names as published, by this
+        product's version rule - or a throw where the list cannot be read.
+
+        One page: the constant `releases` in scripts/release.json, read by Read-ReleasesPage with a
+        deadline of $TimeoutSec. An entry counts only when it is published (`draft` false), a
+        pre-release (`prerelease` true) and tagged `v` and a version Get-PrereleaseVersion accepts;
+        anything else in the list, or about an entry, is passed over.
+    #>
+    param($Release, [int]$TimeoutSec = 15)
+    foreach ($name in @('owner', 'repo', 'releases')) {
+        if (-not $Release.PSObject.Properties.Match($name).Count) {
+            throw ('scripts/release.json has no "' + $name + '", so there is no list to read.')
+        }
+    }
+    $list = Read-ReleasesPage -Release $Release -Uri $Release.releases -TimeoutSec $TimeoutSec
     $found = @()
     foreach ($entry in $list) {
         if ($entry -isnot [Management.Automation.PSCustomObject]) { continue }
@@ -577,6 +667,195 @@ function Get-NewerPrerelease {
         if ($null -eq $best -or (Compare-ProductVersion -Left $candidate -Right $best) -gt 0) { $best = $candidate }
     }
     return $best
+}
+
+function Get-ReleasePages {
+    <#
+        Every release GitHub's list of this repository's releases names as published, read page by
+        page for the picker - or a throw where any page cannot be read, so the answer is never a
+        part of the list taken for all of it.
+
+        Page 1, 2, ... of the constant `release_pages` in scripts/release.json, whose `{page}` is the
+        one thing put into it, each read by Read-ReleasesPage within what is left of
+        $PickBudgetSeconds, at most $PickPageTimeoutMax. A page with fewer than $PickPageSize entries
+        is the last; no more than $PickMaxPages are asked for, newest first, which is many times what
+        is published above $PickFloor. An entry counts only when it is published (`draft` false),
+        tagged `v` and a version Get-ChosenVersion accepts, marked a pre-release exactly when its
+        version is one, and has a list of assets; of the assets only their names are kept, and only
+        names that are text. A version the list names twice is taken where it is named first.
+        Each comes back as Version, Prerelease and Assets.
+    #>
+    param($Release)
+    foreach ($name in @('owner', 'repo', 'release_pages')) {
+        if (-not $Release.PSObject.Properties.Match($name).Count) {
+            throw ('scripts/release.json has no "' + $name + '", so there is no list to read.')
+        }
+    }
+    $template = [string]$Release.release_pages
+    $clock = [Diagnostics.Stopwatch]::StartNew()
+    $found = @()
+    $seen = @{}
+    for ($page = 1; $page -le $PickMaxPages; $page++) {
+        $left = $PickBudgetSeconds - $clock.Elapsed.TotalSeconds
+        $seconds = [int][Math]::Floor([Math]::Min([double]$PickPageTimeoutMax, $left))
+        if ($seconds -lt $ReleasesTimeoutMin) { throw 'Too little time was left to read the rest of the list of releases.' }
+        $list = Read-ReleasesPage -Release $Release -Uri $template.Replace('{page}', [string]$page) -TimeoutSec $seconds
+        foreach ($entry in $list) {
+            if ($entry -isnot [Management.Automation.PSCustomObject]) { continue }
+            $fields = $entry.PSObject.Properties
+            if (-not $fields.Match('draft').Count -or -not $fields.Match('prerelease').Count -or
+                -not $fields.Match('tag_name').Count -or -not $fields.Match('assets').Count) { continue }
+            if ($entry.draft -isnot [bool] -or $entry.draft) { continue }
+            if ($entry.prerelease -isnot [bool]) { continue }
+            $tag = $entry.tag_name
+            if ($tag -isnot [string] -or -not $tag.StartsWith('v', [StringComparison]::Ordinal)) { continue }
+            $number = $null
+            try { $number = Get-ChosenVersion $tag.Substring(1) } catch { continue }
+            if ($entry.prerelease -ne $number.Contains('-')) { continue }
+            if ($null -eq $entry.assets -or $entry.assets -isnot [array]) { continue }
+            $names = @()
+            foreach ($asset in $entry.assets) {
+                if ($asset -isnot [Management.Automation.PSCustomObject]) { continue }
+                if (-not $asset.PSObject.Properties.Match('name').Count -or $asset.name -isnot [string]) { continue }
+                $names += ,$asset.name
+            }
+            if ($seen.ContainsKey($number)) { continue }
+            $seen[$number] = $true
+            $found += ,([pscustomobject]@{ Version = $number; Prerelease = $entry.prerelease; Assets = $names })
+        }
+        if ($list.Count -lt $PickPageSize) { break }
+    }
+    return ,$found
+}
+
+function Get-PolicyInForce {
+    <#
+        Whether an administrator's policy key holds anything a version below $PolicySince would stop
+        applying: any of $PolicyValues by name, under either of $PolicyKeys - or a key that is there
+        and cannot be read, which may hold any of them. No network, and read only: the key is opened
+        and its value names listed, nothing is written, and no value is parsed. So a value managed.py
+        would ignore as malformed still counts here: it can only make the picker offer less.
+    #>
+    foreach ($root in $PolicyKeys) {
+        $names = @()
+        try {
+            $key = Get-Item -LiteralPath ('Registry::' + $root + '\' + $PolicyPath) -ErrorAction Stop
+            $names = @($key.GetValueNames())
+        } catch [Management.Automation.ItemNotFoundException] {
+            continue
+        } catch {
+            return $true
+        }
+        foreach ($name in $names) {
+            if ($PolicyValues -contains [string]$name) { return $true }
+        }
+    }
+    return $false
+}
+
+function Get-SinceValue {
+    # The value a table of (version, value) rows, newest first, gives $Version: the first row whose
+    # version it is at or past - or $null where it is older than all of them.
+    param([string]$Version, $Table)
+    foreach ($row in $Table) {
+        if ((Compare-ProductVersion -Left $Version -Right $row[0]) -ge 0) { return $row[1] }
+    }
+    return $null
+}
+
+function Get-VersionVerdict {
+    <#
+        What the picker says of one version in one edition, from the list's $Entry, the installed
+        $Installed and $InstalledEdition, scripts/release.json's $Release, whether a policy is in
+        force ($Policy, Get-PolicyInForce), the update check's own offer of a pre-release ($Offer)
+        and the newest release ($Latest). $null where the row is not shown at all: below
+        $PickFloor, or advanced below $EditionsSince. Otherwise Version, Edition, Answer and Detail,
+        the first that applies:
+          installed -            the version and edition installed
+          refused no-archive     no archive of this edition was published under this number
+          refused no-checksum    neither a pinned digest nor a published .sha256 to check it by
+          refused edition-first  another edition, and its installer predates editions
+          refused managed-policy a policy is in force, and this version would stop applying it
+          refused older-prerelease  a pre-release older than what is installed
+          refused not-offered    a newer pre-release that is not the update check's own offer
+          offered <words>        newer|older|same, release|prerelease, kept|convert3, and any of
+                                 latest, edition, advanced-off - comma-joined, in that order
+    #>
+    param($Entry, [string]$Edition, [string]$Installed, [string]$InstalledEdition, $Release,
+          [bool]$Policy, $Offer, $Latest)
+    $number = [string]$Entry.Version
+    if ((Compare-ProductVersion -Left $number -Right $PickFloor) -lt 0) { return $null }
+    if ($Edition -eq 'advanced' -and (Compare-ProductVersion -Left $number -Right $EditionsSince) -lt 0) { return $null }
+    $schema = Get-SinceValue -Version $number -Table $StateSchemaSince
+    if ($schema -ne $StateSchemaSince[0][1] -and $schema -ne 3) { return $null }
+    $order = Compare-ProductVersion -Left $number -Right $Installed
+    $other = $Edition -ne $InstalledEdition
+    $row = [pscustomobject]@{ Version = $number; Edition = $Edition; Answer = 'refused'; Detail = '' }
+    if ($order -eq 0 -and -not $other) { $row.Answer = 'installed'; $row.Detail = '-'; return $row }
+    $template = Get-EditionRelease -Release $Release -Edition $Edition
+    $archive = $template.archive.Replace('{version}', $number)
+    $assets = @($Entry.Assets)
+    if ($assets -cnotcontains $archive) { $row.Detail = 'no-archive'; return $row }
+    if (-not (Get-PinnedDigest -Release $template -Version $number) -and $assets -cnotcontains ($archive + '.sha256')) {
+        $row.Detail = 'no-checksum'; return $row
+    }
+    if ($other -and (Compare-ProductVersion -Left $number -Right $EditionsSince) -lt 0) { $row.Detail = 'edition-first'; return $row }
+    if ($Policy -and (Compare-ProductVersion -Left $number -Right $PolicySince) -lt 0) { $row.Detail = 'managed-policy'; return $row }
+    if ($Entry.Prerelease -and $order -lt 0 -and -not $PickOlderPrereleases) { $row.Detail = 'older-prerelease'; return $row }
+    # The check offers its pre-release over the installation, in its edition: a pre-release of the
+    # other edition is no offer the check makes.
+    if ($Entry.Prerelease -and $order -gt 0 -and -not $PickNewerPrereleases -and ($other -or $number -cne [string]$Offer)) {
+        $row.Detail = 'not-offered'; return $row
+    }
+    $words = @()
+    if ($order -gt 0) { $words += 'newer' } elseif ($order -lt 0) { $words += 'older' } else { $words += 'same' }
+    if ($Entry.Prerelease) { $words += 'prerelease' } else { $words += 'release' }
+    if ($schema -eq $StateSchemaSince[0][1]) { $words += 'kept' } else { $words += 'convert3' }
+    if (-not $Entry.Prerelease -and $number -ceq [string]$Latest) { $words += 'latest' }
+    if ($other) { $words += 'edition' }
+    if ($Edition -eq 'advanced' -and (Get-SinceValue -Version $number -Table $AdvancedStateSince) -ne $AdvancedStateSince[0][1]) {
+        $words += 'advanced-off'
+    }
+    $row.Answer = 'offered'
+    $row.Detail = $words -join ','
+    return $row
+}
+
+function Get-VersionTable {
+    <#
+        Every row the picker shows, newest first and, at one version, the installed edition first -
+        from the list Get-ReleasePages read - with the newest release ($null where the list names
+        none) and the update check's own offer: the rule of Get-NewerPrerelease applied to this list,
+        the newest pre-release newer than both what is installed and the newest release.
+    #>
+    param($Listed, [string]$Installed, [string]$InstalledEdition, $Release, [bool]$Policy)
+    $latest = $null
+    foreach ($entry in $Listed) {
+        if ($entry.Prerelease) { continue }
+        if ($null -eq $latest -or (Compare-ProductVersion -Left $entry.Version -Right $latest) -gt 0) { $latest = $entry.Version }
+    }
+    $offer = $null
+    foreach ($entry in $Listed) {
+        if (-not $entry.Prerelease) { continue }
+        if ((Compare-ProductVersion -Left $entry.Version -Right $Installed) -le 0) { continue }
+        if ($null -ne $latest -and (Compare-ProductVersion -Left $entry.Version -Right $latest) -le 0) { continue }
+        if ($null -eq $offer -or (Compare-ProductVersion -Left $entry.Version -Right $offer) -gt 0) { $offer = $entry.Version }
+    }
+    # Sorted by the five numbers Compare-ProductVersion compares, written to sort as text.
+    $sorted = @($Listed | Sort-Object -Descending -Property @{ Expression = {
+        (Get-VersionParts $_.Version | ForEach-Object { '{0:D6}' -f $_ }) -join '.' } })
+    $otherEdition = 'advanced'
+    if ($InstalledEdition -eq 'advanced') { $otherEdition = 'standard' }
+    $editions = @($InstalledEdition, $otherEdition)
+    $rows = @()
+    foreach ($entry in $sorted) {
+        foreach ($edition in $editions) {
+            $row = Get-VersionVerdict -Entry $entry -Edition $edition -Installed $Installed -InstalledEdition $InstalledEdition `
+                                      -Release $Release -Policy $Policy -Offer $offer -Latest $latest
+            if ($null -ne $row) { $rows += ,$row }
+        }
+    }
+    return [pscustomobject]@{ Rows = $rows; Latest = $latest; Offer = $offer }
 }
 
 function Get-Remote {
@@ -875,6 +1154,48 @@ if ([string]::IsNullOrWhiteSpace($installHome)) {
 }
 
 $installed = Get-InstalledVersion -Home_ $installHome
+
+# ------------------------------------------------------ the versions a person may pick
+# Its own run, which installs nothing and asks one thing: the list of this repository's releases,
+# every page of it. Each row is a version and an edition, offered or refused with its reason, and
+# the last line says what they were judged against. A list that could not be read lists nothing:
+# `versions: unavailable`, never a part of it, and never the Codex compatibility data either.
+if ($Versions) {
+    if ($CheckOnly -or $Update -or $ArchivePath -or $Compatibility -or $Version -or $Edition -or $Force) {
+        Fail '-Versions lists the versions there are to pick from, and goes with nothing else.'
+        Write-Host 'versions: unavailable'
+        exit $ExitUnavailable
+    }
+    $installedEdition = Get-InstalledEdition -Home_ $installHome
+    $readable = $false
+    if ($installed -and $installedEdition) {
+        try { $null = Get-VersionParts ([string]$installed); $readable = $true } catch { $readable = $false }
+    }
+    if (-not $readable) {
+        Fail ('There is no installation at ' + $installHome + ' whose version this copy can read, so there is nothing to pick another version for.')
+        Write-Host 'versions: unavailable'
+        exit $ExitUnavailable
+    }
+    Step 'Asking api.github.com for this repository''s whole list of releases, page by page. Nothing is uploaded.'
+    $listed = $null
+    try { $listed = Get-ReleasePages -Release $release }
+    catch {
+        Fail ('The list of releases could not be read (' + $_.Exception.Message + ').')
+        Write-Host 'versions: unavailable'
+        Step 'Nothing was changed.'
+        exit $ExitUnavailable
+    }
+    $table = Get-VersionTable -Listed $listed -Installed $installed -InstalledEdition $installedEdition `
+                              -Release $release -Policy (Get-PolicyInForce)
+    foreach ($row in $table.Rows) {
+        Write-Host ('version: ' + $row.Version + ' ' + $row.Edition + ' ' + $row.Answer + ' ' + $row.Detail)
+    }
+    $newestShown = '-'
+    if ($table.Latest) { $newestShown = $table.Latest }
+    Write-Host ('versions: listed ' + $installed + ' ' + $installedEdition + ' ' + $newestShown + ' v' + $PickFloor +
+                ' v' + $EditionsSince)
+    exit $ExitCurrent
+}
 
 # ------------------------------------------------- the Codex compatibility data only
 if ($Compatibility) {

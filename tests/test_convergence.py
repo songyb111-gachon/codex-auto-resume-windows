@@ -269,6 +269,13 @@ class ReleaseManifestTests(unittest.TestCase):
         self.assertEqual(self.release["releases"],
                          "https://api.github.com/repos/songyb111-gachon/codex-auto-resume-windows/releases?per_page=10")
 
+    def test_the_pickers_pages_are_exactly_these(self):
+        """The same list, page by page, which Install another version... reads (v0.6.12): the same host
+        and path, thirty to a page, and nothing about the machine in it - the page number is all."""
+        self.assertEqual(self.release["release_pages"],
+                         "https://api.github.com/repos/songyb111-gachon/codex-auto-resume-windows/releases"
+                         "?per_page=30&page={page}")
+
     def test_a_tagged_current_version_is_pinned(self):
         """Once the current version has been tagged here, its pin must not go missing.
 
@@ -323,6 +330,12 @@ class ReleaseManifestTests(unittest.TestCase):
     def test_no_other_substitution_is_possible(self):
         for value in (self.release["download"], self.release["archive"]):
             self.assertEqual(set(re.findall(r"\{(\w+)\}", value)), {"version"})
+        # The picker's pages take a page number, and never a version.
+        self.assertEqual(re.findall(r"\{(\w+)\}", self.release["release_pages"]), ["page"])
+        self.assertEqual(re.findall(r"\{(\w+)\}", self.release["releases"]), [])
+        bootstrap = BOOTSTRAP.read_text(encoding="utf-8")
+        self.assertEqual(re.findall(r"\.Replace\('\{page\}', ([^)]+)\)", bootstrap), ["[string]$page"])
+        self.assertIn("for ($page = 1; $page -le $PickMaxPages; $page++)", bootstrap)
 
     def test_digests_are_absent_or_real(self):
         for version, digest in self.release["sha256"].items():
@@ -478,12 +491,13 @@ class BootstrapTests(unittest.TestCase):
         -Version (v0.6.11) carries the pre-release a person said yes to, and it is not spliced
         either: Get-PrereleaseVersion accepts a pre-release in the product's grammar alone and
         rebuilds it from integers and one of two words, which `tests/test_version_rule.py` and
-        `tests/test_prerelease_offer.py` run against the shipped function.
+        `tests/test_prerelease_offer.py` run against the shipped function. -Versions (v0.6.12) is a
+        switch: it lists, and the one thing it puts into the list's address is a page number.
         """
         parameters = re.search(r"param\((.*?)\n\)", self.text, re.S).group(1)
         self.assertEqual(set(re.findall(r"\$(\w+)", parameters)),
                          {"Force", "NoStartup", "ArchivePath", "CheckOnly", "Update",
-                          "Compatibility", "Edition", "Version"})
+                          "Compatibility", "Edition", "Version", "Versions"})
         values = [name for name in re.findall(r"\[(\w+)\]\$(\w+)", parameters)]
         self.assertEqual([name for kind, name in values if kind != "switch"],
                          ["ArchivePath", "Edition", "Version"])
