@@ -22,11 +22,13 @@ class _ProcessInfo(C.Structure):
                 ("status", W.ULONG), ("session", W.DWORD), ("restartable", W.BOOL)]
 
 
-def resource_users(path):
+def resource_users(path, *more):
     """Documented Restart Manager inventory ONLY. Never shutdown/restart APIs.
 
     Windows creates temporary session metadata; EndSession always releases it.
     Return PID + creation time only. Resource names/content are not logged.
+    With `more` paths, all of them are registered in the one session, and the answer is every
+    process holding any of them, each process once (the Restart Manager lists processes).
     """
     if os.name != "nt":
         raise AdapterError("windows_required")
@@ -45,8 +47,9 @@ def resource_users(path):
     if rm.RmStartSession(C.byref(session), 0, key):
         raise AdapterError("resource_session_failed")
     try:
-        files = (W.LPCWSTR * 1)(str(path))
-        if rm.RmRegisterResources(session, 1, files, 0, None, 0, None):
+        names = [str(item) for item in (path, *more)]
+        files = (W.LPCWSTR * len(names))(*names)
+        if rm.RmRegisterResources(session, len(names), files, 0, None, 0, None):
             raise AdapterError("resource_registration_failed")
         needed, count, reason = W.UINT(), W.UINT(), W.DWORD()
         result = rm.RmGetList(session, C.byref(needed), C.byref(count), None, C.byref(reason))

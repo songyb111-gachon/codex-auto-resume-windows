@@ -366,6 +366,23 @@ class BackendTests(unittest.TestCase):
             protocol.call("account/login/start", {})
 
 
+@unittest.skipUnless(os.name == "nt", "the Restart Manager is a Windows API")
+class ResourceUsersTests(unittest.TestCase):
+    """The real Restart Manager, on files of a temporary folder this process opens itself."""
+
+    def test_several_files_are_one_question_and_each_holder_is_named_once(self):
+        with tempfile.TemporaryDirectory() as folder:
+            held, also, free = (Path(folder, name) for name in ("a.sqlite", "b.sqlite", "c.sqlite"))
+            for path in (held, also, free):
+                path.write_bytes(b"")
+            self.assertEqual(w.resource_users(held, also, free), [])
+            with open(held, "rb"), open(also, "rb"):
+                found = w.resource_users(free, held, Path(folder, "absent.sqlite"), also)
+                self.assertEqual([user["pid"] for user in found], [os.getpid()])
+                self.assertEqual(w.resource_users(held), found)
+                self.assertEqual(w.resource_users(free), [])
+
+
 NATIVE = r"C:\Program Files"
 STORE_APP = NATIVE + r"\WindowsApps\OpenAI.Codex_26.930.2377.0_x64__2p2nqsd0c76g0\app\ChatGPT.exe"
 ENGINE = r"C:\FakeLocalAppData\OpenAI\Codex\bin\abcdef0123456789\codex.exe"
@@ -374,8 +391,9 @@ ENGINE = r"C:\FakeLocalAppData\OpenAI\Codex\bin\abcdef0123456789\codex.exe"
 class SeveralEngineChildrenTests(unittest.TestCase):
     """Codex 26.930's app starts `codex.exe exec-server` beside its app server, from the same
     binary under the same main (measured 2026-10-04), and pairing refused both for ever. The
-    one holding Codex's state database open, by the Restart Manager, is the app's server;
-    anything short of exactly one fails closed, and one child is paired as it always was."""
+    one holding Codex's queue or state database open, by the Restart Manager in one session, is
+    the app's server; anything short of exactly one fails closed, and one child is paired as it
+    always was."""
 
     def setUp(self):
         temp = tempfile.TemporaryDirectory()
@@ -410,10 +428,23 @@ class SeveralEngineChildrenTests(unittest.TestCase):
             except w.AdapterError as error:
                 return str(error), users
 
-    def test_the_one_holding_the_state_database_is_the_app_server(self):
+    def test_the_one_holding_the_queue_or_state_database_is_the_app_server(self):
         pair, users = self.pair(self.rows(), [{"pid": 77, "created": 1}, {"pid": 20, "created": 200}])
         self.assertEqual(pair, {**self.identities[10], "server": self.identities[20]})
-        users.assert_called_once_with(self.home / "state_5.sqlite")
+        # Both newest generations in the one question, never an older one: the server may have
+        # either closed (02:31 that day it held queue_1, and no process held state_5).
+        users.assert_called_once_with(self.home / "queue_1.sqlite", self.home / "state_5.sqlite")
+
+    def test_either_database_alone_is_asked_where_the_other_is_not_there(self):
+        for present in ("queue_1.sqlite", "state_5.sqlite"):
+            with self.subTest(present):
+                home = self.home / present.split("_")[0]
+                home.mkdir()
+                (home / present).write_bytes(b"")
+                (home / "queue_2.sqlite-wal").write_bytes(b"")     # no database beside its log
+                pair, users = self.pair(self.rows(), [{"pid": 20, "created": 200}], home=home)
+                self.assertEqual(pair["server"], self.identities[20])
+                users.assert_called_once_with(home / present)
 
     def test_the_same_server_is_named_every_time_in_any_order(self):
         # What a claim compares with what is about to be sent: the same pid and creation time.
@@ -435,11 +466,13 @@ class SeveralEngineChildrenTests(unittest.TestCase):
             with self.subTest(error=error):
                 self.assertEqual(self.pair(self.rows(), error)[0], "desktop_server_missing_or_ambiguous")
 
-    def test_no_state_database_fails_closed_without_asking(self):
+    def test_neither_database_fails_closed_without_asking(self):
         empty = self.home / "empty"
         empty.mkdir()
         (empty / "state_5.sqlite-wal").write_bytes(b"")
+        (empty / "queue_1.sqlite-shm").write_bytes(b"")
         (empty / "state_6.sqlite").mkdir()          # a folder is not the database
+        (empty / "queue_2.sqlite").mkdir()
         for home in (empty, self.home / "missing", None):
             with self.subTest(home=home):
                 result, users = self.pair(self.rows(), [{"pid": 20, "created": 200}], home=home)
@@ -479,7 +512,8 @@ class SeveralEngineChildrenTests(unittest.TestCase):
             identity = backend.app_identity()
             self.assertEqual(identity["server"]["pid"], 20)
             self.assertEqual(backend.loaded(THREAD, identity), "loaded")
-        self.assertEqual({call.args[0] for call in users.call_args_list}, {backend.codex_home / "state_5.sqlite"})
+        self.assertEqual({call.args for call in users.call_args_list},
+                         {(backend.codex_home / "queue_1.sqlite", backend.codex_home / "state_5.sqlite")})
 
 
 if __name__ == "__main__":

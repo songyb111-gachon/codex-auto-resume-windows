@@ -276,7 +276,7 @@ running (process id, parent and executable path), to find the desktop app; and, 
 Restart Manager, which process has the conversation's lock file open, to tell whether the
 conversation is open in the app. The rest are content-free too: the path and start time of a
 process it found, to confirm it is still the same one; where the app runs more than one
-process of the configured Codex engine, which of them has Codex's state database open, asked
+process of the configured Codex engine, which of them has Codex's queue or state database open, asked
 of the Restart Manager too, to tell which is the app's own Codex server; the per-user
 registry values it registered itself; whether High Contrast is on and, from v0.6.4, whether
 Windows is set to show apps light or dark - the per-user `AppsUseLightTheme` value, which it

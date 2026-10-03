@@ -65,8 +65,9 @@ class SeveralEngineChildrenTests(EngineCase):
                       20: {"pid": 20, "created": 200, "path": exe.lower()},
                       21: {"pid": 21, "created": 300, "path": exe.lower()}}
 
-        def holders(path):
-            self.assertEqual(Path(path), real.codex_home / "state_5.sqlite")
+        def holders(*paths):
+            self.assertEqual([Path(path) for path in paths],
+                             [real.codex_home / "queue_1.sqlite", real.codex_home / "state_5.sqlite"])
             return list(state_holders)
         for stub in (patch.dict(os.environ, {"ProgramW6432": self.NATIVE}),
                      patch.object(real, "_compatible"),
@@ -78,7 +79,7 @@ class SeveralEngineChildrenTests(EngineCase):
         # The simulated app holds the conversation for exactly the app server's identity.
         self.h.backend.app = {**identities[10], "server": identities[20]}
 
-    def test_the_app_server_holding_the_state_database_passes_the_app_gate(self):
+    def test_the_app_server_holding_codex_state_passes_the_app_gate(self):
         self.through_the_transport([{"pid": 20, "created": 200}])
         self.ready_after_reset()
         self.h.tick()

@@ -42,19 +42,20 @@ def _state_holder(servers, codex_home):
 
     Codex 26.930's app starts a second `codex.exe` beside its app server - `exec-server` for a
     cloud environment - from the same binary under the same main, so path and parent no longer
-    name the server (measured 2026-10-04: the app server held state_5, queue_1, logs_2 and
-    every thread-writer lock; the exec-server none of them). Who holds the newest-generation
-    `state_N.sqlite` open - the one generation `SchemaMixin.resolve` reads - is asked of the
-    Restart Manager, the one source of loaded state (B12); no command line, process memory or
-    window is read. Exactly one candidate among its holders, or nothing: no home, no such database, the
-    Restart Manager unavailable or failing, none or several candidates holding it - each fails
-    closed, as two candidates always did.
+    name the server (measured 2026-10-04 01:15: the app server held state_5, queue_1, logs_2
+    and every thread-writer lock; the exec-server none of them). Who holds the newest-generation
+    `queue_N.sqlite` or `state_N.sqlite` open - the generations `SchemaMixin.resolve` reads -
+    is asked of the Restart Manager in one session, the one source of loaded state (B12); no
+    command line, process memory or window is read. Exactly one candidate among their holders,
+    or nothing: no home, neither database, the Restart Manager unavailable or failing, none or
+    several candidates holding either - each fails closed, as two candidates always did.
 
-    The state database alone, and queue_N.sqlite not required beside it: queue_1 named the
-    same one process that day, so it would add no evidence, only a way to fail - a queue file
-    opened later or not at all by some Codex build would leave every recovery waiting again. A
-    wrong choice cannot send either: `loaded()` still takes a conversation as the app's only
-    when its writer lock's one holder is this pid and creation time.
+    Either database, never both required: at 02:31 the same day the app server held queue_1
+    and no process held state_5 - the app had closed its state database - so the state
+    database alone left the recovery waiting again. The queue is the one `codex queue` writes
+    a continuation into and the app server delivers from. A wrong choice cannot send either:
+    `loaded()` still takes a conversation as the app's only when its writer lock's one holder
+    is this pid and creation time.
 
     Returns (row, holder) - the holder's pid and creation time, which the caller holds the
     process's own identity to, so a reused pid fails closed.
@@ -62,8 +63,9 @@ def _state_holder(servers, codex_home):
     if codex_home is None:
         raise AdapterError("desktop_server_missing_or_ambiguous")
     try:
-        database = newest_generation(codex_home, "state")
-        holders = resource_users(database) if database is not None else []
+        databases = [path for path in (newest_generation(codex_home, kind) for kind in ("queue", "state"))
+                     if path is not None]
+        holders = resource_users(*databases) if databases else []
     except (AdapterError, OSError):
         raise AdapterError("desktop_server_missing_or_ambiguous") from None
     held = [(row, holder) for row in servers for holder in holders
@@ -77,8 +79,8 @@ def desktop_pair(rows, codex_exe, codex_home=None):
     """Bind the configured official engine to exactly one Windows Store app main.
 
     The app's Codex server is the one child of that main running the configured engine; where
-    the main has several such children, the one of them holding Codex's state database in
-    `codex_home` open (`_state_holder`), and without a `codex_home` none.
+    the main has several such children, the one of them holding Codex's queue or state database
+    in `codex_home` open (`_state_holder`), and without a `codex_home` none.
     """
     # Under WOW64 (32-bit Python on 64-bit Windows) ProgramFiles is the (x86) directory;
     # ProgramW6432 always holds the native one, where WindowsApps actually lives.
