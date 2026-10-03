@@ -1090,6 +1090,7 @@ namespace CodexAutoResume
             if (compatButton != null) compatButton.Enabled = busy == 0;
             if (saveButton != null) saveButton.Enabled = busy == 0;
             if (restoreButton != null) restoreButton.Enabled = busy == 0;
+            if (powerButton != null) powerButton.Enabled = busy == 0 && powerCanPress;
         }
 
         /// Runs one bridge command on a worker and hands its reply back on this thread.

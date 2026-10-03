@@ -441,6 +441,8 @@ namespace CodexAutoResume
             windows.Controls.Add(startup);
             editors["__startup"] = startup;
             TableLayoutPanel notifications = NewGroup(S("group.notifications", "Notifications"), sections["general"]);
+            // v0.6.12: the power action after usage-limit recoveries, the last card - never an editor (SettingsPower.cs).
+            BuildPower(sections["general"]);
 
             // Automatic recovery: which kinds of interruption may be recovered at all.
             TableLayoutPanel recovery = NewGroup(S("group.recovery", "Automatic recovery"), sections["recovery"]);
@@ -1274,6 +1276,7 @@ namespace CodexAutoResume
             if (snapshot == null) TellTaskbar(status, null, Now());
             ShowVersion(versionText, status);
             if (startButton != null) startButton.Visible = Equals(running, false);
+            ApplyPowerStatus(status);
             header.Invalidate(true);
         }
 
