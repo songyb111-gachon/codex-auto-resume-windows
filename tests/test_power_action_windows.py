@@ -297,14 +297,21 @@ class PresenceTests(unittest.TestCase):
 # ------------------------------------------------------------------------------ acting
 class ActTests(unittest.TestCase):
     def test_the_guard_refuses_while_unittest_is_loaded_and_asks_windows_nothing(self):
+        """The guard alone refuses: the fake Windows here would take every action, as it does below with the
+        guard lifted, and every real loader fails - so without the guard this test fails, and acts on nothing."""
         self.assertIn("unittest", sys.modules)
-
-        def refuse(*args):
-            raise AssertionError("act reached Windows inside a test")
-        with patch.object(powerdown, "_call", refuse), patch.object(powerdown, "_load", refuse):
+        Acting.assert_safe()
+        fake = FakeWindows()
+        with patch.object(powerdown, "_call", fake), patch.object(powerdown, "_load", failing_loader),                 patch.object(C, "WinDLL", failing_loader):
             for action in poweraction.ACTIONS:
                 with self.subTest(action=action):
                     self.assertIs(powerdown.act(action), False)
+        self.assertEqual(fake.calls, [], "Windows was asked nothing")
+        for action in poweraction.ACTIONS:
+            with self.subTest(lifted=action):
+                with Acting(FakeWindows()) as lifted:
+                    self.assertIs(powerdown.act(action), True, "the same fake takes it once the guard is lifted")
+                self.assertNotEqual(lifted.calls, [])
 
     def test_sleep_and_hibernate_never_force_and_leave_wake_timers_as_windows_has_them(self):
         for action, hibernate in (("sleep", False), ("hibernate", True)):

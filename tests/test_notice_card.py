@@ -869,6 +869,10 @@ class PowerStopTests(unittest.TestCase):
 
     def test_a_malformed_stop_never_reaches_the_control_layer(self):
         control = self.control()
+        # The well-formed stop reaches it, so what follows is refused by the parser, not by its absence.
+        self.assertEqual(notifier.activate("codex-auto-resume:power-stop?n=" + self.NONCE, control=control), "stopped")
+        control.stop_power_countdown.assert_called_once_with(self.NONCE, actor="toast")
+        control.reset_mock()
         for uri in ("codex-auto-resume:power-stop?n=" + self.NONCE.upper(),
                     "codex-auto-resume:power-stop?n=" + self.NONCE[:8],
                     "codex-auto-resume:power-start?n=" + self.NONCE,
