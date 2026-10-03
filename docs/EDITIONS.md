@@ -229,8 +229,9 @@ the change means, as the installer does when you switch (a change of edition tur
 capability off), and checks what it downloads as every install does. It was planned for v0.6.11
 and not finished in time; until it comes, switching is the reinstall [above](#switching). The
 other is a power action - sleep, hibernate or shut down - once every recovery waiting for a usage
-limit to reset has ended; which edition it belongs in is decided against the standards when it is
-designed.
+limit to reset has ended. It keeps every standard (H14 and F15 in [STANDARDS.md](STANDARDS.md), with
+A28 amended by the owner for its stop button), so it is in the standard edition, off until a person
+turns it on in the Dashboard.
 
 Then v0.6.12 brings the rest of the advanced edition, each part published as a pre-release as it is
 finished. Each new capability is the advanced edition's alone, off until you turn it on, with a

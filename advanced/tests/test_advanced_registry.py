@@ -217,11 +217,11 @@ class DefinitionTests(unittest.TestCase):
 
 class StandardsTests(unittest.TestCase):
     def test_the_ids_are_the_families_numbered_without_gaps(self):
-        self.assertEqual(len(standards.STANDARDS), 172)
-        self.assertEqual(len(set(standards.STANDARDS)), 172)
+        self.assertEqual(len(standards.STANDARDS), 174)
+        self.assertEqual(len(set(standards.STANDARDS)), 174)
         self.assertEqual(standards.STANDARDS[:2], ("0.1", "0.2"))
         self.assertEqual(standards.STANDARDS[-1], "K7")
-        self.assertEqual(len(standards.DEPARTABLE), 165)
+        self.assertEqual(len(standards.DEPARTABLE), 167)
         self.assertEqual(standards.DEPARTABLE[-1], "J14")
 
     def test_they_are_exactly_the_ids_the_standards_file_numbers(self):

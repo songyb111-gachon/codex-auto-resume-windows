@@ -128,8 +128,9 @@ changed).
 **A27** The Custom message, and a conversation's own message, are written only in the Dashboard; MCP update_settings refuses both and the preview tool takes no text. Each is at most 2000 characters and sent exactly as typed. Placeholders come from a whitelist ({reason},{category},{attempt},{max_attempts},{reset_time}); dangerous ones are refused by name. It is re-checked on read, and text that fails the check is treated as not set.  
 *tested*: `test_continuation.py`, `test_mcp.py`, `test_conversation_message.py`
 
-**A28** A notification or card button can only cancel one exact interruption (an opaque 64-hex id) or open one page from a fixed list; anything else is ignored and logged, and a button never causes a send.  
-*tested*: `test_notify.py`, `test_notice_card.py`
+**A28** A notification or card button can only cancel one exact interruption (an opaque 64-hex id), stop the power action for one batch (named by that batch's opaque 16-hex id, which every batch end replaces), or open one page from a fixed list; anything else is ignored and logged, and a button never causes a send (amended by the owner on 2026-10-03).  
+*tested*: `test_notify.py`, `test_notice_card.py`, `test_cli.py`
+<!-- A28-OWNER-WORDS: TODO main session: the owner's words for this amendment. Recorded in plans/v0612-beta/DECISIONS.md: the owner, 2026-10-03 ~18:20 KST, "예, 버튼 넣기" (amend A28: the stop button, for one batch, named by its nonce). -->
 
 **A29** A switch click carries the exact interruption and conversation. A stale, finished or other-conversation click is refused and changes nothing, and a switch sends nothing.  
 *tested*: `test_control_continuation.py`, `test_tray_popup.py`
@@ -184,8 +185,8 @@ changed).
 **B15** Compatibility probes read only the schema's table and column names and whether folders exist, never a row.  
 *code*
 
-**B16** Windows is asked only content-free questions, and AppsUseLightTheme and TrayNotify are read, never written.  
-*code*
+**B16** Windows is asked only content-free questions, and AppsUseLightTheme and TrayNotify are read, never written. The power action asks three more, only while it is armed: whether this account holds SeShutdownPrivilege and which sleep states the PC offers, how long ago the last input came (a time, never what it was, with no hook), and how many other sessions are signed in (a count, never a user name).  
+*tested partly*: `test_power_action_windows.py`
 
 **B17** Layering: the engine imports no sqlite3, ctypes or subprocess and reaches Codex only through its injected adapters; the UI and MCP never import Codex's readers; the domain layer is pure standard library; only listed modules import subprocess.  
 *tested*: `test_layers.py`, `test_structural_invariants.py`
@@ -360,6 +361,9 @@ changed).
 **F14** Starting the watcher when Codex starts is not offered in the standard edition: a watcher started from inside Codex ends when Codex closes (measured on Codex 26.915), so the setting exists and is not offered. The advanced edition's start-with-Codex does it outside Codex's job, through WMI.  
 *tested*: `test_start_with_codex.py`, `test_settings.py`
 
+**F15** The power action is the watcher's own call of SetSuspendState or ExitWindowsEx(EWX_POWEROFF) with no force flag, after enabling SeShutdownPrivilege on its own token, and offers no action to an account that does not hold that privilege. It starts no process, task or service, needs no administrator, changes no Windows setting and never shuts down while another person is signed in.  
+*tested*: `test_power_action_windows.py`
+
 ## G. The Compatibility Registry's authority
 
 **G1** Data can only restrict. A failed local check always wins (INCOMPATIBLE, or FAILED_HERE where the data vouched for the version), and both block every send.  
@@ -424,7 +428,7 @@ changed).
 **H7** Doing nothing resumes, except where a setting holds a recovery for the person - a conversation set to Ask me first or Only notify me; a project that Projects that may resume does not allow, or, under either list, one whose project cannot be read; a task the task-changed guard finds changed, set to Hold it for me; a conversation past the context-cost guard's Hold above; what fell due during a sleep longer than Ask me after a sleep longer than - and while Observe only is on, when nothing is sent. Don't resume / Don't retry only cancels.  
 *tested*: `test_notify.py`, `test_postpone_and_tiers.py`, `test_observe_and_admission.py`, `test_ladder_and_guards.py`, `test_power.py`
 
-**H8** MCP tools that add automation or cannot be undone carry destructiveHint (resume, enable_conversation, update_settings, restore_default_settings, cancel_recovery, reset_recovery_budget, start_watcher, release_hold, clear_recovery_history); pause, conversation-off, retry_now and postpone are unmarked. This is a request, not a lock.  
+**H8** MCP tools that add automation or cannot be undone carry destructiveHint (resume, enable_conversation, update_settings, restore_default_settings, cancel_recovery, reset_recovery_budget, start_watcher, release_hold, clear_recovery_history); pause, conversation-off, retry_now, postpone and turn_off_power_action are unmarked. This is a request, not a lock.  
 *tested*: `test_mcp.py`, `test_mcp_v3.py`, `test_postpone_and_tiers.py`
 
 **H9** If a marked tool is declined, the model must not run the matching command, must never "force" a resume, and must not work around a missing safety setting.  
@@ -441,6 +445,9 @@ changed).
 
 **H13** An explicit interface-language choice wins over Windows and CODEX_AUTO_RESUME_LANG and survives restarts, repairs and updates; motion stops under Reduce motion, Windows' animation setting, High Contrast, battery saver, a locked session and the overflow area.  
 *tested*: `test_locale.py`, `test_tray_icon_motion.py`
+
+**H14** The power action after usage-limit recoveries is off by default and armed only in the Dashboard, once or always. MCP, the icon and a notice may only turn it off or stop it for its batch, and a stop is honoured before anything else is looked at. It acts only when every usage-limit recovery of its batch has ended as the person chose, no recovery is open or followed, Codex's history has caught up, no Codex turn runs, no input is queued, nobody has used the PC for two minutes and a notice's countdown has run out. Anything it cannot read means it does nothing, and it sends nothing.  
+*tested*: `test_power_action.py`, `test_power_action_watcher.py`, `test_power_action_control.py`, `test_cli.py`
 
 ## I. Release and supply chain
 

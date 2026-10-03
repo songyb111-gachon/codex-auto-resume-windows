@@ -614,8 +614,8 @@ things people asked for:
   sleep, hibernate or shut down the PC once every recovery waiting for a usage limit to reset has
   ended - never while a recovery of a temporary error waits or runs, or while a turn runs or input is
   queued in those conversations. A person arms it, for the next batch or always, and a grace period
-  with a way to cancel comes first. Which edition it belongs in is decided against the standards when
-  it is designed.
+  with a way to cancel comes first. It keeps every standard, so it is in the standard edition: H14
+  and F15 are its rules, and the owner amended A28 for its stop button on 2026-10-03.
 
 ### Recovery through the channels already in use
 

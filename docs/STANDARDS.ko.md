@@ -129,8 +129,9 @@ K군은 2026-09-28에 더했습니다. 실행 중에 이 파일을 읽는 것은
 **A27** 직접 입력 메시지와, 대화 하나에만 쓰는 메시지는 대시보드에서만 씁니다. MCP update_settings는 둘 다 거부하고, 미리보기 도구는 글을 받지 않습니다. 저마다 최대 2000자이며 입력한 그대로 보냅니다. 자리표시자는 허용 목록({reason},{category},{attempt},{max_attempts},{reset_time})에서만 오고, 위험한 것은 이름으로 거부합니다. 읽을 때 다시 확인하며, 확인을 통과하지 못한 글은 설정되지 않은 것으로 봅니다.  
 *테스트*: `test_continuation.py`, `test_mcp.py`, `test_conversation_message.py`
 
-**A28** 알림이나 카드의 버튼은 정확히 한 중단(불투명한 64자리 16진수 id)을 취소하거나, 정해진 목록의 페이지 하나를 여는 것만 할 수 있습니다. 그 밖의 것은 무시하고 기록하며, 버튼이 전송을 일으키는 일은 없습니다.  
-*테스트*: `test_notify.py`, `test_notice_card.py`
+**A28** 알림이나 카드의 버튼은 정확히 한 중단(불투명한 64자리 16진수 id)을 취소하거나, 한 묶음에 한해 전원 동작을 멈추거나(그 묶음의 불투명한 16자리 16진수 id로 가리키며, 묶음이 끝날 때마다 새 id로 바뀝니다), 정해진 목록의 페이지 하나를 여는 것만 할 수 있습니다. 그 밖의 것은 무시하고 기록하며, 버튼이 전송을 일으키는 일은 없습니다(2026-10-03 소유자가 고침).  
+*테스트*: `test_notify.py`, `test_notice_card.py`, `test_cli.py`
+<!-- A28-OWNER-WORDS: TODO main session: 이 개정에 대한 소유자의 말. plans/v0612-beta/DECISIONS.md에 적힌 것: 소유자, 2026-10-03 ~18:20 KST, "예, 버튼 넣기". -->
 
 **A29** 스위치 클릭은 정확한 중단과 대화를 함께 싣습니다. 오래되었거나, 끝났거나, 다른 대화의 클릭은 거절되어 아무것도 바꾸지 않으며, 스위치는 아무것도 보내지 않습니다.  
 *테스트*: `test_control_continuation.py`, `test_tray_popup.py`
@@ -185,8 +186,8 @@ K군은 2026-09-28에 더했습니다. 실행 중에 이 파일을 읽는 것은
 **B15** 호환성 확인은 스키마의 테이블과 열 이름, 폴더가 있는지만 읽고, 행은 읽지 않습니다.  
 *코드*
 
-**B16** Windows에는 내용이 없는 질문만 하며, AppsUseLightTheme와 TrayNotify는 읽기만 하고 쓰지 않습니다.  
-*코드*
+**B16** Windows에는 내용이 없는 질문만 하며, AppsUseLightTheme와 TrayNotify는 읽기만 하고 쓰지 않습니다. 전원 동작은 켜져 있는 동안에만 세 가지를 더 묻습니다. 이 계정이 SeShutdownPrivilege를 지녔는지와 이 PC가 어떤 절전 상태를 제공하는지, 마지막 입력이 얼마나 전에 있었는지(시간뿐이며 무엇이었는지는 묻지 않고, 후크도 없습니다), 다른 세션이 몇 개 로그인해 있는지(개수뿐이며 사용자 이름은 묻지 않습니다)입니다.  
+*일부 테스트*: `test_power_action_windows.py`
 
 **B17** 계층: 엔진은 sqlite3, ctypes, subprocess를 import하지 않고 주입받은 어댑터로만 Codex에 닿습니다. UI와 MCP는 Codex 읽기 모듈을 import하지 않고, 도메인 계층은 순수한 표준 라이브러리이며, subprocess는 목록에 있는 모듈만 import합니다.  
 *테스트*: `test_layers.py`, `test_structural_invariants.py`
@@ -361,6 +362,9 @@ K군은 2026-09-28에 더했습니다. 실행 중에 이 파일을 읽는 것은
 **F14** Codex가 시작할 때 워처를 시작하는 것은 표준판에서 제공하지 않습니다. Codex 안에서 시작한 워처는 Codex가 닫힐 때 끝나므로(Codex 26.915에서 측정), 설정은 있지만 제공하지 않습니다. 고급판의 Codex와 함께 시작은 WMI를 통해 Codex의 작업 개체 바깥에서 이 일을 합니다.  
 *테스트*: `test_start_with_codex.py`, `test_settings.py`
 
+**F15** 전원 동작은 워처가 자기 토큰에서 SeShutdownPrivilege를 켠 뒤 직접 부르는 SetSuspendState 또는 강제 플래그 없는 ExitWindowsEx(EWX_POWEROFF)이며, 그 권한이 없는 계정에는 어떤 동작도 제공하지 않습니다. 프로세스, 작업, 서비스를 시작하지 않고, 관리자 권한이 필요 없으며, Windows 설정을 바꾸지 않고, 다른 사람이 로그인해 있는 동안에는 절대 시스템을 종료하지 않습니다.  
+*테스트*: `test_power_action_windows.py`
+
 ## G. 호환성 레지스트리의 권한
 
 **G1** 데이터는 제한만 할 수 있습니다. 로컬 확인이 실패하면 언제나 그것이 이기며(INCOMPATIBLE, 또는 데이터가 그 버전을 보증했다면 FAILED_HERE), 둘 다 모든 전송을 막습니다.  
@@ -425,7 +429,7 @@ K군은 2026-09-28에 더했습니다. 실행 중에 이 파일을 읽는 것은
 **H7** 아무것도 하지 않으면 이어집니다. 다만 설정이 복구를 사람에게 맡겨 두는 경우 - '먼저 묻기'나 '알림만'으로 둔 대화, '이어 가도 되는 프로젝트'가 허용하지 않는 프로젝트나 목록 방식에서 프로젝트를 읽을 수 없는 작업, 작업 변경 보호를 '보류'로 두었을 때 바뀌었다고 본 작업, 컨텍스트 비용 보호의 '넘으면 보류' 기준을 넘은 대화, '이보다 오래 절전한 뒤에는 먼저 묻기'보다 긴 절전 동안 예정 시각이 된 것 - 에는 사람을 기다리고, '지켜보기만'이 켜져 있는 동안에는 아무것도 보내지 않습니다. '재개하지 않음' / '다시 시도하지 않음'은 취소만 합니다.  
 *테스트*: `test_notify.py`, `test_postpone_and_tiers.py`, `test_observe_and_admission.py`, `test_ladder_and_guards.py`, `test_power.py`
 
-**H8** 자동화를 더하거나 되돌릴 수 없는 MCP 도구에는 destructiveHint가 붙습니다(resume, enable_conversation, update_settings, restore_default_settings, cancel_recovery, reset_recovery_budget, start_watcher, release_hold, clear_recovery_history). pause, 대화 끄기, retry_now, postpone에는 붙지 않습니다. 이것은 잠금이 아니라 요청입니다.  
+**H8** 자동화를 더하거나 되돌릴 수 없는 MCP 도구에는 destructiveHint가 붙습니다(resume, enable_conversation, update_settings, restore_default_settings, cancel_recovery, reset_recovery_budget, start_watcher, release_hold, clear_recovery_history). pause, 대화 끄기, retry_now, postpone, turn_off_power_action에는 붙지 않습니다. 이것은 잠금이 아니라 요청입니다.  
 *테스트*: `test_mcp.py`, `test_mcp_v3.py`, `test_postpone_and_tiers.py`
 
 **H9** 표시된 도구가 거절되면 모델은 그에 맞는 명령을 실행하면 안 되고, 재개를 "강제"해서도 안 되며, 없는 안전 설정을 우회해서도 안 됩니다.  
@@ -442,6 +446,9 @@ K군은 2026-09-28에 더했습니다. 실행 중에 이 파일을 읽는 것은
 
 **H13** 사람이 직접 고른 인터페이스 언어는 Windows와 CODEX_AUTO_RESUME_LANG보다 우선하며, 다시 시작, 복구 설치, 업데이트 뒤에도 남습니다. 움직임은 움직임 줄이기, Windows의 애니메이션 설정, 고대비, 배터리 절약, 잠긴 세션, 넘침 영역에서 멈춥니다.  
 *테스트*: `test_locale.py`, `test_tray_icon_motion.py`
+
+**H14** 사용량 한도 복구 뒤의 전원 동작은 기본으로 꺼져 있고, 대시보드에서만 한 번 또는 항상으로 켭니다. MCP, 아이콘, 알림은 그것을 끄거나 그 묶음에 한해 멈추는 것만 할 수 있으며, 멈춤은 다른 무엇을 보기 전에 먼저 따릅니다. 그 묶음의 모든 사용량 한도 복구가 사람이 고른 대로 끝났고, 열려 있거나 지켜보는 복구가 없고, Codex의 기록이 따라잡았고, Codex 턴이 돌지 않고, 대기 중인 입력이 없고, 2분 동안 아무도 PC를 쓰지 않았고, 알림의 카운트다운이 다 지났을 때만 동작합니다. 읽을 수 없는 것이 하나라도 있으면 아무것도 하지 않으며, 아무것도 보내지 않습니다.  
+*테스트*: `test_power_action.py`, `test_power_action_watcher.py`, `test_power_action_control.py`, `test_cli.py`
 
 ## I. 릴리스와 공급망
 

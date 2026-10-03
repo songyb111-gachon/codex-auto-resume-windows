@@ -37,9 +37,9 @@ FAMILIES = (
     ("C", 13),   # network
     ("D", 13),   # privacy and the data it keeps
     ("E", 14),   # failure behaviour
-    ("F", 14),   # footprint on the machine
+    ("F", 15),   # footprint on the machine
     ("G", 13),   # the Compatibility Registry's authority
-    ("H", 13),   # user control
+    ("H", 14),   # user control
     ("I", 17),   # release and supply chain
     ("J", 14),   # presentation rules that are promises
     ("K", 7),    # the advanced edition's own rules, which every capability keeps

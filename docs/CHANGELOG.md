@@ -1,5 +1,55 @@
 # Changelog
 
+## v0.6.12-beta — Sleep, hibernate or shut down when usage-limit recoveries finish
+
+[The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.12-alpha.2...v0.6.12-beta)
+
+### The power action after usage-limit recoveries
+
+Asked for in Discussion #22, and decided by the owner on 2026-09-30 and 2026-10-03. It is in the
+standard edition: it keeps every standard, with A28 amended by the owner for its stop button.
+
+- **Off by default, turned on only in the Dashboard.** Settings > General has a new last card, **When
+  usage-limit recoveries finish**: Then (Sleep, Hibernate or Shut down), When (every recovery succeeded;
+  each one succeeded or was handed over to you; each one ended, however it ended), How often (once, for
+  the next usage limit, or every time) and Warn me first for (2 to 30 minutes). **Turn on...** asks
+  first, with Cancel as the default. The card is not a setting: Save never changes it, and nothing
+  else moves on the page. A Once that no usage limit reaches within a day turns itself off.
+- **Only after usage-limit recoveries, and only when nothing else runs.** A recovery from a temporary
+  error never starts or decides it, though while one is open it holds it. The watcher acts only when
+  every usage-limit recovery of its batch has ended as chosen, no recovery waits, runs or may still be
+  delivered, Codex has finished recording every conversation written in the last hour, no turn runs
+  and no input is queued in Codex, nobody else is signed in (for a shut down), and nobody has used the
+  PC for 2 minutes. Anything it cannot read means it waits, and the card says what it waits for.
+- **A countdown with a stop button.** A notification says when it will happen, with **Don't sleep**
+  (or Don't hibernate, Don't shut down) and **Open Dashboard**. The stop, from the toast or the card,
+  is read before anything else, ends that batch, and never starts another countdown; it names its batch
+  by an opaque id that every batch end replaces, so an old notice cannot stop the next one. Any input,
+  a pause, a gap in the watcher's looks or a new recovery ends the countdown too. The power notices are
+  shown whatever the notification switches say.
+- **Turned off from anywhere, turned on from nowhere else.** The card's **Turn off**, a new item in the
+  notification-area icon's menu while it is on, pausing recovery, and a new MCP tool,
+  `turn_off_power_action`, which is not marked destructive, as pause is not. No tool turns it on.
+- **Windows' own calls, from the watcher.** SetSuspendState, or ExitWindowsEx(EWX_POWEROFF) with no
+  force flag, after the watcher enables SeShutdownPrivilege on its own token; an account without that
+  privilege is offered nothing. No process, task, service or administrator, no Windows setting changed
+  (Hibernate is never turned on), the two libraries loaded from System32 only, and no shut down while
+  someone else is signed in. The batch is recorded as done before Windows is asked, so a refusal is
+  said once and never tried again.
+- **A file of its own.** `config\power-action.json` holds ids, times and closed words, is read
+  strictly (anything else reads as off) and is written under a lock. There is no new setting and no
+  new database schema, so the version picker's older versions simply ignore it. Uninstall keeps it;
+  a purge removes it. `get_status` and the diagnostics export carry its state only while the file
+  exists.
+- **For administrators**, a seventh policy value, `DisablePowerAction`, turns it off and greys the card.
+- **Standards.** H14 (the power action's rule) and F15 (its Windows calls) are new; A28 is amended for
+  the stop button (by the owner, 2026-10-03); B16 names the three questions it asks Windows; H8's
+  unmarked tools include `turn_off_power_action`.
+- **Not yet called for real.** Every part is unit- and integration-tested with Windows stood in, and
+  the product refuses to act while a test runs. No running watcher has yet put a PC to sleep,
+  hibernated or shut one down; the owner's measurement MP, at live acceptance, does that first, and
+  until then Sleep is offered only where Windows reports S1 to S3.
+
 ## v0.6.12-alpha.2 — Every lane's test parts even, each dealt by its own times
 
 [The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.12-alpha...v0.6.12-alpha.2)
