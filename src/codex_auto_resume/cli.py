@@ -101,6 +101,9 @@ def build_parser() -> argparse.ArgumentParser:
                        help="rewrite the state for an older release (stop the watcher first)")
     p.add_argument("--to", type=int, required=True, choices=[2, 3],
                    help="the schema to write: 3 is what v0.6.0 to v0.6.10 read, 2 what v0.5.x reads")
+    p.add_argument("--stop-watcher", action="store_true",
+                   help="ask a running watcher to stop and wait for it (at most a minute) instead of "
+                        "refusing, and answer on one line (used by Install another version...)")
     return parser
 
 

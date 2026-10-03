@@ -14,8 +14,10 @@ becomes the schedule.
 """
 from __future__ import annotations
 
-from contextlib import closing
+from contextlib import closing, redirect_stderr
+import io
 import json
+import os
 from pathlib import Path
 import sqlite3
 import subprocess
@@ -449,6 +451,144 @@ class DowngradeCommandTests(unittest.TestCase):
         for handler in list(logging.getLogger(logbook.LOGGER_NAME).handlers):
             logging.getLogger(logbook.LOGGER_NAME).removeHandler(handler)
             handler.close()
+
+
+# A watcher as far as the mutex and the stop event go: it holds the watcher's mutex and its stop event,
+# says so, and - unless it is told to ignore it - lets go when it is asked to stop.
+_HOLDER = r"""
+import sys, time
+sys.path.insert(0, sys.argv[1])
+from codex_auto_resume.windows import Mutex, StopEvent
+state, listens = sys.argv[2], sys.argv[3] == "listens"
+with StopEvent(state) as stop, Mutex(state, timeout=0):
+    print("held", flush=True)
+    if listens:
+        stopped = stop.wait(120)
+    else:
+        time.sleep(120)
+        stopped = False
+print("stopped" if stopped else "timeout", flush=True)
+"""
+
+
+@unittest.skipUnless(sys.platform == "win32", "Windows named objects")
+class DowngradeStopWatcherTests(unittest.TestCase):
+    """downgrade-state --stop-watcher, which the bootstrap's -Pick runs before an older release is
+    installed: it asks the watcher to stop, waits for it a minute at most, converts, and says what it did
+    on one closed line - and a watcher that does not stop is waited for, never killed."""
+
+    def setUp(self):
+        from unittest import mock
+        from codex_auto_resume import config
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        environment = mock.patch.dict(os.environ, {"LOCALAPPDATA": str(self.root / "no-codex"),
+                                                   "CODEX_HOME": str(self.root / "codex")})
+        environment.start()
+        self.addCleanup(environment.stop)
+        self.paths = config.Paths(str(self.root / "home"))
+        self.paths.ensure()
+        self.state = self.paths.state_dir
+        self.addCleanup(DowngradeCommandTests.close_log)
+
+    def holder(self, listens: bool):
+        holder = subprocess.Popen([sys.executable, "-c", _HOLDER, SRC, str(self.state),
+                                   "listens" if listens else "deaf"], stdout=subprocess.PIPE, text=True,
+                                  creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        self.addCleanup(self.end, holder)
+        self.assertEqual(holder.stdout.readline().strip(), "held")
+        return holder
+
+    @staticmethod
+    def end(holder):
+        if holder.poll() is None:
+            holder.kill()
+        holder.wait(timeout=30)
+        holder.stdout.close()
+
+    def downgrade(self, *more):
+        from test_cli import run_cli
+        return run_cli("--home", str(self.paths.home), "--codex-home", str(self.root / "codex"), "--quiet",
+                       "downgrade-state", "--to", "3", *more)
+
+    def schema(self):
+        with closing(sqlite3.connect(self.state / "state.sqlite")) as db:
+            return db.execute("PRAGMA user_version").fetchone()[0]
+
+    def test_a_watcher_that_stops_when_asked_is_waited_for_and_the_state_converted(self):
+        keys = DowngradeToV3Tests.v4_state(self, observe_only=True)
+        holder = self.holder(listens=True)
+        status, out, _ = self.downgrade("--stop-watcher")
+        self.assertEqual(status, 0, out)
+        sent = sum(1 for state in keys.values() if state in machine.CLAIMED | machine.IN_FLIGHT | machine.OBSERVING)
+        self.assertEqual(out.splitlines(), ["downgrade: converted %d %d 2 1 1" % (len(keys) + 3, sent)])
+        self.assertEqual(self.schema(), 3)
+        self.assertEqual(holder.stdout.readline().strip(), "stopped", "it was asked to stop, and stopped")
+        self.assertEqual(holder.wait(timeout=30), 0)
+        self.assertTrue(list(self.state.glob("state.v4-backup-*.sqlite")), "a forensic copy was taken")
+        log = self.paths.log_file.read_text(encoding="utf-8")
+        self.assertIn("downgrade-state asked the watcher to stop", log)
+
+    def test_a_watcher_that_does_not_stop_is_waited_for_and_left_running(self):
+        from codex_auto_resume.commands import install
+        with Store(self.state):
+            pass
+        holder = self.holder(listens=False)
+        from unittest import mock
+        with mock.patch.object(install, "STOP_WAIT_SECONDS", 2.0):
+            status, out, _ = self.downgrade("--stop-watcher")
+        self.assertEqual((status, out.splitlines()), (install.EXIT_WATCHER_RUNNING, ["downgrade: watcher-running"]))
+        self.assertEqual(install.EXIT_WATCHER_RUNNING, 3)
+        self.assertEqual(self.schema(), SCHEMA_VERSION, "nothing was converted")
+        self.assertIsNone(holder.poll(), "the watcher was killed")
+        self.assertEqual(list(self.state.glob("state.v*-backup-*.sqlite")), [])
+
+    def test_it_waits_a_minute_at_most(self):
+        from codex_auto_resume.commands import install
+        from codex_auto_resume.win import sync
+        self.assertEqual(install.STOP_WAIT_SECONDS, 60.0)
+        self.assertEqual(sync.Mutex("x", timeout=install.STOP_WAIT_SECONDS).timeout, 60.0)
+
+    def test_a_state_already_old_enough_is_nothing_to_do(self):
+        old = legacy_store_module("v0.5.7")
+        with old.Store(self.state):
+            pass
+        status, out, _ = self.downgrade("--stop-watcher")
+        self.assertEqual((status, out.splitlines()), (0, ["downgrade: nothing"]))
+
+    def test_a_state_that_cannot_be_converted_is_said_and_left_as_it_was(self):
+        with Store(self.state):
+            pass
+        with closing(sqlite3.connect(self.state / "state.sqlite")) as db:
+            db.execute("PRAGMA user_version=%d" % (SCHEMA_VERSION + 1))
+            db.commit()
+        status, out, _ = self.downgrade("--stop-watcher")
+        self.assertEqual((status, out.splitlines()), (1, ["downgrade: failed"]))
+        self.assertEqual(self.schema(), SCHEMA_VERSION + 1)
+
+    def test_without_it_a_running_watcher_is_still_refused(self):
+        with Store(self.state):
+            pass
+        holder = self.holder(listens=True)
+        status, out, _ = self.downgrade()
+        self.assertEqual(status, 1)
+        self.assertIn("stop it first", out)
+        self.assertIsNone(holder.poll(), "the watcher was asked to stop without --stop-watcher")
+        self.assertEqual(self.schema(), SCHEMA_VERSION)
+
+    def test_the_plugin_front_passes_it_through_for_schema_3_alone(self):
+        from unittest import mock
+        sys.path.insert(0, str(Path(SRC).parent / "scripts"))
+        import plugin_setup
+        parser = plugin_setup.build_parser()
+        with mock.patch.object(plugin_setup, "_cli", return_value=0) as cli,                 mock.patch.object(plugin_setup, "runtime_home", return_value=self.paths.home):
+            args = parser.parse_args(["downgrade-state", "--to", "3", "--stop-watcher"])
+            self.assertEqual(plugin_setup.COMMANDS[args.command](args), 0)
+            cli.assert_called_once_with(self.paths.home, ["--quiet", "downgrade-state", "--to", "3", "--stop-watcher"])
+        for refused in (["downgrade-state", "--to", "2"], ["downgrade-state"]):
+            with self.subTest(refused), self.assertRaises(SystemExit), redirect_stderr(io.StringIO()):
+                parser.parse_args(refused)
 
 
 if __name__ == "__main__":
