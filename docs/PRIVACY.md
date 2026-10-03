@@ -294,12 +294,14 @@ whether Windows reports this PC connected to the internet (the Network List Mana
 `GetConnectivity`), for **Wait for an internet connection** - a question Windows answers from what it
 already knows, with nothing sent to find out. **Keep this PC awake** is a request, not a question:
 `SetThreadExecutionState`, which the watcher makes and takes back and which changes no setting.
-From v0.6.12-beta, and only while the power action after usage-limit recoveries is turned on (it is
-off by default), the watcher asks Windows three more things: whether its own account holds the
-shut-down privilege (`GetTokenInformation` on its own token, `TokenPrivileges`) and which sleep
-states the PC offers (`GetPwrCapabilities`), which say whether Sleep, Hibernate and Shut down can be
-offered; how long ago the last keyboard or mouse input came (`GetLastInputInfo` - a time, never what
-was typed or where, with no hook); and, for Shut down, how many other sessions are signed in
+From v0.6.12-beta the power action after usage-limit recoveries, which is off by default, asks
+Windows three more things. The first is whether this account holds the shut-down privilege
+(`GetTokenInformation` on its own token, `TokenPrivileges`) and which sleep states the PC offers
+(`GetPwrCapabilities`), which say whether Sleep, Hibernate and Shut down can be offered: the
+Dashboard asks it each time it shows the power action's card in Settings and when the power action
+is turned on, and the watcher while it is on. The other two the watcher asks only while it is turned
+on: how long ago the last keyboard or mouse input came (`GetLastInputInfo` - a time, never what was
+typed or where, with no hook); and, for Shut down, how many other sessions are signed in
 (`WTSEnumerateSessionsW` - a count, never a user name). For the same check it counts, in Codex's own
 database, the latest turns still in progress and the items queued in this Codex home, and compares
 the size of each conversation file written in the last hour - and of each of the recoveries' own -

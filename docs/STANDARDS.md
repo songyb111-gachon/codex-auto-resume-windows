@@ -185,7 +185,7 @@ changed).
 **B15** Compatibility probes read only the schema's table and column names and whether folders exist, never a row.  
 *code*
 
-**B16** Windows is asked only content-free questions, and AppsUseLightTheme and TrayNotify are read, never written. The power action asks three more, only while it is armed: whether this account holds SeShutdownPrivilege and which sleep states the PC offers, how long ago the last input came (a time, never what it was, with no hook), and how many other sessions are signed in (a count, never a user name).  
+**B16** Windows is asked only content-free questions, and AppsUseLightTheme and TrayNotify are read, never written. The power action asks three more. Whether this account holds SeShutdownPrivilege and which sleep states the PC offers is asked when the Dashboard shows the power action's card or turns it on, and while it is armed; how long ago the last input came (a time, never what it was, with no hook) and how many other sessions are signed in (a count, never a user name) only while it is armed.  
 *tested partly*: `test_power_action_windows.py`
 
 **B17** Layering: the engine imports no sqlite3, ctypes or subprocess and reaches Codex only through its injected adapters; the UI and MCP never import Codex's readers; the domain layer is pure standard library; only listed modules import subprocess.  
