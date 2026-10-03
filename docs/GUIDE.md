@@ -1129,7 +1129,7 @@ When Windows cannot be asked or does not answer, usage is read as it always was.
 
 ### Sleep, hibernate or shut down when usage-limit recoveries finish
 
-From v0.6.12-beta the watcher can put this PC to sleep, hibernate it or shut it down once every
+From v0.6.12 the watcher can put this PC to sleep, hibernate it or shut it down once every
 usage-limit recovery has ended - after a task left running overnight, say. It is off by default, and
 only the Dashboard turns it on: the last card under Settings > General, **When usage-limit recoveries
 finish**. Choose **Then** (Sleep, Hibernate or Shut down), **When** (Every recovery succeeded, Each one
@@ -1255,7 +1255,7 @@ has none, and then nothing is different.
 | `DisableUpdateCheck` | DWORD, not 0 | The Dashboard's **Check for updates** and **Install another version...** are greyed and ask nothing. |
 | `DisableStatusFile` | DWORD, not 0 | Keeps **Write a status file for other tools** off, and the watcher removes the file it wrote. |
 | `MaxRecoveryAttempts` | DWORD, 1 to 20 | The most attempts per interruption: a ceiling on that setting. |
-| `DisablePowerAction` | DWORD, not 0 | The power action after usage-limit recoveries is off and cannot be turned on; one turned on before stays, and does nothing (from v0.6.12-beta). |
+| `DisablePowerAction` | DWORD, not 0 | The power action after usage-limit recoveries is off and cannot be turned on; one turned on before stays, and does nothing (from v0.6.12). |
 | `QuietHours` | String | Quiet hours that hold whatever else is set, as `22:00-07:00`, or with the days they start on: `22:00-07:00 weekdays` (or `weekends`, `every_day`). Times are on the hour or the half hour. |
 
 Both places are read, and every restriction either one makes holds: a switch set in either is set, the

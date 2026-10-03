@@ -277,7 +277,7 @@ class WordingTests(unittest.TestCase):
         self.assertIn("api.github.com", passage, "the skill tells Codex of one request of two")
 
     def test_every_privacy_summary_names_the_version_picker(self):
-        """From v0.6.12-beta Install another version... reads the whole list of releases on api.github.com,
+        """From v0.6.12 Install another version... reads the whole list of releases on api.github.com,
         paged, when it is opened and again on a confirmed pick, and downloads the version picked. A summary
         row that named only Check for updates would leave that read unsaid, so each row names the picker
         by its button's words in the document's language, and so does what Codex tells people (the skill)."""

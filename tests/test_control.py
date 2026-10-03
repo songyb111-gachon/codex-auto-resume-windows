@@ -1143,7 +1143,7 @@ class StartWatcherReportingTests(ControlTestCase):
 
 
 class StartUnderTheInstallLockTests(ControlTestCase):
-    """v0.6.12-beta (the version picker's Q7): while an installation holds its lock, the control
+    """v0.6.12 (the version picker's Q7): while an installation holds its lock, the control
     layer makes no start of the watcher - not for Codex's start_watcher, the window's Start watcher
     or any other caller of the bridge - as the start with Codex has always waited for it. A pick
     holds the lock from before it converts the state for an older version until that version's

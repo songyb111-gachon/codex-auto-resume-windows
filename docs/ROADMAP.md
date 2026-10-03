@@ -573,13 +573,14 @@ The Rust core carries both (v0.6.15).
 
 ## v0.6.12 — Another version, a power action after a usage limit, and recovery beside the Codex app's cloud-environment server
 
-**In development: v0.6.12-alpha and v0.6.12-alpha.2, its first two pre-releases, are out, and
-v0.6.12-beta is being built.**
+**In development: v0.6.12-alpha and v0.6.12-alpha.2, its first two pre-releases, are out, and the
+final is next, with no beta before it.**
 
 v0.6.12 was planned as the rest of the advanced edition, in as many pre-releases as it needed. On
 2026-10-04 the owner made it smaller, so that it is released sooner: two pre-releases of upkeep for
-the people who build the project, a beta with the two things people asked for first, and a final
-that is the beta with an urgent fix. The rest of the advanced edition moved, whole, to v0.6.13,
+the people who build the project, then the final, with the two things people asked for first and an
+urgent fix. The beta that was to carry those two first is not published on its own: what it was
+built with ships in the final itself. The rest of the advanced edition moved, whole, to v0.6.13,
 below, and every release planned after it moved one on.
 
 ### v0.6.12-alpha ✅ — The tests in parts, and faster pictures (a pre-release)
@@ -600,16 +601,17 @@ table for every lane had left the advanced lane's four parts 21 to 41 minutes lo
 the people who build the project too, so it is an alpha, and nothing changes for a person using it.
 The owner asked for it on 2026-10-03.
 
-### v0.6.12-beta 🚧 — Another version, and a power action after a usage limit (a pre-release)
+### v0.6.12 🚧 — The final: another version, a power action after a usage limit, and recovery beside the Codex app's cloud-environment server
 
-The next pre-release, being built, with the two things people asked for first:
+The next release, and the last of v0.6.12. There is no separate beta: the beta stage's two things
+people asked for first ship in the final itself, for both editions, and the final adds an urgent fix.
 
 - **Install another version or edition from the Dashboard** - any release or pre-release of either
   edition, from the list of releases the update check already reads. It says first what the change
   means - a change of edition turns every advanced capability off, a pre-release is tested less, and
   an older version has the state converted first, with a copy, as `downgrade-state` does - and checks
   what it downloads as every install does. It was planned for v0.6.11 and not finished in time.
-  **Built for v0.6.12-beta:** *Install another version...*, last in the Diagnostics page's Tools
+  **Built for v0.6.12:** *Install another version...*, last in the Diagnostics page's Tools
   card, lists every version from v0.6.2 on in both editions, greys each it cannot install with the
   reason, and converts the state for a version from v0.6.2 to v0.6.11-alpha only after the archive
   passed its checks. It offers pre-releases as it offers releases, older and newer, since the owner
@@ -621,15 +623,12 @@ The next pre-release, being built, with the two things people asked for first:
   queued in those conversations. A person arms it, for the next batch or always, and a grace period
   with a way to cancel comes first. It keeps every standard, so it is in the standard edition: H14
   and F15 are its rules, and the owner amended A28 for its stop button on 2026-10-03.
-
-### v0.6.12 — The final: recovery beside the Codex app's cloud-environment server
-
-The final is everything in v0.6.12-beta and an urgent fix, for both editions. With the Codex app
-from 26.930 on, which can run a cloud-environment server (`codex.exe exec-server`) beside its own
-app server, no recovery was sent: the watcher took a `codex.exe` the app started as the app's own
-server only when it was the only one. The final takes, among several, the one Windows' Restart
-Manager names as holding Codex's state database open, and waits as before when that is unclear. It
-reads no command line and no process memory.
+- **The fix: recovery beside the Codex app's cloud-environment server.** With the Codex app from
+  26.930 on, which can run a cloud-environment server (`codex.exe exec-server`) beside its own app
+  server, no recovery was sent: the watcher took a `codex.exe` the app started as the app's own
+  server only when it was the only one. The final takes, among several, the one Windows' Restart
+  Manager names as holding Codex's queue or state database open, and waits as before when that is
+  unclear. It reads no command line and no process memory.
 
 ---
 
@@ -947,11 +946,11 @@ The ground both editions stand on, in a pre-release
 
         ↓
 
-v0.6.12-alpha → v0.6.12-alpha.2 → v0.6.12-beta → v0.6.12
+v0.6.12-alpha → v0.6.12-alpha.2 → v0.6.12
 The tests in parts and faster pictures, for developers, in a first pre-release
 + every lane's test parts even, in a second
-+ another version or edition from the Dashboard, and a power action after a usage limit, in the beta
-+ recovery beside the Codex app's cloud-environment server, in the final
++ another version or edition from the Dashboard, and a power action after a usage limit, in the final
++ with recovery beside the Codex app's cloud-environment server
 
         ↓
 
@@ -983,5 +982,6 @@ Maintenance
 ```
 
 This document records the current direction; v0.6.11 is out, v0.6.12-alpha and v0.6.12-alpha.2 are
-the first of v0.6.12's pre-releases, v0.6.12-beta is next, and the final v0.6.12 follows it with an
-urgent fix; the rest of the advanced edition is v0.6.13's.
+the first of v0.6.12's pre-releases, and the final v0.6.12 is next, with no beta before it: it
+carries the version picker, the power action and an urgent fix; the rest of the advanced edition is
+v0.6.13's.

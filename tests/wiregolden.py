@@ -181,7 +181,7 @@ GOLDEN_INSTALL_LOCK = "Local\\CodexAutoResume.Install.golden-%d" % os.getpid()
 def _installation_in_progress(_workspace):
     """The install lock held, as an installation, a repair or a pick holds it, under the golden's own
     name for it (`installation`): a named mutex that exists is all win/homelock.py looks at. A start
-    is refused before it is made, so nothing is launched either way (v0.6.12-beta)."""
+    is refused before it is made, so nothing is launched either way (v0.6.12)."""
     import ctypes
     from codex_auto_resume.win import homelock
 
@@ -477,7 +477,7 @@ BRIDGE_CASES = {
         Case("a watcher already holds the mutex"),
         Case("launched with no watcher running, and it stopped again straight away",
              watching=False, using=_launch_that_exits),
-        # v0.6.12-beta: no start while an installation holds its lock (the picker's Q7).
+        # v0.6.12: no start while an installation holds its lock (the picker's Q7).
         Case("refused while an installation holds the install lock",
              watching=False, using=_installation_in_progress)],
     "stop-watcher": [
@@ -763,7 +763,7 @@ MCP_CASES = {
              watching=False, using=_launch_that_comes_up(KILL_ON_CLOSE_JOB)),
         Case("started in no job, so it outlives Codex", {},
              watching=False, using=_launch_that_comes_up(NO_JOB)),
-        # v0.6.12-beta: no start while an installation holds its lock (the picker's Q7).
+        # v0.6.12: no start while an installation holds its lock (the picker's Q7).
         Case("refused while an installation holds the install lock", {},
              watching=False, using=_installation_in_progress)],
     "retry_now": [

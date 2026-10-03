@@ -306,7 +306,7 @@ whether Windows reports this PC connected to the internet (the Network List Mana
 `GetConnectivity`), for **Wait for an internet connection** - a question Windows answers from what it
 already knows, with nothing sent to find out. **Keep this PC awake** is a request, not a question:
 `SetThreadExecutionState`, which the watcher makes and takes back and which changes no setting.
-From v0.6.12-beta the power action after usage-limit recoveries, which is off by default, asks
+From v0.6.12 the power action after usage-limit recoveries, which is off by default, asks
 Windows three more things. The first is whether this account holds the shut-down privilege
 (`GetTokenInformation` on its own token, `TokenPrivileges`) and which sleep states the PC offers
 (`GetPwrCapabilities`), which say whether Sleep, Hibernate and Shut down can be offered: the
@@ -477,11 +477,11 @@ conversation to OpenAI like any tool output. That is:
   about that version, which is for you to read on the Dashboard. It no longer returns the installation
   directory's path, which normally includes your Windows user name; v0.5.0 through v0.5.7
   did, and a conversation held with one of them still carries it. In the advanced edition it also
-  carries which edition this is and how many of its capabilities are on, as codes. From v0.6.12-beta,
+  carries which edition this is and how many of its capabilities are on, as codes. From v0.6.12,
   while the power action has its file, it also carries that action's state: what is turned on (the
   action, when, once or every time, the warning's length and since when), what it waits for, when a
   countdown ends and how the last batch ended - closed words and times, no id;
-- from `turn_off_power_action`, from v0.6.12-beta: whether the power action was on - one sentence;
+- from `turn_off_power_action`, from v0.6.12: whether the power action was on - one sentence;
 - from `list_pending`: the pending recoveries, with their conversation ids, interruption ids,
   states, categories, times and attempt counts, and the finished ones too when it is asked for
   them; `open_settings` returns those together with the status and settings above;
@@ -590,7 +590,7 @@ default (or wherever `CODEX_AUTO_RESUME_PLUGIN_HOME`, or failing that
   are red. Deleting it only means a failure is not shown red until the watcher starts again. It goes
   with the rest of `config/` under `Uninstall.cmd -Purge`, and the command line's `uninstall` deletes
   it unless you pass `--keep-state`;
-- `config/power-action.json`, from v0.6.12-beta, only once the power action after usage-limit
+- `config/power-action.json`, from v0.6.12, only once the power action after usage-limit
   recoveries has been turned on in the Dashboard: what was chosen, in closed words; when it was turned
   on; the ids of the recoveries it waits for (this product's own interruption ids, never a
   conversation's); a random number naming the current batch, which the countdown notice's button

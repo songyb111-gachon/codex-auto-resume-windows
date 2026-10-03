@@ -1,22 +1,45 @@
 # Changelog
 
-## v0.6.12-beta — Install another version, and a power action when usage-limit recoveries finish
+## v0.6.12 — Another version from the Dashboard, a power action after usage limits, and recovery beside the Codex app's cloud-environment server
 
-[The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.12-alpha.2...v0.6.12-beta)
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.11...v0.6.12)
 
-**The first beta of v0.6.12, published from `main`.** It is a GitHub pre-release, so `releases/latest`
-never answers with it; *Check for updates* offers it with a question to an installation of v0.6.11
-or a v0.6.12 pre-release. It brings the two features asked for first: installing another version or
-edition from the Dashboard (the owner, 2026-09-28) and a power action once usage-limit recoveries
-finish (Discussion #22). Both are in the standard edition and in both editions' windows. Going back
-takes only an older version's setup program, or *Install another version...*
-([below](#going-back-from-v0612-beta)).
+**What changed since v0.6.11, in one place.** For a person, two additions and two fixes. In the
+Dashboard, *Install another version...* installs any version from v0.6.2 on, of either edition,
+pre-releases too ([below](#install-another-version)) - asked for by the owner on 2026-09-28. A power
+action can sleep, hibernate or shut down the PC once usage-limit recoveries finish, off until you
+turn it on ([below](#the-power-action-after-usage-limit-recoveries)) - asked for in Discussion #22.
+Both are in the standard edition, and in both editions' windows. The fixes: recovery beside the
+Codex app's cloud-environment server, without which no recovery was sent with the Codex app from
+26.930 on, and a setup program that removes its folder when its console window is closed
+([Fixes](#fixes)). Two pre-releases for the people who build the project came first, each with an
+entry of its own below that has the detail and how it was checked: the test suite in parts and
+pictures taken when the window is ready ([v0.6.12-alpha](CHANGELOG.md#the-suite-in-parts)), and
+every lane's test parts even ([v0.6.12-alpha.2](CHANGELOG.md#every-lanes-parts-even)). Nothing in
+them changes anything for a person. The additions and the fixes were not published as a pre-release
+first: their detail is this entry's.
 
-**A plugin copy older than v0.6.11-beta's cannot read this version.** The bootstraps published from
-v0.6.0 to v0.6.11-alpha read no word after a version but `-alpha`, if that, so none of them can
-compare `0.6.12-beta` with anything; v0.6.11-beta's copy and every later one read it. Set up and
-repair with the installation's own copy, `%USERPROFILE%\.codex-auto-resume\app\scripts\bootstrap.ps1`,
-or with a plugin at v0.6.11-beta or later.
+**From v0.6.11, it is an ordinary update.** It is the latest release, so v0.6.11's *Check for
+updates* offers it in the edition you have, and so does a v0.6.12 pre-release's; the plugin in
+Codex installs it too. Settings, a pause, everything waiting and the sign-in choice are kept, and
+nothing is converted: the watcher's state is still schema 4 and the advanced edition's own file
+still version 2. The picker and the power action do nothing until you use them, so at its
+defaults either edition does what v0.6.11 did, but for the fixes. Besides a new button and a new
+card, what changes is two content-free questions to Windows - whether this account may shut down
+and which sleep states the PC offers - asked each time the Dashboard shows that card
+([PRIVACY.md](PRIVACY.md)). Going back to v0.6.11 takes only its setup program, or *Install another
+version...* ([below](#going-back-from-v0612)). Coming from a version before v0.6.11, v0.6.11's entry
+says what the update converts ([The state, and going back](CHANGELOG.md#the-state-and-going-back)).
+
+**If recoveries have waited since the Codex app 26.930**, with *Why it is waiting* saying the Codex
+app is not running while it was, this is the release that sends them. Nothing was sent twice or to
+another conversation: they only waited. One still waiting when you update is sent by the new
+watcher once it passes the checks every recovery passes.
+
+**Every plugin copy from v0.6.0's on reads this version.** `0.6.12` has no word after its three
+numbers, and every bootstrap published from v0.6.0 on compares those, so none of them takes this
+installation for none. Only a pre-release's word needs a later copy: the entries of v0.6.12's
+pre-releases, below, say which.
 
 ### Install another version...
 
@@ -122,19 +145,30 @@ standard edition: it keeps every standard, with A28 amended by the owner for its
   hibernated or shut one down; the owner's measurement MP, at live acceptance, does that first, and
   until then Sleep is offered only where Windows reports S1 to S3.
 
-### Going back from v0.6.12-beta
+### Going back from v0.6.12
 
-- **The state and the advanced edition's file are v0.6.12-alpha.2's.** `state.sqlite` is still schema
-  4 and `config\advanced\advanced.sqlite` still version 2, so going back to v0.6.12-alpha.2,
-  v0.6.12-alpha or v0.6.11 takes only its setup program or `Install.cmd`, in the edition you have.
-  *Install another version...* goes back too, and for a version from v0.6.2 to v0.6.11-alpha converts
-  the state first, as above.
+- **The state and the advanced edition's file are v0.6.11's.** `state.sqlite` is still schema 4 and
+  `config\advanced\advanced.sqlite` still version 2, so going back to v0.6.12-alpha.2, v0.6.12-alpha
+  or v0.6.11 takes only its setup program or `Install.cmd`, in the edition you have. *Install another
+  version...* goes back too, and for a version from v0.6.2 to v0.6.11-alpha converts the state first,
+  as above; by hand, going back that far is as v0.6.11's entry says
+  ([The state, and going back](CHANGELOG.md#the-state-and-going-back)).
 - **The power action's file.** `config\power-action.json` is this version's alone: an older version
   leaves it as it is and never acts on it, and this version or a later one reads it again as it was
   left.
 
 ### Fixes
 
+- **The Codex app's own server is found beside its cloud-environment server.** The Codex app from
+  26.930 on can start a cloud-environment server (`codex.exe exec-server`) beside its own app server,
+  from the same binary, and then no recovery was sent: each one waited, saying the Codex app was not
+  running, because the watcher took a `codex.exe` the app started as the app's own server only when
+  it was the only one. Where the app has more than one of the configured engine, the watcher now asks
+  Windows' Restart Manager - as it already does to see which conversation the app holds - which of
+  them holds Codex's queue or state database open, both in one question, and takes that one. If
+  Windows cannot say, or none or more than one does, it waits as before. It reads no command line
+  and no process memory, and an app with one server is read exactly as before.
+  [PRIVACY.md](PRIVACY.md) names the question.
 - **The setup program removes its folder when its console window is closed.** Closing the window
   just as Install.cmd ended could leave the whole unpacked archive in %TEMP%: taking away a Ctrl+C
   handler waited for the close handler, which waited for the folder to be removed, until Windows
@@ -155,6 +189,10 @@ standard edition: it keeps every standard, with A28 amended by the owner for its
 - Every CI test part uploads its seconds per file as an artifact (`scripts/test_parts.py --seconds`),
   and `--merge-seconds` folds a downloaded run into `tests/data/durations.json` by `--record-durations`'
   rules, so the durations no longer come from parsing job logs.
+- The pairing's tests: `tests/test_windows.py`'s `SeveralEngineChildrenTests` (the Restart Manager's
+  holder among several children of the configured engine, and every way short of exactly one that
+  fails closed) and `tests/test_engine_children.py` (the app gate through the real transport against
+  codexsim, where the app runs two of the configured engine).
 - The power action's tests: `tests/test_power_action.py`, `test_power_action_control.py`,
   `test_power_action_watcher.py`, `test_power_action_windows.py` and `test_gui_power_action.py`, with
   additions in `test_cli`, `test_notify`, `test_notice_card`, `test_source`, `test_tray`, `test_mcp`

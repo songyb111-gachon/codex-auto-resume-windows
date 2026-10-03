@@ -747,7 +747,7 @@ standard continuation.
 
 ## The power action's checklist
 
-From v0.6.12-beta the standard edition can sleep, hibernate or shut the PC down once every usage-limit
+From v0.6.12 the standard edition can sleep, hibernate or shut the PC down once every usage-limit
 recovery has ended. No running watcher has made that call yet, so these checks are the owner's, on the
 owner's PC, and are never made by an agent or a script on its own. Each comes after steps 1 to 3, on
 the release being accepted, with nothing unsaved open. They are written in this table, in the same

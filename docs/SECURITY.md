@@ -280,7 +280,7 @@ them `thread/goal/set`, `thread/queue/add` with words this product wrote, and `t
   `Software\Policies\CodexAutoResume`, in `HKEY_LOCAL_MACHINE` or `HKEY_CURRENT_USER`, are read and
   never written - `startup.py` is still the only code that writes the registry - and applied after the
   settings are read, never to the file: they can pause recovery, force Observe only, turn off the update
-  check or the status file, lower the attempts' ceiling, add quiet hours and, from v0.6.12-beta, turn the power action off, and nothing else. Both
+  check or the status file, lower the attempts' ceiling, add quiet hours and, from v0.6.12, turn the power action off, and nothing else. Both
   places' restrictions hold, a malformed value is ignored, one that is there and cannot be read holds the
   most it could, and a write that would loosen one is refused.
   `DisableAutoResume` is written into the state as a Pause before every check and refused by the engine
@@ -302,7 +302,7 @@ them `thread/goal/set`, `thread/queue/add` with words this product wrote, and `t
   of its own that the sign-in launcher never starts again, and the standard edition has no
   supervisor or other process that would. A status file for other tools (off by default) is a file
   in the watcher's own `config\`, written whole: no port is opened and nothing listens.
-- **The power action asks Windows, and starts nothing.** From v0.6.12-beta, off by default and turned
+- **The power action asks Windows, and starts nothing.** From v0.6.12, off by default and turned
   on only in the Dashboard, the watcher can put the PC to sleep, hibernate it or shut it down once
   every usage-limit recovery has ended. It is the watcher's own call of `SetSuspendState`, or of
   `ExitWindowsEx` with `EWX_POWEROFF` and no `EWX_FORCE` or `EWX_FORCEIFHUNG`, so every program may

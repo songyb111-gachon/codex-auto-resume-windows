@@ -234,11 +234,11 @@ a table of pinned digests for each edition; the advanced edition's starts with v
 
 ## What comes next
 
-v0.6.12 adds two things people asked for, from its beta on. One is a way to install another version
-or edition from the Dashboard - any release or pre-release of either edition - which says first what
-the change means, as the installer does when you switch (a change of edition turns every advanced
-capability off), and checks what it downloads as every install does. It was planned for v0.6.11
-and not finished in time; it is built for v0.6.12-beta and described [above](#switching). The
+v0.6.12 adds two things people asked for. One is a way to install another version or edition from
+the Dashboard - any release or pre-release of either edition - which says first what the change
+means, as the installer does when you switch (a change of edition turns every advanced capability
+off), and checks what it downloads as every install does. It was planned for v0.6.11 and not
+finished in time; it is built for v0.6.12 and described [above](#switching). The
 other is a power action - sleep, hibernate or shut down - once every recovery waiting for a usage
 limit to reset has ended. It keeps every standard (H14 and F15 in [STANDARDS.md](STANDARDS.md), with
 A28 amended by the owner for its stop button), so it is in the standard edition, off until a person
