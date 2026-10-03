@@ -68,6 +68,26 @@
           }
         }
       }
+    },
+    {
+      "case": "refused while an installation holds the install lock",
+      "arguments": {},
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "isError": true,
+          "content": [
+            {
+              "type": "text",
+              "text": "could not start the watcher: an installation is in progress; start it once it has finished"
+            }
+          ],
+          "structuredContent": {
+            "error_code": "start_failed"
+          }
+        }
+      }
     }
   ]
 }

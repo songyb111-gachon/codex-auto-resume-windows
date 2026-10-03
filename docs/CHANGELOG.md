@@ -50,6 +50,10 @@ finish (Discussion #22). Both are in the standard edition and in both editions' 
   schema before the older version's installer has run. The command line still upgrades under the
   lock, as an installer's own setup needs, and once no installation holds it this version upgrades
   the state again as it always has.
+- **Nor does anything start the watcher meanwhile.** While an installation holds its lock, the
+  bridge's `start-watcher`, which the window's *Start watcher* sends, and Codex's `start_watcher` tool
+  start nothing and refuse with `start_failed` and the reason, as the start with Codex always has, so
+  no caller of either can start this version's watcher between a conversion and the installer.
 - **An administrator's policy is kept.** `DisableUpdateCheck` greys this button with *Check for
   updates*. While any policy value is set, or a policy key cannot be read, no version before
   v0.6.11-beta - the first that reads them - is offered or picked.

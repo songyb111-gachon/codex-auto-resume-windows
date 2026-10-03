@@ -199,7 +199,10 @@ them `thread/goal/set`, `thread/queue/add` with words this product wrote, and `t
   cannot start the current watcher between the conversion and the installer. Nor does reading the
   state put it back meanwhile: while an installation holds its lock, the window, the panel and
   Codex's tools read an older state as an older watcher's and never upgrade it, and only the command
-  line, which an installer's own setup runs through, upgrades under the lock. The bootstrap's only
+  line, which an installer's own setup runs through, upgrades under the lock. Nor can the control
+  layer start the current watcher meanwhile: while an installation holds its lock, the bridge's
+  `start-watcher`, which the window's Start watcher sends, and Codex's `start_watcher` tool refuse
+  (`start_failed`) and start nothing, as the start with Codex always has. The bootstrap's only
   registry access is a read of the two policy keys' value names: while any policy value is there, or
   a key cannot be read, no version before v0.6.11-beta is offered.
 
@@ -1036,10 +1039,11 @@ forbid them are what a cooperating installation obeys, not a lock. And a measure
 makes its calls into the conversation it names from an installed copy as from a source checkout;
 only its record is refused where there is no `docs/evidence/live/`.
 - A version picked with *Install another version...* that reads an older state has the state
-converted before its installer runs. Between the two, reading the state no longer upgrades it, but
-something other than the window could still start the current watcher - Codex's `start_watcher`
-tool, or another caller of the bridge, which does not wait for the install lock - and it would bring
-the state back to the current schema; the older watcher would then refuse that state and send
-nothing. That fails closed, but recovery stays off until the installation is repaired. An older
+converted before its installer runs. Between the two, reading the state no longer upgrades it, and
+the control layer starts no watcher - the window's Start watcher, the bridge's `start-watcher` and
+Codex's `start_watcher` tool all wait for the install lock - but a watcher started outside it, from
+the command line as an installer's own setup does, would still bring the state back to the current
+schema; the older watcher would then refuse that state and send nothing. That fails closed, but
+recovery stays off until the installation is repaired. An older
 installer can also fail after the conversion: the state then stays converted, which sends less and
 never more, and the copy taken first is kept for forensics, not restored.

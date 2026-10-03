@@ -29,7 +29,7 @@ import unittest
 from unittest.mock import call, patch
 
 from codex_auto_resume import (config, control, controlcli, settings,
-                               startup, store as store_module)
+                               startup, store as store_module, windows)
 from codex_auto_resume.control import watcher  # where the waits and the stop event are read
 from codex_auto_resume.store import Store, StoreError
 from codex_auto_resume.windows import AdapterError, Mutex
@@ -77,8 +77,15 @@ class ControlTestCase(unittest.TestCase):
         self.winreg.start()
         self.running.start()
         self.startup.start()
+        # The installer's lock under a name of the test's own, where install_in_progress reads it
+        # (win/homelock.py): a real installation on this PC, or another test that holds the real
+        # name, refuses no start here, and nothing here ever holds the real one.
+        self.install_lock = patch("codex_auto_resume.win.homelock.INSTALL_LOCK",
+                                  "Local\\CodexAutoResume.Install.test-%d" % os.getpid())
+        self.install_lock.start()
 
     def tearDown(self):
+        self.install_lock.stop()
         self.startup.stop()
         self.running.stop()
         self.winreg.stop()
@@ -1133,6 +1140,97 @@ class StartWatcherReportingTests(ControlTestCase):
         self.assertEqual(claims, [], "a state that is not running must not say it is")
         for state in ("exited", "unconfirmed"):
             self.assertNotIn("is running", wording[state])
+
+
+class StartUnderTheInstallLockTests(ControlTestCase):
+    """v0.6.12-beta (the version picker's Q7): while an installation holds its lock, the control
+    layer makes no start of the watcher - not for Codex's start_watcher, the window's Start watcher
+    or any other caller of the bridge - as the start with Codex has always waited for it. A pick
+    holds the lock from before it converts the state for an older version until that version's
+    installer has run, and this version's watcher started in between would upgrade the state back,
+    which the older watcher then refuses (tests/test_downgrade.py holds the converted state)."""
+
+    def setUp(self):
+        super().setUp()
+        (self.home / "watcher-launcher.py").write_text("# launcher" + chr(10), encoding="utf-8")
+        for name, value in (("WATCHER_START_TIMEOUT", 0.05), ("WATCHER_START_INTERVAL", 0)):
+            patcher = patch.object(watcher, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def hold_install_lock(self):
+        """The test's own install lock (ControlTestCase names it), held by a thread as an installer
+        holds it - a real named mutex - until the returned function is called."""
+        import ctypes
+        import threading
+        from codex_auto_resume.win import homelock
+        name, held, release = homelock.INSTALL_LOCK, threading.Event(), threading.Event()
+        self.assertNotEqual(name, "Local\\CodexAutoResume.Install", "never the real installer's lock")
+
+        def hold():
+            kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel.CreateMutexW.restype = ctypes.c_void_p
+            handle = kernel.CreateMutexW(None, True, name)
+            held.set()
+            release.wait(60)
+            kernel.ReleaseMutex(ctypes.c_void_p(handle))
+            kernel.CloseHandle(ctypes.c_void_p(handle))
+
+        holder = threading.Thread(target=hold)
+        holder.start()
+
+        def let_go():
+            release.set()
+            holder.join(30)
+        self.addCleanup(let_go)
+        self.assertTrue(held.wait(30))
+        self.assertIs(windows.install_in_progress(), True)
+        return let_go
+
+    def test_no_start_is_made_while_an_installation_holds_its_lock(self):
+        let_go = self.hold_install_lock()
+        with patch("subprocess.Popen") as popen:
+            with self.assertRaises(control.ControlError) as refused:
+                self.control.start_watcher()
+        popen.assert_not_called()
+        self.assertEqual(refused.exception.code, "start_failed")
+        self.assertEqual(str(refused.exception), watcher.INSTALLING)
+        # Once the installation has finished, the same start is made.
+        let_go()
+        self.assertIs(windows.install_in_progress(), False)
+        with patch("subprocess.Popen", return_value=FakeProcess()) as popen:
+            self.assertIs(self.control.start_watcher()["started"], True)
+        popen.assert_called_once()
+
+    def test_a_lock_that_cannot_be_looked_at_holds_the_start_too(self):
+        # As it holds the reads (openstate's hold_while_installing) and the start with Codex.
+        with patch.object(windows, "install_in_progress", return_value=None), \
+                patch("subprocess.Popen") as popen:
+            with self.assertRaises(control.ControlError) as refused:
+                self.control.start_watcher()
+        popen.assert_not_called()
+        self.assertEqual(refused.exception.code, "start_failed")
+
+    def test_a_watcher_already_running_is_still_said_to_run(self):
+        self.hold_install_lock()
+        with patch.object(control.Control, "watcher_running", return_value=True), \
+                patch("subprocess.Popen") as popen:
+            self.assertEqual(self.control.start_watcher()["state"], "already-running")
+        popen.assert_not_called()
+
+    def test_the_bridge_and_codexs_tool_answer_it_with_the_start_failed_code(self):
+        from codex_auto_resume import mcpserver
+        self.hold_install_lock()
+        server = mcpserver.Server(self.control, io.StringIO(), io.StringIO())
+        with patch("subprocess.Popen") as popen:
+            bridge = controlcli.dispatch(self.control, "start-watcher", None)
+            tool = server.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                                  "params": {"name": "start_watcher", "arguments": {}}})
+        popen.assert_not_called()
+        self.assertEqual(bridge, {"ok": False, "error": watcher.INSTALLING, "error_code": "start_failed"})
+        self.assertEqual(tool, {"jsonrpc": "2.0", "id": 1, "result": {
+            "isError": True, "content": [{"type": "text", "text": watcher.INSTALLING}],
+            "structuredContent": {"error_code": "start_failed"}}})
 
 
 class StopWatcherTests(ControlTestCase):

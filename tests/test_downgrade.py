@@ -828,6 +828,27 @@ class ConvertedStateUnderTheInstallLockTests(unittest.TestCase):
         self.assertNotIn("refused", read)
         self.assertEqual((read["schema"], read["records"]), (3, self.rows))
 
+    def test_no_start_of_the_watcher_meanwhile_brings_the_state_back(self):
+        """Codex's start_watcher and the bridge's start-watcher, which the window's Start watcher
+        sends, are refused while the lock is held (the picker's Q7): this version's watcher, started
+        between the conversion and the older installer, would upgrade the converted state back."""
+        from unittest import mock
+        from codex_auto_resume import controlcli, mcpserver
+        (self.paths.home / "watcher-launcher.py").write_text("# launcher\n", encoding="utf-8")
+        self.install_lock()
+        server = mcpserver.Server(self.control, io.StringIO(), io.StringIO())
+        with mock.patch("subprocess.Popen", side_effect=AssertionError("a watcher was started")) as popen:
+            tool = server.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                                  "params": {"name": "start_watcher", "arguments": {}}})
+            bridge = controlcli.dispatch(self.control, "start-watcher", None)
+        popen.assert_not_called()
+        self.assertIs(tool["result"]["isError"], True)
+        self.assertEqual(tool["result"]["structuredContent"], {"error_code": "start_failed"})
+        self.assertEqual((bridge["ok"], bridge["error_code"]), (False, "start_failed"))
+        self.assertEqual((self.schema(), self.upgraded()), (3, []))
+        self.assertEqual({key: row["state"] for key, row in
+                          table(self.state / "state.sqlite", "interruptions").items()}, self.rows)
+
     def test_a_lock_that_cannot_be_looked_at_holds_the_upgrade_too(self):
         from unittest import mock
         from codex_auto_resume import windows

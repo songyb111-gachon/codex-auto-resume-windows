@@ -174,6 +174,29 @@ def _launch_that_exits(_workspace):
         yield
 
 
+GOLDEN_INSTALL_LOCK = "Local\\CodexAutoResume.Install.golden-%d" % os.getpid()
+
+
+@contextmanager
+def _installation_in_progress(_workspace):
+    """The install lock held, as an installation, a repair or a pick holds it, under the golden's own
+    name for it (`installation`): a named mutex that exists is all win/homelock.py looks at. A start
+    is refused before it is made, so nothing is launched either way (v0.6.12-beta)."""
+    import ctypes
+    from codex_auto_resume.win import homelock
+
+    if homelock.INSTALL_LOCK != GOLDEN_INSTALL_LOCK:
+        raise WireChanged("the install lock is not the golden's own; the real one is never held")
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.CreateMutexW.restype = ctypes.c_void_p
+    handle = kernel.CreateMutexW(None, True, GOLDEN_INSTALL_LOCK)
+    try:
+        yield
+    finally:
+        kernel.ReleaseMutex(ctypes.c_void_p(handle))
+        kernel.CloseHandle(ctypes.c_void_p(handle))
+
+
 def _held(thread):
     """A conversation that asks first (v0.6.11), so what it has waiting is held for a person and
     "let it continue" has something to let go. Written by the product's own store, as the rest of
@@ -453,7 +476,10 @@ BRIDGE_CASES = {
     "start-watcher": [
         Case("a watcher already holds the mutex"),
         Case("launched with no watcher running, and it stopped again straight away",
-             watching=False, using=_launch_that_exits)],
+             watching=False, using=_launch_that_exits),
+        # v0.6.12-beta: no start while an installation holds its lock (the picker's Q7).
+        Case("refused while an installation holds the install lock",
+             watching=False, using=_installation_in_progress)],
     "stop-watcher": [
         Case("no watcher is running", watching=False),
         Case("the watcher does not let go before the wait is over", using=_watcher_does_not_let_go)],
@@ -736,7 +762,10 @@ MCP_CASES = {
         Case("started inside a job that ends what it holds, as Codex 26.915 runs this server", {},
              watching=False, using=_launch_that_comes_up(KILL_ON_CLOSE_JOB)),
         Case("started in no job, so it outlives Codex", {},
-             watching=False, using=_launch_that_comes_up(NO_JOB))],
+             watching=False, using=_launch_that_comes_up(NO_JOB)),
+        # v0.6.12-beta: no start while an installation holds its lock (the picker's Q7).
+        Case("refused while an installation holds the install lock", {},
+             watching=False, using=_installation_in_progress)],
     "retry_now": [
         Case("a usage limit whose reset is still ahead", {"interruption_id": WAITING_RESET}),
         Case("a recovered one has already finished", {"interruption_id": RECOVERED})],
@@ -845,6 +874,9 @@ def installation(*, watching=True, mcp=False, engine=False):
         workspace = Path(name)
         # Before anything is built, so the building cannot start a process either.
         stack.enter_context(_no_process())
+        # The installer's lock under a name of the golden's own, where win/homelock.py reads it: an
+        # installation running on this PC changes no answer, and no case ever holds the real lock.
+        stack.enter_context(patch("codex_auto_resume.win.homelock.INSTALL_LOCK", GOLDEN_INSTALL_LOCK))
         surface = stack.enter_context(
             generator.pinned_installation(workspace, watching=watching, engine=engine))
         # Inside the pinned installation's environment, which is put back whole after it.
