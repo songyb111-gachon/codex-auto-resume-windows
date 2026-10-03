@@ -234,8 +234,8 @@ a table of pinned digests for each edition; the advanced edition's starts with v
 
 ## What comes next
 
-v0.6.12 first adds two things people asked for. One is a way to install another version or
-edition from the Dashboard - any release or pre-release of either edition - which says first what
+v0.6.12 adds two things people asked for, from its beta on. One is a way to install another version
+or edition from the Dashboard - any release or pre-release of either edition - which says first what
 the change means, as the installer does when you switch (a change of edition turns every advanced
 capability off), and checks what it downloads as every install does. It was planned for v0.6.11
 and not finished in time; it is built for v0.6.12-beta and described [above](#switching). The
@@ -244,11 +244,12 @@ limit to reset has ended. It keeps every standard (H14 and F15 in [STANDARDS.md]
 A28 amended by the owner for its stop button), so it is in the standard edition, off until a person
 turns it on in the Dashboard.
 
-Then v0.6.12 brings the rest of the advanced edition, each part published as a pre-release as it is
+Then v0.6.13 brings the rest of the advanced edition, each part published as a pre-release as it is
 finished. Each new capability is the advanced edition's alone, off until you turn it on, with a
 statement that names the standards it departs from. This is a direction, not a promise;
-[ROADMAP.md](ROADMAP.md) has the whole list in its v0.6.12 section: the two additions first, then
-the rest under the same four headings as below, and one more on compatibility reports from others.
+[ROADMAP.md](ROADMAP.md) has the whole list: the two additions in its v0.6.12 section, and the rest
+in its v0.6.13 section, under the same four headings as below and one more on compatibility reports
+from others.
 
 - **Recovery through the channels already in use** - short retries for capacity errors, failures it
   cannot name on a budget of their own, rules over Codex's own error tags, a request Codex gave up
