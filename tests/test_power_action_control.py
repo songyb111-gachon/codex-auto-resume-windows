@@ -298,6 +298,45 @@ class WatcherWriteTests(PowerControlCase):
         self.assertFalse(self.control.power_show(nonce, dict(shown, phase="grace")), "grace needs its time")
         self.assertEqual(self.control.get_status()["power_action"]["shown"], shown)
 
+    def test_a_countdown_that_runs_out_ends_done_unless_a_stop_came_first(self):
+        """Step 16's write, made before anything is done: done - or skipped when a stop was written for
+        the batch meanwhile, read again under the lock - and None for a batch that is over."""
+        self.arm(repeat="always")
+        first = self.stored()["armed"]["nonce"]
+        self.assertIsNone(self.control.power_batch_finish("f" * 16))
+        self.assertIsNone(self.control.power_batch_finish("not a nonce"))
+        self.assertEqual(self.control.power_batch_finish(first), "done")
+        document = self.stored()
+        self.assertEqual((document["last"]["action"], document["last"]["result"]), ("sleep", "done"))
+        second = document["armed"]["nonce"]
+        self.assertNotEqual(second, first, "an Always's next batch has a nonce of its own")
+        self.assertIsNone(self.control.power_batch_finish(first), "an older batch ends nothing")
+        self.assertEqual(self.control.stop_power_countdown(second, actor="toast"), "stopped")
+        self.assertEqual(self.control.power_batch_finish(second), "skipped")
+        self.assertEqual(self.stored()["last"]["result"], "skipped")
+        self.assertIsNone(self.stored()["armed"]["stop_at"], "the next batch starts unstopped")
+
+    def test_a_busy_lock_ends_nothing(self):
+        self.arm()
+        nonce = self.stored()["armed"]["nonce"]
+        with patch.object(control_power, "Mutex", side_effect=AdapterError("mutex_busy")):
+            self.assertIsNone(self.control.power_batch_finish(nonce))
+            self.assertFalse(self.control.power_refused())
+        self.assertEqual(self.stored()["armed"]["nonce"], nonce)
+
+    def test_a_refusal_is_remembered_only_over_a_done(self):
+        self.assertFalse(self.control.power_refused(), "no file")
+        self.arm()
+        nonce = self.stored()["armed"]["nonce"]
+        self.assertFalse(self.control.power_refused(), "nothing ended yet")
+        self.assertTrue(self.control.power_batch_end(nonce, "not_met"))
+        self.assertFalse(self.control.power_refused(), "only a done can have been refused")
+        self.arm()
+        self.assertEqual(self.control.power_batch_finish(self.stored()["armed"]["nonce"]), "done")
+        self.assertTrue(self.control.power_refused(now=2_000_000_000.0))
+        self.assertEqual(self.stored()["last"], {"action": "sleep", "result": "failed", "at": 2_000_000_000.0})
+        self.assertFalse(self.control.power_refused(), "said once")
+
 
 # ------------------------------------------------------------------------------ reading the file
 class FileTests(PowerControlCase):
@@ -354,13 +393,17 @@ class FileTests(PowerControlCase):
 
 
 class BoundaryTests(unittest.TestCase):
-    def test_only_the_control_layer_reaches_the_port_and_it_never_acts(self):
+    def test_only_the_control_layer_and_the_watcher_reach_the_port_and_only_the_watcher_acts(self):
         importers = {name for name, path in srcscan.modules().items()
                      if any(entry.target == "codex_auto_resume.win.powerdown" for entry in srcscan.imports(path))}
-        self.assertEqual(importers, {"codex_auto_resume.control.poweraction"})
+        # v0.6.12 stage 2: the watcher's side (runtime/afterwork.py) is the one place that asks for the action.
+        self.assertEqual(importers, {"codex_auto_resume.control.poweraction", "codex_auto_resume.runtime.afterwork"})
         text = Path(control_power.__file__).read_text(encoding="utf-8")
         self.assertNotIn(".act(", text)
         self.assertNotIn("subprocess", text)
+        acting = {name for name, path in srcscan.modules().items() if "._port.act(" in srcscan.read(path)
+                  or "powerdown.act(" in srcscan.read(path)}
+        self.assertEqual(acting, {"codex_auto_resume.runtime.afterwork"})
 
     def test_nothing_here_sends(self):
         text = Path(control_power.__file__).read_text(encoding="utf-8")

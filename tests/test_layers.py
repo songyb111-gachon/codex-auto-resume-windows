@@ -149,6 +149,8 @@ LAYER = {_q(name): layer for layer, names in {
               "runtime.waking",
               # and of its own memory, how it ended and the status file.
               "runtime.health",
+              # v0.6.12: and of the power action after usage-limit recoveries.
+              "runtime.afterwork",
               # v0.6.10-alpha: cli.py's command bodies became commands/; cli.py is the parser.
               "commands", "commands.base", "commands.install", "commands.records",
               "commands.status", "commands.watcher",
@@ -255,6 +257,7 @@ LAZY_IMPORTS = {(_q(importer), _q(imported)): (kind, reason) for (importer, impo
     ("commands.install", "control"): ("cost", "the diagnostics command is the only one that goes through control"),
     ("commands.install", "diagnostics"): ("cost", "only the diagnostics command writes the export"),
     ("commands.watcher", "ui.tray"): ("cost", "activate opens the settings window through the icon's helper"),
+    ("commands.watcher", "control"): ("cost", "only a power action's stop button goes through the control layer"),
     ("compat.probes", "windows"): ("cost", "the registry's API and discovery checks read the "
                                            "adapter, only when they run"),
     ("config", "settings"): ("cost", "nearly everything imports config; the settings schema, and the "

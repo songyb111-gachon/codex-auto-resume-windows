@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import time
 
-from .. import config, notify
+from .. import config, notifier, notify
 from ..app import EXIT_ERROR, EXIT_OK
 from ..store import LegacyStore
 from ..windows import WakeEvent
@@ -31,11 +31,14 @@ def cmd_stop(args) -> int:
 def cmd_activate(args) -> int:
     """Handle a notification button. Reached from Windows, never from a terminal.
 
-    A URI can request exactly two things: *cancelling* one resume, or *opening* one page of
-    the Dashboard. Neither can make anything happen that should not - a hostile URI can at
+    A URI can request exactly three things: *cancelling* one resume, *opening* one page of
+    the Dashboard, or (v0.6.12, the A28 amendment) *stopping the power action* for the one batch
+    its nonce names. None can make anything happen that should not - a hostile URI can at
     worst stop something from happening or open a window. The interruption id is validated
     as opaque hex and must match a real record; nothing is looked up by thread, name or
-    recency. The page must be one of the window's own pages.
+    recency. The page must be one of the window's own pages. The nonce is 16 hex digits and
+    stops nothing unless it is the armed batch's; that press goes through the same branch a
+    card's does (notifier.activate), and what it says afterwards is raised as a toast.
     """
     app = _app(args)
     page = notify.parse_open_uri(args.uri)
@@ -45,6 +48,12 @@ def cmd_activate(args) -> int:
         app.logger.info("dashboard opened from a notification" if opened
                         else "activation: the Dashboard is not installed here")
         return EXIT_OK if opened else EXIT_ERROR
+    if notify.parse_power_stop_uri(args.uri) is not None:
+        from ..control import Control
+        done = notifier.activate(args.uri, control=Control(app.paths),
+                                 announce=lambda notice: notifier.deliver(notice, inbox=None, setting=False),
+                                 log=app.logger.info)
+        return EXIT_OK if done == "stopped" else EXIT_ERROR
     interruption_id = notify.parse_cancel_uri(args.uri)
     if interruption_id is None:
         app.logger.info("activation ignored: malformed or unsupported URI")

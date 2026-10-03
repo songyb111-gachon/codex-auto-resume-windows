@@ -54,6 +54,68 @@ class CancelUriTests(unittest.TestCase):
         self.assertEqual(notify.parse_cancel_uri(uri), INTERRUPTION)
 
 
+class PowerStopUriTests(unittest.TestCase):
+    """v0.6.12: the power action's stop button names one batch by its nonce, and nothing else (A28)."""
+
+    NONCE = "0123456789abcdef"
+
+    def test_round_trip(self):
+        uri = notify.power_stop_uri(self.NONCE)
+        self.assertEqual(uri, "codex-auto-resume:power-stop?n=" + self.NONCE)
+        self.assertEqual(notify.parse_power_stop_uri(uri), self.NONCE)
+
+    def test_it_is_no_other_request_and_no_other_request_is_it(self):
+        uri = notify.power_stop_uri(self.NONCE)
+        self.assertIsNone(notify.parse_cancel_uri(uri))
+        self.assertIsNone(notify.parse_open_uri(uri))
+        self.assertIsNone(notify.parse_power_stop_uri(notify.cancel_uri(INTERRUPTION)))
+        self.assertIsNone(notify.parse_power_stop_uri(notify.open_uri("settings")))
+        for action in ("power-start", "power", "power-arm", "sleep", "shutdown"):
+            with self.subTest(action=action):
+                self.assertIsNone(notify.parse_power_stop_uri("%s:%s?n=%s" % (notify.SCHEME, action, self.NONCE)))
+
+    def test_exactly_one_nonce_of_sixteen_lowercase_hex_digits(self):
+        cases = [
+            "https://example.test/power-stop?n=" + self.NONCE,
+            "codex-auto-resume:power-stop",
+            "codex-auto-resume:power-stop?n=",
+            "codex-auto-resume:power-stop?n=" + self.NONCE.upper(),
+            "codex-auto-resume:power-stop?n=" + self.NONCE[:-1],
+            "codex-auto-resume:power-stop?n=" + self.NONCE + "0",
+            "codex-auto-resume:power-stop?n=" + "g" * 16,
+            "codex-auto-resume:power-stop?n=%s&n=%s" % (self.NONCE, "f" * 16),
+            "codex-auto-resume:power-stop?n=%s&action=shut_down" % self.NONCE,
+            "codex-auto-resume:power-stop?i=" + INTERRUPTION,
+            "", None, 7,
+        ]
+        for uri in cases:
+            with self.subTest(uri=repr(uri)[:60]):
+                self.assertIsNone(notify.parse_power_stop_uri(uri))
+
+    def test_the_countdowns_toast_carries_the_stop_and_the_dashboard(self):
+        content = notify.power_grace_content("hibernate", 1790000000.0, self.NONCE)
+        self.assertEqual(content["uri"], notify.power_stop_uri(self.NONCE))
+        self.assertEqual(content["button"], l10n.message("toast_power_stop.hibernate"))
+        self.assertEqual(content["more"], [(l10n.message("toast_button_open"), notify.open_uri("settings"))])
+        self.assertIn(notify._local_time(1790000000.0), content["title"])
+        xml = notify._toast_xml(content["title"], content["body"], content["button"], content["uri"],
+                                content["extra"], content["more"])
+        self.assertEqual(xml.count("<action "), 2)
+        self.assertIn('arguments="codex-auto-resume:power-stop?n=%s"' % self.NONCE, xml)
+
+    def test_only_the_countdown_offers_a_stop(self):
+        for event in ("power_now", "power_failed", "power_not_met", "power_stopped"):
+            with self.subTest(event=event):
+                content = notify.power_content(event, {"action": "shut_down"})
+                self.assertNotIn("uri", content)
+                for _label, target in content.get("more", []):
+                    self.assertEqual(target, notify.open_uri("settings"))
+
+    def test_an_action_it_does_not_know_is_said_as_sleep_and_named_nowhere(self):
+        self.assertEqual(notify.power_content("power_now", {"action": "format_disk"})["title"],
+                         l10n.message("toast_power_now.sleep"))
+
+
 class ToastPayloadTests(unittest.TestCase):
     def test_text_is_xml_escaped(self):
         xml = notify._toast_xml('a"b&c<d>', "body & more", 'btn"x', "codex-auto-resume:cancel?i=1&j=2")
@@ -403,6 +465,26 @@ class ActivationTests(unittest.TestCase):
         self.assertEqual(cancel.call_args.kwargs.get("actor"), "toast")
         thread_wide.assert_not_called()
         self.assertIn(THREAD, out)
+
+    def test_a_power_stop_goes_through_the_card_branch(self):
+        """v0.6.12: a power-stop URI from a toast is handed to notifier.activate, as a card's press is."""
+        from codex_auto_resume import notifier
+        seen = {}
+
+        def activate(uri, **kwargs):
+            seen.update(kwargs, uri=uri)
+            return "stopped"
+        uri = notify.power_stop_uri("0123456789abcdef")
+        with patch.object(notifier, "activate", activate),                 patch.object(Store, "cancel_interruption") as cancel:
+            code, _ = self.run_activate(uri, self.home)
+        self.assertEqual(code, cli.EXIT_OK)
+        self.assertEqual(seen["uri"], uri)
+        self.assertIsNotNone(seen["control"])
+        self.assertTrue(callable(seen["announce"]))
+        cancel.assert_not_called()
+        with patch.object(notifier, "activate", lambda uri, **kwargs: "ignored"):
+            code, _ = self.run_activate(uri, self.home)
+        self.assertEqual(code, cli.EXIT_ERROR)
 
 
 class EngineNotificationTests(unittest.TestCase):

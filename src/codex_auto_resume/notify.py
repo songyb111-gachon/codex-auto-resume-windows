@@ -115,6 +115,37 @@ def parse_open_uri(uri: str) -> str | None:
     return page if page in machine.PAGES else None
 
 
+def power_stop_uri(nonce: str) -> str:
+    """Capability URI that stops the power action for one batch (v0.6.12, the A28 amendment).
+
+    The nonce names the batch: 16 hex digits, new at every arming and at every batch's end, so a page
+    that merely knows the scheme cannot name one, and a notice of a batch that is over - still in the
+    notification center - stops nothing. Like cancelling, it can only take automation away: the PC
+    stays on this time.
+    """
+    return "%s:power-stop?n=%s" % (SCHEME, nonce)
+
+
+def parse_power_stop_uri(uri: str) -> str | None:
+    """Return the batch's nonce, or None when the URI is not a valid power-stop request: exactly one
+    `n` of 16 lowercase hex digits."""
+    from urllib.parse import parse_qs, urlsplit
+
+    try:
+        parts = urlsplit(str(uri))
+    except (ValueError, TypeError):
+        return None
+    if parts.scheme.lower() != SCHEME:
+        return None
+    action = (parts.path or parts.netloc or "").strip("/").lower()
+    if action != "power-stop":
+        return None
+    values = parse_qs(parts.query, keep_blank_values=True).get("n") or []
+    if len(values) != 1 or set(parse_qs(parts.query, keep_blank_values=True)) != {"n"}:
+        return None
+    return values[0] if ids.is_power_nonce(values[0]) else None
+
+
 # Windows shows at most five buttons on a toast. This product never needs more than two.
 MAX_TOAST_ACTIONS = 5
 
@@ -500,3 +531,43 @@ def memory_content(event, used, limit) -> dict:
     return _content(l10n.message("toast_memory_stopped" if stopped else "toast_memory_warning"), body,
                     extra=[l10n.message("toast_memory_stopped_next" if stopped else "toast_memory_warning_next")],
                     more=[(l10n.message("toast_button_open"), open_uri("overview" if stopped else "diagnostics"))])
+
+
+# ------------------------------------------------- the power action after recoveries (v0.6.12)
+# Every usage-limit recovery of a batch has ended and nothing else runs in Codex, so this PC is about to
+# go to sleep, hibernate or shut down (runtime/afterwork.py). The countdown's notice says when, and has
+# two buttons: Don't sleep (or hibernate, or shut down), which stops it for this batch and sends
+# nothing, and Open Dashboard at Settings, where it is turned off. The others say what happened, and
+# offer at most Open Dashboard. None names a conversation.
+POWER_ACTIONS = ("sleep", "hibernate", "shut_down")
+
+
+def _power_word(action) -> str:
+    return action if action in POWER_ACTIONS else "sleep"
+
+
+def power_grace_content(action, until, nonce) -> dict:
+    """The countdown's notice: what happens at `until`, why, what puts it off, and its two buttons."""
+    word = _power_word(action)
+    return _content(l10n.message("toast_power_grace." + word).replace("{time}", _local_time(until)),
+                    l10n.message("toast_power_grace_body"),
+                    button=l10n.message("toast_power_stop." + word), uri=power_stop_uri(nonce),
+                    extra=[l10n.message("toast_power_grace_next")],
+                    more=[(l10n.message("toast_button_open"), open_uri("settings"))])
+
+
+def power_content(event, detail) -> dict:
+    """The power action's notice for `event`, from the closed `detail` the watcher gives it."""
+    detail = detail if isinstance(detail, dict) else {}
+    action = _power_word(detail.get("action"))
+    if event == "power_grace":
+        return power_grace_content(action, detail.get("until"), detail.get("nonce"))
+    if event == "power_now":
+        return _content(l10n.message("toast_power_now." + action), "")
+    if event == "power_failed":
+        return _content(l10n.message("toast_power_failed"), l10n.message("toast_power_failed_body"),
+                        more=[(l10n.message("toast_button_open"), open_uri("settings"))])
+    if event == "power_not_met":
+        return _content(l10n.message("toast_power_not_met"), "",
+                        more=[(l10n.message("toast_button_open"), open_uri("settings"))])
+    return _content(l10n.message("toast_power_stopped"), "")

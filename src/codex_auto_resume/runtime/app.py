@@ -309,8 +309,8 @@ class App(WatchLoop):
         return announce
 
     def _watcher_notice(self, event, detail, *, final=False):
-        """A notice about the watcher itself (v0.6.11: the memory guard's, memguard.py), under the
-        notifications switch alone. Queued off the tick path like any other; but a `final` one - the
+        """A notice about the watcher itself (v0.6.11: the memory guard's, memguard.py; v0.6.12: the power
+        action's, runtime/afterwork.py, which no switch silences), under the notifications switch alone. Queued off the tick path like any other; but a `final` one - the
         watcher is stopping - is Windows' own toast, raised before it goes: the card lives on the icon's
         thread, which ends with this watcher, and a toast outlives it in the notification center."""
         if final:
@@ -320,7 +320,9 @@ class App(WatchLoop):
         return self._watcher_toasts(event, detail)
 
     def _show_watcher_notice(self, event, detail, final=False):
-        if not policy.notification_enabled(self.settings, event):
+        # v0.6.12: the power action's notices are raised whatever the notification switches say - the
+        # countdown's carries the promised way to stop it (Q8). Windows' Do not disturb may still hide one.
+        if event not in notifier.POWER_EVENTS and not policy.notification_enabled(self.settings, event):
             return False
         notice = notifier.build(event, detail)
         if notice is None:

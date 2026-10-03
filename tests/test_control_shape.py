@@ -82,6 +82,8 @@ METHODS = {
     "read_power_action", "power_view", "power_options", "_power_available", "_power_change",
     "arm_power_action", "disarm_power_action", "stop_power_countdown", "power_batch_end", "_fresh_nonce",
     "power_show",
+    # and the countdown's own end, done or skipped under the one lock, and Windows' refusal remembered.
+    "power_batch_finish", "power_refused",
     "list_pending", "preview_continuation", "request_retry_now", "reset_recovery_budget",
     "restore_defaults", "set_enabled", "set_interruption_recovery", "set_startup_enabled",
     "set_thread_enabled", "settings_path", "start_for_codex", "start_watcher",

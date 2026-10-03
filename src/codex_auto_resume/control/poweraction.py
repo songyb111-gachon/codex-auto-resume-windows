@@ -18,6 +18,9 @@ Who writes what:
     stop_power_countdown  a notice's stop button, from the card or a toast: stops one batch, named by
                           its nonce, so a notice of a batch that is over stops nothing
     power_batch_end       the watcher: Once is spent; Always begins the next batch under a new nonce
+    power_batch_finish    the watcher, as a countdown runs out: the same end, done - or skipped when a
+                          stop came meanwhile - written before the action, under the one lock
+    power_refused         the watcher: Windows refused the action a batch was ended done for
     power_show            the watcher: what it waits for, or until when it counts down - display only
 
 Each write takes one named lock, rereads, decides and replaces the file whole (a temporary file of a
@@ -35,7 +38,7 @@ import time
 
 from .. import config, poweraction
 from ..domain import ids
-from ..domain.power_vocabulary import PowerRepeat
+from ..domain.power_vocabulary import PowerEnd, PowerRepeat
 from ..openstate import UPGRADE_PENDING
 from ..store import LegacyStore
 from ..win import powerdown
@@ -243,6 +246,50 @@ class PowerActionMixin:
             following = dict(armed, nonce=self._fresh_nonce(nonce), since=max(now, armed["armed_at"]),
                              carried=[], stop_at=None)
             return dict(document, armed=following, shown=None, last=last)
+        try:
+            return self._power_change(change, now) is not None
+        except ControlError:
+            return False
+
+    def power_batch_finish(self, nonce, now=None):
+        """The watcher's countdown ran out (step 16): under the lock, reread, and end the batch `nonce`
+        names DONE - written before anything is done, so a write that fails does nothing - or SKIPPED
+        when a stop was written for it meanwhile, because a stop wins whatever else happened. The
+        PowerEnd written, or None when nothing was: the nonce is not the armed batch's any more, or
+        the file could not be written."""
+        if not ids.is_power_nonce(nonce):
+            return None
+        now = time.time() if now is None else float(now)
+        ended = []
+
+        def change(why, document):
+            armed = document["armed"] if why == poweraction.READ_OK else None
+            if armed is None or armed["nonce"] != nonce:
+                return None
+            result = PowerEnd.SKIPPED if armed["stop_at"] is not None else PowerEnd.DONE
+            ended.append(result.value)
+            last = {"action": armed["action"], "result": result.value, "at": now}
+            if armed["repeat"] == PowerRepeat.ONCE:
+                return dict(document, armed=None, shown=None, last=last)
+            following = dict(armed, nonce=self._fresh_nonce(nonce), since=max(now, armed["armed_at"]),
+                             carried=[], stop_at=None)
+            return dict(document, armed=following, shown=None, last=last)
+        try:
+            written = self._power_change(change, now)
+        except ControlError:
+            return None
+        return ended[-1] if written is not None and ended else None
+
+    def power_refused(self, now=None) -> bool:
+        """Windows refused what the watcher had just ended a batch DONE for: `last` says FAILED from now
+        on, so the Dashboard tells it. Only a `last` that says DONE is changed; nothing is retried."""
+        now = time.time() if now is None else float(now)
+
+        def change(why, document):
+            last = document["last"] if why == poweraction.READ_OK else None
+            if last is None or last["result"] != PowerEnd.DONE:
+                return None
+            return dict(document, last=dict(last, result=PowerEnd.FAILED.value, at=now))
         try:
             return self._power_change(change, now) is not None
         except ControlError:

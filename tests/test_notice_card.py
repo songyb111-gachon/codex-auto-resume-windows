@@ -818,6 +818,97 @@ class ActivateTests(unittest.TestCase):
                                            log=broken), "opened")
 
 
+class PowerStopTests(unittest.TestCase):
+    """v0.6.12, the A28 amendment: a power-stop URI stops the power action for the one batch its nonce
+    names - from a card here, and from a toast through the same branch (cli.cmd_activate) - and the
+    notice that says the PC stays on follows. It asks the control layer for that and nothing else."""
+
+    NONCE = "0123456789abcdef"
+
+    def control(self, result="stopped", error=None):
+        made = MagicMock()
+        made.stop_power_countdown.return_value = result
+        made.stop_power_countdown.side_effect = error
+        return made
+
+    def test_the_card_route_stops_its_batch_and_says_so(self):
+        control, announced, lines = self.control(), [], []
+        result = notifier.activate(notify.power_stop_uri(self.NONCE), control=control,
+                                   announce=announced.append, log=lines.append)
+        self.assertEqual(result, "stopped")
+        control.stop_power_countdown.assert_called_once_with(self.NONCE, actor="toast")
+        self.assertEqual([call[0] for call in control.method_calls], ["stop_power_countdown"])
+        self.assertEqual([notice.kind for notice in announced], ["power_stopped"])
+        self.assertEqual(announced[0].status, "paused")
+        self.assertEqual(announced[0].actions, ())
+        self.assertEqual(len(lines), 1)
+        self.assertIn("power action stopped", lines[0])
+        self.assertNotIn(self.NONCE, lines[0])
+
+    def test_a_batch_that_is_over_is_ignored_and_nothing_is_said(self):
+        announce, lines = MagicMock(), []
+        self.assertEqual(notifier.activate(notify.power_stop_uri(self.NONCE), control=self.control("ignored"),
+                                           announce=announce, log=lines.append), "ignored")
+        announce.assert_not_called()
+        self.assertEqual(len(lines), 1)
+        self.assertNotIn(self.NONCE, lines[0])
+
+    def test_a_refusal_and_a_failure_announce_nothing(self):
+        announce = MagicMock()
+        refusal = type("ControlError", (Exception,), {"code": "state_busy"})("a secret")
+        lines = []
+        self.assertEqual(notifier.activate(notify.power_stop_uri(self.NONCE), control=self.control(error=refusal),
+                                           announce=announce, log=lines.append), "refused")
+        self.assertEqual(notifier.activate(notify.power_stop_uri(self.NONCE),
+                                           control=self.control(error=RuntimeError("a secret")),
+                                           announce=announce, log=lines.append), "failed")
+        announce.assert_not_called()
+        self.assertIn("(state_busy)", lines[0])
+        self.assertIn("(RuntimeError)", lines[1])
+        self.assertFalse(any("a secret" in line for line in lines))
+
+    def test_a_malformed_stop_never_reaches_the_control_layer(self):
+        control = self.control()
+        for uri in ("codex-auto-resume:power-stop?n=" + self.NONCE.upper(),
+                    "codex-auto-resume:power-stop?n=" + self.NONCE[:8],
+                    "codex-auto-resume:power-start?n=" + self.NONCE,
+                    "codex-auto-resume:power-stop?n=%s&n=%s" % (self.NONCE, "f" * 16)):
+            with self.subTest(uri=uri):
+                self.assertEqual(notifier.activate(uri, control=control, open_dashboard=MagicMock()), "ignored")
+        self.assertEqual(control.method_calls, [])
+
+    def test_without_a_control_layer_nothing_is_stopped(self):
+        self.assertEqual(notifier.activate(notify.power_stop_uri(self.NONCE), control=None), "ignored")
+
+    def test_the_countdowns_card_offers_exactly_its_toasts_two_buttons(self):
+        notice = notifier.build("power_grace", {"action": "shut_down", "until": 1790000000.0, "nonce": self.NONCE})
+        content = notice.toast_content()
+        self.assertEqual(notice.actions, notifier.toast_actions(content))
+        self.assertEqual([uri for _label, uri in notice.actions],
+                         [notify.power_stop_uri(self.NONCE), notify.open_uri("settings")])
+        self.assertEqual([action["primary"] for action in notice_card.view(notice)["actions"]], [False, True])
+        self.assertIsNone(notice.key, "about this PC, not a conversation")
+        self.assertEqual(notice.status, "attention")
+
+    def test_every_power_notice_fits_in_every_language_at_every_scale(self):
+        detail = {"action": "shut_down", "until": 1790000000.0, "nonce": self.NONCE}
+        for locale in l10n.LOCALES:
+            with in_locale(locale):
+                notices = [notifier.build(event, detail) for event in notifier.POWER_EVENTS]
+            for notice in notices:
+                for scale in (1.0, 1.5, 2.0):
+                    with self.subTest(locale=locale, kind=notice.kind, scale=scale):
+                        vm = notice_card.view(notice)
+                        LayoutTests.check(self, notice_card.layout(vm, scale, fake_measure(scale)), scale)
+
+    def test_power_notices_carry_no_conversation(self):
+        for event in notifier.POWER_EVENTS:
+            notice = notifier.build(event, {"action": "sleep", "until": 1790000000.0, "nonce": self.NONCE})
+            with self.subTest(event=event):
+                self.assertIsNone(notice.chip)
+                self.assertNotIn(THREAD, "".join(notice_card.texts(notice_card.view(notice))))
+
+
 # ============================================================================ motion
 class MotionTests(unittest.TestCase):
     def test_the_entrance_rises_fades_grows_and_deepens_to_rest(self):
