@@ -40,6 +40,12 @@ limit adds its own part.
 - **Start watcher waits too.** While an action of the Diagnostics page runs - this one or *Check
   for updates* - the header's *Start watcher* is greyed with every other action button, so the window
   cannot start the current watcher between a conversion and the installer.
+- **Nothing that reads the state puts it back.** While an installation holds its lock, the window,
+  the panel and Codex's tools read an older state as an older watcher's and never upgrade it, so the
+  Dashboard's own refresh, every five seconds, cannot bring a converted state back to this version's
+  schema before the older version's installer has run. The command line still upgrades under the
+  lock, as an installer's own setup needs, and once no installation holds it this version upgrades
+  the state again as it always has.
 - **An administrator's policy is kept.** `DisableUpdateCheck` greys this button with *Check for
   updates*. While any policy value is set, or a policy key cannot be read, no version before
   v0.6.11-beta - the first that reads them - is offered or picked.
@@ -56,9 +62,9 @@ limit adds its own part.
   one-line answer and exit 3 for a watcher that did not stop; `scripts/plugin_setup.py` passes it
   through for `--to 3`. The window's one start of the bootstrap is now `StartBootstrap`.
 - New tests: `tests/test_version_picker.py`, `tests/test_gui_versions.py`, and in
-  `tests/test_downgrade.py` the stop-watcher tests and the floor's proof against the tags. The
-  privacy test's api.github.com allowance is widened, deliberately, to exactly the two addresses of
-  the list of releases, and each privacy summary names the picker.
+  `tests/test_downgrade.py` the stop-watcher tests, the floor's proof against the tags and the reads
+  under the install lock. The privacy test's api.github.com allowance is widened, deliberately, to
+  exactly the two addresses of the list of releases, and each privacy summary names the picker.
 
 ## v0.6.12-alpha.2 — Every lane's test parts even, each dealt by its own times
 

@@ -723,5 +723,132 @@ class PickerFloorTests(unittest.TestCase):
                 self.assertEqual(read["disabled"], switched_off)
 
 
+
+@unittest.skipUnless(os.name == "nt", "the install lock is a Windows named mutex")
+class ConvertedStateUnderTheInstallLockTests(unittest.TestCase):
+    """Between -Pick's conversion and the older version's installer, the watcher is stopped and the
+    bootstrap holds the install lock. What reads the state through the control layer then - the
+    Dashboard's five-second refresh, the panel, Codex's tools - reads it as it is and never upgrades
+    it back, which the older watcher would refuse. The installer's own setup, through the command
+    line, still upgrades under its lock, and once no installation holds it the current version does."""
+
+    def setUp(self):
+        from unittest import mock
+        from codex_auto_resume import config, control, startup
+        from test_cli import FakeWinreg
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        guards = (mock.patch.dict(os.environ, {"LOCALAPPDATA": str(self.root / "local"),
+                                               "CODEX_HOME": str(self.root / "codex")}),
+                  mock.patch.object(control.Control, "watcher_running", return_value=False),
+                  mock.patch.object(control.Control, "startup_enabled", return_value=False),
+                  mock.patch.object(startup, "_winreg", return_value=FakeWinreg()),
+                  # A name of the test's own, where install_in_progress reads it: the real
+                  # installer lock is never touched.
+                  mock.patch("codex_auto_resume.win.homelock.INSTALL_LOCK",
+                             "Local\\CodexAutoResume.Install.test-%d" % os.getpid()))
+        for guard in guards:
+            guard.start()
+            self.addCleanup(guard.stop)
+        self.paths = config.Paths(str(self.root / "home"))
+        self.paths.ensure()
+        self.state = self.paths.state_dir
+        self.control = control.Control(self.paths)
+        DowngradeToV3Tests.v4_state(self)
+        downgrade_to_v3(self.state)
+        self.assertEqual(self.schema(), 3)
+        self.rows = {key: row["state"] for key, row in table(self.state / "state.sqlite", "interruptions").items()}
+
+    def schema(self):
+        with closing(sqlite3.connect(self.state / "state.sqlite")) as db:
+            return db.execute("PRAGMA user_version").fetchone()[0]
+
+    def upgraded(self):
+        """Whether anything upgraded the state: every upgrade leaves its own copy of the older one."""
+        return [path.name for path in self.state.glob("state.v3-backup-*")]
+
+    def install_lock(self):
+        """The test's own install lock, held by a thread as an installer holds it, until the returned
+        function is called."""
+        import ctypes
+        import threading
+        from codex_auto_resume import windows
+        from codex_auto_resume.win import homelock
+        name, held, release = homelock.INSTALL_LOCK, threading.Event(), threading.Event()
+
+        def hold():
+            kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel.CreateMutexW.restype = ctypes.c_void_p
+            handle = kernel.CreateMutexW(None, True, name)
+            held.set()
+            release.wait(60)
+            kernel.ReleaseMutex(ctypes.c_void_p(handle))
+            kernel.CloseHandle(ctypes.c_void_p(handle))
+
+        holder = threading.Thread(target=hold)
+        holder.start()
+
+        def let_go():
+            release.set()
+            holder.join(30)
+        self.addCleanup(let_go)
+        self.assertTrue(held.wait(30))
+        self.assertIs(windows.install_in_progress(), True)
+        return let_go
+
+    def test_the_dashboards_refresh_under_the_lock_leaves_the_converted_state_as_it_is(self):
+        from codex_auto_resume import control, controlcli
+        let_go = self.install_lock()
+        for _ in range(3):
+            reply = controlcli.dispatch(self.control, "dashboard", {})
+            self.assertTrue(reply.get("ok"), reply)
+            self.assertTrue(reply["status"]["upgrade_pending"], "read as an older watcher's state")
+        self.assertTrue(self.control.get_status()["upgrade_pending"])
+        # What is not a reduction is refused, as under an older watcher, and upgrades nothing either.
+        with self.assertRaises(control.ControlError) as caught:
+            self.control.list_pending()
+        self.assertEqual(caught.exception.code, "upgrade_pending")
+        self.assertEqual((self.schema(), self.upgraded()), (3, []))
+        self.assertEqual({key: row["state"] for key, row in
+                          table(self.state / "state.sqlite", "interruptions").items()}, self.rows)
+        # Once no installation holds it - an older installer that failed after the conversion
+        # leaves this version installed - the next read is this version's, and upgrades it.
+        let_go()
+        reply = controlcli.dispatch(self.control, "dashboard", {})
+        self.assertFalse(reply["status"]["upgrade_pending"])
+        self.assertEqual(self.schema(), SCHEMA_VERSION)
+        self.assertEqual(len(self.upgraded()), 1)
+
+    def test_the_older_version_opens_what_the_held_reads_left_with_every_row(self):
+        from codex_auto_resume import controlcli
+        self.install_lock()
+        controlcli.dispatch(self.control, "dashboard", {})
+        read = released.run("v0.6.10", _TAGGED_STORE, self.state, "open")
+        self.assertNotIn("refused", read)
+        self.assertEqual((read["schema"], read["records"]), (3, self.rows))
+
+    def test_a_lock_that_cannot_be_looked_at_holds_the_upgrade_too(self):
+        from unittest import mock
+        from codex_auto_resume import windows
+        with mock.patch.object(windows, "install_in_progress", return_value=None):
+            self.assertTrue(self.control.get_status()["upgrade_pending"])
+        self.assertEqual((self.schema(), self.upgraded()), (3, []))
+
+    def test_the_installers_own_setup_still_upgrades_under_its_lock(self):
+        """setup and doctor open the state through the command line's opener, which the installer of
+        this version runs under its own lock: the upgrade it makes there is unchanged."""
+        from codex_auto_resume.openstate import open_state
+        self.install_lock()
+        for legacy in ("always", "never"):
+            with self.subTest(legacy=legacy):
+                state = self.root / legacy
+                shutil.copytree(self.state, state)
+                with open_state(state, legacy=legacy) as store:
+                    self.assertIsInstance(store, Store)
+                with closing(sqlite3.connect(state / "state.sqlite")) as db:
+                    self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION)
+
+
 if __name__ == "__main__":
     unittest.main()
