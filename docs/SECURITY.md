@@ -181,7 +181,8 @@ them `thread/goal/set`, `thread/queue/add` with words this product wrote, and `t
   building its dialog starts nothing, so the window audit never asks GitHub. It reads the whole list
   of releases from a second api.github.com address on the same path - thirty to a page, at most five
   pages, the page number the one thing put in, each page under the same size, redirect and host
-  checks and a deadline inside one budget - and any page that fails lists nothing. A picked version
+  checks and a deadline inside one budget - and any page that fails lists nothing, as does a fifth
+  page as full as the rest, which more may follow. A picked version
   never reaches a URL as typed: it is rebuilt from its integers by the version rule, the row must
   still be offered exactly as it was shown when the list is read again, and `-Force` is required for
   an older version or the other edition and refused for anything else, so a stray `-Force` never

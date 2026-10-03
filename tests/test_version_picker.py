@@ -238,8 +238,13 @@ PAGE_CASES = {
                                      [kept("0.6.11"), kept("0.6.10")], 2),
     "a_full_page_then_an_empty_one": ([("body", junk(29) + [entry("0.6.11")], None), ("body", [], None)],
                                       [kept("0.6.11")], 2),
+    # Five full pages may not be all of it: never a sixth asked for, and never a part of the list
+    # taken for all of it, which would drop the oldest unsaid.
     "never_a_sixth_page": ([("body", junk(29) + [entry("0.6.%d" % number)], None) for number in range(2, 8)],
-                           [kept("0.6.%d" % number) for number in range(2, 7)], 5),
+                           "THROWS", 5),
+    "a_fifth_page_that_is_short": ([("body", junk(29) + [entry("0.6.%d" % number)], None) for number in range(2, 6)]
+                                   + [("body", [entry("0.6.6")], None)],
+                                   [kept("0.6.%d" % number) for number in range(2, 7)], 5),
     "a_page_that_fails": ([("body", junk(30), None), ("throw", None, None)], "THROWS", 2),
     "a_page_not_there": ([("body", junk(30), None)], "THROWS", 2),
     "another_host": ([("body", [entry("0.6.11")], "https://api.github.com.example.invalid/repos/%s/%s/releases"
@@ -708,6 +713,18 @@ class VersionsRunTests(PickerRun):
                 self.assertEqual(self.answer_lines(output, "version: "), [])
                 self.assertTrue(all(request[0] == "Get" for request in asked), asked)
                 self.assertNotIn("compatibility:", output)
+
+    def test_a_list_that_goes_on_past_five_pages_lists_nothing(self):
+        """Five full pages may not be all of it: a sixth is never asked for, and the part read is never
+        shown as the whole list, which would leave the oldest releases out unsaid."""
+        self.installation(INSTALLED)
+        self.serve(*([junk(30)] * 4 + [junk(30 - len(LISTED)) + LISTED]))
+        code, output, asked = self.run_it(Versions=True)
+        self.assertEqual(code, 12, output[-2000:])
+        self.assertEqual(self.answer_lines(output, "versions: "), ["versions: unavailable"])
+        self.assertEqual(self.answer_lines(output, "version: "), [])
+        self.assertEqual([request[1] for request in asked if request[0] == "Get"],
+                         [PAGES.replace("{page}", str(page)) for page in range(1, 6)])
 
     def test_without_an_installation_it_can_read_nothing_is_asked(self):
         self.serve(LISTED)

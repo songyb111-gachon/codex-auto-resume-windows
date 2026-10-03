@@ -97,8 +97,9 @@
       other address api.github.com is allowed for (`release_pages` in scripts/release.json): the
       same host and path, one page of thirty at a time, at most five pages, whose page number is
       the one thing put into it. Each page is checked as the update check's page is (Read-ReleasesPage),
-      and a page that cannot be read lists nothing at all: `versions: unavailable`, exit 12. It
-      downloads nothing, installs nothing and does not refresh the compatibility data.
+      and a page that cannot be read, or a fifth as full as the rest, lists nothing at all:
+      `versions: unavailable`, exit 12. It downloads nothing, installs nothing and does not refresh
+      the compatibility data.
 
       -Pick installs one row of it, the version and edition a person confirmed, and asks for the
       list again first: a row no longer offered as it was shown installs nothing (`pick: refused
@@ -284,8 +285,9 @@ $StateSchemaSince = @(@('0.6.11-beta', 4), @('0.6.0', 3))
 # own. An advanced target on an older form cannot read them: every advanced feature is off there.
 $AdvancedStateSince = @(@('0.6.11-beta.2', 2), @('0.6.11-alpha', 1))
 # The list is read page by page, $PickPageSize to a page (release_pages in release.json), at most
-# $PickMaxPages of them - a page with fewer ends it - and all of it within $PickBudgetSeconds, each
-# page within $PickPageTimeoutMax. The window waits longer than that for the answer.
+# $PickMaxPages of them - a page with fewer ends it, and a full last one is no answer - and all of it
+# within $PickBudgetSeconds, each page within $PickPageTimeoutMax. The window waits longer than that
+# for the answer.
 $PickPageSize = 30
 $PickMaxPages = 5
 $PickBudgetSeconds = 150
@@ -697,10 +699,11 @@ function Get-ReleasePages {
         one thing put into it, each read by Read-ReleasesPage within what is left of
         $PickBudgetSeconds, at most $PickPageTimeoutMax. A page with fewer than $PickPageSize entries
         is the last; no more than $PickMaxPages are asked for, newest first, which is many times what
-        is published above $PickFloor. An entry counts only when it is published (`draft` false),
-        tagged `v` and a version Get-ChosenVersion accepts, marked a pre-release exactly when its
-        version is one, and has a list of assets; of the assets only their names are kept, and only
-        names that are text. A version the list names twice is taken where it is named first.
+        is published above $PickFloor - and a last one asked for that is as full as the rest is a
+        throw too, since more may follow it, and the oldest would be left out unsaid. An entry
+        counts only when it is published (`draft` false), tagged `v` and a version
+        Get-ChosenVersion accepts, marked a pre-release exactly when its version is one, and has a
+        list of assets; of the assets only their names are kept, and only names that are text. A version the list names twice is taken where it is named first.
         Each comes back as Version, Prerelease and Assets.
     #>
     param($Release)
@@ -713,6 +716,7 @@ function Get-ReleasePages {
     $clock = [Diagnostics.Stopwatch]::StartNew()
     $found = @()
     $seen = @{}
+    $ended = $false
     for ($page = 1; $page -le $PickMaxPages; $page++) {
         $left = $PickBudgetSeconds - $clock.Elapsed.TotalSeconds
         $seconds = [int][Math]::Floor([Math]::Min([double]$PickPageTimeoutMax, $left))
@@ -741,7 +745,10 @@ function Get-ReleasePages {
             $seen[$number] = $true
             $found += ,([pscustomobject]@{ Version = $number; Prerelease = $entry.prerelease; Assets = $names })
         }
-        if ($list.Count -lt $PickPageSize) { break }
+        if ($list.Count -lt $PickPageSize) { $ended = $true; break }
+    }
+    if (-not $ended) {
+        throw ('The list of releases goes on past the ' + $PickMaxPages + ' pages read, so none of it is shown.')
     }
     return ,$found
 }
