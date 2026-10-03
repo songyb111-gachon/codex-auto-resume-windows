@@ -460,6 +460,20 @@ class SecondsFileTests(unittest.TestCase):
                 self.merge(merged, absent)
             self.assertEqual(merged.read_bytes(), before)
 
+    def test_a_file_named_twice_counts_once_in_its_median(self):
+        """A folder and a file in it, or one file spelled two ways, is one job's figure, not two."""
+        files = {python: self.keep("standard", python, 1, {self.a: figure})
+                 for python, figure in (("3.12", 10.0), ("3.13", 60.0), ("3.14", 20.0))}
+        once = self.durations("once.json")
+        self.assertEqual(self.merge(once, self.folder / "downloaded")[0], 0)
+        self.assertEqual(self.tables(once)["lanes"]["standard"][self.a], 20.0)
+        twice = self.durations("twice.json")
+        again = self.folder / "downloaded" / ".." / "downloaded" / files["3.12"].parent.name / "seconds.json"
+        code, said = self.merge(twice, self.folder / "downloaded", files["3.13"], again, files["3.13"])
+        self.assertEqual(code, 0, said)
+        self.assertEqual(self.tables(twice), self.tables(once))
+        self.assertIn("from 3 seconds files", json.loads(twice.read_text(encoding="utf-8"))["about"])
+
     def test_the_runner_says_how_ci_keeps_them_and_how_they_come_in(self):
         for said in ("--seconds FILE", "--merge-seconds <folder>", "gh run download <run> -p 'seconds-*' -D <folder>",
                      "seconds-<lane>-<python>-<part>", "seconds-release-main-tree-<part>"):

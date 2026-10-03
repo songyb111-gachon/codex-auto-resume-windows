@@ -672,20 +672,25 @@ def write_seconds(path: str, lane: str, parts, merged: dict) -> None:
 
 def seconds_files(paths) -> list[Path]:
     """Each path given, and for a folder every `*.json` under it at any depth: `gh run download` leaves a
-    folder for each artifact."""
-    found = []
+    folder for each artifact. A file named twice - a folder and a file in it, or two spellings of one
+    path - is taken once, so no job's figure counts twice in a median."""
+    found, seen = [], set()
     for given in paths:
         path = Path(given)
-        found.extend(sorted(path.rglob("*.json")) if path.is_dir() else [path])
+        for name in sorted(path.rglob("*.json")) if path.is_dir() else [path]:
+            same = os.path.normcase(str(name.resolve()))
+            if same not in seen:
+                seen.add(same)
+                found.append(name)
     return found
 
 
 def merge_seconds(paths, path: Path | None = None) -> dict:
     """The --seconds files under `paths` into the durations by record_durations' rules, each lane's into its
-    own table; where several jobs timed one file in one lane - a job for each Python - their median. Every
-    file is read before anything is written, and one that is not a seconds file of a lane there is - one
-    that holds anything --seconds does not write, as an --outcomes file does - refuses the merge. Returns,
-    by lane, how many files its table took."""
+    own table; where several jobs timed one file in one lane - a job for each Python - their median, each
+    file counted once however often it is named. Every file is read before anything is written, and one
+    that is not a seconds file of a lane there is - one that holds anything --seconds does not write, as
+    an --outcomes file does - refuses the merge. Returns, by lane, how many files its table took."""
     files = seconds_files(paths)
     if not files:
         raise Refused("no seconds files in %s" % ", ".join(map(str, paths)))
