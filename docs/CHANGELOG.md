@@ -8,7 +8,15 @@
 never answers with it; *Check for updates* offers it with a question to an installation of v0.6.11
 or a v0.6.12 pre-release. It brings the two features asked for first: installing another version or
 edition from the Dashboard (the owner, 2026-09-28) and a power action once usage-limit recoveries
-finish (Discussion #22). Both are in the standard edition and in both editions' windows.
+finish (Discussion #22). Both are in the standard edition and in both editions' windows. Going back
+takes only an older version's setup program, or *Install another version...*
+([below](#going-back-from-v0612-beta)).
+
+**A plugin copy older than v0.6.11-beta's cannot read this version.** The bootstraps published from
+v0.6.0 to v0.6.11-alpha read no word after a version but `-alpha`, if that, so none of them can
+compare `0.6.12-beta` with anything; v0.6.11-beta's copy and every later one read it. Set up and
+repair with the installation's own copy, `%USERPROFILE%\.codex-auto-resume\app\scripts\bootstrap.ps1`,
+or with a plugin at v0.6.11-beta or later.
 
 ### Install another version...
 
@@ -58,8 +66,9 @@ finish (Discussion #22). Both are in the standard edition and in both editions' 
   start nothing and refuse with `start_failed` and the reason, as the start with Codex always has, so
   no caller of either can start this version's watcher between a conversion and the installer.
 - **An administrator's policy is kept.** `DisableUpdateCheck` greys this button with *Check for
-  updates*. While any policy value is set, or a policy key cannot be read, no version before
-  v0.6.11-beta - the first that reads them - is offered or picked.
+  updates*. While any policy value an older version would stop applying is set - every one but
+  `DisablePowerAction`, which holds back what no older version has - or a policy key cannot be read,
+  no version before v0.6.11-beta - the first that reads them - is offered or picked.
 - **Privacy.** The list is read from one more api.github.com address, the same list of releases on
   the same path, thirty to a page and at most five pages, only when you press the button and again
   when you confirm; then only the version you confirmed is downloaded. The policy keys are read on
@@ -112,6 +121,17 @@ standard edition: it keeps every standard, with A28 amended by the owner for its
   the product refuses to act while a test runs. No running watcher has yet put a PC to sleep,
   hibernated or shut one down; the owner's measurement MP, at live acceptance, does that first, and
   until then Sleep is offered only where Windows reports S1 to S3.
+
+### Going back from v0.6.12-beta
+
+- **The state and the advanced edition's file are v0.6.12-alpha.2's.** `state.sqlite` is still schema
+  4 and `config\advanced\advanced.sqlite` still version 2, so going back to v0.6.12-alpha.2,
+  v0.6.12-alpha or v0.6.11 takes only its setup program or `Install.cmd`, in the edition you have.
+  *Install another version...* goes back too, and for a version from v0.6.2 to v0.6.11-alpha converts
+  the state first, as above.
+- **The power action's file.** `config\power-action.json` is this version's alone: an older version
+  leaves it as it is and never acts on it, and this version or a later one reads it again as it was
+  left.
 
 ### Fixes
 

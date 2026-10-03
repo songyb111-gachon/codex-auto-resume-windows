@@ -262,8 +262,9 @@ waits up to a minute and never kills it, and converts the state as `downgrade-st
 of the state as it is now is kept beside it, a continuation that may already have gone to Codex becomes
 final and is never sent again, a conversation that waited for you or whose continuation Codex may still
 deliver is switched off, and Observe only, if it is on, becomes a pause. A watcher that does not stop
-within the minute leaves everything as it was; a conversion that fails starts the watcher again and
-installs nothing. Then the version's own installer runs, keeping every record, your pause and the
+within the minute gets nothing installed and its state left as it was, but it was asked to stop and may
+still do so afterwards, and nothing starts it again then: if the header says it is not running, press
+**Start watcher**. A conversion that fails starts the watcher again and installs nothing. Then the version's own installer runs, keeping every record, your pause and the
 sign-in choice. While all this runs, every action button on the page is greyed, **Start watcher**
 included.
 

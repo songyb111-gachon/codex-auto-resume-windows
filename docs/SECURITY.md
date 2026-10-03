@@ -191,7 +191,8 @@ them `thread/goal/set`, `thread/queue/add` with words this product wrote, and `t
   (`Local\CodexAutoResume.Install`) taken; a lock held elsewhere installs nothing. For a version that
   reads an older state, the installed version's own `downgrade-state --to 3 --stop-watcher` then asks
   the watcher to stop and waits a minute at most - it is never killed, and a watcher that has not
-  stopped leaves everything as it was - converts the state in one transaction after a copy, and
+  stopped gets nothing installed and the state left as it was, though the request stands and it may
+  stop later, with nothing to start it again - converts the state in one transaction after a copy, and
   answers on one closed line that must agree with its exit code. A conversion that fails starts the
   installed watcher again and installs nothing. Only then does the archive's installer run, with the
   edition change passed to it only on a change and only to installers that know editions. While it
@@ -205,8 +206,9 @@ them `thread/goal/set`, `thread/queue/add` with words this product wrote, and `t
   layer start the current watcher meanwhile: while an installation holds its lock, the bridge's
   `start-watcher`, which the window's Start watcher sends, and Codex's `start_watcher` tool refuse
   (`start_failed`) and start nothing, as the start with Codex always has. The bootstrap's only
-  registry access is a read of the two policy keys' value names: while any policy value is there, or
-  a key cannot be read, no version before v0.6.11-beta is offered.
+  registry access is a read of the two policy keys' value names: while any policy value an older
+  version would stop applying is there - every one but `DisablePowerAction`, which holds back what no
+  older version has - or a key cannot be read, no version before v0.6.11-beta is offered.
 
   No compatibility refresh runs unless you ask for it either. From v0.6.5 the Codex
   compatibility data refresh happens at exactly two moments: *Refresh compatibility data* on the
