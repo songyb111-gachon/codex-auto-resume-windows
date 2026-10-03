@@ -160,6 +160,8 @@ ITEM = {_q(name): item for item, names in {
                  "win.acl",
                  # and the text size it is set to, and the face its interface is set in.
                  "win.textsize", "win.typeface",
+                 # v0.6.12: the power action's calls: offering, who is here, and doing it.
+                 "win.powerdown",
                  "pwsh", "shortcut", "startup"),
     "config": ("", "config", "logbook"),
 }.items() for name in names}

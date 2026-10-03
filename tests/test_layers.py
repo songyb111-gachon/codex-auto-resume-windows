@@ -116,6 +116,8 @@ LAYER = {_q(name): layer for layer, names in {
                  "win.textsize",
                  # and the face its interface is set in, and which letters a face has.
                  "win.typeface",
+                 # v0.6.12: the power action's calls - may this account, is anyone here, and doing it.
+                 "win.powerdown",
                  # v0.6.10-alpha: source.py became source/, and every part of it reads Codex;
                  # windows.py's other half - the CLI, the App Server, the pairing - joined it.
                  "codex.appserver", "codex.errors", "codex.history", "codex.labels",
