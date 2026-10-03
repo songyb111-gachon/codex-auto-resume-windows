@@ -196,11 +196,13 @@ $out.verdicts = @(foreach ($case in $cases.verdicts) {
                               -Offer $case.offer -Latest $case.latest
     if ($null -eq $row) { 'omitted' } else { $row.Answer + ' ' + $row.Detail }
 })
-$PickNewerPrereleases = $false
-$PickOlderPrereleases = $false
+$PickNewerPrereleases = $constants.PickNewerPrereleases
+$PickOlderPrereleases = $constants.PickOlderPrereleases
 
-# Get-VersionTable over a whole list.
+# Get-VersionTable over a whole list, with the two I12 switches as each list sets them.
 $out.tables = @(foreach ($case in $cases.tables) {
+    $PickNewerPrereleases = [bool]$case.newer
+    $PickOlderPrereleases = [bool]$case.older
     $listed = @(foreach ($item in $case.listed) {
         [pscustomobject]@{ Version = $item.version; Prerelease = $item.prerelease; Assets = @($item.assets) } })
     $table = Get-VersionTable -Listed $listed -Installed $case.installed -InstalledEdition $case.installed_edition `
@@ -308,7 +310,11 @@ VERDICT_CASES = [
     row("0.6.6-beta", "omitted", edition="advanced"),
     row("0.6.2", "offered older,release,convert3"),
     row(INSTALLED, "installed -"),
-    row(INSTALLED, "offered same,prerelease,kept,edition", edition="advanced"),
+    # The version installed, in the other edition: no offer the update check makes, so I12 as written
+    # greys it, and as amended it is offered.
+    row(INSTALLED, "refused not-offered", edition="advanced"),
+    row(INSTALLED, "refused not-offered", edition="advanced", offer="0.6.12-beta.2"),
+    row(INSTALLED, "offered same,prerelease,kept,edition", edition="advanced", newer=True),
     # v0.6.6-alpha and -beta carry v0.6.6's file names.
     row("0.6.6-alpha", "refused no-archive", files=assets("0.6.6"), older=True),
     row("0.6.11", "refused no-archive", edition="advanced", files=assets("0.6.11", ("standard",))),
@@ -326,7 +332,8 @@ VERDICT_CASES = [
     row("0.6.11-beta", "offered older,prerelease,kept", policy=True, older=True),
     row("0.6.11", "offered older,release,kept,latest", policy=True),
     row("0.6.10", "offered older,release,convert3"),
-    # I12 as written: no older pre-release, and of the newer ones only the update check's own offer.
+    # I12 as written (both switches off): no older pre-release, and of the newer ones only the update
+    # check's own offer. As amended (both on), every one of them is offered.
     row("0.6.11-beta.3", "refused older-prerelease"),
     row("0.6.11-beta.3", "offered older,prerelease,kept", older=True),
     row("0.6.12-beta.2", "refused not-offered", latest="0.6.12"),
@@ -335,6 +342,9 @@ VERDICT_CASES = [
     row("0.6.12-beta.2", "offered newer,prerelease,kept", offer="0.6.12-beta.2"),
     row("0.6.12-beta.2", "refused not-offered", edition="advanced", offer="0.6.12-beta.2"),
     row("0.6.12-beta.3", "refused not-offered", offer="0.6.12-beta.2"),
+    row("0.6.12-beta.3", "offered newer,prerelease,kept", offer="0.6.12-beta.2", newer=True),
+    row("0.6.12-beta.2", "offered newer,prerelease,kept,edition", edition="advanced", offer="0.6.12-beta.2",
+        newer=True),
     # The schema: converted for 0.6.0 to 0.6.11-alpha, kept from 0.6.11-beta.
     row("0.6.9", "offered older,release,convert3"),
     row("0.6.11-alpha.2", "offered older,prerelease,convert3", older=True),
@@ -348,21 +358,36 @@ VERDICT_CASES = [
 ]
 
 TABLE_CASES = [
-    # The installed-0.6.12-beta case: the check offers 0.6.12 alone, so 0.6.12-beta.2 is not offered.
+    # The installed-0.6.12-beta case under I12 as written: the check offers 0.6.12 alone, so neither
+    # 0.6.12-beta.2 nor 0.6.12-beta in the other edition is offered.
     ({"listed": [{"version": v, "prerelease": "-" in v, "assets": assets(v)}
                  for v in ("0.6.12-beta.2", "0.6.12", "0.6.11", INSTALLED)],
-      "installed": INSTALLED, "installed_edition": "standard", "policy": False},
+      "installed": INSTALLED, "installed_edition": "standard", "policy": False, "newer": False, "older": False},
      {"rows": ["0.6.12 standard offered newer,release,kept,latest",
                "0.6.12 advanced offered newer,release,kept,latest,edition",
                "0.6.12-beta.2 standard refused not-offered", "0.6.12-beta.2 advanced refused not-offered",
-               "0.6.12-beta standard installed -", "0.6.12-beta advanced offered same,prerelease,kept,edition",
+               "0.6.12-beta standard installed -", "0.6.12-beta advanced refused not-offered",
                "0.6.11 standard offered older,release,kept", "0.6.11 advanced offered older,release,kept,edition"],
+      "latest": "0.6.12", "offer": ""}),
+    # The same list under I12 as amended: every pre-release is offered, the one installed in the other
+    # edition too.
+    ({"listed": [{"version": v, "prerelease": "-" in v, "assets": assets(v)}
+                 for v in ("0.6.12-beta.2", "0.6.12", "0.6.11", "0.6.11-beta.3", INSTALLED)],
+      "installed": INSTALLED, "installed_edition": "standard", "policy": False, "newer": True, "older": True},
+     {"rows": ["0.6.12 standard offered newer,release,kept,latest",
+               "0.6.12 advanced offered newer,release,kept,latest,edition",
+               "0.6.12-beta.2 standard offered newer,prerelease,kept",
+               "0.6.12-beta.2 advanced offered newer,prerelease,kept,edition",
+               "0.6.12-beta standard installed -", "0.6.12-beta advanced offered same,prerelease,kept,edition",
+               "0.6.11 standard offered older,release,kept", "0.6.11 advanced offered older,release,kept,edition",
+               "0.6.11-beta.3 standard offered older,prerelease,kept",
+               "0.6.11-beta.3 advanced offered older,prerelease,kept,edition"],
       "latest": "0.6.12", "offer": ""}),
     # Newest first by the numbers (.10 after .9), the installed edition first at each version, and the
     # check's own offer: the newest pre-release newer than both.
     ({"listed": [{"version": v, "prerelease": "-" in v, "assets": assets(v)}
                  for v in ("0.6.9", "0.6.10", "0.6.12-beta.9", "0.6.12-beta.10", "0.6.11")],
-      "installed": "0.6.11", "installed_edition": "advanced", "policy": False},
+      "installed": "0.6.11", "installed_edition": "advanced", "policy": False, "newer": False, "older": False},
      {"rows": ["0.6.12-beta.10 advanced offered newer,prerelease,kept",
                "0.6.12-beta.10 standard refused not-offered",
                "0.6.12-beta.9 advanced refused not-offered", "0.6.12-beta.9 standard refused not-offered",
@@ -481,8 +506,9 @@ class ListingTests(unittest.TestCase):
         self.assertEqual(c["StateSchemaSince"], [["0.6.11-beta", 4], ["0.6.0", 3]])
         self.assertEqual(c["StateSchemaSince"][0][1], SCHEMA_VERSION, "the first row is this version's own schema")
         self.assertEqual(c["AdvancedStateSince"], [["0.6.11-beta.2", 2], ["0.6.11-alpha", 1]])
-        # Until the owner answers I12's two clauses (design Q1): the update check's pre-release alone.
-        self.assertEqual((c["PickNewerPrereleases"], c["PickOlderPrereleases"]), (False, False))
+        # I12 as the owner amended it on 2026-10-03 (design Q1): a pre-release picked by name and
+        # confirmed, older or newer, as a release is.
+        self.assertEqual((c["PickNewerPrereleases"], c["PickOlderPrereleases"]), (True, True))
 
 
 class PolicySinceTests(unittest.TestCase):
@@ -643,13 +669,13 @@ LISTED = [entry("0.6.12-beta.2"), entry(INSTALLED), entry("0.6.11", files=assets
           entry("0.6.6-alpha", files=assets("0.6.6")), entry("0.6.2", files=assets("0.6.2", ("standard",), False)),
           entry("0.6.1", files=assets("0.6.1", ("standard",))), entry("0.5.7", files=assets("0.5.7", ("standard",)))]
 ROWS = ["version: 0.6.12-beta.2 standard offered newer,prerelease,kept",
-        "version: 0.6.12-beta.2 advanced refused not-offered",
+        "version: 0.6.12-beta.2 advanced offered newer,prerelease,kept,edition",
         "version: 0.6.12-beta standard installed -",
         "version: 0.6.12-beta advanced offered same,prerelease,kept,edition",
         "version: 0.6.11 standard offered older,release,kept,latest",
         "version: 0.6.11 advanced offered older,release,kept,latest,edition",
-        "version: 0.6.11-beta standard refused older-prerelease",
-        "version: 0.6.11-beta advanced refused older-prerelease",
+        "version: 0.6.11-beta standard offered older,prerelease,kept",
+        "version: 0.6.11-beta advanced offered older,prerelease,kept,edition,advanced-off",
         "version: 0.6.10 standard offered older,release,convert3",
         "version: 0.6.6-alpha standard refused no-archive",
         "version: 0.6.2 standard offered older,release,convert3"]
@@ -1128,8 +1154,10 @@ class PickRunTests(PickerRun):
                 ([entry(INSTALLED)], "0.6.12", False, None, "Standard"),
                 ([entry(INSTALLED), entry("0.6.10", files=assets("0.6.10", sums=False))], "0.6.10", True,
                  {HKLM: ["ForceObserveOnly"]}, "Standard"),
-                ([entry("0.6.12-beta.2"), entry("0.6.12"), entry(INSTALLED)], "0.6.12-beta.2", False, None, "Standard"),
-                ([entry(INSTALLED), entry("0.6.11-beta")], "0.6.11-beta", True, None, "Standard"),
+                ([entry("0.6.12-beta.2", files=assets("0.6.12-beta.2", ("standard",))), entry(INSTALLED)],
+                 "0.6.12-beta.2", True, None, "Advanced"),
+                ([entry(INSTALLED), entry("0.6.11-beta", files=assets("0.6.11-beta", sums=False))], "0.6.11-beta",
+                 True, None, "Standard"),
                 ([entry(INSTALLED), entry("0.6.10")], "0.6.10", True, None, "Advanced"),
                 ([entry(INSTALLED), entry("0.6.6-alpha", files=assets("0.6.6"))], "0.6.6-alpha", True, None,
                  "Standard"),

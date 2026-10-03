@@ -292,10 +292,12 @@ $PickPageSize = 30
 $PickMaxPages = 5
 $PickBudgetSeconds = 150
 $PickPageTimeoutMax = 30
-# I12 as written: a pre-release is offered only where the update check would offer that same one -
-# never one older than what is installed, and of the newer ones only the check's own offer.
-$PickNewerPrereleases = $false
-$PickOlderPrereleases = $false
+# I12 as the owner amended it on 2026-10-03: its two pre-release clauses bind the update check's offer,
+# and a version picked by name and confirmed - a pre-release too, older or newer - follows "older only
+# with -Force", the confirmation being the yes. Both $false is I12 as it was written before: a
+# pre-release only where the update check would offer that same one, the others greyed.
+$PickNewerPrereleases = $true
+$PickOlderPrereleases = $true
 # -Pick refused to go ahead, and said why on its `pick: refused <reason>` line. Nothing was changed -
 # except for `state`, which started the watcher again. Its own code: no answer to the update
 # question, and not the other edition's refusal either.
@@ -802,7 +804,9 @@ function Get-VersionVerdict {
           refused edition-first  another edition, and its installer predates editions
           refused managed-policy a policy is in force, and this version would stop applying it
           refused older-prerelease  a pre-release older than what is installed
-          refused not-offered    a newer pre-release that is not the update check's own offer
+          refused not-offered    a pre-release, not older than what is installed, that is not the
+                                 update check's own offer (the version installed, in the other
+                                 edition, never is)
           offered <words>        newer|older|same, release|prerelease, kept|convert3, and any of
                                  latest, edition, advanced-off - comma-joined, in that order
     #>
@@ -828,8 +832,8 @@ function Get-VersionVerdict {
     if ($Policy -and (Compare-ProductVersion -Left $number -Right $PolicySince) -lt 0) { $row.Detail = 'managed-policy'; return $row }
     if ($Entry.Prerelease -and $order -lt 0 -and -not $PickOlderPrereleases) { $row.Detail = 'older-prerelease'; return $row }
     # The check offers its pre-release over the installation, in its edition: a pre-release of the
-    # other edition is no offer the check makes.
-    if ($Entry.Prerelease -and $order -gt 0 -and -not $PickNewerPrereleases -and ($other -or $number -cne [string]$Offer)) {
+    # other edition is no offer the check makes, and neither is the one installed, in either.
+    if ($Entry.Prerelease -and $order -ge 0 -and -not $PickNewerPrereleases -and ($other -or $number -cne [string]$Offer)) {
         $row.Detail = 'not-offered'; return $row
     }
     $words = @()

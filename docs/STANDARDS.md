@@ -204,7 +204,7 @@ changed).
 **C4** Nothing happens on its own: no update polling, no schedule, nothing at start, no automatic compatibility refresh.  
 *tested*: `test_convergence.py`, `test_gui_update.py`
 
-**C5** The update check runs only when a person presses the button. It sends one HEAD to a constant releases/latest URL and reads the version from the redirect under this exact repository, rebuilt from its integers. It also reads this repository's list of releases to find a newer pre-release, which it offers with a question and installs only on a yes. The version picker (*Install another version...*) reads this repository's whole list of releases, paged, only when a person opens it and again when they confirm, and installs the version and edition they picked only after that confirmation; for now it offers a pre-release only where the update check would offer that same one (amended by the owner on 2026-09-28 and 2026-10-03).  
+**C5** The update check runs only when a person presses the button. It sends one HEAD to a constant releases/latest URL and reads the version from the redirect under this exact repository, rebuilt from its integers. It also reads this repository's list of releases to find a newer pre-release, which it offers with a question and installs only on a yes. The version picker (*Install another version...*) reads this repository's whole list of releases, paged, only when a person opens it and again when they confirm, and installs the version and edition they picked - a release or a pre-release, older or newer - only after that confirmation, which is the yes (amended by the owner on 2026-09-28 and 2026-10-03).  
 *tested*: `test_update_check.py`, `test_convergence.py`, `test_prerelease_offer.py`, `test_version_picker.py`, `test_gui_versions.py`
 
 **C6** Setup download: HTTPS, at most 5 redirects, URL built from constants and the manifest version - or a version from the list of releases, rebuilt from its integers - final host one of three GitHub hosts (checked after the download, which is disclosed), at most the archive and its .sha256 (amended by the owner on 2026-10-03).  
@@ -477,7 +477,7 @@ changed).
 **I11** The repository manifest declares only skills; the MCP server is added at build time beside its runtime.  
 *tested*: `test_plugin.py`
 
-**I12** Updates never go to an older version without -Force, only to a version resolved under this exact repository, and install with --keep-state. A pre-release is installed only when the person says yes to it when the update check offers it, never older than what is installed, and checked against its published .sha256 (amended by the owner on 2026-09-28).  
+**I12** Updates never go to an older version without -Force, only to a version resolved under this exact repository, and install with --keep-state. A pre-release the update check offers is installed only when the person says yes to that offer, and the check never offers one older than what is installed. A version a person picks by name with *Install another version...* and confirms - a pre-release too, older or newer - follows the first sentence: older only with -Force, the confirmation being the yes. A pre-release is checked against its published .sha256 (amended by the owner on 2026-09-28 and 2026-10-03).  
 *tested*: `test_update_check.py`, `test_prerelease_offer.py`
 
 **I13** Nothing is Authenticode-signed, which is disclosed, and users are never asked to disable SmartScreen or Smart App Control.  

@@ -14,14 +14,14 @@ limit adds its own part.
   and installs the row you confirm in place of the installation the window belongs to. A row it
   cannot install stays in the list, greyed, with its reason: the version you have, no archive of that
   edition under that number, no checksum to check it against, an installer that predates editions
-  (from the advanced edition, a standard version before v0.6.11-alpha), your administrator's policy
-  that version would not keep, or a pre-release it does not offer. Versions before v0.6.2 are not
-  offered: from v0.6.0 and v0.6.1 the Dashboard cannot check a download, and v0.5's installers do not
-  keep a paused recovery paused. [The guide](GUIDE.md#installing-another-version) says the rest.
-- **Pre-releases, for now, as Check for updates offers them.** A pre-release is offered only where
-  *Check for updates* would offer that same one - the newest one newer than both the version you
-  have and the newest release - and every other pre-release is greyed with its reason, in both
-  editions, as I12 says today.
+  (from the advanced edition, a standard version before v0.6.11-alpha), or your administrator's
+  policy that version would not keep. Versions before v0.6.2 are not offered: from v0.6.0 and v0.6.1
+  the Dashboard cannot check a download, and v0.5's installers do not keep a paused recovery paused. [The guide](GUIDE.md#installing-another-version) says the rest.
+- **Pre-releases too, older and newer.** Pre-releases are offered as releases are, in both editions:
+  one picked by name and confirmed is installed as a release would be, an older one only with
+  `-Force`, which the confirmation passes. The owner amended I12 for it on 2026-10-03: its two
+  pre-release clauses bind what *Check for updates* offers, which is still the newest pre-release
+  newer than both the version you have and the newest release.
 - **Asked first, and only what applies.** The confirmation is the careful one (*Not now* is what Enter
   and Escape press) and says only what applies: a pre-release is tested less; an older version lacks
   what came since, and a setting or value it does not know reads as its default there; the state is

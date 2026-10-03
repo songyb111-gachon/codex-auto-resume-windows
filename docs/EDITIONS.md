@@ -221,9 +221,9 @@ against the digest pinned for that edition and version in the installed copy's `
 where there is one, and otherwise against the `.sha256` published beside it, as the [guide](GUIDE.md)
 explains. A pre-release never has a pinned digest, so it is checked against its published checksum;
 finals are pinned for both editions from v0.6.11 on. A pre-release it offers is your edition's too, and is installed only if you
-say yes (C5, I12, K2). *Install another version...* offers a pre-release, for now, only where the
-update check would offer that same one, in either edition; every other pre-release is greyed with
-its reason.
+say yes (C5, I12, K2). *Install another version...* offers the pre-releases of either edition as it
+offers releases, and installs one only after you confirm it; an older one, or one of the other
+edition, takes `-Force`, which the confirmation passes (I12, amended by the owner on 2026-10-03).
 
 ## Verifying
 

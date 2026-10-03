@@ -233,16 +233,16 @@ thirty, and asks nothing before that. It shows every version from v0.6.2 on in e
 published in, newest first; the advanced edition begins with v0.6.11-alpha. A version it cannot install
 stays in the list, greyed, and says why: it is the version you have; no archive of that edition was
 published under that number; there is no checksum to check it against; its installer predates editions,
-so the edition has to be changed first; your administrator's policy is set and that version does not
-keep it ([below](#settings-an-administrator-manages)); or it is a pre-release it does not offer. If GitHub
-cannot be asked, or its answer cannot be read, it says so and lists nothing. Versions before v0.6.2 are
-not offered: from v0.6.0 and v0.6.1 the Dashboard cannot check a download, and v0.5 installers do not
-keep a paused recovery paused, so from them the Dashboard could not bring you back.
+so the edition has to be changed first; or your administrator's policy is set and that version does
+not keep it ([below](#settings-an-administrator-manages)). If GitHub cannot be asked, or its answer
+cannot be read, it says so and lists nothing. Versions before v0.6.2 are not offered: from v0.6.0 and
+v0.6.1 the Dashboard cannot check a download, and v0.5 installers do not keep a paused recovery paused,
+so from them the Dashboard could not bring you back.
 
-**Pre-releases, for now.** A pre-release is offered only where *Check for updates* would offer that same
-one: the newest pre-release newer than both the version you have and the newest release. Every other
-pre-release is greyed - an older one as "A pre-release older than yours is not installed", a newer one
-as "Check for updates offers a newer version than this one". Releases are offered older and newer.
+**Pre-releases too.** Pre-releases are offered as releases are, older and newer, in either edition: one
+you pick by name and confirm is installed as a release would be, an older one with your state converted
+first where it needs that. *Check for updates* still offers only the newest pre-release newer than both
+the version you have and the newest release; this list is where you choose any other.
 
 Choosing a row and pressing **Install...** asks first, and **Not now** is the button Enter and Escape
 press. The question says only what applies: that it is a pre-release, tested less than a release; that
