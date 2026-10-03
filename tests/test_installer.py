@@ -495,8 +495,12 @@ class UpgradeKeepsTheOwnersChoiceTests(unittest.TestCase):
         self.assertIn("@($setup, 'setup', '--keep-state')", repair)
 
     def test_the_bootstrap_has_no_other_route_that_runs_setup_itself(self):
-        # Every other route goes through install.ps1, which decides for itself.
-        self.assertEqual(self.bootstrap.count("'setup'"), 1)
+        # Every other route goes through install.ps1, which decides for itself - but one: a pick
+        # (v0.6.12) whose conversion of the state failed starts the installed watcher again
+        # (Start-CurrentWatcher), and that is a repair too, so it keeps the state as well.
+        self.assertEqual(self.bootstrap.count("'setup'"), 2)
+        restart = block(self.bootstrap, "function Start-CurrentWatcher {", "\n}\n")
+        self.assertIn("$arguments = @('setup', '--keep-state')", restart)
 
 
 @unittest.skipUnless(WINDOWS and POWERSHELL, "the installer is PowerShell on Windows")

@@ -20,7 +20,7 @@
         pre-release the update check would offer, which is how a person's yes to that offer
         reaches it, and what was typed never reaches the URL as typed: only a pre-release in
         this product's own grammar is accepted, and it is rebuilt from its integers and one of
-        two words.
+        two words. -Pick fetches a version the list of releases offers, rebuilt the same way.
       * Over HTTPS, with TLS 1.2 at minimum, from github.com - and the final response
         URI has to be one of the three hosts in $AllowedHosts below, because a release
         download redirects to GitHub's object storage and nowhere else.
@@ -100,6 +100,14 @@
       and a page that cannot be read lists nothing at all: `versions: unavailable`, exit 12. It
       downloads nothing, installs nothing and does not refresh the compatibility data.
 
+      -Pick installs one row of it, the version and edition a person confirmed, and asks for the
+      list again first: a row no longer offered as it was shown installs nothing (`pick: refused
+      changed`). -Force comes exactly with an older row or one of the other edition and is refused
+      with any other. The archive is fetched, checked and unpacked as every install's is; only then,
+      under the install lock, is the state converted for a version on schema 3 - the installed
+      version's own downgrade-state, which asks the watcher to stop and waits for it a minute, and
+      never kills it - and only then does the archive's installer run. Each answer is a `pick:` line.
+
       Each version, in each edition, is offered or refused with its reason on a line of its own:
       nothing older than v0.6.2, no archive or no checksum to check it by, an edition change to an
       installer older than editions, a policy an administrator set that the version would stop
@@ -155,6 +163,8 @@
          Add -Version <pre-release> to install the pre-release -CheckOnly offered.
          Add -Compatibility to refresh the Codex compatibility data and nothing else.
          Add -Versions to list the versions the Dashboard may install instead, and install nothing.
+         Add -Pick <version> -Edition <edition> to install one of them (with -Force when it is older
+         or of the other edition).
          Add -Edition Standard or -Edition Advanced to choose the edition; over the other
          edition, add -Force as well, which is what replacing it takes.
 #>
@@ -176,7 +186,11 @@ param(
     [string]$Version,
     # Lists every version a person may pick in the Dashboard's Install another version..., and why
     # each of the others cannot be. It installs nothing and takes no value.
-    [switch]$Versions
+    [switch]$Versions,
+    # The version a person picked there and confirmed, with -Edition the edition of its row and -Force
+    # exactly when that row is older or of the other edition. Never spliced as typed: Get-ChosenVersion
+    # rebuilds it from its integers, and it is installed only if the list still offers it.
+    [string]$Pick
 )
 
 # Started before anything else runs, so an update check can tell how much of its caller's
@@ -280,6 +294,10 @@ $PickPageTimeoutMax = 30
 # never one older than what is installed, and of the newer ones only the check's own offer.
 $PickNewerPrereleases = $false
 $PickOlderPrereleases = $false
+# -Pick refused to go ahead, and said why on its `pick: refused <reason>` line. Nothing was changed -
+# except for `state`, which started the watcher again. Its own code: no answer to the update
+# question, and not the other edition's refusal either.
+$ExitPickRefused = 15
 
 function Step { param([string]$Text) Write-Host ('  ' + $Text) }
 function Ok   { param([string]$Text) Write-Host ('  [ok] ' + $Text) }
@@ -1139,6 +1157,54 @@ function Get-EditionStatement {
     return $line + 'the advanced features go, and their code with them'
 }
 
+function Invoke-InstalledSetup {
+    <#
+        The installation's own plugin_setup.py with $Arguments, run by its own runtime\python.exe:
+        the version that is installed now, whatever this run is about to install. Returns what it
+        printed and its exit code. A console program, by the call operator, in this console.
+    #>
+    param([string]$Home_, [string[]]$Arguments)
+    $python = Join-Path $Home_ 'runtime\python.exe'
+    $setup = Join-Path $Home_ 'app\scripts\plugin_setup.py'
+    $ErrorActionPreference = 'Continue'
+    $printed = @(& $python $setup @Arguments)
+    $code = $LASTEXITCODE
+    if ($null -eq $code) { $code = 1 }
+    return [pscustomobject]@{ Printed = @($printed | ForEach-Object { [string]$_ }); Code = $code }
+}
+
+function Convert-StateForOlder {
+    <#
+        The state converted for a version on schema 3, before that version's installer runs: the
+        installed version's own `downgrade-state --to 3 --stop-watcher`, which asks the watcher to
+        stop, waits for it a minute at most and never kills it. Its one `downgrade:` line has to
+        agree with its exit code, and the answer is that line's: 'converted <rows> <made_final>
+        <conversations_off> <unfollowed_off> <0|1>', 'nothing', 'watcher-running' - or 'failed',
+        which is also what a line and a code that disagree, no line, or two lines are.
+    #>
+    param([string]$Home_)
+    $done = Invoke-InstalledSetup -Home_ $Home_ -Arguments @('downgrade-state', '--to', '3', '--stop-watcher')
+    $lines = @($done.Printed | Where-Object { $_.StartsWith('downgrade: ', [StringComparison]::Ordinal) })
+    if ($lines.Count -ne 1) { return 'failed' }
+    $line = $lines[0]
+    if ($done.Code -eq 0 -and $line -cmatch '^downgrade: converted ([0-9]{1,9}) ([0-9]{1,9}) ([0-9]{1,9}) ([0-9]{1,9}) ([01])\z') {
+        $numbers = @($Matches[1], $Matches[2], $Matches[3], $Matches[4], $Matches[5])
+        return ('converted ' + (@($numbers | ForEach-Object { [string][int]$_ }) -join ' '))
+    }
+    if ($done.Code -eq 0 -and $line -ceq 'downgrade: nothing') { return 'nothing' }
+    if ($done.Code -eq 3 -and $line -ceq 'downgrade: watcher-running') { return 'watcher-running' }
+    return 'failed'
+}
+
+function Start-CurrentWatcher {
+    # The installed version's watcher started again, after a conversion that failed: `setup
+    # --keep-state`, the repair branch's own run, which changes no decision a person made.
+    param([string]$Home_, [switch]$NoStartup)
+    $arguments = @('setup', '--keep-state')
+    if ($NoStartup) { $arguments += '--no-startup' }
+    $null = Invoke-InstalledSetup -Home_ $Home_ -Arguments $arguments
+}
+
 # ---------------------------------------------------------------------------- run
 
 Write-Host ''
@@ -1161,7 +1227,7 @@ $installed = Get-InstalledVersion -Home_ $installHome
 # the last line says what they were judged against. A list that could not be read lists nothing:
 # `versions: unavailable`, never a part of it, and never the Codex compatibility data either.
 if ($Versions) {
-    if ($CheckOnly -or $Update -or $ArchivePath -or $Compatibility -or $Version -or $Edition -or $Force) {
+    if ($CheckOnly -or $Update -or $ArchivePath -or $Compatibility -or $Version -or $Pick -or $Edition -or $Force) {
         Fail '-Versions lists the versions there are to pick from, and goes with nothing else.'
         Write-Host 'versions: unavailable'
         exit $ExitUnavailable
@@ -1195,6 +1261,88 @@ if ($Versions) {
     Write-Host ('versions: listed ' + $installed + ' ' + $installedEdition + ' ' + $newestShown + ' v' + $PickFloor +
                 ' v' + $EditionsSince)
     exit $ExitCurrent
+}
+
+# ---------------------------------------------------------- the version a person picked
+# Its own run: the version and edition of a row -Versions offered, which a person confirmed. -Force
+# comes exactly when the row is older or of the other edition, so a stray one never widens a pick.
+# The list is read again, because it may have changed since it was shown, and the row has to be
+# offered still, as it was; then the archive is fetched and checked as every install's is, and only
+# after it passed - under the install lock - is the state converted, where the row says so. Nothing
+# from the archive runs before that.
+$pickConvert = $false
+if ($Pick) {
+    if ($CheckOnly -or $Update -or $ArchivePath -or $Compatibility -or $Version) {
+        Fail '-Pick installs the version picked in Install another version..., and goes with -Edition, -Force and -NoStartup alone.'
+        Step 'Nothing was downloaded, and nothing was changed.'
+        exit 1
+    }
+    $picked = $null
+    try { $picked = Get-ChosenVersion $Pick }
+    catch {
+        Fail $_.Exception.Message
+        Step 'Nothing was downloaded, and nothing was changed.'
+        exit 1
+    }
+    if (-not $Edition) {
+        Fail '-Pick goes with -Edition: the edition of the row that was picked.'
+        Step 'Nothing was downloaded, and nothing was changed.'
+        exit 1
+    }
+    $pickEdition = $Edition.ToLowerInvariant()
+    $installedEdition = Get-InstalledEdition -Home_ $installHome
+    $order = $null
+    if ($installed -and $installedEdition) {
+        try { $order = Compare-ProductVersion -Left $picked -Right ([string]$installed) } catch { $order = $null }
+    }
+    if ($null -eq $order) {
+        Fail ('There is no installation at ' + $installHome + ' whose version this copy can read.')
+        Write-Host 'pick: refused unreadable'
+        Step 'Nothing was downloaded, and nothing was changed.'
+        exit $ExitPickRefused
+    }
+    $changesEdition = $pickEdition -ne $installedEdition
+    if ($order -eq 0 -and -not $changesEdition) {
+        Ok ('v' + $picked + ' is the version installed at ' + $installHome + '.')
+        Write-Host 'pick: refused installed'
+        exit $ExitPickRefused
+    }
+    $needsForce = ($order -lt 0) -or $changesEdition
+    if ($needsForce -and -not $Force) {
+        Fail ('v' + $picked + ' (' + $pickEdition + ') is older or of the other edition, and -Force did not say it was confirmed.')
+        Write-Host 'pick: refused needs-force'
+        Step 'Nothing was downloaded, and nothing was changed.'
+        exit $ExitPickRefused
+    }
+    if ($Force -and -not $needsForce) {
+        Fail ('v' + $picked + ' (' + $pickEdition + ') is newer and of this edition, which -Force is not for.')
+        Write-Host 'pick: refused force-not-needed'
+        Step 'Nothing was downloaded, and nothing was changed.'
+        exit $ExitPickRefused
+    }
+    Step 'Asking api.github.com for this repository''s whole list of releases again, page by page. Nothing is uploaded.'
+    $listed = $null
+    try { $listed = Get-ReleasePages -Release $release }
+    catch {
+        Fail ('The list of releases could not be read (' + $_.Exception.Message + ').')
+        Write-Host 'pick: unavailable'
+        Step 'Nothing was downloaded, and nothing was changed.'
+        exit $ExitUnavailable
+    }
+    $table = Get-VersionTable -Listed $listed -Installed ([string]$installed) -InstalledEdition $installedEdition `
+                              -Release $release -Policy (Get-PolicyInForce)
+    $rows = @($table.Rows | Where-Object { $_.Version -ceq $picked -and $_.Edition -ceq $pickEdition })
+    $words = @()
+    if ($rows.Count -eq 1 -and $rows[0].Answer -ceq 'offered') { $words = @($rows[0].Detail.Split(',')) }
+    if ($words.Count -eq 0 -or (($words -ccontains 'older') -ne ($order -lt 0)) -or
+        (($words -ccontains 'edition') -ne $changesEdition)) {
+        Fail ('v' + $picked + ' (' + $pickEdition + ') is not offered now as it was when the list was shown.')
+        Write-Host 'pick: refused changed'
+        Step 'Nothing was downloaded, and nothing was changed.'
+        exit $ExitPickRefused
+    }
+    Write-Host ('pick: offered ' + $rows[0].Detail)
+    $pickConvert = $words -ccontains 'convert3'
 }
 
 # ------------------------------------------------- the Codex compatibility data only
@@ -1259,8 +1407,9 @@ if ($plan.Verdict -eq 'change') { Write-Host (Get-EditionStatement -From $instal
 Write-Host ('edition: ' + $targetEdition)
 
 # What gets installed. It is the plugin's own version for every ordinary run, and only
-# -Update and -Version ever move it.
+# -Update, -Version and -Pick ever move it.
 $target = $pluginVersion
+if ($Pick) { $target = $picked }
 if ($Version) {
     try { $target = Get-PrereleaseVersion $Version }
     catch {
@@ -1541,6 +1690,41 @@ try {
     $unpacked = Join-Path $work 'unpacked'
     [IO.Compression.ZipFile]::ExtractToDirectory((Resolve-Path $zip), $unpacked)
 
+    if ($Pick) {
+        # The install lock, from before the state is converted until this process ends: the
+        # installer below runs on this thread and takes it again, which a Mutex allows its owner. A
+        # repair or another install cannot come between the conversion and the installer.
+        $pickLock = New-Object System.Threading.Mutex($false, 'Local\CodexAutoResume.Install')
+        $pickHeld = $false
+        try { $pickHeld = $pickLock.WaitOne(0) }
+        catch [System.Threading.AbandonedMutexException] { $pickHeld = $true }
+        if (-not $pickHeld) {
+            Fail 'Another Codex Auto Resume installation is already running.'
+            Write-Host 'pick: refused busy'
+            Step 'Nothing was installed, and nothing was changed.'
+            exit $ExitPickRefused
+        }
+        if ($pickConvert) {
+            Step 'Converting the state for the older version, after asking the watcher to stop. A copy of it'
+            Step 'as it is now is kept beside it.'
+            $converted = Convert-StateForOlder -Home_ $installHome
+            if ($converted -ceq 'watcher-running') {
+                Fail 'The watcher did not stop within a minute; it was asked to, and was not stopped any other way.'
+                Write-Host 'pick: refused watcher-running'
+                Step 'Nothing was installed, and the state was not converted.'
+                exit $ExitPickRefused
+            }
+            if ($converted -cnotlike 'converted *' -and $converted -cne 'nothing') {
+                Fail 'The state could not be converted for that version, so it is as it was.'
+                Start-CurrentWatcher -Home_ $installHome -NoStartup:$NoStartup
+                Write-Host 'pick: refused state'
+                Step 'Nothing was installed, and the watcher was started again.'
+                exit $ExitPickRefused
+            }
+            if ($converted -clike 'converted *') { Write-Host ('pick: state ' + $converted) }
+        }
+    }
+
     Step 'Installing'
     Write-Host ''
     $installer = Join-Path $unpacked 'install\install.ps1'
@@ -1559,6 +1743,7 @@ try {
     & $installer @arguments
     $code = $LASTEXITCODE
     if ($null -eq $code) { $code = 0 }
+    if ($Pick -and $code -eq 0) { Write-Host ('pick: installed ' + $target + ' ' + $targetEdition) }
     exit $code
 } catch {
     Write-Host ''

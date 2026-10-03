@@ -1,10 +1,16 @@
-r"""Install another version... in the bootstrap: the list a person picks from (v0.6.12).
+r"""Install another version... in the bootstrap: the list a person picks from, and the pick (v0.6.12).
 
 `-Versions` reads this repository's whole list of releases, page by page, through the one other
 address api.github.com is allowed for (`release_pages`), and answers with a line per version and
 edition - offered, with what picking it means, or refused, with why - and a last line saying what
 they were judged against. A page that cannot be read lists nothing: `versions: unavailable`, exit
 12. It installs nothing, and it never asks for the Codex compatibility data.
+
+`-Pick <version> -Edition <edition> [-Force]` installs one row of it: -Force exactly when the row is
+older or of the other edition, the list read again and the row still offered as it was shown, the
+archive fetched and checked as every install's is - and only after it passed, under the install
+lock, the state converted where the row says `convert3`, and then the archive's installer run. Each
+answer is a `pick:` line; a refusal exits 15 and changes nothing.
 
 The functions are lifted out of scripts/bootstrap.ps1 by the PowerShell parser and run with
 `Invoke-WebRequest` and the registry replaced, as tests/test_prerelease_offer.py does: the reader
@@ -13,10 +19,13 @@ it is told and what it was asked in files. The whole-script runs start a scratch
 (test_prerelease_offer.ScriptRun) with a scratch installation home and TEMP, the network a stub
 that answers from files this test wrote, and the policy keys a stub too, so this machine's registry
 is never read and a policy set here cannot change an answer. The copy's addresses point at a port
-nothing listens on in case the stub were ever bypassed.
+nothing listens on in case the stub were ever bypassed. In the pick's runs the copy's conversion and
+its restart of the watcher are stand-ins too, which write down when they were asked and what was so
+then; the conversion's own reading of downgrade-state's line is lifted and run on its own.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -31,6 +40,7 @@ _HERE = str(Path(__file__).resolve().parent)
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
+from test_edition_bootstrap import archive, stub_installer  # noqa: E402
 from test_prerelease_offer import LIST, NOWHERE, ScriptRun  # noqa: E402
 from test_version_rule import ACCEPTED, REFUSED  # noqa: E402
 
@@ -515,10 +525,12 @@ class SourceTests(unittest.TestCase):
         self.assertNotIn("Microsoft.Win32", self.text)
         self.assertNotRegex(self.text, r"(?i)\bHK(LM|CU):")
 
-    def test_the_list_is_read_only_by_the_listing(self):
-        """No timer, no check on the way to anything else: -Versions alone reads every page."""
+    def test_the_list_is_read_only_by_the_listing_and_the_pick(self):
+        """No timer, no check on the way to anything else: -Versions, and -Pick before it installs."""
         calls = re.findall(r"Get-ReleasePages -Release \$release", self.text)
-        self.assertEqual(len(calls), 1)
+        self.assertEqual(len(calls), 2)
+        pick = self.text[self.text.index("if ($Pick) {\n    if ($CheckOnly"):]
+        self.assertIn("Get-ReleasePages -Release $release", pick[:pick.index("\n}\n")])
         listing = self.text[self.text.index("if ($Versions) {"):]
         listing = listing[:listing.index("\n}\n")]
         self.assertIn("Get-ReleasePages -Release $release", listing)
@@ -596,9 +608,10 @@ exit $LASTEXITCODE
         for number, listed in enumerate(pages, start=1):
             (self.pages / ("%d.json" % number)).write_text(json.dumps(listed), encoding="utf-8")
 
-    def run_it(self, policy=None, **arguments):
+    def run_it(self, policy=None, more=None, **arguments):
         self.requests.unlink(missing_ok=True)
-        environment = dict(os.environ, CODEX_AUTO_RESUME_PLUGIN_HOME=str(self.home),
+        environment = dict(os.environ, **(more or {}))
+        environment.update(CODEX_AUTO_RESUME_PLUGIN_HOME=str(self.home),
                            TEMP=str(self.temp), TMP=str(self.temp),
                            CAR_SCRIPT=str(self.plugin / "scripts" / "bootstrap.ps1"),
                            CAR_ARGUMENTS=json.dumps(arguments), CAR_REQUESTS=str(self.requests),
@@ -721,6 +734,454 @@ class VersionsRunTests(PickerRun):
                 self.assertEqual(self.answer_lines(output, "versions: "), ["versions: unavailable"])
                 self.assertEqual(asked, [])
                 self.assertEqual(self.listing(), before)
+
+
+# ------------------------------------------------------------------------------ the pick
+CONVERSION = r"""
+$ErrorActionPreference = 'Stop'
+Set-StrictMode -Version 2.0
+$errors = $null
+$ast = [System.Management.Automation.Language.Parser]::ParseFile($env:CAR_BOOTSTRAP, [ref]$null, [ref]$errors)
+if ($errors -and $errors.Count) { throw 'bootstrap.ps1 does not parse' }
+foreach ($node in $ast.FindAll({ param($n)
+        $n -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)) {
+    if (@('Convert-StateForOlder', 'Start-CurrentWatcher') -contains $node.Name) { Invoke-Expression $node.Extent.Text }
+}
+# The installed version's plugin_setup.py: what each case says it printed, and the code it exited with.
+function Invoke-InstalledSetup {
+    param([string]$Home_, [string[]]$Arguments)
+    $script:asked += ,(@($Home_) + $Arguments)
+    return [pscustomobject]@{ Printed = @($script:case.printed | ForEach-Object { [string]$_ }); Code = [int]$script:case.code }
+}
+$cases = Get-Content -LiteralPath $env:CAR_CASES -Raw -Encoding UTF8 | ConvertFrom-Json
+$answers = @(foreach ($case in $cases) {
+    $script:case = $case
+    $script:asked = @()
+    $answer = Convert-StateForOlder -Home_ 'C:\scratch-home'
+    [ordered]@{ answer = $answer; asked = @($script:asked | ForEach-Object { $_ -join ' ' }) }
+})
+$script:case = [pscustomobject]@{ printed = @(); code = 0 }
+$script:asked = @()
+Start-CurrentWatcher -Home_ 'C:\scratch-home'
+Start-CurrentWatcher -Home_ 'C:\scratch-home' -NoStartup
+ConvertTo-Json -Compress -Depth 5 -InputObject ([ordered]@{ answers = $answers;
+                                                            restarts = @($script:asked | ForEach-Object { $_ -join ' ' }) })
+"""
+
+# What downgrade-state --stop-watcher printed and exited with -> what the conversion makes of it.
+CONVERSION_CASES = [
+    ((["downgrade: converted 30 5 2 1 0"], 0), "converted 30 5 2 1 0"),
+    ((["a line of its own", "downgrade: converted 7 0 0 0 1", ""], 0), "converted 7 0 0 0 1"),
+    ((["downgrade: nothing"], 0), "nothing"),
+    ((["downgrade: watcher-running"], 3), "watcher-running"),
+    ((["downgrade: failed"], 1), "failed"),
+    # A line and a code that disagree, no line, two lines, or a line outside its grammar: failed.
+    ((["downgrade: converted 30 5 2 1 0"], 1), "failed"),
+    ((["downgrade: converted 30 5 2 1 0"], 3), "failed"),
+    ((["downgrade: nothing"], 3), "failed"),
+    ((["downgrade: watcher-running"], 0), "failed"),
+    ((["downgrade: watcher-running"], 1), "failed"),
+    (([], 0), "failed"),
+    ((["error: Cannot open valid auto-resume state"], 1), "failed"),
+    ((["downgrade: nothing", "downgrade: nothing"], 0), "failed"),
+    ((["downgrade: converted 30 5 2 1"], 0), "failed"),
+    ((["downgrade: converted 30 5 2 1 2"], 0), "failed"),
+    ((["downgrade: converted 30 5 2 1 0 9"], 0), "failed"),
+    ((["downgrade: converted -1 5 2 1 0"], 0), "failed"),
+    ((["downgrade: converted 30 5 2 1 0 "], 0), "failed"),
+    ((["downgrade: Converted 30 5 2 1 0"], 0), "failed"),
+    ((["downgrade: converted 3x 5 2 1 0"], 0), "failed"),
+    ((["downgrade: converted \uff13 5 2 1 0"], 0), "failed"),
+]
+
+
+@unittest.skipUnless(POWERSHELL.is_file(), "the bootstrap is PowerShell on Windows")
+class ConversionAnswerTests(unittest.TestCase):
+    """Convert-StateForOlder runs the installed version's own downgrade-state --to 3 --stop-watcher and
+    holds its one line to its exit code; Start-CurrentWatcher runs that version's setup --keep-state."""
+
+    @classmethod
+    def setUpClass(cls):
+        with tempfile.TemporaryDirectory() as folder:
+            cases = Path(folder) / "cases.json"
+            cases.write_text(json.dumps([{"printed": printed, "code": code}
+                                         for (printed, code), _ in CONVERSION_CASES]), encoding="utf-8")
+            cls.done = subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-Command", CONVERSION],
+                                      capture_output=True, text=True, encoding="utf-8", errors="replace",
+                                      timeout=300, env=dict(os.environ, CAR_BOOTSTRAP=str(BOOTSTRAP),
+                                                            CAR_CASES=str(cases)))
+        cls.answer = json.loads(cls.done.stdout) if cls.done.returncode == 0 and cls.done.stdout.strip() else None
+
+    def setUp(self):
+        if self.answer is None:
+            self.fail("the probe did not run: " + (self.done.stderr or self.done.stdout)[-3000:])
+
+    def test_the_line_is_held_to_its_exit_code(self):
+        for ((printed, code), expected), answer in zip(CONVERSION_CASES, self.answer["answers"]):
+            with self.subTest(printed=printed, code=code):
+                self.assertEqual(answer["answer"], expected)
+                self.assertEqual(listed(answer["asked"]), ["C:\\scratch-home downgrade-state --to 3 --stop-watcher"])
+
+    def test_the_watcher_is_started_again_as_a_repair_starts_it(self):
+        self.assertEqual(listed(self.answer["restarts"]), ["C:\\scratch-home setup --keep-state",
+                                                           "C:\\scratch-home setup --keep-state --no-startup"])
+
+
+# Stand-ins for the copy's conversion and restart: each writes down that it was asked and what was so then
+# - whether the archive was unpacked, whether its installer had run, and whether the install lock was held
+# (asked by another process, since the bootstrap's own thread may always take it again).
+CONVERT_STUB = r"""function Convert-StateForOlder {
+    param([string]$Home_)
+    $seen = [ordered]@{ home = $Home_; unpacked = [bool](Test-Path -LiteralPath (Join-Path $unpacked 'install\install.ps1'));
+                        installed = [bool](Test-Path -LiteralPath $env:CAR_INSTALLED);
+                        lock = [string](& $env:CAR_PYTHON -c $env:CAR_LOCK_PROBE) }
+    Add-Content -LiteralPath $env:CAR_EVENTS -Value ('convert ' + (ConvertTo-Json $seen -Compress)) -Encoding UTF8
+    return $env:CAR_CONVERT
+}"""
+RESTART_STUB = r"""function Start-CurrentWatcher {
+    param([string]$Home_, [switch]$NoStartup)
+    Add-Content -LiteralPath $env:CAR_EVENTS -Value ('restart ' + [string][bool]$NoStartup) -Encoding UTF8
+}"""
+# Single quotes alone: Windows PowerShell hands a native program an argument's double quotes mangled.
+LOCK_PROBE = r"""
+import ctypes
+kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+kernel.CreateMutexW.restype = ctypes.c_void_p
+handle = ctypes.c_void_p(kernel.CreateMutexW(None, False, 'Local\\CodexAutoResume.Install'))
+waited = kernel.WaitForSingleObject(handle, 0)
+print('held' if waited == 258 else 'free')
+if waited in (0, 128):
+    kernel.ReleaseMutex(handle)
+kernel.CloseHandle(handle)
+"""
+# Holds the install lock, as another installation would, until its input closes.
+LOCK_HOLDER = r"""
+import ctypes, sys
+kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+kernel.CreateMutexW.restype = ctypes.c_void_p
+handle = ctypes.c_void_p(kernel.CreateMutexW(None, True, "Local\\CodexAutoResume.Install"))
+print("held", flush=True)
+sys.stdin.read()
+"""
+# The archive's installer: the real one's parameters, a record of how it was bound, and the code it is told.
+INSTALLER = stub_installer().replace("\nexit 0\n", "\nexit [int]$env:CAR_INSTALLER_EXIT\n")
+
+
+def replace_function(text, name, stub):
+    start = text.index("function %s {" % name)
+    end = text.index("\n}\n", start) + 2
+    return text[:start] + stub + text[end:]
+
+
+# A list with an older release on schema 3 to pick, below the newest release.
+OLDER = [entry(INSTALLED), entry("0.6.11"), entry("0.6.10", files=assets("0.6.10", ("standard",)))]
+
+
+class PickRunTests(PickerRun):
+    """-Pick, the whole script, over an installed 0.6.12-beta of the standard edition."""
+
+    def setUp(self):
+        super().setUp()
+        script = self.plugin / "scripts" / "bootstrap.ps1"
+        text = script.read_text(encoding="utf-8")
+        text = replace_function(replace_function(text, "Convert-StateForOlder", CONVERT_STUB),
+                                "Start-CurrentWatcher", RESTART_STUB)
+        script.write_text(text, encoding="utf-8")
+        self.events = self.root / "events.txt"
+        self.installation(INSTALLED)
+
+    def published(self, version, edition="standard", pin=False, served=None, digest=None):
+        """The archive GitHub would serve for `version`, its .sha256 - and, with `pin`, its digest pinned
+        in the copy's release.json, as every release is."""
+        extra = ["payload/app/src/codex_auto_resume_advanced/__init__.py"] if edition == "advanced" else []
+        self.zip = archive(self.root / "served.zip", version=served or version, extra=extra, installer=INSTALLER)
+        actual = hashlib.sha256(self.zip.read_bytes()).hexdigest()
+        self.sum = self.root / "served.sha256"
+        self.sum.write_text("%s  x.zip\n" % (digest or actual), encoding="utf-8")
+        written = self.plugin / "scripts" / "release.json"
+        release = json.loads(written.read_text(encoding="utf-8"))
+        table = release["advanced"]["sha256"] if edition == "advanced" else release["sha256"]
+        table.pop(version, None)
+        if pin:
+            table[version] = digest or actual
+        written.write_text(json.dumps(release), encoding="utf-8")
+
+    def pick(self, version, edition="Standard", convert="converted 30 5 2 1 0", installer_exit=0, policy=None,
+             **more):
+        self.events.unlink(missing_ok=True)
+        self.installed.unlink(missing_ok=True)
+        environment = {"CAR_EVENTS": str(self.events), "CAR_CONVERT": convert, "CAR_PYTHON": sys.executable,
+                       "CAR_LOCK_PROBE": LOCK_PROBE, "CAR_INSTALLER_EXIT": str(installer_exit)}
+        arguments = dict(more, Pick=version)
+        if edition:
+            arguments["Edition"] = edition
+        return self.run_it(policy=policy, more=environment, **arguments)
+
+    def seen(self):
+        if not self.events.is_file():
+            return []
+        found = []
+        for line in self.events.read_text(encoding="utf-8-sig").splitlines():
+            word, _, rest = line.partition(" ")
+            found.append((word, json.loads(rest) if word == "convert" else rest))
+        return found
+
+    def bound(self):
+        return json.loads(self.installed.read_text(encoding="utf-8-sig")) if self.installed.is_file() else None
+
+    def downloads(self, asked):
+        return [request[1].rsplit("/", 1)[1] for request in asked if request[0] == ""]
+
+    def refused(self, reason, code=15, **pick):
+        before = self.listing()
+        done, output, asked = self.pick(**pick)
+        self.assertEqual(done, code, output[-2000:])
+        if reason:
+            self.assertEqual(self.answer_lines(output, "pick: "), [reason])
+        self.assertEqual(self.downloads(asked), [], "it downloaded something")
+        self.assertIsNone(self.bound(), "its installer ran")
+        self.assertEqual(self.seen(), [], "the state was converted or the watcher restarted")
+        self.assertEqual(self.listing(), before, "the run left something behind")
+        return output, asked
+
+    # -------------------------------------------------------------- what is installed
+    def test_a_newer_release_is_installed_checked_against_its_pin(self):
+        self.serve([entry("0.6.12"), entry(INSTALLED), entry("0.6.11")])
+        self.published("0.6.12", pin=True)
+        code, output, asked = self.pick("0.6.12")
+        self.assertEqual(code, 0, output[-2000:])
+        self.assertEqual(self.answer_lines(output, "pick: "),
+                         ["pick: offered newer,release,kept,latest", "pick: installed 0.6.12 standard"])
+        self.assertIn("SHA-256 matches the digest pinned in this plugin", output)
+        self.assertEqual(asked, [["Get", PAGES.replace("{page}", "1")]] + POLICY_READS
+                         + [["", NOWHERE + "/download/v0.6.12/CodexAutoResume-v0.6.12-win-x64.zip"]],
+                         "the list, the policy keys and the archive, and nothing else")
+        self.assertEqual(self.bound(), {"PluginName": "codex-auto-resume"})
+        self.assertEqual(self.seen(), [], "a version on this schema needs no conversion")
+        self.assertEqual(sorted(self.temp.glob("codex-auto-resume-*")), [], "the download outlived the install")
+
+    def test_the_checks_own_pre_release_is_checked_against_its_published_checksum(self):
+        self.serve([entry("0.6.12-beta.2"), entry(INSTALLED), entry("0.6.11")])
+        self.published("0.6.12-beta.2")
+        code, output, asked = self.pick("0.6.12-beta.2", NoStartup=True)
+        self.assertEqual(code, 0, output[-2000:])
+        self.assertEqual(self.answer_lines(output, "pick: "),
+                         ["pick: offered newer,prerelease,kept", "pick: installed 0.6.12-beta.2 standard"])
+        self.assertIn("SHA-256 matches the checksum published beside it", output)
+        self.assertEqual(self.downloads(asked), ["CodexAutoResume-v0.6.12-beta.2-win-x64.zip",
+                                                 "CodexAutoResume-v0.6.12-beta.2-win-x64.zip.sha256"])
+        self.assertEqual(self.bound(), {"PluginName": "codex-auto-resume", "SkipStartup": "True"})
+
+    def test_an_edition_change_tells_the_installer_it_was_asked_for(self):
+        self.serve([entry(INSTALLED), entry("0.6.11")])
+        self.published(INSTALLED, edition="advanced")
+        code, output, asked = self.pick(INSTALLED, edition="Advanced", Force=True)
+        self.assertEqual(code, 0, output[-2000:])
+        self.assertEqual(self.answer_lines(output, "pick: "),
+                         ["pick: offered same,prerelease,kept,edition", "pick: installed 0.6.12-beta advanced"])
+        self.assertIn("Standard edition -> Advanced edition", output)
+        self.assertEqual(self.downloads(asked), ["CodexAutoResume-Advanced-v0.6.12-beta-win-x64.zip",
+                                                 "CodexAutoResume-Advanced-v0.6.12-beta-win-x64.zip.sha256"])
+        self.assertEqual(self.bound(), {"PluginName": "codex-auto-resume", "AllowEditionChange": "True"})
+
+    def test_an_older_version_is_installed_after_the_state_is_converted(self):
+        """After the archive passed and was unpacked, under the install lock, and before its installer ran."""
+        self.serve([entry(INSTALLED), entry("0.6.11"), entry("0.6.10", files=assets("0.6.10", ("standard",)))])
+        self.published("0.6.10", pin=True)
+        code, output, asked = self.pick("0.6.10", Force=True)
+        self.assertEqual(code, 0, output[-2000:])
+        lines = self.answer_lines(output, "pick: ")
+        self.assertEqual(lines, ["pick: offered older,release,convert3", "pick: state converted 30 5 2 1 0",
+                                 "pick: installed 0.6.10 standard"])
+        self.assertLess(output.index("Archive contents verified"), output.index("pick: state converted"))
+        self.assertEqual(self.seen(), [("convert", {"home": str(self.home), "unpacked": True, "installed": False,
+                                                    "lock": "held"})])
+        self.assertEqual(self.bound(), {"PluginName": "codex-auto-resume"})
+        self.assertEqual(sorted(self.temp.glob("codex-auto-resume-*")), [])
+
+    def test_a_state_already_old_enough_is_not_said_to_be_converted(self):
+        self.serve(OLDER)
+        self.published("0.6.10", pin=True)
+        code, output, _ = self.pick("0.6.10", Force=True, convert="nothing")
+        self.assertEqual(code, 0, output[-2000:])
+        self.assertEqual(self.answer_lines(output, "pick: "), ["pick: offered older,release,convert3",
+                                                                "pick: installed 0.6.10 standard"])
+        self.assertEqual([word for word, _ in self.seen()], ["convert"])
+
+    def test_an_archive_that_fails_its_checks_converts_nothing(self):
+        self.serve(OLDER)
+        for published, said in (({"pin": True, "served": "0.6.9"}, "The archive is version 0.6.9, not 0.6.10."),
+                                ({"pin": True, "digest": "0" * 64}, "does not match the digest pinned"),
+                                ({"digest": "0" * 64}, "does not match its published checksum")):
+            with self.subTest(published=published):
+                self.published("0.6.10", **published)
+                code, output, _ = self.pick("0.6.10", Force=True)
+                self.assertEqual(code, 1, output[-2000:])
+                self.assertIn(said, output)
+                self.assertIn("Nothing was installed.", output)
+                self.assertEqual(self.answer_lines(output, "pick: "), ["pick: offered older,release,convert3"])
+                self.assertEqual(self.seen(), [], "the state was converted for an archive that did not pass")
+                self.assertIsNone(self.bound())
+                self.assertEqual(sorted(self.temp.glob("codex-auto-resume-*")), [])
+
+    def test_a_watcher_that_did_not_stop_installs_nothing(self):
+        self.serve(OLDER)
+        self.published("0.6.10", pin=True)
+        code, output, _ = self.pick("0.6.10", Force=True, convert="watcher-running")
+        self.assertEqual(code, 15, output[-2000:])
+        self.assertEqual(self.answer_lines(output, "pick: "), ["pick: offered older,release,convert3",
+                                                                "pick: refused watcher-running"])
+        self.assertEqual([word for word, _ in self.seen()], ["convert"], "the watcher was started again")
+        self.assertIsNone(self.bound())
+        self.assertEqual(sorted(self.temp.glob("codex-auto-resume-*")), [])
+
+    def test_a_conversion_that_failed_installs_nothing_and_starts_the_watcher_again(self):
+        self.serve(OLDER)
+        self.published("0.6.10", pin=True)
+        for convert in ("failed", "", "something else"):
+            with self.subTest(convert=convert):
+                code, output, _ = self.pick("0.6.10", Force=True, convert=convert, NoStartup=True)
+                self.assertEqual(code, 15, output[-2000:])
+                self.assertEqual(self.answer_lines(output, "pick: "), ["pick: offered older,release,convert3",
+                                                                        "pick: refused state"])
+                self.assertEqual([word for word, _ in self.seen()], ["convert", "restart"])
+                self.assertEqual(self.seen()[1], ("restart", "True"), "the restart keeps -NoStartup")
+                self.assertIsNone(self.bound())
+
+    def test_another_installation_holding_the_lock_installs_and_converts_nothing(self):
+        self.serve(OLDER)
+        self.published("0.6.10", pin=True)
+        holder = subprocess.Popen([sys.executable, "-c", LOCK_HOLDER], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                  text=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        try:
+            self.assertEqual(holder.stdout.readline().strip(), "held")
+            code, output, _ = self.pick("0.6.10", Force=True)
+        finally:
+            holder.stdin.close()
+            holder.wait(timeout=30)
+            holder.stdout.close()
+        self.assertEqual(code, 15, output[-2000:])
+        self.assertEqual(self.answer_lines(output, "pick: "), ["pick: offered older,release,convert3",
+                                                                "pick: refused busy"])
+        self.assertEqual(self.seen(), [])
+        self.assertIsNone(self.bound())
+        self.assertEqual(sorted(self.temp.glob("codex-auto-resume-*")), [])
+
+    def test_an_installer_that_fails_says_no_installed_line(self):
+        self.serve([entry("0.6.12"), entry(INSTALLED)])
+        self.published("0.6.12", pin=True)
+        code, output, _ = self.pick("0.6.12", installer_exit=7)
+        self.assertEqual(code, 7, output[-2000:])
+        self.assertEqual(self.answer_lines(output, "pick: "), ["pick: offered newer,release,kept,latest"])
+        self.assertEqual(sorted(self.temp.glob("codex-auto-resume-*")), [])
+
+    # ------------------------------------------------------------- what is refused
+    def test_an_older_version_without_force_asks_nothing(self):
+        self.serve([entry(INSTALLED), entry("0.6.11")])
+        _, asked = self.refused("pick: refused needs-force", version="0.6.11")
+        self.assertEqual(asked, [])
+
+    def test_the_other_edition_without_force_asks_nothing(self):
+        self.serve([entry("0.6.12"), entry(INSTALLED)])
+        _, asked = self.refused("pick: refused needs-force", version="0.6.12", edition="Advanced")
+        self.assertEqual(asked, [])
+
+    def test_force_where_it_is_not_needed_asks_nothing(self):
+        self.serve([entry("0.6.12"), entry(INSTALLED)])
+        _, asked = self.refused("pick: refused force-not-needed", version="0.6.12", Force=True)
+        self.assertEqual(asked, [])
+
+    def test_the_installed_version_is_not_installed_again(self):
+        _, asked = self.refused("pick: refused installed", version=INSTALLED)
+        self.assertEqual(asked, [])
+
+    def test_without_an_installation_it_can_read_nothing_is_asked(self):
+        for installed in (None, "0.6.12-gamma"):
+            with self.subTest(installed=installed):
+                shutil.rmtree(self.home, ignore_errors=True)
+                if installed:
+                    self.installation(installed)
+                _, asked = self.refused("pick: refused unreadable", version="0.6.12")
+                self.assertEqual(asked, [])
+
+    def test_a_row_no_longer_offered_as_it_was_shown_installs_nothing(self):
+        """The list changed, a policy was set, or the row is one the list never offered."""
+        self.published("0.6.10", pin=True)
+        for listed, version, force, policy, edition in (
+                ([entry(INSTALLED)], "0.6.12", False, None, "Standard"),
+                ([entry(INSTALLED), entry("0.6.10", files=assets("0.6.10", sums=False))], "0.6.10", True,
+                 {HKLM: ["ForceObserveOnly"]}, "Standard"),
+                ([entry("0.6.12-beta.2"), entry("0.6.12"), entry(INSTALLED)], "0.6.12-beta.2", False, None, "Standard"),
+                ([entry(INSTALLED), entry("0.6.11-beta")], "0.6.11-beta", True, None, "Standard"),
+                ([entry(INSTALLED), entry("0.6.10")], "0.6.10", True, None, "Advanced"),
+                ([entry(INSTALLED), entry("0.6.6-alpha", files=assets("0.6.6"))], "0.6.6-alpha", True, None,
+                 "Standard"),
+                ([entry(INSTALLED), entry("0.6.1")], "0.6.1", True, None, "Standard")):
+            with self.subTest(version=version, policy=policy, edition=edition):
+                self.serve(listed)
+                pick = {"version": version, "policy": policy, "edition": edition}
+                if force:
+                    pick["Force"] = True
+                output, asked = self.refused("pick: refused changed", **pick)
+                # The list again and the policy keys - the first one alone where it holds a value.
+                self.assertEqual([request[0] for request in asked], ["Get"] + ["Registry"] * (1 if policy else 2))
+
+    def test_an_edition_change_never_reaches_an_installer_older_than_editions(self):
+        shutil.rmtree(self.home, ignore_errors=True)
+        self.installation(INSTALLED, "advanced")
+        self.serve(OLDER)
+        self.published("0.6.10", pin=True)
+        self.refused("pick: refused changed", version="0.6.10", Force=True)
+
+    def test_a_list_that_could_not_be_read_installs_nothing(self):
+        self.serve()
+        output, asked = self.refused("pick: unavailable", code=12, version="0.6.12")
+        self.assertEqual(asked, [["Get", PAGES.replace("{page}", "1")]])
+
+    def test_only_a_version_by_the_rule_and_its_edition(self):
+        for version in ("0.6.12-rc1", "v0.6.12", "0.6.012", "0.6.12 ", "0.6.12-beta.1", "latest", "0.6.12;calc"):
+            with self.subTest(version=version):
+                output, asked = self.refused(None, code=1, version=version)
+                self.assertEqual(self.answer_lines(output, "pick: "), [])
+                self.assertIn("Not a version this product publishes", output)
+                self.assertEqual(asked, [])
+        output, asked = self.refused(None, code=1, version="0.6.12", edition=None)
+        self.assertIn("-Pick goes with -Edition", output)
+
+    def test_it_goes_with_nothing_else(self):
+        for more in ({"CheckOnly": True}, {"Update": True}, {"ArchivePath": str(self.root / "x.zip")},
+                     {"Compatibility": True}, {"Version": "0.6.12-beta.2"}):
+            with self.subTest(more=more):
+                output, asked = self.refused(None, code=1, version="0.6.12", **more)
+                self.assertEqual(self.answer_lines(output, "pick: "), [])
+                self.assertEqual(asked, [])
+        output, asked = self.refused(None, code=12, version="0.6.12", Versions=True)
+        self.assertEqual(self.answer_lines(output, "versions: "), ["versions: unavailable"])
+        self.assertEqual(asked, [])
+
+
+class PickSourceTests(unittest.TestCase):
+    def setUp(self):
+        self.text = BOOTSTRAP.read_text(encoding="utf-8")
+
+    def test_the_state_is_converted_only_after_the_archive_passed_and_before_its_installer(self):
+        run = self.text[self.text.index("# " + "-" * 76 + " run"):]
+        order = [run.index(marker) for marker in (
+            "Test-Archive -Zip $zip", "ExtractToDirectory", "$pickLock.WaitOne(0)",
+            "Convert-StateForOlder -Home_ $installHome", "& $installer @arguments")]
+        self.assertEqual(order, sorted(order))
+        self.assertEqual(run.count("Convert-StateForOlder -Home_"), 1)
+        self.assertEqual(run.count("Start-CurrentWatcher -Home_"), 1)
+
+    def test_the_picked_version_is_read_in_one_place_and_rebuilt(self):
+        self.assertEqual(re.findall(r"Get-ChosenVersion \$Pick\b", self.text), ["Get-ChosenVersion $Pick"])
+        self.assertIn("if ($Pick) { $target = $picked }", self.text)
+
+    def test_nothing_widens_a_pick(self):
+        """-Force is required exactly where the row is older or of the other edition, and refused otherwise."""
+        self.assertIn("$needsForce = ($order -lt 0) -or $changesEdition", self.text)
+        self.assertIn("if ($needsForce -and -not $Force)", self.text)
+        self.assertIn("if ($Force -and -not $needsForce)", self.text)
 
 
 if __name__ == "__main__":

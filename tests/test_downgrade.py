@@ -19,6 +19,8 @@ import io
 import json
 import os
 from pathlib import Path
+import re
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -589,6 +591,136 @@ class DowngradeStopWatcherTests(unittest.TestCase):
         for refused in (["downgrade-state", "--to", "2"], ["downgrade-state"]):
             with self.subTest(refused), self.assertRaises(SystemExit), redirect_stderr(io.StringIO()):
                 parser.parse_args(refused)
+
+
+# What a tagged release's own store makes of a state: its schema, and - where it opens it - every record's
+# state and the conversations switched off.
+_TAGGED_STORE = r"""
+import json, sys
+from pathlib import Path
+from codex_auto_resume import store as module
+root = Path(sys.argv[1])
+answer = {"schema": getattr(module, "SCHEMA_VERSION", None)}
+if sys.argv[2] == "open":
+    try:
+        opened = module.Store(root)
+    except Exception as exc:
+        answer["refused"] = "%s: %s" % (type(exc).__name__, exc)
+    else:
+        with opened:
+            answer["records"] = {row["interruption_id"]: row["state"] for row in opened.all_records()}
+            answer["disabled"] = sorted(opened.disabled_threads())
+print(json.dumps(answer))
+"""
+
+
+class PickerFloorTests(unittest.TestCase):
+    """What the bootstrap's picker assumes of the published releases, from the tags themselves
+    (scripts/bootstrap.ps1: $PickFloor, $EditionsSince, $StateSchemaSince). Skipped where the tags are not in
+    the checkout, and a failure on CI, which fetches them (tests/released.py)."""
+
+    @classmethod
+    def setUpClass(cls):
+        sys.path.insert(0, str(released.ROOT / "build"))
+        import legacy_bootstraps as legacy
+        text = (released.ROOT / "scripts" / "bootstrap.ps1").read_text(encoding="utf-8")
+        cls.floor = re.search(r"^\$PickFloor = '([^']+)'$", text, re.M).group(1)
+        cls.editions = re.search(r"^\$EditionsSince = '([^']+)'$", text, re.M).group(1)
+        rows = re.search(r"^\$StateSchemaSince = @\((.*)\)$", text, re.M).group(1)
+        cls.schemas = [(version, int(schema)) for version, schema in re.findall(r"@\('([^']+)', ([0-9]+)\)", rows)]
+        cls.order = staticmethod(legacy.order)
+        listed = subprocess.run(["git", "-C", str(released.ROOT), "tag", "--list", "v*"], capture_output=True,
+                                text=True, creationflags=released.NO_WINDOW).stdout.split()
+        tags = []
+        for tag in listed:
+            try:
+                tags.append((legacy.order(tag[1:]), tag))
+            except ValueError:
+                continue
+        cls.tags = [tag for _, tag in sorted(tags)]
+
+    def setUp(self):
+        if "v" + self.floor not in self.tags or "v" + self.editions not in self.tags:
+            if os.environ.get("CI"):
+                self.fail("the tags are not in this checkout; CI must fetch them")
+            self.skipTest("the tags are not in this checkout")
+
+    def shown(self, tag, path):
+        done = subprocess.run(["git", "-C", str(released.ROOT), "show", "%s:%s" % (tag, path)], capture_output=True,
+                              creationflags=released.NO_WINDOW)
+        return done.stdout.decode("utf-8", "replace") if done.returncode == 0 else None
+
+    def installer(self, tag):
+        for path in ("build/install/install.ps1", "install/install.ps1"):
+            text = self.shown(tag, path)
+            if text is not None:
+                return text
+        return ""
+
+    def schema_for(self, version):
+        for since, schema in self.schemas:
+            if self.order(version) >= self.order(since):
+                return schema
+        return None
+
+    def from_floor(self):
+        return [tag for tag in self.tags if self.order(tag[1:]) >= self.order(self.floor)]
+
+    def test_the_floor_is_the_first_release_the_dashboard_can_bring_a_person_back_from(self):
+        """From v0.6.2 every bootstrap computes its digest with .NET (v0.6.0 and v0.6.1 call Get-FileHash, which
+        did not resolve in the process the Dashboard starts) and every installer keeps the state on an upgrade
+        (`--keep-state`; v0.5.x's has none) - and the tag below the floor lacks one of them."""
+        def able(tag):
+            bootstrap = self.shown(tag, "scripts/bootstrap.ps1") or ""
+            return "Security.Cryptography.SHA256" in bootstrap and "--keep-state" in self.installer(tag)
+        offered = self.from_floor()
+        self.assertTrue(offered)
+        for tag in offered:
+            with self.subTest(tag):
+                self.assertTrue(able(tag))
+        below = [tag for tag in self.tags if self.order(tag[1:]) < self.order(self.floor)]
+        self.assertTrue(below, "no tag below the floor to hold it against")
+        self.assertFalse(able(below[-1]), "%s could be offered too" % below[-1])
+
+    def test_an_edition_change_reaches_only_installers_that_know_editions(self):
+        for tag in self.from_floor():
+            with self.subTest(tag):
+                knows = "AllowEditionChange" in self.installer(tag)
+                self.assertEqual(knows, self.order(tag[1:]) >= self.order(self.editions))
+        self.assertEqual(self.editions, json.loads((released.ROOT / "scripts" / "release.json").read_text(
+            encoding="utf-8"))["advanced"]["since"] + "-alpha", "the advanced edition began with its first alpha")
+
+    def test_every_offered_tags_schema_is_the_one_the_table_says(self):
+        self.assertEqual(self.schemas[0][1], SCHEMA_VERSION, "the table's first row is this version's schema")
+        with tempfile.TemporaryDirectory() as folder:
+            for tag in self.from_floor():
+                with self.subTest(tag):
+                    self.assertEqual(released.run(tag, _TAGGED_STORE, folder, "schema")["schema"],
+                                     self.schema_for(tag[1:]))
+
+    def test_every_schema_3_tag_opens_what_to_3_wrote_with_every_row(self):
+        """The picker converts with `--to 3` for every offered tag on schema 3, v0.6.2 to v0.6.11-alpha - so each
+        of them, its own store, opens the result and reads every record as it was written."""
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.state = Path(temporary.name) / "state"
+        DowngradeToV3Tests.v4_state(self)
+        downgrade_to_v3(self.state)
+        expected = {key: row["state"] for key, row in table(self.state / "state.sqlite", "interruptions").items()}
+        switched_off = sorted(key for key, row in table(self.state / "state.sqlite", "threads").items()
+                              if not row["enabled"])
+        tags = [tag for tag in self.from_floor() if self.schema_for(tag[1:]) == 3]
+        self.assertIn("v" + self.floor, tags)
+        self.assertIn("v0.6.11-alpha", tags)
+        for tag in tags:
+            with self.subTest(tag):
+                copy = Path(temporary.name) / tag
+                shutil.copytree(self.state, copy)
+                read = released.run(tag, _TAGGED_STORE, copy, "open")
+                self.assertNotIn("refused", read)
+                self.assertEqual(read["schema"], 3)
+                self.assertEqual(read["records"], expected)
+                self.assertEqual(read["disabled"], switched_off)
 
 
 if __name__ == "__main__":
