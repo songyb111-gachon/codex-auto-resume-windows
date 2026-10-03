@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -363,6 +364,122 @@ class BackendTests(unittest.TestCase):
             protocol.call("turn/start", {"threadId": THREAD})
         with self.assertRaises(w.AdapterError):
             protocol.call("account/login/start", {})
+
+
+NATIVE = r"C:\Program Files"
+STORE_APP = NATIVE + r"\WindowsApps\OpenAI.Codex_26.930.2377.0_x64__2p2nqsd0c76g0\app\ChatGPT.exe"
+ENGINE = r"C:\FakeLocalAppData\OpenAI\Codex\bin\abcdef0123456789\codex.exe"
+
+
+class SeveralEngineChildrenTests(unittest.TestCase):
+    """Codex 26.930's app starts `codex.exe exec-server` beside its app server, from the same
+    binary under the same main (measured 2026-10-04), and pairing refused both for ever. The
+    one holding Codex's state database open, by the Restart Manager, is the app's server;
+    anything short of exactly one fails closed, and one child is paired as it always was."""
+
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.home = Path(temp.name)
+        for name in ("state_4.sqlite", "state_5.sqlite", "state_5.sqlite-wal", "queue_1.sqlite"):
+            (self.home / name).write_bytes(b"")
+        self.identities = {10: {"pid": 10, "created": 100, "path": STORE_APP.lower()},
+                           20: {"pid": 20, "created": 200, "path": ENGINE.lower()},
+                           21: {"pid": 21, "created": 300, "path": ENGINE.lower()}}
+        for stub in (patch.dict(os.environ, {"ProgramW6432": NATIVE}),
+                     patch.object(pairing, "process_identity",
+                                  side_effect=lambda pid: dict(self.identities[pid]))):
+            stub.start()
+            self.addCleanup(stub.stop)
+
+    @staticmethod
+    def rows(*extra, both=True):
+        rows = [{"pid": 10, "parent": 1, "path": STORE_APP}, {"pid": 20, "parent": 10, "path": ENGINE}]
+        if both:
+            rows.append({"pid": 21, "parent": 10, "path": ENGINE})   # the exec-server
+        return rows + list(extra)
+
+    def pair(self, rows, holders, home="default"):
+        """(the pair or the error's code, the Restart Manager stub)."""
+        home = self.home if home == "default" else home
+        stub = (dict(side_effect=holders) if isinstance(holders, BaseException)
+                else dict(return_value=holders))
+        with patch.object(pairing, "resource_users", **stub) as users:
+            try:
+                return w.desktop_pair(rows, Path(ENGINE), home), users
+            except w.AdapterError as error:
+                return str(error), users
+
+    def test_the_one_holding_the_state_database_is_the_app_server(self):
+        pair, users = self.pair(self.rows(), [{"pid": 77, "created": 1}, {"pid": 20, "created": 200}])
+        self.assertEqual(pair, {**self.identities[10], "server": self.identities[20]})
+        users.assert_called_once_with(self.home / "state_5.sqlite")
+
+    def test_the_same_server_is_named_every_time_in_any_order(self):
+        # What a claim compares with what is about to be sent: the same pid and creation time.
+        holders = [{"pid": 20, "created": 200}]
+        first, _ = self.pair(self.rows(), holders)
+        again, _ = self.pair(list(reversed(self.rows())), holders)
+        self.assertEqual(first, again)
+        self.assertEqual(first["server"]["pid"], 20)
+
+    def test_both_or_neither_holding_it_fails_closed(self):
+        for holders in ([{"pid": 20, "created": 200}, {"pid": 21, "created": 300}], [],
+                        [{"pid": 77, "created": 1}], [{"pid": 20, "created": 200}, {"pid": 20, "created": 200}]):
+            with self.subTest(holders=holders):
+                self.assertEqual(self.pair(self.rows(), holders)[0], "desktop_server_missing_or_ambiguous")
+
+    def test_a_restart_manager_that_cannot_answer_fails_closed(self):
+        for error in (w.AdapterError("resource_session_failed"), w.AdapterError("windows_required"),
+                      w.AdapterError("resource_inventory_failed"), OSError("rstrtmgr")):
+            with self.subTest(error=error):
+                self.assertEqual(self.pair(self.rows(), error)[0], "desktop_server_missing_or_ambiguous")
+
+    def test_no_state_database_fails_closed_without_asking(self):
+        empty = self.home / "empty"
+        empty.mkdir()
+        (empty / "state_5.sqlite-wal").write_bytes(b"")
+        (empty / "state_6.sqlite").mkdir()          # a folder is not the database
+        for home in (empty, self.home / "missing", None):
+            with self.subTest(home=home):
+                result, users = self.pair(self.rows(), [{"pid": 20, "created": 200}], home=home)
+                self.assertEqual(result, "desktop_server_missing_or_ambiguous")
+                users.assert_not_called()
+
+    def test_a_reused_pid_fails_closed(self):
+        self.assertEqual(self.pair(self.rows(), [{"pid": 20, "created": 199}])[0], "process_identity_changed")
+
+    def test_one_child_is_paired_as_before_without_the_restart_manager(self):
+        for home in ("default", None):
+            with self.subTest(home=home):
+                pair, users = self.pair(self.rows(both=False), [], home=home)
+                self.assertEqual(pair, {**self.identities[10], "server": self.identities[20]})
+                users.assert_not_called()
+
+    def test_a_same_path_process_under_another_parent_is_ignored(self):
+        pair, users = self.pair(self.rows({"pid": 30, "parent": 99, "path": ENGINE}, both=False), [])
+        self.assertEqual(pair["server"]["pid"], 20)
+        users.assert_not_called()
+
+    def test_a_child_of_another_app_process_is_ignored(self):
+        others = ({"pid": 11, "parent": 10, "path": STORE_APP}, {"pid": 31, "parent": 11, "path": ENGINE},
+                  {"pid": 40, "parent": 1, "path": r"C:\Elsewhere\ChatGPT.exe"},
+                  {"pid": 41, "parent": 40, "path": ENGINE})
+        pair, users = self.pair(self.rows(*others, both=False), [])
+        self.assertEqual(pair["server"]["pid"], 20)
+        users.assert_not_called()
+
+    def test_the_backend_asks_of_its_own_codex_home_and_loaded_holds_it_to_that_server(self):
+        backend = w.Backend(self.home, Path(ENGINE))
+        rows = [dict(row, path=str(backend.codex_exe)) if row["path"] == ENGINE else row for row in self.rows()]
+        with patch.object(backend, "_compatible"), \
+             patch.object(transport, "inventory", return_value=rows), \
+             patch.object(pairing, "resource_users", return_value=[{"pid": 20, "created": 200}]) as users, \
+             patch.object(transport, "resource_users", return_value=[{"pid": 20, "created": 200}]):
+            identity = backend.app_identity()
+            self.assertEqual(identity["server"]["pid"], 20)
+            self.assertEqual(backend.loaded(THREAD, identity), "loaded")
+        self.assertEqual({call.args[0] for call in users.call_args_list}, {backend.codex_home / "state_5.sqlite"})
 
 
 if __name__ == "__main__":

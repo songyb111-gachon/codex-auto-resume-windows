@@ -35,3 +35,18 @@ def _safe_path(path: Path) -> Path:
     if raw.startswith("\\\\?\\"):
         raw = raw[4:]
     return Path(raw).resolve()
+
+
+def newest_generation(home: Path, kind: str):
+    """The newest generation of one of `DB_KINDS` in the Codex home, or None: a regular file,
+    never a link. This only finds it; it is not opened here. `SchemaMixin.resolve` reads this
+    one file or none - an older generation is never a fallback - and the desktop pairing asks
+    who holds this same file open. Raises OSError when the home cannot be listed."""
+    pattern = DB_KINDS[kind][0]
+    newest = None
+    for entry in Path(home).iterdir():
+        match = pattern.fullmatch(entry.name)
+        if match and entry.is_file() and not entry.is_symlink():
+            if newest is None or int(match.group(1)) > newest[0]:
+                newest = (int(match.group(1)), entry)
+    return newest[1] if newest is not None else None

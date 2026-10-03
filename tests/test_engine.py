@@ -27,6 +27,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 
 _HERE = str(Path(__file__).resolve().parent)
 if _HERE not in sys.path:
@@ -35,7 +36,7 @@ if _HERE not in sys.path:
 from codexsim import APP, BASE, RESET, USAGE_ERROR, CodexHome, SimBackend, new_id, transient_error  # noqa: E402
 from codex_auto_resume import machine, settings  # noqa: E402
 from codex_auto_resume.engine import BACKOFF_LADDER, Engine, backoff_delay  # noqa: E402
-from codex_auto_resume.codex import LocalSource, detect  # noqa: E402
+from codex_auto_resume.codex import LocalSource, detect, pairing, transport  # noqa: E402
 from codex_auto_resume.store import Store  # noqa: E402
 
 SRC = str(Path(__file__).resolve().parents[1] / "src")
@@ -1538,6 +1539,59 @@ class GateTests(EngineCase):
         self.h.tick()
         self.assertEqual(self.h.store.all_records(), [])
         self.assert_no_send()
+
+
+class SeveralEngineChildrenTests(EngineCase):
+    """The app gate through the real transport, where the app main has two children of the
+    configured engine - Codex 26.930's app server and its cloud exec-server (measured
+    2026-10-04), which left a real recovery waiting for the app for ever. Only the processes
+    and the Restart Manager are stubs; the pairing, the identity and the engine are real."""
+
+    NATIVE = r"C:\Program Files"
+    STORE_APP = NATIVE + r"\WindowsApps\OpenAI.Codex_26.930.2377.0_x64__2p2nqsd0c76g0\app\ChatGPT.exe"
+    ENGINE = r"C:\FakeLocalAppData\OpenAI\Codex\bin\abcdef0123456789\codex.exe"
+
+    def through_the_transport(self, state_holders):
+        real = transport.Backend(self.h.home.root, Path(self.ENGINE))
+        exe = str(real.codex_exe)
+        rows = [{"pid": 10, "parent": 1, "path": self.STORE_APP},
+                {"pid": 20, "parent": 10, "path": exe},      # app-server
+                {"pid": 21, "parent": 10, "path": exe}]      # exec-server
+        identities = {10: {"pid": 10, "created": 100, "path": self.STORE_APP.lower()},
+                      20: {"pid": 20, "created": 200, "path": exe.lower()},
+                      21: {"pid": 21, "created": 300, "path": exe.lower()}}
+
+        def holders(path):
+            self.assertEqual(Path(path), real.codex_home / "state_5.sqlite")
+            return list(state_holders)
+        for stub in (patch.dict(os.environ, {"ProgramW6432": self.NATIVE}),
+                     patch.object(real, "_compatible"),
+                     patch.object(transport, "inventory", return_value=rows),
+                     patch.object(pairing, "process_identity", side_effect=lambda pid: dict(identities[pid])),
+                     patch.object(pairing, "resource_users", side_effect=holders)):
+            stub.start()
+            self.addCleanup(stub.stop)
+        # The simulated app holds the conversation for exactly the app server's identity.
+        self.h.backend.app = {**identities[10], "server": identities[20]}
+        self.h.backend.app_identity = real.app_identity
+
+    def test_the_app_server_holding_the_state_database_passes_the_app_gate(self):
+        self.through_the_transport([{"pid": 20, "created": 200}])
+        self.ready_after_reset()
+        self.h.tick()
+        self.assertEqual([call[0] for call in self.h.backend.send_calls], [T1])
+        self.assertNotIn((T1, "waiting_for_app", "desktop_app_unavailable"), self.h.logs)
+        self.follow()
+        self.assertEqual(self.h.record()["state"], "recovered")
+
+    def test_both_holding_it_still_waits_for_the_app(self):
+        self.through_the_transport([{"pid": 20, "created": 200}, {"pid": 21, "created": 300}])
+        self.ready_after_reset()
+        for _ in range(3):
+            self.h.tick(advance=60)
+        self.assert_no_send()
+        row = self.h.record()
+        self.assertEqual((row["state"], row["last_error"]), ("waiting_for_app", "desktop_app_unavailable"))
 
 
 class SingleInstanceTests(unittest.TestCase):
