@@ -16,13 +16,22 @@ caller states:
                  command line's switches and cancels).
 
 An installation in progress holds the upgrade too, for a caller that says so
-(`hold_while_installing`): the control layer, behind the window, the panel and the MCP server. A
-version picked in the Dashboard that reads an older state has the state converted for it, and the
-watcher stopped, before that version's installer runs, all under the install lock (the bootstrap's
--Pick). A status read in between would find the mutex free and upgrade the state back, and the
-older watcher would then refuse it and send nothing. So while the lock is held, or
-cannot be looked at, these read the state as an older watcher's, as above. The command line keeps
-upgrading under the lock: an installer's own setup runs through it.
+(`hold_while_installing`), and every per-call opener says so: the control layer, behind the
+window, the panel and the MCP server, and the command line, behind a notification's buttons, the
+skill's commands and the installer's own setup. A version picked in the Dashboard that reads an
+older state has the state converted for it, and the watcher stopped, before that version's
+installer runs, all under the install lock (the bootstrap's -Pick). A status read in between - or
+a notification's Cancel pressed meanwhile - would find the mutex free and upgrade the state back,
+and the older watcher would then refuse it and send nothing. So while the lock is held, or cannot
+be looked at, these read the state as an older watcher's, as above. An installer of this version
+loses nothing by it: its setup's switches go through the older store, and the watcher it starts
+upgrades the state under its own mutex, as a watcher always has.
+
+The pick's window stays open after it, and so may Codex's MCP server: long-lived processes still
+running this version's code once the older version's installer has replaced the files under them.
+For them the control layer says when that has happened (`superseded`), and an older state is then
+left as it is too - it is the installed version's to upgrade, or not. Where an older installer
+failed and this version's files are still there, nothing is superseded and the upgrade is made.
 
 These were three copies of the same steps, each with its policy written into it. That the
 command line takes the older store where the control layer refuses it is deliberate, and each
@@ -41,7 +50,7 @@ UPGRADE_PENDING = ("Upgrade pending: an older watcher still owns the state. Use 
 
 
 def open_state(state_dir, *, legacy: str = "never", reducing: bool = False, check: bool = False,
-               upgrade_failed=None, hold_while_installing: bool = False):
+               upgrade_failed=None, hold_while_installing: bool = False, superseded=None):
     """The state in `state_dir`: a Store, or - under an older watcher - what `legacy` allows.
 
     Raises UpgradePending(UPGRADE_PENDING) when the policy offers nothing, and otherwise what
@@ -50,6 +59,8 @@ def open_state(state_dir, *, legacy: str = "never", reducing: bool = False, chec
     caller's own error - the control layer reports it as the state being unavailable, whatever
     the store called it. `hold_while_installing` leaves an older state as it is while an
     installation holds its lock, or the lock cannot be looked at, and `legacy` decides what then.
+    `superseded`, when given, is asked the same way: true when another version has been installed
+    under this process since it started, and an older state is then left as it is too.
     """
     if legacy not in POLICIES:
         raise ValueError("legacy must be one of " + ", ".join(POLICIES))
@@ -59,7 +70,9 @@ def open_state(state_dir, *, legacy: str = "never", reducing: bool = False, chec
         pass
     # Looked at only once the state is known to be older: a pick's conversion happens under the
     # install lock, which is held from before it until that version's installer has finished.
-    if not (hold_while_installing and windows.install_in_progress() is not False):
+    held = ((hold_while_installing and windows.install_in_progress() is not False)
+            or (superseded is not None and superseded()))
+    if not held:
         try:
             with Mutex(str(state_dir), timeout=0.0):
                 return Store(state_dir, migrate=True, check=True)

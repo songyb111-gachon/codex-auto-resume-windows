@@ -197,9 +197,11 @@ them `thread/goal/set`, `thread/queue/add` with words this product wrote, and `t
   edition change passed to it only on a change and only to installers that know editions. While it
   runs, the window greys every action button, the header's Start watcher included, so the window
   cannot start the current watcher between the conversion and the installer. Nor does reading the
-  state put it back meanwhile: while an installation holds its lock, the window, the panel and
-  Codex's tools read an older state as an older watcher's and never upgrade it, and only the command
-  line, which an installer's own setup runs through, upgrades under the lock. Nor can the control
+  state put it back meanwhile: while an installation holds its lock, the window, the panel, Codex's
+  tools and the command line - a notification's Cancel, a status from Codex's skill, an installer's
+  own setup - read an older state as an older watcher's and never upgrade it; only a watcher, at its
+  start, does. A window or an MCP server left open from before the pick leaves it as it is after the
+  lock too, once the older version's installer has replaced the files it runs from. Nor can the control
   layer start the current watcher meanwhile: while an installation holds its lock, the bridge's
   `start-watcher`, which the window's Start watcher sends, and Codex's `start_watcher` tool refuse
   (`start_failed`) and start nothing, as the start with Codex always has. The bootstrap's only
@@ -1039,8 +1041,10 @@ forbid them are what a cooperating installation obeys, not a lock. And a measure
 makes its calls into the conversation it names from an installed copy as from a source checkout;
 only its record is refused where there is no `docs/evidence/live/`.
 - A version picked with *Install another version...* that reads an older state has the state
-converted before its installer runs. Between the two, reading the state no longer upgrades it, and
-the control layer starts no watcher - the window's Start watcher, the bridge's `start-watcher` and
+converted before its installer runs. Between the two, reading the state no longer upgrades it - not
+through the window, the panel, Codex's tools or the command line - nor does a window or an MCP server
+left open after the pick, once the older version's files have replaced the ones it runs from; the
+control layer starts no watcher - the window's Start watcher, the bridge's `start-watcher` and
 Codex's `start_watcher` tool all wait for the install lock - but a watcher started outside it, from
 the command line as an installer's own setup does, would still bring the state back to the current
 schema; the older watcher would then refuse that state and send nothing. That fails closed, but

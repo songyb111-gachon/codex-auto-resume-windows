@@ -45,11 +45,14 @@ finish (Discussion #22). Both are in the standard edition and in both editions' 
   for updates* - the header's *Start watcher* is greyed with every other action button, so the window
   cannot start the current watcher between a conversion and the installer.
 - **Nothing that reads the state puts it back.** While an installation holds its lock, the window,
-  the panel and Codex's tools read an older state as an older watcher's and never upgrade it, so the
-  Dashboard's own refresh, every five seconds, cannot bring a converted state back to this version's
-  schema before the older version's installer has run. The command line still upgrades under the
-  lock, as an installer's own setup needs, and once no installation holds it this version upgrades
-  the state again as it always has.
+  the panel, Codex's tools and the command line read an older state as an older watcher's and never
+  upgrade it, so neither the Dashboard's own refresh, every five seconds, nor a notification's
+  *Cancel* pressed meanwhile, nor a status asked from Codex's skill or the Start Menu can bring a
+  converted state back to this version's schema before the older version's installer has run. An
+  installer's own setup switches through that older store, and the watcher it starts upgrades the
+  state, as a watcher always has. Once no installation holds the lock this version upgrades the state
+  again - except in a window or an MCP server left open from before the pick: once the older
+  version's installer has replaced the files they run from, they leave the state to that version.
 - **Nor does anything start the watcher meanwhile.** While an installation holds its lock, the
   bridge's `start-watcher`, which the window's *Start watcher* sends, and Codex's `start_watcher` tool
   start nothing and refuse with `start_failed` and the reason, as the start with Codex always has, so

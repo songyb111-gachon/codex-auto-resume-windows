@@ -108,9 +108,11 @@ class App(WatchLoop):
         """Open the state for one command, as any per-call opener must (openstate.open_state).
 
         An older schema is upgraded only under the watcher's mutex, and while an older watcher
-        holds it the command is refused (UpgradePending) until that watcher stops.
+        holds it the command is refused (UpgradePending) until that watcher stops - as it is
+        while an installation holds its lock, when the state may have been converted for the
+        version being installed.
         """
-        return open_state(self.paths.state_dir, legacy="never", check=check)
+        return open_state(self.paths.state_dir, legacy="never", check=check, hold_while_installing=True)
 
     def backend(self) -> Backend:
         if self._backend is None:
