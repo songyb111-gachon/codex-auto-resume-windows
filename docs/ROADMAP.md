@@ -571,7 +571,8 @@ The Rust core carries both (v0.6.14).
 
 ## v0.6.12 — The rest of the advanced edition
 
-**In development: v0.6.12-alpha and v0.6.12-alpha.2, its first two pre-releases, are out.**
+**In development: v0.6.12-alpha and v0.6.12-alpha.2, its first two pre-releases, are out, and
+v0.6.12-beta is being built.**
 
 What the plan put in v0.6.11's later stages, moved here whole when v0.6.11 was cut short, in as
 many pre-releases as it needs: each finished stage is published as one while the next is built.
@@ -600,15 +601,20 @@ The owner asked for it on 2026-10-03.
 
 ### First: another version, and a power action after a usage limit
 
-**v0.6.12-beta**, the next pre-release, comes first with these two, and the stages below follow it,
-each published as a numbered beta once it is finished. Before the capabilities below, v0.6.12 adds two
-things people asked for:
+**v0.6.12-beta** 🚧, the next pre-release, is being built: it comes first with these two, and the
+stages below follow it, each published as a numbered beta once it is finished. Before the
+capabilities below, v0.6.12 adds two things people asked for:
 
 - **Install another version or edition from the Dashboard** - any release or pre-release of either
   edition, from the list of releases the update check already reads. It says first what the change
   means - a change of edition turns every advanced capability off, a pre-release is tested less, and
   an older version has the state converted first, with a copy, as `downgrade-state` does - and checks
   what it downloads as every install does. It was planned for v0.6.11 and not finished in time.
+  **Built for v0.6.12-beta:** *Install another version...*, last in the Diagnostics page's Tools
+  card, lists every version from v0.6.2 on in both editions, greys each it cannot install with the
+  reason, and converts the state for a version from v0.6.2 to v0.6.11-alpha only after the archive
+  passed its checks. It offers pre-releases as it offers releases, older and newer, since the owner
+  amended I12 for it on 2026-10-03.
 - **A power action once a usage limit's recoveries are done**
   ([discussion #22](https://github.com/songyb111-gachon/codex-auto-resume-windows/discussions/22)):
   sleep, hibernate or shut down the PC once every recovery waiting for a usage limit to reset has

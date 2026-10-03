@@ -378,7 +378,8 @@ class SourceTests(unittest.TestCase):
     def test_diagnostics_adds_its_tools_after_the_five_and_its_fact_after_the_memory(self):
         page = guiscan.member_body("SettingsForm", "BuildDiagnostics")
         shown = page[page.index("foreach (Button button in new[] {"):]
-        order = [shown.index(text) for text in ("stopButton,", '"action.search_logs"', "demoButton })")]
+        # v0.6.12: Install another version... after them, last (tests/test_gui_versions.py).
+        order = [shown.index(text) for text in ("stopButton,", '"action.search_logs"', "demoButton,", "versionsButton })")]
         self.assertEqual(order, sorted(order), "the Tools card's buttons, in the order they are added")
         self.assertLess(page.index('"diag.memory_peak"'), page.index('"diag.state_access"'))
 

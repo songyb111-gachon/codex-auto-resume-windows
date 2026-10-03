@@ -43,6 +43,7 @@ gui/DashboardData.cs
 gui/DashboardActions.cs
 gui/DashboardMaintenance.cs
 gui/DashboardTools.cs
+gui/DashboardVersions.cs
 
 [controls]
 gui/SoftTheme.cs

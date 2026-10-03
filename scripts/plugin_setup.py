@@ -452,6 +452,16 @@ def cmd_uninstall(args) -> int:
     return EXIT_OK
 
 
+def cmd_downgrade_state(args) -> int:
+    """For Install another version... (the bootstrap's -Pick): the state converted for an older
+    release, the watcher asked to stop and waited for first, and one line saying what was done
+    (cli downgrade-state --stop-watcher)."""
+    argv = ["--quiet", "downgrade-state", "--to", str(args.to)]
+    if args.stop_watcher:
+        argv.append("--stop-watcher")
+    return _cli(runtime_home(), argv)
+
+
 def passthrough(name: str):
     def run(args) -> int:
         extra = ["-n", str(args.lines)] if name == "logs" else []
@@ -486,6 +496,11 @@ def build_parser() -> argparse.ArgumentParser:
                    help="also delete settings, pending recoveries and logs")
     p = sub.add_parser("logs")
     p.add_argument("-n", "--lines", type=int, default=30)
+    p = sub.add_parser("downgrade-state", help="convert the state for an older release (v0.6.0 to v0.6.11-alpha)")
+    p.add_argument("--to", type=int, required=True, choices=[3],
+                   help="the schema to write: 3, what v0.6.0 to v0.6.11-alpha read")
+    p.add_argument("--stop-watcher", action="store_true",
+                   help="ask a running watcher to stop and wait for it, at most a minute")
     return parser
 
 
@@ -493,7 +508,7 @@ COMMANDS = {
     "setup": cmd_setup, "status": cmd_status, "pending": cmd_pending, "enable": cmd_enable,
     "disable": cmd_disable, "cancel": cmd_cancel, "uninstall": cmd_uninstall,
     "verify-home": cmd_verify_home,
-    "claim-home": cmd_claim_home,
+    "claim-home": cmd_claim_home, "downgrade-state": cmd_downgrade_state,
     "stop": passthrough("stop"), "doctor": passthrough("doctor"), "logs": passthrough("logs"),
 }
 

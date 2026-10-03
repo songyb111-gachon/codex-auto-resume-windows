@@ -363,26 +363,24 @@ namespace CodexAutoResume
             });
         }
 
-        /// Runs scripts/bootstrap.ps1 with one switch and reads the line it prints for a
-        /// caller - and, since v0.6.5, the `compatibility:` line before it, the answer to the
-        /// check's second request (CompatibilityLine; null when it made none), and since v0.6.11
-        /// the `prerelease:` line of its question about pre-releases (PrereleaseLine; null when
-        /// there is none). The lines are the contract; the rest of the output is for a person.
-        private static void RunBootstrap(string root, string script, string flag, int milliseconds,
-                                         out string answer, out string current, out string latest,
-                                         out string detail, out string compatibility, out string prerelease)
+        /// Runs this installation's scripts/bootstrap.ps1 with `flag` and waits for it at most `milliseconds`:
+        /// "done", with what it printed, what it wrote to its error stream and its exit code; "incomplete" where
+        /// Windows PowerShell is not there to run it; "running" where it has not finished - never killed, for it
+        /// may be part way through replacing an installation, and half an installation is worse than a slow one;
+        /// "failed" where it could not be started, with why in `errors`. Every caller of the bootstrap comes
+        /// through here (v0.6.12): the update check and its install (RunBootstrap), and Install another
+        /// version...'s listing and pick (StartVersionsListing, InstallPick).
+        private static string StartBootstrap(string root, string script, string flag, int milliseconds,
+                                             out string printed, out string errors, out int code)
         {
-            answer = "failed";
-            current = null;
-            latest = null;
-            detail = "";
-            compatibility = null;
-            prerelease = null;
+            printed = "";
+            errors = "";
+            code = -1;
             string powershell = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),
                                              "WindowsPowerShell", "v1.0", "powershell.exe");
             // By full path, never by bare name: a `powershell.exe` earlier on PATH is the
             // whole of v0.5.7's system-executable fix, and this is a new caller of one.
-            if (!File.Exists(powershell)) { answer = "incomplete"; return; }
+            if (!File.Exists(powershell)) return "incomplete";
             try
             {
                 var info = new ProcessStartInfo(powershell,
@@ -399,43 +397,65 @@ namespace CodexAutoResume
                 {
                     Task<string> output = process.StandardOutput.ReadToEndAsync();
                     Task<string> failure = process.StandardError.ReadToEndAsync();
-                    if (!process.WaitForExit(milliseconds))
-                    {
-                        // Not killed: it may be part way through replacing an installation,
-                        // and half an installation is worse than a slow one.
-                        answer = "running";
-                        return;
-                    }
+                    if (!process.WaitForExit(milliseconds)) return "running";
                     output.Wait(5000);
                     failure.Wait(5000);
-                    string printed = output.IsCompleted ? output.Result : "";
-                    detail = Tail(printed + "\n" + (failure.IsCompleted ? failure.Result : ""));
-                    compatibility = CompatibilityLine(printed);
-                    prerelease = PrereleaseLine(printed);
-                    string line = null;
-                    foreach (string raw in (printed ?? "").Replace("\r", "").Split('\n'))
-                    {
-                        string trimmed = raw.Trim();
-                        if (trimmed.StartsWith("update: ", StringComparison.Ordinal)) line = trimmed;
-                    }
-                    string[] words = line == null ? new string[0]
-                                   : line.Substring("update: ".Length).Split(' ');
-                    string said = words.Length > 0 ? words[0] : "";
-                    if (words.Length > 1) current = words[1];
-                    if (words.Length > 2) latest = words[2];
-                    int code = process.ExitCode;
-                    // The code and the line have to agree. Either alone could be an older
-                    // script, a crash after printing, or an exit code Windows supplied; a
-                    // disagreement is not an answer and is reported as one that failed.
-                    if (code == UpdateCurrent && said == "current") answer = "current";
-                    else if (code == UpdateAvailable && said == "available") answer = "available";
-                    else if (code == UpdateLocalNewer && said == "newer-local") answer = "newer-local";
-                    else if (code == UpdateUnavailable && said == "unavailable") answer = "unavailable";
-                    // An install runs on past the line and exits with the installer's code.
-                    else if (code == 0 && said == "available") answer = "installed";
+                    printed = output.IsCompleted ? output.Result : "";
+                    errors = failure.IsCompleted ? failure.Result : "";
+                    code = process.ExitCode;
+                    return "done";
                 }
             }
-            catch (Exception error) { detail = error.Message; }
+            catch (Exception error)
+            {
+                errors = error.Message;
+                return "failed";
+            }
+        }
+
+        /// Runs scripts/bootstrap.ps1 with one switch and reads the line it prints for a
+        /// caller - and, since v0.6.5, the `compatibility:` line before it, the answer to the
+        /// check's second request (CompatibilityLine; null when it made none), and since v0.6.11
+        /// the `prerelease:` line of its question about pre-releases (PrereleaseLine; null when
+        /// there is none). The lines are the contract; the rest of the output is for a person.
+        private static void RunBootstrap(string root, string script, string flag, int milliseconds,
+                                         out string answer, out string current, out string latest,
+                                         out string detail, out string compatibility, out string prerelease)
+        {
+            answer = "failed";
+            current = null;
+            latest = null;
+            detail = "";
+            compatibility = null;
+            prerelease = null;
+            string printed, errors;
+            int code;
+            string ran = StartBootstrap(root, script, flag, milliseconds, out printed, out errors, out code);
+            if (ran == "incomplete" || ran == "running") { answer = ran; return; }
+            if (ran != "done") { detail = errors; return; }
+            detail = Tail(printed + "\n" + errors);
+            compatibility = CompatibilityLine(printed);
+            prerelease = PrereleaseLine(printed);
+            string line = null;
+            foreach (string raw in (printed ?? "").Replace("\r", "").Split('\n'))
+            {
+                string trimmed = raw.Trim();
+                if (trimmed.StartsWith("update: ", StringComparison.Ordinal)) line = trimmed;
+            }
+            string[] words = line == null ? new string[0]
+                           : line.Substring("update: ".Length).Split(' ');
+            string said = words.Length > 0 ? words[0] : "";
+            if (words.Length > 1) current = words[1];
+            if (words.Length > 2) latest = words[2];
+            // The code and the line have to agree. Either alone could be an older
+            // script, a crash after printing, or an exit code Windows supplied; a
+            // disagreement is not an answer and is reported as one that failed.
+            if (code == UpdateCurrent && said == "current") answer = "current";
+            else if (code == UpdateAvailable && said == "available") answer = "available";
+            else if (code == UpdateLocalNewer && said == "newer-local") answer = "newer-local";
+            else if (code == UpdateUnavailable && said == "unavailable") answer = "unavailable";
+            // An install runs on past the line and exits with the installer's code.
+            else if (code == 0 && said == "available") answer = "installed";
         }
 
         /// The one-line fact beside "Updates" on the Health card.

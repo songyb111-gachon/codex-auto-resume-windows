@@ -21,7 +21,8 @@ This project operates no service of its own - no server, no endpoint, no telemet
 vendor backend to notify. The only service the code this project ships contacts is GitHub
 (github.com, and the GitHub storage hosts it redirects release downloads to), when setup downloads
 a release and when you press *Check for updates* - which from v0.6.11 also reads this repository's
-list of releases at api.github.com - and, from v0.6.5, raw.githubusercontent.com, when you ask for
+list of releases at api.github.com - or *Install another version...*, which reads that whole list
+there, and, from v0.6.5, raw.githubusercontent.com, when you ask for
 the compatibility data refresh. The Codex processes it starts talk to OpenAI with your
 existing sign-in, as Codex does (see *No network code in the recovery runtime* below). A finding in GitHub or in Codex itself
 belongs to that vendor's own reporting process, not here.
@@ -174,6 +175,33 @@ them `thread/goal/set`, `thread/queue/add` with words this product wrote, and `t
   kept, and - since no pre-release is ever pinned - verified against the `.sha256` published beside
   it, the trust-on-first-use case `docs/PLUGIN.md` describes. The watcher, the panel and the MCP tools
   never install one.
+
+  *Install another version...* on the same page is the bootstrap too (`-Versions`, then `-Pick`),
+  started by the window only when a person presses the button and again when they confirm a row;
+  building its dialog starts nothing, so the window audit never asks GitHub. It reads the whole list
+  of releases from a second api.github.com address on the same path - thirty to a page, at most five
+  pages, the page number the one thing put in, each page under the same size, redirect and host
+  checks and a deadline inside one budget - and any page that fails lists nothing, as does a fifth
+  page as full as the rest, which more may follow. A picked version
+  never reaches a URL as typed: it is rebuilt from its integers by the version rule, the row must
+  still be offered exactly as it was shown when the list is read again, and `-Force` is required for
+  an older version or the other edition and refused for anything else, so a stray `-Force` never
+  widens a pick. The archive is downloaded, checked against its pin or its published `.sha256`,
+  tested and unpacked as every install's is, and only then is the install lock
+  (`Local\CodexAutoResume.Install`) taken; a lock held elsewhere installs nothing. For a version that
+  reads an older state, the installed version's own `downgrade-state --to 3 --stop-watcher` then asks
+  the watcher to stop and waits a minute at most - it is never killed, and a watcher that has not
+  stopped leaves everything as it was - converts the state in one transaction after a copy, and
+  answers on one closed line that must agree with its exit code. A conversion that fails starts the
+  installed watcher again and installs nothing. Only then does the archive's installer run, with the
+  edition change passed to it only on a change and only to installers that know editions. While it
+  runs, the window greys every action button, the header's Start watcher included, so the window
+  cannot start the current watcher between the conversion and the installer. Nor does reading the
+  state put it back meanwhile: while an installation holds its lock, the window, the panel and
+  Codex's tools read an older state as an older watcher's and never upgrade it, and only the command
+  line, which an installer's own setup runs through, upgrades under the lock. The bootstrap's only
+  registry access is a read of the two policy keys' value names: while any policy value is there, or
+  a key cannot be read, no version before v0.6.11-beta is offered.
 
   No compatibility refresh runs unless you ask for it either. From v0.6.5 the Codex
   compatibility data refresh happens at exactly two moments: *Refresh compatibility data* on the
@@ -991,3 +1019,11 @@ or missing one is a warning the person confirmed rather than a refusal. The poli
 forbid them are what a cooperating installation obeys, not a lock. And a measurement run by hand
 makes its calls into the conversation it names from an installed copy as from a source checkout;
 only its record is refused where there is no `docs/evidence/live/`.
+- A version picked with *Install another version...* that reads an older state has the state
+converted before its installer runs. Between the two, reading the state no longer upgrades it, but
+something other than the window could still start the current watcher - Codex's `start_watcher`
+tool, or another caller of the bridge, which does not wait for the install lock - and it would bring
+the state back to the current schema; the older watcher would then refuse that state and send
+nothing. That fails closed, but recovery stays off until the installation is repaired. An older
+installer can also fail after the conversion: the state then stays converted, which sends less and
+never more, and the copy taken first is kept for forensics, not restored.

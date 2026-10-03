@@ -1332,6 +1332,7 @@ namespace CodexAutoResume
             //
             // So the call goes to a worker and the answer comes back through BeginInvoke,
             // which is the only way to touch these controls from off the UI thread.
+            starting = true;
             startButton.Enabled = false;
             heroHeld = true;                // until the answer is read (ApplyStatus)
             headline.Text = S("start.working", "Starting the watcher...");
@@ -1395,7 +1396,9 @@ namespace CodexAutoResume
                 Tell(S("start.failed", "Could not start the watcher.") + Environment.NewLine +
                      Environment.NewLine + error.Message);
             }
-            startButton.Enabled = true;
+            // Back as SetBusy has it: still greyed while an action is in flight (v0.6.12).
+            starting = false;
+            startButton.Enabled = busy == 0 && !starting;
         }
 
         private void Save()

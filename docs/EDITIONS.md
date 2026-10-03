@@ -204,6 +204,15 @@ your settings, your pause, everything waiting to resume and the sign-in choice, 
 capability starts off (K2). Codex's own copy of the plugin can stay the old edition's until Codex
 lets it be replaced; the installer and the Dashboard's Diagnostics page say so while it is.
 
+The Dashboard has a way too: **Install another version...** on the Diagnostics page lists every
+version of both editions from v0.6.2 on (the advanced edition's from v0.6.11-alpha), and a row of
+the other edition is a change of edition. Its confirmation says what the change means, as the
+installer does - to the standard edition the advanced features go, and their code with them; to the
+advanced edition every advanced feature starts off - and it passes the change to that version's own
+installer only after the archive passed its checks. From the advanced edition, a standard version
+before v0.6.11-alpha is greyed: its installer predates editions and cannot change one. The [guide](GUIDE.md#installing-another-version)
+says what else it asks and keeps.
+
 ## Updates and pre-releases
 
 An update stays in the edition you have. **Check for updates** fetches the installed edition's
@@ -212,7 +221,9 @@ against the digest pinned for that edition and version in the installed copy's `
 where there is one, and otherwise against the `.sha256` published beside it, as the [guide](GUIDE.md)
 explains. A pre-release never has a pinned digest, so it is checked against its published checksum;
 finals are pinned for both editions from v0.6.11 on. A pre-release it offers is your edition's too, and is installed only if you
-say yes (C5, I12, K2).
+say yes (C5, I12, K2). *Install another version...* offers the pre-releases of either edition as it
+offers releases, and installs one only after you confirm it; an older one, or one of the other
+edition, takes `-Force`, which the confirmation passes (I12, amended by the owner on 2026-10-03).
 
 ## Verifying
 
@@ -224,11 +235,11 @@ a table of pinned digests for each edition; the advanced edition's starts with v
 ## What comes next
 
 v0.6.12 first adds two things people asked for. One is a way to install another version or
-edition from the Dashboard - any release or pre-release of either edition - which says first what
-the change means, as the installer does when you switch (a change of edition turns every advanced
-capability off), and checks what it downloads as every install does. It was planned for v0.6.11
-and not finished in time; until it comes, switching is the reinstall [above](#switching). The
-other is a power action - sleep, hibernate or shut down - once every recovery waiting for a usage
+edition from the Dashboard - any release of either edition, and the pre-release the update check
+would offer - which says first what the change means, as the installer does when you switch (a
+change of edition turns every advanced capability off), and checks what it downloads as every
+install does. It was planned for v0.6.11 and not finished in time; it is built for v0.6.12-beta
+and described [above](#switching). The other is a power action - sleep, hibernate or shut down - once every recovery waiting for a usage
 limit to reset has ended; which edition it belongs in is decided against the standards when it is
 designed.
 

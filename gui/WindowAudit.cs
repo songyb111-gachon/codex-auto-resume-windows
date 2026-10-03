@@ -192,6 +192,9 @@ namespace CodexAutoResume
                         // v0.6.11: and the Log dialog's list, built with lines as long as the log writes them, and the
                         // dialog of a conversation's own message, built for the reply's first waiting recovery.
                         form.AuditLogs(findings);
+                        // v0.6.12: and Install another version...'s list, built and filled with a fixed answer - never
+                        // asked for, so no audit reaches GitHub.
+                        form.AuditVersions(findings);
                         form.AuditConversationMessage(snapshot, findings);
                     }
                     // v0.6.11: the dialog of a value of the person's own, of each kind the schema offers (SettingsOwn.cs).
@@ -993,6 +996,43 @@ namespace CodexAutoResume
                     AuditList("logs/" + AuditName(logsList), logsList, findings);
                 }
                 AuditSpoken("logs", dialog, findings);
+            }
+        }
+
+        /// A -Versions answer with every kind of row and the longest words a row says: what the audit fills Install
+        /// another version... with, through the parser the listing's answer goes through (VersionsLines).
+        internal const string AuditedVersions =
+            "version: 0.6.13 standard offered newer,release,kept,latest\n" +
+            "version: 0.6.13 advanced offered newer,release,kept,latest,edition\n" +
+            "version: 0.6.12-beta.2 standard refused not-offered\n" +
+            "version: 0.6.12-beta standard installed -\n" +
+            "version: 0.6.12-beta advanced offered same,prerelease,kept,edition\n" +
+            "version: 0.6.11-beta.2 standard refused older-prerelease\n" +
+            "version: 0.6.11 standard offered older,release,kept\n" +
+            "version: 0.6.11-alpha advanced offered older,prerelease,convert3,edition,advanced-off\n" +
+            "version: 0.6.10 standard offered older,release,convert3\n" +
+            "version: 0.6.6-alpha standard refused no-archive\n" +
+            "version: 0.6.5 standard refused no-checksum\n" +
+            "version: 0.6.4 standard refused managed-policy\n" +
+            "version: 0.6.2 advanced refused edition-first\n" +
+            "versions: listed 0.6.12-beta standard 0.6.13 v0.6.2 v0.6.11-alpha\n";
+
+        /// Install another version...'s dialog (v0.6.12), built by BuildVersions alone - which starts nothing - and filled
+        /// through ShowVersionRows with AuditedVersions, at its opening size and never shown (AuditList).
+        private void AuditVersions(List<string> findings)
+        {
+            List<string[]> rows;
+            string[] listed;
+            string state = VersionsLines(AuditedVersions, 0, out rows, out listed);
+            if (state != "listed") findings.Add("versions :: the audit's own answer reads as " + state);
+            using (Form dialog = BuildVersions())
+            {
+                dialog.TopLevel = false;
+                Materialise(dialog);
+                dialog.PerformLayout();
+                ShowVersionRows(state, rows, listed);
+                if (versionsList != null) AuditList("versions/" + AuditName(versionsList), versionsList, findings);
+                AuditSpoken("versions", dialog, findings);
             }
         }
 

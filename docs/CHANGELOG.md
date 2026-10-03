@@ -1,5 +1,71 @@
 # Changelog
 
+## v0.6.12-beta — Install another version from the Dashboard
+
+**Not published yet: this entry is written as the beta is built.** It is the first beta of v0.6.12.
+This part is the version picker the owner asked for on 2026-09-28; the power action after a usage
+limit adds its own part.
+
+### Install another version...
+
+- **Any version, either edition, from the Dashboard.** *Install another version...*, appended last
+  to the Diagnostics page's Tools card so no button moves, opens a list of every version from v0.6.2
+  on in each edition it was published in (the advanced edition from v0.6.11-alpha), newest first,
+  and installs the row you confirm in place of the installation the window belongs to. A row it
+  cannot install stays in the list, greyed, with its reason: the version you have, no archive of that
+  edition under that number, no checksum to check it against, an installer that predates editions
+  (from the advanced edition, a standard version before v0.6.11-alpha), or your administrator's
+  policy that version would not keep. Versions before v0.6.2 are not offered: from v0.6.0 and v0.6.1
+  the Dashboard cannot check a download, and v0.5's installers do not keep a paused recovery paused. [The guide](GUIDE.md#installing-another-version) says the rest.
+- **Pre-releases too, older and newer.** Pre-releases are offered as releases are, in both editions:
+  one picked by name and confirmed is installed as a release would be, an older one only with
+  `-Force`, which the confirmation passes. The owner amended I12 for it on 2026-10-03: its two
+  pre-release clauses bind what *Check for updates* offers, which is still the newest pre-release
+  newer than both the version you have and the newest release.
+- **Asked first, and only what applies.** The confirmation is the careful one (*Not now* is what Enter
+  and Escape press) and says only what applies: a pre-release is tested less; an older version lacks
+  what came since, and a setting or value it does not know reads as its default there; the state is
+  converted first, and what that switches off; a change of edition takes the advanced features away or
+  starts every one of them off; an advanced version before v0.6.11-beta.2 cannot read this version's
+  advanced settings; and the download is checked before anything runs.
+- **Converted only after the archive passed.** Confirming reads the list again - a row no longer
+  offered as it was shown installs nothing - then downloads the archive, checks it against its pin or
+  its published `.sha256`, tests and unpacks it as every install does, and only then takes the
+  install lock. For a version from v0.6.2 to v0.6.11-alpha, which reads a state one schema older, the
+  installed version's own `downgrade-state --to 3 --stop-watcher` then asks the watcher to stop,
+  waits a minute at most, never kills it, and converts the state as `downgrade-state --to 3` always
+  has, with a copy beside it: what may already have gone to Codex becomes final and is never sent
+  again, and what could be sent twice is switched off. Then that version's own installer runs. The
+  result says whether the watcher changed hands and what the conversion switched off, by count.
+- **Start watcher waits too.** While an action of the Diagnostics page runs - this one or *Check
+  for updates* - the header's *Start watcher* is greyed with every other action button, so the window
+  cannot start the current watcher between a conversion and the installer.
+- **Nothing that reads the state puts it back.** While an installation holds its lock, the window,
+  the panel and Codex's tools read an older state as an older watcher's and never upgrade it, so the
+  Dashboard's own refresh, every five seconds, cannot bring a converted state back to this version's
+  schema before the older version's installer has run. The command line still upgrades under the
+  lock, as an installer's own setup needs, and once no installation holds it this version upgrades
+  the state again as it always has.
+- **An administrator's policy is kept.** `DisableUpdateCheck` greys this button with *Check for
+  updates*. While any policy value is set, or a policy key cannot be read, no version before
+  v0.6.11-beta - the first that reads them - is offered or picked.
+- **Privacy.** The list is read from one more api.github.com address, the same list of releases on
+  the same path, thirty to a page and at most five pages, only when you press the button and again
+  when you confirm; then only the version you confirmed is downloaded. The policy keys are read on
+  this PC, read only, and the answer goes nowhere. Nothing is sent to Codex.
+
+### For developers
+
+- `scripts/bootstrap.ps1` gains `-Versions` (lists, exit 0, or `versions: unavailable`, exit 12) and
+  `-Pick <version> -Edition <edition> [-Force]` (installs one offered row; refusals exit 15).
+  `scripts/release.json` gains `release_pages`. `downgrade-state` gains `--stop-watcher`, with its
+  one-line answer and exit 3 for a watcher that did not stop; `scripts/plugin_setup.py` passes it
+  through for `--to 3`. The window's one start of the bootstrap is now `StartBootstrap`.
+- New tests: `tests/test_version_picker.py`, `tests/test_gui_versions.py`, and in
+  `tests/test_downgrade.py` the stop-watcher tests, the floor's proof against the tags and the reads
+  under the install lock. The privacy test's api.github.com allowance is widened, deliberately, to
+  exactly the two addresses of the list of releases, and each privacy summary names the picker.
+
 ## v0.6.12-alpha.2 — Every lane's test parts even, each dealt by its own times
 
 [The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.12-alpha...v0.6.12-alpha.2)

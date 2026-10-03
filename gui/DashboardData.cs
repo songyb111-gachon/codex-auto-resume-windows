@@ -545,6 +545,7 @@ namespace CodexAutoResume
                     // Diagnostics names the keys themselves, as a person reads them in the registry.
                     diagRecovery.Text = managed.Count > 0 ? recovery + " (" + string.Join(", ", managed.ToArray()) + ")" : recovery;
                     if (updateButton != null) updateButton.Enabled = busy == 0 && !updatesManaged;
+                    if (versionsButton != null) versionsButton.Enabled = busy == 0 && !updatesManaged;
                     if (updatesManaged) diagUpdate.Text = S("diag.update_managed", "turned off by your administrator");
                     diagStartup.Text = Equals(Get(status, "startup_enabled"), true) ? S("diag.yes", "yes") : S("diag.no", "no");
                     diagUpgrade.Text = upgrade ? S("diag.upgrade_pending", "An older watcher still owns the state") : "";
@@ -1085,11 +1086,16 @@ namespace CodexAutoResume
             if (exportButton != null) exportButton.Enabled = busy == 0;
             if (repairButton != null) repairButton.Enabled = busy == 0;
             if (updateButton != null) updateButton.Enabled = busy == 0 && !updatesManaged;
+            if (versionsButton != null) versionsButton.Enabled = busy == 0 && !updatesManaged;
             if (stopButton != null) stopButton.Enabled = busy == 0;
             if (demoButton != null) demoButton.Enabled = busy == 0;
             if (compatButton != null) compatButton.Enabled = busy == 0;
             if (saveButton != null) saveButton.Enabled = busy == 0;
             if (restoreButton != null) restoreButton.Enabled = busy == 0;
+            // v0.6.12: and the header's Start watcher, which was live through every action. An install that has stopped
+            // the watcher - Install another version... converting the state for an older one - would otherwise offer to
+            // start the current watcher, which migrates the state back, before the installer has run.
+            if (startButton != null) startButton.Enabled = busy == 0 && !starting;
         }
 
         /// Runs one bridge command on a worker and hands its reply back on this thread.

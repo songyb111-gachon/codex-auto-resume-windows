@@ -150,15 +150,19 @@ class CodePropertyTests(unittest.TestCase):
         # passes `chatgpt_base_url="https://chatgpt.com/backend-api/"` so a hostile local
         # config cannot redirect the queue call elsewhere. It is a constant handed to the
         # official binary, not a host this code connects to.
-        # api.github.com (v0.6.11) is here for one address alone, the update check's list of this
-        # repository's releases, which it reads for a newer pre-release; any other use of that host
-        # is still a host nobody expected.
+        # api.github.com is here for two addresses alone, both this repository's list of releases:
+        # `releases?per_page=10`, which the update check reads for a newer pre-release (v0.6.11), and
+        # `releases?per_page=30&page={page}`, which Install another version... reads page by page for
+        # the versions a person may pick (v0.6.12). Any other use of that host is still a host nobody
+        # expected.
         allowed = re.compile(r"^https://(?:github\.com|[a-z-]+\.githubusercontent\.com|"
                              r"api\.github\.com/repos/songyb111-gachon/codex-auto-resume-windows/releases\?per_page=10$|"
+                             r"api\.github\.com/repos/songyb111-gachon/codex-auto-resume-windows/releases"
+                             r"\?per_page=30&page=\{page\}$|"
                              r"chatgpt\.com/backend-api/|"
                              r"www\.python\.org|agent-plugins\.org|schemas\.microsoft\.com|"
                              r"docs\.microsoft\.com|learn\.microsoft\.com)/?", re.I)
-        offenders = []
+        offenders, api = [], set()
         for path in tracked("scripts/*") + tracked("build/install/*") + tracked("src/*") + tracked("advanced/src/*"):
             try:
                 text = path.read_text(encoding="utf-8")
@@ -167,7 +171,14 @@ class CodePropertyTests(unittest.TestCase):
             for url in re.findall(r"https?://[^\s\"'`)\]]+", text):
                 if not allowed.match(url):
                     offenders.append("%s: %s" % (path.relative_to(ROOT), url))
+                if url.startswith("https://api.github.com"):
+                    api.add(url)
         self.assertEqual(offenders, [], "a shipped file names a host we do not expect")
+        self.assertEqual(api, {"https://api.github.com/repos/songyb111-gachon/codex-auto-resume-windows/releases"
+                               "?per_page=10",
+                               "https://api.github.com/repos/songyb111-gachon/codex-auto-resume-windows/releases"
+                               "?per_page=30&page={page}"},
+                         "api.github.com is named for exactly the two addresses of the list of releases")
 
 
     def test_the_runtime_disables_codex_own_telemetry_when_it_drives_it(self):
@@ -264,6 +275,24 @@ class WordingTests(unittest.TestCase):
         passage = re.split(r"\n(?:- |\n)", skill[start + 2:], maxsplit=1)[0]
         self.assertIn("which release is newest", passage)
         self.assertIn("api.github.com", passage, "the skill tells Codex of one request of two")
+
+    def test_every_privacy_summary_names_the_version_picker(self):
+        """From v0.6.12-beta Install another version... reads the whole list of releases on api.github.com,
+        paged, when it is opened and again on a confirmed pick, and downloads the version picked. A summary
+        row that named only Check for updates would leave that read unsaid, so each row names the picker
+        by its button's words in the document's language, and so does what Codex tells people (the skill)."""
+        for name in documents_here(("README.md", "README.ko.md", "docs/GUIDE.md", "docs/GUIDE.ko.md")):
+            with self.subTest(name):
+                text = (ROOT / name).read_text(encoding="utf-8")
+                row = [line for line in text.splitlines()
+                       if line.startswith("|") and re.search(r"(?i)telemetry|텔레메트리", line)]
+                self.assertTrue(row, "%s has no privacy row in its summary table" % name)
+                words = "다른 버전 설치" if name.endswith(".ko.md") else "Install another version"
+                self.assertIn(words, row[0], "%s's privacy row leaves the version picker's list unsaid" % name)
+        skill = (ROOT / "skills" / "codex-auto-resume" / "SKILL.md").read_text(encoding="utf-8")
+        start = skill.index("- Its own runtime has no network code")
+        passage = re.split(r"\n(?:- |\n)", skill[start + 2:], maxsplit=1)[0]
+        self.assertIn("Install another version", passage, "the skill tells Codex of the update check alone")
 
     def test_no_released_version_has_lost_its_changelog_section(self):
         """A guard against over-correcting.

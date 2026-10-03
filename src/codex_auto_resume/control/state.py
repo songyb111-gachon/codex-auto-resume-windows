@@ -27,11 +27,13 @@ class StateMixin:
 
         While an older watcher still holds an older state, only the actions that reduce
         automation are offered its store (`legacy_ok`); everything else says the upgrade is
-        pending. A failed upgrade is reported as the state being unavailable.
+        pending. A failed upgrade is reported as the state being unavailable. While an
+        installation holds its lock nothing here upgrades the state: a version picked in the
+        Dashboard may have had it converted for it, and its watcher has not started yet.
         """
         try:
             return open_state(self.paths.state_dir, legacy="if_reducing", reducing=legacy_ok,
-                              upgrade_failed=_unavailable)
+                              upgrade_failed=_unavailable, hold_while_installing=True)
         except UpgradePending:
             raise ControlError(UPGRADE_PENDING, code="upgrade_pending") from None
         except StateFromNewerVersion:

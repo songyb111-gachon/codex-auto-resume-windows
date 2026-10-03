@@ -317,6 +317,8 @@ namespace CodexAutoResume
         // without the product's own icon.
         private TaskbarMark taskbar;
         private Button startButton, closeButton;
+        // v0.6.12: while Start watcher's own start is in flight (StartWatcher), apart from the actions SetBusy counts.
+        private bool starting;
 
         // The interface vocabulary, in the language the engine resolved. Fetched once,
         // over the same bridge every other read goes through.

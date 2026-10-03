@@ -316,12 +316,18 @@ class ButtonTests(unittest.TestCase):
 
     def test_powershell_is_found_by_full_path(self):
         """A `powershell.exe` earlier on PATH is the whole of v0.5.7's system-executable
-        fix, and this is a new caller of one."""
-        run = self.source[self.source.index("private static void RunBootstrap"):]
-        run = run[:run.index("\n        /// The one-line fact")]
-        self.assertIn("Environment.GetFolderPath(Environment.SpecialFolder.System)", run)
-        self.assertNotIn('ProcessStartInfo("powershell', run)
-        self.assertIn('info.EnvironmentVariables["CODEX_AUTO_RESUME_PLUGIN_HOME"] = root;', run)
+        fix, and this is a new caller of one.
+
+        v0.6.12: the start is StartBootstrap's, which every caller of the bootstrap goes through - the
+        update check's RunBootstrap, and Install another version...'s listing and pick."""
+        start = guiscan.member_body("SettingsForm", "StartBootstrap")
+        self.assertIn("Environment.GetFolderPath(Environment.SpecialFolder.System)", start)
+        self.assertNotIn('ProcessStartInfo("powershell', start)
+        self.assertIn('info.EnvironmentVariables["CODEX_AUTO_RESUME_PLUGIN_HOME"] = root;', start)
+        run = guiscan.member_body("SettingsForm", "RunBootstrap")
+        self.assertIn("StartBootstrap(root, script, flag, milliseconds, out printed, out errors, out code);", run)
+        self.assertNotIn("ProcessStartInfo", run, "the one start of the bootstrap is StartBootstrap's")
+        self.assertEqual(self.source.count("new ProcessStartInfo(powershell,"), 1)
 
 
 if __name__ == "__main__":

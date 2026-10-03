@@ -269,6 +269,13 @@ class ReleaseManifestTests(unittest.TestCase):
         self.assertEqual(self.release["releases"],
                          "https://api.github.com/repos/songyb111-gachon/codex-auto-resume-windows/releases?per_page=10")
 
+    def test_the_pickers_pages_are_exactly_these(self):
+        """The same list, page by page, which Install another version... reads (v0.6.12): the same host
+        and path, thirty to a page, and nothing about the machine in it - the page number is all."""
+        self.assertEqual(self.release["release_pages"],
+                         "https://api.github.com/repos/songyb111-gachon/codex-auto-resume-windows/releases"
+                         "?per_page=30&page={page}")
+
     def test_a_tagged_current_version_is_pinned(self):
         """Once the current version has been tagged here, its pin must not go missing.
 
@@ -323,6 +330,12 @@ class ReleaseManifestTests(unittest.TestCase):
     def test_no_other_substitution_is_possible(self):
         for value in (self.release["download"], self.release["archive"]):
             self.assertEqual(set(re.findall(r"\{(\w+)\}", value)), {"version"})
+        # The picker's pages take a page number, and never a version.
+        self.assertEqual(re.findall(r"\{(\w+)\}", self.release["release_pages"]), ["page"])
+        self.assertEqual(re.findall(r"\{(\w+)\}", self.release["releases"]), [])
+        bootstrap = BOOTSTRAP.read_text(encoding="utf-8")
+        self.assertEqual(re.findall(r"\.Replace\('\{page\}', ([^)]+)\)", bootstrap), ["[string]$page"])
+        self.assertIn("for ($page = 1; $page -le $PickMaxPages; $page++)", bootstrap)
 
     def test_digests_are_absent_or_real(self):
         for version, digest in self.release["sha256"].items():
@@ -478,15 +491,19 @@ class BootstrapTests(unittest.TestCase):
         -Version (v0.6.11) carries the pre-release a person said yes to, and it is not spliced
         either: Get-PrereleaseVersion accepts a pre-release in the product's grammar alone and
         rebuilds it from integers and one of two words, which `tests/test_version_rule.py` and
-        `tests/test_prerelease_offer.py` run against the shipped function.
+        `tests/test_prerelease_offer.py` run against the shipped function. -Versions (v0.6.12) is a
+        switch: it lists, and the one thing it puts into the list's address is a page number. -Pick
+        (v0.6.12) carries the version a person picked, and Get-ChosenVersion rebuilds it from its
+        integers (and one of two words), and it is installed only where the list still offers it
+        (tests/test_version_picker.py).
         """
         parameters = re.search(r"param\((.*?)\n\)", self.text, re.S).group(1)
         self.assertEqual(set(re.findall(r"\$(\w+)", parameters)),
                          {"Force", "NoStartup", "ArchivePath", "CheckOnly", "Update",
-                          "Compatibility", "Edition", "Version"})
+                          "Compatibility", "Edition", "Version", "Versions", "Pick"})
         values = [name for name in re.findall(r"\[(\w+)\]\$(\w+)", parameters)]
         self.assertEqual([name for kind, name in values if kind != "switch"],
-                         ["ArchivePath", "Edition", "Version"])
+                         ["ArchivePath", "Edition", "Version", "Pick"])
         self.assertIn("[ValidateSet('Standard', 'Advanced')]\n    [string]$Edition", parameters)
         # The typed version is read in one place, and what goes on from there is the rebuilt one.
         self.assertEqual(re.findall(r"Get-PrereleaseVersion \$Version\b", self.text),
@@ -539,6 +556,9 @@ class BootstrapTests(unittest.TestCase):
         # to the update question and must never read as one - nor as the refresh's refusal.
         other = codes.pop("ExitOtherEdition")
         self.assertNotIn(other, list(codes.values()) + [refused], "the edition refusal shares a code")
+        # v0.6.12: a pick refused, which is no answer to the update question nor either refusal above.
+        picked = codes.pop("ExitPickRefused")
+        self.assertNotIn(picked, list(codes.values()) + [refused, other], "the pick's refusal shares a code")
         self.assertEqual(set(codes), {"ExitCurrent", "ExitAvailable", "ExitLocalNewer",
                                       "ExitUnavailable"})
         self.assertEqual(len(set(codes.values())), 4, "two answers share a code")
@@ -811,7 +831,7 @@ class InstallerLockTests(unittest.TestCase):
         self.assertIn("AbandonedMutexException", text)
 
     def test_the_bootstrap_locks_only_where_it_bypasses_the_installer(self):
-        """The download path must not lock; the repair path must.
+        """The download path must not lock; the repair path and a pick must.
 
         Almost every route into the installation goes through install.ps1 and is
         serialised by the lock there, so the bootstrap deliberately does not take one
@@ -819,15 +839,25 @@ class InstallerLockTests(unittest.TestCase):
         the moment it could actually collide. The exception is the already-installed
         branch, which skips install.ps1 entirely and runs setup itself: it writes the
         same registrations, so it takes the same lock, and it used to take none.
+
+        A pick (v0.6.12) takes it too, and only once its archive has passed every check and been
+        unpacked: from there it converts the state, which nothing may come between and the installer.
+        The installer, run on the same thread, takes it again, which a Mutex allows its owner.
         """
         text = BOOTSTRAP.read_text(encoding="utf-8")
-        self.assertEqual(text.count("System.Threading.Mutex"), 1,
-                         "exactly one lock, in the repair branch")
-        lock = text.index("System.Threading.Mutex")
-        # It has to sit in the already-installed branch, which ends before the download.
-        self.assertLess(lock, text.index("Downloading v"),
+        self.assertEqual(text.count("New-Object System.Threading.Mutex"), 2,
+                         "two locks: the repair branch's and a pick's")
+        repair = text.index("New-Object System.Threading.Mutex")
+        pick = text.index("New-Object System.Threading.Mutex", repair + 1)
+        # The repair's sits in the already-installed branch, which ends before the download.
+        self.assertLess(repair, text.index("Downloading v"),
                         "the lock belongs to the repair branch, not the download")
-        self.assertIn("AbandonedMutexException", text)
+        # The pick's, after the archive passed and was unpacked, and before the conversion and the installer.
+        self.assertLess(text.index("ExtractToDirectory"), pick)
+        self.assertLess(pick, text.index("Convert-StateForOlder -Home_ $installHome"))
+        self.assertLess(pick, text.index("& $installer @arguments"))
+        self.assertIn("if ($Pick) {\n        # The install lock", text)
+        self.assertEqual(text.count("AbandonedMutexException]"), 2)
 
 
 if __name__ == "__main__":
