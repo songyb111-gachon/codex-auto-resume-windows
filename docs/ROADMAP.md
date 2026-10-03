@@ -571,7 +571,8 @@ The Rust core carries both (v0.6.14).
 
 ## v0.6.12 — The rest of the advanced edition
 
-**In development: v0.6.12-alpha and v0.6.12-alpha.2, its first two pre-releases, are out.**
+**In development: v0.6.12-alpha and v0.6.12-alpha.2, its first two pre-releases, are out, and
+v0.6.12-beta is being built.**
 
 What the plan put in v0.6.11's later stages, moved here whole when v0.6.11 was cut short, in as
 many pre-releases as it needs: each finished stage is published as one while the next is built.
@@ -600,9 +601,9 @@ The owner asked for it on 2026-10-03.
 
 ### First: another version, and a power action after a usage limit
 
-**v0.6.12-beta**, the next pre-release, comes first with these two, and the stages below follow it,
-each published as a numbered beta once it is finished. Before the capabilities below, v0.6.12 adds two
-things people asked for:
+**v0.6.12-beta** 🚧, the next pre-release, is being built: it comes first with these two, and the
+stages below follow it, each published as a numbered beta once it is finished. Before the
+capabilities below, v0.6.12 adds two things people asked for:
 
 - **Install another version or edition from the Dashboard** - any release or pre-release of either
   edition, from the list of releases the update check already reads. It says first what the change
