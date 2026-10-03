@@ -410,6 +410,7 @@ class ErrorCode(StrEnum):
     # v0.6.11: no postponement of a person's to take away; one conversation's message too many.
     NOT_POSTPONED = "not_postponed"
     TOO_MANY_MESSAGES = "too_many_messages"
+    POWER_UNAVAILABLE = "power_unavailable"
 
 
 # ---------------------------------------------------------------- settings and language

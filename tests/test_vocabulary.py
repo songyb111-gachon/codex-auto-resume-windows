@@ -41,6 +41,7 @@ if _HERE not in sys.path:
 
 import srcscan  # noqa: E402
 from codex_auto_resume.domain import compat_vocabulary as c, plug as p, vocabulary as v  # noqa: E402
+from codex_auto_resume.domain import power_vocabulary as pw  # noqa: E402
 
 # "module.NAME" -> (kind, length, digest), or the text of a single word.
 LISTS = {
@@ -106,7 +107,8 @@ LISTS = {
     # v0.6.11: a postponement's three refusals, a record that is not held, a tier that is none, and
     # a project that cannot be read or one too many; and what an administrator's policy key decides.
     # v0.6.11: not_postponed and too_many_messages - Don't postpone, and one conversation's message.
-    "control.ERROR_CODES": ("set", 33, "8b10b9748945e26c"),
+    # v0.6.12: power_unavailable - an action Windows will not do for this account on this PC.
+    "control.ERROR_CODES": ("set", 34, "d4859a691c1a1d4f"),
     "control.FALLBACK_CODE": "request_failed",
     # v0.6.11: v0.6.10's four again - v0.6.11-beta's careful was folded into detailed.
     "continuation.STYLES": ("tuple", 4, "a390c91bf5107f3f"),
@@ -368,14 +370,24 @@ HOMES = {
     p.Point: ("list", "domain.plug.POINTS"),
     p.Alternative: ("list", "domain.plug.ANSWERS"),
     p.Surface: ("list", "domain.plug.SURFACES"),
+    # v0.6.12: the power action's own words, beside domain/vocabulary.py at its line budget.
+    pw.PowerAction: ("list", "poweraction.ACTIONS"),
+    pw.PowerAfter: ("list", "poweraction.AFTERS"),
+    pw.PowerRepeat: ("list", "poweraction.REPEATS"),
+    pw.PowerPhase: ("list", "poweraction.PHASES"),
+    pw.PowerWait: ("list", "poweraction.WAITS"),
+    pw.PowerEnd: ("list", "poweraction.ENDS"),
+    pw.PowerClass: ("list", "poweraction.CLASSES"),
+    pw.PowerUnavailable: ("list", "poweraction.UNAVAILABLE"),
 }
 
 
 def enums():
-    """Every vocabulary the three modules define: `domain/vocabulary.py`; `domain/compat_vocabulary.py`,
-    the registry's, out of it since v0.6.11 and named through it still; and `domain/plug.py`, whose five
-    are the plug interface's own. Each is held to every rule here all the same."""
-    return [value for module in (v, c, p) for value in vars(module).values()
+    """Every vocabulary the four modules define: `domain/vocabulary.py`; `domain/compat_vocabulary.py`,
+    the registry's, out of it since v0.6.11 and named through it still; `domain/plug.py`, whose five
+    are the plug interface's own; and `domain/power_vocabulary.py`, the power action's (v0.6.12). Each
+    is held to every rule here all the same."""
+    return [value for module in (v, c, p, pw) for value in vars(module).values()
             if inspect.isclass(value) and issubclass(value, StrEnum) and value is not StrEnum
             and value.__module__ == module.__name__]
 

@@ -45,7 +45,7 @@ from .domain.public import (ACTORS, EVENT_CODES, FLAG_AFTER_USER_WORK, FLAG_LEGA
 from .domain.states import (CLAIMED, EPOCH_CODEX, EPOCH_STORE, EPOCH_USAGE, EXHAUSTED,
                             IN_FLIGHT, OBSERVING, OUTCOMES, PLAIN_MOVES, POSSIBLY_SENT, STATES,
                             TERMINAL, V2_STATES, WAITING, WATCHED, epoch, may_be_queued,
-                            plain_move_allowed, waiting_state)
+                            plain_move_allowed, still_followed, waiting_state)
 
 __all__ = ["ACTORS", "BLOCK", "CLAIMED", "EPOCH_CODEX", "EPOCH_STORE", "EPOCH_USAGE", "EVENT_CODES",
            "EXHAUSTED", "FLAG_AFTER_USER_WORK", "FLAG_LEGACY", "FLAG_USER_JOINED",
@@ -60,5 +60,5 @@ __all__ = ["ACTORS", "BLOCK", "CLAIMED", "EPOCH_CODEX", "EPOCH_STORE", "EPOCH_US
            "encode_gates", "epoch", "event_code", "first_refusal", "gate", "gate_budgets",
            "gate_consent", "gate_schedule", "gate_submission_safe", "hold_for_tier", "may_be_queued",
            "over_ceiling", "overlays", "own_postponement",
-           "plain_move_allowed", "public_code", "public_reason", "reason_code", "turn_status",
+           "plain_move_allowed", "public_code", "public_reason", "reason_code", "still_followed", "turn_status",
            "waited_aside", "waiting_state", "would_send_at"]

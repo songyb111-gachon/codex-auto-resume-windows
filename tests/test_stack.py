@@ -96,13 +96,17 @@ ITEM = {_q(name): item for item, names in {
                # and Show me what happens: the made-up task both surfaces take the demo from.
                "demo",
                # and a value of a person's own beside a drop-down's choices, which the settings coerce with.
-               "ownvalues"),
+               "ownvalues",
+               # v0.6.12: when the power action after usage-limit recoveries may act, which a person arms.
+               "poweraction"),
     "machine": ("machine", "domain", "domain.errors", "domain.ids", "domain.public",
                 "domain.states", "domain.vocabulary",
                 # v0.6.11: the registry's vocabularies, out of domain/vocabulary.py.
                 "domain.compat_vocabulary",
                 # and what a usage reading keeps of Codex's reply.
-                "domain.usage"),
+                "domain.usage",
+                # v0.6.12: the power action's words, out of domain/vocabulary.py.
+                "domain.power_vocabulary"),
     "scheduler": ("engine.reconcile",),
     "store": ("store", "store.actions", "store.claims", "store.columns", "store.downgrade",
               "store.errors", "store.journal", "store.legacy", "store.migrations", "store.policy",

@@ -60,7 +60,9 @@ LAYER = {_q(name): layer for layer, names in {
                # registry's vocabularies, out of domain/vocabulary.py at its line budget.
                "domain.plug", "domain.compat_vocabulary",
                # and what a usage reading keeps of Codex's reply, and nothing else.
-               "domain.usage"),
+               "domain.usage",
+               # v0.6.12: the power action's words, out of domain/vocabulary.py at its line budget.
+               "domain.power_vocabulary"),
     "policy": ("", "settings", "continuation", "l10n", "messages", "interface", "config", "logbook",
                # v0.6.11: which edition this is, found by looking beside the package; and quiet
                # hours and a postponement's times, on the local clock.
@@ -79,7 +81,9 @@ LAYER = {_q(name): layer for layer, names in {
                # and Show me what happens: made-up rows and a made-up task, reading no state.
                "demo",
                # and a value of a person's own beside a drop-down's choices, Custom... and Unlimited.
-               "ownvalues"),
+               "ownvalues",
+               # v0.6.12: when the power action after usage-limit recoveries may act - pure.
+               "poweraction"),
     "adapters": ("store", "openstate", "codex", "windows", "compat", "compatio", "startup", "shortcut",
                  # v0.6.10-alpha: compat.py and compatio.py became compat/.
                  "compat.model", "compat.standing", "compat.report", "compat.permits", "compat.files", "compat.cache", "compat.probes", "compat.views", "compat.evaluator",
