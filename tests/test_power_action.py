@@ -382,6 +382,59 @@ class AfterStepTenTests(unittest.TestCase):
         self.assertTrue(math.isfinite(pa.GAP_SECONDS) and pa.COUNTDOWN_LOOK_SECONDS < pa.GAP_SECONDS)
 
 
+class EngineActivityTests(unittest.TestCase):
+    """engine.activity hands the source the batch's conversations and its own clock, and turns anything
+    it cannot say into None, which judge_activity reads as codex_unknown."""
+
+    def engine(self, source, clock=lambda: NOW):
+        from codex_auto_resume.engine import Engine
+        return Engine(None, source, None, clock=clock)
+
+    def test_the_source_is_asked_with_the_batch_and_the_engine_s_clock(self):
+        asked = []
+
+        class Source:
+            def activity(self, threads, now):
+                asked.append((threads, now))
+                return {"history": True, "running": 0, "queued": 0, "extra": "dropped"}
+        found = self.engine(Source()).activity(["t1", "t2"])
+        self.assertEqual(found, {"history": True, "running": 0, "queued": 0})
+        self.assertEqual(asked, [(("t1", "t2"), NOW)])
+        self.assertIsNone(pa.judge_activity(found))
+
+    def test_a_source_that_cannot_answer_is_unknown(self):
+        class Raising:
+            def activity(self, threads, now):
+                raise OSError("locked")
+
+        class Odd:
+            def activity(self, threads, now):
+                return ["not", "a", "dict"]
+        for source in (Raising(), Odd(), object()):
+            with self.subTest(source=type(source).__name__):
+                found = self.engine(source).activity()
+                self.assertEqual(found, {"history": None, "running": None, "queued": None})
+                self.assertEqual(pa.judge_activity(found), PowerWait.CODEX_UNKNOWN)
+
+    def test_a_real_codex_home_that_lags_holds_the_action(self):
+        """Through the real reader: Codex's history behind its file is history_behind, never nothing running."""
+        import codexsim
+        import tempfile
+        import time
+        from codex_auto_resume.codex import LocalSource
+        with tempfile.TemporaryDirectory() as folder:
+            home = codexsim.CodexHome(Path(folder))
+            engine = self.engine(LocalSource(home.root), clock=time.time)
+            self.assertIsNone(pa.judge_activity(engine.activity()))
+            thread = codexsim.new_id()
+            home.add_thread(thread)
+            home.make_stale(thread)
+            self.assertEqual(pa.judge_activity(engine.activity([thread])), PowerWait.HISTORY_BEHIND)
+            home.catch_up(thread)
+            home.enqueue(thread, "a message of the user's")
+            self.assertEqual(pa.judge_activity(engine.activity([thread])), PowerWait.QUEUED_INPUT)
+
+
 class NonceTests(unittest.TestCase):
     def test_a_nonce_is_sixteen_lowercase_hex_digits(self):
         self.assertTrue(ids.is_power_nonce(NONCE))
