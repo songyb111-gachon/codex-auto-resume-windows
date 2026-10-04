@@ -193,5 +193,27 @@
       "next_line_other_version": 1,
       "engine_changed_after": 0
     }
+  },
+  "keys": [
+    "format",
+    "codex_version",
+    "verdict",
+    "recorded_at",
+    "recorded_by",
+    "reporter",
+    "attribution",
+    "local_checks",
+    "records",
+    "capabilities",
+    "note"
+  ],
+  "envelope": {
+    "format": "codex-auto-resume-compat-evidence/1",
+    "attribution": {
+      "rule": "a record counts for this version only when the product's engine reports before and after it - or the version installed now - name this version and no other",
+      "window": null,
+      "basis": null
+    },
+    "note": "Content-free: counts, states and times from this machine's own records, with no conversation text, identifiers or paths, counted only towards the Reported grade beside the version and never towards a version's tier."
   }
 }

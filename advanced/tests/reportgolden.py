@@ -1,5 +1,6 @@
 """Writes advanced/tests/golden/report/: what codex-compat-reporter's own `build` writes of each of
-reportfixtures.SCENARIOS - the report's body, and what it left out and why.
+reportfixtures.SCENARIOS - the report's body, what it left out and why, and the envelope around the
+body that does not name who wrote it (its keys in order, the format, the attribution, the note).
 
     python advanced/tests/reportgolden.py --reporter <its codex_compat_report.py, at 1.5.0> [--write]
 
@@ -28,6 +29,8 @@ import reportfixtures as fixtures  # noqa: E402
 GOLDEN = HERE / "golden" / "report"
 REPORTER_VERSION = "1.5.0"
 BODY = ("codex_version", "verdict", "local_checks", "records", "capabilities")
+# What the envelope says whoever wrote it; recorded_at, recorded_by and reporter name the writer and the moment.
+ENVELOPE = ("format", "attribution", "note")
 # The reporter's sentences for a record it could not place, and the reader's codes for them.
 UNPLACED = {"no engine line before it in the logs kept": "no_engine_line_before",
             "the engine changed while it ran": "engine_changed_during",
@@ -64,7 +67,8 @@ def golden(reporter, name) -> dict:
     finally:
         home.close()
     return {"scenario": name, "reporter": REPORTER_VERSION, "body": {field: report[field] for field in BODY},
-            "left_out": left_out(notes)}
+            "left_out": left_out(notes), "keys": list(report),
+            "envelope": {field: report[field] for field in ENVELOPE}}
 
 
 def encode(value) -> str:
