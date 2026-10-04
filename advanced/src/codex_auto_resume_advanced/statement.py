@@ -25,7 +25,7 @@ from pathlib import Path
 
 from codex_auto_resume import l10n
 
-from .vocabulary import ArmingState, ArmingWarning, Field
+from .vocabulary import ArmingState, ArmingWarning, Field, ReportRefusal, ReportWrite, WebReason
 
 DIRECTORY = Path(__file__).resolve().parent / "locales"
 FIELDS = tuple(Field)
@@ -80,7 +80,20 @@ PAGE_KEYS = tuple(PAGE_PREFIX + name for name in (
     "statement_unavailable", "refused.unread",
     "tripped", "tripped.measurement_failed", "tripped.failed_here", "tripped.incompatible",
     "tripped.local_check_failed", "tripped.submission_unknown", "tripped.hook_exception",
-    "tripped.statement_changed", "tripped.engine_changed"))
+    "tripped.statement_changed", "tripped.engine_changed", "action_limits"))
+# The compatibility report's card on that page (advanced/gui/AdvancedReport.cs): its own words, one for each
+# write sending makes (vocabulary.ReportWrite), one for each reason it has to be sent on the web (WebReason) and
+# one for each word it refuses with (ReportRefusal) - so a word the flow can answer with is one the page can say.
+REPORT_PREFIX = PAGE_PREFIX + "report."
+REPORT_KEYS = (tuple(REPORT_PREFIX + name for name in (
+    "title", "intro", "login", "version", "write", "writing", "records", "verdict", "size", "sha256", "left_out",
+    "file", "save", "saved", "watched", "check", "checking", "gh", "signed_in", "interrupted", "writes", "type",
+    "send", "sending", "sent", "already", "after", "partial", "again", "lost", "last",
+    "web.intro", "web.1", "web.2", "web.3", "web.4"))
+    + tuple(REPORT_PREFIX + "w." + str(write) for write in ReportWrite)
+    + tuple(REPORT_PREFIX + "web." + str(reason) for reason in WebReason)
+    + tuple(REPORT_PREFIX + "refused." + str(code) for code in ReportRefusal))
+PAGE_KEYS = PAGE_KEYS + REPORT_KEYS
 
 
 def name_key(capability) -> str:

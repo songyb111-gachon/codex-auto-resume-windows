@@ -493,6 +493,27 @@ class ShippedCatalogTests(unittest.TestCase):
                     for key in ("page.nav", "page.turn_on", "page.watch", "page.all_off"):
                         self.assertNotEqual(words[key], english[key], key)
 
+    def test_the_report_card_can_say_every_word_its_flow_answers_with(self):
+        """Every refusal of the compatibility report, every write it names and every reason it sends on the web has
+        its sentence on the page, in every language, and the word that sends is `send` in each - inside a sentence
+        of the person's own language, never translated itself (design H.4)."""
+        from codex_auto_resume_advanced.vocabulary import ReportRefusal, ReportWrite, WebReason
+        words = statement.CATALOGS.words("en")
+        for code in ReportRefusal:
+            self.assertIn("page.report.refused." + str(code), words)
+        for write in ReportWrite:
+            self.assertIn("page.report.w." + str(write), words)
+        for reason in WebReason:
+            self.assertIn("page.report.web." + str(reason), words)
+        for locale in l10n.LOCALES:
+            with self.subTest(locale):
+                own = statement.CATALOGS.own(locale)
+                for key in ("page.report.type", "page.report.refused.word", "page.action_limits",
+                            statement.key("compat_report", Field.DOES)):
+                    self.assertRegex(own[key], r"(?<![A-Za-z])send(?![A-Za-z])", key)
+                if locale != "en":
+                    self.assertNotEqual(own["page.report.write"], words["page.report.write"])
+
     def test_every_translation_is_current_by_the_bookkeeping(self):
         """build/l10n.py --advanced: each language's words are a translation of the English as it is now - its basis
         in build/l10n/advanced/ records the English each was made from - with no key missing, stale, extra or with a

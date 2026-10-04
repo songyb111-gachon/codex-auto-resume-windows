@@ -195,12 +195,16 @@ class WriteTests(unittest.TestCase):
         self.assertIn("Codex Auto Resume 0.6.13-beta (advanced edition)", create[create.index("--body") + 1])
 
     def test_the_file_goes_on_stdin_and_nothing_is_written_to_disk(self):
+        """No temporary file, as the reporter's upload.json was: the temporary folder is one of this test's own,
+        empty before and after - this machine's is shared with every other process - and nothing of tempfile is
+        asked for anything."""
         fake = FakeGh(fork="fork", branch=True)
         found = ready(fake)
-        temporary = Path(tempfile.gettempdir())
-        before = sorted(path.name for path in temporary.iterdir())
-        self.publish(fake, found)
-        self.assertEqual(sorted(path.name for path in temporary.iterdir()), before)
+        with tempfile.TemporaryDirectory() as folder:
+            asked = AssertionError("a temporary file was asked for")
+            with mock.patch.dict(os.environ, {"TEMP": folder, "TMP": folder}),                     mock.patch.object(tempfile, "tempdir", folder),                     mock.patch.object(tempfile, "mkstemp", side_effect=asked),                     mock.patch.object(tempfile, "mkdtemp", side_effect=asked),                     mock.patch.object(tempfile, "NamedTemporaryFile", side_effect=asked):
+                self.publish(fake, found)
+            self.assertEqual(list(Path(folder).iterdir()), [])
         (put,) = [call for call in fake.calls if "PUT" in call["argv"]]
         self.assertEqual(put["argv"][-2:], ["--input", "-"])
         self.assertEqual(uploaded(put), RAW)
