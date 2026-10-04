@@ -1,0 +1,92 @@
+{
+  "scenario": "state4_watcher_newer",
+  "reporter": "1.5.0",
+  "body": {
+    "codex_version": "codex-cli 0.159.0-alpha.2",
+    "verdict": "CHECKED",
+    "local_checks": {
+      "reports": 0,
+      "first": null,
+      "last": null,
+      "covers": [
+        "loaded_state_detection",
+        "usage_probe"
+      ]
+    },
+    "records": [],
+    "capabilities": {
+      "engine_present": {
+        "confirmed": 0,
+        "missed": 0,
+        "last_confirmed": null,
+        "level": null
+      },
+      "exact_thread_recovery": {
+        "confirmed": 0,
+        "missed": 0,
+        "last_confirmed": null,
+        "level": null
+      },
+      "loaded_state_detection": {
+        "confirmed": 0,
+        "missed": 0,
+        "last_confirmed": null,
+        "level": "CHECKED"
+      },
+      "outcome_observation": {
+        "confirmed": 0,
+        "missed": 0,
+        "last_confirmed": null,
+        "level": null
+      },
+      "projection_freshness": {
+        "confirmed": 0,
+        "missed": 0,
+        "last_confirmed": null,
+        "level": null
+      },
+      "recovery_turn_tracking": {
+        "confirmed": 0,
+        "missed": 0,
+        "last_confirmed": null,
+        "level": null
+      },
+      "thread_eligibility": {
+        "confirmed": 0,
+        "missed": 0,
+        "last_confirmed": null,
+        "level": null
+      },
+      "usage_limit_detection": {
+        "confirmed": 0,
+        "missed": 0,
+        "last_confirmed": null,
+        "level": null
+      },
+      "usage_probe": {
+        "confirmed": 0,
+        "missed": 0,
+        "last_confirmed": null,
+        "level": "CHECKED"
+      },
+      "usage_reset_hint": {
+        "confirmed": 0,
+        "missed": 0,
+        "last_confirmed": null,
+        "level": null
+      }
+    }
+  },
+  "left_out": {
+    "hidden": 1,
+    "another_route": 2,
+    "beyond_reach": 0,
+    "elsewhere": 6,
+    "unplaced": {
+      "no_engine_line_before": 1,
+      "engine_changed_during": 1,
+      "next_line_other_version": 1,
+      "engine_changed_after": 1
+    }
+  }
+}

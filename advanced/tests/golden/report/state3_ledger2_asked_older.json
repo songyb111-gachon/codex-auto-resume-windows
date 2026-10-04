@@ -1,0 +1,109 @@
+{
+  "scenario": "state3_ledger2_asked_older",
+  "reporter": "1.5.0",
+  "body": {
+    "codex_version": "codex-cli 0.157.0",
+    "verdict": "PASS",
+    "local_checks": {
+      "reports": 2,
+      "first": "2026-09-10T08:00:00Z",
+      "last": "2026-09-12T08:00:00Z",
+      "covers": [
+        "engine_present",
+        "exact_thread_recovery"
+      ]
+    },
+    "records": [
+      {
+        "detected_at": "2026-09-11T09:00:00Z",
+        "delivered_at": "2026-09-11T09:30:00Z",
+        "outcome_at": "2026-09-11T10:00:00Z",
+        "category": "usage_limit",
+        "state": "recovered",
+        "reason": "progress_observed",
+        "turn_status": "completed",
+        "gates_passed": 5,
+        "progress_items": {
+          "agentMessage": 0,
+          "commandExecution": 1,
+          "fileChange": 0,
+          "mcpToolCall": 0
+        }
+      }
+    ],
+    "capabilities": {
+      "engine_present": {
+        "confirmed": 1,
+        "missed": 0,
+        "last_confirmed": "2026-09-11T10:00:00Z",
+        "level": "VERIFIED"
+      },
+      "exact_thread_recovery": {
+        "confirmed": 1,
+        "missed": 0,
+        "last_confirmed": "2026-09-11T10:00:00Z",
+        "level": "VERIFIED"
+      },
+      "loaded_state_detection": {
+        "confirmed": 1,
+        "missed": 0,
+        "last_confirmed": "2026-09-11T10:00:00Z",
+        "level": "VERIFIED"
+      },
+      "outcome_observation": {
+        "confirmed": 1,
+        "missed": 0,
+        "last_confirmed": "2026-09-11T10:00:00Z",
+        "level": "VERIFIED"
+      },
+      "projection_freshness": {
+        "confirmed": 1,
+        "missed": 0,
+        "last_confirmed": "2026-09-11T10:00:00Z",
+        "level": "VERIFIED"
+      },
+      "recovery_turn_tracking": {
+        "confirmed": 1,
+        "missed": 0,
+        "last_confirmed": "2026-09-11T10:00:00Z",
+        "level": "VERIFIED"
+      },
+      "thread_eligibility": {
+        "confirmed": 1,
+        "missed": 0,
+        "last_confirmed": "2026-09-11T10:00:00Z",
+        "level": "VERIFIED"
+      },
+      "usage_limit_detection": {
+        "confirmed": 1,
+        "missed": 0,
+        "last_confirmed": "2026-09-11T10:00:00Z",
+        "level": "VERIFIED"
+      },
+      "usage_probe": {
+        "confirmed": 1,
+        "missed": 0,
+        "last_confirmed": "2026-09-11T10:00:00Z",
+        "level": "VERIFIED"
+      },
+      "usage_reset_hint": {
+        "confirmed": 1,
+        "missed": 0,
+        "last_confirmed": "2026-09-11T10:00:00Z",
+        "level": "VERIFIED"
+      }
+    }
+  },
+  "left_out": {
+    "hidden": 1,
+    "another_route": 2,
+    "beyond_reach": 0,
+    "elsewhere": 6,
+    "unplaced": {
+      "no_engine_line_before": 1,
+      "engine_changed_during": 1,
+      "next_line_other_version": 1,
+      "engine_changed_after": 0
+    }
+  }
+}

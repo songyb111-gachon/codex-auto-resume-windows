@@ -1,0 +1,195 @@
+{
+  "scenario": "state3_no_ledger",
+  "reporter": "1.5.0",
+  "body": {
+    "codex_version": "codex-cli 0.158.0",
+    "verdict": "CHECKED",
+    "local_checks": {
+      "reports": 3,
+      "first": "2026-09-14T08:00:00Z",
+      "last": "2026-09-22T08:00:00Z",
+      "covers": [
+        "engine_present",
+        "exact_thread_recovery"
+      ]
+    },
+    "records": [
+      {
+        "detected_at": "2026-09-15T09:00:00Z",
+        "delivered_at": "2026-09-15T09:30:00Z",
+        "outcome_at": "2026-09-15T10:00:00Z",
+        "category": "usage_limit",
+        "state": "recovered",
+        "reason": "progress_observed",
+        "turn_status": "completed",
+        "gates_passed": 5,
+        "progress_items": {
+          "agentMessage": 2,
+          "commandExecution": 0,
+          "fileChange": 1,
+          "mcpToolCall": 0
+        }
+      },
+      {
+        "detected_at": "2026-09-17T09:00:00Z",
+        "delivered_at": "2026-09-17T09:30:00Z",
+        "outcome_at": "2026-09-17T10:00:00Z",
+        "category": "usage_limit",
+        "state": "completed_no_progress",
+        "reason": "no_progress_observed",
+        "turn_status": "completed",
+        "gates_passed": 4,
+        "progress_items": {
+          "agentMessage": 0,
+          "commandExecution": 0,
+          "fileChange": 0,
+          "mcpToolCall": 0
+        }
+      },
+      {
+        "detected_at": "2026-09-17T12:00:00Z",
+        "delivered_at": null,
+        "outcome_at": null,
+        "category": "usage_limit",
+        "state": "waiting_for_app",
+        "reason": "paused",
+        "turn_status": null,
+        "gates_passed": 4,
+        "progress_items": null
+      },
+      {
+        "detected_at": "2026-09-19T09:00:00Z",
+        "delivered_at": null,
+        "outcome_at": null,
+        "category": "usage_limit",
+        "state": "submission_unknown",
+        "reason": "queue_result_unknown_do_not_resend",
+        "turn_status": null,
+        "gates_passed": 5,
+        "progress_items": {
+          "agentMessage": 1,
+          "commandExecution": 0,
+          "fileChange": 0,
+          "mcpToolCall": 0
+        }
+      },
+      {
+        "detected_at": "2026-09-20T09:00:00Z",
+        "delivered_at": null,
+        "outcome_at": null,
+        "category": "usage_limit",
+        "state": "waiting_reset",
+        "reason": "waiting_reset",
+        "turn_status": null,
+        "gates_passed": 5,
+        "progress_items": null
+      },
+      {
+        "detected_at": "2026-09-21T09:00:00Z",
+        "delivered_at": "2026-09-21T09:30:00Z",
+        "outcome_at": "2026-09-21T10:00:00Z",
+        "category": "other",
+        "state": "other",
+        "reason": "other",
+        "turn_status": "other",
+        "gates_passed": 0,
+        "progress_items": {
+          "agentMessage": 0,
+          "commandExecution": 0,
+          "fileChange": 0,
+          "mcpToolCall": 0
+        }
+      },
+      {
+        "detected_at": "2026-09-23T09:00:00Z",
+        "delivered_at": "2026-09-23T09:30:00Z",
+        "outcome_at": "2026-09-23T10:00:00Z",
+        "category": "usage_limit",
+        "state": "recovered",
+        "reason": "progress_observed",
+        "turn_status": "completed",
+        "gates_passed": 5,
+        "progress_items": {
+          "agentMessage": 0,
+          "commandExecution": 0,
+          "fileChange": 0,
+          "mcpToolCall": 0
+        }
+      }
+    ],
+    "capabilities": {
+      "engine_present": {
+        "confirmed": 6,
+        "missed": 0,
+        "last_confirmed": "2026-09-23T10:00:00Z",
+        "level": "CHECKED"
+      },
+      "exact_thread_recovery": {
+        "confirmed": 4,
+        "missed": 1,
+        "last_confirmed": "2026-09-23T10:00:00Z",
+        "level": "CHECKED"
+      },
+      "loaded_state_detection": {
+        "confirmed": 6,
+        "missed": 0,
+        "last_confirmed": "2026-09-23T10:00:00Z",
+        "level": null
+      },
+      "outcome_observation": {
+        "confirmed": 3,
+        "missed": 1,
+        "last_confirmed": "2026-09-23T10:00:00Z",
+        "level": null
+      },
+      "projection_freshness": {
+        "confirmed": 6,
+        "missed": 0,
+        "last_confirmed": "2026-09-23T10:00:00Z",
+        "level": null
+      },
+      "recovery_turn_tracking": {
+        "confirmed": 3,
+        "missed": 1,
+        "last_confirmed": "2026-09-23T10:00:00Z",
+        "level": null
+      },
+      "thread_eligibility": {
+        "confirmed": 5,
+        "missed": 0,
+        "last_confirmed": "2026-09-23T10:00:00Z",
+        "level": null
+      },
+      "usage_limit_detection": {
+        "confirmed": 6,
+        "missed": 0,
+        "last_confirmed": "2026-09-23T10:00:00Z",
+        "level": null
+      },
+      "usage_probe": {
+        "confirmed": 5,
+        "missed": 1,
+        "last_confirmed": "2026-09-23T10:00:00Z",
+        "level": null
+      },
+      "usage_reset_hint": {
+        "confirmed": 4,
+        "missed": 2,
+        "last_confirmed": "2026-09-23T10:00:00Z",
+        "level": null
+      }
+    }
+  },
+  "left_out": {
+    "hidden": 1,
+    "another_route": 2,
+    "beyond_reach": 0,
+    "elsewhere": 1,
+    "unplaced": {
+      "no_engine_line_before": 1,
+      "engine_changed_during": 1,
+      "next_line_other_version": 1,
+      "engine_changed_after": 0
+    }
+  }
+}
