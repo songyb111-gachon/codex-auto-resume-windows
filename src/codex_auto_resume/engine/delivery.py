@@ -72,9 +72,10 @@ class DeliveryMixin:
             self.store.update(row["interruption_id"], at=self.clock(), recovery_client_id=None)
         return client
 
-    def presend_problem(self, claim):
+    def presend_problem(self, claim, forced=False):
         """The last look before the queue process starts. Returns (target, reason,
-        delay) to give the claim back, or None to send.
+        delay) to give the claim back, or None to send. A person's Send now (`forced`) is not
+        stopped by a postponement, which it passed; by everything else, as any send is.
 
         Anything that changed since the gates ran - a cancel, a Pause, a disabled
         thread, a newer turn, somebody else's queued message, another copy of our
@@ -88,8 +89,8 @@ class DeliveryMixin:
         if claim["cancel_requested"]:
             return "cancelled", "user_cancelled", 0
         now = self.clock()
-        if (not self.allowed(claim) or (claim.get("not_before") or 0) > now    # schema 4's, and
-                or self.quiet_until(now) is not None):                         # quiet hours
+        postponed = not forced and (claim.get("not_before") or 0) > now      # schema 4's, and
+        if not self.allowed(claim) or postponed or self.quiet_until(now) is not None:   # quiet hours
             return self.waiting_state(claim), "released_before_send", poll
         if not self.valid_interruption(claim):
             state, reason = self.supersede_reason(claim)
@@ -180,7 +181,7 @@ class DeliveryMixin:
         vector["thread_available"] = machine.gate(machine.PASS, machine.PLUGGED)
         return route
 
-    def _resume_unloaded(self, current, vector, limits, route, app, relaxed=None):
+    def _resume_unloaded(self, current, vector, limits, route, app, relaxed=None, forced=False):
         """Carry out the route the plug named at P16, as `dispatch` carries out a send: the one
         claim, paid for by the plug's ledger (P11, told the route is what it carries); the pre-send
         look; and the route called once, inside the launch guard. Called under the dispatch lock,
@@ -195,15 +196,16 @@ class DeliveryMixin:
         key = current["interruption_id"]
         at = self.clock()
         claimed, gate, reason = self.store.reserve_detailed(
-            key, at, limits=limits, gates=vector, ledger=self.plug,
-            carried=frozenset({Point.UNLOADED}) | self.relaxed_points(relaxed),
-            quiet_until=self.quiet_until(at), relaxed=relaxed)
+            key, at, limits=self.forced_limits(limits) if forced else limits, gates=vector, ledger=self.plug,
+            carried=frozenset({Point.UNLOADED}) | self.relaxed_points(relaxed)
+            | self.relaxed_points("forced" if forced else None),
+            quiet_until=self.quiet_until(at), relaxed=relaxed, forced=forced)
         if not claimed:
             self._refused(current, gate, reason)
             return
         self.moved(current, "submitting")
         claim = self.store.get(key)
-        problem = self.presend_problem(claim)
+        problem = self.presend_problem(claim, forced=True) if forced else self.presend_problem(claim)
         if problem is not None:
             target, why, delay = problem
             self._release(key, claim, target, why, delay)

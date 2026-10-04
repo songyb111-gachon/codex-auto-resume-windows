@@ -145,6 +145,24 @@ class LedgerMixin:
                 and Point.SCHEDULE in carried)
 
     @staticmethod
+    def _forced_claim(row, now, vector, quiet_until, limits, ledger, carried) -> None:
+        """A person's Send now (SEND_NOW, v0.6.13) as the claim takes it, written into `vector`: only for
+        a record that waits, only as something the plug's ledger pays for - the schedule among what it
+        carries - and only past the retry's wait, a postponement and an attempt budget of the person's
+        own; `limits` holds the administrator's MaxRecoveryAttempts, which it never passes. A reset
+        still ahead and quiet hours hold, and so does every other gate."""
+        if (limits is None or row["state"] not in machine.WAITING or ledger.null
+                or Point.SCHEDULE not in carried):
+            return
+        if vector["schedule"][1] in machine.FORCEABLE:
+            again = machine.gate_schedule(row, now, quiet_until=quiet_until, forced=True)
+            vector["schedule"] = (machine.gate(machine.PASS, machine.SEND_NOW) if again[0] == machine.PASS
+                                  else again)
+        if (vector["attempt_budget"] == (machine.BLOCK, "recovery_budget")
+                and machine.own_budget_only(row, limits.get("managed_max_recovery_attempts"))):
+            vector["attempt_budget"] = machine.gate(machine.PASS, machine.SEND_NOW)
+
+    @staticmethod
     def _relaxation_refused(connection, row, now, vector, relaxed, ledger, carried):
         """(gate, reason) when the claim refuses a record for its kind, written into its `vector` too,
         or None (v0.6.13): the claim checks it again itself, in its own transaction. A kind core never

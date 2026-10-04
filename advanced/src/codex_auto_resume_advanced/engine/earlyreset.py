@@ -73,7 +73,10 @@ class EarlyReset:
         that is due among them."""
         now = self._now()
         if (not isinstance(record, dict) or record.get("category") != failures.USAGE_LIMIT
-                or record.get("state") not in EARLY_STATES or not _time(eligible_at) or eligible_at <= now):
+                or record.get("state") not in EARLY_STATES or not _time(eligible_at) or eligible_at <= now
+                or (_time(record.get("not_before")) and record["not_before"] > now)):
+            # A postponed record is never looked at early (core's EARLY), though P7 is asked about it
+            # for a person's Send now: no probe is opened for it.
             return DEFER
         opened = self.probe_at
         if opened is None or not 0 <= now - opened < WINDOW:

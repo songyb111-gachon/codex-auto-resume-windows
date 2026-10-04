@@ -257,6 +257,14 @@ class CodeTests(unittest.TestCase):
                 self.assertIs(self.code().schedule(record, due), DEFER)
         self.assertIs(self.code().schedule(self.record(state="waiting_poll"), 5000.0), Alternative.EARLY)
 
+    def test_a_postponed_record_opens_no_probe(self):
+        """Core never looks at one early, and asks P7 of it only for a person's Send now (v0.6.13):
+        no probe is opened for it, so the one core's early window opens is still the code's."""
+        code = self.code()
+        self.assertIs(code.schedule(self.record("a", not_before=3000.0), 5000.0), DEFER)
+        self.assertIsNone(code.probe_at)
+        self.assertIs(code.schedule(self.record("a", not_before=900.0), 5000.0), Alternative.EARLY)
+
     def test_one_look_every_five_minutes_with_every_record_in_its_first_seconds(self):
         code = self.code()
         self.assertIs(code.schedule(self.record("a"), 9000.0), Alternative.EARLY)

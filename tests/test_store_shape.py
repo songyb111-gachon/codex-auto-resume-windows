@@ -69,6 +69,8 @@ METHODS = {
     "chain_parent", "_find_parent", "_relaxation_refused", "_early_claim",
     # and the claim of an uncertain submission sent once more, which only the plug's RESEND leads to.
     "_resend_claim",
+    # and the claim's take of a person's Send now, as the plug's ledger pays for it.
+    "_forced_claim",
 }
 
 # Reachable as `store.<name>` before the split, and still.

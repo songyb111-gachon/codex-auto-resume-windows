@@ -39,11 +39,16 @@ POSTPONED, QUIET_HOURS, OBSERVE_ONLY = "postponed", "quiet_hours", "observe_only
 # edition's plug never asks, so no standard record is ever stored with it - and a record whose claim
 # was stored with it has been resent, for good (`was_resent`).
 RESEND = "resend"
+# And schedule passed - or attempt_budget - for a waiting record a person asked to send now (SEND_NOW):
+# its retry's wait, a postponement, and an attempt budget of the person's own, never an administrator's.
+SEND_NOW = "send_now"
+# The schedule's refusals a person's Send now passes.
+FORCEABLE = frozenset({"not_due", POSTPONED})
 GATE_REASONS = REASONS | frozenset({
     NOT_CHECKED, "paused", "thread_disabled", "cancel_requested", "not_due", "possibly_sent",
     "engine_incompatible", "engine_unknown", "projection_table_missing",
     "home_lock_unavailable", "identity_unreadable", "usage_available",
-    "ok", HELD, POSTPONED, QUIET_HOURS, OBSERVE_ONLY, PLUGGED, RESEND,
+    "ok", HELD, POSTPONED, QUIET_HOURS, OBSERVE_ONLY, PLUGGED, RESEND, SEND_NOW,
 })
 # What an uncertain submission may be resent after (v0.6.13): its send's answer was unknown, or no
 # receipt came - never a withdrawal, a duplicate, an ambiguous receipt or anything else unsettled.
@@ -72,17 +77,18 @@ def gate_consent(enabled, thread_enabled, cancel_requested, *, observe_only=Fals
     return gate(PASS)
 
 
-def gate_schedule(record, now, *, quiet_until=None, early=False) -> tuple:
+def gate_schedule(record, now, *, quiet_until=None, early=False, forced=False) -> tuple:
     """Whether it is time. A postponement (`not_before`) only ever makes a record later, and
     `quiet_until` - the end of the quiet hours `now` falls in, or None outside them - only holds
     a record that is otherwise due; neither is ever set at the defaults. `early` (v0.6.13, a
     usage-limited record the edition's plug looks at early) skips its next look and its reset
-    time, and nothing else."""
-    if not early and (record.get("next_retry_at") or 0) > now:
+    time, and nothing else; `forced` (v0.6.13, Send now) skips its next look and a postponement,
+    and nothing else - a reset still ahead and quiet hours hold."""
+    if not (early or forced) and (record.get("next_retry_at") or 0) > now:
         return gate(WAIT, "not_due")
     if not early and record.get("reset_at") is not None and record["reset_at"] > now:
         return gate(WAIT, "waiting_reset")
-    if (record.get("not_before") or 0) > now:
+    if not forced and (record.get("not_before") or 0) > now:
         return gate(WAIT, POSTPONED)
     if quiet_until is not None and quiet_until > now:
         return gate(WAIT, QUIET_HOURS)
@@ -95,6 +101,13 @@ def gate_submission_safe(record, others_in_flight: int) -> tuple:
     if others_in_flight:
         return gate(WAIT, "other_recovery_in_flight")
     return gate(PASS)
+
+
+def own_budget_only(record, administrators) -> bool:
+    """Whether a spent attempt budget is the person's own alone (v0.6.13, Send now): no administrator's
+    MaxRecoveryAttempts (`administrators`, None for none), or one `record` is still below. An
+    administrator's value only holds recovery back, and a person's click is no administrator's."""
+    return administrators is None or (record.get("recovery_attempts") or 0) < administrators
 
 
 def was_resent(record) -> bool:

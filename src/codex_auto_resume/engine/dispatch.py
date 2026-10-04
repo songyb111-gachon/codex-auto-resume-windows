@@ -28,11 +28,11 @@ class DispatchMixin:
     def attempt(self, row):
         """Look at one record: every gate, and the send if all pass. A record looked at early (EARLY)
         is that only for this look, and every wait it meets leaves it as it was (engine/relaxed.py)."""
-        self._early_look = None
+        self._early_look = self._schedule_said = None
         try:
             self._attempt(row)
         finally:
-            self._early_look = None
+            self._early_look = self._schedule_said = None
 
     def _attempt(self, row):
         now = self.clock()
@@ -51,6 +51,8 @@ class DispatchMixin:
         quiet_until = self.quiet_until(now)     # v0.6.11; None with no quiet hours, the default
         vector["schedule"] = machine.gate_schedule(row, now, quiet_until=quiet_until)
         early = vector["schedule"][0] != machine.PASS and self._early(row, vector, now, quiet_until)
+        # SEND_NOW (v0.6.13): a person's request passes the retry's wait and a postponement only.
+        forced = vector["schedule"][0] != machine.PASS and self._send_now(row, vector, now, quiet_until)
         if vector["schedule"][0] != machine.PASS:
             if vector["schedule"][1] == "waiting_reset" and (row.get("next_retry_at") or 0) <= now:
                 # A usage reset still ahead is a wait with a reason, never a record that is
@@ -62,10 +64,13 @@ class DispatchMixin:
             elif vector["schedule"][1] == machine.QUIET_HOURS:
                 self._quiet(row, vector, quiet_until - now)
             return
-        # P7: due by core's schedule, and the plug may say not yet - asked already if it looked early.
-        if (not early and vector["consent"][0] == machine.PASS
-                and self._held("schedule", row, vector, self.plug.schedule(row, machine.eligible_at(row)))):
-            return
+        # P7: due by core's schedule, and the plug may say not yet - asked already if it looked early,
+        # or if a person's Send now passed it; SEND_NOW here passes the spacing and the attempt budget.
+        if not (early or forced) and vector["consent"][0] == machine.PASS:
+            said = self.plug.schedule(row, machine.eligible_at(row))
+            forced = said is Alternative.SEND_NOW
+            if self._held("schedule", row, vector, said):
+                return
         if row["state"] in ("waiting_reset", "waiting_poll"):
             self.log(row["thread_id"], "checking_eligibility", None)
         compatibility = self.engine_state()
@@ -110,6 +115,8 @@ class DispatchMixin:
         capacity = relaxed == "capacity"
         limits = self.capacity_limits() if capacity else self.limits()
         vector.update(machine.gate_budgets(row, limits, row["category"] == failures.USAGE_LIMIT))
+        if forced:
+            self._own_budget(row, vector)
         for name in ("chain_budget", "attempt_budget", "no_progress_budget"):
             if vector[name][0] != machine.PASS:
                 self.store.record_gates(row["interruption_id"], vector, now)
@@ -158,7 +165,7 @@ class DispatchMixin:
                        max(60, min(recent) + 86400 - now + 5), vector)
             return
         cooldown = ladder.CAPACITY_SPACING if capacity else self.options["thread_cooldown_seconds"]
-        if recent and now - max(recent) < cooldown:
+        if recent and now - max(recent) < cooldown and not forced:
             vector["attempt_budget"] = machine.gate(machine.WAIT, "thread_submission_cooldown")
             self._wait(row, "waiting_retry", "thread_submission_cooldown", cooldown, vector)
             return
@@ -179,9 +186,10 @@ class DispatchMixin:
         if vector["consent"][0] != machine.PASS:
             return self._would_send(row, vector, now)       # observe only: every other gate passed
         # v0.6.11: the task-changed guard, which reads nothing at the defaults (engine/guard.py).
-        if self._guarded(row, vector, now) or self._objection(row, vector, now):
+        if self._guarded(row, vector, now) or (not forced and self._objection(row, vector, now)):
             return
-        self.dispatch(row, app, vector, limits, route, relaxed=relaxed or ("early" if early else None))
+        self.dispatch(row, app, vector, limits, route, relaxed=relaxed or ("early" if early else None),
+                      forced=forced)
 
     def _plugged(self, name, row, vector) -> bool:
         """P3: gate `name`, which core has just passed, put to the plug. True if it held. Never asked
@@ -203,14 +211,15 @@ class DispatchMixin:
                    vector)
         return True
 
-    def dispatch(self, row, app, vector, limits, route=None, relaxed=None, resend=False):
+    def dispatch(self, row, app, vector, limits, route=None, relaxed=None, resend=False, forced=False):
         """Claim, re-check, send. The only method that sends: to core's backend, or to the
         channel the plug names at P5, and either way through the one call below. With a `route`
         (P16) there is no send: the conversation is still one the app does not hold, and the
         route is carried out in its place (engine/delivery.py). `relaxed` is a gate the plug
         relaxed for this record (_known_failure), which its ledger pays for at the claim. With
         `resend`, an uncertain submission is sent once more (engine/resend.py): every re-check
-        that fails leaves it as it was, since no move takes one back to waiting."""
+        that fails leaves it as it was, since no move takes one back to waiting. `forced` is a
+        person's Send now (SEND_NOW), which the claim re-checks and the plug's ledger pays for."""
         key = row["interruption_id"]
         with self.dispatch_lock():
             current = self.store.get(key)
@@ -234,7 +243,7 @@ class DispatchMixin:
                     self.transition(current, "waiting_for_usage", "usage_recheck_failed", delay=900)
                 return
             if route is not None:
-                self._resume_unloaded(current, vector, limits, route, app, relaxed=relaxed)
+                self._resume_unloaded(current, vector, limits, route, app, relaxed=relaxed, forced=forced)
                 return
             # The text is decided before the claim, not after it. Building it reads catalogs
             # and settings; if either were ever broken, the failure has to happen while the
@@ -271,18 +280,19 @@ class DispatchMixin:
                                                            (Point.SENDER, sender is not self.backend),
                                                            (Point.DELIVERY, client is not None))
                                 if taken) | self.relaxed_points("resend" if resend else relaxed)
+            carried |= self.relaxed_points("forced" if forced else None)
             at = self.clock()
             claimed, gate, reason = self.store.reserve_detailed(
-                key, at, limits=limits, gates=vector, ledger=self.plug, carried=carried,
-                quiet_until=self.quiet_until(at), relaxed=relaxed,
-                resend=self.resend_window() if resend else None)
+                key, at, limits=self.forced_limits(limits) if forced else limits, gates=vector,
+                ledger=self.plug, carried=carried, quiet_until=self.quiet_until(at), relaxed=relaxed,
+                resend=self.resend_window() if resend else None, forced=forced)
             if not claimed:
                 if not resend:                          # a resend refused stays as it was
                     self._refused(current, gate, reason)
                 return
             self.moved(current, "submitting")
             claim = self.store.get(key)
-            problem = self.presend_problem(claim)
+            problem = self.presend_problem(claim, forced=True) if forced else self.presend_problem(claim)
             if problem is None and client is not None and self.proof(claim) != client:
                 # Never sent under an id the watch would not look for (engine/delivery.py).
                 problem = ("waiting_retry", "released_before_send", self.options["state_poll_seconds"])

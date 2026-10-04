@@ -75,14 +75,12 @@ class Point(StrEnum):
     RECORDS instead.
 
     P14 is not a question: the engine tells the plug a record core holds has moved, as it writes
-    the move. A person's own moves - a cancel, or the attempts given back (store/actions.py,
-    and an older watcher's cancel, store/legacy.py) - are not told: they are written by what the
-    person acted through, the Dashboard, MCP, the CLI or a toast, most often in a process that
-    holds no engine. None of them moves a record into or out of submission_unknown, and a plug
-    finds where they left a record at its next P2 or P8. A plug that read the moves back instead
-    - out of the journal - would decide by a second source of truth, which a pruned entry or a
-    retention bound changes; and the record's state alone, read at P8, has already moved on when
-    the watch that runs before P8 settled it.
+    the move. A person's own moves - a cancel, or the attempts given back (store/actions.py, and
+    an older watcher's cancel, store/legacy.py) - are not told: what the person acted through
+    wrote them, most often in a process that holds no engine. None moves a record into or out of
+    submission_unknown, and a plug finds where they left it at its next P2 or P8. Read back out of
+    the journal instead, a move would be a second source of truth a pruned entry changes; and at
+    P8 the record's state alone has already moved on when the watch before it settled it.
 
     P15 (v0.6.11 stage 3) is how a continuation is carried and how its arrival is proven. Core
     has always ended the words with the record's marker and proven delivery by finding it in
@@ -134,6 +132,7 @@ class Alternative(StrEnum):
     CAPACITY = "capacity"                    # and a capacity error retried sooner, in core's limits
     EARLY = "early"                          # P7: a usage-limited record looked at before its time
     RESEND = "resend"                        # P7: an uncertain submission sent once more, if core may
+    SEND_NOW = "send_now"                    # P7: a waiting record sent now, as a person asked
 
 
 class FailureForm(StrEnum):
@@ -234,7 +233,9 @@ class Plug:
         the moment core's schedule made it so. From v0.6.13 also before then, for a record that
         waits for a usage limit to reset, while core's early window is open: EARLY looks now. And
         for an uncertain submission a look of the watch found no trace of (`due` its send): RESEND
-        sends it once more, where core proves it may (engine/resend.py)."""
+        sends it once more, where core proves it may (engine/resend.py). And for a waiting record its
+        retry's wait or a postponement holds: SEND_NOW, a person's request, passes those, its spacing
+        and its own attempt budget for this one look (engine/relaxed.py), and nothing else."""
         return DEFER
 
     def tick(self, view):                             # P8
@@ -358,7 +359,7 @@ RESTRICTIONS = frozenset({Alternative.HOLD})
 # ADMISSION (P17, v0.6.13 stage 3b) takes a failure up, or relaxes a capacity error's retries, and
 # GATES the same words, which core takes only at known_failure and only for the kind each is for
 # (failures.admits, failures.readmits) - CAPACITY within core's own bounds (ladder.py). SCHEDULE
-# (P7) takes EARLY and RESEND, each carried out by core within its own (engine/relaxed.py, resend.py).
+# (P7) takes EARLY, RESEND and SEND_NOW, each carried out by core in its own (relaxed.py, resend.py).
 TAKE_UP = frozenset({Alternative.ADMIT, Alternative.AS_NETWORK_TRANSIENT, Alternative.AS_TIMEOUT,
                      Alternative.AS_RATE_LIMIT_TRANSIENT, Alternative.AS_SERVER_5XX,
                      Alternative.AS_STREAM_INTERRUPTED, Alternative.CAPACITY})
@@ -366,7 +367,7 @@ ALTERNATIVES = {
     Point.RECORDS: frozenset(),
     Point.GATES: RESTRICTIONS | TAKE_UP,
     Point.OUTCOME: frozenset(),
-    Point.SCHEDULE: RESTRICTIONS | {Alternative.EARLY, Alternative.RESEND},
+    Point.SCHEDULE: RESTRICTIONS | {Alternative.EARLY, Alternative.RESEND, Alternative.SEND_NOW},
     Point.CLAIM_LEDGER: RESTRICTIONS,
     Point.CONCURRENCY: frozenset(),
     Point.SUPERVISION: frozenset(),

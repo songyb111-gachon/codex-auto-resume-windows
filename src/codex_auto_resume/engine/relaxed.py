@@ -8,9 +8,12 @@ taken up waits core's own waits, ends a day on the clock after it was detected, 
 a relaxation the plug's ledger pays for (store/ledger.py); a capacity error retried sooner (CAPACITY)
 counts against core's capacity bounds, for twelve hours on the clock from its task's first failure.
 And P7 (EARLY): a record that waits for a usage limit to reset may be looked at before its time, once a
-window, where every wait it meets is its gate vector alone - it keeps its state, reason and next look. The
-standard edition's plug is asked nothing here: a record taken up under another edition ends unsent at
-its next look, and that is all.
+window, where every wait it meets is its gate vector alone - it keeps its state, reason and next look.
+And P7 (SEND_NOW): a waiting record a person asked to send now passes its retry's wait, a postponement,
+the spacing between two continuations, the objection window and an attempt budget of the person's own -
+never a reset ahead, quiet hours or an administrator's MaxRecoveryAttempts - and every other gate holds,
+in the engine and again in the claim. The standard edition's plug is asked nothing here: a record taken
+up under another edition ends unsent at its next look, and that is all.
 """
 from __future__ import annotations
 
@@ -21,7 +24,8 @@ from ..domain.plug import DEFER, PACED_AS, Alternative, Point
 UNADMITTED_SECONDS = 60
 # What the claim's ledger pays for of each relaxation (P11's `carried`).
 RELAXED_POINTS = {"admitted": frozenset({Point.GATES}), "capacity": frozenset({Point.GATES}),
-                  "early": frozenset({Point.SCHEDULE}), "resend": frozenset({Point.SCHEDULE})}
+                  "early": frozenset({Point.SCHEDULE}), "resend": frozenset({Point.SCHEDULE}),
+                  "forced": frozenset({Point.SCHEDULE})}
 # The waits a record may be looked at early in: a usage limit's.
 EARLY_STATES = ("waiting_reset", "waiting_poll")
 
@@ -168,14 +172,47 @@ class RelaxedMixin:
         inside = opened is not None and 0 <= now - opened < ladder.EARLY_WINDOW
         if not inside and opened is not None and 0 <= now - opened < ladder.EARLY_SPACING:
             return False
-        if (not self.plug.wants(Point.SCHEDULE)
-                or self.plug.schedule(row, machine.eligible_at(row)) is not Alternative.EARLY):
+        if not self.plug.wants(Point.SCHEDULE):
+            return False
+        self._schedule_said = self.plug.schedule(row, machine.eligible_at(row))
+        if self._schedule_said is not Alternative.EARLY:
             return False
         if not inside:
             self._early_at = now
         self._early_look = row["interruption_id"]
         vector["schedule"] = machine.gate(machine.PASS, machine.PLUGGED)
         return True
+
+    def _send_now(self, row, vector, now, quiet_until) -> bool:
+        """P7 at a schedule core refused (SEND_NOW): whether a person's Send now passes it, for this
+        look. Only with consent, only while the plug wants the schedule, and only where the refusal is
+        the retry's wait or a postponement and the schedule passes without them - so a record a reset
+        still ahead or quiet hours hold is not asked about at all, and waits exactly as it would have.
+        Asked once a look: the early look's answer is the one taken, where it asked."""
+        if (self.plug.null or vector["consent"][0] != machine.PASS
+                or vector["schedule"][1] not in machine.FORCEABLE
+                or machine.gate_schedule(row, now, quiet_until=quiet_until, forced=True)[0] != machine.PASS
+                or not self.plug.wants(Point.SCHEDULE)):
+            return False
+        said = self._schedule_said
+        if said is None:
+            said = self._schedule_said = self.plug.schedule(row, machine.eligible_at(row))
+        if said is not Alternative.SEND_NOW:
+            return False
+        vector["schedule"] = machine.gate(machine.PASS, machine.SEND_NOW)
+        return True
+
+    def _own_budget(self, row, vector):
+        """A person's Send now passes an attempt budget spent under their own setting alone - never
+        one an administrator's MaxRecoveryAttempts holds (machine.own_budget_only)."""
+        if (vector["attempt_budget"] == (machine.BLOCK, "recovery_budget")
+                and machine.own_budget_only(row, self.managed.max_recovery_attempts)):
+            vector["attempt_budget"] = machine.gate(machine.PASS, machine.SEND_NOW)
+
+    def forced_limits(self, limits) -> dict:
+        """`limits` as a Send now's claim is told them: with the administrator's MaxRecoveryAttempts,
+        which the claim holds it to as the engine does (store/claims.py)."""
+        return dict(limits, managed_max_recovery_attempts=self.managed.max_recovery_attempts)
 
     def _parked(self, row, vector) -> bool:
         """While `row` is looked at early, a wait is its gate vector alone: True, and it keeps its

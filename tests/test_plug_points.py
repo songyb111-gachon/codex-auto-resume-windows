@@ -2537,7 +2537,9 @@ class EarlyTests(PluggedCase):
         self.plugged(plug, h)
         h.tick()
         h.tick(advance=1)
-        self.assertEqual((h.backend.send_calls, plug.hooks().count("schedule")), ([], 0))
+        # P7 may be asked about it for a person's Send now (SEND_NOW), which this plug never says;
+        # it is never looked at early, and no early window opens for it.
+        self.assertEqual((h.backend.send_calls, h.engine._early_at, h.engine._early_look), ([], None, None))
         # NULL is never asked early, and a plug that wants no schedule is not either.
         for plug in (None, Asked(schedule=Alternative.EARLY)):
             h = self.fresh()
@@ -3004,6 +3006,203 @@ class ResendTests(PluggedCase):
                 self.assertEqual(found["last_error"], "duplicate_marker")
                 self.assertEqual(found["state"], "outcome_unverified" if when == "running" else "recovered")
                 self.assertEqual(len(h.backend.send_calls), 2)
+
+
+
+def send_now_answer(record, due):
+    """P7 as a person's Send now, made in the Dashboard, answers it: for a record that waits."""
+    return Alternative.SEND_NOW if record["state"] in WAITING else DEFER
+
+
+class SendNowTests(PluggedCase):
+    """SEND_NOW (P7, v0.6.13): a waiting record a person asked to send now passes its retry's wait,
+    a postponement, the objection window, the spacing between two continuations and an attempt budget
+    of the person's own - and nothing else, in the engine and again in the claim."""
+
+    def waiting(self, h=None, error=OVERLOADED):
+        """A temporary failure, registered and waiting for its retry, an engine with a plug that
+        defers in place; `asks()` turns the person's Send now on."""
+        h = h or self.h
+        plug = Asked(wants=True)
+        self.plugged(plug, h)
+        failed(h, error)
+        h.tick()
+        row = h.record()
+        self.assertEqual(row["state"], "waiting_backoff")
+        self.assertGreater(row["next_retry_at"], h.now + 1)
+        return row, plug
+
+    @staticmethod
+    def asks(plug):
+        plug.answers["schedule"] = send_now_answer
+
+    def test_it_passes_a_retry_wait_a_postponement_and_an_objection_window(self):
+        for how in ("retry wait", "postponed", "objection window"):
+            for asked in (False, True):
+                with self.subTest(how, asked=asked):
+                    h = self.fresh()
+                    row, plug = self.waiting(h)
+                    if how == "postponed":
+                        h.now = row["next_retry_at"] + 1
+                        self.assertTrue(h.store.postpone(row["interruption_id"], T1, h.now + 7200, h.now)[0])
+                    elif how == "objection window":
+                        h.now = row["next_retry_at"] + 1
+                        h.engine.apply_policy(dict(settings.defaults(), default_tier="objection_window",
+                                                   objection_minutes=60))
+                    if asked:
+                        self.asks(plug)
+                    h.tick(advance=1)
+                    self.assertEqual(len(h.backend.send_calls), 1 if asked else 0)
+                    if asked:
+                        self.assertEqual(json.loads(h.record()["gate_eval"])["schedule"][0], "PASS")
+                        self.follow(h)
+                        self.assertEqual(h.record()["state"], "recovered")
+
+    def test_it_passes_the_spacing_after_a_send_that_never_started(self):
+        for asked in (False, True):
+            with self.subTest(asked=asked):
+                h = self.fresh()
+                row, plug = self.waiting(h)
+                h.now = row["next_retry_at"] + 1
+                h.backend.default_outcome = "not_started"
+                h.tick()
+                self.assertEqual(h.record()["last_error"], "queue_process_not_started")
+                h.backend.default_outcome = "accepted"
+                if asked:
+                    self.asks(plug)
+                h.now = h.record()["next_retry_at"] + 1          # due, inside the fifteen minutes
+                h.tick()
+                self.assertEqual(len(h.backend.send_calls), 2 if asked else 1)
+                if not asked:
+                    self.assertEqual(h.record()["last_error"], "thread_submission_cooldown")
+
+    def test_it_passes_the_persons_own_attempt_budget_and_never_the_administrators(self):
+        ends = {}
+        for who in ("person", "administrator"):
+            for asked in (False, True):
+                with self.subTest(who, asked=asked):
+                    h = self.fresh()
+                    row, plug = self.waiting(h)
+                    if who == "person":
+                        h.engine.apply_policy(dict(settings.defaults(), max_recovery_attempts=1))
+                    else:
+                        h.engine.apply_policy(settings.defaults(), managed.Managed(max_recovery_attempts=1))
+                    h.now = row["next_retry_at"] + 1
+                    h.backend.default_outcome = "not_started"      # an attempt spent, nothing refunded
+                    h.tick()
+                    self.assertEqual(h.record()["recovery_attempts"], 1)
+                    h.backend.default_outcome = "accepted"
+                    if asked:
+                        self.asks(plug)
+                    h.now = h.record()["next_retry_at"] + 1
+                    h.tick()
+                    ends[who, asked] = (len(h.backend.send_calls), h.record()["state"])
+        self.assertEqual(ends, {("person", False): (1, "retry_budget_exhausted"),
+                                ("person", True): (2, "queued"),
+                                ("administrator", False): (1, "retry_budget_exhausted"),
+                                ("administrator", True): (1, "retry_budget_exhausted")})
+
+    def test_it_never_passes_anything_else(self):
+        """A reset ahead, quiet hours (a person's or an administrator's: both are quiet_until's),
+        the day's five, a Pause, a history behind, a conversation the app does not hold, someone's
+        queued input, usage, and a hold of the plug's own at another gate."""
+        for how in ("reset ahead", "quiet hours", "daily five", "paused", "history behind",
+                    "notLoaded", "queued input", "no usage", "held"):
+            with self.subTest(how):
+                h = self.fresh()
+                if how == "reset ahead":
+                    plug = Asked(wants=True)
+                    self.plugged(plug, h)
+                    h.home.fail_usage(T1)
+                    h.backend.loaded_map[T1] = "loaded"
+                    h.tick()
+                else:
+                    _row, plug = self.waiting(h)
+                self.asks(plug)
+                if how == "quiet hours":
+                    h.engine.quiet_until = lambda now: now + 3600
+                elif how == "daily five":
+                    h.store.recent_claim_count = lambda *arguments: 5
+                elif how == "paused":
+                    h.store.set_enabled(False, h.now)
+                elif how == "history behind":
+                    h.home.make_stale(T1)
+                    h.tick(advance=1)
+                    h.tick(advance=200)
+                elif how == "notLoaded":
+                    h.backend.loaded_map[T1] = "notLoaded"
+                elif how == "queued input":
+                    h.home.enqueue(T1, "their own message")
+                elif how == "no usage":
+                    h.backend.usage_result = dict(NO_USAGE)
+                elif how == "held":
+                    plug.answers["gate"] = lambda name, record, facts: (
+                        Alternative.HOLD if name == "thread_available" else DEFER)
+                h.tick(advance=1)
+                self.assert_no_send(h)
+                self.assertNotIn(h.record()["state"], TERMINAL)
+
+    def test_the_claim_takes_it_only_as_its_ledger_pays_for_the_schedule(self):
+        row, _plug = self.waiting()
+        key, at = row["interruption_id"], self.h.now + 1
+        ledger = guard(Asked(wants=True))
+        limits = self.h.engine.limits()
+        self.assertEqual(self.h.store.reserve_detailed(key, at, limits=limits, forced=True)[:2],
+                         (False, "schedule"))
+        for options in ({"ledger": None, "carried": {Point.SCHEDULE}},
+                        {"ledger": ledger, "carried": frozenset()}, {"ledger": ledger, "carried": {Point.GATES}}):
+            with self.subTest(options=sorted(options)):
+                self.assertEqual(self.h.store.reserve_detailed(key, at, limits=limits, forced=True, **options)[:2],
+                                 (False, "schedule"))
+        self.assertEqual(self.h.store.reserve_detailed(key, at, limits=limits, forced=True, ledger=ledger,
+                                                       carried={Point.SCHEDULE}), (True, None, None))
+
+    def test_the_claim_holds_it_to_the_administrators_ceiling_and_quiet_hours(self):
+        h = self.h
+        row, _plug = self.waiting()
+        key = row["interruption_id"]
+        h.store.update(key, at=h.now, recovery_attempts=4)
+        ledger = guard(Asked(wants=True))
+        limits = dict(h.engine.limits(), max_recovery_attempts=2)
+        options = {"forced": True, "ledger": ledger, "carried": {Point.SCHEDULE}, "gates": None}
+        refused = h.store.reserve_detailed(key, h.now + 1, limits=dict(limits, managed_max_recovery_attempts=4),
+                                           **options)
+        self.assertEqual(refused, (False, "attempt_budget", "recovery_budget"))
+        self.assertEqual(h.store.reserve_detailed(key, h.now + 1, limits=limits, quiet_until=h.now + 3600,
+                                                  **options), (False, "schedule", "quiet_hours"))
+        self.assertEqual(h.store.reserve_detailed(key, h.now + 1, limits=dict(limits, managed_max_recovery_attempts=5),
+                                                  **options), (True, None, None))
+
+    def test_the_pre_send_look_still_stops_it(self):
+        """All but a postponement, which a postponed record sent now carries into its claim (above)."""
+        for how in ("cancelled", "paused"):
+            with self.subTest(how):
+                h = self.fresh()
+                row, plug = self.waiting(h)
+                self.asks(plug)
+                key = row["interruption_id"]
+                real = h.store.reserve_detailed
+
+                def claim_then(*arguments, **options):
+                    found = real(*arguments, **options)
+                    if found[0] and how == "cancelled":
+                        h.store.cancel_interruption(key, h.now)
+                    elif found[0]:
+                        h.store.set_enabled(False, h.now)
+                    return found
+                h.store.reserve_detailed = claim_then
+                h.tick(advance=1)
+                self.assert_no_send(h)
+                self.assertNotEqual(h.record()["state"], "submitting")
+
+    def test_deferring_at_a_refused_schedule_leaves_every_row_as_it_was(self):
+        h = self.h
+        row, plug = self.waiting()
+        before = h.store.all_records()
+        h.tick(advance=1)
+        self.assertEqual(h.store.all_records(), before)
+        self.assertIn("schedule", plug.hooks())
+        self.assert_no_send()
 
 
 if __name__ == "__main__":

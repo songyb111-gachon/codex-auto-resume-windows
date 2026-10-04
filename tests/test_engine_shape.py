@@ -80,6 +80,9 @@ METHODS = {
     # and a resend that ran found twice.
     "resend_window", "_sighted", "_traceless", "_resendable", "_holds", "resend_uncertain", "_resend",
     "_after_resend", "watch_resent",
+    # and a person's Send now (SEND_NOW, engine/relaxed.py): the schedule it passes, an attempt budget
+    # of the person's own, and the administrator's ceiling the claim is told.
+    "_send_now", "_own_budget", "forced_limits",
 }
 
 # What `from codex_auto_resume.engine import ...` has to keep answering (app.py, the tests).

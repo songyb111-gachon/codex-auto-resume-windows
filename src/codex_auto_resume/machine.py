@@ -29,12 +29,13 @@ re-exported here, so nothing that imports `machine` changes.
 """
 from __future__ import annotations
 
-from .domain.gates import (BLOCK, GATE_REASONS, GATE_RESULTS, GATES, HELD, NOT_CHECKED,
+from .domain.gates import (BLOCK, FORCEABLE, GATE_REASONS, GATE_RESULTS, GATES, HELD, NOT_CHECKED,
                            OBSERVE_ONLY, PASS, PLUGGED, POSTPONED, QUIET_HOURS, RESEND, RESENDABLE,
-                           UNKNOWN, WAIT, birth_stop, counted_from, decode_gates, encode_gates,
-                           first_refusal, gate, gate_budgets, gate_consent, gate_schedule,
-                           gate_submission_safe, inherited, over_ceiling, resend_candidate,
-                           waited_aside, was_resent, would_send_at)
+                           SEND_NOW, UNKNOWN, WAIT, birth_stop, counted_from, decode_gates,
+                           encode_gates, first_refusal, gate, gate_budgets, gate_consent,
+                           gate_schedule, gate_submission_safe, inherited, over_ceiling,
+                           own_budget_only, resend_candidate, waited_aside, was_resent,
+                           would_send_at)
 from .domain.public import (ACTORS, EVENT_CODES, FLAG_AFTER_USER_WORK, FLAG_LEGACY,
                             FLAG_USER_JOINED, FLAG_WITHDRAW_DELETED, HOLDS, IMPORTANCE_TIERS,
                             OVERLAYS, PAGES,
@@ -49,12 +50,12 @@ from .domain.states import (CLAIMED, EPOCH_CODEX, EPOCH_STORE, EPOCH_USAGE, EXHA
                             plain_move_allowed, still_followed, waiting_state)
 
 __all__ = ["ACTORS", "BLOCK", "CLAIMED", "EPOCH_CODEX", "EPOCH_STORE", "EPOCH_USAGE", "EVENT_CODES",
-           "EXHAUSTED", "FLAG_AFTER_USER_WORK", "FLAG_LEGACY", "FLAG_USER_JOINED",
+           "EXHAUSTED", "FORCEABLE", "FLAG_AFTER_USER_WORK", "FLAG_LEGACY", "FLAG_USER_JOINED",
            "FLAG_WITHDRAW_DELETED", "GATES", "GATE_REASONS", "GATE_RESULTS", "HELD", "HOLDS",
            "IMPORTANCE_TIERS", "IN_FLIGHT", "NOT_CHECKED", "OBSERVE_ONLY", "OBSERVING", "OUTCOMES",
            "OVERLAYS", "PAGES", "PASS", "PLAIN_MOVES", "PLUGGED", "POSSIBLY_SENT", "POSTPONED",
            "PUBLIC_CODES",
-           "QUIET_HOURS", "REASONS", "RELEASABLE_WITHDRAWALS", "RESEND", "RESENDABLE", "STATES",
+           "QUIET_HOURS", "REASONS", "RELEASABLE_WITHDRAWALS", "RESEND", "RESENDABLE", "SEND_NOW", "STATES",
            "SUPERSEDE_WITHDRAWALS",
            "TERMINAL", "TURN_STATUSES", "UNKNOWN", "V2_STATES", "WAIT", "WAITING",
            "WAITING_CODES", "WATCHED",
@@ -62,6 +63,6 @@ __all__ = ["ACTORS", "BLOCK", "CLAIMED", "EPOCH_CODEX", "EPOCH_STORE", "EPOCH_US
            "encode_gates", "epoch", "event_code", "first_refusal", "gate", "gate_budgets",
            "gate_consent", "gate_schedule", "gate_submission_safe", "hold_for_tier", "inherited",
            "may_be_queued",
-           "over_ceiling", "overlays", "own_postponement",
+           "over_ceiling", "overlays", "own_budget_only", "own_postponement",
            "plain_move_allowed", "public_code", "public_reason", "reason_code", "resend_candidate",
            "still_followed", "turn_status", "waited_aside", "waiting_state", "was_resent", "would_send_at"]

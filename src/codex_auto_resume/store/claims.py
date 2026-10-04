@@ -62,12 +62,9 @@ class ClaimsMixin:
     # --------------------------------------------------------------- claiming
     @contextmanager
     def submission_guard(self, interruption_id: str):
-        """Serialize final consent with the queue process launch, and only launch.
-
-        Cancel, Pause and thread-disable use the same SQLite write lock. Once one
-        of those actions commits, a subsequent process launch cannot use its old
-        consent. The transport releases this before waiting for a receipt.
-        """
+        """Serialize final consent with the queue process launch, and only launch. Cancel, Pause and
+        thread-disable use the same SQLite write lock: once one of those commits, a later launch cannot
+        use its old consent. The transport releases this before waiting for a receipt."""
         with self._transaction() as connection:
             row = self._row(connection, interruption_id)
             settings = self._read_settings(connection)
@@ -87,7 +84,7 @@ class ClaimsMixin:
     def reserve_detailed(self, interruption_id: str, now: float, *, limits: dict | None = None,
                          gates: dict | None = None, ledger=None, carried=frozenset(),
                          quiet_until: float | None = None, relaxed: str | None = None,
-                         resend: tuple | None = None) -> tuple:
+                         resend: tuple | None = None, forced: bool = False) -> tuple:
         """Claim a record for sending, re-checking every store-side gate in the claim.
 
         Returns (claimed, refusing_gate, reason). The gate vector - the engine's view of Codex plus
@@ -98,9 +95,9 @@ class ClaimsMixin:
         its ledger pays for (`_ledger_holds`). `quiet_until` is the end of the quiet hours `now` falls
         in, or None. Schema 4's conditions - observe-only, a hold, a postponement, the quiet hours -
         are asked here again as reasons of the consent and schedule gates. `relaxed` is a gate the
-        plug relaxed (v0.6.13), held here to core's own bounds (`_relaxation_refused`); `resend` is
-        the window, (after, until) seconds from its send, an uncertain submission is claimed once
-        more in (`_resend_claim`).
+        plug relaxed (v0.6.13), held here to core's own bounds (`_relaxation_refused`); `resend` the
+        window, (after, until) seconds from its send, an uncertain submission is claimed once more in
+        (`_resend_claim`); `forced` a person's Send now, as the ledger pays for it (`_forced_claim`).
         """
         _timestamp(now, "now")
         if gates is not None and limits is None:
@@ -124,6 +121,8 @@ class ClaimsMixin:
                 row, now, quiet_until=quiet_until, early=self._early_claim(row, relaxed, ledger, carried))
             if limits is not None:
                 vector.update(machine.gate_budgets(row, limits, is_usage(row)))
+            if forced:
+                self._forced_claim(row, now, vector, quiet_until, limits, ledger, carried)
             refusal = None
             for name in ("consent", "submission_safe", "schedule", "chain_budget",
                          "attempt_budget", "no_progress_budget"):
