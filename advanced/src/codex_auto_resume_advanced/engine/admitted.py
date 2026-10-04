@@ -18,6 +18,9 @@ with its marker, through core's one claim, which pays a unit of the capability's
     CodexGaveUp       Codex giving up after its own retries (responseTooManyFailedAttempts) on a
                       server error or none, taken up twice a task at most (ADMIT); on a 429 the
                       standard edition retries it already, and core offers nothing else
+    SignInRetry       a sign-in failure (Codex's unauthorized, or a 401 - never a 403), taken up once a
+                      task (ADMIT) and sent only once the usage read every continuation needs works:
+                      the proof Codex is signed in again; it reads nothing of a sign-in itself
 
 A capability here never reads a word of an error, and core never hands it one.
 """
@@ -216,3 +219,37 @@ class CodexGaveUp(_Taking):
 def make_codex_gave_up(paths) -> CodexGaveUp:
     """The capability's factory (registry.CapabilityDef.make): its code for one installation."""
     return CodexGaveUp(paths)
+
+
+SIGN_IN = "terminal_auth"
+
+
+class SignInRetry(_Taking):
+    """Retry a sign-in failure after proof: P17 and P3. Core offers ADMIT for `terminal_auth` only for
+    Codex's `unauthorized` with no status or a 401, or a code of Codex's naming no decision with a 401
+    - never a 403, a permission (failures.admits). The proof is core's own: every continuation waits
+    for a usage read that works (engine/dispatch.py), which a signed-out Codex never gives, and core
+    ends the record unsent a day on the clock after the failure (ladder.ADMITTED_MAX_SECONDS). Nothing
+    here reads or names a sign-in, a token or a file of Codex's."""
+    __slots__ = ()
+
+    def admission(self, failure):
+        """ADMIT once a task: never for a failure of a continuation that was itself a sign-in
+        failure's - a second sign-in failure ends it there."""
+        if failure.get("category") != SIGN_IN:
+            return DEFER
+        chain = failure.get("chain")
+        if chain is not None and (not isinstance(chain, dict) or chain.get("category") == SIGN_IN):
+            return DEFER
+        return Alternative.ADMIT
+
+    def gate(self, name, record, facts):
+        """At known_failure, ADMIT again for what it took up (the runtime holds it to its own)."""
+        if name != KNOWN_FAILURE or record.get("category") != SIGN_IN:
+            return DEFER
+        return Alternative.ADMIT
+
+
+def make_sign_in_retry(paths) -> SignInRetry:
+    """The capability's factory (registry.CapabilityDef.make): its code for one installation."""
+    return SignInRetry(paths)

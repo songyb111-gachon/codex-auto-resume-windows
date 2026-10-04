@@ -47,7 +47,7 @@ CHANGES = frozenset({"thread/queue/add", "thread/goal/set"})
 
 class ShippedTests(unittest.TestCase):
     SHIPPED = ("start_with_codex", "goal_continuation", "marker_free_continuation", "capacity_retry",
-               "structured_rules", "unknown_failure_budget", "codex_gave_up")
+               "structured_rules", "unknown_failure_budget", "codex_gave_up", "sign_in_retry")
 
     def test_the_registry_this_edition_ships_is_its_capabilities_in_their_order(self):
         self.assertEqual([d.id for d in registry.DEFINITIONS], list(self.SHIPPED))
@@ -62,9 +62,9 @@ class ShippedTests(unittest.TestCase):
         answering = {Point.START_ROUTE: ("start_with_codex",),
                      Point.UNLOADED: ("goal_continuation",),
                      Point.GATES: ("goal_continuation", "capacity_retry", "structured_rules",
-                                   "unknown_failure_budget", "codex_gave_up"),
+                                   "unknown_failure_budget", "codex_gave_up", "sign_in_retry"),
                      Point.ADMISSION: ("capacity_retry", "structured_rules", "unknown_failure_budget",
-                                       "codex_gave_up"),
+                                       "codex_gave_up", "sign_in_retry"),
                      Point.SENDER: ("goal_continuation", "marker_free_continuation"),
                      Point.DELIVERY: ("marker_free_continuation",)}
         for point in Point:
@@ -184,6 +184,17 @@ class ShippedTests(unittest.TestCase):
         self.assertEqual(gave_up.points, frozenset({Point.ADMISSION, Point.GATES}))
         self.assertEqual((gave_up.ceilings.per_day, gave_up.ceilings.per_conversation), (12, 2))
         self.assertEqual((gave_up.options, gave_up.rules_editor, gave_up.samples, gave_up.codes), ((), False, False, ()))
+
+    def test_the_sign_in_retry_departs_and_rests_on_what_the_design_says(self):
+        """0.5 (sign-in failures are never retried), A14 (401 and 403) and A26; the usage read is its
+        proof, so it stands on usage_probe; two a conversation and two a day; no choice, no rules, no
+        samples, and no app-server method of its own."""
+        sign_in = registry.REGISTRY.get("sign_in_retry")
+        self.assertEqual(sign_in.departs_from, ("0.5", "A14", "A26"))
+        self.assertEqual((sign_in.compat, sign_in.measurements, sign_in.revision), ("usage_probe", (), 1))
+        self.assertEqual(sign_in.points, frozenset({Point.ADMISSION, Point.GATES}))
+        self.assertEqual((sign_in.ceilings.per_day, sign_in.ceilings.per_conversation), (2, 2))
+        self.assertEqual((sign_in.options, sign_in.rules_editor, sign_in.samples, sign_in.codes), ((), False, False, ()))
 
     def test_start_with_codex_departs_and_rests_on_what_the_plan_says(self):
         swc = registry.REGISTRY.get("start_with_codex")

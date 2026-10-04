@@ -38,8 +38,8 @@ The edition ships these capabilities now: start-with-Codex, at P9 (control/codex
 goal continuation, at P16, P3 and P5 (engine/goal.py); the marker-free continuation, at P5 and
 P15 (engine/markerfree.py); and, from v0.6.13 (stage 3b), those that take up failures at P17 and
 relax their records at P3: the short retries when Codex is at capacity (engine/capacity.py), the
-rules for Codex's error codes, the retries of failures nothing classified and of Codex giving up
-(engine/admitted.py).
+rules for Codex's error codes, the retries of failures nothing classified, of Codex giving up and
+of a sign-in failure (engine/admitted.py).
 The tests define one of their own to hold every rule here.
 """
 from __future__ import annotations
@@ -51,8 +51,8 @@ from typing import Callable
 from codex_auto_resume.domain.plug import Point
 
 from .control.codexstart import make as make_start_with_codex
-from .engine.admitted import (ATTEMPTS, DEFAULT_ATTEMPTS, make_codex_gave_up, make_structured_rules,
-                              make_unknown_failure_budget)
+from .engine.admitted import (ATTEMPTS, DEFAULT_ATTEMPTS, make_codex_gave_up, make_sign_in_retry,
+                              make_structured_rules, make_unknown_failure_budget)
 from .engine.capacity import CEILING_HOURS, DEFAULT_HOURS, make as make_capacity_retry
 from .engine.goal import make as make_goal_continuation
 from .engine.markerfree import make as make_marker_free
@@ -401,7 +401,27 @@ CODEX_GAVE_UP = CapabilityDef(
     make=make_codex_gave_up,
 )
 
+# Retry a sign-in failure after proof (v0.6.13 stage 3b; the plan's row: retried once when a usage read
+# succeeds; once a failure, twice in 24 hours, stopping at the second failure; auth.json and the way of
+# signing in never touched). At P17 it takes up with ADMIT what core offers - Codex's unauthorized with
+# no status or a 401, never a 403 (permission is on the plan's exclusions) - unless the task it
+# continues is one whose continuation failed at sign-in already, and at known_failure ADMIT again. The
+# proof is core's own: the usage read every continuation waits for works only while Codex is signed
+# in, and core ends the record unsent a day on the clock after the failure (ladder.py). It departs
+# from 0.5 (sign-in failures are never retried), A14 (401 and 403 are never retried) and A26, and
+# stands on usage_probe - the usage read is its proof. Ceilings: two a conversation and two a day.
+SIGN_IN_RETRY = CapabilityDef(
+    id="sign_in_retry",
+    points=frozenset({Point.ADMISSION, Point.GATES}),
+    revision=1,
+    departs_from=("0.5", "A14", "A26"),
+    compat="usage_probe",
+    ceilings=Ceilings(per_day=2, per_conversation=2),
+    journal_prefix="sgn",
+    make=make_sign_in_retry,
+)
+
 # In this order, which is also which answers first where two answer at one point.
 DEFINITIONS = (START_WITH_CODEX, GOAL_CONTINUATION, MARKER_FREE, CAPACITY_RETRY, STRUCTURED_RULES,
-               UNKNOWN_FAILURE_BUDGET, CODEX_GAVE_UP)
+               UNKNOWN_FAILURE_BUDGET, CODEX_GAVE_UP, SIGN_IN_RETRY)
 REGISTRY = Registry(DEFINITIONS)

@@ -10,5 +10,6 @@ conversation on; and, only where measurement M2b passed, a channel that sets the
 the continuation it queues. P17 and P3 together (v0.6.13) are the capabilities that take up a
 failure the standard edition handles otherwise, and relax its record at known_failure: the short
 retries when Codex is at capacity (engine/capacity.py), and the rules for Codex's error codes and
-the retries of failures nothing classified and of Codex giving up (engine/admitted.py).
+the retries of failures nothing classified, of Codex giving up and of a sign-in failure
+(engine/admitted.py).
 """
