@@ -813,8 +813,6 @@
   "power.state.on.shut_down": "Attivato: questo PC si arresta quando finiscono.",
   "power.state.on.sleep": "Attivato: questo PC va in sospensione quando finiscono.",
   "power.title": "Quando i recuperi dal limite di utilizzo finiscono",
-  "power.turn_off": "Disattiva",
-  "power.turn_on": "Attiva...",
   "power.unavailable.hibernate": "Iberna non è disponibile: è disattivato in Windows, e questo prodotto non lo attiva.",
   "power.unavailable.privilege": "Non è disponibile nulla: Windows non permette a questo account di sospendere o arrestare questo PC.",
   "power.unavailable.sleep": "Sospendi non è disponibile: Windows non permette a un programma di sospendere questo PC.",

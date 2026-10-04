@@ -813,8 +813,6 @@
   "power.state.on.shut_down": "Bật: PC này sẽ tắt máy khi chúng kết thúc.",
   "power.state.on.sleep": "Bật: PC này sẽ ngủ khi chúng kết thúc.",
   "power.title": "Khi các lần khôi phục giới hạn sử dụng kết thúc",
-  "power.turn_off": "Tắt",
-  "power.turn_on": "Bật...",
   "power.unavailable.hibernate": "Không có Ngủ đông: nó đang tắt trong Windows, và sản phẩm này không bật nó.",
   "power.unavailable.privilege": "Không có lựa chọn nào: Windows không cho tài khoản này cho PC này ngủ hoặc tắt máy.",
   "power.unavailable.sleep": "Không có Ngủ: Windows không cho chương trình cho PC này ngủ.",

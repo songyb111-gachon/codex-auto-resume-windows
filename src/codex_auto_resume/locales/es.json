@@ -813,8 +813,6 @@
   "power.state.on.shut_down": "Activado: este PC se apaga cuando terminen.",
   "power.state.on.sleep": "Activado: este PC se suspende cuando terminen.",
   "power.title": "Cuando terminen las recuperaciones del límite de uso",
-  "power.turn_off": "Desactivar",
-  "power.turn_on": "Activar...",
   "power.unavailable.hibernate": "Hibernar no se ofrece: está desactivado en Windows, y este producto no lo activa.",
   "power.unavailable.privilege": "No se ofrece nada: Windows no deja que esta cuenta suspenda ni apague este PC.",
   "power.unavailable.sleep": "Suspender no se ofrece: Windows no deja que un programa suspenda este PC.",

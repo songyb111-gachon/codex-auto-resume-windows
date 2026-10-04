@@ -813,8 +813,6 @@
   "power.state.on.shut_down": "Ein: Dieser PC fährt herunter, wenn sie fertig sind.",
   "power.state.on.sleep": "Ein: Dieser PC geht in den Energiesparmodus, wenn sie fertig sind.",
   "power.title": "Wenn Wiederherstellungen nach einem Nutzungslimit fertig sind",
-  "power.turn_off": "Ausschalten",
-  "power.turn_on": "Einschalten...",
   "power.unavailable.hibernate": "Ruhezustand wird nicht angeboten: Er ist in Windows ausgeschaltet, und dieses Produkt schaltet ihn nicht ein.",
   "power.unavailable.privilege": "Nichts wird angeboten: Windows lässt dieses Konto diesen PC weder in den Energiesparmodus versetzen noch herunterfahren.",
   "power.unavailable.sleep": "Energie sparen wird nicht angeboten: Windows lässt kein Programm diesen PC in den Energiesparmodus versetzen.",

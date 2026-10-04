@@ -813,8 +813,6 @@
   "power.state.on.shut_down": "开：恢复完成后此电脑将关机。",
   "power.state.on.sleep": "开：恢复完成后此电脑将睡眠。",
   "power.title": "用量上限恢复完成后",
-  "power.turn_off": "关闭",
-  "power.turn_on": "开启...",
   "power.unavailable.hibernate": "无法选择休眠：它在 Windows 中已关闭，本产品不会将其开启。",
   "power.unavailable.privilege": "没有可选的操作：Windows 不允许此帐户让此电脑睡眠或关机。",
   "power.unavailable.sleep": "无法选择睡眠：Windows 不允许程序让此电脑睡眠。",

@@ -813,8 +813,6 @@
   "power.state.on.shut_down": "פועל: המחשב ייכבה כשהם יסתיימו.",
   "power.state.on.sleep": "פועל: המחשב יעבור לשינה כשהם יסתיימו.",
   "power.title": "כששחזורי מגבלת השימוש מסתיימים",
-  "power.turn_off": "כיבוי",
-  "power.turn_on": "הפעלה...",
   "power.unavailable.hibernate": "תרדמה אינה מוצעת: היא כבויה ב-Windows, והמוצר הזה לא מפעיל אותה.",
   "power.unavailable.privilege": "שום דבר לא מוצע: Windows לא מאפשרת לחשבון הזה להעביר את המחשב לשינה או לכבות אותו.",
   "power.unavailable.sleep": "שינה אינה מוצעת: Windows לא מאפשרת לתוכנה להעביר את המחשב הזה לשינה.",

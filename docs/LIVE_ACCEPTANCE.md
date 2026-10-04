@@ -773,7 +773,7 @@ matches what the PC did. Until MP passes, Sleep is offered only where Windows re
 **Each action, after a real usage limit.** It acts only on a usage limit, which cannot be summoned,
 so each check waits for one to happen in a throwaway conversation. Before it does, in Settings >
 General, **When usage-limit recoveries finish**, choose the action under **Then**, Every recovery
-succeeded, Once and 2 minutes, choose **Turn on...** and answer **Turn on**. Let the recovery run and
+succeeded, Once and 2 minutes, turn on the card's switch and answer **Turn on**. Let the recovery run and
 the turn it started end, and leave the PC alone. *A pass:* the card's second line names what it waits
 for at each stage and never says it is about to act while a turn runs; a notice with the time and
 **Don't sleep** (or Don't hibernate, Don't shut down) comes once nobody has used the PC for 2 minutes;

@@ -813,8 +813,6 @@
   "power.state.on.shut_down": "Açık: bunlar bittiğinde bu bilgisayar kapanır.",
   "power.state.on.sleep": "Açık: bunlar bittiğinde bu bilgisayar uyku moduna geçer.",
   "power.title": "Kullanım sınırı kurtarmaları bittiğinde",
-  "power.turn_off": "Kapat",
-  "power.turn_on": "Aç...",
   "power.unavailable.hibernate": "Hazırda Beklet sunulmuyor: Windows'ta kapalı ve bu ürün onu açmaz.",
   "power.unavailable.privilege": "Hiçbir şey sunulmuyor: Windows bu hesabın bu bilgisayarı uyutmasına veya kapatmasına izin vermiyor.",
   "power.unavailable.sleep": "Uyku sunulmuyor: Windows bir programın bu bilgisayarı uyutmasına izin vermiyor.",

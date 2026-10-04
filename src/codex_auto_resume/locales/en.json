@@ -813,8 +813,6 @@
   "power.unavailable.hibernate": "Hibernate is not offered: it is off in Windows, and this product does not turn it on.",
   "power.unavailable.sleep": "Sleep is not offered: Windows does not let a program start this PC's sleep.",
   "power.unavailable.privilege": "Nothing is offered: Windows does not let this account put this PC to sleep or shut it down.",
-  "power.turn_on": "Turn on...",
-  "power.turn_off": "Turn off",
   "power.last.done.sleep": "Last time: this PC went to sleep at {time}.",
   "power.last.done.hibernate": "Last time: this PC hibernated at {time}.",
   "power.last.done.shut_down": "Last time: this PC shut down at {time}.",

@@ -813,8 +813,6 @@
   "power.state.on.shut_down": "8dd31075ee35b044",
   "power.state.on.sleep": "67c8c5cd340a41cc",
   "power.title": "8bf557634cf82aba",
-  "power.turn_off": "06f0e210b27d4d62",
-  "power.turn_on": "f5d324d60c3d2ce2",
   "power.unavailable.hibernate": "101994667d323ed5",
   "power.unavailable.privilege": "95f759bbde0828f7",
   "power.unavailable.sleep": "2d63286f85b6d41c",

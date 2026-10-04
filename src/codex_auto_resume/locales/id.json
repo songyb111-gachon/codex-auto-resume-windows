@@ -813,8 +813,6 @@
   "power.state.on.shut_down": "Aktif: PC ini dimatikan saat semuanya selesai.",
   "power.state.on.sleep": "Aktif: PC ini tidur saat semuanya selesai.",
   "power.title": "Saat pemulihan batas penggunaan selesai",
-  "power.turn_off": "Nonaktifkan",
-  "power.turn_on": "Aktifkan...",
   "power.unavailable.hibernate": "Hibernasi tidak ditawarkan: fitur ini nonaktif di Windows, dan produk ini tidak mengaktifkannya.",
   "power.unavailable.privilege": "Tidak ada yang ditawarkan: Windows tidak mengizinkan akun ini menidurkan atau mematikan PC ini.",
   "power.unavailable.sleep": "Tidur tidak ditawarkan: Windows tidak mengizinkan program menidurkan PC ini.",

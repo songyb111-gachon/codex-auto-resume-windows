@@ -813,8 +813,6 @@
   "power.state.on.shut_down": "オン: 終わったらこの PC はシャットダウンします。",
   "power.state.on.sleep": "オン: 終わったらこの PC はスリープします。",
   "power.title": "使用量の上限からの復旧が終わったら",
-  "power.turn_off": "オフにする",
-  "power.turn_on": "オンにする...",
   "power.unavailable.hibernate": "休止状態は選べません。Windows でオフになっており、この製品はそれをオンにしません。",
   "power.unavailable.privilege": "選べる動作がありません。Windows はこのアカウントがこの PC をスリープまたはシャットダウンすることを許可していません。",
   "power.unavailable.sleep": "スリープは選べません。Windows はプログラムがこの PC をスリープさせることを許可していません。",

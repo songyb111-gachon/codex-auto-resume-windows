@@ -813,8 +813,6 @@
   "power.state.on.shut_down": "Activé : ce PC s'arrête quand elles sont terminées.",
   "power.state.on.sleep": "Activé : ce PC se met en veille quand elles sont terminées.",
   "power.title": "Quand les récupérations de limite d'utilisation sont terminées",
-  "power.turn_off": "Désactiver",
-  "power.turn_on": "Activer...",
   "power.unavailable.hibernate": "La veille prolongée n'est pas proposée : elle est désactivée dans Windows, et ce produit ne l'active pas.",
   "power.unavailable.privilege": "Rien n'est proposé : Windows ne laisse pas ce compte mettre ce PC en veille ni l'arrêter.",
   "power.unavailable.sleep": "La mise en veille n'est pas proposée : Windows ne laisse pas un programme mettre ce PC en veille.",

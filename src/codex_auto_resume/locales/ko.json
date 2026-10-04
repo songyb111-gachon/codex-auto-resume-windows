@@ -813,8 +813,6 @@
   "power.state.on.shut_down": "켜짐: 복구가 끝나면 이 PC가 시스템을 종료합니다.",
   "power.state.on.sleep": "켜짐: 복구가 끝나면 이 PC가 절전합니다.",
   "power.title": "사용량 제한 복구가 끝나면",
-  "power.turn_off": "끄기",
-  "power.turn_on": "켜기...",
   "power.unavailable.hibernate": "최대 절전은 쓸 수 없습니다. Windows에서 꺼져 있고, 이 프로그램은 그것을 켜지 않습니다.",
   "power.unavailable.privilege": "쓸 수 있는 동작이 없습니다. Windows가 이 계정이 이 PC를 절전시키거나 종료하도록 허용하지 않습니다.",
   "power.unavailable.sleep": "절전은 쓸 수 없습니다. Windows가 프로그램이 이 PC를 절전시키도록 허용하지 않습니다.",

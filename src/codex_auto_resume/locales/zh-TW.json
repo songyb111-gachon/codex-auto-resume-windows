@@ -813,8 +813,6 @@
   "power.state.on.shut_down": "開：復原完成後這台電腦會關機。",
   "power.state.on.sleep": "開：復原完成後這台電腦會睡眠。",
   "power.title": "使用量限制復原完成後",
-  "power.turn_off": "關閉",
-  "power.turn_on": "開啟...",
   "power.unavailable.hibernate": "無法選擇休眠：它在 Windows 中已關閉，本產品不會將其開啟。",
   "power.unavailable.privilege": "沒有可選的動作：Windows 不允許此帳戶讓這台電腦睡眠或關機。",
   "power.unavailable.sleep": "無法選擇睡眠：Windows 不允許程式讓這台電腦睡眠。",

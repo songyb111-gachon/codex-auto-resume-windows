@@ -813,8 +813,6 @@
   "power.state.on.shut_down": "Włączone: ten komputer zostanie zamknięty, gdy się skończą.",
   "power.state.on.sleep": "Włączone: ten komputer zostanie uśpiony, gdy się skończą.",
   "power.title": "Gdy odzyskiwanie po limicie użycia się skończy",
-  "power.turn_off": "Wyłącz",
-  "power.turn_on": "Włącz...",
   "power.unavailable.hibernate": "Hibernacja nie jest dostępna: jest wyłączona w Windows, a ten produkt jej nie włącza.",
   "power.unavailable.privilege": "Nic nie jest dostępne: Windows nie pozwala temu kontu uśpić ani zamknąć tego komputera.",
   "power.unavailable.sleep": "Uśpienie nie jest dostępne: Windows nie pozwala programowi uśpić tego komputera.",
