@@ -42,8 +42,10 @@ WORDS = ("reported", "reported.json", reported.FORMAT)
 
 VERIFIED_HERE = "codex-cli 0.153.4"             # VERIFIED by the bundled data
 CHECKED_HERE = "codex-cli 0.155.0-alpha.16.4"    # CHECKED by the bundled data
-NOTHING_SAID = "codex-cli 0.160.0"              # no evidence of its own
-MARKED = "codex-cli 0.161.0"                    # INCOMPATIBLE by a refreshed document
+# Versions no published data will name: a real version here broke these tests the day the data listed it
+# (compatibility data 7 named codex-cli 0.160.0).
+NOTHING_SAID = "codex-cli 99.0.0"               # no evidence of its own
+MARKED = "codex-cli 99.1.0"                     # INCOMPATIBLE by a refreshed document
 VERSIONS = (VERIFIED_HERE, CHECKED_HERE, NOTHING_SAID, MARKED, None)
 
 
