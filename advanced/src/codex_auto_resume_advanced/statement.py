@@ -80,7 +80,15 @@ PAGE_KEYS = tuple(PAGE_PREFIX + name for name in (
     "statement_unavailable", "refused.unread",
     "tripped", "tripped.measurement_failed", "tripped.failed_here", "tripped.incompatible",
     "tripped.local_check_failed", "tripped.submission_unknown", "tripped.hook_exception",
-    "tripped.statement_changed", "tripped.engine_changed"))
+    "tripped.statement_changed", "tripped.engine_changed",
+    # v0.6.13: a capability's own choices, the rules for Codex's error codes and the samples of what nothing
+    # classified, and what the page says of each.
+    "options", "option.attempts", "option.ceiling_hours", "option.hours", "done.option", "refused.option",
+    "refused.choice", "rules", "rules.none", "rules.full", "rule.code", "rule.sampled", "rule.status",
+    "rule.any_status", "rule.kind", "rule.hits", "rule.add", "rule.remove", "rule.known", "done.rule_added",
+    "done.rule_removed", "refused.rule_shape", "refused.rule_known", "refused.rule_decision",
+    "refused.rule_range", "refused.rule_overlap", "samples", "samples.none", "sample.code", "sample.no_code",
+    "sample.status", "sample.count"))
 
 
 def name_key(capability) -> str:

@@ -105,7 +105,8 @@ namespace CodexAutoResume
         /// (advanced-words' `words`) at `scale`: one line each, and an empty string when there is none.
         ///
         /// The list is `listingJson` (advanced-list's answer) and the statements `statementsJson`, {id: advanced-
-        /// statement's answer}. The page is laid out at the window's opening size with each capability open in turn -
+        /// statement's answer}; what the capabilities keep is `keptJson`, {"advanced-rules": its answer, "advanced-samples":
+        /// its answer}, shown on the cards of the capabilities that have them. The page is laid out at the window's opening size with each capability open in turn -
         /// with what a policy refuses of it and every warning its statement carries - then with a list that could not
         /// be read. At each: the standard audit's Walk (anything cut off, a page that would scroll sideways, a field
         /// that is not a field high), a control with no name a screen reader can say, a pinned control out of its
@@ -116,7 +117,7 @@ namespace CodexAutoResume
         /// narrowest screen the window opens on at this scaling, TextScale.NarrowestWidth wide - the text size is fitted
         /// so that one holds the standard window - where the tabs take a second row rather than be cut off.
         internal static string AdvancedLayoutAudit(string stringsJson, string wordsJson, string listingJson, string statementsJson,
-                                                   double scale)
+                                                   string keptJson, double scale)
         {
             var findings = new List<string>();
             AdvancedAudited = 0;
@@ -124,6 +125,9 @@ namespace CodexAutoResume
             {
                 var listing = Json.Parse(listingJson) as Dictionary<string, object>;
                 var statements = Json.Parse(statementsJson) as Dictionary<string, object> ?? new Dictionary<string, object>();
+                var kept = Json.Parse(keptJson) as Dictionary<string, object>;
+                form.advancedRules = Map(kept, "advanced-rules");
+                form.advancedSamples = Map(kept, "advanced-samples");
                 form.AdoptAdvancedWords(Json.Parse(wordsJson) as Dictionary<string, object>);
                 form.ShowAdvancedList(listing);
                 foreach (KeyValuePair<string, object> pair in statements)
@@ -210,6 +214,10 @@ namespace CodexAutoResume
         ///   {"do": "choose", "id": ...}                       that capability's row chosen in the list
         ///   {"do": "press", "button": on|watch|off|all_off}   a button pressed, if it can be
         ///   {"do": "hourly", "value": n}                      the hourly limit chosen, and the pause after it over
+        ///   {"do": "set_option", "key": ..., "value": n}      a choice made in that choice's drop-down
+        ///   {"do": "rule", "tag": ..., "sampled": ...,        a new rule's fields filled - its code typed, or taken from the
+        ///    "from": ..., "to": ..., "kind": ...}             samples' drop-down - and Add rule pressed, if it can be
+        ///   {"do": "remove", "rule": n}                       that rule's Remove pressed, if it can be
         ///   {"do": "ctrl-tab", "shift": bool}                 Ctrl+Tab, or Ctrl+Shift+Tab
         ///   {"do": "reply", "key": ..., "with": [...]}        what the bridge answers from now on
         ///   {"do": "answer", "with": [...]}                   what the person answers the next questions
@@ -267,6 +275,39 @@ namespace CodexAutoResume
                             form.SetHourly(form.hourlyChosen);
                         }
                     }
+                    else if (what == "set_option")
+                    {
+                        SoftCombo combo = form.advancedChoices.Find(delegate(SoftCombo each) { return Equals(each.Tag, Str(step, "key")); });
+                        if (combo == null || !combo.Enabled) disabled.Add("set_option");
+                        else
+                        {
+                            Choose(combo, Convert.ToString(Whole(Get(step, "value")), System.Globalization.CultureInfo.InvariantCulture));
+                            Committed.Invoke(combo, new object[] { EventArgs.Empty });
+                        }
+                    }
+                    else if (what == "rule")
+                    {
+                        if (form.ruleAdd == null || !form.ruleAdd.Enabled) disabled.Add("rule");
+                        else
+                        {
+                            if (Str(step, "sampled") != null && form.ruleSampled != null)
+                            {
+                                Choose(form.ruleSampled, Str(step, "sampled"));
+                                Committed.Invoke(form.ruleSampled, new object[] { EventArgs.Empty });
+                            }
+                            if (Str(step, "tag") != null) form.ruleTag.Box.Text = Str(step, "tag");
+                            form.ruleFrom.Box.Text = Str(step, "from") ?? "";
+                            form.ruleTo.Box.Text = Str(step, "to") ?? "";
+                            if (Str(step, "kind") != null) Choose(form.ruleKind, Str(step, "kind"));
+                            Pressed.Invoke(form.ruleAdd, new object[] { EventArgs.Empty });
+                        }
+                    }
+                    else if (what == "remove")
+                    {
+                        Button remove = form.ruleRemoves.Find(delegate(Button each) { return Equals(each.Tag, Get(step, "rule")); });
+                        if (remove == null || !remove.Enabled) disabled.Add("remove");
+                        else Pressed.Invoke(remove, new object[] { EventArgs.Empty });
+                    }
                     else if (what == "ctrl-tab")
                     {
                         Keys keys = Keys.Control | Keys.Tab | (Equals(Get(step, "shift"), true) ? Keys.Shift : Keys.None);
@@ -308,6 +349,26 @@ namespace CodexAutoResume
         // Control.OnClick, which raises Click as a press of the button does.
         private static readonly System.Reflection.MethodInfo Pressed =
             typeof(Control).GetMethod("OnClick", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        // ComboBox.OnSelectionChangeCommitted, which a choice taken from the list raises.
+        private static readonly System.Reflection.MethodInfo Committed =
+            typeof(ComboBox).GetMethod("OnSelectionChangeCommitted", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+        /// The item of `combo` whose value is `value` chosen, as a choice from its list chooses it.
+        private static void Choose(ComboBox combo, string value)
+        {
+            for (int i = 0; i < combo.Items.Count; i++)
+            {
+                var choice = combo.Items[i] as Choice;
+                if (choice != null && choice.Value == value) combo.SelectedIndex = i;
+            }
+        }
+
+        private static List<object> ItemsOf(ComboBox combo)
+        {
+            var items = new List<object>();
+            if (combo != null) foreach (object item in combo.Items) items.Add(item.ToString());
+            return items;
+        }
 
         /// The row for `id` chosen in the list, as a click on it chooses it.
         private void ChooseAdvanced(string id)
@@ -377,6 +438,31 @@ namespace CodexAutoResume
                 look["hourly"] = hourly;
             }
             else look["hourly"] = null;
+            // The open capability's choices - each one's drop-down, what it offers and what it shows - and the rules'
+            // editor: what each rule's Remove names, the kinds and the samples' codes offered, and whether Add can be pressed.
+            var choices = new List<object>();
+            foreach (SoftCombo combo in advancedChoices)
+            {
+                var choice = new Dictionary<string, object>();
+                choice["key"] = combo.Tag as string;
+                choice["items"] = ItemsOf(combo);
+                choice["value"] = combo.SelectedItem == null ? null : combo.SelectedItem.ToString();
+                choice["enabled"] = combo.Enabled;
+                choices.Add(choice);
+            }
+            look["choices"] = choices;
+            if (ruleRemoves.Count > 0 || ruleAdd != null)
+            {
+                var editor = new Dictionary<string, object>();
+                var removes = new List<object>();
+                foreach (Button remove in ruleRemoves) removes.Add(remove.Tag);
+                editor["removes"] = removes;
+                editor["add"] = ruleAdd == null ? (object)null : ruleAdd.Enabled;
+                editor["kinds"] = ItemsOf(ruleKind);
+                editor["sampled"] = ItemsOf(ruleSampled);
+                look["rules"] = editor;
+            }
+            else look["rules"] = null;
             return look;
         }
 

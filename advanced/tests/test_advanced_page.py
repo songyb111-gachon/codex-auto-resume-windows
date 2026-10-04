@@ -15,8 +15,10 @@ exactly what the page showed - which the real bridge then accepts - and ask agai
 when the bridge says something changed, or say why they cannot (it could not be read again, or a policy
 now refuses it); a refusal is told; a capability that turned itself off says so and why; Turn off and
 Turn every advanced feature off send theirs; the hourly limit is a spin box, and the lowered limit is one
-the real bridge takes; the list is read again after every action and when the snapshot's badge says it
-changed; a window that reopens itself on the page comes back to it; the page is audited in every
+the real bridge takes; a capability's own choices are drop-downs whose choice is sent at once, the rules
+for Codex's error codes are listed, added and removed, and the samples are listed, codes and numbers only -
+each request one the real bridge takes, and each refusal told; the list is read again after every action and
+when the snapshot's badge says it changed; a window that reopens itself on the page comes back to it; the page is audited in every
 language at every scaling, its tabs on the narrowest screen too; and the standard window holds nothing
 of it.
 
@@ -121,7 +123,7 @@ foreach ($job in $jobs) {
             $out[$job.name] = [string]$run.Invoke($null, [object[]]@((Text $job.strings), (Text $job.scenario)))
         } else {
             $report = [string]$audit.Invoke($null, [object[]]@((Text $job.strings), (Text $job.words), (Text $job.listing),
-                                                              (Text $job.statements), [double]$job.scale))
+                                                              (Text $job.statements), (Text $job.kept), [double]$job.scale))
             $out[$job.name] = @{ report = $report; audited = [int]$audited.GetValue($null) }
         }
     } catch {
@@ -450,6 +452,67 @@ class PageTests(unittest.TestCase):
         return "en", {"script": script, "steps": steps}, {
             "item": item, "words": script["advanced-words"][0]["result"]["words"]}
 
+    @classmethod
+    def scenario_choices(cls, bridge):
+        """Short retries when Codex is at capacity open: its one choice, the hours it keeps trying, a drop-down at the
+        default; four hours chosen is sent at once, with the generation the list was read at."""
+        script = cls.opening(bridge, "en")
+        steps = [{"do": "snapshot", "reply": snapshot()}, {"do": "show"}, {"do": "choose", "id": "capacity_retry"},
+                 {"do": "look"},
+                 {"do": "reply", "key": "advanced-option", "with": [{"ok": True, "result": {"done": True, "generation": 1}}]},
+                 {"do": "set_option", "key": "ceiling_hours", "value": 4},
+                 {"do": "reply", "key": "advanced-option",
+                  "with": [{"ok": True, "result": {"done": False, "refusal": "stale_generation"}}]},
+                 {"do": "set_option", "key": "ceiling_hours", "value": 6}]
+        return "en", {"script": script, "steps": steps}, {
+            "listing": script["advanced-list"][0]["result"], "words": script["advanced-words"][0]["result"]["words"]}
+
+    @classmethod
+    def rules_home(cls, bridge):
+        """A rule of the person's, written through the real bridge as the Dashboard writes one."""
+        added = bridge("advanced-rule-add", {"tag": "brandNewVariant", "status_from": 500, "status_to": 599,
+                                             "category": "server_5xx", "generation": 0})["result"]
+        assert added["done"], added
+        return added
+
+    @classmethod
+    def scenario_rules(cls, bridge):
+        """The rules for Codex's error codes open: the person's one rule, with its Remove; a new one taken from the
+        samples' codes, with status numbers and a kind, added; the first removed; a code that may name a decision
+        refused by the bridge, and one that is not a code at all refused before anything is sent - each told."""
+        cls.rules_home(bridge)
+        script = cls.opening(bridge, "en")
+        rules = bridge("advanced-rules", {})
+        rules["result"]["tags"] = ["seenOnlyHere"]
+        script["advanced-rules"] = [rules]
+        steps = [{"do": "snapshot", "reply": snapshot()}, {"do": "show"}, {"do": "choose", "id": "structured_rules"},
+                 {"do": "look"},
+                 {"do": "reply", "key": "advanced-rule-add", "with": [{"ok": True, "result": {"done": True, "rule": 2}}]},
+                 {"do": "rule", "sampled": "seenOnlyHere", "from": "502", "to": "504", "kind": "timeout"},
+                 {"do": "reply", "key": "advanced-rule-remove", "with": [{"ok": True, "result": {"done": True}}]},
+                 {"do": "remove", "rule": 1}, {"do": "look"},
+                 {"do": "reply", "key": "advanced-rule-add",
+                  "with": [{"ok": True, "result": {"done": False, "refusal": "rule_decision"}}]},
+                 {"do": "rule", "tag": "policyRefused", "kind": "server_5xx"},
+                 {"do": "rule", "tag": "not a code"}]
+        return "en", {"script": script, "steps": steps}, {
+            "rules": rules["result"], "listing": script["advanced-list"][0]["result"],
+            "words": script["advanced-words"][0]["result"]["words"]}
+
+    @classmethod
+    def scenario_samples(cls, bridge):
+        """Retry failures it cannot name open: its choice of tries, and its samples - a code with a status, and a
+        failure with no code - then, read again, none."""
+        script = cls.opening(bridge, "en")
+        script["advanced-samples"] = [{"ok": True, "result": {"done": True, "samples": [
+            {"tag": "brandNewVariant", "status": 503, "form": "tagged", "count": 2, "last": "2027-01-15"},
+            {"tag": None, "status": None, "form": "absent", "count": 1, "last": "2027-01-14"}]}}]
+        steps = [{"do": "snapshot", "reply": snapshot()}, {"do": "show"}, {"do": "choose", "id": "unknown_failure_budget"},
+                 {"do": "look"},
+                 {"do": "reply", "key": "advanced-samples", "with": [{"ok": True, "result": {"done": True, "samples": []}}]},
+                 {"do": "snapshot", "reply": snapshot()}, {"do": "look"}]
+        return "en", {"script": script, "steps": steps}, {"words": script["advanced-words"][0]["result"]["words"]}
+
     # What a window on this page passes on when it reopens itself (ReopenArguments): the page, and the keyboard on its tab.
     REOPENED = ("--page=advanced --section=general --bounds=100,100,1000,700 --theme=system --design=soft --reopened=1 "
                 "--focus=page.advanced")
@@ -717,6 +780,92 @@ class PageTests(unittest.TestCase):
         self.assertFalse(set(by_person["cards"][0]) & set(said.values()), "a person's own turning off is not a tripwire")
         self.assertIn(words["page.tripped.engine_changed"], by_engine["cards"][0])
 
+    def test_a_choice_is_a_drop_down_whose_choice_is_sent_at_once(self):
+        result, expected = self.of("scenario_choices")
+        words = expected["words"]
+        (shown,) = result["looks"]
+        self.assertEqual(shown["choices"], [{"key": "ceiling_hours", "enabled": True, "value": "2 h",
+                                             "items": ["%d h" % hours for hours in (1, 2, 3, 4, 6, 8, 12)]}])
+        titles = [card[0] for card in shown["cards"]]
+        self.assertEqual(titles[-1], words["page.options"])
+        self.assertIn(words["page.option.ceiling_hours"], shown["cards"][-1])
+        generation = expected["listing"]["generation"]
+        self.assertEqual(sent(result, "advanced-option"),
+                         [{"capability": "capacity_retry", "key": "ceiling_hours", "value": 4, "generation": generation},
+                          {"capability": "capacity_retry", "key": "ceiling_hours", "value": 6, "generation": generation}])
+        self.assertEqual(result["told"], [words["page.refused.choice"]])
+        self.assertEqual(result["looks"][0]["note"], "")
+
+    def test_the_choice_sent_is_one_the_real_bridge_takes(self):
+        with tempfile.TemporaryDirectory() as home:
+            bridge = Bridge(Path(home))
+            try:
+                line = next(line for line in self.of("scenario_choices")[0]["sent"] if line.startswith("advanced-option "))
+                self.assertTrue(bridge.request(line)["result"]["done"])
+                item = next(entry for entry in bridge("advanced-list", {})["result"]["capabilities"]
+                            if entry["id"] == "capacity_retry")
+                self.assertEqual(item["options"][0]["value"], 4)
+            finally:
+                bridge.close()
+
+    def test_the_rules_are_listed_added_and_removed_and_a_refusal_is_told(self):
+        result, expected = self.of("scenario_rules")
+        words = expected["words"]
+        first, after = result["looks"]
+        rules = next(card for card in first["cards"] if card[0] == words["page.rules"])
+        self.assertIn("brandNewVariant \u00b7 500\u2013599 \u00b7 Server error \u00b7 %s: 0" % words["page.rule.hits"], rules)
+        self.assertEqual(first["rules"], {"removes": [1], "add": True, "sampled": ["seenOnlyHere"],
+                                          "kinds": ["Network problem", "Timeout", "Rate limit", "Server error",
+                                                    "Interrupted response"]})
+        generation = expected["listing"]["generation"]
+        add, refused = sent(result, "advanced-rule-add")
+        self.assertEqual(add, {"tag": "seenOnlyHere", "status_from": 502, "status_to": 504, "category": "timeout",
+                               "generation": generation})
+        self.assertEqual(refused["tag"], "policyRefused")
+        self.assertEqual(sent(result, "advanced-rule-remove"), [{"rule": 1, "generation": generation}])
+        self.assertEqual(after["note"], words["page.done.rule_removed"])
+        self.assertEqual(result["told"], [words["page.refused.rule_decision"], words["page.refused.rule_shape"]])
+        self.assertEqual(len(sent(result, "advanced-rule-add")), 2, "a code of the wrong shape is never sent")
+        # Read again after each action: the list, the statement and the rules.
+        self.assertEqual([line.split(" ", 1)[0] for line in result["sent"][-3:]],
+                         ["advanced-list", "advanced-statement", "advanced-rules"])
+
+    def test_the_rules_the_page_sends_are_ones_the_real_bridge_takes_and_refuses(self):
+        with tempfile.TemporaryDirectory() as home:
+            bridge = Bridge(Path(home))
+            try:
+                self.rules_home(bridge)
+                lines = self.of("scenario_rules")[0]["sent"]
+                add, refused = [line for line in lines if line.startswith("advanced-rule-add ")]
+                self.assertTrue(bridge.request(add)["result"]["done"])
+                removed = next(line for line in lines if line.startswith("advanced-rule-remove "))
+                stale = bridge.request(removed)["result"]
+                self.assertEqual(stale["refusal"], "stale_generation", "the add moved the generation on")
+                self.assertTrue(bridge("advanced-rule-remove", dict(json.loads(removed.split(" ", 1)[1]),
+                                                                    generation=stale["generation"]))["result"]["done"])
+                current = bridge("advanced-list", {})["result"]["generation"]
+                self.assertEqual(bridge("advanced-rule-add", dict(json.loads(refused.split(" ", 1)[1]), generation=current))
+                                 ["result"]["refusal"], "rule_decision")
+                self.assertEqual([rule["tag"] for rule in bridge("advanced-rules", {})["result"]["rules"]],
+                                 ["seenOnlyHere"])
+            finally:
+                bridge.close()
+
+    def test_the_samples_are_listed_codes_and_numbers_only(self):
+        result, expected = self.of("scenario_samples")
+        words = expected["words"]
+        seen, none = result["looks"]
+        samples = seen["cards"][-1]
+        self.assertEqual(samples, [words["page.samples"],
+                                   "%s: brandNewVariant \u00b7 %s: 503 \u00b7 %s: 2" % (
+                                       words["page.sample.code"], words["page.sample.status"], words["page.sample.count"]),
+                                   "%s: %s \u00b7 %s: - \u00b7 %s: 1" % (
+                                       words["page.sample.code"], words["page.sample.no_code"], words["page.sample.status"],
+                                       words["page.sample.count"])])
+        self.assertEqual(seen["choices"], [{"key": "attempts", "enabled": True, "value": "1", "items": ["1", "2", "3"]}])
+        self.assertEqual(none["cards"][-1], [words["page.samples"], words["page.samples.none"]])
+        self.assertIsNone(seen["rules"])
+
     def test_a_window_that_reopens_on_this_page_comes_back_to_it(self):
         result, _ = self.of("scenario_reopen")
         here, elsewhere = result["reopened"]
@@ -740,8 +889,9 @@ class PageTests(unittest.TestCase):
 
 
 def audit_data(locale: str, bridge: Bridge) -> dict:
-    """The fullest the page shows in `locale`: every capability, the first two refused by a policy, and each
-    statement with every warning there is."""
+    """The fullest the page shows in `locale`: every capability, the first two refused by a policy, each statement
+    with every warning there is, the rules with one the product has come to know and codes the samples saw, and the
+    samples with a code and without one."""
     words = bridge("advanced-words", {"locale": locale})["result"]["words"]
     listing = bridge("advanced-list", {})["result"]
     listing["policy"] = {"forbid": False, "force_shadow": True, "allowed": [IDS[2]]}
@@ -751,7 +901,19 @@ def audit_data(locale: str, bridge: Bridge) -> dict:
         made["warnings"]["items"] = [{"warning": str(word), "text": statement.CATALOGS.text(statement.warning_key(word), locale)}
                                      for word in ArmingWarning]
         statements[capability] = made
-    return {"words": words, "listing": listing, "statements": statements}
+    rules = bridge("advanced-rules", {})["result"]
+    if not rules["rules"]:
+        for tag, low, high in (("brandNewVariant", 500, 599), ("anotherVeryLongCodeOfCodexsOwnNamingSomethingNew", None, None)):
+            assert bridge("advanced-rule-add", {"tag": tag, "status_from": low, "status_to": high, "category": "stream_interrupted",
+                                                "generation": bridge("advanced-list", {})["result"]["generation"]})["result"]["done"]
+        rules = bridge("advanced-rules", {})["result"]
+    rules["rules"][0]["known"] = True
+    rules["tags"] = ["brandNewVariant", "seenOnlyInTheSamples"]
+    samples = {"done": True, "samples": [
+        {"tag": "anotherVeryLongCodeOfCodexsOwnNamingSomethingNew", "status": 503, "form": "tagged", "count": 12, "last": "2027-01-15"},
+        {"tag": None, "status": None, "form": "absent", "count": 1, "last": "2027-01-14"}]}
+    return {"words": words, "listing": listing, "statements": statements,
+            "kept": {"advanced-rules": rules, "advanced-samples": samples}}
 
 
 @unittest.skipUnless(CSC.is_file() and POWERSHELL.is_file(), "needs the in-box compiler and PowerShell")
@@ -769,7 +931,7 @@ class LayoutTests(unittest.TestCase):
         try:
             for locale in l10n.LOCALES:
                 data = audit_data(locale, bridge)
-                for part in ("words", "listing", "statements"):
+                for part in ("words", "listing", "statements", "kept"):
                     (work / ("%s-%s.json" % (part, locale))).write_text(json.dumps(data[part], ensure_ascii=False),
                                                                          encoding="utf-8")
                 (work / ("strings-%s.json" % locale)).write_text(json.dumps(strings(locale), ensure_ascii=False),
@@ -777,17 +939,18 @@ class LayoutTests(unittest.TestCase):
                 for scale in SCALES:
                     jobs.append({"kind": "audit", "name": "%s %.2f" % (locale, scale), "scale": scale,
                                  "strings": "strings-%s.json" % locale, "words": "words-%s.json" % locale,
-                                 "listing": "listing-%s.json" % locale, "statements": "statements-%s.json" % locale})
+                                 "listing": "listing-%s.json" % locale, "statements": "statements-%s.json" % locale,
+                                 "kept": "kept-%s.json" % locale})
             canary = audit_data("en", bridge)
             canary["words"]["page.limits"] = "W" * 400
             canary["words"]["name." + IDS[0]] = "N" * 400
             # A tab wider than any screen: on the narrowest screen no second row holds it.
             canary["words"]["page.nav"] = "T" * 400
-            for part in ("words", "listing", "statements"):
+            for part in ("words", "listing", "statements", "kept"):
                 (work / ("%s-canary.json" % part)).write_text(json.dumps(canary[part]), encoding="utf-8")
             jobs.append({"kind": "audit", "name": "canary", "scale": 1.0, "strings": "strings-en.json",
                          "words": "words-canary.json", "listing": "listing-canary.json",
-                         "statements": "statements-canary.json"})
+                         "statements": "statements-canary.json", "kept": "kept-canary.json"})
         finally:
             bridge.close()
         # Four processes side by side: the audits are independent, and one process took 17 minutes for them all.
