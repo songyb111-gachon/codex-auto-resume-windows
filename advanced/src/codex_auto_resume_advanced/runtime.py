@@ -164,13 +164,14 @@ class Runtime:
 
     def _code_of(self, definition):
         """A capability's code, made once. One that reads the state is given its own view of it
-        (state.Scoped), through an optional `bind`: its choices, its rules, its admission rows,
-        and nothing it can write."""
+        (state.Scoped), through an optional `bind`: its choices, its rules, its admission rows, and
+        one write - its own words counted, only while this runtime has it on."""
         if definition.id not in self._code:
             code = definition.make(self.paths)
             bind = _own(code, "bind")
             if bind is not None:
-                bind(self.state.scoped(definition.id))
+                capability = definition.id
+                bind(self.state.scoped(capability, on=lambda: self._states.get(capability) == ArmingState.ARMED))
             self._code[definition.id] = code
         return self._code[definition.id]
 

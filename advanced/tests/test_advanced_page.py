@@ -497,7 +497,7 @@ class PageTests(unittest.TestCase):
         words = expected["words"]
         self.assertEqual([row[:2] for row in result["rows"]],
                          [[words["name." + capability], words["state.off"]] for capability in IDS])
-        self.assertEqual(len(IDS), 8)
+        self.assertEqual(len(IDS), 9)
         self.assertEqual(result["page"], "advanced")
         # The row chosen is the capability open, and nothing else is.
         self.assertEqual(result["open"], IDS[1])

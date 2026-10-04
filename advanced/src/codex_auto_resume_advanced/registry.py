@@ -39,7 +39,8 @@ goal continuation, at P16, P3 and P5 (engine/goal.py); the marker-free continuat
 P15 (engine/markerfree.py); and, from v0.6.13 (stage 3b), those that take up failures at P17 and
 relax their records at P3: the short retries when Codex is at capacity (engine/capacity.py), the
 rules for Codex's error codes, the retries of failures nothing classified, of Codex giving up and
-of a sign-in failure (engine/admitted.py).
+of a sign-in failure (engine/admitted.py); and, at P7 and P3, the notice of a usage limit that lifts
+early (engine/earlyreset.py).
 The tests define one of their own to hold every rule here.
 """
 from __future__ import annotations
@@ -54,6 +55,7 @@ from .control.codexstart import make as make_start_with_codex
 from .engine.admitted import (ATTEMPTS, DEFAULT_ATTEMPTS, make_codex_gave_up, make_sign_in_retry,
                               make_structured_rules, make_unknown_failure_budget)
 from .engine.capacity import CEILING_HOURS, DEFAULT_HOURS, make as make_capacity_retry
+from .engine.earlyreset import make as make_early_reset
 from .engine.goal import make as make_goal_continuation
 from .engine.markerfree import make as make_marker_free
 from .standards import DEPARTABLE
@@ -421,7 +423,29 @@ SIGN_IN_RETRY = CapabilityDef(
     make=make_sign_in_retry,
 )
 
+# Notice a usage limit that lifts early (v0.6.13 stage 3b; the plan's row: continue at once when usage
+# frees up before the time given; two checks at least five minutes apart; only while a record waits for
+# a usage limit). At P7, asked by core before such a record's time (EARLY), it answers EARLY once a
+# probe - one every five minutes for every waiting record together, as core's own early window is - so
+# core reads usage once for them all; at P3 `usage`, which core reaches only when that reading found
+# usage, it holds a record on a first yes and lets core go on at a second at least five minutes after.
+# Core keeps every other gate, a postponement and quiet hours included, and a look that meets a wait
+# leaves the record as it was. It departs from A12 (never before the real reset time) and C9 (usage is
+# read only when a recovery is due), and stands on usage_probe. Its words: `probed` for a first early
+# yes, `lifted` for the second. Ceilings: three a conversation, a dozen a day.
+EARLY_RESET = CapabilityDef(
+    id="early_reset",
+    points=frozenset({Point.SCHEDULE, Point.GATES}),
+    revision=1,
+    departs_from=("A12", "C9"),
+    compat="usage_probe",
+    ceilings=Ceilings(per_day=12, per_conversation=3),
+    journal_prefix="erl",
+    make=make_early_reset,
+    codes=("probed", "lifted"),
+)
+
 # In this order, which is also which answers first where two answer at one point.
 DEFINITIONS = (START_WITH_CODEX, GOAL_CONTINUATION, MARKER_FREE, CAPACITY_RETRY, STRUCTURED_RULES,
-               UNKNOWN_FAILURE_BUDGET, CODEX_GAVE_UP, SIGN_IN_RETRY)
+               UNKNOWN_FAILURE_BUDGET, CODEX_GAVE_UP, SIGN_IN_RETRY, EARLY_RESET)
 REGISTRY = Registry(DEFINITIONS)

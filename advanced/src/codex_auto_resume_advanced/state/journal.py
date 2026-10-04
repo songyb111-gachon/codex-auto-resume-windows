@@ -109,6 +109,23 @@ class JournalMixin:
                 (capability, code, int(now // _DAY)))
         return True
 
+    def counted(self, capability, code, at=None) -> bool:
+        """One of `capability`'s own codes counted today, with its journal line, in one transaction.
+        False, and nothing written, for a code that is not its own or where there is no file."""
+        definition = self.registry.get(capability)
+        if definition is None or code not in definition.codes:
+            return False
+        now = self._now(at)
+        with self._transaction(create=False) as connection:
+            if connection is None:
+                return False
+            connection.execute(
+                "INSERT INTO sampler (capability, code, day, count) VALUES (?,?,?,1) "
+                "ON CONFLICT (capability, code, day) DO UPDATE SET count = count + 1",
+                (capability, code, int(now // _DAY)))
+            self._note(connection, now, definition.code(code), capability=capability)
+        return True
+
     def samples(self, capability) -> dict:
         """{code: count} over the days the sampler keeps."""
         with self._read() as connection:

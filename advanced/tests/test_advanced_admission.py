@@ -169,6 +169,20 @@ class AdmissionPointTests(RuntimeCase):
         self.assertEqual(self.code.scoped.capability, CAP)
         self.assertEqual(self.code.scoped.now(), self.now)
 
+    def test_its_view_counts_its_own_words_only_while_this_runtime_has_it_on(self):
+        """The one write a capability's code may make - one of its own words counted - is nothing while it is
+        watched or off: what it noticed then is not something that happened."""
+        self.armed("shadow")
+        self.rt.ask(Point.ADMISSION, self.facts())
+        self.assertIs(self.code.scoped.count("matched"), False)
+        self.armed()
+        self.assertIs(self.code.scoped.count("matched"), True)
+        self.assertIs(self.code.scoped.count("woke"), False, "not one of its own words")
+        self.assertTrue(self.rt.arming.disarm(CAP, actor=Actor.DASHBOARD)["done"])
+        self.rt.states(fresh=True)
+        self.assertIs(self.code.scoped.count("matched"), False)
+        self.assertEqual(self.rt.state.samples(CAP), {"matched": 1})
+
 
 class KnownFailureTests(RuntimeCase):
     def taken_up(self, answer=Alternative.ADMIT, capability=CAP):

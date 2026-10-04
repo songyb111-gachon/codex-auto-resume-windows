@@ -47,7 +47,7 @@ CHANGES = frozenset({"thread/queue/add", "thread/goal/set"})
 
 class ShippedTests(unittest.TestCase):
     SHIPPED = ("start_with_codex", "goal_continuation", "marker_free_continuation", "capacity_retry",
-               "structured_rules", "unknown_failure_budget", "codex_gave_up", "sign_in_retry")
+               "structured_rules", "unknown_failure_budget", "codex_gave_up", "sign_in_retry", "early_reset")
 
     def test_the_registry_this_edition_ships_is_its_capabilities_in_their_order(self):
         self.assertEqual([d.id for d in registry.DEFINITIONS], list(self.SHIPPED))
@@ -59,10 +59,10 @@ class ShippedTests(unittest.TestCase):
         # and the way it carries the words. At P5 the goal continuation comes first, so where both
         # are on and the goal applies its channel carries the send. Those that take failures up (v0.6.13)
         # answer at P17 and again at P3, in the order that is precedence where two would answer.
-        answering = {Point.START_ROUTE: ("start_with_codex",),
+        answering = {Point.START_ROUTE: ("start_with_codex",), Point.SCHEDULE: ("early_reset",),
                      Point.UNLOADED: ("goal_continuation",),
                      Point.GATES: ("goal_continuation", "capacity_retry", "structured_rules",
-                                   "unknown_failure_budget", "codex_gave_up", "sign_in_retry"),
+                                   "unknown_failure_budget", "codex_gave_up", "sign_in_retry", "early_reset"),
                      Point.ADMISSION: ("capacity_retry", "structured_rules", "unknown_failure_budget",
                                        "codex_gave_up", "sign_in_retry"),
                      Point.SENDER: ("goal_continuation", "marker_free_continuation"),
@@ -195,6 +195,18 @@ class ShippedTests(unittest.TestCase):
         self.assertEqual(sign_in.points, frozenset({Point.ADMISSION, Point.GATES}))
         self.assertEqual((sign_in.ceilings.per_day, sign_in.ceilings.per_conversation), (2, 2))
         self.assertEqual((sign_in.options, sign_in.rules_editor, sign_in.samples, sign_in.codes), ((), False, False, ()))
+
+    def test_the_early_reset_departs_and_rests_on_what_the_design_says(self):
+        """A12 (never before the real reset time) and C9 (usage read only when a recovery is due); the
+        usage read is what it asks, so it stands on usage_probe; three a conversation, a dozen a day; its
+        two words; no choice, no rules, no samples, and no app-server method of its own."""
+        early = registry.REGISTRY.get("early_reset")
+        self.assertEqual(early.departs_from, ("A12", "C9"))
+        self.assertEqual((early.compat, early.measurements, early.revision), ("usage_probe", (), 1))
+        self.assertEqual(early.points, frozenset({Point.SCHEDULE, Point.GATES}))
+        self.assertEqual((early.ceilings.per_day, early.ceilings.per_conversation), (12, 3))
+        self.assertEqual((early.options, early.rules_editor, early.samples, early.codes),
+                         ((), False, False, ("probed", "lifted")))
 
     def test_start_with_codex_departs_and_rests_on_what_the_plan_says(self):
         swc = registry.REGISTRY.get("start_with_codex")

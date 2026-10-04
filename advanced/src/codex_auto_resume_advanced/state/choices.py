@@ -123,15 +123,17 @@ def _sample_row(sample, now) -> tuple:
 class Scoped:
     """One capability's view of the state, as its code is given it (runtime.Runtime._code_of): its
     own choices, the rules where it is the one they are written for, its own admission rows, and the
-    runtime's clock. Reads, and nothing that writes - what it takes up and what it keeps of it are
-    the runtime's to write, so a capability is never journalled or sampled for what core did not
-    carry out.
+    runtime's clock. Reads, and one write: `count`, one of its own closed words (registry codes)
+    counted with its journal line, and only while the runtime has it on (`on`) - what a watched or
+    turned-off capability notices is not something that happened. What it takes up and what it keeps
+    of it are the runtime's to write, so a capability is never journalled or sampled for a failure
+    core did not carry out.
 
     The state is held in a closure, not on an attribute, as core's StoreView holds the store
     (engine/options.py): what is taken away is the plain way to a write a capability did not mean."""
     __slots__ = ("capability", "_reads")
 
-    def __init__(self, state, capability):
+    def __init__(self, state, capability, on=None):
         self.capability = capability
         definition = state.registry.get(capability)
         rules_editor = definition is not None and definition.rules_editor
@@ -139,11 +141,15 @@ class Scoped:
         def admission(interruption_id):
             row = state.admission(interruption_id)
             return row if row is not None and row["capability"] == capability else None
+
+        def count(code):
+            return on is not None and on() is True and state.counted(capability, code)
         self._reads = {
             "now": lambda: state.clock(),
             "options": lambda: state.options(capability),
             "rules": lambda: state.rules() if rules_editor else [],
             "admission": admission,
+            "count": count,
         }
 
     def __getattr__(self, name):
@@ -154,8 +160,8 @@ class Scoped:
 
 
 class ChoicesMixin:
-    def scoped(self, capability) -> Scoped:
-        return Scoped(self, capability)
+    def scoped(self, capability, on=None) -> Scoped:
+        return Scoped(self, capability, on)
 
     # ------------------------------------------------------------------ options
     def options(self, capability) -> dict:

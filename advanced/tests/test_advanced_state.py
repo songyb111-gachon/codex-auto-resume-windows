@@ -613,6 +613,19 @@ class AdmissionTests(ChoicesCase):
             with self.subTest(name):
                 with self.assertRaises(AttributeError):
                     getattr(mine, name)
+        self.assertIs(mine.count("matched"), False, "a view given no `on` counts nothing")
+
+    def test_a_capabilitys_view_counts_its_own_words_only_while_it_is_on(self):
+        state = self.state(self.definition())
+        state.move("test_wake", ArmingState.SHADOW, actor=Actor.DASHBOARD, revision=1)
+        on = []
+        view = state.scoped("test_wake", on=lambda: bool(on))
+        self.assertIs(view.count("matched"), False)
+        on.append(True)
+        self.assertIs(view.count("matched"), True)
+        self.assertIs(view.count("not_its_own"), False)
+        self.assertEqual(state.samples("test_wake"), {"matched": 1})
+        self.assertIn("tw.matched", [line["code"] for line in state.journal(capability="test_wake")])
 
 
 class ChoiceWriteTests(ChoicesCase):
