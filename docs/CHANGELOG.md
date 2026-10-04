@@ -25,8 +25,10 @@ Codex installs it too. Settings, a pause, everything waiting and the sign-in cho
 nothing is converted: the watcher's state is still schema 4 and the advanced edition's own file
 still version 2. The picker and the power action do nothing until you use them, so at its
 defaults either edition does what v0.6.11 did, but for the fixes. Besides a new button and a new
-card, what changes is two content-free questions to Windows - whether this account may shut down
-and which sleep states the PC offers - asked each time the Dashboard shows that card
+card, what changes is three content-free questions to Windows: whether this account may shut down
+and which sleep states the PC offers, asked each time the Dashboard shows that card, and - only
+where the Codex app runs more than one `codex.exe` of the configured engine - which of them holds
+Codex's queue or state database open, asked of the Restart Manager for the pairing fix
 ([PRIVACY.md](PRIVACY.md)). Going back to v0.6.11 takes only its setup program, or *Install another
 version...* ([below](#going-back-from-v0612)). Coming from a version before v0.6.11, v0.6.11's entry
 says what the update converts ([The state, and going back](CHANGELOG.md#the-state-and-going-back)).
