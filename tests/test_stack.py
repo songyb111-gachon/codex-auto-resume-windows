@@ -76,7 +76,9 @@ ITEM = {_q(name): item for item, names in {
                # and the needs-you notices, as the engine raises them.
                "engine.notices",
                # and how a continuation is carried and proven, and the last look before it goes.
-               "engine.delivery"),
+               "engine.delivery",
+               # v0.6.13: what the edition's plug may relax, within core's own bounds.
+               "engine.relaxed"),
     "policy": ("failures", "reasons", "settings", "continuation", "openstate", "domain.gates",
                # what may be done at a tier, and with whose word: policy, not registry data
                "compat.permits",

@@ -8,7 +8,10 @@ and simulated backend the engine's scenarios use (tests/codexsim.py):
 * nothing is asked while recovery is paused, and nothing about a record its conversation's
   switch or a cancel has stopped: the consent gate comes first;
 * at the schedule and the gates, a plug is asked only once core's own gate has passed, and
-  HOLD - the one answer it has - keeps the record waiting for one poll and nothing more;
+  HOLD keeps the record waiting for one poll and nothing more;
+* a failure core never recovers alone is put to it (P17, v0.6.13) only once that failure passed
+  every check core makes of one, with what core would carry out; taken up, it is a core record
+  of its own kind that known_failure puts to the plug again, and that ends unsent without it;
 * its words go out only as a person's Custom message would; a channel it names gets the one
   send, after the one claim and the pre-send look, inside the launch guard;
 * a continuation it asks to send with no marker (P15) goes through its channel under the client
@@ -45,16 +48,16 @@ _HERE = str(Path(__file__).resolve().parent)
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)        # codexsim and the engine's harness live next to this file
 
-from codexsim import RESET  # noqa: E402
+from codexsim import BASE, RESET  # noqa: E402
 import srcscan  # noqa: E402
 from test_control import ControlTestCase  # noqa: E402
-from test_engine import T1, T2, TURN_A, EngineCase  # noqa: E402
+from test_engine import T1, T2, TURN_A, EngineCase, archive, fail_turn  # noqa: E402
 from test_ports import ENGINE_TO_STORE  # noqa: E402
 from codex_auto_resume import (config, continuation, control, controlcli, diagnostics,  # noqa: E402
-                               edition, mcpserver, settings, startup, windows)
+                               edition, ladder, managed, mcpserver, settings, startup, windows)
 from codex_auto_resume.domain import ids  # noqa: E402
-from codex_auto_resume.domain.plug import (DEFER, EXTRA, Alternative, Guarded, Plug,  # noqa: E402
-                                           Point, Surface, guard)
+from codex_auto_resume.domain.plug import (DEFER, EXTRA, PACED_AS, Alternative, DamagedPlug,  # noqa: E402
+                                           Guarded, Plug, PlugFailure, Point, Surface, guard)
 from codex_auto_resume.engine import Engine  # noqa: E402
 from codex_auto_resume.engine.options import VIEW_READS  # noqa: E402
 from codex_auto_resume.machine import STATES, WAITING  # noqa: E402
@@ -65,8 +68,8 @@ from codex_auto_resume.store import Store  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 POLL = 60
 # The gates core puts to the plug, in the order it does - each once core's own has passed.
-ASKED_GATES = ("submission_safe", "chain_budget", "no_progress_budget", "thread_available",
-               "attempt_budget", "usage")
+ASKED_GATES = ("submission_safe", "known_failure", "chain_budget", "no_progress_budget",
+               "thread_available", "attempt_budget", "usage")
 
 
 class Asked(Plug):
@@ -130,6 +133,14 @@ class Asked(Plug):
 
     def unloaded(self, record):
         return self._answer("unloaded", record)
+
+    def admission(self, failure):
+        return self._answer("admission", failure)
+
+    def wants(self, point):
+        """Not a hook: what it is told to say, or NULL's False, and never written down as asked."""
+        wanted = self.answers.get("wants", False)
+        return wanted(point) if callable(wanted) else wanted
 
     def hooks(self):
         return [hook for hook, _ in self.asked]
@@ -205,14 +216,16 @@ class GateTests(PluggedCase):
         self.assertEqual(len(self.h.backend.send_calls), 1)
 
     def test_a_gate_core_refuses_is_not_put_to_the_plug(self):
-        """Nothing can relax a gate yet, so a gate core refuses is not asked about at all."""
+        """A gate core refuses is not asked about at all - known_failure for a record P17 took up
+        aside, which is asked so the plug can take it up again (KnownFailureTests)."""
         self.h.home.fail_usage(T1)
         self.h.tick()
         self.h.now = RESET + 61                                    # due, but never loaded
         plug = Asked()
         self.plugged(plug)
         self.h.tick()
-        self.assertEqual(plug.gates(), ["submission_safe", "chain_budget", "no_progress_budget"])
+        self.assertEqual(plug.gates(), ["submission_safe", "known_failure", "chain_budget",
+                                        "no_progress_budget"])
         self.assertEqual(self.h.record()["last_error"], "notLoaded")
 
     def test_hold_keeps_the_record_waiting_one_poll_as_it_was(self):
@@ -1989,6 +2002,369 @@ class SupervisionTests(unittest.TestCase):
                 patch.object(edition, "plug") as found:
             self.launcher._supervise(self.home, 0)
         found.assert_not_called()
+
+
+# ------------------------------------------------------------------------- P17 (v0.6.13 stage 3b)
+UNKNOWN_CODE = json.dumps({"codexErrorInfo": "brandNewVariant"})
+UNAUTHORIZED = json.dumps({"codexErrorInfo": "unauthorized"})
+# Every answer core would carry out for an unknown failure with a plain code of Codex's.
+TAKE_UP = frozenset({Alternative.ADMIT}) | frozenset(PACED_AS)
+
+
+def failed(h, error_json=UNKNOWN_CODE, *, thread=T1, turn=TURN_A, completed=BASE):
+    """A failed turn of `thread`, loaded in the app; `error_json=None` is one with no error at all."""
+    h.home.add_turn(thread, turn, "failed", completed=completed, started=completed - 60,
+                    error_json=error_json, progress=False)
+    h.backend.loaded_map[thread] = "loaded"
+    return turn
+
+
+def admitting(answer=Alternative.ADMIT, again=None, **answers):
+    """A plug that wants every point, takes each failure up with `answer` at P17, and again at
+    known_failure with `again` - the same word unless told otherwise."""
+    again = answer if again is None else again
+    return Asked(wants=True, admission=answer,
+                 gate=lambda name, record, facts: again if name == "known_failure" else DEFER, **answers)
+
+
+def admissions(plug):
+    return [arguments[0] for hook, arguments in plug.asked if hook == "admission"]
+
+
+class AdmissionTests(PluggedCase):
+    """P17: a failure core never recovers alone, put to the plug once it has passed every check core
+    makes of one, with what core would carry out for it - and taken up only as one of those."""
+
+    def test_it_is_asked_once_with_what_core_would_take_and_never_a_word_of_the_message(self):
+        failed(self.h, json.dumps({"codexErrorInfo": "brandNewVariant", "message": "secret words"}))
+        plug = Asked(wants=True)
+        self.plugged(plug)
+        self.h.tick()
+        (facts,) = admissions(plug)
+        self.assertEqual(set(facts), {"interruption_id", "thread_id", "turn_id", "category", "code",
+                                      "status", "form", "has_message", "started_at", "completed_at",
+                                      "ordinal", "takes", "chain"})
+        self.assertEqual((facts["thread_id"], facts["turn_id"], facts["category"], facts["code"],
+                          facts["status"], facts["form"], facts["has_message"], facts["chain"]),
+                         (T1, TURN_A, "unknown", "brandNewVariant", None, "tagged", True, None))
+        self.assertEqual(facts["takes"], TAKE_UP)
+        self.assertNotIn("secret", repr(facts))
+        # DEFER takes nothing up, and it is put to the plug again a minute on, not before.
+        self.assertEqual(self.h.records(), [])
+        self.h.tick(advance=30)
+        self.assertEqual(len(admissions(plug)), 1)
+        self.h.tick(advance=31)
+        self.assertEqual(len(admissions(plug)), 2)
+        self.assert_no_send()
+
+    def test_it_is_never_asked_without_consent_or_while_the_plug_wants_nothing(self):
+        for how in ("thread_off", "observe_only", "force_observe_only", "not_wanted"):
+            with self.subTest(how):
+                h = self.fresh()
+                failed(h)
+                plug = admitting() if how != "not_wanted" else Asked(admission=Alternative.ADMIT)
+                engine = self.plugged(plug, h)
+                if how == "thread_off":
+                    h.store.set_thread_enabled(T1, False, at=h.now)
+                elif how == "observe_only":
+                    engine.apply_policy(dict(settings.defaults(), observe_only=True))
+                elif how == "force_observe_only":
+                    engine.apply_policy(settings.defaults(), managed.Managed(force_observe_only=True))
+                h.tick()
+                self.assertNotIn("admission", plug.hooks())
+                self.assertEqual(h.records(), [])
+
+    def test_wanting_nothing_it_reads_of_codex_what_the_standard_edition_reads(self):
+        def reads(plug):
+            h = self.fresh()
+            failed(h)
+            seen, real = [], h.source.latest_failures
+
+            def recorded(*arguments, **keywords):
+                seen.append((arguments, sorted(keywords.items())))
+                return real(*arguments, **keywords)
+            h.source.latest_failures = recorded
+            self.plugged(plug, h)
+            h.tick()
+            return seen
+        standard = reads(None)
+        self.assertEqual(reads(Asked()), standard)
+        self.assertEqual([keywords for _, keywords in standard], [[]])
+        self.assertEqual([keywords for _, keywords in reads(Asked(wants=True))],
+                         [[("admissible", True), ("shapes", True)]])
+
+    def test_a_subagent_or_archived_conversation_is_never_put_to_it(self):
+        for how in ("archived", "subagent"):
+            with self.subTest(how):
+                h = self.fresh()
+                if how == "subagent":
+                    h.home.add_thread(T1, thread_source="subagent")
+                failed(h)
+                if how == "archived":
+                    archive(h.home, T1)
+                plug = admitting()
+                self.plugged(plug, h)
+                h.tick()
+                self.assertEqual((admissions(plug), h.records()), ([], []))
+
+    def test_a_failure_from_more_than_an_hour_ago_is_left_alone(self):
+        failed(self.h, completed=self.h.now - ladder.ADMISSION_MAX_AGE - 1)
+        plug = admitting()
+        self.plugged(plug)
+        self.h.tick()
+        self.assertEqual((admissions(plug), self.h.records()), ([], []))
+
+    def test_nothing_is_asked_that_core_would_not_carry_out(self):
+        """No code, a message alone, a status alone, something unrecognised, a code that names a
+        decision, a kind core knows needs a person, a permission refusal: `takes` is empty."""
+        cases = {"absent": None,
+                 "message_only": json.dumps({"message": "something went wrong"}),
+                 "status_only": json.dumps({"codexErrorInfo": {"httpStatusCode": 302}}),
+                 "unrecognised": json.dumps({"codexErrorInfo": {"one": 1, "two": 2}}),
+                 "decision": json.dumps({"codexErrorInfo": "policyRefused"}),
+                 "terminal_invalid": json.dumps({"codexErrorInfo": "badRequest"}),
+                 "permission": json.dumps({"codexErrorInfo": {"brandNewVariant": {"httpStatusCode": 403}}})}
+        for name, error in cases.items():
+            with self.subTest(name):
+                h = self.fresh()
+                failed(h, error)
+                plug = admitting()
+                self.plugged(plug, h)
+                h.tick()
+                self.assertEqual((admissions(plug), h.records()), ([], []))
+
+    def test_a_failure_core_recovers_is_registered_as_it_always_was(self):
+        rows = []
+        for plug in (None, admitting()):
+            h = self.fresh()
+            failed(h, json.dumps({"codexErrorInfo": "internalServerError"}))
+            self.plugged(plug, h)
+            h.tick()
+            row = h.record()
+            rows.append((row["category"], row["state"], row["next_retry_at"], row["last_error"]))
+            if plug is not None:
+                self.assertEqual(admissions(plug), [])
+        self.assertEqual(rows[0], rows[1])
+
+    def test_an_answer_outside_what_core_offered_takes_nothing(self):
+        failed(self.h, UNAUTHORIZED)
+        plug = admitting(Alternative.AS_TIMEOUT)
+        self.plugged(plug)
+        self.h.tick()
+        (facts,) = admissions(plug)
+        self.assertEqual((facts["category"], facts["takes"]), ("terminal_auth", {Alternative.ADMIT}))
+        self.assertEqual(self.h.records(), [])
+
+    def test_admit_takes_it_up_as_its_own_kind_and_sends_the_short_message_ten_minutes_on(self):
+        failed(self.h)
+        engine = self.plugged(admitting())
+        self.h.tick()
+        row = self.h.record()
+        self.assertEqual((row["category"], row["state"], row["next_retry_at"]),
+                         ("unknown", "waiting_backoff", self.h.now + 600))
+        self.assertIn((T1, "failure_taken_up", row["interruption_id"]), self.h.logs)
+        self.h.tick(advance=599)
+        self.assert_no_send()
+        self.h.tick(advance=1)
+        expected = continuation.for_settings("unknown", engine.policy_values, row=self.h.record(),
+                                             limits=engine.limits())
+        self.assertEqual(continuation.build("unknown"), "Please retry.")
+        self.assertEqual(self.h.backend.send_calls, [(T1, expected + "\n\n" + row["marker"])])
+        self.assertEqual(json.loads(self.h.record()["gate_eval"])["known_failure"], ["PASS", "plugged"])
+        self.follow()
+        self.assertEqual(self.h.record()["state"], "recovered")
+
+    def test_as_timeout_is_paced_as_a_timeout(self):
+        failed(self.h)
+        engine = self.plugged(admitting(Alternative.AS_TIMEOUT))
+        self.h.tick()
+        row = self.h.record()
+        self.assertEqual((row["category"], row["next_retry_at"]),
+                         ("unknown", self.h.now + engine.first_delay("timeout")))
+        self.h.tick(advance=engine.first_delay("timeout"))
+        self.assertEqual(len(self.h.backend.send_calls), 1)
+
+    def test_a_kind_switched_off_in_settings_is_not_offered(self):
+        failed(self.h)
+        plug = Asked(wants=True)
+        engine = self.plugged(plug)
+        engine.apply_policy(dict(settings.defaults(), recover_timeout=False))
+        self.h.tick()
+        (facts,) = admissions(plug)
+        self.assertEqual(facts["takes"], TAKE_UP - {Alternative.AS_TIMEOUT})
+
+
+class KnownFailureTests(PluggedCase):
+    """known_failure for a record P17 took up: the one gate core refuses that is put to the plug,
+    so it goes on only while the plug takes it up again - and otherwise ends, unsent."""
+
+    def admitted(self, h=None, answer=Alternative.ADMIT, error=UNKNOWN_CODE):
+        h = h or self.h
+        failed(h, error)
+        self.plugged(admitting(answer), h)
+        h.tick()
+        row = h.record()
+        self.assertIsNotNone(row, "taken up")
+        return row
+
+    def test_null_a_plug_that_defers_and_one_that_fails_end_it_unsent(self):
+        self.assertTrue(self.h.engine.recovers("unknown"), "no switch: it cannot be what decides")
+        for plug in (None, Asked(wants=True), Asked(wants=True, gate=RuntimeError("broken")),
+                     DamagedPlug(PlugFailure.SHADOWED)):
+            with self.subTest(plug=type(plug).__name__):
+                h = self.fresh()
+                self.admitted(h)
+                self.plugged(plug, h)
+                h.tick(advance=600)
+                row = h.record()
+                self.assertEqual((row["state"], row["last_error"]), ("terminal_failure", "not_recoverable"))
+                self.assertEqual(json.loads(row["gate_eval"])["known_failure"], ["BLOCK", "not_recoverable"])
+                self.assert_no_send(h)
+
+    def test_hold_keeps_it_waiting_and_a_word_its_kind_does_not_take_ends_it(self):
+        h = self.fresh()
+        self.admitted(h)
+        self.plugged(admitting(again=Alternative.HOLD), h)
+        h.tick(advance=600)
+        row = h.record()
+        self.assertEqual(row["state"], "waiting_backoff")
+        self.assertEqual(json.loads(row["gate_eval"])["known_failure"], ["WAIT", "held"])
+        h = self.fresh()
+        self.admitted(h, error=UNAUTHORIZED)
+        self.plugged(admitting(again=Alternative.AS_TIMEOUT), h)
+        h.tick(advance=600)
+        row = h.record()
+        self.assertEqual((row["category"], row["state"], row["last_error"]),
+                         ("terminal_auth", "terminal_failure", "not_recoverable"))
+        self.assert_no_send(h)
+
+    def test_observe_only_keeps_it_waiting_asks_no_plug_and_it_goes_once_that_is_off(self):
+        for administrator in (False, True):
+            with self.subTest(administrator=administrator):
+                h = self.fresh()
+                self.admitted(h)
+                plug = admitting()
+                engine = self.plugged(plug, h)
+                if administrator:
+                    engine.apply_policy(settings.defaults(), managed.Managed(force_observe_only=True))
+                else:
+                    engine.apply_policy(dict(settings.defaults(), observe_only=True))
+                h.tick(advance=600)
+                row = h.record()
+                self.assertEqual(row["state"], "waiting_backoff")
+                self.assertEqual(json.loads(row["gate_eval"])["known_failure"], ["UNKNOWN", "observe_only"])
+                self.assertEqual(plug.gates(), [])
+                self.assert_no_send(h)
+                engine.apply_policy(settings.defaults())
+                h.tick(advance=900)
+                self.assertEqual(len(h.backend.send_calls), 1)
+
+    def test_a_day_on_the_clock_ends_it_unsent_whatever_it_waited_for(self):
+        self.admitted()
+        self.plugged(admitting(again=Alternative.HOLD))
+        self.h.tick(advance=600)
+        self.assertEqual(self.h.record()["state"], "waiting_backoff")
+        self.h.tick(advance=ladder.ADMITTED_MAX_SECONDS)
+        row = self.h.record()
+        self.assertEqual((row["state"], row["last_error"]), ("terminal_failure", "admission_expired"))
+        self.assert_no_send()
+
+    def test_an_as_word_whose_kind_is_switched_off_waits_as_that_kind_does(self):
+        self.admitted(answer=Alternative.AS_TIMEOUT)
+        self.h.engine.apply_policy(dict(settings.defaults(), recover_timeout=False))
+        self.h.tick(advance=600)
+        row = self.h.record()
+        self.assertEqual((row["state"], row["last_error"]), ("waiting_backoff", "category_disabled"))
+        self.assertEqual(json.loads(row["gate_eval"])["known_failure"], ["BLOCK", "category_disabled"])
+        self.assert_no_send()
+
+    def test_the_claim_takes_one_only_as_a_relaxation_its_ledger_pays_for(self):
+        row = self.admitted()
+        ledger = guard(admitting())
+        key, at = row["interruption_id"], row["next_retry_at"] + 1
+        for options in ({"ledger": None, "relaxed": "admitted", "carried": {Point.GATES}},
+                        {"ledger": ledger, "relaxed": "admitted", "carried": frozenset()},
+                        {"ledger": ledger, "relaxed": None, "carried": {Point.GATES}},
+                        {"ledger": ledger, "relaxed": "capacity", "carried": {Point.GATES}}):
+            with self.subTest(options=sorted(options)):
+                self.assertEqual(self.h.store.reserve_detailed(key, at, **options),
+                                 (False, "known_failure", "not_recoverable"))
+        self.assertEqual(self.h.store.reserve_detailed(key, at, ledger=ledger, relaxed="admitted",
+                                                       carried={Point.GATES}), (True, None, None))
+
+
+class ChainTests(PluggedCase):
+    """What P17 is told of the task a failure continues: the record whose own continuation started
+    the turn that failed - the one `register` will make it a child of."""
+
+    def chain_failure(self, h, error=UNKNOWN_CODE):
+        """A usage-limit failure whose continuation Codex runs, and whose turn then fails with
+        `error`: (that record, the failed turn)."""
+        h.backend.after_accept = "queue"
+        self.ready_after_reset(h)
+        h.tick()
+        parent = h.record()
+        self.assertEqual(parent["state"], "queued")
+        turn = h.home.dispatch(T1, status="inProgress", progress=False)
+        fail_turn(h.home, T1, turn, error_json=error)
+        return parent, turn
+
+    def test_a_recovery_turn_the_watch_correlated_is_the_chain_where_owner_alone_finds_none(self):
+        parent, turn = self.chain_failure(self.h)
+        plug = Asked(wants=True)
+        engine = self.plugged(plug)
+        self.h.tick(advance=1)
+        self.assertEqual(self.h.store.get(parent["interruption_id"])["recovery_turn_id"], turn)
+        self.assertIsNone(engine._owner(T1, turn), "the owner read sees only records not correlated yet")
+        (facts,) = admissions(plug)
+        chain = facts["chain"]
+        self.assertEqual((chain["interruption_id"], chain["category"], chain["chain_started_at"]),
+                         (parent["interruption_id"], "usage_limit", parent["detected_at"]))
+        self.assertEqual(self.h.store.chain_parent(T1, turn), self.h.store.get(parent["interruption_id"]))
+
+    def test_one_taken_up_continues_the_chain_register_finds(self):
+        parent, turn = self.chain_failure(self.h)
+        self.plugged(admitting())
+        self.h.tick(advance=1)
+        child = self.h.records()[-1]
+        attempts = self.h.store.get(parent["interruption_id"])["recovery_attempts"]
+        self.assertEqual((child["category"], child["parent_interruption_id"], child["chain_origin_id"]),
+                         ("unknown", parent["interruption_id"], parent["interruption_id"]))
+        self.assertEqual(child["next_retry_at"],
+                         self.h.now + ladder.ADMITTED_WAITS[min(attempts, len(ladder.ADMITTED_WAITS) - 1)])
+
+    def test_the_child_of_a_cancelled_or_spent_task_is_never_put_to_it(self):
+        for how in ("cancelled", "spent"):
+            with self.subTest(how):
+                h = self.fresh()
+                parent, _turn = self.chain_failure(h)
+                plug = admitting()
+                engine = self.plugged(plug, h)
+                if how == "cancelled":
+                    h.store.cancel_interruption(parent["interruption_id"], h.now)
+                else:
+                    engine.options["max_no_progress"] = 1
+                h.tick(advance=1)
+                self.assertEqual(admissions(plug), [])
+                self.assertEqual([row["interruption_id"] for row in h.records()], [parent["interruption_id"]])
+
+    def test_chain_parent_and_register_agree_on_every_kind_of_parent(self):
+        """By the recovery turn, by the marker of a record the watch has not correlated, and none."""
+        h = self.h
+        parent, turn = self.chain_failure(h)
+        self.assertIsNone(h.store.get(parent["interruption_id"])["recovery_turn_id"])
+        owner = h.engine._owner(T1, turn)
+        self.assertEqual(owner, parent["interruption_id"])
+        found = h.store.chain_parent(T1, turn, owner)
+        self.assertEqual(found["interruption_id"], parent["interruption_id"])
+        self.assertIsNone(h.store.get(parent["interruption_id"])["recovery_turn_id"], "nothing written")
+        self.assertIsNone(h.store.chain_parent(T1, turn), "no recovery turn yet, and no owner named")
+        self.assertIsNone(h.store.chain_parent(T2, turn, owner), "another conversation's record")
+        self.plugged(admitting())
+        h.tick(advance=1)
+        self.assertEqual(h.store.chain_parent(T1, turn)["interruption_id"], parent["interruption_id"])
+        child = h.records()[-1]
+        self.assertEqual(child["parent_interruption_id"], h.store.chain_parent(T1, turn)["interruption_id"])
 
 
 if __name__ == "__main__":

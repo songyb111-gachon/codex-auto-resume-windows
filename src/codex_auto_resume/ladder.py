@@ -69,6 +69,15 @@ CEILING_SECONDS = {ChainCeiling.OFF: None, ChainCeiling.H1: 3600, ChainCeiling.H
                    ChainCeiling.H6: 6 * 3600, ChainCeiling.H12: 12 * 3600, ChainCeiling.H24: 24 * 3600}
 # Jitter: up to this share of a wait added to it, never taken off.
 JITTER_SHARE = 0.2
+# v0.6.13 (stage 3b): the bounds of a failure the edition's plug took up that the standard edition
+# never recovers alone (domain/plug.py, P17) - constants of the engine, which no plug can widen
+# (engine/detect.py, engine/dispatch.py). Its waits by the attempt at its task: ten, fifteen and thirty
+# minutes. Only a failure from the last hour is taken up - a PC that slept longer leaves it for the
+# person, as the standard edition leaves every one - and one taken up ends unsent a day after it was
+# detected, on the clock, whatever it waited for meanwhile.
+ADMITTED_WAITS = (600, 900, 1800)
+ADMISSION_MAX_AGE = 3600
+ADMITTED_MAX_SECONDS = 86400
 # Custom... (ownvalues.py): a wait of a person's own between its list's first and last, in whole seconds for
 # the first and whole minutes after it; and a ceiling from the engine's 15 minutes to a week - Off is none.
 OWN = {STEP_FIELDS[0]: ownvalues.Own(ownvalues.DURATION, 5, 2 * 3600, ("s", "m", "h")),

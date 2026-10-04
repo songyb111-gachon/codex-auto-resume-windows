@@ -31,6 +31,25 @@ def detect(row) -> dict | None:
     return normalized
 
 
+def _needing(row, kinds):
+    """A failed turn whose category is one of `kinds`, normalized as `detect` normalizes one and with
+    the id it would have - or None. Never passed to `detect`, and never registered."""
+    normalized = normalize(row)
+    if (normalized is None or normalized["status"] != "failed"
+            or normalized["category"] not in kinds or normalized["completed_at"] is None):
+        return None
+    normalized["interruption_id"] = ids.interruption_id(
+        *(normalized[k] for k in ("thread_id", "turn_id", "completed_at", "ordinal")))
+    return normalized
+
+
+def admissible(row) -> dict | None:
+    """A failed turn of a kind the standard edition never recovers alone and the edition's plug may
+    take up (failures.ADMISSIBLE, domain/plug.py P17), as `detect` has a failure, or None. Registered
+    only once the plug took it up, and checked again with this, never `detect`, before it is sent."""
+    return _needing(row, failures.ADMISSIBLE)
+
+
 def _content_has_marker(content, marker):
     return isinstance(content, list) and any(
         isinstance(item, dict) and item.get("type") == "text"

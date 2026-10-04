@@ -12,7 +12,8 @@ from __future__ import annotations
 import os
 import sqlite3
 
-from ..domain.plug import Alternative
+from .. import failures, machine
+from ..domain.plug import Alternative, Point
 from .columns import _UNREAD_BY_DISPATCH
 
 # What a ledger may do on the claim's connection while it is asked (P11): read anything but the
@@ -131,6 +132,22 @@ class _LedgerConnection:
 
 
 class LedgerMixin:
+    @staticmethod
+    def _relaxation_refused(connection, row, now, vector, relaxed, ledger, carried):
+        """(gate, reason) when the claim refuses a record for its kind, written into its `vector` too,
+        or None (v0.6.13): the claim checks it again itself, in its own transaction. A kind core never recovers alone - one the
+        plug took up (domain/plug.py, P17) - is claimed only as "admitted", with a ledger that is not
+        NULL's and the gates among what it pays for (`carried`): a ledger that answers, and has to
+        pay for it. Nothing else a caller says makes one claimable."""
+        category = row["category"]
+        if failures.is_recoverable(category):
+            return None
+        if (relaxed != "admitted" or category not in failures.ADMISSIBLE or ledger.null
+                or Point.GATES not in carried):
+            vector["known_failure"] = machine.gate(machine.BLOCK, "not_recoverable")
+            return "known_failure", "not_recoverable"
+        return None
+
     @staticmethod
     def _ledger_holds(connection, ledger, row, now, carried=frozenset()) -> bool:
         """P11: whether the plug's ledger holds a claim every check of core's has granted.

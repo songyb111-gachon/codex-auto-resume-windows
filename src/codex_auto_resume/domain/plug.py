@@ -11,8 +11,9 @@ Three rules make an answer safe to take:
 * Only core acts. A hook answers; it never sends, claims or starts anything. At a decision
   point it answers DEFER or a member of that point's closed set in ALTERNATIVES, and core
   carries the member out itself, through its one claim, its pre-send look and its launch guard.
-* A hook may always restrict, and may relax only as its point's set allows. There is no
-  relaxation yet: one joins a set in the commit that teaches core to carry it out.
+* A hook may always restrict, and may relax only as its point's set allows. A relaxation joins
+  a set in the commit that teaches core to carry it out, and core holds each to bounds of its
+  own a plug cannot widen (failures.admits, ladder.py).
 * A hook that fails costs its own answer and nothing else: `consult` puts NULL's answer in its
   place.
 * A hook is handed copies. What core reads again after asking - the record it sends, the due
@@ -33,7 +34,7 @@ and every surface hold one; none of them calls a hook of a plug itself.
 
 `edition.py` finds the package and makes a plug of it. This module is pure: the interface and
 its version, NULL, the plug of an advanced installation whose package could not be loaded, the
-guard core holds a plug in, and the five closed vocabularies they speak in. Those are `StrEnum`s
+guard core holds a plug in, and the six closed vocabularies they speak in. Those are `StrEnum`s
 held to every rule `domain/vocabulary.py`'s are (tests/test_vocabulary.py), and they live here,
 beside the one interface that uses them, as the interface's own words.
 """
@@ -46,8 +47,8 @@ import json
 
 # The interface's version. The advanced package writes out the number it was written for, and
 # edition.py takes its plug only when the two agree: otherwise a hook renamed, or given another
-# argument, would be called the old way or not at all, and nothing would say so.
-PLUG_API = 1
+# argument, would be called the old way or not at all, and nothing would say so. 2: P17 and `wants`.
+PLUG_API = 2
 
 
 class Edition(StrEnum):
@@ -93,7 +94,11 @@ class Point(StrEnum):
     Core has always waited for the app to open it (A11); a plug may name a route instead - an
     object with a `resume` - and core carries it out itself, as it carries out the send: its one
     claim, its pre-send look and its launch guard, the route called once, and what came of it
-    settled by core's own rules (engine/delivery.py)."""
+    settled by core's own rules (engine/delivery.py).
+
+    P17 (v0.6.13 stage 3b) is whether a failure core never recovers alone is taken up, asked with
+    the answers core would carry out for it (failures.takes): taken, it is a core record of its true
+    category, which core follows as its own and known_failure (P3) puts to the plug again."""
     RECORDS = "records"                      # P2  records of the advanced store, due now
     GATES = "gates"                          # P3  the gates a record passes before it is sent
     TEXT = "text"                            # P4  what the continuation says
@@ -109,6 +114,7 @@ class Point(StrEnum):
     MOVED = "moved"                          # P14 a record core holds moved to another state
     DELIVERY = "delivery"                    # P15 how a continuation is carried and proven
     UNLOADED = "unloaded"                    # P16 what continues one the app does not hold
+    ADMISSION = "admission"                  # P17 a failure core never recovers alone, taken up
 
 
 class Alternative(StrEnum):
@@ -118,6 +124,23 @@ class Alternative(StrEnum):
     # P15: no marker; queued under the client id core derives from the interruption
     # (ids.continuation_client_id), which is what proves it arrived.
     CLIENT_ID = "client_id"
+    # P17, and P3 at known_failure: take a failure up, waiting as core waits for an admitted one
+    # (ladder.ADMITTED_WAITS), or as a temporary failure of the kind named (PACED_AS).
+    ADMIT = "admit"
+    AS_NETWORK_TRANSIENT = "as_network_transient"
+    AS_TIMEOUT = "as_timeout"
+    AS_RATE_LIMIT_TRANSIENT = "as_rate_limit_transient"
+    AS_SERVER_5XX = "as_server_5xx"
+    AS_STREAM_INTERRUPTED = "as_stream_interrupted"
+
+
+class FailureForm(StrEnum):
+    """What form a failure's structured error took (failures.shape), as P17 is told it."""
+    TAGGED = "tagged"                        # a code of Codex's, known or of the shape of one
+    STATUS_ONLY = "status_only"              # a status number and no code
+    UNRECOGNISED = "unrecognised"            # something, and neither
+    MESSAGE_ONLY = "message_only"            # no structured error, only a message
+    ABSENT = "absent"                        # nothing at all
 
 
 class Surface(StrEnum):
@@ -132,6 +155,7 @@ class Surface(StrEnum):
 
 POINTS = tuple(Point)
 SURFACES = tuple(Surface)
+FAILURE_FORMS = tuple(FailureForm)
 # The key a surface puts a plug's fields under. NULL never adds any, so no standard surface
 # carries it.
 EXTRA = "advanced"
@@ -184,7 +208,9 @@ class Plug:
 
     def gate(self, name, record, facts):              # P3
         """A gate's answer for one record, asked once core's own evaluation of that gate has
-        passed - which is always after the consent gate. `facts` is the gate vector so far."""
+        passed - which is always after the consent gate. `facts` is the gate vector so far. One
+        gate core refuses is asked too: known_failure, for a record P17 took up, whose category
+        core never recovers alone - and DEFER, or a hook that fails, then ends it unsent."""
         return DEFER
 
     def text(self, record, text):                     # P4
@@ -261,6 +287,20 @@ class Plug:
         and the route called once inside the launch guard (engine/delivery.py)."""
         return DEFER
 
+    def admission(self, failure):                     # P17
+        """Whether core takes up a failure it would not recover alone, or relaxes one it would:
+        `failure` is its facts - its kind, Codex's code and status and the error's form, never a
+        word of the message - with `takes`, the answers core would carry out for it now, and
+        `chain`, the record whose continuation started the turn that failed, or None. An answer
+        outside `takes` is DEFER. Asked only while `wants(ADMISSION)` says so."""
+        return DEFER
+
+    def wants(self, point):
+        """Whether a capability may answer at `point` now. Not a point: it decides nothing, and
+        core makes the reads a point needs only when it is True, so a plug with nothing on costs
+        the standard edition's reads exactly. NULL wants nothing."""
+        return False
+
     def edition_changed(self, previous):
         """The installer has just replaced an installation of edition `previous` with this one.
 
@@ -285,7 +325,7 @@ HOOKS = {
     Point.START_ROUTE: "start_route", Point.SURFACES: "surface",
     Point.CLAIM_LEDGER: "claim_ledger", Point.CONCURRENCY: "partition",
     Point.SUPERVISION: "supervise", Point.MOVED: "moved", Point.DELIVERY: "delivery",
-    Point.UNLOADED: "unloaded",
+    Point.UNLOADED: "unloaded", Point.ADMISSION: "admission",
 }
 
 # A hook may always restrict. HOLD keeps a record waiting, exactly as a gate that says WAIT
@@ -301,30 +341,35 @@ RESTRICTIONS = frozenset({Alternative.HOLD})
 # restart each relax what core does alone, so each waits for the commit that teaches core to
 # carry it out - and then joins its point's set, or leaves this table for a value core checks.
 #
-# START_ROUTE has left this table: v0.6.11 stage 3 taught core to carry out a start route (the
-# start with Codex), and it does so the way the sender does - the plug names a route, an object
-# with a `start`, that core calls with the command line it built (Guarded.start_route). So the
-# start route is a value point now, not a decision point with a closed set of words.
-#
-# UNLOADED (P16) is one the same way, from v0.6.11 stage 3a: a plug names a route, an object with
-# a `resume`, and core carries it out through its own claim, pre-send look and launch guard
-# (Guarded.unloaded, engine/delivery.py). Its words are none of this table's.
+# START_ROUTE (v0.6.11 stage 3) and UNLOADED (P16, stage 3a) have left this table for values core
+# checks: the plug names a route - an object with a `start`, or a `resume` - and core carries it
+# out itself (Guarded.start_route; Guarded.unloaded, through its claim, engine/delivery.py).
 #
 # DELIVERY (P15) takes CLIENT_ID, which core learned to carry out in the same commit: the words
 # with no marker, the one send made through the plug's channel with the client id core derived,
 # and every look that proves or disproves delivery made for that id (engine/delivery.py). It
-# relaxes no gate - every one of them has passed before it is asked - so it is not a restriction,
-# and it is the one answer here that is not.
+# relaxes no gate - every one of them has passed before it is asked - so it is not a restriction.
+#
+# ADMISSION (P17, v0.6.13 stage 3b) takes a failure up, and GATES the same words, which core takes
+# only at known_failure and only for the kind each is for (failures.admits, failures.readmits).
+TAKE_UP = frozenset({Alternative.ADMIT, Alternative.AS_NETWORK_TRANSIENT, Alternative.AS_TIMEOUT,
+                     Alternative.AS_RATE_LIMIT_TRANSIENT, Alternative.AS_SERVER_5XX,
+                     Alternative.AS_STREAM_INTERRUPTED})
 ALTERNATIVES = {
     Point.RECORDS: frozenset(),
-    Point.GATES: RESTRICTIONS,
+    Point.GATES: RESTRICTIONS | TAKE_UP,
     Point.OUTCOME: frozenset(),
     Point.SCHEDULE: RESTRICTIONS,
     Point.CLAIM_LEDGER: RESTRICTIONS,
     Point.CONCURRENCY: frozenset(),
     Point.SUPERVISION: frozenset(),
     Point.DELIVERY: frozenset({Alternative.CLIENT_ID}),
+    Point.ADMISSION: TAKE_UP,
 }
+# The temporary kind each AS_ word waits, counts and is switched off as (failures.TRANSIENT).
+PACED_AS = {Alternative.AS_NETWORK_TRANSIENT: "network_transient", Alternative.AS_TIMEOUT: "timeout",
+            Alternative.AS_RATE_LIMIT_TRANSIENT: "rate_limit_transient",
+            Alternative.AS_SERVER_5XX: "server_5xx", Alternative.AS_STREAM_INTERRUPTED: "stream_interrupted"}
 
 # Every alternative some point accepts. The vocabulary is exactly these
 # (tests/test_vocabulary.py), so no word waits in it for a point that does not take it.
@@ -618,6 +663,20 @@ class Guarded:
         except Exception:                              # a `resume` that raises when it is looked up
             return DEFER
         return _Route(resume) if callable(resume) else DEFER
+
+    def admission(self, failure):
+        """P17: an answer of TAKE_UP, or DEFER. Core takes one only if failures.takes offered it."""
+        return self._ask(Point.ADMISSION, failure)
+
+    def wants(self, point) -> bool:
+        """Plug.wants, True only if it says True: not a point, so NULL and a raise want nothing."""
+        if self.plug is NULL:
+            return False
+        try:
+            return self.plug.wants(Point(point)) is True
+        except Exception:
+            self.failures += 1
+            return False
 
     def codex(self, codex_exe, codex_home):
         """Tell the plug which Codex this process drives (Plug.codex). Not a point, so not asked

@@ -104,6 +104,8 @@ _MESSAGES = {
     ("detection_unavailable_no_submission", None): "Codex local state unavailable; detection skipped, no submission",
     ("eligibility_check_failed_no_submission", None): "eligibility check failed; no submission",
     ("would_send", None): "observe only: every other check passed; a continuation would have been sent now, and none was",
+    # v0.6.13: a failure the edition's plug took up (domain/plug.py, P17); never in the standard edition.
+    ("failure_taken_up", None): "failure of a kind recovered only on request taken up (interruption {detail12})",
     # v0.6.11: the two guards (guards.py), each only when it is on.
     ("held_by_guard_workspace_changed", None): "its task's workspace changed since it stopped; held for a person",
     ("held_by_guard_context_cost", None): "its conversation is over the context-cost limit; held for a person",

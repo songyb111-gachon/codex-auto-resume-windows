@@ -5,8 +5,10 @@ starts the queue process, after `presend_problem` (engine/delivery.py), the look
 claim and before the process - the only moment where giving the claim back is still provably safe.
 
 The edition's plug is asked here at seven points, every one of them after the consent gate: the
-schedule (P7) and the gates (P3) once core's own evaluation has passed, where the one thing it
-can answer yet is HOLD; what continues a conversation the app does not hold (P16,
+schedule (P7) and the gates (P3) once core's own evaluation has passed, where what it can answer is
+HOLD - and at known_failure, which is also asked for a record P17 took up whose kind core does not
+recover alone (v0.6.13), the words that take it up again, without which it ends unsent
+(engine/relaxed.py); what continues a conversation the app does not hold (P16,
 engine/delivery.py) where core would wait for it to be opened; the words (P4), what the send is
 handed to (P5) and how it is carried and proven (P15, engine/delivery.py) before the claim; and
 its ledger (P11) inside the claim. Whatever it answers, the send is still this module's one call,
@@ -91,11 +93,8 @@ class DispatchMixin:
         if not fresh:
             self._wait(row, "waiting_for_loaded_thread", "projection_stale", poll, vector)
             return
-        vector["known_failure"] = (machine.gate(machine.PASS) if self.recovers(row["category"])
-                                   else machine.gate(machine.BLOCK, "category_disabled"))
-        if vector["known_failure"][0] != machine.PASS:
-            self._wait(row, row["state"], "category_disabled",
-                       self.options["conservative_poll_seconds"], vector)
+        relaxed = self._known_failure(row, vector, now)
+        if relaxed is False:
             return
         limits = self.limits()
         vector.update(machine.gate_budgets(row, limits, row["category"] == failures.USAGE_LIMIT))
@@ -168,7 +167,7 @@ class DispatchMixin:
         # v0.6.11: the task-changed guard, which reads nothing at the defaults (engine/guard.py).
         if self._guarded(row, vector, now) or self._objection(row, vector, now):
             return
-        self.dispatch(row, app, vector, limits, route)
+        self.dispatch(row, app, vector, limits, route, relaxed=relaxed)
 
     def _plugged(self, name, row, vector) -> bool:
         """P3: gate `name`, which core has just passed, put to the plug. True if it held. Never asked
@@ -180,10 +179,9 @@ class DispatchMixin:
     def _held(self, name, row, vector, answer) -> bool:
         """Whether the plug's answer at gate `name` holds this record, which core would let go.
 
-        HOLD is the one answer a plug can give at a gate yet, and it only restricts: the gate
-        is recorded as waiting, and the record keeps its state and its reason for one more
-        poll, as on any wait of core's own. Every other answer lets core go on as it would
-        have with no plug at all."""
+        HOLD only restricts: the gate is recorded as waiting, and the record keeps its state and
+        its reason for one more poll, as on any wait of core's own. Every other answer lets core go
+        on as it would have with no plug at all - known_failure's words aside (_known_failure)."""
         if answer is not Alternative.HOLD:
             return False
         vector[name] = machine.gate(machine.WAIT, machine.HELD)
@@ -212,11 +210,12 @@ class DispatchMixin:
         except Exception:
             return message, False
 
-    def dispatch(self, row, app, vector, limits, route=None):
+    def dispatch(self, row, app, vector, limits, route=None, relaxed=None):
         """Claim, re-check, send. The only method that sends: to core's backend, or to the
         channel the plug names at P5, and either way through the one call below. With a `route`
         (P16) there is no send: the conversation is still one the app does not hold, and the
-        route is carried out in its place (engine/delivery.py)."""
+        route is carried out in its place (engine/delivery.py). `relaxed` is a gate the plug
+        relaxed for this record (_known_failure), which its ledger pays for at the claim."""
         key = row["interruption_id"]
         with self.dispatch_lock():
             current = self.store.get(key)
@@ -236,7 +235,7 @@ class DispatchMixin:
                 self.transition(current, "waiting_for_usage", "usage_recheck_failed", delay=900)
                 return
             if route is not None:
-                self._resume_unloaded(current, vector, limits, route, app)
+                self._resume_unloaded(current, vector, limits, route, app, relaxed=relaxed)
                 return
             # The text is decided before the claim, not after it. Building it reads catalogs
             # and settings; if either were ever broken, the failure has to happen while the
@@ -268,12 +267,13 @@ class DispatchMixin:
             # for or held.
             carried = frozenset(point for point, taken in ((Point.TEXT, worded),
                                                            (Point.SENDER, sender is not self.backend),
-                                                           (Point.DELIVERY, client is not None))
+                                                           (Point.DELIVERY, client is not None),
+                                                           (Point.GATES, relaxed is not None))
                                 if taken)
             at = self.clock()
             claimed, gate, reason = self.store.reserve_detailed(
                 key, at, limits=limits, gates=vector, ledger=self.plug, carried=carried,
-                quiet_until=self.quiet_until(at))
+                quiet_until=self.quiet_until(at), relaxed=relaxed)
             if not claimed:
                 self._refused(current, gate, reason)
                 return

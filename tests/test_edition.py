@@ -145,24 +145,35 @@ class ClosedAlternativeTests(unittest.TestCase):
         (Guarded.start_route); a record served, a follow-up, a division of the due records and a
         restart are asked for, and none is carried out. And P15 takes CLIENT_ID, which core
         carries out in the commit that added it: no marker, and the client id core derives - no
-        gate relaxed, so no restriction either, and the one answer that is not one."""
-        self.assertEqual(plug.ANSWERS, plug.RESTRICTIONS | {Alternative.CLIENT_ID})
+        gate relaxed, so no restriction either.
+
+        v0.6.13 stage 3b: P17 takes the words that take up a failure core never recovers alone -
+        ADMIT, and the five AS_ words that pace one as a temporary kind - and so do the gates, which
+        core takes only at known_failure (tests/test_plug_points.py, KnownFailureTests): the first
+        relaxations of a gate, each held to core's own fence (failures.admits)."""
+        take_up = {Alternative.ADMIT} | set(plug.PACED_AS)
+        self.assertEqual(plug.TAKE_UP, take_up)
+        self.assertEqual(plug.ANSWERS, plug.RESTRICTIONS | {Alternative.CLIENT_ID} | take_up)
         self.assertEqual(plug.ANSWERS, frozenset(Alternative))
         for point, accepted in plug.ALTERNATIVES.items():
             with self.subTest(point):
                 self.assertIn(point, Point)
-                if point is not Point.DELIVERY:
+                if point not in (Point.DELIVERY, Point.GATES, Point.ADMISSION):
                     self.assertLessEqual(accepted, plug.RESTRICTIONS)
         self.assertEqual(plug.ALTERNATIVES[Point.DELIVERY], frozenset({Alternative.CLIENT_ID}))
+        self.assertEqual(plug.ALTERNATIVES[Point.GATES], plug.RESTRICTIONS | take_up)
+        self.assertEqual(plug.ALTERNATIVES[Point.ADMISSION], take_up)
         self.assertEqual({point for point, accepted in plug.ALTERNATIVES.items() if accepted},
-                         {Point.GATES, Point.SCHEDULE, Point.CLAIM_LEDGER, Point.DELIVERY})
+                         {Point.GATES, Point.SCHEDULE, Point.CLAIM_LEDGER, Point.DELIVERY,
+                          Point.ADMISSION})
         self.assertEqual({point for point, accepted in plug.ALTERNATIVES.items() if not accepted},
                          {Point.RECORDS, Point.OUTCOME, Point.CONCURRENCY, Point.SUPERVISION})
         # The start route is no longer a decision point: core checks the value it hands back.
         self.assertNotIn(Point.START_ROUTE, plug.ALTERNATIVES)
         for point, accepted in plug.ALTERNATIVES.items():
-            for answer in ([object()], {"records": []}, "go", Alternative.HOLD, Alternative.CLIENT_ID):
-                if answer in (Alternative.HOLD, Alternative.CLIENT_ID) and answer in accepted:
+            for answer in ([object()], {"records": []}, "go", Alternative.HOLD, Alternative.CLIENT_ID,
+                           Alternative.ADMIT, Alternative.AS_TIMEOUT):
+                if isinstance(answer, Alternative) and answer in accepted:
                     continue
                 with self.subTest(point=point, answer=answer):
                     asked = RecordingPlug(**{plug.HOOKS[point]: answer})

@@ -46,6 +46,21 @@ class ArmingCase(ac.AdvancedCase):
 
 
 class DashboardOnlyTests(ArmingCase):
+    def test_a_point_is_wanted_while_a_capability_there_is_on_or_watched(self):
+        """v0.6.13 (core's Plug.wants): never at a point the capability has no code at, never
+        while it is off, and while it is on or only watched, at each of its points."""
+        plug = self.plug()
+        self.assertFalse(any(plug.wants(point) for point in Point))
+        for state in ("shadow", "armed"):
+            with self.subTest(state):
+                self.assertTrue(self.arm(plug.runtime, state=state)["done"])
+                plug.runtime.states(fresh=True)
+                self.assertEqual({point for point in Point if plug.wants(point)},
+                                 set(ac.definition().points))
+        plug.runtime.arming.disarm("test_wake", actor=Actor.DASHBOARD)
+        plug.runtime.states(fresh=True)
+        self.assertFalse(any(plug.wants(point) for point in Point))
+
     def test_every_capability_starts_off(self):
         self.assertEqual(self.rt.arming.current(), {"test_wake": ArmingState.OFF})
         self.assertIsNone(self.stored())

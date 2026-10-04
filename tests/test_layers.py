@@ -132,7 +132,9 @@ LAYER = {_q(name): layer for layer, names in {
                # and the needs-you notices, as the engine raises them.
                "engine.notices",
                # and how a continuation is carried and proven, and the last look before it goes.
-               "engine.delivery"),
+               "engine.delivery",
+               # v0.6.13: what the edition's plug may relax, within core's own bounds.
+               "engine.relaxed"),
     # v0.6.10-alpha: control.py became control/, ten files, `Control` composed from eight
     # mixins. `layer` is where the composition lives, so that the front holds no code.
     "control": ("control", "control.actions", "control.codexstart", "control.errors",

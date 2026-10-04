@@ -49,14 +49,6 @@ class ClaimsMixin:
                 "WHERE thread_id=? AND coalesce(submitted_at, last_claim_at)>?",
                 (thread_id, since)).fetchone()[0])
 
-    def claimed_on_thread(self, thread_id: str) -> list[dict[str, Any]]:
-        """Records that may have put a continuation into this thread."""
-        _uuid(thread_id, "thread_id")
-        with self._read() as connection:
-            return [_validated_record(dict(row)) for row in connection.execute(
-                "SELECT * FROM interruptions WHERE thread_id=? AND (last_claim_at IS NOT NULL "
-                "OR submitted_at IS NOT NULL OR legacy=1) ORDER BY detected_at", (thread_id,))]
-
     @staticmethod
     def _others_in_flight(connection, thread_id, exclude) -> int:
         return sum(machine.may_be_queued(state, queue_id) for state, queue_id in connection.execute(
@@ -94,7 +86,7 @@ class ClaimsMixin:
 
     def reserve_detailed(self, interruption_id: str, now: float, *, limits: dict | None = None,
                          gates: dict | None = None, ledger=None, carried=frozenset(),
-                         quiet_until: float | None = None) -> tuple:
+                         quiet_until: float | None = None, relaxed: str | None = None) -> tuple:
         """Claim a record for sending, re-checking every store-side gate in the claim.
 
         Returns (claimed, refusing_gate, reason). The gate vector - the engine's view of
@@ -105,7 +97,8 @@ class ClaimsMixin:
         carries - Point.TEXT for its words, Point.SENDER for its channel - which its ledger pays
         for (`_ledger_holds`). `quiet_until` is the end of the quiet hours `now` falls in, or None.
         Schema 4's conditions - observe-only, a hold, a postponement, the quiet hours - are asked
-        here again, inside the claim, as reasons of the consent and schedule gates.
+        here again, inside the claim, as reasons of the consent and schedule gates. `relaxed` is a
+        gate the plug relaxed (v0.6.13), held here to core's own bounds (`_relaxation_refused`).
         """
         _timestamp(now, "now")
         if gates is not None and limits is None:
@@ -131,6 +124,7 @@ class ClaimsMixin:
                 if name in vector and vector[name][0] != machine.PASS:
                     refusal = (name, vector[name][1])
                     break
+            refusal = refusal or self._relaxation_refused(connection, row, now, vector, relaxed, ledger, carried)
             if gates is not None and refusal is None:
                 found = machine.first_refusal(vector)
                 if found is not None:

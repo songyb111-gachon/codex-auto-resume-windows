@@ -31,9 +31,9 @@ from __future__ import annotations
 
 from .domain.gates import (BLOCK, GATE_REASONS, GATE_RESULTS, GATES, HELD, NOT_CHECKED,
                            OBSERVE_ONLY, PASS, PLUGGED, POSTPONED, QUIET_HOURS, UNKNOWN, WAIT,
-                           counted_from, decode_gates, encode_gates, first_refusal, gate,
-                           gate_budgets, gate_consent, gate_schedule, gate_submission_safe,
-                           over_ceiling, waited_aside, would_send_at)
+                           birth_stop, counted_from, decode_gates, encode_gates, first_refusal,
+                           gate, gate_budgets, gate_consent, gate_schedule, gate_submission_safe,
+                           inherited, over_ceiling, waited_aside, would_send_at)
 from .domain.public import (ACTORS, EVENT_CODES, FLAG_AFTER_USER_WORK, FLAG_LEGACY,
                             FLAG_USER_JOINED, FLAG_WITHDRAW_DELETED, HOLDS, IMPORTANCE_TIERS,
                             OVERLAYS, PAGES,
@@ -56,9 +56,10 @@ __all__ = ["ACTORS", "BLOCK", "CLAIMED", "EPOCH_CODEX", "EPOCH_STORE", "EPOCH_US
            "QUIET_HOURS", "REASONS", "RELEASABLE_WITHDRAWALS", "STATES", "SUPERSEDE_WITHDRAWALS",
            "TERMINAL", "TURN_STATUSES", "UNKNOWN", "V2_STATES", "WAIT", "WAITING",
            "WAITING_CODES", "WATCHED",
-           "WITHDRAW_REASONS", "actor_code", "counted_from", "decode_gates", "describe", "eligible_at",
+           "WITHDRAW_REASONS", "actor_code", "birth_stop", "counted_from", "decode_gates", "describe", "eligible_at",
            "encode_gates", "epoch", "event_code", "first_refusal", "gate", "gate_budgets",
-           "gate_consent", "gate_schedule", "gate_submission_safe", "hold_for_tier", "may_be_queued",
+           "gate_consent", "gate_schedule", "gate_submission_safe", "hold_for_tier", "inherited",
+           "may_be_queued",
            "over_ceiling", "overlays", "own_postponement",
            "plain_move_allowed", "public_code", "public_reason", "reason_code", "still_followed", "turn_status",
            "waited_aside", "waiting_state", "would_send_at"]

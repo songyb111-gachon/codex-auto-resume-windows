@@ -24,7 +24,9 @@ MIXINS = (package.OptionsMixin, package.AnnounceMixin, package.FreshnessMixin,
           package.DetectMixin, package.ReconcileMixin, package.OutcomeMixin,
           package.DispatchMixin, package.NoticeMixin,
           # v0.6.11: how a continuation is carried and proven (P15), and the look before it goes.
-          package.DeliveryMixin)
+          package.DeliveryMixin,
+          # v0.6.13: what the edition's plug may relax, within core's own bounds.
+          package.RelaxedMixin)
 
 # The forty-one methods the one class had, counted the day it was split.
 METHODS = {
@@ -62,6 +64,11 @@ METHODS = {
     # v0.6.12: what may still run in Codex, for the power action after usage-limit recoveries - counts
     # and sizes only, asked only once its own checks pass (engine/freshness.py).
     "activity",
+    # v0.6.13: a failure core never recovers alone put to the plug (P17) and how long one taken up
+    # waits; when its task first failed, on the clock; and known_failure, where it goes on only while
+    # the plug takes it up again, and otherwise ends unsent (engine/relaxed.py).
+    "chain_started_at", "_unadmit", "_taken_up", "_admitted_wait", "_known_failure", "_chained",
+    "_not_recovered",
 }
 
 # What `from codex_auto_resume.engine import ...` has to keep answering (app.py, the tests).

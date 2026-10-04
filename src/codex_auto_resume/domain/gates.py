@@ -36,7 +36,7 @@ POSTPONED, QUIET_HOURS, OBSERVE_ONLY = "postponed", "quiet_hours", "observe_only
 GATE_REASONS = REASONS | frozenset({
     NOT_CHECKED, "paused", "thread_disabled", "cancel_requested", "not_due", "possibly_sent",
     "engine_incompatible", "engine_unknown", "projection_table_missing",
-    "home_lock_unavailable", "identity_unreadable", "not_recoverable", "usage_available",
+    "home_lock_unavailable", "identity_unreadable", "usage_available",
     "ok", HELD, POSTPONED, QUIET_HOURS, OBSERVE_ONLY, PLUGGED,
 })
 
@@ -139,6 +139,53 @@ def over_ceiling(record, limits: dict, usage_category: bool) -> bool:
     at the defaults). A usage limit waits for its reset and has none."""
     ceiling = limits.get("max_chain_seconds")
     return not usage_category and ceiling is not None and chain_span(record) >= ceiling
+
+
+# What a record of a task takes from the record whose own continuation started the turn that failed.
+CHAIN_FIELDS = ("chain_origin_id", "chain_first_detected_at", "chain_continuations",
+                "recovery_attempts", "usage_unavailable_seconds", "budget_resets")
+
+
+def inherited(parent, failed_turn_progress, legacy_carry=None) -> dict:
+    """The counters a new record of a task starts with: its parent's, and one more turn with no
+    progress unless the turn that failed made some - or, with no parent, the v0.5 carry of a
+    predecessor from before chains existed, if there is one."""
+    if parent is None:
+        carry = legacy_carry
+        good = isinstance(carry, int) and not isinstance(carry, bool) and carry > 0
+        return {"no_progress_count": carry} if good else {}
+    found = {field: parent[field] for field in CHAIN_FIELDS}
+    found["parent_interruption_id"] = parent["interruption_id"]
+    found["no_progress_count"] = parent["no_progress_count"] + (0 if failed_turn_progress is True else 1)
+    return found
+
+
+def birth_stop(parent, failed_turn_progress, limits, usage_category: bool, *, now, legacy_carry=None):
+    """(state, reason) a new record of a task is born stopped in, or None: its parent was cancelled
+    or handed over, or a budget is spent (`limits`, None to check none). The store decides it in the
+    transaction that registers the record (store/records.py); the engine asks it beforehand only to
+    leave alone what it would not take up (v0.6.13, engine/detect.py)."""
+    if parent is not None and parent["cancel_requested"]:
+        return "cancelled", "parent_cancelled"
+    if parent is not None and (parent["user_joined"] or parent["after_user_work"]
+                               or parent["state"] in ("handed_over", "stopped_by_user")):
+        return "superseded", "parent_handed_over"
+    if limits is None:
+        return None
+    row = {"detected_at": now, "chain_first_detected_at": now, "chain_continuations": 0,
+           "recovery_attempts": 0, "no_progress_count": 0,
+           **inherited(parent, failed_turn_progress, legacy_carry)}
+    if row["no_progress_count"] >= limits["max_no_progress"]:
+        return "no_progress_exhausted", "no_progress_budget"
+    if row["chain_continuations"] >= limits["max_chain_continuations"]:
+        return "retry_budget_exhausted", "chain_cap"
+    if over_ceiling(row, limits, usage_category):
+        # v0.6.11: a temporary task that kept failing past its time ceiling (absent at the
+        # defaults), measured from its first failure to this one.
+        return "retry_budget_exhausted", "chain_time_cap"
+    if not usage_category and row["recovery_attempts"] >= limits["max_recovery_attempts"]:
+        return "retry_budget_exhausted", "recovery_budget"
+    return None
 
 
 def gate_budgets(record, limits: dict, usage_category: bool) -> dict:

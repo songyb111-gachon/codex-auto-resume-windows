@@ -64,6 +64,9 @@ METHODS = {
     "raise_notice", "_reading",
     # v0.6.11: a watcher that stops on purpose says how - clean, or the memory guard (store/watcher.py).
     "watcher_ended",
+    # v0.6.13: the record of a task a failure continues, read as register finds it and nothing written
+    # (store/records.py), and the claim's check of a relaxation of the plug's (store/ledger.py).
+    "chain_parent", "_find_parent", "_relaxation_refused",
 }
 
 # Reachable as `store.<name>` before the split, and still.

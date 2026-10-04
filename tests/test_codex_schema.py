@@ -136,5 +136,55 @@ class OneHomeForTheSqlTests(unittest.TestCase):
                          "the statements sent to Codex are split across %s" % sorted(reading_codex))
 
 
+class AdmissionReadTests(unittest.TestCase):
+    """v0.6.13: what is read of Codex only while the edition's plug wants P17 - and, wanting
+    nothing, the read it always was (engine/detect.py asks with both off)."""
+
+    THREAD = "0a1b2c3d-0001-7000-8000-000000000001"
+    OTHER = "0a1b2c3d-0001-7000-8000-000000000002"
+    TURN = "0a1b2c3d-0002-7000-8000-000000000002"
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.home = codexsim.CodexHome(Path(temporary.name) / "codex-home")
+        self.source = codex.LocalSource(self.home.root)
+        error = '{"codexErrorInfo": "brandNewVariant", "message": "secret words"}'
+        self.home.add_turn(self.THREAD, self.TURN, "failed", completed=codexsim.BASE, error_json=error,
+                           progress=False)
+        self.home.fail_transient(self.OTHER, completed=codexsim.BASE)
+
+    def test_with_neither_it_is_the_read_it_was(self):
+        found = self.source.latest_failures(codexsim.BASE - 3600)
+        self.assertEqual([entry["thread_id"] for entry in found], [self.OTHER])
+        self.assertFalse({"admissible", "shape"} & set(found[0]))
+
+    def test_a_failure_the_plug_may_take_up_is_marked_and_its_shape_says_no_word(self):
+        found = {entry["thread_id"]: entry for entry in
+                 self.source.latest_failures(codexsim.BASE - 3600, admissible=True, shapes=True)}
+        self.assertEqual(set(found), {self.THREAD, self.OTHER})
+        taken = found[self.THREAD]
+        self.assertEqual((taken["category"], taken["admissible"]), ("unknown", True))
+        self.assertEqual(taken["shape"], {"code": "brandNewVariant", "status": None, "form": "tagged",
+                                          "has_message": True})
+        self.assertNotIn("secret", repr(taken))
+        self.assertNotIn("admissible", found[self.OTHER])
+        self.assertEqual(found[self.OTHER]["shape"]["code"], "serverOverloaded")
+
+    def test_a_conversation_that_is_not_a_persons_own_is_never_brought(self):
+        with self.home._db("state_5.sqlite") as db:
+            db.execute("UPDATE threads SET archived=1 WHERE id=?", (self.THREAD,))
+        found = self.source.latest_failures(codexsim.BASE - 3600, admissible=True, shapes=True)
+        self.assertEqual([entry["thread_id"] for entry in found], [self.OTHER])
+
+    def test_a_turns_items_are_counted_and_never_read(self):
+        self.home.add_item(self.THREAD, self.TURN, "commandExecution", "secret command")
+        self.home.add_item(self.THREAD, self.TURN, "reasoning", "secret thought")
+        counts = self.source.turn_item_counts(self.THREAD, self.TURN)
+        self.assertEqual(counts, {"agentMessage": 0, "commandExecution": 1, "fileChange": 0,
+                                  "mcpToolCall": 0, "userMessage": 1, "other": 1})
+        self.assertIsNone(self.source.turn_item_counts("not-a-thread", self.TURN))
+
+
 if __name__ == "__main__":
     unittest.main()

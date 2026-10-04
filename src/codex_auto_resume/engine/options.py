@@ -162,6 +162,8 @@ class OptionsMixin:
         self._told = set()
         self._random = random.Random()
         self._declined = set()
+        # v0.6.13: when each failure the edition's plug did not take up was last put to it (P17).
+        self._unadmitted = {}
         self._announced = set()
         self._stale_since = {}
         self._stale_seen = {}

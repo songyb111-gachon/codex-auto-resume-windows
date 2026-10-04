@@ -126,6 +126,17 @@ class Runtime:
         self._states[definition.id] = ArmingState.OFF
 
     # ------------------------------------------------------------------ asking
+    def wants(self, point) -> bool:
+        """Whether a capability registered at `point` is on or watched now (core's Plug.wants). With
+        none there, nothing is read; a state that cannot be read has every capability off
+        (arming.py), so nothing is wanted."""
+        definitions = self.registry.at(point)
+        if not definitions:
+            return False
+        states = self.states()
+        return any(states.get(definition.id, ArmingState.OFF) != ArmingState.OFF
+                   for definition in definitions)
+
     def ask(self, point, *arguments):
         """The answer at `point`: an armed capability's, or NULL's."""
         definitions = self.registry.at(point)

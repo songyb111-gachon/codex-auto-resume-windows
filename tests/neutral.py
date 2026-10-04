@@ -18,6 +18,12 @@ The pairs run in worker processes, a few at once, because every scenario runs tw
 starts them and hands each the next scenario as it finishes one, and `serve` is what a worker
 runs. Not a test module (no `test_` prefix), so discovery does not collect it.
 
+A scenario may put a read of its own in place of the source's (test_engine's test_06 hands back
+`latest_failures` twice over, with a function of `since` alone). The keywords a plug's wanting adds
+to that read (PLUGGED_KEYWORDS: v0.6.13's P17, engine/detect.py) are kept from such a function when
+it takes none of them, so it answers as it was written to - the read the scenario meant, with
+nothing for the plug to take up - and is not a TypeError of the scenario's own making.
+
 In the advanced lane each scenario runs a third time, with the advanced package's own plug for
 a home of its own where nothing was ever turned on (`real_plug`). The core suite there cannot
 show it: core takes the package only from beside itself, so with advanced/src on the path the
@@ -28,6 +34,7 @@ from __future__ import annotations
 import contextlib
 import importlib
 import importlib.util
+import inspect
 import json
 import os
 from pathlib import Path
@@ -53,6 +60,7 @@ for entry in (str(ROOT / "src"), str(HERE)):
     if entry not in sys.path:
         sys.path.insert(0, entry)
 
+from codex_auto_resume.codex import LocalSource  # noqa: E402
 from codex_auto_resume.domain.plug import Edition, Plug, Point  # noqa: E402
 from codex_auto_resume.engine import options  # noqa: E402
 from codex_auto_resume.store import session  # noqa: E402
@@ -84,11 +92,37 @@ FIRST = ("test_outcomes",)
 # have to reach every one, or a point nothing reaches would pass for a neutral one.
 ENGINE_POINTS = frozenset({Point.RECORDS, Point.GATES, Point.TEXT, Point.SENDER, Point.OUTCOME,
                            Point.SCHEDULE, Point.TICK, Point.CLAIM_LEDGER, Point.CONCURRENCY,
-                           Point.MOVED, Point.DELIVERY, Point.UNLOADED})
+                           Point.MOVED, Point.DELIVERY, Point.UNLOADED, Point.ADMISSION})
 # What a moment read off the wall clock while a pair ran is written as, in rows and calls alike.
 WALL_CLOCK = "<wall clock>"
 # What a scenario is asked of Codex: every call the engine can make of a backend.
 BACKEND_CALLS = ("send", "delete_queue", "loaded", "usage", "app_identity")
+# The source reads a plug's wanting adds keywords to, and those keywords (v0.6.13, P17).
+PLUGGED_KEYWORDS = {"latest_failures": frozenset({"admissible", "shapes"})}
+
+
+def narrowed(name, value):
+    """`value`, a read a scenario put on its source as `name`, called without the keywords a plug's
+    wanting adds that it does not take (PLUGGED_KEYWORDS) - and every other value as it is."""
+    added = PLUGGED_KEYWORDS.get(name)
+    if added is None or not callable(value):
+        return value
+    try:
+        parameters = inspect.signature(value).parameters.values()
+    except (TypeError, ValueError):
+        return value
+    if any(parameter.kind is parameter.VAR_KEYWORD for parameter in parameters):
+        return value
+    taken = {parameter.name for parameter in parameters}
+
+    def read(*arguments, **keywords):
+        return value(*arguments, **{key: item for key, item in keywords.items()
+                                    if key in taken or key not in added})
+    return read
+
+
+def _set_on_source(self, name, value):
+    object.__setattr__(self, name, narrowed(name, value))
 
 
 class DeferringPlug(Plug):
@@ -166,6 +200,15 @@ class DeferringPlug(Plug):
     def unloaded(self, record):
         self.asked.add(Point.UNLOADED)
         return super().unloaded(record)
+
+    def admission(self, failure):
+        self.asked.add(Point.ADMISSION)
+        return super().admission(failure)
+
+    def wants(self, point):
+        """Every point, as a plug with a capability on there would say: core makes the reads that
+        point needs, and asks, and a deferring answer changes nothing all the same."""
+        return True
 
 
 def scenarios(modules=MODULES) -> list[str]:
@@ -260,6 +303,7 @@ def run_one(test_id: str, *, plug=None, seed: str = "") -> dict:
     test.tearDown = keep_open_stores
     result = unittest.TestResult()
     with mock.patch.object(uuid, "uuid4", uuid4), \
+            mock.patch.object(LocalSource, "__setattr__", _set_on_source), \
             mock.patch.object(session.SessionMixin, "__init__", open_store), \
             mock.patch.object(session.SessionMixin, "close", close_store), \
             mock.patch.object(options.OptionsMixin, "__init__", build_engine):

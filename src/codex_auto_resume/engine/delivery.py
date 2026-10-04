@@ -120,7 +120,7 @@ class DeliveryMixin:
         vector["thread_available"] = machine.gate(machine.PASS, machine.PLUGGED)
         return route
 
-    def _resume_unloaded(self, current, vector, limits, route, app):
+    def _resume_unloaded(self, current, vector, limits, route, app, relaxed=None):
         """Carry out the route the plug named at P16, as `dispatch` carries out a send: the one
         claim, paid for by the plug's ledger (P11, told the route is what it carries); the pre-send
         look; and the route called once, inside the launch guard. Called under the dispatch lock,
@@ -136,7 +136,8 @@ class DeliveryMixin:
         at = self.clock()
         claimed, gate, reason = self.store.reserve_detailed(
             key, at, limits=limits, gates=vector, ledger=self.plug,
-            carried=frozenset({Point.UNLOADED}), quiet_until=self.quiet_until(at))
+            carried=frozenset({Point.UNLOADED} | ({Point.GATES} if relaxed else set())),
+            quiet_until=self.quiet_until(at), relaxed=relaxed)
         if not claimed:
             self._refused(current, gate, reason)
             return
