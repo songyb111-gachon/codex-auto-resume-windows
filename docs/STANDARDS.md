@@ -84,10 +84,10 @@ changed).
 *tested*: `test_engine.py`
 
 **A13** Only classified kinds are recovered: usage limit, connection failure, timeout (408/425), rate limit (429, including responseTooManyFailedAttempts carrying 429), 5xx, and stream disconnect. The structured code comes first; message text is used only when there is no code, against a fixed phrase list.  
-*tested*: `test_failures.py`
+*tested*: `test_failures.py`, `test_plug_points.py`
 
 **A14** Never retried: anything unclassified, user cancellation, permission, approval, content policy, invalid request, context length, 401/403, badRequest, sandboxError, and responseTooManyFailedAttempts without a 429.  
-*tested*: `test_recovery.py`, `test_failures.py`, `test_settings.py`
+*tested*: `test_recovery.py`, `test_failures.py`, `test_settings.py`, `test_plug_points.py`
 
 **A15** Only desktop-app user conversations. Subagent, archived and non-desktop threads are never detected.  
 *tested*: `test_engine.py`

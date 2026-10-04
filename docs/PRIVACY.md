@@ -496,8 +496,8 @@ conversation to OpenAI like any tool output. That is:
   this product's message or, when the Custom style is selected, your Custom message. It saves
   nothing and sends nothing;
 - in the advanced edition, from `list_advanced_capabilities`: each capability's id, whether it
-  is on, watched or off, since when, from which surface and why, and the ids of the standards it
-  departs from ([STANDARDS.md](STANDARDS.md)) — ids and codes, with no version string, path or free text; from the two tools
+  is on, watched or off, since when, from which surface and why, the values of the choices set for
+  it, and the ids of the standards it departs from ([STANDARDS.md](STANDARDS.md)) — ids and codes, with no version string, path or free text; from the two tools
   that turn capabilities off, the capability's id and that it is off, or how many were turned off;
 - from the commands: the same, plus each pending recovery's reset time, limit bucket and
   last reason code, the desktop app's process ids, and local paths such as the Codex executable, the Codex home,
@@ -742,8 +742,11 @@ language Windows lists on this machine; a language you choose is stored in
 From v0.6.11 there is a second edition, and this section is what it adds to everything above. Its
 capabilities are each off until a person turns one on, in the Dashboard's **Advanced features** page.
 With none on, and no measurement asked for, it runs nothing more and asks Codex for nothing more; it
-reads more only when its capabilities are listed or one is being turned on, and Codex's tools learn
-which edition it is and that none is on. It adds no network code: its package imports no networking
+reads more only when its capabilities are listed or one is being turned on - and, while a capability
+that takes up failures is on or watched, from Codex's history the failures the standard edition
+leaves alone: their kind, Codex's error code and status number, and whether an error message exists,
+never the message; for the one that retries failures it cannot classify, also how many items of each
+kind the failed turn left - and Codex's tools learn which edition it is and that none is on. It adds no network code: its package imports no networking
 module, which a test checks as it checks the standard edition's code
 (`tests/test_privacy_claims.py`), and what its capabilities ask of anything, they ask of the Codex
 already on this machine.
@@ -765,8 +768,10 @@ already on this machine.
   pinned ChatGPT address - that call, after `initialize`, `thread/queue/add` (the continuation's
   words, under a client id derived from the interruption) and `thread/goal/set` (a goal's status),
   and nothing else.
-- **What reaches OpenAI.** Nothing new from a capability: the resumed turn still runs in your
-  Codex desktop app. A marker-free continuation arrives without the `[codex-auto-resume:…]` marker,
+- **What reaches OpenAI.** Nothing new from a capability, except that while the early usage-reset
+  check is on, Codex is asked about your usage every five minutes while a conversation waits for a
+  reset (`account/rateLimits/read`, as the standard edition asks when a recovery is due): the resumed
+  turn still runs in your Codex desktop app. A marker-free continuation arrives without the `[codex-auto-resume:…]` marker,
   and Codex keeps the client id on the message. A goal set active is left for Codex to carry on when
   the app next opens the conversation, under your own Codex settings. A measurement is the
   exception, below.
@@ -775,8 +780,12 @@ already on this machine.
   revision and the Codex version it was turned on for, and the warnings confirmed; each unit a
   capability spent, with the ids of the conversation and interruption it spent it on; the edition's
   own records and what a capability asked of a standard one, as ids, states and times; the global
-  ceiling a person set; and a journal and per-day counts of closed codes, bounded as the standard
-  journal is. No prompt, reply, error text, title, path or secret. `Uninstall.cmd -Purge` removes it
+  ceiling a person set; a journal and per-day counts of closed codes, bounded as the standard
+  journal is; and, for the capabilities that use them, the choices you made, the rules you wrote (an
+  error code, status numbers, a kind), which capability took up which interruption, and samples of
+  failures it could not classify: Codex's error code, the status number, the form of the error, item
+  counts, a time rounded to the minute and a duration - never a word of the error or the
+  conversation, and kept 90 days at most. No prompt, reply, error text, title, path or secret. `Uninstall.cmd -Purge` removes it
   with the rest of `config\`.
 - **What Codex is told.** What its three MCP tools return, listed under
   [When you use it from Codex](#when-you-use-it-from-codex).

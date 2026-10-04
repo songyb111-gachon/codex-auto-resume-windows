@@ -523,8 +523,9 @@ to come. [EDITIONS.md](EDITIONS.md) says what each edition is and what each capa
 [STANDARDS.md](STANDARDS.md) lists every standard by its id, with how it is held.
 
 The advanced edition's state is the one exception to *a second state database*: which capability is
-on, what each has spent and what it did are kept in `config/advanced/advanced.sqlite`, apart from
-the watcher's own state, so nothing in the standard edition's database changes for it
+on, what each has spent and what it did, the choices and the rules a person set for the capabilities
+that have them, which capability took up which interruption and the samples of failures nothing
+classified are kept in `config/advanced/advanced.sqlite`, apart from the watcher's own state, so nothing in the standard edition's database changes for it
 (`advanced/tests/test_advanced_state.py`). It exists only in the advanced edition, and is made
 there only when something in it is first turned on or changed; the standard edition never creates
 it, and `Uninstall.cmd -Purge` removes it with the rest of `config\`.

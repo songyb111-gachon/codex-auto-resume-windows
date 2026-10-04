@@ -85,10 +85,10 @@ K군은 2026-09-28에 더했습니다. 실행 중에 이 파일을 읽는 것은
 *테스트*: `test_engine.py`
 
 **A13** 분류된 종류만 복구합니다: 사용 한도, 연결 실패, 시간 초과(408/425), 요청 한도(429, 429를 담은 responseTooManyFailedAttempts 포함), 5xx, 스트림 끊김. 구조화된 코드를 먼저 보며, 메시지 글은 코드가 없을 때만 정해진 문구 목록과 맞춰 봅니다.  
-*테스트*: `test_failures.py`
+*테스트*: `test_failures.py`, `test_plug_points.py`
 
 **A14** 재시도하지 않는 것: 분류되지 않은 모든 것, 사용자 취소, 권한, 승인, 콘텐츠 정책, 잘못된 요청, 컨텍스트 길이, 401/403, badRequest, sandboxError, 429가 없는 responseTooManyFailedAttempts.  
-*테스트*: `test_recovery.py`, `test_failures.py`, `test_settings.py`
+*테스트*: `test_recovery.py`, `test_failures.py`, `test_settings.py`, `test_plug_points.py`
 
 **A15** 데스크톱 앱의 사용자 대화만 다룹니다. 하위 에이전트, 보관된 스레드, 데스크톱 밖의 스레드는 감지하지 않습니다.  
 *테스트*: `test_engine.py`
