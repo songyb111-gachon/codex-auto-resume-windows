@@ -72,7 +72,7 @@ class TakingCase(PluggedCase):
         self.plugged(plug, h)
         return plug
 
-    def fail(self, h=None, error_json=None, *, thread=T1, turn=TURN_A):
+    def failing(self, error_json=None, h=None, *, thread=T1, turn=TURN_A):
         """A failed turn, a second after now: after the capability stood where it stands, which is
         all a capability ever takes up."""
         h = h or self.h

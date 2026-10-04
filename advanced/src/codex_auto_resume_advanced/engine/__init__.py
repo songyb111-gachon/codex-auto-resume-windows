@@ -9,5 +9,6 @@ usage limit - active again; the standard continuation held back while that goal 
 conversation on; and, only where measurement M2b passed, a channel that sets the goal active before
 the continuation it queues. P17 and P3 together (v0.6.13) are the capabilities that take up a
 failure the standard edition handles otherwise, and relax its record at known_failure: the short
-retries when Codex is at capacity (engine/capacity.py).
+retries when Codex is at capacity (engine/capacity.py) and the rules for Codex's error codes
+(engine/admitted.py).
 """

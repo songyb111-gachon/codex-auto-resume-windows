@@ -48,7 +48,7 @@ class CapacityCase(TakingCase):
         plug = self.armed(h, state=state)
         h.engine._random = Fixed(0.0)
         h.backend.after_accept = "queue"
-        self.fail(h, OVERLOADED)
+        self.failing(OVERLOADED, h)
         h.tick()
         return plug
 
@@ -58,7 +58,7 @@ class OffTests(CapacityCase):
         expected = self.standard(OVERLOADED)
         plug = self.advanced()
         self.plugged(plug)
-        self.fail(None, OVERLOADED)
+        self.failing(OVERLOADED)
         self.h.tick()
         row = self.h.record()
         self.assertEqual((row["category"], row["state"], row["next_retry_at"] - self.h.now, row["last_error"]),
@@ -126,7 +126,7 @@ class ArmedTests(CapacityCase):
     def test_another_server_error_is_never_taken_up(self):
         expected = self.standard(INTERNAL)
         plug = self.armed()
-        self.fail(None, INTERNAL)
+        self.failing(INTERNAL)
         self.h.tick()
         row = self.h.record()
         self.assertEqual((row["category"], row["state"], row["next_retry_at"] - self.h.now, row["last_error"]),
@@ -177,7 +177,7 @@ class CeilingTests(CapacityCase):
         expected = self.standard(OVERLOADED)
         plug = self.armed()
         self.fill(plug, CAPACITY_RETRY.ceilings.per_conversation, at=self.h.now - 3600)
-        self.fail(None, OVERLOADED)
+        self.failing(OVERLOADED)
         self.h.tick()
         row = self.h.record()
         self.assertEqual((row["category"], row["state"], row["next_retry_at"] - self.h.now, row["last_error"]),
@@ -209,7 +209,7 @@ class TripwireTests(CapacityCase):
     def test_a_hook_that_raises_trips_it_and_the_standard_edition_goes_on(self):
         expected = self.standard(OVERLOADED)
         plug = self.armed()
-        self.fail(None, OVERLOADED)
+        self.failing(OVERLOADED)
         with patch.object(CapacityRetry, "admission", side_effect=RuntimeError("boom")):
             self.h.tick()
         stored = plug.runtime.state.arming()[CAP]
@@ -238,7 +238,7 @@ class PolicyTests(CapacityCase):
                 plug = self.armed(h)
                 self.policy = found
                 plug.runtime.states(fresh=True)
-                self.fail(h, OVERLOADED)
+                self.failing(OVERLOADED, h)
                 h.tick()
                 row = h.record()
                 self.assertEqual((row["category"], row["state"], row["next_retry_at"] - h.now, row["last_error"]),
@@ -252,7 +252,7 @@ class PolicyTests(CapacityCase):
         plug = self.armed()
         self.policy = policy.Policy(force_shadow=True)
         plug.runtime.states(fresh=True)
-        self.fail(None, OVERLOADED)
+        self.failing(OVERLOADED)
         self.h.tick()
         self.assertIn((JournalCode.WOULD_HAVE, Point.ADMISSION, Alternative.CAPACITY), self.journal(plug))
         self.assertEqual(self.spends(plug), [])

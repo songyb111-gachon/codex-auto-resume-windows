@@ -37,8 +37,9 @@ asked to agree to and everything the plug holds it to:
 The edition ships these capabilities now: start-with-Codex, at P9 (control/codexstart.py); the
 goal continuation, at P16, P3 and P5 (engine/goal.py); the marker-free continuation, at P5 and
 P15 (engine/markerfree.py); and, from v0.6.13 (stage 3b), those that take up failures at P17 and
-relax their records at P3: the short retries when Codex is at capacity (engine/capacity.py). The
-tests define one of their own to hold every rule here.
+relax their records at P3: the short retries when Codex is at capacity (engine/capacity.py) and the
+rules for Codex's error codes (engine/admitted.py). The tests define one of their own to hold every
+rule here.
 """
 from __future__ import annotations
 
@@ -49,6 +50,7 @@ from typing import Callable
 from codex_auto_resume.domain.plug import Point
 
 from .control.codexstart import make as make_start_with_codex
+from .engine.admitted import make_structured_rules
 from .engine.capacity import CEILING_HOURS, DEFAULT_HOURS, make as make_capacity_retry
 from .engine.goal import make as make_goal_continuation
 from .engine.markerfree import make as make_marker_free
@@ -331,6 +333,30 @@ CAPACITY_RETRY = CapabilityDef(
     options=(Option(OptionKey.CEILING_HOURS, CEILING_HOURS, DEFAULT_HOURS),),
 )
 
+# Rules for Codex's error codes (v0.6.13 stage 3b; the plan's row: an error code, and if wished a
+# range of status numbers, mapped to a kind of temporary failure; ten at most; only where the kind is
+# unknown; never a terminal code, never a usage limit; the Dashboard only). A person writes up to ten
+# rules (state/choices.py); a failure nothing classified, with a code core offers (a tagged code of
+# Codex's naming no decision, failures.admits), is taken up at P17 as the kind the lowest-numbered
+# matching rule names (AS_*), and at known_failure the same word again while that rule is there - its
+# removal ends what it took up. Core paces it as that kind, counts it against that kind's budget and
+# follows that kind's switch. It departs from 0.5 (unknown failures are never retried), A13 and A14
+# (only classified kinds), A26 (continuation text for a recovered kind) and B9 (it reads Codex's code),
+# and stands on transient_classification. Its hits are counted (`matched`) the first time core goes on
+# with what a rule took up. Ceilings: five a conversation, two dozen a day.
+STRUCTURED_RULES = CapabilityDef(
+    id="structured_rules",
+    points=frozenset({Point.ADMISSION, Point.GATES}),
+    revision=1,
+    departs_from=("0.5", "A13", "A14", "A26", "B9"),
+    compat="transient_classification",
+    ceilings=Ceilings(per_day=24, per_conversation=5),
+    journal_prefix="rule",
+    make=make_structured_rules,
+    codes=("matched",),
+    rules_editor=True,
+)
+
 # In this order, which is also which answers first where two answer at one point.
-DEFINITIONS = (START_WITH_CODEX, GOAL_CONTINUATION, MARKER_FREE, CAPACITY_RETRY)
+DEFINITIONS = (START_WITH_CODEX, GOAL_CONTINUATION, MARKER_FREE, CAPACITY_RETRY, STRUCTURED_RULES)
 REGISTRY = Registry(DEFINITIONS)

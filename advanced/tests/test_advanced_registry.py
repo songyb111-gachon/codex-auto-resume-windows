@@ -46,7 +46,8 @@ CHANGES = frozenset({"thread/queue/add", "thread/goal/set"})
 
 
 class ShippedTests(unittest.TestCase):
-    SHIPPED = ("start_with_codex", "goal_continuation", "marker_free_continuation", "capacity_retry")
+    SHIPPED = ("start_with_codex", "goal_continuation", "marker_free_continuation", "capacity_retry",
+               "structured_rules")
 
     def test_the_registry_this_edition_ships_is_its_capabilities_in_their_order(self):
         self.assertEqual([d.id for d in registry.DEFINITIONS], list(self.SHIPPED))
@@ -60,8 +61,8 @@ class ShippedTests(unittest.TestCase):
         # answer at P17 and again at P3, in the order that is precedence where two would answer.
         answering = {Point.START_ROUTE: ("start_with_codex",),
                      Point.UNLOADED: ("goal_continuation",),
-                     Point.GATES: ("goal_continuation", "capacity_retry"),
-                     Point.ADMISSION: ("capacity_retry",),
+                     Point.GATES: ("goal_continuation", "capacity_retry", "structured_rules"),
+                     Point.ADMISSION: ("capacity_retry", "structured_rules"),
                      Point.SENDER: ("goal_continuation", "marker_free_continuation"),
                      Point.DELIVERY: ("marker_free_continuation",)}
         for point in Point:
@@ -141,6 +142,19 @@ class ShippedTests(unittest.TestCase):
         self.assertEqual((option.choices, option.default), ((1, 2, 3, 4, 6, 8, 12), 2))
         self.assertLessEqual(max(option.choices) * 3600, ladder.CAPACITY_MAX_SECONDS)
         self.assertEqual((cap.rules_editor, cap.samples, cap.codes), (False, False, ()))
+
+    def test_the_rules_depart_and_rest_on_what_the_design_says(self):
+        """0.5, A13, A14 (an unknown failure is never retried), A26 (continuation text only for a
+        recovered kind) and B9 (it reads Codex's code); five a conversation, two dozen a day; the one
+        capability whose rules the Dashboard edits, counting its hits as `matched`."""
+        rules = registry.REGISTRY.get("structured_rules")
+        self.assertEqual(rules.departs_from, ("0.5", "A13", "A14", "A26", "B9"))
+        self.assertEqual((rules.compat, rules.measurements, rules.revision), ("transient_classification", (), 1))
+        self.assertEqual(rules.points, frozenset({Point.ADMISSION, Point.GATES}))
+        self.assertEqual((rules.ceilings.per_day, rules.ceilings.per_conversation), (24, 5))
+        self.assertEqual((rules.rules_editor, rules.samples, rules.codes, rules.options), (True, False, ("matched",), ()))
+        self.assertEqual([definition.id for definition in registry.DEFINITIONS if definition.rules_editor],
+                         ["structured_rules"])
 
     def test_start_with_codex_departs_and_rests_on_what_the_plan_says(self):
         swc = registry.REGISTRY.get("start_with_codex")
