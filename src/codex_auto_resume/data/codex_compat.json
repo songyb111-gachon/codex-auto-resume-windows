@@ -33,9 +33,9 @@
     "signature is refused whole until something verifies one."
   ],
   "format": "codex-auto-resume-compat/1",
-  "sequence": 5,
-  "published_at": "2026-09-30T05:32:49Z",
-  "expires_at": "2026-12-29T05:32:49Z",
+  "sequence": 6,
+  "published_at": "2026-10-04T14:13:04Z",
+  "expires_at": "2027-01-02T14:13:04Z",
   "min_product": "0.6.5",
   "signature": null,
   "key_id": null,
@@ -545,6 +545,23 @@
           "state": "CHECKED",
           "evidence": [
             "docs/evidence/compat/codex-cli-0.159.0.json"
+          ]
+        }
+      }
+    },
+    {
+      "version": "codex-cli 0.159.0-alpha.12.1",
+      "capabilities": {
+        "engine_present": {
+          "state": "CHECKED",
+          "evidence": [
+            "docs/evidence/compat/codex-cli-0.159.0-alpha.12.1.json"
+          ]
+        },
+        "exact_thread_recovery": {
+          "state": "CHECKED",
+          "evidence": [
+            "docs/evidence/compat/codex-cli-0.159.0-alpha.12.1.json"
           ]
         }
       }
