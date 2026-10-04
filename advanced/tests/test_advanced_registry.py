@@ -46,20 +46,22 @@ CHANGES = frozenset({"thread/queue/add", "thread/goal/set"})
 
 
 class ShippedTests(unittest.TestCase):
-    def test_the_registry_this_edition_ships_is_its_three_capabilities_in_their_order(self):
-        self.assertEqual([d.id for d in registry.DEFINITIONS],
-                         ["start_with_codex", "goal_continuation", "marker_free_continuation"])
-        self.assertEqual(len(registry.REGISTRY), 3)
-        self.assertEqual(registry.REGISTRY.ids,
-                         ("start_with_codex", "goal_continuation", "marker_free_continuation"))
+    SHIPPED = ("start_with_codex", "goal_continuation", "marker_free_continuation", "capacity_retry")
+
+    def test_the_registry_this_edition_ships_is_its_capabilities_in_their_order(self):
+        self.assertEqual([d.id for d in registry.DEFINITIONS], list(self.SHIPPED))
+        self.assertEqual(len(registry.REGISTRY), len(self.SHIPPED))
+        self.assertEqual(registry.REGISTRY.ids, self.SHIPPED)
         # Start-with-Codex answers at P9 alone - it starts the watcher, it does not send; the goal
         # continuation at P16, P3 and P5 - the route, the hold while a goal carries a conversation on,
         # and the channel where M2b passed; the marker-free continuation at P5 and P15, the channel
         # and the way it carries the words. At P5 the goal continuation comes first, so where both
-        # are on and the goal applies its channel carries the send.
+        # are on and the goal applies its channel carries the send. Those that take failures up (v0.6.13)
+        # answer at P17 and again at P3, in the order that is precedence where two would answer.
         answering = {Point.START_ROUTE: ("start_with_codex",),
                      Point.UNLOADED: ("goal_continuation",),
-                     Point.GATES: ("goal_continuation",),
+                     Point.GATES: ("goal_continuation", "capacity_retry"),
+                     Point.ADMISSION: ("capacity_retry",),
                      Point.SENDER: ("goal_continuation", "marker_free_continuation"),
                      Point.DELIVERY: ("marker_free_continuation",)}
         for point in Point:
@@ -122,6 +124,23 @@ class ShippedTests(unittest.TestCase):
         self.assertEqual(goal.measurements, (Measurement.M2,))
         self.assertEqual(goal.points, frozenset({Point.UNLOADED, Point.GATES, Point.SENDER}))
         self.assertLessEqual(goal.ceilings.per_conversation, registry.CORE_DAILY_CAP)
+
+    def test_the_capacity_retries_depart_and_rest_on_what_the_design_says(self):
+        """A20 (five a conversation a day, fifteen minutes apart), A21 (the budgets), A22 (waits only
+        from the retry timing) and B9 (it reads Codex's code); 48 a day in one conversation - core's
+        capacity day, which only the A20 departure allows - and one to twelve hours, two by default."""
+        from codex_auto_resume_advanced.vocabulary import OptionKey
+        cap = registry.REGISTRY.get("capacity_retry")
+        self.assertEqual(cap.departs_from, ("A20", "A21", "A22", "B9"))
+        self.assertEqual((cap.compat, cap.measurements, cap.revision), ("transient_classification", (), 1))
+        self.assertEqual(cap.points, frozenset({Point.ADMISSION, Point.GATES}))
+        self.assertEqual((cap.ceilings.per_day, cap.ceilings.per_conversation), (48, 48))
+        from codex_auto_resume import ladder
+        self.assertEqual(cap.ceilings.per_conversation, ladder.CAPACITY_PER_DAY)
+        option = cap.option(OptionKey.CEILING_HOURS)
+        self.assertEqual((option.choices, option.default), ((1, 2, 3, 4, 6, 8, 12), 2))
+        self.assertLessEqual(max(option.choices) * 3600, ladder.CAPACITY_MAX_SECONDS)
+        self.assertEqual((cap.rules_editor, cap.samples, cap.codes), (False, False, ()))
 
     def test_start_with_codex_departs_and_rests_on_what_the_plan_says(self):
         swc = registry.REGISTRY.get("start_with_codex")

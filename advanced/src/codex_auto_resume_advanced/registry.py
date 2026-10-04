@@ -34,9 +34,11 @@ asked to agree to and everything the plug holds it to:
 * `make` - the factory for its code: given the installation's paths, it returns an object whose
   methods are the plug's hooks for its points, each answering as a plug would.
 
-The edition ships three capabilities now: start-with-Codex, at P9 (control/codexstart.py); the
-goal continuation, at P16, P3 and P5 (engine/goal.py); and the marker-free continuation, at P5 and
-P15 (engine/markerfree.py). The tests define one of their own to hold every rule here.
+The edition ships these capabilities now: start-with-Codex, at P9 (control/codexstart.py); the
+goal continuation, at P16, P3 and P5 (engine/goal.py); the marker-free continuation, at P5 and
+P15 (engine/markerfree.py); and, from v0.6.13 (stage 3b), those that take up failures at P17 and
+relax their records at P3: the short retries when Codex is at capacity (engine/capacity.py). The
+tests define one of their own to hold every rule here.
 """
 from __future__ import annotations
 
@@ -47,6 +49,7 @@ from typing import Callable
 from codex_auto_resume.domain.plug import Point
 
 from .control.codexstart import make as make_start_with_codex
+from .engine.capacity import CEILING_HOURS, DEFAULT_HOURS, make as make_capacity_retry
 from .engine.goal import make as make_goal_continuation
 from .engine.markerfree import make as make_marker_free
 from .standards import DEPARTABLE
@@ -303,5 +306,31 @@ GOAL_CONTINUATION = CapabilityDef(
     measurements=(Measurement.M2,),
 )
 
-DEFINITIONS = (START_WITH_CODEX, GOAL_CONTINUATION, MARKER_FREE)
+# Short retries when Codex is at capacity (v0.6.13 stage 3b; the plan's row: serverOverloaded alone,
+# 60 seconds to 5 minutes apart with jitter, a 60-second cooldown, 48 in 24 hours, 1 to 12 hours in
+# all). At P17 it takes up Codex's own
+# `serverOverloaded` with CAPACITY, and at P3 known_failure it answers CAPACITY again for a record it
+# took up, while the task is inside the hours the person chose (one to twelve, two by default), on the
+# clock from its first failure. Core carries CAPACITY out within its own bounds - a minute, two, four
+# and five, lengthened by up to a fifth, a minute apart, 48 a day, twelve hours on the clock
+# (ladder.py) - so it departs from A20 (five a conversation a day, fifteen minutes apart), A21 (the
+# attempt, no-progress and continuation budgets), A22 (waits only from the retry timing) and B9 (it
+# reads Codex's error code, not only a kind). It stands on transient_classification, the history
+# table the failure's kind and code are read from, and rests on no measurement: core sends what it
+# always sends. Its ceilings are core's capacity day, 48 in one conversation and in all, which only
+# A20's departure allows.
+CAPACITY_RETRY = CapabilityDef(
+    id="capacity_retry",
+    points=frozenset({Point.ADMISSION, Point.GATES}),
+    revision=1,
+    departs_from=("A20", "A21", "A22", "B9"),
+    compat="transient_classification",
+    ceilings=Ceilings(per_day=48, per_conversation=48),
+    journal_prefix="cap",
+    make=make_capacity_retry,
+    options=(Option(OptionKey.CEILING_HOURS, CEILING_HOURS, DEFAULT_HOURS),),
+)
+
+# In this order, which is also which answers first where two answer at one point.
+DEFINITIONS = (START_WITH_CODEX, GOAL_CONTINUATION, MARKER_FREE, CAPACITY_RETRY)
 REGISTRY = Registry(DEFINITIONS)
