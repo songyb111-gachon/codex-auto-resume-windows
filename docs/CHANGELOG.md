@@ -1,5 +1,40 @@
 # Changelog
 
+## Next: v0.6.13-beta — The compatibility report, written and sent from the advanced edition's Dashboard
+
+*Not released yet: this entry becomes the release's own when the version is bumped (`## v0.6.13-beta`).*
+
+### The compatibility report
+
+The advanced edition gains a fourth capability, **Compatibility report**, and it is the first that
+is an *action*: it answers at no point of a recovery, sends nothing to Codex and spends nothing - a
+person starts what it does, in the Dashboard's **Advanced features** page. Off until you turn it on
+or watch it, as every capability is.
+
+- **Watched**, it writes the report codex-compat-reporter writes, from this PC's own records - counts,
+  states and times for the version of Codex in use, read read-only, the same records left out - and
+  shows the whole file with its SHA-256, its records, its verdict and its size; *Save the file...*
+  saves it wherever you choose, never over a file. GitHub is asked nothing.
+- **On**, *Check what sending would write* also asks GitHub, through gh - the GitHub CLI you
+  installed, signed in as you - and lists every write: the fork, the branch, the one commit adding
+  exactly that file, and the public pull request. *Send* works only once you have typed `send` in its
+  box, exactly, and sends exactly the file and the writes shown, which it reads again from GitHub
+  first. Without gh, or with gh signed in as someone else, the card shows the four steps to send it on
+  the web instead, with the names to type as text you can select; it opens nothing itself.
+- **A pause stops it.** While recovery is paused nothing is checked or sent; writing and saving
+  still work. A send in progress stops before its next write when the capability is turned off, an
+  administrator's policy forbids it or recovery is paused, and the card shows what was written.
+- **One at a time.** One check or send runs at a time for an installation, whichever Dashboard window
+  started it. Every gh runs in a job that ends with the Dashboard's service, and one that has not
+  answered in two minutes is ended. A send cut off - the window closed, the network lost - shows as
+  lost; checking again reads what is on GitHub, recognises a pull request of that very file as sent
+  already, and sending again is safe.
+- **Departs from** B11, C1, C2, C3, C8, D1, E8, F3 and F6, each named in its statement; it keeps G13
+  - a report grants nothing - and K5. No MCP tool reaches it. The project's check accepts a report the
+  product wrote itself (`reporter.tool` `codex-auto-resume`, product v0.6.13 or later).
+
+[EDITIONS.md](EDITIONS.md) describes it, and [PRIVACY.md](PRIVACY.md) says what it sends to GitHub.
+
 ## v0.6.12 — Another version from the Dashboard, a power action after usage limits, and recovery beside the Codex app's cloud-environment server
 
 [The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.11...v0.6.12)

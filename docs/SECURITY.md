@@ -126,7 +126,9 @@ them `thread/goal/set`, `thread/queue/add` with words this product wrote, and `t
   the advanced edition, under its package's `advanced/src/` - imports a networking module, and a
   test fails if one gains an import of a networking module, so the
   watcher opens no connection of its own. That is a property of the code, checked by that test,
-  not a sandbox. The traffic we know the product causes comes from elsewhere:
+  not a sandbox. The advanced edition's compatibility report reaches GitHub only by starting gh, the
+  GitHub CLI the person installed, when they ask in the Dashboard (*The compatibility report*, under
+  [The advanced edition](#the-advanced-edition)). The traffic we know the product causes comes from elsewhere:
   - The Codex processes it starts ask OpenAI for your current usage (`account/rateLimits/read`)
     while a recovery is due. Codex identifies this tool to OpenAI by the client name and version
     the tool gives it: `codex_auto_resume` and `0.1` in v0.5.7; from v0.6.0, `codex_auto_resume`
@@ -607,6 +609,26 @@ capability, in plain words.
   delivery is proven by that id alone. A send it cannot prove - the app server refuses, does not
   answer, or the item never shows - is held as `submission_unknown`, never sent again, and turns the
   capability off. At most 24 a day, and 5 in one conversation.
+- **The compatibility report.** It departs from B11 (gh reads the person's GitHub sign-in on the
+  product's behalf), C1 and C2 (network work, by delegation, from a second shipped file), C3 (GitHub
+  addresses beyond the two lists of releases), C8 (the person's GitHub identity and gh's User-Agent),
+  D1 (the report's counts go to the project), E8 (a gh that hangs, or outlives the Dashboard's
+  service, is ended), F3 (a file saved where the person chooses) and F6 (gh is not a listed process).
+  It is an action: core never asks it anything, and it sends nothing to Codex. Writing reads this PC's
+  records read-only, as codex-compat-reporter does, and saving never writes over a file. Only while it
+  is on, and recovery is not paused, does it start gh: the gh.exe first in an absolute folder on PATH
+  that is not the current one or the installation's - so whatever gh.exe is there is trusted - by its
+  full path, with an argument list and no shell, without GH_HOST or GH_REPO, prompts off, every API
+  call naming `--hostname github.com` and every pull request `--repo github.com/<the project>`; each
+  gh is started suspended and windowless in a job object that ends it when the Dashboard's service
+  ends, and one that has not answered in two minutes is ended alone. The file goes to gh on its
+  standard input. A send writes only after the word `send`, typed exactly, for the SHA-256 and the
+  writes the person was shown, which it reads again from GitHub first; before every write it looks
+  again at the capability, an administrator's policy and the pause, and stops with what it wrote. One
+  check or send runs at a time for an installation, across processes, under a named mutex of the
+  user's; a holder that died leaves it abandoned, and the next check says so. No MCP tool reaches
+  any of it (`advanced/tests/test_advanced_report.py`,
+  `advanced/tests/test_advanced_report_github.py`).
 - **The goal continuation.** It departs from 0.5 (a goal's state is never changed), A2, A11 (nothing
   is done for a conversation the app does not hold), B3 and B4. For a usage limit only. Where the
   app does not hold the conversation and the limit paused its goal, it sets that existing goal
@@ -628,7 +650,8 @@ method. It answers the approval, permission, input and elicitation requests Code
 seven methods - with the refusal Codex's own schema gives each (a table in the same file), and
 every other request, a token
 refresh, an attestation or a tool call among them, with an error. The advanced edition adds no
-network code: its package imports no networking module either (`tests/test_privacy_claims.py`).
+network code: its package imports no networking module either (`tests/test_privacy_claims.py`). The
+compatibility report reaches GitHub only through gh, above.
 
 **The measurement harness.** The advanced edition's archive also carries `measure` (the advanced
 package's `measure.py`), with which the owner finds out whether a
