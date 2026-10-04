@@ -5,6 +5,10 @@ A capability is a definition here plus its code. The definition says everything 
 asked to agree to and everything the plug holds it to:
 
 * `id` - its closed name, the one every table, surface and journal line uses;
+* `kind` - a ROUTE, which answers at plug points, or an ACTION, which answers at none: core never
+  asks an action, it sends nothing to Codex and spends nothing, so it has no points, stands on no
+  compatibility capability, rests on no measurement and has no ceilings - its own bounds are its
+  code's, and a person in the Dashboard starts each thing it does (vocabulary.CapabilityKind);
 * `points` - the plug points its code answers at (domain/plug.py), and no others;
 * `revision` - the revision of its statement: the five fields in `statement.py`'s catalogs, in
   every language the product has a catalog for. Arming names the revision the person read, and a new revision turns the
@@ -43,7 +47,7 @@ from .control.codexstart import make as make_start_with_codex
 from .engine.goal import make as make_goal_continuation
 from .engine.markerfree import make as make_marker_free
 from .standards import DEPARTABLE
-from .vocabulary import Measurement
+from .vocabulary import CapabilityKind, Measurement
 
 # The one ceiling over every capability together: advanced sends an hour. It is also the highest
 # value a person may set it to - it can be lowered and never raised.
@@ -82,12 +86,13 @@ class CapabilityDef:
     points: frozenset
     revision: int
     departs_from: tuple
-    compat: str
-    ceilings: Ceilings
+    compat: str | None                   # None for an action, which stands on none
+    ceilings: Ceilings | None            # None for an action, which spends nothing
     journal_prefix: str
     make: Callable
     codes: tuple = ()
     measurements: tuple = ()
+    kind: CapabilityKind = CapabilityKind.ROUTE
 
     def code(self, word) -> str | None:
         """`word` as this capability's journal writes it, or None if it is not one of its own."""
@@ -105,8 +110,20 @@ def problems(definition) -> list:
     found = []
     if not isinstance(definition.id, str) or not ID_SHAPE.fullmatch(definition.id):
         found.append("id")
+    if not isinstance(definition.kind, CapabilityKind):
+        found.append("kind")
+    action = definition.kind == CapabilityKind.ACTION
     points = definition.points
-    if (not isinstance(points, frozenset) or not points
+    if action:
+        if points != frozenset():
+            found.append("an action answers at no point")
+        if definition.compat is not None:
+            found.append("an action stands on no compatibility capability")
+        if definition.ceilings is not None:
+            found.append("an action has no ceilings: it spends nothing")
+        if definition.measurements != ():
+            found.append("an action rests on no measurement")
+    elif (not isinstance(points, frozenset) or not points
             or not all(isinstance(point, Point) for point in points)):
         found.append("points")
     elif not points <= CAPABILITY_POINTS:
@@ -119,14 +136,15 @@ def problems(definition) -> list:
     elif (not all(isinstance(standard, str) for standard in departs)
           or len(set(departs)) != len(departs) or not set(departs) <= set(DEPARTABLE)):
         found.append("departs_from names a standard the standard edition does not keep")
-    if not isinstance(definition.compat, str) or not ID_SHAPE.fullmatch(definition.compat):
-        found.append("compat")
-    ceilings = definition.ceilings
-    if (not isinstance(ceilings, Ceilings) or not _count(ceilings.per_day)
-            or not _count(ceilings.per_conversation)
-            or ceilings.per_conversation > min(ceilings.per_day, CORE_DAILY_CAP)
-            or ceilings.per_day > GLOBAL_HOURLY * 24):
-        found.append("ceilings")
+    if not action:
+        if not isinstance(definition.compat, str) or not ID_SHAPE.fullmatch(definition.compat):
+            found.append("compat")
+        ceilings = definition.ceilings
+        if (not isinstance(ceilings, Ceilings) or not _count(ceilings.per_day)
+                or not _count(ceilings.per_conversation)
+                or ceilings.per_conversation > min(ceilings.per_day, CORE_DAILY_CAP)
+                or ceilings.per_day > GLOBAL_HOURLY * 24):
+            found.append("ceilings")
     if not isinstance(definition.journal_prefix, str) or not PREFIX_SHAPE.fullmatch(definition.journal_prefix):
         found.append("journal_prefix")
     codes = definition.codes
@@ -171,8 +189,10 @@ class Registry:
         return self._by_id.get(capability) if isinstance(capability, str) else None
 
     def at(self, point) -> tuple:
-        """The capabilities whose code answers at `point`, in the registry's order."""
-        return tuple(definition for definition in self.definitions if point in definition.points)
+        """The capabilities whose code answers at `point`, in the registry's order. Never an action,
+        which answers at none: core never asks it anything."""
+        return tuple(definition for definition in self.definitions
+                     if definition.kind == CapabilityKind.ROUTE and point in definition.points)
 
     def __iter__(self):
         return iter(self.definitions)

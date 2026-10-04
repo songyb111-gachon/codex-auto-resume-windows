@@ -7,6 +7,7 @@ Run from the repository root:
 from __future__ import annotations
 
 import importlib.util
+import inspect
 import json
 from pathlib import Path
 import re
@@ -23,7 +24,7 @@ from codex_auto_resume.domain.plug import Point  # noqa: E402
 from codex_auto_resume_advanced import registry, standards, statement  # noqa: E402
 from codex_auto_resume_advanced.registry import (CAPABILITY_POINTS, Ceilings, Registry,  # noqa: E402
                                                  RegistryError, problems)
-from codex_auto_resume_advanced.vocabulary import ArmingWarning, Field, Measurement  # noqa: E402
+from codex_auto_resume_advanced.vocabulary import ArmingWarning, CapabilityKind, Field, Measurement  # noqa: E402
 
 # The standards file, public in the repository: each rule a line `**A1** <sentence>`, under its
 # family's heading `## A. <title>`, then the line that says how it is held and which tests hold it.
@@ -213,6 +214,85 @@ class DefinitionTests(unittest.TestCase):
         made = ac.definition()
         self.assertEqual(made.code("woke"), "tw.woke")
         self.assertIsNone(made.code("dreamt"))
+
+
+def action(**changes):
+    """A capability of the tests' own that is an action: it answers at no point, so core never asks
+    it; its code, made only by what a person starts in the Dashboard, fails the test if core makes it."""
+    def make(_paths):
+        raise AssertionError("core asked an action")
+    fields = dict(id="test_report", kind=CapabilityKind.ACTION, points=frozenset(), compat=None, ceilings=None,
+                  measurements=(), journal_prefix="tr", make=make, codes=("built",))
+    fields.update(changes)
+    return ac.definition(**fields)
+
+
+class ActionTests(ac.AdvancedCase):
+    """A capability that is an action (registry.py `kind`): no point, no compatibility capability,
+    no measurement and no ceilings. Core never asks it and nothing is spent for it; it is turned on
+    and off as every capability is."""
+
+    def setUp(self):
+        super().setUp()
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.catalogs = ac.catalogs(folder.name, ac.definition(), action())
+
+    def test_an_action_answers_at_no_point_and_keeps_every_other_rule(self):
+        self.assertEqual(problems(action()), [])
+        self.assertEqual(ac.definition().kind, CapabilityKind.ROUTE, "a route unless it says otherwise")
+        made = Registry((ac.definition(), action()))
+        self.assertEqual(made.ids, ("test_wake", "test_report"))
+        for point in Point:
+            with self.subTest(point):
+                self.assertNotIn("test_report", [definition.id for definition in made.at(point)])
+
+    def test_an_action_with_a_point_a_compat_ceilings_or_a_measurement_is_refused(self):
+        cases = {"an action answers at no point": dict(points=frozenset({Point.TEXT})),
+                 "an action stands on no compatibility capability": dict(compat=ac.COMPAT),
+                 "an action has no ceilings: it spends nothing": dict(ceilings=Ceilings(per_day=1, per_conversation=1)),
+                 "an action rests on no measurement": dict(measurements=(Measurement.M1,))}
+        for rule, change in cases.items():
+            with self.subTest(rule):
+                self.assertEqual(problems(action(**change)), [rule])
+                with self.assertRaises(RegistryError):
+                    Registry((action(**change),))
+        self.assertIn("kind", problems(action(kind="action")), "the word itself, not its spelling")
+
+    def test_a_route_still_needs_points_a_compat_and_ceilings(self):
+        self.assertIn("points", problems(ac.definition(points=frozenset())))
+        self.assertIn("compat", problems(ac.definition(compat=None)))
+        self.assertIn("ceilings", problems(ac.definition(ceilings=None)))
+
+    def test_core_never_asks_an_action_and_nothing_is_spent_for_it(self):
+        runtime = self.runtime(action())
+        self.assertTrue(self.arm(runtime, "test_report")["done"])
+        self.assertEqual(runtime.states(fresh=True)["test_report"], "armed")
+        from codex_auto_resume.domain import plug as core
+        for point in core.Point:
+            hook = getattr(core.Plug, core.HOOKS[point])
+            arguments = [object() for _ in list(inspect.signature(hook).parameters)[1:]]
+            with self.subTest(point):
+                self.assertIs(runtime.ask(point, *arguments), getattr(core.NULL, core.HOOKS[point])(*arguments))
+        self.assertEqual(runtime._code, {}, "its code was never made")
+        self.assertEqual(runtime.state.spent("test_report", ac.THREAD),
+                         {"capability_day": 0, "conversation_day": 0, "global_hour": 0})
+
+    def test_a_surface_shows_an_action_with_no_ceilings_no_compat_and_nothing_sent(self):
+        runtime = self.runtime(ac.definition(), action())
+        route, report = runtime.arming.listing()["capabilities"]
+        self.assertEqual((route["kind"], report["kind"]), ("route", "action"))
+        self.assertEqual((report["ceilings"], report["compat"], report["points"], report["sends"]),
+                         (None, None, [], False))
+        self.assertEqual(route["ceilings"], {"per_day": 3, "per_conversation": 2})
+
+    def test_an_action_has_no_compatibility_warning_whatever_codex_says(self):
+        from codex_auto_resume_advanced import arming
+        for view in (ac.view("FAILED_HERE"), ac.view("INCOMPATIBLE"), {}, None):
+            with self.subTest(view=view):
+                self.assertIsNone(arming.compat_warning(view, action()))
+        self.assertEqual(arming.warnings_for(action(), ac.view()), ())
+        self.assertEqual(arming.warnings_for(action(), {}), (ArmingWarning.ENGINE_UNKNOWN,))
 
 
 class StandardsTests(unittest.TestCase):

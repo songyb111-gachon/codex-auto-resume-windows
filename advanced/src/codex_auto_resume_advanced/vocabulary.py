@@ -14,6 +14,15 @@ from __future__ import annotations
 from enum import StrEnum
 
 
+class CapabilityKind(StrEnum):
+    """What a capability is. A ROUTE answers at plug points: core asks it, and what it changes core
+    carries out, under its ceilings. An ACTION answers at no point: core never asks it, it sends
+    nothing to Codex and spends no unit, and only a person, in the Dashboard, starts what it does
+    (a compatibility report, written and sent only when they say so)."""
+    ROUTE = "route"
+    ACTION = "action"
+
+
 class ArmingState(StrEnum):
     """Where one capability stands. OFF is where every capability starts, and the only state
     anything but a person in the Dashboard can move one to."""

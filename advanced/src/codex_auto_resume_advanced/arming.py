@@ -88,7 +88,10 @@ def engine_version(view):
 
 def compat_warning(view, definition):
     """The warning the Compatibility Registry's view gives for what `definition` stands on, or
-    None for a grade of COMPATIBLE or better. A view that cannot be read is UNKNOWN."""
+    None for a grade of COMPATIBLE or better. A view that cannot be read is UNKNOWN. An action
+    stands on nothing of Codex's, so it has none: a failing Codex is no reason to withhold it."""
+    if definition.compat is None:
+        return None
     capabilities = view.get("capabilities") if isinstance(view, dict) else None
     entry = capabilities.get(definition.compat) if isinstance(capabilities, dict) else None
     state = entry.get("state") if isinstance(entry, dict) else UNKNOWN
@@ -525,6 +528,7 @@ class Arming:
                 "acknowledged_version": row.get("engine_version"),
                 "warnings": [str(word) for word in self.warnings(definition, view)],
                 "confirmed_warnings": [str(word) for word in row.get("warnings") or ()],
+                "kind": str(definition.kind),
                 "departs_from": list(definition.departs_from), "compat": definition.compat,
                 "measurements": [str(measurement) for measurement in definition.measurements],
                 "points": sorted(str(point) for point in definition.points),
@@ -532,8 +536,10 @@ class Arming:
                 # ever bind. A capability that only starts, or only shadows, spends no unit; a
                 # surface shows its ceilings as nominal rather than as a limit that will be met.
                 "sends": bool(definition.points & SENDING_POINTS),
-                "ceilings": {"per_day": definition.ceilings.per_day,
-                             "per_conversation": definition.ceilings.per_conversation}})
+                # An action has none: it sends nothing to Codex, so there is no limit to show.
+                "ceilings": None if definition.ceilings is None else
+                {"per_day": definition.ceilings.per_day,
+                 "per_conversation": definition.ceilings.per_conversation}})
         return {"generation": meta["generation"], "global_hourly": meta["global_hourly"],
                 "global_hourly_default": GLOBAL_HOURLY, "engine_version": engine_version(view),
                 "policy": policy.as_json(), "on": sum(item["state"] == ArmingState.ARMED for item in shown),
