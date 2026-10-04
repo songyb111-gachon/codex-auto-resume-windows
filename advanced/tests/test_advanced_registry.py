@@ -47,7 +47,7 @@ CHANGES = frozenset({"thread/queue/add", "thread/goal/set"})
 
 class ShippedTests(unittest.TestCase):
     SHIPPED = ("start_with_codex", "goal_continuation", "marker_free_continuation", "capacity_retry",
-               "structured_rules", "unknown_failure_budget")
+               "structured_rules", "unknown_failure_budget", "codex_gave_up")
 
     def test_the_registry_this_edition_ships_is_its_capabilities_in_their_order(self):
         self.assertEqual([d.id for d in registry.DEFINITIONS], list(self.SHIPPED))
@@ -62,8 +62,9 @@ class ShippedTests(unittest.TestCase):
         answering = {Point.START_ROUTE: ("start_with_codex",),
                      Point.UNLOADED: ("goal_continuation",),
                      Point.GATES: ("goal_continuation", "capacity_retry", "structured_rules",
-                                   "unknown_failure_budget"),
-                     Point.ADMISSION: ("capacity_retry", "structured_rules", "unknown_failure_budget"),
+                                   "unknown_failure_budget", "codex_gave_up"),
+                     Point.ADMISSION: ("capacity_retry", "structured_rules", "unknown_failure_budget",
+                                       "codex_gave_up"),
                      Point.SENDER: ("goal_continuation", "marker_free_continuation"),
                      Point.DELIVERY: ("marker_free_continuation",)}
         for point in Point:
@@ -173,6 +174,16 @@ class ShippedTests(unittest.TestCase):
                          ["unknown_failure_budget"])
         ids = registry.REGISTRY.ids
         self.assertLess(ids.index("structured_rules"), ids.index("unknown_failure_budget"), "rules come first")
+
+    def test_the_retries_when_codex_gave_up_depart_and_rest_on_what_the_design_says(self):
+        """A14 (Codex giving up without a 429 is never retried), A26 and B9; two a conversation, a
+        dozen a day; no choice, no rules, no samples."""
+        gave_up = registry.REGISTRY.get("codex_gave_up")
+        self.assertEqual(gave_up.departs_from, ("A14", "A26", "B9"))
+        self.assertEqual((gave_up.compat, gave_up.measurements, gave_up.revision), ("transient_classification", (), 1))
+        self.assertEqual(gave_up.points, frozenset({Point.ADMISSION, Point.GATES}))
+        self.assertEqual((gave_up.ceilings.per_day, gave_up.ceilings.per_conversation), (12, 2))
+        self.assertEqual((gave_up.options, gave_up.rules_editor, gave_up.samples, gave_up.codes), ((), False, False, ()))
 
     def test_start_with_codex_departs_and_rests_on_what_the_plan_says(self):
         swc = registry.REGISTRY.get("start_with_codex")

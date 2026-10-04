@@ -38,7 +38,8 @@ The edition ships these capabilities now: start-with-Codex, at P9 (control/codex
 goal continuation, at P16, P3 and P5 (engine/goal.py); the marker-free continuation, at P5 and
 P15 (engine/markerfree.py); and, from v0.6.13 (stage 3b), those that take up failures at P17 and
 relax their records at P3: the short retries when Codex is at capacity (engine/capacity.py), the
-rules for Codex's error codes and the retries of failures nothing classified (engine/admitted.py).
+rules for Codex's error codes, the retries of failures nothing classified and of Codex giving up
+(engine/admitted.py).
 The tests define one of their own to hold every rule here.
 """
 from __future__ import annotations
@@ -50,7 +51,7 @@ from typing import Callable
 from codex_auto_resume.domain.plug import Point
 
 from .control.codexstart import make as make_start_with_codex
-from .engine.admitted import (ATTEMPTS, DEFAULT_ATTEMPTS, make_structured_rules,
+from .engine.admitted import (ATTEMPTS, DEFAULT_ATTEMPTS, make_codex_gave_up, make_structured_rules,
                               make_unknown_failure_budget)
 from .engine.capacity import CEILING_HOURS, DEFAULT_HOURS, make as make_capacity_retry
 from .engine.goal import make as make_goal_continuation
@@ -382,7 +383,25 @@ UNKNOWN_FAILURE_BUDGET = CapabilityDef(
     samples=True,
 )
 
+# Retry when Codex gave up (v0.6.13 stage 3b; the plan's row: responseTooManyFailedAttempts with a
+# 5xx or no status, retried with a first wait of five minutes or more, twice at most). At P17 it takes
+# up with ADMIT what core offers - Codex's responseTooManyFailedAttempts on a server error or none, a
+# 429 being a rate limit core recovers already - while the task it continues has had fewer than two
+# continuations, and at known_failure ADMIT again. Core waits ten minutes, then 15 (ladder.py). It
+# departs from A14 (Codex giving up without a 429 is never retried), A26 and B9 (it reads Codex's code
+# and status), and stands on transient_classification. Ceilings: two a conversation, a dozen a day.
+CODEX_GAVE_UP = CapabilityDef(
+    id="codex_gave_up",
+    points=frozenset({Point.ADMISSION, Point.GATES}),
+    revision=1,
+    departs_from=("A14", "A26", "B9"),
+    compat="transient_classification",
+    ceilings=Ceilings(per_day=12, per_conversation=2),
+    journal_prefix="gup",
+    make=make_codex_gave_up,
+)
+
 # In this order, which is also which answers first where two answer at one point.
 DEFINITIONS = (START_WITH_CODEX, GOAL_CONTINUATION, MARKER_FREE, CAPACITY_RETRY, STRUCTURED_RULES,
-               UNKNOWN_FAILURE_BUDGET)
+               UNKNOWN_FAILURE_BUDGET, CODEX_GAVE_UP)
 REGISTRY = Registry(DEFINITIONS)

@@ -15,6 +15,9 @@ with its marker, through core's one claim, which pays a unit of the capability's
     UnknownFailureBudget  a failure nothing classified, on a budget of its own (ADMIT), each one it
                       takes up leaving a sample: Codex's code, a status, the error's form, the items
                       the turn left, its times - never a word
+    CodexGaveUp       Codex giving up after its own retries (responseTooManyFailedAttempts) on a
+                      server error or none, taken up twice a task at most (ADMIT); on a 429 the
+                      standard edition retries it already, and core offers nothing else
 
 A capability here never reads a word of an error, and core never hands it one.
 """
@@ -179,3 +182,37 @@ class UnknownFailureBudget(_Taking):
 def make_unknown_failure_budget(paths) -> UnknownFailureBudget:
     """The capability's factory (registry.CapabilityDef.make): its code for one installation."""
     return UnknownFailureBudget(paths)
+
+
+GAVE_UP = "terminal_failure"
+# How many continuations a task of Codex giving up gets at most.
+GAVE_UP_TRIES = 2
+
+
+class CodexGaveUp(_Taking):
+    """Retry when Codex gave up: P17 and P3. Core offers ADMIT for `terminal_failure` only when Codex's
+    code is responseTooManyFailedAttempts with a server error's status or none (failures.admits), so
+    rollback, sandbox and not-steerable failures never reach it; and it waits ten minutes, then 15."""
+    __slots__ = ()
+
+    def admission(self, failure):
+        """ADMIT while the task it continues has had fewer than two continuations."""
+        if failure.get("category") != GAVE_UP:
+            return DEFER
+        chain = failure.get("chain")
+        if chain is not None:
+            attempts = chain.get("recovery_attempts") if isinstance(chain, dict) else None
+            if type(attempts) is not int or attempts >= GAVE_UP_TRIES:
+                return DEFER
+        return Alternative.ADMIT
+
+    def gate(self, name, record, facts):
+        """At known_failure, ADMIT again for what it took up (the runtime holds it to its own)."""
+        if name != KNOWN_FAILURE or record.get("category") != GAVE_UP:
+            return DEFER
+        return Alternative.ADMIT
+
+
+def make_codex_gave_up(paths) -> CodexGaveUp:
+    """The capability's factory (registry.CapabilityDef.make): its code for one installation."""
+    return CodexGaveUp(paths)
