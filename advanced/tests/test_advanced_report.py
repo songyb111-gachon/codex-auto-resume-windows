@@ -300,6 +300,7 @@ class SendTests(ReportCase):
         self.gh.fork = "fork"
         self.assertEqual(self.finished(self.send(built, checked))["refusal"], "changed")
         self.assertEqual(self.gh.writes(), [])
+        self.assertFalse((self.paths.advanced_dir / flow.SENDING).exists(), "nothing was written: no mark")
 
     def test_a_report_written_but_never_checked_cannot_be_sent(self):
         self.turn("armed")
@@ -381,6 +382,7 @@ class StoppedTests(ReportCase):
         self.assertEqual(status["written"], [{"kind": "fork_new", "name": "%s/%s" % (LOGIN, github.NAME)}])
         self.assertEqual(status["refusal"], code)
         self.assertEqual(self.gh.writes(), [("POST", "repos/%s/forks" % github.REPOSITORY)], "nothing after the stop")
+        self.assertFalse((self.paths.advanced_dir / flow.SENDING).exists(), "its status tells it: no mark")
         calls = len(self.gh.calls)
         with mock.patch.object(sqlite3, "connect", side_effect=AssertionError("a file was opened")), \
                 mock.patch.object(records, "paused", side_effect=AssertionError("the pause was read")):
@@ -449,6 +451,43 @@ lock.__enter__()
 print("held", flush=True)
 sys.stdin.read()
 """
+# The Dashboard's only service, sending: its own Flow of the same home, checking and sending through ghfake,
+# ends the moment the file would be put - as when the window closes or reopens, or a call passes thirty
+# seconds. No other process has the report mutex open meanwhile, so Windows does not hand it on.
+CUT_OFF = """
+import hashlib, json, os, sys, time
+sys.path[:0] = sys.argv[1:4]
+from codex_auto_resume import config
+from codex_auto_resume_advanced import policy, registry
+from codex_auto_resume_advanced.report import flow
+from codex_auto_resume_advanced.vocabulary import ArmingState, BridgeCommand
+import ghfake
+class Arming:
+    def policy(self): return policy.NONE
+    def trip(self, *_a): pass
+class State:
+    def arming(self): return {}
+    def note(self, *_a, **_k): pass
+class Runtime:
+    arming, state = Arming(), State()
+    def states(self, fresh): return {registry.COMPAT_REPORT.id: ArmingState.ARMED}
+gh = ghfake.FakeGh()
+answer = gh.answer
+def answering(words):
+    if "PUT" in words:
+        os._exit(7)
+    return answer(words)
+gh.answer = answering
+made = flow.Flow(config.Paths(sys.argv[4]), runner=gh, find_gh=lambda: sys.argv[5], sleep=lambda _s: None)
+raw = sys.argv[6].encode("ascii")
+sha = hashlib.sha256(raw).hexdigest()
+made._builds[sha] = flow.Build(raw=raw, document=json.loads(raw), login=ghfake.LOGIN, sha256=sha)
+runtime, definition = Runtime(), registry.COMPAT_REPORT
+checked = made.wait(made.answer(runtime, definition, BridgeCommand.ADVANCED_REPORT_CHECK, {"sha256": sha})["job"])
+made.answer(runtime, definition, BridgeCommand.ADVANCED_REPORT_SEND,
+            {"sha256": sha, "writes": checked["writes"], "word": "send"})
+time.sleep(60)
+"""
 
 
 @unittest.skipUnless(os.name == "nt", "the report mutex is Windows'")
@@ -477,6 +516,47 @@ class MutexTests(ReportCase):
         self.assertEqual((checked["status"], checked["interrupted"]), ("checked", True))
         self.assertIn("rpt.lost", [line["code"] for line in self.runtime.state.journal(capability=REPORT)])
         self.assertFalse(self.checked(built)["interrupted"], "said once, by the check that found it")
+
+    def test_a_send_whose_only_service_ended_part_way_is_told_by_the_next_check(self):
+        """The one window's service ends mid-send: no process kept the report mutex open, so Windows makes
+        the next service a new one and hands nothing on as abandoned. The send's mark tells it instead."""
+        self.turn("armed")
+        built = self.written()                             # writing takes no mutex: this process never opened it
+        mark = self.paths.advanced_dir / flow.SENDING
+        cut = subprocess.run([sys.executable, "-c", CUT_OFF, str(fixtures.ROOT / "advanced" / "src"),
+                              str(fixtures.ROOT / "src"), str(HERE), str(self.paths.home), EXE, built["text"]],
+                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                             env=dict(os.environ), creationflags=NO_WINDOW, timeout=120)
+        self.assertEqual(cut.returncode, 7, "the send did not reach its file: %s" % cut.stderr[-2000:])
+        self.assertTrue(mark.exists(), "a send that ended writing left no mark")
+        checked = self.checked(built)
+        self.assertEqual((checked["status"], checked["interrupted"]), ("checked", True))
+        self.assertIn("rpt.lost", [line["code"] for line in self.runtime.state.journal(capability=REPORT)])
+        self.assertFalse(mark.exists(), "the check that told it took the mark away")
+        self.assertFalse(self.checked(built)["interrupted"], "said once, by the check that found it")
+
+    def test_a_send_that_ends_here_leaves_no_mark_whatever_came_of_it(self):
+        self.turn("armed")
+        built = self.written()
+        mark = self.paths.advanced_dir / flow.SENDING
+        seen = []
+        answer = self.gh.answer
+
+        def watching(words):
+            if words[:1] == ["api"] and "PUT" in words:
+                seen.append(mark.exists())
+            return answer(words)
+        self.gh.answer = watching
+        self.assertEqual(self.finished(self.send(built, self.checked(built)))["status"], "sent")
+        self.assertEqual(seen, [True], "the mark is there while it writes")
+        self.assertFalse(mark.exists())
+        self.assertFalse(self.checked(built)["interrupted"])
+        self.gh = FakeGh(fail=("PUT",))                    # GitHub refuses the file after the fork and the branch
+        partial = self.finished(self.send(built, self.checked(built)))
+        self.assertEqual((partial["status"], [write["kind"] for write in partial["written"]]),
+                         ("partial", ["fork_new", "branch_new"]))
+        self.assertFalse(mark.exists(), "a send stopped part way here says so itself")
+        self.assertFalse(self.checked(built)["interrupted"])
 
     def test_one_job_at_a_time_in_this_process(self):
         self.turn("armed")

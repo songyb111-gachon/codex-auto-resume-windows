@@ -16,15 +16,22 @@ and the writes the person read.
 
 One check or send runs at a time for each home, across every Dashboard window and process: its thread
 holds the home's report mutex (ReportMutex) from its first question to GitHub to its last write, so the
-re-check a send starts with and the writes it makes are one step. A holder that died leaves the mutex
-abandoned, and the next check here says so (`interrupted`): what is on GitHub then is what that check
-reads, whatever the mutex could tell.
+re-check a send starts with and the writes it makes are one step.
+
+A send that ends part way with nothing left to say so - its process ended while it wrote: the window
+closed or reopened, or a call passed thirty seconds - is told by the next check here (`interrupted`).
+The send leaves a mark beside the mutex's name (SENDING, an empty file in config/advanced) from just
+before its first write until it ends, and the check that finds it takes it away. Windows hands the
+mutex on abandoned only while another process has it open, so the mutex alone tells this only with a
+second window; that, too, is still `interrupted`. What is on GitHub then is what that check reads,
+whatever the mark or the mutex could tell.
 
 A send asks GitHub again first and writes nothing unless what sending would write is still exactly
 what the person read; before every write it reads again where the capability stands, the policy and
 the pause, and stops with what it had written. Only the word `send`, exactly, sends.
 
-What a report holds, its bytes and every status are kept in this process's memory and nowhere else;
+What a report holds, its bytes and every status are kept in this process's memory and nowhere else -
+the mark holds none of them, only that a send was writing;
 the journal gets one closed code a step (`rpt.<code>`) and is never read to decide anything. A fault
 of this code - anything but a refusal - turns the capability off (hook_exception).
 """
@@ -35,6 +42,7 @@ import ctypes
 from ctypes import wintypes
 from dataclasses import dataclass
 import hashlib
+import os
 from pathlib import Path
 import secrets
 import threading
@@ -49,6 +57,7 @@ MAX_BUILDS = 4                                   # reports kept to be saved, che
 MAX_JOBS = 16                                    # statuses kept to be read
 START_SECONDS = 10.0                             # how long a command waits for its job to take the mutex
 MUTEX_NAME = "compat-report"
+SENDING = "compat-report.sending"                # in config/advanced while a send is writing (the mark above)
 
 
 class Stopped(Exception):
@@ -81,8 +90,8 @@ class ReportMutex:
     Named as core names every mutex of the product (win.sync.Mutex: per user and per path, in the
     session's namespace) and refused if a lower-integrity process made it first. Its handle is opened
     once and kept for the life of this process, so that when another process dies holding it, the
-    object outlives it - Windows hands it on as abandoned, and the next check here is told so; a mutex
-    nobody else had open would be gone instead, and a crash would leave no trace but GitHub's."""
+    object outlives it - Windows hands it on as abandoned, and the next check here is told so. A mutex
+    nobody else had open is gone with its holder instead: a send's mark (SENDING) tells that one."""
 
     def __init__(self, paths):
         from codex_auto_resume.win.sync import Mutex
@@ -281,8 +290,31 @@ class Flow:
         return github.inspect(build.raw, build.document, build.login, exe=self._gh(), cwd=self.paths.advanced_dir,
                               runner=self.runner, sleep=self.sleep)
 
+    # ------------------------------------------------------------------ the mark of a send writing
+    def _mark(self) -> None:
+        """Leaves the mark that a send is writing; one a send before left is kept as it is. Never
+        through a link: the file is made new, or is there already. A mark that cannot be made leaves
+        the mutex alone to tell (a second window's), and the send goes on."""
+        try:
+            with open(self.paths.advanced_dir / SENDING, "xb"):
+                pass
+        except OSError:
+            pass
+
+    def _marked(self) -> bool:
+        return os.path.lexists(self.paths.advanced_dir / SENDING)
+
+    def _unmark(self) -> None:
+        try:
+            os.unlink(self.paths.advanced_dir / SENDING)
+        except OSError:
+            pass
+
     def _check(self, runtime, definition, build, context) -> dict:
-        if context["abandoned"]:
+        # Read under the mutex, so a send under way in another window is never taken for a cut-off one.
+        cut_off = self._marked()
+        interrupted = context["abandoned"] or cut_off
+        if interrupted:
             self._note(runtime, definition, "lost")
         try:
             found = self._inspect(build)
@@ -290,6 +322,8 @@ class Flow:
             return self._refused(runtime, definition, refusal.code)
         if isinstance(found, github.Web):
             return self._web(build, found)
+        if cut_off:
+            self._unmark()                       # told now, by the status the person is shown
         if isinstance(found, github.Sent):
             self._note(runtime, definition, "sent")
             return {"status": str(ReportStatus.SENT), "url": found.url, "already": True}
@@ -298,7 +332,7 @@ class Flow:
             self._checked[build.sha256] = writes
         self._note(runtime, definition, "checked")
         return {"status": str(ReportStatus.CHECKED), "gh": found.exe, "who": found.who, "writes": writes,
-                "interrupted": context["abandoned"]}
+                "interrupted": interrupted}
 
     def _web(self, build, found) -> dict:
         target, branch = github.destination(build.document["codex_version"], build.login)
@@ -317,11 +351,15 @@ class Flow:
         if not isinstance(found, github.Ready) or found.writes() != shown:
             return self._refused(runtime, definition, ReportRefusal.CHANGED)
         context["written"] = found.written
+        marked = []
 
         def before():
             why = self.standing(runtime, definition, sending=True) or self.pause()
             if why is not None:
                 raise Stopped(why)
+            if not marked:                       # just before the first write: from here it can end part way
+                self._mark()
+                marked.append(True)
         try:
             url = github.publish(found, build.raw, build.document, before=before, runner=self.runner,
                                  sleep=self.sleep)
@@ -330,6 +368,9 @@ class Flow:
                 return self._refused(runtime, definition, refusal.code)
             self._note(runtime, definition, "partial")
             return {"status": str(ReportStatus.PARTIAL), "written": list(found.written), "refusal": str(refusal.code)}
+        finally:
+            if marked:                           # it ended here, whatever came of it: its status says so
+                self._unmark()
         self._note(runtime, definition, "sent")
         return {"status": str(ReportStatus.SENT), "url": url, "already": False}
 
