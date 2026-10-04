@@ -80,6 +80,18 @@ class FindingTests(unittest.TestCase):
             self.assertIsNone(github.find_gh(os.pathsep.join([".", str(here), str(app)]), unsafe=(home,)))
         self.assertIsNone(github.find_gh(""))
 
+    def test_a_folder_under_the_current_one_is_any_other_folder_as_the_reporter_reads_it(self):
+        """The Dashboard started from a terminal in the person's profile: scoop's shims under it are where
+        gh is, as codex-compat-reporter's find_gh finds it. Under the installation's home, still never."""
+        profile, home = self.root / "profile", self.root / "home"
+        shims = self.folder("profile/scoop/shims")
+        inside = self.folder("home/tools")
+        (profile / "gh.exe").write_bytes(b"MZ")
+        with mock.patch("pathlib.Path.cwd", return_value=profile):
+            self.assertEqual(github.find_gh(os.pathsep.join([str(profile), str(shims)]), unsafe=(home,)),
+                             str(shims / "gh.exe"))
+            self.assertIsNone(github.find_gh(os.pathsep.join([str(profile), str(inside)]), unsafe=(home,)))
+
     def test_gh_runs_without_gh_host_or_gh_repo_and_never_prompts(self):
         with mock.patch.dict(os.environ, {"GH_HOST": "elsewhere.example", "GH_REPO": "someone/else"}):
             found = github.environment()

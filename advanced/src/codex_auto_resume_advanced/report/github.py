@@ -83,16 +83,25 @@ def _inside(folder: Path, place: Path) -> bool:
     return folder == place or place in folder.parents
 
 
+def _same(folder: Path, place: Path) -> bool:
+    try:
+        return folder.resolve() == place.resolve()
+    except OSError:
+        return False
+
+
 def find_gh(path=None, *, unsafe=()):
-    """gh.exe from an absolute PATH entry, or None. Never `.`, a relative entry, the current folder,
-    or one of `unsafe` - the installation's home and everything in it - however PATH spells them."""
-    places = [Path.cwd(), *[Path(place) for place in unsafe]]
+    """gh.exe from an absolute PATH entry, or None. Never `.`, a relative entry, the current folder
+    itself - as the reporter's find_gh, a folder under it is any other folder - or one of `unsafe`,
+    the installation's home and everything in it, however PATH spells them."""
+    here = Path.cwd()
+    places = [Path(place) for place in unsafe]
     for entry in (os.environ.get("PATH", "") if path is None else path).split(os.pathsep):
         entry = entry.strip().strip('"')
         if not entry or entry == "." or not Path(entry).is_absolute():
             continue
         folder = Path(entry)
-        if any(_inside(folder, place) for place in places):
+        if _same(folder, here) or any(_inside(folder, place) for place in places):
             continue
         candidate = folder / "gh.exe"
         try:
