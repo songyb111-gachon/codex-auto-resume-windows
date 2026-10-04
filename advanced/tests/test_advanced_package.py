@@ -103,6 +103,13 @@ class NeutralTests(unittest.TestCase):
                  and node.func.attr == "send"]
         self.assertEqual(sends, [])
 
+    def test_only_the_report_s_github_module_names_gh(self):
+        """The compatibility report reaches GitHub through gh, the GitHub CLI the person installed, and one
+        module finds it, starts it and talks to it: no other names it, so no other can start it."""
+        naming = sorted(path.relative_to(PACKAGE_DIR).as_posix() for path in PACKAGE_DIR.rglob("*.py")
+                        if re.search(r"\bgh\.exe\b|[\"']gh[\"']", path.read_text(encoding="utf-8")))
+        self.assertEqual(naming, ["report/github.py"])
+
     def test_entering_the_edition_where_nothing_was_ever_on_writes_nothing(self):
         """Every capability is turned off on entry (advanced/tests/test_advanced_arming.py); where
         no advanced state was ever written, there is nothing to turn off."""

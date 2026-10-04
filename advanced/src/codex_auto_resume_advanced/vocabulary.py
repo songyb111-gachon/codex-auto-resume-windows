@@ -235,6 +235,63 @@ NOTE_FOR_PASS = frozenset({NoteCode.AS_EXPECTED})
 NOTE_FOR_FAIL = frozenset(NoteCode) - NOTE_FOR_PASS
 
 
+class ReportRefusal(StrEnum):
+    """Why the compatibility report did not do what the Dashboard asked (report/). The first ten are
+    the reader's (report/records.ReadRefusal), the next four the file's (report/document.
+    DocumentRefusal); the rest are the flow's, the save's and GitHub's, through gh. A word, never an
+    id, a path, a login or text."""
+    NO_STATE = "no_state"
+    STATE_NEWER = "state_newer"
+    STATE_OLDER = "state_older"
+    STATE_UNREADABLE = "state_unreadable"
+    STATE_BUSY = "state_busy"
+    LEDGER_NEWER = "ledger_newer"
+    LEDGER_UNREADABLE = "ledger_unreadable"
+    NO_ENGINE_VERSION = "no_engine_version"
+    VERSION_INVALID = "version_invalid"
+    TOO_MANY_RECORDS = "too_many_records"
+    LOGIN_INVALID = "login_invalid"
+    LOGIN_RESERVED = "login_reserved"
+    LOGIN_OWNER = "login_owner"
+    TOO_LARGE = "too_large"
+    NOT_ON = "not_on"                        # off: nothing of it may be done
+    WATCHED = "watched"                      # watched: written, read and saved, never checked or sent
+    PAUSED = "paused"                        # recovery is paused: nothing is checked or sent (K5)
+    BUSY = "busy"                            # a report is being checked or sent, here or in another window
+    UNKNOWN_BUILD = "unknown_build"          # no report this process wrote has that SHA-256
+    CHANGED = "changed"                      # what sending would write is not what the person read
+    WORD = "word"                            # the word typed was not exactly send
+    FILE_EXISTS = "file_exists"
+    SAVE_FAILED = "save_failed"
+    GH_FAILED = "gh_failed"                  # gh could not be started, or GitHub refused a step
+    GH_TIMEOUT = "gh_timeout"                # gh did not answer in time, and was ended
+    GH_SPELLING = "gh_spelling"              # GitHub spells the login in other letters
+    NOT_OPEN = "not_open"                    # the project is not taking reports yet
+    ALREADY_FILED = "already_filed"
+    PR_OPEN = "pr_open"                      # another report pull request of that login is open
+    FORK_NAMED_OTHERWISE = "fork_named_otherwise"
+    FORK_NOT_READY = "fork_not_ready"
+    BASE_INVALID = "base_invalid"            # GitHub did not answer with the project's main as a commit
+
+
+class ReportWrite(StrEnum):
+    """One write sending a report makes to GitHub, in the order it makes them; each is shown, with its
+    name, before the person types send, and the send makes exactly those."""
+    FORK_NEW = "fork_new"
+    FORK_KEPT = "fork_kept"
+    BRANCH_NEW = "branch_new"
+    BRANCH_RESET = "branch_reset"
+    FILE = "file"
+    PR = "pr"
+
+
+class WebReason(StrEnum):
+    """Why a report has to be sent on the web: gh cannot send it from this PC."""
+    NO_GH = "no_gh"
+    GH_SIGNED_OUT = "gh_signed_out"
+    GH_OTHER_LOGIN = "gh_other_login"
+
+
 class McpTool(StrEnum):
     """The MCP tools this edition adds (P10). They read, or turn off; none turns anything on."""
     LIST_ADVANCED_CAPABILITIES = "list_advanced_capabilities"
