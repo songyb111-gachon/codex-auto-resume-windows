@@ -37,9 +37,9 @@ asked to agree to and everything the plug holds it to:
 The edition ships these capabilities now: start-with-Codex, at P9 (control/codexstart.py); the
 goal continuation, at P16, P3 and P5 (engine/goal.py); the marker-free continuation, at P5 and
 P15 (engine/markerfree.py); and, from v0.6.13 (stage 3b), those that take up failures at P17 and
-relax their records at P3: the short retries when Codex is at capacity (engine/capacity.py) and the
-rules for Codex's error codes (engine/admitted.py). The tests define one of their own to hold every
-rule here.
+relax their records at P3: the short retries when Codex is at capacity (engine/capacity.py), the
+rules for Codex's error codes and the retries of failures nothing classified (engine/admitted.py).
+The tests define one of their own to hold every rule here.
 """
 from __future__ import annotations
 
@@ -50,7 +50,8 @@ from typing import Callable
 from codex_auto_resume.domain.plug import Point
 
 from .control.codexstart import make as make_start_with_codex
-from .engine.admitted import make_structured_rules
+from .engine.admitted import (ATTEMPTS, DEFAULT_ATTEMPTS, make_structured_rules,
+                              make_unknown_failure_budget)
 from .engine.capacity import CEILING_HOURS, DEFAULT_HOURS, make as make_capacity_retry
 from .engine.goal import make as make_goal_continuation
 from .engine.markerfree import make as make_marker_free
@@ -357,6 +358,31 @@ STRUCTURED_RULES = CapabilityDef(
     rules_editor=True,
 )
 
+# Retry failures it cannot name (v0.6.13 stage 3b; the plan's row: a failure nothing classified
+# retried on its own budget, one to three times, three a conversation in 24 hours, with a sample of
+# no words - Codex's code, the status number, item counts and times only). At P17 it takes up with
+# ADMIT a failure nothing classified - core offers it only for a code of Codex's that names no
+# decision - while its task has tries left (Option attempts, one by default), after the rules, which
+# come first; at known_failure ADMIT again. Core waits ten minutes, then 15 and 30
+# (ladder.ADMITTED_WAITS), and its own no-progress and chain budgets still bind. The first time core
+# goes on with one it keeps a sample (state/choices.py; `sampled`). It departs from 0.5, A13, A14,
+# A26 and B9 as the rules do, and from D2 too: a sample keeps a code Codex chose. Ceilings: three a
+# conversation, a dozen a day.
+UNKNOWN_FAILURE_BUDGET = CapabilityDef(
+    id="unknown_failure_budget",
+    points=frozenset({Point.ADMISSION, Point.GATES}),
+    revision=1,
+    departs_from=("0.5", "A13", "A14", "A26", "B9", "D2"),
+    compat="transient_classification",
+    ceilings=Ceilings(per_day=12, per_conversation=3),
+    journal_prefix="unk",
+    make=make_unknown_failure_budget,
+    codes=("sampled",),
+    options=(Option(OptionKey.ATTEMPTS, ATTEMPTS, DEFAULT_ATTEMPTS),),
+    samples=True,
+)
+
 # In this order, which is also which answers first where two answer at one point.
-DEFINITIONS = (START_WITH_CODEX, GOAL_CONTINUATION, MARKER_FREE, CAPACITY_RETRY, STRUCTURED_RULES)
+DEFINITIONS = (START_WITH_CODEX, GOAL_CONTINUATION, MARKER_FREE, CAPACITY_RETRY, STRUCTURED_RULES,
+               UNKNOWN_FAILURE_BUDGET)
 REGISTRY = Registry(DEFINITIONS)

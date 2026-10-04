@@ -12,6 +12,9 @@ with its marker, through core's one claim, which pays a unit of the capability's
 
     StructuredRules   the rules a person wrote for Codex's error codes: a failure nothing classified
                       whose code a rule names is paced as the temporary kind the rule says (AS_*)
+    UnknownFailureBudget  a failure nothing classified, on a budget of its own (ADMIT), each one it
+                      takes up leaving a sample: Codex's code, a status, the error's form, the items
+                      the turn left, its times - never a word
 
 A capability here never reads a word of an error, and core never hands it one.
 """
@@ -19,6 +22,9 @@ from __future__ import annotations
 
 from codex_auto_resume import failures
 from codex_auto_resume.domain.plug import DEFER, PACED_AS, Alternative
+
+from ..codex import inuse
+from ..vocabulary import OptionKey
 
 KNOWN_FAILURE = "known_failure"
 # The word that paces a failure as each temporary kind (domain/plug.PACED_AS, the other way round).
@@ -102,3 +108,74 @@ class StructuredRules(_Taking):
 def make_structured_rules(paths) -> StructuredRules:
     """The capability's factory (registry.CapabilityDef.make): its code for one installation."""
     return StructuredRules(paths)
+
+
+# How many tries a task of failures nobody classified gets: the person's choice, one by default.
+ATTEMPTS = (1, 2, 3)
+DEFAULT_ATTEMPTS = 1
+
+
+def _number(value) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+class UnknownFailureBudget(_Taking):
+    """Retry failures it cannot name: P17 and P3, and the sample it keeps the first time core goes on
+    with what it took up. Core's own no-progress and chain budgets still bind; the tries a task gets
+    are counted on the task it continues (`chain`), which is the record whose continuation failed."""
+    __slots__ = ()
+
+    def _attempts(self) -> int:
+        try:
+            return self._scoped.options().get(OptionKey.ATTEMPTS, DEFAULT_ATTEMPTS)
+        except Exception:
+            return DEFAULT_ATTEMPTS
+
+    def admission(self, failure):
+        """ADMIT for a failure nothing classified - core offers it only for a code of Codex's that
+        names no decision - while its task has tries left; rules come first (the registry's order)."""
+        if failure.get("category") != failures.UNKNOWN:
+            return DEFER
+        chain = failure.get("chain")
+        if chain is not None:
+            attempts = chain.get("recovery_attempts") if isinstance(chain, dict) else None
+            if type(attempts) is not int or attempts >= self._attempts():
+                return DEFER
+        return Alternative.ADMIT
+
+    def gate(self, name, record, facts):
+        """At known_failure, ADMIT again for what it took up (the runtime holds it to its own)."""
+        if name != KNOWN_FAILURE or record.get("category") != failures.UNKNOWN:
+            return DEFER
+        return Alternative.ADMIT
+
+    def taken(self, point, answer, *arguments):
+        """The sample, the first time core goes on: the shape its admission kept, the items the
+        failed turn left - read from the Codex home the watcher told of, none where it told nothing -
+        and how long the turn ran."""
+        record = arguments[1] if len(arguments) > 1 and isinstance(arguments[1], dict) else {}
+        row = self._scoped.admission(record.get("interruption_id")) if self._scoped is not None else None
+        if row is None:
+            return {"code": "sampled"}
+        started, completed = record.get("started_at"), record.get("completed_at")
+        duration = completed - started if _number(started) and _number(completed) and completed >= started else None
+        return {"code": "sampled", "sample": {
+            "code": row["tag"], "status": row["status"], "form": row["form"],
+            "has_message": row["has_words"] == 1, "items": self._items(record), "duration": duration}}
+
+    def _items(self, record):
+        """How many items of each kind the failed turn left (codex/history.turn_item_counts), counts
+        only - or None where the watcher told this process no Codex home, or it cannot be read."""
+        told = inuse.told(self.paths)
+        if told is None:
+            return None
+        try:
+            from codex_auto_resume.codex import LocalSource
+            return LocalSource(told[1]).turn_item_counts(record.get("thread_id"), record.get("turn_id"))
+        except Exception:
+            return None
+
+
+def make_unknown_failure_budget(paths) -> UnknownFailureBudget:
+    """The capability's factory (registry.CapabilityDef.make): its code for one installation."""
+    return UnknownFailureBudget(paths)

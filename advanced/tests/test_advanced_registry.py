@@ -47,7 +47,7 @@ CHANGES = frozenset({"thread/queue/add", "thread/goal/set"})
 
 class ShippedTests(unittest.TestCase):
     SHIPPED = ("start_with_codex", "goal_continuation", "marker_free_continuation", "capacity_retry",
-               "structured_rules")
+               "structured_rules", "unknown_failure_budget")
 
     def test_the_registry_this_edition_ships_is_its_capabilities_in_their_order(self):
         self.assertEqual([d.id for d in registry.DEFINITIONS], list(self.SHIPPED))
@@ -61,8 +61,9 @@ class ShippedTests(unittest.TestCase):
         # answer at P17 and again at P3, in the order that is precedence where two would answer.
         answering = {Point.START_ROUTE: ("start_with_codex",),
                      Point.UNLOADED: ("goal_continuation",),
-                     Point.GATES: ("goal_continuation", "capacity_retry", "structured_rules"),
-                     Point.ADMISSION: ("capacity_retry", "structured_rules"),
+                     Point.GATES: ("goal_continuation", "capacity_retry", "structured_rules",
+                                   "unknown_failure_budget"),
+                     Point.ADMISSION: ("capacity_retry", "structured_rules", "unknown_failure_budget"),
                      Point.SENDER: ("goal_continuation", "marker_free_continuation"),
                      Point.DELIVERY: ("marker_free_continuation",)}
         for point in Point:
@@ -155,6 +156,23 @@ class ShippedTests(unittest.TestCase):
         self.assertEqual((rules.rules_editor, rules.samples, rules.codes, rules.options), (True, False, ("matched",), ()))
         self.assertEqual([definition.id for definition in registry.DEFINITIONS if definition.rules_editor],
                          ["structured_rules"])
+
+    def test_the_unknown_failure_budget_departs_and_rests_on_what_the_design_says(self):
+        """As the rules, and D2 too - a sample keeps a code Codex chose; three a conversation, a dozen
+        a day; one to three tries a task, one by default; the one capability that samples."""
+        from codex_auto_resume_advanced.vocabulary import OptionKey
+        unknown = registry.REGISTRY.get("unknown_failure_budget")
+        self.assertEqual(unknown.departs_from, ("0.5", "A13", "A14", "A26", "B9", "D2"))
+        self.assertEqual((unknown.compat, unknown.measurements, unknown.revision), ("transient_classification", (), 1))
+        self.assertEqual(unknown.points, frozenset({Point.ADMISSION, Point.GATES}))
+        self.assertEqual((unknown.ceilings.per_day, unknown.ceilings.per_conversation), (12, 3))
+        option = unknown.option(OptionKey.ATTEMPTS)
+        self.assertEqual((option.choices, option.default), ((1, 2, 3), 1))
+        self.assertEqual((unknown.rules_editor, unknown.samples, unknown.codes), (False, True, ("sampled",)))
+        self.assertEqual([definition.id for definition in registry.DEFINITIONS if definition.samples],
+                         ["unknown_failure_budget"])
+        ids = registry.REGISTRY.ids
+        self.assertLess(ids.index("structured_rules"), ids.index("unknown_failure_budget"), "rules come first")
 
     def test_start_with_codex_departs_and_rests_on_what_the_plan_says(self):
         swc = registry.REGISTRY.get("start_with_codex")

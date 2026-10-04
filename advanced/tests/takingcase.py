@@ -28,8 +28,9 @@ from test_plug_points import PluggedCase, failed  # noqa: E402
 
 
 class TakingCase(PluggedCase):
-    """`DEFINITION` is the shipped capability under test."""
+    """`DEFINITION` is the shipped capability under test; `BESIDE`, shipped ones armed beside it."""
     DEFINITION = None
+    BESIDE = ()
 
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
@@ -47,19 +48,20 @@ class TakingCase(PluggedCase):
     def advanced(self, h=None):
         h = h or self.h
         made = ac.advanced.AdvancedPlug(
-            config.Paths(self.where / ("home-%d" % id(h))), registry=Registry((self.DEFINITION,)),
+            config.Paths(self.where / ("home-%d" % id(h))), registry=Registry((*self.BESIDE, self.DEFINITION)),
             clock=lambda: h.now, policy=lambda: self.policy, view=lambda: self.compat,
             measured=lambda: self.measured, catalogs=statement.CATALOGS)
         self.addCleanup(lambda: made._runtime and made._runtime.state.close())
         return made
 
-    def arm(self, plug, state="armed", **changes):
+    def arm(self, plug, state="armed", capability=None, **changes):
         runtime = plug.runtime
-        request = dict(state=state, revision=self.DEFINITION.revision,
+        definition = runtime.registry.get(capability or self.cap)
+        request = dict(state=state, revision=definition.revision,
                        generation=runtime.state.meta()["generation"], acknowledged_version=ENGINE,
                        actor=Actor.DASHBOARD)
         request.update(changes)
-        result = runtime.arming.arm(self.cap, **request)
+        result = runtime.arming.arm(definition.id, **request)
         self.assertTrue(result["done"], result)
         runtime.states(fresh=True)
         return result
@@ -68,6 +70,8 @@ class TakingCase(PluggedCase):
         """The capability on (or watched), and the harness's engine rebuilt with its plug."""
         h = h or self.h
         plug = self.advanced(h)
+        for definition in self.BESIDE:
+            self.arm(plug, capability=definition.id)
         self.arm(plug, state=state)
         self.plugged(plug, h)
         return plug
