@@ -133,6 +133,15 @@ class _LedgerConnection:
 
 class LedgerMixin:
     @staticmethod
+    def _early_claim(row, relaxed, ledger, carried) -> bool:
+        """Whether the claim skips a record's next look and its reset time (EARLY, v0.6.13): only for
+        one that waits for a usage limit to reset, and only as a relaxation the plug's ledger pays for.
+        A postponement, quiet hours and every other gate hold as ever (domain/gates.py)."""
+        return (relaxed == "early" and row["category"] == failures.USAGE_LIMIT
+                and row["state"] in ("waiting_reset", "waiting_poll") and not ledger.null
+                and Point.SCHEDULE in carried)
+
+    @staticmethod
     def _relaxation_refused(connection, row, now, vector, relaxed, ledger, carried):
         """(gate, reason) when the claim refuses a record for its kind, written into its `vector` too,
         or None (v0.6.13): the claim checks it again itself, in its own transaction. A kind core never

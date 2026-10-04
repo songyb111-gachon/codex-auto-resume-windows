@@ -18,7 +18,7 @@ a route named at P16 is carried out the same way in its place.
 from __future__ import annotations
 
 from .. import continuation as _message, failures, l10n, ladder, machine
-from ..domain.plug import DEFER, Alternative, Point
+from ..domain.plug import Alternative, Point
 from ..machine import OBSERVING, TERMINAL, WAITING, WATCHED
 from .options import backoff_delay
 from .reconcile import UNSENT
@@ -26,6 +26,15 @@ from .reconcile import UNSENT
 
 class DispatchMixin:
     def attempt(self, row):
+        """Look at one record: every gate, and the send if all pass. A record looked at early (EARLY)
+        is that only for this look, and every wait it meets leaves it as it was (engine/relaxed.py)."""
+        self._early_look = None
+        try:
+            self._attempt(row)
+        finally:
+            self._early_look = None
+
+    def _attempt(self, row):
         now = self.clock()
         poll = self.options["state_poll_seconds"]
         settings = self.store.settings()
@@ -41,6 +50,7 @@ class DispatchMixin:
             return
         quiet_until = self.quiet_until(now)     # v0.6.11; None with no quiet hours, the default
         vector["schedule"] = machine.gate_schedule(row, now, quiet_until=quiet_until)
+        early = vector["schedule"][0] != machine.PASS and self._early(row, vector, now, quiet_until)
         if vector["schedule"][0] != machine.PASS:
             if vector["schedule"][1] == "waiting_reset" and (row.get("next_retry_at") or 0) <= now:
                 # A usage reset still ahead is a wait with a reason, never a record that is
@@ -52,8 +62,8 @@ class DispatchMixin:
             elif vector["schedule"][1] == machine.QUIET_HOURS:
                 self._quiet(row, vector, quiet_until - now)
             return
-        # P7: due by core's schedule, and the plug may say not yet.
-        if (vector["consent"][0] == machine.PASS
+        # P7: due by core's schedule, and the plug may say not yet - asked already if it looked early.
+        if (not early and vector["consent"][0] == machine.PASS
                 and self._held("schedule", row, vector, self.plug.schedule(row, machine.eligible_at(row)))):
             return
         if row["state"] in ("waiting_reset", "waiting_poll"):
@@ -160,7 +170,8 @@ class DispatchMixin:
                 machine.WAIT if usage.get("available") is False else machine.UNKNOWN,
                 "usage_unavailable" if usage.get("available") is False else "usage_unknown")
             self.store.record_gates(row["interruption_id"], vector, now)
-            self._usage_wait(row, usage, now)
+            if not early:                                   # a look early that finds none changes nothing
+                self._usage_wait(row, usage, now)
             return
         vector["usage"] = machine.gate(machine.PASS)
         if self._plugged("usage", row, vector):
@@ -170,7 +181,7 @@ class DispatchMixin:
         # v0.6.11: the task-changed guard, which reads nothing at the defaults (engine/guard.py).
         if self._guarded(row, vector, now) or self._objection(row, vector, now):
             return
-        self.dispatch(row, app, vector, limits, route, relaxed=relaxed)
+        self.dispatch(row, app, vector, limits, route, relaxed=relaxed or ("early" if early else None))
 
     def _plugged(self, name, row, vector) -> bool:
         """P3: gate `name`, which core has just passed, put to the plug. True if it held. Never asked
@@ -192,27 +203,6 @@ class DispatchMixin:
                    vector)
         return True
 
-    def _plugged_text(self, row, message, limits) -> tuple:
-        """P4: (the plug's words for this continuation, True), or (core's own `message`, False).
-
-        Taken only as a person's Custom message is: they pass the same validator and are filled
-        in the same way, for the same record, so they can say nothing a person could not have
-        written in the Dashboard - over a conversation's own message too (v0.6.11). Words that fail
-        the validator, or fill in to nothing, are not sent, and core's are - the person's own
-        style, not the Standard text a Custom message falls back to."""
-        words = self.plug.text(row, message)
-        if words is DEFER:
-            return message, False
-        try:
-            _message.validate_custom(words)
-            values = dict(self.policy_values, continuation_style="custom", custom_message_by_thread=None,
-                          custom_message_mode="global", custom_message=words)
-            if _message.source_for(row["category"], values, row=row, limits=limits) != "global":
-                return message, False
-            return _message.for_settings(row["category"], values, row=row, limits=limits), True
-        except Exception:
-            return message, False
-
     def dispatch(self, row, app, vector, limits, route=None, relaxed=None):
         """Claim, re-check, send. The only method that sends: to core's backend, or to the
         channel the plug names at P5, and either way through the one call below. With a `route`
@@ -232,10 +222,12 @@ class DispatchMixin:
             if (self.backend.app_identity() != app
                     or self.backend.loaded(current["thread_id"], app) != (
                         "loaded" if route is None else "notLoaded")):
-                self.transition(current, "waiting_for_loaded_thread", "loaded_recheck_failed", delay=60)
+                if not self._parked(current, vector):
+                    self.transition(current, "waiting_for_loaded_thread", "loaded_recheck_failed", delay=60)
                 return
             if self.usage().get("available") is not True:
-                self.transition(current, "waiting_for_usage", "usage_recheck_failed", delay=900)
+                if not self._parked(current, vector):
+                    self.transition(current, "waiting_for_usage", "usage_recheck_failed", delay=900)
                 return
             if route is not None:
                 self._resume_unloaded(current, vector, limits, route, app, relaxed=relaxed)
@@ -270,9 +262,8 @@ class DispatchMixin:
             # for or held.
             carried = frozenset(point for point, taken in ((Point.TEXT, worded),
                                                            (Point.SENDER, sender is not self.backend),
-                                                           (Point.DELIVERY, client is not None),
-                                                           (Point.GATES, relaxed is not None))
-                                if taken)
+                                                           (Point.DELIVERY, client is not None))
+                                if taken) | self.relaxed_points(relaxed)
             at = self.clock()
             claimed, gate, reason = self.store.reserve_detailed(
                 key, at, limits=limits, gates=vector, ledger=self.plug, carried=carried,

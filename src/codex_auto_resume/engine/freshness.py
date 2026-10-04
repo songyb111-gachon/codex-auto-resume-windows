@@ -131,9 +131,10 @@ class FreshnessMixin:
         if not self.offline():
             return False
         vector["usage"] = machine.gate(machine.WAIT, power.OFFLINE)
-        self.store.record_gates(row["interruption_id"], vector, now)
-        self.transition(row, "waiting_for_usage", power.OFFLINE, delay=self.options["state_poll_seconds"],
-                        usage_probe_at=None)
+        if not self._parked(row, vector):
+            self.store.record_gates(row["interruption_id"], vector, now)
+            self.transition(row, "waiting_for_usage", power.OFFLINE,
+                            delay=self.options["state_poll_seconds"], usage_probe_at=None)
         return True
 
     def after_sleep(self, since, slept) -> int:

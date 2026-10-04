@@ -198,9 +198,9 @@ LISTS = {
     # what continues a conversation the app does not hold, a route core carries out (stage 3b).
     # v0.6.13: P17, a failure core never recovers alone taken up, and ADMIT and the five AS_ words
     # that take one up, at P17 and at known_failure, and CAPACITY, a capacity error retried sooner;
-    # and the form a failure's error took.
+    # and EARLY, P7's look at a usage-limited record before its time; and the form a failure's error took.
     "domain.plug.POINTS": ("tuple", 16, "07e8ae14d7f49978"),
-    "domain.plug.ANSWERS": ("set", 9, "c6433d46921b93c8"),
+    "domain.plug.ANSWERS": ("set", 10, "6ad8bd39f91d357c"),
     "domain.plug.FAILURE_FORMS": ("tuple", 5, "bcc0ad1bd6f81009"),
     "domain.plug.SURFACES": ("tuple", 5, "d41ac5a6d67be21b"),
     "domain.plug.EXTRA": "advanced",

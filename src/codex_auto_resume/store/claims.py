@@ -115,7 +115,8 @@ class ClaimsMixin:
                 row["cancel_requested"], observe_only=settings["observe_only"], hold=row["hold"])
             vector["submission_safe"] = machine.gate_submission_safe(
                 row, self._others_in_flight(connection, row["thread_id"], interruption_id))
-            vector["schedule"] = machine.gate_schedule(row, now, quiet_until=quiet_until)
+            vector["schedule"] = machine.gate_schedule(
+                row, now, quiet_until=quiet_until, early=self._early_claim(row, relaxed, ledger, carried))
             if limits is not None:
                 vector.update(machine.gate_budgets(row, limits, is_usage(row)))
             refusal = None

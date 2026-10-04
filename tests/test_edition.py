@@ -153,16 +153,18 @@ class ClosedAlternativeTests(unittest.TestCase):
         relaxations of a gate, each held to core's own fence (failures.admits)."""
         take_up = {Alternative.ADMIT, Alternative.CAPACITY} | set(plug.PACED_AS)
         self.assertEqual(plug.TAKE_UP, take_up)
-        self.assertEqual(plug.ANSWERS, plug.RESTRICTIONS | {Alternative.CLIENT_ID} | take_up)
+        self.assertEqual(plug.ANSWERS, plug.RESTRICTIONS | {Alternative.CLIENT_ID, Alternative.EARLY} | take_up)
         self.assertEqual(plug.ANSWERS, frozenset(Alternative))
         for point, accepted in plug.ALTERNATIVES.items():
             with self.subTest(point):
                 self.assertIn(point, Point)
-                if point not in (Point.DELIVERY, Point.GATES, Point.ADMISSION):
+                if point not in (Point.DELIVERY, Point.GATES, Point.ADMISSION, Point.SCHEDULE):
                     self.assertLessEqual(accepted, plug.RESTRICTIONS)
         self.assertEqual(plug.ALTERNATIVES[Point.DELIVERY], frozenset({Alternative.CLIENT_ID}))
         self.assertEqual(plug.ALTERNATIVES[Point.GATES], plug.RESTRICTIONS | take_up)
         self.assertEqual(plug.ALTERNATIVES[Point.ADMISSION], take_up)
+        # And P7 may look at a usage-limited record early (EARLY), which core carries out.
+        self.assertEqual(plug.ALTERNATIVES[Point.SCHEDULE], plug.RESTRICTIONS | {Alternative.EARLY})
         self.assertEqual({point for point, accepted in plug.ALTERNATIVES.items() if accepted},
                          {Point.GATES, Point.SCHEDULE, Point.CLAIM_LEDGER, Point.DELIVERY,
                           Point.ADMISSION})
@@ -172,7 +174,7 @@ class ClosedAlternativeTests(unittest.TestCase):
         self.assertNotIn(Point.START_ROUTE, plug.ALTERNATIVES)
         for point, accepted in plug.ALTERNATIVES.items():
             for answer in ([object()], {"records": []}, "go", Alternative.HOLD, Alternative.CLIENT_ID,
-                           Alternative.ADMIT, Alternative.AS_TIMEOUT):
+                           Alternative.ADMIT, Alternative.AS_TIMEOUT, Alternative.EARLY):
                 if isinstance(answer, Alternative) and answer in accepted:
                     continue
                 with self.subTest(point=point, answer=answer):

@@ -25,7 +25,7 @@ looked for by it, and one the app does not hold waits for it, exactly as before.
 """
 from __future__ import annotations
 
-from .. import machine
+from .. import continuation as _message, machine
 from ..domain import ids
 from ..domain.plug import DEFER, Alternative, Point
 
@@ -102,6 +102,27 @@ class DeliveryMixin:
             return "waiting_for_app", "home_lock_unavailable", poll
         return None
 
+    def _plugged_text(self, row, message, limits) -> tuple:
+        """P4: (the plug's words for this continuation, True), or (core's own `message`, False).
+
+        Taken only as a person's Custom message is: they pass the same validator and are filled
+        in the same way, for the same record, so they can say nothing a person could not have
+        written in the Dashboard - over a conversation's own message too (v0.6.11). Words that fail
+        the validator, or fill in to nothing, are not sent, and core's are - the person's own
+        style, not the Standard text a Custom message falls back to."""
+        words = self.plug.text(row, message)
+        if words is DEFER:
+            return message, False
+        try:
+            _message.validate_custom(words)
+            values = dict(self.policy_values, continuation_style="custom", custom_message_by_thread=None,
+                          custom_message_mode="global", custom_message=words)
+            if _message.source_for(row["category"], values, row=row, limits=limits) != "global":
+                return message, False
+            return _message.for_settings(row["category"], values, row=row, limits=limits), True
+        except Exception:
+            return message, False
+
     # --------------------------------------------------------------- a conversation not held (P16)
     def _unloaded(self, row, loaded, vector):
         """P16: the route the plug names for `row`, whose conversation the app does not hold, or
@@ -136,7 +157,7 @@ class DeliveryMixin:
         at = self.clock()
         claimed, gate, reason = self.store.reserve_detailed(
             key, at, limits=limits, gates=vector, ledger=self.plug,
-            carried=frozenset({Point.UNLOADED} | ({Point.GATES} if relaxed else set())),
+            carried=frozenset({Point.UNLOADED}) | self.relaxed_points(relaxed),
             quiet_until=self.quiet_until(at), relaxed=relaxed)
         if not claimed:
             self._refused(current, gate, reason)

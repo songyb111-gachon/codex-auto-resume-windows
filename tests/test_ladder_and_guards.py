@@ -98,6 +98,15 @@ class LadderTests(unittest.TestCase):
         engine.apply_policy(dict(settings.defaults(), chain_time_ceiling="h6"))
         self.assertEqual(engine.capacity_limits()["max_chain_seconds"], 6 * 3600)
 
+    def test_a_usage_limit_is_looked_at_early_once_in_five_minutes_at_most(self):
+        """v0.6.13: EARLY - one window of looks every five minutes for every waiting record together,
+        each as long as one usage reading is reused (the engine's 30 seconds)."""
+        self.assertEqual((ladder.EARLY_SPACING, ladder.EARLY_WINDOW), (300, 30))
+        self.assertTrue(machine.gate_schedule({"next_retry_at": 10.0, "reset_at": 20.0}, 5.0, early=True)
+                        == machine.gate(machine.PASS))
+        self.assertEqual(machine.gate_schedule({"not_before": 20.0}, 5.0, early=True)[1], machine.POSTPONED)
+        self.assertEqual(machine.gate_schedule({}, 5.0, quiet_until=9.0, early=True)[1], machine.QUIET_HOURS)
+
     def test_the_presets_are_v0_6_10s(self):
         self.assertEqual(settings.RETRY_TIMING, {"conservative": (15, 45, 120, 300, 600),
                                                  "normal": (5, 15, 30, 60, 120),

@@ -6,7 +6,9 @@ record goes on when it falls due (engine/dispatch.py). An answer is taken only i
 (failures.takes, failures.readmits), and is carried out within core's own bounds (ladder.py): what was
 taken up waits core's own waits, ends a day on the clock after it was detected, and is claimed only as
 a relaxation the plug's ledger pays for (store/ledger.py); a capacity error retried sooner (CAPACITY)
-counts against core's capacity bounds, for twelve hours on the clock from its task's first failure. The
+counts against core's capacity bounds, for twelve hours on the clock from its task's first failure.
+And P7 (EARLY): a record that waits for a usage limit to reset may be looked at before its time, once a
+window, where every wait it meets is its gate vector alone - it keeps its state, reason and next look. The
 standard edition's plug is asked nothing here: a record taken up under another edition ends unsent at
 its next look, and that is all.
 """
@@ -17,6 +19,11 @@ from ..domain.plug import DEFER, PACED_AS, Alternative, Point
 
 # How often a failure P17 did not take up is put to it again, at most.
 UNADMITTED_SECONDS = 60
+# What the claim's ledger pays for of each relaxation (P11's `carried`).
+RELAXED_POINTS = {"admitted": frozenset({Point.GATES}), "capacity": frozenset({Point.GATES}),
+                  "early": frozenset({Point.SCHEDULE})}
+# The waits a record may be looked at early in: a usage limit's.
+EARLY_STATES = ("waiting_reset", "waiting_poll")
 
 
 class RelaxedMixin:
@@ -141,6 +148,42 @@ class RelaxedMixin:
             return False
         vector["known_failure"] = machine.gate(machine.PASS, machine.PLUGGED)
         return "admitted"
+
+    @staticmethod
+    def relaxed_points(relaxed) -> frozenset:
+        """The points a relaxation's send carries, for the ledger to pay (RELAXED_POINTS)."""
+        return RELAXED_POINTS.get(relaxed, frozenset())
+
+    def _early(self, row, vector, now, quiet_until) -> bool:
+        """P7 asked early (EARLY): whether a record that waits for a usage limit to reset is looked at
+        now. Only with consent, only while the plug wants the schedule, never past a postponement or
+        quiet hours, and only while core's early window is open: one every five minutes for every
+        record together, as long as one usage reading lasts (ladder.EARLY_SPACING, EARLY_WINDOW)."""
+        if (self.plug.null or vector["consent"][0] != machine.PASS
+                or row["category"] != failures.USAGE_LIMIT or row["state"] not in EARLY_STATES
+                or vector["schedule"][1] not in ("not_due", "waiting_reset")
+                or machine.gate_schedule(row, now, quiet_until=quiet_until, early=True)[0] != machine.PASS):
+            return False
+        opened = self._early_at
+        inside = opened is not None and 0 <= now - opened < ladder.EARLY_WINDOW
+        if not inside and opened is not None and 0 <= now - opened < ladder.EARLY_SPACING:
+            return False
+        if (not self.plug.wants(Point.SCHEDULE)
+                or self.plug.schedule(row, machine.eligible_at(row)) is not Alternative.EARLY):
+            return False
+        if not inside:
+            self._early_at = now
+        self._early_look = row["interruption_id"]
+        vector["schedule"] = machine.gate(machine.PASS, machine.PLUGGED)
+        return True
+
+    def _parked(self, row, vector) -> bool:
+        """While `row` is looked at early, a wait is its gate vector alone: True, and it keeps its
+        state, its reason and its next look. False for every other record, which waits as it would."""
+        if self._early_look is None or self._early_look != row["interruption_id"]:
+            return False
+        self.store.record_gates(row["interruption_id"], vector, self.clock())
+        return True
 
     def _chained(self, row):
         """A record as known_failure is put to the plug: with when its task first failed, on the

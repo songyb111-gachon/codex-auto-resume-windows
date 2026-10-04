@@ -71,6 +71,8 @@ METHODS = {
     "_not_recovered",
     # and a capacity error the plug vouches for: its budgets, its twelve hours, its waits.
     "capacity_limits", "capacity_open", "_capacity_wait",
+    # and a usage-limited record looked at early (EARLY): the look, its waits, what the ledger pays.
+    "_attempt", "_early", "_parked", "relaxed_points",
 }
 
 # What `from codex_auto_resume.engine import ...` has to keep answering (app.py, the tests).

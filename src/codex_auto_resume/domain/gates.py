@@ -63,13 +63,15 @@ def gate_consent(enabled, thread_enabled, cancel_requested, *, observe_only=Fals
     return gate(PASS)
 
 
-def gate_schedule(record, now, *, quiet_until=None) -> tuple:
+def gate_schedule(record, now, *, quiet_until=None, early=False) -> tuple:
     """Whether it is time. A postponement (`not_before`) only ever makes a record later, and
     `quiet_until` - the end of the quiet hours `now` falls in, or None outside them - only holds
-    a record that is otherwise due; neither is ever set at the defaults."""
-    if (record.get("next_retry_at") or 0) > now:
+    a record that is otherwise due; neither is ever set at the defaults. `early` (v0.6.13, a
+    usage-limited record the edition's plug looks at early) skips its next look and its reset
+    time, and nothing else."""
+    if not early and (record.get("next_retry_at") or 0) > now:
         return gate(WAIT, "not_due")
-    if record.get("reset_at") is not None and record["reset_at"] > now:
+    if not early and record.get("reset_at") is not None and record["reset_at"] > now:
         return gate(WAIT, "waiting_reset")
     if (record.get("not_before") or 0) > now:
         return gate(WAIT, POSTPONED)

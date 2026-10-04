@@ -51,7 +51,7 @@ if _HERE not in sys.path:
 from codexsim import BASE, RESET  # noqa: E402
 import srcscan  # noqa: E402
 from test_control import ControlTestCase  # noqa: E402
-from test_engine import T1, T2, TURN_A, EngineCase, archive, fail_turn  # noqa: E402
+from test_engine import T1, T2, TURN_A, TURN_B, EngineCase, archive, fail_turn  # noqa: E402
 from test_ports import ENGINE_TO_STORE  # noqa: E402
 from codex_auto_resume import (config, continuation, control, controlcli, diagnostics,  # noqa: E402
                                edition, ladder, managed, mcpserver, settings, startup, windows)
@@ -2502,6 +2502,134 @@ class CapacityTests(PluggedCase):
         child = self.continue_and_fail(h)
         self.assertEqual(admissions(plug), [])
         self.assertEqual(child["next_retry_at"] - h.now, engine.first_delay("server_5xx"))
+
+
+NO_USAGE = {"available": False, "reset_at": None, "limit_type": "exposed_windows", "reason": "ok"}
+
+
+class EarlyTests(PluggedCase):
+    """EARLY (P7 before its time): a record that waits for a usage limit to reset may be looked at
+    early, once a window for every record together - and a look that finds no usage, or meets any
+    other wait, leaves it exactly as it was."""
+
+    def waiting(self, h=None, thread=T1, turn=TURN_A):
+        h = h or self.h
+        h.home.fail_usage(thread, turn)
+        h.backend.loaded_map[thread] = "loaded"
+        h.tick()
+        row = h.record(thread)
+        self.assertEqual(row["state"], "waiting_reset")
+        return row
+
+    def test_only_a_record_waiting_for_a_usage_reset_is_looked_at_early(self):
+        before = self.waiting()
+        self.plugged(Asked(wants=True, schedule=Alternative.EARLY))
+        self.h.tick(advance=60)
+        self.assertLess(self.h.now, before["reset_at"])
+        self.assertEqual(len(self.h.backend.send_calls), 1)
+        self.assertEqual(self.h.record()["state"], "queued")
+        h = self.fresh()
+        failed(h, json.dumps({"codexErrorInfo": "internalServerError"}))
+        plug = Asked(wants=True, schedule=Alternative.EARLY)
+        self.plugged(plug, h)
+        h.tick()
+        h.tick(advance=1)
+        self.assertEqual((h.backend.send_calls, plug.hooks().count("schedule")), ([], 0))
+        # NULL is never asked early, and a plug that wants no schedule is not either.
+        for plug in (None, Asked(schedule=Alternative.EARLY)):
+            h = self.fresh()
+            self.waiting(h)
+            self.plugged(plug, h)
+            h.tick(advance=60)
+            self.assertEqual(h.backend.send_calls, [])
+
+    def test_a_look_that_finds_no_usage_or_any_other_wait_leaves_the_record_as_it_was(self):
+        kept = ("state", "last_error", "next_retry_at", "usage_probe_at", "usage_unavailable_seconds",
+                "reset_at", "attempt_count")
+        for how in ("no_usage", "held", "loaded_recheck"):
+            with self.subTest(how):
+                h = self.fresh()
+                before = self.waiting(h)
+                plug = Asked(wants=True, schedule=Alternative.EARLY, gate=(
+                    lambda name, record, facts: Alternative.HOLD if name == "usage" else DEFER)
+                    if how == "held" else DEFER)
+                self.plugged(plug, h)
+                if how == "no_usage":
+                    h.backend.usage_result = dict(NO_USAGE)
+                elif how == "loaded_recheck":
+                    real = h.backend.loaded
+                    looks = []
+
+                    def loaded(thread_id, app):
+                        looks.append(thread_id)
+                        return real(thread_id, app) if len(looks) == 1 else "notLoaded"
+                    h.backend.loaded = loaded
+                h.tick(advance=60)
+                after = h.record()
+                self.assertEqual(h.backend.send_calls, [])
+                self.assertEqual({key: after[key] for key in kept}, {key: before[key] for key in kept})
+                self.assertEqual(plug.hooks().count("schedule"), 1)
+                # It was looked at: the wait it met is written down, and that is all.
+                self.assertEqual(json.loads(after["gate_eval"])["schedule"], ["PASS", "plugged"])
+                if how == "loaded_recheck":
+                    self.assertEqual(len(looks), 2, "the look in the lock found it no longer open")
+
+    def test_the_claim_skips_a_reset_only_as_a_relaxation_its_ledger_pays_for(self):
+        row = self.waiting()
+        ledger = guard(Asked(wants=True))
+        key, at = row["interruption_id"], self.h.now + 60
+        self.assertEqual(self.h.store.reserve_detailed(key, at), (False, "schedule", "not_due"))
+        for options in ({"ledger": None, "carried": {Point.SCHEDULE}},
+                        {"ledger": ledger, "carried": frozenset()},
+                        {"ledger": ledger, "carried": {Point.GATES}}):
+            with self.subTest(options=sorted(options)):
+                self.assertEqual(self.h.store.reserve_detailed(key, at, relaxed="early", **options),
+                                 (False, "schedule", "not_due"))
+        self.assertEqual(self.h.store.reserve_detailed(key, at, relaxed="early", ledger=ledger,
+                                                       carried={Point.SCHEDULE}), (True, None, None))
+        h = self.fresh()
+        failed(h, json.dumps({"codexErrorInfo": "internalServerError"}))
+        h.tick()
+        other = h.record()
+        self.assertEqual(h.store.reserve_detailed(other["interruption_id"], h.now, relaxed="early",
+                                                  ledger=ledger, carried={Point.SCHEDULE}),
+                         (False, "schedule", "not_due"))
+
+    def test_a_postponement_and_quiet_hours_still_hold(self):
+        for how in ("postponed", "quiet_hours"):
+            with self.subTest(how):
+                h = self.fresh()
+                row = self.waiting(h)
+                plug = Asked(wants=True, schedule=Alternative.EARLY)
+                engine = self.plugged(plug, h)
+                if how == "postponed":
+                    self.assertTrue(h.store.postpone(row["interruption_id"], T1, h.now + 7200, h.now)[0])
+                else:
+                    engine.quiet_until = lambda now: now + 3600
+                h.tick(advance=60)
+                self.assertEqual(h.backend.send_calls, [])
+                self.assertEqual(plug.hooks().count("schedule"), 0)
+
+    def test_one_window_in_five_minutes_serves_every_record_with_one_usage_reading(self):
+        h = self.h
+        self.waiting(h, T1, TURN_A)
+        self.waiting(h, T2, TURN_B)
+        h.backend.usage_result = dict(NO_USAGE)
+        reads, real = [], h.backend.usage
+        h.backend.usage = lambda: (reads.append(h.now), real())[1]
+        plug = Asked(wants=True, schedule=Alternative.EARLY)
+        self.plugged(plug)
+
+        def asked():
+            return sorted(arguments[0]["thread_id"] for hook, arguments in plug.asked if hook == "schedule")
+        h.tick(advance=60)
+        self.assertEqual((asked(), len(reads)), (sorted([T1, T2]), 1))
+        h.tick(advance=60)
+        h.tick(advance=60)
+        self.assertEqual((asked(), len(reads)), (sorted([T1, T2]), 1))
+        h.tick(advance=ladder.EARLY_SPACING - 120)
+        self.assertEqual((asked(), len(reads)), (sorted([T1, T1, T2, T2]), 2))
+        self.assertEqual(h.backend.send_calls, [])
 
 
 if __name__ == "__main__":

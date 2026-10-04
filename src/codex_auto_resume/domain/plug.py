@@ -133,6 +133,7 @@ class Alternative(StrEnum):
     AS_SERVER_5XX = "as_server_5xx"
     AS_STREAM_INTERRUPTED = "as_stream_interrupted"
     CAPACITY = "capacity"                    # and a capacity error retried sooner, in core's limits
+    EARLY = "early"                          # P7: a usage-limited record looked at before its time
 
 
 class FailureForm(StrEnum):
@@ -230,7 +231,8 @@ class Plug:
 
     def schedule(self, record, due):                  # P7
         """When a record is looked at next, asked when core's schedule says it is due; `due` is
-        the moment core's schedule made it so."""
+        the moment core's schedule made it so. From v0.6.13 also before then, for a record that
+        waits for a usage limit to reset, while core's early window is open: EARLY looks now."""
         return DEFER
 
     def tick(self, view):                             # P8
@@ -361,7 +363,7 @@ ALTERNATIVES = {
     Point.RECORDS: frozenset(),
     Point.GATES: RESTRICTIONS | TAKE_UP,
     Point.OUTCOME: frozenset(),
-    Point.SCHEDULE: RESTRICTIONS,
+    Point.SCHEDULE: RESTRICTIONS | {Alternative.EARLY},
     Point.CLAIM_LEDGER: RESTRICTIONS,
     Point.CONCURRENCY: frozenset(),
     Point.SUPERVISION: frozenset(),
