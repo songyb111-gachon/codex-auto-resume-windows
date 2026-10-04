@@ -512,9 +512,9 @@ class LimitTests(Case):
         self.assertTold(7, filer.QUEUED, "older than the ones the project's own data names")
 
     def test_newer_versions_the_data_does_not_name_are_filed_up_to_the_budget(self):
-        self.world.pr(7, sample(version="codex-cli 0.160.0"))
-        self.world.pr(8, sample(login="ExampleUser2", version="codex-cli 0.161.0"))
-        self.world.pr(9, sample(login="ExampleUser3", version="codex-cli 0.160.0"))
+        self.world.pr(7, sample(version="codex-cli 99.0.0"))
+        self.world.pr(8, sample(login="ExampleUser2", version="codex-cli 99.1.0"))
+        self.world.pr(9, sample(login="ExampleUser3", version="codex-cli 99.0.0"))
         with mock.patch.object(filer, "MAX_UNLISTED", 1):
             self.world.plan()
         self.assertTold(7, filer.FILED)
