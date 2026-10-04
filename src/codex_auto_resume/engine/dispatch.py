@@ -13,14 +13,14 @@ engine/delivery.py) where core would wait for it to be opened; the words (P4), w
 handed to (P5) and how it is carried and proven (P15, engine/delivery.py) before the claim; and
 its ledger (P11) inside the claim. Whatever it answers, the send is still this module's one call,
 made after the one claim, the pre-send look (engine/delivery.py) and inside the launch guard, and
-a route named at P16 is carried out the same way in its place.
+a route named at P16 is carried out the same way in its place - and so is an uncertain submission
+sent once more, which P7 asked for and engine/resend.py proved may go (v0.6.13).
 """
 from __future__ import annotations
 
 from .. import continuation as _message, failures, l10n, ladder, machine
 from ..domain.plug import Alternative, Point
 from ..machine import OBSERVING, TERMINAL, WAITING, WATCHED
-from .options import backoff_delay
 from .reconcile import UNSENT
 
 
@@ -203,30 +203,34 @@ class DispatchMixin:
                    vector)
         return True
 
-    def dispatch(self, row, app, vector, limits, route=None, relaxed=None):
+    def dispatch(self, row, app, vector, limits, route=None, relaxed=None, resend=False):
         """Claim, re-check, send. The only method that sends: to core's backend, or to the
         channel the plug names at P5, and either way through the one call below. With a `route`
         (P16) there is no send: the conversation is still one the app does not hold, and the
         route is carried out in its place (engine/delivery.py). `relaxed` is a gate the plug
-        relaxed for this record (_known_failure), which its ledger pays for at the claim."""
+        relaxed for this record (_known_failure), which its ledger pays for at the claim. With
+        `resend`, an uncertain submission is sent once more (engine/resend.py): every re-check
+        that fails leaves it as it was, since no move takes one back to waiting."""
         key = row["interruption_id"]
         with self.dispatch_lock():
             current = self.store.get(key)
-            if not current or current["state"] not in UNSENT or not self.allowed(current):
+            if not current or not self.allowed(current) or not (
+                    self._resendable(current, self.clock()) if resend else current["state"] in UNSENT):
                 return
             if not self.valid_interruption(current):
-                self.transition(current, *self.supersede_reason(current))
+                if not resend:
+                    self.transition(current, *self.supersede_reason(current))
                 return
             # A fresh process identity prevents a prior app's status authorizing a new app. A
             # route is for a conversation the app does not hold, and only while it still does not.
             if (self.backend.app_identity() != app
                     or self.backend.loaded(current["thread_id"], app) != (
                         "loaded" if route is None else "notLoaded")):
-                if not self._parked(current, vector):
+                if not resend and not self._parked(current, vector):
                     self.transition(current, "waiting_for_loaded_thread", "loaded_recheck_failed", delay=60)
                 return
             if self.usage().get("available") is not True:
-                if not self._parked(current, vector):
+                if not resend and not self._parked(current, vector):
                     self.transition(current, "waiting_for_usage", "usage_recheck_failed", delay=900)
                 return
             if route is not None:
@@ -252,8 +256,11 @@ class DispatchMixin:
             # names a channel. The one binding of the one sender; whichever it is gets the one
             # send below, after the claim and the pre-send look, inside the launch guard.
             sender = self.plug.sender(current, self.backend)
-            # P15, decided like them before the claim, and written into the record before it.
-            client = self._delivery(current, sender)
+            # P15, decided like them before the claim, and written into the record before it - for a
+            # resend, the proof its first send carried, or nothing is sent (engine/delivery.py).
+            client = self._delivery(current, sender, resend=resend)
+            if client is False:
+                return
             # P11 is asked inside the claim, once every check the store makes there has passed.
             # The claim is told which of the plug's answers the send carries - its words, its
             # channel, its way of carrying them - as decided here, where words that fill in to
@@ -263,13 +270,15 @@ class DispatchMixin:
             carried = frozenset(point for point, taken in ((Point.TEXT, worded),
                                                            (Point.SENDER, sender is not self.backend),
                                                            (Point.DELIVERY, client is not None))
-                                if taken) | self.relaxed_points(relaxed)
+                                if taken) | self.relaxed_points("resend" if resend else relaxed)
             at = self.clock()
             claimed, gate, reason = self.store.reserve_detailed(
                 key, at, limits=limits, gates=vector, ledger=self.plug, carried=carried,
-                quiet_until=self.quiet_until(at), relaxed=relaxed)
+                quiet_until=self.quiet_until(at), relaxed=relaxed,
+                resend=self.resend_window() if resend else None)
             if not claimed:
-                self._refused(current, gate, reason)
+                if not resend:                          # a resend refused stays as it was
+                    self._refused(current, gate, reason)
                 return
             self.moved(current, "submitting")
             claim = self.store.get(key)
@@ -279,7 +288,11 @@ class DispatchMixin:
                 problem = ("waiting_retry", "released_before_send", self.options["state_poll_seconds"])
             if problem is not None:
                 target, why, delay = problem
-                self._release(key, claim, target, why, delay)
+                if resend:          # never given back to a wait: its first send is still uncertain
+                    target, why = "submission_unknown", "released_before_send"
+                    self.transition(claim, target, why, delay=1)
+                else:
+                    self._release(key, claim, target, why, delay)
                 self.log(current["thread_id"], target, why)
                 return
             self.log(current["thread_id"], "queue_submission_started", None)
@@ -298,38 +311,8 @@ class DispatchMixin:
             if not isinstance(response, dict):
                 response = {"outcome": "unknown"}
             try:
-                self._after_send(current, response)
+                self._after_send(current, response, resend)
             except Exception:
                 # The send happened or may have; the record stays claimed and the watch
                 # resolves it. Never logged as "no submission".
                 self.log(current["thread_id"], "post_send_bookkeeping_failed", None)
-
-    def _after_send(self, row, response):
-        reserved = self.store.get(row["interruption_id"])
-        outcome = response.get("outcome")
-        if outcome == "accepted":
-            now = self.clock()
-            self.transition(reserved, "queued", None, delay=1, event="submitted",
-                            queue_id=response.get("queue_id"),
-                            first_queued_at=reserved["first_queued_at"] or now)
-            self.log(row["thread_id"], "continuation_submitted", None)
-            self.announce("starting", reserved, **self._told_of(row))   # a Tell's line (engine/guard.py)
-        elif outcome == "not_started":
-            if response.get("error_code") == "queue_consent_refused":
-                target = "cancelled" if reserved["cancel_requested"] else self.waiting_state(reserved)
-                reason = "user_cancelled" if reserved["cancel_requested"] else "released_before_send"
-                self._release(row["interruption_id"], reserved, target, reason,
-                              self.options["state_poll_seconds"])
-                self.log(row["thread_id"], target, reason)
-                return
-            retry = reserved["retry_count"] + 1
-            if retry >= self.options["max_queue_retries"]:
-                self.transition(reserved, "failed", "queue_launch_retry_limit", retry_count=retry,
-                                submitted_at=None)
-            else:
-                delay = (self.delay_for(reserved["recovery_attempts"])
-                         if reserved["category"] != failures.USAGE_LIMIT else backoff_delay(retry))
-                self.transition(reserved, "waiting_retry", "queue_process_not_started",
-                                retry_count=retry, submitted_at=None, delay=delay)
-        else:
-            self.transition(reserved, "submission_unknown", "queue_result_unknown_do_not_resend", delay=1)

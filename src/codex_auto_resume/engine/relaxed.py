@@ -21,7 +21,7 @@ from ..domain.plug import DEFER, PACED_AS, Alternative, Point
 UNADMITTED_SECONDS = 60
 # What the claim's ledger pays for of each relaxation (P11's `carried`).
 RELAXED_POINTS = {"admitted": frozenset({Point.GATES}), "capacity": frozenset({Point.GATES}),
-                  "early": frozenset({Point.SCHEDULE})}
+                  "early": frozenset({Point.SCHEDULE}), "resend": frozenset({Point.SCHEDULE})}
 # The waits a record may be looked at early in: a usage limit's.
 EARLY_STATES = ("waiting_reset", "waiting_poll")
 

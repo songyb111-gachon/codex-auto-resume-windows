@@ -21,12 +21,11 @@ Three rules make an answer safe to take:
   a hook that changes what it was handed and answers DEFER has changed nothing of core's.
 
 These rules are kept against a plug's mistakes, not against its intent. The plug is the
-advanced edition's package - this product's own code, from the same archive - and it runs in
-core's process, where Python keeps nothing from code that goes looking: a closure's cells, a
-traceback's frames and the garbage collector reach every object core has, and the state is a
-file on the same disk. So what is handed over - copies, a view with no writes, a connection
-that writes only the plug's own database, a name for the backend - removes the plain way to a
-side effect a hook did not mean, and no guard here is a sandbox or claims to be.
+advanced edition's package - this product's own code, from the same archive - running in core's
+process, where closures, frames and the garbage collector reach every object core has and the
+state is a file on the same disk. So what is handed over - copies, a view with no writes, a
+connection that writes only the plug's own database, a name for the backend - removes the plain
+way to a side effect a hook did not mean; no guard here is a sandbox or claims to be.
 
 Core holds a plug only as `Guarded`, which asks every hook through `consult` and checks every
 value a hook hands back before core takes it. The engine, the store's claim, the control layer
@@ -134,6 +133,7 @@ class Alternative(StrEnum):
     AS_STREAM_INTERRUPTED = "as_stream_interrupted"
     CAPACITY = "capacity"                    # and a capacity error retried sooner, in core's limits
     EARLY = "early"                          # P7: a usage-limited record looked at before its time
+    RESEND = "resend"                        # P7: an uncertain submission sent once more, if core may
 
 
 class FailureForm(StrEnum):
@@ -232,7 +232,9 @@ class Plug:
     def schedule(self, record, due):                  # P7
         """When a record is looked at next, asked when core's schedule says it is due; `due` is
         the moment core's schedule made it so. From v0.6.13 also before then, for a record that
-        waits for a usage limit to reset, while core's early window is open: EARLY looks now."""
+        waits for a usage limit to reset, while core's early window is open: EARLY looks now. And
+        for an uncertain submission a look of the watch found no trace of (`due` its send): RESEND
+        sends it once more, where core proves it may (engine/resend.py)."""
         return DEFER
 
     def tick(self, view):                             # P8
@@ -355,7 +357,8 @@ RESTRICTIONS = frozenset({Alternative.HOLD})
 #
 # ADMISSION (P17, v0.6.13 stage 3b) takes a failure up, or relaxes a capacity error's retries, and
 # GATES the same words, which core takes only at known_failure and only for the kind each is for
-# (failures.admits, failures.readmits) - CAPACITY within core's own bounds (ladder.py).
+# (failures.admits, failures.readmits) - CAPACITY within core's own bounds (ladder.py). SCHEDULE
+# (P7) takes EARLY and RESEND, each carried out by core within its own (engine/relaxed.py, resend.py).
 TAKE_UP = frozenset({Alternative.ADMIT, Alternative.AS_NETWORK_TRANSIENT, Alternative.AS_TIMEOUT,
                      Alternative.AS_RATE_LIMIT_TRANSIENT, Alternative.AS_SERVER_5XX,
                      Alternative.AS_STREAM_INTERRUPTED, Alternative.CAPACITY})
@@ -363,7 +366,7 @@ ALTERNATIVES = {
     Point.RECORDS: frozenset(),
     Point.GATES: RESTRICTIONS | TAKE_UP,
     Point.OUTCOME: frozenset(),
-    Point.SCHEDULE: RESTRICTIONS | {Alternative.EARLY},
+    Point.SCHEDULE: RESTRICTIONS | {Alternative.EARLY, Alternative.RESEND},
     Point.CLAIM_LEDGER: RESTRICTIONS,
     Point.CONCURRENCY: frozenset(),
     Point.SUPERVISION: frozenset(),
@@ -472,12 +475,11 @@ class _Channel:
     and the channel is called only if it held, with a guard already decided.
 
     The lock is let go before the channel is called, as core's backend lets it go once the
-    queue process is launched: calling the channel is this send's launch. It is never held
-    across the channel's send. That is a transport core cannot see into, and the lock is the
-    advanced state's too once the claim has attached it, so a Pause from the settings window,
-    a disarm on another thread and the channel's own write to the advanced state all waited
-    for it - and failed, past SQLite's ten seconds. A Pause that commits once consent was read
-    finds a send started, as it finds one of the backend's after its launch.
+    queue process is launched: calling the channel is this send's launch. Held across a
+    transport core cannot see into - the lock being the advanced state's too once the claim
+    attached it - a Pause, a disarm on another thread and the channel's own write all waited for
+    it, and failed past SQLite's ten seconds. A Pause that commits once consent was read finds a
+    send started, as it finds one of the backend's after its launch.
 
     `client_id` is handed on only when core gives one - a continuation it sends with no marker
     (P15) - so a channel that was never asked for that is called exactly as before."""
@@ -505,9 +507,8 @@ class _Route:
     route's one method, and the only thing of it core ever calls.
 
     `still_unloaded` is core's own look at whether the app still does not hold the conversation
-    (engine/delivery.py), handed on for the route to ask at the last moment before it changes
-    anything in Codex: its session takes seconds to start, and the app may open the conversation
-    in them. It is handed on only when core gives one."""
+    (engine/delivery.py), handed on, when core gives one, for the route to ask at the last moment
+    before it changes anything in Codex: the app may open the conversation while a session starts."""
     __slots__ = ("_resume",)
 
     def __init__(self, resume):
@@ -532,11 +533,9 @@ class Guarded:
     and anything else is DEFER - except at the sender, where it is core's own backend, because
     there is always a send to hand the one message to. Nothing a hook does reaches past this:
     it is handed copies (`consult`) and a stand-in for the backend (BACKEND), and a channel it
-    names is held to the launch guard.
-    `failures` counts the hooks that raised, over every caller of this plug on every thread; the
-    claim asks through `claim_ledger_checked` instead, which says whether that one call raised
-    (store/ledger.py).
-    """
+    names is held to the launch guard. `failures` counts the hooks that raised, over every
+    caller on every thread; the claim asks through `claim_ledger_checked`, which says whether
+    that one call raised (store/ledger.py)."""
     __slots__ = ("plug", "failures")
 
     def __init__(self, plug):

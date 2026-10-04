@@ -86,19 +86,21 @@ class ClaimsMixin:
 
     def reserve_detailed(self, interruption_id: str, now: float, *, limits: dict | None = None,
                          gates: dict | None = None, ledger=None, carried=frozenset(),
-                         quiet_until: float | None = None, relaxed: str | None = None) -> tuple:
+                         quiet_until: float | None = None, relaxed: str | None = None,
+                         resend: tuple | None = None) -> tuple:
         """Claim a record for sending, re-checking every store-side gate in the claim.
 
-        Returns (claimed, refusing_gate, reason). The gate vector - the engine's view of
-        Codex plus the store's own checks made here - is persisted whether the claim is
-        granted or refused, so an interface can show exactly why a record is waiting.
-        `ledger` is the engine's plug (domain/plug.py), asked last (P11); None is NULL's.
-        `carried` is the points whose answers of the plug's the send this claim leads to
-        carries - Point.TEXT for its words, Point.SENDER for its channel - which its ledger pays
-        for (`_ledger_holds`). `quiet_until` is the end of the quiet hours `now` falls in, or None.
-        Schema 4's conditions - observe-only, a hold, a postponement, the quiet hours - are asked
-        here again, inside the claim, as reasons of the consent and schedule gates. `relaxed` is a
-        gate the plug relaxed (v0.6.13), held here to core's own bounds (`_relaxation_refused`).
+        Returns (claimed, refusing_gate, reason). The gate vector - the engine's view of Codex plus
+        the store's own checks made here - is persisted whether the claim is granted or refused, so
+        an interface can show exactly why a record is waiting. `ledger` is the engine's plug
+        (domain/plug.py), asked last (P11); None is NULL's. `carried` is the points whose answers of
+        the plug's the send carries - Point.TEXT for its words, Point.SENDER for its channel - which
+        its ledger pays for (`_ledger_holds`). `quiet_until` is the end of the quiet hours `now` falls
+        in, or None. Schema 4's conditions - observe-only, a hold, a postponement, the quiet hours -
+        are asked here again as reasons of the consent and schedule gates. `relaxed` is a gate the
+        plug relaxed (v0.6.13), held here to core's own bounds (`_relaxation_refused`); `resend` is
+        the window, (after, until) seconds from its send, an uncertain submission is claimed once
+        more in (`_resend_claim`).
         """
         _timestamp(now, "now")
         if gates is not None and limits is None:
@@ -109,6 +111,9 @@ class ClaimsMixin:
             row = self._row(connection, interruption_id)
             if row is None:
                 return False, "identity", "unknown_record"
+            if resend is not None:
+                return self._resend_claim(connection, settings, row, now, limits, gates, ledger, carried,
+                                          quiet_until, resend)
             vector = dict(gates or {})
             vector["consent"] = machine.gate_consent(
                 settings["enabled"], self._thread_enabled(connection, row["thread_id"]),
@@ -202,8 +207,8 @@ class ClaimsMixin:
         with self._transaction() as connection:
             row = self._row(connection, interruption_id)
             if (row is None or row["state"] != "submitting" or row["queue_id"] is not None
-                    or row["submitted_at"] is None):
-                return False
+                    or row["submitted_at"] is None or machine.was_resent(row)):
+                return False             # v0.6.13: a resent one never waits, nor gets back what it never paid
             connection.execute(
                 "UPDATE interruptions SET state=?, submitted_at=NULL, last_error=?, next_retry_at=?, %s, "
                 "cancel_requested=CASE WHEN ?='cancelled' THEN 1 ELSE cancel_requested END "
@@ -280,7 +285,7 @@ class ClaimsMixin:
             if (row is None or row["state"] != "withdrawn_unconfirmed"
                     or row["withdraw_reason"] not in machine.RELEASABLE_WITHDRAWALS or not row["withdraw_deleted"]
                     or now - row["withdrawn_at"] < window or later_turn or marker_rows
-                    or row_present or not fresh or row["cancel_requested"]):
+                    or row_present or not fresh or row["cancel_requested"] or machine.was_resent(row)):
                 return False
             connection.execute(
                 "UPDATE interruptions SET state=?, submitted_at=NULL, queue_id=NULL, "

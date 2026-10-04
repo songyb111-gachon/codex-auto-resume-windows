@@ -150,10 +150,12 @@ class ClosedAlternativeTests(unittest.TestCase):
         v0.6.13 stage 3b: P17 takes the words that take up a failure core never recovers alone -
         ADMIT, and the five AS_ words that pace one as a temporary kind - and so do the gates, which
         core takes only at known_failure (tests/test_plug_points.py, KnownFailureTests): the first
-        relaxations of a gate, each held to core's own fence (failures.admits)."""
+        relaxations of a gate, each held to core's own fence (failures.admits). And P7 takes RESEND,
+        an uncertain submission sent once more where core proves it may (engine/resend.py)."""
         take_up = {Alternative.ADMIT, Alternative.CAPACITY} | set(plug.PACED_AS)
         self.assertEqual(plug.TAKE_UP, take_up)
-        self.assertEqual(plug.ANSWERS, plug.RESTRICTIONS | {Alternative.CLIENT_ID, Alternative.EARLY} | take_up)
+        self.assertEqual(plug.ANSWERS, plug.RESTRICTIONS | {Alternative.CLIENT_ID, Alternative.EARLY,
+                                                            Alternative.RESEND} | take_up)
         self.assertEqual(plug.ANSWERS, frozenset(Alternative))
         for point, accepted in plug.ALTERNATIVES.items():
             with self.subTest(point):
@@ -163,8 +165,10 @@ class ClosedAlternativeTests(unittest.TestCase):
         self.assertEqual(plug.ALTERNATIVES[Point.DELIVERY], frozenset({Alternative.CLIENT_ID}))
         self.assertEqual(plug.ALTERNATIVES[Point.GATES], plug.RESTRICTIONS | take_up)
         self.assertEqual(plug.ALTERNATIVES[Point.ADMISSION], take_up)
-        # And P7 may look at a usage-limited record early (EARLY), which core carries out.
-        self.assertEqual(plug.ALTERNATIVES[Point.SCHEDULE], plug.RESTRICTIONS | {Alternative.EARLY})
+        # And P7 may look at a usage-limited record early (EARLY), and send an uncertain submission
+        # once more (RESEND), each of which core carries out.
+        self.assertEqual(plug.ALTERNATIVES[Point.SCHEDULE],
+                         plug.RESTRICTIONS | {Alternative.EARLY, Alternative.RESEND})
         self.assertEqual({point for point, accepted in plug.ALTERNATIVES.items() if accepted},
                          {Point.GATES, Point.SCHEDULE, Point.CLAIM_LEDGER, Point.DELIVERY,
                           Point.ADMISSION})
@@ -174,7 +178,7 @@ class ClosedAlternativeTests(unittest.TestCase):
         self.assertNotIn(Point.START_ROUTE, plug.ALTERNATIVES)
         for point, accepted in plug.ALTERNATIVES.items():
             for answer in ([object()], {"records": []}, "go", Alternative.HOLD, Alternative.CLIENT_ID,
-                           Alternative.ADMIT, Alternative.AS_TIMEOUT, Alternative.EARLY):
+                           Alternative.ADMIT, Alternative.AS_TIMEOUT, Alternative.EARLY, Alternative.RESEND):
                 if isinstance(answer, Alternative) and answer in accepted:
                     continue
                 with self.subTest(point=point, answer=answer):

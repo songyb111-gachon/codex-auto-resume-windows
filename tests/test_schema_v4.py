@@ -297,8 +297,8 @@ DISPATCH_MODULES = ("codex_auto_resume/engine/dispatch.py", "codex_auto_resume/s
                     "codex_auto_resume/store/ledger.py",
                     # v0.6.11: the last look before a send, and what proves it arrived.
                     "codex_auto_resume/engine/delivery.py",
-                    # v0.6.13: what the edition's plug may relax of a gate.
-                    "codex_auto_resume/engine/relaxed.py")
+                    # v0.6.13: what the edition's plug may relax of a gate, and a resend.
+                    "codex_auto_resume/engine/relaxed.py", "codex_auto_resume/engine/resend.py")
 
 
 def docstrings(tree):

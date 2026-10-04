@@ -25,9 +25,10 @@ looked for by it, and one the app does not hold waits for it, exactly as before.
 """
 from __future__ import annotations
 
-from .. import continuation as _message, machine
+from .. import continuation as _message, failures, machine
 from ..domain import ids
 from ..domain.plug import DEFER, Alternative, Point
+from .options import backoff_delay
 
 
 class DeliveryMixin:
@@ -47,9 +48,11 @@ class DeliveryMixin:
             return client
         return row["marker"]
 
-    def _delivery(self, row, sender):
+    def _delivery(self, row, sender, resend=False):
         """P15: the client id a continuation of `row` is sent under with no marker, or None for
-        the marker, as core has always sent it.
+        the marker, as core has always sent it - or, for a `resend` (engine/resend.py), False where
+        it would not carry the proof its first send did: the derived id through a channel for one
+        sent with no marker, the marker for one sent with it. A resend writes nothing here.
 
         Taken only for a send handed to the plug's channel: core's own backend is `codex queue`,
         which takes no client id, so through it the marker always goes. What is taken is written
@@ -61,6 +64,8 @@ class DeliveryMixin:
         answer = self.plug.delivery(row)
         derived = ids.continuation_client_id(row["interruption_id"])
         client = derived if answer is Alternative.CLIENT_ID and sender is not self.backend else None
+        if resend:
+            return client if (client is not None) == (self.proof(row) != row["marker"]) else False
         if client is not None and row.get("recovery_client_id") != client:
             self.store.update(row["interruption_id"], at=self.clock(), recovery_client_id=client)
         elif client is None and row.get("recovery_client_id") == derived:
@@ -122,6 +127,40 @@ class DeliveryMixin:
             return _message.for_settings(row["category"], values, row=row, limits=limits), True
         except Exception:
             return message, False
+
+    def _after_send(self, row, response, resend=False):
+        """What came of a send: queued, given back or tried again for one that never started, and
+        an uncertain submission for anything else - and, for a resend, never a wait (engine/resend.py)."""
+        reserved = self.store.get(row["interruption_id"])
+        outcome = response.get("outcome")
+        if resend and outcome != "accepted":
+            self._after_resend(reserved, outcome)
+        elif outcome == "accepted":
+            now = self.clock()
+            self.transition(reserved, "queued", None, delay=1, event="submitted",
+                            queue_id=response.get("queue_id"),
+                            first_queued_at=reserved["first_queued_at"] or now)
+            self.log(row["thread_id"], "continuation_submitted", None)
+            self.announce("starting", reserved, **self._told_of(row))   # a Tell's line (engine/guard.py)
+        elif outcome == "not_started":
+            if response.get("error_code") == "queue_consent_refused":
+                target = "cancelled" if reserved["cancel_requested"] else self.waiting_state(reserved)
+                reason = "user_cancelled" if reserved["cancel_requested"] else "released_before_send"
+                self._release(row["interruption_id"], reserved, target, reason,
+                              self.options["state_poll_seconds"])
+                self.log(row["thread_id"], target, reason)
+                return
+            retry = reserved["retry_count"] + 1
+            if retry >= self.options["max_queue_retries"]:
+                self.transition(reserved, "failed", "queue_launch_retry_limit", retry_count=retry,
+                                submitted_at=None)
+            else:
+                delay = (self.delay_for(reserved["recovery_attempts"])
+                         if reserved["category"] != failures.USAGE_LIMIT else backoff_delay(retry))
+                self.transition(reserved, "waiting_retry", "queue_process_not_started",
+                                retry_count=retry, submitted_at=None, delay=delay)
+        else:
+            self.transition(reserved, "submission_unknown", "queue_result_unknown_do_not_resend", delay=1)
 
     # --------------------------------------------------------------- a conversation not held (P16)
     def _unloaded(self, row, loaded, vector):

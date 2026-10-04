@@ -1,8 +1,8 @@
 """Records: registering one, reading them back, and the rules a change must obey.
 
 `update` is where a record may be refused - a terminal record brought back, a send that may
-have happened rubbed out, a recovery turn rewritten, a cancellation withdrawn. Each of those
-is one line here and one test in `tests/test_store_guards.py`.
+have happened rubbed out, a recovery turn rewritten, a cancellation withdrawn, a resent
+continuation sent back to waiting. Each of those is one line here and one test.
 """
 from __future__ import annotations
 
@@ -247,6 +247,10 @@ class RecordsMixin:
                 raise StoreError("A recovery turn is written once")
             if old["cancel_requested"] and not row["cancel_requested"]:
                 raise StoreError("A cancellation cannot be withdrawn")
+            if row["state"] in WAITING and machine.was_resent(old):
+                # v0.6.13: a continuation sent once more never waits again - its stored vector is
+                # what says it was resent, and a wait's would be rewritten (domain/gates.py).
+                raise StoreError("A resent continuation never waits again")
             assignments = ",".join(f"{column}=?" for column in changes)
             connection.execute(
                 f"UPDATE interruptions SET {assignments} WHERE interruption_id=?",

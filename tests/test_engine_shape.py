@@ -26,7 +26,9 @@ MIXINS = (package.OptionsMixin, package.AnnounceMixin, package.FreshnessMixin,
           # v0.6.11: how a continuation is carried and proven (P15), and the look before it goes.
           package.DeliveryMixin,
           # v0.6.13: what the edition's plug may relax, within core's own bounds.
-          package.RelaxedMixin)
+          package.RelaxedMixin,
+          # and an uncertain continuation sent once more, where the plug asks and core may.
+          package.ResendMixin)
 
 # The forty-one methods the one class had, counted the day it was split.
 METHODS = {
@@ -73,6 +75,11 @@ METHODS = {
     "capacity_limits", "capacity_open", "_capacity_wait",
     # and a usage-limited record looked at early (EARLY): the look, its waits, what the ledger pays.
     "_attempt", "_early", "_parked", "relaxed_points",
+    # and an uncertain submission sent once more (RESEND, engine/resend.py): its window, the watch's
+    # sightings and looks that found no trace, the checks and the plug's holds, the send's outcome,
+    # and a resend that ran found twice.
+    "resend_window", "_sighted", "_traceless", "_resendable", "_holds", "resend_uncertain", "_resend",
+    "_after_resend", "watch_resent",
 }
 
 # What `from codex_auto_resume.engine import ...` has to keep answering (app.py, the tests).

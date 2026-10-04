@@ -5,7 +5,9 @@ the claim's own connection and inside its transaction - so what the ledger count
 under the same lock as core's rows. Here is how it is asked: under a savepoint that takes back
 whatever it wrote if it holds the claim, through a handle that can `execute` and nothing else,
 and under an authorizer that keeps core's schemas and the claim's transaction out of its reach.
-The standard edition's plug is never asked, so none of this runs there.
+The standard edition's plug is never asked, so none of this runs there. Nor do the claims only a
+plug's answer leads to, which are here for that reason: the checks of a relaxation, and (v0.6.13) the
+claim of an uncertain submission sent once more (`_resend_claim`).
 """
 from __future__ import annotations
 
@@ -15,6 +17,7 @@ import sqlite3
 from .. import failures, ladder, machine
 from ..domain.plug import Alternative, Point
 from .columns import _UNREAD_BY_DISPATCH
+from .validate import is_usage
 
 # What a ledger may do on the claim's connection while it is asked (P11): read anything but the
 # needs-you notices (schema 4), which decide no claim; attach a database of its own; and write,
@@ -212,3 +215,40 @@ class LedgerMixin:
             connection.execute("ROLLBACK TO claim_ledger")
         connection.execute("RELEASE claim_ledger")
         return held
+
+    def _resend_claim(self, connection, settings, row, now, limits, gates, ledger, carried,
+                      quiet_until, window) -> tuple:
+        """The claim of an uncertain submission sent once more (v0.6.13, engine/resend.py), inside
+        `reserve_detailed`'s transaction: the record is still one that may be (resend_candidate),
+        consent and the schedule hold - its next look is the watch's, no retry's wait - nothing else
+        of the conversation's may be queued, every budget holds as core computes it, and the plug's
+        ledger is asked and pays, the schedule's answer being what it carries. Granted, the record
+        is `submitting` again with its vector, submission_safe passed as a resend, which is what marks
+        it resent; its attempt and its link of the chain are not charged again - its first claim paid
+        them. Refused, nothing is written: it stays the uncertain submission it was."""
+        if gates is None or limits is None or not machine.resend_candidate(row, now, window):
+            return False, "submission_safe", "possibly_sent"
+        vector = dict(gates)
+        vector["consent"] = machine.gate_consent(
+            settings["enabled"], self._thread_enabled(connection, row["thread_id"]),
+            row["cancel_requested"], observe_only=settings["observe_only"], hold=row["hold"])
+        others = self._others_in_flight(connection, row["thread_id"], row["interruption_id"])
+        vector["submission_safe"] = (machine.gate(machine.WAIT, "other_recovery_in_flight") if others
+                                     else machine.gate(machine.PASS, machine.RESEND))
+        vector["schedule"] = machine.gate_schedule(dict(row, next_retry_at=None), now,
+                                                   quiet_until=quiet_until)
+        vector.update(machine.gate_budgets(row, limits, is_usage(row)))
+        found = machine.first_refusal(vector)
+        refusal = (found[0], found[1][1]) if found is not None else None
+        refusal = refusal or self._relaxation_refused(connection, row, now, vector, None, ledger, carried)
+        if refusal is None and (ledger.null or Point.SCHEDULE not in carried
+                                or self._ledger_holds(connection, ledger, row, now, carried)):
+            refusal = ("submission_safe", machine.HELD)
+        if refusal is not None:
+            return False, refusal[0], refusal[1]
+        connection.execute(
+            "UPDATE interruptions SET state='submitting', attempt_count=attempt_count+1, submitted_at=?, "
+            "last_claim_at=?, last_error=NULL, gate_eval=?, gate_eval_at=? WHERE interruption_id=?",
+            (now, now, machine.encode_gates(vector), now, row["interruption_id"]))
+        self._event(connection, now, "claim", record=row, from_state=row["state"], to_state="submitting")
+        return True, None, None

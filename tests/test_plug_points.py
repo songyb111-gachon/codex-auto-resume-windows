@@ -48,13 +48,13 @@ _HERE = str(Path(__file__).resolve().parent)
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)        # codexsim and the engine's harness live next to this file
 
-from codexsim import BASE, RESET  # noqa: E402
+from codexsim import BASE, RESET, new_id  # noqa: E402
 import srcscan  # noqa: E402
 from test_control import ControlTestCase  # noqa: E402
 from test_engine import T1, T2, TURN_A, TURN_B, EngineCase, archive, fail_turn  # noqa: E402
 from test_ports import ENGINE_TO_STORE  # noqa: E402
 from codex_auto_resume import (config, continuation, control, controlcli, diagnostics,  # noqa: E402
-                               edition, ladder, managed, mcpserver, settings, startup, windows)
+                               edition, ladder, machine, managed, mcpserver, settings, startup, windows)
 from codex_auto_resume.domain import ids  # noqa: E402
 from codex_auto_resume.domain.plug import (DEFER, EXTRA, PACED_AS, Alternative, DamagedPlug,  # noqa: E402
                                            Guarded, Plug, PlugFailure, Point, Surface, guard)
@@ -1311,7 +1311,10 @@ class TickTests(PluggedCase):
 # `update` moves one only when it is handed a state. `register` is not among them: it makes a
 # record rather than moving one, and the plug's view of the store shows it (P2, P8).
 MOVERS = frozenset({"reserve_detailed", "release_claim", "release_withdrawn", "correlate",
-                    "update"})
+                    "update",
+                    # v0.6.13: reserve_detailed's own claim of a resend, which the engine reaches
+                    # only through it (store/ledger.py).
+                    "_resend_claim"})
 # The store calls a person's action makes that move a record (store/actions.py): cancelling one,
 # cancelling a conversation, giving the attempts back. The engine never makes them, and no plug
 # is told of them: P14 tells what the engine writes.
@@ -2630,6 +2633,377 @@ class EarlyTests(PluggedCase):
         h.tick(advance=ladder.EARLY_SPACING - 120)
         self.assertEqual((asked(), len(reads)), (sorted([T1, T1, T2, T2]), 2))
         self.assertEqual(h.backend.send_calls, [])
+
+
+
+def resend_answer(record, due):
+    """P7 as a capability that sends an uncertain submission once more answers it."""
+    return Alternative.RESEND if record["state"] == "submission_unknown" else DEFER
+
+
+def resending(**answers):
+    return Asked(schedule=resend_answer, **answers)
+
+
+def unknown_asked(plug, hook="schedule"):
+    """The records `hook` was asked about while core held them as uncertain submissions."""
+    return [arguments for name, arguments in plug.asked if name == hook
+            and isinstance(arguments[0], dict) and arguments[0].get("state") == "submission_unknown"]
+
+
+class ResendTests(PluggedCase):
+    """RESEND (P7, v0.6.13): an uncertain submission sent once more, where the plug asks and core
+    proves no copy of it anywhere. Driven by ticks and the clock alone, so the watch's own fifteen
+    minutes between looks are what each test meets: no column is set by hand to make it due."""
+
+    def uncertain(self, h=None, plug=None):
+        """A usage-limited record whose continuation went out with an unknown answer, sent by an
+        engine that holds `plug` from before the send; Codex accepts the next send."""
+        h = h or self.h
+        plug = plug if plug is not None else resending()
+        self.plugged(plug, h)
+        self.due(h)
+        h.backend.default_outcome = "unknown"
+        h.tick()
+        row = h.record()
+        self.assertEqual((row["state"], row["last_error"]),
+                         ("submission_unknown", "queue_result_unknown_do_not_resend"))
+        h.backend.default_outcome = "accepted"
+        return row, plug
+
+    def hours(self, h, hours, step=900):
+        for _ in range(int(hours * 3600 // step)):
+            h.tick(advance=step)
+
+    def test_it_goes_once_after_fifteen_minutes_with_its_words_and_marker_and_charges_nothing(self):
+        h = self.h
+        first, _plug = self.uncertain()
+        h.tick(advance=1)                          # the watch's first look: nothing, and 15 minutes on
+        h.tick(advance=898)
+        self.assertEqual(len(h.backend.send_calls), 1, "nothing before fifteen minutes")
+        h.tick(advance=2)                          # its next look, past fifteen minutes
+        self.assertEqual(len(h.backend.send_calls), 2)
+        self.assertEqual(h.backend.send_calls[1], h.backend.send_calls[0], "the same thread, words, marker")
+        self.assertTrue(self.prompt().endswith(first["marker"]))
+        row = h.record()
+        self.assertTrue(machine.was_resent(row))
+        self.assertEqual((row["attempt_count"], row["recovery_attempts"], row["chain_continuations"]),
+                         (2, first["recovery_attempts"], first["chain_continuations"]))
+        self.follow()
+        row = h.record()
+        self.assertEqual(row["state"], "recovered")
+        self.assertNotIn("ambiguous_receipt", [event["reason"] for event in h.store.events(row["interruption_id"])])
+        self.hours(h, 7)
+        self.assertEqual(len(h.backend.send_calls), 2)
+
+    def test_after_six_hours_nothing_is_resent(self):
+        asks = {"now": False}
+        h = self.h
+        self.uncertain(plug=Asked(schedule=lambda record, due: resend_answer(record, due)
+                                  if asks["now"] else DEFER))
+        self.hours(h, 6.25)
+        asks["now"] = True
+        self.hours(h, 2)
+        self.assertEqual(len(h.backend.send_calls), 1)
+        self.assertEqual(h.record()["state"], "submission_unknown")
+
+    def test_a_look_that_raises_or_one_the_budget_skips_resends_nothing(self):
+        for how in ("raises", "skipped"):
+            with self.subTest(how):
+                h = self.fresh()
+                self.uncertain(h)
+                h.tick(advance=1)
+                if how == "raises":
+                    with patch.object(type(h.source), "marker_rows", side_effect=OSError("locked")):
+                        h.tick(advance=900)
+                else:
+                    h.engine.options["watch_budget_seconds"] = -1
+                    h.tick(advance=900)
+                    h.engine.options["watch_budget_seconds"] = 5
+                self.assertEqual(len(h.backend.send_calls), 1)
+                h.tick(advance=1)                  # a look that reads Codex, and finds nothing
+                self.assertEqual(len(h.backend.send_calls), 2)
+
+    def test_its_marker_in_codexs_history_or_queue_stops_it(self):
+        for where in ("history", "queue"):
+            with self.subTest(where):
+                h = self.fresh()
+                row, _plug = self.uncertain(h)
+                if where == "history":
+                    h.home.add_turn(T1, None, "completed", user_text="go on\n\n" + row["marker"])
+                else:
+                    h.home.enqueue(T1, "go on\n\n" + row["marker"])
+                self.hours(h, 6)
+                self.assertEqual(len(h.backend.send_calls), 1)
+                self.assertFalse(machine.was_resent(h.record()))
+
+    def test_one_seen_in_codexs_queue_and_gone_from_it_is_never_resent(self):
+        """Removed in Codex by a person, its reason still the unknown send's: core's own words for
+        what a person decided, never overridden. Seen as it was queued, seen in place after an
+        unknown answer with or without a client id of Codex's, or sent before the sightings were
+        forgotten."""
+        for how in ("queued", "seen with codex's id", "seen with none", "forgotten"):
+            with self.subTest(how):
+                h = self.fresh()
+                plug = resending()
+                self.plugged(plug, h)
+                self.due(h)
+                h.backend.after_accept = "queue"
+                if how == "queued":
+                    h.tick()
+                    self.assertEqual(h.record()["state"], "queued")
+                elif how == "forgotten":
+                    h.backend.default_outcome = "unknown"
+                    h.tick()
+                else:
+                    client = new_id() if how == "seen with codex's id" else None
+                    h.backend.default_outcome = "unknown"
+                    h.backend.on_send = lambda thread, prompt: h.home.enqueue(thread, prompt, client_id=client)
+                    h.tick()
+                    h.backend.on_send = None
+                    h.watch(advance=1)
+                    self.assertEqual(h.home.queued(T1), [h.record()["queue_id"]])
+                for queue_id in h.home.queued(T1):
+                    h.home.remove_queued(queue_id)
+                if how == "forgotten":                 # one more than it remembers: all forgotten
+                    for index in range(4097):
+                        h.engine._sighted("%064x" % index)
+                    self.assertEqual(h.engine._seen_queued_cleared_at, h.now)
+                h.backend.default_outcome = "accepted"
+                self.hours(h, 6)
+                row = h.record()
+                self.assertEqual(row["state"], "submission_unknown")
+                self.assertIn(row["last_error"], machine.RESENDABLE)
+                self.assertEqual(len(h.backend.send_calls), 1)
+
+    def test_a_later_turn_or_someones_queued_input_stops_it(self):
+        for how in ("turn", "queued"):
+            with self.subTest(how):
+                h = self.fresh()
+                self.uncertain(h)
+                if how == "turn":
+                    h.home.add_turn(T1, None, "completed", user_text="their own message")
+                else:
+                    h.home.enqueue(T1, "their own message")
+                self.hours(h, 6)
+                self.assertEqual(len(h.backend.send_calls), 1)
+
+    def test_a_history_seen_behind_since_the_send_or_a_watcher_started_since_stops_it(self):
+        for how in ("behind", "restarted"):
+            with self.subTest(how):
+                h = self.fresh()
+                self.uncertain(h)
+                if how == "behind":
+                    h.home.make_stale(T1)
+                    h.tick(advance=1)
+                    h.home.catch_up(T1)
+                else:
+                    self.plugged(resending(), h)
+                self.hours(h, 6)
+                self.assertEqual(len(h.backend.send_calls), 1)
+
+    def test_no_other_uncertain_reason_is_resent(self):
+        for reason in ("duplicate_marker", "ambiguous_receipt", "withdraw_unconfirmed",
+                       "queue_cleanup_unconfirmed", "released_before_send", "queue_process_not_started"):
+            with self.subTest(reason):
+                h = self.fresh()
+                row, _plug = self.uncertain(h)
+                h.store.update(row["interruption_id"], at=h.now, last_error=reason)
+                self.hours(h, 6)
+                self.assertEqual(len(h.backend.send_calls), 1)
+
+    def test_a_spent_attempt_budget_the_persons_or_the_administrators_stops_it(self):
+        sent = {}
+        for how in ("budget left", "persons", "administrators"):
+            with self.subTest(how):
+                h = self.fresh()
+                engine = self.plugged(resending(), h)
+                if how == "persons":
+                    engine.apply_policy(dict(settings.defaults(), max_recovery_attempts=1))
+                elif how == "administrators":
+                    engine.apply_policy(settings.defaults(), managed.Managed(max_recovery_attempts=1))
+                failed(h, OVERLOADED)
+                h.tick()
+                h.now = h.record()["next_retry_at"] + 1
+                h.backend.default_outcome = "unknown"
+                h.tick()
+                self.assertEqual((h.record()["state"], h.record()["recovery_attempts"]), ("submission_unknown", 1))
+                h.backend.default_outcome = "accepted"
+                self.hours(h, 1)
+                sent[how] = len(h.backend.send_calls)
+        self.assertEqual(sent, {"budget left": 2, "persons": 1, "administrators": 1})
+
+    def test_a_hold_at_any_gate_a_send_passes_sends_nothing_and_writes_nothing(self):
+        for name in ("submission_safe", "chain_budget", "no_progress_budget", "thread_available",
+                     "attempt_budget", "usage"):
+            with self.subTest(name):
+                h = self.fresh()
+                plug = resending(gate=lambda gate, record, facts, name=name: (
+                    Alternative.HOLD if gate == name and record["state"] == "submission_unknown" else DEFER))
+                first, _plug = self.uncertain(h, plug)
+                self.hours(h, 1)
+                row = h.record()
+                self.assertEqual(len(h.backend.send_calls), 1)
+                self.assertEqual((row["state"], row["attempt_count"], row["gate_eval"]),
+                                 ("submission_unknown", 1, first["gate_eval"]))
+                held = [arguments[0] for hook, arguments in plug.asked
+                        if hook == "gate" and arguments[1]["state"] == "submission_unknown"]
+                self.assertIn(name, held, "the plug was asked at that gate, of the uncertain record")
+
+    def test_a_resent_continuation_is_never_resent_again(self):
+        h = self.h
+        self.uncertain()
+        h.backend.default_outcome = "unknown"
+        self.hours(h, 7)
+        row = h.record()
+        self.assertEqual(len(h.backend.send_calls), 2)
+        self.assertEqual((row["state"], row["last_error"]),
+                         ("submission_unknown", "queue_result_unknown_do_not_resend"))
+        self.assertTrue(machine.was_resent(row))
+
+    def test_given_back_before_its_send_or_never_started_it_stays_uncertain_and_never_waits(self):
+        for how in ("pre-send look", "not started", "consent refused at the guard"):
+            with self.subTest(how):
+                h = self.fresh()
+                first, _plug = self.uncertain(h)
+                key = first["interruption_id"]
+                before = len(h.store.events(key))
+                if how == "pre-send look":
+                    h.engine.presend_problem = lambda claim: ("waiting_retry", "released_before_send", 60)
+                elif how == "not started":
+                    h.backend.default_outcome = "not_started"
+                else:
+                    real = h.engine.presend_problem
+
+                    def look_then_pause(claim):
+                        found = real(claim)
+                        h.store.set_enabled(False, h.now)
+                        return found
+                    h.engine.presend_problem = look_then_pause
+                h.tick(advance=1)
+                h.tick(advance=900)
+                row = h.record()
+                self.assertEqual(row["state"], "submission_unknown")
+                self.assertTrue(machine.was_resent(row))
+                h.store.set_enabled(True, h.now)
+                h.backend.default_outcome = "accepted"
+                self.hours(h, 6)
+                self.assertEqual(h.record()["state"], "submission_unknown")
+                moves = [event["to_state"] for event in h.store.events(key)[before:]]
+                self.assertIn("submitting", moves)
+                self.assertEqual([state for state in moves if state in WAITING], [])
+                self.assertEqual(len(h.backend.send_calls), 2 if how == "not started" else 1)
+
+    def test_a_pause_or_observe_only_that_takes_a_queued_resend_back_ends_it_failed(self):
+        for how in ("pause", "observe only"):
+            with self.subTest(how):
+                h = self.fresh()
+                self.uncertain(h)
+                h.backend.after_accept = "queue"
+                h.tick(advance=1)
+                h.tick(advance=900)
+                self.assertEqual((len(h.backend.send_calls), h.record()["state"]), (2, "queued"))
+                if how == "pause":
+                    h.store.set_enabled(False, h.now)
+                else:
+                    h.store.set_observe_only(True)
+                h.tick(advance=1)
+                self.assertEqual(h.record()["state"], "withdrawn_unconfirmed")
+                self.assertEqual(h.record()["withdraw_reason"],
+                                 "paused_unknown" if how == "pause" else "observe_only_unknown")
+                h.tick(advance=181)
+                self.assertEqual(h.record()["state"], "failed")
+                h.store.set_enabled(True, h.now)
+                h.store.set_observe_only(False)
+                self.hours(h, 6)
+                self.assertEqual((len(h.backend.send_calls), h.record()["state"]), (2, "failed"))
+
+    def test_a_pause_observe_only_a_cancel_or_a_conversation_off_is_never_put_to_p7(self):
+        for how in ("pause", "observe only", "cancel", "conversation off"):
+            with self.subTest(how):
+                h = self.fresh()
+                row, plug = self.uncertain(h)
+                if how == "pause":
+                    h.store.set_enabled(False, h.now)
+                elif how == "observe only":
+                    h.store.set_observe_only(True)
+                elif how == "cancel":
+                    h.store.cancel_interruption(row["interruption_id"], h.now)
+                else:
+                    h.store.set_thread_enabled(T1, False, at=h.now)
+                self.hours(h, 2)
+                self.assertEqual(unknown_asked(plug), [])
+                self.assertEqual(len(h.backend.send_calls), 1)
+
+    def test_its_ledger_is_told_the_send_carries_the_schedule_and_a_hold_sends_nothing(self):
+        told = []
+
+        def ledger(connection, record, now, carried):
+            told.append((record["state"], carried))
+            return Alternative.HOLD if record["state"] == "submission_unknown" else DEFER
+        h = self.h
+        first, _plug = self.uncertain(plug=resending(claim_ledger=ledger))
+        h.tick(advance=1)
+        h.tick(advance=900)
+        self.assertIn(("submission_unknown", frozenset({Point.SCHEDULE})), told)
+        row = h.record()
+        self.assertEqual(len(h.backend.send_calls), 1)
+        self.assertEqual((row["state"], row["attempt_count"], row["gate_eval"]),
+                         ("submission_unknown", 1, first["gate_eval"]))
+
+    def test_one_first_sent_with_no_marker_goes_again_only_through_a_channel_under_its_id(self):
+        for how in ("channel", "no channel"):
+            with self.subTest(how):
+                h = self.fresh()
+                channel = QueueAdd(h, outcome="unknown", queued=False)
+                plug = resending(sender=channel, delivery=Alternative.CLIENT_ID)
+                row, _plug = self.uncertain(h, plug)
+                key = row["interruption_id"]
+                self.assertEqual(row["recovery_client_id"], ids.continuation_client_id(key))
+                channel.outcome, channel.queued = "accepted", True
+                if how == "no channel":
+                    plug.answers["sender"] = DEFER
+                h.tick(advance=1)
+                h.tick(advance=900)
+                self.assert_no_send(h)
+                if how == "no channel":
+                    self.assertEqual(len(channel.calls), 1)
+                    self.assertFalse(machine.was_resent(h.record()))
+                    continue
+                self.assertEqual(len(channel.calls), 2)
+                self.assertEqual(channel.calls[1][:3], channel.calls[0][:3])
+                self.follow(h)
+                self.assertEqual(h.record()["state"], "recovered")
+
+    def test_an_uncertain_route_is_never_resent(self):
+        h = self.h
+        route = Resume("unknown")
+        plug = resending(unloaded=route)
+        self.plugged(plug)
+        self.ready_after_reset(loaded=False)
+        h.tick()
+        self.assertEqual(h.record()["state"], "submission_unknown")
+        h.backend.loaded_map[T1] = "loaded"
+        self.hours(h, 6)
+        self.assertEqual((len(route.calls), h.backend.send_calls), (1, []))
+
+    def test_a_resend_found_twice_after_it_ran_is_written_so(self):
+        for when in ("running", "ended"):
+            with self.subTest(when):
+                h = self.fresh()
+                row, _plug = self.uncertain(h)
+                h.backend.turn_status = "inProgress" if when == "running" else "completed"
+                h.tick(advance=1)
+                h.tick(advance=900)
+                self.follow(h)
+                self.assertEqual(h.record()["state"], "turn_started" if when == "running" else "recovered")
+                late = h.home.add_turn(T1, None, "completed", user_text="go on\n\n" + row["marker"])
+                self.assertTrue(late)
+                h.tick(advance=61)
+                found = h.record()
+                self.assertEqual(found["last_error"], "duplicate_marker")
+                self.assertEqual(found["state"], "outcome_unverified" if when == "running" else "recovered")
+                self.assertEqual(len(h.backend.send_calls), 2)
 
 
 if __name__ == "__main__":

@@ -83,8 +83,9 @@ LISTS = {
     # and schema 4's `postponed`, `quiet_hours` and `observe_only`, reasons of consent and schedule;
     # and `offline`, the usage gate's while Windows reports no internet (power.py).
     # v0.6.11 stage 3b: `plugged`, thread_available passed for a route the plug named (P16).
-    # v0.6.13: admission_expired and capacity_window, reasons now (not_recoverable was a gate reason).
-    "machine.GATE_REASONS": ("set", 85, "f8a54df88c65c186"),
+    # v0.6.13: admission_expired and capacity_window, reasons now (not_recoverable was a gate reason);
+    # and `resend`, submission_safe passed for an uncertain submission sent once more (engine/resend.py).
+    "machine.GATE_REASONS": ("set", 86, "137220437e72c334"),
     "machine.PASS": "PASS",
     "machine.WAIT": "WAIT",
     "machine.BLOCK": "BLOCK",
@@ -199,8 +200,9 @@ LISTS = {
     # v0.6.13: P17, a failure core never recovers alone taken up, and ADMIT and the five AS_ words
     # that take one up, at P17 and at known_failure, and CAPACITY, a capacity error retried sooner;
     # and EARLY, P7's look at a usage-limited record before its time; and the form a failure's error took.
+    # And RESEND, P7's word for an uncertain submission sent once more, which core proves may go.
     "domain.plug.POINTS": ("tuple", 16, "07e8ae14d7f49978"),
-    "domain.plug.ANSWERS": ("set", 10, "6ad8bd39f91d357c"),
+    "domain.plug.ANSWERS": ("set", 11, "33db49c3ff460b51"),
     "domain.plug.FAILURE_FORMS": ("tuple", 5, "bcc0ad1bd6f81009"),
     "domain.plug.SURFACES": ("tuple", 5, "d41ac5a6d67be21b"),
     "domain.plug.EXTRA": "advanced",

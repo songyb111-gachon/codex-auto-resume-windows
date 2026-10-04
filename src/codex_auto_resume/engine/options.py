@@ -155,6 +155,9 @@ class OptionsMixin:
                         # classifier can produce" - the shipped behaviour.
                         "retry_ladder": TRANSIENT_BACKOFF,
                         "recoverable_categories": None,
+                        # v0.6.13: how long after its send an uncertain submission may be sent
+                        # once more, where the edition's plug asks (engine/resend.py).
+                        "resend_after_seconds": 900, "resend_until_seconds": 6 * 3600,
                         **(options or {})}
         self._usage_cache = None
         # v0.6.11: records whose task changed under the task-changed guard's Tell, said on their
@@ -169,6 +172,12 @@ class OptionsMixin:
         self._announced = set()
         self._stale_since = {}
         self._stale_seen = {}
+        # v0.6.13 (engine/resend.py): since when this engine watches, and since when it no longer
+        # knows the lags it saw; uncertain submissions a look found no trace of, those seen in
+        # Codex's queue, since when sightings are known, and the last look for a resend found twice.
+        self._watching_since, self._stale_cleared_at = self.clock(), float("-inf")
+        self._no_trace, self._seen_queued, self._seen_queued_cleared_at = {}, set(), float("-inf")
+        self._resent_looked_at = None
         self._loaded_cache = {}
         self._watch_offset = 0
 

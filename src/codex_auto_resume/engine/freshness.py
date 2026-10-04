@@ -63,6 +63,7 @@ class FreshnessMixin:
         if len(self._stale_since) > 512:
             self._stale_since.clear()
             self._stale_seen.clear()
+            self._stale_cleared_at = now         # a lag seen before is no longer known (engine/resend.py)
         self._stale_since.setdefault(thread_id, now)
         self._stale_seen[thread_id] = now
         return False

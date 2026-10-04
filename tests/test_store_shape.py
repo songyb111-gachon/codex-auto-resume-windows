@@ -67,6 +67,8 @@ METHODS = {
     # v0.6.13: the record of a task a failure continues, read as register finds it and nothing written
     # (store/records.py), and the claim's check of a relaxation of the plug's (store/ledger.py).
     "chain_parent", "_find_parent", "_relaxation_refused", "_early_claim",
+    # and the claim of an uncertain submission sent once more, which only the plug's RESEND leads to.
+    "_resend_claim",
 }
 
 # Reachable as `store.<name>` before the split, and still.

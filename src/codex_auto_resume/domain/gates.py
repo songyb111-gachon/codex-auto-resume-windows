@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 
+from .ids import continuation_client_id
 from .public import REASONS
 from .states import WAITING
 from .vocabulary import GateName, GateResult
@@ -33,12 +34,20 @@ PLUGGED = "plugged"
 # order, are what they were; and each is off at the defaults, where no record has a hold or a
 # postponement, no hour is quiet and nothing is only observed.
 POSTPONED, QUIET_HOURS, OBSERVE_ONLY = "postponed", "quiet_hours", "observe_only"
+# v0.6.13 stage 3b: submission_safe passed for an uncertain submission sent once more, because the
+# edition's plug asked and core proved no copy of it anywhere (engine/resend.py). The standard
+# edition's plug never asks, so no standard record is ever stored with it - and a record whose claim
+# was stored with it has been resent, for good (`was_resent`).
+RESEND = "resend"
 GATE_REASONS = REASONS | frozenset({
     NOT_CHECKED, "paused", "thread_disabled", "cancel_requested", "not_due", "possibly_sent",
     "engine_incompatible", "engine_unknown", "projection_table_missing",
     "home_lock_unavailable", "identity_unreadable", "usage_available",
-    "ok", HELD, POSTPONED, QUIET_HOURS, OBSERVE_ONLY, PLUGGED,
+    "ok", HELD, POSTPONED, QUIET_HOURS, OBSERVE_ONLY, PLUGGED, RESEND,
 })
+# What an uncertain submission may be resent after (v0.6.13): its send's answer was unknown, or no
+# receipt came - never a withdrawal, a duplicate, an ambiguous receipt or anything else unsettled.
+RESENDABLE = frozenset({"queue_result_unknown_do_not_resend", "no_receipt_do_not_resend"})
 
 
 def gate(result: str, reason: str = "ok") -> tuple:
@@ -86,6 +95,31 @@ def gate_submission_safe(record, others_in_flight: int) -> tuple:
     if others_in_flight:
         return gate(WAIT, "other_recovery_in_flight")
     return gate(PASS)
+
+
+def was_resent(record) -> bool:
+    """Whether `record` has been resent (v0.6.13): its claim's stored vector passed submission_safe
+    as a resend. Nothing rewrites the vector of a record that is not waiting, and a resent record
+    never waits again (store/records.py, store/claims.py), so this holds for good with no column."""
+    return decode_gates((record or {}).get("gate_eval"))["submission_safe"] == (PASS, RESEND)
+
+
+def resend_candidate(record, now, window) -> bool:
+    """Whether an uncertain submission may be considered for one more send (v0.6.13), from its own
+    columns alone: its send's answer was unknown or no receipt came (RESENDABLE); Codex was never
+    seen holding it in its queue, and holds no client id of Codex's own for it - only none, or the
+    one core derived for a marker-free send; sent between `window`'s two bounds ago, in seconds; not
+    cancelled or held; never resent; and not carried by a route the plug named (P16)."""
+    after, until = window
+    sent = record.get("submitted_at")
+    client = record.get("recovery_client_id")
+    return (record.get("state") == "submission_unknown" and record.get("last_error") in RESENDABLE
+            and record.get("queue_id") is None and record.get("first_queued_at") is None
+            and (client is None or client == continuation_client_id(record.get("interruption_id")))
+            and sent is not None and after <= now - sent <= until
+            and not record.get("cancel_requested") and record.get("hold") is None
+            and not was_resent(record)
+            and decode_gates(record.get("gate_eval"))["thread_available"] != (PASS, PLUGGED))
 
 
 def chain_span(record) -> float:
