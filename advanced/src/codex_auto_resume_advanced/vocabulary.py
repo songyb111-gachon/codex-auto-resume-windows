@@ -172,6 +172,14 @@ class BridgeCommand(StrEnum):
     # measurement for the same Codex version (measure.py, evidence.complete). Content-free, the
     # Dashboard's like MEASURE, and reached by no MCP tool.
     MEASURE_VERDICT = "measure-verdict"
+    # The compatibility report (report/flow.py): write it, save it where the person chooses, check what
+    # sending would write, send it, and read how one of the first, third or fourth - each a job this
+    # process holds - is getting on. Like the rest, only the Dashboard's; no MCP tool reaches any of them.
+    ADVANCED_REPORT_BUILD = "advanced-report-build"
+    ADVANCED_REPORT_SAVE = "advanced-report-save"
+    ADVANCED_REPORT_CHECK = "advanced-report-check"
+    ADVANCED_REPORT_SEND = "advanced-report-send"
+    ADVANCED_REPORT_JOB = "advanced-report-job"
 
 
 class Measurement(StrEnum):
@@ -272,6 +280,19 @@ class ReportRefusal(StrEnum):
     FORK_NAMED_OTHERWISE = "fork_named_otherwise"
     FORK_NOT_READY = "fork_not_ready"
     BASE_INVALID = "base_invalid"            # GitHub did not answer with the project's main as a commit
+
+
+class ReportStatus(StrEnum):
+    """Where one of the compatibility report's jobs stands, as advanced-report-job answers it."""
+    RUNNING = "running"
+    BUILT = "built"                          # written: the file, its SHA-256 and what it holds
+    SAVED = "saved"
+    CHECKED = "checked"                      # GitHub asked: every write sending would make
+    WEB = "web"                              # gh cannot send it from here: the web's steps instead
+    SENT = "sent"                            # the pull request is open, sent now or already
+    PARTIAL = "partial"                      # stopped after some writes: what is on GitHub now
+    REFUSED = "refused"                      # stopped before anything was written
+    LOST = "lost"                            # a job this process does not hold: whether it was sent is unknown
 
 
 class ReportWrite(StrEnum):

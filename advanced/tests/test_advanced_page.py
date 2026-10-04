@@ -177,7 +177,8 @@ class Bridge:
         self.policy = policy.NONE
         self.view = ac.view("COMPATIBLE", capability="engine_present")
         for definition in registry.DEFINITIONS:
-            self.view["capabilities"][definition.compat] = {"state": "COMPATIBLE", "reason": "local_checks_passed"}
+            if definition.compat is not None:          # an action stands on none
+                self.view["capabilities"][definition.compat] = {"state": "COMPATIBLE", "reason": "local_checks_passed"}
         self.measured = dict(PASSED)
         self.plug = advanced.AdvancedPlug(self.paths, clock=lambda: ac.NOW, policy=lambda: self.policy,
                                           view=lambda: self.view, measured=lambda: self.measured)
@@ -497,7 +498,7 @@ class PageTests(unittest.TestCase):
         words = expected["words"]
         self.assertEqual([row[:2] for row in result["rows"]],
                          [[words["name." + capability], words["state.off"]] for capability in IDS])
-        self.assertEqual(len(IDS), 3)
+        self.assertEqual(len(IDS), 4)
         self.assertEqual(result["page"], "advanced")
         # The row chosen is the capability open, and nothing else is.
         self.assertEqual(result["open"], IDS[1])

@@ -168,6 +168,20 @@ def state(paths):
     return found, [row for row in rows if evidence.moment(row["detected_at"])], hidden, paused
 
 
+def paused(paths):
+    """Whether recovery is paused now - the state's switch off, as control/codexstart.py reads it - or
+    None where that cannot be told: no state, a link, a damaged file or a switch that is not 0 or 1.
+    Read as the rest is, so nothing is written; asked before a report asks GitHub anything (K5)."""
+    path = paths.state_dir / "state.sqlite"
+    try:
+        if not _present(paths, path, ReadRefusal.STATE_UNREADABLE):
+            return None
+        with readonly(path) as db:
+            return _paused(db)
+    except (ReadRefused, sqlite3.Error, OSError):
+        return None
+
+
 # ------------------------------------------------------------------------------ the spend ledger
 def ledger(paths, now):
     """(schema or None, paid, reach): paid is {interruption id: the claim times a feature paid a

@@ -149,11 +149,14 @@ class CodePropertyTests(unittest.TestCase):
     def test_only_the_report_starts_gh_and_only_for_github_com(self):
         """The advanced edition's compatibility report is the one thing that asks the network for anything
         beyond the install script, and it does so through gh, the GitHub CLI the person installed: the
-        shipped files that name gh.exe are exactly report/github.py, and every host it names to gh -
-        each --hostname, written out or as its HOST - is github.com."""
+        shipped code that names gh.exe is exactly report/github.py, and every host it names to gh -
+        each --hostname, written out or as its HOST - is github.com. (A statement a person reads may
+        name gh.exe; only code can start it.)"""
         naming, hosts = set(), set()
         for path in (tracked("scripts/*") + tracked("build/install/*") + tracked("src/*") + tracked("gui/*")
                      + tracked("advanced/src/*") + tracked("advanced/gui/*")):
+            if path.suffix.lower() not in (".py", ".ps1", ".psm1", ".cs", ".cmd", ".bat"):
+                continue
             try:
                 text = path.read_text(encoding="utf-8")
             except (UnicodeDecodeError, OSError):

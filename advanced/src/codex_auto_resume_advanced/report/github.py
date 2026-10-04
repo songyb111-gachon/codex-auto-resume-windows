@@ -185,7 +185,7 @@ def run_process(argv, *, env, cwd, stdin, timeout, creationflags=FLAGS):
 # ------------------------------------------------------------------------------ asking
 def _not_found(result) -> bool:
     code, out, err = result
-    return code != 0 and ("(HTTP 404)" in err or '"status":"404"' in out.replace(" ", ""))
+    return code != 0 and ("(HTTP 404)" in err or '"status":"404"' in "".join(out.split()))
 
 
 def _json(text):
@@ -229,7 +229,7 @@ def destination(codex_version, login) -> tuple:
     return "%s/%s/%s" % (COMMUNITY, login, name), BRANCH_PREFIX + name[:-len(".json")]
 
 
-class GitHub:
+class GhSession:
     """gh, by its full path, pinned to github.com, never prompting, each call in the job."""
 
     def __init__(self, exe, cwd, *, runner=run_process, sleep=time.sleep):
@@ -334,7 +334,7 @@ def inspect(raw, report, login, *, exe, cwd, runner=run_process, sleep=time.slee
     target, branch = destination(report["codex_version"], login)
     if exe is None:
         return Web(WebReason.NO_GH)
-    github = GitHub(exe, cwd, runner=runner, sleep=sleep)
+    github = GhSession(exe, cwd, runner=runner, sleep=sleep)
     if github.run("auth", "status", "--hostname", HOST)[0]:
         return Web(WebReason.GH_SIGNED_OUT)
     who = github.must(github.api("GET", "user", "--jq", ".login"))
@@ -391,7 +391,7 @@ def publish(ready, raw, report, *, before, runner=run_process, sleep=time.sleep)
     """The writes `ready.writes()` names, in order - each one done added to `ready.written` - and the
     pull request's address. `before()` is asked before every write and raises to stop it; a refusal
     after a write leaves what was written in `ready.written`."""
-    github = GitHub(ready.exe, ready.cwd, runner=runner, sleep=sleep)
+    github = GhSession(ready.exe, ready.cwd, runner=runner, sleep=sleep)
     written = ready.written
     writes = ready.writes()
     login, fork, branch, target = ready.login, ready.fork, ready.branch, ready.target

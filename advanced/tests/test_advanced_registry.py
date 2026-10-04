@@ -47,12 +47,14 @@ CHANGES = frozenset({"thread/queue/add", "thread/goal/set"})
 
 
 class ShippedTests(unittest.TestCase):
-    def test_the_registry_this_edition_ships_is_its_three_capabilities_in_their_order(self):
+    def test_the_registry_this_edition_ships_is_its_four_capabilities_in_their_order(self):
         self.assertEqual([d.id for d in registry.DEFINITIONS],
-                         ["start_with_codex", "goal_continuation", "marker_free_continuation"])
-        self.assertEqual(len(registry.REGISTRY), 3)
+                         ["start_with_codex", "goal_continuation", "marker_free_continuation", "compat_report"])
+        self.assertEqual(len(registry.REGISTRY), 4)
         self.assertEqual(registry.REGISTRY.ids,
-                         ("start_with_codex", "goal_continuation", "marker_free_continuation"))
+                         ("start_with_codex", "goal_continuation", "marker_free_continuation", "compat_report"))
+        # The compatibility report is an action, last: it answers at no point, so it is in no list below.
+        self.assertEqual([d.id for d in registry.DEFINITIONS if d.kind == CapabilityKind.ACTION], ["compat_report"])
         # Start-with-Codex answers at P9 alone - it starts the watcher, it does not send; the goal
         # continuation at P16, P3 and P5 - the route, the hold while a goal carries a conversation on,
         # and the channel where M2b passed; the marker-free continuation at P5 and P15, the channel
@@ -123,6 +125,22 @@ class ShippedTests(unittest.TestCase):
         self.assertEqual(goal.measurements, (Measurement.M2,))
         self.assertEqual(goal.points, frozenset({Point.UNLOADED, Point.GATES, Point.SENDER}))
         self.assertLessEqual(goal.ceilings.per_conversation, registry.CORE_DAILY_CAP)
+
+    def test_the_compatibility_report_departs_and_rests_on_what_the_design_says(self):
+        """B11 (gh reads the person's GitHub sign-in), C1 and C2 (network work, by delegation, from a second
+        shipped file), C3 (GitHub addresses beyond the two lists of releases), C8 (the person's GitHub
+        identity), D1 (counts go to the project), E8 (a hung gh is ended), F3 (a file saved where the person
+        chooses) and F6 (gh is not a listed process): an action, standing on nothing of Codex's, spending
+        nothing, with its statement's every departure named in every language."""
+        report = registry.REGISTRY.get("compat_report")
+        self.assertEqual(report.departs_from, ("B11", "C1", "C2", "C3", "C8", "D1", "E8", "F3", "F6"))
+        self.assertEqual((report.kind, report.points, report.compat, report.ceilings, report.measurements),
+                         (CapabilityKind.ACTION, frozenset(), None, None, ()))
+        self.assertEqual(report.revision, 1)
+        self.assertEqual(report.codes, ("built", "saved", "checked", "sent", "partial", "refused", "lost"))
+        english = statement.CATALOGS.own("en")
+        self.assertIn("type send", english[statement.key("compat_report", Field.DOES)])
+        self.assertIn("K5", english[statement.key("compat_report", Field.DEPARTS)])
 
     def test_start_with_codex_departs_and_rests_on_what_the_plan_says(self):
         swc = registry.REGISTRY.get("start_with_codex")

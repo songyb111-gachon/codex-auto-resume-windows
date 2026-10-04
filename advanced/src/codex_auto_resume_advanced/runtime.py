@@ -37,7 +37,7 @@ from .arming import Arming
 from .ledger import ClaimLedger, ceiling_reached
 from .registry import REGISTRY
 from .state import AdvancedState, StateError
-from .vocabulary import ArmingState, JournalCode, OffReason
+from .vocabulary import ArmingState, CapabilityKind, JournalCode, OffReason
 
 # How long what every capability stands at is taken as read, between ticks. A tick reads it
 # again; a process that has no ticks - the bridge, the MCP server - reads it at most this often.
@@ -120,6 +120,13 @@ class Runtime:
         if definition.id not in self._code:
             self._code[definition.id] = definition.make(self.paths)
         return self._code[definition.id]
+
+    def action(self, definition):
+        """The code of `definition`, an action, made once for this process: for the surface a person
+        starts what it does from. Core never asks an action (`ask` reaches routes alone)."""
+        if definition.kind != CapabilityKind.ACTION or self.registry.get(definition.id) is not definition:
+            raise ValueError("not an action of this registry")
+        return self._code_of(definition)
 
     def _tripped(self, definition) -> None:
         self.arming.trip(definition.id, OffReason.HOOK_EXCEPTION)

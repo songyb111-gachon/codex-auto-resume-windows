@@ -17,7 +17,9 @@ reaches a plug). It is where the Dashboard's Advanced features page takes its wo
 window's catalog is core's, and holds none of this edition's), and where a person reads a
 capability's statement and turns it on, watches
 it, turns it off, turns everything off, lowers the global ceiling, or runs a measurement by
-hand (`measure <id>`, measure.py) - every request made as the Dashboard. The statement carries
+hand (`measure <id>`, measure.py), or writes, saves, checks and sends a compatibility report
+(report/flow.py, which starts gh, the GitHub CLI, as `measure` starts a session) - every request
+made as the Dashboard. The statement carries
 the warnings that hold now and the Codex version an "on" acknowledges; the request to turn it on
 sends both back as the person's confirmation, and a warning is never what refuses it
 (arming.py).
@@ -38,7 +40,7 @@ from codex_auto_resume import l10n
 from codex_auto_resume.domain.plug import DEFER, Edition, Surface
 
 from .vocabulary import (Actor, ArmingState, BridgeCommand, McpTool, Measurement, NoteCode,
-                         Refusal, Verdict)
+                         OffReason, Refusal, Verdict)
 
 # The surfaces that show the version, where the edition badge sits beside it (decision C12).
 # Core adds nothing there in the standard edition, so each stays as it was; this edition puts
@@ -57,7 +59,17 @@ ARGUMENTS = {
     BridgeCommand.ADVANCED_CEILING: frozenset({"global_hourly", "generation"}),
     BridgeCommand.MEASURE: frozenset({"measurement", "thread"}),
     BridgeCommand.MEASURE_VERDICT: frozenset({"measurement", "verdict", "note"}),
+    BridgeCommand.ADVANCED_REPORT_BUILD: frozenset({"login"}),
+    BridgeCommand.ADVANCED_REPORT_SAVE: frozenset({"sha256", "path"}),
+    BridgeCommand.ADVANCED_REPORT_CHECK: frozenset({"sha256"}),
+    BridgeCommand.ADVANCED_REPORT_SEND: frozenset({"sha256", "writes", "word"}),
+    BridgeCommand.ADVANCED_REPORT_JOB: frozenset({"job"}),
 }
+# The compatibility report's commands (report/flow.py), answered by the action itself.
+REPORT_COMMANDS = frozenset({BridgeCommand.ADVANCED_REPORT_BUILD, BridgeCommand.ADVANCED_REPORT_SAVE,
+                             BridgeCommand.ADVANCED_REPORT_CHECK, BridgeCommand.ADVANCED_REPORT_SEND,
+                             BridgeCommand.ADVANCED_REPORT_JOB})
+REPORT = "compat_report"
 
 _NO_ARGUMENTS = {"type": "object", "properties": {}, "additionalProperties": False}
 _OFF_ONLY = ("Turning a capability on is not something any tool does: the user does it in the "
@@ -124,6 +136,8 @@ def bridge(runtime, command, argument):
     command = BridgeCommand(command)
     if set(argument) - ARGUMENTS[command]:
         return {"done": False, "refusal": Refusal.INVALID_REQUEST}
+    if command in REPORT_COMMANDS:
+        return report(runtime, command, argument)
     arming = runtime.arming
     if command == BridgeCommand.ADVANCED_LIST:
         return dict(arming.listing(), done=True)
@@ -151,6 +165,21 @@ def bridge(runtime, command, argument):
                                argument.get("note"))
     return arming.set_global_hourly(argument.get("global_hourly"), generation=argument.get("generation"),
                                     actor=Actor.DASHBOARD)
+
+
+def report(runtime, command, argument):
+    """One of the compatibility report's commands, put to the action's own code (report/flow.py), which
+    answers it as the Dashboard's: write it, save it, check what sending would write, send it - which
+    starts gh, as `measure` starts a session - or read how a job is getting on."""
+    definition = runtime.registry.get(REPORT)
+    if definition is None:
+        return {"done": False, "refusal": Refusal.UNKNOWN_CAPABILITY}
+    try:
+        code = runtime.action(definition)
+        return code.answer(runtime, definition, command, argument)
+    except Exception:
+        runtime.arming.trip(definition.id, OffReason.HOOK_EXCEPTION)
+        return {"done": False, "refusal": Refusal.STATE_UNAVAILABLE}
 
 
 def _locale(asked):

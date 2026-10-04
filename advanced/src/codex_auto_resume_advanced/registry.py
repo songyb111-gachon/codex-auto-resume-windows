@@ -31,9 +31,10 @@ asked to agree to and everything the plug holds it to:
 * `make` - the factory for its code: given the installation's paths, it returns an object whose
   methods are the plug's hooks for its points, each answering as a plug would.
 
-The edition ships three capabilities now: start-with-Codex, at P9 (control/codexstart.py); the
-goal continuation, at P16, P3 and P5 (engine/goal.py); and the marker-free continuation, at P5 and
-P15 (engine/markerfree.py). The tests define one of their own to hold every rule here.
+The edition ships four capabilities now: start-with-Codex, at P9 (control/codexstart.py); the
+goal continuation, at P16, P3 and P5 (engine/goal.py); the marker-free continuation, at P5 and
+P15 (engine/markerfree.py); and the compatibility report, an action (report/). The tests define one
+of their own to hold every rule here.
 """
 from __future__ import annotations
 
@@ -46,6 +47,7 @@ from codex_auto_resume.domain.plug import Point
 from .control.codexstart import make as make_start_with_codex
 from .engine.goal import make as make_goal_continuation
 from .engine.markerfree import make as make_marker_free
+from .report import make as make_compat_report
 from .standards import DEPARTABLE
 from .vocabulary import CapabilityKind, Measurement
 
@@ -286,5 +288,31 @@ GOAL_CONTINUATION = CapabilityDef(
     measurements=(Measurement.M2,),
 )
 
-DEFINITIONS = (START_WITH_CODEX, GOAL_CONTINUATION, MARKER_FREE)
+# The compatibility report (v0.6.13 stage 3b, the plan's in-app report): this PC's own records written
+# up as codex-compat-reporter writes them (report/records.py, evidence.py, document.py), shown whole in
+# the Dashboard, saved where the person chooses, and sent to the project as a public pull request -
+# through gh, the GitHub CLI the person installed, signed in as them - only after they type send. An
+# action: it answers at no point, so core never asks it, nothing goes to Codex and no unit is spent; it
+# stands on no compatibility capability, since a failing Codex is when a report matters most, and has no
+# ceilings: one check or send at a time per home, and each send its own typed word for exactly the file
+# and the writes shown, are its bounds (report/flow.py). It departs from B11 (gh reads the person's GitHub
+# sign-in on the product's behalf), C1 and C2 (network work, by delegation, from a second shipped file),
+# C3 (GitHub addresses beyond the two lists of releases), C8 (the person's GitHub identity and gh's own
+# User-Agent), D1 (the report's counts go to the project), E8 (a hung gh, and one still running when the
+# Dashboard's service ends, is ended), F3 (the file saved where the person chooses) and F6 (gh is not a
+# listed process). It keeps G13 - a report grants nothing - and K5: a pause stops checking and sending.
+COMPAT_REPORT = CapabilityDef(
+    id="compat_report",
+    kind=CapabilityKind.ACTION,
+    points=frozenset(),
+    revision=1,
+    departs_from=("B11", "C1", "C2", "C3", "C8", "D1", "E8", "F3", "F6"),
+    compat=None,
+    ceilings=None,
+    journal_prefix="rpt",
+    make=make_compat_report,
+    codes=("built", "saved", "checked", "sent", "partial", "refused", "lost"),
+)
+
+DEFINITIONS = (START_WITH_CODEX, GOAL_CONTINUATION, MARKER_FREE, COMPAT_REPORT)
 REGISTRY = Registry(DEFINITIONS)
