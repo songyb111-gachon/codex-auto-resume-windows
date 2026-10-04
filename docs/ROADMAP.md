@@ -571,10 +571,9 @@ The Rust core carries both (v0.6.15).
 
 ---
 
-## v0.6.12 — Another version, a power action after a usage limit, and recovery beside the Codex app's cloud-environment server
+## v0.6.12 — Another version, a power action after a usage limit, and recovery beside the Codex app's cloud-environment server ✅
 
-**In development: v0.6.12-alpha and v0.6.12-alpha.2, its first two pre-releases, are out, and the
-final is next, with no beta before it.**
+**Released, after two pre-releases, v0.6.12-alpha and v0.6.12-alpha.2, and no beta.**
 
 v0.6.12 was planned as the rest of the advanced edition, in as many pre-releases as it needed. On
 2026-10-04 the owner made it smaller, so that it is released sooner: two pre-releases of upkeep for
@@ -601,10 +600,11 @@ table for every lane had left the advanced lane's four parts 21 to 41 minutes lo
 the people who build the project too, so it is an alpha, and nothing changes for a person using it.
 The owner asked for it on 2026-10-03.
 
-### v0.6.12 🚧 — The final: another version, a power action after a usage limit, and recovery beside the Codex app's cloud-environment server
+### v0.6.12 ✅ — The final: another version, a power action after a usage limit, and recovery beside the Codex app's cloud-environment server
 
-The next release, and the last of v0.6.12. There is no separate beta: the beta stage's two things
-people asked for first ship in the final itself, for both editions, and the final adds an urgent fix.
+What it carries for a person coming from v0.6.11 is its entry in [CHANGELOG.md](CHANGELOG.md). There
+was no separate beta: the beta stage's two things people asked for first shipped in the final itself,
+for both editions, and the final added an urgent fix.
 
 - **Install another version or edition from the Dashboard** - any release or pre-release of either
   edition, from the list of releases the update check already reads. It says first what the change
@@ -946,7 +946,7 @@ The ground both editions stand on, in a pre-release
 
         ↓
 
-v0.6.12-alpha → v0.6.12-alpha.2 → v0.6.12
+v0.6.12-alpha → v0.6.12-alpha.2 → v0.6.12  ✅ Released
 The tests in parts and faster pictures, for developers, in a first pre-release
 + every lane's test parts even, in a second
 + another version or edition from the Dashboard, and a power action after a usage limit, in the final
@@ -981,7 +981,6 @@ Final Rust audit and stabilization: the Rust bug hunt
 Maintenance
 ```
 
-This document records the current direction; v0.6.11 is out, v0.6.12-alpha and v0.6.12-alpha.2 are
-the first of v0.6.12's pre-releases, and the final v0.6.12 is next, with no beta before it: it
-carries the version picker, the power action and an urgent fix; the rest of the advanced edition is
-v0.6.13's.
+This document records the current direction; v0.6.12 is out, after v0.6.12-alpha and
+v0.6.12-alpha.2, its only pre-releases: it carries the version picker, the power action and an
+urgent fix. v0.6.13 is next, with the rest of the advanced edition.
