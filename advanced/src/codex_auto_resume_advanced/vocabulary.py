@@ -182,6 +182,15 @@ class BridgeCommand(StrEnum):
     # measurement for the same Codex version (measure.py, evidence.complete). Content-free, the
     # Dashboard's like MEASURE, and reached by no MCP tool.
     MEASURE_VERDICT = "measure-verdict"
+    # A capability's own choices and the rules for Codex's error codes (v0.6.13, state/choices.py): a
+    # choice set, the rules read, one added, one removed, and the samples of what nothing classified
+    # read - the Dashboard's like the rest, each write against the generation the page read, and
+    # reached by no MCP tool.
+    ADVANCED_OPTION = "advanced-option"
+    ADVANCED_RULES = "advanced-rules"
+    ADVANCED_RULE_ADD = "advanced-rule-add"
+    ADVANCED_RULE_REMOVE = "advanced-rule-remove"
+    ADVANCED_SAMPLES = "advanced-samples"
 
 
 class Measurement(StrEnum):

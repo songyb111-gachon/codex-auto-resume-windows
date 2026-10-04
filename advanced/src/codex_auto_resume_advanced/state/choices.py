@@ -23,6 +23,8 @@ its own through `Scoped`, and writes nothing.
 """
 from __future__ import annotations
 
+import time
+
 from codex_auto_resume import failures
 from codex_auto_resume.domain.plug import TAKE_UP, Alternative, FailureForm
 
@@ -60,6 +62,34 @@ def _overlaps(one, other) -> bool:
     return one[0] <= other[1] and other[0] <= one[1]
 
 
+def tag_problem(tag):
+    """Why `tag` may not be a rule's code, or None (rule_problem's first three refusals). Pure."""
+    if not isinstance(tag, str) or not failures.TAG_SHAPE.fullmatch(tag):
+        return Refusal.RULE_SHAPE
+    if tag in failures.CODES:
+        return Refusal.RULE_KNOWN
+    if failures.decision_tag(tag):
+        return Refusal.RULE_DECISION
+    return None
+
+
+def aggregated(samples, *, day=DAY) -> list:
+    """Samples as the Dashboard and a diagnostics export show them: one entry for each code, status
+    number and form, with how many there were and the last day one was kept (UTC, YYYY-MM-DD) - most
+    seen first. Codes and numbers only: no time finer than the day, no id of anything. Pure."""
+    found = {}
+    for sample in samples:
+        key = (sample.get("tag"), sample.get("status"), sample.get("form"))
+        count, last = found.get(key, (0, None))
+        at = sample.get("at")
+        found[key] = (count + 1, at if last is None or (at is not None and at > last) else last)
+    shown = [{"tag": tag, "status": status, "form": form, "count": count,
+              "last": None if last is None else time.strftime("%Y-%m-%d", time.gmtime(int(last // day) * day))}
+             for (tag, status, form), (count, last) in found.items()]
+    return sorted(shown, key=lambda entry: (-entry["count"], entry["tag"] or "", entry["status"] or 0,
+                                            entry["form"] or ""))
+
+
 def rule_problem(tag, status_from, status_to, category, rules):
     """Why a rule may not be added beside `rules`, or None. Pure.
 
@@ -68,12 +98,9 @@ def rule_problem(tag, status_from, status_to, category, rules):
     decision (failures.DECISION_FRAGMENTS); status numbers from 100 to 599, both or neither, the first
     no larger; a temporary kind (failures.TRANSIENT), never a usage limit; at most ten rules, no two
     over the same code and a status they share."""
-    if not isinstance(tag, str) or not failures.TAG_SHAPE.fullmatch(tag):
-        return Refusal.RULE_SHAPE
-    if tag in failures.CODES:
-        return Refusal.RULE_KNOWN
-    if failures.decision_tag(tag):
-        return Refusal.RULE_DECISION
+    problem = tag_problem(tag)
+    if problem is not None:
+        return problem
     if (status_from is None) != (status_to is None) or (
             status_from is not None and not (_status(status_from) and _status(status_to)
                                              and status_from <= status_to)):

@@ -57,6 +57,11 @@ ARGUMENTS = {
     BridgeCommand.ADVANCED_CEILING: frozenset({"global_hourly", "generation"}),
     BridgeCommand.MEASURE: frozenset({"measurement", "thread"}),
     BridgeCommand.MEASURE_VERDICT: frozenset({"measurement", "verdict", "note"}),
+    BridgeCommand.ADVANCED_OPTION: frozenset({"capability", "key", "value", "generation"}),
+    BridgeCommand.ADVANCED_RULES: frozenset(),
+    BridgeCommand.ADVANCED_RULE_ADD: frozenset({"tag", "status_from", "status_to", "category", "generation"}),
+    BridgeCommand.ADVANCED_RULE_REMOVE: frozenset({"rule", "generation"}),
+    BridgeCommand.ADVANCED_SAMPLES: frozenset(),
 }
 
 _NO_ARGUMENTS = {"type": "object", "properties": {}, "additionalProperties": False}
@@ -66,8 +71,8 @@ _OFF_ONLY = ("Turning a capability on is not something any tool does: the user d
 TOOLS = [
     {"name": McpTool.LIST_ADVANCED_CAPABILITIES, "title": "List advanced capabilities",
      "description": "The advanced edition's capabilities, each with its id, whether it is on, "
-                    "watched or off, since when and why, and the standards it departs from. "
-                    "Read-only. " + _OFF_ONLY,
+                    "watched or off, since when and why, the standards it departs from and the "
+                    "choices set for it. Read-only. " + _OFF_ONLY,
      "inputSchema": _NO_ARGUMENTS,
      "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True,
                      "openWorldHint": False}},
@@ -90,6 +95,8 @@ TOOLS = [
 
 def answer(runtime, name, facts):
     """What this edition shows on surface `name`, or DEFER."""
+    if name == Surface.DIAGNOSTICS:
+        return diagnostics(runtime)
     if name in BADGE_SURFACES:
         return badge(runtime)
     if not isinstance(facts, dict):
@@ -115,6 +122,22 @@ def badge(runtime) -> dict:
     except Exception:
         on = 0
     return {"edition": str(Edition.ADVANCED), "on": on}
+
+
+def diagnostics(runtime) -> dict:
+    """The badge, and - only where there are any - the samples of the last 30 days of failures nothing
+    classified, aggregated: Codex's code, a status number, the error's form, how many times and the last
+    day (arming.samples_view). No id of a conversation, a turn or an interruption, and never a word of an
+    error (D5). The export is the person's own, made when they ask for it; the status and the tray, which
+    Codex sends on, never carry them."""
+    shown = badge(runtime)
+    try:
+        found = runtime.arming.samples_view()
+    except Exception:
+        found = {}
+    if found.get("samples"):
+        shown["samples"] = found["samples"]
+    return shown
 
 
 # ---------------------------------------------------------------------------- the Dashboard
@@ -149,6 +172,20 @@ def bridge(runtime, command, argument):
     if command == BridgeCommand.MEASURE_VERDICT:
         return measure_verdict(runtime, argument.get("measurement"), argument.get("verdict"),
                                argument.get("note"))
+    if command == BridgeCommand.ADVANCED_OPTION:
+        return arming.set_option(argument.get("capability"), argument.get("key"), argument.get("value"),
+                                 generation=argument.get("generation"), actor=Actor.DASHBOARD)
+    if command == BridgeCommand.ADVANCED_RULES:
+        return arming.rules_view()
+    if command == BridgeCommand.ADVANCED_RULE_ADD:
+        return arming.add_rule(argument.get("tag"), argument.get("status_from"), argument.get("status_to"),
+                               argument.get("category"), generation=argument.get("generation"),
+                               actor=Actor.DASHBOARD)
+    if command == BridgeCommand.ADVANCED_RULE_REMOVE:
+        return arming.remove_rule(argument.get("rule"), generation=argument.get("generation"),
+                                  actor=Actor.DASHBOARD)
+    if command == BridgeCommand.ADVANCED_SAMPLES:
+        return arming.samples_view()
     return arming.set_global_hourly(argument.get("global_hourly"), generation=argument.get("generation"),
                                     actor=Actor.DASHBOARD)
 
@@ -219,7 +256,9 @@ def mcp(runtime, facts):
     arming = runtime.arming
     if tool == McpTool.LIST_ADVANCED_CAPABILITIES:
         listing = arming.listing()
-        shown = [{key: item[key] for key in ("id", "state", "since", "by", "reason", "departs_from")}
+        # Its choices' values, read-only; never its rules or samples, which only the Dashboard reads.
+        shown = [dict({key: item[key] for key in ("id", "state", "since", "by", "reason", "departs_from")},
+                      options={option["key"]: option["value"] for option in item["options"]})
                  for item in listing["capabilities"]]
         return {"summary": "%d advanced capabilit%s, %d on." % (
                     len(shown), "y" if len(shown) == 1 else "ies", listing["on"]),

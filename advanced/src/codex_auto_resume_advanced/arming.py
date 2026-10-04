@@ -59,6 +59,7 @@ from . import policy as _policy
 from .measured import MEASURED
 from .registry import GLOBAL_HOURLY
 from .state import Refused, StaleGeneration, StateError
+from .state.choices import DAY, RECENT_DAYS, RULES_LIMIT, aggregated, tag_problem
 from .statement import CATALOGS
 from .vocabulary import (TRIPWIRES, Actor, ArmingState, ArmingWarning, OffReason, Refusal,
                          Verdict)
@@ -546,6 +547,46 @@ class Arming:
         return self._chosen(lambda: {"generation": self.state.remove_rule(
             rule, generation=generation, actor=actor, at=self.clock())})
 
+    def _options(self, definition) -> list:
+        """A capability's choices as a surface shows them: the defaults where the state cannot be read."""
+        if not definition.options:
+            return []
+        try:
+            values = self.state.options(definition.id)
+        except StateError:
+            values = {}
+        return [{"key": str(option.key), "choices": list(option.choices),
+                 "value": values.get(option.key, option.default), "default": option.default}
+                for option in definition.options]
+
+    def rules_view(self) -> dict:
+        """The rules as the Dashboard's editor shows them, oldest first: each one's id, code, status
+        numbers and kind, whether the product has come to know its code since (it never matches then),
+        and how many failures it took up in the last 30 days; the generation a change is made against;
+        how many rules there may be; and the codes the samples of the last 30 days saw that a rule may
+        name. Codes and numbers only."""
+        since = self.clock() - RECENT_DAYS * DAY
+        try:
+            rules, hits = self.state.rules(), self.state.rule_hits(since)
+            samples, meta = self.state.failure_samples(since), self.state.meta()
+        except StateError:
+            return {"done": False, "refusal": Refusal.STATE_UNAVAILABLE}
+        return {"done": True, "generation": meta["generation"], "limit": RULES_LIMIT,
+                "rules": [{"rule": rule["rule_id"], "tag": rule["tag"], "status_from": rule["status_from"],
+                           "status_to": rule["status_to"], "category": rule["category"],
+                           "known": rule["known"], "hits": hits.get(rule["rule_id"], 0)} for rule in rules],
+                "tags": sorted({sample["tag"] for sample in samples
+                                if sample["tag"] is not None and tag_problem(sample["tag"]) is None})}
+
+    def samples_view(self) -> dict:
+        """The samples of the last 30 days, as the Dashboard and a diagnostics export show them: each
+        code, status number and form, how many times and the last day (choices.aggregated)."""
+        try:
+            samples = self.state.failure_samples(self.clock() - RECENT_DAYS * DAY)
+        except StateError:
+            return {"done": False, "refusal": Refusal.STATE_UNAVAILABLE}
+        return {"done": True, "samples": aggregated(samples)}
+
     # ------------------------------------------------------------------ shown
     def statement(self, definition, locale=None) -> dict:
         """What the Dashboard shows before the choice: the five fields, and above them the
@@ -586,7 +627,12 @@ class Arming:
                 # surface shows its ceilings as nominal rather than as a limit that will be met.
                 "sends": bool(definition.points & SENDING_POINTS),
                 "ceilings": {"per_day": definition.ceilings.per_day,
-                             "per_conversation": definition.ceilings.per_conversation}})
+                             "per_conversation": definition.ceilings.per_conversation},
+                # Its own choices, each with what it offers, what it is now and its default; and whether
+                # the page shows it the rules editor and the samples, which are read on their own
+                # (rules_view, samples_view) - never in this list, which MCP reads too.
+                "options": self._options(definition),
+                "rules_editor": definition.rules_editor, "samples": definition.samples})
         return {"generation": meta["generation"], "global_hourly": meta["global_hourly"],
                 "global_hourly_default": GLOBAL_HOURLY, "engine_version": engine_version(view),
                 "policy": policy.as_json(), "on": sum(item["state"] == ArmingState.ARMED for item in shown),

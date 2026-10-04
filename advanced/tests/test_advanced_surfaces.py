@@ -15,6 +15,7 @@ import json
 from pathlib import Path
 import re
 import sys
+import time
 import unittest
 from unittest.mock import patch
 
@@ -23,9 +24,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import advancedcase as ac  # noqa: E402
 from codex_auto_resume import control, controlcli, mcpserver  # noqa: E402
 from codex_auto_resume.mcp.tools import TOOLS as CORE_TOOLS  # noqa: E402
+from codex_auto_resume.domain.plug import Alternative, FailureForm, Surface  # noqa: E402
 from codex_auto_resume_advanced import arming, surfaces  # noqa: E402
+from codex_auto_resume_advanced.registry import Option  # noqa: E402
 from codex_auto_resume_advanced.vocabulary import (Actor, ArmingState, BridgeCommand,  # noqa: E402
-                                                   McpTool, Refusal)
+                                                   McpTool, OptionKey, Refusal)
+
+# The day a sample kept at the tests' clock (advancedcase.NOW) is shown as.
+DAY = time.strftime("%Y-%m-%d", time.gmtime(ac.NOW))
 
 
 class SurfaceCase(ac.AdvancedCase):
@@ -172,7 +178,7 @@ class McpTests(SurfaceCase):
         self.assertFalse(listing.get("isError"))
         self.assertEqual(listing["structuredContent"]["on"], 1)
         self.assertEqual(set(listing["structuredContent"]["capabilities"][0]),
-                         {"id", "state", "since", "by", "reason", "departs_from"})
+                         {"id", "state", "since", "by", "reason", "departs_from", "options"})
         off = self.call("disarm_advanced_capability", {"capability": "test_wake"})["result"]
         self.assertEqual(off["structuredContent"], {"capability": "test_wake", "state": "off", "changed": True})
         self.assertEqual((self.stored()["state"], self.stored()["actor"]), (ArmingState.OFF, Actor.MCP))
@@ -214,6 +220,8 @@ class McpTests(SurfaceCase):
         named = {node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)}
         self.assertNotIn("arm", named)
         self.assertNotIn("set_global_hourly", named)
+        for write in ("set_option", "add_rule", "remove_rule", "rules_view", "samples_view"):
+            self.assertNotIn(write, named)
         self.assertIn("disarm", named)
 
     def test_the_advanced_skill_names_every_tool_and_none_that_turns_anything_on(self):
@@ -226,6 +234,144 @@ class McpTests(SurfaceCase):
     def test_the_bridge_commands_and_the_tools_are_the_vocabularys(self):
         self.assertEqual(set(surfaces.ARGUMENTS), set(BridgeCommand))
         self.assertEqual([tool["name"] for tool in surfaces.TOOLS], list(McpTool))
+
+
+
+SAMPLE = {"code": "brandNewVariant", "status": 503, "form": FailureForm.TAGGED, "has_message": True,
+          "items": {"agentMessage": 2, "commandExecution": 1}, "duration": 42.0}
+
+
+class ChoicesCase(SurfaceCase):
+    """A capability of the tests' own with a choice, the rules editor and samples (v0.6.13)."""
+
+    def setUp(self):
+        ac.AdvancedCase.setUp(self)
+        self.paths.ensure()
+        self.advanced = self.plug(ac.definition(options=(Option(OptionKey.ATTEMPTS, (1, 2, 3), 1),),
+                                                rules_editor=True, samples=True, codes=("sampled", "matched")))
+        self.control = control.Control(self.paths, plug=self.advanced)
+
+    def generation(self):
+        return self.bridge("advanced-list", {})["result"]["generation"]
+
+    def sampled(self, key, shape=SAMPLE):
+        """One failure taken up and sampled, as the runtime keeps one (state/choices.py)."""
+        state = self.advanced.runtime.state
+        self.assertTrue(state.admit(key, "test_wake", Alternative.ADMIT, shape=shape, at=self.now))
+        self.assertTrue(state.taken(key, "test_wake", "sampled", sample=shape, at=self.now))
+
+
+class ChoiceBridgeTests(ChoicesCase):
+    def test_the_list_carries_each_choice_with_what_it_offers_and_whether_rules_and_samples_show(self):
+        (item,) = self.bridge("advanced-list", {})["result"]["capabilities"]
+        self.assertEqual(item["options"], [{"key": "attempts", "choices": [1, 2, 3], "value": 1, "default": 1}])
+        self.assertEqual((item["rules_editor"], item["samples"]), (True, True))
+        self.assertFalse(self.home.joinpath("config", "advanced").exists(), "reading the list made nothing")
+
+    def test_the_dashboard_sets_a_choice_against_the_generation_it_read(self):
+        done = self.bridge("advanced-option", {"capability": "test_wake", "key": "attempts", "value": 2,
+                                               "generation": 0})["result"]
+        self.assertEqual((done["done"], done["generation"]), (True, 1))
+        (item,) = self.bridge("advanced-list", {})["result"]["capabilities"]
+        self.assertEqual(item["options"][0]["value"], 2)
+        for argument, refusal in (({"value": 3, "generation": 0}, Refusal.STALE_GENERATION),
+                                  ({"value": 9, "generation": 1}, Refusal.OPTION_INVALID),
+                                  ({"value": "3", "generation": 1}, Refusal.OPTION_INVALID),
+                                  ({"key": "ceiling_hours", "value": 2, "generation": 1}, Refusal.OPTION_INVALID),
+                                  ({"capability": "nope", "value": 2, "generation": 1}, Refusal.UNKNOWN_CAPABILITY)):
+            with self.subTest(argument=argument):
+                request = dict({"capability": "test_wake", "key": "attempts"}, **argument)
+                self.assertEqual(self.bridge("advanced-option", request)["result"]["refusal"], refusal)
+        self.assertEqual(self.bridge("advanced-option", {"capability": "test_wake", "key": "attempts", "value": 2,
+                                                         "generation": 1, "state": "armed"})["result"]["refusal"],
+                         Refusal.INVALID_REQUEST)
+        self.assertEqual(self.stored(), None, "a choice turns nothing on")
+
+    def test_the_dashboard_adds_reads_and_removes_rules_and_each_refusal_is_its_own(self):
+        added = self.bridge("advanced-rule-add", {"tag": "brandNewVariant", "status_from": 500, "status_to": 599,
+                                                  "category": "server_5xx", "generation": 0})["result"]
+        self.assertEqual((added["done"], added["rule"], added["generation"]), (True, 1, 1))
+        rules = self.bridge("advanced-rules", {})["result"]
+        self.assertEqual(rules, {"done": True, "generation": 1, "limit": 10, "tags": [], "rules": [
+            {"rule": 1, "tag": "brandNewVariant", "status_from": 500, "status_to": 599, "category": "server_5xx",
+             "known": False, "hits": 0}]})
+        for tag, low, high, refusal in (("serverOverloaded", None, None, Refusal.RULE_KNOWN),
+                                        ("policyRefused", None, None, Refusal.RULE_DECISION),
+                                        ("not a code", None, None, Refusal.RULE_SHAPE),
+                                        ("anotherCode", 600, 700, Refusal.RULE_RANGE),
+                                        ("brandNewVariant", 503, 503, Refusal.RULE_OVERLAP)):
+            with self.subTest(tag=tag):
+                refused = self.bridge("advanced-rule-add", {"tag": tag, "status_from": low, "status_to": high,
+                                                            "category": "timeout", "generation": 1})["result"]
+                self.assertEqual((refused["done"], refused["refusal"]), (False, refusal))
+        self.assertEqual(self.bridge("advanced-rule-add", {"tag": "anotherCode", "status_from": None, "status_to": None,
+                                                           "category": "usage_limit", "generation": 1})["result"]
+                         ["refusal"], Refusal.INVALID_REQUEST, "no rule makes a failure a usage limit")
+        self.assertEqual(self.bridge("advanced-rule-remove", {"rule": 1, "generation": 0})["result"]["refusal"],
+                         Refusal.STALE_GENERATION)
+        self.assertTrue(self.bridge("advanced-rule-remove", {"rule": 1, "generation": 1})["result"]["done"])
+        self.assertEqual(self.bridge("advanced-rule-remove", {"rule": 1, "generation": 2})["result"]["refusal"],
+                         Refusal.UNKNOWN_RULE)
+        self.assertEqual(self.bridge("advanced-rules", {})["result"]["rules"], [])
+
+    def test_a_rule_shows_its_uses_in_thirty_days_and_the_samples_offer_the_codes_a_rule_may_name(self):
+        self.arm(self.advanced.runtime, state="shadow")
+        self.bridge("advanced-rule-add", {"tag": "brandNewVariant", "status_from": None, "status_to": None,
+                                          "category": "timeout", "generation": self.generation()})
+        state = self.advanced.runtime.state
+        self.assertTrue(state.admit(ac.KEY, "test_wake", Alternative.AS_TIMEOUT, rule_id=1, at=self.now))
+        self.assertTrue(state.taken(ac.KEY, "test_wake", "matched", at=self.now))
+        self.sampled("b" * 64)
+        self.sampled("c" * 64, dict(SAMPLE, code="policyRefused"))
+        rules = self.bridge("advanced-rules", {})["result"]
+        self.assertEqual(rules["rules"][0]["hits"], 1)
+        self.assertEqual(rules["tags"], ["brandNewVariant"], "a code that may name a decision is never offered")
+
+    def test_the_samples_are_aggregated_codes_and_numbers_with_no_id_and_no_word(self):
+        self.arm(self.advanced.runtime, state="shadow")
+        for index in range(3):
+            self.sampled("%064x" % (index + 1))
+        self.sampled("%064x" % 9, {"code": None, "status": None, "form": FailureForm.ABSENT, "has_message": False})
+        samples = self.bridge("advanced-samples", {})["result"]
+        self.assertEqual(samples, {"done": True, "samples": [
+            {"tag": "brandNewVariant", "status": 503, "form": "tagged", "count": 3, "last": DAY},
+            {"tag": None, "status": None, "form": "absent", "count": 1, "last": DAY}]})
+        written = json.dumps(samples)
+        for key in ("%064x" % 1, ac.THREAD):
+            self.assertNotIn(key, written)
+        self.now += 31 * 86400
+        self.assertEqual(self.bridge("advanced-samples", {})["result"]["samples"], [], "thirty days back, no more")
+
+    def test_diagnostics_carry_the_samples_and_the_status_and_tray_never_do(self):
+        runtime = self.advanced.runtime
+        self.assertEqual(surfaces.answer(runtime, Surface.DIAGNOSTICS, {}), {"edition": "advanced", "on": 0})
+        self.arm(runtime, state="shadow")
+        self.sampled(ac.KEY)
+        shown = surfaces.answer(runtime, Surface.DIAGNOSTICS, {})
+        self.assertEqual(shown["samples"], [{"tag": "brandNewVariant", "status": 503, "form": "tagged", "count": 1,
+                                             "last": DAY}])
+        self.assertNotIn(ac.KEY, json.dumps(shown))
+        for surface in (Surface.STATUS, Surface.TRAY):
+            self.assertNotIn("samples", surfaces.answer(runtime, surface, {}))
+
+    def test_a_model_reads_the_choices_and_writes_none_of_them_whatever_it_sends(self):
+        listing = self.call("list_advanced_capabilities")["result"]["structuredContent"]
+        self.assertEqual(listing["capabilities"][0]["options"], {"attempts": 1})
+        attempts = [("advanced-option", {"capability": "test_wake", "key": "attempts", "value": 3, "generation": 0}),
+                    ("set_advanced_option", {"capability": "test_wake", "key": "attempts", "value": 3}),
+                    ("advanced-rule-add", {"tag": "brandNewVariant", "category": "timeout", "generation": 0}),
+                    ("disarm_advanced_capability", {"capability": "test_wake", "key": "attempts", "value": 3}),
+                    ("list_advanced_capabilities", {"rule": "brandNewVariant"}),
+                    ("list_advanced_capabilities", {"samples": True})]
+        with patch.object(arming.Arming, "set_option") as option, patch.object(arming.Arming, "add_rule") as add, \
+                patch.object(arming.Arming, "remove_rule") as remove:
+            for name, arguments in attempts:
+                with self.subTest(name):
+                    reply = self.call(name, arguments)
+                    self.assertTrue("error" in reply or reply["result"].get("isError"), reply)
+            for write in (option, add, remove):
+                write.assert_not_called()
+        self.assertEqual(self.advanced.runtime.state.options("test_wake"), {OptionKey.ATTEMPTS: 1})
 
 
 if __name__ == "__main__":
