@@ -483,18 +483,18 @@ class TripwireTests(ArmingCase):
     def test_standing_is_pure(self):
         row = {"state": ArmingState.ARMED, "statement_revision": 1, "engine_version": ac.ENGINE}
         self.assertEqual(standing(ac.definition(), row, policy.NONE, ac.view()),
-                         (ArmingState.ARMED, None, None))
+                         (ArmingState.ARMED, None, None, None))
         self.assertEqual(standing(ac.definition(), None, policy.NONE, ac.view()),
-                         (ArmingState.OFF, None, None))
+                         (ArmingState.OFF, None, None, None))
         failed = {Measurement.M2: (Verdict.FAIL, ac.ENGINE)}
         measured = ac.definition(measurements=(Measurement.M2,))
         self.assertEqual(standing(measured, row, policy.NONE, ac.view(), failed),
-                         (ArmingState.OFF, OffReason.MEASUREMENT_FAILED, None))
+                         (ArmingState.OFF, OffReason.MEASUREMENT_FAILED, None, None))
         confirmed = dict(row, warnings=(ArmingWarning.MEASUREMENT_FAILED,))
         self.assertEqual(standing(measured, confirmed, policy.NONE, ac.view(), failed),
-                         (ArmingState.ARMED, None, None))
+                         (ArmingState.ARMED, None, None, None))
         self.assertEqual(standing(ac.definition(), row, policy.NONE, ac.view(version=None)),
-                         (ArmingState.OFF, None, ArmingWarning.ENGINE_UNKNOWN))
+                         (ArmingState.OFF, None, ArmingWarning.ENGINE_UNKNOWN, None))
 
 
 class WarningCase(ArmingCase):

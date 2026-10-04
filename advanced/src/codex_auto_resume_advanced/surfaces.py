@@ -62,6 +62,7 @@ ARGUMENTS = {
     BridgeCommand.ADVANCED_RULE_ADD: frozenset({"tag", "status_from", "status_to", "category", "generation"}),
     BridgeCommand.ADVANCED_RULE_REMOVE: frozenset({"rule", "generation"}),
     BridgeCommand.ADVANCED_SAMPLES: frozenset(),
+    BridgeCommand.ADVANCED_KEEP_ON: frozenset({"capability", "keep_on", "generation", "confirmed"}),
 }
 
 _NO_ARGUMENTS = {"type": "object", "properties": {}, "additionalProperties": False}
@@ -71,8 +72,8 @@ _OFF_ONLY = ("Turning a capability on is not something any tool does: the user d
 TOOLS = [
     {"name": McpTool.LIST_ADVANCED_CAPABILITIES, "title": "List advanced capabilities",
      "description": "The advanced edition's capabilities, each with its id, whether it is on, "
-                    "watched or off, since when and why, the standards it departs from and the "
-                    "choices set for it. Read-only. " + _OFF_ONLY,
+                    "watched or off, since when and why, the standards it departs from, the "
+                    "choices set for it and whether it is kept on. Read-only. " + _OFF_ONLY,
      "inputSchema": _NO_ARGUMENTS,
      "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True,
                      "openWorldHint": False}},
@@ -186,6 +187,10 @@ def bridge(runtime, command, argument):
                                   actor=Actor.DASHBOARD)
     if command == BridgeCommand.ADVANCED_SAMPLES:
         return arming.samples_view()
+    if command == BridgeCommand.ADVANCED_KEEP_ON:
+        return arming.set_keep_on(argument.get("capability"), argument.get("keep_on"),
+                                  generation=argument.get("generation"), confirmed=argument.get("confirmed"),
+                                  actor=Actor.DASHBOARD)
     return arming.set_global_hourly(argument.get("global_hourly"), generation=argument.get("generation"),
                                     actor=Actor.DASHBOARD)
 
@@ -257,7 +262,8 @@ def mcp(runtime, facts):
     if tool == McpTool.LIST_ADVANCED_CAPABILITIES:
         listing = arming.listing()
         # Its choices' values, read-only; never its rules or samples, which only the Dashboard reads.
-        shown = [dict({key: item[key] for key in ("id", "state", "since", "by", "reason", "departs_from")},
+        shown = [dict({key: item[key] for key in ("id", "state", "since", "by", "reason", "departs_from",
+                                                  "keep_on", "notice")},
                       options={option["key"]: option["value"] for option in item["options"]})
                  for item in listing["capabilities"]]
         return {"summary": "%d advanced capabilit%s, %d on." % (

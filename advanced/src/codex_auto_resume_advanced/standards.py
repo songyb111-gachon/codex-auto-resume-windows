@@ -19,7 +19,8 @@ standard takes the next number in its family and is a new count here, in the sam
 
 Family K (2026-09-28) is the advanced edition's own rules - the standard archive holds none of its
 code, updates stay within an edition, arming only in the Dashboard, off by default, pause and
-consent first, warnings rather than refusals, tripwires - so it binds every capability rather than
+consent first, warnings rather than refusals, tripwires, and (2026-10-03) keeping one on through them -
+so it binds every capability rather than
 being something one may break. A capability departs only from the standards the standard edition
 keeps, DEPARTABLE below; one that named a K id would be naming a rule of the edition it is in.
 """
@@ -42,7 +43,7 @@ FAMILIES = (
     ("H", 14),   # user control
     ("I", 17),   # release and supply chain
     ("J", 14),   # presentation rules that are promises
-    ("K", 7),    # the advanced edition's own rules, which every capability keeps
+    ("K", 8),    # the advanced edition's own rules, which every capability keeps
 )
 
 STANDARDS = tuple(prefix + str(number) for prefix, count in FAMILIES

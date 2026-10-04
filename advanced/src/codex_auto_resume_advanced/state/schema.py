@@ -15,7 +15,8 @@ know.
     overrides  what a capability asks of one standard record, keyed by its interruption id
     journal    content-free lines of what happened, bounded like core's (state/journal.py)
     sampler    per-day counts of a capability's own codes, bounded the same way
-    options    a capability's own choices a person made in the Dashboard (registry.Option)
+    options    a capability's own choices a person made in the Dashboard (registry.Option), and
+               whether they keep it on (KeepOn)
     rules      the rules a person wrote for Codex's error codes, ten at most, never pruned
     admissions which capability took up which interruption at P17, with the word it took it up
                with - and, for one that samples, the failure's shape - pruned at 90 days
@@ -38,7 +39,7 @@ from codex_auto_resume import failures
 from codex_auto_resume.domain.plug import TAKE_UP, FailureForm
 
 from ..registry import GLOBAL_HOURLY
-from ..vocabulary import ArmingState, OptionKey, OverrideKind, RecordState
+from ..vocabulary import ArmingState, KeepOn, OptionKey, OverrideKind, RecordState
 
 SCHEMA_VERSION = 3
 FILE_NAME = "advanced.sqlite"
@@ -161,7 +162,7 @@ _STATEMENTS_V2 = (
 )
 
 # Version 3's own tables. The words a decision reads are the vocabulary's, as everywhere here: a
-# choice (OptionKey), a temporary kind a rule may name (failures.TRANSIENT, never usage_limit), the
+# choice (OptionKey, or KeepOn's), a temporary kind a rule may name (failures.TRANSIENT, never usage_limit), the
 # word a capability took a failure up with (TAKE_UP), a form (FailureForm). `has_words` is whether
 # the error came with a message - never the message, and no column could hold one.
 _STATEMENTS_V3 = (
@@ -170,7 +171,7 @@ _STATEMENTS_V3 = (
         choice TEXT NOT NULL %s,
         value INTEGER NOT NULL CHECK (typeof(value) = 'integer' AND value >= 1),
         PRIMARY KEY (capability, choice)
-    )""" % _one_of("choice", OptionKey),
+    )""" % _one_of("choice", (*OptionKey, *KeepOn)),
     """CREATE TABLE rules (
         rule_id INTEGER PRIMARY KEY AUTOINCREMENT,
         tag TEXT NOT NULL %s,

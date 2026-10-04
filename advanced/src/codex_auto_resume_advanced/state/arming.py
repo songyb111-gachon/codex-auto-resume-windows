@@ -8,6 +8,12 @@ which arming.standing reads so that a warning they confirmed never trips what th
 This is only the writing. Who may move a capability, and when, is `arming.py`'s to decide; here
 each move is one transaction that checks its words, bumps the generation and journals itself.
 
+Keep on (v0.6.13, K8) is a row in `options` (KeepOn), set and let go for a capability that is on or
+watched, a move like any other but for `since`, which it never touches; every move to off takes it
+away. A kept-on capability's notice - what would have turned it off - is its row's `reason`, which a
+row that is not off held nowhere before: written only as it rises (KEPT_NOTICES), with no generation,
+and taken away by the next arm, the person confirming again.
+
 The generation is one number for the whole table, raised by every move of every capability. A
 request to turn something on names the generation it was made against, and is refused if any
 move came in between - so a person who turned a capability off, anywhere, cannot have that
@@ -17,11 +23,15 @@ in the way of turning something off.
 from __future__ import annotations
 
 from ..registry import GLOBAL_HOURLY
-from ..vocabulary import Actor, ArmingState, ArmingWarning, JournalCode, OffReason
+from ..vocabulary import (KEPT_NOTICES, Actor, ArmingState, ArmingWarning, JournalCode, KeepOn,
+                          OffReason, Refusal)
+from .choices import Refused
 from .session import StaleGeneration, StateError, _word
 
 # The journal line each move writes.
 _CODES = {ArmingState.ARMED: JournalCode.ARMED, ArmingState.SHADOW: JournalCode.WATCHED}
+# Keep on's rows in `options`, as SQL: what every move to off deletes.
+_KEPT = "choice IN (%s)" % ", ".join("'%s'" % word for word in KeepOn)
 
 
 def _joined(warnings) -> str | None:
@@ -53,7 +63,7 @@ def _row(row) -> dict:
             "reason": row["reason"] if row["reason"] in tuple(OffReason) else None,
             "statement_revision": revision if type(revision) is int else None,
             "engine_version": version if isinstance(version, str) and len(version) <= 64 else None,
-            "warnings": _confirmed(row["warnings"])}
+            "warnings": _confirmed(row["warnings"]), "keep_on": False}
 
 
 class ArmingMixin:
@@ -72,8 +82,11 @@ class ArmingMixin:
             if connection is None:
                 return {}
             rows = connection.execute("SELECT * FROM arming").fetchall()
-        return {row["capability"]: _row(row) for row in rows
-                if self.registry.get(row["capability"]) is not None}
+            kept = {row[0] for row in connection.execute(
+                "SELECT capability FROM options WHERE choice=?", (str(KeepOn.KEEP_ON),))}
+        return {row["capability"]: dict(_row(row), keep_on=row["capability"] in kept
+                                        and row["state"] != ArmingState.OFF)
+                for row in rows if self.registry.get(row["capability"]) is not None}
 
     def move(self, capability, state, *, actor, reason=None, revision=None, engine_version=None,
              warnings=None, generation=None, at=None) -> tuple:
@@ -99,11 +112,12 @@ class ArmingMixin:
             before = connection.execute("SELECT * FROM arming WHERE capability=?", (capability,)).fetchone()
             if state == ArmingState.OFF:
                 revision = engine_version = warnings = None
+                connection.execute("DELETE FROM options WHERE capability=? AND " + _KEPT, (capability,))
                 if before is None or _row(before)["state"] == ArmingState.OFF:
                     return False, current
             elif before is not None and _row(before)["state"] == state and (
-                    before["statement_revision"], before["engine_version"], before["warnings"]) == (
-                    revision, engine_version, warnings):
+                    before["statement_revision"], before["engine_version"], before["warnings"],
+                    before["reason"]) == (revision, engine_version, warnings, None):
                 return False, current
             connection.execute(
                 "INSERT OR REPLACE INTO arming (capability, state, since, actor, reason, "
@@ -129,6 +143,7 @@ class ArmingMixin:
                 return 0, 0
             on = connection.execute("SELECT count(*) FROM arming WHERE state <> 'off'").fetchone()[0]
             current = connection.execute("SELECT generation FROM meta").fetchone()[0]
+            connection.execute("DELETE FROM options WHERE " + _KEPT)
             if not on:
                 return 0, current
             connection.execute(
@@ -138,6 +153,66 @@ class ArmingMixin:
             self._note(connection, now, JournalCode.RESET if actor == Actor.EDITION_ENTRY
                        else JournalCode.ALL_OFF, reason=reason, actor=actor)
             return on, current + 1
+
+    def set_keep_on(self, capability, on, *, actor, generation=None, at=None) -> int:
+        """Keep `capability` on, or let it turn itself off again (K8): its KeepOn row set or taken away,
+        against `generation` - which turning it on needs, and which the write moves on - and only for one
+        that is on or watched (NOT_ON). `since` is never touched: a Send now request is dated by it. The
+        generation after; StaleGeneration where anything moved since."""
+        actor = _word(actor, Actor, "actor")
+        if self.registry.get(capability) is None or type(on) is not bool:
+            raise StateError("invalid keep on")
+        if on and type(generation) is not int:
+            raise StateError("invalid generation")
+        now = self._now(at)
+        with self._transaction(create=False) as connection:
+            if connection is None:
+                if on:
+                    raise Refused(Refusal.NOT_ON)
+                return 0
+            current = connection.execute("SELECT generation FROM meta").fetchone()[0]
+            if generation is not None and generation != current:
+                raise StaleGeneration("stale generation")
+            row = connection.execute("SELECT state FROM arming WHERE capability=?", (capability,)).fetchone()
+            if on and (row is None or row["state"] == ArmingState.OFF):
+                raise Refused(Refusal.NOT_ON)
+            held = connection.execute("SELECT 1 FROM options WHERE capability=? AND choice=?",
+                                      (capability, str(KeepOn.KEEP_ON))).fetchone() is not None
+            if held == on:
+                return current
+            if on:
+                connection.execute("INSERT INTO options (capability, choice, value) VALUES (?,?,1)",
+                                   (capability, str(KeepOn.KEEP_ON)))
+            else:
+                connection.execute("DELETE FROM options WHERE capability=? AND " + _KEPT, (capability,))
+            connection.execute("UPDATE meta SET generation = generation + 1")
+            self._note(connection, now, JournalCode.KEEP_ON if on else JournalCode.KEEP_ON_OFF,
+                       capability=capability, actor=actor)
+            return current + 1
+
+    def note_kept(self, capability, reason, *, at=None) -> bool:
+        """What would have turned a kept-on capability off, noted on its row instead (K8): written only
+        where its notice is none or less serious (KEPT_NOTICES), in one transaction, with no generation
+        and `since` untouched, and journalled once for each rise. Whether it was written."""
+        reason = _word(reason, OffReason, "reason")
+        if reason not in KEPT_NOTICES:
+            raise StateError("not a notice")
+        now = self._now(at)
+        with self._transaction(create=False) as connection:
+            if connection is None:
+                return False
+            row = connection.execute("SELECT state, reason FROM arming WHERE capability=?",
+                                     (capability,)).fetchone()
+            if row is None or row["state"] == ArmingState.OFF:
+                return False
+            held = row["reason"]
+            if held in KEPT_NOTICES and KEPT_NOTICES.index(held) <= KEPT_NOTICES.index(reason):
+                return False
+            connection.execute("UPDATE arming SET reason=? WHERE capability=? AND state <> 'off'",
+                               (reason, capability))
+            self._note(connection, now, JournalCode.KEPT, capability=capability, reason=reason,
+                       actor=Actor.TRIPWIRE)
+            return True
 
     def set_global_hourly(self, value, *, generation, actor, at=None) -> int:
         """Lower (or restore, up to GLOBAL_HOURLY) the one ceiling over every capability together.

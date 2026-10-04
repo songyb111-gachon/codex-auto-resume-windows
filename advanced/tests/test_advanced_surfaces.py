@@ -178,7 +178,8 @@ class McpTests(SurfaceCase):
         self.assertFalse(listing.get("isError"))
         self.assertEqual(listing["structuredContent"]["on"], 1)
         self.assertEqual(set(listing["structuredContent"]["capabilities"][0]),
-                         {"id", "state", "since", "by", "reason", "departs_from", "options"})
+                         {"id", "state", "since", "by", "reason", "departs_from", "options", "keep_on",
+                          "notice"})
         off = self.call("disarm_advanced_capability", {"capability": "test_wake"})["result"]
         self.assertEqual(off["structuredContent"], {"capability": "test_wake", "state": "off", "changed": True})
         self.assertEqual((self.stored()["state"], self.stored()["actor"]), (ArmingState.OFF, Actor.MCP))

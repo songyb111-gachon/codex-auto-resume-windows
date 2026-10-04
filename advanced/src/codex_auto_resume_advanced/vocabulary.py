@@ -52,6 +52,11 @@ class OffReason(StrEnum):
 TRIPWIRES = frozenset({OffReason.SUBMISSION_UNKNOWN, OffReason.LOCAL_CHECK_FAILED,
                        OffReason.FAILED_HERE, OffReason.INCOMPATIBLE, OffReason.HOOK_EXCEPTION,
                        OffReason.STATEMENT_CHANGED, OffReason.MEASUREMENT_FAILED})
+# What a capability kept on (KeepOn, K8) notes instead of turning off, most serious first: the order
+# in which one notice gives way to another (state/arming.py, note_kept). A notice only ever rises.
+KEPT_NOTICES = (OffReason.STATEMENT_CHANGED, OffReason.FAILED_HERE, OffReason.LOCAL_CHECK_FAILED,
+                OffReason.INCOMPATIBLE, OffReason.MEASUREMENT_FAILED, OffReason.ENGINE_CHANGED,
+                OffReason.SUBMISSION_UNKNOWN, OffReason.HOOK_EXCEPTION)
 
 
 class ArmingWarning(StrEnum):
@@ -88,6 +93,8 @@ class Refusal(StrEnum):
     # confirmed at once; it never says the capability cannot be turned on.
     STALE_CONFIRMATION = "stale_confirmation"
     STATE_UNAVAILABLE = "state_unavailable"
+    # Keep on (v0.6.13, K8) for a capability that is not on or watched: there is nothing to keep on.
+    NOT_ON = "not_on"
     # A capability's own choices and rules (v0.6.13, state/choices.py): a value it does not offer,
     # and each way a rule for Codex's error codes is refused.
     OPTION_INVALID = "option_invalid"
@@ -116,6 +123,11 @@ class JournalCode(StrEnum):
     OPTION_CHANGED = "option_changed"        # a capability's own choice, set in the Dashboard
     RULE_ADDED = "rule_added"
     RULE_REMOVED = "rule_removed"
+    # Keep on (v0.6.13, K8): set and let go in the Dashboard, and what a kept-on capability noted
+    # instead of turning itself off - once each time its notice rises, never once a tick.
+    KEEP_ON = "keep_on"
+    KEEP_ON_OFF = "keep_on_off"
+    KEPT = "kept"
     OTHER = "other"
 
 
@@ -139,6 +151,13 @@ class OptionKey(StrEnum):
     """A choice a capability offers a person (registry.Option), stored in `options` by this key."""
     ATTEMPTS = "attempts"                    # how many tries a task gets
     CEILING_HOURS = "ceiling_hours"          # for how long, in hours on the clock, it keeps trying
+
+
+class KeepOn(StrEnum):
+    """What a person chose, in the Dashboard, to keep a capability on through (v0.6.13, the owner's
+    K8): stored in `options` beside its own choices, one row for each, none for none - and every row
+    taken away by any move to off. Not a capability's own choice: every capability may be kept on."""
+    KEEP_ON = "keep_on"                      # it does not turn itself off; what would have, is noted
 
 
 class Ceiling(StrEnum):
@@ -191,6 +210,9 @@ class BridgeCommand(StrEnum):
     ADVANCED_RULE_ADD = "advanced-rule-add"
     ADVANCED_RULE_REMOVE = "advanced-rule-remove"
     ADVANCED_SAMPLES = "advanced-samples"
+    # Keep on (v0.6.13, K8): set or let go for one capability that is on or watched, the Dashboard's
+    # alone, after its warning, against the generation the page read; no MCP tool reaches it.
+    ADVANCED_KEEP_ON = "advanced-keep-on"
 
 
 class Measurement(StrEnum):

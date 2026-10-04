@@ -21,7 +21,9 @@ it sends the person's own style instead - so what is paid for at the claim is wh
 there the send carries (P11's `carried`), never this runtime's own list of what it answered:
 dropped words are journalled as taken, and cost nothing.
 
-A hook that raises trips its own capability and costs its own answer, nothing more.
+A hook that raises trips its own capability and costs its own answer, nothing more - or, for one kept
+on (K8, arming.py), stays on and skips that one recovery: it is passed over for that record from then
+on, and core goes its own way with it.
 
 With no capability at a point, nothing is read and nothing is written: the answer is NULL's.
 
@@ -145,6 +147,8 @@ class Runtime:
         self._code = {}
         self._acted = {}
         self._noted = set()
+        # (capability, record) a kept-on capability's hook raised for: passed over for it (K8).
+        self._skipped = set()
         # The measurement harness's seams (measure.py). A person runs a measurement; production
         # opens a real one-turn session against the installed Codex and records to the source
         # tree, and a test gives a fake session and a temporary directory, so no test opens a
@@ -175,9 +179,17 @@ class Runtime:
             self._code[definition.id] = code
         return self._code[definition.id]
 
-    def _tripped(self, definition) -> None:
-        self.arming.trip(definition.id, OffReason.HOOK_EXCEPTION)
-        self._states[definition.id] = ArmingState.OFF
+    def _tripped(self, definition, record=None) -> None:
+        """A hook of `definition`'s raised: off from here on - or, kept on (K8), noted, and passed
+        over for `record` alone; a point with no record skips only the call it raised in."""
+        if self.arming.trip(definition.id, OffReason.HOOK_EXCEPTION) or not self.arming.kept(definition.id):
+            self._states[definition.id] = ArmingState.OFF
+            return
+        key = record.get("interruption_id") if isinstance(record, dict) else None
+        if isinstance(key, str):
+            if len(self._skipped) >= NOTED_LIMIT:
+                self._skipped.clear()
+            self._skipped.add((definition.id, key))
 
     # ------------------------------------------------------------------ asking
     def wants(self, point) -> bool:
@@ -200,15 +212,16 @@ class Runtime:
         record = arguments[SENDING[point]] if point in SENDING else None
         relaxing = point == Point.GATES and _known_failure(arguments[0]) and isinstance(record, dict)
         admission = self._admission_of(record) if relaxing else None
+        key = record.get("interruption_id") if isinstance(record, dict) else None
         chosen = chooser = None
         for definition in definitions:
             state = states.get(definition.id, ArmingState.OFF)
-            if state == ArmingState.OFF:
+            if state == ArmingState.OFF or (definition.id, key) in self._skipped:
                 continue
             try:
                 answer = getattr(self._code_of(definition), HOOKS[point])(*arguments)
             except Exception:
-                self._tripped(definition)
+                self._tripped(definition, record)
                 continue
             if (answer is DEFER or (point == Point.SENDER and answer is arguments[-1])
                     or not self._takes(definition, point, answer, arguments, admission)):
@@ -305,7 +318,7 @@ class Runtime:
             try:
                 found = rule_for(facts, answer)
             except Exception:
-                self._tripped(definition)
+                self._tripped(definition, facts)
                 return False
             rule = found if type(found) is int else None
         shape = ({name: facts.get(name) for name in ("code", "status", "form", "has_message")}
@@ -327,7 +340,7 @@ class Runtime:
         try:
             kept = taken(Point.GATES, answer, *arguments)
         except Exception:
-            self._tripped(definition)
+            self._tripped(definition, arguments[1] if len(arguments) > 1 else None)
             return False
         kept = kept if isinstance(kept, dict) else {}
         try:

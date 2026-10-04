@@ -47,6 +47,13 @@ agreement no longer covers what the capability would do:
 
 Re-arming is always possible: whatever turned a capability off - a person, a tripwire, a new
 Codex - the Dashboard can turn it on again, with its statement as it reads then.
+
+Keep on (v0.6.13, the owner's K8, amending K7): a person may keep a capability that is on or watched
+from turning itself off, in the Dashboard, after its warning. Kept on, each tripwire and a new Codex
+version are noted instead, the most serious kept until the person arms it again; a hook that raises
+costs only the record it raised for (runtime.py); what cannot be read still holds it back (E1); and the
+policy reads it down first, so the administrator wins. Any move to off - the person's, from any
+surface - takes it away.
 """
 from __future__ import annotations
 
@@ -61,8 +68,8 @@ from .registry import GLOBAL_HOURLY
 from .state import Refused, StaleGeneration, StateError
 from .state.choices import DAY, RECENT_DAYS, RULES_LIMIT, aggregated, tag_problem
 from .statement import CATALOGS
-from .vocabulary import (TRIPWIRES, Actor, ArmingState, ArmingWarning, OffReason, Refusal,
-                         Verdict)
+from .vocabulary import (KEPT_NOTICES, TRIPWIRES, Actor, ArmingState, ArmingWarning, KeepOn,
+                         OffReason, Refusal, Verdict)
 
 # The actors a person turns a capability off through.
 SURFACES = frozenset({Actor.DASHBOARD, Actor.MCP, Actor.TRAY, Actor.CARD})
@@ -129,35 +136,52 @@ def warnings_for(definition, view, measured=MEASURED) -> tuple:
 
 def standing(definition, row, policy, view, measured=MEASURED) -> tuple:
     """(state now, what must be done to the stored state or None, the unconfirmed warning that
-    holds it back without changing anything stored, or None).
+    holds it back without changing anything stored, or None, what a kept-on capability notes in
+    place of a turn off, or None).
 
     Pure. The order is the order of what overrides what: a changed statement, and a warning the
     person did not confirm that says what it stands on went wrong, turn it off whatever else
     holds; a policy reads it down; and "on" is on only for the Codex version the person
     acknowledged, with a new one turning it off, and one that cannot be read - or a grade nobody
-    knows, where the person did not confirm that - holding it back."""
+    knows, where the person did not confirm that - holding it back.
+
+    Kept on (K8), the policy comes first, so it reads one down whatever is noted; then a changed
+    statement, an unconfirmed tripping warning and a new Codex version are each a notice - the first
+    found - and it stays where it stands; what cannot be read still holds it back, noting nothing."""
     stored = row["state"] if row else ArmingState.OFF
     if stored == ArmingState.OFF:
-        return ArmingState.OFF, None, None
-    if row.get("statement_revision") != definition.revision:
-        return ArmingState.OFF, OffReason.STATEMENT_CHANGED, None
+        return ArmingState.OFF, None, None, None
+    kept = bool(row.get("keep_on"))
+    notice = None
+    if not kept or policy.admits(definition.id):
+        if row.get("statement_revision") != definition.revision:
+            notice = OffReason.STATEMENT_CHANGED
     unconfirmed = set(warnings_for(definition, view, measured)) - set(row.get("warnings") or ())
-    for warning, reason in TRIPPING.items():
-        if warning in unconfirmed:
-            return ArmingState.OFF, reason, None
+    if notice is None:
+        notice = next((reason for warning, reason in TRIPPING.items() if warning in unconfirmed), None)
+    if notice is not None and not kept:
+        return ArmingState.OFF, notice, None, None
     if not policy.admits(definition.id):
-        return ArmingState.OFF, None, None
+        return ArmingState.OFF, None, None, None
     if stored == ArmingState.ARMED and policy.force_shadow:
-        return ArmingState.SHADOW, None, None
+        return ArmingState.SHADOW, None, None, None
     if stored == ArmingState.ARMED:
         version, acknowledged = engine_version(view), row.get("engine_version")
         if version != acknowledged:
             if version is None:
-                return ArmingState.OFF, None, ArmingWarning.ENGINE_UNKNOWN
-            return ArmingState.OFF, OffReason.ENGINE_CHANGED, None
+                return ArmingState.OFF, None, ArmingWarning.ENGINE_UNKNOWN, None
+            if not kept:
+                return ArmingState.OFF, OffReason.ENGINE_CHANGED, None, None
+            notice = notice or OffReason.ENGINE_CHANGED
         if ArmingWarning.COMPAT_UNKNOWN in unconfirmed:
-            return ArmingState.OFF, None, ArmingWarning.COMPAT_UNKNOWN
-    return stored, None, None
+            return ArmingState.OFF, None, ArmingWarning.COMPAT_UNKNOWN, None
+    return stored, None, None, notice
+
+
+def _rises(held, notice) -> bool:
+    """Whether `notice` is more serious than the notice a kept-on row holds (KEPT_NOTICES), so worth
+    writing: only a rise is written, never the same one again on every tick."""
+    return held not in KEPT_NOTICES or KEPT_NOTICES.index(notice) < KEPT_NOTICES.index(held)
 
 
 def _confirmed(warnings):
@@ -293,10 +317,12 @@ class Arming:
         measured = self.measured()
         states = {}
         for definition in self.registry:
-            state, change, _held = standing(definition, rows.get(definition.id), policy, view,
-                                            measured)
+            state, change, _held, notice = standing(definition, rows.get(definition.id), policy, view,
+                                                    measured)
             if change is not None:
                 self._off(definition.id, change)
+            elif notice is not None and _rises((rows.get(definition.id) or {}).get("reason"), notice):
+                self._keep(definition.id, notice)
             states[definition.id] = state
         return states, since, failed
 
@@ -313,17 +339,45 @@ class Arming:
                                at=self.clock())[0]
 
     def trip(self, capability, reason) -> bool:
-        """A tripwire: `capability` off, with why. Only a tripwire's reason is one."""
+        """A tripwire: `capability` off, with why - or, kept on, noted (K8). Only a tripwire's
+        reason is one. Whether it was turned off."""
         if OffReason(reason) not in TRIPWIRES:
             raise ValueError("not a tripwire")
-        return self._off(capability, reason)
+        try:
+            return self._trip_or_keep(capability, reason)
+        except StateError:
+            return False                   # it reads as off either way, or stays kept on
+
+    def _keep(self, capability, reason) -> bool:
+        try:
+            return self.state.note_kept(capability, reason, at=self.clock())
+        except StateError:
+            return False
+
+    def _trip_or_keep(self, capability, reason, row=None) -> bool:
+        """A tripwire's `reason` carried out: off, or, for one kept on, its notice (state.note_kept) -
+        written only where it rises above the one the row holds. Whether it was turned off;
+        StateError where nothing could be written or read."""
+        row = self.state.arming().get(capability) if row is None else row
+        if (row or {}).get("keep_on"):
+            if _rises(row.get("reason"), reason):
+                self.state.note_kept(capability, reason, at=self.clock())
+            return False
+        return self._write_off(capability, reason)
+
+    def kept(self, capability) -> bool:
+        """Whether `capability` is kept on now (K8); not, where the state cannot be read."""
+        try:
+            return bool((self.state.arming().get(capability) or {}).get("keep_on"))
+        except StateError:
+            return False
 
     def _paid(self):
-        """{capability: (since when it is on, {record: when it paid a send of it} since then)} for
-        each capability that is on, or None where the state cannot be read."""
+        """{capability: (since when it is on, {record: when it paid a send of it} since then, its
+        row)} for each capability that is on, or None where the state cannot be read."""
         try:
             rows = self.state.arming()
-            return {capability: (row["since"], self.state.spends_since(capability, row["since"]))
+            return {capability: (row["since"], self.state.spends_since(capability, row["since"]), row)
                     for capability, row in rows.items()
                     if row["state"] == ArmingState.ARMED and row["since"] is not None}
         except StateError:
@@ -341,7 +395,7 @@ class Arming:
         if paid is None:
             return False
         tripped = failed = False
-        for capability, (since, spent) in paid.items():
+        for capability, (since, spent, row) in paid.items():
             owed = any(told >= since and _carried(spent, key, claimed)
                        for key, (told, claimed) in self._owed.items())
             held = core_view is not None and any(
@@ -350,7 +404,7 @@ class Arming:
             if not (owed or held):
                 continue
             try:
-                tripped = self._write_off(capability, OffReason.SUBMISSION_UNKNOWN) or tripped
+                tripped = self._trip_or_keep(capability, OffReason.SUBMISSION_UNKNOWN, row) or tripped
             except StateError:
                 failed = True
         if not failed:
@@ -484,6 +538,53 @@ class Arming:
         return self.state.all_off(actor=Actor.EDITION_ENTRY, reason=OffReason.EDITION_ENTERED,
                                   at=self.clock())[0]
 
+    # ------------------------------------------------------------------ kept on
+    def set_keep_on(self, capability, keep_on, *, generation, confirmed=None, actor) -> dict:
+        """Keep `capability` on (K8), or let it turn itself off again, for a person in the Dashboard.
+
+        To keep it on: the policy's refusals first, as an arm meets them; then it must be on or
+        watched (NOT_ON); then `confirmed` must be the warning's words the Dashboard showed,
+        ["keep_on"] (STALE_CONFIRMATION); then the generation. Letting it go needs only the
+        capability. {"done", "refusal", "generation"}."""
+        def refused(why):
+            return {"done": False, "refusal": why, "generation": self._generation()}
+
+        if actor != Actor.DASHBOARD:
+            return refused(Refusal.NOT_THE_DASHBOARD)
+        definition = self.registry.get(capability)
+        if definition is None:
+            return refused(Refusal.UNKNOWN_CAPABILITY)
+        if type(keep_on) is not bool or not (generation is None or type(generation) is int):
+            return refused(Refusal.INVALID_REQUEST)
+        if keep_on:
+            policy = self.policy()
+            if policy.forbid:
+                return refused(Refusal.FORBIDDEN_BY_POLICY)
+            if not policy.admits(definition.id):
+                return refused(Refusal.NOT_ALLOWED_BY_POLICY)
+            try:
+                stored = (self.state.arming().get(definition.id) or {}).get("state")
+            except StateError:
+                return refused(Refusal.STATE_UNAVAILABLE)
+            if policy.force_shadow and stored == ArmingState.ARMED:
+                return refused(Refusal.SHADOW_FORCED_BY_POLICY)
+            if self.current(policy=policy).get(definition.id, ArmingState.OFF) == ArmingState.OFF:
+                return refused(Refusal.NOT_ON)
+            if confirmed != [str(KeepOn.KEEP_ON)]:
+                return refused(Refusal.STALE_CONFIRMATION)
+            if generation is None:
+                return refused(Refusal.INVALID_REQUEST)
+        try:
+            after = self.state.set_keep_on(capability, keep_on, actor=actor,
+                                           generation=generation if keep_on else None, at=self.clock())
+        except Refused as refusal:
+            return refused(refusal.refusal)
+        except StaleGeneration:
+            return refused(Refusal.STALE_GENERATION)
+        except StateError:
+            return refused(Refusal.STATE_UNAVAILABLE)
+        return {"done": True, "refusal": None, "generation": after}
+
     # ------------------------------------------------------------------ ceiling
     def set_global_hourly(self, value, *, generation, actor) -> dict:
         """Lower the one ceiling over every capability together, in the Dashboard. It can be
@@ -611,10 +712,13 @@ class Arming:
         shown = []
         for definition in self.registry:
             row = rows.get(definition.id) or {}
+            off = row.get("state", ArmingState.OFF) == ArmingState.OFF
             shown.append({
                 "id": definition.id, "stored": str(row.get("state", ArmingState.OFF)),
                 "state": str(states.get(definition.id, ArmingState.OFF)),
-                "since": row.get("since"), "by": row.get("actor"), "reason": row.get("reason"),
+                "since": row.get("since"), "by": row.get("actor"), "reason": row.get("reason") if off else None,
+                # Keep on (K8), and what a kept-on capability noted in place of turning itself off.
+                "keep_on": bool(row.get("keep_on")), "notice": None if off else row.get("reason"),
                 "revision": definition.revision, "read_revision": row.get("statement_revision"),
                 "acknowledged_version": row.get("engine_version"),
                 "warnings": [str(word) for word in self.warnings(definition, view)],
