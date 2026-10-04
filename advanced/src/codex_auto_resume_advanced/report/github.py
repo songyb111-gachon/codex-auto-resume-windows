@@ -143,35 +143,40 @@ def _job(k):
 
 
 def _adopt(process) -> None:
-    """`process`, started suspended, put in the job and resumed - or ended, and OSError."""
-    k = _kernel()
-    handle = k.OpenProcess(0x0001 | 0x0100 | 0x0800, False, process.pid)   # TERMINATE | SET_QUOTA | SUSPEND_RESUME
-    if not handle:
-        process.kill()
-        raise OSError("gh could not be opened")
+    """`process`, started suspended, put in the job and resumed - or ended, and OSError. Whatever
+    fails first - the kernel's calls, the job object itself, opening, adopting or resuming gh - it
+    is ended before the error goes on: a suspended gh that nobody ends would be waited for for ever."""
     try:
-        if not k.AssignProcessToJobObject(_job(k), handle):
-            k.TerminateProcess(handle, 1)
-            raise OSError("gh could not be put in the job")
-        if ctypes.WinDLL("ntdll").NtResumeProcess(ctypes.c_void_p(handle)) != 0:
-            k.TerminateProcess(handle, 1)
-            raise OSError("gh could not be resumed")
-    finally:
-        k.CloseHandle(handle)
+        k = _kernel()
+        job = _job(k)
+        handle = k.OpenProcess(0x0001 | 0x0100 | 0x0800, False, process.pid)   # TERMINATE | SET_QUOTA | SUSPEND_RESUME
+        if not handle:
+            raise OSError("gh could not be opened")
+        try:
+            if not k.AssignProcessToJobObject(job, handle):
+                raise OSError("gh could not be put in the job")
+            if ctypes.WinDLL("ntdll").NtResumeProcess(ctypes.c_void_p(handle)) != 0:
+                raise OSError("gh could not be resumed")
+        finally:
+            k.CloseHandle(handle)
+    except BaseException:
+        process.kill()
+        raise
 
 
 def run_process(argv, *, env, cwd, stdin, timeout, creationflags=FLAGS):
     """(exit code, standard output, standard error) of one gh, started in this process's job. Its
     output is decoded as UTF-8 with replacement; one that has not answered in `timeout` seconds is
     ended, and only it (GhTimeout). It is always started windowless and suspended, whatever
-    `creationflags` a caller names (a stand-in runner reads them)."""
+    `creationflags` a caller names (a stand-in runner reads them). One that cannot be put in the job
+    is ended before it runs, and OSError."""
     process = subprocess.Popen(argv, stdin=subprocess.PIPE if stdin is not None else subprocess.DEVNULL,
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, cwd=cwd,
                                creationflags=NO_WINDOW | CREATE_SUSPENDED, close_fds=True, shell=False)
     try:
         _adopt(process)
-    except OSError:
-        process.wait()
+    except BaseException:
+        process.communicate()                    # _adopt ended it: its pipes are closed and it is reaped
         raise
     try:
         out, err = process.communicate(stdin, timeout=timeout)

@@ -15,6 +15,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from unittest import mock
@@ -325,6 +326,44 @@ class JobTests(unittest.TestCase):
         self.assertIsNotNone(pid)
         self.assertTrue(_gone(pid))
         self.assertTrue(_alive(os.getpid()), "the process that ran it goes on")
+
+    def test_one_that_cannot_be_put_in_the_job_is_ended_unrun_and_gh_failed(self):
+        """No job object, or no kernel to make one: the suspended process is ended there and then, never
+        waited for - otherwise the check or send would hold the report mutex for the life of the service."""
+        def no_job(_k):
+            raise OSError("no job object")
+
+        def no_kernel():
+            raise OSError("no kernel32")
+        for name, failing in (("_job", no_job), ("_kernel", no_kernel)):
+            with self.subTest(failing=name):
+                started, outcome = [], []
+                real = subprocess.Popen
+
+                def keep(*a, **k):
+                    made = real(*a, **k)
+                    started.append(made)
+                    return made
+
+                def call():
+                    try:
+                        outcome.append(github.GhSession(sys.executable, self.root).run("-c", "print('answered')"))
+                    except ReportRefused as refusal:
+                        outcome.append(refusal.code)
+                with mock.patch.object(github, name, failing), mock.patch.object(subprocess, "Popen", keep):
+                    worker = threading.Thread(target=call, daemon=True)
+                    worker.start()
+                    worker.join(30)
+                try:
+                    self.assertFalse(worker.is_alive(), "a process that could not be adopted was waited for")
+                    self.assertEqual(outcome, ["gh_failed"])
+                    self.assertEqual(len(started), 1)
+                    self.assertIsNotNone(started[0].poll(), "it was left suspended")
+                    self.assertNotEqual(started[0].returncode, 0, "it was ended, never resumed to run")
+                finally:
+                    if started and started[0].poll() is None:
+                        started[0].kill()
+                        started[0].wait()
 
     def test_a_process_still_running_when_its_starter_ends_is_ended_with_it(self):
         pid_file = self.root / "pid"
