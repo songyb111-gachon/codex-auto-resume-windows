@@ -34,6 +34,9 @@
 // holds now cannot be asked for (it could not be read again, or an administrator's policy now refuses it), tells the
 // person who said yes why nothing was turned on (ArmHeld). Turning off asks nothing: it only ever does less.
 //
+// A capability that is an action - the compatibility report - has a card of its own under its statement
+// (advanced/gui/AdvancedReport.cs), and its limits say it sends nothing to Codex.
+//
 // advanced/gui/AdvancedPageAudit.cs is this page's audit, and the hooks its tests drive it through.
 //
 // C# 5 (the in-box compiler), as the rest of the window.
@@ -715,7 +718,8 @@ namespace CodexAutoResume
             string shown = (advancedListing == null ? "unread" : "read") + "|" + AdvancedWritten(item) + "|" +
                            AdvancedWritten(statement) + "|" + (advancedUnread.Contains(advancedOpen ?? "") ? "unreadable" : "") + "|" +
                            AdvancedWritten(Get(advancedListing, "policy")) + "|" +
-                           AdvancedWritten(Get(advancedListing, "global_hourly"));
+                           AdvancedWritten(Get(advancedListing, "global_hourly")) + "|" +
+                           (IsAction(item) ? ReportShown() : "");
             if (shown == advancedShown)
             {
                 UpdateAdvancedButtons();
@@ -723,6 +727,7 @@ namespace CodexAutoResume
             }
             advancedShown = shown;
             bool focused = advancedStack.ContainsFocus;
+            string reportFocus = focused ? ReportFocus() : null;
             advancedStack.SuspendLayout();
             var old = new List<Control>();
             foreach (Control control in advancedStack.Controls) old.Add(control);
@@ -730,6 +735,7 @@ namespace CodexAutoResume
             foreach (Control control in old) control.Dispose();
             advancedStack.RowStyles.Clear();
             advancedHourly = null;
+            ForgetReportCard();
             if (item == null)
             {
                 TableLayoutPanel card = NewGroup(Word("page.nav", "Advanced features"), advancedStack);
@@ -740,8 +746,9 @@ namespace CodexAutoResume
             advancedStack.ResumeLayout(true);
             if (advancedScroll != null) advancedScroll.PerformLayout();
             UpdateAdvancedButtons();
-            // A limit that was being chosen is gone with the cards it was on: the keyboard goes back to the list.
-            if (focused && advancedList != null && advancedList.CanFocus) advancedList.Focus();
+            // A limit that was being chosen is gone with the cards it was on: the keyboard goes back to the list - or,
+            // in the report's card, to the box or button it was on, where that is still there to take it.
+            if (focused && !FocusReport(reportFocus) && advancedList != null && advancedList.CanFocus) advancedList.Focus();
         }
 
         private void BuildAdvancedCards(Dictionary<string, object> item, Dictionary<string, object> statement)
@@ -821,14 +828,24 @@ namespace CodexAutoResume
                 }
             }
 
+            // An action's card - what a person starts it doing - under its statement (AdvancedReport.cs).
+            if (IsAction(item)) BuildReportCard(item);
+
             // Its limits, and the one a person may set for every capability together: lower, never above the registry's.
+            // An action has no ceilings of its own: it sends nothing to Codex, and says what bounds it instead.
             TableLayoutPanel limits = NewGroup(Word("page.limits", "Limits"), advancedStack);
-            TableLayoutPanel numbers = Facts(limits);
-            Dictionary<string, object> ceilings = Map(item, "ceilings");
-            Fact(numbers, Word("page.per_day", "Sends a day, all conversations together")).Text = CeilingText(Get(ceilings, "per_day"));
-            Fact(numbers, Word("page.per_conversation", "Sends a day in any one conversation")).Text = CeilingText(Get(ceilings, "per_conversation"));
-            if (Equals(Get(item, "sends"), false))
-                limits.Controls.Add(HelpText(Word("page.nominal", "It sends nothing itself, so these limits never come into play.")));
+            if (IsAction(item))
+                limits.Controls.Add(HelpText(Word("page.action_limits",
+                    "It sends nothing to Codex. A report goes to GitHub only when you type send, and the project takes one report per GitHub login for each Codex version.")));
+            else
+            {
+                TableLayoutPanel numbers = Facts(limits);
+                Dictionary<string, object> ceilings = Map(item, "ceilings");
+                Fact(numbers, Word("page.per_day", "Sends a day, all conversations together")).Text = CeilingText(Get(ceilings, "per_day"));
+                Fact(numbers, Word("page.per_conversation", "Sends a day in any one conversation")).Text = CeilingText(Get(ceilings, "per_conversation"));
+                if (Equals(Get(item, "sends"), false))
+                    limits.Controls.Add(HelpText(Word("page.nominal", "It sends nothing itself, so these limits never come into play.")));
+            }
             advancedHourly = HourlyNumber();
             limits.Controls.Add(NewRow(Word("page.hourly", "Sends an hour, all advanced features together"), advancedHourly));
             limits.Controls.Add(HelpText(Word("page.hourly_note", "You can lower this limit. It never goes above {n}.", "n", HourlyMost())));
@@ -914,6 +931,7 @@ namespace CodexAutoResume
             if (advancedWatch != null) advancedWatch.Enabled = idle && read && admits && state != StateShadow;
             if (advancedOff != null) advancedOff.Enabled = idle && item != null && stored != StateOff;
             if (advancedHourly != null) advancedHourly.Enabled = idle && advancedListing != null;
+            UpdateReportButtons();
         }
 
         // ---------------------------------------------------------------- the hourly limit

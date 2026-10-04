@@ -15,7 +15,11 @@ exactly what the page showed - which the real bridge then accepts - and ask agai
 when the bridge says something changed, or say why they cannot (it could not be read again, or a policy
 now refuses it); a refusal is told; a capability that turned itself off says so and why; Turn off and
 Turn every advanced feature off send theirs; the hourly limit is a spin box, and the lowered limit is one
-the real bridge takes; the list is read again after every action and when the snapshot's badge says it
+the real bridge takes; the compatibility report - an action - says it sends nothing to Codex where the
+others show their limits, and its card writes, shows, saves, checks and sends a report only as its state
+allows, sends only on exactly the word send, holds the window's reopen while a check or a send runs, keeps
+Turn off live meanwhile, shows a send it cannot account for as lost, and keeps the last ending once it is
+off; the list is read again after every action and when the snapshot's badge says it
 changed; a window that reopens itself on the page comes back to it; the page is audited in every
 language at every scaling, its tabs on the narrowest screen too; and the standard window holds nothing
 of it.
@@ -50,7 +54,7 @@ import edition_audit  # noqa: E402
 import guiscan  # noqa: E402
 from test_gui_layout import fullest_snapshot  # noqa: E402
 from codex_auto_resume import config, control, controlcli, l10n  # noqa: E402
-from codex_auto_resume_advanced import plug as advanced, policy, registry, statement  # noqa: E402
+from codex_auto_resume_advanced import plug as advanced, policy, registry, statement, surfaces  # noqa: E402
 from codex_auto_resume_advanced.vocabulary import ArmingWarning, Measurement, Verdict  # noqa: E402
 
 CSC = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Microsoft.NET" / "Framework64" / "v4.0.30319" / "csc.exe"
@@ -121,7 +125,7 @@ foreach ($job in $jobs) {
             $out[$job.name] = [string]$run.Invoke($null, [object[]]@((Text $job.strings), (Text $job.scenario)))
         } else {
             $report = [string]$audit.Invoke($null, [object[]]@((Text $job.strings), (Text $job.words), (Text $job.listing),
-                                                              (Text $job.statements), [double]$job.scale))
+                                                              (Text $job.statements), (Text $job.reports), [double]$job.scale))
             $out[$job.name] = @{ report = $report; audited = [int]$audited.GetValue($null) }
         }
     } catch {
@@ -209,6 +213,46 @@ class Bridge:
 
 def sent(result, command) -> list:
     return [json.loads(line.split(" ", 1)[1]) for line in result["sent"] if line.split(" ", 1)[0] == command]
+
+
+REPORT = "compat_report"
+SHA = "a" * 64
+FILE = '{\n  "format": "codex-auto-resume-compat-evidence/1"\n}\n'
+PROJECT = "https://github.com/songyb111-gachon/codex-auto-resume-windows"
+BRANCH = "compat-report/codex-cli-0.158.0"
+TARGET = "docs/evidence/community/ExampleUser/codex-cli-0.158.0.json"
+WRITES = [{"kind": "fork_new", "name": "ExampleUser/codex-auto-resume-windows"}, {"kind": "branch_new", "name": BRANCH},
+          {"kind": "file", "name": TARGET}, {"kind": "pr", "name": "songyb111-gachon/codex-auto-resume-windows"}]
+# Each status a report job answers with, as report/flow.py writes it, of fixture data: ExampleUser, a fixed SHA-256.
+BUILT = {"done": True, "job": "j1", "status": "built", "sha256": SHA, "bytes": len(FILE), "text": FILE,
+         "codex_version": "codex-cli 0.158.0", "records": 12, "verdict": "PASS",
+         "left_out": {"hidden": 1, "another_route": 0, "beyond_reach": 0, "elsewhere": 3, "unplaced": {}},
+         "login": "ExampleUser", "file_name": "codex-cli-0.158.0.json", "branch": BRANCH}
+CHECKED = {"done": True, "job": "j2", "status": "checked", "gh": r"C:\Program Files\GitHub CLI\gh.exe", "who": "ExampleUser",
+           "writes": WRITES, "interrupted": True}
+WEB = {"done": True, "job": "j2", "status": "web", "why": "gh_other_login", "login": "ExampleUser", "who": "SomeoneElse",
+       "branch": BRANCH, "target": TARGET, "file_name": "codex-cli-0.158.0.json", "project_page": PROJECT}
+SENT = {"done": True, "job": "j3", "status": "sent", "url": PROJECT + "/pull/42", "already": False}
+PARTIAL = {"done": True, "job": "j3", "status": "partial", "written": WRITES[:2], "refusal": "paused"}
+RUNNING = {"done": True, "status": "running"}
+
+
+def job(name, answer=None) -> dict:
+    """A start's answer: the job's id."""
+    return {"ok": True, "result": answer or {"done": True, "job": name}}
+
+
+def ok(result) -> dict:
+    return {"ok": True, "result": result}
+
+
+def report_states() -> list:
+    """The report's card at its fullest, for the layout audit, in two states that between them show every part of it:
+    on with a report written and checked, a send running and the last one ended part way; and on the web, with the
+    last send's pull request. (Watched and off show fewer of the same parts; every state is driven in PageTests.)"""
+    return [{"state": "armed", "built": BUILT, "checked": CHECKED, "last": PARTIAL, "login": "ExampleUser", "word": "send",
+             "job": "send"},
+            {"state": "armed", "built": BUILT, "checked": WEB, "last": SENT, "job": "check"}]
 
 
 @unittest.skipUnless(CSC.is_file() and POWERSHELL.is_file(), "needs the in-box compiler and PowerShell")
@@ -472,6 +516,111 @@ class PageTests(unittest.TestCase):
                  {"do": "look"}]
         return "en", {"script": script, "steps": steps}, {}
 
+    @staticmethod
+    def report_on(bridge, state="armed"):
+        """The compatibility report turned on, or watched, through the real bridge, as the page turns it."""
+        shown = bridge("advanced-statement", {"capability": REPORT, "locale": "en"})["result"]
+        done = bridge("advanced-arm", {"capability": REPORT, "state": state, "revision": shown["revision"],
+                                       "generation": bridge("advanced-list", {})["result"]["generation"],
+                                       "engine_version": shown["engine_version"],
+                                       "warnings": [item["warning"] for item in shown["warnings"]["items"]]})
+        assert done["result"]["done"], done
+
+    @classmethod
+    def scenario_report_sent(cls, bridge):
+        """On: the login typed, the report written, saved, checked and - on exactly the word send - sent."""
+        cls.report_on(bridge)
+        script = cls.opening(bridge, "en")
+        script["advanced-report-build"] = [job("j1")]
+        script["advanced-report-check"] = [job("j2")]
+        script["advanced-report-send"] = [job("j3")]
+        script["advanced-report-save"] = [ok({"done": True, "status": "saved"})]
+        script["advanced-report-job"] = [ok(RUNNING), ok(BUILT), ok(CHECKED), ok(RUNNING), ok(SENT)]
+        steps = [{"do": "snapshot", "reply": snapshot(on=1)}, {"do": "show"}, {"do": "choose", "id": REPORT},
+                 {"do": "look"},                                                        # 0: nothing written yet
+                 {"do": "type", "into": "login", "text": " ExampleUser "}, {"do": "press", "button": "report_write"},
+                 {"do": "look"},                                                        # 1: writing
+                 {"do": "poll"}, {"do": "poll"}, {"do": "look"},                        # 2: written
+                 {"do": "save_to", "path": "C:\\Reports\\codex-cli-0.158.0.json"},
+                 {"do": "press", "button": "report_save"}, {"do": "look"},              # 3: saved
+                 {"do": "press", "button": "report_check"}, {"do": "look"},             # 4: checking, held
+                 {"do": "poll"}, {"do": "look"},                                        # 5: checked
+                 {"do": "type", "into": "word", "text": "Send"}, {"do": "look"},        # 6: not the word
+                 {"do": "press", "button": "report_send"},
+                 {"do": "type", "into": "word", "text": "send"}, {"do": "look"},        # 7: the word
+                 {"do": "press", "button": "report_send"}, {"do": "look"},              # 8: sending, held
+                 {"do": "poll"}, {"do": "look"},                                        # 9: still sending
+                 {"do": "poll"}, {"do": "look"}]                                        # 10: sent
+        return "en", {"script": script, "steps": steps}, {"words": script["advanced-words"][0]["result"]["words"],
+                                                          "listing": script["advanced-list"][0]["result"]}
+
+    @classmethod
+    def scenario_report_watched(cls, bridge):
+        """Watched: written and saved, never checked or sent; and an action's limits say it sends nothing to Codex."""
+        cls.report_on(bridge, "shadow")
+        script = cls.opening(bridge, "ko")
+        script["advanced-report-build"] = [job("j1")]
+        script["advanced-report-job"] = [ok(BUILT)]
+        steps = [{"do": "snapshot", "reply": snapshot()}, {"do": "show"}, {"do": "choose", "id": REPORT},
+                 {"do": "type", "into": "login", "text": "ExampleUser"}, {"do": "press", "button": "report_write"},
+                 {"do": "poll"}, {"do": "look"}]
+        return "ko", {"script": script, "steps": steps}, {"words": script["advanced-words"][0]["result"]["words"]}
+
+    @classmethod
+    def scenario_report_lost(cls, bridge):
+        """A send whose start the one-shot bridge answered as an unknown command, and a check whose job the service no
+        longer held: both are lost, shown with the way to tell, and neither holds the reopen after."""
+        cls.report_on(bridge)
+        script = cls.opening(bridge, "en")
+        script["advanced-report-build"] = [job("j1")]
+        script["advanced-report-check"] = [job("j2")]
+        script["advanced-report-send"] = [{"ok": False, "error": "unknown command", "error_code": "request_failed"}]
+        script["advanced-report-job"] = [ok(BUILT), ok(CHECKED), ok({"done": True, "status": "lost"})]
+        steps = [{"do": "snapshot", "reply": snapshot(on=1)}, {"do": "show"}, {"do": "choose", "id": REPORT},
+                 {"do": "type", "into": "login", "text": "ExampleUser"}, {"do": "press", "button": "report_write"},
+                 {"do": "poll"}, {"do": "press", "button": "report_check"}, {"do": "poll"},
+                 {"do": "type", "into": "word", "text": "send"}, {"do": "press", "button": "report_send"},
+                 {"do": "look"},                                                        # 0: the send is lost
+                 {"do": "press", "button": "report_check"}, {"do": "poll"}, {"do": "look"}]  # 1: the check is lost
+        return "en", {"script": script, "steps": steps}, {"words": script["advanced-words"][0]["result"]["words"]}
+
+    @classmethod
+    def scenario_report_turned_off(cls, bridge):
+        """Turned off while a send runs - Turn off is live then - the send ends part way; the card, off, keeps that."""
+        cls.report_on(bridge)
+        script = cls.opening(bridge, "en")
+        off_listing = bridge("advanced-list", {})
+        off_listing = copy.deepcopy(off_listing)
+        entry = next(item for item in off_listing["result"]["capabilities"] if item["id"] == REPORT)
+        entry["state"], entry["stored"], entry["by"], entry["reason"] = "off", "off", "dashboard", "disarmed"
+        script["advanced-report-build"] = [job("j1")]
+        script["advanced-report-check"] = [job("j2")]
+        script["advanced-report-send"] = [job("j3")]
+        script["advanced-report-job"] = [ok(BUILT), ok(CHECKED), ok(RUNNING), ok(PARTIAL)]
+        steps = [{"do": "snapshot", "reply": snapshot(on=1)}, {"do": "show"}, {"do": "choose", "id": REPORT},
+                 {"do": "type", "into": "login", "text": "ExampleUser"}, {"do": "press", "button": "report_write"},
+                 {"do": "poll"}, {"do": "press", "button": "report_check"}, {"do": "poll"},
+                 {"do": "type", "into": "word", "text": "send"}, {"do": "press", "button": "report_send"},
+                 {"do": "poll"}, {"do": "look"},                                        # 0: sending
+                 {"do": "reply", "key": "advanced-disarm", "with": [{"ok": True, "result": {"done": True, "changed": True}}]},
+                 {"do": "reply", "key": "advanced-list", "with": [off_listing]},
+                 {"do": "press", "button": "off"}, {"do": "look"},                      # 1: off, still sending
+                 {"do": "poll"}, {"do": "look"}]                                        # 2: ended part way
+        return "en", {"script": script, "steps": steps}, {"words": script["advanced-words"][0]["result"]["words"]}
+
+    @classmethod
+    def scenario_report_web(cls, bridge):
+        """gh signed in as someone else: the web's four steps, the names to type as text that can be selected."""
+        cls.report_on(bridge)
+        script = cls.opening(bridge, "en")
+        script["advanced-report-build"] = [job("j1")]
+        script["advanced-report-check"] = [job("j2")]
+        script["advanced-report-job"] = [ok(BUILT), ok(WEB)]
+        steps = [{"do": "snapshot", "reply": snapshot(on=1)}, {"do": "show"}, {"do": "choose", "id": REPORT},
+                 {"do": "type", "into": "login", "text": "ExampleUser"}, {"do": "press", "button": "report_write"},
+                 {"do": "poll"}, {"do": "press", "button": "report_check"}, {"do": "poll"}, {"do": "look"}]
+        return "en", {"script": script, "steps": steps}, {"words": script["advanced-words"][0]["result"]["words"]}
+
     @classmethod
     def scenario_unloaded(cls, bridge):
         """An installation whose advanced package could not be loaded answers every advanced command as unknown:
@@ -732,6 +881,130 @@ class PageTests(unittest.TestCase):
         self.assertEqual([row[0] for row in answered["rows"]],
                          [statement.CATALOGS.words("en")["name." + capability] for capability in IDS])
 
+    # ---------------------------------------------------------------- the compatibility report
+    def report_card(self, look, words) -> list:
+        """The report's card among the open capability's cards: under its heading's, which bears the capability's
+        name - the same words, "Compatibility report", in English."""
+        (card,) = [card for card in look["cards"][1:] if card and card[0] == words["page.report.title"]]
+        return card
+
+    def test_an_action_says_it_sends_nothing_to_codex_where_the_others_show_their_limits(self):
+        result, expected = self.of("scenario_report_watched")
+        words = expected["words"]
+        (look,) = result["looks"]
+        self.assertEqual(look["open"], REPORT)
+        limits = next(card for card in look["cards"] if card[0] == words["page.limits"])
+        self.assertIn(words["page.action_limits"], limits)
+        self.assertNotIn(words["page.per_day"], limits)
+        self.assertNotIn(words["page.nominal"], limits)
+        cards = [card[0] for card in look["cards"]][1:]
+        self.assertLess(cards.index(words["page.about"]), cards.index(words["page.report.title"]))
+        self.assertLess(cards.index(words["page.report.title"]), cards.index(words["page.limits"]))
+
+    def test_watched_the_report_is_written_and_saved_and_never_checked_or_sent(self):
+        result, expected = self.of("scenario_report_watched")
+        words = expected["words"]
+        (look,) = result["looks"]
+        card = self.report_card(look, words)
+        self.assertIn(words["page.report.watched"], card)
+        self.assertEqual(look["report"]["buttons"], {"write": True, "save": True, "check": None, "send": None})
+        self.assertEqual(look["report"]["file"].replace("\r\n", "\n"), FILE)
+        self.assertEqual(sent(result, "advanced-report-check"), [])
+        self.assertEqual(sent(result, "advanced-report-build"), [{"login": "ExampleUser"}])
+
+    def test_on_the_report_is_written_saved_checked_and_sent_only_on_exactly_the_word(self):
+        result, expected = self.of("scenario_report_sent")
+        words = expected["words"]
+        looks = result["looks"]
+        fresh, writing, written, saved, checking, checked, not_word, word, sending, still, done = looks
+        self.assertEqual(fresh["report"]["buttons"], {"write": True, "save": None, "check": None, "send": None})
+        self.assertEqual(sent(result, "advanced-report-build"), [{"login": "ExampleUser"}], "the login, trimmed")
+        self.assertIn(words["page.report.writing"], self.report_card(writing, words))
+        self.assertEqual((writing["report"]["kind"], writing["report"]["buttons"]["write"]), ("build", False))
+        self.assertIn(SHA, written["report"]["boxes"])
+        self.assertEqual(written["report"]["buttons"], {"write": True, "save": True, "check": True, "send": None})
+        self.assertEqual(sent(result, "advanced-report-save"), [{"sha256": SHA, "path": "C:\\Reports\\codex-cli-0.158.0.json"}])
+        self.assertEqual(saved["report"]["told"], words["page.report.saved"])
+        self.assertEqual(sent(result, "advanced-report-check"), [{"sha256": SHA}])
+        self.assertEqual((checking["report"]["kind"], checking["report"]["holds"]), ("check", 1))
+        card = self.report_card(checked, words)
+        self.assertIn(words["page.report.interrupted"], card)
+        self.assertIn("• " + words["page.report.w.branch_new"].replace("{name}", BRANCH), card)
+        self.assertIn(CHECKED["gh"], checked["report"]["boxes"])
+        self.assertEqual(checked["report"]["holds"], 0, "the check let the reopen go")
+        self.assertFalse(not_word["report"]["buttons"]["send"])
+        self.assertIn("report_send", result["disabled"], "Send could not be pressed on any other word")
+        self.assertTrue(word["report"]["buttons"]["send"])
+        (request,) = sent(result, "advanced-report-send")
+        self.assertEqual(request, {"sha256": SHA, "writes": WRITES, "word": "send"})
+        self.assertEqual(set(request), set(surfaces.ARGUMENTS["advanced-report-send"]))
+        self.assertEqual((sending["report"]["kind"], sending["report"]["holds"]), ("send", 1))
+        self.assertIn(words["page.report.sending"], self.report_card(sending, words))
+        self.assertTrue(sending["buttons"]["off"], "Turn off stays live while a send runs")
+        self.assertEqual(still["report"]["holds"], 1)
+        self.assertEqual((done["report"]["holds"], done["report"]["last"], done["report"]["job"]), (0, "sent", None))
+        self.assertIn(SENT["url"], done["report"]["boxes"])
+        self.assertIn(words["page.report.after"], self.report_card(done, words))
+        self.assertEqual(sending["report"]["word"], "", "the word is typed again for every send")
+        self.assertIsNone(done["report"]["word"], "no box for the word once the send has ended")
+
+    def test_what_the_card_sends_is_what_the_real_bridge_takes(self):
+        result, _ = self.of("scenario_report_sent")
+        for command in ("advanced-report-build", "advanced-report-save", "advanced-report-check", "advanced-report-send",
+                        "advanced-report-job"):
+            with self.subTest(command):
+                for request in sent(result, command):
+                    self.assertEqual(set(request), set(surfaces.ARGUMENTS[command]))
+        with tempfile.TemporaryDirectory() as home:
+            bridge = Bridge(Path(home))
+            try:
+                self.report_on(bridge)
+                for line in result["sent"]:
+                    if line.startswith("advanced-report-"):
+                        with self.subTest(line=line[:40]):
+                            reply = bridge.request(line)
+                            self.assertTrue(reply["ok"], reply)
+                            self.assertNotEqual(reply["result"].get("refusal"), "invalid_request")
+            finally:
+                bridge.close()
+
+    def test_a_send_it_cannot_account_for_is_lost_and_checking_again_is_the_way_to_tell(self):
+        result, expected = self.of("scenario_report_lost")
+        words = expected["words"]
+        send_lost, check_lost = result["looks"]
+        for look in (send_lost, check_lost):
+            self.assertEqual((look["report"]["last"], look["report"]["holds"]), ("lost", 0))
+            self.assertIn(words["page.report.lost"], self.report_card(look, words))
+        self.assertEqual(result["told"], [], "a lost send is shown, never told as a refusal")
+
+    def test_turned_off_mid_send_the_card_keeps_how_the_send_ended(self):
+        result, expected = self.of("scenario_report_turned_off")
+        words = expected["words"]
+        sending, off, ended = result["looks"]
+        self.assertTrue(sending["buttons"]["off"])
+        self.assertEqual(sent(result, "advanced-disarm"), [{"capability": REPORT}])
+        self.assertEqual(off["report"]["buttons"], {"write": None, "save": None, "check": None, "send": None})
+        self.assertEqual(off["report"]["holds"], 1, "the send still runs, and still holds the reopen")
+        card = self.report_card(ended, words)
+        self.assertEqual(card[:2], [words["page.report.title"], words["page.report.last"]])
+        self.assertIn(words["page.report.partial"], card)
+        self.assertIn(words["page.report.refused.paused"], card)
+        self.assertIn(words["page.report.again"], card)
+        self.assertEqual(ended["report"]["holds"], 0)
+
+    def test_on_the_web_the_names_to_type_can_be_selected_and_nothing_is_opened(self):
+        result, expected = self.of("scenario_report_web")
+        words = expected["words"]
+        (look,) = result["looks"]
+        card = self.report_card(look, words)
+        self.assertIn(words["page.report.web.gh_other_login"].replace("{name}", "SomeoneElse"), card)
+        self.assertIn(words["page.report.web.intro"].replace("{name}", "ExampleUser"), card)
+        for step in ("1", "2", "3", "4"):
+            self.assertIn("%s. %s" % (step, words["page.report.web." + step]), card)
+        for name in (PROJECT, BRANCH, TARGET):
+            self.assertIn(name, look["report"]["boxes"])
+        self.assertIsNone(look["report"]["buttons"]["send"])
+
     def test_an_installation_that_cannot_answer_shows_no_tab(self):
         result, _ = self.of("scenario_unloaded")
         self.assertFalse(result["tab_visible"])
@@ -740,7 +1013,7 @@ class PageTests(unittest.TestCase):
         self.assertEqual(result["rows"], [])
 
 
-def audit_data(locale: str, bridge: Bridge) -> dict:
+def audit_data(locale: str, bridge: Bridge) -> dict:  # noqa: C901 - one layout's data
     """The fullest the page shows in `locale`: every capability, the first two refused by a policy, and each
     statement with every warning there is."""
     words = bridge("advanced-words", {"locale": locale})["result"]["words"]
@@ -752,7 +1025,7 @@ def audit_data(locale: str, bridge: Bridge) -> dict:
         made["warnings"]["items"] = [{"warning": str(word), "text": statement.CATALOGS.text(statement.warning_key(word), locale)}
                                      for word in ArmingWarning]
         statements[capability] = made
-    return {"words": words, "listing": listing, "statements": statements}
+    return {"words": words, "listing": listing, "statements": statements, "reports": report_states()}
 
 
 @unittest.skipUnless(CSC.is_file() and POWERSHELL.is_file(), "needs the in-box compiler and PowerShell")
@@ -770,7 +1043,7 @@ class LayoutTests(unittest.TestCase):
         try:
             for locale in l10n.LOCALES:
                 data = audit_data(locale, bridge)
-                for part in ("words", "listing", "statements"):
+                for part in ("words", "listing", "statements", "reports"):
                     (work / ("%s-%s.json" % (part, locale))).write_text(json.dumps(data[part], ensure_ascii=False),
                                                                          encoding="utf-8")
                 (work / ("strings-%s.json" % locale)).write_text(json.dumps(strings(locale), ensure_ascii=False),
@@ -778,21 +1051,22 @@ class LayoutTests(unittest.TestCase):
                 for scale in SCALES:
                     jobs.append({"kind": "audit", "name": "%s %.2f" % (locale, scale), "scale": scale,
                                  "strings": "strings-%s.json" % locale, "words": "words-%s.json" % locale,
-                                 "listing": "listing-%s.json" % locale, "statements": "statements-%s.json" % locale})
+                                 "listing": "listing-%s.json" % locale, "statements": "statements-%s.json" % locale,
+                                 "reports": "reports-%s.json" % locale})
             canary = audit_data("en", bridge)
             canary["words"]["page.limits"] = "W" * 400
             canary["words"]["name." + IDS[0]] = "N" * 400
             # A tab wider than any screen: on the narrowest screen no second row holds it.
             canary["words"]["page.nav"] = "T" * 400
-            for part in ("words", "listing", "statements"):
+            for part in ("words", "listing", "statements", "reports"):
                 (work / ("%s-canary.json" % part)).write_text(json.dumps(canary[part]), encoding="utf-8")
             jobs.append({"kind": "audit", "name": "canary", "scale": 1.0, "strings": "strings-en.json",
                          "words": "words-canary.json", "listing": "listing-canary.json",
-                         "statements": "statements-canary.json"})
+                         "statements": "statements-canary.json", "reports": "reports-canary.json"})
         finally:
             bridge.close()
         # Four processes side by side: the audits are independent, and one process took 17 minutes for them all.
-        cls.run_, cls.answer = probe(work, cls.exe, jobs, timeout=120 * len(l10n.LOCALES), workers=4)
+        cls.run_, cls.answer = probe(work, cls.exe, jobs, timeout=180 * len(l10n.LOCALES), workers=4)
 
     @classmethod
     def tearDownClass(cls):
@@ -813,7 +1087,8 @@ class LayoutTests(unittest.TestCase):
                     # two rather than be cut off. Both held from a window wider than Windows allows (AuditNarrowestOn),
                     # so a frame measured from its held Width shows here on any machine, not only on a screen smaller
                     # than the window at 200% (v0.6.11-beta.3: eight languages cut off on a screen 1440 wide).
-                    self.assertEqual(found["audited"], len(IDS) + 3)
+                    # And the action's card in every state a report can be in (report_states).
+                    self.assertEqual(found["audited"], len(IDS) + 3 + len(report_states()))
 
     def test_the_audit_finds_what_does_not_fit(self):
         report = self.answer["canary"]["report"]
