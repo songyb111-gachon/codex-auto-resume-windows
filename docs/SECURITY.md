@@ -626,8 +626,8 @@ capability, in plain words.
   writes the person was shown, which it reads again from GitHub first; before every write it looks
   again at the capability, an administrator's policy and the pause, and stops with what it wrote. One
   check or send runs at a time for an installation, across processes, under a named mutex of the
-  user's; a send cut off while it writes leaves an empty marker file in the installation's own
-  folder, and the next check says so. No MCP tool reaches any of it
+  user's. A send that ended part way is told by the next check, from what is on GitHub: the
+  report's branch left on the fork with no pull request open. No MCP tool reaches any of it
   (`advanced/tests/test_advanced_report.py`, `advanced/tests/test_advanced_report_github.py`).
 - **The goal continuation.** It departs from 0.5 (a goal's state is never changed), A2, A11 (nothing
   is done for a conversation the app does not hold), B3 and B4. For a usage limit only. Where the
