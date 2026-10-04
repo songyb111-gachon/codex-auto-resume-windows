@@ -7,8 +7,8 @@ written as "other", or not at all, and never fails the move it describes. And li
 never read to decide anything: the spend ledger is the only record a decision counts.
 
 Everything here is bounded the way core's journal is - 5,000 entries or 90 days, whichever comes
-first, pruned every 256 entries - and so are the spend ledger, the records and the overrides,
-which are pruned in the same pass. A spend is never pruned inside the day its ceilings count,
+first, pruned every 256 entries - and so are the spend ledger, the records, the overrides, the
+admissions and the samples, which are pruned in the same pass. A spend is never pruned inside the day its ceilings count,
 and a record or an override that may still be acted on never at all.
 """
 from __future__ import annotations
@@ -148,6 +148,20 @@ class JournalMixin:
         if excess > 0:
             connection.execute("DELETE FROM overrides WHERE rowid IN (SELECT rowid FROM overrides "
                                "ORDER BY created_at LIMIT ?)", (excess,))
+        # Which capability took up which interruption, and the samples of what nothing classified
+        # (state/choices.py): the same bounds. An interruption taken up ends within a day on the clock
+        # (core's ladder.ADMITTED_MAX_SECONDS), long before its row is old. Rules and choices are a
+        # person's own, never pruned.
+        connection.execute("DELETE FROM admissions WHERE created_at < ?", (old,))
+        excess = connection.execute("SELECT count(*) FROM admissions").fetchone()[0] - EVENT_LIMIT
+        if excess > 0:
+            connection.execute("DELETE FROM admissions WHERE interruption_id IN (SELECT interruption_id "
+                               "FROM admissions ORDER BY created_at LIMIT ?)", (excess,))
+        connection.execute("DELETE FROM samples WHERE at < ?", (old,))
+        excess = connection.execute("SELECT count(*) FROM samples").fetchone()[0] - EVENT_LIMIT
+        if excess > 0:
+            connection.execute("DELETE FROM samples WHERE sample_id IN (SELECT sample_id FROM samples "
+                               "ORDER BY sample_id LIMIT ?)", (excess,))
         JournalMixin._prune_spend(connection, "main", now)
 
     @staticmethod

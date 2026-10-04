@@ -58,7 +58,7 @@ from codex_auto_resume.compat.model import FAILED_HERE, INCOMPATIBLE, STATES, UN
 from . import policy as _policy
 from .measured import MEASURED
 from .registry import GLOBAL_HOURLY
-from .state import StaleGeneration, StateError
+from .state import Refused, StaleGeneration, StateError
 from .statement import CATALOGS
 from .vocabulary import (TRIPWIRES, Actor, ArmingState, ArmingWarning, OffReason, Refusal,
                          Verdict)
@@ -270,15 +270,23 @@ class Arming:
         nothing else is read either - no policy, no compatibility view, no measurement - so an
         installation that never turned a capability on is the standard edition, down to what it
         reads. A capability that is off is off whatever any of those say."""
+        return self.read(view=view, policy=policy)[0]
+
+    def read(self, *, view=None, policy=None) -> tuple:
+        """`current`, with what the runtime needs beside it (v0.6.13): ({id: state now}, {id: since
+        when its stored state has stood, for one that is not off}, whether the state could not be
+        read). A state that cannot be read has every capability off; the third says it was not read
+        as off, which is not the same thing for a record a capability took up (runtime.py)."""
         if not len(self.registry):
-            return {}
+            return {}, {}, False
         try:
-            rows = self.state.arming()
+            rows, failed = self.state.arming(), False
         except StateError:
-            rows = {}
-        if not any((row or {}).get("state", ArmingState.OFF) != ArmingState.OFF
-                   for row in rows.values()):
-            return {definition.id: ArmingState.OFF for definition in self.registry}
+            rows, failed = {}, True
+        since = {capability: row.get("since") for capability, row in rows.items()
+                 if (row or {}).get("state", ArmingState.OFF) != ArmingState.OFF}
+        if not since:
+            return {definition.id: ArmingState.OFF for definition in self.registry}, {}, failed
         view = self.view() if view is None else view
         policy = self.policy() if policy is None else policy
         measured = self.measured()
@@ -289,7 +297,7 @@ class Arming:
             if change is not None:
                 self._off(definition.id, change)
             states[definition.id] = state
-        return states
+        return states, since, failed
 
     def _off(self, capability, reason) -> bool:
         try:
@@ -492,6 +500,51 @@ class Arming:
         except StateError:
             return {"done": False, "refusal": Refusal.STATE_UNAVAILABLE}
         return {"done": True, "refusal": None, "generation": after}
+
+    # ------------------------------------------------------------------ choices and rules
+    def _chosen(self, write):
+        """A person's choice or rule written as `write` does it: {"done", "refusal", and what it
+        gave}. Allowed in any state a capability is in - it changes no state - and refused by no
+        policy: a choice only narrows what a capability that is on may do, and arming it is what
+        the policy refuses."""
+        try:
+            return dict(write(), done=True, refusal=None)
+        except Refused as refused:
+            return {"done": False, "refusal": refused.refusal, "generation": self._generation()}
+        except StaleGeneration:
+            return {"done": False, "refusal": Refusal.STALE_GENERATION, "generation": self._generation()}
+        except StateError:
+            return {"done": False, "refusal": Refusal.STATE_UNAVAILABLE, "generation": self._generation()}
+
+    def set_option(self, capability, key, value, *, generation, actor) -> dict:
+        """One of a capability's own choices (registry.Option), in the Dashboard, against the
+        generation it read - which the write moves on, so a page showing the old choice cannot arm
+        against the new one."""
+        if actor != Actor.DASHBOARD:
+            return {"done": False, "refusal": Refusal.NOT_THE_DASHBOARD}
+        if self.registry.get(capability) is None:
+            return {"done": False, "refusal": Refusal.UNKNOWN_CAPABILITY}
+        return self._chosen(lambda: {"generation": self.state.set_option(
+            capability, key, value, generation=generation, actor=actor, at=self.clock())})
+
+    def add_rule(self, tag, status_from, status_to, category, *, generation, actor) -> dict:
+        """A rule for one of Codex's error codes, in the Dashboard (state/choices.rule_problem)."""
+        if actor != Actor.DASHBOARD:
+            return {"done": False, "refusal": Refusal.NOT_THE_DASHBOARD}
+
+        def write():
+            rule, after = self.state.add_rule(tag, status_from, status_to, category,
+                                              generation=generation, actor=actor, at=self.clock())
+            return {"rule": rule, "generation": after}
+        return self._chosen(write)
+
+    def remove_rule(self, rule, *, generation, actor) -> dict:
+        """A rule removed, in the Dashboard. What it took up and has not sent ends unsent: its
+        capability no longer takes it up again (engine/admitted.py)."""
+        if actor != Actor.DASHBOARD:
+            return {"done": False, "refusal": Refusal.NOT_THE_DASHBOARD}
+        return self._chosen(lambda: {"generation": self.state.remove_rule(
+            rule, generation=generation, actor=actor, at=self.clock())})
 
     # ------------------------------------------------------------------ shown
     def statement(self, definition, locale=None) -> dict:

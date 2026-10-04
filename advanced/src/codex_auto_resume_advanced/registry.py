@@ -21,7 +21,14 @@ asked to agree to and everything the plug holds it to:
   reason to withhold it;
 * `ceilings` - how many sends it may make in a day, overall and in one conversation. Beside them
   stands one global ceiling for every capability together, GLOBAL_HOURLY an hour, which a person
-  may lower and never raise (state.AdvancedState.set_global_hourly);
+  may lower and never raise (state.AdvancedState.set_global_hourly). One conversation's ceiling is
+  never above core's own five a day (CORE_DAILY_CAP) unless the capability says it departs from
+  A20, the standard that sets them;
+* `options` - the choices it offers a person in the Dashboard (`Option`): a key, the values it may
+  take, smallest first, and the one it has until a person picks another. Stored in the state's
+  `options` table, read by the capability's own code (state.Scoped);
+* `rules_editor` and `samples` - whether the Dashboard shows it the rules a person writes for
+  Codex's error codes, and whether it keeps samples of the failures it takes up (state/choices.py);
 * `journal_prefix` and `codes` - the words its own journal lines are written in, `<prefix>.<code>`,
   closed like every other word the edition stores;
 * `make` - the factory for its code: given the installation's paths, it returns an object whose
@@ -43,7 +50,7 @@ from .control.codexstart import make as make_start_with_codex
 from .engine.goal import make as make_goal_continuation
 from .engine.markerfree import make as make_marker_free
 from .standards import DEPARTABLE
-from .vocabulary import Measurement
+from .vocabulary import Measurement, OptionKey
 
 # The one ceiling over every capability together: advanced sends an hour. It is also the highest
 # value a person may set it to - it can be lowered and never raised.
@@ -77,6 +84,13 @@ class Ceilings:
 
 
 @dataclass(frozen=True)
+class Option:
+    key: OptionKey             # what the choice is
+    choices: tuple             # the values it may take: whole numbers from 1, smallest first
+    default: int               # the one it has until a person picks another; one of the choices
+
+
+@dataclass(frozen=True)
 class CapabilityDef:
     id: str
     points: frozenset
@@ -88,6 +102,13 @@ class CapabilityDef:
     make: Callable
     codes: tuple = ()
     measurements: tuple = ()
+    options: tuple = ()
+    rules_editor: bool = False
+    samples: bool = False
+
+    def option(self, key) -> Option | None:
+        """The choice of `key` this capability offers, or None."""
+        return next((option for option in self.options if option.key == key), None)
 
     def code(self, word) -> str | None:
         """`word` as this capability's journal writes it, or None if it is not one of its own."""
@@ -96,6 +117,14 @@ class CapabilityDef:
 
 def _count(value) -> bool:
     return type(value) is int and value >= 1
+
+
+def _option_problem(option) -> bool:
+    return (not isinstance(option, Option) or option.key not in tuple(OptionKey)
+            or not isinstance(option.choices, tuple) or not option.choices
+            or not all(_count(value) for value in option.choices)
+            or list(option.choices) != sorted(set(option.choices))
+            or not _count(option.default) or option.default not in option.choices)
 
 
 def problems(definition) -> list:
@@ -124,7 +153,9 @@ def problems(definition) -> list:
     ceilings = definition.ceilings
     if (not isinstance(ceilings, Ceilings) or not _count(ceilings.per_day)
             or not _count(ceilings.per_conversation)
-            or ceilings.per_conversation > min(ceilings.per_day, CORE_DAILY_CAP)
+            or ceilings.per_conversation > ceilings.per_day
+            or (ceilings.per_conversation > CORE_DAILY_CAP
+                and "A20" not in (departs if isinstance(departs, tuple) else ()))
             or ceilings.per_day > GLOBAL_HOURLY * 24):
         found.append("ceilings")
     if not isinstance(definition.journal_prefix, str) or not PREFIX_SHAPE.fullmatch(definition.journal_prefix):
@@ -141,6 +172,12 @@ def problems(definition) -> list:
             or not all(isinstance(measurement, Measurement) for measurement in measurements)
             or len(set(measurements)) != len(measurements)):
         found.append("measurements")
+    options = definition.options
+    if (not isinstance(options, tuple) or any(_option_problem(option) for option in options)
+            or len({option.key for option in options}) != len(options)):
+        found.append("options")
+    if type(definition.rules_editor) is not bool or type(definition.samples) is not bool:
+        found.append("rules_editor or samples")
     return found
 
 

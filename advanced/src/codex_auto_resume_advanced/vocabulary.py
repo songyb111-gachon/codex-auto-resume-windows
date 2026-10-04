@@ -88,6 +88,16 @@ class Refusal(StrEnum):
     # confirmed at once; it never says the capability cannot be turned on.
     STALE_CONFIRMATION = "stale_confirmation"
     STATE_UNAVAILABLE = "state_unavailable"
+    # A capability's own choices and rules (v0.6.13, state/choices.py): a value it does not offer,
+    # and each way a rule for Codex's error codes is refused.
+    OPTION_INVALID = "option_invalid"
+    RULE_SHAPE = "rule_shape"                # not letters and digits, starting with a letter, <= 64
+    RULE_KNOWN = "rule_known"                # a code the product already classifies
+    RULE_DECISION = "rule_decision"          # a code that may name a person's decision
+    RULE_RANGE = "rule_range"                # status numbers outside 100-599, or backwards
+    RULE_OVERLAP = "rule_overlap"            # another rule covers this code and these numbers
+    RULES_FULL = "rules_full"                # ten rules already
+    UNKNOWN_RULE = "unknown_rule"
 
 
 class JournalCode(StrEnum):
@@ -103,6 +113,9 @@ class JournalCode(StrEnum):
     ACTED = "acted"                          # an armed capability's answer, taken
     CEILING = "ceiling"                      # an armed capability's answer, not taken: no unit left
     CEILING_CHANGED = "ceiling_changed"
+    OPTION_CHANGED = "option_changed"        # a capability's own choice, set in the Dashboard
+    RULE_ADDED = "rule_added"
+    RULE_REMOVED = "rule_removed"
     OTHER = "other"
 
 
@@ -120,6 +133,12 @@ class OverrideKind(StrEnum):
     EARLY_RESET = "early_reset"
     CAPACITY_LADDER = "capacity_ladder"
     RESEND_ONCE = "resend_once"
+
+
+class OptionKey(StrEnum):
+    """A choice a capability offers a person (registry.Option), stored in `options` by this key."""
+    ATTEMPTS = "attempts"                    # how many tries a task gets
+    CEILING_HOURS = "ceiling_hours"          # for how long, in hours on the clock, it keeps trying
 
 
 class Ceiling(StrEnum):

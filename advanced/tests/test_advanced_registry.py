@@ -197,6 +197,33 @@ class DefinitionTests(unittest.TestCase):
         self.assertIn("measurements", problems(ac.definition(measurements=(Measurement.M1,) * 2)))
         self.assertEqual(problems(ac.definition(measurements=(Measurement.M1, Measurement.MW))), [])
 
+    def test_one_conversations_ceiling_passes_cores_five_only_for_one_that_departs_from_a20(self):
+        """A20 is the standard edition's five a conversation a day, fifteen minutes apart: a ceiling
+        above it is a departure the statement has to name (v0.6.13, the capacity retries)."""
+        over = Ceilings(per_day=48, per_conversation=48)
+        self.assertIn("ceilings", problems(ac.definition(ceilings=over)))
+        self.assertIn("ceilings", problems(ac.definition(ceilings=over, departs_from=("A21", "A22"))))
+        self.assertEqual(problems(ac.definition(ceilings=over, departs_from=("A20",))), [])
+        self.assertIn("ceilings", problems(ac.definition(ceilings=Ceilings(per_day=6, per_conversation=7),
+                                                         departs_from=("A20",))))
+
+    def test_a_choice_it_offers_has_a_key_whole_numbers_smallest_first_and_one_of_them_by_default(self):
+        from codex_auto_resume_advanced.registry import Option
+        from codex_auto_resume_advanced.vocabulary import OptionKey
+        good = Option(OptionKey.ATTEMPTS, (1, 2, 3), 1)
+        made = ac.definition(options=(good, Option(OptionKey.CEILING_HOURS, (1, 2, 12), 2)))
+        self.assertEqual(problems(made), [])
+        self.assertIs(made.option(OptionKey.ATTEMPTS), good)
+        self.assertIsNone(ac.definition().option(OptionKey.ATTEMPTS))
+        for options in ((Option("tries", (1, 2), 1),), (Option(OptionKey.ATTEMPTS, (), 1),),
+                        (Option(OptionKey.ATTEMPTS, (2, 1), 1),), (Option(OptionKey.ATTEMPTS, (1, 1), 1),),
+                        (Option(OptionKey.ATTEMPTS, (0, 1), 1),), (Option(OptionKey.ATTEMPTS, (1, 2), 3),),
+                        (Option(OptionKey.ATTEMPTS, [1, 2], 1),), (Option(OptionKey.ATTEMPTS, (1, True), 1),),
+                        (good, good), [good], ("attempts",)):
+            with self.subTest(options=options):
+                self.assertIn("options", problems(ac.definition(options=options)))
+        self.assertIn("rules_editor or samples", problems(ac.definition(samples=1)))
+
     def test_a_capability_never_holds_the_claim_ledger_or_a_surface(self):
         """Nor the moves core tells of, which the tripwires read (P14)."""
         self.assertEqual(CAPABILITY_POINTS,
