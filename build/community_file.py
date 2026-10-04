@@ -159,11 +159,13 @@ WAITING = {
     "full": "the counts file a release carries has no room for another version until the maintainer makes some",
 }
 # What a sender can do about each refusal, by its code (community_check.CODES, and the filer's own).
-# codex-compat-reporter's `submit` sends nothing while a report pull request of the same account is
-# open, this one included, so every step that sends again starts by closing this one.
-AGAIN = "close this pull request, then run `submit --yes` again: it resets the branch to main and adds only the file"
-REGENERATE = ("close this pull request, write the report again with the latest codex-compat-reporter, do not "
-              "edit it, and run `submit --yes`")
+# A report comes from codex-compat-reporter or from the Dashboard's report (the advanced edition's);
+# neither sends while a report pull request of the same account is open, this one included, so every
+# step that sends again starts by closing this one.
+AGAIN = ("close this pull request, then send it again - `submit --yes`, or Send in the Dashboard's report: it "
+         "resets the branch to main and adds only the file")
+REGENERATE = ("close this pull request, write the report again with the latest codex-compat-reporter or the "
+              "Dashboard's report, do not edit it, and send it: `submit --yes`, or Send in the Dashboard")
 ISSUE = "open an issue"
 ACTIONS = {
     check.PATHS: AGAIN, check.CHANGED: AGAIN, check.MODE: AGAIN, "commits": AGAIN,
@@ -173,8 +175,9 @@ ACTIONS = {
     check.SIZE: REGENERATE, check.READER: REGENERATE, check.NAME: REGENERATE,
     check.COPY: "close this pull request, then send this machine's own records, or " + ISSUE,
     check.NOT_A_REPORT: "close this pull request; a report adds one file under docs/evidence/community/, and "
-                        "is sent with codex-compat-reporter's `submit`",
-    check.BRANCH: "close this pull request, and send the report with codex-compat-reporter's `submit`",
+                        "is sent with codex-compat-reporter's `submit` or the Dashboard's report",
+    check.BRANCH: "close this pull request, and send the report with codex-compat-reporter's `submit` or the "
+                  "Dashboard's report",
     "cannot": "it could not be read; " + AGAIN,
     "blocked": "not accepted from this account; " + ISSUE,
     "withdrawn": "close this pull request; a report for another Codex version is welcome, and about this one, "

@@ -10,8 +10,9 @@ so the check can be required on every pull request. One that does, from anyone b
 passes only when:
 
 * it comes from a branch whose name starts with compat-report/, as codex-compat-reporter's `submit`
-  makes it: the filer answers for those pull requests only, so one from another branch (patch-1,
-  GitHub's name for an edit on the web) would pass here and then wait for no one;
+  and the Dashboard's report (the advanced edition's) make it: the filer answers for those pull
+  requests only, so one from another branch (patch-1, GitHub's name for an edit on the web) would
+  pass here and then wait for no one;
 * it changes exactly one path, and adds it, as an ordinary file (mode 100644: no link, no
   submodule);
 * that path is docs/evidence/community/<the login that opened it>/codex-cli-<version>.json, where
@@ -78,8 +79,8 @@ NOT_A_REPORT, ACCEPTED_LINE, RECOMPUTED, OWNER_LINE = "not-a-report", "accepted"
 PATHS, CHANGED, MODE, FOLDER, RESERVED_NAME, CASE, FILED, SIZE, READER, NAME, COPY, BRANCH = (
     "paths", "changed", "mode", "folder", "reserved", "case", "filed", "size", "reader", "name", "copy", "branch")
 CODES = (PATHS, CHANGED, MODE, FOLDER, RESERVED_NAME, CASE, FILED, SIZE, READER, NAME, COPY, BRANCH)
-# The branch codex-compat-reporter's `submit` sends a report from; the filer answers for those only,
-# so a report from any other branch would pass here and then wait for no one.
+# The branch codex-compat-reporter's `submit` and the Dashboard's report send a report from; the filer
+# answers for those only, so a report from any other branch would pass here and then wait for no one.
 BRANCH_PREFIX = "compat-report/"
 # docs/evidence/community/<login>/codex-cli-<version>.json, and nothing else, is a report's path.
 REPORT_PATH = re.compile(r"%s(%s)/codex-cli-(\d[0-9A-Za-z.\-]{0,39})\.json"
@@ -230,7 +231,8 @@ def judge_coded(git, *, base, head, author, association, now=None, branch=None):
     refused = []
     if branch is not None and not branch.startswith(BRANCH_PREFIX):
         refused.append((BRANCH, "a report is sent from a branch named %s<its name>, as codex-compat-reporter's "
-                                "submit makes it; this pull request's branch is another" % BRANCH_PREFIX))
+                                "submit and the Dashboard's report make it; this pull request's branch is another"
+                        % BRANCH_PREFIX))
     status, mode, blob, path = changes[0]
     if len(changes) != 1:
         refused.append((PATHS, "a report adds exactly one file, and this pull request changes %d paths"
