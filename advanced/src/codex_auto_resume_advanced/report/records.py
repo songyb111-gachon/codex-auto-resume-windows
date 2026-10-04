@@ -316,7 +316,8 @@ def read(paths, codex_home, codex_version=None, *, now=None, view=None) -> dict:
 
     `body` is what codex-compat-reporter's `build` puts under those keys. `now` is the clock the
     ledger's reach is read at; `view`, which returns the watcher's report as a reader takes it,
-    is a seam for the tests."""
+    is a seam for the tests. The ledger is read only when there are records for it to tell apart,
+    as 1.5.0 reads it; `ledger_schema` is None where it was not read."""
     now = time.time() if now is None else now
     asked = None
     if codex_version is not None:
@@ -324,7 +325,8 @@ def read(paths, codex_home, codex_version=None, *, now=None, view=None) -> dict:
         if asked is None:
             raise ReadRefused(ReadRefusal.VERSION_INVALID)
     state_schema, rows, hidden, paused = state(paths)
-    ledger_schema, paid, reach = ledger(paths, now)
+    # As 1.5.0's by_route: with no record to tell apart, the ledger is not read, nor refused.
+    ledger_schema, paid, reach = ledger(paths, now) if rows else (None, {}, None)
     rows, routed, unknown = evidence.by_route(rows, paid, reach)
     lines = log_lines(paths)
     current, source, capabilities = current_engine(watcher_view(paths) if view is None else view(), lines)

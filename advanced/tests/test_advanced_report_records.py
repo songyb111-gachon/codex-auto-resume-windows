@@ -251,6 +251,25 @@ class RefusalTests(Case):
         db.close()
         self.refused(ReadRefusal.LEDGER_UNREADABLE, bare)
 
+    def test_with_no_records_the_ledger_is_not_read_as_1_5_0_does_not_read_it(self):
+        """1.5.0's by_route asks the ledger only when there are records to tell apart: with none, a ledger
+        it does not know, or one that is not a database, still gives the report a home without one gives."""
+        plain = read(self.home((), watcher_report=fixtures.watcher()))
+        self.assertEqual(len(plain["body"]["records"]), 0)
+        damaged = self.home((), ledger=2, watcher_report=fixtures.watcher())
+        (damaged.paths.advanced_dir / ledger_schema.FILE_NAME).write_bytes(b"not a database, whatever its name says")
+        for name, home in (("newer", self.home((), ledger=ledger_schema.SCHEMA_VERSION + 1,
+                                               watcher_report=fixtures.watcher())),
+                           ("none", self.home((), ledger=0, watcher_report=fixtures.watcher())),
+                           ("damaged", damaged)):
+            with self.subTest(ledger=name):
+                found = read(home)
+                self.assertEqual(encode(found["body"]), encode(plain["body"]))
+                self.assertEqual(found["left_out"], plain["left_out"])
+                self.assertIsNone(found["read"]["ledger_schema"], "it was not read")
+        self.refused(ReadRefusal.LEDGER_NEWER, self.home(fixtures.BASE, ledger=ledger_schema.SCHEMA_VERSION + 1,
+                                                        watcher_report=fixtures.watcher()))
+
     def test_a_locked_state_is_busy_not_waited_for(self):
         home = self.home(fixtures.BASE)
         blocker = sqlite3.connect(home.paths.state_dir / "state.sqlite", timeout=0)
