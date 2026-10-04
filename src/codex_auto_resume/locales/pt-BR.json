@@ -964,6 +964,7 @@
   "why.admission_expired": "Ela esperou um dia sem ser enviada, então não é mais recuperada.",
   "why.after_sleep": "Venceu enquanto este PC ficou em suspensão por mais tempo do que as Configurações permitem: nada é enviado até você deixá-la continuar.",
   "why.cancel_requested": "Você pediu que ela não fosse retomada.",
+  "why.capacity_window": "Já passaram as doze horas permitidas para tentar de novo quando o Codex está no limite de capacidade, então os limites de sempre voltam a valer.",
   "why.category_disabled": "Este tipo de interrupção está desativado nas configurações.",
   "why.chain_cap": "Esta tarefa já recebeu todas as continuações permitidas.",
   "why.chain_time_cap": "Esta tarefa continuou falhando por mais tempo do que as Configurações permitem.",

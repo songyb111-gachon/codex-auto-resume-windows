@@ -244,13 +244,20 @@ def _plain_code(facts) -> bool:
             and not decision_tag(code) and (status is None or not 400 <= status <= 499))
 
 
+# The kind whose switch in Settings each relaxation follows.
+_FOLLOWS = {**PACED_AS, Alternative.CAPACITY: "server_5xx"}
+
+
 def admits(facts, answer) -> bool:
     """Whether core would carry out `answer` for the failure `facts` describe (a category and its
     `shape`), whatever a plug says. Only a tagged failure ever: no code, a message alone, a status
     alone or something unrecognised says nothing of what failed. A sign-in failure only as Codex's
     `unauthorized` or a 401 - never a 403, a permission - and Codex giving up only on a server error
-    or none, a 429 being a rate limit already."""
+    or none, a 429 being a rate limit already. CAPACITY only for Codex saying it is at capacity
+    (`serverOverloaded`), never another server error."""
     category, code, status = facts.get("category"), facts.get("code"), facts.get("status")
+    if answer == Alternative.CAPACITY:
+        return category == "server_5xx" and code == "serverOverloaded"
     if answer in PACED_AS:
         return category == UNKNOWN and _plain_code(facts)
     if answer != Alternative.ADMIT:
@@ -268,14 +275,16 @@ def admits(facts, answer) -> bool:
 
 def takes(facts, recovers) -> frozenset:
     """The answers core would carry out for this failure now (domain/plug.py, P17's `takes`): each
-    that `admits` allows, less a temporary kind switched off in Settings (`recovers`). Empty, and the
+    that `admits` allows, less one whose kind is switched off in Settings (`recovers`). Empty, and the
     plug is not asked."""
     return frozenset(answer for answer in TAKE_UP if admits(facts, answer)
-                     and (answer not in PACED_AS or recovers(PACED_AS[answer])))
+                     and (answer not in _FOLLOWS or recovers(_FOLLOWS[answer])))
 
 
 def readmits(category, answer) -> bool:
     """Whether known_failure (P3) takes `answer` for a record of `category` that P17 took up."""
     if answer == Alternative.ADMIT:
         return category in ADMISSIBLE
+    if answer == Alternative.CAPACITY:
+        return category == "server_5xx"
     return answer in PACED_AS and category == UNKNOWN

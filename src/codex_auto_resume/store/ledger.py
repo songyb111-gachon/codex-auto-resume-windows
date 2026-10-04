@@ -12,7 +12,7 @@ from __future__ import annotations
 import os
 import sqlite3
 
-from .. import failures, machine
+from .. import failures, ladder, machine
 from ..domain.plug import Alternative, Point
 from .columns import _UNREAD_BY_DISPATCH
 
@@ -135,12 +135,23 @@ class LedgerMixin:
     @staticmethod
     def _relaxation_refused(connection, row, now, vector, relaxed, ledger, carried):
         """(gate, reason) when the claim refuses a record for its kind, written into its `vector` too,
-        or None (v0.6.13): the claim checks it again itself, in its own transaction. A kind core never recovers alone - one the
-        plug took up (domain/plug.py, P17) - is claimed only as "admitted", with a ledger that is not
-        NULL's and the gates among what it pays for (`carried`): a ledger that answers, and has to
-        pay for it. Nothing else a caller says makes one claimable."""
+        or None (v0.6.13): the claim checks it again itself, in its own transaction. A kind core never
+        recovers alone - one the plug took up (domain/plug.py, P17) - is claimed only as "admitted",
+        with a ledger that is not NULL's and the gates among what it pays for (`carried`): a ledger
+        that answers, and has to pay for it. Nothing else a caller says makes one claimable.
+        "capacity", a server error's retries relaxed, is held the same way, and only within twelve
+        hours on the clock of its task's first failure, read here from that record
+        (ladder.CAPACITY_MAX_SECONDS)."""
         category = row["category"]
         if failures.is_recoverable(category):
+            if relaxed != "capacity":
+                return None
+            origin = connection.execute("SELECT detected_at FROM interruptions WHERE interruption_id=?",
+                                        (row["chain_origin_id"],)).fetchone()
+            if (category != "server_5xx" or ledger.null or Point.GATES not in carried or origin is None
+                    or now - origin[0] >= ladder.CAPACITY_MAX_SECONDS):
+                vector["chain_budget"] = machine.gate(machine.BLOCK, "capacity_window")
+                return "chain_budget", "capacity_window"
             return None
         if (relaxed != "admitted" or category not in failures.ADMISSIBLE or ledger.null
                 or Point.GATES not in carried):

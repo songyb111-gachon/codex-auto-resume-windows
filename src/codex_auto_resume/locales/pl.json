@@ -964,6 +964,7 @@
   "why.admission_expired": "Czekała dzień bez wysłania, więc nie jest już wznawiana.",
   "why.after_sleep": "Jego czas nadszedł, gdy ten komputer był uśpiony dłużej, niż pozwalają ustawienia: nic nie zostanie wysłane, dopóki nie pozwolisz kontynuować.",
   "why.cancel_requested": "Na Twoją prośbę zadanie nie będzie wznawiane.",
+  "why.capacity_window": "Minęło dwanaście godzin dozwolonych na ponowne próby, gdy Codex jest przeciążony, więc znów obowiązują zwykłe limity.",
   "why.category_disabled": "Ten rodzaj przerwania jest wyłączony w ustawieniach.",
   "why.chain_cap": "To zadanie otrzymało już wszystkie dozwolone kontynuacje.",
   "why.chain_time_cap": "Błędy tego zadania trwały dłużej, niż pozwalają ustawienia.",

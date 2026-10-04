@@ -16,7 +16,7 @@ from __future__ import annotations
 from .. import failures, guards, ladder, machine, needsyou
 from ..machine import OBSERVING, TERMINAL, WAITING, WATCHED
 from ..codex import admissible as admissible_failure, detect
-from ..domain.plug import DEFER, PACED_AS, Point
+from ..domain.plug import DEFER, PACED_AS, Alternative, Point
 from .relaxed import UNADMITTED_SECONDS
 
 
@@ -156,6 +156,8 @@ class DetectMixin:
                 state = "waiting_reset" if reset else "waiting_poll"
                 when = (max(now + 30, reset + self.options["reset_grace_seconds"]) if reset
                         else now + self.options["conservative_poll_seconds"])
+            elif answer is Alternative.CAPACITY:
+                state, when = "waiting_backoff", now + self._capacity_wait(parent)
             elif answer in PACED_AS:
                 # Taken up as a temporary kind (P17): waited, counted and switched off as that kind.
                 state = "waiting_backoff"
@@ -183,10 +185,10 @@ class DetectMixin:
                 hold = guards.CONTEXT_HOLD
             # One transaction: the record can never exist without its real schedule and
             # the counters of the task it continues.
+            limits = self.capacity_limits() if answer is Alternative.CAPACITY else self.limits()
             if not self.store.register(detection, now, state=state, next_retry_at=when,
                                        owner_id=owner, failed_turn_progress=progress,
-                                       legacy_carry=carry, limits=self.limits(), hold=hold,
-                                       **facts):
+                                       legacy_carry=carry, limits=limits, hold=hold, **facts):
                 continue
             registered = self.store.get(detection["interruption_id"])
             if admissible:

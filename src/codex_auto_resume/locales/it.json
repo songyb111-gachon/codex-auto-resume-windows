@@ -964,6 +964,7 @@
   "why.admission_expired": "Ha atteso un giorno senza essere inviata, quindi non viene più recuperata.",
   "why.after_sleep": "È scaduta mentre questo PC era in sospensione più a lungo di quanto consentono le Impostazioni: non viene inviato nulla finché non la lasci continuare.",
   "why.cancel_requested": "Hai chiesto che non venga ripresa.",
+  "why.capacity_window": "Le dodici ore consentite per riprovare quando Codex è al limite di capacità sono passate, quindi valgono di nuovo i limiti abituali.",
   "why.category_disabled": "Questo tipo di interruzione è disattivato nelle Impostazioni.",
   "why.chain_cap": "Questa attività ha già avuto tutte le continuazioni consentite.",
   "why.chain_time_cap": "Questa attività ha continuato a fallire più a lungo di quanto consentano le Impostazioni.",

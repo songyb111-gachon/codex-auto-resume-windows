@@ -69,6 +69,8 @@ METHODS = {
     # the plug takes it up again, and otherwise ends unsent (engine/relaxed.py).
     "chain_started_at", "_unadmit", "_taken_up", "_admitted_wait", "_known_failure", "_chained",
     "_not_recovered",
+    # and a capacity error the plug vouches for: its budgets, its twelve hours, its waits.
+    "capacity_limits", "capacity_open", "_capacity_wait",
 }
 
 # What `from codex_auto_resume.engine import ...` has to keep answering (app.py, the tests).

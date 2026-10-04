@@ -160,6 +160,7 @@ class ReasonCode(StrEnum):
     CATEGORY_DISABLED = "category_disabled"
     NOT_RECOVERABLE = "not_recoverable"      # v0.6.13: a failure taken up (P17) nothing takes up now
     ADMISSION_EXPIRED = "admission_expired"  # and one taken up a day ago on the clock, ended unsent
+    CAPACITY_WINDOW = "capacity_window"      # and capacity retries past twelve hours on the clock
     # sending and receipts
     AWAITING_DELIVERY_RECEIPT = "awaiting_delivery_receipt"
     QUEUE_RESULT_UNKNOWN_DO_NOT_RESEND = "queue_result_unknown_do_not_resend"

@@ -964,6 +964,7 @@
   "why.admission_expired": "它已等待一天仍未傳送，因此不再復原。",
   "why.after_sleep": "它在這台電腦睡眠超過設定允許的長度期間到期：在您允許它接續之前，不會傳送任何內容。",
   "why.cancel_requested": "您已要求不要接續它。",
+  "why.capacity_window": "Codex 滿載時允許重試的十二小時已過，因此重新套用一般限制。",
   "why.category_disabled": "此類中斷已在設定中關閉。",
   "why.chain_cap": "此任務已收到它能收到的所有接續訊息。",
   "why.chain_time_cap": "此任務持續失敗的時間超過設定允許的長度。",

@@ -964,6 +964,7 @@
   "why.admission_expired": "Gönderilmeden bir gün bekledi, bu nedenle artık kurtarılmıyor.",
   "why.after_sleep": "Bu bilgisayar Ayarlar'ın izin verdiğinden uzun süre uyku modundayken zamanı geldi: siz devam etmesine izin verene kadar hiçbir şey gönderilmez.",
   "why.cancel_requested": "Sürdürülmemesini istediniz.",
+  "why.capacity_window": "Codex kapasite sınırındayken yeniden denemeler için izin verilen on iki saat geçti, bu nedenle olağan sınırlar yeniden geçerli.",
   "why.category_disabled": "Bu kesinti türü ayarlarda kapalı.",
   "why.chain_cap": "Bu görev alabileceği tüm devam mesajlarını aldı.",
   "why.chain_time_cap": "Bu görev, ayarların izin verdiğinden daha uzun süre başarısız olmaya devam etti.",

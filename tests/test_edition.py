@@ -151,7 +151,7 @@ class ClosedAlternativeTests(unittest.TestCase):
         ADMIT, and the five AS_ words that pace one as a temporary kind - and so do the gates, which
         core takes only at known_failure (tests/test_plug_points.py, KnownFailureTests): the first
         relaxations of a gate, each held to core's own fence (failures.admits)."""
-        take_up = {Alternative.ADMIT} | set(plug.PACED_AS)
+        take_up = {Alternative.ADMIT, Alternative.CAPACITY} | set(plug.PACED_AS)
         self.assertEqual(plug.TAKE_UP, take_up)
         self.assertEqual(plug.ANSWERS, plug.RESTRICTIONS | {Alternative.CLIENT_ID} | take_up)
         self.assertEqual(plug.ANSWERS, frozenset(Alternative))

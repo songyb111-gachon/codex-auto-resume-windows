@@ -132,6 +132,7 @@ class Alternative(StrEnum):
     AS_RATE_LIMIT_TRANSIENT = "as_rate_limit_transient"
     AS_SERVER_5XX = "as_server_5xx"
     AS_STREAM_INTERRUPTED = "as_stream_interrupted"
+    CAPACITY = "capacity"                    # and a capacity error retried sooner, in core's limits
 
 
 class FailureForm(StrEnum):
@@ -350,11 +351,12 @@ RESTRICTIONS = frozenset({Alternative.HOLD})
 # and every look that proves or disproves delivery made for that id (engine/delivery.py). It
 # relaxes no gate - every one of them has passed before it is asked - so it is not a restriction.
 #
-# ADMISSION (P17, v0.6.13 stage 3b) takes a failure up, and GATES the same words, which core takes
-# only at known_failure and only for the kind each is for (failures.admits, failures.readmits).
+# ADMISSION (P17, v0.6.13 stage 3b) takes a failure up, or relaxes a capacity error's retries, and
+# GATES the same words, which core takes only at known_failure and only for the kind each is for
+# (failures.admits, failures.readmits) - CAPACITY within core's own bounds (ladder.py).
 TAKE_UP = frozenset({Alternative.ADMIT, Alternative.AS_NETWORK_TRANSIENT, Alternative.AS_TIMEOUT,
                      Alternative.AS_RATE_LIMIT_TRANSIENT, Alternative.AS_SERVER_5XX,
-                     Alternative.AS_STREAM_INTERRUPTED})
+                     Alternative.AS_STREAM_INTERRUPTED, Alternative.CAPACITY})
 ALTERNATIVES = {
     Point.RECORDS: frozenset(),
     Point.GATES: RESTRICTIONS | TAKE_UP,

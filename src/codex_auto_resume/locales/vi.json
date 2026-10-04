@@ -964,6 +964,7 @@
   "why.admission_expired": "Nó đã chờ một ngày mà không được gửi, nên không còn được khôi phục.",
   "why.after_sleep": "Nó đến hạn trong lúc PC này ngủ lâu hơn mức Cài đặt cho phép: không gửi gì cho đến khi bạn cho phép tiếp tục.",
   "why.cancel_requested": "Bạn đã yêu cầu không tiếp tục nó.",
+  "why.capacity_window": "Đã quá mười hai giờ cho phép thử lại khi Codex quá tải, nên các giới hạn thông thường lại được áp dụng.",
   "why.category_disabled": "Loại gián đoạn này đã bị tắt trong Cài đặt.",
   "why.chain_cap": "Tác vụ này đã dùng hết số lần tiếp tục được phép.",
   "why.chain_time_cap": "Tác vụ này đã liên tục thất bại lâu hơn mức Cài đặt cho phép.",

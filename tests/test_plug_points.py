@@ -60,7 +60,7 @@ from codex_auto_resume.domain.plug import (DEFER, EXTRA, PACED_AS, Alternative, 
                                            Guarded, Plug, PlugFailure, Point, Surface, guard)
 from codex_auto_resume.engine import Engine  # noqa: E402
 from codex_auto_resume.engine.options import VIEW_READS  # noqa: E402
-from codex_auto_resume.machine import STATES, WAITING  # noqa: E402
+from codex_auto_resume.machine import STATES, TERMINAL, WAITING  # noqa: E402
 from codex_auto_resume.mcp.tools import TOOLS as MCP_TOOLS  # noqa: E402
 from codex_auto_resume.runtime.app import App  # noqa: E402
 from codex_auto_resume.store import Store  # noqa: E402
@@ -2365,6 +2365,143 @@ class ChainTests(PluggedCase):
         self.assertEqual(h.store.chain_parent(T1, turn)["interruption_id"], parent["interruption_id"])
         child = h.records()[-1]
         self.assertEqual(child["parent_interruption_id"], h.store.chain_parent(T1, turn)["interruption_id"])
+
+
+OVERLOADED = json.dumps({"codexErrorInfo": "serverOverloaded"})
+
+
+class Fixed:
+    """A draw that is always the same, for the jitter a capacity wait always has."""
+
+    def __init__(self, value):
+        self.value = value
+
+    def random(self):
+        return self.value
+
+
+class CapacityTests(PluggedCase):
+    """CAPACITY: a capacity error the plug vouches for retries sooner and more often, within core's
+    own bounds - a minute, two, four and five, each lengthened by up to a fifth, a minute apart, 48
+    a day, for twelve hours on the clock from its task's first failure - however long a plug says so."""
+
+    def vouched(self, h=None, draw=0.0, plug=None):
+        h = h or self.h
+        failed(h, OVERLOADED)
+        engine = self.plugged(plug or admitting(Alternative.CAPACITY), h)
+        engine._random = Fixed(draw)
+        h.backend.after_accept = "queue"
+        h.tick()
+        return engine
+
+    def continue_and_fail(self, h, step=10):
+        """The continuation that is due goes, Codex runs it, and it fails at capacity again: the
+        record of that failure."""
+        sent = len(h.backend.send_calls)
+        for _ in range(60):
+            h.tick(advance=step)
+            if len(h.backend.send_calls) > sent:
+                break
+        self.assertEqual(len(h.backend.send_calls), sent + 1, "a continuation was sent")
+        turn = h.home.dispatch(T1, status="inProgress", progress=False)
+        fail_turn(h.home, T1, turn, error_json=OVERLOADED)
+        h.tick(advance=1)
+        return h.records()[-1]
+
+    def test_the_first_wait_is_a_minute_lengthened_by_up_to_a_fifth(self):
+        for draw, wait in ((0.0, 60), (0.5, 66), (0.99, 72)):
+            with self.subTest(draw=draw):
+                h = self.fresh()
+                plug = admitting(Alternative.CAPACITY)
+                self.vouched(h, draw, plug)
+                (facts,) = admissions(plug)
+                self.assertEqual(facts["takes"], {Alternative.CAPACITY})
+                row = h.record()
+                self.assertEqual((row["category"], row["next_retry_at"] - h.now), ("server_5xx", wait))
+
+    def test_it_retries_at_two_four_and_five_minutes_past_the_standard_floor_and_budgets(self):
+        h = self.h
+        self.vouched(h)
+        times = []
+        h.backend.on_send = lambda thread, prompt: times.append(h.now)
+        waits = [self.continue_and_fail(h)["next_retry_at"] - h.now for _ in range(8)]
+        self.assertEqual(waits, [120, 240, 300, 300, 300, 300, 300, 300])
+        gaps = [later - earlier for earlier, later in zip(times, times[1:])]
+        self.assertTrue(all(ladder.CAPACITY_SPACING <= gap < ladder.SPACING for gap in gaps), gaps)
+        # Eight continuations in an hour: more than the standard edition's five a day, four attempts
+        # and six continuations of one task.
+        self.assertEqual(len(h.backend.send_calls), 8)
+        self.assertNotIn(h.records()[-1]["state"], TERMINAL)
+
+    def test_never_more_than_core_allows_however_long_the_plug_says_so(self):
+        h = self.h
+        self.vouched(h)
+        for _ in range(60):
+            if h.records()[-1]["state"] in TERMINAL:
+                break
+            self.continue_and_fail(h, step=60)
+        self.assertEqual(len(h.backend.send_calls), ladder.CAPACITY_PER_DAY)
+        self.assertIn(h.records()[-1]["state"], ("no_progress_exhausted", "retry_budget_exhausted"))
+        self.assertLess(h.now - h.records()[0]["detected_at"], ladder.CAPACITY_MAX_SECONDS)
+
+    def test_twelve_hours_on_the_clock_end_it_whatever_it_waited_aside(self):
+        h = self.h
+        self.vouched(h)
+        for _ in range(5):
+            self.continue_and_fail(h)          # past the standard edition's four attempts
+        origin, sent = h.records()[0], len(h.backend.send_calls)
+        holding = Asked(wants=True, admission=Alternative.CAPACITY, gate=lambda name, record, facts: (
+            Alternative.HOLD if name == "usage" else Alternative.CAPACITY if name == "known_failure"
+            else DEFER))
+        self.plugged(holding)._random = Fixed(0.0)
+        while h.now + 600 - origin["detected_at"] < ladder.CAPACITY_MAX_SECONDS:
+            h.tick(advance=600)
+            self.assertNotIn(h.records()[-1]["state"], TERMINAL)
+        h.tick(advance=600)                    # and now twelve hours on the clock have passed
+        row = h.records()[-1]
+        self.assertEqual((row["state"], row["last_error"]), ("retry_budget_exhausted", "recovery_budget"))
+        self.assertEqual(len(h.backend.send_calls), sent)
+        # Held at the usage gate all that time, which counts toward no time ceiling: on the clock it
+        # is twelve hours, counted it is a few minutes - and the clock is what bounds CAPACITY.
+        self.assertLess(h.now - row["chain_first_detected_at"], 3600)
+
+    def test_another_server_error_is_never_vouched_for(self):
+        rows = []
+        for plug in (None, admitting(Alternative.CAPACITY)):
+            h = self.fresh()
+            failed(h, json.dumps({"codexErrorInfo": "internalServerError"}))
+            self.plugged(plug, h)
+            h.tick()
+            rows.append((h.record()["state"], h.record()["next_retry_at"]))
+            if plug is not None:
+                self.assertEqual(admissions(plug), [])
+        self.assertEqual(rows[0], rows[1])
+
+    def test_the_claim_takes_a_capacity_retry_only_within_its_twelve_hours(self):
+        self.vouched()
+        row = self.h.record()
+        ledger, key = guard(admitting(Alternative.CAPACITY)), row["interruption_id"]
+        late = row["detected_at"] + ladder.CAPACITY_MAX_SECONDS
+        for at, options in ((late, {"ledger": ledger, "carried": {Point.GATES}}),
+                            (row["next_retry_at"], {"ledger": None, "carried": {Point.GATES}}),
+                            (row["next_retry_at"], {"ledger": ledger, "carried": frozenset()})):
+            with self.subTest(at=at - row["detected_at"], options=sorted(options)):
+                self.assertEqual(self.h.store.reserve_detailed(key, at, relaxed="capacity", **options),
+                                 (False, "chain_budget", "capacity_window"))
+        self.assertEqual(self.h.store.reserve_detailed(key, late - 1, relaxed="capacity", ledger=ledger,
+                                                       carried={Point.GATES}), (True, None, None))
+
+    def test_a_task_older_than_twelve_hours_is_not_offered_capacity(self):
+        """At P17 too: a capacity failure of a task that first failed twelve hours ago on the clock is
+        offered nothing, and is registered as the standard edition registers it."""
+        h = self.h
+        self.vouched(h)
+        h.now = h.records()[0]["detected_at"] + ladder.CAPACITY_MAX_SECONDS
+        plug = Asked(wants=True, admission=Alternative.CAPACITY)
+        engine = self.plugged(plug)
+        child = self.continue_and_fail(h)
+        self.assertEqual(admissions(plug), [])
+        self.assertEqual(child["next_retry_at"] - h.now, engine.first_delay("server_5xx"))
 
 
 if __name__ == "__main__":

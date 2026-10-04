@@ -964,6 +964,7 @@
   "why.admission_expired": "Sie hat einen Tag gewartet, ohne gesendet zu werden, und wird deshalb nicht mehr wiederhergestellt.",
   "why.after_sleep": "Sie wurde fällig, während dieser PC länger im Energiesparmodus war, als die Einstellungen erlauben: Es wird nichts gesendet, bis Sie sie fortfahren lassen.",
   "why.cancel_requested": "Sie haben verlangt, dass sie nicht fortgesetzt wird.",
+  "why.capacity_window": "Die zwölf Stunden für erneute Versuche bei ausgelastetem Codex sind vorbei, daher gelten wieder die üblichen Grenzen.",
   "why.category_disabled": "Diese Art von Unterbrechung ist in den Einstellungen deaktiviert.",
   "why.chain_cap": "Diese Aufgabe hat alle Fortsetzungen erhalten, die sie haben darf.",
   "why.chain_time_cap": "Diese Aufgabe ist länger fehlgeschlagen, als die Einstellungen erlauben.",

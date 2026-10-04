@@ -964,6 +964,7 @@
   "why.admission_expired": "Elle a attendu un jour sans être envoyée, elle n'est donc plus reprise.",
   "why.after_sleep": "Son heure est arrivée pendant que ce PC était en veille plus longtemps que les Paramètres ne le permettent : rien n'est envoyé tant que vous ne la laissez pas continuer.",
   "why.cancel_requested": "Vous avez demandé qu'elle ne reprenne pas.",
+  "why.capacity_window": "Les douze heures permises pour réessayer quand Codex est saturé sont passées, les limites habituelles s'appliquent donc à nouveau.",
   "why.category_disabled": "Ce type d'interruption est désactivé dans les paramètres.",
   "why.chain_cap": "Cette tâche a reçu toutes les relances auxquelles elle a droit.",
   "why.chain_time_cap": "Cette tâche a continué d'échouer plus longtemps que les Paramètres ne le permettent.",

@@ -285,7 +285,8 @@ class FenceTests(unittest.TestCase):
     def test_only_a_plain_code_of_an_unknown_failure_is_taken_up_or_paced(self):
         plain = self.facts("brandNewVariant")
         self.assertEqual(plain["category"], "unknown")
-        for answer in TAKE_UP:
+        self.assertFalse(failures.admits(plain, Alternative.CAPACITY))
+        for answer in TAKE_UP - {Alternative.CAPACITY}:
             self.assertTrue(failures.admits(plain, answer), answer)
         refused = {"no code": self.facts(None), "message only": self.facts(None, "it broke"),
                    "status only": self.facts({"httpStatusCode": 302}),
@@ -338,12 +339,23 @@ class FenceTests(unittest.TestCase):
                 with self.subTest(category=category, answer=answer):
                     facts = dict(failures.shape("brandNewVariant"), category=category)
                     self.assertFalse(failures.admits(facts, answer))
-                    self.assertFalse(failures.readmits(category, answer))
+                    if (category, answer) != ("server_5xx", Alternative.CAPACITY):
+                        self.assertFalse(failures.readmits(category, answer))
+
+    def test_capacity_only_for_codex_at_capacity_and_while_server_errors_are_on(self):
+        overloaded, other = self.facts("serverOverloaded"), self.facts("internalServerError")
+        self.assertEqual((overloaded["category"], other["category"]), ("server_5xx", "server_5xx"))
+        self.assertEqual(failures.takes(overloaded, lambda category: True), {Alternative.CAPACITY})
+        self.assertEqual(failures.takes(other, lambda category: True), frozenset())
+        self.assertEqual(failures.takes(overloaded, lambda category: category != "server_5xx"), frozenset())
+        self.assertTrue(failures.readmits("server_5xx", Alternative.CAPACITY))
+        for category in sorted(failures.CATEGORIES - {"server_5xx"}):
+            self.assertFalse(failures.readmits(category, Alternative.CAPACITY), category)
 
     def test_a_kind_switched_off_is_not_offered(self):
         plain = self.facts("brandNewVariant")
         self.assertEqual(failures.takes(plain, lambda category: category != "timeout"),
-                         TAKE_UP - {Alternative.AS_TIMEOUT})
+                         TAKE_UP - {Alternative.AS_TIMEOUT, Alternative.CAPACITY})
         self.assertEqual(failures.takes(plain, lambda category: False), {Alternative.ADMIT})
 
     def test_known_failure_takes_each_word_for_its_own_kind(self):

@@ -964,6 +964,7 @@
   "why.admission_expired": "보내지 못한 채 하루를 기다려서 더는 복구하지 않습니다.",
   "why.after_sleep": "이 PC가 설정에서 허용한 것보다 오래 절전하는 동안 예정 시각이 되어, 이어 가도록 허용하기 전까지 아무것도 보내지 않습니다.",
   "why.cancel_requested": "이어 가지 말라고 하셨습니다.",
+  "why.capacity_window": "Codex가 용량 한도일 때 다시 시도할 수 있는 12시간이 지나, 평소 한도가 다시 적용됩니다.",
   "why.category_disabled": "이 종류의 중단은 설정에서 꺼져 있습니다.",
   "why.chain_cap": "이 작업은 받을 수 있는 이어서 하기를 모두 받았습니다.",
   "why.chain_time_cap": "이 작업은 설정에서 허용한 것보다 오래 계속 실패했습니다.",

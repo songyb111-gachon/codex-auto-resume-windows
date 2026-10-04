@@ -123,7 +123,12 @@ class AnnounceMixin:
 
     def _refused(self, row, gate, reason):
         """A claim the store refused. Recorded as a wait or a stop, never silently."""
-        if gate in ("chain_budget", "attempt_budget", "no_progress_budget"):
+        if reason == "capacity_window":
+            # Past a capacity error's twelve hours (v0.6.13): no stop of its own - at its next look
+            # the plug's CAPACITY is not taken, and the standard edition's budgets decide.
+            self.transition(row, row["state"], row.get("last_error"),
+                            delay=self.options["state_poll_seconds"])
+        elif gate in ("chain_budget", "attempt_budget", "no_progress_budget"):
             self._stop_for_budget(row, gate, reason)
         elif gate == "schedule" and reason == "waiting_reset" and row.get("reset_at"):
             self.transition(row, "waiting_reset", "waiting_reset",

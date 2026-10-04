@@ -78,6 +78,13 @@ JITTER_SHARE = 0.2
 ADMITTED_WAITS = (600, 900, 1800)
 ADMISSION_MAX_AGE = 3600
 ADMITTED_MAX_SECONDS = 86400
+# A capacity error the plug vouches for (CAPACITY): a minute after the failure, then two, four and five,
+# each lengthened by up to a fifth (jitter always on), at least a minute apart and 48 a day in one
+# conversation, for at most twelve hours on the clock from the task's first failure (docs/ROADMAP.md).
+CAPACITY_WAITS = (60, 120, 240, 300)
+CAPACITY_SPACING = 60
+CAPACITY_PER_DAY = 48
+CAPACITY_MAX_SECONDS = 12 * 3600
 # Custom... (ownvalues.py): a wait of a person's own between its list's first and last, in whole seconds for
 # the first and whole minutes after it; and a ceiling from the engine's 15 minutes to a week - Off is none.
 OWN = {STEP_FIELDS[0]: ownvalues.Own(ownvalues.DURATION, 5, 2 * 3600, ("s", "m", "h")),

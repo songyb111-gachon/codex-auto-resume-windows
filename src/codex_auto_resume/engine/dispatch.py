@@ -17,7 +17,7 @@ a route named at P16 is carried out the same way in its place.
 """
 from __future__ import annotations
 
-from .. import continuation as _message, failures, l10n, machine
+from .. import continuation as _message, failures, l10n, ladder, machine
 from ..domain.plug import DEFER, Alternative, Point
 from ..machine import OBSERVING, TERMINAL, WAITING, WATCHED
 from .options import backoff_delay
@@ -96,7 +96,9 @@ class DispatchMixin:
         relaxed = self._known_failure(row, vector, now)
         if relaxed is False:
             return
-        limits = self.limits()
+        # CAPACITY counts against core's capacity bounds: budgets, its day and its spacing (ladder.py).
+        capacity = relaxed == "capacity"
+        limits = self.capacity_limits() if capacity else self.limits()
         vector.update(machine.gate_budgets(row, limits, row["category"] == failures.USAGE_LIMIT))
         for name in ("chain_budget", "attempt_budget", "no_progress_budget"):
             if vector[name][0] != machine.PASS:
@@ -137,14 +139,15 @@ class DispatchMixin:
             return
         vector["no_newer_user_work"] = machine.gate(machine.PASS)
         recent = self.store.recent_claims(row["thread_id"], now - 86400)
-        if self.store.recent_claim_count(row["thread_id"], now - 86400) >= self.options["max_submissions_per_thread_per_day"]:
+        per_day = ladder.CAPACITY_PER_DAY if capacity else self.options["max_submissions_per_thread_per_day"]
+        if self.store.recent_claim_count(row["thread_id"], now - 86400) >= per_day:
             # Defer until the oldest claim rolls out of the 24h window rather than
             # permanently abandoning a still-valid interruption. Bounded to N/day per thread.
             vector["attempt_budget"] = machine.gate(machine.WAIT, "daily_submission_cap")
             self._wait(row, "waiting_retry", "daily_submission_cap",
                        max(60, min(recent) + 86400 - now + 5), vector)
             return
-        cooldown = self.options["thread_cooldown_seconds"]
+        cooldown = ladder.CAPACITY_SPACING if capacity else self.options["thread_cooldown_seconds"]
         if recent and now - max(recent) < cooldown:
             vector["attempt_budget"] = machine.gate(machine.WAIT, "thread_submission_cooldown")
             self._wait(row, "waiting_retry", "thread_submission_cooldown", cooldown, vector)

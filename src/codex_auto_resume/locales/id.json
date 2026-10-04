@@ -964,6 +964,7 @@
   "why.admission_expired": "Ini menunggu sehari tanpa dikirim, jadi tidak lagi dipulihkan.",
   "why.after_sleep": "Jatuh tempo saat PC ini tidur lebih lama dari yang diizinkan Pengaturan: tidak ada yang dikirim sampai Anda mengizinkannya berlanjut.",
   "why.cancel_requested": "Anda meminta agar tugas ini tidak dilanjutkan.",
+  "why.capacity_window": "Dua belas jam yang diizinkan untuk mencoba lagi saat Codex penuh sudah lewat, jadi batas biasa berlaku lagi.",
   "why.category_disabled": "Jenis interupsi ini dinonaktifkan di Pengaturan.",
   "why.chain_cap": "Tugas ini sudah mendapat semua lanjutan yang diperbolehkan.",
   "why.chain_time_cap": "Tugas ini terus gagal lebih lama dari yang diizinkan Pengaturan.",

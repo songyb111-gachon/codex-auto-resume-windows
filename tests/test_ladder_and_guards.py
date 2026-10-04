@@ -85,6 +85,19 @@ class LadderTests(unittest.TestCase):
         self.assertEqual((ladder.ADMISSION_MAX_AGE, ladder.ADMITTED_MAX_SECONDS), (3600, 86400))
         self.assertTrue(all(wait >= 300 for wait in ladder.ADMITTED_WAITS))
 
+    def test_capacity_retries_are_held_to_core_s_own_bounds(self):
+        """v0.6.13: a capacity error the edition's plug vouches for (CAPACITY) - its waits, spacing,
+        day and twelve hours - and the budgets the engine counts it against, which are these."""
+        self.assertEqual(ladder.CAPACITY_WAITS, (60, 120, 240, 300))
+        self.assertEqual((ladder.CAPACITY_SPACING, ladder.CAPACITY_PER_DAY, ladder.CAPACITY_MAX_SECONDS),
+                         (60, 48, 12 * 3600))
+        from codex_auto_resume.engine import Engine
+        engine = Engine(None, None, None)
+        self.assertEqual(engine.capacity_limits(), {"max_recovery_attempts": 48, "max_no_progress": 48,
+                                                    "max_chain_continuations": 48})
+        engine.apply_policy(dict(settings.defaults(), chain_time_ceiling="h6"))
+        self.assertEqual(engine.capacity_limits()["max_chain_seconds"], 6 * 3600)
+
     def test_the_presets_are_v0_6_10s(self):
         self.assertEqual(settings.RETRY_TIMING, {"conservative": (15, 45, 120, 300, 600),
                                                  "normal": (5, 15, 30, 60, 120),

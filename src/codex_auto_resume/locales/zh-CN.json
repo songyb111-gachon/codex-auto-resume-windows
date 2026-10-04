@@ -964,6 +964,7 @@
   "why.admission_expired": "它已等待一天仍未发送，因此不再恢复。",
   "why.after_sleep": "它在此电脑睡眠超过设置允许的时长期间到期：在你允许它继续之前，不会发送任何内容。",
   "why.cancel_requested": "你已要求不要继续它。",
+  "why.capacity_window": "Codex 满负荷时允许重试的十二小时已过，因此重新适用常规限制。",
   "why.category_disabled": "此类中断已在设置中关闭。",
   "why.chain_cap": "此任务已收到它能收到的全部续接消息。",
   "why.chain_time_cap": "此任务持续失败的时间超过了设置允许的时长。",

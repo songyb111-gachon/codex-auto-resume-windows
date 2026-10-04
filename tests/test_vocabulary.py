@@ -64,8 +64,9 @@ LISTS = {
     # v0.6.11: offline - Windows reports no internet, so usage is not read (power.py, off by default).
     # and observe_only, observe_only_unknown: a withdrawal's reasons are reasons too.
     # v0.6.13: not_recoverable (a gate reason until then) and admission_expired - a failure the plug
-    # took up (P17) that nothing takes up now, and one taken up a day ago.
-    "machine.REASONS": ("set", 69, "120fe1a7f071af97"),
+    # took up (P17) that nothing takes up now, and one taken up a day ago; and capacity_window, capacity
+    # retries past their twelve hours on the clock.
+    "machine.REASONS": ("set", 70, "baf0da759f937514"),
     # v0.6.11: postponed, held, hold_released and tier_set - a person's (or the objection window's)
     # later time, a hold, letting it go, and a conversation's tier - and observe only's would_send.
     # And dispatched_while_observing and unpostponed: one taken back for Observe only that ran all the
@@ -82,8 +83,8 @@ LISTS = {
     # and schema 4's `postponed`, `quiet_hours` and `observe_only`, reasons of consent and schedule;
     # and `offline`, the usage gate's while Windows reports no internet (power.py).
     # v0.6.11 stage 3b: `plugged`, thread_available passed for a route the plug named (P16).
-    # v0.6.13: admission_expired, a reason now (not_recoverable was a gate reason already).
-    "machine.GATE_REASONS": ("set", 84, "e9c8c91279989dd7"),
+    # v0.6.13: admission_expired and capacity_window, reasons now (not_recoverable was a gate reason).
+    "machine.GATE_REASONS": ("set", 85, "f8a54df88c65c186"),
     "machine.PASS": "PASS",
     "machine.WAIT": "WAIT",
     "machine.BLOCK": "BLOCK",
@@ -196,9 +197,10 @@ LISTS = {
     # how a continuation is carried and proven, where CLIENT_ID - no marker - joined HOLD. And P16:
     # what continues a conversation the app does not hold, a route core carries out (stage 3b).
     # v0.6.13: P17, a failure core never recovers alone taken up, and ADMIT and the five AS_ words
-    # that take one up, at P17 and at known_failure; and the form a failure's error took.
+    # that take one up, at P17 and at known_failure, and CAPACITY, a capacity error retried sooner;
+    # and the form a failure's error took.
     "domain.plug.POINTS": ("tuple", 16, "07e8ae14d7f49978"),
-    "domain.plug.ANSWERS": ("set", 8, "451124ce82b474fa"),
+    "domain.plug.ANSWERS": ("set", 9, "c6433d46921b93c8"),
     "domain.plug.FAILURE_FORMS": ("tuple", 5, "bcc0ad1bd6f81009"),
     "domain.plug.SURFACES": ("tuple", 5, "d41ac5a6d67be21b"),
     "domain.plug.EXTRA": "advanced",

@@ -744,6 +744,7 @@
           "why.chain_time_cap": "This task kept failing for longer than Settings allow.",
           "why.not_recoverable": "No feature recovers this kind of failure now, so it ended without being sent.",
           "why.admission_expired": "It waited a day without being sent, so it is no longer recovered.",
+          "why.capacity_window": "It is past the twelve hours allowed for retries when Codex is at capacity, so the usual limits apply again.",
           "msg.toast_time_cap_body": "It kept failing for longer than Settings allow, so automatic recovery stopped for this task.",
           "error.managed_by_policy": "your administrator has set this",
           "error.power_unavailable": "that power action is not available on this PC",

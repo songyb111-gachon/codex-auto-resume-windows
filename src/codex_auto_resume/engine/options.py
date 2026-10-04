@@ -207,6 +207,15 @@ class OptionsMixin:
             found["max_chain_seconds"] = self.options["max_chain_seconds"]
         return found
 
+    def capacity_limits(self) -> dict:
+        """The budgets of a capacity error the plug vouches for (CAPACITY, v0.6.13): core's own capacity
+        bounds (ladder.py), and the person's own time ceiling when one is set, which only restricts."""
+        found = {name: ladder.CAPACITY_PER_DAY for name in
+                 ("max_recovery_attempts", "max_no_progress", "max_chain_continuations")}
+        if self.options.get("max_chain_seconds") is not None:
+            found["max_chain_seconds"] = self.options["max_chain_seconds"]
+        return found
+
     def recovers(self, category) -> bool:
         """Whether the user has left this category of failure switched on.
 
