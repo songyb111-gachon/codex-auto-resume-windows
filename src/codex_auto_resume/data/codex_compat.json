@@ -33,9 +33,9 @@
     "signature is refused whole until something verifies one."
   ],
   "format": "codex-auto-resume-compat/1",
-  "sequence": 7,
-  "published_at": "2026-10-04T17:08:42Z",
-  "expires_at": "2027-01-02T17:08:42Z",
+  "sequence": 8,
+  "published_at": "2026-10-05T15:29:15Z",
+  "expires_at": "2027-01-03T15:29:15Z",
   "min_product": "0.6.5",
   "signature": null,
   "key_id": null,
@@ -570,34 +570,39 @@
       "version": "codex-cli 0.160.0",
       "capabilities": {
         "engine_present": {
-          "state": "CHECKED",
+          "state": "VERIFIED",
           "evidence": [
-            "docs/evidence/compat/codex-cli-0.160.0.json"
-          ]
+            "docs/evidence/compat/codex-cli-0.160.0-20261005.json"
+          ],
+          "verified_at": "2026-10-05"
         },
         "exact_thread_recovery": {
-          "state": "CHECKED",
+          "state": "VERIFIED",
           "evidence": [
-            "docs/evidence/compat/codex-cli-0.160.0.json"
-          ]
+            "docs/evidence/compat/codex-cli-0.160.0-20261005.json"
+          ],
+          "verified_at": "2026-10-05"
         },
         "loaded_state_detection": {
-          "state": "CHECKED",
+          "state": "VERIFIED",
           "evidence": [
-            "docs/evidence/compat/codex-cli-0.160.0.json"
-          ]
+            "docs/evidence/compat/codex-cli-0.160.0-20261005.json"
+          ],
+          "verified_at": "2026-10-05"
         },
         "outcome_observation": {
-          "state": "CHECKED",
+          "state": "VERIFIED",
           "evidence": [
-            "docs/evidence/compat/codex-cli-0.160.0.json"
-          ]
+            "docs/evidence/compat/codex-cli-0.160.0-20261005.json"
+          ],
+          "verified_at": "2026-10-05"
         },
         "projection_freshness": {
-          "state": "CHECKED",
+          "state": "VERIFIED",
           "evidence": [
-            "docs/evidence/compat/codex-cli-0.160.0.json"
-          ]
+            "docs/evidence/compat/codex-cli-0.160.0-20261005.json"
+          ],
+          "verified_at": "2026-10-05"
         },
         "queue_withdraw": {
           "state": "CHECKED",
@@ -606,16 +611,18 @@
           ]
         },
         "recovery_turn_tracking": {
-          "state": "CHECKED",
+          "state": "VERIFIED",
           "evidence": [
-            "docs/evidence/compat/codex-cli-0.160.0.json"
-          ]
+            "docs/evidence/compat/codex-cli-0.160.0-20261005.json"
+          ],
+          "verified_at": "2026-10-05"
         },
         "thread_eligibility": {
-          "state": "CHECKED",
+          "state": "VERIFIED",
           "evidence": [
-            "docs/evidence/compat/codex-cli-0.160.0.json"
-          ]
+            "docs/evidence/compat/codex-cli-0.160.0-20261005.json"
+          ],
+          "verified_at": "2026-10-05"
         },
         "transient_classification": {
           "state": "CHECKED",
@@ -624,22 +631,25 @@
           ]
         },
         "usage_limit_detection": {
-          "state": "CHECKED",
+          "state": "VERIFIED",
           "evidence": [
-            "docs/evidence/compat/codex-cli-0.160.0.json"
-          ]
+            "docs/evidence/compat/codex-cli-0.160.0-20261005.json"
+          ],
+          "verified_at": "2026-10-05"
         },
         "usage_probe": {
-          "state": "CHECKED",
+          "state": "VERIFIED",
           "evidence": [
-            "docs/evidence/compat/codex-cli-0.160.0.json"
-          ]
+            "docs/evidence/compat/codex-cli-0.160.0-20261005.json"
+          ],
+          "verified_at": "2026-10-05"
         },
         "usage_reset_hint": {
-          "state": "CHECKED",
+          "state": "VERIFIED",
           "evidence": [
-            "docs/evidence/compat/codex-cli-0.160.0.json"
-          ]
+            "docs/evidence/compat/codex-cli-0.160.0-20261005.json"
+          ],
+          "verified_at": "2026-10-05"
         }
       }
     }

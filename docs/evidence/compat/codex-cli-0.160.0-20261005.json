@@ -1,0 +1,167 @@
+{
+  "format": "codex-auto-resume-compat-evidence/1",
+  "codex_version": "codex-cli 0.160.0",
+  "verdict": "PASS",
+  "recorded_at": "2026-10-05T15:29:15Z",
+  "recorded_by": "codex-compat-admin, on the maintainer's own Windows machine",
+  "attribution": {
+    "rule": "a record counts for this version only when the product's engine reports before and after it - or the version installed now - name this version and no other",
+    "window": null,
+    "basis": null
+  },
+  "local_checks": {
+    "reports": 4,
+    "first": "2026-10-04T15:24:03Z",
+    "last": "2026-10-05T15:28:25Z",
+    "covers": [
+      "engine_present",
+      "exact_thread_recovery",
+      "loaded_state_detection",
+      "outcome_observation",
+      "projection_freshness",
+      "queue_withdraw",
+      "recovery_turn_tracking",
+      "thread_eligibility",
+      "transient_classification",
+      "usage_limit_detection",
+      "usage_probe",
+      "usage_reset_hint"
+    ]
+  },
+  "records": [
+    {
+      "detected_at": "2026-10-04T16:47:04Z",
+      "delivered_at": "2026-10-04T20:51:42Z",
+      "outcome_at": "2026-10-04T20:54:38Z",
+      "category": "usage_limit",
+      "state": "handed_over",
+      "reason": "user_joined",
+      "turn_status": "inProgress",
+      "gates_passed": 13,
+      "progress_items": {
+        "agentMessage": 9,
+        "commandExecution": 59,
+        "fileChange": 27,
+        "mcpToolCall": 0
+      }
+    },
+    {
+      "detected_at": "2026-10-04T21:40:42Z",
+      "delivered_at": null,
+      "outcome_at": null,
+      "category": "usage_limit",
+      "state": "superseded",
+      "reason": "parent_handed_over",
+      "turn_status": null,
+      "gates_passed": 0,
+      "progress_items": null
+    },
+    {
+      "detected_at": "2026-10-04T22:38:21Z",
+      "delivered_at": "2026-10-05T02:48:03Z",
+      "outcome_at": "2026-10-05T03:34:29Z",
+      "category": "usage_limit",
+      "state": "recovered",
+      "reason": "progress_then_turn_failed",
+      "turn_status": "failed",
+      "gates_passed": 13,
+      "progress_items": {
+        "agentMessage": 10,
+        "commandExecution": 62,
+        "fileChange": 20,
+        "mcpToolCall": 0
+      }
+    },
+    {
+      "detected_at": "2026-10-05T03:33:59Z",
+      "delivered_at": "2026-10-05T07:51:03Z",
+      "outcome_at": "2026-10-05T07:58:04Z",
+      "category": "usage_limit",
+      "state": "recovered",
+      "reason": "progress_observed",
+      "turn_status": "completed",
+      "gates_passed": 13,
+      "progress_items": {
+        "agentMessage": 4,
+        "commandExecution": 22,
+        "fileChange": 2,
+        "mcpToolCall": 1
+      }
+    }
+  ],
+  "capabilities": {
+    "engine_present": {
+      "confirmed": 3,
+      "missed": 0,
+      "last_confirmed": "2026-10-05T07:58:04Z",
+      "level": "VERIFIED"
+    },
+    "exact_thread_recovery": {
+      "confirmed": 3,
+      "missed": 0,
+      "last_confirmed": "2026-10-05T07:58:04Z",
+      "level": "VERIFIED"
+    },
+    "loaded_state_detection": {
+      "confirmed": 3,
+      "missed": 0,
+      "last_confirmed": "2026-10-05T07:58:04Z",
+      "level": "VERIFIED"
+    },
+    "outcome_observation": {
+      "confirmed": 3,
+      "missed": 0,
+      "last_confirmed": "2026-10-05T07:58:04Z",
+      "level": "VERIFIED"
+    },
+    "projection_freshness": {
+      "confirmed": 3,
+      "missed": 0,
+      "last_confirmed": "2026-10-05T07:58:04Z",
+      "level": "VERIFIED"
+    },
+    "queue_withdraw": {
+      "confirmed": 0,
+      "missed": 0,
+      "last_confirmed": null,
+      "level": "CHECKED"
+    },
+    "recovery_turn_tracking": {
+      "confirmed": 3,
+      "missed": 0,
+      "last_confirmed": "2026-10-05T07:58:04Z",
+      "level": "VERIFIED"
+    },
+    "thread_eligibility": {
+      "confirmed": 3,
+      "missed": 0,
+      "last_confirmed": "2026-10-05T07:58:04Z",
+      "level": "VERIFIED"
+    },
+    "transient_classification": {
+      "confirmed": 0,
+      "missed": 0,
+      "last_confirmed": null,
+      "level": "CHECKED"
+    },
+    "usage_limit_detection": {
+      "confirmed": 4,
+      "missed": 0,
+      "last_confirmed": "2026-10-05T07:58:04Z",
+      "level": "VERIFIED"
+    },
+    "usage_probe": {
+      "confirmed": 3,
+      "missed": 0,
+      "last_confirmed": "2026-10-05T07:58:04Z",
+      "level": "VERIFIED"
+    },
+    "usage_reset_hint": {
+      "confirmed": 4,
+      "missed": 0,
+      "last_confirmed": "2026-10-05T07:58:04Z",
+      "level": "VERIFIED"
+    }
+  },
+  "note": "Content-free: counts, states and times from this machine's own records; no conversation text, identifiers or paths."
+}
