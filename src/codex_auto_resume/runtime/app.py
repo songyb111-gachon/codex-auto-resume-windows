@@ -49,6 +49,15 @@ ENGINE_LOG_WORDS = {
 ENGINE_LOG_CHECKS_ONLY = "passes its local checks (`codex queue` still offers --thread/--message)"
 
 
+def _file_stamp(path):
+    """Which file stands at `path`: its size and write time, or None when there is none."""
+    try:
+        stat = os.stat(path)
+    except OSError:
+        return None
+    return (stat.st_size, stat.st_mtime_ns)
+
+
 class App(WatchLoop):
     def __init__(self, paths: config.Paths, *, codex_exe=None, codex_home=None, console=False, enable_logging=True):
         self.paths = paths
@@ -86,6 +95,7 @@ class App(WatchLoop):
         # process when its environment is edited.
         self.lock_dir = Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "codex-auto-resume" / "homes"
         self._backend = None
+        self._backend_stamp = None
         # What discovery found for each candidate on its last attempt, and the Compatibility
         # Registry's evaluator with the word the engine's gate reads (None until it first runs).
         self._discovery = {}
@@ -142,11 +152,29 @@ class App(WatchLoop):
                              "anything is marked resumed.", backend.engine_version,
                              ENGINE_LOG_WORDS.get(word, ENGINE_LOG_CHECKS_ONLY))
             self._backend = backend
+            self._backend_stamp = _file_stamp(backend.codex_exe)
             # v0.6.11: the edition's plug is told the Codex found here, so that a capability's
             # own session is with this very Codex and home - the setting, the arguments and
             # discovery's choice included - and not one it found for itself. NULL is told nothing.
             self.plug.codex(backend.codex_exe, backend.codex_home)
         return self._backend
+
+    def engine_moved(self) -> bool:
+        """Whether the codex.exe the backend was built on is no longer that file; if so, drop it.
+
+        Discovery runs once per backend, and Codex replaces its engine when it updates: on
+        2026-10-07 the app (26.930) restarted into a new bin/<hex> folder and emptied the old
+        one, and from then on the watcher paired the app with a server at a path no process
+        ran - every recovery waited, "ChatGPT app or its Codex server not running", until the
+        watcher was restarted. A file gone from its path, or another file at it, means the
+        next build discovers again, every engine check included; the same file means nothing.
+        """
+        if self._backend is None or _file_stamp(self._backend.codex_exe) == self._backend_stamp:
+            return False
+        self.logger.info("the Codex engine found earlier is gone or was replaced; looking for it again")
+        self._backend = None
+        self._discovery = {}
+        return True
 
     def engine_state(self) -> str:
         """The word the engine's `engine_compatible` gate reads, and the heartbeat stores.

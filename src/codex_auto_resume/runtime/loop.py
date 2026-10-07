@@ -341,6 +341,10 @@ class WatchLoop:
                     # Built lazily and retried: a transient codex.exe probe failure (an
                     # antivirus scan or an in-progress Codex update at logon) must defer
                     # this tick, never end the watcher for the whole session.
+                    # v0.6.13: and built again when Codex has moved or replaced its engine, which an
+                    # update does - discovery and every engine check then run as at the start.
+                    if engine is not None and self.engine_moved():
+                        engine = None
                     if engine is None:
                         try:
                             engine = self.engine(store)
