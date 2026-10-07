@@ -634,6 +634,14 @@ for both editions, and the final added an urgent fix.
 
 ## v0.6.13 — The rest of the advanced edition
 
+### v0.6.13-beta ✅ — The watcher finds Codex's engine again after an update moves it (a pre-release)
+
+A fix alone, published before the rest (owner, 2026-10-07). The watcher found `codex.exe` once, when
+it started; an update of the Codex app that moved its engine to a new folder left it looking for the
+app's server at the old path, and every recovery waited until the watcher was restarted. The final
+v0.6.13 follows it, improved further; what this section plans for v0.6.13 - the rest of the advanced
+edition - then moves to v0.6.14, and each version after it one on.
+
 What the plan put in v0.6.11's later stages, moved whole when v0.6.11 was cut short - to v0.6.12
 first, and on to v0.6.13 when the owner gave v0.6.12 the version picker, the power action and a fix
 alone. It comes in as many pre-releases as it needs, from **v0.6.13-beta** on: each finished stage
@@ -983,4 +991,5 @@ Maintenance
 
 This document records the current direction; v0.6.12 is out, after v0.6.12-alpha and
 v0.6.12-alpha.2, its only pre-releases: it carries the version picker, the power action and an
-urgent fix. v0.6.13 is next, with the rest of the advanced edition.
+urgent fix. v0.6.13-beta, a fix alone, is out after it: the watcher finds Codex's engine again
+after an update moves it. The final v0.6.13 follows, improved further.

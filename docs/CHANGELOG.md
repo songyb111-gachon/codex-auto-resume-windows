@@ -1,5 +1,42 @@
 # Changelog
 
+## v0.6.13-beta — The watcher finds Codex's engine again after an update moves it
+
+[The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.12...v0.6.13-beta)
+
+**A pre-release with one fix, for both editions, published from `main`.** It is a GitHub
+pre-release, so `releases/latest` stays v0.6.12; an installation of v0.6.12 is offered it by *Check
+for updates*, which asks first and says it is tested less, and *Install another version...* lists it.
+The final v0.6.13 follows it, improved further (owner, 2026-10-07).
+
+### Fixes
+
+- **An update that moves Codex's engine no longer stops recovery.** The watcher found `codex.exe`
+  once, when it started, and never looked again. On 2026-10-07 the Codex app (26.930) updated, put its
+  engine in a new folder under `%LOCALAPPDATA%\OpenAI\Codex\bin` and emptied the old one; from then
+  on the watcher looked for the app's server at the old path, found none, and every recovery waited,
+  saying the ChatGPT app or its Codex server was not running, until the watcher was restarted - at the
+  next sign-in, for most people. Now, before each check, the watcher sees whether the file it found
+  is still there and unchanged (its size and write time); when it is gone or another file stands in
+  its place, it looks for the engine again and runs every engine check again, as at the start.
+  Nothing was sent twice or to another conversation; recoveries waited.
+
+### Compatibility data
+
+- The bundled data now names codex-cli 0.159.0-alpha.12.1 (compatibility data 6) and codex-cli
+  0.160.0, verified (data 7 and 8).
+
+### For developers
+
+- `tests/test_engine_moved.py`: the same file is not looked for again; an engine moved to another
+  folder is found there; another file at the same path is checked again; none left is refused, never
+  kept; the loop asks before every tick but its first. All five fail with the fix reverted. They have
+  a module of their own because `tests/test_compat_characterization.py` must stay v0.6.10's file for
+  `test_released_calls`.
+- Two tests no longer use a real Codex version as one no data names (`codex-cli 99.0.0`, `99.1.0`), so a
+  new compatibility document cannot break them, as data 7 did.
+
+
 ## v0.6.12 — Another version from the Dashboard, a power action after usage limits, and recovery beside the Codex app's cloud-environment server
 
 [The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.11...v0.6.12)
