@@ -244,11 +244,11 @@ limit to reset has ended. It keeps every standard (H14 and F15 in [STANDARDS.md]
 A28 amended by the owner for its stop button), so it is in the standard edition, off until a person
 turns it on in the Dashboard.
 
-Then v0.6.13 brings the rest of the advanced edition, each part published as a pre-release as it is
-finished. Each new capability is the advanced edition's alone, off until you turn it on, with a
+Then, after v0.6.13's fix of how Codex's engine is found, v0.6.14 brings the rest of the advanced
+edition, each part published as a pre-release as it is finished. Each new capability is the advanced edition's alone, off until you turn it on, with a
 statement that names the standards it departs from. This is a direction, not a promise;
 [ROADMAP.md](ROADMAP.md) has the whole list: the two additions in its v0.6.12 section, and the rest
-in its v0.6.13 section, under the same four headings as below and one more on compatibility reports
+in its v0.6.14 section, under the same four headings as below and one more on compatibility reports
 from others.
 
 - **Recovery through the channels already in use** - short retries for capacity errors, failures it
