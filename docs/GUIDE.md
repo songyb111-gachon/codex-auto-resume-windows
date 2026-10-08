@@ -421,9 +421,10 @@ installed, in the interface language: the version at the foot of the Dashboard, 
 its Diagnostics page and the heading of the panel in Codex, each with the edition after the version
 in smaller grey text (`v0.6.11` *Advanced*). The icon's tooltip names it after the product's name.
 From v0.6.14 the Standard edition shows the version alone in each of those places, and the product's
-name alone in the tooltip; its name appears only where you choose an edition, as in *Install another
-version...*. An Advanced installation whose own part could not be loaded runs as the Standard
-edition and says *Advanced - not loaded* there instead.
+name alone in the tooltip. Its name appears only where editions are told apart: where you choose one,
+as in *Install another version...*, and where the installer and Diagnostics say that Codex still has
+the other edition's copy of the plugin. An Advanced installation whose own part could not be loaded
+runs as the Standard edition and says *Advanced - not loaded* there instead.
 
 The icon moves, in the mark it already has. While the watcher watches, the head - the bright dot at
 the end of the ring - breathes, dimming toward the icon's deep blue and back every 4.4 seconds, and
