@@ -48,7 +48,7 @@ CHANGES = frozenset({"thread/queue/add", "thread/goal/set"})
 class ShippedTests(unittest.TestCase):
     SHIPPED = ("start_with_codex", "goal_continuation", "marker_free_continuation", "capacity_retry",
                "structured_rules", "unknown_failure_budget", "codex_gave_up", "sign_in_retry", "early_reset",
-               "once_more_when_unsure")
+               "once_more_when_unsure", "send_now")
 
     def test_the_registry_this_edition_ships_is_its_capabilities_in_their_order(self):
         self.assertEqual([d.id for d in registry.DEFINITIONS], list(self.SHIPPED))
@@ -61,7 +61,7 @@ class ShippedTests(unittest.TestCase):
         # are on and the goal applies its channel carries the send. Those that take failures up (v0.6.13)
         # answer at P17 and again at P3, in the order that is precedence where two would answer.
         answering = {Point.START_ROUTE: ("start_with_codex",),
-                     Point.SCHEDULE: ("early_reset", "once_more_when_unsure"),
+                     Point.SCHEDULE: ("early_reset", "once_more_when_unsure", "send_now"),
                      Point.UNLOADED: ("goal_continuation",),
                      Point.GATES: ("goal_continuation", "capacity_retry", "structured_rules",
                                    "unknown_failure_budget", "codex_gave_up", "sign_in_retry", "early_reset"),
@@ -224,6 +224,19 @@ class ShippedTests(unittest.TestCase):
         self.assertEqual([definition.id for definition in registry.DEFINITIONS if definition.resends],
                          ["once_more_when_unsure"])
         self.assertIs(registry.ONCE_MORE, once)
+
+    def test_send_now_departs_and_rests_on_what_the_design_says(self):
+        """A8 (the claim's re-check passes nothing), A20 (fifteen minutes between two continuations), A21 (the attempt
+        budget stops a recovery) and H2 (nothing can force a send); it stands on exact_thread_recovery, what every
+        send rests on; core's five a conversation, two dozen a day; at P7 alone, its one word a person's request."""
+        now = registry.REGISTRY.get("send_now")
+        self.assertEqual(now.departs_from, ("A8", "A20", "A21", "H2"))
+        self.assertEqual((now.compat, now.measurements, now.revision), ("exact_thread_recovery", (), 1))
+        self.assertEqual(now.points, frozenset({Point.SCHEDULE}))
+        self.assertEqual((now.ceilings.per_day, now.ceilings.per_conversation), (24, registry.CORE_DAILY_CAP))
+        self.assertEqual((now.options, now.rules_editor, now.samples, now.codes, now.resends),
+                         ((), False, False, ("requested",), False))
+        self.assertIs(registry.SEND_NOW, now)
 
     def test_start_with_codex_departs_and_rests_on_what_the_plan_says(self):
         swc = registry.REGISTRY.get("start_with_codex")

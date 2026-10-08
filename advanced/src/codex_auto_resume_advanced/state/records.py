@@ -160,6 +160,27 @@ class RecordsMixin:
                 "UPDATE overrides SET used_at=? WHERE interruption_id=? AND capability=? AND used_at IS NULL",
                 (now, interruption_id, capability)).rowcount == 1
 
+    def renew_override(self, interruption_id, capability, kind, at=None) -> None:
+        """One capability's request about one standard record, made now: a new one, or the one it had
+        replaced, unused again (v0.6.14, a person's Send now clicked twice)."""
+        _key(interruption_id, "interruption id")
+        self._capability(capability)
+        kind = _word(kind, OverrideKind, "override kind")
+        now = self._now(at)
+        with self._transaction() as connection:
+            connection.execute("INSERT OR REPLACE INTO overrides (interruption_id, capability, kind, created_at, "
+                               "used_at) VALUES (?,?,?,?,NULL)", (interruption_id, capability, kind, now))
+
+    def override(self, interruption_id, capability):
+        """`capability`'s override of one standard record, used or not, or None (v0.6.14)."""
+        _key(interruption_id, "interruption id")
+        with self._read() as connection:
+            if connection is None:
+                return None
+            row = connection.execute("SELECT * FROM overrides WHERE interruption_id=? AND capability=?",
+                                     (interruption_id, capability)).fetchone()
+        return dict(row) if row is not None and row["kind"] in tuple(OverrideKind) else None
+
     def resent(self, interruption_id) -> bool:
         """Whether this edition sent standard record `interruption_id` once more, by any capability
         (v0.6.14): a RESEND_ONCE of it, open or closed."""

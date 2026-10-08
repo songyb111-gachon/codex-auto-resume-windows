@@ -451,12 +451,25 @@ class Arming:
         could not be written, it is written here.
 
         And (v0.6.14) every continuation this edition sent once more that core found twice since
-        (`_duplicates`)."""
-        self.current()
+        (`_duplicates`), and every person's request a capability that does not stand on can no longer
+        use (`_void_requests`)."""
+        states = self.current()
         if not len(self.registry):
             return
         self._settle(core_view)
         self._duplicates(core_view)
+        self._void_requests(states)
+
+    def _void_requests(self, states) -> None:
+        """Every unused FORCE_ONCE - a person's Send now - of a capability that does not stand on now,
+        closed: watched, off, or read down by a policy, a request is never held for later."""
+        try:
+            opened = self.state.open_overrides(OverrideKind.FORCE_ONCE)
+        except StateError:
+            return
+        for override in opened:
+            if states.get(override["capability"], ArmingState.OFF) != ArmingState.ARMED:
+                self._close(override["interruption_id"], override["capability"])
 
     def _duplicates(self, core_view) -> None:
         """Each resend still watched (an open RESEND_ONCE) whose record core says was found twice:

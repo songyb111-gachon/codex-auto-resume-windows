@@ -20,6 +20,9 @@ Two things are decided:
   granted. No unit left under its own ceilings or the global one, or a capability turned off
   since it answered, and the claim is held: a disarm always wins, and a ceiling is never passed.
 
+* A person's Send now (v0.6.14), SEND_NOW at P7: only with that capability's request of this very
+  record, unused, under fifteen minutes old and made since the capability last stood where it stands
+  (control/sendnow.py), which the claim uses - one click, one claim.
 * A resend (v0.6.14), RESEND at P7: only one per standard record, by any capability - no RESEND_ONCE
   of it yet, and one written now, open for the sweep's duplicate watch (arming.py); and, for one paid
   by a capability that does not resend itself, only while it is kept on with Send again in the row
@@ -33,6 +36,7 @@ from __future__ import annotations
 from codex_auto_resume.domain.plug import DEFER, Alternative
 
 from .registry import CORE_COOLDOWN_SECONDS, CORE_DAILY_CAP
+from .control.sendnow import fresh
 from .state import ATTACHED
 from .vocabulary import ArmingState, Ceiling, KeepOn, OverrideKind, RecordState
 
@@ -95,7 +99,7 @@ class ClaimLedger:
         global_hourly = connection.execute("SELECT global_hourly FROM %s.meta" % ATTACHED).fetchone()[0]
         for capability in sorted(acted):
             definition = self.registry.get(capability)
-            row = connection.execute("SELECT state FROM %s.arming WHERE capability=?" % ATTACHED,
+            row = connection.execute("SELECT state, since FROM %s.arming WHERE capability=?" % ATTACHED,
                                      (capability,)).fetchone()
             if definition is None or row is None or row[0] != ArmingState.ARMED:
                 return Alternative.HOLD
@@ -104,8 +108,22 @@ class ClaimLedger:
                 return Alternative.HOLD
             if Alternative.RESEND in acted[capability] and not self._resend(connection, definition, key, now):
                 return Alternative.HOLD
+            if Alternative.SEND_NOW in acted[capability] and not self._sent_now(connection, capability, key, row[1], now):
+                return Alternative.HOLD
             self.state.record_spend(connection, ATTACHED, capability, thread_id, key, now)
         return DEFER
+
+    @staticmethod
+    def _sent_now(connection, capability, key, since, now) -> bool:
+        """Whether a person's Send now of standard record `key` stands for this claim, used if so: the
+        capability's FORCE_ONCE of it, unused, fresh and made since `since` (control/sendnow.fresh)."""
+        found = connection.execute("SELECT kind, created_at, used_at FROM %s.overrides WHERE interruption_id=? "
+                                   "AND capability=?" % ATTACHED, (key, capability)).fetchone()
+        if found is None or not fresh({"kind": found[0], "created_at": found[1], "used_at": found[2]}, since, now):
+            return False
+        connection.execute("UPDATE %s.overrides SET used_at=? WHERE interruption_id=? AND capability=?" % ATTACHED,
+                           (now, key, capability))
+        return True
 
     @staticmethod
     def _resend(connection, definition, key, now) -> bool:

@@ -63,6 +63,7 @@ ARGUMENTS = {
     BridgeCommand.ADVANCED_RULE_REMOVE: frozenset({"rule", "generation"}),
     BridgeCommand.ADVANCED_SAMPLES: frozenset(),
     BridgeCommand.ADVANCED_KEEP_ON: frozenset({"capability", "keep_on", "send_again", "generation", "confirmed"}),
+    BridgeCommand.ADVANCED_SEND_NOW: frozenset({"interruption_id"}),
 }
 
 _NO_ARGUMENTS = {"type": "object", "properties": {}, "additionalProperties": False}
@@ -188,6 +189,9 @@ def bridge(runtime, command, argument):
                                   actor=Actor.DASHBOARD)
     if command == BridgeCommand.ADVANCED_SAMPLES:
         return arming.samples_view()
+    if command == BridgeCommand.ADVANCED_SEND_NOW:
+        from .control import sendnow
+        return sendnow.request(runtime, argument.get("interruption_id"))
     if command == BridgeCommand.ADVANCED_KEEP_ON:
         return arming.set_keep_on(argument.get("capability"), argument.get("keep_on"),
                                   send_again=argument.get("send_again", False),

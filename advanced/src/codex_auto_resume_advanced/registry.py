@@ -44,7 +44,7 @@ relax their records at P3: the short retries when Codex is at capacity (engine/c
 rules for Codex's error codes, the retries of failures nothing classified, of Codex giving up and
 of a sign-in failure (engine/admitted.py); and, at P7 and P3, the notice of a usage limit that lifts
 early (engine/earlyreset.py). From v0.6.14 (stage 3b), at P7: an uncertain continuation sent once more
-(engine/oncemore.py).
+(engine/oncemore.py), and one waiting recovery a person asks to send now (control/sendnow.py).
 The tests define one of their own to hold every rule here.
 """
 from __future__ import annotations
@@ -56,6 +56,7 @@ from typing import Callable
 from codex_auto_resume.domain.plug import Point
 
 from .control.codexstart import make as make_start_with_codex
+from .control.sendnow import make as make_send_now
 from .engine.admitted import (ATTEMPTS, DEFAULT_ATTEMPTS, make_codex_gave_up, make_sign_in_retry,
                               make_structured_rules, make_unknown_failure_budget)
 from .engine.capacity import CEILING_HOURS, DEFAULT_HOURS, make as make_capacity_retry
@@ -479,7 +480,30 @@ ONCE_MORE = CapabilityDef(
     resends=True,
 )
 
+# Send now (v0.6.14 stage 3b; the plan's row: skip the schedule, the cooldown and the attempt budget and
+# go at once; the Dashboard's alone; consent, compatibility, ownership, identity, the daily cap, loading,
+# new work and the live usage check stay). A person asks for one waiting recovery in the Dashboard
+# (advanced-send-now) while it is on, and at P7 it answers SEND_NOW for that record, once, within fifteen
+# minutes: core then passes the retry's wait, a postponement, the objection window, the fifteen minutes
+# between two continuations and an attempt budget of the person's own - never an administrator's - and
+# every other gate holds, a reset still ahead and quiet hours among them. It departs from A8 (the claim's
+# re-check passes nothing), A20 (fifteen minutes between two continuations), A21 (the attempt budget
+# stops a recovery) and H2 (nothing can force a send), and stands on exact_thread_recovery - the official
+# Codex and its queue flags every send rests on. Its word: `requested`, a person's request. Ceilings: core's
+# five a conversation a day, two dozen a day in all.
+SEND_NOW = CapabilityDef(
+    id="send_now",
+    points=frozenset({Point.SCHEDULE}),
+    revision=1,
+    departs_from=("A8", "A20", "A21", "H2"),
+    compat="exact_thread_recovery",
+    ceilings=Ceilings(per_day=24, per_conversation=CORE_DAILY_CAP),
+    journal_prefix="sendnow",
+    make=make_send_now,
+    codes=("requested",),
+)
+
 # In this order, which is also which answers first where two answer at one point.
 DEFINITIONS = (START_WITH_CODEX, GOAL_CONTINUATION, MARKER_FREE, CAPACITY_RETRY, STRUCTURED_RULES,
-               UNKNOWN_FAILURE_BUDGET, CODEX_GAVE_UP, SIGN_IN_RETRY, EARLY_RESET, ONCE_MORE)
+               UNKNOWN_FAILURE_BUDGET, CODEX_GAVE_UP, SIGN_IN_RETRY, EARLY_RESET, ONCE_MORE, SEND_NOW)
 REGISTRY = Registry(DEFINITIONS)
