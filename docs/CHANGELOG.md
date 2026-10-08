@@ -1,5 +1,85 @@
 # Changelog
 
+## v0.6.13 — Codex's engine found again, wherever an update puts it
+
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.12...v0.6.13)
+
+**What changed since v0.6.12, in one place.** For a person, one fix, in both editions: the watcher
+finds Codex's engine again after a Codex update moves it, where v0.6.12 went on looking at the old
+path and every recovery waited until the watcher restarted. The pre-release v0.6.13-beta carried it
+first, and its own entry, below, has the detail and how it was checked. The final adds the two cases
+the beta left open - the ChatGPT app running its Codex server from another build while the old one
+stays on disk, and two builds that both pass the engine checks ([Fixes](#fixes)) - and, besides,
+only compatibility data 6 to 8.
+
+**From v0.6.12 or v0.6.13-beta, it is an ordinary update.** It is the latest release, for both
+editions, so v0.6.12's *Check for updates* offers it in the edition you have, and so does
+v0.6.13-beta's; the plugin in Codex installs it too. Settings, a pause, everything waiting and the
+sign-in choice are kept, and nothing is converted: the watcher's state is still schema 4 and the
+advanced edition's own file still version 2. Windows is asked nothing new: the list of running
+ChatGPT and Codex processes the watcher already reads - each one's id, parent and executable path -
+now also tells it which engine the app runs its Codex server from ([PRIVACY.md](PRIVACY.md)). Going
+back to v0.6.13-beta or v0.6.12 takes only its setup program, or *Install another version...*.
+
+**If recoveries have waited since a Codex update** - with *Why it is waiting* saying the ChatGPT app
+or its Codex server is not running while it was, or with no engine chosen because two Codex builds
+passed the engine checks - this release sends them, without a restart of the watcher and without an
+engine named by hand. Nothing was sent twice or to another conversation: they only waited. One still
+waiting when you update is sent by the new watcher once it passes the checks every recovery passes.
+
+**Every plugin copy from v0.6.0's on reads this version.** `0.6.13` has no word after its three
+numbers, and every bootstrap published from v0.6.0 on compares those, so none of them takes this
+installation for none.
+
+### Fixes
+
+- **An update that moves Codex's engine no longer stops recovery.** This is v0.6.13-beta's fix, as
+  its entry below says: before each check the watcher sees whether the `codex.exe` it found is still
+  there and unchanged (its size and write time), and when it is gone or another file stands in its
+  place, it looks for the engine again and runs every engine check again, as at the start.
+- **Nor does an update that runs the app's server from another build.** An update can start the
+  ChatGPT app's Codex server from a build in another `bin\<hash>` folder and leave the old build on
+  disk, unchanged. The beta then kept the old file, looked for the app's server there, found none, and
+  every recovery waited, saying the ChatGPT app or its Codex server was not running. Now, where the
+  one ChatGPT app runs `codex.exe` children none of which is the file the watcher holds, the watcher
+  notes their paths, and before its next check looks for the engine again, every check included,
+  when one of them is an official engine. It does so at once for each change. A build that then fails
+  its checks - as it can while the update is still writing it - is tried again after a minute, then
+  twice as long each time, up to every 15 minutes: not on every check, and with no restart needed
+  once it passes. It reads the same list of processes, paths and parents, nothing else, and its log
+  line names no path.
+- **Of two builds that pass the engine checks, the one the app runs is driven.** With the old folder
+  kept beside the new one, both builds can pass, and the watcher refused that as ambiguous until an
+  engine was named by hand, so every recovery waited meanwhile. Now, where more than one official
+  build passes, it asks which of them the one ChatGPT app runs as its Codex server, and drives that
+  build if exactly one of them is; none, several, no app or two of them, or a question that fails is
+  the refusal it always was. The compatibility status read without a watcher chooses the same way.
+  An engine named by `--codex-exe`, the `codex_exe` setting or the environment is used as named, and
+  the app is not asked. [The guide](GUIDE.md#requirements) says when the watcher looks again and
+  which build it drives.
+
+### Compatibility data
+
+- The bundled data names codex-cli 0.159.0-alpha.12.1 (compatibility data 6) and codex-cli 0.160.0,
+  verified (data 7 and 8), as v0.6.13-beta's did; v0.6.12 carried data 5.
+
+### For developers
+
+- `config.discover_codex_exe` takes `running`, asked only where more than one official build passes:
+  the image paths the one ChatGPT app main runs as its `codex.exe` children (`pairing.app_engines`),
+  matched case-insensitively. `compat/probes.discover` passes it as the watcher does.
+- `Backend.app_identity` keeps, where the pairing is refused, the paths of the app main's `codex.exe`
+  children if none of them is the held path (`pairing.engines_instead`), and `App.engine_moved` drops
+  the backend before the next tick when they include an official engine
+  (`config.candidate_codex_exes`), remembering that set with each file's size and write time, so that
+  each change is acted on at once and, while it stands, again on the monotonic clock after
+  `ELSEWHERE_FIRST_WAIT` (60 s), doubling up to `ELSEWHERE_LONGEST_WAIT` (15 minutes).
+- `tests/test_engine_moved.py` gains `ServedElsewhereTests` and `TwoThatPassTests`. With the changes
+  reverted, every one of them fails: each guard's test ends on the case that does look again or
+  choose, so none passes only because nothing ever looks. Each guard was also reverted alone, and
+  each made its test fail.
+
+
 ## v0.6.13-beta — The watcher finds Codex's engine again after an update moves it
 
 [The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.12...v0.6.13-beta)

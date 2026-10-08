@@ -21,6 +21,7 @@ import uuid
 
 from .. import compatio, config, edition, l10n, managed, needsyou, notifier, settings as policy
 from ..codex import LocalSource
+from ..codex.pairing import app_engines
 from ..domain.plug import DEFER, EXTRA, Surface, guard
 from ..engine import Engine
 from ..logbook import LOGGER_NAME, EngineLog, setup_logging
@@ -47,6 +48,13 @@ ENGINE_LOG_WORDS = {
                "maintainer's checks passing on this build; no real recovery has verified it yet",
 }
 ENGINE_LOG_CHECKS_ONLY = "passes its local checks (`codex queue` still offers --thread/--message)"
+
+# v0.6.13: while the app runs its Codex server from another official build and the watcher still
+# holds the one it found - that build failed its checks when it looked, as `codex --version` can
+# while an update is still writing it - it looks again after a minute, then twice as long each
+# time, up to every 15 minutes (App.engine_moved). A change is looked for at once.
+ELSEWHERE_FIRST_WAIT = 60
+ELSEWHERE_LONGEST_WAIT = 15 * 60
 
 
 def _file_stamp(path):
@@ -96,6 +104,12 @@ class App(WatchLoop):
         self.lock_dir = Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "codex-auto-resume" / "homes"
         self._backend = None
         self._backend_stamp = None
+        # v0.6.13: the official engines the app main ran instead of the one found, each with its file's
+        # stamp, the last time that made the watcher look again - so it looks at once per change - and
+        # when, on the monotonic clock, it looks again while that change stands, and after how long.
+        self._elsewhere_seen = frozenset()
+        self._elsewhere_due = 0.0
+        self._elsewhere_wait = ELSEWHERE_FIRST_WAIT
         # What discovery found for each candidate on its last attempt, and the Compatibility
         # Registry's evaluator with the word the engine's gate reads (None until it first runs).
         self._discovery = {}
@@ -136,10 +150,19 @@ class App(WatchLoop):
                     # Kept for the Compatibility Registry, so a refusal by a failed check can
                     # be reported as what it is. The decision itself is unchanged.
                     discovery[str(path)] = probe.last_checks()
+            asked = []
+
+            def running():
+                # v0.6.13: asked only where several official builds pass (config.discover_codex_exe).
+                asked.append(True)
+                return app_engines()
             try:
-                exe = config.discover_codex_exe(self._codex_exe_override, compatible)
+                exe = config.discover_codex_exe(self._codex_exe_override, compatible, running=running)
             finally:
                 self._discovery = discovery
+            if asked:
+                self.logger.info("more than one official Codex engine passes the engine checks; "
+                                 "the one the ChatGPT app runs as its Codex server is the one driven")
             backend = Backend(self.codex_home, exe)
             # Discovery probed a throwaway instance; run the check on the one we keep so
             # engine_version/engine_verified are populated for status, doctor and logs.
@@ -167,14 +190,54 @@ class App(WatchLoop):
         one, and from then on the watcher paired the app with a server at a path no process
         ran - every recovery waited, "ChatGPT app or its Codex server not running", until the
         watcher was restarted. A file gone from its path, or another file at it, means the
-        next build discovers again, every engine check included; the same file means nothing.
+        next build discovers again, every engine check included; the same file means nothing -
+        unless the app's own pairing found the app main running its server from another
+        official engine and none at this path (v0.6.13, `_served_elsewhere`): at once for each
+        change, and again, less and less often, while that change stands.
         """
-        if self._backend is None or _file_stamp(self._backend.codex_exe) == self._backend_stamp:
+        if self._backend is None:
             return False
-        self.logger.info("the Codex engine found earlier is gone or was replaced; looking for it again")
+        if _file_stamp(self._backend.codex_exe) != self._backend_stamp:
+            self.logger.info("the Codex engine found earlier is gone or was replaced; looking for it again")
+        else:
+            # v0.6.13: the same file, but the app runs its server from another official build - an
+            # update that kept the old folder. At once for each change. A build that then failed its
+            # checks - `codex --version` can fail while an update is still writing it - is looked for
+            # again while the change stands, after ELSEWHERE_FIRST_WAIT and then twice as long each
+            # time up to ELSEWHERE_LONGEST_WAIT: tried again, so that recovery never waits for the
+            # watcher to restart, but never on every tick.
+            elsewhere = self._served_elsewhere()
+            if not elsewhere:
+                return False
+            now = time.monotonic()
+            if elsewhere != self._elsewhere_seen:
+                self._elsewhere_wait = ELSEWHERE_FIRST_WAIT
+            elif now < self._elsewhere_due:
+                return False
+            else:
+                self._elsewhere_wait = min(self._elsewhere_wait * 2, ELSEWHERE_LONGEST_WAIT)
+            self._elsewhere_seen = elsewhere
+            self._elsewhere_due = now + self._elsewhere_wait
+            self.logger.info("the ChatGPT app runs its Codex server from another official Codex engine "
+                             "than the one found earlier; looking for it again")
         self._backend = None
         self._discovery = {}
         return True
+
+    def _served_elsewhere(self) -> frozenset:
+        """The official engines (E1, config.candidate_codex_exes) the app main ran as its children
+        the last time the pairing found none at the held path, each with its file's stamp; nothing
+        where an engine was named (--codex-exe, the setting or the environment), which is never
+        second-guessed, and nothing where the official location cannot be read."""
+        served = getattr(self._backend, "served_elsewhere", None)
+        if not served or self._codex_exe_override or os.environ.get(config.ENV_CODEX_EXE):
+            return frozenset()
+        try:
+            official = {os.path.normcase(str(path)): path for path in config.candidate_codex_exes()}
+            keys = {os.path.normcase(path) for path in served}
+        except (config.ConfigError, OSError, TypeError):
+            return frozenset()
+        return frozenset((key, _file_stamp(official[key])) for key in keys if key in official)
 
     def engine_state(self) -> str:
         """The word the engine's `engine_compatible` gate reads, and the heartbeat stores.

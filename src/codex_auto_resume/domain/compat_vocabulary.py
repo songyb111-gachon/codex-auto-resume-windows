@@ -45,7 +45,10 @@ class CompatCheck(StrEnum):
     OFFICIAL_LOCATION = "official_location"
     # E2 `codex --version` runs and exits 0.
     VERSION_RUNS = "version_runs"
-    # E5 config.discover_codex_exe: exactly one candidate passes (or one was named).
+    # E5 config.discover_codex_exe: exactly one candidate passes (or one was named) - or, from
+    #    v0.6.13, of several that pass exactly one is the build the ChatGPT app main runs as its
+    #    Codex server (its codex.exe children's image paths, codex/pairing.py app_engines).
+    #    Anything else is ambiguous, and nothing is chosen.
     SINGLE_CANDIDATE = "single_candidate"
     # E4 `codex queue --help` exits 0 and still offers the two flags the one interface
     #    windows.Backend.send drives needs.

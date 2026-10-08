@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 import re
 import subprocess as S
 
@@ -75,13 +75,9 @@ def _state_holder(servers, codex_home):
     return held[0]
 
 
-def desktop_pair(rows, codex_exe, codex_home=None):
-    """Bind the configured official engine to exactly one Windows Store app main.
-
-    The app's Codex server is the one child of that main running the configured engine; where
-    the main has several such children, the one of them holding Codex's queue or state database
-    in `codex_home` open (`_state_holder`), and without a `codex_home` none.
-    """
+def _app_main(rows):
+    """The one Windows Store app main among the inventory's rows: the package's ChatGPT.exe whose
+    parent is none of the package's own processes. None, or several, fails closed."""
     # Under WOW64 (32-bit Python on 64-bit Windows) ProgramFiles is the (x86) directory;
     # ProgramW6432 always holds the native one, where WindowsApps actually lives.
     program_files = os.environ.get("ProgramW6432") or os.environ.get("ProgramFiles", r"C:\Program Files")
@@ -93,6 +89,49 @@ def desktop_pair(rows, codex_exe, codex_home=None):
     mains = [row for row in apps if row.get("parent") not in app_ids]
     if len(mains) != 1:
         raise AdapterError("desktop_main_missing_or_ambiguous")
+    return mains[0]
+
+
+def server_engines(rows) -> frozenset:
+    """The image path of every codex.exe the one Windows Store app main runs as a child, as the
+    inventory read it: a path and a parent, and nothing else of those processes - no command line
+    and no process memory. None, or several, mains fail closed, as the pairing does.
+
+    v0.6.13: what the watcher asks where the engine it found no longer names the app's server. A
+    Codex update can start the app's server from a build in another bin/<hex> folder and leave the
+    old one on disk, which then still passes every engine check (runtime/app.py, engine_moved).
+    """
+    main = _app_main(rows)
+    return frozenset(row["path"] for row in rows if isinstance(row, dict) and isinstance(row.get("path"), str)
+                     and row.get("parent") == main["pid"]
+                     and PureWindowsPath(row["path"]).name.lower() == "codex.exe")
+
+
+def app_engines() -> frozenset:
+    """`server_engines` of the processes running now: what discovery asks where more than one
+    official build passes the engine checks (config.discover_codex_exe), and only then."""
+    return server_engines(inventory())
+
+
+def engines_instead(rows, codex_exe) -> frozenset:
+    """The codex.exe paths the app main runs as children where none of them is `codex_exe`, and
+    otherwise nothing: where the main runs `codex_exe`, runs no codex.exe, or is not exactly one."""
+    try:
+        served = server_engines(rows)
+    except (AdapterError, KeyError, TypeError):
+        return frozenset()
+    held = str(codex_exe).lower()
+    return frozenset() if any(path.lower() == held for path in served) else served
+
+
+def desktop_pair(rows, codex_exe, codex_home=None):
+    """Bind the configured official engine to exactly one Windows Store app main.
+
+    The app's Codex server is the one child of that main running the configured engine; where
+    the main has several such children, the one of them holding Codex's queue or state database
+    in `codex_home` open (`_state_holder`), and without a `codex_home` none.
+    """
+    mains = [_app_main(rows)]
     servers = [row for row in rows if isinstance(row, dict) and isinstance(row.get("path"), str)
                and row["path"].lower() == str(codex_exe).lower() and row.get("parent") == mains[0]["pid"]]
     holder = None

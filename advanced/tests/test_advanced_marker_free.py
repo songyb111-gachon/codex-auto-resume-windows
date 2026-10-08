@@ -32,7 +32,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import advancedcase as ac  # noqa: E402
 from advancedcase import ENGINE  # noqa: E402
 from codex_auto_resume import config, settings  # noqa: E402
-from codex_auto_resume.codex import transport  # noqa: E402
+from codex_auto_resume.codex import pairing, transport  # noqa: E402
 from codex_auto_resume.codex.errors import AdapterError  # noqa: E402
 from codex_auto_resume.domain import ids  # noqa: E402
 from codex_auto_resume.domain.plug import BACKEND, DEFER, Alternative, Point  # noqa: E402
@@ -265,9 +265,10 @@ class ArmedTests(MarkerFreeCase):
 class CodexInUseTests(MarkerFreeCase):
     """The channel's session is with the Codex the watcher drives: the one it told the plug it
     found (core's Plug.codex) - pinned by `--codex-exe` or the `codex_exe` setting, with its
-    `--codex-home` - and, where nothing was told, the one the setting pins. Two official engines
-    are installed, so discovery alone is ambiguous and would never send anything. No session is
-    stood in for: the channel opens its own, and only the process it would start is a fake."""
+    `--codex-home` - and, where nothing was told, the one the setting pins, or with no setting the
+    one of them the ChatGPT app runs as its Codex server (v0.6.13). Two official engines are
+    installed, so discovery alone is ambiguous and would never send anything. No session is stood
+    in for: the channel opens its own, and only the process it would start is a fake."""
 
     def setUp(self):
         super().setUp()
@@ -328,6 +329,24 @@ class CodexInUseTests(MarkerFreeCase):
         self.follow()
         self.assertEqual(self.h.record()["state"], "recovered")
         self.assertEqual(plug.runtime.state.arming()[CAP]["state"], ArmingState.ARMED)
+
+    def test_told_and_pinned_nothing_it_is_the_codex_the_app_runs(self):
+        """v0.6.13: with no setting either, it chooses as the watcher does - of the two that pass,
+        the one the ChatGPT app main runs as its Codex server (core's config.discover_codex_exe,
+        `running`), from a process list of the test's own: paths and parents, as core reads it."""
+        main = r"C:\Program Files\WindowsApps\OpenAI.Codex_26.930.2377.0_x64__2p2nqsd0c76g0\app\ChatGPT.exe"
+        rows = [{"pid": 10, "parent": 1, "path": main}, {"pid": 20, "parent": 10, "path": str(self.engines[1])}]
+        plug = self.plug_here()
+        os.environ["CODEX_HOME"] = str(self.h.home.root)
+        server, launched = self.live()
+        self.plugged(plug)
+        with patch.dict(os.environ, {"ProgramW6432": r"C:\Program Files"}), \
+                patch.object(pairing, "inventory", return_value=rows) as listed:
+            self.h.tick()
+        self.assertEqual(launched, [(self.engines[1], self.h.home.root.resolve())])
+        self.assertGreater(listed.call_count, 0)
+        self.assertEqual(len(server.adds()), 1)
+        self.assert_no_send()
 
     def test_told_nothing_it_is_the_codex_the_setting_pins(self):
         """A process that holds no watcher - the Dashboard's bridge - finds Codex as the watcher

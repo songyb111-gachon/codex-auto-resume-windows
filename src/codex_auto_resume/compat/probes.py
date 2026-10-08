@@ -154,7 +154,10 @@ def _candidate_paths(explicit=None) -> list:
 
 def discover(codex_home, explicit=None):
     """Discovery as the watcher does it, recording every candidate's checks. For per-call
-    readers that have no watcher backend to ask. Returns (backend or None, discovery)."""
+    readers that have no watcher backend to ask. Returns (backend or None, discovery).
+
+    As the watcher does it since v0.6.13 too: of several builds that pass, the one the ChatGPT
+    app runs as its Codex server, if exactly one is (config.discover_codex_exe)."""
     from .. import windows
     record = {}
 
@@ -166,7 +169,7 @@ def discover(codex_home, explicit=None):
             record[str(path)] = probe.last_checks()
 
     try:
-        chosen = config.discover_codex_exe(explicit, compatible)
+        chosen = config.discover_codex_exe(explicit, compatible, running=windows.app_engines)
     except Exception:
         return None, record
     backend = windows.Backend(codex_home, chosen)
