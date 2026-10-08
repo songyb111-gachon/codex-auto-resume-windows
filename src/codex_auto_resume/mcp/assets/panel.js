@@ -502,6 +502,7 @@ function folding(key, title, openByDefault, kind, aside) {
   var node = element('details', kind === 'inner' ? 'fold inner' : 'card fold');
   node.open = Object.prototype.hasOwnProperty.call(OPEN, key) ? OPEN[key] : openByDefault;
   var summary = element('summary');
+  summary.id = 'car-fold-' + key;
   summary.appendChild(element(kind === 'inner' ? 'h3' : 'h2', null, title));
   var chevron = element('span', 'chevron');
   chevron.setAttribute('aria-hidden', 'true');
@@ -907,6 +908,7 @@ function toggle(entry, onChange) {
   managedNote(text, entry);
   row.appendChild(text);
   var input = element('input', 'switch');
+  input.id = 'car-' + entry.name;
   input.type = 'checkbox';
   input.setAttribute('role', 'switch');
   input.checked = !!value(entry.name);
@@ -936,6 +938,7 @@ function booleanKind(entry) {
 function checkItem(entry) {
   var row = element('label', 'setting check');
   var input = element('input', 'check');
+  input.id = 'car-' + entry.name;
   input.type = 'checkbox';
   input.checked = !!value(entry.name);
   input.disabled = !HOST || !!entry.managed;
@@ -1124,6 +1127,7 @@ function ownEditor(entry, select, onChange) {
     // Two numbers, the hour and the minute: no field on this page can hold words (CustomTextBoundaryTests).
     var clock = [t('own.unit.h', 'hours'), t('own.unit.m', 'minutes')].map(function (unitName, index) {
       var part = element('input');
+      part.id = 'car-' + entry.name + '-own-' + ['h', 'm'][index];
       part.type = 'number';
       part.min = '0';
       part.max = '99';
@@ -1153,6 +1157,7 @@ function ownEditor(entry, select, onChange) {
     (custom.days || []).forEach(function (day) {
       var item = element('label', 'own-day');
       var box = element('input', 'check');
+      box.id = 'car-' + entry.name + '-own-' + day;
       box.type = 'checkbox';
       item.appendChild(box);
       item.appendChild(element('span', null, t('day.' + day, day)));
@@ -1172,6 +1177,7 @@ function ownEditor(entry, select, onChange) {
     };
   } else {
     var number = element('input');
+    number.id = 'car-' + entry.name + '-own';
     number.type = 'number';
     number.min = '0';
     number.step = String(custom.kind === 'count' ? OWN_UNITS.count[(custom.units || [''])[0]] || 1 : 1);
@@ -1247,6 +1253,7 @@ function segmented(entry, onChange) {
   (entry.choices || []).forEach(function (choice) {
     var item = element('label', 'segment');
     var input = document.createElement('input');
+    input.id = 'car-' + entry.name + '-' + choice;
     input.type = 'radio';
     input.name = 'car-' + entry.name;
     input.value = choice;
@@ -1445,6 +1452,7 @@ function renderHero(status, now) {
   var start = null;
   if (status.watcher_running === false) {
     start = element('button', 'primary', t('action.start', 'Start watcher'));
+    start.id = 'car-start';
     start.disabled = !HOST;
     actions.appendChild(start);
   }
@@ -1539,6 +1547,7 @@ function threadSwitch(row, shown) {
   var wrap = element('label', 'prow-switch');
   wrap.appendChild(element('span', null, t('pending.col_resume', 'Auto-resume')));
   var input = element('input', 'switch');
+  input.id = 'car-row-' + row.interruption_id;
   input.type = 'checkbox';
   input.setAttribute('role', 'switch');
   input.setAttribute('aria-label', t('pending.col_resume', 'Auto-resume') + ': ' + shown);
@@ -1571,6 +1580,8 @@ function confirmOff(row, shown) {
   var actions = element('div', 'actions');
   var off = element('button', 'danger', t('action.thread_off', 'Turn off for this conversation'));
   var keep = element('button', null, t('action.cancel', 'Cancel'));
+  off.id = 'car-row-' + row.interruption_id + '-off';
+  keep.id = 'car-row-' + row.interruption_id + '-cancel';
   off.onclick = function () { changeThread(row, shown, false, [off, keep]); };
   keep.onclick = function () { CONFIRM_ROW = ''; render(); };
   actions.appendChild(off);
@@ -1803,6 +1814,7 @@ function renderRecovery(status, schema, now) {
   master.appendChild(body);
   var pause = element('button', null, status.enabled
     ? t('action.pause', 'Pause recovery') : t('action.resume', 'Resume recovery'));
+  pause.id = 'car-pause';
   pause.disabled = !HOST || heldPause;
   master.appendChild(pause);
   node.appendChild(master);
@@ -2211,6 +2223,7 @@ function openBeside(footer) {
 function renderFooter(schema) {
   var bar = element('footer', 'savebar');
   var save = element('button', null, t('action.save', 'Save'));
+  save.id = 'car-save';
   save.disabled = !HOST;
   var message = element('p', 'note');
   message.setAttribute('role', 'status');
@@ -2219,6 +2232,7 @@ function renderFooter(schema) {
   var beside = null;
   if (HOST && typeof HOST.requestDisplayMode === 'function' && !BESIDE_REFUSED) {
     beside = element('button', 'beside', t('action.open_beside', 'Open beside the chat'));
+    beside.id = 'car-beside';
     beside.hidden = !besideOffered();
     bar.appendChild(beside);
   }
@@ -2508,10 +2522,11 @@ function render() {
 }
 
 // Read open_settings again because the person came back to the page - beside the chat, at most once every
-// READ_AGAIN_MS of its own asking, with nothing of its own still out - and draw what it read, unless by the
-// time the answer lands the person has started something it would undo (busy) or a call of the page's own
-// went out after it. A refusal, an answer that is not the panel's state, or one dropped says nothing: the
-// page goes on showing what it showed, and the next return asks again.
+// READ_AGAIN_MS of its own asking, with nothing of its own still out - and draw what it read, with the keyboard
+// on the control it was on (keyboardAt, keyboardBack), unless by the time the answer lands the person has
+// started something it would undo (busy) or a call of the page's own went out after it. A refusal, an answer
+// that is not the panel's state, or one dropped says nothing: the page goes on showing what it showed, and the
+// next return asks again.
 function readAgain() {
   if (!HOST || READING || displayMode() !== 'fullscreen') return;
   var now = Date.now();
@@ -2540,7 +2555,8 @@ function panelState(payload) {
 }
 
 // Whether drawing the page anew now would undo what the person is doing: a change not saved yet, a row
-// asking them to confirm, a list open, or the keyboard in a field they may be typing in.
+// asking them to confirm, a list open, the keyboard in a field they may be typing in - or the keyboard on a
+// control the page drawn anew could not give it back to, one with no id (keyboardAt).
 function busy() {
   if (Object.keys(DRAFT).length || CONFIRM_ROW) return true;
   var root = document.getElementById('root');
@@ -2548,7 +2564,9 @@ function busy() {
   eachNode(root, function (node) {
     if (typeof node.getAttribute === 'function' && node.getAttribute('aria-expanded') === 'true') open = true;
   });
-  return open || inField(root);
+  if (open || inField(root)) return true;
+  var node = document.activeElement;
+  return !!node && node !== root && within(node, root) && !node.id;
 }
 
 function within(node, root) {
@@ -2566,23 +2584,54 @@ function inField(root) {
   return typeof node.getAttribute === 'function' && node.getAttribute('role') === 'combobox';
 }
 
-// Where the keyboard is, in a form a page drawn anew can find again: a control's id, or the save bar's
-// Save (which a save leaves the keyboard on). Null where it is on neither.
+// Where the keyboard is, in a form a page drawn anew can find again: the id of the control it is on - every
+// control the page draws has one of its own, which names what it changes rather than where it stands, so a
+// row read in above it moves nothing - and the ids of the controls it could reach then, in their order. Null
+// where it is on no control of the page.
 function keyboardAt() {
   var root = document.getElementById('root');
   var node = document.activeElement;
-  if (!node || node === root || !within(node, root)) return null;
-  if (node === HOOKS.save) return {save: true};
-  return node.id ? {id: node.id} : null;
+  if (!node || node === root || !within(node, root) || !node.id) return null;
+  var order = [];
+  eachNode(root, function (each) { if (each.id && keyTarget(each) && keyReaches(each, root)) order.push(each.id); });
+  return {id: node.id, order: order};
 }
 
+// The keyboard put back on that control in the page drawn anew - or, where the page read has none, or one it
+// cannot take, on the next control it could reach then that the page still has, and failing those the one
+// before it: where Tab would have taken it.
 function keyboardBack(keep) {
   if (!keep) return;
-  var found = keep.save ? HOOKS.save : null;
-  if (keep.id) {
-    eachNode(document.getElementById('root'), function (node) { if (!found && node.id === keep.id) found = node; });
+  var root = document.getElementById('root');
+  var drawn = {};
+  eachNode(root, function (node) { if (node.id && keyTarget(node) && !drawn[node.id]) drawn[node.id] = node; });
+  var at = keep.order.indexOf(keep.id);
+  var tries = [keep.id].concat(keep.order.slice(at + 1), keep.order.slice(0, Math.max(at, 0)).reverse());
+  for (var i = 0; i < tries.length; i++) {
+    var node = drawn[tries[i]];
+    if (!node || !keyReaches(node, root) || typeof node.focus !== 'function') continue;
+    node.focus({preventScroll: true});
+    if (document.activeElement === node) return;
   }
-  if (found && typeof found.focus === 'function') found.focus({preventScroll: true});
+}
+
+// What the keyboard can be on: a button, a box, a fold's title, or the drop-down that stands for a select (the
+// select itself is hidden behind it).
+function keyTarget(node) {
+  var tag = String(node.tagName || '').toLowerCase();
+  return tag === 'button' || tag === 'input' || tag === 'summary'
+         || (typeof node.getAttribute === 'function' && node.getAttribute('role') === 'combobox');
+}
+
+// Whether the keyboard can reach a control as the page stands: shown, usable, and not in a folded section's body.
+function keyReaches(node, root) {
+  if (node.hidden || node.disabled) return false;
+  if (typeof node.getAttribute === 'function' && node.getAttribute('aria-disabled') === 'true') return false;
+  for (var at = node.parentNode; at && at !== root; at = at.parentNode) {
+    if (at.hidden) return false;
+    if (String(at.tagName || '').toLowerCase() === 'details' && !at.open && node.parentNode !== at) return false;
+  }
+  return true;
 }
 
 // v0.6.14: what the host says of the page has changed - Codex sends `openai:set_globals` when it does. The

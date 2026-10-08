@@ -328,6 +328,30 @@ async function back(seconds) { NOW += seconds * 1000; fire('window', 'focus'); a
 """
 
 
+# The controls the keyboard can reach on the page, as a browser would let it: a button, a box, a fold's title or
+# the drop-down standing for a select - shown, usable and not in a folded section's body. And every fold opened,
+# so that each is drawn where it can be reached.
+CONTROLS = r"""
+function isControl(n) {
+  return n.tagName === 'button' || n.tagName === 'input' || n.tagName === 'summary'
+         || (!!n.getAttribute && n.getAttribute('role') === 'combobox');
+}
+function canReach(n) {
+  if (n.hidden || n.disabled || (n.getAttribute && n.getAttribute('aria-disabled') === 'true')) return false;
+  for (var at = n.parentNode; at && at !== ROOT_NODE; at = at.parentNode) {
+    if (at.hidden || (at.tagName === 'details' && !at.open && n.parentNode !== at)) return false;
+  }
+  return true;
+}
+function reachableControls() { return ROOT_NODE.all(function (n) { return isControl(n) && canReach(n); }); }
+function unfoldAll() {
+  ROOT_NODE.all(function (n) { return n.tagName === 'details'; }).forEach(function (d) { d.open = true; d.fire('toggle'); });
+  render();
+}
+function attached(node) { return ROOT_NODE.all(function (n) { return n === node; }).length === 1; }
+"""
+
+
 def beside_page(body, mode="fullscreen", extra="", data=None):
     served = "window.__SERVED__ = JSON.parse(JSON.stringify(window.__CODEX_AUTO_RESUME__));"
     return page(SAVEBAR + body, mode=mode, data=data, extra=served + "\n" + READS + "\n" + extra)
@@ -413,6 +437,83 @@ class ReadAgainTests(unittest.TestCase):
                            + say("{typing: typing, drawn: rows(), focused: document.activeElement === commit(),"
                                  " redrawn: commit() !== save}"))
         self.assertEqual(seen, {"typing": 0, "drawn": 1, "focused": True, "redrawn": True})
+
+    def test_the_keyboard_on_any_control_is_on_that_control_again_in_what_it_read(self):
+        """Every control the page draws has an id of its own, naming what it changes: so the page drawn from what it
+        read puts the keyboard back on the very control it was on - a setting's switch, a row's Auto-resume switch,
+        a button, a fold's title - though each read here takes a waiting row in or out above most of them. On a
+        field the read is dropped instead, and the keyboard stays where it was."""
+        seen = beside_page(CONTROLS + """unfoldAll();
+            ANSWER = function () {
+              var fresh = JSON.parse(JSON.stringify(window.__SERVED__));
+              if (!rows()) { fresh.pending.push(SECOND); fresh.status.pending = 2; }
+              return Promise.resolve({structuredContent: fresh, content: []});
+            };
+            var ids = reachableControls().map(function (n) { return n.id; }), seen = [];
+            for (var i = 0; i < ids.length; i++) {
+              var node = byId(ids[i]), before = rows(), reads = READS.length;
+              node.focus(); await back(16);
+              seen.push({id: ids[i], on: document.activeElement.id, attached: attached(document.activeElement),
+                         redrawn: document.activeElement !== node, moved: rows() !== before, reads: READS.length - reads,
+                         field: (node.tagName === 'input' && node.type === 'number') || node.getAttribute('role') === 'combobox'});
+            }""" + say("seen"))
+        ids = [one["id"] for one in seen]
+        self.assertGreater(len(ids), 20)
+        self.assertLessEqual({"car-row-" + "a" * 64, "car-pause", "car-save", "car-fold-limits", "car-notifications",
+                              "car-retry_jitter", "car-recover_usage_limit"}, set(ids))
+        for one in seen:
+            with self.subTest(control=one["id"]):
+                drawn = not one["field"]
+                self.assertEqual((one["on"], one["attached"], one["reads"], one["redrawn"], one["moved"]),
+                                 (one["id"], True, 1, drawn, drawn))
+        self.assertTrue(any(one["field"] for one in seen))
+
+    def test_where_what_it_read_has_no_such_control_the_keyboard_goes_on_to_the_next(self):
+        """Started meanwhile, the watcher's page has no Start watcher: the keyboard goes where Tab would have taken
+        it from there, the next control the page still has - not off the page."""
+        data = panelpage.snapshot()
+        data["status"]["watcher_running"] = False
+        seen = beside_page(CONTROLS + """var order = reachableControls().map(function (n) { return n.id; });
+            ANSWER = function () {
+              var fresh = JSON.parse(JSON.stringify(window.__SERVED__));
+              fresh.status.watcher_running = true;
+              return Promise.resolve({structuredContent: fresh, content: []});
+            };
+            byId('car-start').focus(); await back(16);"""
+                           + say("{next: order[order.indexOf('car-start') + 1], on: document.activeElement.id,"
+                                 " attached: attached(document.activeElement), start: !!byId('car-start')}"), data=data)
+        self.assertEqual(seen, {"next": "car-row-" + "a" * 64, "on": "car-row-" + "a" * 64, "attached": True,
+                                "start": False})
+
+    def test_every_control_the_page_draws_has_an_id_no_other_node_has(self):
+        """What keyboardBack finds the keyboard's control by: in every state, each control - a waiting row's
+        confirmation, Start watcher and every Custom... box included - has an id, and no two nodes share one."""
+        stopped = panelpage.snapshot()
+        stopped["status"]["watcher_running"] = False
+        for setup, data in (("", None), ("CONFIRM_ROW = 'a'.repeat(64); render();", None), ("", stopped)):
+            with self.subTest(setup=setup, stopped=data is not None):
+                seen = beside_page(CONTROLS + setup + say(
+                    "{unnamed: ROOT_NODE.all(isControl).filter(function (n) { return !n.id; }).map(function (n) {"
+                    " return n.tagName + ':' + n.textContent; }), controls: ROOT_NODE.all(isControl).length,"
+                    " confirm: !!byId('car-row-' + 'a'.repeat(64) + '-off'), start: !!byId('car-start'),"
+                    " own: ROOT_NODE.all(function (n) { return isControl(n) && /-own(-|$)/.test(n.id); }).length,"
+                    " ids: ROOT_NODE.all(function (n) { return !!n.id; }).map(function (n) { return n.id; })}"), data=data)
+                self.assertEqual(seen["unnamed"], [])
+                self.assertGreater(seen["controls"], 20)
+                self.assertGreater(seen["own"], 0)
+                self.assertEqual((seen["confirm"], seen["start"]), (bool(setup), data is not None))
+                self.assertEqual(sorted(seen["ids"]), sorted(set(seen["ids"])))
+
+    def test_the_keyboard_on_a_control_with_no_id_keeps_the_page_as_it_is(self):
+        """A control drawn some day without an id could not be found again in the page read: the read is dropped,
+        and the keyboard stays on it."""
+        seen = beside_page("""var node = ROOT_NODE.all(function (n) { return n.tagName === 'button'
+                && n.textContent === S['action.pause']; })[0]; node.id = ''; node.focus();
+            var drawn = ROOT_NODE.children[0]; await back(16);"""
+                           + say("{reads: READS.length, after: rows(), same: ROOT_NODE.children[0] === drawn,"
+                                 " on: document.activeElement === node"
+                                 " && ROOT_NODE.all(function (n) { return n === node; }).length === 1}"))
+        self.assertEqual(seen, {"reads": 1, "after": 0, "same": True, "on": True})
 
     def test_a_refused_or_malformed_answer_changes_nothing(self):
         for answer in ("{isError: true, content: [{type: 'text', text: 'no'}], structuredContent: {error_code: 'request_failed'}}",
