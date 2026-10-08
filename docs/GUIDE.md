@@ -424,12 +424,14 @@ button. Its tooltip says whether recovery is paused, how many recoveries
 are waiting, how many are running in Codex and how long until the next check - or, until you have
 seen it, that a recovery failed.
 
-From v0.6.11 every place that shows the version also names the edition installed, in the interface
-language: the version at the foot of the Dashboard, the Version row on its Diagnostics page and the
-heading of the panel in Codex, each with the edition after the version in smaller grey text
-(`v0.6.11` *Standard*). The icon's tooltip names it after the product's name. An Advanced
-installation whose own part could not be loaded runs as the Standard edition and says *Advanced -
-not loaded* there instead.
+From v0.6.11 every place that shows the version also names the Advanced edition when it is the one
+installed, in the interface language: the version at the foot of the Dashboard, the Version row on
+its Diagnostics page and the heading of the panel in Codex, each with the edition after the version
+in smaller grey text (`v0.6.11` *Advanced*). The icon's tooltip names it after the product's name.
+From v0.6.14 the Standard edition shows the version alone in each of those places, and the product's
+name alone in the tooltip; its name appears only where you choose an edition, as in *Install another
+version...*. An Advanced installation whose own part could not be loaded runs as the Standard
+edition and says *Advanced - not loaded* there instead.
 
 The icon moves, in the mark it already has. While the watcher watches, the head - the bright dot at
 the end of the ring - breathes, dimming toward the icon's deep blue and back every 4.4 seconds, and

@@ -1425,10 +1425,12 @@ function renderHero(status, now) {
   // already attributed, and the question a reader arrives with is what it is doing.
   // v0.6.11: and the edition after the version, in this language's word, as every surface that shows the version
   // names it - since the owner's decision of 2026-10-02 as quiet secondary text: a space and no separator, smaller,
-  // muted in both editions, on the version's baseline (.edition; the window's VersionLabel).
+  // muted, on the version's baseline (.edition; the window's VersionLabel). v0.6.14: an advanced edition only - the
+  // standard edition is named nowhere beside the version (the owner, 2026-10-05), so its heading is the version alone.
+  var named = status.edition && status.edition !== 'standard';
   var eyebrow = hero.appendChild(element('div', 'eyebrow', 'Codex Auto Resume · v' + (status.version || '?')
-    + (status.edition ? ' ' : '')));
-  if (status.edition) eyebrow.appendChild(element('span', 'edition', t('edition.' + status.edition, status.edition)));
+    + (named ? ' ' : '')));
+  if (named) eyebrow.appendChild(element('span', 'edition', t('edition.' + status.edition, status.edition)));
   var line = element('div', 'hero-state');
   var light = lightFor(status, state, DATA.pending);
   line.appendChild(lightNode(light, false));

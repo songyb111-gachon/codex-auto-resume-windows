@@ -1,8 +1,13 @@
-"""v0.6.11: the edition beside the version, in both editions.
+"""v0.6.11: the edition beside the version - since v0.6.14 an advanced edition's only.
 
 The owner's rule: wherever the version is shown, the edition is named beside it - the Dashboard's save
 bar ("v0.6.11 · Standard"), Diagnostics' Version row, the panel's heading in Codex - and the
 notification-area icon's tooltip names it after the product. Positions and every other word stay.
+The owner's rule of 2026-10-05, from v0.6.14: no Standard label in the standard edition - each of those
+surfaces shows the version (or the product's name) alone there, exactly as with no edition at all, while
+an advanced installation, loaded or not, keeps its word. Only the word goes: the status still carries the
+code `standard`, and the version picker's Edition column still says Standard, since there it names what a
+row installs (test_gui_versions).
 
 One code says which (edition.shown): `standard` or `advanced`, the edition that runs, or
 `advanced_not_loaded` for an advanced installation whose package could not be taken - it runs as the
@@ -37,6 +42,8 @@ import guiscan  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 CODES = ("standard", "advanced", edition.NOT_LOADED)
+# The codes whose word a surface shows beside the version (v0.6.14): an advanced installation's, loaded or not.
+NAMED = ("advanced", edition.NOT_LOADED)
 CSC = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Microsoft.NET" / "Framework64" / "v4.0.30319" / "csc.exe"
 POWERSHELL = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
               / "WindowsPowerShell" / "v1.0" / "powershell.exe")
@@ -94,13 +101,34 @@ class TooltipTests(unittest.TestCase):
     def test_the_title_names_the_edition_in_the_readers_word(self):
         english, korean = interface.STRINGS["en"], interface.STRINGS["ko"]
         paused = {"enabled": False}
-        self.assertEqual(tray.tooltip(paused, english, 0, "standard"), "Codex Auto Resume · Standard\nPaused")
         self.assertEqual(tray.tooltip(paused, english, 0, "advanced"), "Codex Auto Resume · Advanced\nPaused")
         self.assertEqual(tray.tooltip(paused, korean, 0, "advanced"),
                          "Codex Auto Resume · 고급판\n" + korean["tray.paused"])
-        self.assertEqual(tray.tooltip({}, english, 0, "standard"), "Codex Auto Resume · Standard")
+        self.assertEqual(tray.tooltip(paused, english, 0, edition.NOT_LOADED),
+                         "Codex Auto Resume · Advanced - not loaded\nPaused")
+        self.assertEqual(tray.tooltip({}, english, 0, "advanced"), "Codex Auto Resume · Advanced")
         # With no edition handed to it, the tooltip is what it was.
         self.assertEqual(tray.tooltip(paused, english, 0), "Codex Auto Resume\nPaused")
+
+    def test_the_standard_edition_is_named_nowhere_in_the_tooltip(self):
+        """v0.6.14 (the owner, 2026-10-05): the standard edition's tooltip is the one with no edition, in every
+        language and every state - its catalog word appears nowhere in its title - while the code it is handed
+        stays the status's."""
+        self.assertEqual(tray.UNNAMED_EDITION, str(Edition.STANDARD))
+        self.assertEqual(edition.shown(NULL), tray.UNNAMED_EDITION)
+        english = interface.STRINGS["en"]
+        self.assertEqual(tray.tooltip({"enabled": False}, english, 0, "standard"), "Codex Auto Resume\nPaused")
+        self.assertEqual(tray.tooltip({}, english, 0, "standard"), "Codex Auto Resume")
+        snapshots = ({}, {"enabled": False}, {"failed": True}, {"enabled": True},
+                     {"enabled": True, "waiting": 2, "running": 1, "next_at": 200})
+        for language, strings in interface.STRINGS.items():
+            word = strings["edition.standard"]
+            for state in snapshots:
+                with self.subTest(language=language, snapshot=state):
+                    text = tray.tooltip(state, strings, 0, "standard")
+                    self.assertEqual(text, tray.tooltip(state, strings, 0))
+                    self.assertNotIn(word, text.split("\n", 1)[0])
+                    self.assertNotIn(" · " + word, text)
 
     def test_every_language_keeps_its_whole_tooltip_with_the_longest_edition(self):
         for language, strings in interface.STRINGS.items():
@@ -125,7 +153,10 @@ class PanelTests(unittest.TestCase):
         heading = script[script.index("function renderHero("):]
         heading = heading[:heading.index("var line = ")]
         self.assertIn("'Codex Auto Resume · v' + (status.version || '?')", heading)
-        self.assertIn("element('span', 'edition', t('edition.' + status.edition, status.edition))", heading)
+        # v0.6.14: an advanced edition's word only - the standard edition is named nowhere beside the version.
+        self.assertIn("var named = status.edition && status.edition !== '%s';" % tray.UNNAMED_EDITION, heading)
+        self.assertIn("if (named) eyebrow.appendChild(element('span', 'edition', "
+                      "t('edition.' + status.edition, status.edition)));", heading)
         _names, prefixes = panel.panel_keys()
         self.assertIn("edition.", prefixes)
         for locale, table in panel.panel_catalogs().items():
@@ -135,8 +166,8 @@ class PanelTests(unittest.TestCase):
 
     @unittest.skipUnless(NODE, "needs Node to run the panel's own code")
     def test_the_edition_follows_the_version_after_a_space_with_no_separator(self):
-        """The owner's decision of 2026-10-02: quiet secondary text after the version, not "· Standard"."""
-        for code in CODES:
+        """The owner's decision of 2026-10-02: quiet secondary text after the version, not "· Advanced"."""
+        for code in NAMED:
             data = snapshot(interface_language="ko")
             data["status"].update(version="0.6.11-beta.2", edition=code)
             shown = run_page(say("""(function () {
@@ -153,6 +184,23 @@ class PanelTests(unittest.TestCase):
         shown = run_page(say("ROOT_NODE.all(function (n) { return n.className === 'eyebrow'; })"
                              ".map(function (n) { return [n.textContent, n.children.length]; })"))
         self.assertEqual(shown, [["Codex Auto Resume · v0", 0]])
+
+    @unittest.skipUnless(NODE, "needs Node to run the panel's own code")
+    def test_the_standard_edition_is_named_nowhere_in_the_heading(self):
+        """v0.6.14 (the owner, 2026-10-05): in every language the panel offers, the standard edition's heading is the
+        version alone - no trailing space, no .edition span anywhere on the page, and not its catalog word."""
+        for locale in l10n.OFFERED:
+            data = snapshot(interface_language=locale)
+            data["status"].update(version="0.6.14", edition="standard")
+            shown = run_page(say("""(function () {
+              var eyebrow = ROOT_NODE.all(function (n) { return n.className === 'eyebrow'; })[0];
+              return {text: eyebrow.textContent, own: eyebrow._text, children: eyebrow.children.length,
+                      editions: ROOT_NODE.all(function (n) { return n.className === 'edition'; }).length};
+            })()"""), data=data, locale=locale)
+            with self.subTest(locale):
+                self.assertEqual(shown, {"text": "Codex Auto Resume · v0.6.14", "own": "Codex Auto Resume · v0.6.14",
+                                         "children": 0, "editions": 0})
+                self.assertNotIn(l10n._read(locale)["edition.standard"], shown["text"])
 
     def test_the_edition_is_smaller_muted_and_on_the_versions_baseline(self):
         """Smaller - .62 of the eyebrow, never under 10px - muted in both editions (nothing names one edition's colour),
@@ -187,6 +235,10 @@ class WindowTests(unittest.TestCase):
         method = guiscan.member_body("SettingsForm", "ShowVersion")
         self.assertIn('"v" + Convert.ToString(Get(status, "version"), CultureInfo.InvariantCulture)', method)
         self.assertIn('S("edition." + edition, edition)', method)
+        # v0.6.14: an advanced edition's word only (QuietEditionTests.test_the_window_names_no_standard_edition runs it).
+        self.assertIn("bool named = !string.IsNullOrEmpty(edition) && edition != UnnamedEdition;", method)
+        self.assertIn('named ? S("edition." + edition, edition) : null', method)
+        self.assertIn('private const string UnnamedEdition = "%s";' % tray.UNNAMED_EDITION, window)
         self.assertNotIn("u00B7", method)
         self.assertNotIn("·", method)
         self.assertEqual(re.findall(r"ShowVersion\((\w+), status\);", window), ["versionText", "diagVersion"])
@@ -348,6 +400,24 @@ foreach ($design in (ConvertFrom-Json $env:CAR_DESIGNS)) {
     }
   }
 }
+# v0.6.14: the window's own ShowVersion, as the save bar and Diagnostics call it, for each code the status carries and
+# for none - on a form whose constructor never ran, given the catalog's edition words and nothing else.
+$formType = $assembly.GetType('CodexAutoResume.SettingsForm', $true)
+$form = [Runtime.Serialization.FormatterServices]::GetUninitializedObject($formType)
+$strings = [System.Collections.Generic.Dictionary[string,object]]::new()
+foreach ($pair in (ConvertFrom-Json $env:CAR_EDITION_WORDS).PSObject.Properties) { $strings[[string]$pair.Name] = [string]$pair.Value }
+$formType.GetField('strings', $instance).SetValue($form, $strings)
+$showVersion = $formType.GetMethod('ShowVersion', $instance)
+$out.shown = @()
+foreach ($code in (ConvertFrom-Json $env:CAR_CODES)) {
+  $status = [System.Collections.Generic.Dictionary[string,object]]::new()
+  $status['version'] = [string]$env:CAR_STATUS_VERSION
+  if ([string]$code) { $status['edition'] = [string]$code }
+  $label = [Activator]::CreateInstance($labelType, $true)
+  $null = $showVersion.Invoke($form, [object[]]@($label, $status))
+  $out.shown += ,@{ code = [string]$code; text = [string]$label.Text; split = [bool]$split.GetValue($label, $null) }
+  $label.Dispose()
+}
 $out | ConvertTo-Json -Depth 5 -Compress
 """
 
@@ -377,7 +447,9 @@ class QuietEditionTests(unittest.TestCase):
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             env=dict(os.environ, CAR_EXE=str(exe), CAR_VERSION=QUIET_VERSION, CAR_WORDS=json.dumps(QUIET_WORDS),
                      CAR_TEXT=json.dumps(QUIET_TEXT), CAR_THEMES=json.dumps(QUIET_THEMES),
-                     CAR_DESIGNS=json.dumps(list(brand.DESIGNS))))
+                     CAR_DESIGNS=json.dumps(list(brand.DESIGNS)),
+                     CAR_STATUS_VERSION=QUIET_VERSION[1:], CAR_CODES=json.dumps(list(CODES) + [""]),
+                     CAR_EDITION_WORDS=json.dumps({"edition." + code: word for code, word in zip(CODES, QUIET_WORDS)})))
         ok = cls.result.returncode == 0 and cls.result.stdout.strip()
         cls.answer = json.loads(cls.result.stdout) if ok else {}
 
@@ -441,6 +513,22 @@ class QuietEditionTests(unittest.TestCase):
             self.assertEqual(case["height"], case["heightBefore"], "the line is as tall as the version's")
             self.assertEqual(case["changed"], 0, "the version's own pixels")
         self.each(check)
+
+    def test_the_window_names_no_standard_edition(self):
+        """v0.6.14 (the owner, 2026-10-05): the window's own ShowVersion - the save bar's and Diagnostics' Version row -
+        shows the standard edition's version alone, exactly as a status with no edition, and an advanced one's word."""
+        shown = {case["code"]: case for case in self.answer["shown"]}
+        self.assertEqual(set(shown), set(CODES) | {""})
+        for code in ("standard", ""):
+            with self.subTest(code=code):
+                self.assertEqual(shown[code]["text"], QUIET_VERSION)
+                self.assertFalse(shown[code]["split"])
+                self.assertNotIn("Standard", shown[code]["text"])
+        for code, word in zip(CODES, QUIET_WORDS):
+            if code in NAMED:
+                with self.subTest(code=code):
+                    self.assertEqual(shown[code]["text"], QUIET_VERSION + " " + word)
+                    self.assertTrue(shown[code]["split"])
 
     def test_without_an_edition_it_is_the_label_it_was(self):
         self.assertTrue(self.answer["plain"])
