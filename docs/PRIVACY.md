@@ -785,12 +785,15 @@ installed, to reach GitHub, and only when you start it (*What it sends to GitHub
   capability spent, with the ids of the conversation and interruption it spent it on; the edition's
   own records and what a capability asked of a standard one, as ids, states and times; the global
   ceiling a person set; a journal and per-day counts of closed codes, bounded as the standard
-  journal is; and, for the capabilities that use them, the choices you made, the rules you wrote (an
+  journal is, and what a watched capability would have done at most 250 lines each; and, for the
+  capabilities that use them, the choices you made, the rules you wrote (an
   error code, status numbers, a kind), which capability took up which interruption, and samples of
   failures it could not classify: Codex's error code, the status number, the form of the error, item
   counts, a time rounded to the minute and a duration - never a word of the error or the
   conversation, and kept 90 days at most. No prompt, reply, error text, title, path or secret. `Uninstall.cmd -Purge` removes it
-  with the rest of `config\`.
+  with the rest of `config\`. A diagnostics export you ask for adds, for each capability watched or
+  with answers in the last 30 days, the word of each answer it would have given, where it was asked,
+  how many times and the first and last minute; never an id.
 - **What it sends to GitHub.** Only the compatibility report, only while it is on, and only after you
   type `send` in the Dashboard for exactly the file and the writes it showed you: through gh, signed in
   as you, it forks the project, adds the report on a branch and opens a public pull request, so the

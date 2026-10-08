@@ -42,7 +42,10 @@ capability there and read its statement: what it does, what the standard edition
 which standards it departs from, what can go wrong and how to stop it, and any warnings it carries
 now. **Turn on** asks once more, with the statement and every warning in front of you; saying yes
 confirms them, for the version of Codex shown. **Watch first** instead has it asked wherever it
-would act, and note what it would have done, while it does nothing. If anything changed while you
+would act, and note what it would have done, while it does nothing. What it would have done is
+counted on its page, under its other cards, for the last 30 days: each answer in words, once for
+each recovery it would have acted on, how many times and when last; a diagnostics export you ask
+for includes the same. If anything changed while you
 were reading, the page reads it again and asks again with what holds now (K3); where it cannot read
 it again, or your administrator's policy now refuses it, it says that nothing was turned on, and why.
 The page reads the list again after everything you do there, and whenever the watcher says a
