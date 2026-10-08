@@ -286,7 +286,10 @@ class StopTests(PowerControlCase):
     def test_the_armed_batch_s_nonce_stops_it_and_any_other_is_ignored(self):
         self.arm()
         nonce = self.stored()["armed"]["nonce"]
-        for other in ("0" * 16, "nonsense", None, nonce.upper(), 12):
+        # The nonce is random hex, and one with no letter (about 1 in 1,800) is its own upper case: it
+        # is then the nonce itself and stops the batch (main run 37772380007). Only a letter has a case.
+        cased = nonce.upper()
+        for other in ["0" * 16, "nonsense", None, 12] + ([cased] if cased != nonce else []):
             with self.subTest(other=other):
                 self.assertEqual(self.control.stop_power_countdown(other), control.IGNORED)
         self.assertIsNone(self.stored()["armed"]["stop_at"])
