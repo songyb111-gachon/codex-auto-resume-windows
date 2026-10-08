@@ -74,7 +74,7 @@ class VocabularyTests(unittest.TestCase):
     def test_every_tripwire_is_a_reason_a_capability_is_off(self):
         self.assertEqual({str(word) for word in vocabulary.TRIPWIRES},
                          {"submission_unknown", "local_check_failed", "failed_here", "incompatible",
-                          "hook_exception", "statement_changed", "measurement_failed"})
+                          "hook_exception", "statement_changed", "measurement_failed", "duplicate_seen"})
 
 
 class FileTests(StateCase):

@@ -47,7 +47,8 @@ CHANGES = frozenset({"thread/queue/add", "thread/goal/set"})
 
 class ShippedTests(unittest.TestCase):
     SHIPPED = ("start_with_codex", "goal_continuation", "marker_free_continuation", "capacity_retry",
-               "structured_rules", "unknown_failure_budget", "codex_gave_up", "sign_in_retry", "early_reset")
+               "structured_rules", "unknown_failure_budget", "codex_gave_up", "sign_in_retry", "early_reset",
+               "once_more_when_unsure")
 
     def test_the_registry_this_edition_ships_is_its_capabilities_in_their_order(self):
         self.assertEqual([d.id for d in registry.DEFINITIONS], list(self.SHIPPED))
@@ -59,7 +60,8 @@ class ShippedTests(unittest.TestCase):
         # and the way it carries the words. At P5 the goal continuation comes first, so where both
         # are on and the goal applies its channel carries the send. Those that take failures up (v0.6.13)
         # answer at P17 and again at P3, in the order that is precedence where two would answer.
-        answering = {Point.START_ROUTE: ("start_with_codex",), Point.SCHEDULE: ("early_reset",),
+        answering = {Point.START_ROUTE: ("start_with_codex",),
+                     Point.SCHEDULE: ("early_reset", "once_more_when_unsure"),
                      Point.UNLOADED: ("goal_continuation",),
                      Point.GATES: ("goal_continuation", "capacity_retry", "structured_rules",
                                    "unknown_failure_budget", "codex_gave_up", "sign_in_retry", "early_reset"),
@@ -208,6 +210,21 @@ class ShippedTests(unittest.TestCase):
         self.assertEqual((early.options, early.rules_editor, early.samples, early.codes),
                          ((), False, False, ("probed", "lifted")))
 
+    def test_once_more_when_unsure_departs_and_rests_on_what_the_design_says(self):
+        """0.2 (never again when the first may have been delivered), A6 (an uncertain delivery is never
+        resent), E2 (better to miss a resume than resume twice) and H2 (nothing can resend an uncertain
+        submission); it stands on recovery_turn_tracking, the tables its proof reads; two a conversation,
+        six a day; the one capability that resends, at P7 alone, with no choice, rules or samples."""
+        once = registry.REGISTRY.get("once_more_when_unsure")
+        self.assertEqual(once.departs_from, ("0.2", "A6", "E2", "H2"))
+        self.assertEqual((once.compat, once.measurements, once.revision), ("recovery_turn_tracking", (), 1))
+        self.assertEqual(once.points, frozenset({Point.SCHEDULE}))
+        self.assertEqual((once.ceilings.per_day, once.ceilings.per_conversation), (6, 2))
+        self.assertEqual((once.options, once.rules_editor, once.samples, once.codes), ((), False, False, ()))
+        self.assertEqual([definition.id for definition in registry.DEFINITIONS if definition.resends],
+                         ["once_more_when_unsure"])
+        self.assertIs(registry.ONCE_MORE, once)
+
     def test_start_with_codex_departs_and_rests_on_what_the_plan_says(self):
         swc = registry.REGISTRY.get("start_with_codex")
         self.assertEqual(swc.departs_from, ("C4", "F6"))
@@ -308,6 +325,13 @@ class DefinitionTests(unittest.TestCase):
             with self.subTest(options=options):
                 self.assertIn("options", problems(ac.definition(options=options)))
         self.assertIn("rules_editor or samples", problems(ac.definition(samples=1)))
+
+    def test_one_that_resends_answers_at_p7_and_says_so_with_a_boolean(self):
+        """A capability that sends an uncertain continuation once more (v0.6.14) does it at P7."""
+        self.assertEqual(problems(ac.definition(resends=True)), [])
+        self.assertIn("resends", problems(ac.definition(resends=True, points=frozenset({Point.TEXT}))))
+        self.assertIn("resends", problems(ac.definition(resends=1)))
+        self.assertFalse(ac.definition().resends)
 
     def test_a_capability_never_holds_the_claim_ledger_or_a_surface(self):
         """Nor the moves core tells of, which the tripwires read (P14)."""

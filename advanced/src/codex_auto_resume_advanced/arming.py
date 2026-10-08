@@ -54,6 +54,13 @@ version are noted instead, the most serious kept until the person arms it again;
 costs only the record it raised for (runtime.py); what cannot be read still holds it back (E1); and the
 policy reads it down first, so the administrator wins. Any move to off - the person's, from any
 surface - takes it away.
+
+Send again (v0.6.14), only with Keep on: a continuation the kept-on capability paid for that cannot be
+proven to have arrived is sent once more, under the once-more capability's rules (`resender`), and only
+where the policy admits that capability as well - Send again does what it does, so it departs from what
+it departs from too (`departs`). A continuation sent once more and then found twice turns off what sent
+it again (`sweep`): the once-more capability itself, whether or not it is kept on, or Send again alone,
+the capability staying on with that noted.
 """
 from __future__ import annotations
 
@@ -64,12 +71,13 @@ from codex_auto_resume.compat.model import FAILED_HERE, INCOMPATIBLE, STATES, UN
 
 from . import policy as _policy
 from .measured import MEASURED
-from .registry import GLOBAL_HOURLY
+from .registry import GLOBAL_HOURLY, ONCE_MORE
 from .state import Refused, StaleGeneration, StateError
+from .state.spend import CHANNELS
 from .state.choices import DAY, RECENT_DAYS, RULES_LIMIT, aggregated, tag_problem
 from .statement import CATALOGS
 from .vocabulary import (KEPT_NOTICES, TRIPWIRES, Actor, ArmingState, ArmingWarning, KeepOn,
-                         OffReason, Refusal, Verdict)
+                         OffReason, OverrideKind, Refusal, Verdict)
 
 # The actors a person turns a capability off through.
 SURFACES = frozenset({Actor.DASHBOARD, Actor.MCP, Actor.TRAY, Actor.CARD})
@@ -80,6 +88,11 @@ SUBMISSION_UNKNOWN = "submission_unknown"
 # unit at the very time the claim writes (ledger.py, store/claims.py), so they are equal; this only
 # absorbs a float's round trip. Two claims of one record are never this close.
 SAME_CLAIM = 0.001
+# What core writes into a record it sent once more whose proof is then found twice (core's
+# engine/resend.py, watch_resent; and engine/reconcile.py while it follows the turn).
+DUPLICATE = "duplicate_marker"
+# How long a resend is watched for a second copy: core's own window for an uncertain one.
+RESEND_WATCH = 86400
 # The warnings that, appearing where the person did not confirm them, say that what a capability
 # stands on went wrong: each is a tripwire, with its own reason. The first found trips it.
 TRIPPING = {ArmingWarning.FAILED_HERE: OffReason.FAILED_HERE,
@@ -176,6 +189,21 @@ def standing(definition, row, policy, view, measured=MEASURED) -> tuple:
         if ArmingWarning.COMPAT_UNKNOWN in unconfirmed:
             return ArmingState.OFF, None, ArmingWarning.COMPAT_UNKNOWN, None
     return stored, None, None, notice
+
+
+def departs(definition, row) -> list:
+    """The standards `definition` departs from as a surface lists them: its own, joined - for one kept
+    on with Send again (v0.6.14) - by the once-more capability's, since Send again does what it does."""
+    found = list(definition.departs_from)
+    if (row or {}).get("send_again"):
+        found += [standard for standard in ONCE_MORE.departs_from if standard not in found]
+    return found
+
+
+def kept_words(keep_on, send_again) -> list:
+    """The words a person confirms to keep a capability on: ["keep_on"], with "send_again" after it."""
+    return [str(word) for word in KeepOn
+            if (word == KeepOn.KEEP_ON and keep_on) or (word == KeepOn.SEND_AGAIN and send_again)]
 
 
 def _rises(held, notice) -> bool:
@@ -420,11 +448,92 @@ class Arming:
         A send that became unknown while this plug was loaded has tripped its capability
         already, as core wrote the move (`moved`): by P8 the watch that runs before it may have
         settled a late delivery, and the record's state now would say nothing. Where that trip
-        could not be written, it is written here."""
+        could not be written, it is written here.
+
+        And (v0.6.14) every continuation this edition sent once more that core found twice since
+        (`_duplicates`)."""
         self.current()
         if not len(self.registry):
             return
         self._settle(core_view)
+        self._duplicates(core_view)
+
+    def _duplicates(self, core_view) -> None:
+        """Each resend still watched (an open RESEND_ONCE) whose record core says was found twice:
+        what sent it again is turned off - the once-more capability itself, kept on or not, or the
+        payer's Send again alone, the payer staying on with it noted (DUPLICATE_SEEN) - where it has
+        stood where it stands since the resend. The watch on it closes then, when core no longer holds
+        the record, and a day after the resend; a write that failed is tried again at the next sweep."""
+        try:
+            watched = self.state.open_overrides(OverrideKind.RESEND_ONCE)
+        except StateError:
+            return
+        if not watched:
+            return
+        try:
+            rows = self.state.arming()
+        except StateError:
+            return
+        now = self.clock()
+        for override in watched:
+            key, capability = override["interruption_id"], override["capability"]
+            try:
+                record = core_view.get(key)
+            except Exception:
+                continue                             # a view that cannot answer says nothing
+            if not (isinstance(record, dict) and record.get("last_error") == DUPLICATE):
+                if not isinstance(record, dict) or now - override["created_at"] > RESEND_WATCH:
+                    self._close(key, capability)
+                continue
+            row, definition = rows.get(capability), self.registry.get(capability)
+            try:
+                if (row is not None and row["state"] != ArmingState.OFF and row["since"] is not None
+                        and override["created_at"] >= row["since"]):
+                    if definition.resends:
+                        self._write_off(capability, OffReason.DUPLICATE_SEEN)
+                    elif row.get("send_again"):
+                        self.state.send_again_off(capability, reason=OffReason.DUPLICATE_SEEN, at=now)
+            except StateError:
+                continue
+            self._close(key, capability)
+
+    def _close(self, key, capability) -> None:
+        try:
+            self.state.use_override(key, capability, at=self.clock())
+        except StateError:
+            pass
+
+    def resender(self, record, states):
+        """(the capability, where it stands) whose Keep on's Send again sends `record` once more
+        (v0.6.14), or None: the first, in the registry's order, that stands on or watched in `states`,
+        is kept on with Send again, paid for this very send since it last stood where it stands, and is
+        not the once-more capability - only where the policy admits the once-more capability too, where
+        this edition never resent the record and where no other capability that is a channel or a route
+        paid for that send, the once-more capability's own restriction (engine/oncemore.py). A state
+        that cannot be read sends nothing again."""
+        key = record.get("interruption_id") if isinstance(record, dict) else None
+        if not isinstance(key, str) or record.get("state") != SUBMISSION_UNKNOWN:
+            return None
+        if not self.policy().admits(ONCE_MORE.id):
+            return None
+        try:
+            rows = self.state.arming()
+            if not any(row.get("send_again") for row in rows.values()) or self.state.resent(key):
+                return None
+            payers = self.state.payers(key, _claimed_at(record))
+        except StateError:
+            return None
+        for definition in self.registry:
+            row = rows.get(definition.id) or {}
+            state = states.get(definition.id, ArmingState.OFF)
+            if (definition.resends or state == ArmingState.OFF or not row.get("send_again")
+                    or row.get("since") is None
+                    or not any(at >= row["since"] for at in payers.get(definition.id, ()))):
+                continue
+            if any(self.registry.get(other).points & CHANNELS for other in payers if other != definition.id):
+                return None
+            return definition, state
+        return None
 
     def moved(self, record, state) -> bool:
         """P14: core has just moved `record` to `state`. Into submission_unknown, every capability
@@ -539,13 +648,17 @@ class Arming:
                                   at=self.clock())[0]
 
     # ------------------------------------------------------------------ kept on
-    def set_keep_on(self, capability, keep_on, *, generation, confirmed=None, actor) -> dict:
-        """Keep `capability` on (K8), or let it turn itself off again, for a person in the Dashboard.
+    def set_keep_on(self, capability, keep_on, *, send_again=False, generation, confirmed=None,
+                    actor) -> dict:
+        """Keep `capability` on (K8) - with Send again (v0.6.14) or without - or let it turn itself off
+        again, for a person in the Dashboard.
 
-        To keep it on: the policy's refusals first, as an arm meets them; then it must be on or
-        watched (NOT_ON); then `confirmed` must be the warning's words the Dashboard showed,
-        ["keep_on"] (STALE_CONFIRMATION); then the generation. Letting it go needs only the
-        capability. {"done", "refusal", "generation"}."""
+        Turning anything on: the policy's refusals first, as an arm meets them - for Send again, the
+        once-more capability's too, since Send again does what it does; then it must be on or watched
+        (NOT_ON); then `confirmed` must be the words of the warnings the Dashboard showed, ["keep_on"] or
+        ["keep_on", "send_again"] (STALE_CONFIRMATION); then the generation. Send again is only with Keep
+        on, and never for a capability that resends itself (INVALID_REQUEST). Letting either go needs only
+        the capability. {"done", "refusal", "generation"}."""
         def refused(why):
             return {"done": False, "refusal": why, "generation": self._generation()}
 
@@ -554,29 +667,34 @@ class Arming:
         definition = self.registry.get(capability)
         if definition is None:
             return refused(Refusal.UNKNOWN_CAPABILITY)
-        if type(keep_on) is not bool or not (generation is None or type(generation) is int):
+        if (type(keep_on) is not bool or type(send_again) is not bool
+                or not (generation is None or type(generation) is int)
+                or (send_again and (not keep_on or definition.resends))):
             return refused(Refusal.INVALID_REQUEST)
-        if keep_on:
+        try:
+            row = self.state.arming().get(definition.id) or {}
+        except StateError:
+            return refused(Refusal.STATE_UNAVAILABLE)
+        wanted = kept_words(keep_on, send_again)
+        if not set(wanted) <= set(kept_words(row.get("keep_on"), row.get("send_again"))):
             policy = self.policy()
             if policy.forbid:
                 return refused(Refusal.FORBIDDEN_BY_POLICY)
-            if not policy.admits(definition.id):
+            if not policy.admits(definition.id) or (send_again and not policy.admits(ONCE_MORE.id)):
                 return refused(Refusal.NOT_ALLOWED_BY_POLICY)
-            try:
-                stored = (self.state.arming().get(definition.id) or {}).get("state")
-            except StateError:
-                return refused(Refusal.STATE_UNAVAILABLE)
-            if policy.force_shadow and stored == ArmingState.ARMED:
+            if policy.force_shadow and row.get("state") == ArmingState.ARMED:
                 return refused(Refusal.SHADOW_FORCED_BY_POLICY)
             if self.current(policy=policy).get(definition.id, ArmingState.OFF) == ArmingState.OFF:
                 return refused(Refusal.NOT_ON)
-            if confirmed != [str(KeepOn.KEEP_ON)]:
+            if confirmed != wanted:
                 return refused(Refusal.STALE_CONFIRMATION)
             if generation is None:
                 return refused(Refusal.INVALID_REQUEST)
+        else:
+            generation = None                    # letting go never waits on a generation
         try:
-            after = self.state.set_keep_on(capability, keep_on, actor=actor,
-                                           generation=generation if keep_on else None, at=self.clock())
+            after = self.state.set_keep_on(capability, keep_on, send_again=send_again, actor=actor,
+                                           generation=generation, at=self.clock())
         except Refused as refusal:
             return refused(refusal.refusal)
         except StaleGeneration:
@@ -717,13 +835,16 @@ class Arming:
                 "id": definition.id, "stored": str(row.get("state", ArmingState.OFF)),
                 "state": str(states.get(definition.id, ArmingState.OFF)),
                 "since": row.get("since"), "by": row.get("actor"), "reason": row.get("reason") if off else None,
-                # Keep on (K8), and what a kept-on capability noted in place of turning itself off.
-                "keep_on": bool(row.get("keep_on")), "notice": None if off else row.get("reason"),
+                # Keep on (K8), its Send again (v0.6.14), and what a kept-on capability noted in place of
+                # turning itself off; and whether it sends an uncertain continuation once more itself, and
+                # so is never given Send again.
+                "keep_on": bool(row.get("keep_on")), "send_again": bool(row.get("send_again")),
+                "notice": None if off else row.get("reason"), "resends": definition.resends,
                 "revision": definition.revision, "read_revision": row.get("statement_revision"),
                 "acknowledged_version": row.get("engine_version"),
                 "warnings": [str(word) for word in self.warnings(definition, view)],
                 "confirmed_warnings": [str(word) for word in row.get("warnings") or ()],
-                "departs_from": list(definition.departs_from), "compat": definition.compat,
+                "departs_from": departs(definition, row), "compat": definition.compat,
                 "measurements": [str(measurement) for measurement in definition.measurements],
                 "points": sorted(str(point) for point in definition.points),
                 # Whether any point it answers at leads to a send, and so whether its ceilings can

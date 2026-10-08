@@ -47,16 +47,21 @@ class OffReason(StrEnum):
     HOOK_EXCEPTION = "hook_exception"
     STATEMENT_CHANGED = "statement_changed"
     MEASUREMENT_FAILED = "measurement_failed"
+    # A continuation it sent once more was found twice in Codex's history (v0.6.14, stage 3b): the
+    # harm a resend risks. It turns off what sent it again whether or not it is kept on - the
+    # once-more capability, or Keep on's Send again alone (arming.py).
+    DUPLICATE_SEEN = "duplicate_seen"
 
 
 TRIPWIRES = frozenset({OffReason.SUBMISSION_UNKNOWN, OffReason.LOCAL_CHECK_FAILED,
                        OffReason.FAILED_HERE, OffReason.INCOMPATIBLE, OffReason.HOOK_EXCEPTION,
-                       OffReason.STATEMENT_CHANGED, OffReason.MEASUREMENT_FAILED})
+                       OffReason.STATEMENT_CHANGED, OffReason.MEASUREMENT_FAILED,
+                       OffReason.DUPLICATE_SEEN})
 # What a capability kept on (KeepOn, K8) notes instead of turning off, most serious first: the order
 # in which one notice gives way to another (state/arming.py, note_kept). A notice only ever rises.
-KEPT_NOTICES = (OffReason.STATEMENT_CHANGED, OffReason.FAILED_HERE, OffReason.LOCAL_CHECK_FAILED,
-                OffReason.INCOMPATIBLE, OffReason.MEASUREMENT_FAILED, OffReason.ENGINE_CHANGED,
-                OffReason.SUBMISSION_UNKNOWN, OffReason.HOOK_EXCEPTION)
+KEPT_NOTICES = (OffReason.DUPLICATE_SEEN, OffReason.STATEMENT_CHANGED, OffReason.FAILED_HERE,
+                OffReason.LOCAL_CHECK_FAILED, OffReason.INCOMPATIBLE, OffReason.MEASUREMENT_FAILED,
+                OffReason.ENGINE_CHANGED, OffReason.SUBMISSION_UNKNOWN, OffReason.HOOK_EXCEPTION)
 
 
 class ArmingWarning(StrEnum):
@@ -128,6 +133,9 @@ class JournalCode(StrEnum):
     KEEP_ON = "keep_on"
     KEEP_ON_OFF = "keep_on_off"
     KEPT = "kept"
+    # Keep on's Send again let go while Keep on stays (v0.6.14): by the person, or by a continuation it
+    # sent again found twice.
+    SEND_AGAIN_OFF = "send_again_off"
     OTHER = "other"
 
 
@@ -158,6 +166,10 @@ class KeepOn(StrEnum):
     K8): stored in `options` beside its own choices, one row for each, none for none - and every row
     taken away by any move to off. Not a capability's own choice: every capability may be kept on."""
     KEEP_ON = "keep_on"                      # it does not turn itself off; what would have, is noted
+    # With Keep on alone (v0.6.14): a continuation it paid for that cannot be proven to have arrived
+    # is sent once more, under the once-more capability's rules (engine/oncemore.py), where the policy
+    # admits that capability too.
+    SEND_AGAIN = "send_again"
 
 
 class Ceiling(StrEnum):

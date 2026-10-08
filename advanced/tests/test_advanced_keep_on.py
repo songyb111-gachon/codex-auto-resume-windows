@@ -14,17 +14,22 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
+import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import advancedcase as ac  # noqa: E402
+from codex_auto_resume import config  # noqa: E402
 from codex_auto_resume.domain.plug import DEFER, Alternative, Point  # noqa: E402
 from codex_auto_resume_advanced import policy, surfaces  # noqa: E402
 from codex_auto_resume_advanced.arming import standing  # noqa: E402
 from codex_auto_resume_advanced.vocabulary import (KEPT_NOTICES, Actor, ArmingState, ArmingWarning,  # noqa: E402
                                                    JournalCode, KeepOn, Measurement, OffReason, Refusal,
                                                    Verdict)
+from test_engine import T1  # noqa: E402
+from test_plug_points import PluggedCase  # noqa: E402
 
 RECORD = {"interruption_id": ac.KEY, "thread_id": ac.THREAD}
 OTHER = {"interruption_id": "b" * 64, "thread_id": ac.THREAD}
@@ -235,11 +240,13 @@ class KeptTests(KeepOnCase):
         self.assertFalse(self.rt.state.note_kept("test_wake", OffReason.SUBMISSION_UNKNOWN), "the same")
         self.assertTrue(self.rt.state.note_kept("test_wake", OffReason.STATEMENT_CHANGED))
         self.assertEqual(self.row()["reason"], OffReason.STATEMENT_CHANGED)
-        self.assertEqual(KEPT_NOTICES[0], OffReason.STATEMENT_CHANGED)
+        # A resend found twice (v0.6.14) is the most serious: it took Send again away.
+        self.assertEqual(KEPT_NOTICES[:2], (OffReason.DUPLICATE_SEEN, OffReason.STATEMENT_CHANGED))
         self.assertEqual(set(KEPT_NOTICES) - {OffReason.ENGINE_CHANGED}, {
             reason for reason in OffReason if reason in ("statement_changed", "failed_here", "local_check_failed",
                                                          "incompatible", "measurement_failed",
-                                                         "submission_unknown", "hook_exception")})
+                                                         "submission_unknown", "hook_exception",
+                                                         "duplicate_seen")})
 
     def test_what_cannot_be_read_still_holds_it_back_and_the_policy_reads_it_down(self):
         self.armed()
@@ -306,6 +313,207 @@ class KeptTests(KeepOnCase):
                          (ArmingState.OFF, None, ArmingWarning.ENGINE_UNKNOWN, None))
         self.assertEqual(standing(ac.definition(revision=2), row, policy.Policy(force_shadow=True), ac.view()),
                          (ArmingState.SHADOW, None, None, None))
+
+
+class SendAgainSettingTests(KeepOnCase):
+    """Keep on's Send again (v0.6.14): only with Keep on, after its own warning, never for a capability
+    that resends itself, and only where the policy admits the once-more capability too."""
+
+    def again(self, send_again=True, **changes):
+        request = dict(generation=self.generation(), confirmed=["keep_on", "send_again"], actor=Actor.DASHBOARD,
+                       send_again=send_again)
+        request.update(changes)
+        return self.rt.arming.set_keep_on("test_wake", True, **request)
+
+    def test_it_needs_keep_on_its_own_warning_and_the_generation(self):
+        self.armed(keep=False)
+        self.assertEqual(self.rt.arming.set_keep_on("test_wake", False, send_again=True, generation=self.generation(),
+                                                     confirmed=["keep_on", "send_again"],
+                                                     actor=Actor.DASHBOARD)["refusal"], Refusal.INVALID_REQUEST)
+        for changes, refusal in (({"confirmed": CONFIRMED}, Refusal.STALE_CONFIRMATION),
+                                 ({"confirmed": ["send_again", "keep_on"]}, Refusal.STALE_CONFIRMATION),
+                                 ({"generation": None}, Refusal.INVALID_REQUEST),
+                                 ({"send_again": "yes"}, Refusal.INVALID_REQUEST),
+                                 ({"actor": Actor.MCP}, Refusal.NOT_THE_DASHBOARD)):
+            with self.subTest(changes=changes):
+                self.assertEqual(self.again(**changes)["refusal"], refusal)
+                self.assertFalse(self.row()["send_again"])
+        self.assertTrue(self.again()["done"])
+        self.assertEqual((self.row()["keep_on"], self.row()["send_again"]), (True, True))
+        before = self.generation()
+        self.assertTrue(self.again(False, confirmed=None, generation=None)["done"], "letting it go needs nothing")
+        self.assertEqual((self.row()["keep_on"], self.row()["send_again"], self.generation()), (True, False, before + 1))
+        codes = [entry["code"] for entry in self.rt.state.journal()]
+        self.assertEqual(codes[-2:], [JournalCode.KEEP_ON, JournalCode.SEND_AGAIN_OFF])
+        self.assertTrue(self.again()["done"])
+        self.assertTrue(self.keep(False, generation=None, confirmed=None)["done"])
+        self.assertEqual((self.row()["keep_on"], self.row()["send_again"]), (False, False), "Keep on off takes both")
+
+    def test_refused_and_inert_where_the_policy_leaves_out_the_once_more_capability(self):
+        self.armed(keep=False)
+        self.policy = policy.Policy(allowed=frozenset({"test_wake"}))
+        self.assertEqual(self.again()["refusal"], Refusal.NOT_ALLOWED_BY_POLICY)
+        self.assertTrue(self.keep()["done"], "Keep on alone is the capability's own")
+        self.policy = policy.NONE
+        self.assertTrue(self.again()["done"])
+        self.policy = policy.Policy(allowed=frozenset({"test_wake"}))
+        unknown = dict(RECORD, state="submission_unknown", last_claim_at=None)
+        self.paid()
+        self.assertIsNone(self.rt.arming.resender(unknown, {"test_wake": ArmingState.ARMED}), "set before, inert now")
+        self.policy = policy.NONE
+        found, state = self.rt.arming.resender(unknown, {"test_wake": ArmingState.ARMED})
+        self.assertEqual((found.id, state), ("test_wake", ArmingState.ARMED))
+
+    def test_with_it_the_lists_show_what_once_more_departs_from_too(self):
+        self.armed(keep=False)
+        self.assertTrue(self.keep()["done"])
+        (item,) = self.rt.arming.listing()["capabilities"]
+        self.assertEqual((item["departs_from"], item["send_again"]), (["A11"], False))
+        self.assertTrue(self.again()["done"])
+        (item,) = self.rt.arming.listing()["capabilities"]
+        self.assertEqual((item["departs_from"], item["send_again"]), (["A11", "0.2", "A6", "E2", "H2"], True))
+        mcp = surfaces.answer(self.rt, "mcp", {"request": "call", "tool": "list_advanced_capabilities",
+                                                 "arguments": {}})
+        shown = mcp["data"]["capabilities"][0]
+        self.assertEqual((shown["departs_from"], shown["send_again"]), (["A11", "0.2", "A6", "E2", "H2"], True))
+
+    def test_it_is_set_through_the_bridge_as_a_json_boolean(self):
+        self.armed()
+        found = surfaces.answer(self.rt, "bridge", {"command": "advanced-keep-on", "argument": {
+            "capability": "test_wake", "keep_on": True, "send_again": True, "generation": self.generation(),
+            "confirmed": ["keep_on", "send_again"]}})
+        self.assertTrue(found["done"], found)
+        self.assertTrue(self.row()["send_again"])
+        found = surfaces.answer(self.rt, "bridge", {"command": "advanced-keep-on", "argument": {
+            "capability": "test_wake", "keep_on": True, "send_again": 1, "generation": self.generation(),
+            "confirmed": ["keep_on", "send_again"]}})
+        self.assertEqual(found["refusal"], Refusal.INVALID_REQUEST)
+
+    def test_every_move_to_off_takes_it_away(self):
+        for how in ("disarm", "mcp all off", "edition entered"):
+            with self.subTest(how):
+                self.setUp()
+                self.armed()
+                self.assertTrue(self.again()["done"])
+                if how == "disarm":
+                    self.rt.arming.disarm("test_wake", actor=Actor.CARD)
+                elif how == "mcp all off":
+                    surfaces.answer(self.rt, "mcp", {"request": "call", "tool": "disarm_all_advanced", "arguments": {}})
+                else:
+                    self.rt.arming.edition_entered()
+                self.assertTrue(self.arm(self.rt)["done"])
+                self.assertEqual((self.row()["keep_on"], self.row()["send_again"]), (False, False))
+
+
+class SendAgainTests(PluggedCase):
+    """With Send again, the kept-on capability that paid for a continuation gone uncertain sends it once
+    more under the once-more rules, and pays; without it, it is held as core holds one."""
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.where = Path(temporary.name)
+        self.catalogs = ac.catalogs(self.where, ac.definition())
+        self.policy = policy.NONE
+        super().setUp()
+
+    def advanced(self, h=None):
+        h = h or self.h
+        made = ac.advanced.AdvancedPlug(
+            config.Paths(self.where / ("home-%d" % id(h))), registry=ac.Registry((ac.definition(),)),
+            clock=lambda: h.now, policy=lambda: self.policy, view=lambda: ac.view(), measured=lambda: {},
+            catalogs=self.catalogs)
+        self.addCleanup(lambda: made._runtime and made._runtime.state.close())
+        return made
+
+    def kept(self, h=None, *, send_again=True):
+        """test_wake on, answering the words of every continuation, kept on - with Send again or not -
+        and a usage-limited conversation whose continuation it paid for went out with an unknown answer."""
+        h = h or self.h
+        plug = self.advanced(h)
+        runtime = plug.runtime
+        self.assertTrue(runtime.arming.arm("test_wake", state="armed", revision=1, generation=runtime.state.meta()
+                                           ["generation"], acknowledged_version=ac.ENGINE, actor=Actor.DASHBOARD)["done"])
+        self.assertTrue(runtime.arming.set_keep_on(
+            "test_wake", True, send_again=send_again, generation=runtime.state.meta()["generation"],
+            confirmed=["keep_on", "send_again"] if send_again else CONFIRMED, actor=Actor.DASHBOARD)["done"])
+        ac.code_of(runtime).answers["text"] = "Please go on."
+        runtime.states(fresh=True)
+        self.plugged(plug, h)
+        self.due(h)
+        h.backend.default_outcome = "unknown"
+        h.tick()
+        row = h.record()
+        self.assertEqual(row["state"], "submission_unknown")
+        h.backend.default_outcome = "accepted"
+        return plug, row
+
+    def spends(self, plug):
+        with plug.runtime.state._read() as connection:
+            return [tuple(row) for row in connection.execute("SELECT capability, interruption_id FROM spend")]
+
+    def look(self, h=None):
+        h = h or self.h
+        h.tick(advance=1)
+        h.tick(advance=900)
+
+    def test_without_it_a_paid_send_gone_unknown_is_held_never_resent(self):
+        plug, _row = self.kept(send_again=False)
+        for _ in range(28):
+            self.h.tick(advance=900)
+        self.assertEqual(len(self.h.backend.send_calls), 1)
+        stored = plug.runtime.state.arming()["test_wake"]
+        self.assertEqual((stored["state"], stored["reason"]), (ArmingState.ARMED, OffReason.SUBMISSION_UNKNOWN))
+
+    def test_with_it_the_payer_sends_it_once_more_and_pays(self):
+        plug, row = self.kept()
+        key = row["interruption_id"]
+        self.look()
+        self.assertEqual(len(self.h.backend.send_calls), 2)
+        self.assertEqual(self.h.backend.send_calls[1], self.h.backend.send_calls[0], "the same words and marker")
+        self.assertEqual(self.spends(plug), [("test_wake", key), ("test_wake", key)], "the first send and the resend")
+        self.assertTrue(plug.runtime.state.resent(key))
+        journal = [(line["code"], line["point"], line["answer"]) for line in plug.runtime.state.journal()]
+        self.assertIn((JournalCode.ACTED, Point.SCHEDULE, Alternative.RESEND), journal)
+        for _ in range(28):
+            self.h.tick(advance=900)
+        self.assertEqual(len(self.h.backend.send_calls), 2, "once")
+        self.assertEqual(plug.runtime.state.arming()["test_wake"]["state"], ArmingState.ARMED)
+
+    def test_send_again_turned_off_between_the_answer_and_the_claim_holds_the_claim(self):
+        plug, row = self.kept()
+        runtime = plug.runtime
+        answer = runtime._send_again
+        answered = []
+
+        def turned_off_after(record, states):
+            found = answer(record, states)
+            if found is not None:
+                answered.append(found)
+                runtime.state.set_keep_on("test_wake", True, send_again=False, actor=Actor.DASHBOARD)
+            return found
+        with patch.object(runtime, "_send_again", side_effect=turned_off_after):
+            self.look()
+        self.assertEqual(answered, [Alternative.RESEND], "P7 answered while Send again was on")
+        self.assertEqual(len(self.h.backend.send_calls), 1, "the claim read Send again's words again")
+        self.assertEqual(self.h.record()["state"], "submission_unknown")
+        self.assertFalse(runtime.state.resent(row["interruption_id"]))
+
+    def test_a_duplicate_turns_send_again_off_and_it_stays_on(self):
+        plug, row = self.kept()
+        self.h.backend.turn_status = "completed"
+        self.look()
+        self.follow()
+        self.assertEqual(self.h.record()["state"], "recovered")
+        self.h.home.add_turn(T1, None, "completed", user_text="go on\n\n" + row["marker"])
+        self.h.tick(advance=61)
+        self.h.tick(advance=1)
+        stored = plug.runtime.state.arming()["test_wake"]
+        self.assertEqual((stored["state"], stored["keep_on"], stored["send_again"], stored["reason"]),
+                         (ArmingState.ARMED, True, False, OffReason.DUPLICATE_SEEN))
+        codes = [line["code"] for line in plug.runtime.state.journal()]
+        self.assertIn(JournalCode.SEND_AGAIN_OFF, codes)
+        self.assertNotIn(JournalCode.TRIPPED, codes)
 
 
 if __name__ == "__main__":

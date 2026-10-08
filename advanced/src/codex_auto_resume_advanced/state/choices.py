@@ -150,7 +150,9 @@ def _sample_row(sample, now) -> tuple:
 class Scoped:
     """One capability's view of the state, as its code is given it (runtime.Runtime._code_of): its
     own choices, the rules where it is the one they are written for, its own admission rows, and the
-    runtime's clock. Reads, and one write: `count`, one of its own closed words (registry codes)
+    runtime's clock - and (v0.6.14) whether a standard record was sent once more by this edition, and
+    whether a capability that is a channel or a route paid for one of its sends. Reads, and one write:
+    `count`, one of its own closed words (registry codes)
     counted with its journal line, and only while the runtime has it on (`on`) - what a watched or
     turned-off capability notices is not something that happened. What it takes up and what it keeps
     of it are the runtime's to write, so a capability is never journalled or sampled for a failure
@@ -177,6 +179,8 @@ class Scoped:
             "rules": lambda: state.rules() if rules_editor else [],
             "admission": admission,
             "count": count,
+            "resent": lambda interruption_id: state.resent(interruption_id),
+            "channel_paid": lambda interruption_id, claimed_at: state.channel_paid(interruption_id, claimed_at),
         }
 
     def __getattr__(self, name):

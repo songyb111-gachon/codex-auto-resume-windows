@@ -25,6 +25,12 @@ A hook that raises trips its own capability and costs its own answer, nothing mo
 on (K8, arming.py), stays on and skips that one recovery: it is passed over for that record from then
 on, and core goes its own way with it.
 
+Keep on's Send again (v0.6.14): at P7, for an uncertain submission, the capability that paid for its
+send and is kept on with Send again answers RESEND before any capability's own hook is asked
+(arming.Arming.resender) - one answer like any other, journalled, under its ceilings, and paid for at
+the claim, which reads Send again's words once more (ledger.py). What each answer was is kept with it
+until the claim, so the ledger pays for a resend, or a person's Send now, only where it was that.
+
 With no capability at a point, nothing is read and nothing is written: the answer is NULL's.
 
 Taking failures up (v0.6.13, stage 3b). At P17 an answer is taken only if core offered it - one of
@@ -74,6 +80,8 @@ HELD_AT_CEILING = TAKE_UP - {Alternative.CAPACITY}
 # Journal lines written once per capability, point, answer and record in a process, not once a
 # poll; forgotten, all at once, past this many.
 NOTED_LIMIT = 4096
+# The state core holds a record in whose send may or may not have reached Codex.
+SUBMISSION_UNKNOWN = "submission_unknown"
 
 
 def _taken(point, answer) -> bool:
@@ -145,6 +153,8 @@ class Runtime:
         # last read of the arming table failed (Arming.read).
         self._since, self._unreadable = {}, False
         self._code = {}
+        # {record: {(point, capability, word)}}: the answers taken this tick that lead to a send, with
+        # the word each was where it was one (an Alternative), for the claim to pay (`claim`).
         self._acted = {}
         self._noted = set()
         # (capability, record) a kept-on capability's hook raised for: passed over for it (K8).
@@ -210,6 +220,10 @@ class Runtime:
             return getattr(NULL, HOOKS[point])(*arguments)
         states = self.states()
         record = arguments[SENDING[point]] if point in SENDING else None
+        if point == Point.SCHEDULE and isinstance(record, dict) and record.get("state") == SUBMISSION_UNKNOWN:
+            again = self._send_again(record, states)
+            if again is not None:
+                return again
         relaxing = point == Point.GATES and _known_failure(arguments[0]) and isinstance(record, dict)
         admission = self._admission_of(record) if relaxing else None
         key = record.get("interruption_id") if isinstance(record, dict) else None
@@ -250,9 +264,34 @@ class Runtime:
         if relaxing and _relaxes(chosen) and not self._first(chooser, chosen, arguments, admission):
             return getattr(NULL, HOOKS[point])(*arguments)
         if point in SENDING:
-            self._acted.setdefault(record.get("interruption_id"), set()).add((point, chooser.id))
+            self._acted.setdefault(record.get("interruption_id"), set()).add(
+                (point, chooser.id, _word(chosen, point)))
         self._once(JournalCode.ACTED, chooser, point, chosen, record)
         return chosen
+
+    def _send_again(self, record, states):
+        """Keep on's Send again at P7 (v0.6.14): RESEND for an uncertain submission, from the kept-on
+        capability that paid for its send (arming.Arming.resender), where it stands on and has a unit
+        left; watched, only journalled. None where none answers: the capabilities' own hooks are asked."""
+        try:
+            found = self.arming.resender(record, states)
+        except Exception:
+            return None
+        if found is None:
+            return None
+        definition, state = found
+        key = record.get("interruption_id")
+        if (definition.id, key) in self._skipped:
+            return None
+        if state == ArmingState.SHADOW:
+            self._once(JournalCode.WOULD_HAVE, definition, Point.SCHEDULE, Alternative.RESEND, record)
+            return None
+        if self._ceiling(definition, record) is not None:
+            self._once(JournalCode.CEILING, definition, Point.SCHEDULE, Alternative.RESEND, record)
+            return None
+        self._acted.setdefault(key, set()).add((Point.SCHEDULE, definition.id, Alternative.RESEND))
+        self._once(JournalCode.ACTED, definition, Point.SCHEDULE, Alternative.RESEND, record)
+        return Alternative.RESEND
 
     # ------------------------------------------------------------------ taking failures up
     def _takes(self, definition, point, answer, arguments, admission) -> bool:
@@ -399,14 +438,20 @@ class Runtime:
         Those are the capabilities that answered at a point in `carried` - the points whose
         answers core says the send carries - and no other: words core dropped for filling in to
         nothing were answered here and never sent, so they are neither paid for nor a reason to
-        hold a claim of core's own words.
+        hold a claim of core's own words. Each is handed over with the words it answered there
+        (v0.6.14), for the ledger to check what only a resend or a Send now needs.
 
         A ledger that breaks is two different things. On a claim of core's own it costs its
         answer, as any hook's failure does, and core claims as it would with no plug. On a claim
         that carries a capability's answer, that answer could not be paid for, so the claim is
         held and nothing of it is sent; core takes back whatever the ledger had written."""
         key = record.get("interruption_id") if isinstance(record, dict) else None
-        acted = {capability for point, capability in self._acted.pop(key, ()) if point in carried}
+        acted = {}
+        for point, capability, word in self._acted.pop(key, ()):
+            if point in carried:
+                words = acted.setdefault(capability, set())
+                if word in ANSWERS:
+                    words.add(Alternative(word))
         try:
             return self.ledger.claim(connection, record, now, acted)
         except Exception:

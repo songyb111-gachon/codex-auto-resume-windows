@@ -20,6 +20,12 @@ Two things are decided:
   granted. No unit left under its own ceilings or the global one, or a capability turned off
   since it answered, and the claim is held: a disarm always wins, and a ceiling is never passed.
 
+* A resend (v0.6.14), RESEND at P7: only one per standard record, by any capability - no RESEND_ONCE
+  of it yet, and one written now, open for the sweep's duplicate watch (arming.py); and, for one paid
+  by a capability that does not resend itself, only while it is kept on with Send again in the row
+  this claim reads - not in the runtime's few seconds old states - so Send again turned off after P7
+  answered sends nothing.
+
 HOLD is all this can say. It never grants anything core would refuse.
 """
 from __future__ import annotations
@@ -28,7 +34,7 @@ from codex_auto_resume.domain.plug import DEFER, Alternative
 
 from .registry import CORE_COOLDOWN_SECONDS, CORE_DAILY_CAP
 from .state import ATTACHED
-from .vocabulary import ArmingState, Ceiling, RecordState
+from .vocabulary import ArmingState, Ceiling, KeepOn, OverrideKind, RecordState
 
 DAY = 86400
 
@@ -74,7 +80,9 @@ class ClaimLedger:
 
     def claim(self, connection, record, now, acted=()) -> object:
         """HOLD or DEFER for one claim of core's. `acted` is the capabilities whose answers the
-        dispatch that claims it carries."""
+        dispatch that claims it carries: {capability: the words it answered}, or a set of them, which
+        answered no word."""
+        acted = acted if isinstance(acted, dict) else {capability: frozenset() for capability in acted}
         if not isinstance(record, dict) or not self.state.attach(connection):
             # No advanced state, so no record and no spend: nothing to count. An answer that was
             # taken cannot be paid for without one, and is not sent.
@@ -94,5 +102,25 @@ class ClaimLedger:
             counts = self.state.counts(connection, ATTACHED, capability, thread_id, now)
             if ceiling_reached(counts, definition, global_hourly) is not None:
                 return Alternative.HOLD
+            if Alternative.RESEND in acted[capability] and not self._resend(connection, definition, key, now):
+                return Alternative.HOLD
             self.state.record_spend(connection, ATTACHED, capability, thread_id, key, now)
         return DEFER
+
+    @staticmethod
+    def _resend(connection, definition, key, now) -> bool:
+        """Whether `definition` may pay for sending standard record `key` once more, written if so: no
+        resend of it by any capability yet; for one that does not resend itself, Keep on and Send again
+        both in its row now. The resend's RESEND_ONCE is written in the claim, open."""
+        if not definition.resends:
+            kept = {row[0] for row in connection.execute(
+                "SELECT choice FROM %s.options WHERE capability=?" % ATTACHED, (definition.id,))}
+            if not {str(KeepOn.KEEP_ON), str(KeepOn.SEND_AGAIN)} <= kept:
+                return False
+        if connection.execute("SELECT 1 FROM %s.overrides WHERE interruption_id=? AND kind=?" % ATTACHED,
+                              (key, OverrideKind.RESEND_ONCE)).fetchone() is not None:
+            return False
+        connection.execute("INSERT OR REPLACE INTO %s.overrides (interruption_id, capability, kind, created_at, "
+                           "used_at) VALUES (?,?,?,?,NULL)" % ATTACHED,
+                           (key, definition.id, OverrideKind.RESEND_ONCE, now))
+        return True

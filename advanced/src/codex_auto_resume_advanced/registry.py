@@ -31,6 +31,9 @@ asked to agree to and everything the plug holds it to:
   Codex's error codes, and whether it keeps samples of the failures it takes up (state/choices.py);
 * `journal_prefix` and `codes` - the words its own journal lines are written in, `<prefix>.<code>`,
   closed like every other word the edition stores;
+* `resends` - whether what it does is send an uncertain continuation once more (v0.6.14): such a
+  capability answers at P7, is turned off by a resend of its found twice whether or not it is kept on,
+  and is never given Keep on's Send again, which would be itself (arming.py);
 * `make` - the factory for its code: given the installation's paths, it returns an object whose
   methods are the plug's hooks for its points, each answering as a plug would.
 
@@ -40,7 +43,8 @@ P15 (engine/markerfree.py); and, from v0.6.13 (stage 3b), those that take up fai
 relax their records at P3: the short retries when Codex is at capacity (engine/capacity.py), the
 rules for Codex's error codes, the retries of failures nothing classified, of Codex giving up and
 of a sign-in failure (engine/admitted.py); and, at P7 and P3, the notice of a usage limit that lifts
-early (engine/earlyreset.py).
+early (engine/earlyreset.py). From v0.6.14 (stage 3b), at P7: an uncertain continuation sent once more
+(engine/oncemore.py).
 The tests define one of their own to hold every rule here.
 """
 from __future__ import annotations
@@ -58,6 +62,7 @@ from .engine.capacity import CEILING_HOURS, DEFAULT_HOURS, make as make_capacity
 from .engine.earlyreset import make as make_early_reset
 from .engine.goal import make as make_goal_continuation
 from .engine.markerfree import make as make_marker_free
+from .engine.oncemore import make as make_once_more
 from .standards import DEPARTABLE
 from .vocabulary import Measurement, OptionKey
 
@@ -114,6 +119,7 @@ class CapabilityDef:
     options: tuple = ()
     rules_editor: bool = False
     samples: bool = False
+    resends: bool = False
 
     def option(self, key) -> Option | None:
         """The choice of `key` this capability offers, or None."""
@@ -187,6 +193,9 @@ def problems(definition) -> list:
         found.append("options")
     if type(definition.rules_editor) is not bool or type(definition.samples) is not bool:
         found.append("rules_editor or samples")
+    if type(definition.resends) is not bool or (
+            definition.resends is True and Point.SCHEDULE not in (points if isinstance(points, frozenset) else ())):
+        found.append("resends")
     return found
 
 
@@ -445,7 +454,32 @@ EARLY_RESET = CapabilityDef(
     codes=("probed", "lifted"),
 )
 
+# Once more when unsure (v0.6.14 stage 3b; the plan's row: when a delivery is uncertain, send it once
+# more with the same words and the same marker - no marker in the history or the queue, no wait, a
+# fresh reading, no later turn; off by itself where a duplicate is seen). At P7, asked by core for an
+# uncertain submission a look of its watch has just found no trace of (core's engine/resend.py), it
+# answers RESEND once, for one this edition never resent and no channel or route paid for; core proves
+# every other condition - 15 minutes to 6 hours after the send, Codex never seen holding it, its history
+# current at every look since, neither the marker nor the client id it went under anywhere, no later
+# turn and nothing queued, every gate a send passes with every budget - and charges no attempt. It
+# departs from 0.2 (never again when the first may have been delivered), A6 (an uncertain delivery is
+# never resent), E2 (better to miss a resume than resume twice) and H2 (nothing can resend an uncertain
+# submission), and stands on recovery_turn_tracking - the history, queue and projection tables its
+# proof reads. A resend of its found twice turns it off, kept on or not. Ceilings: two a conversation,
+# six a day.
+ONCE_MORE = CapabilityDef(
+    id="once_more_when_unsure",
+    points=frozenset({Point.SCHEDULE}),
+    revision=1,
+    departs_from=("0.2", "A6", "E2", "H2"),
+    compat="recovery_turn_tracking",
+    ceilings=Ceilings(per_day=6, per_conversation=2),
+    journal_prefix="oncemore",
+    make=make_once_more,
+    resends=True,
+)
+
 # In this order, which is also which answers first where two answer at one point.
 DEFINITIONS = (START_WITH_CODEX, GOAL_CONTINUATION, MARKER_FREE, CAPACITY_RETRY, STRUCTURED_RULES,
-               UNKNOWN_FAILURE_BUDGET, CODEX_GAVE_UP, SIGN_IN_RETRY, EARLY_RESET)
+               UNKNOWN_FAILURE_BUDGET, CODEX_GAVE_UP, SIGN_IN_RETRY, EARLY_RESET, ONCE_MORE)
 REGISTRY = Registry(DEFINITIONS)
