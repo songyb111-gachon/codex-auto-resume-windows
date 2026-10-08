@@ -530,13 +530,20 @@ class ReadAgainTests(unittest.TestCase):
         self.assertEqual(seen, {"reads": 2, "same": True})
 
     def test_without_a_host_nothing_is_read(self):
-        """A host with no callTool is no host: the page is read-only there, and a return asks nothing."""
-        seen = page("""Date.now = function () { return 4102444800000; }; fire('window', 'focus');
+        """A host with no callTool is no host: the page is read-only there, and a return asks nothing - it does not
+        even start to ask, which would mark when it last asked (ASKED_AT) - though the same returns beside the chat
+        with a host ask once."""
+        seen = page("""var asked = ASKED_AT; Date.now = function () { return 4102444800000; }; fire('window', 'focus');
             fire('document', 'visibilitychange'); await settle();"""
-                    + say("{modes: MODES, readonly: ROOT_NODE.textContent.indexOf(S['panel.readonly']) >= 0}"),
+                    + say("{modes: MODES, asked: ASKED_AT !== asked, reading: READING,"
+                          " readonly: ROOT_NODE.textContent.indexOf(S['panel.readonly']) >= 0}"),
                     mode="fullscreen", extra="window.openai = {requestDisplayMode: function (a) { MODES.push(a); },"
                                              " displayMode: 'fullscreen'};")
-        self.assertEqual(seen, {"modes": [], "readonly": True})
+        self.assertEqual(seen, {"modes": [], "asked": False, "reading": False, "readonly": True})
+        seen = beside_page("""var asked = ASKED_AT; NOW = 4102444800000; fire('window', 'focus');
+            fire('document', 'visibilitychange'); await settle();"""
+                           + say("{asked: ASKED_AT !== asked, reads: READS}"))
+        self.assertEqual(seen, {"asked": True, "reads": [{}]})
 
 
 if __name__ == "__main__":
