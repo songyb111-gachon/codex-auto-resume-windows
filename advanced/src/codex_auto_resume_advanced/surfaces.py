@@ -145,9 +145,12 @@ def badge(runtime) -> dict:
 def diagnostics(runtime) -> dict:
     """The badge, and - only where there are any - the samples of the last 30 days of failures nothing
     classified, aggregated: Codex's code, a status number, the error's form, how many times and the last
-    day (arming.samples_view). No id of a conversation, a turn or an interruption, and never a word of an
-    error (D5). The export is the person's own, made when they ask for it; the status and the tray, which
-    Codex sends on, never carry them."""
+    day (arming.samples_view); and what each watched capability would have done in those 30 days: its
+    id, since when it is watched, each answer's word, where it was asked, how many times and the first
+    and last minute (watchlog.exported). No id of a conversation, a turn or an interruption, and never a
+    word of an error or of a continuation (D5): nothing in either to alias, and nothing quoted. The
+    export is the person's own, made when they ask for it; the status and the tray, which Codex sends
+    on, never carry them."""
     shown = badge(runtime)
     try:
         found = runtime.arming.samples_view()
@@ -155,6 +158,13 @@ def diagnostics(runtime) -> dict:
         found = {}
     if found.get("samples"):
         shown["samples"] = found["samples"]
+    from . import watchlog
+    try:
+        watch = watchlog.exported(runtime)
+    except Exception:
+        watch = []
+    if watch:
+        shown["watch"] = watch
     return shown
 
 

@@ -5,7 +5,8 @@ While a capability is watched ("Watch first"), the runtime asks it as it would a
 none of its answers: each answer it would have acted on is written to the journal as one
 `would_have` line - the capability, the point, the answer's word and the time (runtime.Runtime.ask,
 `_send_again`). This module shows those lines, per capability, on the Advanced features page
-(`view`, the Dashboard's `advanced-watch-log`). It changes nothing that decides, sends or arms.
+(`view`, the Dashboard's `advanced-watch-log`) and in a diagnostics export the person asks for
+(`exported`). It changes nothing that decides, sends or arms.
 
 What a count means. The runtime writes one line for each (recovery, point, answer) in a watcher
 process (runtime.Runtime._once): a recovery looked at a hundred times counts once. A watcher that
@@ -118,3 +119,21 @@ def view(runtime, capability) -> dict:
         return {"done": False, "refusal": Refusal.STATE_UNAVAILABLE}
     return dict(_of(row, lines, runtime.clock()), done=True, capability=definition.id, days=WINDOW_DAYS)
 
+
+def exported(runtime) -> list:
+    """What a diagnostics export carries (surfaces.diagnostics): every capability stored as watched or
+    with answers in the window, in the registry's order, each as `view` shows it - ids, words, minutes
+    and counts, nothing to alias and nothing quoted (D5). One read of the arming rows and one of the
+    journal; [] where the state cannot be read, which costs the export nothing."""
+    try:
+        rows = runtime.state.arming()
+        lines = runtime.state.journal(limit=EVENT_LIMIT)
+    except StateError:
+        return []
+    now, shown = runtime.clock(), []
+    for definition in runtime.registry:
+        own = [line for line in lines if line.get("capability") == definition.id]
+        found = _of(rows.get(definition.id), own, now)
+        if found["watched_since"] is not None or found["entries"]:
+            shown.append(dict(capability=definition.id, **found))
+    return shown

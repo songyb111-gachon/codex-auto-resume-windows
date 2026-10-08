@@ -13,9 +13,11 @@ import ast
 import hashlib
 import inspect
 import json
+import os
 from pathlib import Path
 import sqlite3
 import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -23,7 +25,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import advancedcase as ac  # noqa: E402
 import test_advanced_surfaces  # noqa: E402
-from codex_auto_resume.domain.plug import ALTERNATIVES, Alternative, Point  # noqa: E402
+from codex_auto_resume import control, diagnostics  # noqa: E402
+from codex_auto_resume.domain.plug import ALTERNATIVES, Alternative, Point, Surface  # noqa: E402
 from codex_auto_resume_advanced import arming, surfaces, watchlog  # noqa: E402
 from codex_auto_resume_advanced.state import WATCH_LIMIT, AdvancedState  # noqa: E402
 from codex_auto_resume_advanced.vocabulary import JournalCode, McpTool, Refusal  # noqa: E402
@@ -49,6 +52,7 @@ class WatchCase(test_advanced_surfaces.SurfaceCase):
         times for one recovery and once for another at the schedule, and once at the gates."""
         runtime = self.advanced.runtime
         self.assertTrue(self.arm(runtime, state=state)["done"])
+        runtime.states(fresh=True)                   # as the watcher reads it at its next tick
         ac.code_of(runtime).answers = {"schedule": Alternative.HOLD, "gate": Alternative.HOLD}
         for _ in range(3):
             self.advanced.schedule(dict(RECORD_A), self.now)
@@ -196,6 +200,66 @@ class ViewTests(WatchCase):
         self.assertEqual((log["done"], log["entries"][0]["count"]), (True, 3))
         self.advanced.runtime.state.close()
         self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), digest)
+
+
+class ExportTests(WatchCase):
+    def shown(self):
+        return surfaces.answer(self.advanced.runtime, Surface.DIAGNOSTICS, {})
+
+    def test_the_export_carries_the_watch_log_only_where_there_is_one(self):
+        self.assertEqual(self.shown(), {"edition": "advanced", "on": 0})
+        self.holding()
+        at = minute(self.now)
+        self.assertEqual(self.shown()["watch"], [
+            {"capability": "test_wake", "watched_since": at, "from": at, "full": False,
+             "entries": [{"answer": "hold", "points": ["gates", "schedule"], "count": 3, "first": at, "last": at}]}])
+        for surface in (Surface.STATUS, Surface.TRAY):
+            with self.subTest(surface):
+                self.assertNotIn("watch", surfaces.answer(self.advanced.runtime, surface, {}))
+
+    def test_it_lists_the_watched_and_those_with_answers_in_the_registry_s_order_and_no_other(self):
+        definitions = (ac.definition(id="test_off", journal_prefix="to"),
+                       ac.definition(id="test_nap", journal_prefix="tn"), ac.definition())
+        where = tempfile.TemporaryDirectory()
+        self.addCleanup(where.cleanup)
+        self.catalogs = ac.catalogs(where.name, *definitions)
+        self.advanced = self.plug(*definitions)
+        self.control = control.Control(self.paths, plug=self.advanced)
+        runtime = self.advanced.runtime
+        self.assertTrue(self.arm(runtime, capability="test_wake", state="shadow")["done"])
+        self.assertTrue(self.arm(runtime, capability="test_nap", state="shadow")["done"])
+        self.note(self.now)
+        self.assertTrue(self.arm(runtime, capability="test_nap", state="armed",
+                                 generation=runtime.state.meta()["generation"])["done"])
+        self.advanced.runtime.state.note(JournalCode.WOULD_HAVE, capability="test_nap", point=Point.TEXT,
+                                         answer=Point.TEXT, at=self.now)
+        at = minute(self.now)
+        self.assertEqual(self.shown()["watch"], [
+            {"capability": "test_nap", "watched_since": None, "from": at, "full": False,
+             "entries": [{"answer": "text", "points": ["text"], "count": 1, "first": at, "last": at}]},
+            {"capability": "test_wake", "watched_since": at, "from": at, "full": False,
+             "entries": [{"answer": "hold", "points": ["schedule"], "count": 1, "first": at, "last": at}]}])
+
+    def test_the_export_s_watch_log_has_nothing_to_redact(self):
+        """Core's own redactor (diagnostics.py) finds nothing in it to alias: no id, no path, no name.
+        The machine's user name is pinned, since the redactor replaces it wherever it appears."""
+        self.holding()
+        shown = self.shown()
+        self.assertTrue(shown["watch"])
+        with patch.dict(os.environ, {"USERNAME": "ExampleUser"}):
+            self.assertEqual(diagnostics._redacted(shown, diagnostics.Redactor()), shown)
+        written = json.dumps(shown)
+        for secret in (ac.KEY, ac.THREAD, "b" * 64, ac.OTHER_THREAD):
+            self.assertNotIn(secret, written)
+        self.assertIn('"capability": "test_wake"', written)
+
+    def test_a_state_that_cannot_be_read_costs_the_export_nothing(self):
+        self.holding()
+        self.assertIn("watch", self.shown())
+        with patch.object(AdvancedState, "journal", side_effect=watchlog.StateError("x")):
+            self.assertEqual(self.shown(), {"edition": "advanced", "on": 0})
+        with patch.object(watchlog, "exported", side_effect=RuntimeError("x")):
+            self.assertEqual(self.shown(), {"edition": "advanced", "on": 0})
 
 
 class GuardTests(WatchCase):
