@@ -12,6 +12,9 @@ engine, store and simulated Codex home (tests/codexsim.py):
 * a record core never recovers alone waits where the state cannot be read or its capability has no
   unit left, and ends only where reads that worked found nothing holding it; a capacity error falls
   back to the standard edition's handling instead;
+* (v0.6.14) a record is relaxed only while its capability has stood on ever since it took it up:
+  turned off, watched or read down by the policy in between, it ends at its next look, even where
+  the capability stands on again by then and no look fell inside that time;
 * `taken` is asked the first time core goes on with such a record, never at P17 and never watched, and
   what it keeps is written with the mark, once.
 
@@ -32,7 +35,7 @@ import advancedcase as ac  # noqa: E402
 from advancedcase import ENGINE  # noqa: E402
 from codex_auto_resume import config, ladder  # noqa: E402
 from codex_auto_resume.domain.plug import DEFER, TAKE_UP, Alternative, FailureForm, Point  # noqa: E402
-from codex_auto_resume_advanced import statement  # noqa: E402
+from codex_auto_resume_advanced import policy, statement  # noqa: E402
 from codex_auto_resume_advanced.registry import Ceilings, Registry  # noqa: E402
 from codex_auto_resume_advanced.state import StateError  # noqa: E402
 from codex_auto_resume_advanced.vocabulary import (Actor, ArmingState, JournalCode,  # noqa: E402
@@ -237,6 +240,40 @@ class KnownFailureTests(RuntimeCase):
         self.rt.states(fresh=True)
         self.assertIs(self.gate(), DEFER)
 
+    def test_off_watched_or_read_down_since_it_took_it_up_it_is_relaxed_no_more_though_on_again(self):
+        def disarm_and_arm():
+            self.rt.arming.disarm(CAP, actor=Actor.DASHBOARD)
+            self.armed()
+
+        def watch_and_arm():
+            self.armed("shadow")
+            self.armed()
+
+        def forced_and_lifted():
+            self.policy = policy.Policy(force_shadow=True)
+            self.rt.states(fresh=True)
+            self.now += 1
+            self.policy = policy.NONE
+            self.rt.states(fresh=True)
+        for how in (disarm_and_arm, watch_and_arm, forced_and_lifted):
+            with self.subTest(how.__name__):
+                self.rt.arming.disarm(CAP, actor=Actor.DASHBOARD)
+                self.now += 60
+                self.taken_up()
+                self.code.answers["gate"] = Alternative.ADMIT
+                self.assertIs(self.gate(), Alternative.ADMIT)
+                self.now += 60
+                how()
+                self.now += 60
+                self.assertEqual(self.rt.states(fresh=True)[CAP], ArmingState.ARMED)
+                self.assertIs(self.gate(), DEFER)
+                with self.rt.state._transaction() as connection:
+                    connection.execute("DELETE FROM admissions")
+                self.rt.state.admit(ac.KEY, CAP, Alternative.ADMIT)
+                self.assertIs(self.gate(), Alternative.ADMIT, "taken up after it, it is relaxed")
+                with self.rt.state._transaction() as connection:
+                    connection.execute("DELETE FROM admissions")
+
     def test_with_no_unit_left_one_it_took_up_waits_and_a_capacity_retry_falls_back(self):
         self.taken_up()
         self.fill(2)
@@ -288,13 +325,14 @@ class EngineCase(PluggedCase):
         self.addCleanup(temporary.cleanup)
         self.where = Path(temporary.name)
         self.definition = taking(ceilings=Ceilings(per_day=3, per_conversation=2))
+        self.read_down = None
         super().setUp()
 
     def advanced(self):
         h = self.h
         made = ac.advanced.AdvancedPlug(
             config.Paths(self.where / "home"), registry=Registry((self.definition,)), clock=lambda: h.now,
-            policy=lambda: ac.policy.NONE, view=lambda: ac.view(), measured=lambda: {},
+            policy=lambda: self.read_down or ac.policy.NONE, view=lambda: ac.view(), measured=lambda: {},
             catalogs=ac.catalogs(self.where, self.definition))
         self.addCleanup(lambda: made._runtime and made._runtime.state.close())
         runtime = made.runtime
@@ -358,6 +396,39 @@ class EngineCase(PluggedCase):
         row = self.h.record()
         self.assertEqual((row["state"], row["last_error"]), ("terminal_failure", "not_recoverable"))
         self.assert_no_send()
+
+    def test_off_watched_or_read_down_between_two_looks_it_ends_unsent_though_on_again(self):
+        """Statements: 'a recovery it was waiting to send then ends without being sent' - whether or not
+        a look at the record fell while it stood so (DECISIONS Q16, Q17)."""
+        for how in ("off", "watched", "force_shadow", "not_allowed"):
+            with self.subTest(how):
+                self.h, self.where = self.fresh(), Path(tempfile.mkdtemp(dir=self.where))
+                plug, code = self.taken_up()
+                self.h.tick()
+                self.assertEqual(self.h.record()["state"], "waiting_backoff")
+                runtime = plug.runtime
+                if how == "off":
+                    runtime.arming.disarm(CAP, actor=Actor.DASHBOARD)
+                elif how == "watched":
+                    self.assertTrue(runtime.arming.arm(CAP, state="shadow", revision=1, generation=runtime.state
+                                                       .meta()["generation"], actor=Actor.DASHBOARD)["done"])
+                else:
+                    self.read_down = (policy.Policy(force_shadow=True) if how == "force_shadow"
+                                      else policy.Policy(allowed=frozenset({"goal_continuation"})))
+                runtime.states(fresh=True)
+                self.h.tick(advance=60)                  # not due: no look at the record
+                self.read_down = None
+                if how in ("off", "watched"):
+                    self.assertTrue(runtime.arming.arm(
+                        CAP, state="armed", revision=1, generation=runtime.state.meta()["generation"],
+                        acknowledged_version=ENGINE, actor=Actor.DASHBOARD)["done"])
+                runtime.states(fresh=True)
+                self.assertEqual(runtime.states()[CAP], ArmingState.ARMED)
+                self.h.tick(advance=ladder.ADMITTED_WAITS[0])
+                self.h.tick(advance=60)
+                row = self.h.record()
+                self.assertEqual((row["state"], row["last_error"]), ("terminal_failure", "not_recoverable"))
+                self.assert_no_send()
 
     def test_the_turn_it_took_up_is_of_the_conversation_and_turn_core_registered(self):
         plug, code = self.taken_up()

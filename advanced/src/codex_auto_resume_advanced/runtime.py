@@ -41,9 +41,12 @@ is taken only at known_failure, and only from that capability with that very wor
 record it did not take up, or at another gate. A record core never recovers alone that it took up
 waits, where the state cannot be read or its capability has no unit left, and ends only where a read
 that worked found nothing holding it; a capacity error is never parked so - the standard edition's
-handling is what it falls back to. The first time core goes on with a record a capability took up,
-the capability is told (`taken`) and what it keeps of it - a sample, a rule's hit - is written with
-the mark that it was told, in one transaction, once.
+handling is what it falls back to. From v0.6.14 a record is relaxed only while its capability has
+stood on ever since it took the record up: turned off, watched or read down by the policy in between,
+however briefly, the record ends unsent at its next look, though the capability stands on again then.
+The first time core goes on with a record a capability took up, the capability is told (`taken`) and
+what it keeps of it - a sample, a rule's hit - is written with the mark that it was told, in one
+transaction, once.
 """
 from __future__ import annotations
 
@@ -152,6 +155,9 @@ class Runtime:
         # Since when each capability that is not off has stood where it stands, and whether the
         # last read of the arming table failed (Arming.read).
         self._since, self._unreadable = {}, False
+        # v0.6.14: when a read that worked last found each capability stored on or watched standing
+        # weaker than that - watched, read down by the policy, or held back - which nothing stored says.
+        self._down_at = {}
         self._code = {}
         # {record: {(point, capability, word)}}: the answers taken this tick that lead to a send, with
         # the word each was where it was one (an Alternative), for the claim to pay (`claim`).
@@ -174,6 +180,10 @@ class Runtime:
         if fresh or self._at is None or not 0 <= now - self._at < REFRESH_SECONDS:
             self._states, self._since, self._unreadable = self.arming.read()
             self._at = now
+            if not self._unreadable:
+                for capability in self._since:
+                    if self._states.get(capability, ArmingState.OFF) != ArmingState.ARMED:
+                        self._down_at[capability] = now
         return self._states
 
     def _code_of(self, definition):
@@ -312,7 +322,8 @@ class Runtime:
             if admission is None:
                 return False
             row, _failed = admission()
-            return row is not None and row["capability"] == definition.id and row["answer"] == answer
+            return (row is not None and row["capability"] == definition.id and row["answer"] == answer
+                    and self._on_since_taken(definition, row))
         return True
 
     def _since_armed(self, definition, facts) -> bool:
@@ -323,6 +334,17 @@ class Runtime:
         numbers = all(isinstance(value, (int, float)) and not isinstance(value, bool)
                       for value in (since, completed))
         return numbers and completed >= since
+
+    def _on_since_taken(self, definition, row) -> bool:
+        """Whether `definition` has stood on ever since it took up the failure `row` remembers
+        (v0.6.14): not moved since - turned off, watched or turned on again, which its stored `since`
+        says - and not read by this runtime as standing weaker since, as the policy's ForceShadow or
+        AllowedCapabilities reads it, which nothing stored says. Otherwise what it took up ends unsent
+        at its next look, however briefly it stood so and whether or not that look fell inside it."""
+        since, taken = self._since.get(definition.id), row.get("created_at")
+        numbers = all(isinstance(value, (int, float)) and not isinstance(value, bool)
+                      for value in (since, taken))
+        return numbers and taken >= since and taken >= self._down_at.get(definition.id, float("-inf"))
 
     def _admission_of(self, record):
         """The admission row of `record`, read once and only if something asks: (row or None,
