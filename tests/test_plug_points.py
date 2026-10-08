@@ -54,7 +54,8 @@ from test_control import ControlTestCase  # noqa: E402
 from test_engine import T1, T2, TURN_A, TURN_B, EngineCase, archive, fail_turn  # noqa: E402
 from test_ports import ENGINE_TO_STORE  # noqa: E402
 from codex_auto_resume import (config, continuation, control, controlcli, diagnostics,  # noqa: E402
-                               edition, ladder, machine, managed, mcpserver, settings, startup, windows)
+                               edition, ladder, machine, managed, mcpserver, needsyou, settings, startup,
+                               windows)
 from codex_auto_resume.domain import ids  # noqa: E402
 from codex_auto_resume.domain.plug import (DEFER, EXTRA, PACED_AS, Alternative, DamagedPlug,  # noqa: E402
                                            Guarded, Plug, PlugFailure, Point, Surface, guard)
@@ -2176,6 +2177,24 @@ class AdmissionTests(PluggedCase):
         self.assertEqual(json.loads(self.h.record()["gate_eval"])["known_failure"], ["PASS", "plugged"])
         self.follow()
         self.assertEqual(self.h.record()["state"], "recovered")
+
+    def test_a_failure_taken_up_is_never_told_as_needing_you_on_that_tick_or_any_after(self):
+        """v0.6.14: a failure a record holds is being recovered, or was: a needs-you notice is raised
+        for it on no tick - while the same failure not taken up is told, once."""
+        told = {}
+        for plug in (None, admitting()):
+            with self.subTest(taken_up=plug is not None):
+                h = self.fresh()
+                failed(h, UNAUTHORIZED)
+                engine = self.plugged(plug, h)
+                engine.apply_policy(dict(settings.defaults(), notifications=True, notify_needs_you=True,
+                                         notify_needs_you_auth=True))
+                for step in (0, 5, 60, 600):
+                    h.tick(advance=step)
+                told[plug is not None] = [detail["category"] for event, detail, *_ in h.notifications
+                                          if event == needsyou.EVENT]
+                self.assertEqual(len(h.records()), 0 if plug is None else 1)
+        self.assertEqual(told, {False: ["terminal_auth"], True: []})
 
     def test_as_timeout_is_paced_as_a_timeout(self):
         failed(self.h)

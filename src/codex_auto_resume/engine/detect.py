@@ -102,7 +102,6 @@ class DetectMixin:
         extra = {"admissible": True, "shapes": True} if asking else {}
         found = (self.source.latest_failures(since, needs_you=kinds, **extra) if kinds
                  else self.source.latest_failures(since, **extra))
-        taken = set()
         for raw in found:
             shape, admissible = raw.pop("shape", None), raw.pop("admissible", False)
             record = detect(raw)
@@ -192,7 +191,6 @@ class DetectMixin:
                 continue
             registered = self.store.get(detection["interruption_id"])
             if admissible:
-                taken.add(detection["interruption_id"])
                 self.log(detection["thread_id"], "failure_taken_up", detection["interruption_id"])
             else:
                 self.log(detection["thread_id"],
@@ -218,6 +216,6 @@ class DetectMixin:
             # a person, never that it will resume (notify.scheduled_content).
             held = {"hold": registered["hold"]} if registered["hold"] is not None else {}
             self.announce("interruption", registered, **held)
-        # A failure being recovered needs no "needs you" notice.
-        self.tell_needs_you([entry for entry in found if entry["interruption_id"] not in taken]
-                            if taken else found, since)
+        # A failure being recovered needs no "needs you" notice: one a record holds is left out there,
+        # on this tick and every later one (engine/notices.py).
+        self.tell_needs_you(found, since)
