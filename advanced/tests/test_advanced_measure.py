@@ -845,9 +845,8 @@ class SidePanelMeasurementTests(unittest.TestCase):
     def test_mp1_looks_for_the_entrypoint_the_panels_tool_declares(self):
         from codex_auto_resume.mcp import tools
         self.assertEqual(SETTINGS_UI, tools.SETTINGS_UI)
-        declared = getattr(tools, "SIDE_PANEL_ENTRYPOINTS", None)
-        if declared is not None:                 # from the commit that gives the tool its entrypoint
-            self.assertIn(measure._THREAD_ENTRYPOINT, list(declared))
+        # The panel's tool declares it (v0.6.14), so MP1 looks for what is declared.
+        self.assertIn(measure._THREAD_ENTRYPOINT, list(tools.SIDE_PANEL_ENTRYPOINTS))
 
     def test_mp1_is_a_fail_where_the_engine_keeps_the_template_and_drops_the_entrypoint(self):
         for entrypoints in (None, (), ({"type": "global"},)):
