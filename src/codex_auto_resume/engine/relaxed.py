@@ -28,6 +28,9 @@ RELAXED_POINTS = {"admitted": frozenset({Point.GATES}), "capacity": frozenset({P
                   "forced": frozenset({Point.SCHEDULE})}
 # The waits a record may be looked at early in: a usage limit's.
 EARLY_STATES = ("waiting_reset", "waiting_poll")
+# How many records of a task are read back, at most, for the kinds of failure it has had (v0.6.14): more
+# than any task's continuations (ladder.CAPACITY_PER_DAY), so only a broken chain reaches it.
+CHAIN_WALK = 64
 
 
 class RelaxedMixin:
@@ -38,6 +41,20 @@ class RelaxedMixin:
             return row["detected_at"]
         origin = self.store.get(row["chain_origin_id"])
         return origin["detected_at"] if origin is not None else None
+
+    def chain_categories(self, row):
+        """Every kind of failure a record's task has had, up to and with `row` (v0.6.14): the records
+        from `row` back to its chain's origin, each its parent's child, as a sorted tuple - or None
+        where one of them is gone, or the chain never reaches its origin, so nothing says it is all."""
+        found, seen = set(), set()
+        while row is not None and row["interruption_id"] not in seen and len(seen) < CHAIN_WALK:
+            found.add(row["category"])
+            if row["interruption_id"] == row["chain_origin_id"]:
+                return tuple(sorted(found))
+            seen.add(row["interruption_id"])
+            parent = row.get("parent_interruption_id")
+            row = self.store.get(parent) if isinstance(parent, str) else None
+        return None
 
     def _unadmit(self, key, now):
         """A failure P17 did not take up: asked again a minute from now at the soonest."""
@@ -64,7 +81,7 @@ class RelaxedMixin:
         chain = None if parent is None else {
             **{name: parent[name] for name in ("interruption_id", "category", "recovery_attempts",
                                                "chain_continuations", "detected_at")},
-            "chain_started_at": self.chain_started_at(parent)}
+            "chain_started_at": self.chain_started_at(parent), "categories": self.chain_categories(parent)}
         if chain is not None and not self.capacity_open(chain["chain_started_at"], now):
             offered -= {Alternative.CAPACITY}        # twelve hours on the clock from its first failure
         if not offered:

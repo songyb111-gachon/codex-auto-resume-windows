@@ -132,6 +132,19 @@ class ArmedTests(SignInCase):
         self.assertEqual(len(self.h.records()), 2)
         self.assertEqual((child["category"], child["state"]), ("terminal_auth", "waiting_backoff"))
 
+    def test_a_sign_in_failure_further_back_in_the_task_is_one_the_task_had(self):
+        """Once a task: signed out, retried; its turn drops; the network retry goes and its turn is
+        signed out again - left for the person, though a continuation of another kind came between."""
+        self.taken_up()
+        dropped = self.again(self.h, DROPPED, step=60)
+        self.assertEqual(dropped["category"], "network_transient")
+        self.again(self.h, SIGNED_OUT, step=60)
+        self.assertEqual([row["category"] for row in self.h.records()], ["terminal_auth", "network_transient"],
+                         "the second sign-in failure of the task is left for the person")
+        for _ in range(4):
+            self.h.tick(advance=FIRST)
+        self.assertEqual(len(self.h.backend.send_calls), 2)
+
     def test_a_permission_refusal_is_never_taken_up(self):
         for error in (REFUSED_403, EXPIRED_403):
             with self.subTest(error=error):
@@ -223,8 +236,14 @@ class CodeTests(unittest.TestCase):
         code = SignInRetry(None)
         facts = {"category": "terminal_auth", "chain": None}
         self.assertIs(code.admission(facts), Alternative.ADMIT)
-        self.assertIs(code.admission(dict(facts, chain={"category": "network_transient"})), Alternative.ADMIT)
+        before = {"category": "network_transient", "categories": ("network_transient",)}
+        self.assertIs(code.admission(dict(facts, chain=before)), Alternative.ADMIT)
         self.assertIs(code.admission(dict(facts, chain={"category": "terminal_auth"})), DEFER)
+        # v0.6.14: a sign-in failure further back in the task, or a task that cannot be read whole.
+        self.assertIs(code.admission(dict(facts, chain=dict(before, categories=("network_transient",
+                                                                               "terminal_auth")))), DEFER)
+        self.assertIs(code.admission(dict(facts, chain=dict(before, categories=None))), DEFER)
+        self.assertIs(code.admission(dict(facts, chain={"category": "network_transient"})), DEFER)
         self.assertIs(code.admission(dict(facts, chain="not a chain")), DEFER)
         self.assertIs(code.admission(dict(facts, category="terminal_failure")), DEFER)
         self.assertIs(code.gate("known_failure", {"category": "terminal_auth"}, {}), Alternative.ADMIT)

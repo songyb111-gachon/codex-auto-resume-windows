@@ -2369,6 +2369,27 @@ class ChainTests(PluggedCase):
         child = h.records()[-1]
         self.assertEqual(child["parent_interruption_id"], h.store.chain_parent(T1, turn)["interruption_id"])
 
+    def test_p17_is_told_every_kind_of_failure_the_task_has_had_or_none_where_it_cannot_be_read_whole(self):
+        """v0.6.14: `chain`'s `categories`, read back from the record a failure continues to its task's
+        origin - so a capability that takes a kind up once a task sees one further back too."""
+        h = self.h
+        parent, _turn = self.chain_failure(h)
+        plug = admitting()
+        engine = self.plugged(plug)
+        h.tick(advance=1)
+        (facts,) = admissions(plug)
+        self.assertEqual(facts["chain"]["categories"], ("usage_limit",))
+        child = h.records()[-1]
+        self.assertEqual((child["category"], child["chain_origin_id"]), ("unknown", parent["interruption_id"]))
+        self.assertEqual(engine.chain_categories(child), ("unknown", "usage_limit"))
+        self.assertEqual(engine.chain_categories(h.store.get(parent["interruption_id"])), ("usage_limit",))
+        with patch.object(h.store, "get", return_value=None):
+            self.assertIsNone(engine.chain_categories(child), "its origin is gone: not the whole task")
+        self.assertIsNone(engine.chain_categories(dict(child, parent_interruption_id=None)))
+        looping = dict(child, parent_interruption_id=child["interruption_id"])
+        with patch.object(h.store, "get", return_value=looping):
+            self.assertIsNone(engine.chain_categories(looping), "a chain that loops never reaches its origin")
+
 
 OVERLOADED = json.dumps({"codexErrorInfo": "serverOverloaded"})
 

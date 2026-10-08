@@ -19,8 +19,9 @@ with its marker, through core's one claim, which pays a unit of the capability's
                       server error or none, taken up twice a task at most (ADMIT); on a 429 the
                       standard edition retries it already, and core offers nothing else
     SignInRetry       a sign-in failure (Codex's unauthorized, or a 401 - never a 403), taken up once a
-                      task (ADMIT) and sent only once the usage read every continuation needs works:
-                      the proof Codex is signed in again; it reads nothing of a sign-in itself
+                      task (ADMIT), whatever kinds of failure came between, and sent only once the
+                      usage read every continuation needs works: the proof Codex is signed in again;
+                      it reads nothing of a sign-in itself
 
 A capability here never reads a word of an error, and core never hands it one.
 """
@@ -234,14 +235,19 @@ class SignInRetry(_Taking):
     __slots__ = ()
 
     def admission(self, failure):
-        """ADMIT once a task: never for a failure of a continuation that was itself a sign-in
-        failure's - a second sign-in failure ends it there."""
+        """ADMIT once a task: never for a failure of a task that had a sign-in failure already - the
+        continuation's own, or one further back, before a continuation of another kind (v0.6.14:
+        every kind its task had, `chain`'s `categories`) - and never where that cannot be read whole.
+        A second sign-in failure ends it there."""
         if failure.get("category") != SIGN_IN:
             return DEFER
         chain = failure.get("chain")
-        if chain is not None and (not isinstance(chain, dict) or chain.get("category") == SIGN_IN):
+        if chain is None:
+            return Alternative.ADMIT
+        if not isinstance(chain, dict) or chain.get("category") == SIGN_IN:
             return DEFER
-        return Alternative.ADMIT
+        kinds = chain.get("categories")
+        return DEFER if not isinstance(kinds, tuple) or SIGN_IN in kinds else Alternative.ADMIT
 
     def gate(self, name, record, facts):
         """At known_failure, ADMIT again for what it took up (the runtime holds it to its own)."""

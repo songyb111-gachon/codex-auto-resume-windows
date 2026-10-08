@@ -71,6 +71,8 @@ METHODS = {
     # the plug takes it up again, and otherwise ends unsent (engine/relaxed.py).
     "chain_started_at", "_unadmit", "_taken_up", "_admitted_wait", "_known_failure", "_chained",
     "_not_recovered",
+    # v0.6.14: and every kind of failure a task has had, which P17 is told with the task (`chain`).
+    "chain_categories",
     # and a capacity error the plug vouches for: its budgets, its twelve hours, its waits.
     "capacity_limits", "capacity_open", "_capacity_wait",
     # and a usage-limited record looked at early (EARLY): the look, its waits, what the ledger pays.
