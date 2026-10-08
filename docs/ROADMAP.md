@@ -670,6 +670,8 @@ beta's fix, and two cases it left open, for both editions.
 
 ## v0.6.14 — The rest of the advanced edition
 
+**In development: v0.6.14-beta 🚧, its first pre-release, is being built.**
+
 What the plan put in v0.6.11's later stages, moved whole when v0.6.11 was cut short - to v0.6.12
 first, on to v0.6.13 when the owner gave v0.6.12 the version picker, the power action and a fix
 alone, and on to v0.6.14 when the owner gave v0.6.13 a fix alone. It comes in as many pre-releases
