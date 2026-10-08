@@ -76,7 +76,21 @@ capability on; turning it on confirms you read it (K6).
 you did not confirm says that what it stands on went wrong; when one of its parts fails; when a send
 it made becomes one whose delivery cannot be proven; and, while it is on, when Codex is updated. The
 page says so under the capability's state, and why. You can turn it on again, with its statement as
-it then reads (K7).
+it then reads (K7). A continuation sent once more and then found twice turns off what sent it again:
+Once more when unsure itself, or the *Also send again when unsure* of a capability kept on.
+
+**Keep it on.** On the page, a capability that is on or watched can be kept on, after its own warning.
+Kept on, it does not turn itself off for any of the tripwires above, nor for a new version of Codex:
+the page notes the most serious of them under its state until you turn it on again; a part of it that
+fails skips only that one recovery; and a send it made whose delivery cannot be proven is held, as the
+standard edition holds one. A Codex version or a compatibility grade that cannot be read still holds
+it back, its ceilings stay, and turning it off - here, from Codex or with every advanced feature at
+once - always works and lets it turn itself off again. With it you can also choose *Also send again
+when unsure*, after a warning of its own: such a send is then sent once more under the rules of Once
+more when unsure below, so the capability departs from what that one departs from too, and only where
+your administrator's policy allows Once more when unsure as well; a continuation sent again and found
+twice turns that choice off, and the capability stays on. The policy reads a kept-on capability down
+as any other, by the capability's own id: no policy value reaches Keep it on alone (K8).
 
 **Your administrator's policy.** Three values under `Software\Policies\CodexAutoResume`, in
 `HKEY_LOCAL_MACHINE` or `HKEY_CURRENT_USER`, read and never written: `ForbidAdvanced` (nothing may be
@@ -95,7 +109,7 @@ Codex; nothing runs it unless a person asks, and [SECURITY.md](SECURITY.md) says
 
 ## Today's capabilities
 
-Nine. The first three rest on a measurement each, the other six on none. Each measurement named below was made once, by hand, on the owner's machine, on
+Eleven. The first three rest on a measurement each, the other eight on none. Each measurement named below was made once, by hand, on the owner's machine, on
 `codex-cli 0.158.0-alpha.2.1`; its record is in [`docs/evidence/live/`](evidence/live/). On any
 other version of Codex a capability's statement carries the warning that it was not measured there.
 
@@ -323,7 +337,54 @@ time) and [C9](STANDARDS.md#c-network) (Codex is asked about usage only when a r
 
 **Ceilings.** 12 a day, and 3 in any one conversation.
 
-None of the six rests on a measurement: what each sends is the continuation the standard edition sends.
+### Once more when unsure
+
+**What it does.** When it cannot be proven that a continuation arrived - the queue command's answer
+was lost, or no receipt came - it sends it once more, its words built the same way and with the same
+marker, between 15 minutes and 6 hours after the first: only if Codex was never seen holding it in
+its queue, neither Codex's history nor its queue holds the marker, the history was current at every
+look since, the conversation has no later turn and nothing queued, its attempts are not used up and
+every check a send passes still holds. A continuation is sent again at most once, one that Pause or
+Observe only takes back is never sent again, and nothing is sent again after the watcher restarts. A
+continuation another advanced feature carried by a route or a channel of its own is never sent again
+by this one.
+
+**When it helps.** When a continuation never reached Codex and nothing could say so.
+
+**What it risks.** If the first continuation did arrive late, the conversation gets the same
+continuation twice and Codex may do the same work twice; if the marker is then found twice, it turns
+itself off. The words are built again from your settings as they are then.
+
+**Departs from** [0.2](STANDARDS.md#0-the-edition-boundary) (never again when the first may already have been delivered),
+[A6](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (an uncertain delivery is never sent again), [E2](STANDARDS.md#e-failure-behaviour) (better to miss a resume than resume
+twice) and [H2](STANDARDS.md#h-user-control) (nothing can resend an uncertain submission).
+
+**Ceilings.** 6 a day, and 2 in any one conversation.
+
+### Send now
+
+**What it does.** While it is on, the page lists the recoveries waiting now, each with *Send now...*.
+For the one you choose, the watcher sends its continuation at its next look instead of when its
+schedule says: it passes the wait before the next try, a postponement, the minutes before a first
+send, the 15 minutes between two continuations in one conversation and an attempt budget you set that
+is used up - never one your administrator set. Every other check still runs. A request not used within
+15 minutes lapses, and turning it off, or setting it to watch, voids one not yet used.
+
+**When it helps.** When the cause of a failure is gone and you do not want to wait for the schedule.
+
+**What it risks.** A continuation sent sooner may meet the same failure again and use an attempt the
+schedule would have kept for later. It never sends before a usage limit resets, in quiet hours, past an
+attempt limit your administrator set, past five continuations in a conversation in a day, while
+recovery is paused or the conversation is off, before the app has the conversation open, while
+something else is queued for it, or without usage.
+
+**Departs from** [A8](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (the claim checks the schedule and the budgets again, passing none),
+[A20](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (at least 15 minutes between two continuations in a conversation), [A21](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (the attempt
+budget stops a recovery) and [H2](STANDARDS.md#h-user-control) (nothing can force a send).
+
+**Ceilings.** 24 a day, and 5 in any one conversation.
+
+None of the eight rests on a measurement: what each sends is the continuation the standard edition sends.
 Each of the four that take up a failure the standard edition leaves for you takes up only failures
 from the last hour, and none from before it was turned on or set to watch; turning it off or setting
 it to watch only ends what it took up and has not sent, and the program ends such a recovery unsent a
@@ -391,7 +452,8 @@ turns it on in the Dashboard.
 
 Then v0.6.13 brings the rest of the advanced edition, each part published as a pre-release as it is
 finished. Its first part, from v0.6.13-beta on, is the six capabilities [above](#todays-capabilities)
-that follow the goal continuation. Each new capability is the advanced edition's alone, off until you turn it on, with a
+that follow the goal continuation. The next, for v0.6.14-beta, is Once more when unsure, Send now and
+Keep it on. Each new capability is the advanced edition's alone, off until you turn it on, with a
 statement that names the standards it departs from. This is a direction, not a promise;
 [ROADMAP.md](ROADMAP.md) has the whole list: the two additions in its v0.6.12 section, and the rest
 in its v0.6.13 section, under the same four headings as below and one more on compatibility reports

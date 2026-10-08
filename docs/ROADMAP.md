@@ -660,6 +660,12 @@ does not drop the capability.
 - one resend when delivery is uncertain and neither Codex's history nor its queue holds the message,
 - *Send now*, from the Dashboard only, past the schedule and the budget but not past the checks
   that make a send safe,
+
+  **Built for v0.6.14-beta:** these two, as Once more when unsure and Send now, and with them Keep it
+  on (the owner's K8): a capability on or watched may be kept from turning itself off, with *Also send
+  again when unsure* for what it sent - each described in [EDITIONS.md](EDITIONS.md#todays-capabilities).
+  A resend charges no attempt and goes at most once, proven nowhere in Codex first; Send now passes no
+  administrator's limit, a reset still ahead or quiet hours.
 - several conversations at once, still one send in flight in each,
 - empty-response recovery, recognised by the kinds of item a turn left and never by its words,
 - an unloaded conversation, through a queue that waits until it is opened (measurement M1),
