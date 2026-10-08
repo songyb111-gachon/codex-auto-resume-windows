@@ -107,6 +107,8 @@ In both editions, the power action's card in Settings > General turns on and off
 other on-or-off setting in the window is, in place of its button (owner, 2026-10-04). Turning it on
 still asks first, with Cancel the default, and the switch is back off after Cancel or a refusal;
 turning it off asks nothing, as Pause asks nothing. It still applies at once: Save does not change it.
+The switch's line, which says what it is set to, wraps where the window is narrow rather than end in an
+ellipsis, and so does the card's heading.
 
 ### For developers
 

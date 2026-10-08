@@ -57,10 +57,16 @@ namespace CodexAutoResume
         {
             string title = S("power.title", "When usage-limit recoveries finish");
             powerCard = NewGroup(title, stack);
+            // Its heading stretched across the card, so it wraps there as the card's help lines do (v0.6.14): in German
+            // and Russian it is wider than the narrowest window's card. At the opening width it is one line, as it was.
+            powerCard.Controls[0].Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top;
             // The switch every on-or-off setting is (NewCheck), where the card's first line was, saying what that line
             // said: Off, what this PC does when they finish, or when it will. Named by the card for a screen reader,
             // with that line as its description.
             powerSwitch = NewCheck("", false, false);
+            // Its line wraps where the card is too narrow for it (v0.6.14), as the card's other lines do, rather than end
+            // in an ellipsis: at the opening width it is one line, as it always was.
+            ((SoftCheck)powerSwitch).Wraps = true;
             powerSwitch.AutoCheck = false;
             powerSwitch.AccessibleName = title;
             powerSwitch.Click += delegate { PowerSwitched(); };

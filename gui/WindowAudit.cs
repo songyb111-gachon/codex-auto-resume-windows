@@ -238,8 +238,12 @@ namespace CodexAutoResume
         /// bridge could put it there - it asks nothing while auditing: counting down to a shut down, with a reason for
         /// each action Windows does not offer and the longest outcome of a last batch; armed and waiting, with the
         /// longest reason it waits in this language; and an administrator's DisablePowerAction on an account Windows
-        /// lets do none of them. tests/test_gui_power_action.py holds it to 150 % in Korean as well as every language
-        /// and scaling test_gui_layout.py audits. The card is left as the page was built: nothing read yet.
+        /// lets do none of them. Each action in turn (v0.6.14), since each says its own sentence on the switch - on, and
+        /// counting down to it - and German, French, Russian and Ukrainian say sleep and hibernate longest. All of it at
+        /// the window's opening width and, the card alone, at its narrowest - 800 wide, less a sizable frame's 8 px each
+        /// side, as the reopen note is held there (AuditReopenNote) - where the switch's line wraps rather than be cut.
+        /// tests/test_gui_power_action.py holds it to 150 % in Korean as well as every language and scaling
+        /// test_gui_layout.py audits. The card is left as the page was built: nothing read yet, at the width it had.
         private void AuditPower(List<string> findings)
         {
             ShowSection("general");
@@ -253,15 +257,16 @@ namespace CodexAutoResume
             foreach (string end in new[] { "done", "failed", "skipped", "not_met", "stale", "lapsed", "unavailable" })
                 if (TextRenderer.MeasureText(PowerLastLine(PowerAuditLast(end, now)), Font).Width >
                     TextRenderer.MeasureText(PowerLastLine(PowerAuditLast(longestEnd, now)), Font).Width) longestEnd = end;
-            var states = new[]
+            var states = new List<KeyValuePair<string, Dictionary<string, object>>>();
+            foreach (string action in PowerActions)
             {
-                new KeyValuePair<string, Dictionary<string, object>>("counting down",
-                    PowerAuditOptions("grace", null, now + 1800, longestEnd, now, false, "no_sleep_state", "hibernate_off", null)),
-                new KeyValuePair<string, Dictionary<string, object>>("waiting (" + longestWait + ")",
-                    PowerAuditOptions("waiting", longestWait, 0, longestEnd, now, false, "no_sleep_state", "hibernate_off", null)),
-                new KeyValuePair<string, Dictionary<string, object>>("managed, with no privilege",
-                    PowerAuditOptions(null, null, 0, longestEnd, now, true, "no_privilege", "no_privilege", "no_privilege")),
-            };
+                states.Add(new KeyValuePair<string, Dictionary<string, object>>("counting down to " + action,
+                    PowerAuditOptions(action, "grace", null, now + 1800, longestEnd, now, false, "no_sleep_state", "hibernate_off", null)));
+                states.Add(new KeyValuePair<string, Dictionary<string, object>>("waiting (" + longestWait + ") to " + action,
+                    PowerAuditOptions(action, "waiting", longestWait, 0, longestEnd, now, false, "no_sleep_state", "hibernate_off", null)));
+            }
+            states.Add(new KeyValuePair<string, Dictionary<string, object>>("managed, with no privilege",
+                PowerAuditOptions("shut_down", null, null, 0, longestEnd, now, true, "no_privilege", "no_privilege", "no_privilege")));
             foreach (KeyValuePair<string, Dictionary<string, object>> state in states)
             {
                 ApplyPowerOptions(state.Value);
@@ -269,8 +274,22 @@ namespace CodexAutoResume
                 AuditSpoken("settings/general with the power action " + state.Key, this, findings);
                 AuditedPower++;
             }
+            int opening = ClientSize.Width;
+            ClientSize = new Size(Px(800) - Px(16), ClientSize.Height);
+            foreach (KeyValuePair<string, Dictionary<string, object>> state in states)
+            {
+                ApplyPowerOptions(state.Value);
+                Materialise(this);
+                PerformLayout();
+                string where = "settings/general with the power action " + state.Key + " at the narrowest";
+                Walk(powerCard, where + "/" + AuditName(powerCard), findings);
+                AuditedPower++;
+            }
+            ClientSize = new Size(opening, ClientSize.Height);
             powerOffered = null;
             ApplyPowerOptions(null);
+            Materialise(this);
+            PerformLayout();
         }
 
         private static Dictionary<string, object> PowerAuditLast(string end, double now)
@@ -283,17 +302,17 @@ namespace CodexAutoResume
             return last;
         }
 
-        /// A `power-action` answer: armed to shut down when each recovery ended, however it ended, every time, in
+        /// A `power-action` answer: armed to do `action` when each recovery ended, however it ended, every time, in
         /// `phase` (or not armed, for null), with the three actions' reasons (null: offered).
-        private static Dictionary<string, object> PowerAuditOptions(string phase, string waiting, double until, string end,
-                                                                   double now, bool managed, string sleep,
+        private static Dictionary<string, object> PowerAuditOptions(string action, string phase, string waiting, double until,
+                                                                   string end, double now, bool managed, string sleep,
                                                                    string hibernate, string shutDown)
         {
             var view = new Dictionary<string, object>();
             if (phase != null)
             {
                 var armed = new Dictionary<string, object>();
-                armed["action"] = "shut_down";
+                armed["action"] = action;
                 armed["after"] = "handed_over_too";
                 armed["repeat"] = "always";
                 armed["grace_seconds"] = 1800.0;
@@ -990,7 +1009,8 @@ namespace CodexAutoResume
             var check = c as SoftCheck;
             if (check != null)
             {
-                Size wanted = check.GetPreferredSize(Size.Empty);
+                // One that wraps (Wraps) needs the lines it takes in the width it has; any other, its one line.
+                Size wanted = check.GetPreferredSize(check.Wraps ? new Size(c.Width, 0) : Size.Empty);
                 return wanted.Width > c.Width || wanted.Height > c.Height ? "needs " + wanted + ", has " + c.Size : null;
             }
             return null;
