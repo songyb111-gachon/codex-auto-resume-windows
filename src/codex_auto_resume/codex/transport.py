@@ -17,7 +17,7 @@ from .. import machine
 from ..domain import ids, vocabulary
 from ..win.inventory import resource_users
 from ..win.kernel import NO_WINDOW
-from .pairing import desktop_pair, inventory
+from .pairing import desktop_pair, engines_instead, inventory
 from .appserver import PROTOCOL_METHODS, Protocol
 from .errors import AdapterError
 from .usage import parse_usage
@@ -72,6 +72,10 @@ class Backend:
         self._last_checks = None
         self.engine_version = None
         self.engine_verified = False
+        # v0.6.13: the codex.exe paths the app main was last seen running as its children where
+        # none of them ran this engine - an update that started the app's server from another
+        # build - and nothing whenever that is not what the last pairing saw (app_identity).
+        self.served_elsewhere = frozenset()
 
     def _environment(self):
         env = os.environ.copy()
@@ -176,9 +180,17 @@ class Backend:
             raise AdapterError("unsupported_codex_version")
 
     def app_identity(self):
+        self.served_elsewhere = frozenset()
         try:
             self._compatible()
-            return desktop_pair(inventory(), self.codex_exe, self.codex_home)
+            rows = inventory()
+            try:
+                return desktop_pair(rows, self.codex_exe, self.codex_home)
+            except AdapterError:
+                # The same rows, read again for one thing: the paths the app main runs instead,
+                # which the watcher asks before its next tick (runtime/app.py, engine_moved).
+                self.served_elsewhere = engines_instead(rows, self.codex_exe)
+                raise
         except (AdapterError, OSError, KeyError, TypeError):
             return None
 

@@ -96,6 +96,9 @@ class App(WatchLoop):
         self.lock_dir = Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "codex-auto-resume" / "homes"
         self._backend = None
         self._backend_stamp = None
+        # v0.6.13: the official engines the app main ran instead of the one found, each with its file's
+        # stamp, the last time that made the watcher look again - so it looks once per change.
+        self._elsewhere_seen = frozenset()
         # What discovery found for each candidate on its last attempt, and the Compatibility
         # Registry's evaluator with the word the engine's gate reads (None until it first runs).
         self._discovery = {}
@@ -167,14 +170,42 @@ class App(WatchLoop):
         one, and from then on the watcher paired the app with a server at a path no process
         ran - every recovery waited, "ChatGPT app or its Codex server not running", until the
         watcher was restarted. A file gone from its path, or another file at it, means the
-        next build discovers again, every engine check included; the same file means nothing.
+        next build discovers again, every engine check included; the same file means nothing -
+        unless the app's own pairing found the app main running its server from another
+        official engine and none at this path (v0.6.13, `_served_elsewhere`), once per change.
         """
-        if self._backend is None or _file_stamp(self._backend.codex_exe) == self._backend_stamp:
+        if self._backend is None:
             return False
-        self.logger.info("the Codex engine found earlier is gone or was replaced; looking for it again")
+        if _file_stamp(self._backend.codex_exe) != self._backend_stamp:
+            self.logger.info("the Codex engine found earlier is gone or was replaced; looking for it again")
+        else:
+            # v0.6.13: the same file, but the app runs its server from another official build - an
+            # update that kept the old folder. Once per change: a build that then fails its checks,
+            # or a choice discovery cannot make, is not looked for again until something changes.
+            elsewhere = self._served_elsewhere()
+            if not elsewhere or elsewhere == self._elsewhere_seen:
+                return False
+            self._elsewhere_seen = elsewhere
+            self.logger.info("the ChatGPT app runs its Codex server from another official Codex engine "
+                             "than the one found earlier; looking for it again")
         self._backend = None
         self._discovery = {}
         return True
+
+    def _served_elsewhere(self) -> frozenset:
+        """The official engines (E1, config.candidate_codex_exes) the app main ran as its children
+        the last time the pairing found none at the held path, each with its file's stamp; nothing
+        where an engine was named (--codex-exe, the setting or the environment), which is never
+        second-guessed, and nothing where the official location cannot be read."""
+        served = getattr(self._backend, "served_elsewhere", None)
+        if not served or self._codex_exe_override or os.environ.get(config.ENV_CODEX_EXE):
+            return frozenset()
+        try:
+            official = {os.path.normcase(str(path)): path for path in config.candidate_codex_exes()}
+            keys = {os.path.normcase(path) for path in served}
+        except (config.ConfigError, OSError, TypeError):
+            return frozenset()
+        return frozenset((key, _file_stamp(official[key])) for key in keys if key in official)
 
     def engine_state(self) -> str:
         """The word the engine's `engine_compatible` gate reads, and the heartbeat stores.

@@ -596,6 +596,10 @@ ownership information. It never acquires a lock on the app's file.
   fails on a version the data checked or verified reads as *failed here* - the cause is then most
   likely this computer rather than that version - and it sends nothing, exactly as *incompatible*
   does. Anything that cannot prove that interface is refused rather than guessed at.
+- A Codex update can start its engine from another `bin\<hash>` folder. The watcher then looks for
+  the engine again, every check included: when the file it found is gone or replaced, and when the
+  app runs its Codex server from another official build while that file is still there. It looks
+  once for each such change, so a build that fails its checks is not tried over and over.
 - Your own machine can say something about a version too.
   [codex-compat-reporter](https://github.com/songyb111-gachon/codex-compat-reporter) is a separate,
   public tool that turns this installation's own records into one report — counts, states and
