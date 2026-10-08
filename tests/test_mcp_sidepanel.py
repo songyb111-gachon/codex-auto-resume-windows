@@ -102,5 +102,44 @@ class EntrypointTests(unittest.TestCase):
             tool["_meta"]["openai/ui"]["entrypoints"][0]["type"] = "thread"
 
 
+def read_page() -> dict:
+    """resources/read of the panel's page, the page itself stood in for: only its envelope is asked."""
+    with patch("codex_auto_resume.mcp.panel.settings_page", return_value="<!doctype html>"):
+        (reply,) = converse({"jsonrpc": "2.0", "id": 3, "method": "resources/read",
+                             "params": {"uri": tools.SETTINGS_UI}})
+    (item,) = reply["result"]["contents"]
+    return item
+
+
+class DisplayModeTests(unittest.TestCase):
+    """The page tells Codex it may be shown in the conversation or beside it - in the conversation first.
+    The Codex app reads both from the resources/read item's `_meta["openai/ui"]`; a page that names its
+    modes and no preferred one starts beside the chat there."""
+
+    def test_the_page_says_it_can_sit_in_the_conversation_or_beside_it_in_the_conversation_first(self):
+        self.assertEqual(read_page()["_meta"], {"openai/ui": {"availableDisplayModes": ["inline", "fullscreen"],
+                                                              "preferredDisplayMode": "inline"}})
+
+    def test_a_preferred_mode_is_one_of_its_modes_and_is_said_whenever_they_are(self):
+        ui = read_page()["_meta"]["openai/ui"]
+        self.assertTrue(ui["availableDisplayModes"])
+        self.assertIn(ui["preferredDisplayMode"], ui["availableDisplayModes"])
+        self.assertEqual(tools.PANEL_PREFERRED_MODE, "inline", "beside the chat by default waits for MP2")
+
+    def test_picture_in_picture_is_not_offered(self):
+        """The Codex app never shows a page in pip, so the page does not ask for it."""
+        self.assertNotIn("pip", read_page()["_meta"]["openai/ui"]["availableDisplayModes"])
+        self.assertEqual(set(tools.PANEL_DISPLAY_MODES), {"inline", "fullscreen"})
+
+    def test_it_is_still_the_same_skybridge_page_and_the_listing_is_unchanged(self):
+        item = read_page()
+        self.assertEqual((item["uri"], item["mimeType"], item["text"]),
+                         (tools.SETTINGS_UI, "text/html+skybridge", "<!doctype html>"))
+        (reply,) = converse({"jsonrpc": "2.0", "id": 4, "method": "resources/list"})
+        self.assertEqual(reply["result"]["resources"], [{
+            "uri": tools.SETTINGS_UI, "name": "Codex Auto Resume settings",
+            "description": "The settings panel shown by open_settings.", "mimeType": "text/html+skybridge"}])
+
+
 if __name__ == "__main__":
     unittest.main()
