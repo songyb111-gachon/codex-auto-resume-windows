@@ -152,6 +152,13 @@ class ServedElsewhereTests(TwoBuildsCase):
     the watcher looks for its engine again, at once for each change and less and less often while
     that change stands, and logs it without a path."""
 
+    def still_looks_again(self):
+        """What each guard ends on: the app main serving from the other official build alone, which
+        the watcher does look for again - so that no guard holds only because nothing ever looks."""
+        self.serve(self.other)
+        self.assertIsNone(self.paired())
+        self.assertTrue(self.app.engine_moved(), "the watcher does not look again at all")
+
     def test_an_app_serving_from_another_official_engine_is_looked_for_again(self):
         self.serve(self.other)
         self.assertIsNone(self.paired())
@@ -227,6 +234,7 @@ class ServedElsewhereTests(TwoBuildsCase):
         self.assertIsNotNone(self.paired())
         self.assertFalse(self.app.engine_moved())
         self.assertIs(self.app.backend(), self.first)
+        self.still_looks_again()
 
     def test_a_pairing_refused_at_the_held_engine_changes_nothing(self):
         # Two children of the held engine, neither holding Codex's state: the pairing is refused,
@@ -236,6 +244,7 @@ class ServedElsewhereTests(TwoBuildsCase):
             self.assertIsNone(self.paired())
         self.assertFalse(self.app.engine_moved())
         self.assertIs(self.app.backend(), self.first)
+        self.still_looks_again()
 
     def test_a_codex_exe_that_is_no_official_engine_changes_nothing(self):
         bin_dir = self.fixture.exe.parent.parent
@@ -250,6 +259,7 @@ class ServedElsewhereTests(TwoBuildsCase):
                 self.assertIsNone(self.paired())
                 self.assertFalse(self.app.engine_moved())
         self.assertIs(self.app.backend(), self.first)
+        self.still_looks_again()
 
     def test_no_one_app_main_or_no_process_list_changes_nothing(self):
         child = {"pid": 20, "parent": 10, "path": str(self.other)}
@@ -261,6 +271,7 @@ class ServedElsewhereTests(TwoBuildsCase):
                 self.assertIsNone(self.paired())
                 self.assertFalse(self.app.engine_moved())
         self.assertIs(self.app.backend(), self.first)
+        self.still_looks_again()
 
     def test_a_named_engine_is_never_second_guessed(self):
         self.serve(self.other)
@@ -270,6 +281,7 @@ class ServedElsewhereTests(TwoBuildsCase):
         with patch.object(self.app, "_codex_exe_override", str(self.first.codex_exe)):
             self.assertFalse(self.app.engine_moved())
         self.assertIs(self.app.backend(), self.first)
+        self.still_looks_again()       # named no longer
 
 
 class TwoThatPassTests(TwoBuildsCase):
@@ -333,6 +345,10 @@ class TwoThatPassTests(TwoBuildsCase):
             self.assertTrue(self.app.engine_moved())
             self.assertEqual(self.app.backend().codex_exe, self.first.codex_exe)
         self.assertEqual(self.listings, 0, "a named engine is not second-guessed")
+        # Named no longer, the next look drives the build the app runs.
+        self.fixture.exe.write_bytes(b"MZ-the-first-build-written-a-fourth-time")
+        self.assertTrue(self.app.engine_moved())
+        self.assertEqual(self.app.backend().codex_exe, self.other)
 
     def test_discovery_asks_the_app_only_where_several_pass(self):
         asked = []

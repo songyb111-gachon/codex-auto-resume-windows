@@ -65,9 +65,10 @@ Codex 서버가 실행 중이 아니라고 했거나, Codex 빌드 둘이 엔진
   있으면 다음 틱 전에 백엔드를 내려놓고, 그 집합을 파일마다의 크기와 쓴 시각과 함께 기억해 변화마다 곧바로
   움직이며, 그 변화가 이어지는 동안에는 단조 시계로 `ELSEWHERE_FIRST_WAIT`(60초) 뒤에 다시, 그 뒤로는 두 배씩
   `ELSEWHERE_LONGEST_WAIT`(15분)까지 늘려 가며 움직입니다.
-- `tests/test_engine_moved.py`에 `ServedElsewhereTests`와 `TwoThatPassTests`가 더해졌습니다. 변경을 되돌리면 다시
-  찾는 두 테스트가 실패하고, 지정한 엔진을 지키는 테스트를 뺀 고르기의 모든 테스트도 실패합니다. 지키는 장치를
-  하나씩만 되돌려 보았고, 저마다 그 테스트를 실패하게 했습니다.
+- `tests/test_engine_moved.py`에 `ServedElsewhereTests`와 `TwoThatPassTests`가 더해졌습니다. 변경을 되돌리면 그
+  테스트가 모두 실패합니다. 지키는 장치의 테스트는 저마다 다시 찾거나 고르는 경우로 끝나므로, 아무것도 다시 찾지
+  않아서 통과하는 테스트는 없습니다. 지키는 장치를 하나씩만 되돌려 보기도 했고, 저마다 그 테스트를 실패하게
+  했습니다.
 
 
 ## v0.6.13-beta — 업데이트가 Codex의 엔진을 옮긴 뒤에도 watcher가 다시 찾습니다

@@ -75,8 +75,9 @@ installation for none.
   each change is acted on at once and, while it stands, again on the monotonic clock after
   `ELSEWHERE_FIRST_WAIT` (60 s), doubling up to `ELSEWHERE_LONGEST_WAIT` (15 minutes).
 - `tests/test_engine_moved.py` gains `ServedElsewhereTests` and `TwoThatPassTests`. With the changes
-  reverted, the two tests that look again fail, and so does every test of the choice but the
-  named-engine guard; each guard was reverted alone, and each made its test fail.
+  reverted, every one of them fails: each guard's test ends on the case that does look again or
+  choose, so none passes only because nothing ever looks. Each guard was also reverted alone, and
+  each made its test fail.
 
 
 ## v0.6.13-beta — The watcher finds Codex's engine again after an update moves it
