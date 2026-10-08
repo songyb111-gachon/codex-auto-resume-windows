@@ -73,12 +73,19 @@ class EntrypointTests(unittest.TestCase):
         self.assertEqual(meta["openai/outputTemplate"], tools.SETTINGS_UI)
 
     def test_its_template_is_a_ui_resource_as_codex_requires_of_an_entrypoint(self):
-        """Codex drops an entrypoint whose tool's template does not start with ui://."""
-        self.assertTrue(listed()["open_settings"]["_meta"]["openai/outputTemplate"].startswith("ui://"))
+        """Codex drops an entrypoint whose tool's template does not start with ui://: the tool that declares one -
+        open_settings, and only it - has such a template."""
+        tools_listed = listed()
+        offered = [name for name, tool in tools_listed.items() if entrypoints(tool)]
+        self.assertEqual(offered, ["open_settings"])
+        for name in offered:
+            self.assertTrue(tools_listed[name]["_meta"]["openai/outputTemplate"].startswith("ui://"))
 
     def test_the_side_panel_tab_can_call_it_with_nothing_and_it_only_reads(self):
-        """The tab calls the tool itself, with {}: it takes no argument, needs none, changes nothing."""
-        tool = listed()["open_settings"]
+        """The tab calls the tool itself, with {}: the tool offered to it - open_settings - takes no argument, needs
+        none, changes nothing."""
+        (tool,) = [tool for tool in listed().values() if {"type": "thread"} in entrypoints(tool)]
+        self.assertEqual(tool["name"], "open_settings")
         self.assertEqual(tool["inputSchema"], {"type": "object", "properties": {}, "additionalProperties": False})
         self.assertNotIn("required", tool["inputSchema"])
         self.assertIs(tool["annotations"]["readOnlyHint"], True)
@@ -139,7 +146,10 @@ class DisplayModeTests(unittest.TestCase):
         self.assertEqual(set(tools.PANEL_DISPLAY_MODES), {"inline", "fullscreen"})
 
     def test_it_is_still_the_same_skybridge_page_and_the_listing_is_unchanged(self):
+        """The page's item gained its display modes and nothing else: the same page, the same type, the same list."""
         item = read_page()
+        self.assertEqual(set(item), {"uri", "mimeType", "text", "_meta"})
+        self.assertEqual(set(item["_meta"]), {"openai/ui"})
         self.assertEqual((item["uri"], item["mimeType"], item["text"]),
                          (tools.SETTINGS_UI, "text/html+skybridge", "<!doctype html>"))
         (reply,) = converse({"jsonrpc": "2.0", "id": 4, "method": "resources/list"})
@@ -210,9 +220,15 @@ class BesideButtonTests(unittest.TestCase):
                 self.assertEqual(page(SAVEBAR + say("shown()"), mode=mode, request=request), expected)
 
     def test_without_a_host_there_is_nothing_to_offer(self):
+        """A host that can move the page and says it is inline, but cannot be called, is no host: no button - where
+        the same host with callTool offers it."""
         seen = page(SAVEBAR + say("shown()"), extra="window.openai = {requestDisplayMode: function () {}, "
                                                      "displayMode: 'inline'};")
         self.assertEqual(seen, "absent")
+        seen = page(SAVEBAR + say("shown()"), extra="window.openai = {requestDisplayMode: function () {}, "
+                                                     "displayMode: 'inline', callTool: function () {"
+                                                     " return new Promise(function () {}); }};")
+        self.assertEqual(seen, "shown")
 
     def test_its_click_asks_once_for_beside_the_chat_and_calls_no_tool(self):
         seen = page(SAVEBAR + """var before = CALLS.length; beside().onclick(); await settle();"""
@@ -230,11 +246,15 @@ class BesideButtonTests(unittest.TestCase):
         self.assertEqual(ENGLISH["panel.beside_refused"], "Codex kept the panel here.")
 
     def test_the_page_never_asks_by_itself(self):
-        seen = page(SAVEBAR + """render(); fire('window', 'openai:set_globals', {globals: {}});
+        """Offered, the button asks only when pressed: drawing, the host's changes and coming back ask nothing -
+        and the press that follows is the one request."""
+        seen = page(SAVEBAR + """var offered = shown(); render(); fire('window', 'openai:set_globals', {globals: {}});
             window.openai.displayMode = 'fullscreen'; fire('window', 'openai:set_globals', {globals: {}});
             window.openai.displayMode = 'inline'; fire('window', 'openai:set_globals', {globals: {}});
-            fire('window', 'focus'); fire('document', 'visibilitychange'); await settle();""" + say("MODES"))
-        self.assertEqual(seen, [])
+            fire('window', 'focus'); fire('document', 'visibilitychange'); await settle();
+            var asked = MODES.slice(); beside().onclick(); await settle();"""
+                    + say("{offered: offered, asked: asked, pressed: MODES}"))
+        self.assertEqual(seen, {"offered": "shown", "asked": [], "pressed": [{"mode": "fullscreen"}]})
 
     def test_a_change_of_mode_shows_or_hides_it_in_place(self):
         seen = page(SAVEBAR + """var drawn = ROOT_NODE.children[0], button = beside(), seen = [shown()];
@@ -285,10 +305,14 @@ class LateResultTests(unittest.TestCase):
                 self.assertEqual(seen, {"before": ENGLISH["panel.unavailable"], "drawn": True, "offered": "shown"})
 
     def test_nothing_that_is_not_a_result_is_drawn_and_a_drawn_page_is_not_replaced(self):
+        """Text that is not JSON and a list are not a result: the empty page stays empty - and draws the result
+        handed to it after them."""
         seen = page(SAVEBAR + """fire('window', 'openai:set_globals', {globals: {toolOutput: 'not json'}});
-            fire('window', 'openai:set_globals', {globals: {toolOutput: [1, 2]}}); var empty = ROOT_NODE.textContent;"""
-                    + say("empty"), extra=self.EMPTY)
-        self.assertEqual(seen, ENGLISH["panel.unavailable"])
+            fire('window', 'openai:set_globals', {globals: {toolOutput: [1, 2]}}); var empty = ROOT_NODE.textContent;
+            fire('window', 'openai:set_globals', {globals: {toolOutput: window.LATE}}); await settle();"""
+                    + say("{empty: empty, drawn: !!savebar()}"),
+                    extra=self.EMPTY + " window.LATE = %s;" % json.dumps(panelpage.snapshot()))
+        self.assertEqual(seen, {"empty": ENGLISH["panel.unavailable"], "drawn": True})
         seen = page(SAVEBAR + """var drawn = ROOT_NODE.children[0];
             fire('window', 'openai:set_globals', {globals: {toolOutput: {status: {}, settings: {}, pending: []}}});"""
                     + say("ROOT_NODE.children[0] === drawn"))
@@ -390,10 +414,11 @@ class ReadAgainTests(unittest.TestCase):
         self.assertEqual(seen, 1)
 
     def test_in_the_conversation_it_does_not_read_again(self):
-        """Inline, the conversation's own item is the page Codex keeps; only beside the chat is it read again."""
-        for mode in ("inline", None):
+        """Inline, the conversation's own item is the page Codex keeps; only beside the chat is it read again - the
+        same return there reads once."""
+        for mode, reads in (("inline", 0), (None, 0), ("fullscreen", 1)):
             with self.subTest(mode=mode):
-                self.assertEqual(beside_page("await back(60);" + say("READS.length"), mode=mode), 0)
+                self.assertEqual(beside_page("await back(60);" + say("READS.length"), mode=mode), reads)
 
     def test_one_read_at_a_time(self):
         seen = beside_page("""HOLD = true; await back(16); await back(16); var out = READS.length;
