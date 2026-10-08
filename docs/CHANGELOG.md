@@ -43,9 +43,11 @@ installation for none.
   every recovery waited, saying the ChatGPT app or its Codex server was not running. Now, where the
   one ChatGPT app runs `codex.exe` children none of which is the file the watcher holds, the watcher
   notes their paths, and before its next check looks for the engine again, every check included,
-  when one of them is an official engine. It does so once for each change, so a build that fails its
-  checks is not tried over and over. It reads the same list of processes, paths and parents, nothing
-  else, and its log line names no path.
+  when one of them is an official engine. It does so at once for each change. A build that then fails
+  its checks - as it can while the update is still writing it - is tried again after a minute, then
+  twice as long each time, up to every 15 minutes: not on every check, and with no restart needed
+  once it passes. It reads the same list of processes, paths and parents, nothing else, and its log
+  line names no path.
 - **Of two builds that pass the engine checks, the one the app runs is driven.** With the old folder
   kept beside the new one, both builds can pass, and the watcher refused that as ambiguous until an
   engine was named by hand, so every recovery waited meanwhile. Now, where more than one official
@@ -70,7 +72,8 @@ installation for none.
   children if none of them is the held path (`pairing.engines_instead`), and `App.engine_moved` drops
   the backend before the next tick when they include an official engine
   (`config.candidate_codex_exes`), remembering that set with each file's size and write time, so that
-  each change is acted on once.
+  each change is acted on at once and, while it stands, again on the monotonic clock after
+  `ELSEWHERE_FIRST_WAIT` (60 s), doubling up to `ELSEWHERE_LONGEST_WAIT` (15 minutes).
 - `tests/test_engine_moved.py` gains `ServedElsewhereTests` and `TwoThatPassTests`. With the changes
   reverted, the two tests that look again fail, and so does every test of the choice but the
   named-engine guard; each guard was reverted alone, and each made its test fail.

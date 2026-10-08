@@ -32,7 +32,7 @@ from codex_auto_resume import config  # noqa: E402
 from codex_auto_resume.codex import pairing, transport  # noqa: E402
 from codex_auto_resume.compat import probes  # noqa: E402
 from codex_auto_resume.domain.errors import AdapterError  # noqa: E402
-from codex_auto_resume.runtime import loop  # noqa: E402
+from codex_auto_resume.runtime import app as runtime_app, loop  # noqa: E402
 
 NATIVE = r"C:\Program Files"
 STORE_APP = NATIVE + r"\WindowsApps\OpenAI.Codex_26.930.2377.0_x64__2p2nqsd0c76g0\app\ChatGPT.exe"
@@ -140,10 +140,17 @@ class TwoBuildsCase(unittest.TestCase):
         """What the app gate asks of the backend the watcher holds."""
         return self.app.backend().app_identity()
 
+    def moved(self, at):
+        """What the watcher asks before a tick (App.engine_moved), `at` seconds into its monotonic
+        clock."""
+        with patch.object(runtime_app.time, "monotonic", return_value=10_000.0 + at):
+            return self.app.engine_moved()
+
 
 class ServedElsewhereTests(TwoBuildsCase):
     """The held file is still there, but the app main runs its server from another official build:
-    the watcher looks for its engine again, once per change, and logs it without a path."""
+    the watcher looks for its engine again, at once for each change and less and less often while
+    that change stands, and logs it without a path."""
 
     def test_an_app_serving_from_another_official_engine_is_looked_for_again(self):
         self.serve(self.other)
@@ -174,6 +181,44 @@ class ServedElsewhereTests(TwoBuildsCase):
         self.other.write_bytes(b"MZ-a-longer-second-build")         # another file there now
         self.paired()
         self.assertTrue(self.app.engine_moved())
+
+    def test_a_build_that_failed_its_checks_once_is_driven_once_it_passes(self):
+        # `codex --version` fails while an update is still writing the build, and then passes: the
+        # watcher looks again a minute later, with no restart, and runs no check on the ticks between.
+        self.codex.failing.add(key(self.other))
+        self.serve(self.other)
+        self.assertIsNone(self.paired())
+        self.assertTrue(self.moved(0))
+        self.assertEqual(self.app.backend().codex_exe, self.first.codex_exe)
+        self.codex.failing.clear()
+        asked = len(self.codex.builds)
+        for at in (5, 30, 59):
+            self.assertIsNone(self.paired())
+            self.assertFalse(self.moved(at), at)
+        self.assertNotIn(key(self.other), self.codex.builds[asked:], "a check on a tick between")
+        self.assertIsNone(self.paired())
+        self.assertTrue(self.moved(60))
+        self.assertEqual(self.app.backend().codex_exe, self.other)
+        self.assertIsNotNone(self.paired())
+        self.assertFalse(self.moved(3600))
+
+    def test_a_build_that_keeps_failing_is_looked_for_less_and_less_often(self):
+        self.codex.failing.add(key(self.other))
+        self.serve(self.other)
+
+        def looked(ticks):
+            found = []
+            for at in ticks:
+                self.paired()
+                if self.moved(at):
+                    found.append(at)
+            return found
+        # After a minute, then twice as long each time, up to every 15 minutes.
+        self.assertEqual(looked(range(0, 3601, 30)), [0, 60, 180, 420, 900, 1800, 2700, 3600])
+        self.assertEqual(self.app.backend().codex_exe, self.first.codex_exe)
+        # Another file there is another change: looked for at once, and a minute later again.
+        self.other.write_bytes(b"MZ-a-longer-second-build")
+        self.assertEqual(looked(range(3610, 3791, 30)), [3610, 3670, 3790])
 
     def test_an_app_serving_from_the_held_engine_changes_nothing(self):
         self.serve(self.other)

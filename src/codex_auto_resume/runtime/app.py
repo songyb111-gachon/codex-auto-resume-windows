@@ -49,6 +49,13 @@ ENGINE_LOG_WORDS = {
 }
 ENGINE_LOG_CHECKS_ONLY = "passes its local checks (`codex queue` still offers --thread/--message)"
 
+# v0.6.13: while the app runs its Codex server from another official build and the watcher still
+# holds the one it found - that build failed its checks when it looked, as `codex --version` can
+# while an update is still writing it - it looks again after a minute, then twice as long each
+# time, up to every 15 minutes (App.engine_moved). A change is looked for at once.
+ELSEWHERE_FIRST_WAIT = 60
+ELSEWHERE_LONGEST_WAIT = 15 * 60
+
 
 def _file_stamp(path):
     """Which file stands at `path`: its size and write time, or None when there is none."""
@@ -98,8 +105,11 @@ class App(WatchLoop):
         self._backend = None
         self._backend_stamp = None
         # v0.6.13: the official engines the app main ran instead of the one found, each with its file's
-        # stamp, the last time that made the watcher look again - so it looks once per change.
+        # stamp, the last time that made the watcher look again - so it looks at once per change - and
+        # when, on the monotonic clock, it looks again while that change stands, and after how long.
         self._elsewhere_seen = frozenset()
+        self._elsewhere_due = 0.0
+        self._elsewhere_wait = ELSEWHERE_FIRST_WAIT
         # What discovery found for each candidate on its last attempt, and the Compatibility
         # Registry's evaluator with the word the engine's gate reads (None until it first runs).
         self._discovery = {}
@@ -182,7 +192,8 @@ class App(WatchLoop):
         watcher was restarted. A file gone from its path, or another file at it, means the
         next build discovers again, every engine check included; the same file means nothing -
         unless the app's own pairing found the app main running its server from another
-        official engine and none at this path (v0.6.13, `_served_elsewhere`), once per change.
+        official engine and none at this path (v0.6.13, `_served_elsewhere`): at once for each
+        change, and again, less and less often, while that change stands.
         """
         if self._backend is None:
             return False
@@ -190,12 +201,23 @@ class App(WatchLoop):
             self.logger.info("the Codex engine found earlier is gone or was replaced; looking for it again")
         else:
             # v0.6.13: the same file, but the app runs its server from another official build - an
-            # update that kept the old folder. Once per change: a build that then fails its checks,
-            # or a choice discovery cannot make, is not looked for again until something changes.
+            # update that kept the old folder. At once for each change. A build that then failed its
+            # checks - `codex --version` can fail while an update is still writing it - is looked for
+            # again while the change stands, after ELSEWHERE_FIRST_WAIT and then twice as long each
+            # time up to ELSEWHERE_LONGEST_WAIT: tried again, so that recovery never waits for the
+            # watcher to restart, but never on every tick.
             elsewhere = self._served_elsewhere()
-            if not elsewhere or elsewhere == self._elsewhere_seen:
+            if not elsewhere:
                 return False
+            now = time.monotonic()
+            if elsewhere != self._elsewhere_seen:
+                self._elsewhere_wait = ELSEWHERE_FIRST_WAIT
+            elif now < self._elsewhere_due:
+                return False
+            else:
+                self._elsewhere_wait = min(self._elsewhere_wait * 2, ELSEWHERE_LONGEST_WAIT)
             self._elsewhere_seen = elsewhere
+            self._elsewhere_due = now + self._elsewhere_wait
             self.logger.info("the ChatGPT app runs its Codex server from another official Codex engine "
                              "than the one found earlier; looking for it again")
         self._backend = None

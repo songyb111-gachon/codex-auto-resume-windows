@@ -599,7 +599,9 @@ ownership information. It never acquires a lock on the app's file.
 - A Codex update can start its engine from another `bin\<hash>` folder. The watcher then looks for
   the engine again, every check included: when the file it found is gone or replaced, and when the
   app runs its Codex server from another official build while that file is still there. It looks
-  once for each such change, so a build that fails its checks is not tried over and over.
+  at once for each such change. If that build then fails its checks - as it can while the update is
+  still writing it - the watcher tries again after a minute, then twice as long each time, up to
+  every 15 minutes: not on every check, and with no restart needed once the build passes.
 - Where more than one build passes those checks - an update can leave the old one beside the new -
   the one the ChatGPT app is running as its Codex server is the one driven. If that is not exactly
   one of them, none is chosen and recoveries wait until `--codex-exe` or the `codex_exe` setting
