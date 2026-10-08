@@ -27,7 +27,7 @@ import advancedcase as ac  # noqa: E402
 import test_advanced_surfaces  # noqa: E402
 from codex_auto_resume import control, diagnostics  # noqa: E402
 from codex_auto_resume.domain.plug import ALTERNATIVES, Alternative, Point, Surface  # noqa: E402
-from codex_auto_resume_advanced import arming, surfaces, watchlog  # noqa: E402
+from codex_auto_resume_advanced import arming, statement, surfaces, watchlog  # noqa: E402
 from codex_auto_resume_advanced.state import WATCH_LIMIT, AdvancedState  # noqa: E402
 from codex_auto_resume_advanced.vocabulary import JournalCode, McpTool, Refusal  # noqa: E402
 
@@ -322,6 +322,25 @@ class GuardTests(WatchCase):
         self.assertEqual((asked | {Point.TICK}) - set(ALTERNATIVES), set(watchlog.VALUE_POINTS))
         self.assertEqual(set(watchlog.WORDS), set(Alternative) | set(watchlog.VALUE_POINTS))
         self.assertEqual(len(watchlog.WORDS), len(set(watchlog.WORDS)))
+
+
+class WordTests(unittest.TestCase):
+    def test_every_word_the_log_names_has_its_words_on_the_page(self):
+        """Each answer the log can give is a sentence on the page, and so are the card's own words, in every
+        language (the catalogs' own test holds that each language has exactly the English keys)."""
+        answers = {"page.watchlog.answer." + (str(word) if word is not None else "other")
+                   for word in watchlog.WORDS + (None,)}
+        card = {"page.watchlog", "page.watchlog.since", "page.watchlog.none", "page.watchlog.note",
+                "page.watchlog.times", "page.watchlog.last", "page.watchlog.from"}
+        self.assertLessEqual(answers | card, set(statement.PAGE_KEYS))
+        self.assertEqual({key for key in statement.PAGE_KEYS if key.startswith("page.watchlog")}, answers | card)
+        english = statement.CATALOGS.words("en")
+        for key in sorted(answers | card):
+            with self.subTest(key):
+                self.assertTrue(english[key].strip())
+        self.assertEqual(english["page.watchlog.answer.early"], "Looked before the reset time")
+        self.assertIn("{time}", english["page.watchlog.since"])
+        self.assertIn("{time}", english["page.watchlog.from"])
 
 
 if __name__ == "__main__":

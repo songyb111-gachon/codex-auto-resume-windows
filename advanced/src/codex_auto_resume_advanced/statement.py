@@ -97,7 +97,17 @@ PAGE_KEYS = tuple(PAGE_PREFIX + name for name in (
     "kept.duplicate_seen", "tripped.duplicate_seen", "send_now.title", "send_now.none", "send_now.button",
     "confirm.send_now", "done.send_now",
     # In place of the limits, for an action (the compatibility report), which sends nothing to Codex: what bounds it.
-    "action_limits"))
+    "action_limits",
+    # v0.6.14: the watch log (watchlog.py) - what a watched capability would have done, its card's words and one
+    # word for each answer the log names (watchlog.WORDS, and "other" for the rest). `page.watch` is the Watch first
+    # button's word, so these are `page.watchlog...`; the test ties the answers to watchlog.WORDS.
+    "watchlog", "watchlog.since", "watchlog.none", "watchlog.note", "watchlog.times", "watchlog.last", "watchlog.from",
+    "watchlog.answer.hold", "watchlog.answer.client_id", "watchlog.answer.admit",
+    "watchlog.answer.as_network_transient", "watchlog.answer.as_timeout", "watchlog.answer.as_rate_limit_transient",
+    "watchlog.answer.as_server_5xx", "watchlog.answer.as_stream_interrupted", "watchlog.answer.capacity",
+    "watchlog.answer.early", "watchlog.answer.resend", "watchlog.answer.send_now", "watchlog.answer.text",
+    "watchlog.answer.sender", "watchlog.answer.tick", "watchlog.answer.start_route", "watchlog.answer.unloaded",
+    "watchlog.answer.other"))
 # The compatibility report's card on that page (advanced/gui/AdvancedReport.cs): its own words, one for each
 # write sending makes (vocabulary.ReportWrite), one for each reason it has to be sent on the web (WebReason) and
 # one for each word it refuses with (ReportRefusal) - so a word the flow can answer with is one the page can say.
