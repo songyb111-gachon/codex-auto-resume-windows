@@ -237,6 +237,9 @@ class BridgeCommand(StrEnum):
     # Send now (v0.6.14): a person's request that one waiting recovery go at the watcher's next look,
     # by its interruption id, the Dashboard's alone while Send now is on; no MCP tool reaches it.
     ADVANCED_SEND_NOW = "advanced-send-now"
+    # The watch log (v0.6.14, watchlog.py): what a watched capability would have done, by its id -
+    # read-only, the Dashboard's; no MCP tool reaches it.
+    ADVANCED_WATCH_LOG = "advanced-watch-log"
     # The compatibility report (report/flow.py): write it, save it where the person chooses, check what
     # sending would write, send it, and read how one of the first, third or fourth - each a job this
     # process holds - is getting on. Like the rest, only the Dashboard's; no MCP tool reaches any of them.

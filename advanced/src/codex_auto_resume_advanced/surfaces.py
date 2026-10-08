@@ -19,8 +19,9 @@ window's catalog is core's, and holds none of this edition's), and where a perso
 capability's statement and turns it on, watches
 it, turns it off, turns everything off, lowers the global ceiling, or runs a measurement by
 hand (`measure <id>`, measure.py), or writes, saves, checks and sends a compatibility report
-(report/flow.py, which starts gh, the GitHub CLI, as `measure` starts a session) - every request
-made as the Dashboard. The statement carries
+(report/flow.py, which starts gh, the GitHub CLI, as `measure` starts a session), or reads what a
+watched capability would have done (`advanced-watch-log`, watchlog.py) - every request made as the
+Dashboard. The statement carries
 the warnings that hold now and the Codex version an "on" acknowledges; the request to turn it on
 sends both back as the person's confirmation, and a warning is never what refuses it
 (arming.py).
@@ -67,6 +68,7 @@ ARGUMENTS = {
     BridgeCommand.ADVANCED_SAMPLES: frozenset(),
     BridgeCommand.ADVANCED_KEEP_ON: frozenset({"capability", "keep_on", "send_again", "generation", "confirmed"}),
     BridgeCommand.ADVANCED_SEND_NOW: frozenset({"interruption_id"}),
+    BridgeCommand.ADVANCED_WATCH_LOG: frozenset({"capability"}),
     BridgeCommand.ADVANCED_REPORT_BUILD: frozenset({"login"}),
     BridgeCommand.ADVANCED_REPORT_SAVE: frozenset({"sha256", "path"}),
     BridgeCommand.ADVANCED_REPORT_CHECK: frozenset({"sha256"}),
@@ -207,6 +209,9 @@ def bridge(runtime, command, argument):
     if command == BridgeCommand.ADVANCED_SEND_NOW:
         from .control import sendnow
         return sendnow.request(runtime, argument.get("interruption_id"))
+    if command == BridgeCommand.ADVANCED_WATCH_LOG:
+        from . import watchlog
+        return watchlog.view(runtime, argument.get("capability"))
     if command == BridgeCommand.ADVANCED_KEEP_ON:
         return arming.set_keep_on(argument.get("capability"), argument.get("keep_on"),
                                   send_again=argument.get("send_again", False),
