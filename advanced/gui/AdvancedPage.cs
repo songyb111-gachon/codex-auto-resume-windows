@@ -13,7 +13,8 @@
 // for Codex's error codes, each with what it did in 30 days, removed or added here (advanced-rules, advanced-rule-add,
 // advanced-rule-remove); and the samples of failures nothing classified, codes and numbers only (advanced-samples).
 // Each is written against the generation the page read, and a refusal is told in words. And (v0.6.14) a Keep it on
-// card for one that is on or watched, and Send now's waiting recoveries (advanced/gui/AdvancedKeepOn.cs).
+// card for one that is on or watched, and Send now's waiting recoveries (advanced/gui/AdvancedKeepOn.cs); and last,
+// what one watched would have done, counted (advanced-watch-log, advanced/gui/AdvancedWatch.cs).
 //
 // Its place is after Settings, the last tab. The Dashboard's pages are gui/Dashboard.cs's PageOrder, and the
 // window's navigation is that one strip of tabs: nothing in it is a place for an edition's page, and a Settings
@@ -575,16 +576,32 @@ namespace CodexAutoResume
         }
 
         /// What the open capability keeps, read after its statement where it has any: the rules for Codex's error codes
-        /// (advanced-rules) and the samples of failures nothing classified (advanced-samples); `done` once both are shown.
+        /// (advanced-rules) and the samples of failures nothing classified (advanced-samples); then, for every one but an
+        /// action, what it would have done while watched (advanced-watch-log); `done` once all are shown.
         private void ReadAdvancedKept(string id, MethodInvoker done)
         {
             Dictionary<string, object> item = AdvancedItem(id);
             bool rules = Equals(Get(item, "rules_editor"), true), samples = Equals(Get(item, "samples"), true);
+            MethodInvoker readWatch = delegate
+            {
+                if (IsAction(item))
+                {
+                    done();
+                    return;
+                }
+                AdvancedCall("advanced-watch-log", WatchArgument(id), false, delegate(Dictionary<string, object> reply)
+                {
+                    Dictionary<string, object> result = AdvancedResult(reply);
+                    advancedWatchLog[id] = AdvancedDone(result) ? result : null;
+                    ShowAdvancedDetail();
+                    done();
+                });
+            };
             MethodInvoker readSamples = delegate
             {
                 if (!samples)
                 {
-                    done();
+                    readWatch();
                     return;
                 }
                 AdvancedCall("advanced-samples", "{}", false, delegate(Dictionary<string, object> reply)
@@ -592,7 +609,7 @@ namespace CodexAutoResume
                     Dictionary<string, object> result = AdvancedResult(reply);
                     advancedSamples = AdvancedDone(result) ? result : null;
                     ShowAdvancedDetail();
-                    done();
+                    readWatch();
                 });
             };
             if (!rules)
@@ -779,6 +796,7 @@ namespace CodexAutoResume
                            AdvancedWritten(Get(advancedListing, "global_hourly")) + "|" +
                            (Equals(Get(item, "rules_editor"), true) ? AdvancedWritten(advancedRules) : "") + "|" +
                            (Equals(Get(item, "samples"), true) ? AdvancedWritten(advancedSamples) : "") + "|" +
+                           WatchShown(advancedOpen) + "|" +
                            KeptShown(item) + "|" +
                            (IsAction(item) ? ReportShown() : "");
             if (shown == advancedShown)
@@ -938,6 +956,9 @@ namespace CodexAutoResume
             if (options != null && options.Count > 0) BuildAdvancedChoices(id, options);
             if (Equals(Get(item, "rules_editor"), true) && advancedRules != null) BuildAdvancedRules();
             if (Equals(Get(item, "samples"), true) && advancedSamples != null) BuildAdvancedSamples();
+
+            // Last, what it would have done while watched (AdvancedWatch.cs): after every other card, so it moves none.
+            BuildAdvancedWatch(item);
         }
 
         // ---------------------------------------------------------------- choices, rules and samples

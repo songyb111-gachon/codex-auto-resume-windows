@@ -17,7 +17,8 @@ now refuses it); a refusal is told; a capability that turned itself off says so 
 Turn every advanced feature off send theirs; the hourly limit is a spin box, and the lowered limit is one
 the real bridge takes; a capability's own choices are drop-downs whose choice is sent at once, the rules
 for Codex's error codes are listed, added and removed, and the samples are listed, codes and numbers only -
-each request one the real bridge takes, and each refusal told; a capability on or watched can be kept on, with Send
+each request one the real bridge takes, and each refusal told; what a watched capability would have done is a card last
+in its column, answer words, counts and minutes only, read for every capability but an action; a capability on or watched can be kept on, with Send
 again or without, after each warning, and let go - what a kept-on one noted shown in the accent - and Send now, while it
 is on, offers each waiting recovery, asking first; the compatibility report - an action - says it sends nothing to
 Codex where the others show their limits, and its card writes, shows, saves, checks and sends a report only as its
@@ -43,6 +44,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -58,8 +60,9 @@ import edition_audit  # noqa: E402
 import guiscan  # noqa: E402
 from test_gui_layout import fullest_snapshot  # noqa: E402
 from codex_auto_resume import config, control, controlcli, l10n  # noqa: E402
-from codex_auto_resume_advanced import plug as advanced, policy, registry, statement, surfaces  # noqa: E402
-from codex_auto_resume_advanced.vocabulary import ArmingWarning, Measurement, Verdict  # noqa: E402
+from codex_auto_resume.domain.plug import Alternative, Point  # noqa: E402
+from codex_auto_resume_advanced import plug as advanced, policy, registry, statement, surfaces, watchlog  # noqa: E402
+from codex_auto_resume_advanced.vocabulary import ArmingWarning, JournalCode, Measurement, Verdict  # noqa: E402
 
 CSC = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Microsoft.NET" / "Framework64" / "v4.0.30319" / "csc.exe"
 POWERSHELL = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
@@ -561,6 +564,38 @@ class PageTests(unittest.TestCase):
                  {"do": "snapshot", "reply": snapshot()}, {"do": "look"}]
         return "en", {"script": script, "steps": steps}, {"words": script["advanced-words"][0]["result"]["words"]}
 
+    @classmethod
+    def scenario_watch_log(cls, bridge):
+        """Notice a usage limit that lifts early, watched: its watch log read through the real bridge - off with nothing,
+        watched with nothing, then two looks early and one hold counted - and, scripted, one the bound has cut; then the
+        compatibility report, an action, opened."""
+        def log():
+            return bridge("advanced-watch-log", {"capability": "early_reset"})
+        off = log()
+        cls.watched(bridge, "early_reset")
+        none = log()
+        state = bridge.plug.runtime.state
+        for at in (ac.NOW - 3600, ac.NOW - 60):
+            state.note(JournalCode.WOULD_HAVE, capability="early_reset", point=Point.SCHEDULE, answer=Alternative.EARLY,
+                       at=at)
+        state.note(JournalCode.WOULD_HAVE, capability="early_reset", point=Point.GATES, answer=Alternative.HOLD,
+                   at=ac.NOW - 60)
+        lines = log()
+        full = copy.deepcopy(lines)
+        full["result"].update({"full": True, "from": watchlog.minute(ac.NOW - 3600)})
+        key = "advanced-watch-log early_reset"
+        script = cls.opening(bridge, "en")
+        script[key] = [lines]
+        steps = [{"do": "snapshot", "reply": snapshot()}, {"do": "show"}, {"do": "choose", "id": "early_reset"},
+                 {"do": "look"},
+                 {"do": "reply", "key": key, "with": [none]}, {"do": "snapshot", "reply": snapshot()}, {"do": "look"},
+                 {"do": "reply", "key": key, "with": [off]}, {"do": "snapshot", "reply": snapshot()}, {"do": "look"},
+                 {"do": "reply", "key": key, "with": [full]}, {"do": "snapshot", "reply": snapshot()}, {"do": "look"},
+                 {"do": "choose", "id": REPORT}, {"do": "look"}]
+        return "en", {"script": script, "steps": steps}, {
+            "words": script["advanced-words"][0]["result"]["words"],
+            "replies": {"off": off["result"], "none": none["result"], "lines": lines["result"]}}
+
     @staticmethod
     def watched(bridge, capability, state="shadow"):
         """`capability` watched - or on - through the real bridge, as the Dashboard asks for it."""
@@ -863,8 +898,9 @@ class PageTests(unittest.TestCase):
                                "generation": expected["generation"], "engine_version": shown["engine_version"],
                                "warnings": [item["warning"] for item in shown["warnings"]["items"]]})
         self.assertEqual(result["note"], "%s is on." % "Marker-free continuation")
-        # Read again after the action.
-        self.assertEqual(result["sent"][-2].split(" ", 1)[0], "advanced-list")
+        # Read again after the action: the list, the statement and (v0.6.14) the watch log.
+        self.assertEqual([line.split(" ", 1)[0] for line in result["sent"][-3:]],
+                         ["advanced-list", "advanced-statement", "advanced-watch-log"])
 
     def test_what_the_page_sends_is_what_the_real_bridge_takes(self):
         """The request the page wrote, put to this edition's real bridge in the state the page read: it turns the
@@ -911,7 +947,7 @@ class PageTests(unittest.TestCase):
         # Between the two: the list and the statement read again.
         lines = [line.split(" ", 1)[0] for line in result["sent"]]
         between = lines[lines.index("advanced-arm") + 1:len(lines) - 1 - lines[::-1].index("advanced-arm")]
-        self.assertEqual(between, ["advanced-list", "advanced-statement"])
+        self.assertEqual(between, ["advanced-list", "advanced-statement", "advanced-watch-log"])
 
     def test_the_second_confirmation_is_one_the_real_bridge_takes(self):
         with tempfile.TemporaryDirectory() as home:
@@ -955,7 +991,8 @@ class PageTests(unittest.TestCase):
         self.assertEqual(sent(result, "advanced-disarm-all"), [{}])
         self.assertEqual(result["note"], words["page.done.all_off"])
         self.assertEqual(result["asked"], [], "turning off asks nothing")
-        self.assertEqual(result["sent"][-2].split(" ", 1)[0], "advanced-list")
+        self.assertEqual([line.split(" ", 1)[0] for line in result["sent"][-3:]],
+                         ["advanced-list", "advanced-statement", "advanced-watch-log"])
 
     def test_the_hourly_limit_is_lowered_with_the_generation_read(self):
         result, expected = self.of("scenario_hourly")
@@ -979,8 +1016,9 @@ class PageTests(unittest.TestCase):
         result, _ = self.of("scenario_followed")
         commands = [line.split(" ", 1)[0] for line in result["sent"]]
         counts = [int(look["requests"]) for look in result["looks"]]
-        read = ["advanced-list", "advanced-statement"]
-        # The words, the list and the statement once this edition answers; then, with the first badge seen, read again.
+        read = ["advanced-list", "advanced-statement", "advanced-watch-log"]
+        # The words, the list, the statement and (v0.6.14) the watch log once this edition answers; then, with the first
+        # badge seen, read again.
         self.assertEqual(commands[:counts[0]], ["advanced-words"] + read + read)
         # Away from the page, the same badge: nothing read.
         self.assertEqual(counts[1], counts[0])
@@ -1167,9 +1205,9 @@ class PageTests(unittest.TestCase):
         self.assertEqual(after["note"], words["page.done.rule_removed"])
         self.assertEqual(result["told"], [words["page.refused.rule_decision"], words["page.refused.rule_shape"]])
         self.assertEqual(len(sent(result, "advanced-rule-add")), 2, "a code of the wrong shape is never sent")
-        # Read again after each action: the list, the statement and the rules.
-        self.assertEqual([line.split(" ", 1)[0] for line in result["sent"][-3:]],
-                         ["advanced-list", "advanced-statement", "advanced-rules"])
+        # Read again after each action: the list, the statement, the rules and (v0.6.14) the watch log.
+        self.assertEqual([line.split(" ", 1)[0] for line in result["sent"][-4:]],
+                         ["advanced-list", "advanced-statement", "advanced-rules", "advanced-watch-log"])
 
     def test_the_rules_the_page_sends_are_ones_the_real_bridge_takes_and_refuses(self):
         with tempfile.TemporaryDirectory() as home:
@@ -1206,6 +1244,64 @@ class PageTests(unittest.TestCase):
         self.assertEqual(seen["choices"], [{"key": "attempts", "enabled": True, "value": "1", "items": ["1", "2", "3"]}])
         self.assertEqual(none["cards"][-1], [words["page.samples"], words["page.samples.none"]])
         self.assertIsNone(seen["rules"])
+
+    @staticmethod
+    def on_the_clock(at) -> str:
+        """A minute as the window prints it (gui/DashboardData.cs When): this PC's time."""
+        return time.strftime("%Y-%m-%d %H:%M", time.localtime(at))
+
+    def test_the_watch_log_shows_what_it_would_have_done_minutes_and_counts_only(self):
+        result, expected = self.of("scenario_watch_log")
+        words = expected["words"]
+        replies = expected["replies"]
+        lines, none, off, _full, report = result["looks"]
+        title = words["page.watchlog"]
+        since = words["page.watchlog.since"].replace("{time}", self.on_the_clock(replies["lines"]["watched_since"]))
+        late = self.on_the_clock(watchlog.minute(ac.NOW - 60))
+        self.assertEqual(lines["open"], "early_reset")
+        self.assertEqual(lines["cards"][-1], [
+            title, since,
+            "%s \u00b7 %s: 2 \u00b7 %s: %s" % (words["page.watchlog.answer.early"], words["page.watchlog.times"],
+                                              words["page.watchlog.last"], late),
+            "%s \u00b7 %s: 1 \u00b7 %s: %s" % (words["page.watchlog.answer.hold"], words["page.watchlog.times"],
+                                              words["page.watchlog.last"], late),
+            words["page.watchlog.note"]])
+        self.assertEqual(none["cards"][-1], [title, since, words["page.watchlog.none"], words["page.watchlog.note"]])
+        self.assertEqual((replies["off"]["watched_since"], replies["off"]["entries"]), (None, []))
+        self.assertNotIn(title, [card[0] for card in off["cards"]], "off, with nothing counted: no card")
+        # Its other cards are where they were: the watch log is the last, and moves none of them.
+        self.assertEqual([card[0] for card in lines["cards"][:-1]], [card[0] for card in off["cards"]])
+        self.assertEqual(report["open"], REPORT)
+        self.assertNotIn(title, [card[0] for card in report["cards"]], "an action is never asked anything")
+
+    def test_a_full_log_says_from_when_it_counts(self):
+        result, expected = self.of("scenario_watch_log")
+        words = expected["words"]
+        card = result["looks"][3]["cards"][-1]
+        said = words["page.watchlog.from"].replace("{time}", self.on_the_clock(watchlog.minute(ac.NOW - 3600)))
+        self.assertEqual(card[0], words["page.watchlog"])
+        self.assertEqual(card[-2:], [said, words["page.watchlog.note"]])
+        self.assertNotIn(said, result["looks"][0]["cards"][-1], "a log the bound has not cut says nothing of it")
+
+    def test_what_the_watch_log_asks_is_one_the_real_bridge_takes(self):
+        """Every request names one capability, the one whose cards are open - the first one too, before any is chosen -
+        and never an action; put to this edition's real bridge, each is answered."""
+        result, _ = self.of("scenario_watch_log")
+        asked = sent(result, "advanced-watch-log")
+        self.assertTrue(asked)
+        self.assertIn({"capability": "early_reset"}, asked)
+        self.assertIn({"capability": IDS[0]}, asked, "the first capability's cards are open before any is chosen")
+        self.assertNotIn({"capability": REPORT}, asked)
+        with tempfile.TemporaryDirectory() as home:
+            bridge = Bridge(Path(home))
+            try:
+                for line in [line for line in result["sent"] if line.startswith("advanced-watch-log ")]:
+                    with self.subTest(line):
+                        self.assertEqual(set(json.loads(line.split(" ", 1)[1])), {"capability"})
+                        reply = bridge.request(line)["result"]
+                        self.assertTrue(reply["done"], reply)
+            finally:
+                bridge.close()
 
     def test_a_window_that_reopens_on_this_page_comes_back_to_it(self):
         result, _ = self.of("scenario_reopen")
@@ -1384,8 +1480,16 @@ def audit_data(locale: str, bridge: Bridge) -> dict:  # noqa: C901 - one layout'
         action = item["kind"] == "action"
         item.update(stored="armed", state="armed", keep_on=index % 3 != 0, send_again=index % 3 == 2 and not action,
                     notice="hook_exception" if action else (None, "local_check_failed", "duplicate_seen")[index % 3])
+    # What each would have done while watched, at its fullest: every answer the log names and one it does not, each
+    # counted more often than anyone would see, watched, and cut by the bound.
+    first = watchlog.minute(ac.NOW - 29 * 86400)
+    watch = {"done": True, "capability": IDS[0], "days": watchlog.WINDOW_DAYS, "watched_since": watchlog.minute(ac.NOW),
+             "from": first, "full": True,
+             "entries": [{"answer": None if word is None else str(word), "points": ["schedule"], "count": 123456,
+                          "first": first, "last": watchlog.minute(ac.NOW)} for word in watchlog.WORDS + (None,)]}
     return {"words": words, "listing": listing, "statements": statements,
-            "kept": {"advanced-rules": rules, "advanced-samples": samples, "pending": snapshot()["pending"]},
+            "kept": {"advanced-rules": rules, "advanced-samples": samples, "advanced-watch-log": watch,
+                     "pending": snapshot()["pending"]},
             "reports": report_states()}
 
 

@@ -107,7 +107,8 @@ namespace CodexAutoResume
         ///
         /// The list is `listingJson` (advanced-list's answer) and the statements `statementsJson`, {id: advanced-
         /// statement's answer}; what the capabilities keep is `keptJson`, {"advanced-rules": its answer, "advanced-samples":
-        /// its answer, "pending": the snapshot's pending list}, shown on the cards of the capabilities that have them. The
+        /// its answer, "advanced-watch-log": one answer every capability shows, "pending": the snapshot's pending list},
+        /// shown on the cards of the capabilities that have them. The
         /// page is laid out at the window's opening size with each capability open in turn - with what a policy refuses of
         /// it and every warning its statement carries - then each action open with its card in each of `reportsJson`'s
         /// states ([{"state", "built", "checked", "last", "told", "job", "login", "word"}], AdoptReportState), then with a
@@ -143,6 +144,8 @@ namespace CodexAutoResume
                     string id = Str(entry as Dictionary<string, object>, "id");
                     if (id != null) ids.Add(id);
                 }
+                // What each would have done while watched, at its fullest: one line for every answer the log names.
+                foreach (string id in ids) form.advancedWatchLog[id] = Map(kept, "advanced-watch-log");
                 foreach (string id in ids)
                 {
                     form.OpenAdvanced(id);
