@@ -477,6 +477,18 @@ class CatalogTests(unittest.TestCase):
             for name in self.DYNAMIC[prefix]:
                 with self.subTest(key=prefix + name):
                     self.assertIn(prefix + name, ENGLISH)
+        # And `edition.`'s values are the codes the heading does name, as the page draws it: an advanced
+        # installation's, loaded or not, and since v0.6.14 never the standard edition's.
+        if not NODE:
+            self.skipTest("needs Node to run the panel's own code")
+        from test_mcpui_v064 import run_page, say, snapshot
+        named = []
+        for code in tuple(str(name) for name in edition.EDITIONS) + (edition.NOT_LOADED,):
+            data = snapshot()
+            data["status"]["edition"] = code
+            if run_page(say("ROOT_NODE.all(function (n) { return n.className === 'edition'; }).length"), data=data):
+                named.append(code)
+        self.assertEqual(sorted(named), sorted(self.DYNAMIC["edition."]))
 
     def test_no_word_comes_from_the_browser(self):
         # `toLocale...` too: a time formatted by the browser is a time in the browser's
