@@ -294,12 +294,11 @@ class Plug:
         return DEFER
 
     def admission(self, failure):                     # P17
-        """Whether core takes up a failure it would not recover alone, or relaxes one it would:
-        `failure` is its facts - its kind, Codex's code and status and the error's form, never a
-        word of the message - with `takes`, the answers core would carry out for it now, and
-        `chain`, the record whose continuation started the turn that failed, or None - from v0.6.14
-        with `categories`, every kind of failure its task has had, or None where that cannot be
-        read whole. An answer outside `takes` is DEFER. Asked only while `wants(ADMISSION)` says so."""
+        """Whether core takes up a failure it would not recover alone, or relaxes one it would: `failure` is its
+        facts - its kind, Codex's code and status and the error's form, never a word of the message - with
+        `takes`, the answers core would carry out for it now, and `chain`, the record whose continuation started
+        the turn that failed, or None (from v0.6.14 with `categories`, every kind its task has had, or None). An
+        answer outside `takes` is DEFER. Asked only while `wants(ADMISSION)` says so."""
         return DEFER
 
     def wants(self, point):
