@@ -752,7 +752,8 @@ never the message; for the one that retries failures it cannot classify, also ho
 kind the failed turn left - and Codex's tools learn which edition it is and that none is on. It adds no network code: its package imports no networking
 module, which a test checks as it checks the standard edition's code
 (`tests/test_privacy_claims.py`), and what its capabilities ask of anything, they ask of the Codex
-already on this machine.
+already on this machine - but for the compatibility report, which asks gh, the GitHub CLI you
+installed, to reach GitHub, and only when you start it (*What it sends to GitHub*, below).
 
 - **What it reads.** Three values an administrator may set under
   `Software\Policies\CodexAutoResume`, in `HKEY_LOCAL_MACHINE` and `HKEY_CURRENT_USER` -
@@ -790,6 +791,19 @@ already on this machine.
   counts, a time rounded to the minute and a duration - never a word of the error or the
   conversation, and kept 90 days at most. No prompt, reply, error text, title, path or secret. `Uninstall.cmd -Purge` removes it
   with the rest of `config\`.
+- **What it sends to GitHub.** Only the compatibility report, only while it is on, and only after you
+  type `send` in the Dashboard for exactly the file and the writes it showed you: through gh, signed in
+  as you, it forks the project, adds the report on a branch and opens a public pull request, so the
+  report, your GitHub login and the fork are public. The report is the one codex-compat-reporter
+  writes: counts, states and times for one version of Codex, the product's version and edition and the
+  Windows build, with no conversation text, id or path. Before that, and only while it is on, checking
+  what sending would write asks GitHub questions through gh and writes nothing; while it is only
+  watched, the report is written, shown and saved where you choose, and GitHub is asked nothing. gh
+  reads your GitHub sign-in itself, from Windows' credential storage or its own file, and makes every
+  request as your account with its own User-Agent; the product never sees the sign-in, starts gh by
+  its full path from a folder on PATH with no shell, gives the file to it on its standard input, and
+  writes no temporary file. A paused recovery stops any checking or sending; the report and its
+  status are kept only in the Dashboard's memory, and its journal holds only closed codes.
 - **What Codex is told.** What its three MCP tools return, listed under
   [When you use it from Codex](#when-you-use-it-from-codex).
 - **Measurements.** The harness that measures whether a capability's route can work on this Codex
@@ -813,8 +827,10 @@ you download the ZIP yourself; for the marketplace refresh described under
 [Installing it](#installing-it) when a marketplace it refreshes points at GitHub; for *Check
 for updates*, which from v0.6.11 also reads this repository's list of releases from
 api.github.com; for *Install another version...*, which reads that whole list there and downloads
-the version you confirm; and, from v0.6.5, for the Codex compatibility data from raw.githubusercontent.com
-when you ask for it. It is subject to GitHub's own privacy practices, as any download would be.
+the version you confirm; from v0.6.5, for the Codex compatibility data from raw.githubusercontent.com
+when you ask for it; and, in the advanced edition, for the compatibility report you send, through gh
+under your own GitHub account (*What it sends to GitHub*, above). It is subject to GitHub's own privacy
+practices, as any download would be.
 
 **OpenAI**, only through the official Codex app and CLI already signed in on your machine:
 the usage check, which Codex identifies as coming from this tool; the resumed turn; and

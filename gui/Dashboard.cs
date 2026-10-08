@@ -698,6 +698,10 @@ namespace CodexAutoResume
         private bool refreshing, refreshAgain;
         // Actions in flight. While there is one, every other action waits its turn, visibly.
         private int busy;
+        // Work a page started that outlasts the call that started it: a job of the service this window talks to, which
+        // ends with the window. While there is any, the window does not reopen itself (CheckReopen, HoldReopen); unlike
+        // `busy`, it holds back no other action.
+        private int reopenHolds;
         // Which statistics request is the latest, so an older answer never overwrites a newer one.
         private int statsToken;
         // One statistics read at a time; a period change made during one is remembered here.

@@ -67,6 +67,15 @@ anywhere else, and do not present one as active unless `list_advanced_capabiliti
   edition. When arrival cannot be proven, the continuation is treated as uncertain and never sent
   again, and the capability turns itself off; the user can turn it on again in the Dashboard.
 
+- **Compatibility report.** Unlike the others it changes nothing about recovery: it is something the
+  user starts in the Dashboard. It writes a compatibility report from this PC's own records - counts,
+  states and times, no conversation text, ids or paths - shows the whole file, saves it where they
+  choose, and, only while it is on and recovery is not paused, sends it to the project as a public
+  GitHub pull request through the GitHub CLI they installed, after they type the word send there.
+  **Never write, check or send a compatibility report** for the user, and never type that word for
+  them: no tool reaches it, and the Dashboard is where they do it. A report grants nothing and changes
+  nothing the product does.
+
 ## Turning capabilities on and off
 
 - **Never turn a capability on** - not with a tool, a command, a setting or a file, and not when

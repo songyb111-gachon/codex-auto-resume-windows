@@ -5,9 +5,10 @@
 // Two entry points, as the standard window has LayoutAudit (gui/WindowAudit.cs), and run by
 // advanced/tests/test_advanced_page.py, never by the window a person opens:
 //
-//   * AdvancedLayoutAudit lays the page out in one language at one scaling, each capability open in turn, and
-//     reports what is cut off, what has no name a screen reader can say and a list that would scroll sideways, in
-//     the window's own measurements - the standard audit's own checks (Audit, AuditSpoken, AuditPins, AuditList);
+//   * AdvancedLayoutAudit lays the page out in one language at one scaling, each capability open in turn - an
+//     action's card in every state a report can be in - and reports what is cut off, what has no name a screen
+//     reader can say and a list that would scroll sideways, in the window's own measurements - the standard
+//     audit's own checks (Audit, AuditSpoken, AuditPins, AuditList);
 //   * AdvancedPageRun drives the page as a person would - a snapshot arriving, the tab pressed, a row chosen, a
 //     button pressed, the dialog answered - with the bridge's replies and the dialog's answers given by the test, and
 //     says what the page showed, what it sent, what it asked and what it told.
@@ -106,9 +107,11 @@ namespace CodexAutoResume
         ///
         /// The list is `listingJson` (advanced-list's answer) and the statements `statementsJson`, {id: advanced-
         /// statement's answer}; what the capabilities keep is `keptJson`, {"advanced-rules": its answer, "advanced-samples":
-        /// its answer, "pending": the snapshot's pending list}, shown on the cards of the capabilities that have them. The page is laid out at the window's opening size with each capability open in turn -
-        /// with what a policy refuses of it and every warning its statement carries - then with a list that could not
-        /// be read. At each: the standard audit's Walk (anything cut off, a page that would scroll sideways, a field
+        /// its answer, "pending": the snapshot's pending list}, shown on the cards of the capabilities that have them. The
+        /// page is laid out at the window's opening size with each capability open in turn - with what a policy refuses of
+        /// it and every warning its statement carries - then each action open with its card in each of `reportsJson`'s
+        /// states ([{"state", "built", "checked", "last", "told", "job", "login", "word"}], AdoptReportState), then with a
+        /// list that could not be read. At each: the standard audit's Walk (anything cut off, a page that would scroll sideways, a field
         /// that is not a field high), a control with no name a screen reader can say, a pinned control out of its
         /// corner, and the list's columns wider than it is. Last, the narrowest window there is, held to its tabs and its
         /// list (AuditNarrowest), on two screens that do not depend on this machine's: one as wide as anything needs,
@@ -117,7 +120,7 @@ namespace CodexAutoResume
         /// narrowest screen the window opens on at this scaling, TextScale.NarrowestWidth wide - the text size is fitted
         /// so that one holds the standard window - where the tabs take a second row rather than be cut off.
         internal static string AdvancedLayoutAudit(string stringsJson, string wordsJson, string listingJson, string statementsJson,
-                                                   string keptJson, double scale)
+                                                   string keptJson, string reportsJson, double scale)
         {
             var findings = new List<string>();
             AdvancedAudited = 0;
@@ -145,6 +148,21 @@ namespace CodexAutoResume
                     form.OpenAdvanced(id);
                     form.FillAdvancedList();
                     form.AuditAdvanced("advanced/" + id, findings);
+                }
+                var reports = Json.Parse(reportsJson) as List<object> ?? new List<object>();
+                foreach (string id in ids)
+                {
+                    Dictionary<string, object> item = form.AdvancedItem(id);
+                    if (!IsAction(item)) continue;
+                    form.OpenAdvanced(id);
+                    for (int n = 0; n < reports.Count; n++)
+                    {
+                        form.AdoptReportState(item, reports[n] as Dictionary<string, object>);
+                        form.FillAdvancedList();
+                        form.RefreshReport();
+                        form.AuditAdvanced("advanced/" + id + "/report " + n, findings);
+                    }
+                    form.AdoptReportState(item, null);
                 }
                 form.ShowAdvancedList(null);
                 form.AuditAdvanced("advanced unread", findings);
@@ -205,6 +223,26 @@ namespace CodexAutoResume
             if (advancedList != null) AuditList(where + "/" + AuditName(advancedList), advancedList, findings);
         }
 
+        /// The report's card as `state` has it - on, watched or off, with what was written, checked, ended and said -
+        /// or as nothing was ever done, for null: what the layout audit lays out (AdvancedLayoutAudit).
+        private void AdoptReportState(Dictionary<string, object> item, Dictionary<string, object> state)
+        {
+            if (item != null)
+            {
+                string standing = Str(state, "state") ?? StateArmed;
+                item["state"] = standing;
+                item["stored"] = standing;
+            }
+            reportBuilt = Map(state, "built");
+            reportChecked = Map(state, "checked");
+            reportLast = Map(state, "last");
+            reportTold = Str(state, "told");
+            reportJobKind = Str(state, "job");
+            reportJob = reportJobKind == null ? null : "audit";
+            reportLoginText = Str(state, "login") ?? "";
+            reportWordText = Str(state, "word") ?? "";
+        }
+
         // ---------------------------------------------------------------- driving the page
         /// The page driven as a person would, from `scenarioJson`: {"answers": [the dialog's answers], "script": {command
         /// or "<command> <capability>": [replies, as the bridge gives them]}, "steps": [...]}. A step is one of
@@ -213,8 +251,12 @@ namespace CodexAutoResume
         ///   {"do": "show"}                                    the tab pressed
         ///   {"do": "page", "name": ...}                       another page's tab pressed
         ///   {"do": "choose", "id": ...}                       that capability's row chosen in the list
-        ///   {"do": "press", "button": on|watch|off|all_off|   a button pressed, if it can be
-        ///    keep_on|send_again|let_go}
+        ///   {"do": "press", "button": on|watch|off|all_off|   a button pressed, if it can be: the page's, Keep it on's
+        ///    keep_on|send_again|let_go|report_write|          or the report card's
+        ///    report_save|report_check|report_send}
+        ///   {"do": "type", "into": login|word, "text": ...}  text typed into one of the report's boxes, whole
+        ///   {"do": "poll"}                                    the running report job read, as the page's clock reads it
+        ///   {"do": "save_to", "path": ...}                    the file the save dialog would answer with
         ///   {"do": "hourly", "value": n}                      the hourly limit chosen, and the pause after it over
         ///   {"do": "set_option", "key": ..., "value": n}      a choice made in that choice's drop-down
         ///   {"do": "rule", "tag": ..., "sampled": ...,        a new rule's fields filled - its code typed, or taken from the
@@ -266,7 +308,10 @@ namespace CodexAutoResume
                         Button button = name == "on" ? form.advancedOn : name == "watch" ? form.advancedWatch
                                       : name == "off" ? form.advancedOff : name == "all_off" ? form.advancedAllOff
                                       : name == "keep_on" ? form.keepOnButton : name == "send_again" ? form.sendAgainButton
-                                      : name == "let_go" ? form.letGoButton : null;
+                                      : name == "let_go" ? form.letGoButton
+                                      : name == "report_write" ? form.reportWrite : name == "report_save" ? form.reportSave
+                                      : name == "report_check" ? form.reportCheck : name == "report_send" ? form.reportSend
+                                      : null;
                         if (button == null || !button.Enabled || !OwnVisible(button)) disabled.Add(name);
                         else Pressed.Invoke(button, new object[] { EventArgs.Empty });
                     }
@@ -326,6 +371,14 @@ namespace CodexAutoResume
                         // As a key reaches the window: its command keys first, then the key preview (BuildDashboard).
                         if (!form.ProcessCmdKey(ref message, keys)) form.OnKeyDown(new KeyEventArgs(keys));
                     }
+                    else if (what == "type")
+                    {
+                        SoftTextArea box = Str(step, "into") == "word" ? form.reportWord : form.reportLogin;
+                        if (box == null || !OwnVisible(box)) disabled.Add("type " + Str(step, "into"));
+                        else box.Box.Text = Str(step, "text") ?? "";
+                    }
+                    else if (what == "poll") form.PollReport();
+                    else if (what == "save_to") form.advancedSaveTo = Str(step, "path");
                     else if (what == "reply")
                         form.advancedScript[Str(step, "key") ?? ""] = new List<object>(Items(step, "with") ?? new List<object>());
                     else if (what == "answer")
@@ -484,7 +537,38 @@ namespace CodexAutoResume
             var waiting = new List<object>();
             foreach (Button send in sendNowButtons) waiting.Add(send.Tag);
             look["send_now"] = waiting;
+            // The report's card: what its boxes hold, what each of its buttons may do (null where there is none), the
+            // job it is reading, what it said and how the last check or send ended, the text it shows in boxes that can
+            // be selected (a link, a SHA-256), and how many holds on the window's reopen there are.
+            var report = new Dictionary<string, object>();
+            report["login"] = reportLogin == null ? null : reportLogin.Box.Text;
+            report["word"] = reportWord == null ? null : reportWord.Box.Text;
+            report["file"] = reportFile == null ? null : reportFile.Box.Text;
+            var pressable = new Dictionary<string, object>();
+            pressable["write"] = reportWrite == null ? null : (object)reportWrite.Enabled;
+            pressable["save"] = reportSave == null ? null : (object)reportSave.Enabled;
+            pressable["check"] = reportCheck == null ? null : (object)reportCheck.Enabled;
+            pressable["send"] = reportSend == null ? null : (object)reportSend.Enabled;
+            report["buttons"] = pressable;
+            report["job"] = reportJob;
+            report["kind"] = reportJobKind;
+            report["told"] = reportTold;
+            report["checked"] = Str(reportChecked, "status");
+            report["last"] = Str(reportLast, "status");
+            var boxes = new List<object>();
+            if (advancedStack != null) Boxes(advancedStack, boxes);
+            report["boxes"] = boxes;
+            report["holds"] = (double)reopenHolds;
+            look["report"] = report;
             return look;
+        }
+
+        /// The text of every read-only box in `control`, in order: what the page shows that a person can select.
+        private static void Boxes(Control control, List<object> into)
+        {
+            var area = control as SoftTextArea;
+            if (area != null && area.Box.ReadOnly) into.Add(area.Box.Text);
+            foreach (Control child in control.Controls) Boxes(child, into);
         }
 
         /// The words a control shows, and those of everything in it, in order: a label's text, a callout's notice.

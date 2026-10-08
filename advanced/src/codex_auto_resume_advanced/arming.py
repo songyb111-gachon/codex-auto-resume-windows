@@ -76,8 +76,8 @@ from .state import Refused, StaleGeneration, StateError
 from .state.spend import CHANNELS
 from .state.choices import DAY, RECENT_DAYS, RULES_LIMIT, aggregated, tag_problem
 from .statement import CATALOGS
-from .vocabulary import (KEPT_NOTICES, TRIPWIRES, Actor, ArmingState, ArmingWarning, KeepOn,
-                         OffReason, OverrideKind, Refusal, Verdict)
+from .vocabulary import (KEPT_NOTICES, TRIPWIRES, Actor, ArmingState, ArmingWarning, CapabilityKind,
+                         KeepOn, OffReason, OverrideKind, Refusal, Verdict)
 
 # The actors a person turns a capability off through.
 SURFACES = frozenset({Actor.DASHBOARD, Actor.MCP, Actor.TRAY, Actor.CARD})
@@ -109,7 +109,10 @@ def engine_version(view):
 
 def compat_warning(view, definition):
     """The warning the Compatibility Registry's view gives for what `definition` stands on, or
-    None for a grade of COMPATIBLE or better. A view that cannot be read is UNKNOWN."""
+    None for a grade of COMPATIBLE or better. A view that cannot be read is UNKNOWN. An action
+    stands on nothing of Codex's, so it has none: a failing Codex is no reason to withhold it."""
+    if definition.compat is None:
+        return None
     capabilities = view.get("capabilities") if isinstance(view, dict) else None
     entry = capabilities.get(definition.compat) if isinstance(capabilities, dict) else None
     state = entry.get("state") if isinstance(entry, dict) else UNKNOWN
@@ -670,8 +673,9 @@ class Arming:
         once-more capability's too, since Send again does what it does; then it must be on or watched
         (NOT_ON); then `confirmed` must be the words of the warnings the Dashboard showed, ["keep_on"] or
         ["keep_on", "send_again"] (STALE_CONFIRMATION); then the generation. Send again is only with Keep
-        on, and never for a capability that resends itself (INVALID_REQUEST). Letting either go needs only
-        the capability. {"done", "refusal", "generation"}."""
+        on, and never for a capability that resends itself, nor for an action, which sends no continuation
+        to send again (INVALID_REQUEST). Letting either go needs only the capability. {"done", "refusal",
+        "generation"}."""
         def refused(why):
             return {"done": False, "refusal": why, "generation": self._generation()}
 
@@ -682,7 +686,8 @@ class Arming:
             return refused(Refusal.UNKNOWN_CAPABILITY)
         if (type(keep_on) is not bool or type(send_again) is not bool
                 or not (generation is None or type(generation) is int)
-                or (send_again and (not keep_on or definition.resends))):
+                or (send_again and (not keep_on or definition.resends
+                                    or definition.kind == CapabilityKind.ACTION))):
             return refused(Refusal.INVALID_REQUEST)
         try:
             row = self.state.arming().get(definition.id) or {}
@@ -857,6 +862,7 @@ class Arming:
                 "acknowledged_version": row.get("engine_version"),
                 "warnings": [str(word) for word in self.warnings(definition, view)],
                 "confirmed_warnings": [str(word) for word in row.get("warnings") or ()],
+                "kind": str(definition.kind),
                 "departs_from": departs(definition, row), "compat": definition.compat,
                 "measurements": [str(measurement) for measurement in definition.measurements],
                 "points": sorted(str(point) for point in definition.points),
@@ -864,8 +870,10 @@ class Arming:
                 # ever bind. A capability that only starts, or only shadows, spends no unit; a
                 # surface shows its ceilings as nominal rather than as a limit that will be met.
                 "sends": bool(definition.points & SENDING_POINTS),
-                "ceilings": {"per_day": definition.ceilings.per_day,
-                             "per_conversation": definition.ceilings.per_conversation},
+                # An action has none: it sends nothing to Codex, so there is no limit to show.
+                "ceilings": None if definition.ceilings is None else
+                {"per_day": definition.ceilings.per_day,
+                 "per_conversation": definition.ceilings.per_conversation},
                 # Its own choices, each with what it offers, what it is now and its default; and whether
                 # the page shows it the rules editor and the samples, which are read on their own
                 # (rules_view, samples_view) - never in this list, which MCP reads too.

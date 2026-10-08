@@ -665,6 +665,17 @@ $out.checks = $steps
 $out.highContrast = [bool]$themeType.GetMethod('ContrastOn', $static).Invoke($null, $null)
 $window.Dispose()
 
+# ------------------------------------------------------------------ work held past its call
+# The neutral hold a page takes while work it started outlasts the call (v0.6.13: a report's check or send): counted
+# up and down, never below none. Nothing here decides a reopen, so nothing can start a process.
+$holder = New-Window
+$out.holds = @([int](Get-Field $holder 'reopenHolds'))
+foreach ($on in @($true, $true, $false, $false, $false)) {
+    $null = Invoke-Window $holder 'HoldReopen' @($on)
+    $out.holds += [int](Get-Field $holder 'reopenHolds')
+}
+$holder.Dispose()
+
 # ------------------------------------------------------------------ the handover's two endings
 # How the wait for the new window ends, with stand-ins for its process; and what this window does with each ending.
 # No process is started: a reopen is never begun here, only ended.
@@ -1384,6 +1395,23 @@ class WindowThemeTests(unittest.TestCase):
                 self.assertEqual(step["openedTheme"], opened)
                 self.assertEqual(step["openedLanguage"], "en")
                 self.assertEqual(step["openedDesign"], "soft")
+
+    def test_the_reopen_waits_while_work_is_held_past_its_call_and_looks_again_after(self):
+        """Work a page started that outlasts its call - a job of the service the window talks to, which ends with the
+        window - holds the reopen as an action does, without holding back any other action: CheckReopen waits while
+        the neutral counter is up, as it waits for `busy`, and the clock looks again once the counter drops
+        (TickReopen calls CheckReopen while one is pending). The counter counts up and down and never below none."""
+        self.assertEqual(self.answer["holds"], [0, 1, 2, 1, 0, 0])
+        check = guiscan.member_body("SettingsForm", "CheckReopen")
+        self.assertIn("WindowState == FormWindowState.Minimized || busy > 0 || reopenHolds > 0 ||", check)
+        gate = check.index("reopenHolds > 0")
+        self.assertLess(gate, check.index("recheck = true;", gate), "the hold sets the look again")
+        self.assertLess(check.index("recheck = true;", gate), check.index("return;", gate), "and returns")
+        hold = guiscan.member_body("SettingsForm", "HoldReopen")
+        self.assertIn("reopenHolds = Math.Max(0, reopenHolds + (on ? 1 : -1));", hold)
+        self.assertNotIn("SetBusy", hold, "a hold disables no button")
+        tick = guiscan.member_body("SettingsForm", "TickReopen")
+        self.assertIn("if (recheck) CheckReopen(false);", tick)
 
     def test_a_disagreement_that_never_goes_away_reopens_at_most_twice(self):
         """A window that reads something other than what it was started with - every time - is opened

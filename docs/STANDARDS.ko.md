@@ -561,8 +561,8 @@ K군은 2026-09-28에 더했습니다. 실행 중에 이 파일을 읽는 것은
 **K4** 기본은 꺼짐이며, 벗어나야만 고급판입니다. 모든 기능은 꺼진 채 시작하고, 이 판으로 들어오면 모두 꺼지며, 지켜보는 기능이 스스로 켜짐으로 올라가지 않습니다. departs_from은 비어 있지 않고 표준판이 지키는 기준(0.1-0.7, A-J)만 적습니다. 그러므로 모든 기준을 지키는 기능은 표준판에 속합니다.  
 *테스트*: `test_advanced_arming.py`, `test_advanced_registry.py`
 
-**K5** 모든 기능보다 일시 정지와 동의가 먼저입니다. 코어는 동의 관문을 지난 뒤에만 플러그에 묻습니다. 일시 정지된 워처는 아무것도 묻지 않고, 꺼진 대화나 취소된 레코드는 넘기지 않으며, 전송 직전 확인 뒤에 확정된 일시 정지는 실행 보호 장치(launch guard)에서 경로나 채널을 멈추고, 일시 정지는 WMI로 무엇을 만들기 전에 Codex와 함께 시작을 멈춥니다. 모든 관문, 영속하는 선점, 전송 직전 확인은 코어의 것으로 남습니다.  
-*테스트*: `test_plug_points.py`, `test_advanced_start_with_codex.py`, `test_advanced_marker_free.py`, `test_advanced_goal.py`
+**K5** 모든 기능보다 일시 정지와 동의가 먼저입니다. 코어는 동의 관문을 지난 뒤에만 플러그에 묻습니다. 일시 정지된 워처는 아무것도 묻지 않고, 꺼진 대화나 취소된 레코드는 넘기지 않으며, 전송 직전 확인 뒤에 확정된 일시 정지는 실행 보호 장치(launch guard)에서 경로나 채널을 멈추고, 일시 정지는 WMI로 무엇을 만들기 전에 Codex와 함께 시작을 멈추고, GitHub에 무엇이든 묻기 전에 호환성 보고서를 멈춥니다. 모든 관문, 영속하는 선점, 전송 직전 확인은 코어의 것으로 남습니다.  
+*테스트*: `test_plug_points.py`, `test_advanced_start_with_codex.py`, `test_advanced_marker_free.py`, `test_advanced_goal.py`, `test_advanced_report.py`
 
 **K6** 실패한 측정은 사람이 확인하는 경고이며, 거부하는 것은 정책 키뿐입니다. 경로가 기대는 측정이 실패했거나 지금의 Codex에서 통과한 적이 없는 것, FAILED_HERE, INCOMPATIBLE, UNKNOWN 등급, 알 수 없는 Codex 버전은 설명에 보이고 켜면서 확인하는 것이지, 거부가 아닙니다(2026-09-26 소유자가 결정 C7을 대신해 정함). 거부하는 것은 HKLM과 HKCU의 Software\Policies\CodexAutoResume 아래 ForbidAdvanced, AllowedCapabilities, ForceShadow(켜기에 대해)이며, 읽기만 하고 쓰지 않습니다. 둘을 합치면 더 엄격한 쪽이고, 읽을 수 없으면 가장 엄격하게 봅니다.  
 *테스트*: `test_advanced_arming.py`, `test_advanced_goal.py`, `test_advanced_marker_free.py`

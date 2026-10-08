@@ -26,8 +26,8 @@ from codex_auto_resume.domain.plug import DEFER, Alternative, Point  # noqa: E40
 from codex_auto_resume_advanced import policy, surfaces  # noqa: E402
 from codex_auto_resume_advanced.arming import standing  # noqa: E402
 from codex_auto_resume_advanced.vocabulary import (KEPT_NOTICES, Actor, ArmingState, ArmingWarning,  # noqa: E402
-                                                   JournalCode, KeepOn, Measurement, OffReason, Refusal,
-                                                   Verdict)
+                                                   CapabilityKind, JournalCode, KeepOn, Measurement, OffReason,
+                                                   Refusal, Verdict)
 from test_engine import T1  # noqa: E402
 from test_plug_points import PluggedCase  # noqa: E402
 
@@ -348,6 +348,22 @@ class SendAgainSettingTests(KeepOnCase):
         self.assertTrue(self.again()["done"])
         self.assertTrue(self.keep(False, generation=None, confirmed=None)["done"])
         self.assertEqual((self.row()["keep_on"], self.row()["send_again"]), (False, False), "Keep on off takes both")
+
+    def test_an_action_is_never_given_it(self):
+        """An action sends no continuation, so there is nothing to send again: Send again is refused for one, as for a
+        capability that resends itself, and Keep on alone stays its own."""
+        action = ac.definition(id="test_report", kind=CapabilityKind.ACTION, points=frozenset(), compat=None,
+                               ceilings=None, journal_prefix="tr")
+        where = tempfile.TemporaryDirectory()
+        self.addCleanup(where.cleanup)
+        self.catalogs = ac.catalogs(where.name, ac.definition(), action)
+        self.rt = self.runtime(ac.definition(), action)
+        self.assertTrue(self.arm(self.rt, capability="test_report", state="shadow")["done"])
+        self.assertTrue(self.keep(capability="test_report")["done"])
+        refused = self.rt.arming.set_keep_on("test_report", True, send_again=True, generation=self.generation(),
+                                             confirmed=["keep_on", "send_again"], actor=Actor.DASHBOARD)
+        self.assertEqual(refused["refusal"], Refusal.INVALID_REQUEST)
+        self.assertEqual((self.row("test_report")["keep_on"], self.row("test_report")["send_again"]), (True, False))
 
     def test_refused_and_inert_where_the_policy_leaves_out_the_once_more_capability(self):
         self.armed(keep=False)

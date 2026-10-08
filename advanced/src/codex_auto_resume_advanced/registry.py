@@ -5,6 +5,10 @@ A capability is a definition here plus its code. The definition says everything 
 asked to agree to and everything the plug holds it to:
 
 * `id` - its closed name, the one every table, surface and journal line uses;
+* `kind` - a ROUTE, which answers at plug points, or an ACTION, which answers at none: core never
+  asks an action, it sends nothing to Codex and spends nothing, so it has no points, stands on no
+  compatibility capability, rests on no measurement and has no ceilings - its own bounds are its
+  code's, and a person in the Dashboard starts each thing it does (vocabulary.CapabilityKind);
 * `points` - the plug points its code answers at (domain/plug.py), and no others;
 * `revision` - the revision of its statement: the five fields in `statement.py`'s catalogs, in
   every language the product has a catalog for. Arming names the revision the person read, and a new revision turns the
@@ -44,8 +48,9 @@ relax their records at P3: the short retries when Codex is at capacity (engine/c
 rules for Codex's error codes, the retries of failures nothing classified, of Codex giving up and
 of a sign-in failure (engine/admitted.py); and, at P7 and P3, the notice of a usage limit that lifts
 early (engine/earlyreset.py). From v0.6.14 (stage 3b), at P7: an uncertain continuation sent once more
-(engine/oncemore.py), and one waiting recovery a person asks to send now (control/sendnow.py).
-The tests define one of their own to hold every rule here.
+(engine/oncemore.py), and one waiting recovery a person asks to send now (control/sendnow.py); and, at no
+point, the compatibility report, an action (report/). The tests define one of their own to hold every
+rule here.
 """
 from __future__ import annotations
 
@@ -64,8 +69,9 @@ from .engine.earlyreset import make as make_early_reset
 from .engine.goal import make as make_goal_continuation
 from .engine.markerfree import make as make_marker_free
 from .engine.oncemore import make as make_once_more
+from .report import make as make_compat_report
 from .standards import DEPARTABLE
-from .vocabulary import Measurement, OptionKey
+from .vocabulary import CapabilityKind, Measurement, OptionKey
 
 # The one ceiling over every capability together: advanced sends an hour. It is also the highest
 # value a person may set it to - it can be lowered and never raised.
@@ -111,8 +117,8 @@ class CapabilityDef:
     points: frozenset
     revision: int
     departs_from: tuple
-    compat: str
-    ceilings: Ceilings
+    compat: str | None                   # None for an action, which stands on none
+    ceilings: Ceilings | None            # None for an action, which spends nothing
     journal_prefix: str
     make: Callable
     codes: tuple = ()
@@ -121,6 +127,7 @@ class CapabilityDef:
     rules_editor: bool = False
     samples: bool = False
     resends: bool = False
+    kind: CapabilityKind = CapabilityKind.ROUTE
 
     def option(self, key) -> Option | None:
         """The choice of `key` this capability offers, or None."""
@@ -150,8 +157,20 @@ def problems(definition) -> list:
     found = []
     if not isinstance(definition.id, str) or not ID_SHAPE.fullmatch(definition.id):
         found.append("id")
+    if not isinstance(definition.kind, CapabilityKind):
+        found.append("kind")
+    action = definition.kind == CapabilityKind.ACTION
     points = definition.points
-    if (not isinstance(points, frozenset) or not points
+    if action:
+        if points != frozenset():
+            found.append("an action answers at no point")
+        if definition.compat is not None:
+            found.append("an action stands on no compatibility capability")
+        if definition.ceilings is not None:
+            found.append("an action has no ceilings: it spends nothing")
+        if definition.measurements != ():
+            found.append("an action rests on no measurement")
+    elif (not isinstance(points, frozenset) or not points
             or not all(isinstance(point, Point) for point in points)):
         found.append("points")
     elif not points <= CAPABILITY_POINTS:
@@ -164,16 +183,17 @@ def problems(definition) -> list:
     elif (not all(isinstance(standard, str) for standard in departs)
           or len(set(departs)) != len(departs) or not set(departs) <= set(DEPARTABLE)):
         found.append("departs_from names a standard the standard edition does not keep")
-    if not isinstance(definition.compat, str) or not ID_SHAPE.fullmatch(definition.compat):
-        found.append("compat")
-    ceilings = definition.ceilings
-    if (not isinstance(ceilings, Ceilings) or not _count(ceilings.per_day)
-            or not _count(ceilings.per_conversation)
-            or ceilings.per_conversation > ceilings.per_day
-            or (ceilings.per_conversation > CORE_DAILY_CAP
-                and "A20" not in (departs if isinstance(departs, tuple) else ()))
-            or ceilings.per_day > GLOBAL_HOURLY * 24):
-        found.append("ceilings")
+    if not action:
+        if not isinstance(definition.compat, str) or not ID_SHAPE.fullmatch(definition.compat):
+            found.append("compat")
+        ceilings = definition.ceilings
+        if (not isinstance(ceilings, Ceilings) or not _count(ceilings.per_day)
+                or not _count(ceilings.per_conversation)
+                or ceilings.per_conversation > ceilings.per_day
+                or (ceilings.per_conversation > CORE_DAILY_CAP
+                    and "A20" not in (departs if isinstance(departs, tuple) else ()))
+                or ceilings.per_day > GLOBAL_HOURLY * 24):
+            found.append("ceilings")
     if not isinstance(definition.journal_prefix, str) or not PREFIX_SHAPE.fullmatch(definition.journal_prefix):
         found.append("journal_prefix")
     codes = definition.codes
@@ -227,8 +247,10 @@ class Registry:
         return self._by_id.get(capability) if isinstance(capability, str) else None
 
     def at(self, point) -> tuple:
-        """The capabilities whose code answers at `point`, in the registry's order."""
-        return tuple(definition for definition in self.definitions if point in definition.points)
+        """The capabilities whose code answers at `point`, in the registry's order. Never an action,
+        which answers at none: core never asks it anything."""
+        return tuple(definition for definition in self.definitions
+                     if definition.kind == CapabilityKind.ROUTE and point in definition.points)
 
     def __iter__(self):
         return iter(self.definitions)
@@ -503,7 +525,35 @@ SEND_NOW = CapabilityDef(
     codes=("requested",),
 )
 
-# In this order, which is also which answers first where two answer at one point.
+# The compatibility report (v0.6.13 stage 3b, the plan's in-app report): this PC's own records written
+# up as codex-compat-reporter writes them (report/records.py, evidence.py, document.py), shown whole in
+# the Dashboard, saved where the person chooses, and sent to the project as a public pull request -
+# through gh, the GitHub CLI the person installed, signed in as them - only after they type send. An
+# action: it answers at no point, so core never asks it, nothing goes to Codex and no unit is spent; it
+# stands on no compatibility capability, since a failing Codex is when a report matters most, and has no
+# ceilings: one check or send at a time per home, and each send its own typed word for exactly the file
+# and the writes shown, are its bounds (report/flow.py). It departs from B11 (gh reads the person's GitHub
+# sign-in on the product's behalf), C1 and C2 (network work, by delegation, from a second shipped file),
+# C3 (GitHub addresses beyond the two lists of releases), C8 (the person's GitHub identity and gh's own
+# User-Agent), D1 (the report's counts go to the project), E8 (a hung gh, and one still running when the
+# Dashboard's service ends, is ended), F3 (the file saved where the person chooses) and F6 (gh is not a
+# listed process). It keeps G13 - a report grants nothing - and K5: a pause stops checking and sending.
+COMPAT_REPORT = CapabilityDef(
+    id="compat_report",
+    kind=CapabilityKind.ACTION,
+    points=frozenset(),
+    revision=1,
+    departs_from=("B11", "C1", "C2", "C3", "C8", "D1", "E8", "F3", "F6"),
+    compat=None,
+    ceilings=None,
+    journal_prefix="rpt",
+    make=make_compat_report,
+    codes=("built", "saved", "checked", "sent", "partial", "refused", "lost"),
+)
+
+# In this order, which is also which answers first where two answer at one point; the action, which
+# answers at none, last.
 DEFINITIONS = (START_WITH_CODEX, GOAL_CONTINUATION, MARKER_FREE, CAPACITY_RETRY, STRUCTURED_RULES,
-               UNKNOWN_FAILURE_BUDGET, CODEX_GAVE_UP, SIGN_IN_RETRY, EARLY_RESET, ONCE_MORE, SEND_NOW)
+               UNKNOWN_FAILURE_BUDGET, CODEX_GAVE_UP, SIGN_IN_RETRY, EARLY_RESET, ONCE_MORE, SEND_NOW,
+               COMPAT_REPORT)
 REGISTRY = Registry(DEFINITIONS)

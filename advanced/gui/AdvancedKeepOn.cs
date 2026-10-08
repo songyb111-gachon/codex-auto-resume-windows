@@ -5,11 +5,11 @@
 // Keep it on (the owner's K8): for the open capability while it is on or watched, a card under its limits that says
 // whether it turns itself off when something it relies on goes wrong, and what it noted instead where it is kept on - and
 // three buttons, each shown where it can act: Keep it on..., Also send again when unsure... (with Keep on, never for a
-// capability that resends itself) and Let it turn itself off. Each turn-on asks first in the window's own dialog, with its
-// warning, the safe answer the default (AskAdvanced), and sends exactly what that warning was, confirmed in its words
-// (advanced-keep-on); letting go asks nothing, as turning off never does. What a kept-on capability noted is a line in
-// the accent under its state on its first card (KeptText), beside what turned one off (TrippedText); turning it on again is
-// how the person confirms again.
+// capability that resends itself, nor for an action, which sends no continuation) and Let it turn itself off. Each
+// turn-on asks first in the window's own dialog, with its warning, the safe answer the default (AskAdvanced), and sends
+// exactly what that warning was, confirmed in its words (advanced-keep-on); letting go asks nothing, as turning off never
+// does. What a kept-on capability noted is a line in the accent under its state on its first card (KeptText), beside what
+// turned one off (TrippedText); turning it on again is how the person confirms again.
 //
 // Send now: while Send now is on - not watched: the bridge refuses a request it could only journal - a card of the
 // recoveries waiting now, flat lines from the pending list the window already holds (SnapshotApplied), each with its own
@@ -108,7 +108,7 @@ namespace CodexAutoResume
             state.ForeColor = Ink;
             card.Controls.Add(state);
             if (!kept) keepOnButton = CardButton(card, Word("page.keep_on.turn_on", "Keep it on..."), delegate { KeepOnAdvanced(id, false); });
-            if (kept && !again && !Equals(Get(item, "resends"), true))
+            if (kept && !again && !Equals(Get(item, "resends"), true) && !IsAction(item))
                 sendAgainButton = CardButton(card, Word("page.keep_on.send_again", "Also send again when unsure..."),
                                              delegate { KeepOnAdvanced(id, true); });
             if (kept) letGoButton = CardButton(card, Word("page.keep_on.turn_off", "Let it turn itself off"), delegate { LetGoAdvanced(id); });

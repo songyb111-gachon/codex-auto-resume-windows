@@ -14,6 +14,15 @@ from __future__ import annotations
 from enum import StrEnum
 
 
+class CapabilityKind(StrEnum):
+    """What a capability is. A ROUTE answers at plug points: core asks it, and what it changes core
+    carries out, under its ceilings. An ACTION answers at no point: core never asks it, it sends
+    nothing to Codex and spends no unit, and only a person, in the Dashboard, starts what it does
+    (a compatibility report, written and sent only when they say so)."""
+    ROUTE = "route"
+    ACTION = "action"
+
+
 class ArmingState(StrEnum):
     """Where one capability stands. OFF is where every capability starts, and the only state
     anything but a person in the Dashboard can move one to."""
@@ -228,6 +237,14 @@ class BridgeCommand(StrEnum):
     # Send now (v0.6.14): a person's request that one waiting recovery go at the watcher's next look,
     # by its interruption id, the Dashboard's alone while Send now is on; no MCP tool reaches it.
     ADVANCED_SEND_NOW = "advanced-send-now"
+    # The compatibility report (report/flow.py): write it, save it where the person chooses, check what
+    # sending would write, send it, and read how one of the first, third or fourth - each a job this
+    # process holds - is getting on. Like the rest, only the Dashboard's; no MCP tool reaches any of them.
+    ADVANCED_REPORT_BUILD = "advanced-report-build"
+    ADVANCED_REPORT_SAVE = "advanced-report-save"
+    ADVANCED_REPORT_CHECK = "advanced-report-check"
+    ADVANCED_REPORT_SEND = "advanced-report-send"
+    ADVANCED_REPORT_JOB = "advanced-report-job"
 
 
 class Measurement(StrEnum):
@@ -289,6 +306,76 @@ class NoteCode(StrEnum):
 
 NOTE_FOR_PASS = frozenset({NoteCode.AS_EXPECTED})
 NOTE_FOR_FAIL = frozenset(NoteCode) - NOTE_FOR_PASS
+
+
+class ReportRefusal(StrEnum):
+    """Why the compatibility report did not do what the Dashboard asked (report/). The first ten are
+    the reader's (report/records.ReadRefusal), the next four the file's (report/document.
+    DocumentRefusal); the rest are the flow's, the save's and GitHub's, through gh. A word, never an
+    id, a path, a login or text."""
+    NO_STATE = "no_state"
+    STATE_NEWER = "state_newer"
+    STATE_OLDER = "state_older"
+    STATE_UNREADABLE = "state_unreadable"
+    STATE_BUSY = "state_busy"
+    LEDGER_NEWER = "ledger_newer"
+    LEDGER_UNREADABLE = "ledger_unreadable"
+    NO_ENGINE_VERSION = "no_engine_version"
+    VERSION_INVALID = "version_invalid"
+    TOO_MANY_RECORDS = "too_many_records"
+    LOGIN_INVALID = "login_invalid"
+    LOGIN_RESERVED = "login_reserved"
+    LOGIN_OWNER = "login_owner"
+    TOO_LARGE = "too_large"
+    NOT_ON = "not_on"                        # off: nothing of it may be done
+    WATCHED = "watched"                      # watched: written, read and saved, never checked or sent
+    PAUSED = "paused"                        # recovery is paused: nothing is checked or sent (K5)
+    BUSY = "busy"                            # a report is being checked or sent, here or in another window
+    UNKNOWN_BUILD = "unknown_build"          # no report this process wrote has that SHA-256
+    CHANGED = "changed"                      # what sending would write is not what the person read
+    WORD = "word"                            # the word typed was not exactly send
+    FILE_EXISTS = "file_exists"
+    SAVE_FAILED = "save_failed"
+    GH_FAILED = "gh_failed"                  # gh could not be started, or GitHub refused a step
+    GH_TIMEOUT = "gh_timeout"                # gh did not answer in time, and was ended
+    GH_SPELLING = "gh_spelling"              # GitHub spells the login in other letters
+    NOT_OPEN = "not_open"                    # the project is not taking reports yet
+    ALREADY_FILED = "already_filed"
+    PR_OPEN = "pr_open"                      # another report pull request of that login is open
+    FORK_NAMED_OTHERWISE = "fork_named_otherwise"
+    FORK_NOT_READY = "fork_not_ready"
+    BASE_INVALID = "base_invalid"            # GitHub did not answer with the project's main as a commit
+
+
+class ReportStatus(StrEnum):
+    """Where one of the compatibility report's jobs stands, as advanced-report-job answers it."""
+    RUNNING = "running"
+    BUILT = "built"                          # written: the file, its SHA-256 and what it holds
+    SAVED = "saved"
+    CHECKED = "checked"                      # GitHub asked: every write sending would make
+    WEB = "web"                              # gh cannot send it from here: the web's steps instead
+    SENT = "sent"                            # the pull request is open, sent now or already
+    PARTIAL = "partial"                      # stopped after some writes: what is on GitHub now
+    REFUSED = "refused"                      # stopped before anything was written
+    LOST = "lost"                            # a job this process does not hold: whether it was sent is unknown
+
+
+class ReportWrite(StrEnum):
+    """One write sending a report makes to GitHub, in the order it makes them; each is shown, with its
+    name, before the person types send, and the send makes exactly those."""
+    FORK_NEW = "fork_new"
+    FORK_KEPT = "fork_kept"
+    BRANCH_NEW = "branch_new"
+    BRANCH_RESET = "branch_reset"
+    FILE = "file"
+    PR = "pr"
+
+
+class WebReason(StrEnum):
+    """Why a report has to be sent on the web: gh cannot send it from this PC."""
+    NO_GH = "no_gh"
+    GH_SIGNED_OUT = "gh_signed_out"
+    GH_OTHER_LOGIN = "gh_other_login"
 
 
 class McpTool(StrEnum):

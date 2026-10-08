@@ -89,7 +89,8 @@ once - always works and lets it turn itself off again. With it you can also choo
 when unsure*, after a warning of its own: such a send is then sent once more under the rules of Once
 more when unsure below, so the capability departs from what that one departs from too, and only where
 your administrator's policy allows Once more when unsure as well; a continuation sent again and found
-twice turns that choice off, and the capability stays on. The policy reads a kept-on capability down
+twice turns that choice off, and the capability stays on. The compatibility report sends nothing to
+Codex, so it has no such choice. The policy reads a kept-on capability down
 as any other, by the capability's own id: no policy value reaches Keep it on alone (K8).
 
 **Your administrator's policy.** Three values under `Software\Policies\CodexAutoResume`, in
@@ -103,13 +104,16 @@ What the advanced edition keeps is its own: which capability is on, what each ha
 did, the choices you made for a capability, the rules you wrote, which capability took up which
 interruption and the samples of failures it could not classify are kept in
 `config/advanced/advanced.sqlite`, in fixed words, ids, numbers and Codex's own error codes - never a
-word of an error or a conversation - and nothing of it is written into the standard edition's state. It adds no network code. Its archive also carries
+word of an error or a conversation - and nothing of it is written into the standard edition's state. It adds no network code; one capability,
+the compatibility report, asks gh - the GitHub CLI you installed - to reach GitHub, and only when
+you start it in the Dashboard (below). Its archive also carries
 the harness the project uses to measure whether a capability's route works on a given version of
 Codex; nothing runs it unless a person asks, and [SECURITY.md](SECURITY.md) says what it does.
 
 ## Today's capabilities
 
-Eleven. The first three rest on a measurement each, the other eight on none. Each measurement named below was made once, by hand, on the owner's machine, on
+Twelve: eleven that change how a recovery is made, and the compatibility report, which only you
+start. The first three rest on a measurement each, the other nine on none. Each measurement named below was made once, by hand, on the owner's machine, on
 `codex-cli 0.158.0-alpha.2.1`; its record is in [`docs/evidence/live/`](evidence/live/). On any
 other version of Codex a capability's statement carries the warning that it was not measured there.
 
@@ -389,6 +393,46 @@ Each of the four that take up a failure the standard edition leaves for you take
 from the last hour, and none from before it was turned on or set to watch; turning it off or setting
 it to watch only ends what it took up and has not sent, and the program ends such a recovery unsent a
 day on the clock after the failure in any case.
+
+### Compatibility report
+
+**What it does.** Writes a compatibility report from this PC's own records, as codex-compat-reporter
+does - counts, states and times for the version of Codex in use, with no conversation text, id or
+path - and shows the whole file in the Dashboard, with its SHA-256. Watched, that is all: the file
+can be read and saved wherever you choose. On, it also asks GitHub what sending would write, through
+gh, the GitHub CLI you installed, signed in as you; it shows every write, and sends only after you
+type `send`: it forks the project, adds the file on a branch and opens a public pull request.
+Without gh, or with gh signed in as someone else, it shows the four steps to send it on the web. It
+is an action: it answers at no point of a recovery, sends nothing to Codex and spends nothing, and a
+report grants nothing - it counts towards the Reported grade beside its version of Codex and nothing
+else ([G13](STANDARDS.md#g-the-compatibility-registrys-authority)).
+
+**When it helps.** When you want to tell the project how recovery went with your Codex without a
+second program. The standard edition sends nothing for a report; codex-compat-reporter, a separate
+program, writes and sends the same report from the same records.
+
+**What it risks.** The pull request, the fork and your GitHub login are public, and a pull request
+cannot be unpublished; the report's times are published to the second. A send cut off part way -
+the window closed, the network lost - can leave a fork or a branch behind: checking again shows what
+is on GitHub, and sending again is safe. Whatever gh.exe is first in a full folder on PATH is trusted
+to be the GitHub CLI. While recovery is paused nothing is checked or sent ([K5](STANDARDS.md#k-the-advanced-editions-own-rules)),
+and one check or send runs at a time for an installation, whichever Dashboard window started it.
+
+**Departs from** [B11](STANDARDS.md#b-what-it-reads-and-how) (gh reads your GitHub sign-in on the
+product's behalf), [C1, C2, C3 and C8](STANDARDS.md#c-network) (network work by delegation, from a
+second shipped file, to GitHub addresses beyond the two lists of releases, as your GitHub account
+with gh's own User-Agent), [D1](STANDARDS.md#d-privacy-and-the-data-it-keeps) (the report's counts
+go to the project), [E8](STANDARDS.md#e-failure-behaviour) (a gh that has not answered in two
+minutes, or is still running when the Dashboard's service ends, is ended),
+[F3 and F6](STANDARDS.md#f-footprint-on-the-machine) (the file saved where you choose; gh is not one
+of the listed processes).
+
+**Ceilings.** None of its own: it sends nothing to Codex. Each send needs its own typed `send` for
+exactly the file and the writes shown, and the project takes one report per GitHub login for each
+version of Codex.
+
+**No measurement.** It rests on no route of Codex's, so nothing about your version of Codex is
+measured for it, and a failing Codex - when a report matters most - never holds it back.
 
 ## Choosing an edition
 
