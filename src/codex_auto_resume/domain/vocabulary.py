@@ -158,7 +158,7 @@ class ReasonCode(StrEnum):
     USAGE_NOT_RESTORED_AFTER_RESET = "usage_not_restored_after_reset"
     DUPLICATE_OWNER = "duplicate_owner"
     CATEGORY_DISABLED = "category_disabled"
-    NOT_RECOVERABLE = "not_recoverable"      # v0.6.13: a failure taken up (P17) nothing takes up now
+    NOT_RECOVERABLE = "not_recoverable"      # v0.6.14: a failure taken up (P17) nothing takes up now
     ADMISSION_EXPIRED = "admission_expired"  # and one taken up a day ago on the clock, ended unsent
     CAPACITY_WINDOW = "capacity_window"      # and capacity retries past twelve hours on the clock
     # sending and receipts

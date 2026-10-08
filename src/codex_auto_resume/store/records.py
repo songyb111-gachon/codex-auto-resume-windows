@@ -131,7 +131,7 @@ class RecordsMixin:
 
     def chain_parent(self, thread_id: str, turn_id: str, owner_id: str | None = None):
         """The record whose own continuation started the failed turn `turn_id`, as `register` would
-        find it, and nothing written (v0.6.13): the engine reads it before it asks the edition's plug
+        find it, and nothing written (v0.6.14): the engine reads it before it asks the edition's plug
         about a failure (engine/detect.py), so the two cannot disagree about a chain."""
         with self._read() as connection:
             return self._find_parent(connection, thread_id, turn_id, owner_id)
@@ -248,7 +248,7 @@ class RecordsMixin:
             if old["cancel_requested"] and not row["cancel_requested"]:
                 raise StoreError("A cancellation cannot be withdrawn")
             if row["state"] in WAITING and machine.was_resent(old):
-                # v0.6.13: a continuation sent once more never waits again - its stored vector is
+                # v0.6.14: a continuation sent once more never waits again - its stored vector is
                 # what says it was resent, and a wait's would be rewritten (domain/gates.py).
                 raise StoreError("A resent continuation never waits again")
             assignments = ",".join(f"{column}=?" for column in changes)

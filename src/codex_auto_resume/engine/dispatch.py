@@ -7,14 +7,14 @@ claim and before the process - the only moment where giving the claim back is st
 The edition's plug is asked here at seven points, every one of them after the consent gate: the
 schedule (P7) and the gates (P3) once core's own evaluation has passed, where what it can answer is
 HOLD - and at known_failure, which is also asked for a record P17 took up whose kind core does not
-recover alone (v0.6.13), the words that take it up again, without which it ends unsent
+recover alone (v0.6.14), the words that take it up again, without which it ends unsent
 (engine/relaxed.py); what continues a conversation the app does not hold (P16,
 engine/delivery.py) where core would wait for it to be opened; the words (P4), what the send is
 handed to (P5) and how it is carried and proven (P15, engine/delivery.py) before the claim; and
 its ledger (P11) inside the claim. Whatever it answers, the send is still this module's one call,
 made after the one claim, the pre-send look (engine/delivery.py) and inside the launch guard, and
 a route named at P16 is carried out the same way in its place - and so is an uncertain submission
-sent once more, which P7 asked for and engine/resend.py proved may go (v0.6.13).
+sent once more, which P7 asked for and engine/resend.py proved may go (v0.6.14).
 """
 from __future__ import annotations
 
@@ -51,7 +51,7 @@ class DispatchMixin:
         quiet_until = self.quiet_until(now)     # v0.6.11; None with no quiet hours, the default
         vector["schedule"] = machine.gate_schedule(row, now, quiet_until=quiet_until)
         early = vector["schedule"][0] != machine.PASS and self._early(row, vector, now, quiet_until)
-        # SEND_NOW (v0.6.13): a person's request passes the retry's wait and a postponement only.
+        # SEND_NOW (v0.6.14): a person's request passes the retry's wait and a postponement only.
         forced = vector["schedule"][0] != machine.PASS and self._send_now(row, vector, now, quiet_until)
         if vector["schedule"][0] != machine.PASS:
             if vector["schedule"][1] == "waiting_reset" and (row.get("next_retry_at") or 0) <= now:

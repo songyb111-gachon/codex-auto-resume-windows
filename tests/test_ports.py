@@ -91,7 +91,7 @@ ENGINE_TO_STORE = {
     # and what fell due during a long sleep, held for a person (engine/freshness.py) - never at the
     # defaults, where Ask after a long sleep is off.
     "hold_waiting",
-    # v0.6.13: the record of a task a failure continues, read before P17 asks about it - and only
+    # v0.6.14: the record of a task a failure continues, read before P17 asks about it - and only
     # while the edition's plug wants P17 (engine/detect.py).
     "chain_parent",
 }
@@ -133,7 +133,7 @@ ENGINE_TO_SOURCE = {
 # client id core derives, which core takes only for a send it hands to the plug's channel.
 # `unloaded` is P16: a route for a conversation the app does not hold, which core carries out
 # through its own claim, pre-send look and launch guard where it would otherwise wait (A11).
-# `admission` is P17: whether a failure core never recovers alone is taken up (v0.6.13). `wants` is
+# `admission` is P17: whether a failure core never recovers alone is taken up (v0.6.14). `wants` is
 # not a point: whether the plug may answer at one now, so core makes that point's reads only then.
 ENGINE_TO_PLUG = {"admission", "delivery", "gate", "moved", "null", "outcome", "partition", "records",
                   "schedule", "sender", "text", "tick", "unloaded", "wants"}

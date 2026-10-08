@@ -688,7 +688,7 @@ the route, or becomes a warning the person confirms, and does not drop the capab
 - a sign-in failure retried once, after a usage read proves the sign-in works,
 - a usage limit that resets early, noticed,
 
-  **Built for v0.6.13-beta:** these first five, as six capabilities - the rules and the budget for
+  **Built for v0.6.14-beta:** these first five, as six capabilities - the rules and the budget for
   failures it cannot name are two - each described in [EDITIONS.md](EDITIONS.md#todays-capabilities).
   A failure the standard edition leaves for the person is taken up only where the edition's plug
   admits it, as a record of its true kind that the standard edition's checks still hold and that
@@ -753,12 +753,12 @@ The grade itself, and everything this repository does with a report, is v0.6.10'
 What belongs here is the advanced edition's own half of it: that edition records and sends a
 report without a second program, so a person using it needs no separate tool. The standard
 edition sends nothing and gains nothing here - a report goes to GitHub only when its author
-opens the pull request. **Built** (v0.6.13-beta): the compatibility report, an action of the
+opens the pull request. **Built** (v0.6.14-beta): the compatibility report, an action of the
 advanced edition, writes the report codex-compat-reporter writes from this PC's own records, shows
 it whole, saves it, and - only while it is on, never while recovery is paused, and only after the
 person types `send` - opens the pull request through gh, the GitHub CLI they installed, or shows
 the web's steps without it. The project's check takes a report the product wrote itself
-(`reporter.tool` `codex-auto-resume`, from v0.6.13).
+(`reporter.tool` `codex-auto-resume`, from v0.6.14-beta).
 
 ---
 

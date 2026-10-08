@@ -1,5 +1,5 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
-"""Short retries when Codex is at capacity: the advanced edition's answer at P17 and P3 (v0.6.13).
+"""Short retries when Codex is at capacity: the advanced edition's answer at P17 and P3 (v0.6.14).
 
 When a turn fails because Codex says it is at capacity - its own code `serverOverloaded`, a server
 error core recovers already - the standard edition waits its retry timing, at most five continuations

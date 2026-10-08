@@ -95,7 +95,7 @@ class ClaimsMixin:
         its ledger pays for (`_ledger_holds`). `quiet_until` is the end of the quiet hours `now` falls
         in, or None. Schema 4's conditions - observe-only, a hold, a postponement, the quiet hours -
         are asked here again as reasons of the consent and schedule gates. `relaxed` is a gate the
-        plug relaxed (v0.6.13), held here to core's own bounds (`_relaxation_refused`); `resend` the
+        plug relaxed (v0.6.14), held here to core's own bounds (`_relaxation_refused`); `resend` the
         window, (after, until) seconds from its send, an uncertain submission is claimed once more in
         (`_resend_claim`); `forced` a person's Send now, as the ledger pays for it (`_forced_claim`).
         """
@@ -207,7 +207,7 @@ class ClaimsMixin:
             row = self._row(connection, interruption_id)
             if (row is None or row["state"] != "submitting" or row["queue_id"] is not None
                     or row["submitted_at"] is None or machine.was_resent(row)):
-                return False             # v0.6.13: a resent one never waits, nor gets back what it never paid
+                return False             # v0.6.14: a resent one never waits, nor gets back what it never paid
             connection.execute(
                 "UPDATE interruptions SET state=?, submitted_at=NULL, last_error=?, next_retry_at=?, %s, "
                 "cancel_requested=CASE WHEN ?='cancelled' THEN 1 ELSE cancel_requested END "

@@ -185,7 +185,7 @@ class ReconcileMixin:
         settings = self.store.settings()
         if not settings["enabled"] or self.observing(settings):
             reason = "paused" if not settings["enabled"] else "observe_only"
-            uncertain = row["state"] == "submission_unknown" or machine.was_resent(row)   # v0.6.13
+            uncertain = row["state"] == "submission_unknown" or machine.was_resent(row)   # v0.6.14
             return reason + "_unknown" if uncertain else reason
         if self.loaded(thread) == "notLoaded":
             return "not_loaded"

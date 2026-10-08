@@ -34,7 +34,7 @@ PLUGGED = "plugged"
 # order, are what they were; and each is off at the defaults, where no record has a hold or a
 # postponement, no hour is quiet and nothing is only observed.
 POSTPONED, QUIET_HOURS, OBSERVE_ONLY = "postponed", "quiet_hours", "observe_only"
-# v0.6.13 stage 3b: submission_safe passed for an uncertain submission sent once more, because the
+# v0.6.14 stage 3b: submission_safe passed for an uncertain submission sent once more, because the
 # edition's plug asked and core proved no copy of it anywhere (engine/resend.py). The standard
 # edition's plug never asks, so no standard record is ever stored with it - and a record whose claim
 # was stored with it has been resent, for good (`was_resent`).
@@ -50,7 +50,7 @@ GATE_REASONS = REASONS | frozenset({
     "home_lock_unavailable", "identity_unreadable", "usage_available",
     "ok", HELD, POSTPONED, QUIET_HOURS, OBSERVE_ONLY, PLUGGED, RESEND, SEND_NOW,
 })
-# What an uncertain submission may be resent after (v0.6.13): its send's answer was unknown, or no
+# What an uncertain submission may be resent after (v0.6.14): its send's answer was unknown, or no
 # receipt came - never a withdrawal, a duplicate, an ambiguous receipt or anything else unsettled.
 RESENDABLE = frozenset({"queue_result_unknown_do_not_resend", "no_receipt_do_not_resend"})
 
@@ -80,9 +80,9 @@ def gate_consent(enabled, thread_enabled, cancel_requested, *, observe_only=Fals
 def gate_schedule(record, now, *, quiet_until=None, early=False, forced=False) -> tuple:
     """Whether it is time. A postponement (`not_before`) only ever makes a record later, and
     `quiet_until` - the end of the quiet hours `now` falls in, or None outside them - only holds
-    a record that is otherwise due; neither is ever set at the defaults. `early` (v0.6.13, a
+    a record that is otherwise due; neither is ever set at the defaults. `early` (v0.6.14, a
     usage-limited record the edition's plug looks at early) skips its next look and its reset
-    time, and nothing else; `forced` (v0.6.13, Send now) skips its next look and a postponement,
+    time, and nothing else; `forced` (v0.6.14, Send now) skips its next look and a postponement,
     and nothing else - a reset still ahead and quiet hours hold."""
     if not (early or forced) and (record.get("next_retry_at") or 0) > now:
         return gate(WAIT, "not_due")
@@ -104,21 +104,21 @@ def gate_submission_safe(record, others_in_flight: int) -> tuple:
 
 
 def own_budget_only(record, administrators) -> bool:
-    """Whether a spent attempt budget is the person's own alone (v0.6.13, Send now): no administrator's
+    """Whether a spent attempt budget is the person's own alone (v0.6.14, Send now): no administrator's
     MaxRecoveryAttempts (`administrators`, None for none), or one `record` is still below. An
     administrator's value only holds recovery back, and a person's click is no administrator's."""
     return administrators is None or (record.get("recovery_attempts") or 0) < administrators
 
 
 def was_resent(record) -> bool:
-    """Whether `record` has been resent (v0.6.13): its claim's stored vector passed submission_safe
+    """Whether `record` has been resent (v0.6.14): its claim's stored vector passed submission_safe
     as a resend. Nothing rewrites the vector of a record that is not waiting, and a resent record
     never waits again (store/records.py, store/claims.py), so this holds for good with no column."""
     return decode_gates((record or {}).get("gate_eval"))["submission_safe"] == (PASS, RESEND)
 
 
 def resend_candidate(record, now, window) -> bool:
-    """Whether an uncertain submission may be considered for one more send (v0.6.13), from its own
+    """Whether an uncertain submission may be considered for one more send (v0.6.14), from its own
     columns alone: its send's answer was unknown or no receipt came (RESENDABLE); Codex was never
     seen holding it in its queue, and holds no client id of Codex's own for it - only none, or the
     one core derived for a marker-free send; sent between `window`'s two bounds ago, in seconds; not
@@ -213,7 +213,7 @@ def birth_stop(parent, failed_turn_progress, limits, usage_category: bool, *, no
     """(state, reason) a new record of a task is born stopped in, or None: its parent was cancelled
     or handed over, or a budget is spent (`limits`, None to check none). The store decides it in the
     transaction that registers the record (store/records.py); the engine asks it beforehand only to
-    leave alone what it would not take up (v0.6.13, engine/detect.py)."""
+    leave alone what it would not take up (v0.6.14, engine/detect.py)."""
     if parent is not None and parent["cancel_requested"]:
         return "cancelled", "parent_cancelled"
     if parent is not None and (parent["user_joined"] or parent["after_user_work"]

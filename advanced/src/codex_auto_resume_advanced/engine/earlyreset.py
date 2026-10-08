@@ -1,5 +1,5 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
-"""Notice a usage limit that lifts early: the advanced edition's answer at P7 and P3 (v0.6.13).
+"""Notice a usage limit that lifts early: the advanced edition's answer at P7 and P3 (v0.6.14).
 
 A conversation that waits for a usage limit to reset waits, in the standard edition, until the time
 Codex gave, and usage is read only when a recovery is due (A12, C9). This looks earlier: at P7, asked

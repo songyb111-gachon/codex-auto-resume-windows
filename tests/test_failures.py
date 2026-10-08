@@ -233,7 +233,7 @@ class IdentitySourceTests(unittest.TestCase):
 
 
 class ShapeTests(unittest.TestCase):
-    """v0.6.13: what a failure's error says of itself, for the edition's plug (P17) - Codex's own code,
+    """v0.6.14: what a failure's error says of itself, for the edition's plug (P17) - Codex's own code,
     a status number, its form and whether there was a message, and never a word of that message."""
 
     def test_the_shape_keeps_no_string_but_the_code(self):
@@ -267,7 +267,7 @@ class ShapeTests(unittest.TestCase):
 
 
 class FenceTests(unittest.TestCase):
-    """v0.6.13: what core would carry out for a failure it never recovers alone, whatever a plug says."""
+    """v0.6.14: what core would carry out for a failure it never recovers alone, whatever a plug says."""
 
     @staticmethod
     def facts(info, message=None):

@@ -47,7 +47,7 @@ class ArmingCase(ac.AdvancedCase):
 
 class DashboardOnlyTests(ArmingCase):
     def test_a_point_is_wanted_while_a_capability_there_is_on_or_watched(self):
-        """v0.6.13 (core's Plug.wants): never at a point the capability has no code at, never
+        """v0.6.14 (core's Plug.wants): never at a point the capability has no code at, never
         while it is off, and while it is on or only watched, at each of its points."""
         plug = self.plug()
         self.assertFalse(any(plug.wants(point) for point in Point))

@@ -79,14 +79,14 @@ def checkout(folder: Path, head: str = "ref: refs/heads/main\n") -> Path:
 # ----------------------------------------------------------------------------- ladder.py
 class LadderTests(unittest.TestCase):
     def test_what_is_taken_up_waits_and_lasts_as_long_as_core_says(self):
-        """v0.6.13: a failure the edition's plug took up (P17) waits ten, fifteen and thirty minutes
+        """v0.6.14: a failure the edition's plug took up (P17) waits ten, fifteen and thirty minutes
         by its attempt; only one from the last hour is taken up, and one ends a day on."""
         self.assertEqual(ladder.ADMITTED_WAITS, (600, 900, 1800))
         self.assertEqual((ladder.ADMISSION_MAX_AGE, ladder.ADMITTED_MAX_SECONDS), (3600, 86400))
         self.assertTrue(all(wait >= 300 for wait in ladder.ADMITTED_WAITS))
 
     def test_capacity_retries_are_held_to_core_s_own_bounds(self):
-        """v0.6.13: a capacity error the edition's plug vouches for (CAPACITY) - its waits, spacing,
+        """v0.6.14: a capacity error the edition's plug vouches for (CAPACITY) - its waits, spacing,
         day and twelve hours - and the budgets the engine counts it against, which are these."""
         self.assertEqual(ladder.CAPACITY_WAITS, (60, 120, 240, 300))
         self.assertEqual((ladder.CAPACITY_SPACING, ladder.CAPACITY_PER_DAY, ladder.CAPACITY_MAX_SECONDS),
@@ -99,7 +99,7 @@ class LadderTests(unittest.TestCase):
         self.assertEqual(engine.capacity_limits()["max_chain_seconds"], 6 * 3600)
 
     def test_a_usage_limit_is_looked_at_early_once_in_five_minutes_at_most(self):
-        """v0.6.13: EARLY - one window of looks every five minutes for every waiting record together,
+        """v0.6.14: EARLY - one window of looks every five minutes for every waiting record together,
         each as long as one usage reading is reused (the engine's 30 seconds)."""
         self.assertEqual((ladder.EARLY_SPACING, ladder.EARLY_WINDOW), (300, 30))
         self.assertTrue(machine.gate_schedule({"next_retry_at": 10.0, "reset_at": 20.0}, 5.0, early=True)

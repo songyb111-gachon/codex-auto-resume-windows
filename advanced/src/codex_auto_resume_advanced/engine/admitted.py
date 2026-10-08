@@ -1,6 +1,6 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
 """Failures the standard edition never recovers alone, taken up: the advanced edition's answers at P17
-and P3 (v0.6.13, stage 3b).
+and P3 (v0.6.14, stage 3b).
 
 Core puts such a failure to the plug at P17 only once it passed every check core makes of one, and
 only with the answers core would carry out for it (`takes`, failures.admits: a tagged code of Codex's

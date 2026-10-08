@@ -666,7 +666,7 @@ $out.highContrast = [bool]$themeType.GetMethod('ContrastOn', $static).Invoke($nu
 $window.Dispose()
 
 # ------------------------------------------------------------------ work held past its call
-# The neutral hold a page takes while work it started outlasts the call (v0.6.13: a report's check or send): counted
+# The neutral hold a page takes while work it started outlasts the call (v0.6.14: a report's check or send): counted
 # up and down, never below none. Nothing here decides a reopen, so nothing can start a process.
 $holder = New-Window
 $out.holds = @([int](Get-Field $holder 'reopenHolds'))

@@ -1,4 +1,4 @@
-"""Rules for Codex's error codes (v0.6.13): a failure nothing classified, paced as the kind a rule names.
+"""Rules for Codex's error codes (v0.6.14): a failure nothing classified, paced as the kind a rule names.
 
 Held against the shipped definition and statement and against core's own engine, store and
 simulated Codex home (takingcase.py): off, a failure nothing classified waits for the person, as in

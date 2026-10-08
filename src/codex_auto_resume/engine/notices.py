@@ -18,7 +18,7 @@ class NoticeMixin:
         latest failures, with those that need a person among them) and, while a stall time is chosen,
         from the turns that stopped moving. A notice that cannot be raised costs its notice: detection
         and recovery go on as they would have. A failure a record holds - one the edition's plug took up
-        (v0.6.13) - is being recovered, or was, and its record says so: it needs no notice of its own,
+        (v0.6.14) - is being recovered, or was, and its record says so: it needs no notice of its own,
         on the tick it was taken up or any after (v0.6.14)."""
         if not needsyou.told(self.policy_values):
             return

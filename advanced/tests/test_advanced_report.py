@@ -41,7 +41,7 @@ from codex_auto_resume_advanced.statement import CATALOGS  # noqa: E402
 from codex_auto_resume_advanced.vocabulary import (BridgeCommand, CapabilityKind, ReportRefusal,  # noqa: E402
                                                    ReportStatus)
 
-VERSION = "0.6.13-beta"
+VERSION = "0.6.14-beta"
 WINDOWS = "10.0.26200"
 EXE = r"C:\Tools\gh\gh.exe"
 ENGINE = "0.158.0"                                 # the watcher's report of reportfixtures names codex-cli 0.158.0

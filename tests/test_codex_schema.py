@@ -137,7 +137,7 @@ class OneHomeForTheSqlTests(unittest.TestCase):
 
 
 class AdmissionReadTests(unittest.TestCase):
-    """v0.6.13: what is read of Codex only while the edition's plug wants P17 - and, wanting
+    """v0.6.14: what is read of Codex only while the edition's plug wants P17 - and, wanting
     nothing, the read it always was (engine/detect.py asks with both off)."""
 
     THREAD = "0a1b2c3d-0001-7000-8000-000000000001"

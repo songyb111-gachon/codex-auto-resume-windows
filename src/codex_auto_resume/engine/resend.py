@@ -1,4 +1,4 @@
-"""An uncertain continuation sent once more (v0.6.13 stage 3b), where the edition's plug asks and core
+"""An uncertain continuation sent once more (v0.6.14 stage 3b), where the edition's plug asks and core
 proves it may.
 
 Core never sends a continuation again once it may have been delivered (standards 0.2, A6): an

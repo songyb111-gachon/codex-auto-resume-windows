@@ -9,7 +9,7 @@
 // row each - its name and its state in the registry's words - and the one that is open shows its statement
 // in the person's language, what an administrator's Windows policy refuses of it, the warnings its statement
 // carries now, and its limits, with the one limit a person may set: lower, and never above the registry's. Under its
-// limits (v0.6.13), where it has them: its own choices, one drop-down each (advanced-option); the rules a person writes
+// limits (v0.6.14), where it has them: its own choices, one drop-down each (advanced-option); the rules a person writes
 // for Codex's error codes, each with what it did in 30 days, removed or added here (advanced-rules, advanced-rule-add,
 // advanced-rule-remove); and the samples of failures nothing classified, codes and numbers only (advanced-samples).
 // Each is written against the generation the page read, and a refusal is told in words. And (v0.6.14) a Keep it on

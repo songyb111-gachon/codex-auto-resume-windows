@@ -9,7 +9,7 @@ The rule that matters: an error this module cannot place is `unknown`, and
 `unknown` is never retried. Adding a code to the wrong bucket is far worse than
 leaving it unclassified, so anything doubtful is left out on purpose.
 
-No error text leaves this module. Callers receive a category name only - and, from v0.6.13, for
+No error text leaves this module. Callers receive a category name only - and, from v0.6.14, for
 the edition's plug (domain/plug.py, P17) the error's shape: Codex's own code, a status number, the
 form the error took and whether it had a message, never the message (`shape`). What core would take
 up of a failure it never recovers alone is decided here too, by a fence no plug can widen (`admits`).
@@ -194,7 +194,7 @@ def is_recoverable(category: str) -> bool:
     return category == USAGE_LIMIT or category in TRANSIENT
 
 
-# v0.6.13 (stage 3b): what the edition's plug may take up (domain/plug.py, P17) of a failure the
+# v0.6.14 (stage 3b): what the edition's plug may take up (domain/plug.py, P17) of a failure the
 # standard edition never recovers alone, and the fence core holds every answer to. A code is a
 # structured value Codex chose - letters and digits - and never message text (B9).
 TAG_SHAPE = re.compile(r"[A-Za-z][A-Za-z0-9]{0,63}")

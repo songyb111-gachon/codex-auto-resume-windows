@@ -61,7 +61,7 @@ class ShippedTests(unittest.TestCase):
         # continuation at P16, P3 and P5 - the route, the hold while a goal carries a conversation on,
         # and the channel where M2b passed; the marker-free continuation at P5 and P15, the channel
         # and the way it carries the words. At P5 the goal continuation comes first, so where both
-        # are on and the goal applies its channel carries the send. Those that take failures up (v0.6.13)
+        # are on and the goal applies its channel carries the send. Those that take failures up (v0.6.14)
         # answer at P17 and again at P3, in the order that is precedence where two would answer.
         answering = {Point.START_ROUTE: ("start_with_codex",),
                      Point.SCHEDULE: ("early_reset", "once_more_when_unsure", "send_now"),
@@ -333,7 +333,7 @@ class DefinitionTests(unittest.TestCase):
 
     def test_one_conversations_ceiling_passes_cores_five_only_for_one_that_departs_from_a20(self):
         """A20 is the standard edition's five a conversation a day, fifteen minutes apart: a ceiling
-        above it is a departure the statement has to name (v0.6.13, the capacity retries)."""
+        above it is a departure the statement has to name (v0.6.14, the capacity retries)."""
         over = Ceilings(per_day=48, per_conversation=48)
         self.assertIn("ceilings", problems(ac.definition(ceilings=over)))
         self.assertIn("ceilings", problems(ac.definition(ceilings=over, departs_from=("A21", "A22"))))

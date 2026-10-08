@@ -42,7 +42,7 @@ from codex_auto_resume.store import Store  # noqa: E402
 from codex_auto_resume_advanced.state import schema as ledger_schema  # noqa: E402
 
 LOGIN = "ExampleUser"
-PRODUCT_VERSION = "0.6.13"
+PRODUCT_VERSION = "0.6.14"
 ENGINE = "codex-cli 0.158.0"
 OLDER = "codex-cli 0.157.0"
 NEWER = "codex-cli 0.159.0-alpha.2"

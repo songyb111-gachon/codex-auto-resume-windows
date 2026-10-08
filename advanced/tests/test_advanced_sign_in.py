@@ -1,4 +1,4 @@
-"""Retry a sign-in failure after proof (v0.6.13): Codex's unauthorized, or a 401, taken up once a task.
+"""Retry a sign-in failure after proof (v0.6.14): Codex's unauthorized, or a 401, taken up once a task.
 
 Held against the shipped definition and statement and against core's own engine, store and
 simulated Codex home (takingcase.py): off, a sign-in failure waits for the person, as in the

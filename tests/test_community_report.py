@@ -313,14 +313,15 @@ class RefusalTests(unittest.TestCase):
 
 
 class ProductWrittenTests(unittest.TestCase):
-    """From v0.6.13 the product writes a report itself, in the advanced edition's Dashboard
+    """From v0.6.14 the product writes a report itself, in the advanced edition's Dashboard
     (advanced/src/codex_auto_resume_advanced/report/): the same format from the same records, naming
     itself as the tool, with its own version as the tool's. codex-compat-reporter's reports are read
     as before."""
 
-    WITH_BETA = dict(RELEASES, **{"v0.6.13-beta": RELEASES["v0.6.0"], "v0.6.12": RELEASES["v0.6.0"]})
+    WITH_BETA = dict(RELEASES, **{"v0.6.14-beta": RELEASES["v0.6.0"], "v0.6.13": RELEASES["v0.6.0"],
+                               "v0.6.12": RELEASES["v0.6.0"]})
 
-    def written_by_the_product(self, version="0.6.13-beta", tool_version=None) -> dict:
+    def written_by_the_product(self, version="0.6.14-beta", tool_version=None) -> dict:
         report = sample()
         report["reporter"].update(tool=reader.PRODUCT_TOOL, tool_version=tool_version or version,
                                   product_version=version)
@@ -331,15 +332,15 @@ class ProductWrittenTests(unittest.TestCase):
         found, refused, recomputed = inspect(report, releases=self.WITH_BETA)
         self.assertEqual((refused, recomputed), ([], []))
         kept = reader.filed_copy(found)
-        self.assertEqual(kept["recorded_by"], reader.OURS["recorded_by"] % ("codex-auto-resume", "0.6.13-beta"))
+        self.assertEqual(kept["recorded_by"], reader.OURS["recorded_by"] % ("codex-auto-resume", "0.6.14-beta"))
         self.assertEqual(inspect(kept, releases=self.WITH_BETA)[1], [])
         self.assertEqual(reader.TOOLS, ("codex-compat-reporter", "codex-auto-resume"))
 
-    def test_the_products_tool_version_is_its_own_version_from_v0_6_13(self):
+    def test_the_products_tool_version_is_its_own_version_from_v0_6_14(self):
         cases = {"reporter.tool_version is not the product_version": [
-                     self.written_by_the_product(tool_version="0.6.13"),
+                     self.written_by_the_product(tool_version="0.6.14"),
                      self.written_by_the_product(tool_version="1.5.0")],
-                 "before v0.6.13": [self.written_by_the_product("0.6.12")]}
+                 "before v0.6.14": [self.written_by_the_product("0.6.13")]}
         for fragment, reports in cases.items():
             for report in reports:
                 with self.subTest(fragment, reporter=report["reporter"]):

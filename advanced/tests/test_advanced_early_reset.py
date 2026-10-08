@@ -1,4 +1,4 @@
-"""Notice a usage limit that lifts early (v0.6.13): EARLY at P7, and the usage gate's two yeses at P3.
+"""Notice a usage limit that lifts early (v0.6.14): EARLY at P7, and the usage gate's two yeses at P3.
 
 Held against the shipped definition and statement and against core's own engine, store and
 simulated Codex home (takingcase.py): off, a usage-limited conversation waits for its reset as in the
@@ -258,7 +258,7 @@ class CodeTests(unittest.TestCase):
         self.assertIs(self.code().schedule(self.record(state="waiting_poll"), 5000.0), Alternative.EARLY)
 
     def test_a_postponed_record_opens_no_probe(self):
-        """Core never looks at one early, and asks P7 of it only for a person's Send now (v0.6.13):
+        """Core never looks at one early, and asks P7 of it only for a person's Send now (v0.6.14):
         no probe is opened for it, so the one core's early window opens is still the code's."""
         code = self.code()
         self.assertIs(code.schedule(self.record("a", not_before=3000.0), 5000.0), DEFER)

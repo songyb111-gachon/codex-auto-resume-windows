@@ -107,9 +107,9 @@ class Refusal(StrEnum):
     # confirmed at once; it never says the capability cannot be turned on.
     STALE_CONFIRMATION = "stale_confirmation"
     STATE_UNAVAILABLE = "state_unavailable"
-    # Keep on (v0.6.13, K8) for a capability that is not on or watched: there is nothing to keep on.
+    # Keep on (v0.6.14, K8) for a capability that is not on or watched: there is nothing to keep on.
     NOT_ON = "not_on"
-    # A capability's own choices and rules (v0.6.13, state/choices.py): a value it does not offer,
+    # A capability's own choices and rules (v0.6.14, state/choices.py): a value it does not offer,
     # and each way a rule for Codex's error codes is refused.
     OPTION_INVALID = "option_invalid"
     RULE_SHAPE = "rule_shape"                # not letters and digits, starting with a letter, <= 64
@@ -137,7 +137,7 @@ class JournalCode(StrEnum):
     OPTION_CHANGED = "option_changed"        # a capability's own choice, set in the Dashboard
     RULE_ADDED = "rule_added"
     RULE_REMOVED = "rule_removed"
-    # Keep on (v0.6.13, K8): set and let go in the Dashboard, and what a kept-on capability noted
+    # Keep on (v0.6.14, K8): set and let go in the Dashboard, and what a kept-on capability noted
     # instead of turning itself off - once each time its notice rises, never once a tick.
     KEEP_ON = "keep_on"
     KEEP_ON_OFF = "keep_on_off"
@@ -171,7 +171,7 @@ class OptionKey(StrEnum):
 
 
 class KeepOn(StrEnum):
-    """What a person chose, in the Dashboard, to keep a capability on through (v0.6.13, the owner's
+    """What a person chose, in the Dashboard, to keep a capability on through (v0.6.14, the owner's
     K8): stored in `options` beside its own choices, one row for each, none for none - and every row
     taken away by any move to off. Not a capability's own choice: every capability may be kept on."""
     KEEP_ON = "keep_on"                      # it does not turn itself off; what would have, is noted
@@ -222,7 +222,7 @@ class BridgeCommand(StrEnum):
     # measurement for the same Codex version (measure.py, evidence.complete). Content-free, the
     # Dashboard's like MEASURE, and reached by no MCP tool.
     MEASURE_VERDICT = "measure-verdict"
-    # A capability's own choices and the rules for Codex's error codes (v0.6.13, state/choices.py): a
+    # A capability's own choices and the rules for Codex's error codes (v0.6.14, state/choices.py): a
     # choice set, the rules read, one added, one removed, and the samples of what nothing classified
     # read - the Dashboard's like the rest, each write against the generation the page read, and
     # reached by no MCP tool.
@@ -231,7 +231,7 @@ class BridgeCommand(StrEnum):
     ADVANCED_RULE_ADD = "advanced-rule-add"
     ADVANCED_RULE_REMOVE = "advanced-rule-remove"
     ADVANCED_SAMPLES = "advanced-samples"
-    # Keep on (v0.6.13, K8): set or let go for one capability that is on or watched, the Dashboard's
+    # Keep on (v0.6.14, K8): set or let go for one capability that is on or watched, the Dashboard's
     # alone, after its warning, against the generation the page read; no MCP tool reaches it.
     ADVANCED_KEEP_ON = "advanced-keep-on"
     # Send now (v0.6.14): a person's request that one waiting recovery go at the watcher's next look,

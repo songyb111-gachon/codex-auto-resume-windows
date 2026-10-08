@@ -127,7 +127,7 @@ class AnnounceMixin:
                 "chain_budget", "attempt_budget", "no_progress_budget"):
             return                     # looked at early: the claim kept its vector, nothing else moves
         if reason == "capacity_window":
-            # Past a capacity error's twelve hours (v0.6.13): no stop of its own - at its next look
+            # Past a capacity error's twelve hours (v0.6.14): no stop of its own - at its next look
             # the plug's CAPACITY is not taken, and the standard edition's budgets decide.
             self.transition(row, row["state"], row.get("last_error"),
                             delay=self.options["state_poll_seconds"])

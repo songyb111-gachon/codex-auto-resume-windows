@@ -4,7 +4,7 @@ Detection registers a failure once, under an id derived from the failure itself,
 interruption seen twice is the same record - and a record whose turn is no longer the thread's
 latest is superseded rather than recovered.
 
-v0.6.13 (stage 3b): the edition's plug is asked at P17 (domain/plug.py) about a failure core never
+v0.6.14 (stage 3b): the edition's plug is asked at P17 (domain/plug.py) about a failure core never
 recovers alone - and one it does, which it may relax - once that failure has passed every check core
 makes of one: its conversation on, not known, its kind not switched off, from the last hour, and not
 a task core would stop the moment it was registered. Only an answer core offered is taken
@@ -95,7 +95,7 @@ class DetectMixin:
         # one is on (needsyou.kinds) - none of which `detect` takes, so none becomes a record. At the
         # defaults it is v0.6.10's read exactly.
         kinds = needsyou.kinds(self.policy_values)
-        # v0.6.13: and, while the edition's plug wants P17, the failures it may take up and every
+        # v0.6.14: and, while the edition's plug wants P17, the failures it may take up and every
         # error's shape - never while only observing or while an administrator disables recovery (K5).
         asking = (self.plug.wants(Point.ADMISSION) and not self.observing(settings)
                   and not self.managed.disable_auto_resume)

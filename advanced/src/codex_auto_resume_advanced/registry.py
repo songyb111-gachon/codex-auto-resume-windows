@@ -43,13 +43,13 @@ asked to agree to and everything the plug holds it to:
 
 The edition ships these capabilities now: start-with-Codex, at P9 (control/codexstart.py); the
 goal continuation, at P16, P3 and P5 (engine/goal.py); the marker-free continuation, at P5 and
-P15 (engine/markerfree.py); and, from v0.6.13 (stage 3b), those that take up failures at P17 and
+P15 (engine/markerfree.py); and, from v0.6.14 (stage 3b), those that take up failures at P17 and
 relax their records at P3: the short retries when Codex is at capacity (engine/capacity.py), the
 rules for Codex's error codes, the retries of failures nothing classified, of Codex giving up and
 of a sign-in failure (engine/admitted.py); and, at P7 and P3, the notice of a usage limit that lifts
-early (engine/earlyreset.py). From v0.6.14 (stage 3b), at P7: an uncertain continuation sent once more
-(engine/oncemore.py), and one waiting recovery a person asks to send now (control/sendnow.py); and, at no
-point, the compatibility report, an action (report/). The tests define one of their own to hold every
+early (engine/earlyreset.py); at P7, an uncertain continuation sent once more (engine/oncemore.py),
+and one waiting recovery a person asks to send now (control/sendnow.py); and, at no point, the
+compatibility report, an action (report/). The tests define one of their own to hold every
 rule here.
 """
 from __future__ import annotations
@@ -344,7 +344,7 @@ GOAL_CONTINUATION = CapabilityDef(
     measurements=(Measurement.M2,),
 )
 
-# Short retries when Codex is at capacity (v0.6.13 stage 3b; the plan's row: serverOverloaded alone,
+# Short retries when Codex is at capacity (v0.6.14 stage 3b; the plan's row: serverOverloaded alone,
 # 60 seconds to 5 minutes apart with jitter, a 60-second cooldown, 48 in 24 hours, 1 to 12 hours in
 # all). At P17 it takes up Codex's own
 # `serverOverloaded` with CAPACITY, and at P3 known_failure it answers CAPACITY again for a record it
@@ -369,7 +369,7 @@ CAPACITY_RETRY = CapabilityDef(
     options=(Option(OptionKey.CEILING_HOURS, CEILING_HOURS, DEFAULT_HOURS),),
 )
 
-# Rules for Codex's error codes (v0.6.13 stage 3b; the plan's row: an error code, and if wished a
+# Rules for Codex's error codes (v0.6.14 stage 3b; the plan's row: an error code, and if wished a
 # range of status numbers, mapped to a kind of temporary failure; ten at most; only where the kind is
 # unknown; never a terminal code, never a usage limit; the Dashboard only). A person writes up to ten
 # rules (state/choices.py); a failure nothing classified, with a code core offers (a tagged code of
@@ -393,7 +393,7 @@ STRUCTURED_RULES = CapabilityDef(
     rules_editor=True,
 )
 
-# Retry failures it cannot name (v0.6.13 stage 3b; the plan's row: a failure nothing classified
+# Retry failures it cannot name (v0.6.14 stage 3b; the plan's row: a failure nothing classified
 # retried on its own budget, one to three times, three a conversation in 24 hours, with a sample of
 # no words - Codex's code, the status number, item counts and times only). At P17 it takes up with
 # ADMIT a failure nothing classified - core offers it only for a code of Codex's that names no
@@ -417,7 +417,7 @@ UNKNOWN_FAILURE_BUDGET = CapabilityDef(
     samples=True,
 )
 
-# Retry when Codex gave up (v0.6.13 stage 3b; the plan's row: responseTooManyFailedAttempts with a
+# Retry when Codex gave up (v0.6.14 stage 3b; the plan's row: responseTooManyFailedAttempts with a
 # 5xx or no status, retried with a first wait of five minutes or more, twice at most). At P17 it takes
 # up with ADMIT what core offers - Codex's responseTooManyFailedAttempts on a server error or none, a
 # 429 being a rate limit core recovers already - while the task it continues has had fewer than two
@@ -435,7 +435,7 @@ CODEX_GAVE_UP = CapabilityDef(
     make=make_codex_gave_up,
 )
 
-# Retry a sign-in failure after proof (v0.6.13 stage 3b; the plan's row: retried once when a usage read
+# Retry a sign-in failure after proof (v0.6.14 stage 3b; the plan's row: retried once when a usage read
 # succeeds; once a failure, twice in 24 hours, stopping at the second failure; auth.json and the way of
 # signing in never touched). At P17 it takes up with ADMIT what core offers - Codex's unauthorized with
 # no status or a 401, never a 403 (permission is on the plan's exclusions) - unless the task it
@@ -455,7 +455,7 @@ SIGN_IN_RETRY = CapabilityDef(
     make=make_sign_in_retry,
 )
 
-# Notice a usage limit that lifts early (v0.6.13 stage 3b; the plan's row: continue at once when usage
+# Notice a usage limit that lifts early (v0.6.14 stage 3b; the plan's row: continue at once when usage
 # frees up before the time given; two checks at least five minutes apart; only while a record waits for
 # a usage limit). At P7, asked by core before such a record's time (EARLY), it answers EARLY once a
 # probe - one every five minutes for every waiting record together, as core's own early window is - so
@@ -525,7 +525,7 @@ SEND_NOW = CapabilityDef(
     codes=("requested",),
 )
 
-# The compatibility report (v0.6.13 stage 3b, the plan's in-app report): this PC's own records written
+# The compatibility report (v0.6.14 stage 3b, the plan's in-app report): this PC's own records written
 # up as codex-compat-reporter writes them (report/records.py, evidence.py, document.py), shown whole in
 # the Dashboard, saved where the person chooses, and sent to the project as a public pull request -
 # through gh, the GitHub CLI the person installed, signed in as them - only after they type send. An

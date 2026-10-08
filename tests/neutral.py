@@ -20,7 +20,7 @@ runs. Not a test module (no `test_` prefix), so discovery does not collect it.
 
 A scenario may put a read of its own in place of the source's (test_engine's test_06 hands back
 `latest_failures` twice over, with a function of `since` alone). The keywords a plug's wanting adds
-to that read (PLUGGED_KEYWORDS: v0.6.13's P17, engine/detect.py) are kept from such a function when
+to that read (PLUGGED_KEYWORDS: v0.6.14's P17, engine/detect.py) are kept from such a function when
 it takes none of them, so it answers as it was written to - the read the scenario meant, with
 nothing for the plug to take up - and is not a TypeError of the scenario's own making.
 
@@ -97,7 +97,7 @@ ENGINE_POINTS = frozenset({Point.RECORDS, Point.GATES, Point.TEXT, Point.SENDER,
 WALL_CLOCK = "<wall clock>"
 # What a scenario is asked of Codex: every call the engine can make of a backend.
 BACKEND_CALLS = ("send", "delete_queue", "loaded", "usage", "app_identity")
-# The source reads a plug's wanting adds keywords to, and those keywords (v0.6.13, P17).
+# The source reads a plug's wanting adds keywords to, and those keywords (v0.6.14, P17).
 PLUGGED_KEYWORDS = {"latest_failures": frozenset({"admissible", "shapes"})}
 
 

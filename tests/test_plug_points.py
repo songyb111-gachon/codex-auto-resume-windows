@@ -9,7 +9,7 @@ and simulated backend the engine's scenarios use (tests/codexsim.py):
   switch or a cancel has stopped: the consent gate comes first;
 * at the schedule and the gates, a plug is asked only once core's own gate has passed, and
   HOLD keeps the record waiting for one poll and nothing more;
-* a failure core never recovers alone is put to it (P17, v0.6.13) only once that failure passed
+* a failure core never recovers alone is put to it (P17, v0.6.14) only once that failure passed
   every check core makes of one, with what core would carry out; taken up, it is a core record
   of its own kind that known_failure puts to the plug again, and that ends unsent without it;
 * its words go out only as a person's Custom message would; a channel it names gets the one
@@ -1313,7 +1313,7 @@ class TickTests(PluggedCase):
 # record rather than moving one, and the plug's view of the store shows it (P2, P8).
 MOVERS = frozenset({"reserve_detailed", "release_claim", "release_withdrawn", "correlate",
                     "update",
-                    # v0.6.13: reserve_detailed's own claim of a resend, which the engine reaches
+                    # v0.6.14: reserve_detailed's own claim of a resend, which the engine reaches
                     # only through it (store/ledger.py).
                     "_resend_claim"})
 # The store calls a person's action makes that move a record (store/actions.py): cancelling one,
@@ -2008,7 +2008,7 @@ class SupervisionTests(unittest.TestCase):
         found.assert_not_called()
 
 
-# ------------------------------------------------------------------------- P17 (v0.6.13 stage 3b)
+# ------------------------------------------------------------------------- P17 (v0.6.14 stage 3b)
 UNKNOWN_CODE = json.dumps({"codexErrorInfo": "brandNewVariant"})
 UNAUTHORIZED = json.dumps({"codexErrorInfo": "unauthorized"})
 # Every answer core would carry out for an unknown failure with a plain code of Codex's.
@@ -2715,7 +2715,7 @@ def unknown_asked(plug, hook="schedule"):
 
 
 class ResendTests(PluggedCase):
-    """RESEND (P7, v0.6.13): an uncertain submission sent once more, where the plug asks and core
+    """RESEND (P7, v0.6.14): an uncertain submission sent once more, where the plug asks and core
     proves no copy of it anywhere. Driven by ticks and the clock alone, so the watch's own fifteen
     minutes between looks are what each test meets: no column is set by hand to make it due."""
 
@@ -3076,7 +3076,7 @@ def send_now_answer(record, due):
 
 
 class SendNowTests(PluggedCase):
-    """SEND_NOW (P7, v0.6.13): a waiting record a person asked to send now passes its retry's wait,
+    """SEND_NOW (P7, v0.6.14): a waiting record a person asked to send now passes its retry's wait,
     a postponement, the objection window, the spacing between two continuations and an attempt budget
     of the person's own - and nothing else, in the engine and again in the claim."""
 

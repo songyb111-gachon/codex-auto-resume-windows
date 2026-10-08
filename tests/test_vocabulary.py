@@ -63,7 +63,7 @@ LISTS = {
     "machine.ACTORS": ("set", 5, "eaf35d06c4c2b568"),
     # v0.6.11: offline - Windows reports no internet, so usage is not read (power.py, off by default).
     # and observe_only, observe_only_unknown: a withdrawal's reasons are reasons too.
-    # v0.6.13: not_recoverable (a gate reason until then) and admission_expired - a failure the plug
+    # v0.6.14: not_recoverable (a gate reason until then) and admission_expired - a failure the plug
     # took up (P17) that nothing takes up now, and one taken up a day ago; and capacity_window, capacity
     # retries past their twelve hours on the clock.
     "machine.REASONS": ("set", 70, "baf0da759f937514"),
@@ -83,7 +83,7 @@ LISTS = {
     # and schema 4's `postponed`, `quiet_hours` and `observe_only`, reasons of consent and schedule;
     # and `offline`, the usage gate's while Windows reports no internet (power.py).
     # v0.6.11 stage 3b: `plugged`, thread_available passed for a route the plug named (P16).
-    # v0.6.13: admission_expired and capacity_window, reasons now (not_recoverable was a gate reason);
+    # v0.6.14: admission_expired and capacity_window, reasons now (not_recoverable was a gate reason);
     # and `resend`, submission_safe passed for an uncertain submission sent once more (engine/resend.py),
     # and `send_now`, a schedule or an attempt budget a person's Send now passed (engine/relaxed.py).
     "machine.GATE_REASONS": ("set", 87, "e561b7a5a3de8661"),
@@ -198,7 +198,7 @@ LISTS = {
     # P14 joined the twelve: core tells the plug of each move of a record as it writes it. P15 too:
     # how a continuation is carried and proven, where CLIENT_ID - no marker - joined HOLD. And P16:
     # what continues a conversation the app does not hold, a route core carries out (stage 3b).
-    # v0.6.13: P17, a failure core never recovers alone taken up, and ADMIT and the five AS_ words
+    # v0.6.14: P17, a failure core never recovers alone taken up, and ADMIT and the five AS_ words
     # that take one up, at P17 and at known_failure, and CAPACITY, a capacity error retried sooner;
     # and EARLY, P7's look at a usage-limited record before its time; and the form a failure's error took.
     # And RESEND, P7's word for an uncertain submission sent once more, which core proves may go, and

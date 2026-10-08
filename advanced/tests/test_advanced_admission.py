@@ -1,4 +1,4 @@
-"""Taking failures up (v0.6.13, stage 3b): what the runtime takes at P17 and at known_failure, what it
+"""Taking failures up (v0.6.14, stage 3b): what the runtime takes at P17 and at known_failure, what it
 remembers of it, and what it keeps the first time core goes on.
 
 Held against a capability of the tests' own (advancedcase.py) and, end to end, against core's own

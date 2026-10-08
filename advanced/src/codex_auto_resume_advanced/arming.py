@@ -48,7 +48,7 @@ agreement no longer covers what the capability would do:
 Re-arming is always possible: whatever turned a capability off - a person, a tripwire, a new
 Codex - the Dashboard can turn it on again, with its statement as it reads then.
 
-Keep on (v0.6.13, the owner's K8, amending K7): a person may keep a capability that is on or watched
+Keep on (v0.6.14, the owner's K8, amending K7): a person may keep a capability that is on or watched
 from turning itself off, in the Dashboard, after its warning. Kept on, each tripwire and a new Codex
 version are noted instead, the most serious kept until the person arms it again; a hook that raises
 costs only the record it raised for (runtime.py); what cannot be read still holds it back (E1); and the
@@ -329,7 +329,7 @@ class Arming:
         return self.read(view=view, policy=policy)[0]
 
     def read(self, *, view=None, policy=None) -> tuple:
-        """`current`, with what the runtime needs beside it (v0.6.13): ({id: state now}, {id: since
+        """`current`, with what the runtime needs beside it (v0.6.14): ({id: state now}, {id: since
         when its stored state has stood, for one that is not off}, whether the state could not be
         read). A state that cannot be read has every capability off; the third says it was not read
         as off, which is not the same thing for a record a capability took up (runtime.py)."""

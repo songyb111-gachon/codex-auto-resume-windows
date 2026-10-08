@@ -1,4 +1,4 @@
-"""The harness the capabilities that take failures up are held against (v0.6.13, stage 3b).
+"""The harness the capabilities that take failures up are held against (v0.6.14, stage 3b).
 
 Core's own engine, store and simulated Codex home (tests/codexsim.py, through test_plug_points'
 PluggedCase), with an advanced plug that ships one capability - the shipped definition and its

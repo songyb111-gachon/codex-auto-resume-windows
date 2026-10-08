@@ -1,4 +1,4 @@
-"""Short retries when Codex is at capacity (v0.6.13): CAPACITY at P17 and at known_failure.
+"""Short retries when Codex is at capacity (v0.6.14): CAPACITY at P17 and at known_failure.
 
 Held against the shipped definition and statement and against core's own engine, store and
 simulated Codex home (takingcase.py): off, it is the standard edition; armed, Codex's own

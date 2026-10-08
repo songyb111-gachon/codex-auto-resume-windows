@@ -1,15 +1,81 @@
 # Changelog
 
-## Next: v0.6.13-beta — The compatibility report, written and sent from the advanced edition's Dashboard
+## v0.6.14-beta — Eight more ways to recover, Keep it on, and a compatibility report sent from the Dashboard
 
-*Not released yet: this entry becomes the release's own when the version is bumped (`## v0.6.13-beta`).*
+[The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.13...v0.6.14-beta)
+
+**A pre-release, the first of v0.6.14, published from `main`.** It is a GitHub pre-release, so
+`releases/latest` stays v0.6.13; an installation of v0.6.13 is offered it by *Check for updates*,
+which asks first and says it is tested less, and *Install another version...* lists it. It is the
+first finished part of v0.6.14, the rest of the advanced edition (owner, 2026-10-07): nine new
+capabilities - eight that change how a recovery is made, and the compatibility report - and Keep it
+on for every capability. Each is the advanced edition's alone, off until you turn it on in the
+Dashboard's **Advanced features** page, with a statement in your language that names the standards
+it departs from ([EDITIONS.md](EDITIONS.md#todays-capabilities)). The standard edition does what
+v0.6.13 did; the one change a person sees there is the power action's card, which now turns on and
+off with a switch ([below](#the-power-actions-card-has-a-switch)).
+
+**Going back.** The watcher's state is still schema 4, so going back to v0.6.13 takes only its setup
+program or *Install another version...*. The advanced edition's own file is now version 3 - four new
+tables, for a capability's choices, the rules for Codex's error codes, which capability took up which
+interruption, and the samples - brought up from version 2 the first time it is opened, every row
+kept. v0.6.13 cannot read version 3 and fails closed: in its advanced edition every capability is
+off.
+
+### Recovery the standard edition leaves for you, or makes slower
+
+- **Short retries when Codex is at capacity.** Codex's own `serverOverloaded` is tried again about a
+  minute after the failure, then two, four and five minutes, at most 48 times a day in one
+  conversation, for the one to twelve hours you choose on the page (two by default). Departs from
+  A20, A21, A22 and B9.
+- **Rules for Codex's error codes.** Up to ten rules, each naming one of Codex's own error codes - and
+  if you like a range of status numbers - and the kind of temporary failure to treat it as, for a
+  failure nothing classified. Rules read codes, never the words of an error. Departs from 0.5, A13,
+  A14, A26 and B9.
+- **Retry failures it cannot name.** One to three tries a task on a budget of its own, ten minutes
+  after the failure, then 15 and 30; each failure it takes up leaves a sample of codes, numbers and
+  times only. Departs from 0.5, A13, A14, A26, B9 and D2.
+- **Retry when Codex gave up.** `responseTooManyFailedAttempts` after a server error or none, ten
+  minutes later and then 15, twice a task at most. Departs from A14, A26 and B9.
+- **Retry a sign-in failure after proof.** Once a task, at least ten minutes later, and only once the
+  usage read every continuation needs shows Codex is signed in again. Codex's sign-in is never read or
+  changed, and a permission refusal (403) is never retried. Departs from 0.5, A14 and A26.
+- **Notice a usage limit that lifts early.** While a conversation waits for a usage limit to reset, it
+  asks Codex every five minutes whether usage is available, and two yeses five minutes apart continue
+  it before the reset time Codex gave. Departs from A12 and C9.
+
+The four that take up a failure the standard edition leaves for you - the rules, failures it cannot
+name, Codex giving up and a sign-in failure - take up only failures from the last hour, none from
+before they were turned on or watched, and the program ends such a recovery unsent a day on the
+clock after the failure.
+
+### Once more when unsure, and Send now
+
+- **Once more when unsure.** A continuation whose arrival cannot be proven is sent once more, with the
+  same marker, between 15 minutes and 6 hours after the first - only if Codex was never seen holding
+  it, neither its history nor its queue holds the marker, the conversation has nothing later and every
+  check a send passes still holds. Found twice, it turns itself off. Departs from 0.2, A6, E2 and H2.
+- **Send now.** While it is on, the page lists the recoveries waiting now, each with *Send now...*: the
+  watcher sends the one you choose at its next look, past its wait, a postponement, the 15 minutes
+  between two continuations and an attempt budget of your own - never past a usage limit, quiet hours,
+  an administrator's limit, five continuations a day or any other check. Departs from A8, A20, A21
+  and H2.
+
+### Keep it on
+
+A capability that is on or watched can be kept on, after its own warning. Kept on, it no longer turns
+itself off for a tripwire or a new version of Codex: the page notes the most serious of them under
+its state until you turn it on again, and a part of it that fails skips only that one recovery. Its
+ceilings stay, turning it off - in the Dashboard, from Codex or with every advanced feature at once -
+always works, and an administrator's policy reads it down as any other capability (K8). A capability
+kept on that sends continuations can also *Also send again when unsure*, under Once more when
+unsure's rules and only where the policy allows that one too.
 
 ### The compatibility report
 
-The advanced edition gains a fourth capability, **Compatibility report**, and it is the first that
-is an *action*: it answers at no point of a recovery, sends nothing to Codex and spends nothing - a
-person starts what it does, in the Dashboard's **Advanced features** page. Off until you turn it on
-or watch it, as every capability is.
+**Compatibility report** is the first capability that is an *action*: it answers at no point of a
+recovery, sends nothing to Codex and spends nothing - a person starts what it does, in the Dashboard's
+**Advanced features** page. Off until you turn it on or watch it, as every capability is.
 
 - **Watched**, it writes the report codex-compat-reporter writes, from this PC's own records - counts,
   states and times for the version of Codex in use, read read-only, the same records left out - and
@@ -31,9 +97,38 @@ or watch it, as every capability is.
   already, and sending again is safe.
 - **Departs from** B11, C1, C2, C3, C8, D1, E8, F3 and F6, each named in its statement; it keeps G13
   - a report grants nothing - and K5. No MCP tool reaches it. The project's check accepts a report the
-  product wrote itself (`reporter.tool` `codex-auto-resume`, product v0.6.13 or later).
+  product wrote itself (`reporter.tool` `codex-auto-resume`, product v0.6.14-beta or later).
 
 [EDITIONS.md](EDITIONS.md) describes it, and [PRIVACY.md](PRIVACY.md) says what it sends to GitHub.
+
+### The power action's card has a switch
+
+In both editions, the power action's card in Settings > General turns on and off with the switch every
+other on-or-off setting in the window is, in place of its button (owner, 2026-10-04). Turning it on
+still asks first, with Cancel the default, and the switch is back off after Cancel or a refusal;
+turning it off asks nothing, as Pause asks nothing. It still applies at once: Save does not change it.
+
+### For developers
+
+- Core gains plug point P17 (`Point.ADMISSION`): a failure core never recovers alone is put to the
+  edition's plug only as core offers it (`failures.takes`), and what the plug may relax is held to
+  core's own bounds (`engine/relaxed.py`, `ladder.py`). P7 also answers `EARLY`, `SEND_NOW` and
+  `RESEND`, the last proven by `engine/resend.py` before core sends anything once more. The standard
+  edition has no plug, so none of it runs there.
+- The advanced registry knows two kinds of capability: a route answers at plug points; an action -
+  the compatibility report - answers at none, so core never asks it, and has no ceilings and no
+  compatibility capability. A capability's definition also says its own choices, whether the page
+  shows it the rules and the samples, and whether it sends once more itself; an action is never given
+  Keep it on's Send again.
+- New bridge commands, the Dashboard's alone and reached by no MCP tool: `advanced-option`,
+  `advanced-rules`, `advanced-rule-add`, `advanced-rule-remove`, `advanced-samples`,
+  `advanced-keep-on`, `advanced-send-now`, and the report's `advanced-report-build`,
+  `advanced-report-save`, `advanced-report-check`, `advanced-report-send` and `advanced-report-job`.
+- `build/community_report.py` accepts a report the product wrote itself: `reporter.tool`
+  `codex-auto-resume`, its `tool_version` its own product version, v0.6.14-beta or later.
+- Each capability has a test module of its own under `advanced/tests/`, Keep it on one too and the
+  report four; core's share is in `tests/test_plug_points.py`, `test_store.py`,
+  `test_ladder_and_guards.py` and `test_failures.py`.
 
 
 ## v0.6.13 — Codex's engine found again, wherever an update puts it

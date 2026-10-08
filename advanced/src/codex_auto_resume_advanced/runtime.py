@@ -33,7 +33,7 @@ until the claim, so the ledger pays for a resend, or a person's Send now, only w
 
 With no capability at a point, nothing is read and nothing is written: the answer is NULL's.
 
-Taking failures up (v0.6.13, stage 3b). At P17 an answer is taken only if core offered it - one of
+Taking failures up (v0.6.14, stage 3b). At P17 an answer is taken only if core offered it - one of
 the `takes` core hands over (failures.takes) - and only for a failure that completed after the
 capability was last turned on or watched: arming never reaches back. A capability that takes one up
 is remembered as the one that did, with its word (state/choices.py, admissions). At P3 such a word

@@ -26,7 +26,7 @@ from codex_auto_resume_advanced.report import document, evidence, records  # noq
 from codex_auto_resume_advanced.report.document import DocumentError, DocumentRefusal  # noqa: E402
 
 GOLDEN = HERE / "golden" / "report"
-VERSION = "0.6.13-beta"
+VERSION = "0.6.14-beta"
 WINDOWS = "10.0.26200"
 
 
@@ -65,7 +65,7 @@ class AssemblyTests(unittest.TestCase):
                     self.assertEqual(json.dumps(written[field]), json.dumps(value))
                 self.assertEqual(written["recorded_at"], "2026-09-30T12:00:00Z")
                 self.assertEqual(written["recorded_by"],
-                                 "Codex Auto Resume 0.6.13-beta (advanced edition), on a contributor's Windows machine")
+                                 "Codex Auto Resume 0.6.14-beta (advanced edition), on a contributor's Windows machine")
                 self.assertEqual(written["reporter"], {"github_login": "ExampleUser", "tool": "codex-auto-resume",
                                                        "tool_version": VERSION, "product_version": VERSION,
                                                        "windows": WINDOWS})

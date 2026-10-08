@@ -133,7 +133,7 @@ LAYER = {_q(name): layer for layer, names in {
                "engine.notices",
                # and how a continuation is carried and proven, and the last look before it goes.
                "engine.delivery",
-               # v0.6.13: what the edition's plug may relax, within core's own bounds.
+               # v0.6.14: what the edition's plug may relax, within core's own bounds.
                "engine.relaxed",
                # and an uncertain continuation sent once more, where the plug asks and core may.
                "engine.resend"),

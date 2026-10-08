@@ -8,7 +8,7 @@ which arming.standing reads so that a warning they confirmed never trips what th
 This is only the writing. Who may move a capability, and when, is `arming.py`'s to decide; here
 each move is one transaction that checks its words, bumps the generation and journals itself.
 
-Keep on (v0.6.13, K8) is a row in `options` (KeepOn), set and let go for a capability that is on or
+Keep on (v0.6.14, K8) is a row in `options` (KeepOn), set and let go for a capability that is on or
 watched, a move like any other but for `since`, which it never touches; every move to off takes it
 away. Send again (v0.6.14) is a second row beside it, only ever with it. A kept-on capability's notice - what would have turned it off - is its row's `reason`, which a
 row that is not off held nowhere before: written only as it rises (KEPT_NOTICES), with no generation,

@@ -93,7 +93,7 @@ class Point(StrEnum):
     claim, its pre-send look and its launch guard, the route called once, and what came of it
     settled by core's own rules (engine/delivery.py).
 
-    P17 (v0.6.13 stage 3b) is whether a failure core never recovers alone is taken up, asked with
+    P17 (v0.6.14 stage 3b) is whether a failure core never recovers alone is taken up, asked with
     the answers core would carry out for it (failures.takes): taken, it is a core record of its true
     category, which core follows as its own and known_failure (P3) puts to the plug again."""
     RECORDS = "records"                      # P2  records of the advanced store, due now
@@ -230,7 +230,7 @@ class Plug:
 
     def schedule(self, record, due):                  # P7
         """When a record is looked at next, asked when core's schedule says it is due; `due` is
-        the moment core's schedule made it so. From v0.6.13 also before then, for a record that
+        the moment core's schedule made it so. From v0.6.14 also before then, for a record that
         waits for a usage limit to reset, while core's early window is open: EARLY looks now. And
         for an uncertain submission a look of the watch found no trace of (`due` its send): RESEND
         sends it once more, where core proves it may (engine/resend.py). And for a waiting record its
@@ -356,7 +356,7 @@ RESTRICTIONS = frozenset({Alternative.HOLD})
 # and every look that proves or disproves delivery made for that id (engine/delivery.py). It
 # relaxes no gate - every one of them has passed before it is asked - so it is not a restriction.
 #
-# ADMISSION (P17, v0.6.13 stage 3b) takes a failure up, or relaxes a capacity error's retries, and
+# ADMISSION (P17, v0.6.14 stage 3b) takes a failure up, or relaxes a capacity error's retries, and
 # GATES the same words, which core takes only at known_failure and only for the kind each is for
 # (failures.admits, failures.readmits) - CAPACITY within core's own bounds (ladder.py). SCHEDULE
 # (P7) takes EARLY, RESEND and SEND_NOW, each carried out by core in its own (relaxed.py, resend.py).

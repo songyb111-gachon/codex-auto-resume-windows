@@ -1,4 +1,4 @@
-"""What the edition's plug may relax (v0.6.13 stage 3b), and the bounds core holds every answer to.
+"""What the edition's plug may relax (v0.6.14 stage 3b), and the bounds core holds every answer to.
 
 Two gates core keeps, each asked of the plug: P17 (domain/plug.py), whether a failure core never
 recovers alone is taken up when it is detected (engine/detect.py); and known_failure, whether such a
@@ -35,7 +35,7 @@ CHAIN_WALK = 64
 
 class RelaxedMixin:
     def chain_started_at(self, row):
-        """When a record's task first failed, on the clock (v0.6.13): its chain's origin's detected_at,
+        """When a record's task first failed, on the clock (v0.6.14): its chain's origin's detected_at,
         or None once that record is gone - never chain_first_detected_at, which each wait aside moves."""
         if row["chain_origin_id"] == row["interruption_id"]:
             return row["detected_at"]

@@ -6,7 +6,7 @@ under the same lock as core's rows. Here is how it is asked: under a savepoint t
 whatever it wrote if it holds the claim, through a handle that can `execute` and nothing else,
 and under an authorizer that keeps core's schemas and the claim's transaction out of its reach.
 The standard edition's plug is never asked, so none of this runs there. Nor do the claims only a
-plug's answer leads to, which are here for that reason: the checks of a relaxation, and (v0.6.13) the
+plug's answer leads to, which are here for that reason: the checks of a relaxation, and (v0.6.14) the
 claim of an uncertain submission sent once more (`_resend_claim`).
 """
 from __future__ import annotations
@@ -137,7 +137,7 @@ class _LedgerConnection:
 class LedgerMixin:
     @staticmethod
     def _early_claim(row, relaxed, ledger, carried) -> bool:
-        """Whether the claim skips a record's next look and its reset time (EARLY, v0.6.13): only for
+        """Whether the claim skips a record's next look and its reset time (EARLY, v0.6.14): only for
         one that waits for a usage limit to reset, and only as a relaxation the plug's ledger pays for.
         A postponement, quiet hours and every other gate hold as ever (domain/gates.py)."""
         return (relaxed == "early" and row["category"] == failures.USAGE_LIMIT
@@ -146,7 +146,7 @@ class LedgerMixin:
 
     @staticmethod
     def _forced_claim(row, now, vector, quiet_until, limits, ledger, carried) -> None:
-        """A person's Send now (SEND_NOW, v0.6.13) as the claim takes it, written into `vector`: only for
+        """A person's Send now (SEND_NOW, v0.6.14) as the claim takes it, written into `vector`: only for
         a record that waits, only as something the plug's ledger pays for - the schedule among what it
         carries - and only past the retry's wait, a postponement and an attempt budget of the person's
         own; `limits` holds the administrator's MaxRecoveryAttempts, which it never passes. A reset
@@ -165,7 +165,7 @@ class LedgerMixin:
     @staticmethod
     def _relaxation_refused(connection, row, now, vector, relaxed, ledger, carried):
         """(gate, reason) when the claim refuses a record for its kind, written into its `vector` too,
-        or None (v0.6.13): the claim checks it again itself, in its own transaction. A kind core never
+        or None (v0.6.14): the claim checks it again itself, in its own transaction. A kind core never
         recovers alone - one the plug took up (domain/plug.py, P17) - is claimed only as "admitted",
         with a ledger that is not NULL's and the gates among what it pays for (`carried`): a ledger
         that answers, and has to pay for it. Nothing else a caller says makes one claimable.
@@ -236,7 +236,7 @@ class LedgerMixin:
 
     def _resend_claim(self, connection, settings, row, now, limits, gates, ledger, carried,
                       quiet_until, window) -> tuple:
-        """The claim of an uncertain submission sent once more (v0.6.13, engine/resend.py), inside
+        """The claim of an uncertain submission sent once more (v0.6.14, engine/resend.py), inside
         `reserve_detailed`'s transaction: the record is still one that may be (resend_candidate),
         consent and the schedule hold - its next look is the watch's, no retry's wait - nothing else
         of the conversation's may be queued, every budget holds as core computes it, and the plug's

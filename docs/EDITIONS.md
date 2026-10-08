@@ -497,7 +497,7 @@ turns it on in the Dashboard.
 Then, after v0.6.13's fix of how Codex's engine is found, v0.6.14 brings the rest of the advanced
 edition, each part published as a pre-release as it is finished. Its first part, from v0.6.14-beta
 on, is the six capabilities [above](#todays-capabilities) that follow the goal continuation, and with
-them Once more when unsure, Send now and Keep it on, in the same beta. Each new capability is the
+them Once more when unsure, Send now, Keep it on and the compatibility report, in the same beta. Each new capability is the
 advanced edition's alone, off until you turn it on, with a
 statement that names the standards it departs from. This is a direction, not a promise;
 [ROADMAP.md](ROADMAP.md) has the whole list: the two additions in its v0.6.12 section, and the rest

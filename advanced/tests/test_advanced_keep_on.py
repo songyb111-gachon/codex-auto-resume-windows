@@ -1,4 +1,4 @@
-"""Keep on (v0.6.13, the owner's K8, amending K7): a capability a person keeps on does not turn
+"""Keep on (v0.6.14, the owner's K8, amending K7): a capability a person keeps on does not turn
 itself off. Each of K7's five is noted instead - a new statement revision, a warning the person did
 not confirm that says what it stands on went wrong, a hook that raises, a send it paid for gone
 submission_unknown, a new Codex version - the most serious kept, with no generation and once for each

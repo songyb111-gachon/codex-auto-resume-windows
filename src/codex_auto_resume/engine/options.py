@@ -155,7 +155,7 @@ class OptionsMixin:
                         # classifier can produce" - the shipped behaviour.
                         "retry_ladder": TRANSIENT_BACKOFF,
                         "recoverable_categories": None,
-                        # v0.6.13: how long after its send an uncertain submission may be sent
+                        # v0.6.14: how long after its send an uncertain submission may be sent
                         # once more, where the edition's plug asks (engine/resend.py).
                         "resend_after_seconds": 900, "resend_until_seconds": 6 * 3600,
                         **(options or {})}
@@ -165,7 +165,7 @@ class OptionsMixin:
         self._told = set()
         self._random = random.Random()
         self._declined = set()
-        # v0.6.13: when each failure the edition's plug did not take up was last put to it (P17), the
+        # v0.6.14: when each failure the edition's plug did not take up was last put to it (P17), the
         # record looked at early now and when the last early window opened (EARLY, engine/relaxed.py).
         self._unadmitted = {}
         self._early_look = self._early_at = None
@@ -174,7 +174,7 @@ class OptionsMixin:
         self._announced = set()
         self._stale_since = {}
         self._stale_seen = {}
-        # v0.6.13 (engine/resend.py): since when this engine watches, and since when it no longer
+        # v0.6.14 (engine/resend.py): since when this engine watches, and since when it no longer
         # knows the lags it saw; uncertain submissions a look found no trace of, those seen in
         # Codex's queue, since when sightings are known, and the last look for a resend found twice.
         self._watching_since, self._stale_cleared_at = self.clock(), float("-inf")
@@ -221,7 +221,7 @@ class OptionsMixin:
         return found
 
     def capacity_limits(self) -> dict:
-        """The budgets of a capacity error the plug vouches for (CAPACITY, v0.6.13): core's own capacity
+        """The budgets of a capacity error the plug vouches for (CAPACITY, v0.6.14): core's own capacity
         bounds (ladder.py), and the person's own time ceiling when one is set, which only restricts.
         v0.6.14: and an administrator's MaxRecoveryAttempts, which holds a capacity retry back as it
         holds every other (managed.clamp): CAPACITY passes the person's budgets, never the key's."""

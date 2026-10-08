@@ -323,7 +323,7 @@ class PluggedWordsTests(unittest.TestCase):
     def test_a_plugs_words_are_still_taken_over_a_conversations_message(self):
         """P4 (advanced): the words a plug gives are taken as a Custom message is; a conversation's own
         message does not change which wins, so the standard edition's null plug changes nothing either.
-        Read from the method that takes them, wherever it lives (engine/delivery.py since v0.6.13)."""
+        Read from the method that takes them, wherever it lives (engine/delivery.py since v0.6.14)."""
         from codex_auto_resume.engine import Engine
         self.assertIn("custom_message_by_thread=None", inspect.getsource(Engine._plugged_text))
 

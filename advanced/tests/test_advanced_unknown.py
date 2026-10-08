@@ -1,4 +1,4 @@
-"""Retry failures it cannot name (v0.6.13): a failure nothing classified, on a budget of its own.
+"""Retry failures it cannot name (v0.6.14): a failure nothing classified, on a budget of its own.
 
 Held against the shipped definition and statement and against core's own engine, store and
 simulated Codex home (takingcase.py): off, a failure nothing classified waits for the person, as in

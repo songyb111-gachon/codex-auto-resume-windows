@@ -28,7 +28,7 @@ refused). A version-1 file - v0.6.11-alpha's, where lowering the global ceiling 
 brought to version 2 when it is opened (UPGRADE_FROM_1): the column is added, every row keeps
 what it held, and a row with no warnings confirmed none, which is the strictest reading.
 
-Version 3 (v0.6.13, stage 3b) added the last four tables, for the capabilities that take failures up.
+Version 3 (v0.6.14, stage 3b) added the last four tables, for the capabilities that take failures up.
 A version-2 file is brought to it when it is opened (UPGRADE_FROM_2), and a version-1 file takes both
 steps; every table that was there keeps every row. A version this one does not know is refused, as
 before: a downgrade leaves the state unreadable, which is every capability off.

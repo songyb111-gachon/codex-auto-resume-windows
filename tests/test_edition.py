@@ -147,7 +147,7 @@ class ClosedAlternativeTests(unittest.TestCase):
         carries out in the commit that added it: no marker, and the client id core derives - no
         gate relaxed, so no restriction either.
 
-        v0.6.13 stage 3b: P17 takes the words that take up a failure core never recovers alone -
+        v0.6.14 stage 3b: P17 takes the words that take up a failure core never recovers alone -
         ADMIT, and the five AS_ words that pace one as a temporary kind - and so do the gates, which
         core takes only at known_failure (tests/test_plug_points.py, KnownFailureTests): the first
         relaxations of a gate, each held to core's own fence (failures.admits). And P7 takes RESEND,

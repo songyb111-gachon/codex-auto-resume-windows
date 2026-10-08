@@ -243,7 +243,7 @@ SAMPLE = {"code": "brandNewVariant", "status": 503, "form": FailureForm.TAGGED, 
 
 
 class ChoicesCase(SurfaceCase):
-    """A capability of the tests' own with a choice, the rules editor and samples (v0.6.13)."""
+    """A capability of the tests' own with a choice, the rules editor and samples (v0.6.14)."""
 
     def setUp(self):
         ac.AdvancedCase.setUp(self)

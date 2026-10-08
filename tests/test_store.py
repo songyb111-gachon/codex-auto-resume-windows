@@ -1678,14 +1678,14 @@ class MigrationTests(unittest.TestCase):
 
 
 
-# ============================================================================ v0.6.13: a resend
+# ============================================================================ v0.6.14: a resend
 RESENT = machine.encode_gates({name: ("PASS", "resend" if name == "submission_safe" else "ok")
                                for name in machine.GATES})
 NOT_RESENT = machine.encode_gates({name: ("PASS", "ok") for name in machine.GATES})
 
 
 class NeverBackToWaitingTests(_StoreCase):
-    """A continuation sent once more never waits again (v0.6.13): its claim's stored vector says it
+    """A continuation sent once more never waits again (v0.6.14): its claim's stored vector says it
     was resent, and a wait's vector would be written over it, after which nothing would say so."""
 
     def test_no_update_moves_a_resent_record_into_a_wait(self):
@@ -1724,7 +1724,7 @@ class NeverBackToWaitingTests(_StoreCase):
 
 
 class ResendClaimTests(_StoreCase):
-    """The claim of an uncertain submission sent once more (v0.6.13): only one that may be, only as
+    """The claim of an uncertain submission sent once more (v0.6.14): only one that may be, only as
     something the plug's ledger pays for, with every budget, and charging nothing again."""
 
     LIMITS = {"max_recovery_attempts": 4, "max_no_progress": 3, "max_chain_continuations": 6}

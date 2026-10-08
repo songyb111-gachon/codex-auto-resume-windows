@@ -31,7 +31,7 @@ from codex_auto_resume_advanced.report import github  # noqa: E402
 from codex_auto_resume_advanced.report.github import Ready, ReportRefused, Sent, Web  # noqa: E402
 
 VERSION = "codex-cli 0.158.0"
-REPORT = {"codex_version": VERSION, "reporter": {"tool_version": "0.6.13-beta"}}
+REPORT = {"codex_version": VERSION, "reporter": {"tool_version": "0.6.14-beta"}}
 RAW = b'{"format": "a report"}\n'
 TARGET = "docs/evidence/community/%s/codex-cli-0.158.0.json" % LOGIN
 BRANCH = "compat-report/codex-cli-0.158.0"
@@ -205,7 +205,7 @@ class WriteTests(unittest.TestCase):
         self.assertEqual(create[create.index("--repo") + 1], "github.com/" + github.REPOSITORY)
         self.assertEqual(create[create.index("--head") + 1], "%s:%s" % (LOGIN, BRANCH))
         self.assertEqual(create[create.index("--title") + 1], "Compatibility report: %s (%s)" % (VERSION, LOGIN))
-        self.assertIn("Codex Auto Resume 0.6.13-beta (advanced edition)", create[create.index("--body") + 1])
+        self.assertIn("Codex Auto Resume 0.6.14-beta (advanced edition)", create[create.index("--body") + 1])
 
     def test_the_file_goes_on_stdin_and_nothing_is_written_to_disk(self):
         """No temporary file, as the reporter's upload.json was: the temporary folder is one of this test's own,

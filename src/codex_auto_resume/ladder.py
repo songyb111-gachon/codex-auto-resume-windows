@@ -69,7 +69,7 @@ CEILING_SECONDS = {ChainCeiling.OFF: None, ChainCeiling.H1: 3600, ChainCeiling.H
                    ChainCeiling.H6: 6 * 3600, ChainCeiling.H12: 12 * 3600, ChainCeiling.H24: 24 * 3600}
 # Jitter: up to this share of a wait added to it, never taken off.
 JITTER_SHARE = 0.2
-# v0.6.13 (stage 3b): the bounds of a failure the edition's plug took up that the standard edition
+# v0.6.14 (stage 3b): the bounds of a failure the edition's plug took up that the standard edition
 # never recovers alone (domain/plug.py, P17) - constants of the engine, which no plug can widen
 # (engine/detect.py, engine/dispatch.py). Its waits by the attempt at its task: ten, fifteen and thirty
 # minutes. Only a failure from the last hour is taken up - a PC that slept longer leaves it for the

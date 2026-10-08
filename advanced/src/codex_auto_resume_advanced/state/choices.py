@@ -1,5 +1,5 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
-"""What the capabilities that take failures up keep (v0.6.13, stage 3b): choices, rules, admissions
+"""What the capabilities that take failures up keep (v0.6.14, stage 3b): choices, rules, admissions
 and samples, and the one view of them a capability's own code is given.
 
     options     a capability's own choices (registry.Option), set by a person in the Dashboard: a

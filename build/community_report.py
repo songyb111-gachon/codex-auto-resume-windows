@@ -10,7 +10,7 @@ one implementation whoever files. It is not shipped: build/ never enters a relea
 (build/make_release.py), so nothing here runs on anyone's machine, and it has no network code.
 
 The format is `codex-auto-resume-compat-evidence/1`, the maintainer's own evidence format, as
-codex-compat-reporter writes it - and, from v0.6.13, as the product writes it itself in the
+codex-compat-reporter writes it - and, from v0.6.14, as the product writes it itself in the
 advanced edition's Dashboard, from the same records by the same rules. A report is refused whole
 for anything outside it: a missing or unknown key, a word outside the product's own vocabularies,
 a time that cannot be true, a count that cannot be, or a fingerprint that is not plausible. What
@@ -33,7 +33,7 @@ the engine (`codex_version`), and the product's, the reporter's and Windows' own
 written this file: a Codex version in the grammar the product itself names engines by; a product
 version that is one of this repository's releases, v0.6.0 or later, published before the report
 was written; a plain release number for the reporter, or, for a report the product wrote itself
-(`reporter.tool` codex-auto-resume), its own version again, v0.6.13 or later, the first that
+(`reporter.tool` codex-auto-resume), its own version again, v0.6.14 or later, the first that
 writes one; Windows 10 or later. It names the setup, not the binary. The format carries no
 digest of codex.exe, and the product's own digest is of the path, which holds the Windows user
 name and never leaves the machine. A SHA-256 of codex.exe's bytes - the same on every machine with
@@ -114,9 +114,9 @@ VERSION = re.compile(r"codex-cli \d[0-9A-Za-z.\-]{0,39}")
 TOOL = "codex-compat-reporter"                  # the separate program, any release from 1.0.0
 TOOL_VERSION = re.compile(r"(\d{1,4})\.(\d{1,4})\.(\d{1,4})")
 # The product itself, writing a report in the advanced edition's Dashboard (its report/ package):
-# its tool_version is its own product_version, and v0.6.13 is the first release that writes one.
+# its tool_version is its own product_version, and v0.6.14 is the first release that writes one.
 PRODUCT_TOOL = "codex-auto-resume"
-FIRST_PRODUCT_TOOL = (0, 6, 13)
+FIRST_PRODUCT_TOOL = (0, 6, 14)
 TOOLS = (TOOL, PRODUCT_TOOL)                     # the writers a report may name, and no others
 PRODUCT = re.compile(r"(\d{1,4})\.(\d{1,4})\.(\d{1,4})(?:-(?:alpha|beta)(?:\.(?:[2-9]|[1-9][0-9]{1,2}))?)?")
 FIRST_PRODUCT = (0, 6, 0)                        # the first release whose state the reporter reads
@@ -328,7 +328,7 @@ def _envelope(reading, author, releases):
         refuse("reporter.tool_version is not the product_version, as a report %s writes itself names it"
                % PRODUCT_TOOL)
     elif product is not None and product < FIRST_PRODUCT_TOOL:
-        refuse("reporter.product_version is before v0.6.13, the first release of %s that writes a report"
+        refuse("reporter.product_version is before v0.6.14, the first release of %s that writes a report"
                % PRODUCT_TOOL)
     if product is None or product < FIRST_PRODUCT:
         refuse("reporter.product_version is not a release of this product, v0.6.0 or later")

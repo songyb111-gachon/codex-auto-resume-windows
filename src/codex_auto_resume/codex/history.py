@@ -112,7 +112,7 @@ class HistoryMixin:
         with the id `detect` would have given them, but never through `detect`, so none of them can
         ever become a record to recover (A14). Empty, the default, and this is v0.6.10's read.
 
-        v0.6.13, only while the plug wants P17 (domain/plug.py): `admissible` adds, marked so, those
+        v0.6.14, only while the plug wants P17 (domain/plug.py): `admissible` adds, marked so, those
         it may take up (failures.ADMISSIBLE), and `shapes` gives each entry its error's shape - never a
         word of a message (failures.shape); each through the same check of its conversation (A15)."""
         if not epoch(since):
@@ -553,7 +553,7 @@ class HistoryMixin:
             return None
 
     def turn_item_counts(self, thread_id: str, turn_id: str):
-        """How many items of each kind one turn left, counts only (B7), or None: v0.6.13, for the
+        """How many items of each kind one turn left, counts only (B7), or None: v0.6.14, for the
         edition's plug's samples of failures it took up. Core itself never asks it."""
         if not ids.is_uuid(thread_id) or not ids.is_uuid(turn_id):
             return None

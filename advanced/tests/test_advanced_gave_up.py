@@ -1,4 +1,4 @@
-"""Retry when Codex gave up (v0.6.13): responseTooManyFailedAttempts on a server error or none.
+"""Retry when Codex gave up (v0.6.14): responseTooManyFailedAttempts on a server error or none.
 
 Held against the shipped definition and statement and against core's own engine, store and
 simulated Codex home (takingcase.py): off, Codex giving up waits for the person, as in the standard
