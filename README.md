@@ -47,11 +47,6 @@ setting, the notification, the command line, the safety model and privacy in ful
 
 **Windows 10/11. No Python needed. No administrator rights.**
 
-> **Until the next release, install the newest [pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases).** After a Codex update moves
-> Codex's engine, the latest release waits without resuming until its watcher restarts; the
-> pre-release fixes that. Setting up from Codex (below) installs it already, and its setup program
-> and archive are on its release page.
-
 It comes in two editions, of which you install one:
 
 - **Standard** is the default, and the one the routes below install. It keeps every one of the
