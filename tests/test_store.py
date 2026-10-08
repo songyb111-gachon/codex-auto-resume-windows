@@ -1677,5 +1677,116 @@ class MigrationTests(unittest.TestCase):
                     self.assertEqual(raw_state(root / "state.sqlite")["version"], SCHEMA_VERSION)
 
 
+
+# ============================================================================ v0.6.13: a resend
+RESENT = machine.encode_gates({name: ("PASS", "resend" if name == "submission_safe" else "ok")
+                               for name in machine.GATES})
+NOT_RESENT = machine.encode_gates({name: ("PASS", "ok") for name in machine.GATES})
+
+
+class NeverBackToWaitingTests(_StoreCase):
+    """A continuation sent once more never waits again (v0.6.13): its claim's stored vector says it
+    was resent, and a wait's vector would be written over it, after which nothing would say so."""
+
+    def test_no_update_moves_a_resent_record_into_a_wait(self):
+        for mark in (RESENT, NOT_RESENT):
+            for start, target, extra in (("submitting", "waiting_retry", {"submitted_at": None}),
+                                         ("waiting_backoff", "waiting_retry", {}),
+                                         ("waiting_backoff", "waiting_poll", {})):
+                key = self.make(start, gate_eval=mark, **({"submitted_at": 151.0} if start == "submitting" else {}))
+                with self.subTest(resent=mark == RESENT, start=start, target=target):
+                    if mark == RESENT:
+                        with self.assertRaises(StoreError):
+                            self.store.update(key, state=target, **extra)
+                        self.assertEqual(self.row(key)["state"], start)
+                    else:
+                        self.store.update(key, state=target, **extra)
+                        self.assertEqual(self.row(key)["state"], target)
+        # Moves that are not into a wait are as they were.
+        key = self.make("submitting", gate_eval=RESENT, submitted_at=151.0)
+        self.store.update(key, state="submission_unknown", last_error="released_before_send")
+        self.assertEqual(self.row(key)["state"], "submission_unknown")
+
+    def test_neither_release_hands_a_resent_record_back_to_a_wait(self):
+        for mark, expected in ((RESENT, False), (NOT_RESENT, True)):
+            with self.subTest(resent=mark == RESENT):
+                key = self.make("submitting", gate_eval=mark, submitted_at=151.0, retry_count=2)
+                before = self.row(key)
+                self.assertIs(self.store.release_claim(key, "waiting_poll", "released_before_send", 160), expected)
+                if not expected:
+                    self.assertEqual(self.row(key), before, "and nothing it never paid is given back")
+                key = self.make("withdrawn_unconfirmed", gate_eval=mark, withdraw_reason="paused",
+                                withdrawn_at=300.0, withdraw_deleted=1, last_error="paused")
+                self.assertIs(self.store.release_withdrawn(key, 480.0, window=180.0, later_turn=False,
+                                                           marker_rows=0, row_present=False, fresh=True,
+                                                           target="waiting_poll"), expected)
+                self.assertEqual(self.row(key)["state"], "waiting_poll" if expected else "withdrawn_unconfirmed")
+
+
+class ResendClaimTests(_StoreCase):
+    """The claim of an uncertain submission sent once more (v0.6.13): only one that may be, only as
+    something the plug's ledger pays for, with every budget, and charging nothing again."""
+
+    LIMITS = {"max_recovery_attempts": 4, "max_no_progress": 3, "max_chain_continuations": 6}
+    WINDOW = (900.0, 21600.0)
+
+    def setUp(self):
+        super().setUp()
+        self.store.set_enabled(True, 100)
+        from codex_auto_resume.domain.plug import Plug, guard
+
+        class Paying(Plug):
+            __slots__ = ()
+
+            def claim_ledger(self, connection, record, now, carried):
+                from codex_auto_resume.domain.plug import DEFER
+                return DEFER
+        self.ledger = guard(Paying())
+
+    def unknown(self, **columns):
+        values = {"last_error": "queue_result_unknown_do_not_resend", "submitted_at": 1000.0,
+                  "last_claim_at": 1000.0, "attempt_count": 1, "recovery_attempts": 1,
+                  "chain_continuations": 1, "gate_eval": NOT_RESENT, **columns}
+        return self.make("submission_unknown", category="server_5xx", **values)
+
+    def claim(self, key, now=2000.0, **options):
+        from codex_auto_resume.domain.plug import Point
+        arguments = {"limits": self.LIMITS, "gates": machine.decode_gates(NOT_RESENT),
+                     "ledger": self.ledger, "carried": {Point.SCHEDULE}, "resend": self.WINDOW, **options}
+        return self.store.reserve_detailed(key, now, **arguments)
+
+    def test_it_claims_one_once_and_charges_neither_an_attempt_nor_a_link(self):
+        key = self.unknown()
+        self.assertEqual(self.claim(key), (True, None, None))
+        row = self.row(key)
+        self.assertEqual((row["state"], row["submitted_at"], row["last_claim_at"], row["attempt_count"],
+                          row["recovery_attempts"], row["chain_continuations"]),
+                         ("submitting", 2000.0, 2000.0, 2, 1, 1))
+        self.assertTrue(machine.was_resent(self.store.get(key)))
+        self.store.update(key, state="submission_unknown", last_error="queue_result_unknown_do_not_resend")
+        self.assertEqual(self.claim(key, now=3000.0), (False, "submission_safe", "possibly_sent"))
+
+    def test_it_refuses_what_may_not_be_resent_and_writes_nothing(self):
+        cases = {"too soon": ({}, {"now": 1800.0}), "too late": ({}, {"now": 1000.0 + 21601}),
+                 "another reason": ({"last_error": "duplicate_marker"}, {}),
+                 "seen queued": ({"first_queued_at": 1001.0}, {}),
+                 "codex's own client id": ({"recovery_client_id": "0a1b2c3d-0009-7000-8000-000000000009"}, {}),
+                 "cancelled": ({"cancel_requested": 1}, {}),
+                 "a route's": ({"gate_eval": machine.encode_gates({"thread_available": ("PASS", "plugged")})}, {}),
+                 "resent": ({"gate_eval": RESENT}, {}),
+                 "attempts spent": ({"recovery_attempts": 4}, {}),
+                 "no ledger": ({}, {"ledger": None}), "not carried": ({}, {"carried": frozenset()})}
+        for name, (columns, options) in cases.items():
+            with self.subTest(name):
+                key = self.unknown(**columns)
+                before = self.row(key)
+                self.assertFalse(self.claim(key, **options)[0])
+                self.assertEqual(self.row(key), before)
+        key = self.unknown()
+        other = self.make("queued", thread_id=THREAD)
+        self.assertEqual(self.claim(key)[:2], (False, "submission_safe"), "one in flight on the conversation")
+        self.assertEqual(self.row(other)["state"], "queued")
+
+
 if __name__ == "__main__":
     unittest.main()

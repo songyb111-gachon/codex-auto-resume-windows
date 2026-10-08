@@ -79,6 +79,17 @@ class NeutralTests(unittest.TestCase):
                                   core.consult(core.NULL, point, *arguments))
             self.assertEqual(list(Path(home).iterdir()), [], "nothing was read into being")
 
+    def test_with_nothing_on_it_wants_no_point(self):
+        """Core makes the reads a point needs only while the plug wants it (core's Plug.wants), so
+        with no capability nothing more is read of Codex - and nothing is read here either."""
+        with tempfile.TemporaryDirectory() as home:
+            made = advanced.create(config.Paths(home))
+            for point in core.Point:
+                with self.subTest(point):
+                    self.assertIs(made.wants(point), False)
+                    self.assertIs(core.guard(made).wants(point), False)
+            self.assertEqual(list(Path(home).iterdir()), [], "nothing was read into being")
+
     def test_the_only_thing_it_shows_beside_the_version_is_the_edition(self):
         """The badge (decision C12): the version-bearing surfaces gain the edition and how many
         capabilities are armed - 0, and nothing on disk, while the registry is empty - and no

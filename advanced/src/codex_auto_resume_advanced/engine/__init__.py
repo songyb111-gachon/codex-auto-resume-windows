@@ -7,5 +7,10 @@ core derives from the interruption. P16, P3 and P5 are the goal continuation (en
 route core carries out for a conversation the app does not hold, which sets its goal - paused by a
 usage limit - active again; the standard continuation held back while that goal carries the
 conversation on; and, only where measurement M2b passed, a channel that sets the goal active before
-the continuation it queues.
+the continuation it queues. P17 and P3 together (v0.6.13) are the capabilities that take up a
+failure the standard edition handles otherwise, and relax its record at known_failure: the short
+retries when Codex is at capacity (engine/capacity.py), and the rules for Codex's error codes and
+the retries of failures nothing classified, of Codex giving up and of a sign-in failure
+(engine/admitted.py); and P7 with P3, a usage limit noticed when it lifts early (engine/earlyreset.py).
+P7 alone (v0.6.14) is an uncertain continuation sent once more (engine/oncemore.py).
 """

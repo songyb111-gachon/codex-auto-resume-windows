@@ -47,11 +47,21 @@ class OffReason(StrEnum):
     HOOK_EXCEPTION = "hook_exception"
     STATEMENT_CHANGED = "statement_changed"
     MEASUREMENT_FAILED = "measurement_failed"
+    # A continuation it sent once more was found twice in Codex's history (v0.6.14, stage 3b): the
+    # harm a resend risks. It turns off what sent it again whether or not it is kept on - the
+    # once-more capability, or Keep on's Send again alone (arming.py).
+    DUPLICATE_SEEN = "duplicate_seen"
 
 
 TRIPWIRES = frozenset({OffReason.SUBMISSION_UNKNOWN, OffReason.LOCAL_CHECK_FAILED,
                        OffReason.FAILED_HERE, OffReason.INCOMPATIBLE, OffReason.HOOK_EXCEPTION,
-                       OffReason.STATEMENT_CHANGED, OffReason.MEASUREMENT_FAILED})
+                       OffReason.STATEMENT_CHANGED, OffReason.MEASUREMENT_FAILED,
+                       OffReason.DUPLICATE_SEEN})
+# What a capability kept on (KeepOn, K8) notes instead of turning off, most serious first: the order
+# in which one notice gives way to another (state/arming.py, note_kept). A notice only ever rises.
+KEPT_NOTICES = (OffReason.DUPLICATE_SEEN, OffReason.STATEMENT_CHANGED, OffReason.FAILED_HERE,
+                OffReason.LOCAL_CHECK_FAILED, OffReason.INCOMPATIBLE, OffReason.MEASUREMENT_FAILED,
+                OffReason.ENGINE_CHANGED, OffReason.SUBMISSION_UNKNOWN, OffReason.HOOK_EXCEPTION)
 
 
 class ArmingWarning(StrEnum):
@@ -88,6 +98,18 @@ class Refusal(StrEnum):
     # confirmed at once; it never says the capability cannot be turned on.
     STALE_CONFIRMATION = "stale_confirmation"
     STATE_UNAVAILABLE = "state_unavailable"
+    # Keep on (v0.6.13, K8) for a capability that is not on or watched: there is nothing to keep on.
+    NOT_ON = "not_on"
+    # A capability's own choices and rules (v0.6.13, state/choices.py): a value it does not offer,
+    # and each way a rule for Codex's error codes is refused.
+    OPTION_INVALID = "option_invalid"
+    RULE_SHAPE = "rule_shape"                # not letters and digits, starting with a letter, <= 64
+    RULE_KNOWN = "rule_known"                # a code the product already classifies
+    RULE_DECISION = "rule_decision"          # a code that may name a person's decision
+    RULE_RANGE = "rule_range"                # status numbers outside 100-599, or backwards
+    RULE_OVERLAP = "rule_overlap"            # another rule covers this code and these numbers
+    RULES_FULL = "rules_full"                # ten rules already
+    UNKNOWN_RULE = "unknown_rule"
 
 
 class JournalCode(StrEnum):
@@ -103,6 +125,17 @@ class JournalCode(StrEnum):
     ACTED = "acted"                          # an armed capability's answer, taken
     CEILING = "ceiling"                      # an armed capability's answer, not taken: no unit left
     CEILING_CHANGED = "ceiling_changed"
+    OPTION_CHANGED = "option_changed"        # a capability's own choice, set in the Dashboard
+    RULE_ADDED = "rule_added"
+    RULE_REMOVED = "rule_removed"
+    # Keep on (v0.6.13, K8): set and let go in the Dashboard, and what a kept-on capability noted
+    # instead of turning itself off - once each time its notice rises, never once a tick.
+    KEEP_ON = "keep_on"
+    KEEP_ON_OFF = "keep_on_off"
+    KEPT = "kept"
+    # Keep on's Send again let go while Keep on stays (v0.6.14): by the person, or by a continuation it
+    # sent again found twice.
+    SEND_AGAIN_OFF = "send_again_off"
     OTHER = "other"
 
 
@@ -120,6 +153,23 @@ class OverrideKind(StrEnum):
     EARLY_RESET = "early_reset"
     CAPACITY_LADDER = "capacity_ladder"
     RESEND_ONCE = "resend_once"
+
+
+class OptionKey(StrEnum):
+    """A choice a capability offers a person (registry.Option), stored in `options` by this key."""
+    ATTEMPTS = "attempts"                    # how many tries a task gets
+    CEILING_HOURS = "ceiling_hours"          # for how long, in hours on the clock, it keeps trying
+
+
+class KeepOn(StrEnum):
+    """What a person chose, in the Dashboard, to keep a capability on through (v0.6.13, the owner's
+    K8): stored in `options` beside its own choices, one row for each, none for none - and every row
+    taken away by any move to off. Not a capability's own choice: every capability may be kept on."""
+    KEEP_ON = "keep_on"                      # it does not turn itself off; what would have, is noted
+    # With Keep on alone (v0.6.14): a continuation it paid for that cannot be proven to have arrived
+    # is sent once more, under the once-more capability's rules (engine/oncemore.py), where the policy
+    # admits that capability too.
+    SEND_AGAIN = "send_again"
 
 
 class Ceiling(StrEnum):
@@ -163,6 +213,21 @@ class BridgeCommand(StrEnum):
     # measurement for the same Codex version (measure.py, evidence.complete). Content-free, the
     # Dashboard's like MEASURE, and reached by no MCP tool.
     MEASURE_VERDICT = "measure-verdict"
+    # A capability's own choices and the rules for Codex's error codes (v0.6.13, state/choices.py): a
+    # choice set, the rules read, one added, one removed, and the samples of what nothing classified
+    # read - the Dashboard's like the rest, each write against the generation the page read, and
+    # reached by no MCP tool.
+    ADVANCED_OPTION = "advanced-option"
+    ADVANCED_RULES = "advanced-rules"
+    ADVANCED_RULE_ADD = "advanced-rule-add"
+    ADVANCED_RULE_REMOVE = "advanced-rule-remove"
+    ADVANCED_SAMPLES = "advanced-samples"
+    # Keep on (v0.6.13, K8): set or let go for one capability that is on or watched, the Dashboard's
+    # alone, after its warning, against the generation the page read; no MCP tool reaches it.
+    ADVANCED_KEEP_ON = "advanced-keep-on"
+    # Send now (v0.6.14): a person's request that one waiting recovery go at the watcher's next look,
+    # by its interruption id, the Dashboard's alone while Send now is on; no MCP tool reaches it.
+    ADVANCED_SEND_NOW = "advanced-send-now"
 
 
 class Measurement(StrEnum):

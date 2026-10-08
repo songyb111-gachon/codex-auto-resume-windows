@@ -16,7 +16,7 @@ from codex_auto_resume.domain.plug import Edition, Plug, Point
 
 # Written out rather than read from core. The check is whether this package was written for the
 # core beside it, and a number taken from that core would agree with any core at all.
-PLUG_API = 1
+PLUG_API = 2
 
 
 class AdvancedPlug(Plug):
@@ -88,6 +88,14 @@ class AdvancedPlug(Plug):
 
     def unloaded(self, record):
         return self.runtime.ask(Point.UNLOADED, record)
+
+    def admission(self, failure):
+        return self.runtime.ask(Point.ADMISSION, failure)
+
+    def wants(self, point):
+        """Whether a capability may answer at `point` now (core's Plug.wants), so core makes the
+        reads that point needs only then (runtime.py)."""
+        return self.runtime.wants(point)
 
     def codex(self, codex_exe, codex_home):
         """The Codex this installation's watcher drives (core's Plug.codex), kept for the

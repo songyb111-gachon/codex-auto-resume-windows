@@ -63,7 +63,9 @@ conversation, counted when the send is claimed. Over them stands one ceiling for
 together, 12 sends an hour, which you can lower on the page, as far as one an hour, and never raise
 past 12. The page shows a capability's own ceilings beside its statement. Every send also counts
 against the standard edition's own limits for the conversation: five in any 24 hours, at least 15
-minutes apart (A20).
+minutes apart (A20) - except where a capability says it departs from A20: a send of the short retries
+when Codex is at capacity counts against the program's own capacity limits instead, 48 a day, a minute
+apart, and Send now skips the 15 minutes for the one recovery you choose, still within the five a day.
 
 **Warnings, not refusals.** A measurement a capability rests on that failed, or was never made for
 your version of Codex, a compatibility grade of Failed here, Incompatible or Unknown, or a Codex
@@ -74,7 +76,21 @@ capability on; turning it on confirms you read it (K6).
 you did not confirm says that what it stands on went wrong; when one of its parts fails; when a send
 it made becomes one whose delivery cannot be proven; and, while it is on, when Codex is updated. The
 page says so under the capability's state, and why. You can turn it on again, with its statement as
-it then reads (K7).
+it then reads (K7). A continuation sent once more and then found twice turns off what sent it again:
+Once more when unsure itself, or the *Also send again when unsure* of a capability kept on.
+
+**Keep it on.** On the page, a capability that is on or watched can be kept on, after its own warning.
+Kept on, it does not turn itself off for any of the tripwires above, nor for a new version of Codex:
+the page notes the most serious of them under its state until you turn it on again; a part of it that
+fails skips only that one recovery; and a send it made whose delivery cannot be proven is held, as the
+standard edition holds one. A Codex version or a compatibility grade that cannot be read still holds
+it back, its ceilings stay, and turning it off - here, from Codex or with every advanced feature at
+once - always works and lets it turn itself off again. With it you can also choose *Also send again
+when unsure*, after a warning of its own: such a send is then sent once more under the rules of Once
+more when unsure below, so the capability departs from what that one departs from too, and only where
+your administrator's policy allows Once more when unsure as well; a continuation sent again and found
+twice turns that choice off, and the capability stays on. The policy reads a kept-on capability down
+as any other, by the capability's own id: no policy value reaches Keep it on alone (K8).
 
 **Your administrator's policy.** Three values under `Software\Policies\CodexAutoResume`, in
 `HKEY_LOCAL_MACHINE` or `HKEY_CURRENT_USER`, read and never written: `ForbidAdvanced` (nothing may be
@@ -84,14 +100,16 @@ the strictest. The page says when one of them applies. Like the standard edition
 they are what a cooperating installation obeys, not a lock (K6).
 
 What the advanced edition keeps is its own: which capability is on, what each has spent and what it
-did are kept in `config/advanced/advanced.sqlite`, in fixed words, ids and numbers, and nothing of
-it is written into the standard edition's state. It adds no network code. Its archive also carries
+did, the choices you made for a capability, the rules you wrote, which capability took up which
+interruption and the samples of failures it could not classify are kept in
+`config/advanced/advanced.sqlite`, in fixed words, ids, numbers and Codex's own error codes - never a
+word of an error or a conversation - and nothing of it is written into the standard edition's state. It adds no network code. Its archive also carries
 the harness the project uses to measure whether a capability's route works on a given version of
 Codex; nothing runs it unless a person asks, and [SECURITY.md](SECURITY.md) says what it does.
 
 ## Today's capabilities
 
-Three. Each measurement named below was made once, by hand, on the owner's machine, on
+Eleven. The first three rest on a measurement each, the other eight on none. Each measurement named below was made once, by hand, on the owner's machine, on
 `codex-cli 0.158.0-alpha.2.1`; its record is in [`docs/evidence/live/`](evidence/live/). On any
 other version of Codex a capability's statement carries the warning that it was not measured there.
 
@@ -184,6 +202,194 @@ M2b, which would let it act while the app holds the conversation, has not been m
 Where the goal continuation and the marker-free continuation are both on and the goal applies, the
 goal continuation carries the send.
 
+### Short retries when Codex is at capacity
+
+**What it does.** When Codex says it is at capacity - its own error code `serverOverloaded`, a server
+error the standard edition recovers already - it tries again sooner and more often: about a minute
+after the failure, then two, four and five minutes, each lengthened by up to a fifth, at least a
+minute apart and at most 48 times a day in one conversation. It keeps this up for as long as you
+choose on the page, one to twelve hours (two by default), counted on the clock from the task's first
+failure; after that the standard edition's waits and limits apply again, and they may end the task.
+Each try is the ordinary continuation through Codex's queue, with its marker. Other server errors,
+rate limits and usage limits keep the standard edition's waits.
+
+**When it helps.** When Codex is busy for a while and you would rather it kept trying than waited the
+standard edition's retry timing and stopped after four attempts.
+
+**What it risks.** Retrying a busy service often adds to its load and spends usage on continuations
+that may fail again, and each try is a visible message in the conversation. While the ceiling for
+all capabilities together is reached, a capacity error is handled as the standard edition handles
+it. However long it keeps answering, the program itself never retries one task for more than twelve
+hours on the clock, 48 times a day, or sooner than a minute apart.
+
+**Departs from** [A20](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (five continuations a
+conversation in 24 hours, 15 minutes apart), A21 (the attempt, no-progress and continuation budgets),
+A22 (waits come only from the retry timing you chose) and [B9](STANDARDS.md#b-what-it-reads-and-how)
+(only a failure's kind is kept: this also reads Codex's own error code, never its words).
+
+**Ceilings.** 48 a day, and 48 in any one conversation - the one capability whose conversation
+ceiling is above the standard edition's five, because it departs from A20.
+
+### Rules for Codex's error codes
+
+**What it does.** Lets you write up to ten rules on the page. Each names one of Codex's own error
+codes, and if you like a range of status numbers, and the kind of temporary failure to treat it as: a
+dropped connection, a timeout, a rate limit, a server error or a broken stream. A rule applies only
+to a failure the program could not classify; it then waits as that kind waits in your retry timing,
+counts against that kind's budget and follows that kind's switch in Settings. A code the program
+already knows can never be a rule, nor one whose name speaks of a policy, budget, quota, permission,
+approval, sign-in or cancellation, and no rule makes a failure a usage limit. Rules read codes, never
+the words of an error. The page lists each rule with how many failures it took up in the last 30
+days, and offers the codes the samples (below) saw.
+
+**When it helps.** When you know that a code Codex sends, which this program does not know yet, is
+temporary.
+
+**What it risks.** A rule is your judgement that a code is temporary. A wrong one retries failures
+that retrying cannot fix, until that kind's budget runs out, and Codex may rename or reuse a code in
+another version. Removing a rule ends what it took up and has not sent.
+
+**Departs from** [0.5](STANDARDS.md#0-the-edition-boundary) (a failure it cannot classify is never
+retried), A13 (only the classified kinds are recovered), A14 (anything unclassified is never
+retried), A26 (continuation text only for a kind that is recovered) and B9.
+
+**Ceilings.** 24 a day, and 5 in any one conversation.
+
+### Retry failures it cannot name
+
+**What it does.** When a turn fails with an error code of Codex's that the program cannot classify,
+it continues the conversation anyway, on a budget of its own: one to three tries a task, as you
+choose on the page (one by default), the first ten minutes after the failure, then 15 and 30. It
+never takes up a failure that came with no code, or a code whose name speaks of a policy, budget,
+quota, permission, approval, sign-in or cancellation; a rule that names the code comes first. Each
+failure it takes up leaves a sample: Codex's error code, the status number, the form of the error,
+how many items of each kind the turn left, a time rounded to the minute and how long the turn ran -
+never a word of the error, the conversation or the reply. The page lists them for the last 30 days,
+and a diagnostics export you ask for includes them; nothing sends them.
+
+**When it helps.** When Codex fails in a way nobody has classified yet, and you would rather the
+conversation tried again than waited for you.
+
+**What it risks.** A failure nobody classified may be one retrying cannot help, or one where trying
+again repeats something a person should have decided. A sample keeps a code Codex chose, which may say
+more than the program's own words. Samples are kept 90 days at most.
+
+**Departs from** 0.5, A13, A14, A26, B9 and [D2](STANDARDS.md#d-privacy-and-the-data-it-keeps)
+(state holds only the program's own fixed words, never a code Codex chose).
+
+**Ceilings.** 12 a day, and 3 in any one conversation.
+
+### Retry when Codex gave up
+
+**What it does.** When Codex ended a turn after its own retries failed (its error code
+`responseTooManyFailedAttempts`) and the last answer it had was a server error or none at all, it
+continues the conversation once Codex has had time to recover: ten minutes after the failure, then
+15, and at most twice a task. When the last answer was a rate limit, the standard edition already
+retries it.
+
+**When it helps.** When Codex gave up during an outage that has since passed.
+
+**What it risks.** Codex already tried several times, so trying again is not a fresh attempt: it may
+fail the same way and use your usage.
+
+**Departs from** A14 (Codex giving up without a 429 is never retried), A26 and B9.
+
+**Ceilings.** 12 a day, and 2 in any one conversation.
+
+### Retry a sign-in failure after proof
+
+**What it does.** When a turn fails because Codex was not signed in (its error code `unauthorized`, or
+status 401), it waits at least ten minutes and continues the conversation once - and only when the
+usage read every continuation already needs shows Codex is signed in again. Once a task and twice a
+day in all; if the continuation fails at sign-in again, it stops there, and after a day without a
+working usage read it gives up. It never reads or changes Codex's sign-in, its `auth.json` or any
+token, and never asks Codex to sign in or out. A permission refusal (403) is never retried.
+
+**When it helps.** When Codex's sign-in lapsed and you signed in again, and you would rather the
+conversation went on by itself than you continued it.
+
+**What it risks.** A usage read proves Codex reaches your account, not that every request will be
+accepted, so the continuation may fail again. If you signed in with another account, the
+conversation continues under that one.
+
+**Departs from** 0.5 (a sign-in failure is never retried), A14 (401 and 403 are never retried) and
+A26.
+
+**Ceilings.** 2 a day, and 2 in any one conversation.
+
+### Notice a usage limit that lifts early
+
+**What it does.** While a conversation waits for a usage limit to reset, it asks Codex every five
+minutes whether usage is available - one question for every conversation waiting - and when two
+answers at least five minutes apart both say yes, it continues the waiting conversations then,
+before the reset time Codex gave. A postponement and quiet hours still hold, and a look that finds no
+usage changes nothing about the conversation: it keeps its state and its next look. It only reads: it
+never sends anything to start a usage window or keep one open.
+
+**When it helps.** When Codex lifts a limit before the time it gave.
+
+**What it risks.** Each question is a request to OpenAI through Codex. Usage that reads as available
+may be available for another model or plan than the one the conversation uses, and the continuation
+may meet the limit again; the usage check every continuation makes still applies.
+
+**Departs from** [A12](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (never before the real reset
+time) and [C9](STANDARDS.md#c-network) (Codex is asked about usage only when a recovery is due).
+
+**Ceilings.** 12 a day, and 3 in any one conversation.
+
+### Once more when unsure
+
+**What it does.** When it cannot be proven that a continuation arrived - the queue command's answer
+was lost, or no receipt came - it sends it once more, its words built the same way and with the same
+marker, between 15 minutes and 6 hours after the first: only if Codex was never seen holding it in
+its queue, neither Codex's history nor its queue holds the marker, the history was current at every
+look since, the conversation has no later turn and nothing queued, its attempts are not used up and
+every check a send passes still holds. A continuation is sent again at most once, one that Pause or
+Observe only takes back is never sent again, and nothing is sent again after the watcher restarts. A
+continuation another advanced feature carried by a route or a channel of its own is never sent again
+by this one.
+
+**When it helps.** When a continuation never reached Codex and nothing could say so.
+
+**What it risks.** If the first continuation did arrive late, the conversation gets the same
+continuation twice and Codex may do the same work twice; if the marker is then found twice, it turns
+itself off. The words are built again from your settings as they are then.
+
+**Departs from** [0.2](STANDARDS.md#0-the-edition-boundary) (never again when the first may already have been delivered),
+[A6](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (an uncertain delivery is never sent again), [E2](STANDARDS.md#e-failure-behaviour) (better to miss a resume than resume
+twice) and [H2](STANDARDS.md#h-user-control) (nothing can resend an uncertain submission).
+
+**Ceilings.** 6 a day, and 2 in any one conversation.
+
+### Send now
+
+**What it does.** While it is on, the page lists the recoveries waiting now, each with *Send now...*.
+For the one you choose, the watcher sends its continuation at its next look instead of when its
+schedule says: it passes the wait before the next try, a postponement, the minutes before a first
+send, the 15 minutes between two continuations in one conversation and an attempt budget you set that
+is used up - never one your administrator set. Every other check still runs. A request not used within
+15 minutes lapses, and turning it off, or setting it to watch, voids one not yet used.
+
+**When it helps.** When the cause of a failure is gone and you do not want to wait for the schedule.
+
+**What it risks.** A continuation sent sooner may meet the same failure again and use an attempt the
+schedule would have kept for later. It never sends before a usage limit resets, in quiet hours, past an
+attempt limit your administrator set, past five continuations in a conversation in a day, while
+recovery is paused or the conversation is off, before the app has the conversation open, while
+something else is queued for it, or without usage.
+
+**Departs from** [A8](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (the claim checks the schedule and the budgets again, passing none),
+[A20](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (at least 15 minutes between two continuations in a conversation), [A21](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (the attempt
+budget stops a recovery) and [H2](STANDARDS.md#h-user-control) (nothing can force a send).
+
+**Ceilings.** 24 a day, and 5 in any one conversation.
+
+None of the eight rests on a measurement: what each sends is the continuation the standard edition sends.
+Each of the four that take up a failure the standard edition leaves for you takes up only failures
+from the last hour, and none from before it was turned on or set to watch; turning it off or setting
+it to watch only ends what it took up and has not sent, and the program ends such a recovery unsent a
+day on the clock after the failure in any case.
+
 ## Choosing an edition
 
 - **Standard**, if you want every promise in [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md)
@@ -245,7 +451,10 @@ A28 amended by the owner for its stop button), so it is in the standard edition,
 turns it on in the Dashboard.
 
 Then, after v0.6.13's fix of how Codex's engine is found, v0.6.14 brings the rest of the advanced
-edition, each part published as a pre-release as it is finished. Each new capability is the advanced edition's alone, off until you turn it on, with a
+edition, each part published as a pre-release as it is finished. Its first part, from v0.6.14-beta
+on, is the six capabilities [above](#todays-capabilities) that follow the goal continuation, and with
+them Once more when unsure, Send now and Keep it on, in the same beta. Each new capability is the
+advanced edition's alone, off until you turn it on, with a
 statement that names the standards it departs from. This is a direction, not a promise;
 [ROADMAP.md](ROADMAP.md) has the whole list: the two additions in its v0.6.12 section, and the rest
 in its v0.6.14 section, under the same four headings as below and one more on compatibility reports

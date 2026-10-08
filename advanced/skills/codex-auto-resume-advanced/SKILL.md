@@ -83,6 +83,11 @@ anywhere else, and do not present one as active unless `list_advanced_capabiliti
   one from being turned on.
 - A capability that turned itself off after a problem appeared can be turned on again in the
   Dashboard, by the user, like any other.
+- **Keep it on** (a capability that does not turn itself off, with or without *Also send again when
+  unsure*) and **Send now** (one waiting recovery sent at the next look) are the Dashboard's, set or
+  asked for there by the user and nowhere else. No tool sets either, so never claim to have kept a
+  capability on or sent a recovery now; `list_advanced_capabilities` shows whether one is kept on.
+  Turning a capability off always works, kept on or not.
 - Pause stops every capability along with everything else.
 
 ## Moving between editions

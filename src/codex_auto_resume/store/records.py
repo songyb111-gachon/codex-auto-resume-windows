@@ -1,8 +1,8 @@
 """Records: registering one, reading them back, and the rules a change must obey.
 
 `update` is where a record may be refused - a terminal record brought back, a send that may
-have happened rubbed out, a recovery turn rewritten, a cancellation withdrawn. Each of those
-is one line here and one test in `tests/test_store_guards.py`.
+have happened rubbed out, a recovery turn rewritten, a cancellation withdrawn, a resent
+continuation sent back to waiting. Each of those is one line here and one test.
 """
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from ..domain import ids
 from ..machine import STATES, TERMINAL, WAITING
 from .columns import _MUTABLE, _NEEDS_RECOVERY_TURN, _RECORD_COLUMNS
 from .errors import StoreError
-from .validate import _finite, _sql, _timestamp, _validated_record, is_usage
+from .validate import _finite, _sql, _timestamp, _uuid, _validated_record, is_usage
 
 
 class RecordsMixin:
@@ -98,35 +98,17 @@ class RecordsMixin:
                 self._event(connection, now, "identity_drift", record=self._row(connection, drift[0]))
                 return False
             parent = self._parent(connection, row, owner_id)
+            # The counters of the task it continues - or, for a predecessor from before chains
+            # existed, the v0.5 carry rule, applied in the same transaction instead of a second
+            # write - and the stop it is born in, if its task cannot go on (domain/gates.py).
+            row.update(machine.inherited(parent, failed_turn_progress, legacy_carry))
+            stop = machine.birth_stop(parent, failed_turn_progress, limits, is_usage(row), now=now,
+                              legacy_carry=legacy_carry)
             reason = None
-            if parent is not None:
-                for field in ("chain_origin_id", "chain_first_detected_at", "chain_continuations",
-                              "recovery_attempts", "usage_unavailable_seconds", "budget_resets"):
-                    row[field] = parent[field]
-                row["parent_interruption_id"] = parent["interruption_id"]
-                row["no_progress_count"] = parent["no_progress_count"] + (0 if failed_turn_progress is True else 1)
-                if parent["cancel_requested"]:
-                    row["state"], reason = "cancelled", "parent_cancelled"
+            if stop is not None:
+                row["state"], reason = stop
+                if reason == "parent_cancelled":
                     row["cancel_requested"] = True
-                elif (parent["user_joined"] or parent["after_user_work"]
-                        or parent["state"] in ("handed_over", "stopped_by_user")):
-                    row["state"], reason = "superseded", "parent_handed_over"
-            elif isinstance(legacy_carry, int) and not isinstance(legacy_carry, bool) and legacy_carry > 0:
-                # A predecessor from before chains existed: the v0.5 carry rule, now
-                # applied in the same transaction instead of a second write.
-                row["no_progress_count"] = legacy_carry
-            if reason is None and limits is not None:
-                if row["no_progress_count"] >= limits["max_no_progress"]:
-                    row["state"], reason = "no_progress_exhausted", "no_progress_budget"
-                elif row["chain_continuations"] >= limits["max_chain_continuations"]:
-                    row["state"], reason = "retry_budget_exhausted", "chain_cap"
-                elif machine.over_ceiling(row, limits, is_usage(row)):
-                    # v0.6.11: a temporary task that kept failing past its time ceiling (absent at
-                    # the defaults), measured from its first failure to this one.
-                    row["state"], reason = "retry_budget_exhausted", "chain_time_cap"
-                elif (not is_usage(row)
-                        and row["recovery_attempts"] >= limits["max_recovery_attempts"]):
-                    row["state"], reason = "retry_budget_exhausted", "recovery_budget"
             row["last_error"] = reason
             row = _validated_record(row)
             columns = ",".join(_RECORD_COLUMNS)
@@ -139,18 +121,41 @@ class RecordsMixin:
                         reason=reason, turn_ref="failed")
             return True
 
-    def _parent(self, connection, row, owner_id):
-        """The record whose own continuation started the turn that just failed."""
+    def claimed_on_thread(self, thread_id: str) -> list[dict[str, Any]]:
+        """Records that may have put a continuation into this thread."""
+        _uuid(thread_id, "thread_id")
+        with self._read() as connection:
+            return [_validated_record(dict(row)) for row in connection.execute(
+                "SELECT * FROM interruptions WHERE thread_id=? AND (last_claim_at IS NOT NULL "
+                "OR submitted_at IS NOT NULL OR legacy=1) ORDER BY detected_at", (thread_id,))]
+
+    def chain_parent(self, thread_id: str, turn_id: str, owner_id: str | None = None):
+        """The record whose own continuation started the failed turn `turn_id`, as `register` would
+        find it, and nothing written (v0.6.13): the engine reads it before it asks the edition's plug
+        about a failure (engine/detect.py), so the two cannot disagree about a chain."""
+        with self._read() as connection:
+            return self._find_parent(connection, thread_id, turn_id, owner_id)
+
+    def _find_parent(self, connection, thread_id, turn_id, owner_id):
+        """The record whose recovery turn is `turn_id`, else the owner of the marker in it on the
+        same conversation - the one the watch has not correlated yet - or None."""
         found = connection.execute(
             "SELECT * FROM interruptions WHERE thread_id=? AND recovery_turn_id=?",
-            (row["thread_id"], row["turn_id"])).fetchone()
+            (thread_id, turn_id)).fetchone()
         if found is not None:
             return _validated_record(dict(found))
         if owner_id is None:
             return None
         owner = self._row(connection, owner_id)
-        if owner is None or owner["thread_id"] != row["thread_id"]:
+        if owner is None or owner["thread_id"] != thread_id:
             return None
+        return owner
+
+    def _parent(self, connection, row, owner_id):
+        """The record whose own continuation started the turn that just failed."""
+        owner = self._find_parent(connection, row["thread_id"], row["turn_id"], owner_id)
+        if owner is None or owner["interruption_id"] != owner_id:
+            return owner
         if owner["recovery_turn_id"] is None:
             # Link a record the watch has not correlated yet, or a record from before
             # correlation existed, to the turn its marker is in. The index still
@@ -242,6 +247,10 @@ class RecordsMixin:
                 raise StoreError("A recovery turn is written once")
             if old["cancel_requested"] and not row["cancel_requested"]:
                 raise StoreError("A cancellation cannot be withdrawn")
+            if row["state"] in WAITING and machine.was_resent(old):
+                # v0.6.13: a continuation sent once more never waits again - its stored vector is
+                # what says it was resent, and a wait's would be rewritten (domain/gates.py).
+                raise StoreError("A resent continuation never waits again")
             assignments = ",".join(f"{column}=?" for column in changes)
             connection.execute(
                 f"UPDATE interruptions SET {assignments} WHERE interruption_id=?",

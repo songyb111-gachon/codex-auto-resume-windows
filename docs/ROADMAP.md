@@ -687,9 +687,21 @@ the route, or becomes a warning the person confirms, and does not drop the capab
 - a request Codex gave up on (`responseTooManyFailedAttempts` with a 5xx or no status),
 - a sign-in failure retried once, after a usage read proves the sign-in works,
 - a usage limit that resets early, noticed,
+
+  **Built for v0.6.13-beta:** these first five, as six capabilities - the rules and the budget for
+  failures it cannot name are two - each described in [EDITIONS.md](EDITIONS.md#todays-capabilities).
+  A failure the standard edition leaves for the person is taken up only where the edition's plug
+  admits it, as a record of its true kind that the standard edition's checks still hold and that
+  ends unsent a day on the clock after it failed; capacity retries stop at twelve hours on the clock.
 - one resend when delivery is uncertain and neither Codex's history nor its queue holds the message,
 - *Send now*, from the Dashboard only, past the schedule and the budget but not past the checks
   that make a send safe,
+
+  **Built for the same beta:** these two, as Once more when unsure and Send now, and with them Keep it
+  on (the owner's K8): a capability on or watched may be kept from turning itself off, with *Also send
+  again when unsure* for what it sent - each described in [EDITIONS.md](EDITIONS.md#todays-capabilities).
+  A resend charges no attempt and goes at most once, proven nowhere in Codex first; Send now passes no
+  administrator's limit, a reset still ahead or quiet hours.
 - several conversations at once, still one send in flight in each,
 - empty-response recovery, recognised by the kinds of item a turn left and never by its words,
 - an unloaded conversation, through a queue that waits until it is opened (measurement M1),

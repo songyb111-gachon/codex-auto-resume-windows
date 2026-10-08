@@ -22,7 +22,7 @@ from .values import (KNOWN_STATUSES, MAX_ITEM_BYTES, MAX_META_BYTES,  # noqa: F4
                      MAX_SCAN_BYTES, PROGRESS_ITEM_TYPES, _json, _turn_status,
                      epoch, normalize)
 from .paths import DB_KINDS, _safe_path  # noqa: F401
-from .payload import _choose_reset, _content_has_marker, _queue_has_marker, detect  # noqa: F401
+from .payload import _choose_reset, _content_has_marker, _queue_has_marker, admissible, detect  # noqa: F401
 from .schema import SchemaMixin
 
 

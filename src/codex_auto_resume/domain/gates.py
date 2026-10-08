@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 
+from .ids import continuation_client_id
 from .public import REASONS
 from .states import WAITING
 from .vocabulary import GateName, GateResult
@@ -33,12 +34,25 @@ PLUGGED = "plugged"
 # order, are what they were; and each is off at the defaults, where no record has a hold or a
 # postponement, no hour is quiet and nothing is only observed.
 POSTPONED, QUIET_HOURS, OBSERVE_ONLY = "postponed", "quiet_hours", "observe_only"
+# v0.6.13 stage 3b: submission_safe passed for an uncertain submission sent once more, because the
+# edition's plug asked and core proved no copy of it anywhere (engine/resend.py). The standard
+# edition's plug never asks, so no standard record is ever stored with it - and a record whose claim
+# was stored with it has been resent, for good (`was_resent`).
+RESEND = "resend"
+# And schedule passed - or attempt_budget - for a waiting record a person asked to send now (SEND_NOW):
+# its retry's wait, a postponement, and an attempt budget of the person's own, never an administrator's.
+SEND_NOW = "send_now"
+# The schedule's refusals a person's Send now passes.
+FORCEABLE = frozenset({"not_due", POSTPONED})
 GATE_REASONS = REASONS | frozenset({
     NOT_CHECKED, "paused", "thread_disabled", "cancel_requested", "not_due", "possibly_sent",
     "engine_incompatible", "engine_unknown", "projection_table_missing",
-    "home_lock_unavailable", "identity_unreadable", "not_recoverable", "usage_available",
-    "ok", HELD, POSTPONED, QUIET_HOURS, OBSERVE_ONLY, PLUGGED,
+    "home_lock_unavailable", "identity_unreadable", "usage_available",
+    "ok", HELD, POSTPONED, QUIET_HOURS, OBSERVE_ONLY, PLUGGED, RESEND, SEND_NOW,
 })
+# What an uncertain submission may be resent after (v0.6.13): its send's answer was unknown, or no
+# receipt came - never a withdrawal, a duplicate, an ambiguous receipt or anything else unsettled.
+RESENDABLE = frozenset({"queue_result_unknown_do_not_resend", "no_receipt_do_not_resend"})
 
 
 def gate(result: str, reason: str = "ok") -> tuple:
@@ -63,15 +77,18 @@ def gate_consent(enabled, thread_enabled, cancel_requested, *, observe_only=Fals
     return gate(PASS)
 
 
-def gate_schedule(record, now, *, quiet_until=None) -> tuple:
+def gate_schedule(record, now, *, quiet_until=None, early=False, forced=False) -> tuple:
     """Whether it is time. A postponement (`not_before`) only ever makes a record later, and
     `quiet_until` - the end of the quiet hours `now` falls in, or None outside them - only holds
-    a record that is otherwise due; neither is ever set at the defaults."""
-    if (record.get("next_retry_at") or 0) > now:
+    a record that is otherwise due; neither is ever set at the defaults. `early` (v0.6.13, a
+    usage-limited record the edition's plug looks at early) skips its next look and its reset
+    time, and nothing else; `forced` (v0.6.13, Send now) skips its next look and a postponement,
+    and nothing else - a reset still ahead and quiet hours hold."""
+    if not (early or forced) and (record.get("next_retry_at") or 0) > now:
         return gate(WAIT, "not_due")
-    if record.get("reset_at") is not None and record["reset_at"] > now:
+    if not early and record.get("reset_at") is not None and record["reset_at"] > now:
         return gate(WAIT, "waiting_reset")
-    if (record.get("not_before") or 0) > now:
+    if not forced and (record.get("not_before") or 0) > now:
         return gate(WAIT, POSTPONED)
     if quiet_until is not None and quiet_until > now:
         return gate(WAIT, QUIET_HOURS)
@@ -84,6 +101,38 @@ def gate_submission_safe(record, others_in_flight: int) -> tuple:
     if others_in_flight:
         return gate(WAIT, "other_recovery_in_flight")
     return gate(PASS)
+
+
+def own_budget_only(record, administrators) -> bool:
+    """Whether a spent attempt budget is the person's own alone (v0.6.13, Send now): no administrator's
+    MaxRecoveryAttempts (`administrators`, None for none), or one `record` is still below. An
+    administrator's value only holds recovery back, and a person's click is no administrator's."""
+    return administrators is None or (record.get("recovery_attempts") or 0) < administrators
+
+
+def was_resent(record) -> bool:
+    """Whether `record` has been resent (v0.6.13): its claim's stored vector passed submission_safe
+    as a resend. Nothing rewrites the vector of a record that is not waiting, and a resent record
+    never waits again (store/records.py, store/claims.py), so this holds for good with no column."""
+    return decode_gates((record or {}).get("gate_eval"))["submission_safe"] == (PASS, RESEND)
+
+
+def resend_candidate(record, now, window) -> bool:
+    """Whether an uncertain submission may be considered for one more send (v0.6.13), from its own
+    columns alone: its send's answer was unknown or no receipt came (RESENDABLE); Codex was never
+    seen holding it in its queue, and holds no client id of Codex's own for it - only none, or the
+    one core derived for a marker-free send; sent between `window`'s two bounds ago, in seconds; not
+    cancelled or held; never resent; and not carried by a route the plug named (P16)."""
+    after, until = window
+    sent = record.get("submitted_at")
+    client = record.get("recovery_client_id")
+    return (record.get("state") == "submission_unknown" and record.get("last_error") in RESENDABLE
+            and record.get("queue_id") is None and record.get("first_queued_at") is None
+            and (client is None or client == continuation_client_id(record.get("interruption_id")))
+            and sent is not None and after <= now - sent <= until
+            and not record.get("cancel_requested") and record.get("hold") is None
+            and not was_resent(record)
+            and decode_gates(record.get("gate_eval"))["thread_available"] != (PASS, PLUGGED))
 
 
 def chain_span(record) -> float:
@@ -139,6 +188,53 @@ def over_ceiling(record, limits: dict, usage_category: bool) -> bool:
     at the defaults). A usage limit waits for its reset and has none."""
     ceiling = limits.get("max_chain_seconds")
     return not usage_category and ceiling is not None and chain_span(record) >= ceiling
+
+
+# What a record of a task takes from the record whose own continuation started the turn that failed.
+CHAIN_FIELDS = ("chain_origin_id", "chain_first_detected_at", "chain_continuations",
+                "recovery_attempts", "usage_unavailable_seconds", "budget_resets")
+
+
+def inherited(parent, failed_turn_progress, legacy_carry=None) -> dict:
+    """The counters a new record of a task starts with: its parent's, and one more turn with no
+    progress unless the turn that failed made some - or, with no parent, the v0.5 carry of a
+    predecessor from before chains existed, if there is one."""
+    if parent is None:
+        carry = legacy_carry
+        good = isinstance(carry, int) and not isinstance(carry, bool) and carry > 0
+        return {"no_progress_count": carry} if good else {}
+    found = {field: parent[field] for field in CHAIN_FIELDS}
+    found["parent_interruption_id"] = parent["interruption_id"]
+    found["no_progress_count"] = parent["no_progress_count"] + (0 if failed_turn_progress is True else 1)
+    return found
+
+
+def birth_stop(parent, failed_turn_progress, limits, usage_category: bool, *, now, legacy_carry=None):
+    """(state, reason) a new record of a task is born stopped in, or None: its parent was cancelled
+    or handed over, or a budget is spent (`limits`, None to check none). The store decides it in the
+    transaction that registers the record (store/records.py); the engine asks it beforehand only to
+    leave alone what it would not take up (v0.6.13, engine/detect.py)."""
+    if parent is not None and parent["cancel_requested"]:
+        return "cancelled", "parent_cancelled"
+    if parent is not None and (parent["user_joined"] or parent["after_user_work"]
+                               or parent["state"] in ("handed_over", "stopped_by_user")):
+        return "superseded", "parent_handed_over"
+    if limits is None:
+        return None
+    row = {"detected_at": now, "chain_first_detected_at": now, "chain_continuations": 0,
+           "recovery_attempts": 0, "no_progress_count": 0,
+           **inherited(parent, failed_turn_progress, legacy_carry)}
+    if row["no_progress_count"] >= limits["max_no_progress"]:
+        return "no_progress_exhausted", "no_progress_budget"
+    if row["chain_continuations"] >= limits["max_chain_continuations"]:
+        return "retry_budget_exhausted", "chain_cap"
+    if over_ceiling(row, limits, usage_category):
+        # v0.6.11: a temporary task that kept failing past its time ceiling (absent at the
+        # defaults), measured from its first failure to this one.
+        return "retry_budget_exhausted", "chain_time_cap"
+    if not usage_category and row["recovery_attempts"] >= limits["max_recovery_attempts"]:
+        return "retry_budget_exhausted", "recovery_budget"
+    return None
 
 
 def gate_budgets(record, limits: dict, usage_category: bool) -> dict:

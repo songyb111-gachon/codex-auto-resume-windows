@@ -63,7 +63,10 @@ LISTS = {
     "machine.ACTORS": ("set", 5, "eaf35d06c4c2b568"),
     # v0.6.11: offline - Windows reports no internet, so usage is not read (power.py, off by default).
     # and observe_only, observe_only_unknown: a withdrawal's reasons are reasons too.
-    "machine.REASONS": ("set", 67, "d85ce5215e647592"),
+    # v0.6.13: not_recoverable (a gate reason until then) and admission_expired - a failure the plug
+    # took up (P17) that nothing takes up now, and one taken up a day ago; and capacity_window, capacity
+    # retries past their twelve hours on the clock.
+    "machine.REASONS": ("set", 70, "baf0da759f937514"),
     # v0.6.11: postponed, held, hold_released and tier_set - a person's (or the objection window's)
     # later time, a hold, letting it go, and a conversation's tier - and observe only's would_send.
     # And dispatched_while_observing and unpostponed: one taken back for Observe only that ran all the
@@ -80,7 +83,10 @@ LISTS = {
     # and schema 4's `postponed`, `quiet_hours` and `observe_only`, reasons of consent and schedule;
     # and `offline`, the usage gate's while Windows reports no internet (power.py).
     # v0.6.11 stage 3b: `plugged`, thread_available passed for a route the plug named (P16).
-    "machine.GATE_REASONS": ("set", 83, "825dc860ee610342"),
+    # v0.6.13: admission_expired and capacity_window, reasons now (not_recoverable was a gate reason);
+    # and `resend`, submission_safe passed for an uncertain submission sent once more (engine/resend.py),
+    # and `send_now`, a schedule or an attempt budget a person's Send now passed (engine/relaxed.py).
+    "machine.GATE_REASONS": ("set", 87, "e561b7a5a3de8661"),
     "machine.PASS": "PASS",
     "machine.WAIT": "WAIT",
     "machine.BLOCK": "BLOCK",
@@ -192,8 +198,14 @@ LISTS = {
     # P14 joined the twelve: core tells the plug of each move of a record as it writes it. P15 too:
     # how a continuation is carried and proven, where CLIENT_ID - no marker - joined HOLD. And P16:
     # what continues a conversation the app does not hold, a route core carries out (stage 3b).
-    "domain.plug.POINTS": ("tuple", 15, "c7fb0dccc0944c5d"),
-    "domain.plug.ANSWERS": ("set", 2, "284268ee15d0f48c"),
+    # v0.6.13: P17, a failure core never recovers alone taken up, and ADMIT and the five AS_ words
+    # that take one up, at P17 and at known_failure, and CAPACITY, a capacity error retried sooner;
+    # and EARLY, P7's look at a usage-limited record before its time; and the form a failure's error took.
+    # And RESEND, P7's word for an uncertain submission sent once more, which core proves may go, and
+    # SEND_NOW, its word for a waiting record a person asked to send now.
+    "domain.plug.POINTS": ("tuple", 16, "07e8ae14d7f49978"),
+    "domain.plug.ANSWERS": ("set", 12, "4c1e9268012950b1"),
+    "domain.plug.FAILURE_FORMS": ("tuple", 5, "bcc0ad1bd6f81009"),
     "domain.plug.SURFACES": ("tuple", 5, "d41ac5a6d67be21b"),
     "domain.plug.EXTRA": "advanced",
 }
@@ -375,6 +387,7 @@ HOMES = {
     p.Point: ("list", "domain.plug.POINTS"),
     p.Alternative: ("list", "domain.plug.ANSWERS"),
     p.Surface: ("list", "domain.plug.SURFACES"),
+    p.FailureForm: ("list", "domain.plug.FAILURE_FORMS"),
     # v0.6.12: the power action's own words, beside domain/vocabulary.py at its line budget.
     pw.PowerAction: ("list", "poweraction.ACTIONS"),
     pw.PowerAfter: ("list", "poweraction.AFTERS"),
@@ -390,7 +403,7 @@ HOMES = {
 
 def enums():
     """Every vocabulary the four modules define: `domain/vocabulary.py`; `domain/compat_vocabulary.py`,
-    the registry's, out of it since v0.6.11 and named through it still; `domain/plug.py`, whose five
+    the registry's, out of it since v0.6.11 and named through it still; `domain/plug.py`, whose six
     are the plug interface's own; and `domain/power_vocabulary.py`, the power action's (v0.6.12). Each
     is held to every rule here all the same."""
     return [value for module in (v, c, p, pw) for value in vars(module).values()

@@ -123,7 +123,15 @@ class AnnounceMixin:
 
     def _refused(self, row, gate, reason):
         """A claim the store refused. Recorded as a wait or a stop, never silently."""
-        if gate in ("chain_budget", "attempt_budget", "no_progress_budget"):
+        if self._early_look == row["interruption_id"] and gate not in (
+                "chain_budget", "attempt_budget", "no_progress_budget"):
+            return                     # looked at early: the claim kept its vector, nothing else moves
+        if reason == "capacity_window":
+            # Past a capacity error's twelve hours (v0.6.13): no stop of its own - at its next look
+            # the plug's CAPACITY is not taken, and the standard edition's budgets decide.
+            self.transition(row, row["state"], row.get("last_error"),
+                            delay=self.options["state_poll_seconds"])
+        elif gate in ("chain_budget", "attempt_budget", "no_progress_budget"):
             self._stop_for_budget(row, gate, reason)
         elif gate == "schedule" and reason == "waiting_reset" and row.get("reset_at"):
             self.transition(row, "waiting_reset", "waiting_reset",
@@ -142,8 +150,9 @@ class AnnounceMixin:
         and its reason. The time counts toward nothing: a usage limit's seven days count only the
         time between two reads that both found no usage (engine/outcome.py), and forgetting the
         last read here makes the first one after the quiet hours start that count again."""
-        self.store.record_gates(row["interruption_id"], vector, self.clock())
-        self.transition(row, row["state"], row.get("last_error"), delay=delay, usage_probe_at=None)
+        if not self._parked(row, vector):
+            self.store.record_gates(row["interruption_id"], vector, self.clock())
+            self.transition(row, row["state"], row.get("last_error"), delay=delay, usage_probe_at=None)
 
     def _would_send(self, row, vector, now):
         """Observe only (v0.6.11): every gate but consent passed, so this record would have been sent
@@ -156,6 +165,8 @@ class AnnounceMixin:
 
     def _wait(self, row, state, reason, delay, vector):
         """Park a record that was due but is not claimable, with the reason recorded."""
+        if self._parked(row, vector):
+            return
         self.store.record_gates(row["interruption_id"], vector, self.clock())
         extra = ({"usage_probe_at": None}
                  if row.get("usage_probe_at") and state != "waiting_for_usage" else {})

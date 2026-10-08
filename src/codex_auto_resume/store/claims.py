@@ -49,14 +49,6 @@ class ClaimsMixin:
                 "WHERE thread_id=? AND coalesce(submitted_at, last_claim_at)>?",
                 (thread_id, since)).fetchone()[0])
 
-    def claimed_on_thread(self, thread_id: str) -> list[dict[str, Any]]:
-        """Records that may have put a continuation into this thread."""
-        _uuid(thread_id, "thread_id")
-        with self._read() as connection:
-            return [_validated_record(dict(row)) for row in connection.execute(
-                "SELECT * FROM interruptions WHERE thread_id=? AND (last_claim_at IS NOT NULL "
-                "OR submitted_at IS NOT NULL OR legacy=1) ORDER BY detected_at", (thread_id,))]
-
     @staticmethod
     def _others_in_flight(connection, thread_id, exclude) -> int:
         return sum(machine.may_be_queued(state, queue_id) for state, queue_id in connection.execute(
@@ -70,12 +62,9 @@ class ClaimsMixin:
     # --------------------------------------------------------------- claiming
     @contextmanager
     def submission_guard(self, interruption_id: str):
-        """Serialize final consent with the queue process launch, and only launch.
-
-        Cancel, Pause and thread-disable use the same SQLite write lock. Once one
-        of those actions commits, a subsequent process launch cannot use its old
-        consent. The transport releases this before waiting for a receipt.
-        """
+        """Serialize final consent with the queue process launch, and only launch. Cancel, Pause and
+        thread-disable use the same SQLite write lock: once one of those commits, a later launch cannot
+        use its old consent. The transport releases this before waiting for a receipt."""
         with self._transaction() as connection:
             row = self._row(connection, interruption_id)
             settings = self._read_settings(connection)
@@ -94,18 +83,21 @@ class ClaimsMixin:
 
     def reserve_detailed(self, interruption_id: str, now: float, *, limits: dict | None = None,
                          gates: dict | None = None, ledger=None, carried=frozenset(),
-                         quiet_until: float | None = None) -> tuple:
+                         quiet_until: float | None = None, relaxed: str | None = None,
+                         resend: tuple | None = None, forced: bool = False) -> tuple:
         """Claim a record for sending, re-checking every store-side gate in the claim.
 
-        Returns (claimed, refusing_gate, reason). The gate vector - the engine's view of
-        Codex plus the store's own checks made here - is persisted whether the claim is
-        granted or refused, so an interface can show exactly why a record is waiting.
-        `ledger` is the engine's plug (domain/plug.py), asked last (P11); None is NULL's.
-        `carried` is the points whose answers of the plug's the send this claim leads to
-        carries - Point.TEXT for its words, Point.SENDER for its channel - which its ledger pays
-        for (`_ledger_holds`). `quiet_until` is the end of the quiet hours `now` falls in, or None.
-        Schema 4's conditions - observe-only, a hold, a postponement, the quiet hours - are asked
-        here again, inside the claim, as reasons of the consent and schedule gates.
+        Returns (claimed, refusing_gate, reason). The gate vector - the engine's view of Codex plus
+        the store's own checks made here - is persisted whether the claim is granted or refused, so
+        an interface can show exactly why a record is waiting. `ledger` is the engine's plug
+        (domain/plug.py), asked last (P11); None is NULL's. `carried` is the points whose answers of
+        the plug's the send carries - Point.TEXT for its words, Point.SENDER for its channel - which
+        its ledger pays for (`_ledger_holds`). `quiet_until` is the end of the quiet hours `now` falls
+        in, or None. Schema 4's conditions - observe-only, a hold, a postponement, the quiet hours -
+        are asked here again as reasons of the consent and schedule gates. `relaxed` is a gate the
+        plug relaxed (v0.6.13), held here to core's own bounds (`_relaxation_refused`); `resend` the
+        window, (after, until) seconds from its send, an uncertain submission is claimed once more in
+        (`_resend_claim`); `forced` a person's Send now, as the ledger pays for it (`_forced_claim`).
         """
         _timestamp(now, "now")
         if gates is not None and limits is None:
@@ -116,21 +108,28 @@ class ClaimsMixin:
             row = self._row(connection, interruption_id)
             if row is None:
                 return False, "identity", "unknown_record"
+            if resend is not None:
+                return self._resend_claim(connection, settings, row, now, limits, gates, ledger, carried,
+                                          quiet_until, resend)
             vector = dict(gates or {})
             vector["consent"] = machine.gate_consent(
                 settings["enabled"], self._thread_enabled(connection, row["thread_id"]),
                 row["cancel_requested"], observe_only=settings["observe_only"], hold=row["hold"])
             vector["submission_safe"] = machine.gate_submission_safe(
                 row, self._others_in_flight(connection, row["thread_id"], interruption_id))
-            vector["schedule"] = machine.gate_schedule(row, now, quiet_until=quiet_until)
+            vector["schedule"] = machine.gate_schedule(
+                row, now, quiet_until=quiet_until, early=self._early_claim(row, relaxed, ledger, carried))
             if limits is not None:
                 vector.update(machine.gate_budgets(row, limits, is_usage(row)))
+            if forced:
+                self._forced_claim(row, now, vector, quiet_until, limits, ledger, carried)
             refusal = None
             for name in ("consent", "submission_safe", "schedule", "chain_budget",
                          "attempt_budget", "no_progress_budget"):
                 if name in vector and vector[name][0] != machine.PASS:
                     refusal = (name, vector[name][1])
                     break
+            refusal = refusal or self._relaxation_refused(connection, row, now, vector, relaxed, ledger, carried)
             if gates is not None and refusal is None:
                 found = machine.first_refusal(vector)
                 if found is not None:
@@ -207,8 +206,8 @@ class ClaimsMixin:
         with self._transaction() as connection:
             row = self._row(connection, interruption_id)
             if (row is None or row["state"] != "submitting" or row["queue_id"] is not None
-                    or row["submitted_at"] is None):
-                return False
+                    or row["submitted_at"] is None or machine.was_resent(row)):
+                return False             # v0.6.13: a resent one never waits, nor gets back what it never paid
             connection.execute(
                 "UPDATE interruptions SET state=?, submitted_at=NULL, last_error=?, next_retry_at=?, %s, "
                 "cancel_requested=CASE WHEN ?='cancelled' THEN 1 ELSE cancel_requested END "
@@ -285,7 +284,7 @@ class ClaimsMixin:
             if (row is None or row["state"] != "withdrawn_unconfirmed"
                     or row["withdraw_reason"] not in machine.RELEASABLE_WITHDRAWALS or not row["withdraw_deleted"]
                     or now - row["withdrawn_at"] < window or later_turn or marker_rows
-                    or row_present or not fresh or row["cancel_requested"]):
+                    or row_present or not fresh or row["cancel_requested"] or machine.was_resent(row)):
                 return False
             connection.execute(
                 "UPDATE interruptions SET state=?, submitted_at=NULL, queue_id=NULL, "

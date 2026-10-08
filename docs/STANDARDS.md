@@ -84,10 +84,10 @@ changed).
 *tested*: `test_engine.py`
 
 **A13** Only classified kinds are recovered: usage limit, connection failure, timeout (408/425), rate limit (429, including responseTooManyFailedAttempts carrying 429), 5xx, and stream disconnect. The structured code comes first; message text is used only when there is no code, against a fixed phrase list.  
-*tested*: `test_failures.py`
+*tested*: `test_failures.py`, `test_plug_points.py`
 
 **A14** Never retried: anything unclassified, user cancellation, permission, approval, content policy, invalid request, context length, 401/403, badRequest, sandboxError, and responseTooManyFailedAttempts without a 429.  
-*tested*: `test_recovery.py`, `test_failures.py`, `test_settings.py`
+*tested*: `test_recovery.py`, `test_failures.py`, `test_settings.py`, `test_plug_points.py`
 
 **A15** Only desktop-app user conversations. Subagent, archived and non-desktop threads are never detected.  
 *tested*: `test_engine.py`
@@ -566,5 +566,8 @@ changed).
 **K6** A failed measurement is a warning the person confirms, and only policy keys refuse. A measurement a route rests on that failed or has no pass for the Codex in force, a grade of FAILED_HERE, INCOMPATIBLE or UNKNOWN, or no Codex version known is shown in the statement and confirmed by arming, never a refusal (the owner, 2026-09-26, replacing decision C7). What refuses is ForbidAdvanced, AllowedCapabilities and ForceShadow (for on) under Software\Policies\CodexAutoResume, HKLM and HKCU, read and never written, together the stricter, the strictest where unreadable.  
 *tested*: `test_advanced_arming.py`, `test_advanced_goal.py`, `test_advanced_marker_free.py`
 
-**K7** Tripwires switch a capability off, and re-arming is always possible. A new statement revision, a warning the person did not confirm that says what it stands on went wrong (failed here, a local check failed, incompatible, a measurement failed), one of its hooks raising, a send it paid for gone submission_unknown, and, for one that is on, a new Codex version each turn it off; whatever turned it off, the Dashboard can turn it on again with the statement as it then reads.  
-*tested*: `test_advanced_arming.py`, `test_advanced_goal.py`, `test_advanced_marker_free.py`
+**K7** Tripwires switch a capability off, and re-arming is always possible. A new statement revision, a warning the person did not confirm that says what it stands on went wrong (failed here, a local check failed, incompatible, a measurement failed), one of its hooks raising, a send it paid for gone submission_unknown, and, for one that is on, a new Codex version each turn it off; whatever turned it off, the Dashboard can turn it on again with the statement as it then reads. [AMENDED by the owner 2026-10-03: a capability kept on (K8) is not turned off by these five; a resent continuation found twice turns off what sent it again - the once-more capability, or Keep on's Send again.]  
+*tested*: `test_advanced_arming.py`, `test_advanced_goal.py`, `test_advanced_marker_free.py`, `test_advanced_keep_on.py`, `test_advanced_once_more.py`
+
+**K8** Keep on (the owner, 2026-10-03). Per capability, off by default, set only in the Dashboard for one that is on or watched, after its warning; Send again only with it, after its own. Kept on, K7's five are shown and do not turn it off: a new revision, an unconfirmed warning and a new Codex version are noted; a hook that raises costs that one record; a paid send gone submission_unknown is held as core holds one, or with Send again sent once more under the once-more rules. A Codex version or a grade that cannot be read still holds it back (E1). Each is noted once, the most serious kept, until the person confirms again. The person's off, from any surface, always works and clears it; the ceilings stay; ForbidAdvanced, AllowedCapabilities and ForceShadow read it down first, and Send again only where AllowedCapabilities also admits the once-more capability.  
+*tested*: `test_advanced_keep_on.py`

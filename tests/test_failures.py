@@ -14,7 +14,8 @@ import tempfile
 import unittest
 
 from codex_auto_resume import failures
-from codex_auto_resume.codex import LocalSource, _label, detect
+from codex_auto_resume.codex import LocalSource, _label, detect, values
+from codex_auto_resume.domain.plug import PACED_AS, TAKE_UP, Alternative
 
 FIXTURE = {
     "thread_id": "0a1b2c3d-0001-7000-8000-000000000001",
@@ -229,6 +230,142 @@ class IdentitySourceTests(unittest.TestCase):
     def test_extended_length_paths_do_not_leak_the_prefix(self):
         source = self.build(cwd="\\\\?\\C:\\work\\repo")
         self.assertEqual(source.identity(self.thread)["cwd_basename"], "repo")
+
+
+class ShapeTests(unittest.TestCase):
+    """v0.6.13: what a failure's error says of itself, for the edition's plug (P17) - Codex's own code,
+    a status number, its form and whether there was a message, and never a word of that message."""
+
+    def test_the_shape_keeps_no_string_but_the_code(self):
+        found = failures.shape({"type": "brandNewVariant", "status": 302, "detail": "secret words"},
+                               "more secret words")
+        self.assertEqual(found, {"code": "brandNewVariant", "status": 302, "form": "tagged", "has_message": True})
+        self.assertNotIn("secret", repr(found))
+        row = failure({"codexErrorInfo": "brandNewVariant", "message": "secret words"})
+        self.assertNotIn("secret", repr(values.error_shape(row)))
+
+    def test_each_form_is_told_apart(self):
+        cases = {
+            "tagged": ("unauthorized", "brandNewVariant", {"brandNewVariant": {"httpStatusCode": 503}}),
+            "status_only": ({"httpStatusCode": 503}, {"status": 401}, {"statusCode": 500, "other": 1}),
+            "unrecognised": ({"one": 1, "two": 2}, "", "has a space", 42, ["x"], "a" * 65),
+        }
+        for form, infos in cases.items():
+            for info in infos:
+                with self.subTest(form=form, info=info):
+                    self.assertEqual(failures.shape(info)["form"], form)
+        self.assertEqual(failures.shape(None, "it broke")["form"], "message_only")
+        self.assertEqual(failures.shape(None, "   ")["form"], "absent")
+        self.assertEqual(failures.shape(None)["form"], "absent")
+        self.assertEqual(values.error_shape(failure(None))["form"], "absent")
+        self.assertEqual(values.error_shape(dict(FIXTURE, error_json="{not json"))["form"], "unrecognised")
+
+    def test_a_status_outside_http_is_none(self):
+        for status, kept in ((99, None), (100, 100), (599, 599), (600, None), (True, None)):
+            with self.subTest(status=status):
+                self.assertEqual(failures.shape({"type": "brandNewVariant", "status": status})["status"], kept)
+
+
+class FenceTests(unittest.TestCase):
+    """v0.6.13: what core would carry out for a failure it never recovers alone, whatever a plug says."""
+
+    @staticmethod
+    def facts(info, message=None):
+        return dict(failures.shape(info, message), category=failures.classify(info, message))
+
+    def test_the_decision_fragments_are_pinned(self):
+        self.assertEqual(failures.DECISION_FRAGMENTS, (
+            "policy", "budget", "quota", "limit", "permission", "forbidden", "denied", "deny", "refus",
+            "approv", "auth", "sign", "login", "credential", "token", "cancel", "abort", "interrupt",
+            "user", "billing", "payment", "credit", "plan", "safety", "violation", "moderat", "blocked",
+            "sandbox", "context"))
+        self.assertEqual(failures.ADMISSIBLE, {"unknown", "terminal_auth", "terminal_failure"})
+        self.assertEqual(set(PACED_AS.values()), failures.TRANSIENT)
+
+    def test_only_a_plain_code_of_an_unknown_failure_is_taken_up_or_paced(self):
+        plain = self.facts("brandNewVariant")
+        self.assertEqual(plain["category"], "unknown")
+        self.assertFalse(failures.admits(plain, Alternative.CAPACITY))
+        for answer in TAKE_UP - {Alternative.CAPACITY}:
+            self.assertTrue(failures.admits(plain, answer), answer)
+        refused = {"no code": self.facts(None), "message only": self.facts(None, "it broke"),
+                   "status only": self.facts({"httpStatusCode": 302}),
+                   "unrecognised": self.facts({"one": 1, "two": 2}),
+                   "a known code": dict(plain, code="badRequest")}
+        for tag in ("policyRefused", "budgetExceeded", "approvalDenied", "userCancelled", "tokenExpired",
+                    "PlanLIMIT"):
+            refused[tag] = self.facts(tag)
+        for name, facts in refused.items():
+            for answer in TAKE_UP:
+                with self.subTest(name=name, answer=answer):
+                    self.assertFalse(failures.admits(facts, answer))
+
+    def test_a_sign_in_failure_only_as_unauthorized_or_401_and_never_403(self):
+        allowed = (self.facts("unauthorized"), self.facts({"unauthorized": {"httpStatusCode": 401}}),
+                   self.facts({"brandNewVariant": {"httpStatusCode": 401}}))
+        refused = (self.facts({"unauthorized": {"httpStatusCode": 403}}),
+                   self.facts({"brandNewVariant": {"httpStatusCode": 403}}),
+                   self.facts({"httpStatusCode": 401}), self.facts({"signInRequired": {"httpStatusCode": 401}}))
+        for facts in allowed:
+            with self.subTest(facts=facts):
+                self.assertEqual(facts["category"], "terminal_auth")
+                self.assertTrue(failures.admits(facts, Alternative.ADMIT))
+                self.assertEqual(failures.takes(facts, lambda category: True), {Alternative.ADMIT})
+        for facts in refused:
+            with self.subTest(facts=facts):
+                self.assertEqual(facts["category"], "terminal_auth")
+                self.assertEqual(failures.takes(facts, lambda category: True), frozenset())
+
+    def test_codex_giving_up_only_on_a_server_error_or_none(self):
+        def gave_up(status=None):
+            info = "responseTooManyFailedAttempts" if status is None else {
+                "responseTooManyFailedAttempts": {"httpStatusCode": status}}
+            return self.facts(info)
+        for status in (None, 500, 503):
+            with self.subTest(status=status):
+                self.assertTrue(failures.admits(gave_up(status), Alternative.ADMIT))
+        self.assertEqual(gave_up(429)["category"], "rate_limit_transient", "a 429 is a rate limit already")
+        for status in (429, 400, 404):
+            with self.subTest(status=status):
+                self.assertFalse(failures.admits(dict(gave_up(status), category="terminal_failure"),
+                                                 Alternative.ADMIT))
+        for code in ("threadRollbackFailed", "sandboxError", "activeTurnNotSteerable"):
+            with self.subTest(code=code):
+                self.assertEqual(failures.takes(self.facts(code), lambda category: True), frozenset())
+
+    def test_every_other_kind_is_never_taken_up(self):
+        for category in sorted(failures.CATEGORIES - failures.ADMISSIBLE):
+            for answer in TAKE_UP:
+                with self.subTest(category=category, answer=answer):
+                    facts = dict(failures.shape("brandNewVariant"), category=category)
+                    self.assertFalse(failures.admits(facts, answer))
+                    if (category, answer) != ("server_5xx", Alternative.CAPACITY):
+                        self.assertFalse(failures.readmits(category, answer))
+
+    def test_capacity_only_for_codex_at_capacity_and_while_server_errors_are_on(self):
+        overloaded, other = self.facts("serverOverloaded"), self.facts("internalServerError")
+        self.assertEqual((overloaded["category"], other["category"]), ("server_5xx", "server_5xx"))
+        self.assertEqual(failures.takes(overloaded, lambda category: True), {Alternative.CAPACITY})
+        self.assertEqual(failures.takes(other, lambda category: True), frozenset())
+        self.assertEqual(failures.takes(overloaded, lambda category: category != "server_5xx"), frozenset())
+        self.assertTrue(failures.readmits("server_5xx", Alternative.CAPACITY))
+        for category in sorted(failures.CATEGORIES - {"server_5xx"}):
+            self.assertFalse(failures.readmits(category, Alternative.CAPACITY), category)
+
+    def test_a_kind_switched_off_is_not_offered(self):
+        plain = self.facts("brandNewVariant")
+        self.assertEqual(failures.takes(plain, lambda category: category != "timeout"),
+                         TAKE_UP - {Alternative.AS_TIMEOUT, Alternative.CAPACITY})
+        self.assertEqual(failures.takes(plain, lambda category: False), {Alternative.ADMIT})
+
+    def test_known_failure_takes_each_word_for_its_own_kind(self):
+        for category in failures.ADMISSIBLE:
+            self.assertTrue(failures.readmits(category, Alternative.ADMIT))
+        for answer in PACED_AS:
+            self.assertTrue(failures.readmits("unknown", answer))
+            self.assertFalse(failures.readmits("terminal_auth", answer))
+        for answer in (Alternative.HOLD, Alternative.CLIENT_ID, "as_anything", None):
+            self.assertFalse(failures.readmits("unknown", answer))
 
 
 if __name__ == "__main__":

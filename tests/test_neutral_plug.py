@@ -129,6 +129,21 @@ class HarnessTests(unittest.TestCase):
         self.assertIn("backend call", neutral._difference(standard, holding))
         self.assertIsNone(neutral._difference(standard, deferring))
 
+    def test_a_read_a_scenario_put_in_place_is_spared_only_the_keywords_a_plug_adds(self):
+        seen = []
+
+        def of_since(since):
+            seen.append(since)
+            return ["one"]
+        read = neutral.narrowed("latest_failures", of_since)
+        self.assertEqual(read(5.0, admissible=True, shapes=True), ["one"])
+        with self.assertRaises(TypeError):
+            read(5.0, needs_you=frozenset({"x"}))         # a keyword it never took is still an error
+        self.assertEqual(seen, [5.0])
+        taking = lambda since, **keywords: keywords        # noqa: E731
+        self.assertIs(neutral.narrowed("latest_failures", taking), taking)
+        self.assertIs(neutral.narrowed("latest", of_since), of_since)
+
     def test_only_a_moment_read_off_the_wall_clock_is_held_still(self):
         since, until = 1000.0, 2000.0
         self.assertEqual(neutral.steady({"at": [999.5, 1500.0, 2000.5, 1500, "1500.0"]}, since, until),

@@ -77,9 +77,11 @@ class ReconcileMixin:
                 self.log(row["thread_id"], "reconciliation_unavailable", None)
 
     def watch_record(self, row):
-        """Follow one continuation that may be in Codex. Never sends anything."""
+        """Follow one continuation that may be in Codex. Never sends anything. Where a plug may ask
+        for a resend, what each look finds is remembered for it (engine/resend.py)."""
         now = self.clock()
         thread, marker = row["thread_id"], self.proof(row)
+        self._no_trace.pop(row["interruption_id"], None)
         found = self.source.marker_rows(thread, marker)
         if len(found) > 1:
             # Our unique marker in two places cannot be explained by one send, so no
@@ -97,6 +99,8 @@ class ReconcileMixin:
             return
         if row["queue_id"]:
             known = self.source.queue_row(thread, row["queue_id"], marker)
+            if known["exists"]:
+                self._sighted(row["interruption_id"])
             if known["exists"] and not known["has_marker"]:
                 # Somebody edited our queued message in Codex. It is theirs now: nothing
                 # is deleted and nothing more is sent.
@@ -104,12 +108,14 @@ class ReconcileMixin:
                 return
         queued = self.source.queued_rows(thread, marker)
         if queued:
+            self._sighted(row["interruption_id"])
             self.guard_queued(row, queued)
             return
         if row["state"] == "submission_unknown":
             extra = {"queue_id": None} if row["queue_id"] else {}
             self.transition(row, "submission_unknown", row["last_error"] or "no_receipt_do_not_resend",
                             delay=self.options["conservative_poll_seconds"], **extra)
+            self._traceless(row, now)
             return
         age = now - (row.get("submitted_at") or now)
         if age < self.options["delivery_timeout_seconds"]:
@@ -179,7 +185,8 @@ class ReconcileMixin:
         settings = self.store.settings()
         if not settings["enabled"] or self.observing(settings):
             reason = "paused" if not settings["enabled"] else "observe_only"
-            return reason + "_unknown" if row["state"] == "submission_unknown" else reason
+            uncertain = row["state"] == "submission_unknown" or machine.was_resent(row)   # v0.6.13
+            return reason + "_unknown" if uncertain else reason
         if self.loaded(thread) == "notLoaded":
             return "not_loaded"
         if now - (row.get("submitted_at") or now) >= self.options["delivery_timeout_seconds"]:
@@ -212,6 +219,7 @@ class ReconcileMixin:
             return
         remaining = self.source.queued_rows(thread, marker)
         if remaining:
+            self._sighted(row["interruption_id"])
             attempts = row["withdraw_failures"] + 1
             pace = self.options["delete_retry_seconds"]
             if attempts >= self.options["max_withdraw_attempts"] and row["state"] != "submission_unknown":
@@ -242,6 +250,7 @@ class ReconcileMixin:
         thread, marker = row["thread_id"], self.proof(row)
         queued = self.source.queued_rows(thread, marker)
         if queued:
+            self._sighted(row["interruption_id"])
             # Back in the queue, or never really gone: take it back again.
             for item in queued:
                 self._delete(thread, item["id"])

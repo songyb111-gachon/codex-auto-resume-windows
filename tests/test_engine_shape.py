@@ -24,7 +24,11 @@ MIXINS = (package.OptionsMixin, package.AnnounceMixin, package.FreshnessMixin,
           package.DetectMixin, package.ReconcileMixin, package.OutcomeMixin,
           package.DispatchMixin, package.NoticeMixin,
           # v0.6.11: how a continuation is carried and proven (P15), and the look before it goes.
-          package.DeliveryMixin)
+          package.DeliveryMixin,
+          # v0.6.13: what the edition's plug may relax, within core's own bounds.
+          package.RelaxedMixin,
+          # and an uncertain continuation sent once more, where the plug asks and core may.
+          package.ResendMixin)
 
 # The forty-one methods the one class had, counted the day it was split.
 METHODS = {
@@ -62,6 +66,25 @@ METHODS = {
     # v0.6.12: what may still run in Codex, for the power action after usage-limit recoveries - counts
     # and sizes only, asked only once its own checks pass (engine/freshness.py).
     "activity",
+    # v0.6.13: a failure core never recovers alone put to the plug (P17) and how long one taken up
+    # waits; when its task first failed, on the clock; and known_failure, where it goes on only while
+    # the plug takes it up again, and otherwise ends unsent (engine/relaxed.py).
+    "chain_started_at", "_unadmit", "_taken_up", "_admitted_wait", "_known_failure", "_chained",
+    "_not_recovered",
+    # v0.6.14: and every kind of failure a task has had, which P17 is told with the task (`chain`).
+    "chain_categories",
+    # and a capacity error the plug vouches for: its budgets, its twelve hours, its waits.
+    "capacity_limits", "capacity_open", "_capacity_wait",
+    # and a usage-limited record looked at early (EARLY): the look, its waits, what the ledger pays.
+    "_attempt", "_early", "_parked", "relaxed_points",
+    # and an uncertain submission sent once more (RESEND, engine/resend.py): its window, the watch's
+    # sightings and looks that found no trace, the checks and the plug's holds, the send's outcome,
+    # and a resend that ran found twice.
+    "resend_window", "_sighted", "_traceless", "_resendable", "_holds", "resend_uncertain", "_resend",
+    "_after_resend", "watch_resent",
+    # and a person's Send now (SEND_NOW, engine/relaxed.py): the schedule it passes, an attempt budget
+    # of the person's own, and the administrator's ceiling the claim is told.
+    "_send_now", "_own_budget", "forced_limits",
 }
 
 # What `from codex_auto_resume.engine import ...` has to keep answering (app.py, the tests).

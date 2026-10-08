@@ -514,8 +514,10 @@ the project's standards - what [Safety model](#safety-model) and [Privacy](#priv
 them - and what it gains keeps them too, each addition off, or doing what the release before it did,
 until you change it. The **advanced** edition is the standard one plus capabilities that break one of
 those standards on purpose. Each says which it breaks, is off until you turn it on after reading
-that, and turns itself off again when what you agreed to stops being true. You turn one on in the
-Dashboard, on the page that edition adds, **Advanced features**, and nowhere else. Their code is left
+that, and turns itself off again when what you agreed to stops being true - unless you chose, on the
+same page and after its own warning, to keep it on, which notes what would have turned it off instead.
+You turn one on in the Dashboard, on the page that edition adds, **Advanced features**, and nowhere
+else; from v0.6.14 that page can also send one waiting recovery now, while Send now is on. Their code is left
 out of the standard edition's archive, and `build/edition_audit.py` proves from the archive's own
 bytes, in every release build, that none of it is there. An installation updates within its edition;
 moving to the other is a reinstall. The [roadmap](ROADMAP.md) says what each has, and what is still
@@ -523,8 +525,9 @@ to come. [EDITIONS.md](EDITIONS.md) says what each edition is and what each capa
 [STANDARDS.md](STANDARDS.md) lists every standard by its id, with how it is held.
 
 The advanced edition's state is the one exception to *a second state database*: which capability is
-on, what each has spent and what it did are kept in `config/advanced/advanced.sqlite`, apart from
-the watcher's own state, so nothing in the standard edition's database changes for it
+on, what each has spent and what it did, the choices and the rules a person set for the capabilities
+that have them, which capability took up which interruption and the samples of failures nothing
+classified are kept in `config/advanced/advanced.sqlite`, apart from the watcher's own state, so nothing in the standard edition's database changes for it
 (`advanced/tests/test_advanced_state.py`). It exists only in the advanced edition, and is made
 there only when something in it is first turned on or changed; the standard edition never creates
 it, and `Uninstall.cmd -Purge` removes it with the rest of `config\`.
@@ -1145,8 +1148,9 @@ only the Dashboard turns it on: the last card under Settings > General, **When u
 finish**. Choose **Then** (Sleep, Hibernate or Shut down), **When** (Every recovery succeeded, Each one
 succeeded or was handed over to you, or Each one ended, however it ended), **How often** (Once, for
 the next usage limit, or Every time) and **Warn me first for** (2 to 30 minutes, 5 by default), then
-**Turn on...**. A confirmation repeats the choices, and its default button is Cancel. The card applies
-at once; Save does not change it. An action Windows will not do here is left out of Then, with a line
+turn on the card's switch, as any other setting is turned on. A confirmation repeats the choices, and its
+default button is Cancel; the switch stays off unless you answer **Turn on**. The card applies at once;
+Save does not change it. An action Windows will not do here is left out of Then, with a line
 saying why: Hibernate while it is off in Windows (this product never turns it on), Sleep while Windows
 reports no sleep state a program may start, and all three while this account does not hold Windows'
 shut-down privilege.
@@ -1174,7 +1178,7 @@ done, then says so in a last notification and asks Windows once. Windows may ref
 every program, and any of them may decline - and then a notification says so, nothing is tried again,
 and the card says Windows refused.
 
-**Turning it off.** **Turn off** on the card; **Don't sleep after recoveries** (or hibernate, shut down)
+**Turning it off.** The card's switch, which asks nothing; **Don't sleep after recoveries** (or hibernate, shut down)
 in the notification-area icon's menu while it is on; the notice's button, for that batch; or, from
 Codex, the tool `turn_off_power_action`. None of them can turn it on. Pausing recovery is not one of
 them: it holds the power action and ends a countdown, and once you resume it acts as before. Its notices are

@@ -46,6 +46,21 @@ class ArmingCase(ac.AdvancedCase):
 
 
 class DashboardOnlyTests(ArmingCase):
+    def test_a_point_is_wanted_while_a_capability_there_is_on_or_watched(self):
+        """v0.6.13 (core's Plug.wants): never at a point the capability has no code at, never
+        while it is off, and while it is on or only watched, at each of its points."""
+        plug = self.plug()
+        self.assertFalse(any(plug.wants(point) for point in Point))
+        for state in ("shadow", "armed"):
+            with self.subTest(state):
+                self.assertTrue(self.arm(plug.runtime, state=state)["done"])
+                plug.runtime.states(fresh=True)
+                self.assertEqual({point for point in Point if plug.wants(point)},
+                                 set(ac.definition().points))
+        plug.runtime.arming.disarm("test_wake", actor=Actor.DASHBOARD)
+        plug.runtime.states(fresh=True)
+        self.assertFalse(any(plug.wants(point) for point in Point))
+
     def test_every_capability_starts_off(self):
         self.assertEqual(self.rt.arming.current(), {"test_wake": ArmingState.OFF})
         self.assertIsNone(self.stored())
@@ -468,18 +483,18 @@ class TripwireTests(ArmingCase):
     def test_standing_is_pure(self):
         row = {"state": ArmingState.ARMED, "statement_revision": 1, "engine_version": ac.ENGINE}
         self.assertEqual(standing(ac.definition(), row, policy.NONE, ac.view()),
-                         (ArmingState.ARMED, None, None))
+                         (ArmingState.ARMED, None, None, None))
         self.assertEqual(standing(ac.definition(), None, policy.NONE, ac.view()),
-                         (ArmingState.OFF, None, None))
+                         (ArmingState.OFF, None, None, None))
         failed = {Measurement.M2: (Verdict.FAIL, ac.ENGINE)}
         measured = ac.definition(measurements=(Measurement.M2,))
         self.assertEqual(standing(measured, row, policy.NONE, ac.view(), failed),
-                         (ArmingState.OFF, OffReason.MEASUREMENT_FAILED, None))
+                         (ArmingState.OFF, OffReason.MEASUREMENT_FAILED, None, None))
         confirmed = dict(row, warnings=(ArmingWarning.MEASUREMENT_FAILED,))
         self.assertEqual(standing(measured, confirmed, policy.NONE, ac.view(), failed),
-                         (ArmingState.ARMED, None, None))
+                         (ArmingState.ARMED, None, None, None))
         self.assertEqual(standing(ac.definition(), row, policy.NONE, ac.view(version=None)),
-                         (ArmingState.OFF, None, ArmingWarning.ENGINE_UNKNOWN))
+                         (ArmingState.OFF, None, ArmingWarning.ENGINE_UNKNOWN, None))
 
 
 class WarningCase(ArmingCase):

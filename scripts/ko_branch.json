@@ -61,7 +61,7 @@
     "docs/CHANGELOG.md": "a6f2a338eb4fd8b8dcb82f6f9bf9967f3f6c1380f464ca4ae63180e0e813f684",
     "docs/CONTRIBUTING.md": "8120edfba70b2d0c8b50087663f6b2ca07d06bf30c63abd77363412b530d198e",
     "docs/CONTRIBUTORS.md": "29a99a735aec90caf76898eadc6cbbd3e8250a39aa832996d6ab9dfe63638c7f",
-    "docs/PRIVACY.md": "7169cd82467abfce434431d2a3d7fe2419f40fd810fc5d62144d664cc70d0dc8",
+    "docs/PRIVACY.md": "c60caad1231e70baff13d3e22c1a06ff133e7e1d09bbaa9d53ec1ba40875e152",
     "README.md": "b72ab2dd54d98ea91aeda6015bceebcee9a8c1a2a3fe206a9023c17cc005c173",
     "docs/SECURITY.md": "0862f07fe7e5f0044029a6d06f98e79bc510273e01ec13f5912ceaee6a684e17",
     "docs/SUPPORT.md": "7833488b0467b1afa997380e3cc9c0f6a3b1cfa25d488db50f9ec0774c4c08e4",
@@ -70,11 +70,11 @@
     "docs/DEVELOPMENT.md": "e62cfbe43c855d5c87bfce8e0d69eba649f625f3f1d508818d8126de723b73de",
     "docs/PLUGIN.md": "e61e04ca4f08f01dc2e1ab89d8f443a2f6915b8ff38bbddce63900ddde42c945",
     "docs/VERIFY.md": "a2ee48aeab6c7666565c8d37d3d09d57e93f43c37638c3032508a3dba3305b4e",
-    "docs/FEATURE_MATRIX.md": "afddca91b45b02f73398c7e54e946aec3d7ffdadbdd89676b31c4cf378f4e4bd",
-    "docs/LIVE_ACCEPTANCE.md": "908320cf59fc60cf83db52cff775bf2c4d4c71ee08166d6541bc267ded028277",
-    "docs/ROADMAP.md": "59f604df4e266cd4e824321185040381c9769fa04f1514f84b2b66f1c4040b4d",
-    "docs/GUIDE.md": "f1274bc3b78b0f4feb382869b1e835e1ddc5a5e04f167aec6ebf0074c04f9d2c",
-    "docs/STANDARDS.md": "7df8dfc5bddfb329ccae18c8ba75db9800aadfaf0e69b1add677c683ca4bf6e4",
-    "docs/EDITIONS.md": "2f5f5d8fe63887c5a5e5ab69213540b888b92ee230cf845b46a245b7af7e13f0"
+    "docs/FEATURE_MATRIX.md": "49a6c6b9018f898146d3316ffd4781d492b99dadd578b82645142c5d47136286",
+    "docs/LIVE_ACCEPTANCE.md": "a8caf727b81cedb0e2aad27dedef7caba457f8270eee9d2a77683ec9df18660f",
+    "docs/ROADMAP.md": "96a5d857af1ed74a8587b67fc7f9af6c87fbf024c7291d143ff2d9212bc0035f",
+    "docs/GUIDE.md": "bf4060752b8bf5ed7333135ff2ff3e72856140d3ab125ea4bd8d344017de6c64",
+    "docs/STANDARDS.md": "3362b983fb6dbe1e88e66d3cbc7a5cc2f32a95be104e5160920c71a6dc717f0c",
+    "docs/EDITIONS.md": "a2eb7950b196ebf11568955c0da1d7a974ed5a1e610ac7e23932ff18ba61d752"
   }
 }

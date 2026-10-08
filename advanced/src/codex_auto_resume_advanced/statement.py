@@ -80,7 +80,22 @@ PAGE_KEYS = tuple(PAGE_PREFIX + name for name in (
     "statement_unavailable", "refused.unread",
     "tripped", "tripped.measurement_failed", "tripped.failed_here", "tripped.incompatible",
     "tripped.local_check_failed", "tripped.submission_unknown", "tripped.hook_exception",
-    "tripped.statement_changed", "tripped.engine_changed"))
+    "tripped.statement_changed", "tripped.engine_changed",
+    # v0.6.13: a capability's own choices, the rules for Codex's error codes and the samples of what nothing
+    # classified, and what the page says of each.
+    "options", "option.attempts", "option.ceiling_hours", "option.hours", "done.option", "refused.option",
+    "refused.choice", "rules", "rules.none", "rules.full", "rule.code", "rule.sampled", "rule.status",
+    "rule.any_status", "rule.kind", "rule.hits", "rule.add", "rule.remove", "rule.known", "done.rule_added",
+    "done.rule_removed", "refused.rule_shape", "refused.rule_known", "refused.rule_decision",
+    "refused.rule_range", "refused.rule_overlap", "samples", "samples.none", "sample.code", "sample.no_code",
+    "sample.status", "sample.count",
+    # v0.6.14: Keep it on, what a kept-on capability noted instead of turning itself off, and Send now.
+    "keep_on", "keep_on.off", "keep_on.on", "keep_on.again", "keep_on.turn_on", "keep_on.send_again",
+    "keep_on.turn_off", "confirm.keep_on", "confirm.send_again", "done.keep_on", "done.keep_on_off",
+    "refused.not_on", "kept.statement_changed", "kept.measurement_failed", "kept.failed_here", "kept.incompatible",
+    "kept.local_check_failed", "kept.hook_exception", "kept.submission_unknown", "kept.engine_changed",
+    "kept.duplicate_seen", "tripped.duplicate_seen", "send_now.title", "send_now.none", "send_now.button",
+    "confirm.send_now", "done.send_now"))
 
 
 def name_key(capability) -> str:

@@ -158,6 +158,9 @@ class ReasonCode(StrEnum):
     USAGE_NOT_RESTORED_AFTER_RESET = "usage_not_restored_after_reset"
     DUPLICATE_OWNER = "duplicate_owner"
     CATEGORY_DISABLED = "category_disabled"
+    NOT_RECOVERABLE = "not_recoverable"      # v0.6.13: a failure taken up (P17) nothing takes up now
+    ADMISSION_EXPIRED = "admission_expired"  # and one taken up a day ago on the clock, ended unsent
+    CAPACITY_WINDOW = "capacity_window"      # and capacity retries past twelve hours on the clock
     # sending and receipts
     AWAITING_DELIVERY_RECEIPT = "awaiting_delivery_receipt"
     QUEUE_RESULT_UNKNOWN_DO_NOT_RESEND = "queue_result_unknown_do_not_resend"
@@ -181,9 +184,8 @@ class ReasonCode(StrEnum):
     PROGRESS_OBSERVED = "progress_observed"
     NO_PROGRESS_OBSERVED = "no_progress_observed"
     TURN_FAILED = "turn_failed"
-    # A recovery that worked and was interrupted again - usually by the next usage limit, which
-    # Codex records on the turn as a failure. The record is `recovered`, because it was; this
-    # reason is how the journal keeps the distinction that the turn itself did not end cleanly.
+    # A recovery that worked and was interrupted again, usually by the next usage limit: the record is
+    # `recovered`, because it was, and this reason keeps that the turn itself did not end cleanly.
     PROGRESS_THEN_TURN_FAILED = "progress_then_turn_failed"
     TURN_INTERRUPTED = "turn_interrupted"
     # a withdrawal's, as WithdrawReason
@@ -401,8 +403,7 @@ class ErrorCode(StrEnum):
     TOO_FAR = "too_far"
     NOT_HELD = "not_held"
     INVALID_TIER = "invalid_tier"
-    # v0.6.11: Always or Never for a project whose conversation's project cannot be read, or one more
-    # than a list of projects holds.
+    # v0.6.11: Always or Never for a project that cannot be read, or one more than a list holds.
     PROJECT_UNREADABLE = "project_unreadable"
     TOO_MANY_PROJECTS = "too_many_projects"
     # v0.6.11: what an administrator's policy key decides - resuming recovery, or a setting it holds.
@@ -692,8 +693,7 @@ class NoticeKind(StrEnum):
     NEEDS_YOU = "needs_you"
     # v0.6.11: what fell due while this PC slept long waits for a person (power.py).
     AFTER_SLEEP = "after_sleep"
-    # v0.6.11: the watcher uses more memory than the memory guard allows, and goes on; or stopped for
-    # it (memguard.py).
+    # v0.6.11: more memory than the memory guard allows, gone on or stopped for (memguard.py).
     MEMORY_WARNING = "memory_warning"
     MEMORY_STOPPED = "memory_stopped"
     # v0.6.11: Show me what happens - a card of made-up words, whose buttons do nothing (demo.py).

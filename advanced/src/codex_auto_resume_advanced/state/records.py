@@ -14,6 +14,12 @@ file's own connection core's rows are not there, so `move_record` never puts a r
 An override is a capability's request about one standard record - force it once, reset early,
 climb the capacity ladder, resend once - keyed by that record's interruption id, so a standard
 installation that finds this file finds nothing of it in its own state.
+
+RESEND_ONCE (v0.6.14) is this edition's record that it sent a standard record once more: written by
+the claim that pays for the resend (ledger.py), open - its `used_at` NULL - while the sweep watches
+the record for a second copy (arming.py), and closed then. It is the second line and the duplicate
+watch's handle: pruned like every override, it never is what keeps a resend to one - core's own mark
+is (domain/gates.py, was_resent).
 """
 from __future__ import annotations
 
@@ -153,3 +159,47 @@ class RecordsMixin:
             return connection.execute(
                 "UPDATE overrides SET used_at=? WHERE interruption_id=? AND capability=? AND used_at IS NULL",
                 (now, interruption_id, capability)).rowcount == 1
+
+    def renew_override(self, interruption_id, capability, kind, at=None) -> None:
+        """One capability's request about one standard record, made now: a new one, or the one it had
+        replaced, unused again (v0.6.14, a person's Send now clicked twice)."""
+        _key(interruption_id, "interruption id")
+        self._capability(capability)
+        kind = _word(kind, OverrideKind, "override kind")
+        now = self._now(at)
+        with self._transaction() as connection:
+            connection.execute("INSERT OR REPLACE INTO overrides (interruption_id, capability, kind, created_at, "
+                               "used_at) VALUES (?,?,?,?,NULL)", (interruption_id, capability, kind, now))
+
+    def override(self, interruption_id, capability):
+        """`capability`'s override of one standard record, used or not, or None (v0.6.14)."""
+        _key(interruption_id, "interruption id")
+        with self._read() as connection:
+            if connection is None:
+                return None
+            row = connection.execute("SELECT * FROM overrides WHERE interruption_id=? AND capability=?",
+                                     (interruption_id, capability)).fetchone()
+        return dict(row) if row is not None and row["kind"] in tuple(OverrideKind) else None
+
+    def resent(self, interruption_id) -> bool:
+        """Whether this edition sent standard record `interruption_id` once more, by any capability
+        (v0.6.14): a RESEND_ONCE of it, open or closed."""
+        _key(interruption_id, "interruption id")
+        with self._read() as connection:
+            if connection is None:
+                return False
+            return connection.execute("SELECT 1 FROM overrides WHERE interruption_id=? AND kind=?",
+                                      (interruption_id, OverrideKind.RESEND_ONCE)).fetchone() is not None
+
+    def open_overrides(self, kind, capability=None) -> list:
+        """Every unused override of `kind` - of one capability, or of all - oldest first, of
+        capabilities this registry holds."""
+        kind = _word(kind, OverrideKind, "override kind")
+        where, arguments = ("AND capability=?", (capability,)) if capability is not None else ("", ())
+        with self._read() as connection:
+            if connection is None:
+                return []
+            rows = connection.execute("SELECT * FROM overrides WHERE kind=? AND used_at IS NULL %s "
+                                      "ORDER BY created_at" % where, (kind, *arguments)).fetchall()
+        return [dict(row) for row in rows if self.registry.get(row["capability"]) is not None]
+
