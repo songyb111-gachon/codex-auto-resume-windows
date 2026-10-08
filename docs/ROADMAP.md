@@ -633,9 +633,9 @@ for both editions, and the final added an urgent fix.
 
 ---
 
-## v0.6.13 — Codex's engine found again, wherever an update puts it
+## v0.6.13 — Codex's engine found again, wherever an update puts it ✅
 
-**A fix alone, for both editions: one pre-release, v0.6.13-beta, then the final.**
+**Released, after one pre-release, v0.6.13-beta.**
 
 v0.6.13 was planned as the rest of the advanced edition. On 2026-10-07 an update of the Codex app
 moved Codex's engine and every recovery waited, so the owner made v0.6.13 that fix alone - published
@@ -649,9 +649,10 @@ it started; an update of the Codex app that moved its engine to a new folder lef
 app's server at the old path, and every recovery waited until the watcher was restarted. The final
 v0.6.13 is that fix, improved further.
 
-### v0.6.13 — The final: the engine found again, wherever an update puts it
+### v0.6.13 ✅ — The final: the engine found again, wherever an update puts it
 
-The beta's fix, and two cases it left open, for both editions:
+What it carries for a person coming from v0.6.12 is its entry in [CHANGELOG.md](CHANGELOG.md): the
+beta's fix, and two cases it left open, for both editions.
 
 - **The app's server run from another build.** An update can start the ChatGPT app's Codex server
   from a build in another folder and leave the old one on disk, where the beta looked again only
@@ -989,7 +990,7 @@ The tests in parts and faster pictures, for developers, in a first pre-release
 
         ↓
 
-v0.6.13-beta → v0.6.13
+v0.6.13-beta → v0.6.13  ✅ Released
 Codex's engine found again after an update moves it, in a pre-release
 + also when the app runs another build, and of two that pass the one it runs, in the final
 
@@ -1022,8 +1023,7 @@ Final Rust audit and stabilization: the Rust bug hunt
 Maintenance
 ```
 
-This document records the current direction; v0.6.12 is out, after v0.6.12-alpha and
-v0.6.12-alpha.2, its only pre-releases: it carries the version picker, the power action and an
-urgent fix. v0.6.13-beta, a fix alone, is out after it: the watcher finds Codex's engine again
-after an update moves it. The final v0.6.13 follows, improved further; the rest of the advanced
-edition is v0.6.14's.
+This document records the current direction; v0.6.13 is out, after v0.6.13-beta, its only
+pre-release: in both editions the watcher finds Codex's engine again wherever an update puts it.
+Before it, v0.6.12 carries the version picker, the power action and an urgent fix. The rest of the
+advanced edition, v0.6.14, is next.
