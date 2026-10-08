@@ -649,8 +649,8 @@ says *not reached* and why, and is never written as a pass.
 The validator knows none of these checks, as it knows none of v0.6.3's. Where a check belongs to a
 step, write its result as a short sentence of plain machine words in that step's `note`; the others
 are written in the Result column here, in the same words, with the date, `codex --version` and the
-Windows build. M2b is the exception: the measurement harness writes its own record,
-`docs/evidence/live/measurement-m2b.json`. Everything above still holds - a throwaway conversation
+Windows build. M2b and MP1 to MP3 are the exceptions: the measurement harness writes their own
+records, `docs/evidence/live/measurement-m2b.json` and the like. Everything above still holds - a throwaway conversation
 only, no usage limit manufactured, no state edited, every click a person's, and no id, path or text
 a conversation held written anywhere.
 
@@ -701,6 +701,7 @@ capability that turned itself off says so under its state, with the reason.
 | The marker-free continuation, on a throwaway conversation | In the advanced edition | This table | not run |
 | The goal continuation, on a throwaway conversation | In the advanced edition, when a usage limit really happens | This table | not run |
 | M2b: a goal set active beside a queued turn, while the app holds the conversation | From a source checkout of the release | `docs/evidence/live/measurement-m2b.json` | not run |
+| MP1 to MP3: the settings panel beside a conversation, in the Codex app's right side panel | From a source checkout of the release, with the watcher running | `docs/evidence/live/measurement-mp1.json`, `-mp2`, `-mp3` | not run |
 
 **The edition change - after step 13, noted in `upgrade-keeps-decisions`.** Run the advanced
 archive's `Install.cmd`, or the advanced setup program, over the standard installation. It says the
@@ -744,6 +745,26 @@ not_as_expected` where the turn did not run, or `fail partial` where it ran and 
 carry on. *A pass:* the queued turn ran, and the goal stayed active and carried on after it. Until
 M2b passes for a Codex version, the goal continuation leaves a conversation the app holds to the
 standard continuation.
+
+**MP1 to MP3.** Whether the Codex app shows the settings panel beside a conversation, in its right
+side panel. They are made from the same checkout and bridge as M2b, on a throwaway conversation, and
+they hold in both editions: the advanced edition only carries the harness. Start the watcher first.
+MP1 reads this Codex home's list of MCP servers, and Codex starts each server it lists, as the app
+does when it starts - this product's installed one among them, whose start writes a line in the
+installation's `logs/codex-start.log` and, with Start with Codex on and no watcher running, starts
+the watcher. It calls no tool and reads nothing else. MP2 and MP3 read nothing: each records that
+it is waiting for you. Run `measure mp1`, then, in the Codex app, open the throwaway conversation's
+right side panel, its New tab, and More tools.... *A pass:* MP1's record says the engine kept the
+panel's template and its side-panel entrypoint, and Open Auto Resume settings is under Plugins and
+MCPs there and opens the panel with the state the Dashboard shows. Run `measure mp2`, ask Codex in
+the conversation to open auto resume settings, and press **Open beside the chat** under the panel.
+*A pass:* a right side panel tab shows the panel, which scrolls to Save and shows the same state,
+and closing the tab puts the panel back in the conversation with the button. Run `measure mp3`, and
+in that side panel tab press Preview, click away for 15 seconds and back, set Theme to Dark and
+Save, then set it back and Save. *A pass:* the panel draws itself again on your return, each of
+those works, and no new item appears in the conversation; whether Codex asked for an approval is
+written down as seen. Record each with `measure-verdict mp1`, `mp2` or `mp3`: `pass as_expected`,
+or `fail not_as_expected`.
 
 ## The power action's checklist
 

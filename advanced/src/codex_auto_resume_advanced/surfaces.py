@@ -9,8 +9,9 @@ byte-identical to today; this edition adds `edition` and how many capabilities a
 (`on`, 0 while the registry is empty), in codes only - no version string, no path, no free
 text, because the status is part of what Codex sends on. The display word for each locale
 lives in this package's own catalogs (`edition.*`); core surfaces keep their own words. Since the
-v0.6.11 final, core itself names the edition beside the version in both editions (the status's
-`edition`, edition.shown), so what this badge adds there is the count.
+v0.6.11 final, core itself names the edition beside the version (the status's `edition`,
+edition.shown) - since v0.6.14 only this edition, the standard edition's word is shown nowhere - so
+what this badge adds there is the count.
 
 The bridge is the Dashboard's (controlcli.serve, the long-lived form; the one-shot form never
 reaches a plug). It is where the Dashboard's Advanced features page takes its words from (the

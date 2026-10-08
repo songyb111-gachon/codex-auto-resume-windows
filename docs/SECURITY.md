@@ -675,6 +675,13 @@ those methods change Codex's state or start work in the conversation named:
   its plugins' jobs, and a heartbeat the helper asks WMI to start - and ends both.
 - M1, M4, M5, MH and MA only read: the loaded conversations, a queue, the hooks, the account's
   state (`account/read`, of which the record keeps only that it was read).
+- MP1 only reads too - the Codex home's list of MCP servers (`mcpServerStatus/list`), asking for this
+  product's server by its name first and for every server only where Codex knows it by another
+  name - but Codex starts each server it lists, as the app does when it starts. Starting this
+  product's installed server runs that server's own start step: a line in the installation's
+  `logs/codex-start.log`, and, where Start with Codex is on and no watcher runs, the watcher
+  started. Run it with the watcher running. MP2 and MP3 open no session: they are what a person
+  sees in the Codex app.
 
 Without a conversation id, the calls carry a placeholder id that is no one's. A record is written
 only into a source checkout's `docs/evidence/live/`, and holds booleans, counts and closed words

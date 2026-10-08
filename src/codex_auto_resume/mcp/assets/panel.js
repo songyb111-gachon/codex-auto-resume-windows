@@ -12,7 +12,11 @@ function bridge() {
 
 function initialData() {
   var host = bridge() || window.openai || {};
-  var output = host.toolOutput || host.output || window.__CODEX_AUTO_RESUME__;
+  return parsedOutput(host.toolOutput || host.output || window.__CODEX_AUTO_RESUME__);
+}
+
+// A tool result as the host hands it: an object, or the same as JSON text. Null for anything else.
+function parsedOutput(output) {
   if (typeof output === 'string') { try { output = JSON.parse(output); } catch (e) { output = null; } }
   return output || null;
 }
@@ -69,6 +73,18 @@ var CHECKING_HOLD = 30;
 // When the rows the page shows were read, on its clock, in seconds (readAt): set when it is served
 // them, and again whenever it reads the list anew.
 var READ_AT = readAt(DATA, Date.now() / 1000);
+// v0.6.14: beside the chat the page stays open while the person works in the conversation, and what it
+// read grows old. So when they come back to it - the page shown again, or its window focused - it reads
+// open_settings again (readAgain): only beside the chat, where Codex says the page is fullscreen (inline,
+// the conversation's own item is the page Codex keeps), and at most once every READ_AGAIN_MS of its own
+// asking. ASKED_AT is when it last asked; READ_AT cannot serve, since it is held to one watcher pass after
+// the last one the status names, and a stopped watcher's page would ask on every return. READING is a
+// read still out. OWN_CALLS counts the page's own calls - every one made, and those still out - so a read
+// made before one of them is never drawn over what that call changed.
+var READ_AGAIN_MS = 15000;
+var ASKED_AT = Date.now();
+var READING = false;
+var OWN_CALLS = {made: 0, out: 0};
 
 // Every word on this panel comes from Python, in the language Python resolved. The panel
 // does not consult the browser's language: the notifications, the setup output, the
@@ -239,10 +255,24 @@ function toolPayload(result) {
 // The parameter is not called `arguments`. It was, and inside the inner function that
 // name is that function's own implicit arguments object - so every call this panel made,
 // Save included, handed the host an empty object instead of what it meant to send.
+//
+// v0.6.14: each call is counted in OWN_CALLS - made, and still out - so a state read again before it is
+// never drawn over what it changed (readAgain). A page without the count (a test's few functions) calls
+// all the same.
 function callTool(name, args) {
-  return Promise.resolve().then(function () {
+  var counted = typeof OWN_CALLS === 'object' && OWN_CALLS ? OWN_CALLS : null;
+  if (counted) {
+    counted.made += 1;
+    counted.out += 1;
+  }
+  var call = Promise.resolve().then(function () {
     return HOST.callTool(name, args);
   }).then(toolPayload);
+  if (counted) {
+    var landed = function () { counted.out -= 1; };
+    call.then(landed, landed);
+  }
+  return call;
 }
 
 function saveSettings(changes) {
@@ -472,6 +502,7 @@ function folding(key, title, openByDefault, kind, aside) {
   var node = element('details', kind === 'inner' ? 'fold inner' : 'card fold');
   node.open = Object.prototype.hasOwnProperty.call(OPEN, key) ? OPEN[key] : openByDefault;
   var summary = element('summary');
+  summary.id = 'car-fold-' + key;
   summary.appendChild(element(kind === 'inner' ? 'h3' : 'h2', null, title));
   var chevron = element('span', 'chevron');
   chevron.setAttribute('aria-hidden', 'true');
@@ -877,6 +908,7 @@ function toggle(entry, onChange) {
   managedNote(text, entry);
   row.appendChild(text);
   var input = element('input', 'switch');
+  input.id = 'car-' + entry.name;
   input.type = 'checkbox';
   input.setAttribute('role', 'switch');
   input.checked = !!value(entry.name);
@@ -906,6 +938,7 @@ function booleanKind(entry) {
 function checkItem(entry) {
   var row = element('label', 'setting check');
   var input = element('input', 'check');
+  input.id = 'car-' + entry.name;
   input.type = 'checkbox';
   input.checked = !!value(entry.name);
   input.disabled = !HOST || !!entry.managed;
@@ -1094,6 +1127,7 @@ function ownEditor(entry, select, onChange) {
     // Two numbers, the hour and the minute: no field on this page can hold words (CustomTextBoundaryTests).
     var clock = [t('own.unit.h', 'hours'), t('own.unit.m', 'minutes')].map(function (unitName, index) {
       var part = element('input');
+      part.id = 'car-' + entry.name + '-own-' + ['h', 'm'][index];
       part.type = 'number';
       part.min = '0';
       part.max = '99';
@@ -1123,6 +1157,7 @@ function ownEditor(entry, select, onChange) {
     (custom.days || []).forEach(function (day) {
       var item = element('label', 'own-day');
       var box = element('input', 'check');
+      box.id = 'car-' + entry.name + '-own-' + day;
       box.type = 'checkbox';
       item.appendChild(box);
       item.appendChild(element('span', null, t('day.' + day, day)));
@@ -1142,6 +1177,7 @@ function ownEditor(entry, select, onChange) {
     };
   } else {
     var number = element('input');
+    number.id = 'car-' + entry.name + '-own';
     number.type = 'number';
     number.min = '0';
     number.step = String(custom.kind === 'count' ? OWN_UNITS.count[(custom.units || [''])[0]] || 1 : 1);
@@ -1217,6 +1253,7 @@ function segmented(entry, onChange) {
   (entry.choices || []).forEach(function (choice) {
     var item = element('label', 'segment');
     var input = document.createElement('input');
+    input.id = 'car-' + entry.name + '-' + choice;
     input.type = 'radio';
     input.name = 'car-' + entry.name;
     input.value = choice;
@@ -1395,10 +1432,12 @@ function renderHero(status, now) {
   // already attributed, and the question a reader arrives with is what it is doing.
   // v0.6.11: and the edition after the version, in this language's word, as every surface that shows the version
   // names it - since the owner's decision of 2026-10-02 as quiet secondary text: a space and no separator, smaller,
-  // muted in both editions, on the version's baseline (.edition; the window's VersionLabel).
+  // muted, on the version's baseline (.edition; the window's VersionLabel). v0.6.14: an advanced edition only - the
+  // standard edition is named nowhere beside the version (the owner, 2026-10-05), so its heading is the version alone.
+  var named = status.edition && status.edition !== 'standard';
   var eyebrow = hero.appendChild(element('div', 'eyebrow', 'Codex Auto Resume · v' + (status.version || '?')
-    + (status.edition ? ' ' : '')));
-  if (status.edition) eyebrow.appendChild(element('span', 'edition', t('edition.' + status.edition, status.edition)));
+    + (named ? ' ' : '')));
+  if (named) eyebrow.appendChild(element('span', 'edition', t('edition.' + status.edition, status.edition)));
   var line = element('div', 'hero-state');
   var light = lightFor(status, state, DATA.pending);
   line.appendChild(lightNode(light, false));
@@ -1413,6 +1452,7 @@ function renderHero(status, now) {
   var start = null;
   if (status.watcher_running === false) {
     start = element('button', 'primary', t('action.start', 'Start watcher'));
+    start.id = 'car-start';
     start.disabled = !HOST;
     actions.appendChild(start);
   }
@@ -1507,6 +1547,7 @@ function threadSwitch(row, shown) {
   var wrap = element('label', 'prow-switch');
   wrap.appendChild(element('span', null, t('pending.col_resume', 'Auto-resume')));
   var input = element('input', 'switch');
+  input.id = 'car-row-' + row.interruption_id;
   input.type = 'checkbox';
   input.setAttribute('role', 'switch');
   input.setAttribute('aria-label', t('pending.col_resume', 'Auto-resume') + ': ' + shown);
@@ -1539,6 +1580,8 @@ function confirmOff(row, shown) {
   var actions = element('div', 'actions');
   var off = element('button', 'danger', t('action.thread_off', 'Turn off for this conversation'));
   var keep = element('button', null, t('action.cancel', 'Cancel'));
+  off.id = 'car-row-' + row.interruption_id + '-off';
+  keep.id = 'car-row-' + row.interruption_id + '-cancel';
   off.onclick = function () { changeThread(row, shown, false, [off, keep]); };
   keep.onclick = function () { CONFIRM_ROW = ''; render(); };
   actions.appendChild(off);
@@ -1771,6 +1814,7 @@ function renderRecovery(status, schema, now) {
   master.appendChild(body);
   var pause = element('button', null, status.enabled
     ? t('action.pause', 'Pause recovery') : t('action.resume', 'Resume recovery'));
+  pause.id = 'car-pause';
   pause.disabled = !HOST || heldPause;
   master.appendChild(pause);
   node.appendChild(master);
@@ -2131,19 +2175,78 @@ function refreshPreview() {
   });
 }
 
+// v0.6.14: beside the chat. In a conversation the Codex app shows this page inline or "fullscreen", and
+// there its fullscreen is the right side panel, beside the chat. Where the host can be asked to move the
+// page (requestDisplayMode) and says it is inline, the save bar offers Open beside the chat; nothing but
+// that click asks. A request Codex does not grant - answered with another mode, or refused - hides the
+// button for the page's life (BESIDE_REFUSED), and the bar says Codex kept the panel where it is. The
+// button drawn now, which a change of mode shows or hides in place (hostChanged), is BESIDE.
+var BESIDE_REFUSED = false;
+var BESIDE = null;
+
+// How the host says the page is shown: 'inline' in the conversation, 'fullscreen' beside it - or ''
+// where it says nothing, as a host that cannot move the page does.
+function displayMode() {
+  var mode = HOST && HOST.displayMode;
+  return typeof mode === 'string' ? mode : '';
+}
+
+// Whether to offer Open beside the chat now: a host that can be asked, a page in the conversation, and
+// no refusal yet.
+function besideOffered() {
+  return !!HOST && typeof HOST.requestDisplayMode === 'function' && displayMode() === 'inline' && !BESIDE_REFUSED;
+}
+
+// Ask Codex to show the page beside the chat, from the button's click alone. The answer is the mode set
+// (MCP Apps' ui/request-display-mode, the Apps SDK's requestDisplayMode); with none, what the host says
+// afterwards. Anything but fullscreen is Codex keeping the page here.
+function openBeside(footer) {
+  var button = footer.beside;
+  button.disabled = true;
+  Promise.resolve().then(function () {
+    return HOST.requestDisplayMode({mode: 'fullscreen'});
+  }).then(function (answer) {
+    var mode = answer && typeof answer.mode === 'string' ? answer.mode : displayMode();
+    if (mode !== 'fullscreen') throw new Error('kept');
+    button.disabled = false;
+    button.hidden = true;
+  }).catch(function () {
+    BESIDE_REFUSED = true;
+    button.disabled = false;
+    button.hidden = true;
+    footer.message.textContent = t('panel.beside_refused', 'Codex kept the panel here.');
+    // The button the keyboard was on is gone; the bar's commit is beside it.
+    if (typeof footer.save.focus === 'function') footer.save.focus({preventScroll: true});
+  });
+}
+
 function renderFooter(schema) {
   var bar = element('footer', 'savebar');
   var save = element('button', null, t('action.save', 'Save'));
+  save.id = 'car-save';
   save.disabled = !HOST;
   var message = element('p', 'note');
   message.setAttribute('role', 'status');
+  // v0.6.14: Open beside the chat at the bar's leading edge, drawn wherever the host can be asked and
+  // Codex has not kept the page here, and hidden while the page is not inline (besideOffered).
+  var beside = null;
+  if (HOST && typeof HOST.requestDisplayMode === 'function' && !BESIDE_REFUSED) {
+    beside = element('button', 'beside', t('action.open_beside', 'Open beside the chat'));
+    beside.id = 'car-beside';
+    beside.hidden = !besideOffered();
+    bar.appendChild(beside);
+  }
+  BESIDE = beside;
   // What happened first, the button last: the commit sits where Windows puts it.
   bar.appendChild(message);
   bar.appendChild(save);
   // Quiet until there is something to save, so a changed switch visibly waits for it.
   HOOKS.dirty = function () { save.className = unsaved(schema) ? 'primary' : ''; };
   HOOKS.dirty();
-  return {node: bar, save: save, message: message};
+  HOOKS.save = save;
+  var footer = {node: bar, save: save, message: message, beside: beside};
+  if (beside) beside.onclick = function () { openBeside(footer); };
+  return footer;
 }
 
 // The switches whose change a tool confirmed, moved now that they are drawn in the state they
@@ -2275,6 +2378,7 @@ function render() {
   SHOWN = {};
   GLIDES = [];
   HERO = null;
+  BESIDE = null;
   if (!DATA) {
     root.appendChild(element('p', 'note',
       t('panel.unavailable', 'Settings are not available in this view.')));
@@ -2415,6 +2519,158 @@ function render() {
       });
     };
   }
+}
+
+// Read open_settings again because the person came back to the page - beside the chat, at most once every
+// READ_AGAIN_MS of its own asking, with nothing of its own still out - and draw what it read, with the keyboard
+// on the control it was on (keyboardAt, keyboardBack), unless by the time the answer lands the person has
+// started something it would undo (busy) or a call of the page's own went out after it. A refusal, an answer
+// that is not the panel's state, or one dropped says nothing: the page goes on showing what it showed, and the
+// next return asks again.
+function readAgain() {
+  if (!HOST || READING || displayMode() !== 'fullscreen') return;
+  var now = Date.now();
+  if (now - ASKED_AT < READ_AGAIN_MS || OWN_CALLS.out > 0) return;
+  ASKED_AT = now;
+  READING = true;
+  var made = OWN_CALLS.made;
+  Promise.resolve().then(function () {
+    return HOST.callTool('open_settings', {});
+  }).then(toolPayload).then(function (payload) {
+    READING = false;
+    if (!panelState(payload) || made !== OWN_CALLS.made || OWN_CALLS.out > 0 || busy()) return;
+    var keep = keyboardAt();
+    drawState(payload);
+    keyboardBack(keep);
+  }, function () {
+    READING = false;
+  });
+}
+
+// Whether an answer is the panel's state, as open_settings gives it: a status, the settings and the rows.
+function panelState(payload) {
+  return !!payload && typeof payload.status === 'object' && payload.status !== null
+         && typeof payload.settings === 'object' && payload.settings !== null && !Array.isArray(payload.settings)
+         && Array.isArray(payload.pending);
+}
+
+// Whether drawing the page anew now would undo what the person is doing: a change not saved yet, a row
+// asking them to confirm, a list open, the keyboard in a field they may be typing in - or the keyboard on a
+// control the page drawn anew could not give it back to, one with no id (keyboardAt).
+function busy() {
+  if (Object.keys(DRAFT).length || CONFIRM_ROW) return true;
+  var root = document.getElementById('root');
+  var open = false;
+  eachNode(root, function (node) {
+    if (typeof node.getAttribute === 'function' && node.getAttribute('aria-expanded') === 'true') open = true;
+  });
+  if (open || inField(root)) return true;
+  var node = document.activeElement;
+  return !!node && node !== root && within(node, root) && !node.id;
+}
+
+function within(node, root) {
+  for (var at = node; at; at = at.parentNode) if (at === root) return true;
+  return false;
+}
+
+// The keyboard in a box someone may be typing in - a number's - or in a list's field.
+function inField(root) {
+  var node = document.activeElement;
+  if (!node || node === root || !within(node, root)) return false;
+  var tag = String(node.tagName || '').toLowerCase();
+  if (tag === 'select') return true;
+  if (tag === 'input') return node.type !== 'checkbox' && node.type !== 'radio';
+  return typeof node.getAttribute === 'function' && node.getAttribute('role') === 'combobox';
+}
+
+// Where the keyboard is, in a form a page drawn anew can find again: the id of the control it is on - every
+// control the page draws has one of its own, which names what it changes rather than where it stands, so a
+// row read in above it moves nothing - and the ids of the controls it could reach then, in their order. Null
+// where it is on no control of the page.
+function keyboardAt() {
+  var root = document.getElementById('root');
+  var node = document.activeElement;
+  if (!node || node === root || !within(node, root) || !node.id) return null;
+  var order = [];
+  eachNode(root, function (each) { if (each.id && keyTarget(each) && keyReaches(each, root)) order.push(each.id); });
+  return {id: node.id, order: order};
+}
+
+// The keyboard put back on that control in the page drawn anew - or, where the page read has none, or one it
+// cannot take, on the next control it could reach then that the page still has, and failing those the one
+// before it: where Tab would have taken it.
+function keyboardBack(keep) {
+  if (!keep) return;
+  var root = document.getElementById('root');
+  var drawn = {};
+  eachNode(root, function (node) { if (node.id && keyTarget(node) && !drawn[node.id]) drawn[node.id] = node; });
+  var at = keep.order.indexOf(keep.id);
+  var tries = [keep.id].concat(keep.order.slice(at + 1), keep.order.slice(0, Math.max(at, 0)).reverse());
+  for (var i = 0; i < tries.length; i++) {
+    var node = drawn[tries[i]];
+    if (!node || !keyReaches(node, root) || typeof node.focus !== 'function') continue;
+    node.focus({preventScroll: true});
+    if (document.activeElement === node) return;
+  }
+}
+
+// What the keyboard can be on: a button, a box, a fold's title, or the drop-down that stands for a select (the
+// select itself is hidden behind it).
+function keyTarget(node) {
+  var tag = String(node.tagName || '').toLowerCase();
+  return tag === 'button' || tag === 'input' || tag === 'summary'
+         || (typeof node.getAttribute === 'function' && node.getAttribute('role') === 'combobox');
+}
+
+// Whether the keyboard can reach a control as the page stands: shown, usable, and not in a folded section's body.
+function keyReaches(node, root) {
+  if (node.hidden || node.disabled) return false;
+  if (typeof node.getAttribute === 'function' && node.getAttribute('aria-disabled') === 'true') return false;
+  for (var at = node.parentNode; at && at !== root; at = at.parentNode) {
+    if (at.hidden) return false;
+    if (String(at.tagName || '').toLowerCase() === 'details' && !at.open && node.parentNode !== at) return false;
+  }
+  return true;
+}
+
+// v0.6.14: what the host says of the page has changed - Codex sends `openai:set_globals` when it does. The
+// button follows where the page is shown, in place, with nothing drawn anew. And a page that had no tool
+// result to draw from when it started - the side panel's tab, which calls the tool itself and may be
+// answered after the page has loaded - draws the result it is handed now; one already drawn is left as it
+// is, since a page that changed under the person would undo what they were doing.
+function hostChanged(event) {
+  if (!DATA) {
+    var globals = (event && event.detail && event.detail.globals) || {};
+    var output = parsedOutput(globals.toolOutput !== undefined ? globals.toolOutput
+                              : (HOST || window.openai || {}).toolOutput);
+    if (!output || typeof output !== 'object' || Array.isArray(output)) return;
+    // Just read, by the tab's own call: a return in the next moments need not ask again.
+    ASKED_AT = Date.now();
+    drawState(output);
+    return;
+  }
+  if (BESIDE) BESIDE.hidden = !besideOffered();
+}
+
+// A tool result the page is handed after it was first drawn, drawn as the first one is: read now, its stored
+// theme and language applied first, since it is what is true now, and the page drawn from it.
+function drawState(state) {
+  DATA = state;
+  READ_AT = readAt(DATA, Date.now() / 1000);
+  adopt(DATA.settings);
+  render();
+}
+
+// Each listener only where the document has it: the host's frame always does, a test's stand-in may not.
+if (typeof window.addEventListener === 'function') {
+  window.addEventListener('openai:set_globals', hostChanged);
+  window.addEventListener('focus', function () { readAgain(); });
+}
+if (typeof document.addEventListener === 'function') {
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'hidden') readAgain();
+  });
 }
 
 // The stored theme and language before anything is drawn: the page may be one Codex kept from an

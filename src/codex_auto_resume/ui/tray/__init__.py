@@ -29,7 +29,7 @@ one module gave.
 """
 from __future__ import annotations
 
-from .words import TIP_CHARS, countdown, tooltip  # noqa: F401
+from .words import TIP_CHARS, UNNAMED_EDITION, countdown, tooltip  # noqa: F401
 from .model import popup_attention, snapshot_from  # noqa: F401
 from .motion import (ICON_BRAND_STATE,
                      ICON_BREATHS,

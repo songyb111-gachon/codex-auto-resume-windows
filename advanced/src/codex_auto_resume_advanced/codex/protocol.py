@@ -51,6 +51,13 @@ MEASUREMENT_METHODS = {
     Measurement.MH: ("thread/loaded/list",),
     Measurement.MA: ("account/read",),
     Measurement.MW: (),
+    # MP1 lists the Codex home's MCP servers as the app does (`mcpServerStatus/list`), to see the
+    # panel's tool still carry its side-panel entrypoint - a read, though Codex starts each server it
+    # lists (measure._mp1 says what that does). MP2 and MP3 are what a person sees in the app, and
+    # open no session.
+    Measurement.MP1: ("mcpServerStatus/list",),
+    Measurement.MP2: (),
+    Measurement.MP3: (),
 }
 
 # The methods a capability's own route may call, beyond `initialize` - each one a measurement

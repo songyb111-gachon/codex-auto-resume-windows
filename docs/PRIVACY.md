@@ -815,7 +815,9 @@ installed, to reach GitHub, and only when you start it (*What it sends to GitHub
   asking Codex to run `whoami`; M2b and M7 queue *Reply with the single word: ok.* and `/compact`,
   which the app runs as a turn once it takes them; M2 and M2b set the conversation's goal active,
   which Codex may then carry on. MA reads the account's state from Codex, and keeps only that it
-  could. A record is written only where a source checkout's `docs/evidence/live/` is, and holds
+  could. MP1 reads the list of the Codex home's MCP servers, which Codex starts to answer it as the
+  app does when it starts, and keeps only how many there were and whether this product's panel is
+  among them as Codex shows it. A record is written only where a source checkout's `docs/evidence/live/` is, and holds
   booleans, counts, closed words and ids as aliases, never a path or a conversation's text. An
   installed copy has no such folder, and there the record is refused only after the calls were
   made, so run a measurement only on a throwaway conversation.

@@ -169,9 +169,10 @@ def snapshot(**settings):
             "system_language": "en"}
 
 
-def run_page(body, data=None, locale="en", catalogs=None, root_attributes=None, prelude=""):
+def run_page(body, data=None, locale="en", catalogs=None, root_attributes=None, prelude="", host=""):
     """Serve the whole panel script into the stand-in document, then run `body` against it. `prelude` runs before the
-    script does - a clock of the test's own, say."""
+    script does - a clock of the test's own, say. `host` runs once the stand-in host is made (`stored`), so what it adds
+    to `window.openai` - the Codex app's requestDisplayMode and displayMode (v0.6.14) - is on the host the page finds."""
     data = snapshot() if data is None else data
     script = "\n".join([
         FAKE_DOM,
@@ -183,6 +184,7 @@ def run_page(body, data=None, locale="en", catalogs=None, root_attributes=None, 
             mcpui.panel_catalogs() if catalogs is None else catalogs),
         "window.__CODEX_AUTO_RESUME__ = %s;" % json.dumps(data),
         "stored(window.__CODEX_AUTO_RESUME__.settings);",
+        host,
         mcpui._SCRIPT,
         "(async function () { await settle();" + body + "})().catch(function (e) {console.error(e); process.exit(1);});",
     ])
@@ -604,9 +606,12 @@ class ServedThemeTests(unittest.TestCase):
         self.assertIn("applyTheme(document.documentElement, settings, THEME_PINNED);", script)
         self.assertEqual(len(re.findall(r"setAttribute\('data-theme'", script)), 1)
         self.assertIn("hasAttribute('data-theme-pinned')", script)
-        # Applied before the first render, and from a confirmed save - nowhere else.
+        # Applied before the first render, from a confirmed save, and from a tool result the page is handed
+        # after its first drawing (drawState, v0.6.14: one Codex hands it late, or one read again) - nowhere else.
         self.assertEqual(re.findall(r"(?<!function )\badopt\(([^)]*)\)", script),
-                         ["payload.settings", "DATA && DATA.settings"])
+                         ["payload.settings", "DATA.settings", "DATA && DATA.settings"])
+        self.assertIn("function drawState(state) {\n  DATA = state;\n  READ_AT = readAt(DATA, Date.now() / 1000);\n"
+                      "  adopt(DATA.settings);\n  render();\n}", script)
         self.assertLess(script.index("adopt(DATA && DATA.settings);"), script.rindex("render();"))
 
 
