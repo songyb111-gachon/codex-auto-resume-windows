@@ -29,7 +29,14 @@
           "_meta": {
             "openai/outputTemplate": "ui://codex-auto-resume/settings",
             "openai/toolInvocation/invoking": "Opening Auto Resume settings",
-            "openai/toolInvocation/invoked": "Auto Resume settings"
+            "openai/toolInvocation/invoked": "Auto Resume settings",
+            "openai/ui": {
+              "entrypoints": [
+                {
+                  "type": "thread"
+                }
+              ]
+            }
           }
         },
         {

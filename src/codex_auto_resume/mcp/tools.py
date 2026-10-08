@@ -19,6 +19,14 @@ from ..domain import ids
 
 SETTINGS_UI = "ui://codex-auto-resume/settings"
 
+# v0.6.14: where else the Codex app may offer the settings panel - beside a conversation, not only in it. A
+# tool whose `_meta["openai/ui"]` declares a `thread` entrypoint is listed in a conversation's right side
+# panel - its New tab, under More tools... - and the tab it opens calls the tool itself, with no
+# arguments, and shows its template there (Codex 26.1002's app; developers.openai.com/plugins/build/
+# extensions). Codex drops an entrypoint whose tool's template is not a `ui://` resource. Only the
+# panel's tool declares one, and only this: not the left sidebar's `global`, not a page in Codex's
+# Settings, not a file opener. A Codex without it ignores the key.
+SIDE_PANEL_ENTRYPOINTS = ({"type": "thread"},)
 
 
 def _identifier_schema(title: str) -> dict:
@@ -201,7 +209,8 @@ TOOLS = [
                         "openWorldHint": False},
         "_meta": {"openai/outputTemplate": SETTINGS_UI,
                   "openai/toolInvocation/invoking": "Opening Auto Resume settings",
-                  "openai/toolInvocation/invoked": "Auto Resume settings"},
+                  "openai/toolInvocation/invoked": "Auto Resume settings",
+                  "openai/ui": {"entrypoints": [dict(entry) for entry in SIDE_PANEL_ENTRYPOINTS]}},
     },
     {
         "name": "get_status",
