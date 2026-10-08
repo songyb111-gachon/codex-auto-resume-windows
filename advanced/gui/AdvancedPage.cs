@@ -12,7 +12,8 @@
 // limits (v0.6.13), where it has them: its own choices, one drop-down each (advanced-option); the rules a person writes
 // for Codex's error codes, each with what it did in 30 days, removed or added here (advanced-rules, advanced-rule-add,
 // advanced-rule-remove); and the samples of failures nothing classified, codes and numbers only (advanced-samples).
-// Each is written against the generation the page read, and a refusal is told in words.
+// Each is written against the generation the page read, and a refusal is told in words. And (v0.6.14) a Keep it on
+// card for one that is on or watched, and Send now's waiting recoveries (advanced/gui/AdvancedKeepOn.cs).
 //
 // Its place is after Settings, the last tab. The Dashboard's pages are gui/Dashboard.cs's PageOrder, and the
 // window's navigation is that one strip of tabs: nothing in it is a place for an edition's page, and a Settings
@@ -155,6 +156,8 @@ namespace CodexAutoResume
         partial void SnapshotApplied(Dictionary<string, object> reply)
         {
             if (reply == null) return;
+            // The recoveries waiting now, which Send now's card offers (AdvancedKeepOn.cs).
+            advancedPending = Items(reply, "pending");
             if (advancedWords == null)
             {
                 // Until this edition has answered: asked again with each read, as the window's reads go on.
@@ -772,7 +775,8 @@ namespace CodexAutoResume
                            AdvancedWritten(Get(advancedListing, "policy")) + "|" +
                            AdvancedWritten(Get(advancedListing, "global_hourly")) + "|" +
                            (Equals(Get(item, "rules_editor"), true) ? AdvancedWritten(advancedRules) : "") + "|" +
-                           (Equals(Get(item, "samples"), true) ? AdvancedWritten(advancedSamples) : "");
+                           (Equals(Get(item, "samples"), true) ? AdvancedWritten(advancedSamples) : "") + "|" +
+                           KeptShown(item);
             if (shown == advancedShown)
             {
                 UpdateAdvancedButtons();
@@ -792,6 +796,8 @@ namespace CodexAutoResume
             ruleTag = ruleFrom = ruleTo = null;
             ruleKind = ruleSampled = null;
             ruleAdd = null;
+            keepOnButton = sendAgainButton = letGoButton = null;
+            sendNowButtons.Clear();
             if (item == null)
             {
                 TableLayoutPanel card = NewGroup(Word("page.nav", "Advanced features"), advancedStack);
@@ -819,6 +825,16 @@ namespace CodexAutoResume
             if (tripped != null)
             {
                 Label line = HelpText(tripped);
+                line.ForeColor = Accent;
+                line.Margin = Pad(0, Brand.SpaceS, 0, 0);
+                head.Controls.Add(line);
+            }
+            // What a kept-on capability noted in place of turning itself off (K8), in the accent beside it: turning it on
+            // again is how the person confirms again.
+            string kept = KeptText(item);
+            if (kept != null)
+            {
+                Label line = HelpText(kept);
                 line.ForeColor = Accent;
                 line.Margin = Pad(0, Brand.SpaceS, 0, 0);
                 head.Controls.Add(line);
@@ -894,6 +910,10 @@ namespace CodexAutoResume
             advancedHourly = HourlyNumber();
             limits.Controls.Add(NewRow(Word("page.hourly", "Sends an hour, all advanced features together"), advancedHourly));
             limits.Controls.Add(HelpText(Word("page.hourly_note", "You can lower this limit. It never goes above {n}.", "n", HourlyMost())));
+
+            // Under its limits (v0.6.14): whether it is kept on, while it is on or watched; and Send now's waiting recoveries.
+            BuildKeepOn(item);
+            BuildSendNow(item);
 
             // Its own choices, the rules a person writes for Codex's error codes and the samples of what nothing classified,
             // each only for a capability that has them - the last two once they have been read.
@@ -1251,6 +1271,8 @@ namespace CodexAutoResume
                 said = Word("page.tripped.statement_changed", "It turned itself off because what it does has changed. Read it again before you turn it on.");
             else if (reason == "engine_changed")
                 said = Word("page.tripped.engine_changed", "It turned itself off because the version of Codex changed. Turn it on again for this version if you want it.");
+            else if (reason == "duplicate_seen")
+                said = Word("page.tripped.duplicate_seen", "It turned itself off because a continuation it sent again was found twice.");
             return said ?? Word("page.tripped", "It turned itself off.");
         }
 
@@ -1282,6 +1304,7 @@ namespace CodexAutoResume
             foreach (SoftCombo combo in advancedChoices) combo.Enabled = listed;
             foreach (Button remove in ruleRemoves) remove.Enabled = listed;
             if (ruleAdd != null) ruleAdd.Enabled = listed;
+            UpdateKeptButtons(idle);
         }
 
         // ---------------------------------------------------------------- the hourly limit

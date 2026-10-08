@@ -106,7 +106,7 @@ namespace CodexAutoResume
         ///
         /// The list is `listingJson` (advanced-list's answer) and the statements `statementsJson`, {id: advanced-
         /// statement's answer}; what the capabilities keep is `keptJson`, {"advanced-rules": its answer, "advanced-samples":
-        /// its answer}, shown on the cards of the capabilities that have them. The page is laid out at the window's opening size with each capability open in turn -
+        /// its answer, "pending": the snapshot's pending list}, shown on the cards of the capabilities that have them. The page is laid out at the window's opening size with each capability open in turn -
         /// with what a policy refuses of it and every warning its statement carries - then with a list that could not
         /// be read. At each: the standard audit's Walk (anything cut off, a page that would scroll sideways, a field
         /// that is not a field high), a control with no name a screen reader can say, a pinned control out of its
@@ -128,6 +128,7 @@ namespace CodexAutoResume
                 var kept = Json.Parse(keptJson) as Dictionary<string, object>;
                 form.advancedRules = Map(kept, "advanced-rules");
                 form.advancedSamples = Map(kept, "advanced-samples");
+                form.advancedPending = Items(kept, "pending");
                 form.AdoptAdvancedWords(Json.Parse(wordsJson) as Dictionary<string, object>);
                 form.ShowAdvancedList(listing);
                 foreach (KeyValuePair<string, object> pair in statements)
@@ -212,12 +213,14 @@ namespace CodexAutoResume
         ///   {"do": "show"}                                    the tab pressed
         ///   {"do": "page", "name": ...}                       another page's tab pressed
         ///   {"do": "choose", "id": ...}                       that capability's row chosen in the list
-        ///   {"do": "press", "button": on|watch|off|all_off}   a button pressed, if it can be
+        ///   {"do": "press", "button": on|watch|off|all_off|   a button pressed, if it can be
+        ///    keep_on|send_again|let_go}
         ///   {"do": "hourly", "value": n}                      the hourly limit chosen, and the pause after it over
         ///   {"do": "set_option", "key": ..., "value": n}      a choice made in that choice's drop-down
         ///   {"do": "rule", "tag": ..., "sampled": ...,        a new rule's fields filled - its code typed, or taken from the
         ///    "from": ..., "to": ..., "kind": ...}             samples' drop-down - and Add rule pressed, if it can be
         ///   {"do": "remove", "rule": n}                       that rule's Remove pressed, if it can be
+        ///   {"do": "send_now", "id": ...}                     that waiting recovery's Send now pressed, if it can be
         ///   {"do": "ctrl-tab", "shift": bool}                 Ctrl+Tab, or Ctrl+Shift+Tab
         ///   {"do": "reply", "key": ..., "with": [...]}        what the bridge answers from now on
         ///   {"do": "answer", "with": [...]}                   what the person answers the next questions
@@ -261,7 +264,9 @@ namespace CodexAutoResume
                     {
                         string name = Str(step, "button");
                         Button button = name == "on" ? form.advancedOn : name == "watch" ? form.advancedWatch
-                                      : name == "off" ? form.advancedOff : name == "all_off" ? form.advancedAllOff : null;
+                                      : name == "off" ? form.advancedOff : name == "all_off" ? form.advancedAllOff
+                                      : name == "keep_on" ? form.keepOnButton : name == "send_again" ? form.sendAgainButton
+                                      : name == "let_go" ? form.letGoButton : null;
                         if (button == null || !button.Enabled || !OwnVisible(button)) disabled.Add(name);
                         else Pressed.Invoke(button, new object[] { EventArgs.Empty });
                     }
@@ -301,6 +306,12 @@ namespace CodexAutoResume
                             if (Str(step, "kind") != null) Choose(form.ruleKind, Str(step, "kind"));
                             Pressed.Invoke(form.ruleAdd, new object[] { EventArgs.Empty });
                         }
+                    }
+                    else if (what == "send_now")
+                    {
+                        Button send = form.sendNowButtons.Find(delegate(Button each) { return Equals(each.Tag, Str(step, "id")); });
+                        if (send == null || !send.Enabled) disabled.Add("send_now");
+                        else Pressed.Invoke(send, new object[] { EventArgs.Empty });
                     }
                     else if (what == "remove")
                     {
@@ -463,6 +474,16 @@ namespace CodexAutoResume
                 look["rules"] = editor;
             }
             else look["rules"] = null;
+            // Keep it on's buttons - whether each can be pressed, or null where it is not shown - and the waiting
+            // recoveries Send now offers, by their interruption ids.
+            var kept = new Dictionary<string, object>();
+            kept["keep_on"] = keepOnButton == null ? (object)null : keepOnButton.Enabled;
+            kept["send_again"] = sendAgainButton == null ? (object)null : sendAgainButton.Enabled;
+            kept["let_go"] = letGoButton == null ? (object)null : letGoButton.Enabled;
+            look["kept"] = kept;
+            var waiting = new List<object>();
+            foreach (Button send in sendNowButtons) waiting.Add(send.Tag);
+            look["send_now"] = waiting;
             return look;
         }
 

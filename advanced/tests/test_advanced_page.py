@@ -17,7 +17,9 @@ now refuses it); a refusal is told; a capability that turned itself off says so 
 Turn every advanced feature off send theirs; the hourly limit is a spin box, and the lowered limit is one
 the real bridge takes; a capability's own choices are drop-downs whose choice is sent at once, the rules
 for Codex's error codes are listed, added and removed, and the samples are listed, codes and numbers only -
-each request one the real bridge takes, and each refusal told; the list is read again after every action and
+each request one the real bridge takes, and each refusal told; a capability on or watched can be kept on, with Send
+again or without, after each warning, and let go - what a kept-on one noted shown in the accent - and Send now, while it
+is on, offers each waiting recovery, asking first; the list is read again after every action and
 when the snapshot's badge says it changed; a window that reopens itself on the page comes back to it; the page is audited in every
 language at every scaling, its tabs on the narrowest screen too; and the standard window holds nothing
 of it.
@@ -513,6 +515,88 @@ class PageTests(unittest.TestCase):
                  {"do": "snapshot", "reply": snapshot()}, {"do": "look"}]
         return "en", {"script": script, "steps": steps}, {"words": script["advanced-words"][0]["result"]["words"]}
 
+    @staticmethod
+    def watched(bridge, capability, state="shadow"):
+        """`capability` watched - or on - through the real bridge, as the Dashboard asks for it."""
+        shown = bridge("advanced-statement", {"capability": capability, "locale": "en"})["result"]
+        done = bridge("advanced-arm", {"capability": capability, "state": state, "revision": shown["revision"],
+                                       "generation": bridge("advanced-list", {})["result"]["generation"],
+                                       "engine_version": shown["engine_version"],
+                                       "warnings": [item["warning"] for item in shown["warnings"]["items"]]})
+        assert done["result"]["done"], done
+        return done["result"]["generation"]
+
+    @classmethod
+    def scenario_keep_on(cls, bridge):
+        """Short retries when Codex is at capacity watched: Keep it on... asks with its warning and sends it, confirmed;
+        then Also send again when unsure... with its own; then Let it turn itself off, asking nothing. Each list read
+        after is the real bridge's after that request."""
+        cls.watched(bridge, "capacity_retry")
+        script = cls.opening(bridge, "en")
+        generation = script["advanced-list"][0]["result"]["generation"]
+        kept = bridge("advanced-keep-on", {"capability": "capacity_retry", "keep_on": True, "generation": generation,
+                                           "confirmed": ["keep_on"]})
+        once = bridge("advanced-list", {})
+        again = bridge("advanced-keep-on", {"capability": "capacity_retry", "keep_on": True, "send_again": True,
+                                            "generation": once["result"]["generation"],
+                                            "confirmed": ["keep_on", "send_again"]})
+        twice = bridge("advanced-list", {})
+        let_go = bridge("advanced-keep-on", {"capability": "capacity_retry", "keep_on": False, "send_again": False})
+        after = bridge("advanced-list", {})
+        steps = [{"do": "snapshot", "reply": snapshot()}, {"do": "show"}, {"do": "choose", "id": "capacity_retry"},
+                 {"do": "look"},
+                 {"do": "reply", "key": "advanced-keep-on", "with": [kept]},
+                 {"do": "reply", "key": "advanced-list", "with": [once]},
+                 {"do": "press", "button": "keep_on"}, {"do": "look"},
+                 {"do": "reply", "key": "advanced-keep-on", "with": [again]},
+                 {"do": "reply", "key": "advanced-list", "with": [twice]},
+                 {"do": "press", "button": "send_again"}, {"do": "look"},
+                 {"do": "reply", "key": "advanced-keep-on", "with": [let_go]},
+                 {"do": "reply", "key": "advanced-list", "with": [after]},
+                 {"do": "press", "button": "let_go"}, {"do": "look"},
+                 {"do": "choose", "id": "send_now"}, {"do": "look"}]
+        return "en", {"answers": [True, True], "script": script, "steps": steps}, {
+            "generations": [generation, once["result"]["generation"]],
+            "words": script["advanced-words"][0]["result"]["words"]}
+
+    @classmethod
+    def scenario_kept_notice(cls, bridge):
+        """Kept on, Short retries when Codex is at capacity noted a new Codex version instead of turning itself off: said
+        in the accent under its state; and a once-more capability that a resend found twice turned off: said why."""
+        from codex_auto_resume_advanced.vocabulary import Actor, ArmingState, OffReason
+        cls.watched(bridge, "capacity_retry")
+        generation = bridge("advanced-list", {})["result"]["generation"]
+        assert bridge("advanced-keep-on", {"capability": "capacity_retry", "keep_on": True, "generation": generation,
+                                           "confirmed": ["keep_on"]})["result"]["done"]
+        state = bridge.plug.runtime.state
+        assert state.note_kept("capacity_retry", OffReason.ENGINE_CHANGED, at=ac.NOW)
+        cls.watched(bridge, "once_more_when_unsure")
+        state.move("once_more_when_unsure", ArmingState.OFF, actor=Actor.TRIPWIRE, reason=OffReason.DUPLICATE_SEEN,
+                   at=ac.NOW)
+        script = cls.opening(bridge, "en")
+        steps = [{"do": "snapshot", "reply": snapshot()}, {"do": "show"}, {"do": "choose", "id": "capacity_retry"},
+                 {"do": "look"}, {"do": "choose", "id": "once_more_when_unsure"}, {"do": "look"}]
+        return "en", {"script": script, "steps": steps}, {"words": script["advanced-words"][0]["result"]["words"]}
+
+    @classmethod
+    def scenario_send_now(cls, bridge):
+        """Send now on: its card lists the recoveries the snapshot holds waiting - not the one whose turn is running -
+        each with its Send now..., which asks first and sends that record's id; declined, nothing is sent."""
+        cls.watched(bridge, "send_now", state="armed")
+        script = cls.opening(bridge, "en")
+        reply = snapshot()
+        steps = [{"do": "snapshot", "reply": reply}, {"do": "show"}, {"do": "choose", "id": "send_now"}, {"do": "look"},
+                 {"do": "reply", "key": "advanced-send-now",
+                  "with": [{"ok": True, "result": {"done": True, "refusal": None, "expires_at": ac.NOW + 900}}]},
+                 {"do": "send_now", "id": reply["pending"][0]["interruption_id"]}, {"do": "look"},
+                 {"do": "send_now", "id": reply["pending"][1]["interruption_id"]},
+                 {"do": "reply", "key": "advanced-send-now",
+                  "with": [{"ok": True, "result": {"done": False, "refusal": "not_on"}}]},
+                 {"do": "send_now", "id": reply["pending"][1]["interruption_id"]},
+                 {"do": "send_now", "id": reply["pending"][2]["interruption_id"]}]
+        return "en", {"answers": [True, False, True], "script": script, "steps": steps}, {
+            "pending": reply["pending"], "words": script["advanced-words"][0]["result"]["words"]}
+
     # What a window on this page passes on when it reopens itself (ReopenArguments): the page, and the keyboard on its tab.
     REOPENED = ("--page=advanced --section=general --bounds=100,100,1000,700 --theme=system --design=soft --reopened=1 "
                 "--focus=page.advanced")
@@ -796,6 +880,87 @@ class PageTests(unittest.TestCase):
         self.assertEqual(result["told"], [words["page.refused.choice"]])
         self.assertEqual(result["looks"][0]["note"], "")
 
+    def test_keep_it_on_asks_with_each_warning_sends_what_was_confirmed_and_lets_go_asking_nothing(self):
+        result, expected = self.of("scenario_keep_on")
+        words = expected["words"]
+        name = words["name.capacity_retry"]
+        first, once, twice, after, send_now = result["looks"]
+        card = next(card for card in first["cards"] if card[0] == words["page.keep_on"])
+        self.assertEqual(card[1], words["page.keep_on.off"])
+        self.assertEqual(first["kept"], {"keep_on": True, "send_again": None, "let_go": None})
+        self.assertEqual(once["kept"], {"keep_on": None, "send_again": True, "let_go": True})
+        self.assertIn(words["page.keep_on.on"], next(card for card in once["cards"] if card[0] == words["page.keep_on"]))
+        self.assertEqual(twice["kept"], {"keep_on": None, "send_again": None, "let_go": True})
+        self.assertIn(words["page.keep_on.again"], next(card for card in twice["cards"] if card[0] == words["page.keep_on"]))
+        self.assertEqual(after["kept"], first["kept"])
+        self.assertEqual(once["note"], words["page.done.keep_on"].replace("{name}", name))
+        self.assertEqual(after["note"], words["page.done.keep_on_off"].replace("{name}", name))
+        self.assertEqual(result["asked"], [words["page.confirm.keep_on"].replace("{name}", name),
+                                           words["page.confirm.send_again"].replace("{name}", name)])
+        first_generation, second_generation = expected["generations"]
+        self.assertEqual(sent(result, "advanced-keep-on"), [
+            {"capability": "capacity_retry", "keep_on": True, "send_again": False, "generation": first_generation,
+             "confirmed": ["keep_on"]},
+            {"capability": "capacity_retry", "keep_on": True, "send_again": True, "generation": second_generation,
+             "confirmed": ["keep_on", "send_again"]},
+            {"capability": "capacity_retry", "keep_on": False, "send_again": False}])
+        self.assertEqual(result["told"], [])
+        # Send now off: no card of waiting recoveries, and no Keep it on for what is off.
+        self.assertEqual(send_now["send_now"], [])
+        self.assertEqual(send_now["kept"], {"keep_on": None, "send_again": None, "let_go": None})
+        self.assertNotIn(words["page.send_now.title"], [card[0] for card in send_now["cards"]])
+
+    def test_what_keep_it_on_sends_is_what_the_real_bridge_takes(self):
+        with tempfile.TemporaryDirectory() as home:
+            bridge = Bridge(Path(home))
+            try:
+                self.watched(bridge, "capacity_retry")
+                line = next(line for line in self.of("scenario_keep_on")[0]["sent"] if line.startswith("advanced-keep-on "))
+                self.assertTrue(bridge.request(line)["result"]["done"])
+                item = next(entry for entry in bridge("advanced-list", {})["result"]["capabilities"]
+                            if entry["id"] == "capacity_retry")
+                self.assertEqual((item["keep_on"], item["send_again"]), (True, False))
+            finally:
+                bridge.close()
+
+    def test_a_kept_on_notice_and_a_duplicate_trip_are_said_in_the_accent(self):
+        result, expected = self.of("scenario_kept_notice")
+        words = expected["words"]
+        kept, tripped = result["looks"]
+        self.assertIn(words["page.kept.engine_changed"], kept["cards"][0])
+        self.assertIn(words["page.tripped.duplicate_seen"], tripped["cards"][0])
+        self.assertNotIn(words["page.keep_on"], [card[0] for card in tripped["cards"]], "off: nothing to keep on")
+
+    def test_send_now_offers_each_waiting_recovery_asks_first_and_sends_its_id(self):
+        result, expected = self.of("scenario_send_now")
+        words = expected["words"]
+        pending = expected["pending"]
+        shown, after = result["looks"]
+        waiting = [row["interruption_id"] for row in pending if row["code"] in ("waiting_reset", "scheduled")]
+        self.assertEqual(shown["send_now"], waiting)
+        card = next(card for card in shown["cards"] if card[0] == words["page.send_now.title"])
+        self.assertIn(pending[0]["name"], card[1])
+        self.assertEqual(sent(result, "advanced-send-now"),
+                         [{"interruption_id": pending[0]["interruption_id"]},
+                          {"interruption_id": pending[1]["interruption_id"]}], "declined, nothing is sent")
+        self.assertEqual(result["asked"], [words["page.confirm.send_now"]] * 3)
+        self.assertEqual(after["note"], words["page.done.send_now"])
+        self.assertEqual(result["told"], [words["page.refused.not_on"]])
+        self.assertEqual(result["disabled"], ["send_now"], "a recovery whose turn is running is not offered")
+
+    def test_what_send_now_sends_is_what_the_real_bridge_takes(self):
+        from codex_auto_resume_advanced.control import sendnow
+        with tempfile.TemporaryDirectory() as home:
+            bridge = Bridge(Path(home))
+            try:
+                self.watched(bridge, "send_now", state="armed")
+                line = next(line for line in self.of("scenario_send_now")[0]["sent"] if line.startswith("advanced-send-now "))
+                with patch.object(sendnow, "wake", return_value=True) as woken:
+                    self.assertTrue(bridge.request(line)["result"]["done"])
+                self.assertEqual(woken.call_count, 1)
+            finally:
+                bridge.close()
+
     def test_the_choice_sent_is_one_the_real_bridge_takes(self):
         with tempfile.TemporaryDirectory() as home:
             bridge = Bridge(Path(home))
@@ -912,8 +1077,13 @@ def audit_data(locale: str, bridge: Bridge) -> dict:
     samples = {"done": True, "samples": [
         {"tag": "anotherVeryLongCodeOfCodexsOwnNamingSomethingNew", "status": 503, "form": "tagged", "count": 12, "last": "2027-01-15"},
         {"tag": None, "status": None, "form": "absent", "count": 1, "last": "2027-01-14"}]}
+    # Each capability on (v0.6.14), so its Keep it on card shows: by turns not kept on, kept on with its longest notice,
+    # and kept on sending again with a resend found twice; Send now on, with the waiting recoveries of the fullest snapshot.
+    for index, item in enumerate(listing["capabilities"]):
+        item.update(stored="armed", state="armed", keep_on=index % 3 != 0, send_again=index % 3 == 2,
+                    notice=(None, "local_check_failed", "duplicate_seen")[index % 3])
     return {"words": words, "listing": listing, "statements": statements,
-            "kept": {"advanced-rules": rules, "advanced-samples": samples}}
+            "kept": {"advanced-rules": rules, "advanced-samples": samples, "pending": snapshot()["pending"]}}
 
 
 @unittest.skipUnless(CSC.is_file() and POWERSHELL.is_file(), "needs the in-box compiler and PowerShell")
