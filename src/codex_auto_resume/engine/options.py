@@ -222,9 +222,14 @@ class OptionsMixin:
 
     def capacity_limits(self) -> dict:
         """The budgets of a capacity error the plug vouches for (CAPACITY, v0.6.13): core's own capacity
-        bounds (ladder.py), and the person's own time ceiling when one is set, which only restricts."""
+        bounds (ladder.py), and the person's own time ceiling when one is set, which only restricts.
+        v0.6.14: and an administrator's MaxRecoveryAttempts, which holds a capacity retry back as it
+        holds every other (managed.clamp): CAPACITY passes the person's budgets, never the key's."""
         found = {name: ladder.CAPACITY_PER_DAY for name in
                  ("max_recovery_attempts", "max_no_progress", "max_chain_continuations")}
+        ceiling = self.managed.max_recovery_attempts
+        if ceiling is not None:
+            found["max_recovery_attempts"] = min(found["max_recovery_attempts"], ceiling)
         if self.options.get("max_chain_seconds") is not None:
             found["max_chain_seconds"] = self.options["max_chain_seconds"]
         return found

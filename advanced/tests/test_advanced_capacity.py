@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import advancedcase as ac  # noqa: E402
 from takingcase import TakingCase  # noqa: E402
-from codex_auto_resume import ladder  # noqa: E402
+from codex_auto_resume import ladder, managed, settings  # noqa: E402
 from codex_auto_resume.domain.plug import DEFER, Alternative, Point  # noqa: E402
 from codex_auto_resume.machine import TERMINAL  # noqa: E402
 from codex_auto_resume_advanced import policy, surfaces  # noqa: E402
@@ -191,6 +191,23 @@ class CeilingTests(CapacityCase):
         self.h.tick(advance=60)
         self.assertIn((JournalCode.CEILING, Point.GATES, Alternative.CAPACITY), self.journal(plug))
         self.assertNotEqual(json.loads(self.h.record()["gate_eval"])["known_failure"], ["WAIT", "held"])
+
+    def test_an_administrators_max_recovery_attempts_holds_it_as_it_holds_the_standard_edition(self):
+        """The capability passes the person's budgets, never the administrator's: MaxRecoveryAttempts at
+        1 lets one continuation go, as in the standard edition, and then the task ends."""
+        plug = self.armed()
+        self.h.engine.apply_policy(settings.defaults(), managed.Managed(max_recovery_attempts=1))
+        self.h.engine._random = Fixed(0.0)
+        self.h.backend.after_accept = "queue"
+        self.failing(OVERLOADED)
+        self.h.tick()
+        self.again(self.h, OVERLOADED)
+        for _ in range(30):
+            self.h.tick(advance=60)
+        last = self.h.records()[-1]
+        self.assertEqual((last["state"], last["last_error"]), ("retry_budget_exhausted", "recovery_budget"))
+        self.assertEqual(len(self.h.backend.send_calls), 1)
+        self.assertEqual(len(self.spends(plug)), 1)
 
 
 class TripwireTests(CapacityCase):

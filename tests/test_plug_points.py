@@ -2447,6 +2447,27 @@ class CapacityTests(PluggedCase):
         self.assertIn(h.records()[-1]["state"], ("no_progress_exhausted", "retry_budget_exhausted"))
         self.assertLess(h.now - h.records()[0]["detected_at"], ladder.CAPACITY_MAX_SECONDS)
 
+    def test_an_administrators_max_recovery_attempts_still_holds_it(self):
+        """CAPACITY passes the person's own budgets, never the administrator's ceiling (managed.clamp):
+        with MaxRecoveryAttempts at 2, two continuations go and the task ends on its attempt budget."""
+        h = self.h
+        failed(h, OVERLOADED)
+        engine = self.plugged(admitting(Alternative.CAPACITY), h)
+        engine.apply_policy(settings.defaults(), managed.Managed(max_recovery_attempts=2))
+        engine._random = Fixed(0.0)
+        h.backend.after_accept = "queue"
+        h.tick()
+        self.assertEqual(engine.capacity_limits()["max_recovery_attempts"], 2)
+        for _ in range(2):
+            self.continue_and_fail(h)
+        for _ in range(30):
+            h.tick(advance=60)
+        row = h.records()[-1]
+        self.assertEqual((row["state"], row["last_error"]), ("retry_budget_exhausted", "recovery_budget"))
+        self.assertEqual(len(h.backend.send_calls), 2)
+        engine.apply_policy(settings.defaults())
+        self.assertEqual(engine.capacity_limits()["max_recovery_attempts"], ladder.CAPACITY_PER_DAY)
+
     def test_twelve_hours_on_the_clock_end_it_whatever_it_waited_aside(self):
         h = self.h
         self.vouched(h)
