@@ -347,10 +347,120 @@ def _mw(ctx):
                     "end it, or did not survive; re-measure before offering start-with-Codex", **observed)
 
 
+def _mp1(ctx):
+    """The side panel's New tab lists the settings panel and opens it (v0.6.14). The harness reads
+    whether the engine kept what the app builds the entry from - the panel tool's template and its
+    `{"type": "thread"}` entrypoint - in the Codex home's MCP listing; that the New tab shows it and
+    opens it is what the person then confirms.
+
+    One read, `mcpServerStatus/list`, and nothing else: no tool is called, no resource read. It asks
+    first for this product's server by the name the plugin gives it (`_MP1_SERVER`), so only that
+    server is started; where Codex lists it under another name, it lists the home's servers - tools
+    only, a few at a time, so no page outgrows the session's one-megabyte line - and starts each of
+    them, as the app does when it starts. Starting this product's installed server runs its own
+    start-with-Codex step: a line in the installation's codex-start log, and where Start with Codex
+    is on and no watcher runs, the watcher started. Run it with the watcher running."""
+    with ctx.open() as session:
+        try:
+            servers = _mcp_servers(session, {"serverName": _MP1_SERVER, "detail": "full"}, pages=1)
+        except AdapterError as exc:
+            if not hasattr(exc, "method"):
+                raise
+            servers = []                              # Codex would not look it up by that name
+        tool = _settings_tool(servers)
+        named = tool is not None
+        if not named:
+            servers = _mcp_servers(session, {"detail": "toolsAndAuthOnly", "limit": _MP1_PAGE},
+                                   pages=_MP1_PAGES)
+            tool = _settings_tool(servers)
+    meta = tool.get("_meta") if isinstance(tool, dict) else None
+    meta = meta if isinstance(meta, dict) else {}
+    ui = meta.get("openai/ui") if isinstance(meta.get("openai/ui"), dict) else {}
+    entrypoints = ui.get("entrypoints") if isinstance(ui.get("entrypoints"), list) else []
+    from codex_auto_resume.mcp.tools import SETTINGS_UI
+    observed = {"servers": len(servers), "named_lookup": named, "server_listed": tool is not None,
+                "template_kept": meta.get("openai/outputTemplate") == SETTINGS_UI,
+                "entrypoint_kept": _THREAD_ENTRYPOINT in entrypoints}
+    if not observed["server_listed"]:
+        return _blocked("Codex lists no server with the settings panel's tool: is the plugin installed "
+                        "and enabled in this Codex home? Then run mp1 again", **observed)
+    if observed["template_kept"] and not observed["entrypoint_kept"]:
+        return Verdict.FAIL, observed, "the engine keeps the panel's template and drops its side-panel entrypoint"
+    if not observed["template_kept"]:
+        return _blocked("the listing carries no template for the panel's tool, so the harness cannot "
+                        "tell whether the engine keeps the entrypoint; confirm in the app as below, "
+                        "then set the verdict", **observed)
+    return _blocked("open a throwaway conversation's right side panel, New tab, More tools...: "
+                    "confirm Open Auto Resume settings is under Plugins and MCPs and opens the panel "
+                    "with the state the Dashboard shows, then set the verdict", **observed)
+
+
+def _mcp_servers(session, params, *, pages) -> list:
+    """The servers `mcpServerStatus/list` answers with `params`, following its cursor for at most
+    `pages` pages. Only what each server is is kept here, for `_settings_tool`; nothing of it is
+    recorded but a count and what that tool carries."""
+    servers, cursor = [], None
+    for _page in range(pages):
+        asked = dict(params, cursor=cursor) if cursor is not None else dict(params)
+        answer = session.call("mcpServerStatus/list", asked)
+        data = answer.get("data") if isinstance(answer, dict) else None
+        servers += [server for server in (data if isinstance(data, list) else []) if isinstance(server, dict)]
+        cursor = answer.get("nextCursor") if isinstance(answer, dict) else None
+        if not isinstance(cursor, str) or not cursor:
+            break
+    return servers
+
+
+def _settings_tool(servers):
+    """The settings panel's tool, as the listing carries it: `open_settings` with this product's
+    template where some server has one, else the first `open_settings` listed, else None. The
+    listing gives a server's tools by name (McpServerStatus.tools); a list is read as well."""
+    from codex_auto_resume.mcp.tools import SETTINGS_UI
+    found = []
+    for server in servers:
+        tools = server.get("tools")
+        tools = tools.values() if isinstance(tools, dict) else tools if isinstance(tools, list) else ()
+        found += [tool for tool in tools if isinstance(tool, dict) and tool.get("name") == "open_settings"]
+    for tool in found:
+        meta = tool.get("_meta")
+        if isinstance(meta, dict) and meta.get("openai/outputTemplate") == SETTINGS_UI:
+            return tool
+    return found[0] if found else None
+
+
+def _mp2(_ctx):
+    """Open beside the chat moves the panel into a right side panel tab, and closing the tab brings
+    it back (v0.6.14). Nothing for the harness to read: no session is opened."""
+    return _blocked("in a throwaway conversation ask Codex to open auto resume settings and press Open "
+                    "beside the chat: confirm a right side panel tab shows the panel, scrollable to Save, "
+                    "with the same state, and that closing the tab puts it back in the conversation with "
+                    "the button; then set the verdict", session_opened=False)
+
+
+def _mp3(_ctx):
+    """Beside the chat the panel calls its tools and reads again on return, and nothing appears in the
+    conversation (v0.6.14). Nothing for the harness to read: no session is opened."""
+    return _blocked("in that side panel tab press Preview, click away for 15 seconds and back (the panel "
+                    "redraws), set Theme to Dark and Save, then back and Save: confirm each works and no "
+                    "new item appears in the conversation, note whether an approval prompt appeared, then "
+                    "set the verdict", session_opened=False)
+
+
+# MP1's lookups: the name the plugin gives this product's server in Codex (build/plugin-mcp.json,
+# `mcpServers`), and how much of the home's listing it reads where Codex lists the server under
+# another name - ten servers to a page, at most ten pages.
+_MP1_SERVER = "codex-auto-resume"
+_MP1_PAGE = 10
+_MP1_PAGES = 10
+# The entrypoint the panel's tool declares for a conversation's side panel (mcp/tools.py).
+_THREAD_ENTRYPOINT = {"type": "thread"}
+
+
 PROBES = {
     Measurement.M1: _m1, Measurement.M2: _m2, Measurement.M2B: _m2b, Measurement.M3: _m3,
     Measurement.M4: _m4, Measurement.M5: _m5, Measurement.M6: _m6, Measurement.M7: _m7,
     Measurement.MH: _mh, Measurement.MA: _ma, Measurement.MW: _mw,
+    Measurement.MP1: _mp1, Measurement.MP2: _mp2, Measurement.MP3: _mp3,
 }
 
 # A conversation and a message id of no one's: the shape a call takes, never a real id. A probe

@@ -767,6 +767,166 @@ class M2bTests(unittest.TestCase):
         self.assertNotIn("thread/resume", protocol.methods_for(Measurement.M2B))
 
 
+SETTINGS_UI = "ui://codex-auto-resume/settings"
+
+
+def settings_tool(entrypoints=({"type": "thread"},), template=SETTINGS_UI):
+    """The panel's tool as Codex's MCP listing carries it (McpServerStatus.tools: a map by name)."""
+    meta = {"openai/toolInvocation/invoked": "Auto Resume settings"}
+    if template is not None:
+        meta["openai/outputTemplate"] = template
+    if entrypoints is not None:
+        meta["openai/ui"] = {"entrypoints": [dict(entry) for entry in entrypoints]}
+    return {"name": "open_settings", "title": "Open Auto Resume settings", "inputSchema": {"type": "object"},
+            "_meta": meta}
+
+
+def mcp_server(name, *tools):
+    return {"name": name, "authStatus": "unsupported", "resources": [], "resourceTemplates": [],
+            "tools": {tool["name"]: tool for tool in tools}}
+
+
+class ListingSession(FakeSession):
+    """MP1's session: `mcpServerStatus/list` answered by `answer(params)`, each call's params kept."""
+
+    def __init__(self, measurement, answer):
+        super().__init__(measurement)
+        self.answer = answer
+
+    def call(self, method, params=None):
+        if method not in self.allowed:
+            raise protocol.SessionRefused("not permitted for this measurement")
+        self.calls.append(method)
+        self.params.append((method, params))
+        reply = self.answer(params)
+        if isinstance(reply, Exception):
+            raise reply
+        return reply
+
+
+class SidePanelMeasurementTests(unittest.TestCase):
+    """MP1-MP3 (v0.6.14): whether Codex shows the settings panel beside a conversation. MP1 reads the
+    home's MCP listing - asking for this product's server by name first, so only it starts - and
+    records counts and booleans; MP2 and MP3 are what a person sees in the app and open no session."""
+
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: shutil.rmtree(self.dir, ignore_errors=True))
+
+    def run_one(self, measurement, answer=None):
+        made = []
+
+        def opening(which):
+            made.append(ListingSession(which, answer))
+            return made[-1]
+        summary = measure.run(measurement, session_factory=opening,
+                              versions={"product_version": "0.6.14-beta", "codex_version": "0.162.0",
+                                        "windows_build": "10.0.26300"},
+                              clock=lambda: 1_800_000_000.0, directory=self.dir)
+        record = json.loads(Path(summary["recorded"]).read_text(encoding="utf-8"))
+        self.assertEqual(live_evidence.content_refusals(record), [])
+        return record, (made[0] if made else None)
+
+    def test_mp1_finds_the_panel_by_its_servers_own_name_and_leaves_the_app_to_the_person(self):
+        record, session = self.run_one(Measurement.MP1, lambda params: {
+            "data": [mcp_server("codex-auto-resume", settings_tool())], "nextCursor": None})
+        self.assertEqual(session.calls, ["mcpServerStatus/list"])
+        self.assertEqual(session.params[0][1], {"serverName": "codex-auto-resume", "detail": "full"})
+        self.assertEqual(record["verdict"], str(Verdict.BLOCKED))
+        self.assertEqual(record["observed"], {"servers": 1, "named_lookup": True, "server_listed": True,
+                                              "template_kept": True, "entrypoint_kept": True,
+                                              "thread_given": False})
+        self.assertIn("New tab", record["note"])
+
+    def test_mp1_asks_for_the_name_the_plugin_gives_the_server(self):
+        declared = json.loads((ROOT / "build" / "plugin-mcp.json").read_text(encoding="utf-8"))
+        self.assertEqual(list(declared["mcpServers"]), [measure._MP1_SERVER])
+
+    def test_mp1_looks_for_the_entrypoint_the_panels_tool_declares(self):
+        from codex_auto_resume.mcp import tools
+        self.assertEqual(SETTINGS_UI, tools.SETTINGS_UI)
+        declared = getattr(tools, "SIDE_PANEL_ENTRYPOINTS", None)
+        if declared is not None:                 # from the commit that gives the tool its entrypoint
+            self.assertIn(measure._THREAD_ENTRYPOINT, list(declared))
+
+    def test_mp1_is_a_fail_where_the_engine_keeps_the_template_and_drops_the_entrypoint(self):
+        for entrypoints in (None, (), ({"type": "global"},)):
+            with self.subTest(entrypoints=entrypoints):
+                record, _session = self.run_one(Measurement.MP1, lambda params: {
+                    "data": [mcp_server("codex-auto-resume", settings_tool(entrypoints))]})
+                self.assertEqual(record["verdict"], str(Verdict.FAIL))
+                self.assertIs(record["observed"]["template_kept"], True)
+                self.assertIs(record["observed"]["entrypoint_kept"], False)
+
+    def test_mp1_lists_the_home_a_page_at_a_time_where_codex_knows_no_server_by_that_name(self):
+        other = mcp_server("elsewhere", {"name": "search", "inputSchema": {}})
+
+        def answer(params):
+            if "serverName" in params:
+                return {"data": [], "nextCursor": None}
+            if params.get("cursor") is None:
+                return {"data": [other], "nextCursor": "page-2"}
+            return {"data": [mcp_server("codex-auto-resume@plugins", settings_tool())], "nextCursor": None}
+        record, session = self.run_one(Measurement.MP1, answer)
+        self.assertEqual([params for _method, params in session.params], [
+            {"serverName": "codex-auto-resume", "detail": "full"},
+            {"detail": "toolsAndAuthOnly", "limit": 10},
+            {"detail": "toolsAndAuthOnly", "limit": 10, "cursor": "page-2"}])
+        self.assertEqual(record["observed"]["servers"], 2)
+        self.assertIs(record["observed"]["named_lookup"], False)
+        self.assertIs(record["observed"]["entrypoint_kept"], True)
+        self.assertEqual(record["verdict"], str(Verdict.BLOCKED))
+
+    def test_mp1_lists_the_home_where_codex_refuses_the_lookup_by_name(self):
+        def answer(params):
+            if "serverName" in params:
+                return protocol._refused_by_codex("mcpServerStatus/list", -32602)
+            return {"data": [mcp_server("codex-auto-resume", settings_tool())]}
+        record, session = self.run_one(Measurement.MP1, answer)
+        self.assertEqual(len(session.calls), 2)
+        self.assertIs(record["observed"]["server_listed"], True)
+        self.assertIs(record["observed"]["named_lookup"], False)
+
+    def test_mp1_reads_no_more_than_its_pages(self):
+        record, session = self.run_one(Measurement.MP1, lambda params: {
+            "data": [mcp_server("elsewhere")], "nextCursor": "again"})
+        self.assertEqual(len(session.calls), 1 + measure._MP1_PAGES)
+        self.assertEqual(record["verdict"], str(Verdict.BLOCKED))
+        self.assertIs(record["observed"]["server_listed"], False)
+        self.assertIn("enabled", record["note"])
+
+    def test_mp1_with_no_template_listed_leaves_it_to_the_person(self):
+        record, _session = self.run_one(Measurement.MP1, lambda params: {
+            "data": [mcp_server("codex-auto-resume", settings_tool(template=None))]})
+        self.assertEqual(record["verdict"], str(Verdict.BLOCKED))
+        self.assertIs(record["observed"]["template_kept"], False)
+
+    def test_mp1_records_counts_and_booleans_and_nothing_a_server_said(self):
+        tool = settings_tool()
+        tool["description"] = "Show the Codex Auto Resume settings panel"
+        record, _session = self.run_one(Measurement.MP1, lambda params: {
+            "data": [mcp_server("codex-auto-resume", tool)]})
+        text = json.dumps([record["observed"], record["note"]])
+        for said in ("codex-auto-resume", "Show the Codex", "open_settings", SETTINGS_UI):
+            self.assertNotIn(said, text)
+
+    def test_mp1_may_call_the_listing_alone_and_no_capability_calls_it(self):
+        self.assertEqual(protocol.methods_for(Measurement.MP1),
+                         frozenset({"initialize", "initialized", "mcpServerStatus/list"}))
+        for methods in protocol.CAPABILITY_METHODS.values():
+            self.assertNotIn("mcpServerStatus/list", methods)
+
+    def test_mp2_and_mp3_open_no_session_and_leave_the_verdict_to_the_person(self):
+        for measurement in (Measurement.MP2, Measurement.MP3):
+            with self.subTest(measurement):
+                self.assertEqual(protocol.methods_for(measurement), frozenset({"initialize", "initialized"}))
+                record, session = self.run_one(measurement, lambda params: AssertionError("no call"))
+                self.assertIsNone(session, "no session is opened")
+                self.assertEqual(record["verdict"], str(Verdict.BLOCKED))
+                self.assertEqual(record["observed"], {"session_opened": False, "thread_given": False})
+                self.assertIn("set the verdict", record["note"])
+
+
 class _UnusedRuntime:
     def run_measurement(self, *a, **k):     # pragma: no cover - a bad request never reaches this
         raise AssertionError("a bad request must not reach the runtime")

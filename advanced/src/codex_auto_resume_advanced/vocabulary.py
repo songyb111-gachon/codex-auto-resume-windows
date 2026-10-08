@@ -184,6 +184,14 @@ class Measurement(StrEnum):
     MH = "mh"                                # the Desktop runs on a second CODEX_HOME
     MA = "ma"                                # the running app picks up an account logout+login
     MW = "mw"                                # re-proof of the WMI escape, with the job words
+    # The settings panel beside a conversation, in the Codex app's right side panel (v0.6.14): the
+    # engine keeps the panel's side-panel entrypoint and the side panel's New tab lists the panel and
+    # opens it (MP1); Open beside the chat moves it into a side panel tab, and closing the tab brings
+    # it back (MP2); beside the chat it calls its tools and reads again on return, and nothing
+    # appears in the conversation (MP3). Each is what a person sees in the app; MP1 alone reads.
+    MP1 = "mp1"
+    MP2 = "mp2"
+    MP3 = "mp3"
 
 
 class GoalStatus(StrEnum):
