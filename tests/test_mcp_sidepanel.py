@@ -14,6 +14,7 @@ from __future__ import annotations
 import io
 import json
 from pathlib import Path
+import shutil
 import sys
 import types
 import unittest
@@ -23,9 +24,15 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tests"))
 
-from codex_auto_resume.mcp import server as mcp_server, tools  # noqa: E402
+from codex_auto_resume import l10n  # noqa: E402
+from codex_auto_resume.mcp import panel as mcpui, server as mcp_server, tools  # noqa: E402
+import test_mcpui_v064 as panelpage  # noqa: E402
+from test_mcpui_v063 import RULES  # noqa: E402
 
 ENTRYPOINT_TYPES = ("thread", "global", "settings", "file")
+NODE = shutil.which("node")
+ENGLISH = l10n.catalog("en")
+say = panelpage.say
 
 
 class StubControl:
@@ -139,6 +146,153 @@ class DisplayModeTests(unittest.TestCase):
         self.assertEqual(reply["result"]["resources"], [{
             "uri": tools.SETTINGS_UI, "name": "Codex Auto Resume settings",
             "description": "The settings panel shown by open_settings.", "mimeType": "text/html+skybridge"}])
+
+
+# ------------------------------------------------------------------------------ the page in Node
+# The panel's own script in the stand-in document of test_mcpui_v064. Its host is the one `stored()` makes
+# there, given what the Codex app adds to it - requestDisplayMode, displayMode - after `stored()` has made it
+# (run_page's `host`), and listeners the test can fire: the stand-in's window and document have none.
+LISTENERS = r"""
+var LISTENED = {};
+window.addEventListener = function (type, fn) { (LISTENED['window:' + type] = LISTENED['window:' + type] || []).push(fn); };
+document.addEventListener = function (type, fn) { (LISTENED['document:' + type] = LISTENED['document:' + type] || []).push(fn); };
+document.visibilityState = 'visible';
+function fire(where, type, detail) {
+  (LISTENED[where + ':' + type] || []).forEach(function (fn) { fn({type: type, detail: detail}); });
+}
+"""
+
+
+def host(mode="inline", request=True, answer="{mode: 'fullscreen'}"):
+    """What the Codex app adds to the page's host: the mode it says the page is shown in, and a
+    requestDisplayMode that records each request and answers `answer` (a JavaScript expression; a
+    rejection is `Promise.reject(new Error('no'))`)."""
+    lines = ["var MODES = [];"]
+    if mode is not None:
+        lines.append("window.openai.displayMode = %s;" % json.dumps(mode))
+    if request:
+        lines.append("window.openai.requestDisplayMode = function (args) { MODES.push(args); return Promise.resolve(%s); };"
+                     % answer)
+    return "\n".join(lines)
+
+
+def page(body, mode="inline", request=True, answer="{mode: 'fullscreen'}", data=None, extra=""):
+    if not NODE:
+        raise unittest.SkipTest("needs Node to run the panel's own code")
+    return panelpage.run_page(body, data=data, prelude=LISTENERS,
+                              host=host(mode, request, answer) + "\n" + extra)
+
+
+SAVEBAR = r"""
+function savebar() { return ROOT_NODE.all(function (n) { return n.tagName === 'footer' && n.className === 'savebar'; })[0]; }
+function beside() { var bar = savebar(); return bar ? bar.children.filter(function (n) { return n.className === 'beside'; })[0] : undefined; }
+function shown() { var b = beside(); return b ? (b.hidden ? 'hidden' : 'shown') : 'absent'; }
+"""
+
+
+@unittest.skipUnless(NODE, "needs Node to run the panel's own code")
+class BesideButtonTests(unittest.TestCase):
+    """Open beside the chat: offered only where the host can move the page and says it is inline, at
+    the save bar's leading edge, asking only from its click, and gone for good once Codex keeps it."""
+
+    def test_it_is_offered_where_the_host_can_move_an_inline_page_first_in_the_save_bar(self):
+        seen = page(SAVEBAR + say("""{shown: shown(), first: savebar().children[0] === beside(),
+            last: savebar().children[savebar().children.length - 1].textContent, text: beside().textContent,
+            modes: MODES}"""))
+        self.assertEqual(seen, {"shown": "shown", "first": True, "last": ENGLISH["action.save"],
+                                "text": ENGLISH["action.open_beside"], "modes": []})
+        self.assertEqual(ENGLISH["action.open_beside"], "Open beside the chat")
+
+    def test_it_is_not_offered_beside_the_chat_nor_where_the_host_cannot_say_or_move(self):
+        for mode, request, expected in (("fullscreen", True, "hidden"), (None, True, "hidden"),
+                                        ("pip", True, "hidden"), ("inline", False, "absent")):
+            with self.subTest(mode=mode, request=request):
+                self.assertEqual(page(SAVEBAR + say("shown()"), mode=mode, request=request), expected)
+
+    def test_without_a_host_there_is_nothing_to_offer(self):
+        seen = page(SAVEBAR + say("shown()"), extra="window.openai = {requestDisplayMode: function () {}, "
+                                                     "displayMode: 'inline'};")
+        self.assertEqual(seen, "absent")
+
+    def test_its_click_asks_once_for_beside_the_chat_and_calls_no_tool(self):
+        seen = page(SAVEBAR + """var before = CALLS.length; beside().onclick(); await settle();"""
+                    + say("{modes: MODES, calls: CALLS.slice(before), shown: shown(), note: footerNote().textContent}"))
+        self.assertEqual(seen, {"modes": [{"mode": "fullscreen"}], "calls": [], "shown": "hidden", "note": ""})
+
+    def test_an_answer_that_keeps_the_page_here_or_a_refusal_hides_it_for_good_and_says_so(self):
+        for answer in ("{mode: 'inline'}", "Promise.reject(new Error('no'))", "undefined"):
+            with self.subTest(answer=answer):
+                seen = page(SAVEBAR + """beside().onclick(); await settle(); var note = footerNote().textContent;
+                    var after = shown(); render(); fire('window', 'openai:set_globals', {globals: {displayMode: 'inline'}});"""
+                            + say("{note: note, after: after, redrawn: shown(), modes: MODES.length}"), answer=answer)
+                self.assertEqual(seen, {"note": ENGLISH["panel.beside_refused"], "after": "hidden",
+                                        "redrawn": "absent", "modes": 1})
+        self.assertEqual(ENGLISH["panel.beside_refused"], "Codex kept the panel here.")
+
+    def test_the_page_never_asks_by_itself(self):
+        seen = page(SAVEBAR + """render(); fire('window', 'openai:set_globals', {globals: {}});
+            window.openai.displayMode = 'fullscreen'; fire('window', 'openai:set_globals', {globals: {}});
+            window.openai.displayMode = 'inline'; fire('window', 'openai:set_globals', {globals: {}});
+            fire('window', 'focus'); fire('document', 'visibilitychange'); await settle();""" + say("MODES"))
+        self.assertEqual(seen, [])
+
+    def test_a_change_of_mode_shows_or_hides_it_in_place(self):
+        seen = page(SAVEBAR + """var drawn = ROOT_NODE.children[0], button = beside(), seen = [shown()];
+            window.openai.displayMode = 'fullscreen'; fire('window', 'openai:set_globals', {globals: {displayMode: 'fullscreen'}});
+            seen.push(shown());
+            window.openai.displayMode = 'inline'; fire('window', 'openai:set_globals', {globals: {displayMode: 'inline'}});
+            seen.push(shown());"""
+                    + say("{seen: seen, same: ROOT_NODE.children[0] === drawn && beside() === button}"))
+        self.assertEqual(seen, {"seen": ["shown", "hidden", "shown"], "same": True})
+
+    def test_the_bar_keeps_it_at_its_leading_edge_when_it_wraps(self):
+        """Every button in the bar takes an automatic start margin, which would push this one to the end
+        of a wrapped line; its own rule puts it back at the start."""
+        rules = [(selectors, declarations) for context, selectors, declarations in RULES if context == ""]
+        own = [declarations for selectors, declarations in rules if ".savebar .beside" in selectors]
+        self.assertEqual([declarations.get("margin-inline-start") for declarations in own], ["0"])
+        shared = [declarations for selectors, declarations in rules if ".savebar button" in selectors]
+        self.assertEqual([declarations.get("margin-inline-start") for declarations in shared], ["auto"])
+
+    def test_every_language_has_its_words(self):
+        names, _prefixes = mcpui.panel_keys()
+        self.assertLessEqual({"action.open_beside", "panel.beside_refused"}, names)
+        for locale in l10n.OFFERED:
+            catalog = mcpui.panel_catalogs()[locale]
+            with self.subTest(locale):
+                for key in ("action.open_beside", "panel.beside_refused"):
+                    self.assertTrue(catalog[key].strip())
+                    if locale != "en":
+                        self.assertNotEqual(catalog[key], ENGLISH[key])
+        self.assertEqual(mcpui.panel_catalogs()["ko"]["action.open_beside"], "채팅 옆에 열기")
+
+
+@unittest.skipUnless(NODE, "needs Node to run the panel's own code")
+class LateResultTests(unittest.TestCase):
+    """The side panel's tab calls the tool itself, and Codex may hand the page its result after the page
+    has started: a page with nothing to draw from takes it when the host says it changed."""
+
+    EMPTY = "window.__CODEX_AUTO_RESUME__ = undefined;"
+
+    def test_a_result_that_arrives_after_the_page_started_is_drawn(self):
+        for given in ("window.openai.toolOutput = window.LATE; fire('window', 'openai:set_globals', {globals: {}});",
+                      "fire('window', 'openai:set_globals', {globals: {toolOutput: window.LATE}});",
+                      "window.openai.toolOutput = JSON.stringify(window.LATE); fire('window', 'openai:set_globals', {globals: {}});"):
+            with self.subTest(given=given):
+                seen = page(SAVEBAR + "var before = ROOT_NODE.textContent; " + given + " await settle();"
+                            + say("{before: before, drawn: !!savebar(), offered: shown()}"),
+                            extra=self.EMPTY + " window.LATE = %s;" % json.dumps(panelpage.snapshot()))
+                self.assertEqual(seen, {"before": ENGLISH["panel.unavailable"], "drawn": True, "offered": "shown"})
+
+    def test_nothing_that_is_not_a_result_is_drawn_and_a_drawn_page_is_not_replaced(self):
+        seen = page(SAVEBAR + """fire('window', 'openai:set_globals', {globals: {toolOutput: 'not json'}});
+            fire('window', 'openai:set_globals', {globals: {toolOutput: [1, 2]}}); var empty = ROOT_NODE.textContent;"""
+                    + say("empty"), extra=self.EMPTY)
+        self.assertEqual(seen, ENGLISH["panel.unavailable"])
+        seen = page(SAVEBAR + """var drawn = ROOT_NODE.children[0];
+            fire('window', 'openai:set_globals', {globals: {toolOutput: {status: {}, settings: {}, pending: []}}});"""
+                    + say("ROOT_NODE.children[0] === drawn"))
+        self.assertIs(seen, True)
 
 
 if __name__ == "__main__":

@@ -12,7 +12,11 @@ function bridge() {
 
 function initialData() {
   var host = bridge() || window.openai || {};
-  var output = host.toolOutput || host.output || window.__CODEX_AUTO_RESUME__;
+  return parsedOutput(host.toolOutput || host.output || window.__CODEX_AUTO_RESUME__);
+}
+
+// A tool result as the host hands it: an object, or the same as JSON text. Null for anything else.
+function parsedOutput(output) {
   if (typeof output === 'string') { try { output = JSON.parse(output); } catch (e) { output = null; } }
   return output || null;
 }
@@ -2131,19 +2135,75 @@ function refreshPreview() {
   });
 }
 
+// v0.6.14: beside the chat. In a conversation the Codex app shows this page inline or "fullscreen", and
+// there its fullscreen is the right side panel, beside the chat. Where the host can be asked to move the
+// page (requestDisplayMode) and says it is inline, the save bar offers Open beside the chat; nothing but
+// that click asks. A request Codex does not grant - answered with another mode, or refused - hides the
+// button for the page's life (BESIDE_REFUSED), and the bar says Codex kept the panel where it is. The
+// button drawn now, which a change of mode shows or hides in place (hostChanged), is BESIDE.
+var BESIDE_REFUSED = false;
+var BESIDE = null;
+
+// How the host says the page is shown: 'inline' in the conversation, 'fullscreen' beside it - or ''
+// where it says nothing, as a host that cannot move the page does.
+function displayMode() {
+  var mode = HOST && HOST.displayMode;
+  return typeof mode === 'string' ? mode : '';
+}
+
+// Whether to offer Open beside the chat now: a host that can be asked, a page in the conversation, and
+// no refusal yet.
+function besideOffered() {
+  return !!HOST && typeof HOST.requestDisplayMode === 'function' && displayMode() === 'inline' && !BESIDE_REFUSED;
+}
+
+// Ask Codex to show the page beside the chat, from the button's click alone. The answer is the mode set
+// (MCP Apps' ui/request-display-mode, the Apps SDK's requestDisplayMode); with none, what the host says
+// afterwards. Anything but fullscreen is Codex keeping the page here.
+function openBeside(footer) {
+  var button = footer.beside;
+  button.disabled = true;
+  Promise.resolve().then(function () {
+    return HOST.requestDisplayMode({mode: 'fullscreen'});
+  }).then(function (answer) {
+    var mode = answer && typeof answer.mode === 'string' ? answer.mode : displayMode();
+    if (mode !== 'fullscreen') throw new Error('kept');
+    button.disabled = false;
+    button.hidden = true;
+  }).catch(function () {
+    BESIDE_REFUSED = true;
+    button.disabled = false;
+    button.hidden = true;
+    footer.message.textContent = t('panel.beside_refused', 'Codex kept the panel here.');
+    // The button the keyboard was on is gone; the bar's commit is beside it.
+    if (typeof footer.save.focus === 'function') footer.save.focus({preventScroll: true});
+  });
+}
+
 function renderFooter(schema) {
   var bar = element('footer', 'savebar');
   var save = element('button', null, t('action.save', 'Save'));
   save.disabled = !HOST;
   var message = element('p', 'note');
   message.setAttribute('role', 'status');
+  // v0.6.14: Open beside the chat at the bar's leading edge, drawn wherever the host can be asked and
+  // Codex has not kept the page here, and hidden while the page is not inline (besideOffered).
+  var beside = null;
+  if (HOST && typeof HOST.requestDisplayMode === 'function' && !BESIDE_REFUSED) {
+    beside = element('button', 'beside', t('action.open_beside', 'Open beside the chat'));
+    beside.hidden = !besideOffered();
+    bar.appendChild(beside);
+  }
+  BESIDE = beside;
   // What happened first, the button last: the commit sits where Windows puts it.
   bar.appendChild(message);
   bar.appendChild(save);
   // Quiet until there is something to save, so a changed switch visibly waits for it.
   HOOKS.dirty = function () { save.className = unsaved(schema) ? 'primary' : ''; };
   HOOKS.dirty();
-  return {node: bar, save: save, message: message};
+  var footer = {node: bar, save: save, message: message, beside: beside};
+  if (beside) beside.onclick = function () { openBeside(footer); };
+  return footer;
 }
 
 // The switches whose change a tool confirmed, moved now that they are drawn in the state they
@@ -2275,6 +2335,7 @@ function render() {
   SHOWN = {};
   GLIDES = [];
   HERO = null;
+  BESIDE = null;
   if (!DATA) {
     root.appendChild(element('p', 'note',
       t('panel.unavailable', 'Settings are not available in this view.')));
@@ -2416,6 +2477,34 @@ function render() {
     };
   }
 }
+
+// v0.6.14: what the host says of the page has changed - Codex sends `openai:set_globals` when it does. The
+// button follows where the page is shown, in place, with nothing drawn anew. And a page that had no tool
+// result to draw from when it started - the side panel's tab, which calls the tool itself and may be
+// answered after the page has loaded - draws the result it is handed now; one already drawn is left as it
+// is, since a page that changed under the person would undo what they were doing.
+function hostChanged(event) {
+  if (!DATA) {
+    var globals = (event && event.detail && event.detail.globals) || {};
+    var output = parsedOutput(globals.toolOutput !== undefined ? globals.toolOutput
+                              : (HOST || window.openai || {}).toolOutput);
+    if (!output || typeof output !== 'object' || Array.isArray(output)) return;
+    drawState(output);
+    return;
+  }
+  if (BESIDE) BESIDE.hidden = !besideOffered();
+}
+
+// A tool result the page is handed after it was first drawn, drawn as the first one is: read now, its stored
+// theme and language applied first, since it is what is true now, and the page drawn from it.
+function drawState(state) {
+  DATA = state;
+  READ_AT = readAt(DATA, Date.now() / 1000);
+  adopt(DATA.settings);
+  render();
+}
+
+if (typeof window.addEventListener === 'function') window.addEventListener('openai:set_globals', hostChanged);
 
 // The stored theme and language before anything is drawn: the page may be one Codex kept from an
 // earlier read, and the tool result is what is true now.
