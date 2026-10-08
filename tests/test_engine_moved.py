@@ -30,6 +30,7 @@ if _HERE not in sys.path:
 from test_compat_characterization import FakeCodex, Fixture  # noqa: E402
 from codex_auto_resume import config  # noqa: E402
 from codex_auto_resume.codex import pairing, transport  # noqa: E402
+from codex_auto_resume.compat import probes  # noqa: E402
 from codex_auto_resume.domain.errors import AdapterError  # noqa: E402
 from codex_auto_resume.runtime import loop  # noqa: E402
 
@@ -112,7 +113,7 @@ class TwoBuildsCase(unittest.TestCase):
         other.parent.mkdir()
         other.write_bytes(b"MZ-second-build")
         self.other = other.resolve()
-        self.rows = []
+        self.rows, self.listings = [], 0
         for stub in (patch.dict(os.environ, {"ProgramW6432": NATIVE}),
                      patch.object(transport, "inventory", side_effect=self.listed),
                      patch.object(pairing, "inventory", side_effect=self.listed),
@@ -121,6 +122,7 @@ class TwoBuildsCase(unittest.TestCase):
             self.addCleanup(stub.stop)
 
     def listed(self):
+        self.listings += 1
         if isinstance(self.rows, BaseException):
             raise self.rows
         return [dict(row) for row in self.rows]
@@ -223,6 +225,93 @@ class ServedElsewhereTests(TwoBuildsCase):
         with patch.object(self.app, "_codex_exe_override", str(self.first.codex_exe)):
             self.assertFalse(self.app.engine_moved())
         self.assertIs(self.app.backend(), self.first)
+
+
+class TwoThatPassTests(TwoBuildsCase):
+    """Both folders hold a build that passes the engine checks, which discovery refused as
+    ambiguous (E5). Now the one the app main runs as its Codex server is driven, when exactly one
+    of them is; anything else is refused as before, and a named engine is used as named."""
+
+    def look_again(self):
+        """Another file at the held path, so the next build discovers among the two that pass."""
+        self.fixture.exe.write_bytes(b"MZ-the-first-build-written-again")
+        self.assertTrue(self.app.engine_moved())
+
+    def compatible(self, path):
+        transport.Backend(self.fixture.home.root, path)._compatible()
+
+    def test_of_two_that_pass_the_one_the_app_runs_is_driven(self):
+        self.serve(self.other)
+        self.assertIsNone(self.paired())
+        self.assertTrue(self.app.engine_moved())
+        with self.assertLogs(self.app.logger, "INFO") as logged:
+            backend = self.app.backend()
+        self.assertEqual(backend.codex_exe, self.other)
+        self.assertEqual(backend.app_identity()["server"]["path"], str(self.other).lower())
+        self.assertFalse(self.app.engine_moved())
+        chose = [line for line in logged.output if "more than one official Codex engine" in line]
+        self.assertEqual(len(chose), 1)
+        self.assertNotRegex(chose[0].split(":", 2)[2], r"[\\/:]|codex\.exe|fedcba|abcdef", "a path in the log")
+
+    def test_a_path_spelt_in_another_case_is_the_same_build(self):
+        self.serve(str(self.other).upper())
+        self.look_again()
+        self.assertEqual(self.app.backend().codex_exe, self.other)
+
+    def test_without_exactly_one_of_them_running_it_is_still_ambiguous(self):
+        stray = self.fixture.root / "elsewhere" / "codex.exe"
+        child = {"pid": 20, "parent": 10, "path": str(self.other)}
+        mains = [{"pid": 10, "parent": 1, "path": STORE_APP}, {"pid": 11, "parent": 1, "path": STORE_APP}]
+        self.look_again()
+        for name, serve in (("the app runs neither", lambda: self.serve()),
+                            ("the app runs both", lambda: self.serve(self.first.codex_exe, self.other)),
+                            ("the app runs another codex.exe", lambda: self.serve(stray)),
+                            ("no app main", lambda: setattr(self, "rows", [child])),
+                            ("two app mains", lambda: setattr(self, "rows", mains + [child])),
+                            ("no process list",
+                             lambda: setattr(self, "rows", AdapterError("process_inventory_unavailable")))):
+            with self.subTest(name):
+                serve()
+                listings = self.listings
+                with self.assertRaises(config.ConfigError) as refused:
+                    self.app.backend()
+                self.assertIn("ambiguous", str(refused.exception))
+                self.assertEqual(self.listings, listings + 1, "the app is asked once per discovery")
+
+    def test_a_named_engine_is_used_as_named(self):
+        self.serve(self.other)
+        self.look_again()
+        with patch.dict(os.environ, {config.ENV_CODEX_EXE: str(self.first.codex_exe)}):
+            self.assertEqual(self.app.backend().codex_exe, self.first.codex_exe)
+        self.fixture.exe.write_bytes(b"MZ-the-first-build-written-a-third-time")
+        with patch.object(self.app, "_codex_exe_override", str(self.first.codex_exe)):
+            self.assertTrue(self.app.engine_moved())
+            self.assertEqual(self.app.backend().codex_exe, self.first.codex_exe)
+        self.assertEqual(self.listings, 0, "a named engine is not second-guessed")
+
+    def test_discovery_asks_the_app_only_where_several_pass(self):
+        asked = []
+
+        def running():
+            asked.append(True)
+            return [str(self.other)]
+        self.codex.failing.add(key(self.other))
+        self.assertEqual(config.discover_codex_exe(None, self.compatible, running=running), self.first.codex_exe)
+        self.assertEqual(asked, [], "one build passes: nothing is asked")
+        self.codex.failing.clear()
+        self.assertEqual(config.discover_codex_exe(None, self.compatible, running=running), self.other)
+        self.assertEqual(asked, [True])
+        for answer in (None, lambda: None, lambda: 1 / 0, lambda: ["C:\\not\\a\\build.exe"]):
+            with self.subTest(answer=answer), self.assertRaises(config.ConfigError):
+                config.discover_codex_exe(None, self.compatible, running=answer)
+
+    def test_a_reader_with_no_watcher_chooses_as_the_watcher_does(self):
+        self.serve(self.other)
+        backend, record = probes.discover(self.fixture.home.root)
+        self.assertEqual(backend.codex_exe, self.other)
+        self.assertEqual({key(path) for path in record}, {key(self.first.codex_exe), key(self.other)})
+        self.serve(self.first.codex_exe, self.other)
+        self.assertIsNone(probes.discover(self.fixture.home.root)[0])
 
 
 if __name__ == "__main__":

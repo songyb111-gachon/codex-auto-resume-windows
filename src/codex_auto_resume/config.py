@@ -355,10 +355,30 @@ def candidate_codex_exes() -> list[Path]:
     return found
 
 
-def discover_codex_exe(explicit: str | os.PathLike | None, compatible) -> Path:
+def _served(usable: list, running) -> Path | None:
+    """Of the builds in `usable`, the one the ChatGPT app main runs as its Codex server, when that
+    is exactly one of them; None when it is none or several, or `running` cannot answer."""
+    if running is None:
+        return None
+    try:
+        served = {os.path.normcase(str(path)) for path in running()}
+    except Exception:
+        return None
+    chosen = [path for path in usable if os.path.normcase(str(path)) in served]
+    return chosen[0] if len(chosen) == 1 else None
+
+
+def discover_codex_exe(explicit: str | os.PathLike | None, compatible, running=None) -> Path:
     """Return exactly one official codex.exe that passes ``compatible(path)``.
 
     ``compatible`` must raise on an unsupported binary. Ambiguity fails closed.
+
+    v0.6.13: an update can leave the old build beside the new one, both passing. Where several
+    pass and ``running`` is given - a callable returning the image paths the ChatGPT app main runs
+    as its codex.exe children (codex/pairing.py, app_engines) - the one of them the app runs is
+    driven, if exactly one is; anything else, the question failing included, is the refusal it
+    always was. A path that is named (the argument or the environment) is never second-guessed:
+    `running` is not asked.
     """
     chosen = explicit or os.environ.get(ENV_CODEX_EXE)
     if chosen:
@@ -383,6 +403,9 @@ def discover_codex_exe(explicit: str | os.PathLike | None, compatible) -> Path:
             continue
         usable.append(candidate)
     if len(usable) > 1:
+        served = _served(usable, running)
+        if served is not None:
+            return served
         raise ConfigError("%d official codex.exe builds pass the engine checks, so which one "
                           "to drive is ambiguous; pass --codex-exe explicitly" % len(usable))
     if not usable:

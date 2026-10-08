@@ -107,6 +107,12 @@ def server_engines(rows) -> frozenset:
                      and PureWindowsPath(row["path"]).name.lower() == "codex.exe")
 
 
+def app_engines() -> frozenset:
+    """`server_engines` of the processes running now: what discovery asks where more than one
+    official build passes the engine checks (config.discover_codex_exe), and only then."""
+    return server_engines(inventory())
+
+
 def engines_instead(rows, codex_exe) -> frozenset:
     """The codex.exe paths the app main runs as children where none of them is `codex_exe`, and
     otherwise nothing: where the main runs `codex_exe`, runs no codex.exe, or is not exactly one."""

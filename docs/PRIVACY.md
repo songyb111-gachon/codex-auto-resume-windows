@@ -281,7 +281,8 @@ resuming is safe. Codex's databases are opened read-only (SQLite `mode=ro` with
   item was recorded (`thread_items.created_at_ms`) - never what any item says.
 
 It also asks Windows content-free questions, chiefly two: which ChatGPT and Codex processes are
-running (process id, parent and executable path), to find the desktop app; and, through the
+running (process id, parent and executable path), to find the desktop app and the Codex engine
+it runs its Codex server from; and, through the
 Restart Manager, which process has the conversation's lock file open, to tell whether the
 conversation is open in the app. The rest are content-free too: the path and start time of a
 process it found, to confirm it is still the same one; where the app runs more than one

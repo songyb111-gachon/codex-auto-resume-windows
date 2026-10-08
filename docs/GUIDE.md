@@ -600,6 +600,10 @@ ownership information. It never acquires a lock on the app's file.
   the engine again, every check included: when the file it found is gone or replaced, and when the
   app runs its Codex server from another official build while that file is still there. It looks
   once for each such change, so a build that fails its checks is not tried over and over.
+- Where more than one build passes those checks - an update can leave the old one beside the new -
+  the one the ChatGPT app is running as its Codex server is the one driven. If that is not exactly
+  one of them, none is chosen and recoveries wait until `--codex-exe` or the `codex_exe` setting
+  names one. An engine named that way is always used as named.
 - Your own machine can say something about a version too.
   [codex-compat-reporter](https://github.com/songyb111-gachon/codex-compat-reporter) is a separate,
   public tool that turns this installation's own records into one report — counts, states and

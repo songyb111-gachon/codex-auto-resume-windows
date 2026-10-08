@@ -21,6 +21,7 @@ import uuid
 
 from .. import compatio, config, edition, l10n, managed, needsyou, notifier, settings as policy
 from ..codex import LocalSource
+from ..codex.pairing import app_engines
 from ..domain.plug import DEFER, EXTRA, Surface, guard
 from ..engine import Engine
 from ..logbook import LOGGER_NAME, EngineLog, setup_logging
@@ -139,10 +140,19 @@ class App(WatchLoop):
                     # Kept for the Compatibility Registry, so a refusal by a failed check can
                     # be reported as what it is. The decision itself is unchanged.
                     discovery[str(path)] = probe.last_checks()
+            asked = []
+
+            def running():
+                # v0.6.13: asked only where several official builds pass (config.discover_codex_exe).
+                asked.append(True)
+                return app_engines()
             try:
-                exe = config.discover_codex_exe(self._codex_exe_override, compatible)
+                exe = config.discover_codex_exe(self._codex_exe_override, compatible, running=running)
             finally:
                 self._discovery = discovery
+            if asked:
+                self.logger.info("more than one official Codex engine passes the engine checks; "
+                                 "the one the ChatGPT app runs as its Codex server is the one driven")
             backend = Backend(self.codex_home, exe)
             # Discovery probed a throwaway instance; run the check on the one we keep so
             # engine_version/engine_verified are populated for status, doctor and logs.
