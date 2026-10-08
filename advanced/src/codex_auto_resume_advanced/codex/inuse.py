@@ -12,8 +12,11 @@ and that is the one used here.
 
 A process that holds no watcher - the Dashboard's bridge, where a person runs a measurement - has
 been told nothing, and finds Codex as the watcher does when it is given no arguments: the
-`codex_exe` setting (or CODEX_AR_CODEX_EXE) where one is set, discovery otherwise, and CODEX_HOME's
-home. Nothing here starts a process: `backend` runs core's engine check, which a test replaces.
+`codex_exe` setting (or CODEX_AR_CODEX_EXE) where one is set, discovery otherwise - of several
+official builds that pass, the one the ChatGPT app runs as its Codex server, as the watcher chooses
+since v0.6.13 - and CODEX_HOME's home. Nothing here starts a process itself: `backend` runs core's
+engine check and, only where several builds pass, core's process list (codex/pairing.py,
+app_engines), both of which a test replaces.
 """
 from __future__ import annotations
 
@@ -67,13 +70,15 @@ def backend(paths=None):
     """Core's Backend for the Codex the installation at `paths` drives, checked, so that its
     `engine_version` is that Codex's: the one its watcher told, else the one the watcher would
     find. Raises as core's discovery and check do."""
+    from codex_auto_resume.codex.pairing import app_engines
     from codex_auto_resume.codex.transport import Backend
     found = told(paths)
     if found is not None:
         exe, where = found
     else:
         where = config.codex_home()
-        exe = config.discover_codex_exe(_pinned(paths), lambda path: Backend(where, path)._compatible())
+        exe = config.discover_codex_exe(_pinned(paths), lambda path: Backend(where, path)._compatible(),
+                                        running=app_engines)
     made = Backend(where, exe)
     made._compatible()
     return made
