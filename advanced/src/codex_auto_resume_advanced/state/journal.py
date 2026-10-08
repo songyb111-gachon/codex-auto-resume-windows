@@ -9,7 +9,10 @@ never read to decide anything: the spend ledger is the only record a decision co
 Everything here is bounded the way core's journal is - 5,000 entries or 90 days, whichever comes
 first, pruned every 256 entries - and so are the spend ledger, the records, the overrides, the
 admissions and the samples, which are pruned in the same pass. A spend is never pruned inside the day its ceilings count,
-and a record or an override that may still be acted on never at all.
+and a record or an override that may still be acted on never at all. What a watched capability would have
+done (`would_have` lines) is bounded tighter, inside those: at most WATCH_LIMIT lines a capability, its
+newest, cut in the same pass before the journal's own bound, so one noisy watched capability never
+pushes another's out (between passes one can hold up to WATCH_LIMIT + 255).
 """
 from __future__ import annotations
 
@@ -18,6 +21,7 @@ from codex_auto_resume.domain.plug import Alternative, Point
 from ..vocabulary import Actor, JournalCode, OffReason, RecordState
 
 EVENT_LIMIT = 5000
+WATCH_LIMIT = 250                 # would_have lines kept a capability, its newest
 EVENT_MAX_AGE = 90 * 86400
 _PRUNE_EVERY = 256
 _DAY = 86400
@@ -142,6 +146,14 @@ class JournalMixin:
         """Every bounded table, in one pass."""
         old = now - EVENT_MAX_AGE
         connection.execute("DELETE FROM journal WHERE at < ?", (old,))
+        # What each watched capability would have done: its newest WATCH_LIMIT lines, before the
+        # journal's own bound, so that bound never cuts one capability's log for another's.
+        watched = str(JournalCode.WOULD_HAVE)
+        for (capability,) in connection.execute("SELECT DISTINCT capability FROM journal WHERE code=?",
+                                                (watched,)).fetchall():
+            connection.execute("DELETE FROM journal WHERE event_id IN (SELECT event_id FROM journal "
+                               "WHERE code=? AND capability IS ? ORDER BY event_id DESC "
+                               "LIMIT -1 OFFSET ?)", (watched, capability, WATCH_LIMIT))
         excess = connection.execute("SELECT count(*) FROM journal").fetchone()[0] - EVENT_LIMIT
         if excess > 0:
             connection.execute("DELETE FROM journal WHERE event_id IN (SELECT event_id FROM journal "

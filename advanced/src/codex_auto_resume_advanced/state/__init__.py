@@ -19,7 +19,7 @@ from __future__ import annotations
 from ..registry import REGISTRY
 from .arming import ArmingMixin
 from .choices import ChoicesMixin, Refused, Scoped  # noqa: F401
-from .journal import EVENT_LIMIT, EVENT_MAX_AGE, JournalMixin  # noqa: F401
+from .journal import EVENT_LIMIT, EVENT_MAX_AGE, WATCH_LIMIT, JournalMixin  # noqa: F401
 from .records import RecordsMixin
 from .schema import ATTACHED, FILE_NAME, SCHEMA_VERSION, TABLES  # noqa: F401
 from .session import SessionMixin, StaleGeneration, StateError  # noqa: F401

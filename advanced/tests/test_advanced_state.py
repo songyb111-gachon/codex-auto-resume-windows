@@ -29,8 +29,8 @@ from codex_auto_resume.store import Store  # noqa: E402
 from codex_auto_resume.store.schema import _TABLES_V4  # noqa: E402
 from codex_auto_resume_advanced import vocabulary  # noqa: E402
 from codex_auto_resume_advanced.state import (ATTACHED, EVENT_LIMIT, EVENT_MAX_AGE,  # noqa: E402
-                                              FILE_NAME, SCHEMA_VERSION, TABLES, AdvancedState,
-                                              StateError)
+                                              FILE_NAME, SCHEMA_VERSION, TABLES, WATCH_LIMIT,
+                                              AdvancedState, StateError)
 from codex_auto_resume_advanced.registry import Option  # noqa: E402
 from codex_auto_resume_advanced.state import Refused, StaleGeneration  # noqa: E402
 from codex_auto_resume_advanced.state import choices as choices_module  # noqa: E402
@@ -742,6 +742,37 @@ class BoundTests(StateCase):
                                   "overrides": 0, "sampler": 0, "admissions": EVENT_LIMIT,
                                   "samples": EVENT_LIMIT, "rules": 1, "options": 1})
         self.assertEqual({row[0] for row in connection.execute("SELECT state FROM records")}, {"waiting"})
+
+    def test_the_watch_bound_sits_inside_the_journal_s(self):
+        self.assertLess(WATCH_LIMIT, EVENT_LIMIT)
+        self.assertEqual(WATCH_LIMIT, 250)
+
+    def test_each_capability_keeps_its_newest_watched_answers_and_nothing_else_is_cut(self):
+        state = self.state(ac.definition(), ac.definition(id="test_nap", journal_prefix="tn"))
+        state.move("test_wake", ArmingState.SHADOW, actor=Actor.DASHBOARD, revision=1)
+        connection = self.raw(state)
+        recent = self.now - 3600
+        before = connection.execute("SELECT count(*) FROM journal").fetchone()[0]
+        line = "INSERT INTO journal (at, capability, code) VALUES (?, ?, ?)"
+        connection.executemany(line, [(recent, "test_wake", "would_have")] * (WATCH_LIMIT + 40))
+        first = connection.execute("SELECT min(event_id) FROM journal WHERE code='would_have'").fetchone()[0]
+        connection.executemany(line, [(recent, "test_nap", "would_have")] * 30)
+        connection.executemany(line, [(recent, "test_wake", "armed")] * 60)
+        connection.commit()
+        with state._transaction() as open_:
+            state._prune(open_, self.now)
+
+        def count(capability, code):
+            return connection.execute("SELECT count(*) FROM journal WHERE capability=? AND code=?",
+                                      (capability, code)).fetchone()[0]
+        self.assertEqual(count("test_wake", "would_have"), WATCH_LIMIT)
+        # The newest: the 41st inserted is the oldest kept.
+        self.assertEqual(connection.execute("SELECT min(event_id) FROM journal WHERE capability='test_wake' "
+                                            "AND code='would_have'").fetchone()[0], first + 40)
+        self.assertEqual(count("test_nap", "would_have"), 30)
+        self.assertEqual(count("test_wake", "armed"), 60)
+        self.assertEqual(connection.execute("SELECT count(*) FROM journal").fetchone()[0],
+                         before + WATCH_LIMIT + 30 + 60)
 
     def test_a_spend_inside_the_day_is_never_pruned_however_many_there_are(self):
         state = self.state()
