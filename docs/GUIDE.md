@@ -306,6 +306,14 @@ photograph of the Codex window around it:
 
 <img src="images/settings-panel.png" alt="The Codex Auto Resume panel: a status card saying two recoveries are waiting, the two waiting conversations each with an Auto-resume switch, the interface language, the recovered failure categories, Limits and Notifications folded away, the continuation language and message style, and a Preview of the Standard message for a usage limit" width="680">
 
+Where the Codex app can show the panel beside the conversation instead, in its right side panel,
+the panel offers **Open beside the chat** at the start of its bottom bar. Pressing it asks Codex
+to move the panel there, and nothing else ever asks; if Codex keeps the panel in the conversation,
+the button goes and the bar says so. A Codex app that lists plugins' tools in a conversation's
+right side panel (its New tab, then More tools…) lists the panel there too, as **Open Auto Resume
+settings**. Beside the chat, the panel reads its state again when you come back to it, at most
+once every 15 seconds, and leaves the page as it is while you are changing something in it.
+
 The Start Menu opens the Dashboard, a standalone window that works with Codex closed: what the
 watcher is doing, what is waiting and when it is next looked at, what finished and how, the
 last week's numbers, the watcher's health, and the settings. The light in its header shows what
