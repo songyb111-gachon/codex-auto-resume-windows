@@ -193,9 +193,11 @@ class CustomTextBoundaryTests(unittest.TestCase):
         # Every tool the page can call, and nothing that sends or writes text.
         called = set(re.findall(r"callTool\(\s*'([a-z_]+)'", mcpui._SCRIPT))
         called |= set(re.findall(r"'([a-z_]+_conversation_recovery|[a-z]+_auto_recovery)'", mcpui._SCRIPT))
+        # v0.6.14: and open_settings, which the page reads again beside the chat (readAgain) - a read.
         self.assertEqual(called, {"update_settings", "preview_recovery_message", "start_watcher",
                                   "list_pending", "pause_auto_recovery", "resume_auto_recovery",
-                                  "enable_conversation_recovery", "disable_conversation_recovery"})
+                                  "enable_conversation_recovery", "disable_conversation_recovery",
+                                  "open_settings"})
         tools = {tool["name"] for tool in mcpserver.TOOLS}
         self.assertLessEqual(called, tools)
 

@@ -73,6 +73,18 @@ var CHECKING_HOLD = 30;
 // When the rows the page shows were read, on its clock, in seconds (readAt): set when it is served
 // them, and again whenever it reads the list anew.
 var READ_AT = readAt(DATA, Date.now() / 1000);
+// v0.6.14: beside the chat the page stays open while the person works in the conversation, and what it
+// read grows old. So when they come back to it - the page shown again, or its window focused - it reads
+// open_settings again (readAgain): only beside the chat, where Codex says the page is fullscreen (inline,
+// the conversation's own item is the page Codex keeps), and at most once every READ_AGAIN_MS of its own
+// asking. ASKED_AT is when it last asked; READ_AT cannot serve, since it is held to one watcher pass after
+// the last one the status names, and a stopped watcher's page would ask on every return. READING is a
+// read still out. OWN_CALLS counts the page's own calls - every one made, and those still out - so a read
+// made before one of them is never drawn over what that call changed.
+var READ_AGAIN_MS = 15000;
+var ASKED_AT = Date.now();
+var READING = false;
+var OWN_CALLS = {made: 0, out: 0};
 
 // Every word on this panel comes from Python, in the language Python resolved. The panel
 // does not consult the browser's language: the notifications, the setup output, the
@@ -243,10 +255,24 @@ function toolPayload(result) {
 // The parameter is not called `arguments`. It was, and inside the inner function that
 // name is that function's own implicit arguments object - so every call this panel made,
 // Save included, handed the host an empty object instead of what it meant to send.
+//
+// v0.6.14: each call is counted in OWN_CALLS - made, and still out - so a state read again before it is
+// never drawn over what it changed (readAgain). A page without the count (a test's few functions) calls
+// all the same.
 function callTool(name, args) {
-  return Promise.resolve().then(function () {
+  var counted = typeof OWN_CALLS === 'object' && OWN_CALLS ? OWN_CALLS : null;
+  if (counted) {
+    counted.made += 1;
+    counted.out += 1;
+  }
+  var call = Promise.resolve().then(function () {
     return HOST.callTool(name, args);
   }).then(toolPayload);
+  if (counted) {
+    var landed = function () { counted.out -= 1; };
+    call.then(landed, landed);
+  }
+  return call;
 }
 
 function saveSettings(changes) {
@@ -2201,6 +2227,7 @@ function renderFooter(schema) {
   // Quiet until there is something to save, so a changed switch visibly waits for it.
   HOOKS.dirty = function () { save.className = unsaved(schema) ? 'primary' : ''; };
   HOOKS.dirty();
+  HOOKS.save = save;
   var footer = {node: bar, save: save, message: message, beside: beside};
   if (beside) beside.onclick = function () { openBeside(footer); };
   return footer;
@@ -2478,6 +2505,84 @@ function render() {
   }
 }
 
+// Read open_settings again because the person came back to the page - beside the chat, at most once every
+// READ_AGAIN_MS of its own asking, with nothing of its own still out - and draw what it read, unless by the
+// time the answer lands the person has started something it would undo (busy) or a call of the page's own
+// went out after it. A refusal, an answer that is not the panel's state, or one dropped says nothing: the
+// page goes on showing what it showed, and the next return asks again.
+function readAgain() {
+  if (!HOST || READING || displayMode() !== 'fullscreen') return;
+  var now = Date.now();
+  if (now - ASKED_AT < READ_AGAIN_MS || OWN_CALLS.out > 0) return;
+  ASKED_AT = now;
+  READING = true;
+  var made = OWN_CALLS.made;
+  Promise.resolve().then(function () {
+    return HOST.callTool('open_settings', {});
+  }).then(toolPayload).then(function (payload) {
+    READING = false;
+    if (!panelState(payload) || made !== OWN_CALLS.made || OWN_CALLS.out > 0 || busy()) return;
+    var keep = keyboardAt();
+    drawState(payload);
+    keyboardBack(keep);
+  }, function () {
+    READING = false;
+  });
+}
+
+// Whether an answer is the panel's state, as open_settings gives it: a status, the settings and the rows.
+function panelState(payload) {
+  return !!payload && typeof payload.status === 'object' && payload.status !== null
+         && typeof payload.settings === 'object' && payload.settings !== null && !Array.isArray(payload.settings)
+         && Array.isArray(payload.pending);
+}
+
+// Whether drawing the page anew now would undo what the person is doing: a change not saved yet, a row
+// asking them to confirm, a list open, or the keyboard in a field they may be typing in.
+function busy() {
+  if (Object.keys(DRAFT).length || CONFIRM_ROW) return true;
+  var root = document.getElementById('root');
+  var open = false;
+  eachNode(root, function (node) {
+    if (typeof node.getAttribute === 'function' && node.getAttribute('aria-expanded') === 'true') open = true;
+  });
+  return open || inField(root);
+}
+
+function within(node, root) {
+  for (var at = node; at; at = at.parentNode) if (at === root) return true;
+  return false;
+}
+
+// The keyboard in a box someone may be typing in - a number's - or in a list's field.
+function inField(root) {
+  var node = document.activeElement;
+  if (!node || node === root || !within(node, root)) return false;
+  var tag = String(node.tagName || '').toLowerCase();
+  if (tag === 'select') return true;
+  if (tag === 'input') return node.type !== 'checkbox' && node.type !== 'radio';
+  return typeof node.getAttribute === 'function' && node.getAttribute('role') === 'combobox';
+}
+
+// Where the keyboard is, in a form a page drawn anew can find again: a control's id, or the save bar's
+// Save (which a save leaves the keyboard on). Null where it is on neither.
+function keyboardAt() {
+  var root = document.getElementById('root');
+  var node = document.activeElement;
+  if (!node || node === root || !within(node, root)) return null;
+  if (node === HOOKS.save) return {save: true};
+  return node.id ? {id: node.id} : null;
+}
+
+function keyboardBack(keep) {
+  if (!keep) return;
+  var found = keep.save ? HOOKS.save : null;
+  if (keep.id) {
+    eachNode(document.getElementById('root'), function (node) { if (!found && node.id === keep.id) found = node; });
+  }
+  if (found && typeof found.focus === 'function') found.focus({preventScroll: true});
+}
+
 // v0.6.14: what the host says of the page has changed - Codex sends `openai:set_globals` when it does. The
 // button follows where the page is shown, in place, with nothing drawn anew. And a page that had no tool
 // result to draw from when it started - the side panel's tab, which calls the tool itself and may be
@@ -2489,6 +2594,8 @@ function hostChanged(event) {
     var output = parsedOutput(globals.toolOutput !== undefined ? globals.toolOutput
                               : (HOST || window.openai || {}).toolOutput);
     if (!output || typeof output !== 'object' || Array.isArray(output)) return;
+    // Just read, by the tab's own call: a return in the next moments need not ask again.
+    ASKED_AT = Date.now();
     drawState(output);
     return;
   }
@@ -2504,7 +2611,16 @@ function drawState(state) {
   render();
 }
 
-if (typeof window.addEventListener === 'function') window.addEventListener('openai:set_globals', hostChanged);
+// Each listener only where the document has it: the host's frame always does, a test's stand-in may not.
+if (typeof window.addEventListener === 'function') {
+  window.addEventListener('openai:set_globals', hostChanged);
+  window.addEventListener('focus', function () { readAgain(); });
+}
+if (typeof document.addEventListener === 'function') {
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'hidden') readAgain();
+  });
+}
 
 // The stored theme and language before anything is drawn: the page may be one Codex kept from an
 // earlier read, and the tool result is what is true now.

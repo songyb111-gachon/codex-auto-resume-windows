@@ -295,5 +295,148 @@ class LateResultTests(unittest.TestCase):
         self.assertIs(seen, True)
 
 
+# The page's clock, the test's own: Date.now() is NOW, which a test moves. And open_settings answered by the
+# test: READS holds each request; ANSWER() makes the reply - by default, the state with a second row
+# waiting - and a test may hold it back (HELD) to let something happen before it lands.
+READS = r"""
+var NOW = 1800000000000;
+Date.now = function () { return NOW; };
+var READS = [], HELD = [];
+var SECOND = {thread_id: '22222222-2222-7222-8222-222222222222', interruption_id: 'b'.repeat(64),
+              code: 'waiting_reset', category: 'usage_limit', thread_enabled: true, overlays: [],
+              name: 'another-project', eligible_at: null, recovery_attempts: 0};
+function ANSWER() {
+  var fresh = JSON.parse(JSON.stringify(window.__SERVED__));
+  fresh.pending.push(SECOND);
+  fresh.status.pending = 2;
+  return Promise.resolve({structuredContent: fresh, content: []});
+}
+var HOLD = false;
+var served = window.openai.callTool;
+window.openai.callTool = function (name, args) {
+  if (name !== 'open_settings') return served(name, args);
+  READS.push(args);
+  if (!HOLD) return ANSWER();
+  return new Promise(function (resolve) { HELD.push(function () { resolve(ANSWER()); }); });
+};
+function commit() {
+  var bar = ROOT_NODE.all(function (n) { return n.tagName === 'footer' && n.className === 'savebar'; })[0];
+  return bar.children[bar.children.length - 1];
+}
+function rows() { return ROOT_NODE.all(function (n) { return n.textContent === 'another-project' && !n.children.length; }).length; }
+async function back(seconds) { NOW += seconds * 1000; fire('window', 'focus'); await settle(); }
+"""
+
+
+def beside_page(body, mode="fullscreen", extra="", data=None):
+    served = "window.__SERVED__ = JSON.parse(JSON.stringify(window.__CODEX_AUTO_RESUME__));"
+    return page(SAVEBAR + body, mode=mode, data=data, extra=served + "\n" + READS + "\n" + extra)
+
+
+@unittest.skipUnless(NODE, "needs Node to run the panel's own code")
+class ReadAgainTests(unittest.TestCase):
+    """Beside the chat, the panel reads its state again when the person comes back to it: at most once
+    every 15 seconds of its own asking, only beside the chat, and never drawn under their hands."""
+
+    def test_a_return_after_15_seconds_reads_once_with_nothing_and_draws_what_it_read(self):
+        seen = beside_page("""var before = rows(); await back(16);"""
+                           + say("{before: before, reads: READS, after: rows(), modes: MODES}"))
+        self.assertEqual(seen, {"before": 0, "reads": [{}], "after": 1, "modes": []})
+
+    def test_the_page_shown_again_reads_too_and_hidden_it_does_not(self):
+        seen = beside_page("""NOW += 16000; document.visibilityState = 'hidden'; fire('document', 'visibilitychange');
+            await settle(); var hidden = READS.length; document.visibilityState = 'visible';
+            fire('document', 'visibilitychange'); await settle();"""
+                           + say("{hidden: hidden, shown: READS.length, after: rows()}"))
+        self.assertEqual(seen, {"hidden": 0, "shown": 1, "after": 1})
+
+    def test_within_15_seconds_of_its_last_asking_nothing_is_read(self):
+        seen = beside_page("""await back(10); var early = READS.length; await back(6); var first = READS.length;
+            await back(1); await back(13); var soon = READS.length; await back(2);"""
+                           + say("[early, first, soon, READS.length]"))
+        self.assertEqual(seen, [0, 1, 1, 2])
+
+    def test_a_stopped_watchers_page_still_reads_at_most_once_every_15_seconds(self):
+        """READ_AT is held to one pass after the watcher's last, which a stopped watcher left long ago:
+        the page counts from its own asking instead, so returning again and again asks once."""
+        data = panelpage.snapshot()
+        data["status"]["watcher"] = {"last_tick_at": 1_800_000_000 - 86_400}
+        seen = beside_page("""await back(16); await back(1); await back(1); await back(1);""" + say("READS.length"),
+                           data=data)
+        self.assertEqual(seen, 1)
+
+    def test_in_the_conversation_it_does_not_read_again(self):
+        """Inline, the conversation's own item is the page Codex keeps; only beside the chat is it read again."""
+        for mode in ("inline", None):
+            with self.subTest(mode=mode):
+                self.assertEqual(beside_page("await back(60);" + say("READS.length"), mode=mode), 0)
+
+    def test_one_read_at_a_time(self):
+        seen = beside_page("""HOLD = true; await back(16); await back(16); var out = READS.length;
+            HELD.forEach(function (go) { go(); }); await settle();"""
+                           + say("{out: out, after: rows()}"))
+        self.assertEqual(seen, {"out": 1, "after": 1})
+
+    def test_an_unsaved_draft_an_open_confirmation_or_an_open_list_drops_what_it_read(self):
+        for setup in ("DRAFT.max_recovery_attempts = 2;",
+                      "CONFIRM_ROW = 'a'.repeat(64); render();",
+                      "ROOT_NODE.all(function (n) { return n.getAttribute && n.getAttribute('role') === 'combobox'; })[0]"
+                      ".setAttribute('aria-expanded', 'true');"):
+            with self.subTest(setup=setup):
+                seen = beside_page(setup + """ var drawn = ROOT_NODE.children[0]; await back(16);"""
+                                   + say("{reads: READS.length, after: rows(), same: ROOT_NODE.children[0] === drawn,"
+                                         " draft: DRAFT}"))
+                self.assertEqual((seen["reads"], seen["after"], seen["same"]), (1, 0, True))
+                if setup.startswith("DRAFT"):
+                    self.assertEqual(seen["draft"], {"max_recovery_attempts": 2})
+
+    def test_a_call_of_the_pages_own_made_while_it_read_drops_what_it_read(self):
+        """A save sent and answered after the read went out is newer than the read: the read is dropped,
+        not drawn over what the save changed - though nothing is still out when it lands."""
+        seen = beside_page("""HOLD = true; await back(16); await callTool('update_settings', {max_recovery_attempts: 2});
+            var out = OWN_CALLS.out; HELD.forEach(function (go) { go(); }); await settle();"""
+                           + say("{out: out, drawn: rows()}"))
+        self.assertEqual(seen, {"out": 0, "drawn": 0})
+
+    def test_a_call_of_the_pages_own_still_out_drops_what_it_read_and_holds_the_next_read_back(self):
+        """A Pause still unanswered when the read lands drops the read; while it is out, a return asks nothing."""
+        seen = beside_page("""HOLD = true; await back(16); callTool('pause_auto_recovery', {});
+            HELD.forEach(function (go) { go(); }); await settle(); var dropped = rows();
+            await back(16); var held = READS.length;"""
+                           + say("{reads: held, dropped: dropped}"))
+        self.assertEqual(seen, {"reads": 1, "dropped": 0})
+
+    def test_the_keyboard_in_a_field_drops_what_it_read_and_save_keeps_the_keyboard(self):
+        seen = beside_page("""var field = ROOT_NODE.all(function (n) { return n.tagName === 'input' && n.type === 'number'; })[0];
+            field.focus(); await back(16); var typing = rows();
+            var save = commit(); save.focus(); await back(16);"""
+                           + say("{typing: typing, drawn: rows(), focused: document.activeElement === commit(),"
+                                 " redrawn: commit() !== save}"))
+        self.assertEqual(seen, {"typing": 0, "drawn": 1, "focused": True, "redrawn": True})
+
+    def test_a_refused_or_malformed_answer_changes_nothing(self):
+        for answer in ("{isError: true, content: [{type: 'text', text: 'no'}], structuredContent: {error_code: 'request_failed'}}",
+                       "{structuredContent: {status: {}, settings: {}, pending: 'none'}}",
+                       "{structuredContent: {settings: {}, pending: []}}"):
+            with self.subTest(answer=answer):
+                seen = beside_page("""ANSWER = function () { return Promise.resolve(%s); };
+                    var drawn = ROOT_NODE.children[0]; await back(16);""" % answer
+                                   + say("{reads: READS.length, same: ROOT_NODE.children[0] === drawn}"))
+                self.assertEqual((seen["reads"], seen["same"]), (1, True))
+        seen = beside_page("""ANSWER = function () { return Promise.reject(new Error('gone')); };
+            var drawn = ROOT_NODE.children[0]; await back(16); await back(16);"""
+                           + say("{reads: READS.length, same: ROOT_NODE.children[0] === drawn}"))
+        self.assertEqual(seen, {"reads": 2, "same": True})
+
+    def test_without_a_host_nothing_is_read(self):
+        """A host with no callTool is no host: the page is read-only there, and a return asks nothing."""
+        seen = page("""Date.now = function () { return 4102444800000; }; fire('window', 'focus');
+            fire('document', 'visibilitychange'); await settle();"""
+                    + say("{modes: MODES, readonly: ROOT_NODE.textContent.indexOf(S['panel.readonly']) >= 0}"),
+                    mode="fullscreen", extra="window.openai = {requestDisplayMode: function (a) { MODES.push(a); },"
+                                             " displayMode: 'fullscreen'};")
+        self.assertEqual(seen, {"modes": [], "readonly": True})
+
+
 if __name__ == "__main__":
     unittest.main()
