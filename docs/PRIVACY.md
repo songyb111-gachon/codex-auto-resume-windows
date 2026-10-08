@@ -496,8 +496,10 @@ conversation to OpenAI like any tool output. That is:
   this product's message or, when the Custom style is selected, your Custom message. It saves
   nothing and sends nothing;
 - in the advanced edition, from `list_advanced_capabilities`: each capability's id, whether it
-  is on, watched or off, since when, from which surface and why, the values of the choices set for
-  it, and the ids of the standards it departs from ([STANDARDS.md](STANDARDS.md)) — ids and codes, with no version string, path or free text; from the two tools
+  is on, watched or off, since when, from which surface and why, whether it is kept on and whether
+  with Send again, the code of what a capability kept on would otherwise have turned itself off for,
+  the values of the choices set for it, and the ids of the standards it departs from
+  ([STANDARDS.md](STANDARDS.md)) — ids, codes and yes-or-no values, with no version string, path or free text; from the two tools
   that turn capabilities off, the capability's id and that it is off, or how many were turned off;
 - from the commands: the same, plus each pending recovery's reset time, limit bucket and
   last reason code, the desktop app's process ids, and local paths such as the Codex executable, the Codex home,

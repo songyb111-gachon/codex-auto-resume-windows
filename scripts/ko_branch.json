@@ -61,7 +61,7 @@
     "docs/CHANGELOG.md": "cbf2a1e0b05b48448cbf640331c72b03de5e93bb5fd7971c3f8b526424fe4cf7",
     "docs/CONTRIBUTING.md": "8120edfba70b2d0c8b50087663f6b2ca07d06bf30c63abd77363412b530d198e",
     "docs/CONTRIBUTORS.md": "29a99a735aec90caf76898eadc6cbbd3e8250a39aa832996d6ab9dfe63638c7f",
-    "docs/PRIVACY.md": "996eecc3f433a9c496f2d43f0eb9e9be743951cca388b1bba2de22a2630ec39d",
+    "docs/PRIVACY.md": "cdc34921f0f39ff76d1b23aae3fc00da211b9f2312ccb4076ac3282fe10fce94",
     "README.md": "b72ab2dd54d98ea91aeda6015bceebcee9a8c1a2a3fe206a9023c17cc005c173",
     "docs/SECURITY.md": "0862f07fe7e5f0044029a6d06f98e79bc510273e01ec13f5912ceaee6a684e17",
     "docs/SUPPORT.md": "7833488b0467b1afa997380e3cc9c0f6a3b1cfa25d488db50f9ec0774c4c08e4",
@@ -70,11 +70,11 @@
     "docs/DEVELOPMENT.md": "e62cfbe43c855d5c87bfce8e0d69eba649f625f3f1d508818d8126de723b73de",
     "docs/PLUGIN.md": "e61e04ca4f08f01dc2e1ab89d8f443a2f6915b8ff38bbddce63900ddde42c945",
     "docs/VERIFY.md": "9f41d411aed7ac968cdfb4aacce2f3f80478460069f47914f6acc28aa3eacda4",
-    "docs/FEATURE_MATRIX.md": "a12116be0f9380bd1aac522d4580fff517a9e56106b6d7b74750af55c0902b6d",
+    "docs/FEATURE_MATRIX.md": "09724ce9cee4709e33c9cac7a0db54bf36ccdb7a8526f189f116a5e5b6fe7efd",
     "docs/LIVE_ACCEPTANCE.md": "a8caf727b81cedb0e2aad27dedef7caba457f8270eee9d2a77683ec9df18660f",
-    "docs/ROADMAP.md": "7065f8b4337c54ca0026a13eaec787f5302400d1263e0ae9d6704b7e9987305a",
+    "docs/ROADMAP.md": "1fa50f945edbd7f997e2f32a833866c2edb11126b2e240dc53f41e3ab7230dd2",
     "docs/GUIDE.md": "2db3b0853b43fbde266623723507a341ed7b2ebf6ef74f86aed1c9c15b75ad95",
     "docs/STANDARDS.md": "a8621d740d099a3a3d67ce8f880beea2d0c27c0bb4d970a0201899ad7b713d53",
-    "docs/EDITIONS.md": "a95154d748f2e38fc075bf2a0e84668cecb54db3ad6ac147164f7945ec91ac46"
+    "docs/EDITIONS.md": "0997eb6c1173bb39cb96f64b1968219c5a3505da19b2a8b3b960246aa1e4dd0b"
   }
 }

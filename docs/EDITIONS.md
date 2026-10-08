@@ -63,9 +63,9 @@ conversation, counted when the send is claimed. Over them stands one ceiling for
 together, 12 sends an hour, which you can lower on the page, as far as one an hour, and never raise
 past 12. The page shows a capability's own ceilings beside its statement. Every send also counts
 against the standard edition's own limits for the conversation: five in any 24 hours, at least 15
-minutes apart (A20) - except a send of the one capability that says it departs from A20, the short
-retries when Codex is at capacity, which counts against the program's own capacity limits instead: 48
-a day, a minute apart.
+minutes apart (A20) - except where a capability says it departs from A20: a send of the short retries
+when Codex is at capacity counts against the program's own capacity limits instead, 48 a day, a minute
+apart, and Send now skips the 15 minutes for the one recovery you choose, still within the five a day.
 
 **Warnings, not refusals.** A measurement a capability rests on that failed, or was never made for
 your version of Codex, a compatibility grade of Failed here, Incompatible or Unknown, or a Codex
@@ -452,8 +452,8 @@ turns it on in the Dashboard.
 
 Then v0.6.13 brings the rest of the advanced edition, each part published as a pre-release as it is
 finished. Its first part, from v0.6.13-beta on, is the six capabilities [above](#todays-capabilities)
-that follow the goal continuation. The next, for v0.6.14-beta, is Once more when unsure, Send now and
-Keep it on. Each new capability is the advanced edition's alone, off until you turn it on, with a
+that follow the goal continuation, and with them Once more when unsure, Send now and Keep it on, in
+the same beta. Each new capability is the advanced edition's alone, off until you turn it on, with a
 statement that names the standards it departs from. This is a direction, not a promise;
 [ROADMAP.md](ROADMAP.md) has the whole list: the two additions in its v0.6.12 section, and the rest
 in its v0.6.13 section, under the same four headings as below and one more on compatibility reports
