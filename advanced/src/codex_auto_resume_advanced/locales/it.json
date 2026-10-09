@@ -209,7 +209,7 @@
   "page.resets.now.none": "Usa un credito di reset ora viene offerto mentre un limite di utilizzo è raggiunto.",
   "page.resets.now.note": "{window} è raggiunto ora.",
   "page.resets.ordinal.1": "la prossima",
-  "page.resets.ordinal.n": "la {n}ª da adesso",
+  "page.resets.ordinal.n": "la numero {n} da adesso",
   "page.resets.reading": "Crediti di reset: {n} · il primo scade {time}",
   "page.resets.reading.last": "uno è stato usato {time}",
   "page.resets.reading.no_expiry": "Crediti di reset: {n}",

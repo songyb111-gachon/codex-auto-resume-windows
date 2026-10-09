@@ -209,7 +209,7 @@
   "page.resets.now.none": "Usar um crédito de redefinição agora é oferecido enquanto um limite de uso está atingido.",
   "page.resets.now.note": "{window} foi atingido agora.",
   "page.resets.ordinal.1": "a próxima",
-  "page.resets.ordinal.n": "a {n}ª a partir de agora",
+  "page.resets.ordinal.n": "a de número {n} a partir de agora",
   "page.resets.reading": "Créditos de redefinição: {n} · o mais próximo expira {time}",
   "page.resets.reading.last": "um foi usado {time}",
   "page.resets.reading.no_expiry": "Créditos de redefinição: {n}",

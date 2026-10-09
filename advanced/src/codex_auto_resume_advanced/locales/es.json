@@ -209,7 +209,7 @@
   "page.resets.now.none": "Usar un crédito de reinicio ahora se ofrece mientras se ha alcanzado un límite de uso.",
   "page.resets.now.note": "{window} se ha alcanzado ahora.",
   "page.resets.ordinal.1": "la próxima",
-  "page.resets.ordinal.n": "la {n}.ª desde ahora",
+  "page.resets.ordinal.n": "la número {n} desde ahora",
   "page.resets.reading": "Créditos de reinicio: {n} · el más próximo caduca {time}",
   "page.resets.reading.last": "se usó uno {time}",
   "page.resets.reading.no_expiry": "Créditos de reinicio: {n}",
