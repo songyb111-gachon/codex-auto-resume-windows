@@ -315,6 +315,28 @@ class SpendTests(CreditCase):
         self.assertEqual(reads() - before, 1)
         self.assertEqual(self.codex.consumed(), [])
 
+    def test_after_a_credit_is_asked_for_the_next_rule_due_in_that_look_reads_usage_afresh(self):
+        """One reading serves the rules of a look only until a credit is asked for: that credit may have reset the
+        other window too, and a rule acting on the reading before it would spend a second credit for nothing."""
+        def both(five, weekly):
+            reply = usage(five, RESET + 3600)
+            reply["rateLimitsByLimitId"]["codex"]["secondary"] = {"usedPercent": weekly, "windowDurationMins": 10080,
+                                                                   "resetsAt": RESET + 5 * 86400}
+            return reply
+        self.waiting()
+        plug = self.armed()
+        first = self.rule(plug)
+        second = plug.runtime.state.add_reset_rule(self.cap, "codex", 10080, 1)
+        self.codex.reads = [both(40, 40)]
+        self.h.tick()
+        # The poll finds both full; the first rule's read too; and after its credit, both windows reset.
+        self.codex.reads = [both(100, 100), both(100, 100), both(0, 0)]
+        self.h.tick(advance=POLL)
+        self.assertEqual(len(self.codex.consumed()), 1)
+        self.assertEqual(self.found(plug, first)["reason"], RuleReason.SPENT)
+        self.assertEqual((self.found(plug, second)["state"], self.found(plug, second)["reason"]),
+                         (RuleState.DONE, RuleReason.LAPSED))
+
 
 class UnknownTests(CreditCase):
     def test_an_error_codex_answers_but_no_such_method_is_unknown_and_never_spent_under_a_second_key(self):

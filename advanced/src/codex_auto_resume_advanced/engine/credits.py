@@ -259,7 +259,10 @@ class ResetCredit:
         spend = handle.add_credit_spend(rule["rule_id"], rule["bucket"], rule["minutes"], row["hits"], key)
         if spend is None:
             return None
-        return self._ask(rule, row, handle, session, guard, watch, spend, key)
+        try:
+            return self._ask(rule, row, handle, session, guard, watch, spend, key)
+        finally:
+            looked.pop("detailed", None)             # a credit asked for may have reset any window: read afresh
 
     def _settled(self, rule, row, handle, outcome):
         """A rule whose occasion has a spend already: waiting for that spend's answer, or finished by it."""
