@@ -9,13 +9,15 @@
 # source of the standard window names one either (advanced/tests/test_advanced_package.py).
 #
 # The Dashboard's Advanced features page, which joins the standard window through the `partial void`
-# points gui/Dashboard.cs declares (DashboardBuilt, SnapshotApplied), its Keep it on and Send now cards
-# (v0.6.14), its watch log - what a watched capability would have done (v0.6.14) - the compatibility report's
-# card on it, and the page's own audit.
+# points gui/Dashboard.cs declares (DashboardBuilt, SnapshotApplied, PendingBuilt), its Keep it on and Send
+# now cards (v0.6.14), its watch log - what a watched capability would have done (v0.6.14) - the reset
+# actions' rules on it and on Pending (v0.6.14), the compatibility report's card on it, and the page's own
+# audit.
 
 [advanced]
 advanced/gui/AdvancedPage.cs
 advanced/gui/AdvancedKeepOn.cs
 advanced/gui/AdvancedWatch.cs
+advanced/gui/AdvancedResets.cs
 advanced/gui/AdvancedReport.cs
 advanced/gui/AdvancedPageAudit.cs

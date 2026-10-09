@@ -32,6 +32,8 @@ namespace CodexAutoResume
         // ---------------------------------------------------------------- state
         // What a capability is when it answers at no point (vocabulary.CapabilityKind), and the word that sends.
         private const string KindAction = "action";
+        // The one action with a card of its own here (v0.6.14: Longer reset messages is an action too, with none).
+        private const string ReportId = "compat_report";
         private const string SendWord = "send";
         // How often a running job is read.
         private const int ReportPollMilliseconds = 1000;

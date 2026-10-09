@@ -162,6 +162,8 @@ namespace CodexAutoResume
             if (reply == null) return;
             // The recoveries waiting now, which Send now's card offers (AdvancedKeepOn.cs).
             advancedPending = Items(reply, "pending");
+            // The reset rules waiting, read again when the status's counts of them change (AdvancedResets.cs).
+            ResetCountsApplied(reply);
             if (advancedWords == null)
             {
                 // Until this edition has answered: asked again with each read, as the window's reads go on.
@@ -577,10 +579,17 @@ namespace CodexAutoResume
 
         /// What the open capability keeps, read after its statement where it has any: the rules for Codex's error codes
         /// (advanced-rules) and the samples of failures nothing classified (advanced-samples); then, for every one but an
-        /// action, what it would have done while watched (advanced-watch-log); `done` once all are shown.
+        /// action, what it would have done while watched (advanced-watch-log); and the reset rules (advanced-resets) for
+        /// the two reset actions; `done` once all are shown.
         private void ReadAdvancedKept(string id, MethodInvoker done)
         {
             Dictionary<string, object> item = AdvancedItem(id);
+            // The reset actions' rules (advanced-resets) last, for the two that have them.
+            if (IsResets(id))
+            {
+                MethodInvoker after = done;
+                done = delegate { ReadResets(after); };
+            }
             bool rules = Equals(Get(item, "rules_editor"), true), samples = Equals(Get(item, "samples"), true);
             MethodInvoker readWatch = delegate
             {
@@ -798,7 +807,8 @@ namespace CodexAutoResume
                            (Equals(Get(item, "samples"), true) ? AdvancedWritten(advancedSamples) : "") + "|" +
                            WatchShown(advancedOpen) + "|" +
                            KeptShown(item) + "|" +
-                           (IsAction(item) ? ReportShown() : "");
+                           (IsReport(item) ? ReportShown() : "") + "|" +
+                           ResetsShown(item);
             if (shown == advancedShown)
             {
                 UpdateAdvancedButtons();
@@ -806,7 +816,7 @@ namespace CodexAutoResume
             }
             advancedShown = shown;
             bool focused = advancedStack.ContainsFocus;
-            string reportFocus = focused ? ReportFocus() : null;
+            string reportFocus = focused ? ReportFocus() : null, resetFocus = focused ? ResetFocus() : null;
             advancedStack.SuspendLayout();
             var old = new List<Control>();
             foreach (Control control in advancedStack.Controls) old.Add(control);
@@ -822,6 +832,7 @@ namespace CodexAutoResume
             keepOnButton = sendAgainButton = letGoButton = null;
             sendNowButtons.Clear();
             ForgetReportCard();
+            ForgetResetCard();
             if (item == null)
             {
                 TableLayoutPanel card = NewGroup(Word("page.nav", "Advanced features"), advancedStack);
@@ -833,8 +844,9 @@ namespace CodexAutoResume
             if (advancedScroll != null) advancedScroll.PerformLayout();
             UpdateAdvancedButtons();
             // A limit that was being chosen is gone with the cards it was on: the keyboard goes back to the list - or,
-            // in the report's card, to the box or button it was on, where that is still there to take it.
-            if (focused && !FocusReport(reportFocus) && advancedList != null && advancedList.CanFocus) advancedList.Focus();
+            // in the report's card or a reset form, to the box or button it was on, where that is still there to take it.
+            if (focused && !FocusReport(reportFocus) && !FocusResets(resetFocus) && advancedList != null && advancedList.CanFocus)
+                advancedList.Focus();
         }
 
         private void BuildAdvancedCards(Dictionary<string, object> item, Dictionary<string, object> statement)
@@ -924,15 +936,19 @@ namespace CodexAutoResume
                 }
             }
 
-            // An action's card - what a person starts it doing - under its statement (AdvancedReport.cs).
-            if (IsAction(item)) BuildReportCard(item);
+            // The report's card - what a person starts it doing - under its statement (AdvancedReport.cs).
+            if (IsReport(item)) BuildReportCard(item);
 
             // Its limits, and the one a person may set for every capability together: lower, never above the registry's.
             // An action has no ceilings of its own: it sends nothing to Codex, and says what bounds it instead.
             TableLayoutPanel limits = NewGroup(Word("page.limits", "Limits"), advancedStack);
-            if (IsAction(item))
+            if (IsReport(item))
                 limits.Controls.Add(HelpText(Word("page.action_limits",
                     "It sends nothing to Codex. A report goes to GitHub only when you type send, and the project takes one report per GitHub login for each Codex version.")));
+            else if (IsAction(item))
+                limits.Controls.Add(HelpText(Word("page.long_limits",
+                    "It sends nothing itself. While it is on, a message at a reset may be as long as one continuation can be, not only {n} characters.",
+                    "n", 2000)));
             else
             {
                 TableLayoutPanel numbers = Facts(limits);
@@ -949,6 +965,8 @@ namespace CodexAutoResume
             // Under its limits (v0.6.14): whether it is kept on, while it is on or watched; and Send now's waiting recoveries.
             BuildKeepOn(item);
             BuildSendNow(item);
+            // The reset actions' rules and the form they are added with, while one is on (AdvancedResets.cs).
+            BuildResets(item);
 
             // Its own choices, the rules a person writes for Codex's error codes and the samples of what nothing classified,
             // each only for a capability that has them - the last two once they have been read.
@@ -1343,6 +1361,7 @@ namespace CodexAutoResume
             foreach (Button remove in ruleRemoves) remove.Enabled = listed;
             if (ruleAdd != null) ruleAdd.Enabled = listed;
             UpdateKeptButtons(idle);
+            UpdateResetButtons(idle);
             UpdateReportButtons();
         }
 

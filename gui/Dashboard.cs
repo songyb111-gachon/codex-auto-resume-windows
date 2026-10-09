@@ -799,6 +799,9 @@ namespace CodexAutoResume
         // A snapshot has been shown (ApplySnapshot), or there is none and the pages say so
         // (MarkUnavailable, with null). A page of the advanced edition follows the same read.
         partial void SnapshotApplied(Dictionary<string, object> reply);
+        // Pending has been built but for its buttons (BuildPending): what the advanced edition has
+        // waiting for a reset - its own rules, not recoveries - is shown under the list (v0.6.14).
+        partial void PendingBuilt(Panel page);
         // One argument of the window's command line has been read (ParseArguments): a page of
         // the advanced edition's, or the keyboard on its tab, is one the standard checks refuse.
         static partial void ArgumentParsed(string argument, OpenRequest request);

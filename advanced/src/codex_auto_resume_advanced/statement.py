@@ -107,7 +107,28 @@ PAGE_KEYS = tuple(PAGE_PREFIX + name for name in (
     "watchlog.answer.as_server_5xx", "watchlog.answer.as_stream_interrupted", "watchlog.answer.capacity",
     "watchlog.answer.early", "watchlog.answer.resend", "watchlog.answer.send_now", "watchlog.answer.text",
     "watchlog.answer.sender", "watchlog.answer.tick", "watchlog.answer.start_route", "watchlog.answer.unloaded",
-    "watchlog.answer.other"))
+    "watchlog.answer.other",
+    # v0.6.14: the reset actions (advanced/gui/AdvancedResets.cs) - the rules of a reset credit and of a message at a
+    # reset, the form they are added with, each word a rule's state and reason can be said in, the questions, notes
+    # and refusals, Pending's Scheduled group - and Longer reset messages' words in place of the limits.
+    "confirm.reset_credit", "confirm.reset_message", "done.reset_added", "done.reset_cancelled", "done.go_on",
+    "confirm.credit_now", "done.credit_now", "refused.occasion_invalid", "refused.resets_full",
+    "refused.message_refused", "refused.already_scheduled", "refused.being_sent", "scheduled", "long_limits"))
+# The reset actions' own words, `page.resets.<name>`.
+RESETS_PREFIX = PAGE_PREFIX + "resets."
+RESETS_KEYS = tuple(RESETS_PREFIX + name for name in (
+    "window.300", "window.10080", "window.other", "ordinal.1", "ordinal.n", "state.being_sent",
+    "state.window_gone", "state.count_gap", "state.ask_first", "state.count_unknown", "state.expiry_unknown",
+    "state.bound", "state.no_method", "state.nothing_waiting", "state.due", "state.counting", "state.starting",
+    "state.next", "state.conversation_off", "state.turned_off", "state.by_person", "state.spent",
+    "state.nothing_to_reset", "state.no_credit", "state.lapsed", "state.delivered", "state.expired",
+    "state.not_started", "state.unknown", "state.done", "rule.now", "rule.credit", "rule.message", "credit.title",
+    "message.title", "credit.none", "message.none", "now.none", "now.note", "now", "credit.add", "message.add",
+    "field.conversation", "no_conversation", "field.words", "field.window", "field.which_reached", "field.which",
+    "field.repeat", "repeat.once", "repeat.every", "field.ask", "ask.no", "ask.yes", "ask.note", "credit.button",
+    "message.button", "credit.note", "message.note", "go_on", "cancel", "reading.unknown", "reading",
+    "reading.no_expiry", "reading.last", "count"))
+PAGE_KEYS = PAGE_KEYS + RESETS_KEYS
 # The compatibility report's card on that page (advanced/gui/AdvancedReport.cs): its own words, one for each
 # write sending makes (vocabulary.ReportWrite), one for each reason it has to be sent on the web (WebReason) and
 # one for each word it refuses with (ReportRefusal) - so a word the flow can answer with is one the page can say.
