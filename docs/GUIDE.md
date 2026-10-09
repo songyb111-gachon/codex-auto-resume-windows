@@ -405,7 +405,9 @@ A reset that has already passed is not said: the reading is older than it. Nothi
 for this: usage is read only when a recovery is due, as it always was, and what is shown is the last
 of those readings - so it can be hours old, and its age says so. Only the numbers are kept, with the
 time they were read: which window, how much is used, its length and its reset time. No account,
-plan or credit.
+plan or credit. (The advanced edition's two reset actions read usage on their own while one of their
+rules waits, and one of them keeps how many reset credits you have; [EDITIONS.md](EDITIONS.md) says so
+for each.)
 
 <img src="images/settings-window.png" alt="The Continuation message section of the Dashboard's Settings page: the continuation language, the four message styles with Standard selected, and a Preview of the message sent for a usage limit" width="680">
 
@@ -520,7 +522,9 @@ those standards on purpose. Each says which it breaks, is off until you turn it 
 that, and turns itself off again when what you agreed to stops being true - unless you chose, on the
 same page and after its own warning, to keep it on, which notes what would have turned it off instead.
 You turn one on in the Dashboard, on the page that edition adds, **Advanced features**, and nowhere
-else; from v0.6.14 that page can also send one waiting recovery now, while Send now is on. Their code is left
+else; from v0.6.14 that page can also send one waiting recovery now, while Send now is on, and have a
+reset credit used, or a message of your own sent, at a usage reset you pick, each shown on Pending
+under Scheduled until it acts. Their code is left
 out of the standard edition's archive, and `build/edition_audit.py` proves from the archive's own
 bytes, in every release build, that none of it is there. An installation updates within its edition;
 moving to the other is a reinstall. The [roadmap](ROADMAP.md) says what each has, and what is still
@@ -529,8 +533,8 @@ to come. [EDITIONS.md](EDITIONS.md) says what each edition is and what each capa
 
 The advanced edition's state is the one exception to *a second state database*: which capability is
 on, what each has spent and what it did, the choices and the rules a person set for the capabilities
-that have them, which capability took up which interruption and the samples of failures nothing
-classified are kept in `config/advanced/advanced.sqlite`, apart from the watcher's own state, so nothing in the standard edition's database changes for it
+that have them, which capability took up which interruption, the samples of failures nothing
+classified, the reset rules and - until it is sent - the words of a message written for a reset are kept in `config/advanced/advanced.sqlite`, apart from the watcher's own state, so nothing in the standard edition's database changes for it
 (`advanced/tests/test_advanced_state.py`). It exists only in the advanced edition, and is made
 there only when something in it is first turned on or changed; the standard edition never creates
 it, and `Uninstall.cmd -Purge` removes it with the rest of `config\`.

@@ -105,9 +105,11 @@ they are what a cooperating installation obeys, not a lock (K6).
 
 What the advanced edition keeps is its own: which capability is on, what each has spent and what it
 did, the choices you made for a capability, the rules you wrote, which capability took up which
-interruption and the samples of failures it could not classify are kept in
+interruption, the samples of failures it could not classify, the reset rules and what it counted of
+the usage windows - and, until each is sent, cancelled or ended, the words of a message you wrote for a
+reset - are kept in
 `config/advanced/advanced.sqlite`, in fixed words, ids, numbers and Codex's own error codes - never a
-word of an error or a conversation - and nothing of it is written into the standard edition's state. It adds no network code; one capability,
+word of an error or a conversation, and of yours only a message waiting for a reset - and nothing of it is written into the standard edition's state. It adds no network code; one capability,
 the compatibility report, asks gh - the GitHub CLI you installed - to reach GitHub, and only when
 you start it in the Dashboard (below). Its archive also carries
 the harness the project uses to measure whether a capability's route works on a given version of
@@ -115,10 +117,13 @@ Codex; nothing runs it unless a person asks, and [SECURITY.md](SECURITY.md) says
 
 ## Today's capabilities
 
-Twelve: eleven that change how a recovery is made, and the compatibility report, which only you
-start. The first three rest on a measurement each, the other nine on none. Each measurement named below was made once, by hand, on the owner's machine, on
-`codex-cli 0.158.0-alpha.2.1`; its record is in [`docs/evidence/live/`](evidence/live/). On any
-other version of Codex a capability's statement carries the warning that it was not measured there.
+Fifteen: eleven that change how a recovery is made, two that act at a usage reset you pick, and two
+actions - Longer reset messages, which only lets a message for a reset be longer, and the compatibility
+report, which only you start. The first three rest on a measurement each that was made, the two reset
+actions on measurements not made yet, and the other ten on none. Each measurement made was made once,
+by hand, on the owner's machine, on `codex-cli 0.158.0-alpha.2.1`; its record is in
+[`docs/evidence/live/`](evidence/live/). On any other version of Codex, and for a measurement not
+made yet, a capability's statement carries the warning that it was not measured there.
 
 ### Start with Codex
 
@@ -397,6 +402,107 @@ from the last hour, and none from before it was turned on or set to watch; turni
 it to watch only ends what it took up and has not sent, and the program ends such a recovery unsent a
 day on the clock after the failure in any case.
 
+### Use a reset credit at the limit you pick
+
+**What it does.** On the page you pick a usage limit ahead of time - the next time the 5-hour limit
+is reached, a later time up to nine from now, or the next weekly limit - once or every time, and
+whether it asks you first. When that limit is reached while a recovery waits for usage, it uses one of
+your reset credits, so the recovery can go on. While a rule waits it reads usage every 15 minutes, at
+most once in five minutes, and counts each window's fills and resets itself, from the first reading
+after you added the rule: a limit reached when you add it is not the next one. Before it spends a
+credit it reads usage again: the window must still be full, a recovery must still be waiting for
+usage, and how many credits you have and when the soonest expires must both be readable. Until
+measurement MR has passed on your version of Codex it never spends on its own: the rule waits for
+you to press *Use a reset credit now...*, which the page also offers whenever a limit is reached. The
+page shows how many credits you have, when the soonest expires and when one was last used; Pending
+shows each rule still waiting under **Scheduled**, with Cancel.
+
+**When it helps.** When your account has reset credits and you would rather spend one than wait for a
+limit you know is coming, without watching for it.
+
+**What it risks.** A credit spent cannot be given back, and one may be spent shortly before the window
+would have reset anyway. If you redeem two credits yourself in Codex's `/usage` inside one window, its
+count can run one window late. If this PC is off or recovery is paused for longer than the window, the
+rule is held until you say *Go on counting* or cancel it, rather than guess. It never spends more than
+one credit for one filling of a window, two in a day or seven in a week; never while recovery is
+paused, in Observe only, in quiet hours or with no recovery waiting; and never when the count or the
+expiry cannot be read. A spend whose result cannot be known turns it off.
+
+**Departs from** [A12](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (a look before the real
+reset time, once a credit reset the window), [B3 and B4](STANDARDS.md#b-what-it-reads-and-how) (it
+changes your account, through Codex's `account/rateLimitResetCredit/consume`, a method beyond the
+app server's three requests), [B10](STANDARDS.md#b-what-it-reads-and-how) (it keeps how many credits
+you have and when the soonest expires), [C4](STANDARDS.md#c-network) (it reads usage and spends on
+its own, at the time you chose) and [C9](STANDARDS.md#c-network) (it reads usage when no recovery is
+due).
+
+**Ceilings.** 12 a day, and 3 in any one conversation; and never more than one credit for one filling
+of a window, two a day or seven a week. Four rules may wait at once.
+
+**Measurements MU, MN and MR: not made yet.** MU reads usage as this capability reads it - with the
+credits' count, and without their details - and how still a window's reset time stays; MN asks for a
+credit on an account with none and checks that nothing is spent; MR, at a real limit and only with
+the person's own second yes, spends exactly one credit and checks that asking again with the same key
+spends no second one. Until they are made on your version of Codex, the statement carries each as a
+warning, and a credit is spent only when you press *Use a reset credit now...*.
+
+### Send your own message when a limit resets
+
+**What it does.** On the page you write a message of your own, up to 2,000 characters, for one
+conversation that is switched on, and pick when it goes: when the 5-hour limit next resets, a later
+reset up to nine from now, or the weekly limit's next reset. At that reset the watcher sends it once,
+exactly as you wrote it, with its marker after a blank line, through every check a continuation passes
+- the conversation open in the app, nothing else queued there, usage available. A recovery waiting in
+that conversation for the same reset sends your message in its place, never both, and at the very
+moment the window resets too. It counts from the first reading after you added it, so the window open
+then is the first to reset; a window not used yet counts once it is. While a message waits it reads
+usage every 15 minutes, at most once in five minutes. One message may wait for a conversation, and
+ten in all; the page lists each with its words, and Pending lists each under **Scheduled**, with
+Cancel - its words are never shown there.
+
+**When it helps.** When you know what a conversation should do once the limit is gone - "carry on with
+the release notes", "run the tests again" - and want it said as soon as it can be, in your words.
+
+**What it risks.** Your message may arrive when you no longer want it: it goes as written, whatever the
+conversation has become. If you redeem two credits yourself inside one window, it can go one window
+late. If this PC is off or recovery is paused for longer than the window, it waits for you to say *Go
+on counting*. It is never sent twice; one that cannot be proven to have arrived a day after it was
+sent turns this off. Your words are kept in the advanced edition's state until they are sent,
+cancelled or ended, and then deleted.
+
+**Departs from** [A8](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (its message passes the
+checks that apply to it; a recovery's budgets and failure checks are not run),
+[A17](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (a turn after it does not take it back),
+[A26](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (the words are yours, not a template, and
+recover no failure), [C4](STANDARDS.md#c-network) (it sends at a time you chose),
+[C9](STANDARDS.md#c-network) (it reads usage when no recovery is due),
+[D2](STANDARDS.md#d-privacy-and-the-data-it-keeps) (your words are kept until they are sent),
+[H4](STANDARDS.md#h-user-control) (a Pause does not take back a message already queued) and
+[H6](STANDARDS.md#h-user-control) (Cancel no longer reaches a message being sent). It keeps A27: a
+message is at most 2,000 characters, as the Custom message is, unless Longer reset messages is on.
+Switching its conversation off cancels it (H5).
+
+**Ceilings.** 10 a day, and 2 in any one conversation.
+
+**Measurement MU: not made yet.** It counts resets from the same usage readings as the reset credit,
+so it rests on MU; until MU is made on your version of Codex, the statement carries it as a warning.
+
+### Longer reset messages
+
+**What it does.** An action: it sends nothing and answers at no point of a recovery. While it is on, a
+message you schedule for a reset may be up to 8,154 characters - the most one continuation can carry -
+instead of 2,000. Turned off, every waiting message longer than 2,000 characters is cancelled.
+
+**When it helps.** When what you want a conversation to do after a reset takes more than 2,000
+characters to say.
+
+**What it risks.** A long message uses more of the window it starts than a short one.
+
+**Departs from** [A27](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (a message a person writes
+is at most 2,000 characters), and from nothing else: on its own it does nothing.
+
+**Ceilings.** None of its own: it sends nothing. **No measurement.**
+
 ### Compatibility report
 
 **What it does.** Writes a compatibility report from this PC's own records, as codex-compat-reporter
@@ -500,7 +606,8 @@ turns it on in the Dashboard.
 Then, after v0.6.13's fix of how Codex's engine is found, v0.6.14 brings the rest of the advanced
 edition, each part published as a pre-release as it is finished. Its first part, from v0.6.14-beta
 on, is the six capabilities [above](#todays-capabilities) that follow the goal continuation, and with
-them Once more when unsure, Send now, Keep it on and the compatibility report, in the same beta. Each new capability is the
+them Once more when unsure, Send now, Keep it on, the compatibility report and the three for a usage reset you pick, in the
+same beta. Each new capability is the
 advanced edition's alone, off until you turn it on, with a
 statement that names the standards it departs from. This is a direction, not a promise;
 [ROADMAP.md](ROADMAP.md) has the whole list: the two additions in its v0.6.12 section, and the rest

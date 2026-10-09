@@ -710,6 +710,12 @@ the route, or becomes a warning the person confirms, and does not drop the capab
 - a subagent recovered through its parent, never written to directly,
 - keep going after a normal completion, a set number of times,
 - a prompt queue and recurring wakes, carrying the person's own words only,
+
+  **Built ahead, for the same beta:** its *at the next reset* part, as Send your own message when a
+  limit resets (the owner, 2026-10-06): a message of the person's own, for one conversation, sent once
+  when the window they pick resets - at most 2,000 characters, or what one continuation carries with
+  Longer reset messages on - described in [EDITIONS.md](EDITIONS.md#todays-capabilities). A queue of
+  several prompts and the recurring wakes stay planned.
 - recording and sending a compatibility report from the app, below.
 
 ### A route of its own, and other kinds of session
@@ -732,6 +738,11 @@ the route, or becomes a warning the person confirms, and does not drop the capab
 ### Around recovery
 
 - a live usage meter, a wrap-up nudge near a limit, reset credits, and usage and token analytics,
+
+  **Built for the same beta, and widened:** reset credits, as Use a reset credit at the limit you pick -
+  not only shown but used, once a limit the person picked ahead of time is reached while a recovery
+  waits for usage, asking first until measurement MR has passed - described in
+  [EDITIONS.md](EDITIONS.md#todays-capabilities). The meter, the nudge and the analytics stay planned.
 - a provider status feed and push notifications - ntfy, a webhook, Telegram, e-mail - through one
   courier process, the advanced edition's only outbound network code,
 - a loopback API and web view on 127.0.0.1, remote control over Telegram, and a read-only view of
