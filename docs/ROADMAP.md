@@ -670,7 +670,9 @@ beta's fix, and two cases it left open, for both editions.
 
 ## v0.6.14 — The rest of the advanced edition
 
-**In development: v0.6.14-beta 🚧, its first pre-release, is being built.**
+**In development: v0.6.14-beta ✅, its first pre-release, is out - stage 3b, with the watch log, the
+reset actions and the panel beside the chat - and v0.6.14-beta.2, stage 3c with watching several
+Codex homes, is being built.**
 
 What the plan put in v0.6.11's later stages, moved whole when v0.6.11 was cut short - to v0.6.12
 first, on to v0.6.13 when the owner gave v0.6.12 the version picker, the power action and a fix

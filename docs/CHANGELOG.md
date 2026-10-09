@@ -1,25 +1,29 @@
 # Changelog
 
-## v0.6.14-beta — Eight more ways to recover, Keep it on, and a compatibility report sent from the Dashboard
+## v0.6.14-beta — Eight more ways to recover, Keep it on, a compatibility report sent from the Dashboard, actions at a usage reset you pick, a watch log and the panel beside the chat
 
 [The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.13...v0.6.14-beta)
 
 **A pre-release, the first of v0.6.14, published from `main`.** It is a GitHub pre-release, so
 `releases/latest` stays v0.6.13; an installation of v0.6.13 is offered it by *Check for updates*,
 which asks first and says it is tested less, and *Install another version...* lists it. It is the
-first finished part of v0.6.14, the rest of the advanced edition (owner, 2026-10-07): nine new
-capabilities - eight that change how a recovery is made, and the compatibility report - and Keep it
-on for every capability. Each is the advanced edition's alone, off until you turn it on in the
+first finished part of v0.6.14, the rest of the advanced edition (owner, 2026-10-07): twelve new
+capabilities - eight that change how a recovery is made, two that act at a usage reset you pick,
+Longer reset messages and the compatibility report - Keep it on for every capability, and a log of
+what a watched capability would have done. Each is the advanced edition's alone, off until you turn it on in the
 Dashboard's **Advanced features** page, with a statement in your language that names the standards
-it departs from ([EDITIONS.md](EDITIONS.md#todays-capabilities)). The standard edition does what
-v0.6.13 did; the one change a person sees there is the power action's card, which now turns on and
-off with a switch ([below](#the-power-actions-card-has-a-switch)).
+it departs from ([EDITIONS.md](EDITIONS.md#todays-capabilities)). The standard edition recovers as
+v0.6.13 did; what a person sees change there is the power action's card, which now turns on and off
+with a switch ([below](#the-power-actions-card-has-a-switch)), the version shown with no *Standard*
+beside it ([below](#no-standard-label-beside-the-version)), and the panel in Codex, which can ask to
+sit beside the chat ([below](#the-panel-beside-the-chat)).
 
 **Going back.** The watcher's state is still schema 4, so going back to v0.6.13 takes only its setup
-program or *Install another version...*. The advanced edition's own file is now version 3 - four new
+program or *Install another version...*. The advanced edition's own file is now version 3 - eight new
 tables, for a capability's choices, the rules for Codex's error codes, which capability took up which
-interruption, and the samples - brought up from version 2 the first time it is opened, every row
-kept. v0.6.13 cannot read version 3 and fails closed: in its advanced edition every capability is
+interruption and the samples, and for the reset actions what is counted of the usage windows, the
+last reading, the reset rules and the credits spent - brought up from version 2 the first time it is
+opened, every row kept. v0.6.13 cannot read version 3 and fails closed: in its advanced edition every capability is
 off.
 
 ### Recovery the standard edition leaves for you, or makes slower
@@ -101,6 +105,88 @@ recovery, sends nothing to Codex and spends nothing - a person starts what it do
 
 [EDITIONS.md](EDITIONS.md) describes it, and [PRIVACY.md](PRIVACY.md) says what it sends to GitHub.
 
+### What a watched capability would have done
+
+- **On its page.** A capability set to *Watch first* shows, in a card last in its column on the
+  **Advanced features** page, what it would have done over the last 30 days: since when it is
+  watched, and one line for each answer, in words - how many times, once for each recovery it would
+  have acted on, and when last. Until it is asked anything it would have acted on, the card says so,
+  and it says that watching does nothing. An action, which is never asked anything, has no such card.
+- **What is kept.** The advanced journal keeps at most the newest 250 of these lines a capability, so
+  one busy capability never pushes another's out, and the journal's own bound of 5,000 lines cuts
+  every other line before them. Where the bound let older answers of the 30 days go, the card says
+  from when it counts.
+- **In a diagnostics export.** An export you ask for adds, for each capability watched or with answers
+  in the last 30 days, its id, since when it is watched, each answer's word, where it was asked, how
+  many times, the first and last minute, from when it counts and whether older answers were cut - no
+  conversation's or interruption's id. The status and the notification-area icon never carry it.
+
+### At a usage reset you pick
+
+Three new capabilities act at a usage reset, not at a failure. Each is set on the **Advanced
+features** page while it is on, and Pending shows each rule still waiting under **Scheduled**, with
+Cancel - and *Go on counting* for one held - but never the words of a message. While a rule waits,
+it reads usage every 15 minutes, at most once in five minutes, and counts each window's fills and
+resets itself, from the first reading after the rule was added. If this PC is off or recovery is
+paused for longer than the window, the rule is held until you say *Go on counting* or cancel it.
+
+- **Use a reset credit at the limit you pick.** You pick the next time the 5-hour limit is reached, a
+  later time up to nine from now, or the next weekly limit, once or every time, and whether it asks
+  you first. When that limit is reached while a recovery waits for usage, it uses one of your reset
+  credits so the recovery can go on, after reading usage again: the window must still be full, a
+  recovery must still be waiting, and the count of credits and the soonest expiry must both be
+  readable. Until measurement MR has passed on your version of Codex it never spends on its own: the
+  rule waits for you to press *Use a reset credit now...*, which the page also offers whenever a limit
+  is reached, and a click too spends only while a recovery waits. At most one credit for one filling
+  of a window, two a day and seven a week; never while recovery is paused, in Observe only or in quiet
+  hours; a spend whose result cannot be known turns it off. Departs from A12, B3, B4, B10, C4 and C9.
+- **Send your own message when a limit resets.** You write a message of your own, up to 2,000
+  characters, for one conversation that is switched on, and pick the reset it goes at: the 5-hour
+  limit's next, a later one up to nine from now, or the weekly limit's next. At that reset it is sent
+  once, as you wrote it, with its marker after a blank line, through every check a continuation
+  passes. When a recovery in that conversation waits for the same reset, only your message is sent,
+  in its place; the recovery waits for it up to 30 minutes after the reset, and then goes on. One
+  message may wait for a conversation and ten in all; switching its conversation off cancels it, and
+  its words are kept only until it is sent, cancelled or ended. Departs from A8, A17, A26, C4, C9, D2,
+  H4 and H6; it keeps A27 and H5.
+- **Longer reset messages.** An action that sends nothing: while it is on, a message for a reset may
+  be up to 8,154 characters, the most one continuation can carry, instead of 2,000. Turned off, every
+  waiting message longer than 2,000 characters is cancelled. Departs from A27 alone.
+
+The measurements the two reset actions rest on - MU, MN and MR - are not made yet. Until they are
+made on your version of Codex, each statement carries them as warnings, the form says that the count
+past the next reset is unproven, and a credit is spent only when you press *Use a reset credit
+now...*. [EDITIONS.md](EDITIONS.md#use-a-reset-credit-at-the-limit-you-pick) describes each.
+
+### The panel beside the chat
+
+In both editions, the settings panel in Codex can sit beside a conversation, in the Codex app's right
+side panel, as well as in the conversation.
+
+- **Open beside the chat.** Where Codex can show it there, the panel's bottom bar starts with *Open
+  beside the chat*, which asks Codex to move the panel to the right side panel and calls no tool. If
+  Codex keeps it in the conversation, the button goes for that page and the bar says *Codex kept the
+  panel here.*
+- **A tab of the side panel.** The panel's tool, *Open Auto Resume settings*, offers itself to a
+  conversation's side panel, where a Codex app that lists plugins' tools shows it under New tab >
+  More tools.... The panel tells Codex it opens in the conversation first.
+- **Read again on return.** Beside the chat, the panel reads its state again when you come back to it,
+  at most once every 15 seconds and never while something is being changed there, and leaves the
+  keyboard on the control it was on. It runs no timer.
+- **Not measured yet.** Measurements MP1 to MP3, which say whether the Codex app shows the panel there
+  as it should, are not made yet ([LIVE_ACCEPTANCE.md](LIVE_ACCEPTANCE.md)), so the guide does not
+  describe the panel beside the chat until they pass.
+
+### No Standard label beside the version
+
+The standard edition no longer names itself beside the version (owner, 2026-10-05): the version at the
+foot of the Dashboard, the Version row on its Diagnostics page and the heading of the panel in Codex
+show the version alone, and the notification-area icon's tooltip shows the product's name alone. The
+advanced edition still shows *Advanced* in each, and *Advanced - not loaded* where its own part could
+not be loaded. *Standard* still appears where editions are told apart: where you choose one, as in
+*Install another version...*, and where the installer and Diagnostics say that Codex still has the
+other edition's copy of the plugin.
+
 ### The power action's card has a switch
 
 In both editions, the power action's card in Settings > General turns on and off with the switch every
@@ -125,7 +211,12 @@ ellipsis, and so does the card's heading.
 - New bridge commands, the Dashboard's alone and reached by no MCP tool: `advanced-option`,
   `advanced-rules`, `advanced-rule-add`, `advanced-rule-remove`, `advanced-samples`,
   `advanced-keep-on`, `advanced-send-now`, and the report's `advanced-report-build`,
-  `advanced-report-save`, `advanced-report-check`, `advanced-report-send` and `advanced-report-job`.
+  `advanced-report-save`, `advanced-report-check`, `advanced-report-send` and `advanced-report-job`;
+  then `advanced-watch-log`, and for the reset actions `advanced-resets`, `advanced-reset-add`,
+  `advanced-reset-cancel`, `advanced-reset-go-on` and `advanced-credit-now`.
+- Core tells the edition's plug when a conversation is switched off (`Plug.conversation_off`, not a
+  plug point), so a reset message waiting there ends at once. The panel's `open_settings` declares a
+  side-panel entrypoint, and its page names its display modes, inline first.
 - `build/community_report.py` accepts a report the product wrote itself: `reporter.tool`
   `codex-auto-resume`, its `tool_version` its own product version, v0.6.14-beta or later.
 - Each capability has a test module of its own under `advanced/tests/`, Keep it on one too and the
