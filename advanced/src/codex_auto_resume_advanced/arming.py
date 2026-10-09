@@ -77,7 +77,9 @@ from .state.spend import CHANNELS
 from .state.choices import DAY, RECENT_DAYS, RULES_LIMIT, aggregated, tag_problem
 from .statement import CATALOGS
 from .vocabulary import (KEPT_NOTICES, TRIPWIRES, Actor, ArmingState, ArmingWarning, CapabilityKind,
-                         KeepOn, OffReason, OverrideKind, Refusal, Verdict)
+                         KeepOn, Measurement, OffReason, OverrideKind, RecordState, Refusal, RuleReason,
+                         RuleState, Verdict)
+from .state.resets import CREDIT
 
 # The actors a person turns a capability off through.
 SURFACES = frozenset({Actor.DASHBOARD, Actor.MCP, Actor.TRAY, Actor.CARD})
@@ -315,6 +317,18 @@ class Arming:
             return {}
         return found if isinstance(found, dict) else {}
 
+    def verdict(self, measurement):
+        """"pass" where `measurement` passed on the Codex in force, "fail" where it failed - on whichever Codex, as
+        a statement's warnings read it (`warnings_for`) - and None for neither (v0.6.14, the reset actions)."""
+        entry = self.measured().get(Measurement(measurement))
+        if not (isinstance(entry, tuple) and len(entry) == 2):
+            return None
+        found, measured_on = entry
+        if found == Verdict.FAIL:
+            return "fail"
+        version = engine_version(self.view())
+        return "pass" if found == Verdict.PASS and version is not None and measured_on == version else None
+
     def warnings(self, definition, view=None) -> tuple:
         """The warnings `definition`'s statement shows now."""
         return warnings_for(definition, self.view() if view is None else view, self.measured())
@@ -462,6 +476,7 @@ class Arming:
         self._settle(core_view)
         self._duplicates(core_view)
         self._void_requests(states)
+        self._end_resets(states)
 
     def _void_requests(self, states) -> None:
         """Every unused FORCE_ONCE - a person's Send now - of a capability that does not stand on now,
@@ -473,6 +488,25 @@ class Arming:
         for override in opened:
             if states.get(override["capability"], ArmingState.OFF) != ArmingState.ARMED:
                 self._close(override["interruption_id"], override["capability"])
+
+    def _end_resets(self, states) -> None:
+        """Every reset rule still to act of a capability that does not stand on now, ended with its words
+        (turned_off) - watched, off, or read down by a policy - but one being sent, which its watch follows to its
+        end (runtime.py); and the count of reset credits and the soonest expiry let go while reset_credit is not
+        on, which is all that may keep them (B10, v0.6.14)."""
+        try:
+            rules = self.state.reset_rules()
+            for rule in rules:
+                if states.get(rule["capability"], ArmingState.OFF) == ArmingState.ARMED:
+                    continue
+                if rule["launching_at"] is not None or rule["record_state"] == RecordState.IN_FLIGHT:
+                    continue
+                self.state.end_rule(rule["rule_id"], RuleState.CANCELLED, RuleReason.TURNED_OFF, at=self.clock())
+            if (states.get(CREDIT, ArmingState.OFF) != ArmingState.ARMED
+                    and self.state.reading().get("credits") is not None):
+                self.state.set_reading(credits=None, expiry_known=None, nearest_expiry=None)
+        except StateError:
+            return                                   # tried again at the next sweep
 
     def _duplicates(self, core_view) -> None:
         """Each resend still watched (an open RESEND_ONCE) whose record core says was found twice:

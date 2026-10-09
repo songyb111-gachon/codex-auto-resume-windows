@@ -61,7 +61,7 @@ from .arming import Arming
 from .ledger import ClaimLedger, ceiling_reached
 from .registry import REGISTRY
 from .state import AdvancedState, StateError
-from .vocabulary import ArmingState, CapabilityKind, JournalCode, OffReason
+from .vocabulary import TRIPWIRES, ArmingState, CapabilityKind, JournalCode, OffReason
 
 # How long what every capability stands at is taken as read, between ticks. A tick reads it
 # again; a process that has no ticks - the bridge, the MCP server - reads it at most this often.
@@ -195,7 +195,9 @@ class Runtime:
             bind = _own(code, "bind")
             if bind is not None:
                 capability = definition.id
-                bind(self.state.scoped(capability, on=lambda: self._states.get(capability) == ArmingState.ARMED))
+                bind(self.state.scoped(capability, on=lambda: self._states.get(capability) == ArmingState.ARMED,
+                                       verdict=self.arming.verdict,
+                                       armed=lambda other: self._states.get(other) == ArmingState.ARMED))
             self._code[definition.id] = code
         return self._code[definition.id]
 
@@ -276,6 +278,8 @@ class Runtime:
             if relaxing and self._unsure(record, admission):
                 return Alternative.HOLD
             return getattr(NULL, HOOKS[point])(*arguments)
+        if point == Point.SCHEDULE:
+            self._not_taken(definitions, chooser, record, states)
         if point == Point.ADMISSION and not self._remember(chooser, record, chosen):
             return getattr(NULL, HOOKS[point])(*arguments)
         if relaxing and _relaxes(chosen) and not self._first(chooser, chosen, arguments, admission):
@@ -285,6 +289,21 @@ class Runtime:
                 (point, chooser.id, _word(chosen, point)))
         self._once(JournalCode.ACTED, chooser, point, chosen, record)
         return chosen
+
+    def _not_taken(self, definitions, chooser, record, states) -> None:
+        """At P7, every capability on that has a `not_taken` and whose answer was not the one taken is told so
+        (v0.6.14): early_reset lets go of a record another capability's EARLY looked at, so it does not hold it at
+        its first yes (engine/earlyreset.py)."""
+        for definition in definitions:
+            if definition is chooser or states.get(definition.id, ArmingState.OFF) != ArmingState.ARMED:
+                continue
+            told = _own(self._code_of(definition), "not_taken")
+            if told is None:
+                continue
+            try:
+                told(record)
+            except Exception:
+                self._tripped(definition, record)
 
     def _send_again(self, record, states):
         """Keep on's Send again at P7 (v0.6.14): RESEND for an uncertain submission, from the kept-on
@@ -444,13 +463,33 @@ class Runtime:
     # ------------------------------------------------------------------ the tick and the claim
     def tick(self, view):
         """P8: every trip and reset there is to find, what every capability stands at read
-        afresh, then the capabilities that answer once a tick."""
+        afresh, then the capabilities that answer once a tick - each one that is on with an errand of
+        its own, joined in the registry's order into the one errand core runs last in the tick
+        (`_Errands`, v0.6.14); a watched one's is only journalled, never run."""
         self._acted.clear()
         if not len(self.registry):
             return DEFER
         self.arming.sweep(view)
-        self.states(fresh=True)
-        return self.ask(Point.TICK, view)
+        states = self.states(fresh=True)
+        errands = []
+        for definition in self.registry.at(Point.TICK):
+            state = states.get(definition.id, ArmingState.OFF)
+            if state == ArmingState.OFF:
+                continue
+            try:
+                answer = self._code_of(definition).tick(view)
+                run = None if answer is DEFER else getattr(answer, "run", None)
+            except Exception:
+                self._tripped(definition)
+                continue
+            if not callable(run):
+                continue
+            if state == ArmingState.SHADOW:
+                self._once(JournalCode.WOULD_HAVE, definition, Point.TICK, Point.TICK, None)
+                continue
+            self._once(JournalCode.ACTED, definition, Point.TICK, Point.TICK, None)
+            errands.append((definition, answer))
+        return _Errands(self, errands) if errands else DEFER
 
     def records(self, view):
         """P2: the records of this edition's own that core is to try, or to watch (v0.6.14). Core checks
@@ -535,3 +574,28 @@ class Runtime:
             backend = measure.live_backend(self.paths)
         return measure.complete(measurement, verdict, note, backend=backend,
                                 directory=self._evidence_dir, clock=self.clock)
+
+
+class _Errands:
+    """The errands of every capability on at P8, joined: core runs this once, last in the tick, with its guards
+    (domain/plughands.Errand), and each errand is run in the registry's order. One that raises trips its own
+    capability alone; one that asks for a tripwire - a spend whose result cannot be known (engine/credits.py) - has
+    its capability turned off, or, kept on, noted (K7, K8)."""
+    __slots__ = ("runtime", "errands")
+
+    def __init__(self, runtime, errands):
+        self.runtime, self.errands = runtime, list(errands)
+
+    def run(self, guard):
+        runtime = self.runtime
+        for definition, errand in self.errands:
+            try:
+                asked = errand.run(guard)
+            except Exception:
+                runtime._tripped(definition)
+                continue
+            reason = asked.get("trip") if isinstance(asked, dict) else None
+            if reason in TRIPWIRES:
+                runtime.arming.trip(definition.id, reason)
+                runtime.states(fresh=True)
+        return None

@@ -43,13 +43,15 @@ B4_METHODS = frozenset({"initialize", "initialized", "account/rateLimits/read", 
 # state; B3 lets Codex's state change only through `codex queue`, thread/queue/delete and the
 # plugin command. A method in neither set is a decision this table has to make first.
 READS = frozenset({"thread/loaded/list", "thread/queue/list", "thread/goal/get"})
-CHANGES = frozenset({"thread/queue/add", "thread/goal/set"})
+CHANGES = frozenset({"thread/queue/add", "thread/goal/set",
+                     # v0.6.14: a reset credit spent changes the account's state (engine/credits.py).
+                     "account/rateLimitResetCredit/consume"})
 
 
 class ShippedTests(unittest.TestCase):
     SHIPPED = ("start_with_codex", "goal_continuation", "marker_free_continuation", "capacity_retry",
-               "structured_rules", "unknown_failure_budget", "codex_gave_up", "sign_in_retry", "early_reset",
-               "once_more_when_unsure", "send_now", "compat_report")
+               "structured_rules", "unknown_failure_budget", "codex_gave_up", "sign_in_retry", "reset_credit",
+               "early_reset", "once_more_when_unsure", "send_now", "compat_report")
 
     def test_the_registry_this_edition_ships_is_its_capabilities_in_their_order(self):
         self.assertEqual([d.id for d in registry.DEFINITIONS], list(self.SHIPPED))
@@ -64,7 +66,8 @@ class ShippedTests(unittest.TestCase):
         # are on and the goal applies its channel carries the send. Those that take failures up (v0.6.14)
         # answer at P17 and again at P3, in the order that is precedence where two would answer.
         answering = {Point.START_ROUTE: ("start_with_codex",),
-                     Point.SCHEDULE: ("early_reset", "once_more_when_unsure", "send_now"),
+                     Point.SCHEDULE: ("reset_credit", "early_reset", "once_more_when_unsure", "send_now"),
+                     Point.TICK: ("reset_credit",),
                      Point.UNLOADED: ("goal_continuation",),
                      Point.GATES: ("goal_continuation", "capacity_retry", "structured_rules",
                                    "unknown_failure_budget", "codex_gave_up", "sign_in_retry", "early_reset"),
@@ -104,6 +107,26 @@ class ShippedTests(unittest.TestCase):
                     text = statement.CATALOGS.own(locale)[statement.key(definition.id, Field.DEPARTS)]
                     for standard in definition.departs_from:
                         self.assertRegex(text, r"(?<![\w.])%s(?![\w.])" % re.escape(standard))
+
+    def test_the_reset_credit_departs_and_rests_on_what_the_design_says(self):
+        """v0.6.14 (the owner, 2026-10-05): A12, B3 and B4 (account/rateLimitResetCredit/consume changes the
+        account), B10 (the count and the soonest expiry kept), C4 and C9; usage_probe, and MU, MN and MR; at P8 and
+        P7, before early_reset; three a conversation and a dozen a day of the early looks it causes; and its session
+        reads usage as core does and spends - nothing else."""
+        from codex_auto_resume_advanced.codex import protocol
+        credit = registry.REGISTRY.get("reset_credit")
+        self.assertEqual(credit.departs_from, ("A12", "B3", "B4", "B10", "C4", "C9"))
+        self.assertEqual((credit.compat, credit.revision, credit.kind), ("usage_probe", 1, CapabilityKind.ROUTE))
+        self.assertEqual(credit.measurements, (Measurement.MU, Measurement.MN, Measurement.MR))
+        self.assertEqual(credit.points, frozenset({Point.TICK, Point.SCHEDULE}))
+        self.assertEqual((credit.ceilings.per_day, credit.ceilings.per_conversation), (12, 3))
+        self.assertEqual(credit.codes, ("hit", "spent", "nothing", "no_credit", "asked", "lapsed", "unknown", "gap",
+                                        "gone"))
+        ids = registry.REGISTRY.ids
+        self.assertLess(ids.index("reset_credit"), ids.index("early_reset"))
+        self.assertEqual(protocol.methods_for_capability("reset_credit"),
+                         frozenset({"initialize", "initialized", "account/rateLimits/read",
+                                    "account/rateLimitResetCredit/consume"}))
 
     def test_the_marker_free_continuation_departs_and_rests_on_what_the_owner_asked(self):
         """A2 and A4 as the owner named them, and B3 and B4 for the thread/queue/add its session

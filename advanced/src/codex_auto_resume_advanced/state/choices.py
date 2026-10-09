@@ -163,7 +163,7 @@ class Scoped:
     (engine/options.py): what is taken away is the plain way to a write a capability did not mean."""
     __slots__ = ("capability", "_reads")
 
-    def __init__(self, state, capability, on=None):
+    def __init__(self, state, capability, on=None, verdict=None, armed=None):
         self.capability = capability
         definition = state.registry.get(capability)
         rules_editor = definition is not None and definition.rules_editor
@@ -189,6 +189,16 @@ class Scoped:
             "request": lambda interruption_id: state.override(interruption_id, capability),
             "since": lambda: since(),
         }
+        # v0.6.14, the reset actions: their rules, windows and spends (state/resets.ResetsHandle - writes only while
+        # on), whether a measurement passed or failed on the Codex in force (arming.Arming.verdict), and whether
+        # another capability stands on now.
+        from .resets import ResetsHandle
+        self._reads.update({
+            "resets": ResetsHandle(state, capability, on),
+            "passed": lambda measurement: verdict is not None and verdict(measurement) == "pass",
+            "failed": lambda measurement: verdict is not None and verdict(measurement) == "fail",
+            "armed": lambda other: armed is not None and armed(other) is True,
+        })
 
     def __getattr__(self, name):
         reads = object.__getattribute__(self, "_reads")
@@ -198,8 +208,8 @@ class Scoped:
 
 
 class ChoicesMixin:
-    def scoped(self, capability, on=None) -> Scoped:
-        return Scoped(self, capability, on)
+    def scoped(self, capability, on=None, verdict=None, armed=None) -> Scoped:
+        return Scoped(self, capability, on, verdict, armed)
 
     # ------------------------------------------------------------------ options
     def options(self, capability) -> dict:

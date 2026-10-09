@@ -88,6 +88,13 @@ class EarlyReset:
         self.released.add(record.get("interruption_id"))
         return Alternative.EARLY
 
+    def not_taken(self, record) -> None:
+        """P7's answer of another capability was the one taken for `record` (runtime.py, v0.6.14): a reset credit's
+        EARLY after its own reset, say. The record is not one released into this probe, so its first yes holds it
+        not: what lifted the limit early was the credit."""
+        if isinstance(record, dict):
+            self.released.discard(record.get("interruption_id"))
+
     def gate(self, name, record, facts):
         """P3 `usage` for a record it released into this probe, which core reaches only once the
         reading said usage is available: HOLD on a first yes, DEFER - core goes on - on a second at

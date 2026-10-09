@@ -38,8 +38,10 @@ from __future__ import annotations
 from codex_auto_resume import failures, machine
 
 from ..codex import credits
-from ..state.resets import CREDIT, StateError
 from ..vocabulary import RuleReason, RuleState
+
+# The reset credit's rules count fills; the message's, resets (state/resets.py names the two the same).
+CREDIT = "reset_credit"
 
 # How far a window's reset time may move before it is another window: ten minutes, until MU has measured
 # how still Codex keeps it (the harness keeps no number, so this stays).
@@ -244,6 +246,7 @@ class Watch:
 
     def _rules(self, rules, rows, events, *, adopt, now) -> None:
         """Rules adopted on this look's own reading, and held where their family had a gap or is gone."""
+        from ..state import StateError
         for rule in rules:
             family = (rule["bucket"], rule["minutes"])
             row, seen = rows.get(family), events.get(family, ())

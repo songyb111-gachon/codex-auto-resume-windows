@@ -46,8 +46,8 @@ goal continuation, at P16, P3 and P5 (engine/goal.py); the marker-free continuat
 P15 (engine/markerfree.py); and, from v0.6.14 (stage 3b), those that take up failures at P17 and
 relax their records at P3: the short retries when Codex is at capacity (engine/capacity.py), the
 rules for Codex's error codes, the retries of failures nothing classified, of Codex giving up and
-of a sign-in failure (engine/admitted.py); and, at P7 and P3, the notice of a usage limit that lifts
-early (engine/earlyreset.py); at P7, an uncertain continuation sent once more (engine/oncemore.py),
+of a sign-in failure (engine/admitted.py); at P8 and P7, a reset credit used at the limit a person picked
+(engine/credits.py); and, at P7 and P3, the notice of a usage limit that lifts early (engine/earlyreset.py); at P7, an uncertain continuation sent once more (engine/oncemore.py),
 and one waiting recovery a person asks to send now (control/sendnow.py); and, at no point, the
 compatibility report, an action (report/). The tests define one of their own to hold every
 rule here.
@@ -65,6 +65,7 @@ from .control.sendnow import make as make_send_now
 from .engine.admitted import (ATTEMPTS, DEFAULT_ATTEMPTS, make_codex_gave_up, make_sign_in_retry,
                               make_structured_rules, make_unknown_failure_budget)
 from .engine.capacity import CEILING_HOURS, DEFAULT_HOURS, make as make_capacity_retry
+from .engine.credits import make as make_reset_credit
 from .engine.earlyreset import make as make_early_reset
 from .engine.goal import make as make_goal_continuation
 from .engine.markerfree import make as make_marker_free
@@ -455,6 +456,31 @@ SIGN_IN_RETRY = CapabilityDef(
     make=make_sign_in_retry,
 )
 
+# Use a reset credit when the limit a person picked is reached (v0.6.14, the owner's request of 2026-10-05; the
+# plan's row "reset credits"): a person picks an occasion - the next 5-hour limit, a later one, the weekly one - and
+# when that window fills while a recovery waits for usage, the errand at P8 spends one reset credit of theirs: only
+# with the window still full, the count and the soonest expiry both readable, one for each filling, two a day and
+# seven a week at most, inside core's errand guard, and on its own only where MR passed and the person did not ask to
+# be asked first (until then, the Dashboard's Use a reset credit now). For fifteen minutes after its credit reset a
+# window, it answers EARLY at P7 for the recoveries that wait, so they go at core's next early window. It departs
+# from A12 (a look before the reset time), B3 and B4 (account/rateLimitResetCredit/consume changes the account),
+# B10 (it keeps the count and the soonest expiry), C4 (it reads and spends on its own) and C9 (it reads usage when no
+# recovery is due); it stands on usage_probe and rests on MU, MN and MR. A spend whose result cannot be known turns
+# it off, as a send it paid for gone submission_unknown does (K7). Ceilings: the early looks it causes, three a
+# conversation, a dozen a day. It comes before early_reset, whose hold lets go of a look it made (not_taken).
+RESET_CREDIT = CapabilityDef(
+    id="reset_credit",
+    points=frozenset({Point.TICK, Point.SCHEDULE}),
+    revision=1,
+    departs_from=("A12", "B3", "B4", "B10", "C4", "C9"),
+    compat="usage_probe",
+    ceilings=Ceilings(per_day=12, per_conversation=3),
+    journal_prefix="credit",
+    make=make_reset_credit,
+    codes=("hit", "spent", "nothing", "no_credit", "asked", "lapsed", "unknown", "gap", "gone"),
+    measurements=(Measurement.MU, Measurement.MN, Measurement.MR),
+)
+
 # Notice a usage limit that lifts early (v0.6.14 stage 3b; the plan's row: continue at once when usage
 # frees up before the time given; two checks at least five minutes apart; only while a record waits for
 # a usage limit). At P7, asked by core before such a record's time (EARLY), it answers EARLY once a
@@ -554,6 +580,6 @@ COMPAT_REPORT = CapabilityDef(
 # In this order, which is also which answers first where two answer at one point; the action, which
 # answers at none, last.
 DEFINITIONS = (START_WITH_CODEX, GOAL_CONTINUATION, MARKER_FREE, CAPACITY_RETRY, STRUCTURED_RULES,
-               UNKNOWN_FAILURE_BUDGET, CODEX_GAVE_UP, SIGN_IN_RETRY, EARLY_RESET, ONCE_MORE, SEND_NOW,
-               COMPAT_REPORT)
+               UNKNOWN_FAILURE_BUDGET, CODEX_GAVE_UP, SIGN_IN_RETRY, RESET_CREDIT, EARLY_RESET, ONCE_MORE,
+               SEND_NOW, COMPAT_REPORT)
 REGISTRY = Registry(DEFINITIONS)

@@ -72,10 +72,12 @@ MEASUREMENT_METHODS = {
 # gives it, as M7 did: nothing else, and never a read. The goal continuation (engine/goal.py) sets
 # an existing goal's status, as M2 did, and - only where M2b passed - adds the one item M2b added
 # after it: never a read over the protocol, since the goal's status is read from its database and
-# its words are read nowhere.
+# its words are read nowhere. A reset credit (engine/credits.py, v0.6.14) reads usage as core does and spends one
+# credit, as MN and MR did - never a credit's id, which the backend picks.
 CAPABILITY_METHODS = {
     "marker_free_continuation": ("thread/queue/add",),
     "goal_continuation": ("thread/goal/set", "thread/queue/add"),
+    "reset_credit": ("account/rateLimits/read", "account/rateLimitResetCredit/consume"),
 }
 
 # Every method some measurement declared: what a capability's own route may be given, and nothing
@@ -306,6 +308,12 @@ class Session:
             return
 
     def call(self, method, params=None):
+        return self.receive(method, self.submit(method, params), params)
+
+    def submit(self, method, params=None) -> int:
+        """Write one request, and wait for nothing: its sequence number, for `receive`. What a caller makes
+        inside a guard it holds for that one write alone (v0.6.14: a reset credit's consume, made inside
+        core's errand guard, its answer awaited outside it - engine/credits.py)."""
         if method not in self.allowed:
             raise SessionRefused("method not permitted for this session")
         from codex_auto_resume.codex.errors import AdapterError
@@ -319,7 +327,16 @@ class Session:
             self._subscribed.append(params["threadId"])
         try:
             self._write(request)
-            deadline = time.monotonic() + 25
+        except (OSError, ValueError):
+            raise AdapterError("protocol_unavailable") from None
+        return sequence
+
+    def receive(self, method, sequence, params=None, seconds=25):
+        """The answer to the request `submit` wrote as `sequence`, waited for up to `seconds`: its result,
+        or Codex's refusal raised (`_refused_by_codex`), or AdapterError where none came."""
+        from codex_auto_resume.codex.errors import AdapterError
+        try:
+            deadline = time.monotonic() + seconds
             while time.monotonic() < deadline:
                 response = self.responses.get(timeout=max(0.01, deadline - time.monotonic()))
                 if response.get("id") != sequence:
