@@ -104,6 +104,12 @@ class AdvancedPlug(Plug):
         inuse.tell(self.paths, codex_exe, codex_home)
         return None
 
+    def conversation_off(self, thread_id):
+        """A person switched a conversation off (core's Plug.conversation_off): every message of a person's
+        own still waiting there ends, its words with it (runtime.py)."""
+        self.runtime.conversation_off(thread_id)
+        return None
+
     def edition_changed(self, previous):
         """Entering from the standard edition turns every capability off, whatever an earlier
         advanced installation of this home left on - arming never carries across an edition

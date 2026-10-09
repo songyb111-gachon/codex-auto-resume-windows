@@ -26,6 +26,8 @@ from ..registry import GLOBAL_HOURLY
 from ..vocabulary import (KEPT_NOTICES, Actor, ArmingState, ArmingWarning, JournalCode, KeepOn,
                           OffReason, Refusal)
 from .choices import Refused
+from .resets import end_pending
+from .schema import RESET_CAPABILITIES
 from .session import StaleGeneration, StateError, _word
 
 # The journal line each move writes.
@@ -131,6 +133,8 @@ class ArmingMixin:
                 "INSERT OR REPLACE INTO arming (capability, state, since, actor, reason, "
                 "statement_revision, engine_version, warnings) VALUES (?,?,?,?,?,?,?,?)",
                 (capability, state, now, actor, reason, revision, engine_version, warnings))
+            if state != ArmingState.ARMED:
+                end_pending(connection, (capability,), now)      # a reset action's rules end with it
             connection.execute("UPDATE meta SET generation = generation + 1")
             code = _CODES.get(state) or (JournalCode.TRIPPED if actor == Actor.TRIPWIRE
                                          else JournalCode.RESET if actor in (Actor.EDITION_ENTRY, Actor.ENGINE_CHANGE)
@@ -157,6 +161,7 @@ class ArmingMixin:
             connection.execute(
                 "UPDATE arming SET state='off', since=?, actor=?, reason=?, statement_revision=NULL, "
                 "engine_version=NULL, warnings=NULL WHERE state <> 'off'", (now, actor, reason))
+            end_pending(connection, RESET_CAPABILITIES, now)     # every reset action's rules end with them
             connection.execute("UPDATE meta SET generation = generation + 1")
             self._note(connection, now, JournalCode.RESET if actor == Actor.EDITION_ENTRY
                        else JournalCode.ALL_OFF, reason=reason, actor=actor)

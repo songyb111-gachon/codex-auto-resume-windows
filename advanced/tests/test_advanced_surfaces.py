@@ -327,6 +327,28 @@ class ResetBridgeTests(ac.AdvancedCase):
         self.assertEqual(self.bridge("advanced-resets")["limits"]["words"], 8154)
         self.assertTrue(self.message(words="x" * 8154)["done"])
 
+    def test_no_message_is_taken_for_a_conversation_switched_off(self):
+        self.on("reset_message")
+        self.bridge("thread-enabled", {"thread_id": ac.THREAD, "enabled": False})
+        self.assertEqual(self.message()["refusal"], Refusal.CONVERSATION_OFF)
+        self.assertEqual(self.advanced.runtime.state.reset_rules(), [])
+        self.bridge("thread-enabled", {"thread_id": ac.THREAD, "enabled": True})
+        self.assertTrue(self.message()["done"])
+
+    def test_the_dashboards_switch_cancels_a_message_at_once_and_switching_it_on_again_revives_nothing(self):
+        state = self.advanced.runtime.state
+        self.on("reset_message")
+        for command, argument in (("cancel-thread", {"thread_id": ac.THREAD}),
+                                  ("thread-enabled", {"thread_id": ac.THREAD, "enabled": False})):
+            with self.subTest(command):
+                self.bridge("thread-enabled", {"thread_id": ac.THREAD, "enabled": True})
+                rule = self.message(generation=self.generation())["rule"]
+                self.bridge(command, argument)
+                self.bridge("thread-enabled", {"thread_id": ac.THREAD, "enabled": True})
+                gone = state.reset_rule(rule)
+                self.assertEqual((gone["state"], gone["reason"], gone["words"], gone["record_state"]),
+                                 ("cancelled", "conversation_off", None, "cancelled"))
+
     def test_cancel_and_go_on(self):
         self.on("reset_message")
         rule = self.message()["rule"]

@@ -209,6 +209,22 @@ class CliTests(unittest.TestCase):
             self.assertEqual(code, 1, bad)
             self.assertIn("canonical UUID", err)
 
+    def test_switching_a_conversation_off_tells_the_editions_plug_and_switching_it_on_does_not(self):
+        """As the Dashboard's switch tells it (control/actions.py): so what the plug holds there ends too (H5)."""
+        from codex_auto_resume import edition
+        from codex_auto_resume.domain.plug import Plug
+        told = []
+
+        class Told(Plug):
+            def conversation_off(self, thread_id):
+                told.append(thread_id)
+        with patch.object(edition, "plug", lambda paths: Told()):
+            self.cli("enable", THREAD)
+            self.assertEqual(told, [])
+            self.cli("disable", THREAD)
+            self.cli("cancel", THREAD)
+        self.assertEqual(told, [THREAD, THREAD])
+
     def test_pending_lists_records_and_json(self):
         code, out, _ = self.cli("pending")
         self.assertEqual(code, 0)

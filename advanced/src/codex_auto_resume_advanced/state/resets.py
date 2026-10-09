@@ -274,6 +274,26 @@ class ResetsMixin:
                 connection.execute("UPDATE records SET state=?, finished_at=? WHERE record_id=?",
                                    (RecordState.CANCELLED, now, row["record_id"]))
 
+    def end_messages_in(self, thread_id, at=None) -> int:
+        """Every message still to be sent to `thread_id`, cancelled with its words (conversation_off) - its
+        conversation was switched off - in one transaction with its record; never one being sent, claimed or
+        launched. How many."""
+        _thread(thread_id)
+        now = self._now(at)
+        with self._transaction(create=False) as connection:
+            if connection is None:
+                return 0
+            rows = connection.execute(
+                "SELECT r.rule_id, r.record_id FROM reset_rules r JOIN records c ON c.record_id = r.record_id "
+                "WHERE r.capability=? AND c.thread_id=? AND c.state=? AND r.launching_at IS NULL AND r.state IN (?,?,?)",
+                (MESSAGE, thread_id, RecordState.WAITING, *[str(state) for state in PENDING])).fetchall()
+            for rule, record in rows:
+                connection.execute("UPDATE reset_rules SET state=?, reason=?, words=NULL, finished_at=? WHERE rule_id=?",
+                                   (RuleState.CANCELLED, RuleReason.CONVERSATION_OFF, now, rule))
+                connection.execute("UPDATE records SET state=?, finished_at=? WHERE record_id=?",
+                                   (RecordState.CANCELLED, now, record))
+            return len(rows)
+
     # ------------------------------------------------------------------ what core did with a message (P14)
     def record_moved(self, record_id, move, *, gate=None, reason=None, at=None):
         """What core told of a message's record (P14, RecordMove), written in one transaction across its rule and
@@ -394,6 +414,29 @@ class ResetsMixin:
             rows = connection.execute("SELECT * FROM credit_spends WHERE created_at >= ? ORDER BY spend_id DESC",
                                       (float("-inf") if since is None else since,)).fetchall()
         return [dict(row) for row in rows]
+
+
+def end_pending(connection, capabilities, now) -> None:
+    """Every rule still to act of `capabilities` that are reset actions, cancelled with its words (turned_off),
+    in the caller's transaction - a move off on (state/arming.py) - so turning one on again revives none; and,
+    for reset_credit, the count of credits and the soonest expiry let go (B10). One being sent, claimed or
+    launched, is its watch's to end (arming.py, sweep)."""
+    ended = [capability for capability in capabilities if capability in RESET_CAPABILITIES]
+    if not ended:
+        return
+    rows = connection.execute(
+        "SELECT r.rule_id, r.record_id FROM reset_rules r LEFT JOIN records c ON c.record_id = r.record_id "
+        "WHERE r.capability IN (%s) AND r.state IN (?,?,?) AND r.launching_at IS NULL "
+        "AND (c.state IS NULL OR c.state <> ?)" % ", ".join("?" for _ in ended),
+        (*ended, *[str(state) for state in PENDING], RecordState.IN_FLIGHT)).fetchall()
+    for rule, record in rows:
+        connection.execute("UPDATE reset_rules SET state=?, reason=?, words=NULL, finished_at=? WHERE rule_id=?",
+                           (RuleState.CANCELLED, RuleReason.TURNED_OFF, now, rule))
+        if record is not None:
+            connection.execute("UPDATE records SET state=?, finished_at=? WHERE record_id=? AND state<>?",
+                               (RecordState.CANCELLED, now, record, RecordState.FINISHED))
+    if CREDIT in ended:
+        connection.execute("UPDATE readings SET credits=NULL, expiry_known=NULL, nearest_expiry=NULL")
 
 
 def prune(connection, now, max_age, limit) -> None:

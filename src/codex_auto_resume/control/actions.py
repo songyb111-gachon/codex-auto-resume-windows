@@ -51,7 +51,10 @@ class ActionsMixin:
             raise ControlError("enabled must be true or false", code="invalid_enabled")
         with self._open(legacy_ok=True) as store:
             store.set_thread_enabled(thread, enabled, actor=actor)
-            return {"thread_id": thread, "enabled": store.thread_enabled(thread)}
+            found = {"thread_id": thread, "enabled": store.thread_enabled(thread)}
+        if not enabled:
+            self.plug.conversation_off(thread)
+        return found
 
     def cancel_interruption(self, interruption_id: str, *, actor: str = "gui") -> dict:
         """Stop recovering one exact interruption, and anything that continues it.
@@ -94,6 +97,8 @@ class ActionsMixin:
         thread = _thread_id(thread_id)
         with self._open(legacy_ok=True) as store:
             store.cancel_thread(thread, time.time(), actor=actor)
+        # What the edition's plug holds there of its own ends too, at once (H5; domain/plug.py).
+        self.plug.conversation_off(thread)
         return {"thread_id": thread}
 
     def reset_recovery_budget(self, interruption_id: str, *, actor: str = "gui") -> dict:
@@ -192,8 +197,11 @@ class ActionsMixin:
             if record["state"] in TERMINAL:
                 raise ControlError("that recovery has already finished", code="already_finished")
             store.set_thread_enabled(thread, enabled, actor=actor)
-            return {"interruption_id": key, "thread_id": thread,
-                    "enabled": store.thread_enabled(thread), "state": record["state"]}
+            found = {"interruption_id": key, "thread_id": thread,
+                     "enabled": store.thread_enabled(thread), "state": record["state"]}
+        if not enabled:
+            self.plug.conversation_off(thread)
+        return found
 
     # --------------------------------------------------- postponing and holding (v0.6.11)
     @staticmethod

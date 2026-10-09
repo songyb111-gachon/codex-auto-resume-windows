@@ -248,8 +248,80 @@ class SendTests(MessageCase):
         self.assertEqual(self.h.store.reserve_detailed(row["interruption_id"], self.h.now + 3600, ledger=guard(plug)),
                          (False, "submission_safe", "held"))
 
+    def test_a_core_record_of_its_conversation_is_held_thirty_minutes_after_it_fell_due_and_no_longer(self):
+        plug = self.armed()
+        rule, _key = self.message(plug)
+        self.h.tick()
+        code = plug.runtime._code_of(plug.runtime.registry.get(self.cap))
+        record = {"thread_id": T1, "category": "network_transient", "reset_at": None, "interruption_id": ac.KEY}
+        state = plug.runtime.state
+        for ago, answer in ((0, Alternative.HOLD), (resetmessage.HOLD_FOR - 60, Alternative.HOLD),
+                            (resetmessage.HOLD_FOR, DEFER), (6 * 3600, DEFER)):
+            with self.subTest(ago=ago):
+                state.change_rule(rule, state=RuleState.READY, due_at=self.h.now - ago)
+                self.assertIs(code.gate("usage", record, {}), answer)
+        waiting = {"thread_id": T1, "category": "usage_limit", "reset_at": RESET, "interruption_id": ac.KEY}
+        state.change_rule(rule, state=RuleState.COUNTING, due_at=None)
+        self.assertIs(code.gate("usage", waiting, {}), Alternative.HOLD, "it falls due at that very reset")
+        self.h.now = RESET + resetmessage.HOLD_FOR
+        self.assertIs(code.gate("usage", waiting, {}), DEFER, "that reset is thirty minutes past")
+
+    def test_ten_due_at_once_are_each_tried_though_core_takes_eight_a_tick(self):
+        threads = ["%s-%s-7%s-8%s-%s" % (str(n) * 8, str(n) * 4, str(n) * 3, str(n) * 3, str(n) * 12)
+                   for n in range(1, 10)] + ["aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa"]
+        plug = self.armed()
+        rules = []
+        for index, thread in enumerate(threads):
+            self.h.home.add_turn(thread)
+            self.h.backend.loaded_map[thread] = "notLoaded" if index < 8 else "loaded"
+            rules.append(self.message(plug, thread=thread, words="message %d of mine" % index)[0])
+        self.h.tick()
+        self.h.now = RESET + CLOSE_AFTER
+        for _ in range(3):
+            self.h.tick(advance=60)
+        self.assertEqual(sorted(thread for thread, _words in self.h.backend.send_calls), sorted(threads[8:]))
+        self.assertEqual({self.found(plug, rule)["gate_reason"] for rule in rules[:8]}, {"notLoaded"})
+
 
 class EndTests(MessageCase):
+    def test_the_conversation_switched_off_cancels_it_at_once_and_switching_it_on_again_revives_nothing(self):
+        """The Dashboard's switch tells the plug (core's Control, conversation_off) - so a switch off and on again
+        while recovery is paused, or between two ticks, leaves it cancelled (H5)."""
+        plug = self.armed()
+        rule, _key = self.message(plug)
+        self.h.tick()
+        self.h.store.set_enabled(False, self.h.now)               # Pause
+        self.h.tick(advance=5)
+        self.h.store.set_thread_enabled(T1, False, at=self.h.now)   # the switch, as Control turns it ...
+        guard(plug).conversation_off(T1)                          # ... and tells the plug
+        gone = self.found(plug, rule)
+        self.assertEqual((gone["state"], gone["reason"], gone["words"], gone["record_state"]),
+                         (RuleState.CANCELLED, RuleReason.CONVERSATION_OFF, None, RecordState.CANCELLED))
+        self.h.tick(advance=5)
+        self.h.store.set_thread_enabled(T1, True, at=self.h.now)    # ... and on again
+        self.h.store.set_enabled(True, self.h.now)                # Resume
+        self.h.now = RESET + CLOSE_AFTER
+        self.h.tick()
+        self.assertEqual(self.h.backend.send_calls, [])
+        self.assertEqual(self.found(plug, rule)["state"], RuleState.CANCELLED)
+
+    def test_turned_off_and_on_again_before_any_sweep_it_stays_cancelled(self):
+        """The move off itself ends it (state/resets.end_pending), not only the next sweep, which a Pause puts off."""
+        plug = self.armed()
+        rule, _key = self.message(plug)
+        self.h.tick()
+        self.h.store.set_enabled(False, self.h.now)               # Pause: no sweep runs
+        plug.runtime.arming.disarm(self.cap, actor="dashboard")
+        gone = self.found(plug, rule)
+        self.assertEqual((gone["state"], gone["reason"], gone["words"]), (RuleState.CANCELLED, RuleReason.TURNED_OFF, None))
+        self.h.tick(advance=5)
+        self.arm(plug, warnings=list(plug.runtime.arming.warnings(RESET_MESSAGE)))
+        self.h.store.set_enabled(True, self.h.now)
+        self.h.now = RESET + CLOSE_AFTER
+        self.h.tick()
+        self.assertEqual(self.h.backend.send_calls, [])
+        self.assertEqual(self.found(plug, rule)["state"], RuleState.CANCELLED)
+
     def test_a_conversation_switched_off_cancels_it_and_its_words(self):
         plug = self.armed()
         rule, _key = self.message(plug)

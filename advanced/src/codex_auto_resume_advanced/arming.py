@@ -493,7 +493,8 @@ class Arming:
         """Every reset rule still to act of a capability that does not stand on now, ended with its words
         (turned_off) - watched, off, or read down by a policy - but one being sent, which its watch follows to its
         end (runtime.py); and the count of reset credits and the soonest expiry let go while reset_credit is not
-        on, which is all that may keep them (B10, v0.6.14)."""
+        on, which is all that may keep them (B10, v0.6.14). A move off on ends them already, in its own
+        transaction (state/resets.end_pending); this is for a policy that reads one down, and what that missed."""
         try:
             rules = self.state.reset_rules()
             for rule in rules:

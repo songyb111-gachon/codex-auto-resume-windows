@@ -15,24 +15,29 @@ typed: nothing is filled in, and it is at most 2,000 characters unless Longer re
   and the rules adopted (engine/resetwatch.py).
 * P2: first the windows closed by time, with no reading, so a message is due at the very tick its window
   closes; then every message due is handed core with its words, and every one in flight, to be watched.
-  One whose conversation was switched off is cancelled (H5); one unsent eight days after it was written,
-  or a day after it fell due, has expired. Either way its words go.
+  One whose conversation is found switched off is cancelled (H5: the switch itself cancels it, as it
+  happens, runtime.conversation_off - this is for what that could not write); one unsent eight days after
+  it was written, or a day after it fell due, has expired. Either way its words go.
 * P3 `usage`: a core record of the same conversation is held while one of its messages is due or in
   flight, and while one counts for the very reset that record waits for - so when a continuation and the
   person's message wait for the same reset, only the message is sent, in the continuation's place (the
-  owner's answer); a newer user turn then supersedes core's record (A17).
+  owner's answer); a newer user turn then supersedes core's record (A17). Held at most thirty minutes
+  after the message fell due (HOLD_FOR): one that cannot go by then holds no recovery longer (H7).
 
 The runtime keeps what core tells it at P14 (runtime.py): sent, the words are gone; delivered, done;
 unproven a day after it was sent, done as unknown, and the capability turns itself off (K7). The words
-leave the disk at the send's start, at a cancel, at expiry and when the capability stands anywhere but on
-(arming.py, sweep); the file refuses words on a finished rule (state/schema.py). They never reach a log,
-the journal, diagnostics, a notification, the status, MCP or a golden.
+leave the disk at the send's start, at a cancel, at expiry, when the conversation is switched off (at the
+switch itself: runtime.conversation_off) and when the capability stands anywhere but on (at the move
+itself, state/resets.end_pending, and at the sweep for a policy that reads it down, arming.py); the file
+refuses words on a finished rule (state/schema.py). They never reach a log, the journal, diagnostics, a
+notification, the status, MCP or a golden.
 """
 from __future__ import annotations
 
 from codex_auto_resume import failures
 from codex_auto_resume.domain import ids
 from codex_auto_resume.domain.plug import DEFER, Alternative
+from codex_auto_resume.domain.plughands import RECORDS_LIMIT
 
 from ..codex import credits
 from ..vocabulary import Measurement, RecordState, RuleReason, RuleState
@@ -46,6 +51,9 @@ SHORT_LIMIT = 2000
 # How long one waits to be sent, at most: eight days from when it was written, a day from when it fell due.
 KEEP_FOR = 8 * 86400
 DUE_FOR = 86400
+# How long a core record of its conversation is held for one due or being sent, at most, from when it fell due:
+# then a recovery waiting there goes on (H7), whatever became of the message.
+HOLD_FOR = 1800
 USAGE = "usage"
 
 
@@ -73,12 +81,13 @@ def handed(rule) -> dict | None:
 
 class ResetMessage:
     """The capability's code: its hooks at P8, P2 and P3. `bind` gives it its view of the state."""
-    __slots__ = ("paths", "_scoped", "_open")
+    __slots__ = ("paths", "_scoped", "_open", "_turn")
 
     def __init__(self, paths, *, session=None):
         self.paths = paths
         self._scoped = None
         self._open = session
+        self._turn = 0
 
     def bind(self, scoped):
         self._scoped = scoped
@@ -134,7 +143,7 @@ class ResetMessage:
         handle = scoped.resets
         rows = self._watch().by_time()
         now = scoped.now()
-        found = []
+        found, waiting = [], []
         for rule in handle.reset_rules(capability=CAPABILITY):
             if rule["record_state"] == RecordState.IN_FLIGHT:
                 if rule["words"] is not None and rule["launching_at"] is not None:
@@ -158,8 +167,14 @@ class ResetMessage:
                 self._count("due")
             handed_ = handed(rule)
             if handed_ is not None:
-                found.append(handed_)
-        return found or DEFER
+                waiting.append(handed_)
+        # Core tries RECORDS_LIMIT a tick, and ten may be due: those due are handed in turn, from a place
+        # that moves on each tick, so none waits behind the others for good.
+        if waiting:
+            start = (self._turn * RECORDS_LIMIT) % len(waiting)
+            waiting = waiting[start:] + waiting[:start]
+            self._turn += 1
+        return found + waiting or DEFER
 
     def _ended(self, rule, view, now):
         """(state, reason) a message not yet sent ends with now, or None."""
@@ -178,7 +193,8 @@ class ResetMessage:
     # ------------------------------------------------------------------ P3
     def gate(self, name, record, facts):
         """P3 `usage`: HOLD a core record of a conversation one of these messages is due or in flight in -
-        or one that counts for the very reset this usage-limit record waits for. DEFER otherwise."""
+        or one that counts for the very reset this usage-limit record waits for - for at most HOLD_FOR after
+        it fell due. DEFER otherwise."""
         scoped = self._scoped
         if name != USAGE or scoped is None or not isinstance(record, dict):
             return DEFER
@@ -186,26 +202,30 @@ class ResetMessage:
         try:
             rules = [rule for rule in scoped.resets.reset_rules(capability=CAPABILITY) if rule["thread_id"] == thread]
             rows = scoped.resets.windows() if rules else {}
+            now = scoped.now()
         except Exception:
             return DEFER
         for rule in rules:
             if rule["state"] == RuleState.READY or rule["record_state"] == RecordState.IN_FLIGHT:
-                return Alternative.HOLD
-            if self._same_reset(rule, rows.get((rule["bucket"], rule["minutes"])), record):
+                if rule["due_at"] is not None and 0 <= now - rule["due_at"] < HOLD_FOR:
+                    return Alternative.HOLD
+                continue
+            if self._same_reset(rule, rows.get((rule["bucket"], rule["minutes"])), record, now):
                 return Alternative.HOLD
         return DEFER
 
     @staticmethod
-    def _same_reset(rule, row, record) -> bool:
+    def _same_reset(rule, row, record, now) -> bool:
         """Whether a counting message falls due at the reset a usage-limit record of core's waits for: its
-        next reset is its occasion, and the window open now resets when the record's reset is."""
+        next reset is its occasion, and the window open now resets when the record's reset is - that reset
+        not yet HOLD_FOR past."""
         reset_at = record.get("reset_at")
         if (rule["state"] != RuleState.COUNTING or rule["base"] is None or row is None
                 or record.get("category") != failures.USAGE_LIMIT or not isinstance(reset_at, (int, float))
                 or row["open_reset_at"] is None):
             return False
         return (row["resets"] + 1 >= rule["base"] + rule["ordinal"]
-                and abs(reset_at - row["open_reset_at"]) <= TOL)
+                and abs(reset_at - row["open_reset_at"]) <= TOL and now < row["open_reset_at"] + HOLD_FOR)
 
     # ------------------------------------------------------------------ helpers
     def _count(self, code) -> None:

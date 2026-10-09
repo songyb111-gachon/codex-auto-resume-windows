@@ -75,6 +75,18 @@ def occasion_problem(bucket, minutes, ordinal) -> bool:
     return minutes >= WEEK and ordinal != 1
 
 
+def switched_off(runtime, thread) -> bool:
+    """Whether core holds conversation `thread` switched off now, read from core's state as the Dashboard's
+    own reads open it. One that cannot be read refuses nothing: P2 cancels a message whose conversation it
+    finds off (engine/resetmessage.py)."""
+    from codex_auto_resume.store import Store
+    try:
+        with Store(runtime.paths.state_dir) as store:
+            return store.thread_enabled(thread) is False
+    except Exception:
+        return False
+
+
 def view(runtime) -> dict:
     """advanced-resets: every rule still to act and those of the last thirty days, a message's words while it is
     still to act, the window families on offer with what was counted of each, the last reading - the count of
@@ -121,8 +133,8 @@ def view(runtime) -> dict:
 def add(runtime, argument) -> dict:
     """advanced-reset-add: one rule, `kind` credit or message, for the occasion (bucket, minutes, ordinal); a credit's
     `repeat` and `ask_first`, a message's `thread_id` and `words`. Refused while its capability does not stand on,
-    for an occasion not on offer, for words the check refuses or longer than the bound, and as the state refuses it
-    (one waiting in that conversation, as many waiting as may)."""
+    for an occasion not on offer, for words the check refuses or longer than the bound, for a conversation switched
+    off, and as the state refuses it (one waiting in that conversation, as many waiting as may)."""
     capability = KINDS.get(argument.get("kind"))
     if capability is None or runtime.registry.get(capability) is None:
         return _refused(Refusal.INVALID_REQUEST)
@@ -150,6 +162,8 @@ def add(runtime, argument) -> dict:
                 return _refused(Refusal.MESSAGE_REFUSED, runtime)
             if len(words) > words_limit(runtime):
                 return _refused(Refusal.MESSAGE_REFUSED, runtime)
+            if switched_off(runtime, thread):
+                return _refused(Refusal.CONVERSATION_OFF, runtime)
             rule = runtime.state.add_reset_rule(MESSAGE, bucket, minutes, ordinal, thread_id=thread, words=words,
                                                 record_id=secrets.token_hex(32))
     except Refused as refused:

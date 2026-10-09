@@ -347,6 +347,12 @@ class Plug:
         Not a point: nothing is decided by it and its answer is not read. NULL keeps nothing."""
         return None
 
+    def conversation_off(self, thread_id):
+        """A person has just switched conversation `thread_id` off (control/actions.py): what the plug
+        holds there of its own ends, as what waits there of core's does (H5), and switching it on again
+        revives nothing. Not a point: told in the process that switched it, its answer is not read."""
+        return None
+
 
 # Which hook each point calls.
 HOOKS = {
@@ -668,6 +674,14 @@ class Guarded:
             self.plug.codex(codex_exe, codex_home)
         except Exception:
             self.failures += 1
+
+    def conversation_off(self, thread_id):
+        """Plug.conversation_off, as `codex` is told: NULL nothing, and a raise counted in `failures`."""
+        if self.plug is not NULL:
+            try:
+                self.plug.conversation_off(thread_id)
+            except Exception:
+                self.failures += 1
 
 
 def guard(plug) -> Guarded:

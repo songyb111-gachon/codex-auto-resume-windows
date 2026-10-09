@@ -541,6 +541,16 @@ class Runtime:
                     found.append(record)
         return found or DEFER
 
+    def conversation_off(self, thread_id) -> None:
+        """A person switched `thread_id` off, in the Dashboard, a model's tool or the command line (core's
+        Plug.conversation_off): every message waiting for it ends cancelled, its words with it, at once - so
+        switching it on again, paused or between two ticks, revives none (H5). One being sent is its watch's to
+        end. What cannot be written now, P2 cancels when it finds the conversation off."""
+        try:
+            self.state.end_messages_in(thread_id, at=self.clock())
+        except StateError:
+            pass
+
     def moved(self, record, state):
         """P14: core has moved `record` to `state`. Its one use is a tripwire's (arming.py): a
         capability that tripped is off from here on, not from the next tick."""

@@ -121,12 +121,13 @@ class Refusal(StrEnum):
     UNKNOWN_RULE = "unknown_rule"
     # The reset actions (v0.6.14, state/resets.py): a window or a count of resets that is not one on offer;
     # as many rules waiting as may; a message the check refuses or too long; one waiting in that conversation
-    # already; and one being sent, which Cancel no longer reaches.
+    # already; one being sent, which Cancel no longer reaches; and a message for a conversation switched off.
     OCCASION_INVALID = "occasion_invalid"
     RESETS_FULL = "resets_full"
     MESSAGE_REFUSED = "message_refused"
     ALREADY_SCHEDULED = "already_scheduled"
     BEING_SENT = "being_sent"
+    CONVERSATION_OFF = "conversation_off"
 
 
 class JournalCode(StrEnum):
