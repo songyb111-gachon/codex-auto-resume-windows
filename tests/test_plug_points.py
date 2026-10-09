@@ -1463,11 +1463,13 @@ class ErrandTests(PluggedCase):
                 self.assertEqual(seen, [False])
 
     def test_it_is_not_asked_while_paused_or_stopped_by_an_administrator(self):
+        """Nor run: the same errand, asked and run at the first tick once recovery goes on again."""
         from types import SimpleNamespace
         for how in ("paused", "administrator"):
             with self.subTest(how):
                 h = self.fresh()
                 seen = self.entered(h)
+                managed = h.engine.managed
                 if how == "paused":
                     h.store.set_enabled(False, h.now)
                 else:
@@ -1475,6 +1477,13 @@ class ErrandTests(PluggedCase):
                 h.tick()
                 self.assertEqual(seen, [])
                 self.assertNotIn("tick", h.engine.plug.plug.hooks())
+                if how == "paused":
+                    h.store.set_enabled(True, h.now)
+                else:
+                    h.engine.managed = managed
+                h.tick(advance=5)
+                self.assertEqual(seen, [True], "run once recovery is on again")
+                self.assertIn("tick", h.engine.plug.plug.hooks())
 
     def test_a_pause_that_commits_between_its_ask_and_its_write_refuses_the_write(self):
         seen = []
