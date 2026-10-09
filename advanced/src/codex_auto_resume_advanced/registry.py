@@ -47,9 +47,10 @@ P15 (engine/markerfree.py); and, from v0.6.14 (stage 3b), those that take up fai
 relax their records at P3: the short retries when Codex is at capacity (engine/capacity.py), the
 rules for Codex's error codes, the retries of failures nothing classified, of Codex giving up and
 of a sign-in failure (engine/admitted.py); at P8 and P7, a reset credit used at the limit a person picked
-(engine/credits.py); and, at P7 and P3, the notice of a usage limit that lifts early (engine/earlyreset.py); at P7, an uncertain continuation sent once more (engine/oncemore.py),
-and one waiting recovery a person asks to send now (control/sendnow.py); and, at no point, the
-compatibility report, an action (report/). The tests define one of their own to hold every
+(engine/credits.py), and at P8, P2 and P3 a message of a person's own sent when the window they picked resets
+(engine/resetmessage.py); and, at P7 and P3, the notice of a usage limit that lifts early (engine/earlyreset.py); at P7, an uncertain continuation sent once more (engine/oncemore.py),
+and one waiting recovery a person asks to send now (control/sendnow.py); and, at no point, two actions: longer
+reset messages, and the compatibility report (report/). The tests define one of their own to hold every
 rule here.
 """
 from __future__ import annotations
@@ -66,6 +67,7 @@ from .engine.admitted import (ATTEMPTS, DEFAULT_ATTEMPTS, make_codex_gave_up, ma
                               make_structured_rules, make_unknown_failure_budget)
 from .engine.capacity import CEILING_HOURS, DEFAULT_HOURS, make as make_capacity_retry
 from .engine.credits import make as make_reset_credit
+from .engine.resetmessage import make as make_reset_message, make_long as make_long_messages
 from .engine.earlyreset import make as make_early_reset
 from .engine.goal import make as make_goal_continuation
 from .engine.markerfree import make as make_marker_free
@@ -481,6 +483,32 @@ RESET_CREDIT = CapabilityDef(
     measurements=(Measurement.MU, Measurement.MN, Measurement.MR),
 )
 
+# A message of a person's own when the window they picked resets (v0.6.14, the owner's request of 2026-10-06; the
+# plan's row "at the next reset", pulled forward from 3c): a person writes it in the Dashboard for one conversation
+# that is switched on and picks an occasion, and when that window resets core sends it - its gates, its one claim,
+# its one send - as a record of this edition's own (P2), at most 2,000 characters unless Longer reset messages is on
+# (A27 kept). At P8 it counts the windows (engine/resetwatch.py); at P2 it hands core the messages due and in flight,
+# cancelling one whose conversation was switched off (H5) and ending one that waited too long; at P3 `usage` it holds
+# a core record of the same conversation while a message there is due or in flight, or counts for the very reset
+# that record waits for, so the message goes in its place (the owner's answer). It departs from A8 (a recovery's
+# budgets and failure checks are not run), A17 (a turn after it does not take it back), A26 (the words are the
+# person's), C4 (it sends at a time chosen), C9 (it reads usage when no recovery is due), D2 (the words kept until
+# sent), H4 (a Pause does not take back one already queued) and H6 (Cancel no longer reaches one being sent); its
+# reads are core's own method, so not B4. It stands on exact_thread_recovery and rests on MU. One that cannot be
+# proven to have arrived a day after it was sent turns it off (K7). Ceilings: two a conversation, ten a day.
+RESET_MESSAGE = CapabilityDef(
+    id="reset_message",
+    points=frozenset({Point.TICK, Point.RECORDS, Point.GATES}),
+    revision=1,
+    departs_from=("A8", "A17", "A26", "C4", "C9", "D2", "H4", "H6"),
+    compat="exact_thread_recovery",
+    ceilings=Ceilings(per_day=10, per_conversation=2),
+    journal_prefix="resetmsg",
+    make=make_reset_message,
+    codes=("due", "sent", "delivered", "unknown", "expired", "not_started", "gap", "gone"),
+    measurements=(Measurement.MU,),
+)
+
 # Notice a usage limit that lifts early (v0.6.14 stage 3b; the plan's row: continue at once when usage
 # frees up before the time given; two checks at least five minutes apart; only while a record waits for
 # a usage limit). At P7, asked by core before such a record's time (EARLY), it answers EARLY once a
@@ -551,6 +579,22 @@ SEND_NOW = CapabilityDef(
     codes=("requested",),
 )
 
+# Longer reset messages (v0.6.14, the owner's answer of 2026-10-08): a message sent at a reset may be up to what one
+# continuation carries (continuation.PROMPT_LIMIT, 8,154 characters) instead of A27's 2,000 - a separate opt-in, off
+# until a person turns it on after its statement, which names A27. An action: it answers at no point and sends
+# nothing; reset_message reads whether it stands on, and when it does not, a waiting message over 2,000 is cancelled.
+LONG_RESET_MESSAGE = CapabilityDef(
+    id="long_reset_message",
+    kind=CapabilityKind.ACTION,
+    points=frozenset(),
+    revision=1,
+    departs_from=("A27",),
+    compat=None,
+    ceilings=None,
+    journal_prefix="longmsg",
+    make=make_long_messages,
+)
+
 # The compatibility report (v0.6.14 stage 3b, the plan's in-app report): this PC's own records written
 # up as codex-compat-reporter writes them (report/records.py, evidence.py, document.py), shown whole in
 # the Dashboard, saved where the person chooses, and sent to the project as a public pull request -
@@ -580,6 +624,6 @@ COMPAT_REPORT = CapabilityDef(
 # In this order, which is also which answers first where two answer at one point; the action, which
 # answers at none, last.
 DEFINITIONS = (START_WITH_CODEX, GOAL_CONTINUATION, MARKER_FREE, CAPACITY_RETRY, STRUCTURED_RULES,
-               UNKNOWN_FAILURE_BUDGET, CODEX_GAVE_UP, SIGN_IN_RETRY, RESET_CREDIT, EARLY_RESET, ONCE_MORE,
-               SEND_NOW, COMPAT_REPORT)
+               UNKNOWN_FAILURE_BUDGET, CODEX_GAVE_UP, SIGN_IN_RETRY, RESET_CREDIT, RESET_MESSAGE, EARLY_RESET,
+               ONCE_MORE, SEND_NOW, LONG_RESET_MESSAGE, COMPAT_REPORT)
 REGISTRY = Registry(DEFINITIONS)

@@ -54,8 +54,8 @@ from inspect import getattr_static
 import time
 
 from codex_auto_resume import continuation, failures
-from codex_auto_resume.domain.plug import (ALTERNATIVES, ANSWERS, DEFER, HOOKS, NULL, RESTRICTIONS,
-                                           TAKE_UP, Alternative, Point)
+from codex_auto_resume.domain.plug import (ALTERNATIVES, ANSWERS, DEFER, HOOKS, NULL, RECORD_MOVES, RESTRICTIONS,
+                                           TAKE_UP, Alternative, Point, RecordMove)
 
 from .arming import Arming
 from .ledger import ClaimLedger, ceiling_reached
@@ -102,6 +102,19 @@ def _taken(point, answer) -> bool:
     except Exception:                              # unhashable, refused, a `send` that raises
         return False
     return True                                    # the tick's answer is not read
+
+
+# The points core never asks a record of this edition's own at (v0.6.14): its words, its channel, how it is
+# carried and a route for it are core's alone - the person's words, sent as they are, by `codex queue`.
+OWN_RECORD_POINTS = frozenset({Point.TEXT, Point.SENDER, Point.DELIVERY, Point.UNLOADED})
+# What each move of one is counted as, in its capability's own words (registry.RESET_MESSAGE.codes).
+MOVE_CODES = {RecordMove.SENT: "sent", RecordMove.DELIVERED: "delivered", RecordMove.UNPROVEN: "unknown",
+              RecordMove.NOT_STARTED: "not_started"}
+
+
+def _own_record(record) -> bool:
+    """Whether `record` is one of this edition's own records (P2) rather than one of core's."""
+    return isinstance(record, dict) and "record_id" in record and "interruption_id" not in record
 
 
 def _own(code, name):
@@ -233,9 +246,10 @@ class Runtime:
                    for definition in definitions)
 
     def ask(self, point, *arguments):
-        """The answer at `point`: an armed capability's, or NULL's."""
+        """The answer at `point`: an armed capability's, or NULL's. A record of this edition's own (P2) is asked
+        nothing at P4, P5, P15 or P16: its words are the person's, and core sends it as it is (v0.6.14)."""
         definitions = self.registry.at(point)
-        if not definitions:
+        if not definitions or (point in OWN_RECORD_POINTS and _own_record(arguments[0])):
             return getattr(NULL, HOOKS[point])(*arguments)
         states = self.states()
         record = arguments[SENDING[point]] if point in SENDING else None
@@ -492,16 +506,66 @@ class Runtime:
         return _Errands(self, errands) if errands else DEFER
 
     def records(self, view):
-        """P2: the records of this edition's own that core is to try, or to watch (v0.6.14). Core checks
-        what it is handed (domain/plughands.records_of) and carries each out itself."""
-        return self.ask(Point.RECORDS, view)
+        """P2: the records of this edition's own that core is to try, or to watch (v0.6.14): every message in
+        flight, whatever its capability stands at now - core watches each to its end - and what each capability
+        that is on answers. Core checks what it is handed (domain/plughands.records_of) and carries each out
+        itself. A watched capability is not asked: it holds no message (arming.py, sweep)."""
+        from .engine.resetmessage import handed
+        found, seen = [], set()
+        try:
+            flying = [handed(rule) for rule in self.state.messages_in_flight()]
+        except StateError:
+            flying = []
+        states = self.states()
+        answers = [flying]
+        for definition in self.registry.at(Point.RECORDS):
+            if states.get(definition.id, ArmingState.OFF) != ArmingState.ARMED:
+                continue
+            try:
+                answer = self._code_of(definition).records(view)
+            except Exception:
+                self._tripped(definition)
+                continue
+            if isinstance(answer, (list, tuple)):
+                answers.append(answer)
+        for answer in answers:
+            for record in answer:
+                key = record.get("record_id") if isinstance(record, dict) else None
+                if key is not None and key not in seen:
+                    seen.add(key)
+                    found.append(record)
+        return found or DEFER
 
     def moved(self, record, state):
         """P14: core has moved `record` to `state`. Its one use is a tripwire's (arming.py): a
         capability that tripped is off from here on, not from the next tick."""
         if not len(self.registry):
             return DEFER
+        if _own_record(record) and state in RECORD_MOVES:
+            return self._record_moved(record, RecordMove(state))
         if self.arming.moved(record, state):
+            self.states(fresh=True)
+        return DEFER
+
+    def _record_moved(self, record, move):
+        """P14 for a record of this edition's own (v0.6.14): its rule and its record as core says they are now,
+        counted in its capability's words, and - unproven a day after it was sent - its capability turned off,
+        as a send it paid for gone submission_unknown does (K7)."""
+        try:
+            moved = self.state.record_moved(record.get("record_id"), move, gate=record.get("gate"),
+                                            reason=record.get("reason"), at=self.clock())
+        except StateError:
+            return DEFER                                 # repaired from the next P2 (resetmessage.records)
+        if moved is None:
+            return DEFER
+        code = MOVE_CODES.get(move)
+        if code is not None:
+            try:
+                self.state.counted(moved["capability"], code, at=self.clock())
+            except StateError:
+                pass
+        if moved["trip"]:
+            self.arming.trip(moved["capability"], OffReason.SUBMISSION_UNKNOWN)
             self.states(fresh=True)
         return DEFER
 
@@ -518,6 +582,11 @@ class Runtime:
         answer, as any hook's failure does, and core claims as it would with no plug. On a claim
         that carries a capability's answer, that answer could not be paid for, so the claim is
         held and nothing of it is sent; core takes back whatever the ledger had written."""
+        if _own_record(record) and isinstance(record, dict) and "phase" in record:
+            try:
+                return self.ledger.record(connection, record, now)
+            except Exception:
+                return Alternative.HOLD                  # a record that cannot be paid for is not sent
         key = record.get("interruption_id") if isinstance(record, dict) else None
         acted = {}
         for point, capability, word in self._acted.pop(key, ()):

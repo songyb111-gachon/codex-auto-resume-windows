@@ -78,6 +78,8 @@ CAPABILITY_METHODS = {
     "marker_free_continuation": ("thread/queue/add",),
     "goal_continuation": ("thread/goal/set", "thread/queue/add"),
     "reset_credit": ("account/rateLimits/read", "account/rateLimitResetCredit/consume"),
+    # A message sent at a reset (engine/resetmessage.py) reads usage, to count the resets, and nothing else.
+    "reset_message": ("account/rateLimits/read",),
 }
 
 # Every method some measurement declared: what a capability's own route may be given, and nothing

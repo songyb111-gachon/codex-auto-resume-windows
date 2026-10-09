@@ -29,6 +29,10 @@ Two things are decided:
   this claim reads - not in the runtime's few seconds old states - so Send again turned off after P7
   answered sends nothing.
 
+* A record of this edition's own (v0.6.14, P2): a message a person wrote, claimed in core's claim of it and
+  launched in its launch guard (`record`), each with its `phase` - counted across both tables and paid for
+  as a send is.
+
 HOLD is all this can say. It never grants anything core would refuse.
 """
 from __future__ import annotations
@@ -38,7 +42,7 @@ from codex_auto_resume.domain.plug import DEFER, Alternative
 from .registry import CORE_COOLDOWN_SECONDS, CORE_DAILY_CAP
 from .control.sendnow import fresh
 from .state import ATTACHED
-from .vocabulary import ArmingState, Ceiling, KeepOn, OverrideKind, RecordState
+from .vocabulary import ArmingState, Ceiling, KeepOn, OverrideKind, RecordState, RuleState
 
 DAY = 86400
 
@@ -142,3 +146,47 @@ class ClaimLedger:
                            "used_at) VALUES (?,?,?,?,NULL)" % ATTACHED,
                            (key, definition.id, OverrideKind.RESEND_ONCE, now))
         return True
+
+    def record(self, connection, record, now) -> object:
+        """P11 for a record of this edition's own (P2, v0.6.14): core's claim of it, or its launch, in core's
+        transaction and on its connection, with this file attached (`phase`, "claim" or "launch"). DEFER is
+        granted, and HOLD anything else.
+
+        claim - the record waiting, its rule due and not launched, its capability on now in the row this
+        claim reads, a unit under its ceilings, and nothing of either store in flight in the conversation,
+        five claims in a day and fifteen minutes since the last across both (state/records.claim_record):
+        then the record goes in flight and the unit is spent, with the claim.
+        launch - the record in flight and claimed, its rule due and not launched yet, its capability still
+        on: when the launch began is written, with the guard's transaction, and the words then go."""
+        if not isinstance(record, dict) or not self.state.attach(connection):
+            return Alternative.HOLD
+        key, phase = record.get("record_id"), record.get("phase")
+        found = connection.execute(
+            "SELECT c.state, c.capability, c.thread_id, r.rule_id, r.state AS rule_state, r.launching_at "
+            "FROM %s.records c JOIN %s.reset_rules r ON r.record_id = c.record_id WHERE c.record_id=?"
+            % (ATTACHED, ATTACHED), (key,)).fetchone()
+        if (found is None or found[4] != RuleState.READY or found[5] is not None
+                or found[2] != record.get("thread_id")):
+            return Alternative.HOLD
+        capability = found[1]
+        definition = self.registry.get(capability)
+        armed = connection.execute("SELECT state FROM %s.arming WHERE capability=?" % ATTACHED,
+                                   (capability,)).fetchone()
+        if definition is None or armed is None or armed[0] != ArmingState.ARMED:
+            return Alternative.HOLD
+        if phase == "claim":
+            if found[0] != RecordState.WAITING:
+                return Alternative.HOLD
+            global_hourly = connection.execute("SELECT global_hourly FROM %s.meta" % ATTACHED).fetchone()[0]
+            counts = self.state.counts(connection, ATTACHED, capability, found[2], now)
+            if ceiling_reached(counts, definition, global_hourly) is not None:
+                return Alternative.HOLD
+            if not self.state.claim_record(connection, key, now):
+                return Alternative.HOLD
+            self.state.record_spend(connection, ATTACHED, capability, found[2], None, now)
+            return DEFER
+        if phase == "launch" and found[0] == RecordState.IN_FLIGHT:
+            connection.execute("UPDATE %s.reset_rules SET launching_at=? WHERE rule_id=?" % ATTACHED,
+                               (now, found[3]))
+            return DEFER
+        return Alternative.HOLD

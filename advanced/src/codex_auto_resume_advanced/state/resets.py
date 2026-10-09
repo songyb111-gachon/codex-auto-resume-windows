@@ -272,6 +272,54 @@ class ResetsMixin:
                 connection.execute("UPDATE records SET state=?, finished_at=? WHERE record_id=?",
                                    (RecordState.CANCELLED, now, row["record_id"]))
 
+    # ------------------------------------------------------------------ what core did with a message (P14)
+    def record_moved(self, record_id, move, *, gate=None, reason=None, at=None):
+        """What core told of a message's record (P14, RecordMove), written in one transaction across its rule and
+        its record: the capability whose rule it is and whether it turns that capability off (UNPROVEN) - or
+        None where it is no message of this file's. A wait keeps the gate and the reason core named; handed back
+        or never started, the record waits again with its words; sent, its words are gone; delivered, it is done;
+        unproven a day after it was sent, it is done as unknown."""
+        _key(record_id, "record id")
+        move = str(move)
+        now = self._now(at)
+        with self._transaction(create=False) as connection:
+            if connection is None:
+                return None
+            row = connection.execute(
+                "SELECT r.rule_id, r.capability, r.state, r.gate, r.gate_reason, r.words, r.launching_at, "
+                "c.state AS record_state FROM reset_rules r JOIN records c ON c.record_id = r.record_id "
+                "WHERE r.record_id=?", (record_id,)).fetchone()
+            if row is None or row["state"] not in [str(state) for state in PENDING]:
+                return None
+            rule = row["rule_id"]
+            if move == "waiting":
+                gate, reason = _gate_word(gate), _gate_word(reason)
+                if (row["gate"], row["gate_reason"]) != (gate, reason):
+                    connection.execute("UPDATE reset_rules SET gate=?, gate_reason=? WHERE rule_id=?",
+                                       (gate, reason, rule))
+            elif move in ("released", "not_started"):
+                connection.execute("UPDATE records SET state=?, finished_at=NULL WHERE record_id=? AND state=?",
+                                   (RecordState.WAITING, record_id, RecordState.IN_FLIGHT))
+                connection.execute("UPDATE reset_rules SET launching_at=NULL, reason=? WHERE rule_id=?",
+                                   (RuleReason.NOT_STARTED if move == "not_started" else None, rule))
+            elif move == "sent":
+                connection.execute("UPDATE reset_rules SET words=NULL, sent_at=coalesce(launching_at, ?), "
+                                   "launching_at=coalesce(launching_at, ?) WHERE rule_id=?", (now, now, rule))
+            elif move in ("delivered", "unproven"):
+                reason = RuleReason.DELIVERED if move == "delivered" else RuleReason.UNKNOWN
+                connection.execute("UPDATE reset_rules SET state=?, reason=?, words=NULL, finished_at=? WHERE rule_id=?",
+                                   (RuleState.DONE, reason, now, rule))
+                connection.execute("UPDATE records SET state=?, finished_at=? WHERE record_id=?",
+                                   (RecordState.FINISHED, now, record_id))
+            else:
+                return None
+            return {"capability": row["capability"], "trip": move == "unproven"}
+
+    def messages_in_flight(self) -> list:
+        """Every message whose record is in flight, whatever its capability stands at now: core watches each to
+        its end (runtime.records)."""
+        return [rule for rule in self.reset_rules(capability=MESSAGE) if rule["record_state"] == RecordState.IN_FLIGHT]
+
     # ------------------------------------------------------------------ spends
     def add_credit_spend(self, rule_id, bucket, minutes, occasion, key, at=None):
         """A spend written before Codex is asked (A5's analogue): its id - or None where this filling of the

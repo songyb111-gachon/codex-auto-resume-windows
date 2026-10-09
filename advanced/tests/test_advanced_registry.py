@@ -51,14 +51,16 @@ CHANGES = frozenset({"thread/queue/add", "thread/goal/set",
 class ShippedTests(unittest.TestCase):
     SHIPPED = ("start_with_codex", "goal_continuation", "marker_free_continuation", "capacity_retry",
                "structured_rules", "unknown_failure_budget", "codex_gave_up", "sign_in_retry", "reset_credit",
-               "early_reset", "once_more_when_unsure", "send_now", "compat_report")
+               "reset_message", "early_reset", "once_more_when_unsure", "send_now", "long_reset_message",
+               "compat_report")
 
     def test_the_registry_this_edition_ships_is_its_capabilities_in_their_order(self):
         self.assertEqual([d.id for d in registry.DEFINITIONS], list(self.SHIPPED))
         self.assertEqual(len(registry.REGISTRY), len(self.SHIPPED))
         self.assertEqual(registry.REGISTRY.ids, self.SHIPPED)
         # The compatibility report is an action, last: it answers at no point, so it is in no list below.
-        self.assertEqual([d.id for d in registry.DEFINITIONS if d.kind == CapabilityKind.ACTION], ["compat_report"])
+        self.assertEqual([d.id for d in registry.DEFINITIONS if d.kind == CapabilityKind.ACTION],
+                         ["long_reset_message", "compat_report"])
         # Start-with-Codex answers at P9 alone - it starts the watcher, it does not send; the goal
         # continuation at P16, P3 and P5 - the route, the hold while a goal carries a conversation on,
         # and the channel where M2b passed; the marker-free continuation at P5 and P15, the channel
@@ -67,10 +69,12 @@ class ShippedTests(unittest.TestCase):
         # answer at P17 and again at P3, in the order that is precedence where two would answer.
         answering = {Point.START_ROUTE: ("start_with_codex",),
                      Point.SCHEDULE: ("reset_credit", "early_reset", "once_more_when_unsure", "send_now"),
-                     Point.TICK: ("reset_credit",),
+                     Point.TICK: ("reset_credit", "reset_message"),
+                     Point.RECORDS: ("reset_message",),
                      Point.UNLOADED: ("goal_continuation",),
                      Point.GATES: ("goal_continuation", "capacity_retry", "structured_rules",
-                                   "unknown_failure_budget", "codex_gave_up", "sign_in_retry", "early_reset"),
+                                   "unknown_failure_budget", "codex_gave_up", "sign_in_retry", "reset_message",
+                                   "early_reset"),
                      Point.ADMISSION: ("capacity_retry", "structured_rules", "unknown_failure_budget",
                                        "codex_gave_up", "sign_in_retry"),
                      Point.SENDER: ("goal_continuation", "marker_free_continuation"),
@@ -127,6 +131,25 @@ class ShippedTests(unittest.TestCase):
         self.assertEqual(protocol.methods_for_capability("reset_credit"),
                          frozenset({"initialize", "initialized", "account/rateLimits/read",
                                     "account/rateLimitResetCredit/consume"}))
+
+    def test_the_reset_message_departs_and_rests_on_what_the_owner_and_the_review_say(self):
+        """v0.6.14 (the owner, 2026-10-06 and 2026-10-08): A26, C4, C9 and D2 as the design named them, and A8, A17,
+        H4 and H6, which the review found it departs from as well; A27 kept - 2,000 characters - and departed from
+        only by Longer reset messages, a separate action naming it; H5 kept: a conversation switched off cancels it.
+        Its session reads usage as core does, so it names no B4."""
+        from codex_auto_resume_advanced.codex import protocol
+        message = registry.REGISTRY.get("reset_message")
+        self.assertEqual(message.departs_from, ("A8", "A17", "A26", "C4", "C9", "D2", "H4", "H6"))
+        self.assertNotIn("A27", message.departs_from)
+        self.assertNotIn("H5", message.departs_from)
+        self.assertEqual((message.compat, message.measurements), ("exact_thread_recovery", (Measurement.MU,)))
+        self.assertEqual(message.points, frozenset({Point.TICK, Point.RECORDS, Point.GATES}))
+        self.assertEqual((message.ceilings.per_day, message.ceilings.per_conversation), (10, 2))
+        self.assertEqual(protocol.methods_for_capability("reset_message") - {"initialize", "initialized"},
+                         {"account/rateLimits/read"})
+        longer = registry.REGISTRY.get("long_reset_message")
+        self.assertEqual((longer.kind, longer.departs_from, longer.points, longer.ceilings),
+                         (CapabilityKind.ACTION, ("A27",), frozenset(), None))
 
     def test_the_marker_free_continuation_departs_and_rests_on_what_the_owner_asked(self):
         """A2 and A4 as the owner named them, and B3 and B4 for the thread/queue/add its session
