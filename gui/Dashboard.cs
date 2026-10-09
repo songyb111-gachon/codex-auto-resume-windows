@@ -910,6 +910,9 @@ namespace CodexAutoResume
                 TableLayoutPanel section = settings && sections.ContainsKey(currentSection) ? sections[currentSection] : null;
                 page.SuspendLayout();
                 if (section != null) section.SuspendLayout();
+                // Coming back to the Overview: its Waiting lines, which the clock writes only while it is in front
+                // (UpdateCountdowns), written before it shows and so laid out with it.
+                if (name == "overview" && snapshot != null) UpdateCountdowns();
                 page.Visible = true;
                 if (section != null) section.ResumeLayout(true);
                 page.ResumeLayout(true);

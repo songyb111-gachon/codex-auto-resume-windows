@@ -241,7 +241,11 @@ namespace CodexAutoResume
         private static void ShowLine(Label label, string text)
         {
             label.Text = text ?? "";
-            label.Visible = label.Text.Length > 0;
+            // Only when the line's own bit differs (v0.6.14). Every status (each 5-s snapshot) comes here, and while
+            // Settings is not the page in front `Visible` answers false whatever the line was told, so `Visible = true`
+            // laid out the card and the whole of Settings > General, measuring all of it, every time.
+            bool want = label.Text.Length > 0;
+            if (Soft.OwnVisible(label) != want) label.Visible = want;
         }
 
         /// Fills the Then list with `offered`, only when that changed, so a refresh keeps what the person picked.

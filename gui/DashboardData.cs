@@ -857,6 +857,24 @@ namespace CodexAutoResume
             }
         }
 
+        /// A line's new words, with its parent laid out only when they need other room than the old ones (v0.6.14):
+        /// the Overview's countdown changes every second, and the card, the grid and the page around it were laid out
+        /// - every line of all four cards measured - each time, for the same bounds. Its preferred size is asked both
+        /// ways a table asks, unconstrained and at its own width, before and after; any difference lays out as before.
+        private static void Steady(Label label, string text)
+        {
+            text = text ?? "";
+            if (label.Text == text) return;
+            Control parent = label.Parent;
+            if (parent == null || !label.AutoSize || label.Width <= 0) { label.Text = text; return; }
+            Size free = label.GetPreferredSize(Size.Empty), held = label.GetPreferredSize(new Size(label.Width, 0));
+            parent.SuspendLayout();
+            label.Text = text;
+            parent.ResumeLayout(false);
+            if (label.GetPreferredSize(Size.Empty) != free || label.GetPreferredSize(new Size(label.Width, 0)) != held)
+                parent.PerformLayout(label, "Text");
+        }
+
         private void UpdateCountdowns()
         {
             if (snapshot == null) return;
@@ -871,9 +889,14 @@ namespace CodexAutoResume
             if (heroStatus != null) Hero(heroStatus, null, now);
             else Hero(status, pending, now);
             TellTaskbar(status, pending, now);
+            // The Overview's three lines, only while the Overview is the page in front (v0.6.14), as Pending's
+            // countdowns below are; ShowPage writes them before it shows the Overview again. Each is an AutoSize label
+            // on an AutoSize card, so a new countdown every second laid out the card, the grid and the hidden page
+            // around them, measuring every line of all four cards, for nobody.
+            bool overview = waitingLine != null && currentPage == "overview";
             if (unreadable)
             {
-                if (waitingLine != null)
+                if (overview)
                 {
                     waitingLine.Text = UnreadableReason(status);
                     nextLine.Text = "";
@@ -885,13 +908,13 @@ namespace CodexAutoResume
             int waiting = (int)counts[0], running = (int)counts[1];
             double next = counts[2];
             bool enabled = Equals(Get(status, "enabled"), true);
-            if (waitingLine != null)
+            if (overview)
             {
                 waitingLine.Text = waiting == 0 && running == 0 ? S("overview.none_waiting", "Nothing is waiting to be recovered")
                                  : S("overview.waiting_count", "{n} waiting", "n", waiting);
-                nextLine.Text = !(waiting > 0 && enabled && next > 0) ? ""
+                Steady(nextLine, !(waiting > 0 && enabled && next > 0) ? ""
                     : next <= now ? S("overview.due", "Due to be checked now")
-                    : S("overview.next", "Next check in {time}", "time", Countdown(next - now));
+                    : S("overview.next", "Next check in {time}", "time", Countdown(next - now)));
                 runningLine.Text = running > 0 ? S("overview.running_count", "{n} running in Codex", "n", running) : "";
             }
             // Every second, and only where a person can see it: writing a sub-item is a message to the
@@ -1056,10 +1079,11 @@ namespace CodexAutoResume
                 ? S("history.reset_limit", "Its attempts were already given back as many times as allowed; continue this task in Codex yourself.")
                 : "");
             bool off = row != null && !ThreadOn(row);
-            // Set every time. While History is not the page on screen `Visible` answers false
-            // whatever the button was told, and a write skipped for that left it offered beside a
-            // row whose conversation is on.
-            historyThread.Visible = off;
+            // Decided by the button's own bit (Soft.OwnVisible), never by `Visible`: while History is
+            // not the page on screen `Visible` answers false whatever the button was told, so a write
+            // skipped for that left it offered beside a row whose conversation is on - and a write made
+            // every time laid out the button row on every snapshot (v0.6.14).
+            if (Soft.OwnVisible(historyThread) != off) historyThread.Visible = off;
             historyThread.Enabled = idle && off;
             historyClear.Enabled = idle && historyList.Items.Count > (demoHistory == null ? 0 : 1);
         }
