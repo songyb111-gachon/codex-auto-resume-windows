@@ -104,6 +104,8 @@ _MESSAGES = {
     ("detection_unavailable_no_submission", None): "Codex local state unavailable; detection skipped, no submission",
     ("eligibility_check_failed_no_submission", None): "eligibility check failed; no submission",
     ("would_send", None): "observe only: every other check passed; a continuation would have been sent now, and none was",
+    # v0.6.14: P8's errand of the edition's plug raised; nothing else of the tick was lost.
+    ("plug_errand_failed", None): "an advanced capability's errand failed; it was skipped this time",
     # v0.6.14: a failure the edition's plug took up (domain/plug.py, P17); never in the standard edition.
     ("failure_taken_up", None): "failure of a kind recovered only on request taken up (interruption {detail12})",
     # v0.6.11: the two guards (guards.py), each only when it is on.

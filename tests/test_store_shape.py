@@ -26,7 +26,9 @@ from codex_auto_resume.store import Store  # noqa: E402
 MIXINS = (store.SessionMixin, store.SchemaMixin, store.MigrationsMixin, store.JournalMixin,
           store.PolicyMixin, store.RecordsMixin, store.ClaimsMixin, store.LedgerMixin,
           store.ActionsMixin, store.ScheduleMixin, store.WatcherMixin, store.ReportingMixin,
-          store.NoticesMixin)
+          store.NoticesMixin,
+          # v0.6.14: the edition's plug's own work, claimed and guarded as core's is.
+          store.PlugClaimsMixin)
 
 # What `Store` has, as the one class had it. Sixty-one methods, counted the day the file was
 # split; a method added or taken away is a decision, and this is where it is made.
@@ -71,6 +73,8 @@ METHODS = {
     "_resend_claim",
     # and the claim's take of a person's Send now, as the plug's ledger pays for it.
     "_forced_claim",
+    # and the guard P8's errand of the plug makes its one write in (store/plugclaims.py).
+    "errand_guard",
 }
 
 # Reachable as `store.<name>` before the split, and still.

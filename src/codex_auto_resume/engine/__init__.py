@@ -22,6 +22,7 @@ package does, and reading it should not mean opening seven files.
 """
 from __future__ import annotations
 
+from ..domain.plug import DEFER
 from .announce import NOTIFY_ON_STATE, AnnounceMixin  # noqa: F401
 from .delivery import DeliveryMixin
 from .detect import DetectMixin
@@ -58,28 +59,42 @@ class Engine(OptionsMixin, AnnounceMixin, FreshnessMixin, DetectMixin, Reconcile
         if not self.store.settings()["enabled"] or self.managed.disable_auto_resume:
             return
         # The plug is asked nothing more while recovery is paused: a Pause beats every
-        # capability, as it beats core. P8 is once a tick, after everything is observed.
+        # capability, as it beats core. P8 is once a tick, after everything is observed; what it
+        # answers to run (v0.6.14, an errand) runs last, after P2, whatever the tick met before it.
         view = StoreView(self.store, self.clock(), self.last_usage)
-        self.plug.tick(view)
+        errand = self.plug.tick(view)
         try:
-            self.collect()
-        except Exception:
-            self.log(None, "detection_unavailable_no_submission", None)
-            return
-        due = self.store.records_in(UNSENT)
-        # P12: how the due records are divided for dispatch. Core carries out no division but
-        # its own - one record after another, in this thread - so nothing is taken from the
-        # answer yet (domain/plug.py, ALTERNATIVES).
-        self.plug.partition(due)
-        for row in due:
             try:
-                self.attempt(row)
+                self.collect()
             except Exception:
-                self.log(row["thread_id"], "eligibility_check_failed_no_submission", None)
-        # v0.6.14: what the watch found no trace of, put to the plug for one more send (P7).
-        if not self.plug.null:
-            self.resend_uncertain()
-        # P2: the records of the advanced store that are due, after core's own. None is tried
-        # yet: an advanced record reaches the one claim only once core has learned to carry it
-        # through it (domain/plug.py, ALTERNATIVES).
-        self.plug.records(view)
+                self.log(None, "detection_unavailable_no_submission", None)
+                return
+            due = self.store.records_in(UNSENT)
+            # P12: how the due records are divided for dispatch. Core carries out no division but
+            # its own - one record after another, in this thread - so nothing is taken from the
+            # answer yet (domain/plug.py, ALTERNATIVES).
+            self.plug.partition(due)
+            for row in due:
+                try:
+                    self.attempt(row)
+                except Exception:
+                    self.log(row["thread_id"], "eligibility_check_failed_no_submission", None)
+            # v0.6.14: what the watch found no trace of, put to the plug for one more send (P7).
+            if not self.plug.null:
+                self.resend_uncertain()
+            # P2: the records of the advanced store that are due, after core's own. None is tried
+            # yet: an advanced record reaches the one claim only once core has learned to carry it
+            # through it (domain/plug.py, ALTERNATIVES).
+            self.plug.records(view)
+        finally:
+            if errand is not DEFER:
+                self._errand(errand)
+
+    def _errand(self, errand):
+        """P8's errand (v0.6.14): run once, last in the tick, handed a way to ask for the store's errand
+        guards (store/claims.py), each of which also asks what the engine knows and the store does not
+        (errand_held). One that raises is logged from the fixed table and costs itself alone."""
+        try:
+            errand.run(lambda: self.store.errand_guard(held=self.errand_held))
+        except Exception:
+            self.log(None, "plug_errand_failed", None)

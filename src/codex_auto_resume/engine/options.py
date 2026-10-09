@@ -275,6 +275,12 @@ class OptionsMixin:
                                 for source in (self.policy_values,) + self._more_quiet) if end is not None]
         return max(ends) if ends else None
 
+    def errand_held(self) -> bool:
+        """What holds back the one write of P8's errand (v0.6.14) beyond what the store reads in its guard:
+        an administrator's DisableAutoResume, Observe only as the settings say it, and quiet hours now."""
+        return bool(self.managed.disable_auto_resume or self.policy_values.get("observe_only")
+                    or self.quiet_until(self.clock()) is not None)
+
     def tier(self, thread_id) -> str:
         """The tier a conversation has: its own, or the default's (settings.tier_of)."""
         return policy.tier_of(self.policy_values, self.store.thread_tier(thread_id))

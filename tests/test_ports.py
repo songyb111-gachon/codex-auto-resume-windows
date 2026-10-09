@@ -94,6 +94,8 @@ ENGINE_TO_STORE = {
     # v0.6.14: the record of a task a failure continues, read before P17 asks about it - and only
     # while the edition's plug wants P17 (engine/detect.py).
     "chain_parent",
+    # and the guard of the plug's errand at P8, asked only for an errand the plug answered.
+    "errand_guard",
 }
 # What it asks of Codex itself, through the backend: is the app there, what is my usage, send
 # this, take it back, is the thread loaded. Five, and the split must not make it six by accident.

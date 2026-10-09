@@ -106,6 +106,8 @@ class NullPlugTests(unittest.TestCase):
     def test_the_interface_has_a_version(self):
         self.assertIs(type(plug.PLUG_API), int)
         self.assertGreaterEqual(plug.PLUG_API, 1)
+        # 3 (v0.6.14): P8's errand, and P2's records carried out - a package written for 2 is refused.
+        self.assertEqual(plug.PLUG_API, 3)
 
 
 class RecordingPlug(Plug):
@@ -235,8 +237,8 @@ class GuardTests(unittest.TestCase):
                 answer = getattr(guarded, plug.HOOKS[point])(*given)
                 if point is Point.SENDER:
                     self.assertIs(answer, given[-1])
-                elif point in (Point.TICK, Point.MOVED):
-                    self.assertIsNone(answer, "a tick's answer, and a move's, are not read")
+                elif point is Point.MOVED:
+                    self.assertIsNone(answer, "a move's answer is not read")
                 else:
                     self.assertIs(answer, DEFER)
         self.assertEqual(guarded.failures, 0)
@@ -255,7 +257,7 @@ class GuardTests(unittest.TestCase):
         self.assertIs(failing.sender(object(), backend), backend)
         self.assertIs(failing.gate("usage", {}, {}), DEFER)
         self.assertIs(failing.claim_ledger(object(), {}, 1.0, frozenset()), DEFER)
-        self.assertIsNone(failing.tick(object()))
+        self.assertIs(failing.tick(object()), DEFER, "an errand, from v0.6.14, or DEFER")
         self.assertIs(failing.surface(Surface.STATUS, {}), DEFER)
         self.assertEqual(failing.failures, 5)
 

@@ -85,6 +85,8 @@ METHODS = {
     # and a person's Send now (SEND_NOW, engine/relaxed.py): the schedule it passes, an attempt budget
     # of the person's own, and the administrator's ceiling the claim is told.
     "_send_now", "_own_budget", "forced_limits",
+    # and P8's errand of the plug, run last in the tick, and what holds back its one write.
+    "_errand", "errand_held",
 }
 
 # What `from codex_auto_resume.engine import ...` has to keep answering (app.py, the tests).

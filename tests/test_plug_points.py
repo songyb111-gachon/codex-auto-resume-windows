@@ -1410,6 +1410,123 @@ def _told_after(block, index) -> bool:
     return after < len(block) and _tells(block[after])
 
 
+class Errand:
+    """An errand as a plug answers one at P8 (v0.6.14): `body` is what its `run` does with the guards."""
+
+    def __init__(self, body):
+        self.body, self.runs = body, 0
+
+    def run(self, guard):
+        self.runs += 1
+        return self.body(guard)
+
+
+class ErrandTests(PluggedCase):
+    """P8's errand (v0.6.14): what a plug answers at P8 with a callable `run` is run once, last in the
+    tick, with guards of the store's in which a Pause, Observe only, an administrator or quiet hours that
+    committed first refuse its one irrevocable write - and one that raises costs only itself."""
+
+    def entered(self, h=None, **plug):
+        """What each guard the errand asked for said, entered once."""
+        seen = []
+
+        def body(guard):
+            with guard() as permitted:
+                seen.append(permitted)
+        self.plugged(Asked(tick=Errand(body), **plug), h)
+        return seen
+
+    def test_it_runs_once_last_in_the_tick_after_p2(self):
+        self.due()
+        order = []
+        errand = Errand(lambda guard: order.append(("run", len(self.h.backend.send_calls))))
+        self.plugged(Asked(tick=errand, records=lambda view: order.append(("records", None)) or DEFER))
+        self.h.tick()
+        self.assertEqual(order, [("records", None), ("run", 1)], "after P2, and after the due record's send")
+        self.assertEqual(errand.runs, 1)
+
+    def test_its_guard_permits_its_one_write_with_recovery_on_and_nothing_holding_it(self):
+        seen = self.entered()
+        self.h.tick()
+        self.assertEqual(seen, [True])
+        for how in ("observe_only", "policy_observe_only", "quiet_hours"):
+            with self.subTest(how):
+                h = self.fresh()
+                seen = self.entered(h)
+                if how == "observe_only":
+                    h.store.set_observe_only(True)
+                elif how == "policy_observe_only":
+                    h.engine.policy_values = dict(h.engine.policy_values, observe_only=True)
+                else:
+                    h.engine.quiet_until = lambda now: now + 3600
+                h.tick()
+                self.assertEqual(seen, [False])
+
+    def test_it_is_not_asked_while_paused_or_stopped_by_an_administrator(self):
+        from types import SimpleNamespace
+        for how in ("paused", "administrator"):
+            with self.subTest(how):
+                h = self.fresh()
+                seen = self.entered(h)
+                if how == "paused":
+                    h.store.set_enabled(False, h.now)
+                else:
+                    h.engine.managed = SimpleNamespace(disable_auto_resume=True)
+                h.tick()
+                self.assertEqual(seen, [])
+                self.assertNotIn("tick", h.engine.plug.plug.hooks())
+
+    def test_a_pause_that_commits_between_its_ask_and_its_write_refuses_the_write(self):
+        seen = []
+
+        def body(guard):
+            self.h.store.set_enabled(False, self.h.now)       # another surface's Pause, committed first
+            with guard() as permitted:
+                seen.append(permitted)
+        self.plugged(Asked(tick=Errand(body)))
+        self.h.tick()
+        self.assertEqual(seen, [False])
+
+    def test_a_guard_enters_once_and_an_errand_asks_for_at_most_eight(self):
+        from codex_auto_resume.domain.plughands import ERRAND_GUARDS
+        seen = []
+
+        def body(guard):
+            once = guard()
+            with once as first:
+                seen.append(first)
+            with once as again:
+                seen.append(again)
+            for _ in range(ERRAND_GUARDS):
+                with guard() as permitted:
+                    seen.append(permitted)
+        self.plugged(Asked(tick=Errand(body)))
+        self.h.tick()
+        self.assertEqual(seen, [True, False] + [True] * (ERRAND_GUARDS - 1) + [False])
+
+    def test_an_errand_that_raises_is_logged_and_costs_only_itself(self):
+        self.due()
+        self.plugged(Asked(tick=Errand(lambda guard: 1 / 0)))
+        self.h.tick()
+        self.assertIn((None, "plug_errand_failed", None), self.h.logs)
+        self.assertEqual(len(self.h.backend.send_calls), 1)
+        self.assertEqual(self.h.record()["state"], "queued")
+
+    def test_an_answer_with_no_callable_run_is_no_errand_and_null_runs_none(self):
+        class Unrunnable:
+            run = "run"
+        for answer in ("run", 5, Unrunnable(), {"run": lambda guard: None}):
+            with self.subTest(answer=answer):
+                self.assertIs(guard(Asked(tick=answer)).tick(None), DEFER)
+        self.assertIs(guard(None).tick(None), DEFER)
+        ran = []
+        made = guard(Asked(tick=Errand(lambda g: ran.append(g))))
+        held = made.tick(None)
+        self.assertIsNot(held, DEFER)
+        held.run(lambda: contextlib.nullcontext(True))
+        self.assertEqual(len(ran), 1)
+
+
 class MovedTests(PluggedCase):
     """P14: every move the engine writes is told to the plug once it is written - the record as
     core held it, a copy, and the state it moved to - and nothing is told to NULL.

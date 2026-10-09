@@ -87,6 +87,8 @@ ITEM = {_q(name): item for item, names in {
                # v0.6.11: what an edition may change about a decision, and which edition this
                # is - the "under which edition" of HOMELESS below, in code
                "domain.plug", "edition",
+               # v0.6.14: what core holds of a channel, a route and an errand a plug names.
+               "domain.plughands",
                # v0.6.11: quiet hours and a postponement's times - when, by the local clock - and
                # which projects may resume without a person; the retry ladders, which a person
                # chooses; and the two guards that may hold a waiting recovery.
@@ -122,6 +124,8 @@ ITEM = {_q(name): item for item, names in {
               "store.ledger",
               # and a needs-you notice, raised once.
               "store.notices",
+              # v0.6.14: the edition's plug's own work, claimed and guarded as core's is.
+              "store.plugclaims",
               # and a record made later, held and let go, out of store/actions.py.
               "store.schedule"),
     "codex": ("codex", "codex.appserver", "codex.errors", "codex.history", "codex.labels",

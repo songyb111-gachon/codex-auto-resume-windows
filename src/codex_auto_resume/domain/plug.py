@@ -33,7 +33,8 @@ and every surface hold one; none of them calls a hook of a plug itself.
 
 `edition.py` finds the package and makes a plug of it. This module is pure: the interface and
 its version, NULL, the plug of an advanced installation whose package could not be loaded, the
-guard core holds a plug in, and the six closed vocabularies they speak in. Those are `StrEnum`s
+guard core holds a plug in, and the six closed vocabularies they speak in - and what core holds of
+a channel, a route or an errand a plug names is beside it, in domain/plughands.py. Those are `StrEnum`s
 held to every rule `domain/vocabulary.py`'s are (tests/test_vocabulary.py), and they live here,
 beside the one interface that uses them, as the interface's own words.
 """
@@ -44,10 +45,13 @@ import copy
 from enum import StrEnum
 import json
 
+from .plughands import Channel, Errand, Route
+
 # The interface's version. The advanced package writes out the number it was written for, and
 # edition.py takes its plug only when the two agree: otherwise a hook renamed, or given another
 # argument, would be called the old way or not at all, and nothing would say so. 2: P17 and `wants`.
-PLUG_API = 2
+# 3 (v0.6.14): P8's errand, and P2's records carried out.
+PLUG_API = 3
 
 
 class Edition(StrEnum):
@@ -239,7 +243,9 @@ class Plug:
         return DEFER
 
     def tick(self, view):                             # P8
-        """Once a tick, after everything has been observed. Its answer is not read."""
+        """Once a tick, after everything has been observed. From v0.6.14 it may answer an errand -
+        something with a callable `run` - which core runs once, last in the tick, with guards of its own
+        (Guarded.tick); any other answer is not read."""
         return DEFER
 
     def start_route(self, request):                   # P9
@@ -466,65 +472,6 @@ def fields(answer):
         return DEFER
 
 
-class _Channel:
-    """A channel a plug named at P5, held to the launch guard rather than asked to enter it.
-
-    Core's backend enters the guard it is handed around the one moment it launches the queue
-    process, so a Pause, a cancel or a conversation switched off that committed after the claim
-    stops the send there. A channel is the plug's code, and nothing made it enter the guard it
-    was handed, so this enters the guard for it: consent is read under the store's write lock,
-    and the channel is called only if it held, with a guard already decided.
-
-    The lock is let go before the channel is called, as core's backend lets it go once the
-    queue process is launched: calling the channel is this send's launch. Held across a
-    transport core cannot see into - the lock being the advanced state's too once the claim
-    attached it - a Pause, a disarm on another thread and the channel's own write all waited for
-    it, and failed past SQLite's ten seconds. A Pause that commits once consent was read finds a
-    send started, as it finds one of the backend's after its launch.
-
-    `client_id` is handed on only when core gives one - a continuation it sends with no marker
-    (P15) - so a channel that was never asked for that is called exactly as before."""
-    __slots__ = ("_send",)
-
-    def __init__(self, send):
-        self._send = send
-
-    def send(self, thread_id, prompt, *, launch_guard=None, client_id=None):
-        with launch_guard if launch_guard is not None else nullcontext(True) as permitted:
-            pass
-        if permitted is not True:
-            return {"outcome": "not_started", "error_code": "queue_consent_refused"}
-        if client_id is None:
-            return self._send(thread_id, prompt, launch_guard=nullcontext(True))
-        return self._send(thread_id, prompt, launch_guard=nullcontext(True), client_id=client_id)
-
-
-class _Route:
-    """A route a plug named at P16, held to the launch guard as a channel is (`_Channel`).
-
-    Consent is read under the store's write lock, and the route is called only if it held, with
-    a guard already decided and the lock let go - the route is the plug's code, and a transport
-    core cannot see into, and a Pause or a disarm must never wait behind it. `resume` is the
-    route's one method, and the only thing of it core ever calls.
-
-    `still_unloaded` is core's own look at whether the app still does not hold the conversation
-    (engine/delivery.py), handed on, when core gives one, for the route to ask at the last moment
-    before it changes anything in Codex: the app may open the conversation while a session starts."""
-    __slots__ = ("_resume",)
-
-    def __init__(self, resume):
-        self._resume = resume
-
-    def resume(self, thread_id, *, launch_guard=None, still_unloaded=None):
-        with launch_guard if launch_guard is not None else nullcontext(True) as permitted:
-            pass
-        if permitted is not True:
-            return {"outcome": "not_started", "error_code": "queue_consent_refused"}
-        if still_unloaded is None:
-            return self._resume(thread_id, launch_guard=nullcontext(True))
-        return self._resume(thread_id, launch_guard=nullcontext(True), still_unloaded=still_unloaded)
-
-
 class Guarded:
     """A plug as core holds it: every hook asked through `consult`, every value checked before
     core takes it.
@@ -534,8 +481,8 @@ class Guarded:
     and anything else is DEFER - except at the sender, where it is core's own backend, because
     there is always a send to hand the one message to. Nothing a hook does reaches past this:
     it is handed copies (`consult`) and a stand-in for the backend (BACKEND), and a channel it
-    names is held to the launch guard. `failures` counts the hooks that raised, over every
-    caller on every thread; the claim asks through `claim_ledger_checked`, which says whether
+    names is held to the launch guard, as an errand is to guards of its own. `failures` counts the
+    hooks that raised, over every caller on every thread; the claim asks through `claim_ledger_checked`, which says whether
     that one call raised (store/ledger.py)."""
     __slots__ = ("plug", "failures")
 
@@ -591,7 +538,7 @@ class Guarded:
             send = getattr(answer, "send", None)
         except Exception:                              # a `send` that raises when it is looked up
             return backend
-        return _Channel(send) if callable(send) else backend
+        return Channel(send) if callable(send) else backend
 
     def outcome(self, record, outcome):
         return self._ask(Point.OUTCOME, record, outcome)
@@ -600,7 +547,16 @@ class Guarded:
         return self._ask(Point.SCHEDULE, record, due)
 
     def tick(self, view):
-        self._ask(Point.TICK, view)
+        """P8: the errand the plug answered, held so that core runs it once with guards of its own
+        (plughands.Errand) - or DEFER, for anything without a callable `run`."""
+        answer = self._ask(Point.TICK, view)
+        if answer is DEFER:
+            return DEFER
+        try:
+            run = getattr(answer, "run", None)
+        except Exception:                              # a `run` that raises when it is looked up
+            return DEFER
+        return Errand(run) if callable(run) else DEFER
 
     def start_route(self, request):
         """A route to start the watcher outside Codex's job, or DEFER.
@@ -654,7 +610,7 @@ class Guarded:
 
     def unloaded(self, record):
         """P16: the route the plug names for a record whose conversation the app does not hold,
-        held to the launch guard (`_Route`), or DEFER - which is core's own wait (A11).
+        held to the launch guard (plughands.Route), or DEFER - which is core's own wait (A11).
 
         A route is something with a callable `resume`; a word, a number, or an object without one
         is DEFER, so a hook that answers with something core cannot call changes nothing. Core
@@ -666,7 +622,7 @@ class Guarded:
             resume = getattr(answer, "resume", None)
         except Exception:                              # a `resume` that raises when it is looked up
             return DEFER
-        return _Route(resume) if callable(resume) else DEFER
+        return Route(resume) if callable(resume) else DEFER
 
     def admission(self, failure):
         """P17: an answer of TAKE_UP, or DEFER. Core takes one only if failures.takes offered it."""
