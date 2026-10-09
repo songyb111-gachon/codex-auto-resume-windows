@@ -142,7 +142,12 @@ class PlugRecordsMixin:
         if not claimed:
             self._record_waits(record, gate, reason)
             return None
-        problem = self._record_problem(record, app)
+        try:
+            problem = self._record_problem(record, app)
+        except Exception:
+            # A look that could not be made is one that failed: the claim is handed back, never kept
+            # in flight with nothing launched - which would hold the conversation for good.
+            problem = RecordMove.RELEASED, "submission_safe", "released_before_send"
         if problem is not None:
             move, gate, reason = problem
             self._record_told(record, move, gate, reason)
@@ -156,8 +161,8 @@ class PlugRecordsMixin:
         """The last look before the one send of a record of the plug's: (move, gate, reason) to tell, or
         None to send. Anything that changed since its gates - a Pause, the conversation switched off,
         quiet hours, the app or its hold on the conversation, usage, a newer queued message - hands the
-        claim back (RELEASED); a copy of its marker already in Codex is the message sent already (SENT),
-        never a second one."""
+        claim back (RELEASED), and so does a look that raises (`_record_claim`); a copy of its marker
+        already in Codex is the message sent already (SENT), never a second one."""
         thread, now = record["thread_id"], self.clock()
         settings = self.store.settings()
         if (not settings["enabled"] or self.managed.disable_auto_resume or self.observing(settings)

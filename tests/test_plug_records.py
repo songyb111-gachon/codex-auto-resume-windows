@@ -178,6 +178,19 @@ class WaitingTests(RecordCase):
                 self.assertEqual(h.backend.send_calls, [])
                 self.assertEqual(plug.moves[-1][0], "released")
 
+    def test_a_look_after_the_claim_that_raises_hands_the_claim_back_and_sends_nothing(self):
+        plug = self.plug()
+
+        def look(record_, app):
+            raise RuntimeError("Codex's state could not be read")
+        self.h.engine._record_problem = look
+        self.h.tick()
+        self.assertEqual(self.h.backend.send_calls, [])
+        self.assertEqual([phase for phase, _, _ in plug.phases], ["claim"])
+        self.assertEqual(plug.moves, [("released", "submission_safe", "released_before_send")])
+        self.assertEqual([entry[1] for entry in self.h.logs if entry[1].startswith("plug_record")],
+                         ["plug_record_released"])
+
     def test_what_came_of_the_send_is_told(self):
         for outcome, move in (("accepted", "sent"), ("unknown", "sent"), ("not_started", "not_started"),
                               ("raise", "sent")):

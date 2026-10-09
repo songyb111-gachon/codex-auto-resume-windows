@@ -46,6 +46,8 @@ TIMES = frozenset({"adopted_at", "due_at", "launching_at", "sent_at", "finished_
 GATE_WORD_LIMIT = 48
 READING = frozenset({"read_at", "asked_at", "applied_at", "signal_at", "credits", "expiry_known",
                      "nearest_expiry"})
+# A message claimed this long ago whose launch never began is handed back (`release_unlaunched`).
+UNLAUNCHED_AFTER = 600
 
 
 def _family(bucket, minutes):
@@ -314,6 +316,26 @@ class ResetsMixin:
             else:
                 return None
             return {"capability": row["capability"], "trip": move == "unproven"}
+
+    def release_unlaunched(self, at=None) -> int:
+        """Every message claimed UNLAUNCHED_AFTER ago or more whose launch never began, handed back: its
+        record waits again, with its words. The launch guard writes when a launch began in the very
+        transaction that lets it go (ledger.py), so one with none was never sent - the watcher stopped
+        between the two, or the move that handed it back could not be written. Kept in flight, it would
+        hold every claim on its conversation for good, and be neither cancelled nor sent. How many."""
+        now = self._now(at)
+        with self._transaction(create=False) as connection:
+            if connection is None:
+                return 0
+            keys = [row[0] for row in connection.execute(
+                "SELECT c.record_id FROM reset_rules r JOIN records c ON c.record_id = r.record_id WHERE r.capability=? "
+                "AND r.state=? AND r.launching_at IS NULL AND r.sent_at IS NULL AND r.words IS NOT NULL AND c.state=? "
+                "AND c.claimed_at IS NOT NULL AND c.claimed_at <= ?",
+                (MESSAGE, RuleState.READY, RecordState.IN_FLIGHT, now - UNLAUNCHED_AFTER)).fetchall()]
+            for key in keys:
+                connection.execute("UPDATE records SET state=? WHERE record_id=? AND state=?",
+                                   (RecordState.WAITING, key, RecordState.IN_FLIGHT))
+            return len(keys)
 
     def messages_in_flight(self) -> list:
         """Every message whose record is in flight, whatever its capability stands at now: core watches each to

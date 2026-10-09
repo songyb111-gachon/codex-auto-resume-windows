@@ -181,6 +181,60 @@ class SendTests(MessageCase):
         self.assertEqual((waiting["state"], waiting["words"], waiting["record_state"], waiting["reason"]),
                          (RuleState.READY, WORDS, RecordState.WAITING, RuleReason.NOT_STARTED))
 
+    def broken_look(self):
+        """The pre-send look after the claim raises, once."""
+        real = self.h.engine._record_problem
+
+        def broken(record, app):
+            self.h.engine._record_problem = real
+            raise RuntimeError("Codex's state could not be read")
+        self.h.engine._record_problem = broken
+
+    def test_a_look_that_raises_after_its_claim_hands_it_back_and_it_goes_once_later(self):
+        plug = self.armed()
+        rule, _key = self.message(plug)
+        self.h.tick()
+        self.h.now = RESET + CLOSE_AFTER
+        self.broken_look()
+        self.h.tick()
+        back = self.found(plug, rule)
+        self.assertEqual((back["state"], back["record_state"], back["words"], back["launching_at"]),
+                         (RuleState.READY, RecordState.WAITING, WORDS, None))
+        self.assertEqual(self.h.backend.send_calls, [])
+        self.h.tick(advance=16 * 60)                           # past the fifteen minutes its claim began
+        self.assertEqual(len(self.h.backend.send_calls), 1)
+
+    def test_a_claim_whose_launch_never_began_is_handed_back_and_can_be_cancelled(self):
+        """The hand-back's own write failed (or the watcher stopped between the claim and the launch): the next
+        P2 ten minutes on hands it back, so it no longer holds the conversation, and Cancel reaches it."""
+        from codex_auto_resume_advanced.state import Refused, StateError
+        from codex_auto_resume_advanced.state.resets import UNLAUNCHED_AFTER
+        plug = self.armed()
+        state = plug.runtime.state
+        rule, _key = self.message(plug)
+        self.h.tick()
+        self.h.now = RESET + CLOSE_AFTER
+        self.broken_look()
+
+        def unwritable(*unused, **unused_too):
+            raise StateError("busy")
+        with patch.object(state, "record_moved", unwritable):
+            self.h.tick()
+        stuck = self.found(plug, rule)
+        self.assertEqual((stuck["record_state"], stuck["launching_at"], stuck["words"]),
+                         (RecordState.IN_FLIGHT, None, WORDS))
+        with self.assertRaises(Refused):
+            state.cancel_reset_rule(rule, at=self.h.now)
+        self.h.tick(advance=60)
+        self.assertEqual(self.found(plug, rule)["record_state"], RecordState.IN_FLIGHT, "not yet: it may be launching")
+        self.h.tick(advance=UNLAUNCHED_AFTER)
+        back = self.found(plug, rule)
+        self.assertEqual((back["state"], back["record_state"], back["words"]),
+                         (RuleState.READY, RecordState.WAITING, WORDS))
+        self.assertEqual(self.h.backend.send_calls, [])
+        state.cancel_reset_rule(rule, at=self.h.now)
+        self.assertEqual((self.found(plug, rule)["state"], self.found(plug, rule)["words"]), (RuleState.CANCELLED, None))
+
     def test_one_in_flight_holds_cores_own_claims_on_the_conversation(self):
         """One in flight in a conversation, across both stores: core's claim there is held (ledger.py)."""
         plug = self.armed()

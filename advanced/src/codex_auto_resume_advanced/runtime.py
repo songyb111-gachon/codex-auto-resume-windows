@@ -507,11 +507,16 @@ class Runtime:
 
     def records(self, view):
         """P2: the records of this edition's own that core is to try, or to watch (v0.6.14): every message in
-        flight, whatever its capability stands at now - core watches each to its end - and what each capability
-        that is on answers. Core checks what it is handed (domain/plughands.records_of) and carries each out
+        flight, whatever its capability stands at now - core watches each to its end - but one claimed whose launch
+        never began, which is handed back, and what each capability that is on answers. Core checks what it is handed (domain/plughands.records_of) and carries each out
         itself. A watched capability is not asked: it holds no message (arming.py, sweep)."""
         from .engine.resetmessage import handed
         found, seen = [], set()
+        try:
+            # A claim whose launch never began is handed back first (state/resets.release_unlaunched).
+            self.state.release_unlaunched(at=self.clock())
+        except StateError:
+            pass                                         # tried again at the next P2
         try:
             flying = [handed(rule) for rule in self.state.messages_in_flight()]
         except StateError:
