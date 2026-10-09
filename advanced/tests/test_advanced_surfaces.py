@@ -24,7 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import advancedcase as ac  # noqa: E402
 from codex_auto_resume import control, controlcli, mcpserver  # noqa: E402
 from codex_auto_resume.mcp.tools import TOOLS as CORE_TOOLS  # noqa: E402
-from codex_auto_resume.domain.plug import Alternative, FailureForm, Surface  # noqa: E402
+from codex_auto_resume.domain.plug import DEFER, Alternative, FailureForm, Surface  # noqa: E402
 from codex_auto_resume_advanced import arming, surfaces  # noqa: E402
 from codex_auto_resume_advanced.registry import Option  # noqa: E402
 from codex_auto_resume_advanced.vocabulary import (Actor, ArmingState, BridgeCommand,  # noqa: E402
@@ -240,6 +240,138 @@ class McpTests(SurfaceCase):
 
 SAMPLE = {"code": "brandNewVariant", "status": 503, "form": FailureForm.TAGGED, "has_message": True,
           "items": {"agentMessage": 2, "commandExecution": 1}, "duration": 42.0}
+
+
+class ResetBridgeTests(ac.AdvancedCase):
+    """The reset actions' bridge commands (v0.6.14, control/resets.py): the Dashboard's, against the generation it
+    read; a rule only while its capability is on; the bounds and refusals; Use a reset credit now good for fifteen
+    minutes and the watcher woken; the status shows counts only; and no MCP tool reaches any of it."""
+
+    WORDS = "SENTINEL-reset: carry on with the tests."
+
+    def setUp(self):
+        super().setUp()
+        from codex_auto_resume_advanced.registry import LONG_RESET_MESSAGE, RESET_CREDIT, RESET_MESSAGE
+        self.definitions = (RESET_CREDIT, RESET_MESSAGE, LONG_RESET_MESSAGE)
+        self.paths.ensure()
+        self.advanced = self.plug(*self.definitions)
+        self.control = control.Control(self.paths, plug=self.advanced)
+        self.woken = []
+        patcher = patch("codex_auto_resume_advanced.control.sendnow.wake", lambda paths: self.woken.append(1))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def bridge(self, command, argument=None):
+        request = {"id": 1, "command": command, "argument": argument or {}}
+        out = io.StringIO()
+        controlcli.serve(self.control, io.StringIO(json.dumps(request) + "\n"), out)
+        return json.loads(out.getvalue())["reply"]["result"]
+
+    def on(self, capability):
+        runtime = self.advanced.runtime
+        definition = runtime.registry.get(capability)
+        result = self.arm(runtime, capability, warnings=list(runtime.arming.warnings(definition)))
+        self.assertTrue(result["done"], result)
+        runtime.states(fresh=True)
+
+    def generation(self):
+        return self.advanced.runtime.state.meta()["generation"]
+
+    def message(self, **changes):
+        argument = dict(kind="message", bucket="codex", minutes=300, ordinal=1, thread_id=ac.THREAD,
+                        words=self.WORDS, generation=self.generation())
+        argument.update(changes)
+        return self.bridge("advanced-reset-add", argument)
+
+    def test_a_rule_is_added_only_while_its_capability_is_on_and_against_the_generation_read(self):
+        self.assertEqual(self.message()["refusal"], Refusal.NOT_ON)
+        self.on("reset_message")
+        self.assertEqual(self.message(generation=self.generation() - 1)["refusal"], Refusal.STALE_GENERATION)
+        added = self.message()
+        self.assertTrue(added["done"], added)
+        self.assertEqual(self.woken, [1])
+        listed = self.bridge("advanced-resets")
+        (rule,) = listed["rules"]
+        self.assertEqual((rule["capability"], rule["thread_id"], rule["words"], rule["state"]),
+                         ("reset_message", ac.THREAD, self.WORDS, "counting"))
+        self.assertIn({"bucket": "codex", "minutes": 300, "open_reset_at": None, "open_full": False}, listed["families"])
+        self.assertEqual(listed["limits"]["words"], 2000)
+
+    def test_each_refusal_is_its_own(self):
+        self.on("reset_message")
+        self.on("reset_credit")
+        for changes, refusal in (({"ordinal": 0}, Refusal.OCCASION_INVALID), ({"ordinal": 10}, Refusal.OCCASION_INVALID),
+                                 ({"minutes": 10080, "ordinal": 2}, Refusal.OCCASION_INVALID),
+                                 ({"bucket": "team"}, Refusal.OCCASION_INVALID),
+                                 ({"words": "   "}, Refusal.MESSAGE_REFUSED),
+                                 ({"words": "x" * 2001}, Refusal.MESSAGE_REFUSED),
+                                 ({"words": "see [codex-auto-resume:00]"}, Refusal.MESSAGE_REFUSED),
+                                 ({"thread_id": "not a conversation"}, Refusal.INVALID_REQUEST),
+                                 ({"kind": "anything"}, Refusal.INVALID_REQUEST)):
+            with self.subTest(changes=changes):
+                self.assertEqual(self.message(**changes)["refusal"], refusal)
+        self.assertTrue(self.message()["done"])
+        self.assertEqual(self.message()["refusal"], Refusal.ALREADY_SCHEDULED)
+        credit = dict(kind="credit", bucket="codex", minutes=300, ordinal=1, generation=self.generation())
+        self.assertEqual(self.bridge("advanced-reset-add", dict(credit, words="x"))["refusal"], Refusal.INVALID_REQUEST)
+        self.assertEqual(self.bridge("advanced-reset-add", dict(credit, repeat="yes"))["refusal"], Refusal.INVALID_REQUEST)
+        for _ in range(4):
+            self.assertTrue(self.bridge("advanced-reset-add", dict(credit, generation=self.generation()))["done"])
+        self.assertEqual(self.bridge("advanced-reset-add", dict(credit, generation=self.generation()))["refusal"],
+                         Refusal.RESETS_FULL)
+
+    def test_a_long_message_needs_longer_reset_messages_on(self):
+        self.on("reset_message")
+        self.assertEqual(self.message(words="x" * 2001)["refusal"], Refusal.MESSAGE_REFUSED)
+        self.on("long_reset_message")
+        self.assertEqual(self.bridge("advanced-resets")["limits"]["words"], 8154)
+        self.assertTrue(self.message(words="x" * 8154)["done"])
+
+    def test_cancel_and_go_on(self):
+        self.on("reset_message")
+        rule = self.message()["rule"]
+        state = self.advanced.runtime.state
+        self.assertEqual(self.bridge("advanced-reset-go-on", {"rule": rule, "generation": self.generation()})["refusal"],
+                         Refusal.UNKNOWN_RULE, "it is not held")
+        state.change_rule(rule, state="held", reason="count_gap", ordinal=1, base=None)
+        self.assertTrue(self.bridge("advanced-reset-go-on", {"rule": rule, "generation": self.generation()})["done"])
+        self.assertEqual((state.reset_rule(rule)["state"], state.reset_rule(rule)["adopted_at"]), ("counting", None))
+        state.change_rule(rule, state="ready", launching_at=ac.NOW)
+        self.assertEqual(self.bridge("advanced-reset-cancel", {"rule": rule, "generation": self.generation()})["refusal"],
+                         Refusal.BEING_SENT)
+        state.change_rule(rule, launching_at=None)
+        self.assertTrue(self.bridge("advanced-reset-cancel", {"rule": rule, "generation": self.generation()})["done"])
+        self.assertEqual((state.reset_rule(rule)["state"], state.reset_rule(rule)["words"]), ("cancelled", None))
+        self.assertEqual(self.bridge("advanced-reset-cancel", {"rule": rule, "generation": self.generation()})["refusal"],
+                         Refusal.UNKNOWN_RULE)
+
+    def test_use_a_reset_credit_now_is_a_rule_of_its_own_good_for_fifteen_minutes_and_wakes_the_watcher(self):
+        self.assertEqual(self.bridge("advanced-credit-now", {"generation": self.generation()})["refusal"], Refusal.NOT_ON)
+        self.on("reset_credit")
+        self.assertEqual(self.bridge("advanced-credit-now", {"generation": self.generation()})["refusal"],
+                         Refusal.OCCASION_INVALID, "no window is full")
+        used = self.bridge("advanced-credit-now", {"bucket": "codex", "minutes": 300, "generation": self.generation()})
+        self.assertTrue(used["done"], used)
+        self.assertEqual(used["expires_at"], ac.NOW + 900)
+        rule = self.advanced.runtime.state.reset_rule(used["rule"])
+        self.assertEqual((rule["ordinal"], rule["state"], rule["capability"]), (0, "ready", "reset_credit"))
+        self.assertEqual(self.woken, [1])
+
+    def test_the_status_shows_counts_only_and_no_mcp_tool_reaches_a_reset_action(self):
+        self.on("reset_message")
+        self.message()
+        status = self.advanced.surface(Surface.STATUS, {})
+        self.assertEqual((status["messages"], status["credit_rules"], status["ready"]), (1, 0, 0))
+        self.assertNotIn("SENTINEL", json.dumps(status))
+        for name in (Surface.TRAY, Surface.DIAGNOSTICS):
+            self.assertNotIn("messages", self.advanced.surface(name, {}))
+        tools = self.advanced.surface(Surface.MCP, {"request": "tools"})["tools"]
+        self.assertFalse([tool["name"] for tool in tools if "reset" in tool["name"] or "credit" in tool["name"]])
+        for command in surfaces.RESET_COMMANDS:
+            with self.subTest(command):
+                self.assertIs(surfaces.mcp(self.advanced.runtime, {"request": "call", "tool": str(command),
+                                                                   "arguments": {}}), DEFER)
+        self.assertEqual(status["on"], 1)
 
 
 class ChoicesCase(SurfaceCase):

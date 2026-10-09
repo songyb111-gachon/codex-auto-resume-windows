@@ -20,8 +20,9 @@ capability's statement and turns it on, watches
 it, turns it off, turns everything off, lowers the global ceiling, or runs a measurement by
 hand (`measure <id>`, measure.py), or writes, saves, checks and sends a compatibility report
 (report/flow.py, which starts gh, the GitHub CLI, as `measure` starts a session), or reads what a
-watched capability would have done (`advanced-watch-log`, watchlog.py) - every request made as the
-Dashboard. The statement carries
+watched capability would have done (`advanced-watch-log`, watchlog.py), or sets, lists and cancels the reset
+actions' rules - a reset credit at the limit a person picked, their own message at the reset they picked - and uses a
+reset credit now (control/resets.py) - every request made as the Dashboard. The statement carries
 the warnings that hold now and the Codex version an "on" acknowledges; the request to turn it on
 sends both back as the person's confirmation, and a warning is never what refuses it
 (arming.py).
@@ -69,6 +70,12 @@ ARGUMENTS = {
     BridgeCommand.ADVANCED_KEEP_ON: frozenset({"capability", "keep_on", "send_again", "generation", "confirmed"}),
     BridgeCommand.ADVANCED_SEND_NOW: frozenset({"interruption_id"}),
     BridgeCommand.ADVANCED_WATCH_LOG: frozenset({"capability"}),
+    BridgeCommand.ADVANCED_RESETS: frozenset(),
+    BridgeCommand.ADVANCED_RESET_ADD: frozenset({"kind", "bucket", "minutes", "ordinal", "repeat", "ask_first",
+                                                 "thread_id", "words", "generation"}),
+    BridgeCommand.ADVANCED_RESET_CANCEL: frozenset({"rule", "generation"}),
+    BridgeCommand.ADVANCED_RESET_GO_ON: frozenset({"rule", "generation"}),
+    BridgeCommand.ADVANCED_CREDIT_NOW: frozenset({"rule", "bucket", "minutes", "generation"}),
     BridgeCommand.ADVANCED_REPORT_BUILD: frozenset({"login"}),
     BridgeCommand.ADVANCED_REPORT_SAVE: frozenset({"sha256", "path"}),
     BridgeCommand.ADVANCED_REPORT_CHECK: frozenset({"sha256"}),
@@ -80,6 +87,10 @@ REPORT_COMMANDS = frozenset({BridgeCommand.ADVANCED_REPORT_BUILD, BridgeCommand.
                              BridgeCommand.ADVANCED_REPORT_CHECK, BridgeCommand.ADVANCED_REPORT_SEND,
                              BridgeCommand.ADVANCED_REPORT_JOB})
 REPORT = "compat_report"
+# The reset actions' commands (control/resets.py).
+RESET_COMMANDS = frozenset({BridgeCommand.ADVANCED_RESETS, BridgeCommand.ADVANCED_RESET_ADD,
+                            BridgeCommand.ADVANCED_RESET_CANCEL, BridgeCommand.ADVANCED_RESET_GO_ON,
+                            BridgeCommand.ADVANCED_CREDIT_NOW})
 
 _NO_ARGUMENTS = {"type": "object", "properties": {}, "additionalProperties": False}
 _OFF_ONLY = ("Turning a capability on is not something any tool does: the user does it in the "
@@ -115,6 +126,8 @@ def answer(runtime, name, facts):
     """What this edition shows on surface `name`, or DEFER."""
     if name == Surface.DIAGNOSTICS:
         return diagnostics(runtime)
+    if name == Surface.STATUS:
+        return status(runtime)
     if name in BADGE_SURFACES:
         return badge(runtime)
     if not isinstance(facts, dict):
@@ -140,6 +153,18 @@ def badge(runtime) -> dict:
     except Exception:
         on = 0
     return {"edition": str(Edition.ADVANCED), "on": on}
+
+
+def status(runtime) -> dict:
+    """The status's badge, and - only where a reset rule waits (v0.6.14) - how many messages and credit rules wait
+    and how many of them are due: counts, never a word of a message or a conversation (control/resets.counts)."""
+    shown = badge(runtime)
+    from .control import resets as reset_actions
+    try:
+        shown.update(reset_actions.counts(runtime))
+    except Exception:
+        pass
+    return shown
 
 
 def diagnostics(runtime) -> dict:
@@ -223,6 +248,8 @@ def bridge(runtime, command, argument):
     if command == BridgeCommand.ADVANCED_WATCH_LOG:
         from . import watchlog
         return watchlog.view(runtime, argument.get("capability"))
+    if command in RESET_COMMANDS:
+        return resets(runtime, command, argument)
     if command == BridgeCommand.ADVANCED_KEEP_ON:
         return arming.set_keep_on(argument.get("capability"), argument.get("keep_on"),
                                   send_again=argument.get("send_again", False),
@@ -230,6 +257,20 @@ def bridge(runtime, command, argument):
                                   actor=Actor.DASHBOARD)
     return arming.set_global_hourly(argument.get("global_hourly"), generation=argument.get("generation"),
                                     actor=Actor.DASHBOARD)
+
+
+def resets(runtime, command, argument):
+    """One of the reset actions' commands (control/resets.py), the Dashboard's."""
+    from .control import resets as reset_actions
+    if command == BridgeCommand.ADVANCED_RESETS:
+        return reset_actions.view(runtime)
+    if command == BridgeCommand.ADVANCED_RESET_ADD:
+        return reset_actions.add(runtime, argument)
+    if command == BridgeCommand.ADVANCED_RESET_CANCEL:
+        return reset_actions.cancel(runtime, argument.get("rule"), argument.get("generation"))
+    if command == BridgeCommand.ADVANCED_RESET_GO_ON:
+        return reset_actions.go_on(runtime, argument.get("rule"), argument.get("generation"))
+    return reset_actions.credit_now(runtime, argument)
 
 
 def report(runtime, command, argument):

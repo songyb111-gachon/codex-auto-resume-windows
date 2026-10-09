@@ -120,12 +120,11 @@ class Refusal(StrEnum):
     RULES_FULL = "rules_full"                # ten rules already
     UNKNOWN_RULE = "unknown_rule"
     # The reset actions (v0.6.14, state/resets.py): a window or a count of resets that is not one on offer;
-    # as many rules waiting as may; a message the check refuses; a conversation switched off; one waiting
-    # in that conversation already; and one being sent, which Cancel no longer reaches.
+    # as many rules waiting as may; a message the check refuses or too long; one waiting in that conversation
+    # already; and one being sent, which Cancel no longer reaches.
     OCCASION_INVALID = "occasion_invalid"
     RESETS_FULL = "resets_full"
     MESSAGE_REFUSED = "message_refused"
-    CONVERSATION_OFF = "conversation_off"
     ALREADY_SCHEDULED = "already_scheduled"
     BEING_SENT = "being_sent"
 
@@ -249,6 +248,14 @@ class BridgeCommand(StrEnum):
     # The watch log (v0.6.14, watchlog.py): what a watched capability would have done, by its id -
     # read-only, the Dashboard's; no MCP tool reaches it.
     ADVANCED_WATCH_LOG = "advanced-watch-log"
+    # The reset actions (v0.6.14, control/resets.py): the rules and messages read, one added, one cancelled, one held
+    # over a gap let go on, and a reset credit used now - the Dashboard's alone, against the generation the page
+    # read; no MCP tool reaches any of them.
+    ADVANCED_RESETS = "advanced-resets"
+    ADVANCED_RESET_ADD = "advanced-reset-add"
+    ADVANCED_RESET_CANCEL = "advanced-reset-cancel"
+    ADVANCED_RESET_GO_ON = "advanced-reset-go-on"
+    ADVANCED_CREDIT_NOW = "advanced-credit-now"
     # The compatibility report (report/flow.py): write it, save it where the person chooses, check what
     # sending would write, send it, and read how one of the first, third or fourth - each a job this
     # process holds - is getting on. Like the rest, only the Dashboard's; no MCP tool reaches any of them.
