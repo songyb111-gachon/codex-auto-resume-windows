@@ -453,8 +453,8 @@ conversation that is switched on, and pick when it goes: when the 5-hour limit n
 reset up to nine from now, or the weekly limit's next reset. At that reset the watcher sends it once,
 exactly as you wrote it, with its marker after a blank line, through every check a continuation passes
 - the conversation open in the app, nothing else queued there, usage available. A recovery waiting in
-that conversation for the same reset sends your message in its place, never both, and at the very
-moment the window resets too. It counts from the first reading after you added it, so the window open
+that conversation for the same reset sends your message in its place, at the very moment the window
+resets too; it waits for your message up to 30 minutes after the reset, and then goes on. It counts from the first reading after you added it, so the window open
 then is the first to reset; a window not used yet counts once it is. While a message waits it reads
 usage every 15 minutes, at most once in five minutes. One message may wait for a conversation, and
 ten in all; the page lists each with its words, and Pending lists each under **Scheduled**, with
