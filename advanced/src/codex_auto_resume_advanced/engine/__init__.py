@@ -12,5 +12,7 @@ failure the standard edition handles otherwise, and relax its record at known_fa
 retries when Codex is at capacity (engine/capacity.py), and the rules for Codex's error codes and
 the retries of failures nothing classified, of Codex giving up and of a sign-in failure
 (engine/admitted.py); and P7 with P3, a usage limit noticed when it lifts early (engine/earlyreset.py).
-P7 alone (v0.6.14) is an uncertain continuation sent once more (engine/oncemore.py).
+P7 alone (v0.6.14) is an uncertain continuation sent once more (engine/oncemore.py). And the reset actions
+(v0.6.14) count the usage windows' resets and fills (engine/resetwatch.py), for a reset credit used at the limit a
+person picked and a message of their own sent at the reset they picked.
 """
