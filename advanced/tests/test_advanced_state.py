@@ -931,8 +931,27 @@ class BoundTests(StateCase):
         self.assertEqual({row[0] for row in connection.execute("SELECT state FROM records")}, {"waiting"})
 
     def test_the_watch_bound_sits_inside_the_journal_s(self):
-        self.assertLess(WATCH_LIMIT, EVENT_LIMIT)
+        from codex_auto_resume_advanced import registry
         self.assertEqual(WATCH_LIMIT, 250)
+        # Every capability watched at once, each at its bound, still fits inside the journal's.
+        self.assertLess(len(registry.DEFINITIONS) * WATCH_LIMIT, EVENT_LIMIT)
+        # The journal's own bound cuts every other line first: newer lines of another capability,
+        # a whole journal of them, never push a watched capability's answers out, and the watch
+        # bound still keeps that capability's newest WATCH_LIMIT.
+        state = self.state(ac.definition(), ac.definition(id="test_nap", journal_prefix="tn"))
+        state.move("test_wake", ArmingState.SHADOW, actor=Actor.DASHBOARD, revision=1)
+        connection = self.raw(state)
+        line = "INSERT INTO journal (at, capability, code) VALUES (?, ?, ?)"
+        connection.executemany(line, [(self.now - 3600, "test_wake", "would_have")] * (WATCH_LIMIT + 10))
+        newest = connection.execute("SELECT max(event_id) FROM journal").fetchone()[0]
+        connection.executemany(line, [(self.now - 60, "test_nap", "armed")] * EVENT_LIMIT)
+        connection.commit()
+        with state._transaction() as open_:
+            state._prune(open_, self.now)
+        kept = connection.execute("SELECT count(*), max(event_id) FROM journal WHERE capability='test_wake' "
+                                  "AND code='would_have'").fetchone()
+        self.assertEqual(tuple(kept), (WATCH_LIMIT, newest))
+        self.assertEqual(connection.execute("SELECT count(*) FROM journal").fetchone()[0], EVENT_LIMIT)
 
     def test_each_capability_keeps_its_newest_watched_answers_and_nothing_else_is_cut(self):
         state = self.state(ac.definition(), ac.definition(id="test_nap", journal_prefix="tn"))

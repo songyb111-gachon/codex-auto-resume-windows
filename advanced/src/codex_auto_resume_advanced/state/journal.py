@@ -12,7 +12,8 @@ admissions and the samples, which are pruned in the same pass. A spend is never 
 and a record or an override that may still be acted on never at all. What a watched capability would have
 done (`would_have` lines) is bounded tighter, inside those: at most WATCH_LIMIT lines a capability, its
 newest, cut in the same pass before the journal's own bound, so one noisy watched capability never
-pushes another's out (between passes one can hold up to WATCH_LIMIT + 255).
+pushes another's out (between passes one can hold up to WATCH_LIMIT + 255); the journal's own bound
+then cuts every other line before any of them.
 """
 from __future__ import annotations
 
@@ -146,8 +147,10 @@ class JournalMixin:
         """Every bounded table, in one pass."""
         old = now - EVENT_MAX_AGE
         connection.execute("DELETE FROM journal WHERE at < ?", (old,))
-        # What each watched capability would have done: its newest WATCH_LIMIT lines, before the
-        # journal's own bound, so that bound never cuts one capability's log for another's.
+        # What each watched capability would have done: its newest WATCH_LIMIT lines. The journal's
+        # own bound then cuts every other line first, oldest first, so it never cuts a watched
+        # capability's answers for other lines: all of them together (at most WATCH_LIMIT a
+        # capability, test_advanced_state) fit inside it.
         watched = str(JournalCode.WOULD_HAVE)
         for (capability,) in connection.execute("SELECT DISTINCT capability FROM journal WHERE code=?",
                                                 (watched,)).fetchall():
@@ -157,7 +160,7 @@ class JournalMixin:
         excess = connection.execute("SELECT count(*) FROM journal").fetchone()[0] - EVENT_LIMIT
         if excess > 0:
             connection.execute("DELETE FROM journal WHERE event_id IN (SELECT event_id FROM journal "
-                               "ORDER BY event_id LIMIT ?)", (excess,))
+                               "ORDER BY code IS ?, event_id LIMIT ?)", (watched, excess))
         connection.execute("DELETE FROM sampler WHERE day < ?", (int(old // _DAY),))
         excess = connection.execute("SELECT count(*) FROM sampler").fetchone()[0] - EVENT_LIMIT
         if excess > 0:
