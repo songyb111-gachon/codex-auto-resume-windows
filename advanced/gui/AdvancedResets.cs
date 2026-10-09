@@ -358,6 +358,10 @@ namespace CodexAutoResume
                                   : Word("page.resets.field.which", "Which reset");
             resetOrdinal = NewResetCombo(which, 220, kind + "ordinal");
             card.Controls.Add(NewRow(which, resetOrdinal));
+            // Until MU is measured on the Codex in force, how the windows are counted past the next one is unproven.
+            if (Equals(Get(advancedResets, "count_unproven"), true))
+                card.Controls.Add(HelpText(Word("page.resets.unproven",
+                    "Past the next one, the count is unproven on this Codex until it has been measured.")));
             resetFamily.SelectionChangeCommitted += delegate { FillOrdinals(kind); };
             FillOrdinals(kind);
             if (credit)
@@ -686,6 +690,8 @@ namespace CodexAutoResume
                 return Word("page.refused.already_scheduled", "A message already waits for that conversation. Cancel it to write another.");
             if (refusal == "being_sent")
                 return Word("page.refused.being_sent", "It is being sent, so it can no longer be cancelled.");
+            if (refusal == "conversation_off")
+                return Word("page.refused.conversation_off", "That conversation is switched off, so no message can wait for it. Switch it on first.");
             if (refusal == "not_on") return Word("page.refused.not_on", "Turn it on first.");
             return KeptRefusal(refusal);
         }

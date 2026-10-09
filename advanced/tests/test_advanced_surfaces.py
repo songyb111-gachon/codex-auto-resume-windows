@@ -327,6 +327,14 @@ class ResetBridgeTests(ac.AdvancedCase):
         self.assertEqual(self.bridge("advanced-resets")["limits"]["words"], 8154)
         self.assertTrue(self.message(words="x" * 8154)["done"])
 
+    def test_the_count_past_the_next_one_is_unproven_until_mu_passes_on_the_codex_in_force(self):
+        from codex_auto_resume_advanced.vocabulary import Measurement, Verdict
+        self.assertTrue(self.bridge("advanced-resets")["count_unproven"])
+        self.measured = {Measurement.MU: (Verdict.FAIL, ac.ENGINE)}
+        self.assertTrue(self.bridge("advanced-resets")["count_unproven"])
+        self.measured = {Measurement.MU: (Verdict.PASS, ac.ENGINE)}
+        self.assertFalse(self.bridge("advanced-resets")["count_unproven"])
+
     def test_no_message_is_taken_for_a_conversation_switched_off(self):
         self.on("reset_message")
         self.bridge("thread-enabled", {"thread_id": ac.THREAD, "enabled": False})

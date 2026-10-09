@@ -763,6 +763,8 @@ class PageTests(unittest.TestCase):
         due, held = cls.credit_rules(bridge)
         script = cls.opening(bridge, "en")
         script["advanced-resets"] = [bridge("advanced-resets", {})]
+        # As where MU is not measured on the Codex in force: the count past the next one is unproven.
+        script["advanced-resets"][0]["result"]["count_unproven"] = True
         done = {"ok": True, "result": {"done": True, "refusal": None, "rule": 9}}
         steps = [{"do": "snapshot", "reply": snapshot()}, {"do": "show"}, {"do": "choose", "id": "reset_credit"},
                  {"do": "look"},
@@ -1313,6 +1315,7 @@ class PageTests(unittest.TestCase):
         self.assertEqual((form["most"], form["count"], form["add"]), (2000, "0 of 2000 characters", False))
         card = next(card for card in empty["cards"] if card[0] == words["page.resets.message.title"])
         self.assertIn(words["page.resets.message.none"], card)
+        self.assertNotIn(words["page.resets.unproven"], card, "MU passed on this Codex")
         self.assertEqual(weekly["resets"]["ordinals"], ["The next one"], "a weekly window offers only its next reset")
         self.assertIn("reset_add", result["disabled"], "no words, no Add")
         self.assertEqual(sent(result, "advanced-reset-add"),
@@ -1347,6 +1350,7 @@ class PageTests(unittest.TestCase):
         self.assertTrue(card[1].startswith("Reset credits: 3 \u00b7 "), card[1])
         self.assertTrue(any(words["page.resets.state.ask_first"] in text for text in card))
         self.assertTrue(any(words["page.resets.state.count_gap"] in text for text in card))
+        self.assertIn(words["page.resets.unproven"], card, "MU is not measured on this Codex")
         self.assertEqual(sent(result, "advanced-reset-add"),
                          [{"kind": "credit", "bucket": "codex", "minutes": 10080, "ordinal": 1, "repeat": True,
                            "ask_first": True, "generation": expected["generation"]}])
@@ -1739,6 +1743,23 @@ def audit_data(locale: str, bridge: Bridge) -> dict:  # noqa: C901 - one layout'
             "reports": report_states()}
 
 
+# How long one view of one audit may take to lay out, at most: what it takes on a quiet PC (about 7 seconds at
+# v0.6.14), with room for a slower one. A hang is what this catches.
+AUDIT_SECONDS = 12
+
+
+def audited_views() -> int:
+    """The views each audit lays out: each capability open, then unread, the narrowest window on two screens, the
+    action's card in each report state, and Pending with the reset rules scheduled under its list."""
+    return len(IDS) + 3 + len(report_states()) + 1
+
+
+def audit_timeout(jobs: int, workers: int) -> int:
+    """The time the slowest of `workers` processes sharing `jobs` audits is allowed: its share of them, each
+    audited_views() views."""
+    return AUDIT_SECONDS * audited_views() * -(-jobs // workers)
+
+
 def fullest_resets(shot, generation) -> dict:
     """advanced-resets at its fullest, as control/resets.view answers: a credit due that waits for a click, one
     counting for the weekly limit, a message held over a gap with words as long as may be, one being sent for a window of
@@ -1765,7 +1786,7 @@ def fullest_resets(shot, generation) -> dict:
                          {"bucket": "codex", "minutes": 300, "open_reset_at": now + 3600, "open_full": True},
                          {"bucket": "codex", "minutes": 10080, "open_reset_at": now + 5 * 86400, "open_full": False}],
             "reading": {"read_at": now, "credits": 12, "nearest_expiry": now + 3 * 86400, "expiry_known": True},
-            "last_spend": {"outcome": "reset", "at": now - 3600},
+            "last_spend": {"outcome": "reset", "at": now - 3600}, "count_unproven": True,
             "limits": {"messages": 10, "credit_rules": 4, "words": 2000, "ordinals": 9, "use_now_minutes": 15}}
 
 
@@ -1809,7 +1830,9 @@ class LayoutTests(unittest.TestCase):
         finally:
             bridge.close()
         # Four processes side by side: the audits are independent, and one process took 17 minutes for them all.
-        cls.run_, cls.answer = probe(work, cls.exe, jobs, timeout=180 * len(l10n.LOCALES), workers=4)
+        # The time allowed grows with the views each audit lays out (AUDIT_SECONDS a view): a capability, a card or a
+        # list more is more to lay out, and a fixed allowance ran out when the reset actions added four (v0.6.14).
+        cls.run_, cls.answer = probe(work, cls.exe, jobs, timeout=audit_timeout(len(jobs), workers=4), workers=4)
 
     @classmethod
     def tearDownClass(cls):
@@ -1832,7 +1855,7 @@ class LayoutTests(unittest.TestCase):
                     # than the window at 200% (v0.6.11-beta.3: eight languages cut off on a screen 1440 wide).
                     # And the action's card in every state a report can be in (report_states).
                     # And Pending, with the reset rules scheduled under its list (fullest_resets).
-                    self.assertEqual(found["audited"], len(IDS) + 3 + len(report_states()) + 1)
+                    self.assertEqual(found["audited"], audited_views())
 
     def test_the_audit_finds_what_does_not_fit(self):
         report = self.answer["canary"]["report"]

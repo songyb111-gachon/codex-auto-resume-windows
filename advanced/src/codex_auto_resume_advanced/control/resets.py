@@ -24,7 +24,7 @@ from codex_auto_resume.domain import ids
 from ..engine import credits as reset_credit
 from ..engine.resetmessage import CAPABILITY as MESSAGE, LONG, SHORT_LIMIT
 from ..state.schema import BUCKETS
-from ..vocabulary import ArmingState, Refusal, RuleState
+from ..vocabulary import ArmingState, Measurement, Refusal, RuleState
 
 CREDIT = reset_credit.CAPABILITY
 KINDS = {"credit": CREDIT, "message": MESSAGE}
@@ -87,10 +87,20 @@ def switched_off(runtime, thread) -> bool:
         return False
 
 
+def count_unproven(runtime) -> bool:
+    """Whether counting a window's resets and fills past the next one is unproven on the Codex in force: MU has not
+    passed there (design 3, a warning and never a refusal). True where that cannot be read."""
+    try:
+        return runtime.arming.verdict(Measurement.MU) != "pass"
+    except Exception:
+        return True
+
+
 def view(runtime) -> dict:
     """advanced-resets: every rule still to act and those of the last thirty days, a message's words while it is
     still to act, the window families on offer with what was counted of each, the last reading - the count of
-    credits and the soonest expiry only while reset_credit is on - the last spend, and the bounds."""
+    credits and the soonest expiry only while reset_credit is on - the last spend, the bounds, and whether the count
+    past the next one is unproven on this Codex (`count_unproven`)."""
     state = runtime.state
     try:
         rules = state.reset_rules(pending=None)
@@ -126,6 +136,7 @@ def view(runtime) -> dict:
                         "nearest_expiry": reading.get("nearest_expiry") if credit_on else None,
                         "expiry_known": bool(reading.get("expiry_known")) if credit_on else None},
             "last_spend": None if last is None else {"outcome": last["outcome"], "at": last["finished_at"]},
+            "count_unproven": count_unproven(runtime),
             "limits": {"messages": 10, "credit_rules": 4, "words": words_limit(runtime), "ordinals": 9,
                        "use_now_minutes": reset_credit.USE_NOW // 60}}
 

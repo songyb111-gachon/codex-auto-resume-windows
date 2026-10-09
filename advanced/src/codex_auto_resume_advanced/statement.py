@@ -113,7 +113,8 @@ PAGE_KEYS = tuple(PAGE_PREFIX + name for name in (
     # and refusals, Pending's Scheduled group - and Longer reset messages' words in place of the limits.
     "confirm.reset_credit", "confirm.reset_message", "done.reset_added", "done.reset_cancelled", "done.go_on",
     "confirm.credit_now", "done.credit_now", "refused.occasion_invalid", "refused.resets_full",
-    "refused.message_refused", "refused.already_scheduled", "refused.being_sent", "scheduled", "long_limits"))
+    "refused.message_refused", "refused.already_scheduled", "refused.being_sent", "refused.conversation_off",
+    "scheduled", "long_limits"))
 # The reset actions' own words, `page.resets.<name>`.
 RESETS_PREFIX = PAGE_PREFIX + "resets."
 RESETS_KEYS = tuple(RESETS_PREFIX + name for name in (
@@ -127,7 +128,7 @@ RESETS_KEYS = tuple(RESETS_PREFIX + name for name in (
     "field.conversation", "no_conversation", "field.words", "field.window", "field.which_reached", "field.which",
     "field.repeat", "repeat.once", "repeat.every", "field.ask", "ask.no", "ask.yes", "ask.note", "credit.button",
     "message.button", "credit.note", "message.note", "go_on", "cancel", "reading.unknown", "reading",
-    "reading.no_expiry", "reading.last", "count"))
+    "reading.no_expiry", "reading.last", "count", "unproven"))
 PAGE_KEYS = PAGE_KEYS + RESETS_KEYS
 # The compatibility report's card on that page (advanced/gui/AdvancedReport.cs): its own words, one for each
 # write sending makes (vocabulary.ReportWrite), one for each reason it has to be sent on the web (WebReason) and
