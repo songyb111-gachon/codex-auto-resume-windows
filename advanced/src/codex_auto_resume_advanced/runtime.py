@@ -489,7 +489,7 @@ class Runtime:
             raise
 
     # ------------------------------------------------------------------ the measurement harness
-    def run_measurement(self, measurement, thread=None):
+    def run_measurement(self, measurement, thread=None, may_spend=False):
         """Run one measurement the person asked for, and record what it found (measure.py).
 
         The session and the launcher are the runtime's own seams: production opens a real
@@ -499,7 +499,7 @@ class Runtime:
 
         `thread` is an optional real throwaway conversation the owner points a measurement at,
         validated as a Codex thread id and used in the calls the probe makes, never written into
-        the record.
+        the record. `may_spend` is the person's second yes that MR may spend one real reset credit.
 
         The backend is the one the session opens, so the record says which Codex it measured:
         without it every record said "unknown", and a measurement decides per Codex version. The
@@ -514,7 +514,7 @@ class Runtime:
         if launcher is None:
             launcher = measure.live_launcher(self.paths)
         return measure.run(measurement, session_factory=session_factory,
-                           launcher=launcher, backend=backend, thread=thread,
+                           launcher=launcher, backend=backend, thread=thread, may_spend=may_spend,
                            directory=self._evidence_dir, clock=self.clock)
 
     def complete_measurement(self, measurement, verdict, note):

@@ -277,6 +277,25 @@ class Measurement(StrEnum):
     MP1 = "mp1"
     MP2 = "mp2"
     MP3 = "mp3"
+    # Reset credits (v0.6.14): the usage read carries the count of reset credits, takes the param that
+    # leaves their details out, and keeps a running window's reset time still, and a window opens with
+    # its first use after a reset (MU); a consume with no credit to spend spends nothing (MN); and at a
+    # real limit one consume resets it, spends exactly one credit, and asked again with its key spends no
+    # second one (MR). Each is what the reset actions' routes rest on (engine/credits.py).
+    MU = "mu"
+    MN = "mn"
+    MR = "mr"
+
+
+class SpendOutcome(StrEnum):
+    """What one consume of a reset credit came to (account/rateLimitResetCredit/consume), in this
+    edition's words for Codex's four outcomes (codex/credits.OUTCOMES), and UNKNOWN for no answer, an
+    answer of another shape, or none in time - which is never taken for any of the four."""
+    RESET = "reset"                          # a credit was spent and the window reset
+    NOTHING_TO_RESET = "nothing_to_reset"    # no window was one a credit resets
+    NO_CREDIT = "no_credit"                  # no credit to spend
+    ALREADY_REDEEMED = "already_redeemed"    # the same key had reset it already
+    UNKNOWN = "unknown"
 
 
 class GoalStatus(StrEnum):

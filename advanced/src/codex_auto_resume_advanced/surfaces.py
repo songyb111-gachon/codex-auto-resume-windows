@@ -59,7 +59,7 @@ ARGUMENTS = {
     BridgeCommand.ADVANCED_DISARM: frozenset({"capability"}),
     BridgeCommand.ADVANCED_DISARM_ALL: frozenset(),
     BridgeCommand.ADVANCED_CEILING: frozenset({"global_hourly", "generation"}),
-    BridgeCommand.MEASURE: frozenset({"measurement", "thread"}),
+    BridgeCommand.MEASURE: frozenset({"measurement", "thread", "may_spend"}),
     BridgeCommand.MEASURE_VERDICT: frozenset({"measurement", "verdict", "note"}),
     BridgeCommand.ADVANCED_OPTION: frozenset({"capability", "key", "value", "generation"}),
     BridgeCommand.ADVANCED_RULES: frozenset(),
@@ -198,7 +198,8 @@ def bridge(runtime, command, argument):
     if command == BridgeCommand.ADVANCED_DISARM_ALL:
         return arming.all_off(actor=Actor.DASHBOARD)
     if command == BridgeCommand.MEASURE:
-        return measure(runtime, argument.get("measurement"), argument.get("thread"))
+        return measure(runtime, argument.get("measurement"), argument.get("thread"),
+                       argument.get("may_spend", False))
     if command == BridgeCommand.MEASURE_VERDICT:
         return measure_verdict(runtime, argument.get("measurement"), argument.get("verdict"),
                                argument.get("note"))
@@ -252,7 +253,7 @@ def _locale(asked):
     return l10n.resolve(asked) if isinstance(asked, str) and asked else l10n.current()
 
 
-def measure(runtime, measurement, thread=None):
+def measure(runtime, measurement, thread=None, may_spend=False):
     """Run one measurement the person named, and hand back what was recorded (measure.py).
 
     The id has to be one of the M-list, or it is refused as an invalid request; running it opens
@@ -261,15 +262,17 @@ def measure(runtime, measurement, thread=None):
 
     `thread` is an optional real throwaway conversation the person points it at. It has to be a
     string when given; whether it is a Codex thread id is checked in the harness, which never
-    writes it into the record."""
+    writes it into the record. `may_spend` (v0.6.14) is the person's second, explicit yes that MR may
+    spend one real reset credit: a boolean when given, true only in as many words, and read by MR
+    alone - without it MR opens no session and spends nothing."""
     try:
         which = Measurement(measurement)
     except ValueError:
         return {"done": False, "refusal": Refusal.INVALID_REQUEST}
-    if thread is not None and not isinstance(thread, str):
+    if (thread is not None and not isinstance(thread, str)) or type(may_spend) is not bool:
         return {"done": False, "refusal": Refusal.INVALID_REQUEST}
     try:
-        summary = runtime.run_measurement(which, thread=thread)
+        summary = runtime.run_measurement(which, thread=thread, may_spend=may_spend)
     except Exception:
         return {"done": False, "refusal": Refusal.STATE_UNAVAILABLE}
     return dict(summary, done=True)

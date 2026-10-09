@@ -58,6 +58,12 @@ MEASUREMENT_METHODS = {
     Measurement.MP1: ("mcpServerStatus/list",),
     Measurement.MP2: (),
     Measurement.MP3: (),
+    # The reset actions' three (v0.6.14). MU reads usage as core does, with and without the reset
+    # credits' details; MN and MR spend a credit through the one method that does, MN only where there
+    # is none to spend and MR only at a real limit, by a person's explicit yes (measure._mr).
+    Measurement.MU: ("account/rateLimits/read",),
+    Measurement.MN: ("account/rateLimits/read", "account/rateLimitResetCredit/consume"),
+    Measurement.MR: ("account/rateLimits/read", "account/rateLimitResetCredit/consume"),
 }
 
 # The methods a capability's own route may call, beyond `initialize` - each one a measurement
@@ -72,10 +78,14 @@ CAPABILITY_METHODS = {
     "goal_continuation": ("thread/goal/set", "thread/queue/add"),
 }
 
-# Everything this edition may ever ask beyond core's three. A method not here is one no
-# measurement declared, and a session refuses it whatever it was asked for.
-ADVANCED_METHODS = frozenset(method for methods in MEASUREMENT_METHODS.values()
+# Every method some measurement declared: what a capability's own route may be given, and nothing
+# beyond it. Core's usage read is one of them from v0.6.14 (MU, MN, MR), as core's helper calls it.
+MEASURED_METHODS = frozenset(method for methods in MEASUREMENT_METHODS.values()
                              for method in methods)
+# Everything this edition may ever ask beyond core's three. A method not here, nor one of core's
+# three a measurement declared, is one no measurement declared, and a session refuses it whatever it
+# was asked for.
+ADVANCED_METHODS = MEASURED_METHODS - frozenset(PROTOCOL_METHODS)
 
 # Never asked, whatever the allow-list says: the account's own routes and attestation. The
 # product never authenticates by a route of its own and never mints an attestation (B11); a
@@ -193,9 +203,10 @@ def methods_for(measurement) -> frozenset:
 
 def methods_for_capability(capability) -> frozenset:
     """The methods a capability's route may call: its own row of CAPABILITY_METHODS, and of that
-    only what some measurement also declared (ADVANCED_METHODS), `initialize` always among them
-    and a forbidden method never. A capability with no row may call nothing."""
-    allowed = set(CAPABILITY_METHODS.get(capability, ())) & ADVANCED_METHODS - FORBIDDEN_METHODS
+    only what some measurement also declared (MEASURED_METHODS) - core's usage read among them where a
+    measurement declared it -, `initialize` always among them and a forbidden method never. A
+    capability with no row may call nothing."""
+    allowed = set(CAPABILITY_METHODS.get(capability, ())) & MEASURED_METHODS - FORBIDDEN_METHODS
     return frozenset(allowed | {"initialize", "initialized"})
 
 
