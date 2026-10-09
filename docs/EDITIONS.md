@@ -603,32 +603,29 @@ limit to reset has ended. It keeps every standard (H14 and F15 in [STANDARDS.md]
 A28 amended by the owner for its stop button), so it is in the standard edition, off until a person
 turns it on in the Dashboard.
 
-Then, after v0.6.13's fix of how Codex's engine is found, v0.6.14 brings the rest of the advanced
-edition, each part published as a pre-release as it is finished. Its first part, from v0.6.14-beta
-on, is the six capabilities [above](#todays-capabilities) that follow the goal continuation, and with
-them Once more when unsure, Send now, Keep it on, the compatibility report and the three for a usage reset you pick, in the
-same beta. Each new capability is the
-advanced edition's alone, off until you turn it on, with a
-statement that names the standards it departs from. This is a direction, not a promise;
-[ROADMAP.md](ROADMAP.md) has the whole list: the two additions in its v0.6.12 section, and the rest
-in its v0.6.14 section, under the same four headings as below and one more on compatibility reports
-from others.
+Then, after v0.6.13's fix of how Codex's engine is found, v0.6.14 brings the first part of the rest
+of the advanced edition: the six capabilities [above](#todays-capabilities) that follow the goal
+continuation, and with them Once more when unsure, Send now, Keep it on, the compatibility report
+and the three for a usage reset you pick. It was to be the first of several pre-releases and is
+published as a final instead (owner, 2026-10-10). The rest moves to v0.6.15, each part published as
+a pre-release as it is finished. Each new capability is the advanced edition's alone, off until you
+turn it on, with a statement that names the standards it departs from. This is a direction, not a
+promise; [ROADMAP.md](ROADMAP.md) has the whole list: the two additions in its v0.6.12 section, what
+is built in its v0.6.14 section, and the rest in its v0.6.15 section, under the same four headings
+as below.
 
-- **Recovery through the channels already in use** - short retries for capacity errors, failures it
-  cannot name on a budget of their own, rules over Codex's own error tags, a request Codex gave up
-  on, a sign-in failure retried once after proof, an early usage reset, one resend when delivery is
-  uncertain and the message is nowhere, *Send now*, several conversations at once, empty-response
-  recovery, an unloaded conversation through a queue that waits for it, a subagent through its
-  parent, keep going after a normal completion, a prompt queue and recurring wakes, and a
-  compatibility report sent from the app.
+- **Recovery through the channels already in use** - several conversations at once,
+  empty-response recovery, an unloaded conversation through a queue that waits for it, a subagent
+  through its parent, keep going after a normal completion, and a prompt queue and recurring
+  wakes.
 - **A route of its own, and other kinds of session** - a conversation nothing holds, run through
   Codex's app server; CLI, TUI and IDE sessions; a full context compacted, then continued; another
   model at capacity; a continuation with no words; a continuation inside the turn through a Codex
   Stop hook; and Codex's own retry settings.
-- **Around recovery** - a live usage meter, a wrap-up nudge near a limit, reset credits and usage
-  analytics; a provider status feed and push notifications through one courier process, the
-  advanced edition's only outbound network code; a local API and web view, remote control over
-  Telegram and a read-only view of other PCs; switching the Codex account on your command; a weekly
-  update check while idle; crash supervision, a wake timer for a reset and *Open Codex* on the card.
+- **Around recovery** - a live usage meter, a wrap-up nudge near a limit and usage analytics; a
+  provider status feed and push notifications through one courier process, the advanced edition's only
+  outbound network code; a local API and web view, remote control over Telegram and a read-only view
+  of other PCs; switching the Codex account on your command; a weekly update check while idle; crash
+  supervision, a wake timer for a reset and *Open Codex* on the card.
 - **Also moved here** - watching several Codex homes, which the standard edition gains; Arabic and
   Hebrew; winget manifests for both editions.

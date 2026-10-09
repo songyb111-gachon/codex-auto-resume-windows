@@ -1,14 +1,15 @@
 # Changelog
 
-## v0.6.14-beta — Eight more ways to recover, Keep it on, a compatibility report sent from the Dashboard, actions at a usage reset you pick, a watch log and the panel beside the chat
+## v0.6.14 — Eight more ways to recover, Keep it on, a compatibility report sent from the Dashboard, actions at a usage reset you pick, a watch log and the panel beside the chat
 
-[The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.13...v0.6.14-beta)
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.13...v0.6.14)
 
-**A pre-release, the first of v0.6.14, published from `main`.** It is a GitHub pre-release, so
-`releases/latest` stays v0.6.13; an installation of v0.6.13 is offered it by *Check for updates*,
-which asks first and says it is tested less, and *Install another version...* lists it. It is the
-first finished part of v0.6.14, the rest of the advanced edition (owner, 2026-10-07): twelve new
-capabilities - eight that change how a recovery is made, two that act at a usage reset you pick,
+**From v0.6.13, it is an ordinary update.** It is the latest release, for both editions, so
+v0.6.13's *Check for updates* offers it in the edition you have, and the plugin in Codex installs it
+too. It was planned as the first beta of v0.6.14, the rest of the advanced edition (owner,
+2026-10-07), and is published as a final instead, with what was built for that beta (owner,
+2026-10-10); the rest of the advanced edition moves to v0.6.15 ([ROADMAP.md](ROADMAP.md)). It
+carries twelve new capabilities - eight that change how a recovery is made, two that act at a usage reset you pick,
 Longer reset messages and the compatibility report - Keep it on for every capability, and a log of
 what a watched capability would have done. Each is the advanced edition's alone, off until you turn it on in the
 Dashboard's **Advanced features** page, with a statement in your language that names the standards
@@ -101,7 +102,7 @@ recovery, sends nothing to Codex and spends nothing - a person starts what it do
   already, and sending again is safe.
 - **Departs from** B11, C1, C2, C3, C8, D1, E8, F3 and F6, each named in its statement; it keeps G13
   - a report grants nothing - and K5. No MCP tool reaches it. The project's check accepts a report the
-  product wrote itself (`reporter.tool` `codex-auto-resume`, product v0.6.14-beta or later).
+  product wrote itself (`reporter.tool` `codex-auto-resume`, product v0.6.14 or later).
 
 [EDITIONS.md](EDITIONS.md) describes it, and [PRIVACY.md](PRIVACY.md) says what it sends to GitHub.
 
@@ -218,7 +219,7 @@ ellipsis, and so does the card's heading.
   plug point), so a reset message waiting there ends at once. The panel's `open_settings` declares a
   side-panel entrypoint, and its page names its display modes, inline first.
 - `build/community_report.py` accepts a report the product wrote itself: `reporter.tool`
-  `codex-auto-resume`, its `tool_version` its own product version, v0.6.14-beta or later.
+  `codex-auto-resume`, its `tool_version` its own product version, v0.6.14 or later.
 - Each capability has a test module of its own under `advanced/tests/`, Keep it on one too and the
   report four; core's share is in `tests/test_plug_points.py`, `test_store.py`,
   `test_ladder_and_guards.py` and `test_failures.py`.
