@@ -12,15 +12,17 @@ recovery waits for usage (the owner's rule), the watcher's errand at P8 spends o
    spends nothing (the owner's rule); none left, and it is done;
 3. two spent in a day and seven in a week at most, and never two for one filling of a window;
 4. on its own only where MR passed for the Codex in force and the person did not choose Ask me first -
-   otherwise the Dashboard's Use a reset credit now spends it, at a click (control/resets.py);
+   otherwise the Dashboard's Use a reset credit now spends it, at a click (control/resets.py), and that
+   too only while a recovery waits for usage;
 5. the spend written, with a key of its own, before Codex is asked (A5's analogue);
 6. the one request written inside core's errand guard, so a Pause, Observe only or quiet hours that
    committed first stop it; its answer waited for outside;
 7. what came of it kept: reset - the window closes at once, and for fifteen minutes the waiting
    recoveries are looked at early (P7, EARLY) -, nothing to reset, no credit, or unknown.
 
-An outcome that is not known ten minutes on - no answer in time, a crash between the write and the answer
-- is asked once more with the same key, where MR's retry passed (alreadyRedeemed spends nothing twice);
+An outcome that is not known ten minutes on - no answer in time, a crash between the write and the answer,
+an error from Codex but its having no such method (-32601) - is asked once more with the same key, where
+MR's retry passed (alreadyRedeemed spends nothing twice);
 otherwise, or if that is unknown too, the rule ends unknown and the capability turns itself off, as a send
 it paid for gone submission_unknown turns one off (K7) - never a second key for one occasion. No credit id
 is ever held: Codex picks the credit (`creditId` left out).
@@ -55,6 +57,9 @@ EARLY_FOR = 900
 WAITS_FOR_A_PERSON = (RuleReason.ASK_FIRST, RuleReason.NO_METHOD)
 # The outcomes that spent a credit, or may have.
 SPENDING = (SpendOutcome.RESET, SpendOutcome.ALREADY_REDEEMED, SpendOutcome.UNKNOWN, None)
+# Codex's error code for a method it does not have: the one error that says nothing was spent (no_method).
+# Any other error it answers with says nothing of what it spent, and is an unknown answer.
+METHOD_NOT_FOUND = -32601
 # What each of Codex's outcomes ends a rule with, and the word its journal counts.
 OUTCOME_REASONS = {SpendOutcome.RESET: RuleReason.SPENT, SpendOutcome.ALREADY_REDEEMED: RuleReason.SPENT,
                    SpendOutcome.NOTHING_TO_RESET: RuleReason.NOTHING_TO_RESET,
@@ -87,12 +92,13 @@ class _Errand:
 class ResetCredit:
     """The capability's code: its hooks at P8 and P7. `bind` gives it its view of the state (state.Scoped:
     the reset rules, windows and spends, writes only while it is on, and which measurements passed)."""
-    __slots__ = ("paths", "_scoped", "_open")
+    __slots__ = ("paths", "_scoped", "_open", "_tried")
 
     def __init__(self, paths, *, session=None):
         self.paths = paths
         self._scoped = None
         self._open = session
+        self._tried = {}                     # {rule id: when its spend last read usage}, in this process
 
     def bind(self, scoped):
         self._scoped = scoped
@@ -141,6 +147,8 @@ class ResetCredit:
                           early=not scoped.failed(Measurement.MU), light=scoped.passed(Measurement.MU),
                           keep_credits=True)
             looked = watch.step(view)
+            now = handle.now()
+            self._tried = {rule: at for rule, at in self._tried.items() if 0 <= now - at < resetwatch.READ_SPACING}
             trip = self._spend_unknown(handle, session, guard, watch)
             for rule in handle.reset_rules(capability=CAPABILITY):
                 found = self._consider(rule, looked, handle, session, guard, watch, view)
@@ -162,7 +170,10 @@ class ResetCredit:
         if rule["ordinal"] == 0:                       # a person's Use now
             if now - rule["created_at"] >= USE_NOW or not (row["open_reset_at"] and row["open_full"]):
                 return self._lapse(rule, row, handle)
-            return self._spend(rule, row, handle, session, guard, watch, clicked=True)
+            if not awaits_usage(view):                   # a click spends only while a recovery waits too
+                self._ready(handle, rule, RuleReason.NOTHING_WAITING)
+                return None
+            return self._spend(rule, row, handle, session, guard, watch, looked, clicked=True)
         if rule["state"] == RuleState.COUNTING:
             if not resetwatch.due(rule, row):
                 return None
@@ -177,7 +188,7 @@ class ResetCredit:
         if not awaits_usage(view):
             self._ready(handle, rule, RuleReason.NOTHING_WAITING)
             return None
-        return self._spend(rule, row, handle, session, guard, watch, clicked=False)
+        return self._spend(rule, row, handle, session, guard, watch, looked, clicked=False)
 
     def _ready(self, handle, rule, reason) -> None:
         if rule["reason"] != reason:
@@ -199,13 +210,19 @@ class ResetCredit:
         else:
             handle.end_rule(rule["rule_id"], RuleState.DONE, reason)
 
-    def _spend(self, rule, row, handle, session, guard, watch, *, clicked):
+    def _spend(self, rule, row, handle, session, guard, watch, looked, *, clicked):
         """Steps 1 to 7 for one due rule (the module's docstring). Returns a trip's reason, or None. A rule that
-        could not spend at its last look - a count it could not read, a bound - looks again five minutes on."""
-        last = handle.reading().get("read_at")
-        if rule["reason"] is not None and last is not None and 0 <= handle.now() - last < resetwatch.READ_SPACING:
-            return None
-        reading = watch.read(credits.DETAILED)                       # (1) fresh and detailed
+        could not spend at its last look - a count it could not read, a bound, a guard that refused, an answer
+        awaited - reads usage again five minutes on, not before: one fresh reading a look serves every rule, and
+        each rule asks for one at most once in five minutes."""
+        now = handle.now()
+        if "detailed" not in looked:
+            last = self._tried.get(rule["rule_id"])
+            if last is not None and 0 <= now - last < resetwatch.READ_SPACING:
+                return None
+            looked["detailed"] = watch.read(credits.DETAILED)          # (1) fresh and detailed
+        self._tried[rule["rule_id"]] = now
+        reading = looked["detailed"]
         if reading is None:
             self._ready(handle, rule, RuleReason.COUNT_UNKNOWN)
             return None
@@ -275,9 +292,11 @@ class ResetCredit:
         try:
             outcome = credits.outcome(opened.receive(credits.CONSUME, sequence))
         except AdapterError as exc:
-            if getattr(exc, "code", None) is None:
-                return None                                              # no answer: unknown, looked at again
-            # Codex answered, and said no to the method: nothing was spent, and none is asked again.
+            if getattr(exc, "code", None) != METHOD_NOT_FOUND:
+                # No answer, or an error that says nothing of what was spent: unknown, looked at again ten minutes
+                # on - the same key once more where MR passed, else the rule ends unknown - never a second key.
+                return None
+            # Codex answered that it has no such method: nothing was spent, and none is asked again.
             if not handle.drop_credit_spend(spend):
                 handle.finish_credit_spend(spend, SpendOutcome.NOTHING_TO_RESET)
             self._ready(handle, rule, RuleReason.NO_METHOD)

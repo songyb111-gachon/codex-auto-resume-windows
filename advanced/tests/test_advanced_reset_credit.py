@@ -275,8 +275,66 @@ class SpendTests(CreditCase):
         self.h.tick(advance=POLL)
         self.assertEqual(len(self.codex.consumed()), 1)
 
+    def test_use_now_spends_nothing_while_no_recovery_waits_and_one_once_a_recovery_does(self):
+        """The owner's rule holds for a click too: no credit is used unless a recovery is waiting for usage."""
+        from codex_auto_resume_advanced.control import resets
+        plug = self.armed()
+        self.rule(plug)
+        self.fill(plug)
+        clicked = resets.credit_now(plug.runtime, {"generation": plug.runtime.state.meta()["generation"]})
+        self.assertTrue(clicked["done"], clicked)
+        self.h.tick(advance=5)
+        self.assertEqual(self.codex.consumed(), [])
+        now = self.found(plug, clicked["rule"])
+        self.assertEqual((now["state"], now["reason"]), (RuleState.READY, RuleReason.NOTHING_WAITING))
+        self.waiting()
+        self.assertEqual(len(self.codex.consumed()), 1)
+        self.assertEqual(self.found(plug, clicked["rule"])["reason"], RuleReason.SPENT)
+
+    def test_a_due_rule_that_cannot_spend_reads_usage_at_most_once_in_five_minutes(self):
+        """Observe only refuses its one write at every look; it reads again five minutes on, not at every tick."""
+        from codex_auto_resume_advanced.engine.resetwatch import READ_SPACING
+        self.waiting()
+        plug = self.armed()
+        rule = self.rule(plug)
+        self.codex.reads = [usage(40, RESET + 3600)]
+        self.h.tick()
+        self.h.store.set_observe_only(True)
+        self.codex.reads = [usage(100, RESET + 3600)]
+        self.h.tick(advance=POLL)
+        self.assertEqual(self.found(plug, rule)["state"], RuleState.READY)
+
+        def reads():
+            return len([call for call in self.codex.calls if call[0] == READ])
+        before, opened = reads(), self.codex.opened
+        for _ in range(12):
+            self.h.tick(advance=5)
+        self.assertEqual((reads() - before, self.codex.opened - opened), (0, 0))
+        self.h.now += READ_SPACING
+        self.h.tick()
+        self.assertEqual(reads() - before, 1)
+        self.assertEqual(self.codex.consumed(), [])
+
 
 class UnknownTests(CreditCase):
+    def test_an_error_codex_answers_but_no_such_method_is_unknown_and_never_spent_under_a_second_key(self):
+        self.waiting()
+        plug = self.armed()
+        rule = self.rule(plug)
+        self.codex.consumes = [protocol._refused_by_codex(CONSUME, -32603), {"outcome": "alreadyRedeemed"}]
+        self.fill(plug)
+        (spend,) = plug.runtime.state.credit_spends()
+        self.assertEqual(spend["outcome"], None, "Codex's error says nothing of what it spent")
+        self.assertNotEqual(self.found(plug, rule)["reason"], RuleReason.NO_METHOD)
+        from codex_auto_resume_advanced.control import resets
+        resets.credit_now(plug.runtime, {"rule": rule, "generation": plug.runtime.state.meta()["generation"]})
+        self.h.tick(advance=5)
+        self.assertEqual(len(self.codex.consumed()), 1, "a click spends no second key for the same filling")
+        self.h.tick(advance=reset_credit.UNKNOWN_AFTER)
+        keys = [params["idempotencyKey"] for params in self.codex.consumed()]
+        self.assertEqual((len(keys), len(set(keys))), (2, 1), "asked once more, with its own key")
+        self.assertEqual(plug.runtime.state.credit_spends()[0]["outcome"], SpendOutcome.ALREADY_REDEEMED)
+
     def test_an_answer_that_cannot_be_known_is_asked_again_with_its_own_key_where_mr_passed(self):
         self.waiting()
         plug = self.armed()
