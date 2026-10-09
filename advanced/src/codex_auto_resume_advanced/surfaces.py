@@ -9,15 +9,20 @@ byte-identical to today; this edition adds `edition` and how many capabilities a
 (`on`, 0 while the registry is empty), in codes only - no version string, no path, no free
 text, because the status is part of what Codex sends on. The display word for each locale
 lives in this package's own catalogs (`edition.*`); core surfaces keep their own words. Since the
-v0.6.11 final, core itself names the edition beside the version in both editions (the status's
-`edition`, edition.shown), so what this badge adds there is the count.
+v0.6.11 final, core itself names the edition beside the version (the status's `edition`,
+edition.shown) - since v0.6.14 only this edition, the standard edition's word is shown nowhere - so
+what this badge adds there is the count.
 
 The bridge is the Dashboard's (controlcli.serve, the long-lived form; the one-shot form never
 reaches a plug). It is where the Dashboard's Advanced features page takes its words from (the
 window's catalog is core's, and holds none of this edition's), and where a person reads a
 capability's statement and turns it on, watches
 it, turns it off, turns everything off, lowers the global ceiling, or runs a measurement by
-hand (`measure <id>`, measure.py) - every request made as the Dashboard. The statement carries
+hand (`measure <id>`, measure.py), or writes, saves, checks and sends a compatibility report
+(report/flow.py, which starts gh, the GitHub CLI, as `measure` starts a session), or reads what a
+watched capability would have done (`advanced-watch-log`, watchlog.py), or sets, lists and cancels the reset
+actions' rules - a reset credit at the limit a person picked, their own message at the reset they picked - and uses a
+reset credit now (control/resets.py) - every request made as the Dashboard. The statement carries
 the warnings that hold now and the Codex version an "on" acknowledges; the request to turn it on
 sends both back as the person's confirmation, and a warning is never what refuses it
 (arming.py).
@@ -38,7 +43,7 @@ from codex_auto_resume import l10n
 from codex_auto_resume.domain.plug import DEFER, Edition, Surface
 
 from .vocabulary import (Actor, ArmingState, BridgeCommand, McpTool, Measurement, NoteCode,
-                         Refusal, Verdict)
+                         OffReason, Refusal, Verdict)
 
 # The surfaces that show the version, where the edition badge sits beside it (decision C12).
 # Core adds nothing there in the standard edition, so each stays as it was; this edition puts
@@ -55,9 +60,37 @@ ARGUMENTS = {
     BridgeCommand.ADVANCED_DISARM: frozenset({"capability"}),
     BridgeCommand.ADVANCED_DISARM_ALL: frozenset(),
     BridgeCommand.ADVANCED_CEILING: frozenset({"global_hourly", "generation"}),
-    BridgeCommand.MEASURE: frozenset({"measurement", "thread"}),
+    BridgeCommand.MEASURE: frozenset({"measurement", "thread", "may_spend"}),
     BridgeCommand.MEASURE_VERDICT: frozenset({"measurement", "verdict", "note"}),
+    BridgeCommand.ADVANCED_OPTION: frozenset({"capability", "key", "value", "generation"}),
+    BridgeCommand.ADVANCED_RULES: frozenset(),
+    BridgeCommand.ADVANCED_RULE_ADD: frozenset({"tag", "status_from", "status_to", "category", "generation"}),
+    BridgeCommand.ADVANCED_RULE_REMOVE: frozenset({"rule", "generation"}),
+    BridgeCommand.ADVANCED_SAMPLES: frozenset(),
+    BridgeCommand.ADVANCED_KEEP_ON: frozenset({"capability", "keep_on", "send_again", "generation", "confirmed"}),
+    BridgeCommand.ADVANCED_SEND_NOW: frozenset({"interruption_id"}),
+    BridgeCommand.ADVANCED_WATCH_LOG: frozenset({"capability"}),
+    BridgeCommand.ADVANCED_RESETS: frozenset(),
+    BridgeCommand.ADVANCED_RESET_ADD: frozenset({"kind", "bucket", "minutes", "ordinal", "repeat", "ask_first",
+                                                 "thread_id", "words", "generation"}),
+    BridgeCommand.ADVANCED_RESET_CANCEL: frozenset({"rule", "generation"}),
+    BridgeCommand.ADVANCED_RESET_GO_ON: frozenset({"rule", "generation"}),
+    BridgeCommand.ADVANCED_CREDIT_NOW: frozenset({"rule", "bucket", "minutes", "generation"}),
+    BridgeCommand.ADVANCED_REPORT_BUILD: frozenset({"login"}),
+    BridgeCommand.ADVANCED_REPORT_SAVE: frozenset({"sha256", "path"}),
+    BridgeCommand.ADVANCED_REPORT_CHECK: frozenset({"sha256"}),
+    BridgeCommand.ADVANCED_REPORT_SEND: frozenset({"sha256", "writes", "word"}),
+    BridgeCommand.ADVANCED_REPORT_JOB: frozenset({"job"}),
 }
+# The compatibility report's commands (report/flow.py), answered by the action itself.
+REPORT_COMMANDS = frozenset({BridgeCommand.ADVANCED_REPORT_BUILD, BridgeCommand.ADVANCED_REPORT_SAVE,
+                             BridgeCommand.ADVANCED_REPORT_CHECK, BridgeCommand.ADVANCED_REPORT_SEND,
+                             BridgeCommand.ADVANCED_REPORT_JOB})
+REPORT = "compat_report"
+# The reset actions' commands (control/resets.py).
+RESET_COMMANDS = frozenset({BridgeCommand.ADVANCED_RESETS, BridgeCommand.ADVANCED_RESET_ADD,
+                            BridgeCommand.ADVANCED_RESET_CANCEL, BridgeCommand.ADVANCED_RESET_GO_ON,
+                            BridgeCommand.ADVANCED_CREDIT_NOW})
 
 _NO_ARGUMENTS = {"type": "object", "properties": {}, "additionalProperties": False}
 _OFF_ONLY = ("Turning a capability on is not something any tool does: the user does it in the "
@@ -66,7 +99,8 @@ _OFF_ONLY = ("Turning a capability on is not something any tool does: the user d
 TOOLS = [
     {"name": McpTool.LIST_ADVANCED_CAPABILITIES, "title": "List advanced capabilities",
      "description": "The advanced edition's capabilities, each with its id, whether it is on, "
-                    "watched or off, since when and why, and the standards it departs from. "
+                    "watched or off, since when and why, the standards it departs from, the "
+                    "choices set for it and whether it is kept on, and sends again when unsure. "
                     "Read-only. " + _OFF_ONLY,
      "inputSchema": _NO_ARGUMENTS,
      "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True,
@@ -90,6 +124,10 @@ TOOLS = [
 
 def answer(runtime, name, facts):
     """What this edition shows on surface `name`, or DEFER."""
+    if name == Surface.DIAGNOSTICS:
+        return diagnostics(runtime)
+    if name == Surface.STATUS:
+        return status(runtime)
     if name in BADGE_SURFACES:
         return badge(runtime)
     if not isinstance(facts, dict):
@@ -117,6 +155,44 @@ def badge(runtime) -> dict:
     return {"edition": str(Edition.ADVANCED), "on": on}
 
 
+def status(runtime) -> dict:
+    """The status's badge, and - only where a reset rule waits (v0.6.14) - how many messages and credit rules wait
+    and how many of them are due: counts, never a word of a message or a conversation (control/resets.counts)."""
+    shown = badge(runtime)
+    from .control import resets as reset_actions
+    try:
+        shown.update(reset_actions.counts(runtime))
+    except Exception:
+        pass
+    return shown
+
+
+def diagnostics(runtime) -> dict:
+    """The badge, and - only where there are any - the samples of the last 30 days of failures nothing
+    classified, aggregated: Codex's code, a status number, the error's form, how many times and the last
+    day (arming.samples_view); and what each watched capability would have done in those 30 days: its
+    id, since when it is watched, each answer's word, where it was asked, how many times and the first
+    and last minute (watchlog.exported). No id of a conversation, a turn or an interruption, and never a
+    word of an error or of a continuation (D5): nothing in either to alias, and nothing quoted. The
+    export is the person's own, made when they ask for it; the status and the tray, which Codex sends
+    on, never carry them."""
+    shown = badge(runtime)
+    try:
+        found = runtime.arming.samples_view()
+    except Exception:
+        found = {}
+    if found.get("samples"):
+        shown["samples"] = found["samples"]
+    from . import watchlog
+    try:
+        watch = watchlog.exported(runtime)
+    except Exception:
+        watch = []
+    if watch:
+        shown["watch"] = watch
+    return shown
+
+
 # ---------------------------------------------------------------------------- the Dashboard
 def bridge(runtime, command, argument):
     if command not in tuple(BridgeCommand) or not isinstance(argument, dict):
@@ -124,6 +200,8 @@ def bridge(runtime, command, argument):
     command = BridgeCommand(command)
     if set(argument) - ARGUMENTS[command]:
         return {"done": False, "refusal": Refusal.INVALID_REQUEST}
+    if command in REPORT_COMMANDS:
+        return report(runtime, command, argument)
     arming = runtime.arming
     if command == BridgeCommand.ADVANCED_LIST:
         return dict(arming.listing(), done=True)
@@ -145,12 +223,69 @@ def bridge(runtime, command, argument):
     if command == BridgeCommand.ADVANCED_DISARM_ALL:
         return arming.all_off(actor=Actor.DASHBOARD)
     if command == BridgeCommand.MEASURE:
-        return measure(runtime, argument.get("measurement"), argument.get("thread"))
+        return measure(runtime, argument.get("measurement"), argument.get("thread"),
+                       argument.get("may_spend", False))
     if command == BridgeCommand.MEASURE_VERDICT:
         return measure_verdict(runtime, argument.get("measurement"), argument.get("verdict"),
                                argument.get("note"))
+    if command == BridgeCommand.ADVANCED_OPTION:
+        return arming.set_option(argument.get("capability"), argument.get("key"), argument.get("value"),
+                                 generation=argument.get("generation"), actor=Actor.DASHBOARD)
+    if command == BridgeCommand.ADVANCED_RULES:
+        return arming.rules_view()
+    if command == BridgeCommand.ADVANCED_RULE_ADD:
+        return arming.add_rule(argument.get("tag"), argument.get("status_from"), argument.get("status_to"),
+                               argument.get("category"), generation=argument.get("generation"),
+                               actor=Actor.DASHBOARD)
+    if command == BridgeCommand.ADVANCED_RULE_REMOVE:
+        return arming.remove_rule(argument.get("rule"), generation=argument.get("generation"),
+                                  actor=Actor.DASHBOARD)
+    if command == BridgeCommand.ADVANCED_SAMPLES:
+        return arming.samples_view()
+    if command == BridgeCommand.ADVANCED_SEND_NOW:
+        from .control import sendnow
+        return sendnow.request(runtime, argument.get("interruption_id"))
+    if command == BridgeCommand.ADVANCED_WATCH_LOG:
+        from . import watchlog
+        return watchlog.view(runtime, argument.get("capability"))
+    if command in RESET_COMMANDS:
+        return resets(runtime, command, argument)
+    if command == BridgeCommand.ADVANCED_KEEP_ON:
+        return arming.set_keep_on(argument.get("capability"), argument.get("keep_on"),
+                                  send_again=argument.get("send_again", False),
+                                  generation=argument.get("generation"), confirmed=argument.get("confirmed"),
+                                  actor=Actor.DASHBOARD)
     return arming.set_global_hourly(argument.get("global_hourly"), generation=argument.get("generation"),
                                     actor=Actor.DASHBOARD)
+
+
+def resets(runtime, command, argument):
+    """One of the reset actions' commands (control/resets.py), the Dashboard's."""
+    from .control import resets as reset_actions
+    if command == BridgeCommand.ADVANCED_RESETS:
+        return reset_actions.view(runtime)
+    if command == BridgeCommand.ADVANCED_RESET_ADD:
+        return reset_actions.add(runtime, argument)
+    if command == BridgeCommand.ADVANCED_RESET_CANCEL:
+        return reset_actions.cancel(runtime, argument.get("rule"), argument.get("generation"))
+    if command == BridgeCommand.ADVANCED_RESET_GO_ON:
+        return reset_actions.go_on(runtime, argument.get("rule"), argument.get("generation"))
+    return reset_actions.credit_now(runtime, argument)
+
+
+def report(runtime, command, argument):
+    """One of the compatibility report's commands, put to the action's own code (report/flow.py), which
+    answers it as the Dashboard's: write it, save it, check what sending would write, send it - which
+    starts gh, as `measure` starts a session - or read how a job is getting on."""
+    definition = runtime.registry.get(REPORT)
+    if definition is None:
+        return {"done": False, "refusal": Refusal.UNKNOWN_CAPABILITY}
+    try:
+        code = runtime.action(definition)
+        return code.answer(runtime, definition, command, argument)
+    except Exception:
+        runtime.arming.trip(definition.id, OffReason.HOOK_EXCEPTION)
+        return {"done": False, "refusal": Refusal.STATE_UNAVAILABLE}
 
 
 def _locale(asked):
@@ -159,7 +294,7 @@ def _locale(asked):
     return l10n.resolve(asked) if isinstance(asked, str) and asked else l10n.current()
 
 
-def measure(runtime, measurement, thread=None):
+def measure(runtime, measurement, thread=None, may_spend=False):
     """Run one measurement the person named, and hand back what was recorded (measure.py).
 
     The id has to be one of the M-list, or it is refused as an invalid request; running it opens
@@ -168,15 +303,17 @@ def measure(runtime, measurement, thread=None):
 
     `thread` is an optional real throwaway conversation the person points it at. It has to be a
     string when given; whether it is a Codex thread id is checked in the harness, which never
-    writes it into the record."""
+    writes it into the record. `may_spend` (v0.6.14) is the person's second, explicit yes that MR may
+    spend one real reset credit: a boolean when given, true only in as many words, and read by MR
+    alone - without it MR opens no session and spends nothing."""
     try:
         which = Measurement(measurement)
     except ValueError:
         return {"done": False, "refusal": Refusal.INVALID_REQUEST}
-    if thread is not None and not isinstance(thread, str):
+    if (thread is not None and not isinstance(thread, str)) or type(may_spend) is not bool:
         return {"done": False, "refusal": Refusal.INVALID_REQUEST}
     try:
-        summary = runtime.run_measurement(which, thread=thread)
+        summary = runtime.run_measurement(which, thread=thread, may_spend=may_spend)
     except Exception:
         return {"done": False, "refusal": Refusal.STATE_UNAVAILABLE}
     return dict(summary, done=True)
@@ -219,7 +356,10 @@ def mcp(runtime, facts):
     arming = runtime.arming
     if tool == McpTool.LIST_ADVANCED_CAPABILITIES:
         listing = arming.listing()
-        shown = [{key: item[key] for key in ("id", "state", "since", "by", "reason", "departs_from")}
+        # Its choices' values, read-only; never its rules or samples, which only the Dashboard reads.
+        shown = [dict({key: item[key] for key in ("id", "state", "since", "by", "reason", "departs_from",
+                                                  "keep_on", "send_again", "notice")},
+                      options={option["key"]: option["value"] for option in item["options"]})
                  for item in listing["capabilities"]]
         return {"summary": "%d advanced capabilit%s, %d on." % (
                     len(shown), "y" if len(shown) == 1 else "ies", listing["on"]),

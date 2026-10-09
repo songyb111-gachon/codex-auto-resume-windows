@@ -25,9 +25,10 @@ looked for by it, and one the app does not hold waits for it, exactly as before.
 """
 from __future__ import annotations
 
-from .. import machine
+from .. import continuation as _message, failures, machine
 from ..domain import ids
 from ..domain.plug import DEFER, Alternative, Point
+from .options import backoff_delay
 
 
 class DeliveryMixin:
@@ -47,9 +48,11 @@ class DeliveryMixin:
             return client
         return row["marker"]
 
-    def _delivery(self, row, sender):
+    def _delivery(self, row, sender, resend=False):
         """P15: the client id a continuation of `row` is sent under with no marker, or None for
-        the marker, as core has always sent it.
+        the marker, as core has always sent it - or, for a `resend` (engine/resend.py), False where
+        it would not carry the proof its first send did: the derived id through a channel for one
+        sent with no marker, the marker for one sent with it. A resend writes nothing here.
 
         Taken only for a send handed to the plug's channel: core's own backend is `codex queue`,
         which takes no client id, so through it the marker always goes. What is taken is written
@@ -61,15 +64,18 @@ class DeliveryMixin:
         answer = self.plug.delivery(row)
         derived = ids.continuation_client_id(row["interruption_id"])
         client = derived if answer is Alternative.CLIENT_ID and sender is not self.backend else None
+        if resend:
+            return client if (client is not None) == (self.proof(row) != row["marker"]) else False
         if client is not None and row.get("recovery_client_id") != client:
             self.store.update(row["interruption_id"], at=self.clock(), recovery_client_id=client)
         elif client is None and row.get("recovery_client_id") == derived:
             self.store.update(row["interruption_id"], at=self.clock(), recovery_client_id=None)
         return client
 
-    def presend_problem(self, claim):
+    def presend_problem(self, claim, forced=False):
         """The last look before the queue process starts. Returns (target, reason,
-        delay) to give the claim back, or None to send.
+        delay) to give the claim back, or None to send. A person's Send now (`forced`) is not
+        stopped by a postponement, which it passed; by everything else, as any send is.
 
         Anything that changed since the gates ran - a cancel, a Pause, a disabled
         thread, a newer turn, somebody else's queued message, another copy of our
@@ -83,8 +89,8 @@ class DeliveryMixin:
         if claim["cancel_requested"]:
             return "cancelled", "user_cancelled", 0
         now = self.clock()
-        if (not self.allowed(claim) or (claim.get("not_before") or 0) > now    # schema 4's, and
-                or self.quiet_until(now) is not None):                         # quiet hours
+        postponed = not forced and (claim.get("not_before") or 0) > now      # schema 4's, and
+        if not self.allowed(claim) or postponed or self.quiet_until(now) is not None:   # quiet hours
             return self.waiting_state(claim), "released_before_send", poll
         if not self.valid_interruption(claim):
             state, reason = self.supersede_reason(claim)
@@ -101,6 +107,61 @@ class DeliveryMixin:
         if not self.home_lock():
             return "waiting_for_app", "home_lock_unavailable", poll
         return None
+
+    def _plugged_text(self, row, message, limits) -> tuple:
+        """P4: (the plug's words for this continuation, True), or (core's own `message`, False).
+
+        Taken only as a person's Custom message is: they pass the same validator and are filled
+        in the same way, for the same record, so they can say nothing a person could not have
+        written in the Dashboard - over a conversation's own message too (v0.6.11). Words that fail
+        the validator, or fill in to nothing, are not sent, and core's are - the person's own
+        style, not the Standard text a Custom message falls back to."""
+        words = self.plug.text(row, message)
+        if words is DEFER:
+            return message, False
+        try:
+            _message.validate_custom(words)
+            values = dict(self.policy_values, continuation_style="custom", custom_message_by_thread=None,
+                          custom_message_mode="global", custom_message=words)
+            if _message.source_for(row["category"], values, row=row, limits=limits) != "global":
+                return message, False
+            return _message.for_settings(row["category"], values, row=row, limits=limits), True
+        except Exception:
+            return message, False
+
+    def _after_send(self, row, response, resend=False):
+        """What came of a send: queued, given back or tried again for one that never started, and
+        an uncertain submission for anything else - and, for a resend, never a wait (engine/resend.py)."""
+        reserved = self.store.get(row["interruption_id"])
+        outcome = response.get("outcome")
+        if resend and outcome != "accepted":
+            self._after_resend(reserved, outcome)
+        elif outcome == "accepted":
+            now = self.clock()
+            self.transition(reserved, "queued", None, delay=1, event="submitted",
+                            queue_id=response.get("queue_id"),
+                            first_queued_at=reserved["first_queued_at"] or now)
+            self.log(row["thread_id"], "continuation_submitted", None)
+            self.announce("starting", reserved, **self._told_of(row))   # a Tell's line (engine/guard.py)
+        elif outcome == "not_started":
+            if response.get("error_code") == "queue_consent_refused":
+                target = "cancelled" if reserved["cancel_requested"] else self.waiting_state(reserved)
+                reason = "user_cancelled" if reserved["cancel_requested"] else "released_before_send"
+                self._release(row["interruption_id"], reserved, target, reason,
+                              self.options["state_poll_seconds"])
+                self.log(row["thread_id"], target, reason)
+                return
+            retry = reserved["retry_count"] + 1
+            if retry >= self.options["max_queue_retries"]:
+                self.transition(reserved, "failed", "queue_launch_retry_limit", retry_count=retry,
+                                submitted_at=None)
+            else:
+                delay = (self.delay_for(reserved["recovery_attempts"])
+                         if reserved["category"] != failures.USAGE_LIMIT else backoff_delay(retry))
+                self.transition(reserved, "waiting_retry", "queue_process_not_started",
+                                retry_count=retry, submitted_at=None, delay=delay)
+        else:
+            self.transition(reserved, "submission_unknown", "queue_result_unknown_do_not_resend", delay=1)
 
     # --------------------------------------------------------------- a conversation not held (P16)
     def _unloaded(self, row, loaded, vector):
@@ -120,7 +181,7 @@ class DeliveryMixin:
         vector["thread_available"] = machine.gate(machine.PASS, machine.PLUGGED)
         return route
 
-    def _resume_unloaded(self, current, vector, limits, route, app):
+    def _resume_unloaded(self, current, vector, limits, route, app, relaxed=None, forced=False):
         """Carry out the route the plug named at P16, as `dispatch` carries out a send: the one
         claim, paid for by the plug's ledger (P11, told the route is what it carries); the pre-send
         look; and the route called once, inside the launch guard. Called under the dispatch lock,
@@ -135,14 +196,16 @@ class DeliveryMixin:
         key = current["interruption_id"]
         at = self.clock()
         claimed, gate, reason = self.store.reserve_detailed(
-            key, at, limits=limits, gates=vector, ledger=self.plug,
-            carried=frozenset({Point.UNLOADED}), quiet_until=self.quiet_until(at))
+            key, at, limits=self.forced_limits(limits) if forced else limits, gates=vector, ledger=self.plug,
+            carried=frozenset({Point.UNLOADED}) | self.relaxed_points(relaxed)
+            | self.relaxed_points("forced" if forced else None),
+            quiet_until=self.quiet_until(at), relaxed=relaxed, forced=forced)
         if not claimed:
             self._refused(current, gate, reason)
             return
         self.moved(current, "submitting")
         claim = self.store.get(key)
-        problem = self.presend_problem(claim)
+        problem = self.presend_problem(claim, forced=True) if forced else self.presend_problem(claim)
         if problem is not None:
             target, why, delay = problem
             self._release(key, claim, target, why, delay)

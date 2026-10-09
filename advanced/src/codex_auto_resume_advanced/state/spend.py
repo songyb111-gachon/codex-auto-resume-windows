@@ -12,6 +12,8 @@ never taken from anything else.
 """
 from __future__ import annotations
 
+from codex_auto_resume.domain.plug import Point
+
 from .journal import prune_every
 from .schema import ATTACHED
 from .session import StateError, _key, _thread, _timestamp
@@ -19,6 +21,11 @@ from .session import StateError, _key, _thread, _timestamp
 DAY = 86400
 HOUR = 3600
 SCHEMAS = ("main", ATTACHED)
+# The points that make a capability a channel or a route for the send it pays for.
+CHANNELS = frozenset({Point.SENDER, Point.UNLOADED})
+# How far apart a unit's time and a claim's may be and still be the one claim: a unit is spent at the
+# very time the claim writes, so they are equal, and this only absorbs a float's round trip.
+SAME_CLAIM = 0.001
 
 
 def _schema(name) -> str:
@@ -79,3 +86,29 @@ class SpendMixin:
         for key, at in rows:
             spent.setdefault(key, []).append(at)
         return {key: tuple(times) for key, times in spent.items()}
+
+    def payers(self, interruption_id, claimed_at) -> dict:
+        """{capability: the times of its units} for each capability of the registry that paid for the
+        send of standard record `interruption_id` claimed at `claimed_at` - a unit spent inside that very
+        claim (v0.6.14). Where the claim's time cannot be read (None), every unit on the record counts:
+        the side that holds back."""
+        _key(interruption_id, "interruption id")
+        with self._read() as connection:
+            if connection is None:
+                return {}
+            rows = connection.execute("SELECT capability, at FROM spend WHERE interruption_id=? "
+                                      "ORDER BY spend_id DESC LIMIT 500", (interruption_id,)).fetchall()
+        found = {}
+        for capability, at in rows:
+            if self.registry.get(capability) is not None and (
+                    claimed_at is None or abs(at - claimed_at) <= SAME_CLAIM):
+                found.setdefault(capability, []).append(at)
+        return {capability: tuple(times) for capability, times in found.items()}
+
+    def channel_paid(self, interruption_id, claimed_at) -> bool:
+        """Whether a capability that is a channel or a route - one answering at P5 or P16 - paid for that
+        send of `interruption_id` (`payers`): such a send did more than queue words, and is never sent
+        once more but by that capability's own Send again (arming.py)."""
+        return any(self.registry.get(capability).points & CHANNELS
+                   for capability in self.payers(interruption_id, claimed_at))
+

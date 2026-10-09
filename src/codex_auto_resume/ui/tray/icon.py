@@ -73,7 +73,7 @@ class Tray(MenuMixin, StoredMixin, CardsMixin, ClicksMixin, AnimationMixin):
                  edition=None):
         self.icon_path = Path(icon_path) if icon_path else None
         self.strings = strings or {}
-        # v0.6.11: the edition that runs (edition.shown), which the tooltip's title names.
+        # v0.6.11: the edition that runs (edition.shown), which the tooltip's title names (v0.6.14: if advanced).
         self.edition = edition
         self.on_open, self.on_toggle, self.on_stop = on_open, on_toggle, on_stop
         self.on_pending = on_pending

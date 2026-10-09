@@ -106,6 +106,8 @@ class NullPlugTests(unittest.TestCase):
     def test_the_interface_has_a_version(self):
         self.assertIs(type(plug.PLUG_API), int)
         self.assertGreaterEqual(plug.PLUG_API, 1)
+        # 3 (v0.6.14): P8's errand, and P2's records carried out - a package written for 2 is refused.
+        self.assertEqual(plug.PLUG_API, 3)
 
 
 class RecordingPlug(Plug):
@@ -134,8 +136,9 @@ class ClosedAlternativeTests(unittest.TestCase):
                 self.assertIs(plug.consult(RecordingPlug(gate=answer), Point.GATES, 1, 2, 3), DEFER)
         taken = plug.consult(RecordingPlug(gate="hold"), Point.GATES, 1, 2, 3)
         self.assertIs(taken, Alternative.HOLD)
-        # A word of another point is no word at an empty-set point: records carries nothing out.
-        self.assertIs(plug.consult(RecordingPlug(records=Alternative.HOLD), Point.RECORDS, 1), DEFER)
+        # A word at a point whose answer is a value core checks is no value: P2 takes records (v0.6.14),
+        # and a word is none of them.
+        self.assertEqual(plug.guard(RecordingPlug(records=Alternative.HOLD)).records(1), ())
 
     def test_every_decision_point_accepts_a_restriction_or_nothing(self):
         """A hook may always restrict and may relax only as core has learned to carry out, which
@@ -145,24 +148,46 @@ class ClosedAlternativeTests(unittest.TestCase):
         (Guarded.start_route); a record served, a follow-up, a division of the due records and a
         restart are asked for, and none is carried out. And P15 takes CLIENT_ID, which core
         carries out in the commit that added it: no marker, and the client id core derives - no
-        gate relaxed, so no restriction either, and the one answer that is not one."""
-        self.assertEqual(plug.ANSWERS, plug.RESTRICTIONS | {Alternative.CLIENT_ID})
+        gate relaxed, so no restriction either.
+
+        v0.6.14 stage 3b: P17 takes the words that take up a failure core never recovers alone -
+        ADMIT, and the five AS_ words that pace one as a temporary kind - and so do the gates, which
+        core takes only at known_failure (tests/test_plug_points.py, KnownFailureTests): the first
+        relaxations of a gate, each held to core's own fence (failures.admits). And P7 takes RESEND,
+        an uncertain submission sent once more where core proves it may (engine/resend.py), and
+        SEND_NOW, a person's request that passes a waiting record's own wait (engine/relaxed.py)."""
+        take_up = {Alternative.ADMIT, Alternative.CAPACITY} | set(plug.PACED_AS)
+        self.assertEqual(plug.TAKE_UP, take_up)
+        self.assertEqual(plug.ANSWERS, plug.RESTRICTIONS | {Alternative.CLIENT_ID, Alternative.EARLY,
+                                                            Alternative.RESEND, Alternative.SEND_NOW} | take_up)
         self.assertEqual(plug.ANSWERS, frozenset(Alternative))
         for point, accepted in plug.ALTERNATIVES.items():
             with self.subTest(point):
                 self.assertIn(point, Point)
-                if point is not Point.DELIVERY:
+                if point not in (Point.DELIVERY, Point.GATES, Point.ADMISSION, Point.SCHEDULE):
                     self.assertLessEqual(accepted, plug.RESTRICTIONS)
         self.assertEqual(plug.ALTERNATIVES[Point.DELIVERY], frozenset({Alternative.CLIENT_ID}))
+        self.assertEqual(plug.ALTERNATIVES[Point.GATES], plug.RESTRICTIONS | take_up)
+        self.assertEqual(plug.ALTERNATIVES[Point.ADMISSION], take_up)
+        # And P7 may look at a usage-limited record early (EARLY), send an uncertain submission once
+        # more (RESEND) and send a waiting one now for a person (SEND_NOW), each carried out by core.
+        self.assertEqual(plug.ALTERNATIVES[Point.SCHEDULE],
+                         plug.RESTRICTIONS | {Alternative.EARLY, Alternative.RESEND, Alternative.SEND_NOW})
         self.assertEqual({point for point, accepted in plug.ALTERNATIVES.items() if accepted},
-                         {Point.GATES, Point.SCHEDULE, Point.CLAIM_LEDGER, Point.DELIVERY})
+                         {Point.GATES, Point.SCHEDULE, Point.CLAIM_LEDGER, Point.DELIVERY,
+                          Point.ADMISSION})
         self.assertEqual({point for point, accepted in plug.ALTERNATIVES.items() if not accepted},
-                         {Point.RECORDS, Point.OUTCOME, Point.CONCURRENCY, Point.SUPERVISION})
+                         {Point.OUTCOME, Point.CONCURRENCY, Point.SUPERVISION})
+        # v0.6.14: P2 has left the table for a value core checks - the records a plug hands over, each
+        # checked (plughands.records_of) and carried out by core (engine/plugrecords.py).
+        self.assertNotIn(Point.RECORDS, plug.ALTERNATIVES)
         # The start route is no longer a decision point: core checks the value it hands back.
         self.assertNotIn(Point.START_ROUTE, plug.ALTERNATIVES)
         for point, accepted in plug.ALTERNATIVES.items():
-            for answer in ([object()], {"records": []}, "go", Alternative.HOLD, Alternative.CLIENT_ID):
-                if answer in (Alternative.HOLD, Alternative.CLIENT_ID) and answer in accepted:
+            for answer in ([object()], {"records": []}, "go", Alternative.HOLD, Alternative.CLIENT_ID,
+                           Alternative.ADMIT, Alternative.AS_TIMEOUT, Alternative.EARLY, Alternative.RESEND,
+                           Alternative.SEND_NOW):
+                if isinstance(answer, Alternative) and answer in accepted:
                     continue
                 with self.subTest(point=point, answer=answer):
                     asked = RecordingPlug(**{plug.HOOKS[point]: answer})
@@ -216,8 +241,10 @@ class GuardTests(unittest.TestCase):
                 answer = getattr(guarded, plug.HOOKS[point])(*given)
                 if point is Point.SENDER:
                     self.assertIs(answer, given[-1])
-                elif point in (Point.TICK, Point.MOVED):
-                    self.assertIsNone(answer, "a tick's answer, and a move's, are not read")
+                elif point is Point.MOVED:
+                    self.assertIsNone(answer, "a move's answer is not read")
+                elif point is Point.RECORDS:
+                    self.assertEqual(answer, (), "no record of the plug's own")
                 else:
                     self.assertIs(answer, DEFER)
         self.assertEqual(guarded.failures, 0)
@@ -236,7 +263,7 @@ class GuardTests(unittest.TestCase):
         self.assertIs(failing.sender(object(), backend), backend)
         self.assertIs(failing.gate("usage", {}, {}), DEFER)
         self.assertIs(failing.claim_ledger(object(), {}, 1.0, frozenset()), DEFER)
-        self.assertIsNone(failing.tick(object()))
+        self.assertIs(failing.tick(object()), DEFER, "an errand, from v0.6.14, or DEFER")
         self.assertIs(failing.surface(Surface.STATUS, {}), DEFER)
         self.assertEqual(failing.failures, 5)
 

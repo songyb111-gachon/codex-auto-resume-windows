@@ -15,6 +15,7 @@ import json
 from pathlib import Path
 import re
 import sys
+import time
 import unittest
 from unittest.mock import patch
 
@@ -23,9 +24,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import advancedcase as ac  # noqa: E402
 from codex_auto_resume import control, controlcli, mcpserver  # noqa: E402
 from codex_auto_resume.mcp.tools import TOOLS as CORE_TOOLS  # noqa: E402
+from codex_auto_resume.domain.plug import DEFER, Alternative, FailureForm, Surface  # noqa: E402
 from codex_auto_resume_advanced import arming, surfaces  # noqa: E402
+from codex_auto_resume_advanced.registry import Option  # noqa: E402
 from codex_auto_resume_advanced.vocabulary import (Actor, ArmingState, BridgeCommand,  # noqa: E402
-                                                   McpTool, Refusal)
+                                                   McpTool, OptionKey, Refusal)
+
+# The day a sample kept at the tests' clock (advancedcase.NOW) is shown as.
+DAY = time.strftime("%Y-%m-%d", time.gmtime(ac.NOW))
 
 
 class SurfaceCase(ac.AdvancedCase):
@@ -172,7 +178,8 @@ class McpTests(SurfaceCase):
         self.assertFalse(listing.get("isError"))
         self.assertEqual(listing["structuredContent"]["on"], 1)
         self.assertEqual(set(listing["structuredContent"]["capabilities"][0]),
-                         {"id", "state", "since", "by", "reason", "departs_from"})
+                         {"id", "state", "since", "by", "reason", "departs_from", "options", "keep_on",
+                          "send_again", "notice"})
         off = self.call("disarm_advanced_capability", {"capability": "test_wake"})["result"]
         self.assertEqual(off["structuredContent"], {"capability": "test_wake", "state": "off", "changed": True})
         self.assertEqual((self.stored()["state"], self.stored()["actor"]), (ArmingState.OFF, Actor.MCP))
@@ -214,6 +221,8 @@ class McpTests(SurfaceCase):
         named = {node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)}
         self.assertNotIn("arm", named)
         self.assertNotIn("set_global_hourly", named)
+        for write in ("set_option", "add_rule", "remove_rule", "rules_view", "samples_view"):
+            self.assertNotIn(write, named)
         self.assertIn("disarm", named)
 
     def test_the_advanced_skill_names_every_tool_and_none_that_turns_anything_on(self):
@@ -226,6 +235,306 @@ class McpTests(SurfaceCase):
     def test_the_bridge_commands_and_the_tools_are_the_vocabularys(self):
         self.assertEqual(set(surfaces.ARGUMENTS), set(BridgeCommand))
         self.assertEqual([tool["name"] for tool in surfaces.TOOLS], list(McpTool))
+
+
+
+SAMPLE = {"code": "brandNewVariant", "status": 503, "form": FailureForm.TAGGED, "has_message": True,
+          "items": {"agentMessage": 2, "commandExecution": 1}, "duration": 42.0}
+
+
+class ResetBridgeTests(ac.AdvancedCase):
+    """The reset actions' bridge commands (v0.6.14, control/resets.py): the Dashboard's, against the generation it
+    read; a rule only while its capability is on; the bounds and refusals; Use a reset credit now good for fifteen
+    minutes and the watcher woken; the status shows counts only; and no MCP tool reaches any of it."""
+
+    WORDS = "SENTINEL-reset: carry on with the tests."
+
+    def setUp(self):
+        super().setUp()
+        from codex_auto_resume_advanced.registry import LONG_RESET_MESSAGE, RESET_CREDIT, RESET_MESSAGE
+        self.definitions = (RESET_CREDIT, RESET_MESSAGE, LONG_RESET_MESSAGE)
+        self.paths.ensure()
+        self.advanced = self.plug(*self.definitions)
+        self.control = control.Control(self.paths, plug=self.advanced)
+        self.woken = []
+        patcher = patch("codex_auto_resume_advanced.control.sendnow.wake", lambda paths: self.woken.append(1))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def bridge(self, command, argument=None):
+        request = {"id": 1, "command": command, "argument": argument or {}}
+        out = io.StringIO()
+        controlcli.serve(self.control, io.StringIO(json.dumps(request) + "\n"), out)
+        return json.loads(out.getvalue())["reply"]["result"]
+
+    def on(self, capability):
+        runtime = self.advanced.runtime
+        definition = runtime.registry.get(capability)
+        result = self.arm(runtime, capability, warnings=list(runtime.arming.warnings(definition)))
+        self.assertTrue(result["done"], result)
+        runtime.states(fresh=True)
+
+    def generation(self):
+        return self.advanced.runtime.state.meta()["generation"]
+
+    def message(self, **changes):
+        argument = dict(kind="message", bucket="codex", minutes=300, ordinal=1, thread_id=ac.THREAD,
+                        words=self.WORDS, generation=self.generation())
+        argument.update(changes)
+        return self.bridge("advanced-reset-add", argument)
+
+    def test_a_rule_is_added_only_while_its_capability_is_on_and_against_the_generation_read(self):
+        self.assertEqual(self.message()["refusal"], Refusal.NOT_ON)
+        self.on("reset_message")
+        self.assertEqual(self.message(generation=self.generation() - 1)["refusal"], Refusal.STALE_GENERATION)
+        added = self.message()
+        self.assertTrue(added["done"], added)
+        self.assertEqual(self.woken, [1])
+        listed = self.bridge("advanced-resets")
+        (rule,) = listed["rules"]
+        self.assertEqual((rule["capability"], rule["thread_id"], rule["words"], rule["state"]),
+                         ("reset_message", ac.THREAD, self.WORDS, "counting"))
+        self.assertIn({"bucket": "codex", "minutes": 300, "open_reset_at": None, "open_full": False}, listed["families"])
+        self.assertEqual(listed["limits"]["words"], 2000)
+
+    def test_each_refusal_is_its_own(self):
+        self.on("reset_message")
+        self.on("reset_credit")
+        for changes, refusal in (({"ordinal": 0}, Refusal.OCCASION_INVALID), ({"ordinal": 10}, Refusal.OCCASION_INVALID),
+                                 ({"minutes": 10080, "ordinal": 2}, Refusal.OCCASION_INVALID),
+                                 ({"bucket": "team"}, Refusal.OCCASION_INVALID),
+                                 ({"words": "   "}, Refusal.MESSAGE_REFUSED),
+                                 ({"words": "x" * 2001}, Refusal.MESSAGE_REFUSED),
+                                 ({"words": "see [codex-auto-resume:00]"}, Refusal.MESSAGE_REFUSED),
+                                 ({"thread_id": "not a conversation"}, Refusal.INVALID_REQUEST),
+                                 ({"kind": "anything"}, Refusal.INVALID_REQUEST)):
+            with self.subTest(changes=changes):
+                self.assertEqual(self.message(**changes)["refusal"], refusal)
+        self.assertTrue(self.message()["done"])
+        self.assertEqual(self.message()["refusal"], Refusal.ALREADY_SCHEDULED)
+        credit = dict(kind="credit", bucket="codex", minutes=300, ordinal=1, generation=self.generation())
+        self.assertEqual(self.bridge("advanced-reset-add", dict(credit, words="x"))["refusal"], Refusal.INVALID_REQUEST)
+        self.assertEqual(self.bridge("advanced-reset-add", dict(credit, repeat="yes"))["refusal"], Refusal.INVALID_REQUEST)
+        for _ in range(4):
+            self.assertTrue(self.bridge("advanced-reset-add", dict(credit, generation=self.generation()))["done"])
+        self.assertEqual(self.bridge("advanced-reset-add", dict(credit, generation=self.generation()))["refusal"],
+                         Refusal.RESETS_FULL)
+
+    def test_a_long_message_needs_longer_reset_messages_on(self):
+        self.on("reset_message")
+        self.assertEqual(self.message(words="x" * 2001)["refusal"], Refusal.MESSAGE_REFUSED)
+        self.on("long_reset_message")
+        self.assertEqual(self.bridge("advanced-resets")["limits"]["words"], 8154)
+        self.assertTrue(self.message(words="x" * 8154)["done"])
+
+    def test_the_count_past_the_next_one_is_unproven_until_mu_passes_on_the_codex_in_force(self):
+        from codex_auto_resume_advanced.vocabulary import Measurement, Verdict
+        self.assertTrue(self.bridge("advanced-resets")["count_unproven"])
+        self.measured = {Measurement.MU: (Verdict.FAIL, ac.ENGINE)}
+        self.assertTrue(self.bridge("advanced-resets")["count_unproven"])
+        self.measured = {Measurement.MU: (Verdict.PASS, ac.ENGINE)}
+        self.assertFalse(self.bridge("advanced-resets")["count_unproven"])
+
+    def test_no_message_is_taken_for_a_conversation_switched_off(self):
+        self.on("reset_message")
+        self.bridge("thread-enabled", {"thread_id": ac.THREAD, "enabled": False})
+        self.assertEqual(self.message()["refusal"], Refusal.CONVERSATION_OFF)
+        self.assertEqual(self.advanced.runtime.state.reset_rules(), [])
+        self.bridge("thread-enabled", {"thread_id": ac.THREAD, "enabled": True})
+        self.assertTrue(self.message()["done"])
+
+    def test_the_dashboards_switch_cancels_a_message_at_once_and_switching_it_on_again_revives_nothing(self):
+        state = self.advanced.runtime.state
+        self.on("reset_message")
+        for command, argument in (("cancel-thread", {"thread_id": ac.THREAD}),
+                                  ("thread-enabled", {"thread_id": ac.THREAD, "enabled": False})):
+            with self.subTest(command):
+                self.bridge("thread-enabled", {"thread_id": ac.THREAD, "enabled": True})
+                rule = self.message(generation=self.generation())["rule"]
+                self.bridge(command, argument)
+                self.bridge("thread-enabled", {"thread_id": ac.THREAD, "enabled": True})
+                gone = state.reset_rule(rule)
+                self.assertEqual((gone["state"], gone["reason"], gone["words"], gone["record_state"]),
+                                 ("cancelled", "conversation_off", None, "cancelled"))
+
+    def test_cancel_and_go_on(self):
+        self.on("reset_message")
+        rule = self.message()["rule"]
+        state = self.advanced.runtime.state
+        self.assertEqual(self.bridge("advanced-reset-go-on", {"rule": rule, "generation": self.generation()})["refusal"],
+                         Refusal.UNKNOWN_RULE, "it is not held")
+        state.change_rule(rule, state="held", reason="count_gap", ordinal=1, base=None)
+        self.assertTrue(self.bridge("advanced-reset-go-on", {"rule": rule, "generation": self.generation()})["done"])
+        self.assertEqual((state.reset_rule(rule)["state"], state.reset_rule(rule)["adopted_at"]), ("counting", None))
+        state.change_rule(rule, state="ready", launching_at=ac.NOW)
+        self.assertEqual(self.bridge("advanced-reset-cancel", {"rule": rule, "generation": self.generation()})["refusal"],
+                         Refusal.BEING_SENT)
+        state.change_rule(rule, launching_at=None)
+        self.assertTrue(self.bridge("advanced-reset-cancel", {"rule": rule, "generation": self.generation()})["done"])
+        self.assertEqual((state.reset_rule(rule)["state"], state.reset_rule(rule)["words"]), ("cancelled", None))
+        self.assertEqual(self.bridge("advanced-reset-cancel", {"rule": rule, "generation": self.generation()})["refusal"],
+                         Refusal.UNKNOWN_RULE)
+
+    def test_use_a_reset_credit_now_is_a_rule_of_its_own_good_for_fifteen_minutes_and_wakes_the_watcher(self):
+        self.assertEqual(self.bridge("advanced-credit-now", {"generation": self.generation()})["refusal"], Refusal.NOT_ON)
+        self.on("reset_credit")
+        self.assertEqual(self.bridge("advanced-credit-now", {"generation": self.generation()})["refusal"],
+                         Refusal.OCCASION_INVALID, "no window is full")
+        used = self.bridge("advanced-credit-now", {"bucket": "codex", "minutes": 300, "generation": self.generation()})
+        self.assertTrue(used["done"], used)
+        self.assertEqual(used["expires_at"], ac.NOW + 900)
+        rule = self.advanced.runtime.state.reset_rule(used["rule"])
+        self.assertEqual((rule["ordinal"], rule["state"], rule["capability"]), (0, "ready", "reset_credit"))
+        self.assertEqual(self.woken, [1])
+
+    def test_the_status_shows_counts_only_and_no_mcp_tool_reaches_a_reset_action(self):
+        self.on("reset_message")
+        self.message()
+        status = self.advanced.surface(Surface.STATUS, {})
+        self.assertEqual((status["messages"], status["credit_rules"], status["ready"]), (1, 0, 0))
+        self.assertNotIn("SENTINEL", json.dumps(status))
+        for name in (Surface.TRAY, Surface.DIAGNOSTICS):
+            self.assertNotIn("messages", self.advanced.surface(name, {}))
+        tools = self.advanced.surface(Surface.MCP, {"request": "tools"})["tools"]
+        self.assertFalse([tool["name"] for tool in tools if "reset" in tool["name"] or "credit" in tool["name"]])
+        for command in surfaces.RESET_COMMANDS:
+            with self.subTest(command):
+                self.assertIs(surfaces.mcp(self.advanced.runtime, {"request": "call", "tool": str(command),
+                                                                   "arguments": {}}), DEFER)
+        self.assertEqual(status["on"], 1)
+
+
+class ChoicesCase(SurfaceCase):
+    """A capability of the tests' own with a choice, the rules editor and samples (v0.6.14)."""
+
+    def setUp(self):
+        ac.AdvancedCase.setUp(self)
+        self.paths.ensure()
+        self.advanced = self.plug(ac.definition(options=(Option(OptionKey.ATTEMPTS, (1, 2, 3), 1),),
+                                                rules_editor=True, samples=True, codes=("sampled", "matched")))
+        self.control = control.Control(self.paths, plug=self.advanced)
+
+    def generation(self):
+        return self.bridge("advanced-list", {})["result"]["generation"]
+
+    def sampled(self, key, shape=SAMPLE):
+        """One failure taken up and sampled, as the runtime keeps one (state/choices.py)."""
+        state = self.advanced.runtime.state
+        self.assertTrue(state.admit(key, "test_wake", Alternative.ADMIT, shape=shape, at=self.now))
+        self.assertTrue(state.taken(key, "test_wake", "sampled", sample=shape, at=self.now))
+
+
+class ChoiceBridgeTests(ChoicesCase):
+    def test_the_list_carries_each_choice_with_what_it_offers_and_whether_rules_and_samples_show(self):
+        (item,) = self.bridge("advanced-list", {})["result"]["capabilities"]
+        self.assertEqual(item["options"], [{"key": "attempts", "choices": [1, 2, 3], "value": 1, "default": 1}])
+        self.assertEqual((item["rules_editor"], item["samples"]), (True, True))
+        self.assertFalse(self.home.joinpath("config", "advanced").exists(), "reading the list made nothing")
+
+    def test_the_dashboard_sets_a_choice_against_the_generation_it_read(self):
+        done = self.bridge("advanced-option", {"capability": "test_wake", "key": "attempts", "value": 2,
+                                               "generation": 0})["result"]
+        self.assertEqual((done["done"], done["generation"]), (True, 1))
+        (item,) = self.bridge("advanced-list", {})["result"]["capabilities"]
+        self.assertEqual(item["options"][0]["value"], 2)
+        for argument, refusal in (({"value": 3, "generation": 0}, Refusal.STALE_GENERATION),
+                                  ({"value": 9, "generation": 1}, Refusal.OPTION_INVALID),
+                                  ({"value": "3", "generation": 1}, Refusal.OPTION_INVALID),
+                                  ({"key": "ceiling_hours", "value": 2, "generation": 1}, Refusal.OPTION_INVALID),
+                                  ({"capability": "nope", "value": 2, "generation": 1}, Refusal.UNKNOWN_CAPABILITY)):
+            with self.subTest(argument=argument):
+                request = dict({"capability": "test_wake", "key": "attempts"}, **argument)
+                self.assertEqual(self.bridge("advanced-option", request)["result"]["refusal"], refusal)
+        self.assertEqual(self.bridge("advanced-option", {"capability": "test_wake", "key": "attempts", "value": 2,
+                                                         "generation": 1, "state": "armed"})["result"]["refusal"],
+                         Refusal.INVALID_REQUEST)
+        self.assertEqual(self.stored(), None, "a choice turns nothing on")
+
+    def test_the_dashboard_adds_reads_and_removes_rules_and_each_refusal_is_its_own(self):
+        added = self.bridge("advanced-rule-add", {"tag": "brandNewVariant", "status_from": 500, "status_to": 599,
+                                                  "category": "server_5xx", "generation": 0})["result"]
+        self.assertEqual((added["done"], added["rule"], added["generation"]), (True, 1, 1))
+        rules = self.bridge("advanced-rules", {})["result"]
+        self.assertEqual(rules, {"done": True, "generation": 1, "limit": 10, "tags": [], "rules": [
+            {"rule": 1, "tag": "brandNewVariant", "status_from": 500, "status_to": 599, "category": "server_5xx",
+             "known": False, "hits": 0}]})
+        for tag, low, high, refusal in (("serverOverloaded", None, None, Refusal.RULE_KNOWN),
+                                        ("policyRefused", None, None, Refusal.RULE_DECISION),
+                                        ("not a code", None, None, Refusal.RULE_SHAPE),
+                                        ("anotherCode", 600, 700, Refusal.RULE_RANGE),
+                                        ("brandNewVariant", 503, 503, Refusal.RULE_OVERLAP)):
+            with self.subTest(tag=tag):
+                refused = self.bridge("advanced-rule-add", {"tag": tag, "status_from": low, "status_to": high,
+                                                            "category": "timeout", "generation": 1})["result"]
+                self.assertEqual((refused["done"], refused["refusal"]), (False, refusal))
+        self.assertEqual(self.bridge("advanced-rule-add", {"tag": "anotherCode", "status_from": None, "status_to": None,
+                                                           "category": "usage_limit", "generation": 1})["result"]
+                         ["refusal"], Refusal.INVALID_REQUEST, "no rule makes a failure a usage limit")
+        self.assertEqual(self.bridge("advanced-rule-remove", {"rule": 1, "generation": 0})["result"]["refusal"],
+                         Refusal.STALE_GENERATION)
+        self.assertTrue(self.bridge("advanced-rule-remove", {"rule": 1, "generation": 1})["result"]["done"])
+        self.assertEqual(self.bridge("advanced-rule-remove", {"rule": 1, "generation": 2})["result"]["refusal"],
+                         Refusal.UNKNOWN_RULE)
+        self.assertEqual(self.bridge("advanced-rules", {})["result"]["rules"], [])
+
+    def test_a_rule_shows_its_uses_in_thirty_days_and_the_samples_offer_the_codes_a_rule_may_name(self):
+        self.arm(self.advanced.runtime, state="shadow")
+        self.bridge("advanced-rule-add", {"tag": "brandNewVariant", "status_from": None, "status_to": None,
+                                          "category": "timeout", "generation": self.generation()})
+        state = self.advanced.runtime.state
+        self.assertTrue(state.admit(ac.KEY, "test_wake", Alternative.AS_TIMEOUT, rule_id=1, at=self.now))
+        self.assertTrue(state.taken(ac.KEY, "test_wake", "matched", at=self.now))
+        self.sampled("b" * 64)
+        self.sampled("c" * 64, dict(SAMPLE, code="policyRefused"))
+        rules = self.bridge("advanced-rules", {})["result"]
+        self.assertEqual(rules["rules"][0]["hits"], 1)
+        self.assertEqual(rules["tags"], ["brandNewVariant"], "a code that may name a decision is never offered")
+
+    def test_the_samples_are_aggregated_codes_and_numbers_with_no_id_and_no_word(self):
+        self.arm(self.advanced.runtime, state="shadow")
+        for index in range(3):
+            self.sampled("%064x" % (index + 1))
+        self.sampled("%064x" % 9, {"code": None, "status": None, "form": FailureForm.ABSENT, "has_message": False})
+        samples = self.bridge("advanced-samples", {})["result"]
+        self.assertEqual(samples, {"done": True, "samples": [
+            {"tag": "brandNewVariant", "status": 503, "form": "tagged", "count": 3, "last": DAY},
+            {"tag": None, "status": None, "form": "absent", "count": 1, "last": DAY}]})
+        written = json.dumps(samples)
+        for key in ("%064x" % 1, ac.THREAD):
+            self.assertNotIn(key, written)
+        self.now += 31 * 86400
+        self.assertEqual(self.bridge("advanced-samples", {})["result"]["samples"], [], "thirty days back, no more")
+
+    def test_diagnostics_carry_the_samples_and_the_status_and_tray_never_do(self):
+        runtime = self.advanced.runtime
+        self.assertEqual(surfaces.answer(runtime, Surface.DIAGNOSTICS, {}), {"edition": "advanced", "on": 0})
+        self.arm(runtime, state="shadow")
+        self.sampled(ac.KEY)
+        shown = surfaces.answer(runtime, Surface.DIAGNOSTICS, {})
+        self.assertEqual(shown["samples"], [{"tag": "brandNewVariant", "status": 503, "form": "tagged", "count": 1,
+                                             "last": DAY}])
+        self.assertNotIn(ac.KEY, json.dumps(shown))
+        for surface in (Surface.STATUS, Surface.TRAY):
+            self.assertNotIn("samples", surfaces.answer(runtime, surface, {}))
+
+    def test_a_model_reads_the_choices_and_writes_none_of_them_whatever_it_sends(self):
+        listing = self.call("list_advanced_capabilities")["result"]["structuredContent"]
+        self.assertEqual(listing["capabilities"][0]["options"], {"attempts": 1})
+        attempts = [("advanced-option", {"capability": "test_wake", "key": "attempts", "value": 3, "generation": 0}),
+                    ("set_advanced_option", {"capability": "test_wake", "key": "attempts", "value": 3}),
+                    ("advanced-rule-add", {"tag": "brandNewVariant", "category": "timeout", "generation": 0}),
+                    ("disarm_advanced_capability", {"capability": "test_wake", "key": "attempts", "value": 3}),
+                    ("list_advanced_capabilities", {"rule": "brandNewVariant"}),
+                    ("list_advanced_capabilities", {"samples": True})]
+        with patch.object(arming.Arming, "set_option") as option, patch.object(arming.Arming, "add_rule") as add, \
+                patch.object(arming.Arming, "remove_rule") as remove:
+            for name, arguments in attempts:
+                with self.subTest(name):
+                    reply = self.call(name, arguments)
+                    self.assertTrue("error" in reply or reply["result"].get("isError"), reply)
+            for write in (option, add, remove):
+                write.assert_not_called()
+        self.assertEqual(self.advanced.runtime.state.options("test_wake"), {OptionKey.ATTEMPTS: 1})
 
 
 if __name__ == "__main__":

@@ -133,6 +133,72 @@ def validate_custom(text) -> str:
     return text
 
 
+# A person's own message the edition's plug hands core to send at a time they chose (P2, v0.6.14): what
+# core's one send may carry at most (codex/transport.py), and the blank line and short marker it ends with.
+PROMPT_SEND_LIMIT = 8192
+PROMPT_LIMIT = PROMPT_SEND_LIMIT - len("\n\n" + ids.short_marker("0" * ids.INTERRUPTION_ID_LENGTH))
+# The control characters a message may hold: a tab and the two ends of a line.
+_PROMPT_CONTROLS = frozenset("\t\r\n")
+
+
+class PromptError(ValueError):
+    """A message of a person's own core will not send (validate_prompt). `code` says why, as a machine
+    value: not_text, empty, too_long, control, marker, product_text."""
+
+    def __init__(self, code):
+        super().__init__(code)
+        self.code = code
+
+
+def _folded(text) -> str:
+    return text.strip().casefold()
+
+
+def product_texts() -> frozenset:
+    """Every continuation this product says, in every language it speaks - each template as the
+    catalogs hold it, and each style's message for every recovered kind as it is built with nothing
+    filled in - stripped and casefolded: what a person's own message may never be (validate_prompt)."""
+    global _PRODUCT_TEXTS
+    if _PRODUCT_TEXTS is None:
+        found = set()
+        for locale in l10n.LOCALES:
+            found |= {_folded(value) for key, value in l10n.catalog(locale).items()
+                      if key.startswith("continuation.") and isinstance(value, str)}
+            for category in sorted(c for c in failures.CATEGORIES if failures.is_recoverable(c)):
+                for style in ("minimal", "standard", "detailed"):
+                    try:
+                        found.add(_folded(build(category, locale=locale, style=style)))
+                    except Exception:
+                        continue
+        _PRODUCT_TEXTS = frozenset(found)
+    return _PRODUCT_TEXTS
+
+
+_PRODUCT_TEXTS = None
+
+
+def validate_prompt(text) -> str:
+    """A message a person wrote, for the edition's plug to have core send at a time they chose (P2,
+    v0.6.14): the text unchanged, or a PromptError. Text of 1 to PROMPT_LIMIT characters that is not
+    whitespace alone, holds no control character but a tab and the ends of a line, no marker of this
+    product's, and is not - stripped and casefolded - one of the product's own continuations in any
+    language (product_texts): so empty or product-made words are never sent in a person's name, nor
+    used to open a usage window (the plan's exclusion). Sent exactly as written: nothing is filled in."""
+    if not isinstance(text, str):
+        raise PromptError("not_text")
+    if not text.strip():
+        raise PromptError("empty")
+    if len(text) > PROMPT_LIMIT:
+        raise PromptError("too_long")
+    if any(ord(character) < 32 and character not in _PROMPT_CONTROLS for character in text) or "\x7f" in text:
+        raise PromptError("control")
+    if ids.MARKER_PREFIX in text:
+        raise PromptError("marker")
+    if _folded(text) in product_texts():
+        raise PromptError("product_text")
+    return text
+
+
 def coerce_by_thread(value, default=None):
     """The settings coercer of the per-conversation messages: a new {thread id: text} of the
     entries that are one - a canonical conversation id and a text `validate_custom` takes - or

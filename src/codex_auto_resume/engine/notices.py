@@ -17,7 +17,9 @@ class NoticeMixin:
         """Raise each notice not raised before, from what detection read this tick (`failures`: the
         latest failures, with those that need a person among them) and, while a stall time is chosen,
         from the turns that stopped moving. A notice that cannot be raised costs its notice: detection
-        and recovery go on as they would have."""
+        and recovery go on as they would have. A failure a record holds - one the edition's plug took up
+        (v0.6.14) - is being recovered, or was, and its record says so: it needs no notice of its own,
+        on the tick it was taken up or any after (v0.6.14)."""
         if not needsyou.told(self.policy_values):
             return
         now = self.clock()
@@ -27,7 +29,8 @@ class NoticeMixin:
                 done = failure.get("completed_at")
                 if (failure.get("category") in kinds and done is not None
                         and now - done <= needsyou.WINDOW_SECONDS
-                        and self.store.thread_enabled(failure["thread_id"])):
+                        and self.store.thread_enabled(failure["thread_id"])
+                        and self.store.get(failure["interruption_id"]) is None):
                     self._notice(failure["interruption_id"], failure["thread_id"], failure["category"], now)
             quiet = needsyou.stall_seconds(self.policy_values)
             if quiet is None:

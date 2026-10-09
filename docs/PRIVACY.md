@@ -497,8 +497,10 @@ conversation to OpenAI like any tool output. That is:
   this product's message or, when the Custom style is selected, your Custom message. It saves
   nothing and sends nothing;
 - in the advanced edition, from `list_advanced_capabilities`: each capability's id, whether it
-  is on, watched or off, since when, from which surface and why, and the ids of the standards it
-  departs from ([STANDARDS.md](STANDARDS.md)) — ids and codes, with no version string, path or free text; from the two tools
+  is on, watched or off, since when, from which surface and why, whether it is kept on and whether
+  with Send again, the code of what a capability kept on would otherwise have turned itself off for,
+  the values of the choices set for it, and the ids of the standards it departs from
+  ([STANDARDS.md](STANDARDS.md)) — ids, codes and yes-or-no values, with no version string, path or free text; from the two tools
   that turn capabilities off, the capability's id and that it is off, or how many were turned off;
 - from the commands: the same, plus each pending recovery's reset time, limit bucket and
   last reason code, the desktop app's process ids, and local paths such as the Codex executable, the Codex home,
@@ -743,11 +745,15 @@ language Windows lists on this machine; a language you choose is stored in
 From v0.6.11 there is a second edition, and this section is what it adds to everything above. Its
 capabilities are each off until a person turns one on, in the Dashboard's **Advanced features** page.
 With none on, and no measurement asked for, it runs nothing more and asks Codex for nothing more; it
-reads more only when its capabilities are listed or one is being turned on, and Codex's tools learn
-which edition it is and that none is on. It adds no network code: its package imports no networking
+reads more only when its capabilities are listed or one is being turned on - and, while a capability
+that takes up failures is on or watched, from Codex's history the failures the standard edition
+leaves alone: their kind, Codex's error code and status number, and whether an error message exists,
+never the message; for the one that retries failures it cannot classify, also how many items of each
+kind the failed turn left - and Codex's tools learn which edition it is and that none is on. It adds no network code: its package imports no networking
 module, which a test checks as it checks the standard edition's code
 (`tests/test_privacy_claims.py`), and what its capabilities ask of anything, they ask of the Codex
-already on this machine.
+already on this machine - but for the compatibility report, which asks gh, the GitHub CLI you
+installed, to reach GitHub, and only when you start it (*What it sends to GitHub*, below).
 
 - **What it reads.** Three values an administrator may set under
   `Software\Policies\CodexAutoResume`, in `HKEY_LOCAL_MACHINE` and `HKEY_CURRENT_USER` -
@@ -766,8 +772,10 @@ already on this machine.
   pinned ChatGPT address - that call, after `initialize`, `thread/queue/add` (the continuation's
   words, under a client id derived from the interruption) and `thread/goal/set` (a goal's status),
   and nothing else.
-- **What reaches OpenAI.** Nothing new from a capability: the resumed turn still runs in your
-  Codex desktop app. A marker-free continuation arrives without the `[codex-auto-resume:…]` marker,
+- **What reaches OpenAI.** Nothing new from a capability, except that while the early usage-reset
+  check is on, Codex is asked about your usage every five minutes while a conversation waits for a
+  reset (`account/rateLimits/read`, as the standard edition asks when a recovery is due): the resumed
+  turn still runs in your Codex desktop app. A marker-free continuation arrives without the `[codex-auto-resume:…]` marker,
   and Codex keeps the client id on the message. A goal set active is left for Codex to carry on when
   the app next opens the conversation, under your own Codex settings. A measurement is the
   exception, below.
@@ -776,9 +784,31 @@ already on this machine.
   revision and the Codex version it was turned on for, and the warnings confirmed; each unit a
   capability spent, with the ids of the conversation and interruption it spent it on; the edition's
   own records and what a capability asked of a standard one, as ids, states and times; the global
-  ceiling a person set; and a journal and per-day counts of closed codes, bounded as the standard
-  journal is. No prompt, reply, error text, title, path or secret. `Uninstall.cmd -Purge` removes it
-  with the rest of `config\`.
+  ceiling a person set; a journal and per-day counts of closed codes, bounded as the standard
+  journal is, and what a watched capability would have done at most 250 lines each; and, for the
+  capabilities that use them, the choices you made, the rules you wrote (an
+  error code, status numbers, a kind), which capability took up which interruption, and samples of
+  failures it could not classify: Codex's error code, the status number, the form of the error, item
+  counts, a time rounded to the minute and a duration - never a word of the error or the
+  conversation, and kept 90 days at most. No prompt, reply, error text, title, path or secret. `Uninstall.cmd -Purge` removes it
+  with the rest of `config\`. A diagnostics export you ask for adds, for each capability watched or
+  with answers in the last 30 days, the capability's own id, the minute it has been watched since,
+  the minute its answers are counted from and whether older ones were cut; and the word of each
+  answer it would have given, where it was asked, how many times and the first and last minute. No
+  conversation's or interruption's id.
+- **What it sends to GitHub.** Only the compatibility report, only while it is on, and only after you
+  type `send` in the Dashboard for exactly the file and the writes it showed you: through gh, signed in
+  as you, it forks the project, adds the report on a branch and opens a public pull request, so the
+  report, your GitHub login and the fork are public. The report is the one codex-compat-reporter
+  writes: counts, states and times for one version of Codex, the product's version and edition and the
+  Windows build, with no conversation text, id or path. Before that, and only while it is on, checking
+  what sending would write asks GitHub questions through gh and writes nothing; while it is only
+  watched, the report is written, shown and saved where you choose, and GitHub is asked nothing. gh
+  reads your GitHub sign-in itself, from Windows' credential storage or its own file, and makes every
+  request as your account with its own User-Agent; the product never sees the sign-in, starts gh by
+  its full path from a folder on PATH with no shell, gives the file to it on its standard input, and
+  writes no temporary file. A paused recovery stops any checking or sending; the report and its
+  status are kept only in the Dashboard's memory, and its journal holds only closed codes.
 - **What Codex is told.** What its three MCP tools return, listed under
   [When you use it from Codex](#when-you-use-it-from-codex).
 - **Measurements.** The harness that measures whether a capability's route can work on this Codex
@@ -790,7 +820,9 @@ already on this machine.
   asking Codex to run `whoami`; M2b and M7 queue *Reply with the single word: ok.* and `/compact`,
   which the app runs as a turn once it takes them; M2 and M2b set the conversation's goal active,
   which Codex may then carry on. MA reads the account's state from Codex, and keeps only that it
-  could. A record is written only where a source checkout's `docs/evidence/live/` is, and holds
+  could. MP1 reads the list of the Codex home's MCP servers, which Codex starts to answer it as the
+  app does when it starts, and keeps only how many there were and whether this product's panel is
+  among them as Codex shows it. A record is written only where a source checkout's `docs/evidence/live/` is, and holds
   booleans, counts, closed words and ids as aliases, never a path or a conversation's text. An
   installed copy has no such folder, and there the record is refused only after the calls were
   made, so run a measurement only on a throwaway conversation.
@@ -802,8 +834,10 @@ you download the ZIP yourself; for the marketplace refresh described under
 [Installing it](#installing-it) when a marketplace it refreshes points at GitHub; for *Check
 for updates*, which from v0.6.11 also reads this repository's list of releases from
 api.github.com; for *Install another version...*, which reads that whole list there and downloads
-the version you confirm; and, from v0.6.5, for the Codex compatibility data from raw.githubusercontent.com
-when you ask for it. It is subject to GitHub's own privacy practices, as any download would be.
+the version you confirm; from v0.6.5, for the Codex compatibility data from raw.githubusercontent.com
+when you ask for it; and, in the advanced edition, for the compatibility report you send, through gh
+under your own GitHub account (*What it sends to GitHub*, above). It is subject to GitHub's own privacy
+practices, as any download would be.
 
 **OpenAI**, only through the official Codex app and CLI already signed in on your machine:
 the usage check, which Codex identifies as coming from this tool; the resumed turn; and

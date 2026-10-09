@@ -119,7 +119,9 @@ class CodePropertyTests(unittest.TestCase):
 
     def test_the_recovery_runtime_imports_no_networking_module(self):
         """The advanced edition's package as well (advanced/src/, shipped beside core in its archive):
-        SECURITY.md and PRIVACY.md say it adds no network code, and this is what makes that so."""
+        SECURITY.md and PRIVACY.md say it adds no network code, and this is what makes that so. Its
+        compatibility report reaches GitHub only by delegation - it asks gh, the GitHub CLI the person
+        installed, which is not this product's code (test_only_the_report_starts_gh_and_only_for_github_com)."""
         offenders = []
         for path in tracked("src/*") + tracked("scripts/*.py") + tracked("advanced/src/*"):
             if path.suffix != ".py":
@@ -143,6 +145,30 @@ class CodePropertyTests(unittest.TestCase):
                 reaching.add(str(path.relative_to(ROOT)).replace("\\", "/"))
         self.assertEqual(reaching, {"scripts/bootstrap.ps1"},
                          "the set of files that reach the network has changed")
+
+    def test_only_the_report_starts_gh_and_only_for_github_com(self):
+        """The advanced edition's compatibility report is the one thing that asks the network for anything
+        beyond the install script, and it does so through gh, the GitHub CLI the person installed: the
+        shipped code that names gh.exe is exactly report/github.py, and every host it names to gh -
+        each --hostname, written out or as its HOST - is github.com. (A statement a person reads may
+        name gh.exe; only code can start it.)"""
+        naming, hosts = set(), set()
+        for path in (tracked("scripts/*") + tracked("build/install/*") + tracked("src/*") + tracked("gui/*")
+                     + tracked("advanced/src/*") + tracked("advanced/gui/*")):
+            if path.suffix.lower() not in (".py", ".ps1", ".psm1", ".cs", ".cmd", ".bat"):
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, OSError):
+                continue
+            if re.search(r"\bgh\.exe\b", text):
+                naming.add(str(path.relative_to(ROOT)).replace("\\", "/"))
+            constants = dict(re.findall(r'(?m)^([A-Z_]+) = "([^"]*)"', text))
+            for named in re.findall(r"""--hostname["']?(?:,\s*|\s+)["']?([A-Za-z0-9_.-]+)""", text):
+                hosts.add(constants.get(named, named))
+        self.assertEqual(naming, {"advanced/src/codex_auto_resume_advanced/report/github.py"},
+                         "the set of shipped files that start gh has changed")
+        self.assertEqual(hosts, {"github.com"}, "gh is asked about a host other than github.com")
 
     def test_there_is_no_analytics_or_telemetry_endpoint(self):
         # Any host that is not GitHub's release infrastructure, in anything that ships.
@@ -311,7 +337,8 @@ class WordingTests(unittest.TestCase):
         shipped = ("v0.1.0", "v0.2.0", "v0.3.0", "v0.3.1", "v0.3.2",
                    "v0.4.0", "v0.4.1", "v0.5.0", "v0.5.1", "v0.5.2", "v0.5.3", "v0.5.4", "v0.5.5",
                    "v0.5.6", "v0.5.7", "v0.6.0", "v0.6.1", "v0.6.2", "v0.6.3", "v0.6.4", "v0.6.5",
-                   "v0.6.6", "v0.6.7", "v0.6.8", "v0.6.9", "v0.6.10", "v0.6.11", "v0.6.12")
+                   "v0.6.6", "v0.6.7", "v0.6.8", "v0.6.9", "v0.6.10", "v0.6.11", "v0.6.12",
+                   "v0.6.13")
         text = (ROOT / "docs" / "CHANGELOG.md").read_text(encoding="utf-8")
         missing = [tag for tag in shipped
                    if not re.search(r"^##\s+%s\b" % re.escape(tag), text, re.M)]

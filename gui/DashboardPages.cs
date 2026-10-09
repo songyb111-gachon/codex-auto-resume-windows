@@ -506,6 +506,7 @@ namespace CodexAutoResume
 
             page.Controls.Add(split);
             page.Controls.Add(pendingEmpty);
+            PendingBuilt(page);
             page.Controls.Add(row);
             UpdatePendingButtons();
             ShowExplain();

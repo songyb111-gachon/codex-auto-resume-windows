@@ -1096,7 +1096,7 @@ namespace CodexAutoResume
             // the watcher - Install another version... converting the state for an older one - would otherwise offer to
             // start the current watcher, which migrates the state back, before the installer has run.
             if (startButton != null) startButton.Enabled = busy == 0 && !starting;
-            if (powerButton != null) powerButton.Enabled = busy == 0 && powerCanPress;
+            if (powerSwitch != null) powerSwitch.Enabled = busy == 0 && powerCanSwitch;
         }
 
         /// Runs one bridge command on a worker and hands its reply back on this thread.

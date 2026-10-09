@@ -78,14 +78,16 @@ class FakeSession:
 
 def setUpModule():
     # M6 follows its turn for up to three minutes; a fake that never completes one is not made
-    # to wait that long here. The M6 tests set their own bounds.
-    global _M6_TIMING
+    # to wait that long here. The M6 tests set their own bounds. MU reads a minute apart; here, not.
+    global _M6_TIMING, _MU_SPACING
     _M6_TIMING = (measure._M6_TURN_SECONDS, measure._M6_INTERRUPT_SECONDS, measure._M6_POLL_SECONDS)
     measure._M6_TURN_SECONDS, measure._M6_INTERRUPT_SECONDS, measure._M6_POLL_SECONDS = 0.05, 0.05, 0.01
+    _MU_SPACING, measure._MU_SPACING = measure._MU_SPACING, 0.0
 
 
 def tearDownModule():
     measure._M6_TURN_SECONDS, measure._M6_INTERRUPT_SECONDS, measure._M6_POLL_SECONDS = _M6_TIMING
+    measure._MU_SPACING = _MU_SPACING
 
 
 # A UUID a person might type as the throwaway conversation. It is a Codex thread id in shape, and
@@ -114,6 +116,24 @@ class AllowListTests(unittest.TestCase):
         and none of it is one of core's three (codex/appserver.PROTOCOL_METHODS)."""
         self.assertTrue(protocol.ADVANCED_METHODS)
         self.assertTrue(protocol.ADVANCED_METHODS.isdisjoint(set(PROTOCOL_METHODS)))
+
+    def test_cores_usage_read_is_measured_by_the_reset_actions_and_is_no_method_beyond_cores(self):
+        """MU, MN and MR read usage as core's helper does (v0.6.14): the read is a method some
+        measurement declared, so a capability's own row may be given it, and it is still not one of the
+        methods this edition asks beyond core's three - which stay disjoint from them."""
+        read, consume = "account/rateLimits/read", "account/rateLimitResetCredit/consume"
+        self.assertIn(read, PROTOCOL_METHODS)
+        for measurement in (Measurement.MU, Measurement.MN, Measurement.MR):
+            with self.subTest(measurement):
+                self.assertIn(read, protocol.methods_for(measurement))
+        self.assertNotIn(consume, protocol.methods_for(Measurement.MU))
+        self.assertIn(read, protocol.MEASURED_METHODS)
+        self.assertNotIn(read, protocol.ADVANCED_METHODS)
+        self.assertIn(consume, protocol.ADVANCED_METHODS)
+        self.assertEqual(protocol.ADVANCED_METHODS, protocol.MEASURED_METHODS - set(PROTOCOL_METHODS))
+        with patch.dict(protocol.CAPABILITY_METHODS, {"a_reader": (read, "thread/never/declared")}):
+            self.assertEqual(protocol.methods_for_capability("a_reader"),
+                             frozenset({read, "initialize", "initialized"}))
 
     def test_a_session_may_call_only_its_measurements_methods_and_never_a_forbidden_one(self):
         allowed = protocol.methods_for(Measurement.M2)
@@ -767,9 +787,347 @@ class M2bTests(unittest.TestCase):
         self.assertNotIn("thread/resume", protocol.methods_for(Measurement.M2B))
 
 
+SETTINGS_UI = "ui://codex-auto-resume/settings"
+
+
+def settings_tool(entrypoints=({"type": "thread"},), template=SETTINGS_UI):
+    """The panel's tool as Codex's MCP listing carries it (McpServerStatus.tools: a map by name)."""
+    meta = {"openai/toolInvocation/invoked": "Auto Resume settings"}
+    if template is not None:
+        meta["openai/outputTemplate"] = template
+    if entrypoints is not None:
+        meta["openai/ui"] = {"entrypoints": [dict(entry) for entry in entrypoints]}
+    return {"name": "open_settings", "title": "Open Auto Resume settings", "inputSchema": {"type": "object"},
+            "_meta": meta}
+
+
+def mcp_server(name, *tools):
+    return {"name": name, "authStatus": "unsupported", "resources": [], "resourceTemplates": [],
+            "tools": {tool["name"]: tool for tool in tools}}
+
+
+class ListingSession(FakeSession):
+    """MP1's session: `mcpServerStatus/list` answered by `answer(params)`, each call's params kept."""
+
+    def __init__(self, measurement, answer):
+        super().__init__(measurement)
+        self.answer = answer
+
+    def call(self, method, params=None):
+        if method not in self.allowed:
+            raise protocol.SessionRefused("not permitted for this measurement")
+        self.calls.append(method)
+        self.params.append((method, params))
+        reply = self.answer(params)
+        if isinstance(reply, Exception):
+            raise reply
+        return reply
+
+
+class SidePanelMeasurementTests(unittest.TestCase):
+    """MP1-MP3 (v0.6.14): whether Codex shows the settings panel beside a conversation. MP1 reads the
+    home's MCP listing - asking for this product's server by name first, so only it starts - and
+    records counts and booleans; MP2 and MP3 are what a person sees in the app and open no session."""
+
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: shutil.rmtree(self.dir, ignore_errors=True))
+
+    def run_one(self, measurement, answer=None):
+        made = []
+
+        def opening(which):
+            made.append(ListingSession(which, answer))
+            return made[-1]
+        summary = measure.run(measurement, session_factory=opening,
+                              versions={"product_version": "0.6.14-beta", "codex_version": "0.162.0",
+                                        "windows_build": "10.0.26300"},
+                              clock=lambda: 1_800_000_000.0, directory=self.dir)
+        record = json.loads(Path(summary["recorded"]).read_text(encoding="utf-8"))
+        self.assertEqual(live_evidence.content_refusals(record), [])
+        return record, (made[0] if made else None)
+
+    def test_mp1_finds_the_panel_by_its_servers_own_name_and_leaves_the_app_to_the_person(self):
+        record, session = self.run_one(Measurement.MP1, lambda params: {
+            "data": [mcp_server("codex-auto-resume", settings_tool())], "nextCursor": None})
+        self.assertEqual(session.calls, ["mcpServerStatus/list"])
+        self.assertEqual(session.params[0][1], {"serverName": "codex-auto-resume", "detail": "full"})
+        self.assertEqual(record["verdict"], str(Verdict.BLOCKED))
+        self.assertEqual(record["observed"], {"servers": 1, "named_lookup": True, "server_listed": True,
+                                              "template_kept": True, "entrypoint_kept": True,
+                                              "thread_given": False})
+        self.assertIn("New tab", record["note"])
+
+    def test_mp1_asks_for_the_name_the_plugin_gives_the_server(self):
+        declared = json.loads((ROOT / "build" / "plugin-mcp.json").read_text(encoding="utf-8"))
+        self.assertEqual(list(declared["mcpServers"]), [measure._MP1_SERVER])
+
+    def test_mp1_looks_for_the_entrypoint_the_panels_tool_declares(self):
+        from codex_auto_resume.mcp import tools
+        self.assertEqual(SETTINGS_UI, tools.SETTINGS_UI)
+        # The panel's tool declares it (v0.6.14), so MP1 looks for what is declared.
+        self.assertIn(measure._THREAD_ENTRYPOINT, list(tools.SIDE_PANEL_ENTRYPOINTS))
+
+    def test_mp1_is_a_fail_where_the_engine_keeps_the_template_and_drops_the_entrypoint(self):
+        for entrypoints in (None, (), ({"type": "global"},)):
+            with self.subTest(entrypoints=entrypoints):
+                record, _session = self.run_one(Measurement.MP1, lambda params: {
+                    "data": [mcp_server("codex-auto-resume", settings_tool(entrypoints))]})
+                self.assertEqual(record["verdict"], str(Verdict.FAIL))
+                self.assertIs(record["observed"]["template_kept"], True)
+                self.assertIs(record["observed"]["entrypoint_kept"], False)
+
+    def test_mp1_lists_the_home_a_page_at_a_time_where_codex_knows_no_server_by_that_name(self):
+        other = mcp_server("elsewhere", {"name": "search", "inputSchema": {}})
+
+        def answer(params):
+            if "serverName" in params:
+                return {"data": [], "nextCursor": None}
+            if params.get("cursor") is None:
+                return {"data": [other], "nextCursor": "page-2"}
+            return {"data": [mcp_server("codex-auto-resume@plugins", settings_tool())], "nextCursor": None}
+        record, session = self.run_one(Measurement.MP1, answer)
+        self.assertEqual([params for _method, params in session.params], [
+            {"serverName": "codex-auto-resume", "detail": "full"},
+            {"detail": "toolsAndAuthOnly", "limit": 10},
+            {"detail": "toolsAndAuthOnly", "limit": 10, "cursor": "page-2"}])
+        self.assertEqual(record["observed"]["servers"], 2)
+        self.assertIs(record["observed"]["named_lookup"], False)
+        self.assertIs(record["observed"]["entrypoint_kept"], True)
+        self.assertEqual(record["verdict"], str(Verdict.BLOCKED))
+
+    def test_mp1_lists_the_home_where_codex_refuses_the_lookup_by_name(self):
+        def answer(params):
+            if "serverName" in params:
+                return protocol._refused_by_codex("mcpServerStatus/list", -32602)
+            return {"data": [mcp_server("codex-auto-resume", settings_tool())]}
+        record, session = self.run_one(Measurement.MP1, answer)
+        self.assertEqual(len(session.calls), 2)
+        self.assertIs(record["observed"]["server_listed"], True)
+        self.assertIs(record["observed"]["named_lookup"], False)
+
+    def test_mp1_reads_no_more_than_its_pages(self):
+        record, session = self.run_one(Measurement.MP1, lambda params: {
+            "data": [mcp_server("elsewhere")], "nextCursor": "again"})
+        self.assertEqual(len(session.calls), 1 + measure._MP1_PAGES)
+        self.assertEqual(record["verdict"], str(Verdict.BLOCKED))
+        self.assertIs(record["observed"]["server_listed"], False)
+        self.assertIn("enabled", record["note"])
+
+    def test_mp1_with_no_template_listed_leaves_it_to_the_person(self):
+        record, _session = self.run_one(Measurement.MP1, lambda params: {
+            "data": [mcp_server("codex-auto-resume", settings_tool(template=None))]})
+        self.assertEqual(record["verdict"], str(Verdict.BLOCKED))
+        self.assertIs(record["observed"]["template_kept"], False)
+
+    def test_mp1_records_counts_and_booleans_and_nothing_a_server_said(self):
+        tool = settings_tool()
+        tool["description"] = "Show the Codex Auto Resume settings panel"
+        record, _session = self.run_one(Measurement.MP1, lambda params: {
+            "data": [mcp_server("codex-auto-resume", tool)]})
+        text = json.dumps([record["observed"], record["note"]])
+        for said in ("codex-auto-resume", "Show the Codex", "open_settings", SETTINGS_UI):
+            self.assertNotIn(said, text)
+
+    def test_mp1_may_call_the_listing_alone_and_no_capability_calls_it(self):
+        self.assertEqual(protocol.methods_for(Measurement.MP1),
+                         frozenset({"initialize", "initialized", "mcpServerStatus/list"}))
+        for methods in protocol.CAPABILITY_METHODS.values():
+            self.assertNotIn("mcpServerStatus/list", methods)
+
+    def test_mp2_and_mp3_open_no_session_and_leave_the_verdict_to_the_person(self):
+        for measurement in (Measurement.MP2, Measurement.MP3):
+            with self.subTest(measurement):
+                self.assertEqual(protocol.methods_for(measurement), frozenset({"initialize", "initialized"}))
+                record, session = self.run_one(measurement, lambda params: AssertionError("no call"))
+                self.assertIsNone(session, "no session is opened")
+                self.assertEqual(record["verdict"], str(Verdict.BLOCKED))
+                self.assertEqual(record["observed"], {"session_opened": False, "thread_given": False})
+                self.assertIn("set the verdict", record["note"])
+
+
 class _UnusedRuntime:
     def run_measurement(self, *a, **k):     # pragma: no cover - a bad request never reaches this
         raise AssertionError("a bad request must not reach the runtime")
+
+
+class UsageSession(FakeSession):
+    """A session whose usage reads answer one after another from `reads`, and whose consumes answer
+    one after another from `consumes`: MU, MN and MR read the same method several times."""
+
+    def __init__(self, measurement, *, reads=(), consumes=()):
+        super().__init__(measurement)
+        self.reads, self.consumes = list(reads), list(consumes)
+
+    def call(self, method, params=None):
+        if method not in self.allowed:
+            raise protocol.SessionRefused("not permitted for this measurement")
+        self.calls.append(method)
+        self.params.append((method, params))
+        queue_ = self.reads if method == "account/rateLimits/read" else self.consumes
+        reply = queue_.pop(0) if len(queue_) > 1 else (queue_[0] if queue_ else {})
+        if isinstance(reply, Exception):
+            raise reply
+        return reply
+
+
+def usage(used=40, reset=1_800_003_600, *, count=2, credits="listed", weekly=None):
+    """A usage reply as Codex 0.159.0-alpha.12.1 writes one, with what this edition must never keep -
+    a credit's id, title and description, the account and the plan - beside what it keeps."""
+    bucket = {"limitId": "codex", "planType": "pro",
+              "primary": {"usedPercent": used, "windowDurationMins": 300, "resetsAt": reset}}
+    if weekly is not None:
+        bucket["secondary"] = {"usedPercent": weekly[0], "windowDurationMins": 10080, "resetsAt": weekly[1]}
+    listed = [{"id": "credit-secret-id-1", "title": "A reset credit for ExampleUser",
+               "description": "granted for the outage", "grantedAt": 1_799_000_000,
+               "expiresAt": 1_801_000_000, "resetType": "codexRateLimits", "status": "available"}] * min(count, 1)
+    return {"accountId": "acct-ExampleUser", "rateLimitsByLimitId": {"codex": bucket},
+            "ordinaryUsageAllowed": used < 100,
+            "rateLimitResetCredits": {"availableCount": count,
+                                      "credits": listed if credits == "listed" else None}}
+
+
+class ResetCreditMeasurementTests(unittest.TestCase):
+    """MU, MN and MR (v0.6.14): what the reset actions rest on, measured with booleans, counts and
+    closed words only - never a credit's id, title or description, the account or the plan."""
+
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: shutil.rmtree(self.dir, ignore_errors=True))
+        self.sessions = []
+
+    def run_one(self, measurement, *, reads=(), consumes=(), may_spend=False):
+        def made(which):
+            session = UsageSession(which, reads=reads, consumes=consumes)
+            self.sessions.append(session)
+            return session
+        summary = measure.run(measurement, session_factory=made,
+                              versions={"product_version": "0.6.14-beta", "codex_version": "0.159.0",
+                                        "windows_build": "10.0.26200"},
+                              clock=lambda: 1_800_000_000.0, directory=self.dir, may_spend=may_spend)
+        record = json.loads(Path(summary["recorded"]).read_text(encoding="utf-8"))
+        self.assertEqual(live_evidence.content_refusals(record), [])
+        for secret in ("credit-secret-id", "ExampleUser", "outage", "pro", "acct"):
+            self.assertNotIn(secret, json.dumps(record["observed"]))
+        return record
+
+    def test_mu_reads_in_full_and_light_and_leaves_the_reset_to_the_person(self):
+        light = dict(usage(), rateLimitResetCredits={"availableCount": 2, "credits": None})
+        record = self.run_one(Measurement.MU, reads=[usage(), light, light, light])
+        self.assertEqual(record["verdict"], str(Verdict.BLOCKED))
+        self.assertEqual(record["observed"], {"windows_read": True, "count_read": True,
+                                              "details_with_full_read": True, "details_left_out": True,
+                                              "running_windows": 1, "max_drift_seconds": 0,
+                                              "thread_given": False})
+        self.assertIn("set the verdict", record["note"])
+        session = self.sessions[0]
+        self.assertEqual(session.params, [("account/rateLimits/read", {})]
+                         + [("account/rateLimits/read", {"excludeResetCreditDetails": True})] * 3)
+
+    def test_mu_fails_where_the_read_does_not_carry_the_credits_as_the_schema_says(self):
+        no_count = dict(usage(), rateLimitResetCredits=None)
+        for reads in ([no_count] * 4, [usage()] * 4):     # no count; details not left out by the param
+            with self.subTest(reads=reads[0].get("rateLimitResetCredits")):
+                self.assertEqual(self.run_one(Measurement.MU, reads=reads)["verdict"], str(Verdict.FAIL))
+
+    def test_mu_fails_where_codex_refuses_the_param(self):
+        refusal = protocol._refused_by_codex("account/rateLimits/read", -32600)
+        record = self.run_one(Measurement.MU, reads=[usage(), refusal])
+        self.assertEqual(record["verdict"], str(Verdict.FAIL))
+        self.assertEqual(record["observed"]["refused_method"], "account/rateLimits/read")
+
+    def test_mu_fails_where_a_running_windows_reset_time_moves(self):
+        light = dict(usage(), rateLimitResetCredits={"availableCount": 2, "credits": None})
+        moved = dict(usage(reset=1_800_003_600 + 601), rateLimitResetCredits={"availableCount": 2, "credits": None})
+        record = self.run_one(Measurement.MU, reads=[usage(), light, light, moved])
+        self.assertEqual(record["verdict"], str(Verdict.FAIL))
+        self.assertEqual(record["observed"]["max_drift_seconds"], 601)
+
+    def test_mu_with_no_window_running_asks_for_one(self):
+        idle = usage(used=0)
+        light = dict(idle, rateLimitResetCredits={"availableCount": 2, "credits": None})
+        record = self.run_one(Measurement.MU, reads=[idle, light, light, light])
+        self.assertEqual(record["verdict"], str(Verdict.BLOCKED))
+        self.assertEqual(record["observed"]["running_windows"], 0)
+        self.assertIn("run mu again", record["note"])
+
+    def test_mn_with_no_credit_asks_twice_with_one_key_and_passes_on_a_refusal(self):
+        for outcome, word in (("noCredit", "no_credit"), ("nothingToReset", "nothing_to_reset")):
+            with self.subTest(outcome):
+                self.sessions.clear()
+                record = self.run_one(Measurement.MN, reads=[usage(count=0)], consumes=[{"outcome": outcome}])
+                self.assertEqual(record["verdict"], str(Verdict.PASS))
+                self.assertEqual(record["observed"], {"count_read": True, "has_credits": False,
+                                                      "first_outcome": word, "second_outcome": word,
+                                                      "count_unchanged": True, "thread_given": False})
+                keys = [params["idempotencyKey"] for method, params in self.sessions[0].params
+                        if method == "account/rateLimitResetCredit/consume"]
+                self.assertEqual(len(keys), 2)
+                self.assertEqual(len(set(keys)), 1, "one key, asked twice")
+                self.assertNotIn(keys[0], json.dumps(record))
+
+    def test_mn_fails_where_a_consume_with_no_credit_resets(self):
+        record = self.run_one(Measurement.MN, reads=[usage(count=0)], consumes=[{"outcome": "reset"}])
+        self.assertEqual(record["verdict"], str(Verdict.FAIL))
+
+    def test_mn_with_a_credit_there_spends_nothing_and_points_to_mr(self):
+        record = self.run_one(Measurement.MN, reads=[usage(count=1)], consumes=[{"outcome": "reset"}])
+        self.assertEqual(record["verdict"], str(Verdict.BLOCKED))
+        self.assertNotIn("account/rateLimitResetCredit/consume", self.sessions[0].calls)
+        self.assertEqual(self.run_one(Measurement.MN, reads=[dict(usage(), rateLimitResetCredits=None)])["verdict"],
+                         str(Verdict.FAIL))
+        self.assertNotIn("account/rateLimitResetCredit/consume", self.sessions[-1].calls)
+
+    def test_mr_without_the_second_yes_opens_no_session(self):
+        record = self.run_one(Measurement.MR, reads=[usage(used=100, count=1)], consumes=[{"outcome": "reset"}])
+        self.assertEqual(record["verdict"], str(Verdict.BLOCKED))
+        self.assertEqual(self.sessions, [], "no session, so nothing can be spent")
+        self.assertIn("may_spend", record["note"])
+
+    def test_mr_spends_only_at_a_full_window_with_a_credit(self):
+        for reads in ([usage(used=99, count=1)], [usage(used=100, count=0)]):
+            with self.subTest(reads=reads):
+                self.sessions.clear()
+                record = self.run_one(Measurement.MR, reads=reads, consumes=[{"outcome": "reset"}], may_spend=True)
+                self.assertEqual(record["verdict"], str(Verdict.BLOCKED))
+                self.assertNotIn("account/rateLimitResetCredit/consume", self.sessions[0].calls)
+
+    def test_mr_at_a_limit_records_what_one_spend_did_and_leaves_the_app_to_the_person(self):
+        before = usage(used=100, count=2, weekly=(30, 1_800_400_000))
+        after = usage(used=0, reset=None, count=1, weekly=(30, 1_800_400_000))
+        record = self.run_one(Measurement.MR, reads=[before, after, after],
+                              consumes=[{"outcome": "reset"}, {"outcome": "alreadyRedeemed"}], may_spend=True)
+        self.assertEqual(record["verdict"], str(Verdict.BLOCKED))
+        self.assertEqual(record["observed"], {
+            "may_spend": True, "limit_reached": True, "has_credits": True, "first_outcome": "reset",
+            "count_down_by_one": True, "five_hour_changed": True, "weekly_changed": False,
+            "ordinary_usage_allowed": True, "second_outcome": "already_redeemed",
+            "count_unchanged_on_retry": True, "thread_given": False})
+        keys = {params["idempotencyKey"] for method, params in self.sessions[0].params
+                if method == "account/rateLimitResetCredit/consume"}
+        self.assertEqual(len(keys), 1, "the retry carries the first key, never a second")
+        self.assertNotIn(keys.pop(), json.dumps(record))
+
+    def test_mr_fails_where_the_retry_spends_again_or_the_count_moves_otherwise(self):
+        before = usage(used=100, count=2)
+        for consumes, reads in (([{"outcome": "reset"}, {"outcome": "reset"}], [before, usage(0, None, count=1)]),
+                                ([{"outcome": "reset"}, {"outcome": "alreadyRedeemed"}], [before, usage(0, None, count=0)]),
+                                ([{"outcome": "noCredit"}], [before])):
+            with self.subTest(consumes=consumes):
+                record = self.run_one(Measurement.MR, reads=reads, consumes=consumes, may_spend=True)
+                self.assertEqual(record["verdict"], str(Verdict.FAIL))
+
+    def test_the_bridge_takes_the_second_yes_only_as_a_boolean(self):
+        self.assertIn("may_spend", surfaces_module().ARGUMENTS[surfaces_module().BridgeCommand.MEASURE])
+        for given in ("yes", 1, None):
+            with self.subTest(given=given):
+                reply = surfaces_module().measure(_UnusedRuntime(), "mr", None, given)
+                self.assertEqual(reply, {"done": False, "refusal": "invalid_request"})
+
+
+def surfaces_module():
+    from codex_auto_resume_advanced import surfaces
+    return surfaces
 
 
 class VerdictTests(unittest.TestCase):

@@ -3,11 +3,18 @@ from __future__ import annotations
 
 import json
 
-from .. import config, machine
+from .. import config, edition, machine
 from ..app import EXIT_ERROR, EXIT_OK
+from ..domain.plug import guard
 from ..logbook import format_local, tail
 from ..store import TERMINAL, LegacyStore
 from .base import CliError, _app, _now, _open_state, _print, canonical_thread_id
+
+
+def _told_off(app, thread_id) -> None:
+    """The edition's plug told a conversation was switched off, as the Dashboard's switch tells it
+    (control/actions.py): what it holds there of its own ends too (H5)."""
+    guard(edition.plug(app.paths)).conversation_off(thread_id)
 
 
 def cmd_enable(args) -> int:
@@ -40,6 +47,7 @@ def cmd_disable(args) -> int:
         if args.thread_id:
             thread_id = canonical_thread_id(args.thread_id)
             store.set_thread_enabled(thread_id, False, actor="cli")
+            _told_off(app, thread_id)
             app.logger.info("thread %s: disabled by user", thread_id)
             _print("thread %s disabled (pending records kept, never submitted while disabled)" % thread_id)
         else:
@@ -103,6 +111,7 @@ def cmd_cancel(args) -> int:
     thread_id = canonical_thread_id(args.thread_id)
     with _open_state(app) as store:
         store.cancel_thread(thread_id, _now(), actor="cli")
+        _told_off(app, thread_id)
         rows = ([row for row in store.all_records() if row["thread_id"] == thread_id]
                 if not isinstance(store, LegacyStore) else [])
     app.logger.info("thread %s: cancel requested by user", thread_id)

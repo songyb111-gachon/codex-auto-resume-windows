@@ -364,9 +364,10 @@ namespace CodexAutoResume
             // Unsaved edits are looked at again every second (StartClock), so putting them back reopens it.
             if (decision == ReopenOnceSaved) recheck = true;
             if (decision != ReopenWindow) return;
-            // Not while it is minimized, an action is on its way, or a dialog is open over it: then once
-            // that is over.
-            if (WindowState == FormWindowState.Minimized || busy > 0 || !IsHandleCreated || !IsWindowEnabled(Handle))
+            // Not while it is minimized, an action is on its way, work outlasting its call is held, or a dialog is
+            // open over it: then once that is over.
+            if (WindowState == FormWindowState.Minimized || busy > 0 || reopenHolds > 0 || !IsHandleCreated ||
+                !IsWindowEnabled(Handle))
             {
                 recheck = true;
                 return;
@@ -678,6 +679,13 @@ namespace CodexAutoResume
             for (; control != null && control != this; control = control.Parent)
                 if (!OwnVisible(control) || !control.Enabled) return;
             if (control == this) ActiveControl = target;
+        }
+
+        /// Work that outlasts the call that started it held, or let go: while any is held a reopen waits, as it waits
+        /// for an action (CheckReopen), and the clock looks again once the last is let go (TickReopen). Never below none.
+        private void HoldReopen(bool on)
+        {
+            reopenHolds = Math.Max(0, reopenHolds + (on ? 1 : -1));
         }
 
         /// Called every second by the clock.

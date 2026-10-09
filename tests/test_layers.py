@@ -59,6 +59,8 @@ LAYER = {_q(name): layer for layer, names in {
                # v0.6.11: the plug interface and NULL - pure, like everything else here; and the
                # registry's vocabularies, out of domain/vocabulary.py at its line budget.
                "domain.plug", "domain.compat_vocabulary",
+               # v0.6.14: what core holds of a channel, a route and an errand the plug names.
+               "domain.plughands",
                # and what a usage reading keeps of Codex's reply, and nothing else.
                "domain.usage",
                # v0.6.12: the power action's words, out of domain/vocabulary.py at its line budget.
@@ -100,6 +102,8 @@ LAYER = {_q(name): layer for layer, names in {
                  "store.ledger",
                  # and a needs-you notice, raised once.
                  "store.notices",
+                 # v0.6.14: the edition's plug's own work, claimed and guarded as core's is.
+                 "store.plugclaims",
                  # and a record made later, held and let go, out of store/actions.py.
                  "store.schedule",
                  # v0.6.10-alpha: the Win32 the product calls, which windows.py was half of.
@@ -132,7 +136,13 @@ LAYER = {_q(name): layer for layer, names in {
                # and the needs-you notices, as the engine raises them.
                "engine.notices",
                # and how a continuation is carried and proven, and the last look before it goes.
-               "engine.delivery"),
+               "engine.delivery",
+               # v0.6.14: what the edition's plug may relax, within core's own bounds.
+               "engine.relaxed",
+               # and an uncertain continuation sent once more, where the plug asks and core may.
+               "engine.resend",
+               # and records of the edition's own, tried like core's.
+               "engine.plugrecords"),
     # v0.6.10-alpha: control.py became control/, ten files, `Control` composed from eight
     # mixins. `layer` is where the composition lives, so that the front holds no code.
     "control": ("control", "control.actions", "control.codexstart", "control.errors",

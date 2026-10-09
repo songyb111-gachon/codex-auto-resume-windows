@@ -16,6 +16,7 @@ to hold in your head:
     records     registering, reading, and the rules a change obeys
     claims      the right to send, taken and let go
     ledger      the edition's say in a claim (P11), and what it may do there
+    plugclaims  the edition's plug's own work, claimed and guarded as core's is (v0.6.14)
     actions     what a person asks for
     schedule    a record made later, held and let go (v0.6.11)
     watcher     the heartbeat
@@ -50,6 +51,7 @@ from .ledger import LedgerMixin
 from .legacy import LegacyStore  # noqa: F401
 from .migrations import MigrationsMixin
 from .notices import NoticesMixin
+from .plugclaims import PlugClaimsMixin
 from .policy import PolicyMixin
 from .records import RecordsMixin
 from .reporting import ReportingMixin
@@ -64,7 +66,7 @@ from .watcher import WatcherMixin
 
 class Store(SessionMixin, SchemaMixin, MigrationsMixin, JournalMixin, PolicyMixin,
             RecordsMixin, ClaimsMixin, LedgerMixin, ActionsMixin, ScheduleMixin, WatcherMixin,
-            ReportingMixin, NoticesMixin):
+            ReportingMixin, NoticesMixin, PlugClaimsMixin):
     """One connection to our own state database.
 
     ``migrate`` must be passed explicitly: only the watcher, or a caller holding the

@@ -9,12 +9,16 @@ The rule that matters: an error this module cannot place is `unknown`, and
 `unknown` is never retried. Adding a code to the wrong bucket is far worse than
 leaving it unclassified, so anything doubtful is left out on purpose.
 
-No error text leaves this module. Callers receive a category name only.
+No error text leaves this module. Callers receive a category name only - and, from v0.6.14, for
+the edition's plug (domain/plug.py, P17) the error's shape: Codex's own code, a status number, the
+form the error took and whether it had a message, never the message (`shape`). What core would take
+up of a failure it never recovers alone is decided here too, by a fence no plug can widen (`admits`).
 """
 from __future__ import annotations
 
 import re
 
+from .domain.plug import PACED_AS, TAKE_UP, Alternative, FailureForm
 from .domain.vocabulary import FailureCategory
 
 USAGE_LIMIT = "usage_limit"
@@ -188,3 +192,99 @@ def retry_after(error_info):
 
 def is_recoverable(category: str) -> bool:
     return category == USAGE_LIMIT or category in TRANSIENT
+
+
+# v0.6.14 (stage 3b): what the edition's plug may take up (domain/plug.py, P17) of a failure the
+# standard edition never recovers alone, and the fence core holds every answer to. A code is a
+# structured value Codex chose - letters and digits - and never message text (B9).
+TAG_SHAPE = re.compile(r"[A-Za-z][A-Za-z0-9]{0,63}")
+ADMISSIBLE = frozenset({UNKNOWN, "terminal_auth", "terminal_failure"})
+# A code containing one of these, ignoring case, may name something a person decides or must fix -
+# a policy, a budget, a permission, a sign-in, a cancel - so nothing ever takes it up or relaxes it.
+# Broad on purpose: a false match leaves a failure for the person, a miss could retry a refusal.
+DECISION_FRAGMENTS = (
+    "policy", "budget", "quota", "limit", "permission", "forbidden", "denied", "deny", "refus",
+    "approv", "auth", "sign", "login", "credential", "token", "cancel", "abort", "interrupt", "user",
+    "billing", "payment", "credit", "plan", "safety", "violation", "moderat", "blocked", "sandbox",
+    "context",
+)
+
+
+def decision_tag(code) -> bool:
+    """Whether a code may name a decision of a person's (DECISION_FRAGMENTS)."""
+    return isinstance(code, str) and any(fragment in code.lower() for fragment in DECISION_FRAGMENTS)
+
+
+def shape(error_info, message=None) -> dict:
+    """What a failure's structured error says of itself: {code, status, form, has_message}.
+
+    `code` is the variant's tag when it is one of CODES or of the shape of one (TAG_SHAPE), else None;
+    `status` a number from 100 to 599, else None; `form` a FailureForm; `has_message` only whether a
+    message exists. Nothing of the message is kept, and no other string."""
+    has_message = isinstance(message, str) and bool(message.strip())
+    tag, status = _tag_and_status(error_info)
+    status = status if type(status) is int and 100 <= status <= 599 else None
+    if isinstance(tag, str) and tag in _STATUS_KEYS:
+        tag = None                           # {"httpStatusCode": 503}: a status, named as one
+    if error_info is None:
+        form, code = (FailureForm.MESSAGE_ONLY if has_message else FailureForm.ABSENT), None
+    elif isinstance(tag, str) and (tag in CODES or TAG_SHAPE.fullmatch(tag)):
+        form, code = FailureForm.TAGGED, tag
+    elif tag is None and status is not None:
+        form, code = FailureForm.STATUS_ONLY, None
+    else:
+        form, code = FailureForm.UNRECOGNISED, None
+    return {"code": code, "status": status, "form": form, "has_message": has_message}
+
+
+def _plain_code(facts) -> bool:
+    """A code of Codex's this product does not know, naming no decision, and no 4xx beside it."""
+    code, status = facts.get("code"), facts.get("status")
+    return (facts.get("form") == FailureForm.TAGGED and isinstance(code, str) and code not in CODES
+            and not decision_tag(code) and (status is None or not 400 <= status <= 499))
+
+
+# The kind whose switch in Settings each relaxation follows.
+_FOLLOWS = {**PACED_AS, Alternative.CAPACITY: "server_5xx"}
+
+
+def admits(facts, answer) -> bool:
+    """Whether core would carry out `answer` for the failure `facts` describe (a category and its
+    `shape`), whatever a plug says. Only a tagged failure ever: no code, a message alone, a status
+    alone or something unrecognised says nothing of what failed. A sign-in failure only as Codex's
+    `unauthorized` or a 401 - never a 403, a permission - and Codex giving up only on a server error
+    or none, a 429 being a rate limit already. CAPACITY only for Codex saying it is at capacity
+    (`serverOverloaded`), never another server error."""
+    category, code, status = facts.get("category"), facts.get("code"), facts.get("status")
+    if answer == Alternative.CAPACITY:
+        return category == "server_5xx" and code == "serverOverloaded"
+    if answer in PACED_AS:
+        return category == UNKNOWN and _plain_code(facts)
+    if answer != Alternative.ADMIT:
+        return False
+    if category == UNKNOWN:
+        return _plain_code(facts)
+    if category == "terminal_auth" and code == "unauthorized":
+        return status in (None, 401)
+    if category == "terminal_auth":
+        return _plain_code(dict(facts, status=None)) and status == 401
+    if category == "terminal_failure":
+        return code == "responseTooManyFailedAttempts" and (status is None or 500 <= status <= 599)
+    return False
+
+
+def takes(facts, recovers) -> frozenset:
+    """The answers core would carry out for this failure now (domain/plug.py, P17's `takes`): each
+    that `admits` allows, less one whose kind is switched off in Settings (`recovers`). Empty, and the
+    plug is not asked."""
+    return frozenset(answer for answer in TAKE_UP if admits(facts, answer)
+                     and (answer not in _FOLLOWS or recovers(_FOLLOWS[answer])))
+
+
+def readmits(category, answer) -> bool:
+    """Whether known_failure (P3) takes `answer` for a record of `category` that P17 took up."""
+    if answer == Alternative.ADMIT:
+        return category in ADMISSIBLE
+    if answer == Alternative.CAPACITY:
+        return category == "server_5xx"
+    return answer in PACED_AS and category == UNKNOWN

@@ -670,6 +670,8 @@ beta's fix, and two cases it left open, for both editions.
 
 ## v0.6.14 — The rest of the advanced edition
 
+**In development: v0.6.14-beta 🚧, its first pre-release, is being built.**
+
 What the plan put in v0.6.11's later stages, moved whole when v0.6.11 was cut short - to v0.6.12
 first, on to v0.6.13 when the owner gave v0.6.12 the version picker, the power action and a fix
 alone, and on to v0.6.14 when the owner gave v0.6.13 a fix alone. It comes in as many pre-releases
@@ -687,15 +689,33 @@ the route, or becomes a warning the person confirms, and does not drop the capab
 - a request Codex gave up on (`responseTooManyFailedAttempts` with a 5xx or no status),
 - a sign-in failure retried once, after a usage read proves the sign-in works,
 - a usage limit that resets early, noticed,
+
+  **Built for v0.6.14-beta:** these first five, as six capabilities - the rules and the budget for
+  failures it cannot name are two - each described in [EDITIONS.md](EDITIONS.md#todays-capabilities).
+  A failure the standard edition leaves for the person is taken up only where the edition's plug
+  admits it, as a record of its true kind that the standard edition's checks still hold and that
+  ends unsent a day on the clock after it failed; capacity retries stop at twelve hours on the clock.
 - one resend when delivery is uncertain and neither Codex's history nor its queue holds the message,
 - *Send now*, from the Dashboard only, past the schedule and the budget but not past the checks
   that make a send safe,
+
+  **Built for the same beta:** these two, as Once more when unsure and Send now, and with them Keep it
+  on (the owner's K8): a capability on or watched may be kept from turning itself off, with *Also send
+  again when unsure* for what it sent - each described in [EDITIONS.md](EDITIONS.md#todays-capabilities).
+  A resend charges no attempt and goes at most once, proven nowhere in Codex first; Send now passes no
+  administrator's limit, a reset still ahead or quiet hours.
 - several conversations at once, still one send in flight in each,
 - empty-response recovery, recognised by the kinds of item a turn left and never by its words,
 - an unloaded conversation, through a queue that waits until it is opened (measurement M1),
 - a subagent recovered through its parent, never written to directly,
 - keep going after a normal completion, a set number of times,
 - a prompt queue and recurring wakes, carrying the person's own words only,
+
+  **Built ahead, for the same beta:** its *at the next reset* part, as Send your own message when a
+  limit resets (the owner, 2026-10-06): a message of the person's own, for one conversation, sent once
+  when the window they pick resets - at most 2,000 characters, or what one continuation carries with
+  Longer reset messages on - described in [EDITIONS.md](EDITIONS.md#todays-capabilities). A queue of
+  several prompts and the recurring wakes stay planned.
 - recording and sending a compatibility report from the app, below.
 
 ### A route of its own, and other kinds of session
@@ -718,6 +738,11 @@ the route, or becomes a warning the person confirms, and does not drop the capab
 ### Around recovery
 
 - a live usage meter, a wrap-up nudge near a limit, reset credits, and usage and token analytics,
+
+  **Built for the same beta, and widened:** reset credits, as Use a reset credit at the limit you pick -
+  not only shown but used, once a limit the person picked ahead of time is reached while a recovery
+  waits for usage, asking first until measurement MR has passed - described in
+  [EDITIONS.md](EDITIONS.md#todays-capabilities). The meter, the nudge and the analytics stay planned.
 - a provider status feed and push notifications - ntfy, a webhook, Telegram, e-mail - through one
   courier process, the advanced edition's only outbound network code,
 - a loopback API and web view on 127.0.0.1, remote control over Telegram, and a read-only view of
@@ -741,7 +766,12 @@ The grade itself, and everything this repository does with a report, is v0.6.10'
 What belongs here is the advanced edition's own half of it: that edition records and sends a
 report without a second program, so a person using it needs no separate tool. The standard
 edition sends nothing and gains nothing here - a report goes to GitHub only when its author
-opens the pull request.
+opens the pull request. **Built** (v0.6.14-beta): the compatibility report, an action of the
+advanced edition, writes the report codex-compat-reporter writes from this PC's own records, shows
+it whole, saves it, and - only while it is on, never while recovery is paused, and only after the
+person types `send` - opens the pull request through gh, the GitHub CLI they installed, or shows
+the web's steps without it. The project's check takes a report the product wrote itself
+(`reporter.tool` `codex-auto-resume`, from v0.6.14-beta).
 
 ---
 

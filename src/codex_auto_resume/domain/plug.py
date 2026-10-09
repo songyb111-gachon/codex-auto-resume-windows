@@ -11,8 +11,9 @@ Three rules make an answer safe to take:
 * Only core acts. A hook answers; it never sends, claims or starts anything. At a decision
   point it answers DEFER or a member of that point's closed set in ALTERNATIVES, and core
   carries the member out itself, through its one claim, its pre-send look and its launch guard.
-* A hook may always restrict, and may relax only as its point's set allows. There is no
-  relaxation yet: one joins a set in the commit that teaches core to carry it out.
+* A hook may always restrict, and may relax only as its point's set allows. A relaxation joins
+  a set in the commit that teaches core to carry it out, and core holds each to bounds of its
+  own a plug cannot widen (failures.admits, ladder.py).
 * A hook that fails costs its own answer and nothing else: `consult` puts NULL's answer in its
   place.
 * A hook is handed copies. What core reads again after asking - the record it sends, the due
@@ -20,12 +21,11 @@ Three rules make an answer safe to take:
   a hook that changes what it was handed and answers DEFER has changed nothing of core's.
 
 These rules are kept against a plug's mistakes, not against its intent. The plug is the
-advanced edition's package - this product's own code, from the same archive - and it runs in
-core's process, where Python keeps nothing from code that goes looking: a closure's cells, a
-traceback's frames and the garbage collector reach every object core has, and the state is a
-file on the same disk. So what is handed over - copies, a view with no writes, a connection
-that writes only the plug's own database, a name for the backend - removes the plain way to a
-side effect a hook did not mean, and no guard here is a sandbox or claims to be.
+advanced edition's package - this product's own code, from the same archive - running in core's
+process, where closures, frames and the garbage collector reach every object core has and the
+state is a file on the same disk. So what is handed over - copies, a view with no writes, a
+connection that writes only the plug's own database, a name for the backend - removes the plain
+way to a side effect a hook did not mean; no guard here is a sandbox or claims to be.
 
 Core holds a plug only as `Guarded`, which asks every hook through `consult` and checks every
 value a hook hands back before core takes it. The engine, the store's claim, the control layer
@@ -33,7 +33,8 @@ and every surface hold one; none of them calls a hook of a plug itself.
 
 `edition.py` finds the package and makes a plug of it. This module is pure: the interface and
 its version, NULL, the plug of an advanced installation whose package could not be loaded, the
-guard core holds a plug in, and the five closed vocabularies they speak in. Those are `StrEnum`s
+guard core holds a plug in, and the six closed vocabularies they speak in - and what core holds of
+a channel, a route or an errand a plug names is beside it, in domain/plughands.py. Those are `StrEnum`s
 held to every rule `domain/vocabulary.py`'s are (tests/test_vocabulary.py), and they live here,
 beside the one interface that uses them, as the interface's own words.
 """
@@ -44,10 +45,13 @@ import copy
 from enum import StrEnum
 import json
 
+from .plughands import Channel, Errand, Route, records_of
+
 # The interface's version. The advanced package writes out the number it was written for, and
 # edition.py takes its plug only when the two agree: otherwise a hook renamed, or given another
-# argument, would be called the old way or not at all, and nothing would say so.
-PLUG_API = 1
+# argument, would be called the old way or not at all, and nothing would say so. 2: P17 and `wants`.
+# 3 (v0.6.14): P8's errand, and P2's records carried out.
+PLUG_API = 3
 
 
 class Edition(StrEnum):
@@ -72,17 +76,17 @@ class Point(StrEnum):
 
     There is no P1. Classifying a turn into a core category would write a category that does
     not describe it, so an advanced record stays in the advanced store and reaches core through
-    RECORDS instead.
+    RECORDS instead, which core carries out from v0.6.14 (engine/plugrecords.py): each record is
+    tried through core's gates, its one claim and its one send, and its moves are told at P14 in
+    RecordMove's words.
 
     P14 is not a question: the engine tells the plug a record core holds has moved, as it writes
-    the move. A person's own moves - a cancel, or the attempts given back (store/actions.py,
-    and an older watcher's cancel, store/legacy.py) - are not told: they are written by what the
-    person acted through, the Dashboard, MCP, the CLI or a toast, most often in a process that
-    holds no engine. None of them moves a record into or out of submission_unknown, and a plug
-    finds where they left a record at its next P2 or P8. A plug that read the moves back instead
-    - out of the journal - would decide by a second source of truth, which a pruned entry or a
-    retention bound changes; and the record's state alone, read at P8, has already moved on when
-    the watch that runs before P8 settled it.
+    the move. A person's own moves - a cancel, or the attempts given back (store/actions.py, and
+    an older watcher's cancel, store/legacy.py) - are not told: what the person acted through
+    wrote them, most often in a process that holds no engine. None moves a record into or out of
+    submission_unknown, and a plug finds where they left it at its next P2 or P8. Read back out of
+    the journal instead, a move would be a second source of truth a pruned entry changes; and at
+    P8 the record's state alone has already moved on when the watch before it settled it.
 
     P15 (v0.6.11 stage 3) is how a continuation is carried and how its arrival is proven. Core
     has always ended the words with the record's marker and proven delivery by finding it in
@@ -93,7 +97,11 @@ class Point(StrEnum):
     Core has always waited for the app to open it (A11); a plug may name a route instead - an
     object with a `resume` - and core carries it out itself, as it carries out the send: its one
     claim, its pre-send look and its launch guard, the route called once, and what came of it
-    settled by core's own rules (engine/delivery.py)."""
+    settled by core's own rules (engine/delivery.py).
+
+    P17 (v0.6.14 stage 3b) is whether a failure core never recovers alone is taken up, asked with
+    the answers core would carry out for it (failures.takes): taken, it is a core record of its true
+    category, which core follows as its own and known_failure (P3) puts to the plug again."""
     RECORDS = "records"                      # P2  records of the advanced store, due now
     GATES = "gates"                          # P3  the gates a record passes before it is sent
     TEXT = "text"                            # P4  what the continuation says
@@ -109,6 +117,7 @@ class Point(StrEnum):
     MOVED = "moved"                          # P14 a record core holds moved to another state
     DELIVERY = "delivery"                    # P15 how a continuation is carried and proven
     UNLOADED = "unloaded"                    # P16 what continues one the app does not hold
+    ADMISSION = "admission"                  # P17 a failure core never recovers alone, taken up
 
 
 class Alternative(StrEnum):
@@ -118,6 +127,41 @@ class Alternative(StrEnum):
     # P15: no marker; queued under the client id core derives from the interruption
     # (ids.continuation_client_id), which is what proves it arrived.
     CLIENT_ID = "client_id"
+    # P17, and P3 at known_failure: take a failure up, waiting as core waits for an admitted one
+    # (ladder.ADMITTED_WAITS), or as a temporary failure of the kind named (PACED_AS).
+    ADMIT = "admit"
+    AS_NETWORK_TRANSIENT = "as_network_transient"
+    AS_TIMEOUT = "as_timeout"
+    AS_RATE_LIMIT_TRANSIENT = "as_rate_limit_transient"
+    AS_SERVER_5XX = "as_server_5xx"
+    AS_STREAM_INTERRUPTED = "as_stream_interrupted"
+    CAPACITY = "capacity"                    # and a capacity error retried sooner, in core's limits
+    EARLY = "early"                          # P7: a usage-limited record looked at before its time
+    RESEND = "resend"                        # P7: an uncertain submission sent once more, if core may
+    SEND_NOW = "send_now"                    # P7: a waiting record sent now, as a person asked
+
+
+class FailureForm(StrEnum):
+    """What form a failure's structured error took (failures.shape), as P17 is told it."""
+    TAGGED = "tagged"                        # a code of Codex's, known or of the shape of one
+    STATUS_ONLY = "status_only"              # a status number and no code
+    UNRECOGNISED = "unrecognised"            # something, and neither
+    MESSAGE_ONLY = "message_only"            # no structured error, only a message
+    ABSENT = "absent"                        # nothing at all
+
+
+class RecordMove(StrEnum):
+    """What core did with a record of the plug's own (P2, v0.6.14), as P14 tells it (RECORD_MOVES): it
+    waits, at a gate and for a reason core names; it was handed back before its send, or its process
+    never started, and waits again with its words; it was sent - its words gone from the plug's state -
+    and is watched; its marker was found in Codex's history; or none was a day after it was sent, and
+    it is never sent again."""
+    WAITING = "waiting"
+    RELEASED = "released"
+    NOT_STARTED = "not_started"
+    SENT = "sent"
+    DELIVERED = "delivered"
+    UNPROVEN = "unproven"
 
 
 class Surface(StrEnum):
@@ -132,6 +176,8 @@ class Surface(StrEnum):
 
 POINTS = tuple(Point)
 SURFACES = tuple(Surface)
+RECORD_MOVES = tuple(RecordMove)
+FAILURE_FORMS = tuple(FailureForm)
 # The key a surface puts a plug's fields under. NULL never adds any, so no standard surface
 # carries it.
 EXTRA = "advanced"
@@ -178,13 +224,16 @@ class Plug:
     badge = "Standard"
 
     def records(self, view):                          # P2
-        """Records of the advanced store that are due now, to be tried like core's own. Asked
-        once a tick, after core's own due records, with the engine's view of its store."""
+        """Records of the advanced store that are due now, to be tried like core's own, and those in
+        flight, to be watched: asked once a tick, after core's own due records, with the engine's view
+        of its store, and held to plughands.records_of (Guarded.records)."""
         return DEFER
 
     def gate(self, name, record, facts):              # P3
         """A gate's answer for one record, asked once core's own evaluation of that gate has
-        passed - which is always after the consent gate. `facts` is the gate vector so far."""
+        passed - which is always after the consent gate. `facts` is the gate vector so far. One
+        gate core refuses is asked too: known_failure, for a record P17 took up, whose category
+        core never recovers alone - and DEFER, or a hook that fails, then ends it unsent."""
         return DEFER
 
     def text(self, record, text):                     # P4
@@ -203,11 +252,18 @@ class Plug:
 
     def schedule(self, record, due):                  # P7
         """When a record is looked at next, asked when core's schedule says it is due; `due` is
-        the moment core's schedule made it so."""
+        the moment core's schedule made it so. From v0.6.14 also before then, for a record that waits
+        for a usage limit to reset (or for usage), while core's early window is open: EARLY looks now. And
+        for an uncertain submission a look of the watch found no trace of (`due` its send): RESEND
+        sends it once more, where core proves it may (engine/resend.py). And for a waiting record its
+        retry's wait or a postponement holds: SEND_NOW, a person's request, passes those, its spacing
+        and its own attempt budget for this one look (engine/relaxed.py), and nothing else."""
         return DEFER
 
     def tick(self, view):                             # P8
-        """Once a tick, after everything has been observed. Its answer is not read."""
+        """Once a tick, after everything has been observed. From v0.6.14 it may answer an errand -
+        something with a callable `run` - which core runs once, last in the tick, with guards of its own
+        (Guarded.tick); any other answer is not read."""
         return DEFER
 
     def start_route(self, request):                   # P9
@@ -261,6 +317,20 @@ class Plug:
         and the route called once inside the launch guard (engine/delivery.py)."""
         return DEFER
 
+    def admission(self, failure):                     # P17
+        """Whether core takes up a failure it would not recover alone, or relaxes one it would: `failure` is its
+        facts - its kind, Codex's code and status and the error's form, never a word of the message - with
+        `takes`, the answers core would carry out for it now, and `chain`, the record whose continuation started
+        the turn that failed, or None (from v0.6.14 with `categories`, every kind its task has had, or None). An
+        answer outside `takes` is DEFER. Asked only while `wants(ADMISSION)` says so."""
+        return DEFER
+
+    def wants(self, point):
+        """Whether a capability may answer at `point` now. Not a point: it decides nothing, and
+        core makes the reads a point needs only when it is True, so a plug with nothing on costs
+        the standard edition's reads exactly. NULL wants nothing."""
+        return False
+
     def edition_changed(self, previous):
         """The installer has just replaced an installation of edition `previous` with this one.
 
@@ -277,6 +347,12 @@ class Plug:
         Not a point: nothing is decided by it and its answer is not read. NULL keeps nothing."""
         return None
 
+    def conversation_off(self, thread_id):
+        """A person has just switched conversation `thread_id` off (control/actions.py): what the plug
+        holds there of its own ends, as what waits there of core's does (H5), and switching it on again
+        revives nothing. Not a point: told in the process that switched it, its answer is not read."""
+        return None
+
 
 # Which hook each point calls.
 HOOKS = {
@@ -285,7 +361,7 @@ HOOKS = {
     Point.START_ROUTE: "start_route", Point.SURFACES: "surface",
     Point.CLAIM_LEDGER: "claim_ledger", Point.CONCURRENCY: "partition",
     Point.SUPERVISION: "supervise", Point.MOVED: "moved", Point.DELIVERY: "delivery",
-    Point.UNLOADED: "unloaded",
+    Point.UNLOADED: "unloaded", Point.ADMISSION: "admission",
 }
 
 # A hook may always restrict. HOLD keeps a record waiting, exactly as a gate that says WAIT
@@ -296,35 +372,42 @@ RESTRICTIONS = frozenset({Alternative.HOLD})
 # of them is DEFER. At every other point a hook answers with a value - text, a sender, fields -
 # and core checks it where it takes it, as it checks its own.
 #
-# An empty set is a point core asks and carries nothing out at yet. An advanced record tried
-# like core's own, something that follows a finished turn, a division of the due records and a
-# restart each relax what core does alone, so each waits for the commit that teaches core to
-# carry it out - and then joins its point's set, or leaves this table for a value core checks.
+# An empty set is a point core asks and carries nothing out at yet. Something that follows a
+# finished turn, a division of the due records and a restart each relax what core does alone, so
+# each waits for the commit that teaches core to carry it out - and then joins its point's set, or
+# leaves this table for a value core checks, as RECORDS (P2) did in v0.6.14: the records a plug
+# hands over, each checked (plughands.records_of) and carried out by core (engine/plugrecords.py).
 #
-# START_ROUTE has left this table: v0.6.11 stage 3 taught core to carry out a start route (the
-# start with Codex), and it does so the way the sender does - the plug names a route, an object
-# with a `start`, that core calls with the command line it built (Guarded.start_route). So the
-# start route is a value point now, not a decision point with a closed set of words.
-#
-# UNLOADED (P16) is one the same way, from v0.6.11 stage 3a: a plug names a route, an object with
-# a `resume`, and core carries it out through its own claim, pre-send look and launch guard
-# (Guarded.unloaded, engine/delivery.py). Its words are none of this table's.
+# START_ROUTE (v0.6.11 stage 3) and UNLOADED (P16, stage 3a) have left this table for values core
+# checks: the plug names a route - an object with a `start`, or a `resume` - and core carries it
+# out itself (Guarded.start_route; Guarded.unloaded, through its claim, engine/delivery.py).
 #
 # DELIVERY (P15) takes CLIENT_ID, which core learned to carry out in the same commit: the words
 # with no marker, the one send made through the plug's channel with the client id core derived,
 # and every look that proves or disproves delivery made for that id (engine/delivery.py). It
-# relaxes no gate - every one of them has passed before it is asked - so it is not a restriction,
-# and it is the one answer here that is not.
+# relaxes no gate - every one of them has passed before it is asked - so it is not a restriction.
+#
+# ADMISSION (P17, v0.6.14 stage 3b) takes a failure up, or relaxes a capacity error's retries, and
+# GATES the same words, which core takes only at known_failure and only for the kind each is for
+# (failures.admits, failures.readmits) - CAPACITY within core's own bounds (ladder.py). SCHEDULE
+# (P7) takes EARLY, RESEND and SEND_NOW, each carried out by core in its own (relaxed.py, resend.py).
+TAKE_UP = frozenset({Alternative.ADMIT, Alternative.AS_NETWORK_TRANSIENT, Alternative.AS_TIMEOUT,
+                     Alternative.AS_RATE_LIMIT_TRANSIENT, Alternative.AS_SERVER_5XX,
+                     Alternative.AS_STREAM_INTERRUPTED, Alternative.CAPACITY})
 ALTERNATIVES = {
-    Point.RECORDS: frozenset(),
-    Point.GATES: RESTRICTIONS,
+    Point.GATES: RESTRICTIONS | TAKE_UP,
     Point.OUTCOME: frozenset(),
-    Point.SCHEDULE: RESTRICTIONS,
+    Point.SCHEDULE: RESTRICTIONS | {Alternative.EARLY, Alternative.RESEND, Alternative.SEND_NOW},
     Point.CLAIM_LEDGER: RESTRICTIONS,
     Point.CONCURRENCY: frozenset(),
     Point.SUPERVISION: frozenset(),
     Point.DELIVERY: frozenset({Alternative.CLIENT_ID}),
+    Point.ADMISSION: TAKE_UP,
 }
+# The temporary kind each AS_ word waits, counts and is switched off as (failures.TRANSIENT).
+PACED_AS = {Alternative.AS_NETWORK_TRANSIENT: "network_transient", Alternative.AS_TIMEOUT: "timeout",
+            Alternative.AS_RATE_LIMIT_TRANSIENT: "rate_limit_transient",
+            Alternative.AS_SERVER_5XX: "server_5xx", Alternative.AS_STREAM_INTERRUPTED: "stream_interrupted"}
 
 # Every alternative some point accepts. The vocabulary is exactly these
 # (tests/test_vocabulary.py), so no word waits in it for a point that does not take it.
@@ -413,67 +496,6 @@ def fields(answer):
         return DEFER
 
 
-class _Channel:
-    """A channel a plug named at P5, held to the launch guard rather than asked to enter it.
-
-    Core's backend enters the guard it is handed around the one moment it launches the queue
-    process, so a Pause, a cancel or a conversation switched off that committed after the claim
-    stops the send there. A channel is the plug's code, and nothing made it enter the guard it
-    was handed, so this enters the guard for it: consent is read under the store's write lock,
-    and the channel is called only if it held, with a guard already decided.
-
-    The lock is let go before the channel is called, as core's backend lets it go once the
-    queue process is launched: calling the channel is this send's launch. It is never held
-    across the channel's send. That is a transport core cannot see into, and the lock is the
-    advanced state's too once the claim has attached it, so a Pause from the settings window,
-    a disarm on another thread and the channel's own write to the advanced state all waited
-    for it - and failed, past SQLite's ten seconds. A Pause that commits once consent was read
-    finds a send started, as it finds one of the backend's after its launch.
-
-    `client_id` is handed on only when core gives one - a continuation it sends with no marker
-    (P15) - so a channel that was never asked for that is called exactly as before."""
-    __slots__ = ("_send",)
-
-    def __init__(self, send):
-        self._send = send
-
-    def send(self, thread_id, prompt, *, launch_guard=None, client_id=None):
-        with launch_guard if launch_guard is not None else nullcontext(True) as permitted:
-            pass
-        if permitted is not True:
-            return {"outcome": "not_started", "error_code": "queue_consent_refused"}
-        if client_id is None:
-            return self._send(thread_id, prompt, launch_guard=nullcontext(True))
-        return self._send(thread_id, prompt, launch_guard=nullcontext(True), client_id=client_id)
-
-
-class _Route:
-    """A route a plug named at P16, held to the launch guard as a channel is (`_Channel`).
-
-    Consent is read under the store's write lock, and the route is called only if it held, with
-    a guard already decided and the lock let go - the route is the plug's code, and a transport
-    core cannot see into, and a Pause or a disarm must never wait behind it. `resume` is the
-    route's one method, and the only thing of it core ever calls.
-
-    `still_unloaded` is core's own look at whether the app still does not hold the conversation
-    (engine/delivery.py), handed on for the route to ask at the last moment before it changes
-    anything in Codex: its session takes seconds to start, and the app may open the conversation
-    in them. It is handed on only when core gives one."""
-    __slots__ = ("_resume",)
-
-    def __init__(self, resume):
-        self._resume = resume
-
-    def resume(self, thread_id, *, launch_guard=None, still_unloaded=None):
-        with launch_guard if launch_guard is not None else nullcontext(True) as permitted:
-            pass
-        if permitted is not True:
-            return {"outcome": "not_started", "error_code": "queue_consent_refused"}
-        if still_unloaded is None:
-            return self._resume(thread_id, launch_guard=nullcontext(True))
-        return self._resume(thread_id, launch_guard=nullcontext(True), still_unloaded=still_unloaded)
-
-
 class Guarded:
     """A plug as core holds it: every hook asked through `consult`, every value checked before
     core takes it.
@@ -483,11 +505,9 @@ class Guarded:
     and anything else is DEFER - except at the sender, where it is core's own backend, because
     there is always a send to hand the one message to. Nothing a hook does reaches past this:
     it is handed copies (`consult`) and a stand-in for the backend (BACKEND), and a channel it
-    names is held to the launch guard.
-    `failures` counts the hooks that raised, over every caller of this plug on every thread; the
-    claim asks through `claim_ledger_checked` instead, which says whether that one call raised
-    (store/ledger.py).
-    """
+    names is held to the launch guard, as an errand is to guards of its own. `failures` counts the
+    hooks that raised, over every caller on every thread; the claim asks through `claim_ledger_checked`, which says whether
+    that one call raised (store/ledger.py)."""
     __slots__ = ("plug", "failures")
 
     def __init__(self, plug):
@@ -519,7 +539,9 @@ class Guarded:
         return consult(self.plug, point, *arguments, failed=told)
 
     def records(self, view):
-        return self._ask(Point.RECORDS, view)
+        """P2: the records the plug hands over that core can carry out (plughands.records_of): a tuple,
+        empty for anything else."""
+        return records_of(self._ask(Point.RECORDS, view))
 
     def gate(self, name, record, facts):
         return self._ask(Point.GATES, name, record, facts)
@@ -542,7 +564,7 @@ class Guarded:
             send = getattr(answer, "send", None)
         except Exception:                              # a `send` that raises when it is looked up
             return backend
-        return _Channel(send) if callable(send) else backend
+        return Channel(send) if callable(send) else backend
 
     def outcome(self, record, outcome):
         return self._ask(Point.OUTCOME, record, outcome)
@@ -551,7 +573,16 @@ class Guarded:
         return self._ask(Point.SCHEDULE, record, due)
 
     def tick(self, view):
-        self._ask(Point.TICK, view)
+        """P8: the errand the plug answered, held so that core runs it once with guards of its own
+        (plughands.Errand) - or DEFER, for anything without a callable `run`."""
+        answer = self._ask(Point.TICK, view)
+        if answer is DEFER:
+            return DEFER
+        try:
+            run = getattr(answer, "run", None)
+        except Exception:                              # a `run` that raises when it is looked up
+            return DEFER
+        return Errand(run) if callable(run) else DEFER
 
     def start_route(self, request):
         """A route to start the watcher outside Codex's job, or DEFER.
@@ -605,7 +636,7 @@ class Guarded:
 
     def unloaded(self, record):
         """P16: the route the plug names for a record whose conversation the app does not hold,
-        held to the launch guard (`_Route`), or DEFER - which is core's own wait (A11).
+        held to the launch guard (plughands.Route), or DEFER - which is core's own wait (A11).
 
         A route is something with a callable `resume`; a word, a number, or an object without one
         is DEFER, so a hook that answers with something core cannot call changes nothing. Core
@@ -617,7 +648,21 @@ class Guarded:
             resume = getattr(answer, "resume", None)
         except Exception:                              # a `resume` that raises when it is looked up
             return DEFER
-        return _Route(resume) if callable(resume) else DEFER
+        return Route(resume) if callable(resume) else DEFER
+
+    def admission(self, failure):
+        """P17: an answer of TAKE_UP, or DEFER. Core takes one only if failures.takes offered it."""
+        return self._ask(Point.ADMISSION, failure)
+
+    def wants(self, point) -> bool:
+        """Plug.wants, True only if it says True: not a point, so NULL and a raise want nothing."""
+        if self.plug is NULL:
+            return False
+        try:
+            return self.plug.wants(Point(point)) is True
+        except Exception:
+            self.failures += 1
+            return False
 
     def codex(self, codex_exe, codex_home):
         """Tell the plug which Codex this process drives (Plug.codex). Not a point, so not asked
@@ -629,6 +674,14 @@ class Guarded:
             self.plug.codex(codex_exe, codex_home)
         except Exception:
             self.failures += 1
+
+    def conversation_off(self, thread_id):
+        """Plug.conversation_off, as `codex` is told: NULL nothing, and a raise counted in `failures`."""
+        if self.plug is not NULL:
+            try:
+                self.plug.conversation_off(thread_id)
+            except Exception:
+                self.failures += 1
 
 
 def guard(plug) -> Guarded:

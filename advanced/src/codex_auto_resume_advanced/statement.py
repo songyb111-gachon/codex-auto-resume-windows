@@ -25,7 +25,7 @@ from pathlib import Path
 
 from codex_auto_resume import l10n
 
-from .vocabulary import ArmingState, ArmingWarning, Field
+from .vocabulary import ArmingState, ArmingWarning, Field, ReportRefusal, ReportWrite, WebReason
 
 DIRECTORY = Path(__file__).resolve().parent / "locales"
 FIELDS = tuple(Field)
@@ -80,7 +80,69 @@ PAGE_KEYS = tuple(PAGE_PREFIX + name for name in (
     "statement_unavailable", "refused.unread",
     "tripped", "tripped.measurement_failed", "tripped.failed_here", "tripped.incompatible",
     "tripped.local_check_failed", "tripped.submission_unknown", "tripped.hook_exception",
-    "tripped.statement_changed", "tripped.engine_changed"))
+    "tripped.statement_changed", "tripped.engine_changed",
+    # v0.6.14: a capability's own choices, the rules for Codex's error codes and the samples of what nothing
+    # classified, and what the page says of each.
+    "options", "option.attempts", "option.ceiling_hours", "option.hours", "done.option", "refused.option",
+    "refused.choice", "rules", "rules.none", "rules.full", "rule.code", "rule.sampled", "rule.status",
+    "rule.any_status", "rule.kind", "rule.hits", "rule.add", "rule.remove", "rule.known", "done.rule_added",
+    "done.rule_removed", "refused.rule_shape", "refused.rule_known", "refused.rule_decision",
+    "refused.rule_range", "refused.rule_overlap", "samples", "samples.none", "sample.code", "sample.no_code",
+    "sample.status", "sample.count",
+    # v0.6.14: Keep it on, what a kept-on capability noted instead of turning itself off, and Send now.
+    "keep_on", "keep_on.off", "keep_on.on", "keep_on.again", "keep_on.turn_on", "keep_on.send_again",
+    "keep_on.turn_off", "confirm.keep_on", "confirm.send_again", "done.keep_on", "done.keep_on_off",
+    "refused.not_on", "kept.statement_changed", "kept.measurement_failed", "kept.failed_here", "kept.incompatible",
+    "kept.local_check_failed", "kept.hook_exception", "kept.submission_unknown", "kept.engine_changed",
+    "kept.duplicate_seen", "tripped.duplicate_seen", "send_now.title", "send_now.none", "send_now.button",
+    "confirm.send_now", "done.send_now",
+    # In place of the limits, for an action (the compatibility report), which sends nothing to Codex: what bounds it.
+    "action_limits",
+    # v0.6.14: the watch log (watchlog.py) - what a watched capability would have done, its card's words and one
+    # word for each answer the log names (watchlog.WORDS, and "other" for the rest). `page.watch` is the Watch first
+    # button's word, so these are `page.watchlog...`; the test ties the answers to watchlog.WORDS.
+    "watchlog", "watchlog.since", "watchlog.none", "watchlog.note", "watchlog.times", "watchlog.last", "watchlog.from",
+    "watchlog.answer.hold", "watchlog.answer.client_id", "watchlog.answer.admit",
+    "watchlog.answer.as_network_transient", "watchlog.answer.as_timeout", "watchlog.answer.as_rate_limit_transient",
+    "watchlog.answer.as_server_5xx", "watchlog.answer.as_stream_interrupted", "watchlog.answer.capacity",
+    "watchlog.answer.early", "watchlog.answer.resend", "watchlog.answer.send_now", "watchlog.answer.text",
+    "watchlog.answer.sender", "watchlog.answer.tick", "watchlog.answer.start_route", "watchlog.answer.unloaded",
+    "watchlog.answer.other",
+    # v0.6.14: the reset actions (advanced/gui/AdvancedResets.cs) - the rules of a reset credit and of a message at a
+    # reset, the form they are added with, each word a rule's state and reason can be said in, the questions, notes
+    # and refusals, Pending's Scheduled group - and Longer reset messages' words in place of the limits.
+    "confirm.reset_credit", "confirm.reset_message", "done.reset_added", "done.reset_cancelled", "done.go_on",
+    "confirm.credit_now", "done.credit_now", "refused.occasion_invalid", "refused.resets_full",
+    "refused.message_refused", "refused.already_scheduled", "refused.being_sent", "refused.conversation_off",
+    "scheduled", "long_limits"))
+# The reset actions' own words, `page.resets.<name>`.
+RESETS_PREFIX = PAGE_PREFIX + "resets."
+RESETS_KEYS = tuple(RESETS_PREFIX + name for name in (
+    "window.300", "window.10080", "window.other", "ordinal.1", "ordinal.n", "state.being_sent",
+    "state.window_gone", "state.count_gap", "state.ask_first", "state.count_unknown", "state.expiry_unknown",
+    "state.bound", "state.no_method", "state.nothing_waiting", "state.due", "state.counting", "state.starting",
+    "state.next", "state.conversation_off", "state.turned_off", "state.by_person", "state.spent",
+    "state.nothing_to_reset", "state.no_credit", "state.lapsed", "state.delivered", "state.expired",
+    "state.not_started", "state.unknown", "state.done", "rule.now", "rule.credit", "rule.message", "credit.title",
+    "message.title", "credit.none", "message.none", "now.none", "now.note", "now", "credit.add", "message.add",
+    "field.conversation", "no_conversation", "field.words", "field.window", "field.which_reached", "field.which",
+    "field.repeat", "repeat.once", "repeat.every", "field.ask", "ask.no", "ask.yes", "ask.note", "credit.button",
+    "message.button", "credit.note", "message.note", "go_on", "cancel", "reading.unknown", "reading",
+    "reading.no_expiry", "reading.last", "count", "unproven"))
+PAGE_KEYS = PAGE_KEYS + RESETS_KEYS
+# The compatibility report's card on that page (advanced/gui/AdvancedReport.cs): its own words, one for each
+# write sending makes (vocabulary.ReportWrite), one for each reason it has to be sent on the web (WebReason) and
+# one for each word it refuses with (ReportRefusal) - so a word the flow can answer with is one the page can say.
+REPORT_PREFIX = PAGE_PREFIX + "report."
+REPORT_KEYS = (tuple(REPORT_PREFIX + name for name in (
+    "title", "intro", "login", "version", "write", "writing", "records", "verdict", "size", "sha256", "left_out",
+    "file", "save", "saved", "watched", "check", "checking", "gh", "signed_in", "interrupted", "writes", "type",
+    "send", "sending", "sent", "already", "after", "partial", "again", "lost", "last",
+    "web.intro", "web.1", "web.2", "web.3", "web.4"))
+    + tuple(REPORT_PREFIX + "w." + str(write) for write in ReportWrite)
+    + tuple(REPORT_PREFIX + "web." + str(reason) for reason in WebReason)
+    + tuple(REPORT_PREFIX + "refused." + str(code) for code in ReportRefusal))
+PAGE_KEYS = PAGE_KEYS + REPORT_KEYS
 
 
 def name_key(capability) -> str:

@@ -19,6 +19,7 @@ edition's does.
     surfaces     the badge, the Dashboard's bridge commands and a model's MCP tools (P10)
     measure      the harness a person runs by hand: what a capability needs a live machine to prove
     evidence     one content-free record per measurement, in docs/evidence/live/
+    report/      the compatibility report: this PC's records, read-only, counted as the reporter counts them
     codex/       the App Server methods that live only here, and the one-turn session for them
     state/       config/advanced/advanced.sqlite, the edition's one file of state
     credentials  where a secret would go: Windows Credential Manager, and nowhere else

@@ -7,6 +7,7 @@ Run from the repository root:
 from __future__ import annotations
 
 import importlib.util
+import inspect
 import json
 from pathlib import Path
 import re
@@ -23,7 +24,7 @@ from codex_auto_resume.domain.plug import Point  # noqa: E402
 from codex_auto_resume_advanced import registry, standards, statement  # noqa: E402
 from codex_auto_resume_advanced.registry import (CAPABILITY_POINTS, Ceilings, Registry,  # noqa: E402
                                                  RegistryError, problems)
-from codex_auto_resume_advanced.vocabulary import ArmingWarning, Field, Measurement  # noqa: E402
+from codex_auto_resume_advanced.vocabulary import ArmingWarning, CapabilityKind, Field, Measurement  # noqa: E402
 
 # The standards file, public in the repository: each rule a line `**A1** <sentence>`, under its
 # family's heading `## A. <title>`, then the line that says how it is held and which tests hold it.
@@ -42,24 +43,40 @@ B4_METHODS = frozenset({"initialize", "initialized", "account/rateLimits/read", 
 # state; B3 lets Codex's state change only through `codex queue`, thread/queue/delete and the
 # plugin command. A method in neither set is a decision this table has to make first.
 READS = frozenset({"thread/loaded/list", "thread/queue/list", "thread/goal/get"})
-CHANGES = frozenset({"thread/queue/add", "thread/goal/set"})
+CHANGES = frozenset({"thread/queue/add", "thread/goal/set",
+                     # v0.6.14: a reset credit spent changes the account's state (engine/credits.py).
+                     "account/rateLimitResetCredit/consume"})
 
 
 class ShippedTests(unittest.TestCase):
-    def test_the_registry_this_edition_ships_is_its_three_capabilities_in_their_order(self):
-        self.assertEqual([d.id for d in registry.DEFINITIONS],
-                         ["start_with_codex", "goal_continuation", "marker_free_continuation"])
-        self.assertEqual(len(registry.REGISTRY), 3)
-        self.assertEqual(registry.REGISTRY.ids,
-                         ("start_with_codex", "goal_continuation", "marker_free_continuation"))
+    SHIPPED = ("start_with_codex", "goal_continuation", "marker_free_continuation", "capacity_retry",
+               "structured_rules", "unknown_failure_budget", "codex_gave_up", "sign_in_retry", "reset_credit",
+               "reset_message", "early_reset", "once_more_when_unsure", "send_now", "long_reset_message",
+               "compat_report")
+
+    def test_the_registry_this_edition_ships_is_its_capabilities_in_their_order(self):
+        self.assertEqual([d.id for d in registry.DEFINITIONS], list(self.SHIPPED))
+        self.assertEqual(len(registry.REGISTRY), len(self.SHIPPED))
+        self.assertEqual(registry.REGISTRY.ids, self.SHIPPED)
+        # The compatibility report is an action, last: it answers at no point, so it is in no list below.
+        self.assertEqual([d.id for d in registry.DEFINITIONS if d.kind == CapabilityKind.ACTION],
+                         ["long_reset_message", "compat_report"])
         # Start-with-Codex answers at P9 alone - it starts the watcher, it does not send; the goal
         # continuation at P16, P3 and P5 - the route, the hold while a goal carries a conversation on,
         # and the channel where M2b passed; the marker-free continuation at P5 and P15, the channel
         # and the way it carries the words. At P5 the goal continuation comes first, so where both
-        # are on and the goal applies its channel carries the send.
+        # are on and the goal applies its channel carries the send. Those that take failures up (v0.6.14)
+        # answer at P17 and again at P3, in the order that is precedence where two would answer.
         answering = {Point.START_ROUTE: ("start_with_codex",),
+                     Point.SCHEDULE: ("reset_credit", "early_reset", "once_more_when_unsure", "send_now"),
+                     Point.TICK: ("reset_credit", "reset_message"),
+                     Point.RECORDS: ("reset_message",),
                      Point.UNLOADED: ("goal_continuation",),
-                     Point.GATES: ("goal_continuation",),
+                     Point.GATES: ("goal_continuation", "capacity_retry", "structured_rules",
+                                   "unknown_failure_budget", "codex_gave_up", "sign_in_retry", "reset_message",
+                                   "early_reset"),
+                     Point.ADMISSION: ("capacity_retry", "structured_rules", "unknown_failure_budget",
+                                       "codex_gave_up", "sign_in_retry"),
                      Point.SENDER: ("goal_continuation", "marker_free_continuation"),
                      Point.DELIVERY: ("marker_free_continuation",)}
         for point in Point:
@@ -95,6 +112,45 @@ class ShippedTests(unittest.TestCase):
                     for standard in definition.departs_from:
                         self.assertRegex(text, r"(?<![\w.])%s(?![\w.])" % re.escape(standard))
 
+    def test_the_reset_credit_departs_and_rests_on_what_the_design_says(self):
+        """v0.6.14 (the owner, 2026-10-05): A12, B3 and B4 (account/rateLimitResetCredit/consume changes the
+        account), B10 (the count and the soonest expiry kept), C4 and C9; usage_probe, and MU, MN and MR; at P8 and
+        P7, before early_reset; three a conversation and a dozen a day of the early looks it causes; and its session
+        reads usage as core does and spends - nothing else."""
+        from codex_auto_resume_advanced.codex import protocol
+        credit = registry.REGISTRY.get("reset_credit")
+        self.assertEqual(credit.departs_from, ("A12", "B3", "B4", "B10", "C4", "C9"))
+        self.assertEqual((credit.compat, credit.revision, credit.kind), ("usage_probe", 1, CapabilityKind.ROUTE))
+        self.assertEqual(credit.measurements, (Measurement.MU, Measurement.MN, Measurement.MR))
+        self.assertEqual(credit.points, frozenset({Point.TICK, Point.SCHEDULE}))
+        self.assertEqual((credit.ceilings.per_day, credit.ceilings.per_conversation), (12, 3))
+        self.assertEqual(credit.codes, ("hit", "spent", "nothing", "no_credit", "asked", "lapsed", "unknown", "gap",
+                                        "gone"))
+        ids = registry.REGISTRY.ids
+        self.assertLess(ids.index("reset_credit"), ids.index("early_reset"))
+        self.assertEqual(protocol.methods_for_capability("reset_credit"),
+                         frozenset({"initialize", "initialized", "account/rateLimits/read",
+                                    "account/rateLimitResetCredit/consume"}))
+
+    def test_the_reset_message_departs_and_rests_on_what_the_owner_and_the_review_say(self):
+        """v0.6.14 (the owner, 2026-10-06 and 2026-10-08): A26, C4, C9 and D2 as the design named them, and A8, A17,
+        H4 and H6, which the review found it departs from as well; A27 kept - 2,000 characters - and departed from
+        only by Longer reset messages, a separate action naming it; H5 kept: a conversation switched off cancels it.
+        Its session reads usage as core does, so it names no B4."""
+        from codex_auto_resume_advanced.codex import protocol
+        message = registry.REGISTRY.get("reset_message")
+        self.assertEqual(message.departs_from, ("A8", "A17", "A26", "C4", "C9", "D2", "H4", "H6"))
+        self.assertNotIn("A27", message.departs_from)
+        self.assertNotIn("H5", message.departs_from)
+        self.assertEqual((message.compat, message.measurements), ("exact_thread_recovery", (Measurement.MU,)))
+        self.assertEqual(message.points, frozenset({Point.TICK, Point.RECORDS, Point.GATES}))
+        self.assertEqual((message.ceilings.per_day, message.ceilings.per_conversation), (10, 2))
+        self.assertEqual(protocol.methods_for_capability("reset_message") - {"initialize", "initialized"},
+                         {"account/rateLimits/read"})
+        longer = registry.REGISTRY.get("long_reset_message")
+        self.assertEqual((longer.kind, longer.departs_from, longer.points, longer.ceilings),
+                         (CapabilityKind.ACTION, ("A27",), frozenset(), None))
+
     def test_the_marker_free_continuation_departs_and_rests_on_what_the_owner_asked(self):
         """A2 and A4 as the owner named them, and B3 and B4 for the thread/queue/add its session
         makes; revision 2, since revision 1's statement named the first two alone."""
@@ -122,6 +178,130 @@ class ShippedTests(unittest.TestCase):
         self.assertEqual(goal.measurements, (Measurement.M2,))
         self.assertEqual(goal.points, frozenset({Point.UNLOADED, Point.GATES, Point.SENDER}))
         self.assertLessEqual(goal.ceilings.per_conversation, registry.CORE_DAILY_CAP)
+
+    def test_the_capacity_retries_depart_and_rest_on_what_the_design_says(self):
+        """A20 (five a conversation a day, fifteen minutes apart), A21 (the budgets), A22 (waits only
+        from the retry timing) and B9 (it reads Codex's code); 48 a day in one conversation - core's
+        capacity day, which only the A20 departure allows - and one to twelve hours, two by default."""
+        from codex_auto_resume_advanced.vocabulary import OptionKey
+        cap = registry.REGISTRY.get("capacity_retry")
+        self.assertEqual(cap.departs_from, ("A20", "A21", "A22", "B9"))
+        self.assertEqual((cap.compat, cap.measurements, cap.revision), ("transient_classification", (), 1))
+        self.assertEqual(cap.points, frozenset({Point.ADMISSION, Point.GATES}))
+        self.assertEqual((cap.ceilings.per_day, cap.ceilings.per_conversation), (48, 48))
+        from codex_auto_resume import ladder
+        self.assertEqual(cap.ceilings.per_conversation, ladder.CAPACITY_PER_DAY)
+        option = cap.option(OptionKey.CEILING_HOURS)
+        self.assertEqual((option.choices, option.default), ((1, 2, 3, 4, 6, 8, 12), 2))
+        self.assertLessEqual(max(option.choices) * 3600, ladder.CAPACITY_MAX_SECONDS)
+        self.assertEqual((cap.rules_editor, cap.samples, cap.codes), (False, False, ()))
+
+    def test_the_rules_depart_and_rest_on_what_the_design_says(self):
+        """0.5, A13, A14 (an unknown failure is never retried), A26 (continuation text only for a
+        recovered kind) and B9 (it reads Codex's code); five a conversation, two dozen a day; the one
+        capability whose rules the Dashboard edits, counting its hits as `matched`."""
+        rules = registry.REGISTRY.get("structured_rules")
+        self.assertEqual(rules.departs_from, ("0.5", "A13", "A14", "A26", "B9"))
+        self.assertEqual((rules.compat, rules.measurements, rules.revision), ("transient_classification", (), 1))
+        self.assertEqual(rules.points, frozenset({Point.ADMISSION, Point.GATES}))
+        self.assertEqual((rules.ceilings.per_day, rules.ceilings.per_conversation), (24, 5))
+        self.assertEqual((rules.rules_editor, rules.samples, rules.codes, rules.options), (True, False, ("matched",), ()))
+        self.assertEqual([definition.id for definition in registry.DEFINITIONS if definition.rules_editor],
+                         ["structured_rules"])
+
+    def test_the_unknown_failure_budget_departs_and_rests_on_what_the_design_says(self):
+        """As the rules, and D2 too - a sample keeps a code Codex chose; three a conversation, a dozen
+        a day; one to three tries a task, one by default; the one capability that samples."""
+        from codex_auto_resume_advanced.vocabulary import OptionKey
+        unknown = registry.REGISTRY.get("unknown_failure_budget")
+        self.assertEqual(unknown.departs_from, ("0.5", "A13", "A14", "A26", "B9", "D2"))
+        self.assertEqual((unknown.compat, unknown.measurements, unknown.revision), ("transient_classification", (), 1))
+        self.assertEqual(unknown.points, frozenset({Point.ADMISSION, Point.GATES}))
+        self.assertEqual((unknown.ceilings.per_day, unknown.ceilings.per_conversation), (12, 3))
+        option = unknown.option(OptionKey.ATTEMPTS)
+        self.assertEqual((option.choices, option.default), ((1, 2, 3), 1))
+        self.assertEqual((unknown.rules_editor, unknown.samples, unknown.codes), (False, True, ("sampled",)))
+        self.assertEqual([definition.id for definition in registry.DEFINITIONS if definition.samples],
+                         ["unknown_failure_budget"])
+        ids = registry.REGISTRY.ids
+        self.assertLess(ids.index("structured_rules"), ids.index("unknown_failure_budget"), "rules come first")
+
+    def test_the_retries_when_codex_gave_up_depart_and_rest_on_what_the_design_says(self):
+        """A14 (Codex giving up without a 429 is never retried), A26 and B9; two a conversation, a
+        dozen a day; no choice, no rules, no samples."""
+        gave_up = registry.REGISTRY.get("codex_gave_up")
+        self.assertEqual(gave_up.departs_from, ("A14", "A26", "B9"))
+        self.assertEqual((gave_up.compat, gave_up.measurements, gave_up.revision), ("transient_classification", (), 1))
+        self.assertEqual(gave_up.points, frozenset({Point.ADMISSION, Point.GATES}))
+        self.assertEqual((gave_up.ceilings.per_day, gave_up.ceilings.per_conversation), (12, 2))
+        self.assertEqual((gave_up.options, gave_up.rules_editor, gave_up.samples, gave_up.codes), ((), False, False, ()))
+
+    def test_the_sign_in_retry_departs_and_rests_on_what_the_design_says(self):
+        """0.5 (sign-in failures are never retried), A14 (401 and 403) and A26; the usage read is its
+        proof, so it stands on usage_probe; two a conversation and two a day; no choice, no rules, no
+        samples, and no app-server method of its own."""
+        sign_in = registry.REGISTRY.get("sign_in_retry")
+        self.assertEqual(sign_in.departs_from, ("0.5", "A14", "A26"))
+        self.assertEqual((sign_in.compat, sign_in.measurements, sign_in.revision), ("usage_probe", (), 1))
+        self.assertEqual(sign_in.points, frozenset({Point.ADMISSION, Point.GATES}))
+        self.assertEqual((sign_in.ceilings.per_day, sign_in.ceilings.per_conversation), (2, 2))
+        self.assertEqual((sign_in.options, sign_in.rules_editor, sign_in.samples, sign_in.codes), ((), False, False, ()))
+
+    def test_the_early_reset_departs_and_rests_on_what_the_design_says(self):
+        """A12 (never before the real reset time) and C9 (usage read only when a recovery is due); the
+        usage read is what it asks, so it stands on usage_probe; three a conversation, a dozen a day; its
+        two words; no choice, no rules, no samples, and no app-server method of its own."""
+        early = registry.REGISTRY.get("early_reset")
+        self.assertEqual(early.departs_from, ("A12", "C9"))
+        self.assertEqual((early.compat, early.measurements, early.revision), ("usage_probe", (), 1))
+        self.assertEqual(early.points, frozenset({Point.SCHEDULE, Point.GATES}))
+        self.assertEqual((early.ceilings.per_day, early.ceilings.per_conversation), (12, 3))
+        self.assertEqual((early.options, early.rules_editor, early.samples, early.codes),
+                         ((), False, False, ("probed", "lifted")))
+
+    def test_once_more_when_unsure_departs_and_rests_on_what_the_design_says(self):
+        """0.2 (never again when the first may have been delivered), A6 (an uncertain delivery is never
+        resent), E2 (better to miss a resume than resume twice) and H2 (nothing can resend an uncertain
+        submission); it stands on recovery_turn_tracking, the tables its proof reads; two a conversation,
+        six a day; the one capability that resends, at P7 alone, with no choice, rules or samples."""
+        once = registry.REGISTRY.get("once_more_when_unsure")
+        self.assertEqual(once.departs_from, ("0.2", "A6", "E2", "H2"))
+        self.assertEqual((once.compat, once.measurements, once.revision), ("recovery_turn_tracking", (), 1))
+        self.assertEqual(once.points, frozenset({Point.SCHEDULE}))
+        self.assertEqual((once.ceilings.per_day, once.ceilings.per_conversation), (6, 2))
+        self.assertEqual((once.options, once.rules_editor, once.samples, once.codes), ((), False, False, ()))
+        self.assertEqual([definition.id for definition in registry.DEFINITIONS if definition.resends],
+                         ["once_more_when_unsure"])
+        self.assertIs(registry.ONCE_MORE, once)
+
+    def test_send_now_departs_and_rests_on_what_the_design_says(self):
+        """A8 (the claim's re-check passes nothing), A20 (fifteen minutes between two continuations), A21 (the attempt
+        budget stops a recovery) and H2 (nothing can force a send); it stands on exact_thread_recovery, what every
+        send rests on; core's five a conversation, two dozen a day; at P7 alone, its one word a person's request."""
+        now = registry.REGISTRY.get("send_now")
+        self.assertEqual(now.departs_from, ("A8", "A20", "A21", "H2"))
+        self.assertEqual((now.compat, now.measurements, now.revision), ("exact_thread_recovery", (), 1))
+        self.assertEqual(now.points, frozenset({Point.SCHEDULE}))
+        self.assertEqual((now.ceilings.per_day, now.ceilings.per_conversation), (24, registry.CORE_DAILY_CAP))
+        self.assertEqual((now.options, now.rules_editor, now.samples, now.codes, now.resends),
+                         ((), False, False, ("requested",), False))
+        self.assertIs(registry.SEND_NOW, now)
+
+    def test_the_compatibility_report_departs_and_rests_on_what_the_design_says(self):
+        """B11 (gh reads the person's GitHub sign-in), C1 and C2 (network work, by delegation, from a second
+        shipped file), C3 (GitHub addresses beyond the two lists of releases), C8 (the person's GitHub
+        identity), D1 (counts go to the project), E8 (a hung gh is ended), F3 (a file saved where the person
+        chooses) and F6 (gh is not a listed process): an action, standing on nothing of Codex's, spending
+        nothing, with its statement's every departure named in every language."""
+        report = registry.REGISTRY.get("compat_report")
+        self.assertEqual(report.departs_from, ("B11", "C1", "C2", "C3", "C8", "D1", "E8", "F3", "F6"))
+        self.assertEqual((report.kind, report.points, report.compat, report.ceilings, report.measurements),
+                         (CapabilityKind.ACTION, frozenset(), None, None, ()))
+        self.assertEqual(report.revision, 1)
+        self.assertEqual(report.codes, ("built", "saved", "checked", "sent", "partial", "refused", "lost"))
+        english = statement.CATALOGS.own("en")
+        self.assertIn("type send", english[statement.key("compat_report", Field.DOES)])
+        self.assertIn("K5", english[statement.key("compat_report", Field.DEPARTS)])
 
     def test_start_with_codex_departs_and_rests_on_what_the_plan_says(self):
         swc = registry.REGISTRY.get("start_with_codex")
@@ -197,6 +377,40 @@ class DefinitionTests(unittest.TestCase):
         self.assertIn("measurements", problems(ac.definition(measurements=(Measurement.M1,) * 2)))
         self.assertEqual(problems(ac.definition(measurements=(Measurement.M1, Measurement.MW))), [])
 
+    def test_one_conversations_ceiling_passes_cores_five_only_for_one_that_departs_from_a20(self):
+        """A20 is the standard edition's five a conversation a day, fifteen minutes apart: a ceiling
+        above it is a departure the statement has to name (v0.6.14, the capacity retries)."""
+        over = Ceilings(per_day=48, per_conversation=48)
+        self.assertIn("ceilings", problems(ac.definition(ceilings=over)))
+        self.assertIn("ceilings", problems(ac.definition(ceilings=over, departs_from=("A21", "A22"))))
+        self.assertEqual(problems(ac.definition(ceilings=over, departs_from=("A20",))), [])
+        self.assertIn("ceilings", problems(ac.definition(ceilings=Ceilings(per_day=6, per_conversation=7),
+                                                         departs_from=("A20",))))
+
+    def test_a_choice_it_offers_has_a_key_whole_numbers_smallest_first_and_one_of_them_by_default(self):
+        from codex_auto_resume_advanced.registry import Option
+        from codex_auto_resume_advanced.vocabulary import OptionKey
+        good = Option(OptionKey.ATTEMPTS, (1, 2, 3), 1)
+        made = ac.definition(options=(good, Option(OptionKey.CEILING_HOURS, (1, 2, 12), 2)))
+        self.assertEqual(problems(made), [])
+        self.assertIs(made.option(OptionKey.ATTEMPTS), good)
+        self.assertIsNone(ac.definition().option(OptionKey.ATTEMPTS))
+        for options in ((Option("tries", (1, 2), 1),), (Option(OptionKey.ATTEMPTS, (), 1),),
+                        (Option(OptionKey.ATTEMPTS, (2, 1), 1),), (Option(OptionKey.ATTEMPTS, (1, 1), 1),),
+                        (Option(OptionKey.ATTEMPTS, (0, 1), 1),), (Option(OptionKey.ATTEMPTS, (1, 2), 3),),
+                        (Option(OptionKey.ATTEMPTS, [1, 2], 1),), (Option(OptionKey.ATTEMPTS, (1, True), 1),),
+                        (good, good), [good], ("attempts",)):
+            with self.subTest(options=options):
+                self.assertIn("options", problems(ac.definition(options=options)))
+        self.assertIn("rules_editor or samples", problems(ac.definition(samples=1)))
+
+    def test_one_that_resends_answers_at_p7_and_says_so_with_a_boolean(self):
+        """A capability that sends an uncertain continuation once more (v0.6.14) does it at P7."""
+        self.assertEqual(problems(ac.definition(resends=True)), [])
+        self.assertIn("resends", problems(ac.definition(resends=True, points=frozenset({Point.TEXT}))))
+        self.assertIn("resends", problems(ac.definition(resends=1)))
+        self.assertFalse(ac.definition().resends)
+
     def test_a_capability_never_holds_the_claim_ledger_or_a_surface(self):
         """Nor the moves core tells of, which the tripwires read (P14)."""
         self.assertEqual(CAPABILITY_POINTS,
@@ -215,12 +429,91 @@ class DefinitionTests(unittest.TestCase):
         self.assertIsNone(made.code("dreamt"))
 
 
+def action(**changes):
+    """A capability of the tests' own that is an action: it answers at no point, so core never asks
+    it; its code, made only by what a person starts in the Dashboard, fails the test if core makes it."""
+    def make(_paths):
+        raise AssertionError("core asked an action")
+    fields = dict(id="test_report", kind=CapabilityKind.ACTION, points=frozenset(), compat=None, ceilings=None,
+                  measurements=(), journal_prefix="tr", make=make, codes=("built",))
+    fields.update(changes)
+    return ac.definition(**fields)
+
+
+class ActionTests(ac.AdvancedCase):
+    """A capability that is an action (registry.py `kind`): no point, no compatibility capability,
+    no measurement and no ceilings. Core never asks it and nothing is spent for it; it is turned on
+    and off as every capability is."""
+
+    def setUp(self):
+        super().setUp()
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.catalogs = ac.catalogs(folder.name, ac.definition(), action())
+
+    def test_an_action_answers_at_no_point_and_keeps_every_other_rule(self):
+        self.assertEqual(problems(action()), [])
+        self.assertEqual(ac.definition().kind, CapabilityKind.ROUTE, "a route unless it says otherwise")
+        made = Registry((ac.definition(), action()))
+        self.assertEqual(made.ids, ("test_wake", "test_report"))
+        for point in Point:
+            with self.subTest(point):
+                self.assertNotIn("test_report", [definition.id for definition in made.at(point)])
+
+    def test_an_action_with_a_point_a_compat_ceilings_or_a_measurement_is_refused(self):
+        cases = {"an action answers at no point": dict(points=frozenset({Point.TEXT})),
+                 "an action stands on no compatibility capability": dict(compat=ac.COMPAT),
+                 "an action has no ceilings: it spends nothing": dict(ceilings=Ceilings(per_day=1, per_conversation=1)),
+                 "an action rests on no measurement": dict(measurements=(Measurement.M1,))}
+        for rule, change in cases.items():
+            with self.subTest(rule):
+                self.assertEqual(problems(action(**change)), [rule])
+                with self.assertRaises(RegistryError):
+                    Registry((action(**change),))
+        self.assertIn("kind", problems(action(kind="action")), "the word itself, not its spelling")
+
+    def test_a_route_still_needs_points_a_compat_and_ceilings(self):
+        self.assertIn("points", problems(ac.definition(points=frozenset())))
+        self.assertIn("compat", problems(ac.definition(compat=None)))
+        self.assertIn("ceilings", problems(ac.definition(ceilings=None)))
+
+    def test_core_never_asks_an_action_and_nothing_is_spent_for_it(self):
+        runtime = self.runtime(action())
+        self.assertTrue(self.arm(runtime, "test_report")["done"])
+        self.assertEqual(runtime.states(fresh=True)["test_report"], "armed")
+        from codex_auto_resume.domain import plug as core
+        for point in core.Point:
+            hook = getattr(core.Plug, core.HOOKS[point])
+            arguments = [object() for _ in list(inspect.signature(hook).parameters)[1:]]
+            with self.subTest(point):
+                self.assertIs(runtime.ask(point, *arguments), getattr(core.NULL, core.HOOKS[point])(*arguments))
+        self.assertEqual(runtime._code, {}, "its code was never made")
+        self.assertEqual(runtime.state.spent("test_report", ac.THREAD),
+                         {"capability_day": 0, "conversation_day": 0, "global_hour": 0})
+
+    def test_a_surface_shows_an_action_with_no_ceilings_no_compat_and_nothing_sent(self):
+        runtime = self.runtime(ac.definition(), action())
+        route, report = runtime.arming.listing()["capabilities"]
+        self.assertEqual((route["kind"], report["kind"]), ("route", "action"))
+        self.assertEqual((report["ceilings"], report["compat"], report["points"], report["sends"]),
+                         (None, None, [], False))
+        self.assertEqual(route["ceilings"], {"per_day": 3, "per_conversation": 2})
+
+    def test_an_action_has_no_compatibility_warning_whatever_codex_says(self):
+        from codex_auto_resume_advanced import arming
+        for view in (ac.view("FAILED_HERE"), ac.view("INCOMPATIBLE"), {}, None):
+            with self.subTest(view=view):
+                self.assertIsNone(arming.compat_warning(view, action()))
+        self.assertEqual(arming.warnings_for(action(), ac.view()), ())
+        self.assertEqual(arming.warnings_for(action(), {}), (ArmingWarning.ENGINE_UNKNOWN,))
+
+
 class StandardsTests(unittest.TestCase):
     def test_the_ids_are_the_families_numbered_without_gaps(self):
-        self.assertEqual(len(standards.STANDARDS), 174)
-        self.assertEqual(len(set(standards.STANDARDS)), 174)
+        self.assertEqual(len(standards.STANDARDS), 175)
+        self.assertEqual(len(set(standards.STANDARDS)), 175)
         self.assertEqual(standards.STANDARDS[:2], ("0.1", "0.2"))
-        self.assertEqual(standards.STANDARDS[-1], "K7")
+        self.assertEqual(standards.STANDARDS[-1], "K8")
         self.assertEqual(len(standards.DEPARTABLE), 167)
         self.assertEqual(standards.DEPARTABLE[-1], "J14")
 
@@ -394,6 +687,27 @@ class ShippedCatalogTests(unittest.TestCase):
                     # A page in the person's language: its tab, its buttons and the capabilities' names are theirs.
                     for key in ("page.nav", "page.turn_on", "page.watch", "page.all_off"):
                         self.assertNotEqual(words[key], english[key], key)
+
+    def test_the_report_card_can_say_every_word_its_flow_answers_with(self):
+        """Every refusal of the compatibility report, every write it names and every reason it sends on the web has
+        its sentence on the page, in every language, and the word that sends is `send` in each - inside a sentence
+        of the person's own language, never translated itself (design H.4)."""
+        from codex_auto_resume_advanced.vocabulary import ReportRefusal, ReportWrite, WebReason
+        words = statement.CATALOGS.words("en")
+        for code in ReportRefusal:
+            self.assertIn("page.report.refused." + str(code), words)
+        for write in ReportWrite:
+            self.assertIn("page.report.w." + str(write), words)
+        for reason in WebReason:
+            self.assertIn("page.report.web." + str(reason), words)
+        for locale in l10n.LOCALES:
+            with self.subTest(locale):
+                own = statement.CATALOGS.own(locale)
+                for key in ("page.report.type", "page.report.refused.word", "page.action_limits",
+                            statement.key("compat_report", Field.DOES)):
+                    self.assertRegex(own[key], r"(?<![A-Za-z])send(?![A-Za-z])", key)
+                if locale != "en":
+                    self.assertNotEqual(own["page.report.write"], words["page.report.write"])
 
     def test_every_translation_is_current_by_the_bookkeeping(self):
         """build/l10n.py --advanced: each language's words are a translation of the English as it is now - its basis

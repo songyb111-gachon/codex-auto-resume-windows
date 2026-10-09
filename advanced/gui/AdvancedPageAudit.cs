@@ -5,9 +5,11 @@
 // Two entry points, as the standard window has LayoutAudit (gui/WindowAudit.cs), and run by
 // advanced/tests/test_advanced_page.py, never by the window a person opens:
 //
-//   * AdvancedLayoutAudit lays the page out in one language at one scaling, each capability open in turn, and
-//     reports what is cut off, what has no name a screen reader can say and a list that would scroll sideways, in
-//     the window's own measurements - the standard audit's own checks (Audit, AuditSpoken, AuditPins, AuditList);
+//   * AdvancedLayoutAudit lays the page out in one language at one scaling, each capability open in turn - the
+//     report's card in every state a report can be in, and Pending with the reset rules scheduled - and reports
+//     what is cut off, what has no name a screen
+//     reader can say and a list that would scroll sideways, in the window's own measurements - the standard
+//     audit's own checks (Audit, AuditSpoken, AuditPins, AuditList);
 //   * AdvancedPageRun drives the page as a person would - a snapshot arriving, the tab pressed, a row chosen, a
 //     button pressed, the dialog answered - with the bridge's replies and the dialog's answers given by the test, and
 //     says what the page showed, what it sent, what it asked and what it told.
@@ -105,9 +107,14 @@ namespace CodexAutoResume
         /// (advanced-words' `words`) at `scale`: one line each, and an empty string when there is none.
         ///
         /// The list is `listingJson` (advanced-list's answer) and the statements `statementsJson`, {id: advanced-
-        /// statement's answer}. The page is laid out at the window's opening size with each capability open in turn -
-        /// with what a policy refuses of it and every warning its statement carries - then with a list that could not
-        /// be read. At each: the standard audit's Walk (anything cut off, a page that would scroll sideways, a field
+        /// statement's answer}; what the capabilities keep is `keptJson`, {"advanced-rules": its answer, "advanced-samples":
+        /// its answer, "advanced-watch-log": one answer every capability shows, "pending": the snapshot's pending list,
+        /// "advanced-resets": its answer, "snapshot": the dashboard reply whose conversations the reset forms offer},
+        /// shown on the cards of the capabilities that have them - and, where there are reset rules, on Pending. The
+        /// page is laid out at the window's opening size with each capability open in turn - with what a policy refuses of
+        /// it and every warning its statement carries - then each action open with its card in each of `reportsJson`'s
+        /// states ([{"state", "built", "checked", "last", "told", "job", "login", "word"}], AdoptReportState), then with a
+        /// list that could not be read. At each: the standard audit's Walk (anything cut off, a page that would scroll sideways, a field
         /// that is not a field high), a control with no name a screen reader can say, a pinned control out of its
         /// corner, and the list's columns wider than it is. Last, the narrowest window there is, held to its tabs and its
         /// list (AuditNarrowest), on two screens that do not depend on this machine's: one as wide as anything needs,
@@ -116,7 +123,7 @@ namespace CodexAutoResume
         /// narrowest screen the window opens on at this scaling, TextScale.NarrowestWidth wide - the text size is fitted
         /// so that one holds the standard window - where the tabs take a second row rather than be cut off.
         internal static string AdvancedLayoutAudit(string stringsJson, string wordsJson, string listingJson, string statementsJson,
-                                                   double scale)
+                                                   string keptJson, string reportsJson, double scale)
         {
             var findings = new List<string>();
             AdvancedAudited = 0;
@@ -124,7 +131,15 @@ namespace CodexAutoResume
             {
                 var listing = Json.Parse(listingJson) as Dictionary<string, object>;
                 var statements = Json.Parse(statementsJson) as Dictionary<string, object> ?? new Dictionary<string, object>();
+                var kept = Json.Parse(keptJson) as Dictionary<string, object>;
+                form.advancedRules = Map(kept, "advanced-rules");
+                form.advancedSamples = Map(kept, "advanced-samples");
+                form.advancedPending = Items(kept, "pending");
+                form.advancedResets = Map(kept, "advanced-resets");
+                Dictionary<string, object> shot = Map(kept, "snapshot");
                 form.AdoptAdvancedWords(Json.Parse(wordsJson) as Dictionary<string, object>);
+                // The conversations the reset forms offer, and Pending's list, are the snapshot's.
+                if (shot != null) form.ApplySnapshot(shot);
                 form.ShowAdvancedList(listing);
                 foreach (KeyValuePair<string, object> pair in statements)
                     form.ShowAdvancedStatement(pair.Key, pair.Value as Dictionary<string, object>);
@@ -135,11 +150,36 @@ namespace CodexAutoResume
                     string id = Str(entry as Dictionary<string, object>, "id");
                     if (id != null) ids.Add(id);
                 }
+                // What each would have done while watched, at its fullest: one line for every answer the log names.
+                foreach (string id in ids) form.advancedWatchLog[id] = Map(kept, "advanced-watch-log");
                 foreach (string id in ids)
                 {
                     form.OpenAdvanced(id);
                     form.FillAdvancedList();
                     form.AuditAdvanced("advanced/" + id, findings);
+                }
+                var reports = Json.Parse(reportsJson) as List<object> ?? new List<object>();
+                foreach (string id in ids)
+                {
+                    Dictionary<string, object> item = form.AdvancedItem(id);
+                    if (!IsReport(item)) continue;
+                    form.OpenAdvanced(id);
+                    for (int n = 0; n < reports.Count; n++)
+                    {
+                        form.AdoptReportState(item, reports[n] as Dictionary<string, object>);
+                        form.FillAdvancedList();
+                        form.RefreshReport();
+                        form.AuditAdvanced("advanced/" + id + "/report " + n, findings);
+                    }
+                    form.AdoptReportState(item, null);
+                }
+                // Pending, with every reset rule still to act scheduled under its list (AdvancedResets.cs).
+                if (form.advancedResets != null)
+                {
+                    form.ShowPage("pending");
+                    form.FillScheduled();
+                    form.AuditScheduled("pending/scheduled", findings);
+                    form.ShowAdvanced();
                 }
                 form.ShowAdvancedList(null);
                 form.AuditAdvanced("advanced unread", findings);
@@ -187,6 +227,17 @@ namespace CodexAutoResume
             if (advancedList != null) AuditList(where + "/" + AuditName(advancedList), advancedList, findings);
         }
 
+        /// Pending with its scheduled group: the standard audit's checks, on a page that is not this one.
+        private void AuditScheduled(string where, List<string> findings)
+        {
+            AdvancedAudited++;
+            if (currentPage != "pending" || scheduledHolder == null || !OwnVisible(scheduledHolder))
+                findings.Add(where + " :: the scheduled group is not showing");
+            Audit(where, findings);
+            AuditSpoken(where, this, findings);
+            AuditPins(where, findings);
+        }
+
         private void AuditAdvanced(string where, List<string> findings)
         {
             AdvancedAudited++;
@@ -200,6 +251,26 @@ namespace CodexAutoResume
             if (advancedList != null) AuditList(where + "/" + AuditName(advancedList), advancedList, findings);
         }
 
+        /// The report's card as `state` has it - on, watched or off, with what was written, checked, ended and said -
+        /// or as nothing was ever done, for null: what the layout audit lays out (AdvancedLayoutAudit).
+        private void AdoptReportState(Dictionary<string, object> item, Dictionary<string, object> state)
+        {
+            if (item != null)
+            {
+                string standing = Str(state, "state") ?? StateArmed;
+                item["state"] = standing;
+                item["stored"] = standing;
+            }
+            reportBuilt = Map(state, "built");
+            reportChecked = Map(state, "checked");
+            reportLast = Map(state, "last");
+            reportTold = Str(state, "told");
+            reportJobKind = Str(state, "job");
+            reportJob = reportJobKind == null ? null : "audit";
+            reportLoginText = Str(state, "login") ?? "";
+            reportWordText = Str(state, "word") ?? "";
+        }
+
         // ---------------------------------------------------------------- driving the page
         /// The page driven as a person would, from `scenarioJson`: {"answers": [the dialog's answers], "script": {command
         /// or "<command> <capability>": [replies, as the bridge gives them]}, "steps": [...]}. A step is one of
@@ -208,8 +279,24 @@ namespace CodexAutoResume
         ///   {"do": "show"}                                    the tab pressed
         ///   {"do": "page", "name": ...}                       another page's tab pressed
         ///   {"do": "choose", "id": ...}                       that capability's row chosen in the list
-        ///   {"do": "press", "button": on|watch|off|all_off}   a button pressed, if it can be
+        ///   {"do": "press", "button": on|watch|off|all_off|   a button pressed, if it can be: the page's, Keep it on's
+        ///    keep_on|send_again|let_go|report_write|          or the report card's
+        ///    report_save|report_check|report_send}
+        ///   {"do": "type", "into": login|word, "text": ...}  text typed into one of the report's boxes, whole
+        ///   {"do": "poll"}                                    the running report job read, as the page's clock reads it
+        ///   {"do": "save_to", "path": ...}                    the file the save dialog would answer with
         ///   {"do": "hourly", "value": n}                      the hourly limit chosen, and the pause after it over
+        ///   {"do": "set_option", "key": ..., "value": n}      a choice made in that choice's drop-down
+        ///   {"do": "rule", "tag": ..., "sampled": ...,        a new rule's fields filled - its code typed, or taken from the
+        ///    "from": ..., "to": ..., "kind": ...}             samples' drop-down - and Add rule pressed, if it can be
+        ///   {"do": "remove", "rule": n}                       that rule's Remove pressed, if it can be
+        ///   {"do": "send_now", "id": ...}                     that waiting recovery's Send now pressed, if it can be
+        ///   {"do": "reset_add", "family": "bucket minutes",   a reset form filled - its window chosen first, then which
+        ///    "ordinal": ..., "repeat": once|every,            one, how often and whether it asks, or the conversation and
+        ///    "ask": own|ask, "thread": ..., "words": ...}     the words - and Add pressed, if it can be
+        ///   {"do": "reset_cancel"|"reset_go_on"|              that rule's Cancel or Go on counting pressed on the page, or
+        ///    "scheduled_cancel"|"scheduled_go_on", "rule": n} in Pending's scheduled group, if it can be
+        ///   {"do": "credit_now", "rule": n | "family": ...}   a Use a reset credit now... pressed, if it can be
         ///   {"do": "ctrl-tab", "shift": bool}                 Ctrl+Tab, or Ctrl+Shift+Tab
         ///   {"do": "reply", "key": ..., "with": [...]}        what the bridge answers from now on
         ///   {"do": "answer", "with": [...]}                   what the person answers the next questions
@@ -253,7 +340,12 @@ namespace CodexAutoResume
                     {
                         string name = Str(step, "button");
                         Button button = name == "on" ? form.advancedOn : name == "watch" ? form.advancedWatch
-                                      : name == "off" ? form.advancedOff : name == "all_off" ? form.advancedAllOff : null;
+                                      : name == "off" ? form.advancedOff : name == "all_off" ? form.advancedAllOff
+                                      : name == "keep_on" ? form.keepOnButton : name == "send_again" ? form.sendAgainButton
+                                      : name == "let_go" ? form.letGoButton
+                                      : name == "report_write" ? form.reportWrite : name == "report_save" ? form.reportSave
+                                      : name == "report_check" ? form.reportCheck : name == "report_send" ? form.reportSend
+                                      : null;
                         if (button == null || !button.Enabled || !OwnVisible(button)) disabled.Add(name);
                         else Pressed.Invoke(button, new object[] { EventArgs.Empty });
                     }
@@ -267,6 +359,79 @@ namespace CodexAutoResume
                             form.SetHourly(form.hourlyChosen);
                         }
                     }
+                    else if (what == "set_option")
+                    {
+                        SoftCombo combo = form.advancedChoices.Find(delegate(SoftCombo each) { return Equals(each.Tag, Str(step, "key")); });
+                        if (combo == null || !combo.Enabled) disabled.Add("set_option");
+                        else
+                        {
+                            Choose(combo, Convert.ToString(Whole(Get(step, "value")), System.Globalization.CultureInfo.InvariantCulture));
+                            Committed.Invoke(combo, new object[] { EventArgs.Empty });
+                        }
+                    }
+                    else if (what == "rule")
+                    {
+                        if (form.ruleAdd == null || !form.ruleAdd.Enabled) disabled.Add("rule");
+                        else
+                        {
+                            if (Str(step, "sampled") != null && form.ruleSampled != null)
+                            {
+                                Choose(form.ruleSampled, Str(step, "sampled"));
+                                Committed.Invoke(form.ruleSampled, new object[] { EventArgs.Empty });
+                            }
+                            if (Str(step, "tag") != null) form.ruleTag.Box.Text = Str(step, "tag");
+                            form.ruleFrom.Box.Text = Str(step, "from") ?? "";
+                            form.ruleTo.Box.Text = Str(step, "to") ?? "";
+                            if (Str(step, "kind") != null) Choose(form.ruleKind, Str(step, "kind"));
+                            Pressed.Invoke(form.ruleAdd, new object[] { EventArgs.Empty });
+                        }
+                    }
+                    else if (what == "send_now")
+                    {
+                        Button send = form.sendNowButtons.Find(delegate(Button each) { return Equals(each.Tag, Str(step, "id")); });
+                        if (send == null || !send.Enabled) disabled.Add("send_now");
+                        else Pressed.Invoke(send, new object[] { EventArgs.Empty });
+                    }
+                    else if (what == "reset_add")
+                    {
+                        if (form.resetAdd == null || form.resetFamily == null) disabled.Add("reset_add");
+                        else
+                        {
+                            if (Str(step, "family") != null)
+                            {
+                                Choose(form.resetFamily, Str(step, "family"));
+                                Committed.Invoke(form.resetFamily, new object[] { EventArgs.Empty });
+                            }
+                            foreach (KeyValuePair<string, SoftCombo> field in new Dictionary<string, SoftCombo> {
+                                         { "ordinal", form.resetOrdinal }, { "repeat", form.resetRepeat }, { "ask", form.resetAsk },
+                                         { "thread", form.resetConversation } })
+                                if (Str(step, field.Key) != null && field.Value != null)
+                                {
+                                    Choose(field.Value, Str(step, field.Key));
+                                    Committed.Invoke(field.Value, new object[] { EventArgs.Empty });
+                                }
+                            if (Str(step, "words") != null && form.resetWords != null) form.resetWords.Box.Text = Str(step, "words");
+                            if (!form.resetAdd.Enabled) disabled.Add("reset_add");
+                            else Pressed.Invoke(form.resetAdd, new object[] { EventArgs.Empty });
+                        }
+                    }
+                    else if (what == "reset_cancel" || what == "reset_go_on" || what == "scheduled_cancel" ||
+                             what == "scheduled_go_on" || what == "credit_now")
+                    {
+                        List<Button> buttons = what == "reset_cancel" ? form.resetCancels : what == "reset_go_on" ? form.resetGoOns
+                                             : what == "scheduled_cancel" ? form.scheduledCancels
+                                             : what == "scheduled_go_on" ? form.scheduledGoOns : form.creditNowButtons;
+                        object key = Get(step, "rule") ?? Get(step, "family");
+                        Button found = buttons.Find(delegate(Button each) { return Equals(each.Tag, key); });
+                        if (found == null || !found.Enabled) disabled.Add(what);
+                        else Pressed.Invoke(found, new object[] { EventArgs.Empty });
+                    }
+                    else if (what == "remove")
+                    {
+                        Button remove = form.ruleRemoves.Find(delegate(Button each) { return Equals(each.Tag, Get(step, "rule")); });
+                        if (remove == null || !remove.Enabled) disabled.Add("remove");
+                        else Pressed.Invoke(remove, new object[] { EventArgs.Empty });
+                    }
                     else if (what == "ctrl-tab")
                     {
                         Keys keys = Keys.Control | Keys.Tab | (Equals(Get(step, "shift"), true) ? Keys.Shift : Keys.None);
@@ -274,6 +439,14 @@ namespace CodexAutoResume
                         // As a key reaches the window: its command keys first, then the key preview (BuildDashboard).
                         if (!form.ProcessCmdKey(ref message, keys)) form.OnKeyDown(new KeyEventArgs(keys));
                     }
+                    else if (what == "type")
+                    {
+                        SoftTextArea box = Str(step, "into") == "word" ? form.reportWord : form.reportLogin;
+                        if (box == null || !OwnVisible(box)) disabled.Add("type " + Str(step, "into"));
+                        else box.Box.Text = Str(step, "text") ?? "";
+                    }
+                    else if (what == "poll") form.PollReport();
+                    else if (what == "save_to") form.advancedSaveTo = Str(step, "path");
                     else if (what == "reply")
                         form.advancedScript[Str(step, "key") ?? ""] = new List<object>(Items(step, "with") ?? new List<object>());
                     else if (what == "answer")
@@ -308,6 +481,26 @@ namespace CodexAutoResume
         // Control.OnClick, which raises Click as a press of the button does.
         private static readonly System.Reflection.MethodInfo Pressed =
             typeof(Control).GetMethod("OnClick", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        // ComboBox.OnSelectionChangeCommitted, which a choice taken from the list raises.
+        private static readonly System.Reflection.MethodInfo Committed =
+            typeof(ComboBox).GetMethod("OnSelectionChangeCommitted", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+        /// The item of `combo` whose value is `value` chosen, as a choice from its list chooses it.
+        private static void Choose(ComboBox combo, string value)
+        {
+            for (int i = 0; i < combo.Items.Count; i++)
+            {
+                var choice = combo.Items[i] as Choice;
+                if (choice != null && choice.Value == value) combo.SelectedIndex = i;
+            }
+        }
+
+        private static List<object> ItemsOf(ComboBox combo)
+        {
+            var items = new List<object>();
+            if (combo != null) foreach (object item in combo.Items) items.Add(item.ToString());
+            return items;
+        }
 
         /// The row for `id` chosen in the list, as a click on it chooses it.
         private void ChooseAdvanced(string id)
@@ -377,7 +570,112 @@ namespace CodexAutoResume
                 look["hourly"] = hourly;
             }
             else look["hourly"] = null;
+            // The open capability's choices - each one's drop-down, what it offers and what it shows - and the rules'
+            // editor: what each rule's Remove names, the kinds and the samples' codes offered, and whether Add can be pressed.
+            var choices = new List<object>();
+            foreach (SoftCombo combo in advancedChoices)
+            {
+                var choice = new Dictionary<string, object>();
+                choice["key"] = combo.Tag as string;
+                choice["items"] = ItemsOf(combo);
+                choice["value"] = combo.SelectedItem == null ? null : combo.SelectedItem.ToString();
+                choice["enabled"] = combo.Enabled;
+                choices.Add(choice);
+            }
+            look["choices"] = choices;
+            if (ruleRemoves.Count > 0 || ruleAdd != null)
+            {
+                var editor = new Dictionary<string, object>();
+                var removes = new List<object>();
+                foreach (Button remove in ruleRemoves) removes.Add(remove.Tag);
+                editor["removes"] = removes;
+                editor["add"] = ruleAdd == null ? (object)null : ruleAdd.Enabled;
+                editor["kinds"] = ItemsOf(ruleKind);
+                editor["sampled"] = ItemsOf(ruleSampled);
+                look["rules"] = editor;
+            }
+            else look["rules"] = null;
+            // Keep it on's buttons - whether each can be pressed, or null where it is not shown - and the waiting
+            // recoveries Send now offers, by their interruption ids.
+            var kept = new Dictionary<string, object>();
+            kept["keep_on"] = keepOnButton == null ? (object)null : keepOnButton.Enabled;
+            kept["send_again"] = sendAgainButton == null ? (object)null : sendAgainButton.Enabled;
+            kept["let_go"] = letGoButton == null ? (object)null : letGoButton.Enabled;
+            look["kept"] = kept;
+            var waiting = new List<object>();
+            foreach (Button send in sendNowButtons) waiting.Add(send.Tag);
+            look["send_now"] = waiting;
+            // The open reset action's form - what each drop-down offers and holds, the count of the words, whether Add can
+            // be pressed - and the rules its Cancel, Go on counting and Use a reset credit now... buttons name; and
+            // Pending's scheduled group: whether it shows, its lines and what its Cancel buttons name.
+            if (resetAdd != null)
+            {
+                var resets = new Dictionary<string, object>();
+                foreach (KeyValuePair<string, SoftCombo> field in new Dictionary<string, SoftCombo> {
+                             { "families", resetFamily }, { "ordinals", resetOrdinal }, { "repeat", resetRepeat }, { "ask", resetAsk },
+                             { "conversations", resetConversation } })
+                {
+                    resets[field.Key] = field.Value == null ? null : ItemsOf(field.Value);
+                    resets[field.Key + "_chosen"] = field.Value == null || field.Value.SelectedItem == null ? null
+                                                    : field.Value.SelectedItem.ToString();
+                }
+                resets["words"] = resetWords == null ? null : resetWords.Box.Text;
+                resets["most"] = resetWords == null ? (object)null : (double)resetWords.Box.MaxLength;
+                resets["count"] = resetCount == null ? null : resetCount.Text;
+                resets["add"] = resetAdd.Enabled;
+                resets["cancels"] = Tags(resetCancels);
+                resets["go_ons"] = Tags(resetGoOns);
+                resets["now"] = Tags(creditNowButtons);
+                look["resets"] = resets;
+            }
+            else look["resets"] = null;
+            var scheduled = new Dictionary<string, object>();
+            scheduled["group_shown"] = scheduledHolder != null && OwnVisible(scheduledHolder);
+            var lines = new List<object>();
+            if (scheduledCard != null) Texts(scheduledCard, lines);
+            scheduled["texts"] = lines;
+            scheduled["cancels"] = Tags(scheduledCancels);
+            scheduled["go_ons"] = Tags(scheduledGoOns);
+            look["scheduled"] = scheduled;
+            // The report's card: what its boxes hold, what each of its buttons may do (null where there is none), the
+            // job it is reading, what it said and how the last check or send ended, the text it shows in boxes that can
+            // be selected (a link, a SHA-256), and how many holds on the window's reopen there are.
+            var report = new Dictionary<string, object>();
+            report["login"] = reportLogin == null ? null : reportLogin.Box.Text;
+            report["word"] = reportWord == null ? null : reportWord.Box.Text;
+            report["file"] = reportFile == null ? null : reportFile.Box.Text;
+            var pressable = new Dictionary<string, object>();
+            pressable["write"] = reportWrite == null ? null : (object)reportWrite.Enabled;
+            pressable["save"] = reportSave == null ? null : (object)reportSave.Enabled;
+            pressable["check"] = reportCheck == null ? null : (object)reportCheck.Enabled;
+            pressable["send"] = reportSend == null ? null : (object)reportSend.Enabled;
+            report["buttons"] = pressable;
+            report["job"] = reportJob;
+            report["kind"] = reportJobKind;
+            report["told"] = reportTold;
+            report["checked"] = Str(reportChecked, "status");
+            report["last"] = Str(reportLast, "status");
+            var boxes = new List<object>();
+            if (advancedStack != null) Boxes(advancedStack, boxes);
+            report["boxes"] = boxes;
+            report["holds"] = (double)reopenHolds;
+            look["report"] = report;
             return look;
+        }
+
+        private static List<object> Tags(List<Button> buttons)
+        {
+            var tags = new List<object>();
+            foreach (Button button in buttons) tags.Add(button.Tag);
+            return tags;
+        }
+
+        /// The text of every read-only box in `control`, in order: what the page shows that a person can select.
+        private static void Boxes(Control control, List<object> into)
+        {
+            var area = control as SoftTextArea;
+            if (area != null && area.Box.ReadOnly) into.Add(area.Box.Text);
+            foreach (Control child in control.Controls) Boxes(child, into);
         }
 
         /// The words a control shows, and those of everything in it, in order: a label's text, a callout's notice.

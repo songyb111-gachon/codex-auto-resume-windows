@@ -14,6 +14,15 @@ from __future__ import annotations
 from enum import StrEnum
 
 
+class CapabilityKind(StrEnum):
+    """What a capability is. A ROUTE answers at plug points: core asks it, and what it changes core
+    carries out, under its ceilings. An ACTION answers at no point: core never asks it, it sends
+    nothing to Codex and spends no unit, and only a person, in the Dashboard, starts what it does
+    (a compatibility report, written and sent only when they say so)."""
+    ROUTE = "route"
+    ACTION = "action"
+
+
 class ArmingState(StrEnum):
     """Where one capability stands. OFF is where every capability starts, and the only state
     anything but a person in the Dashboard can move one to."""
@@ -47,11 +56,21 @@ class OffReason(StrEnum):
     HOOK_EXCEPTION = "hook_exception"
     STATEMENT_CHANGED = "statement_changed"
     MEASUREMENT_FAILED = "measurement_failed"
+    # A continuation it sent once more was found twice in Codex's history (v0.6.14, stage 3b): the
+    # harm a resend risks. It turns off what sent it again whether or not it is kept on - the
+    # once-more capability, or Keep on's Send again alone (arming.py).
+    DUPLICATE_SEEN = "duplicate_seen"
 
 
 TRIPWIRES = frozenset({OffReason.SUBMISSION_UNKNOWN, OffReason.LOCAL_CHECK_FAILED,
                        OffReason.FAILED_HERE, OffReason.INCOMPATIBLE, OffReason.HOOK_EXCEPTION,
-                       OffReason.STATEMENT_CHANGED, OffReason.MEASUREMENT_FAILED})
+                       OffReason.STATEMENT_CHANGED, OffReason.MEASUREMENT_FAILED,
+                       OffReason.DUPLICATE_SEEN})
+# What a capability kept on (KeepOn, K8) notes instead of turning off, most serious first: the order
+# in which one notice gives way to another (state/arming.py, note_kept). A notice only ever rises.
+KEPT_NOTICES = (OffReason.DUPLICATE_SEEN, OffReason.STATEMENT_CHANGED, OffReason.FAILED_HERE,
+                OffReason.LOCAL_CHECK_FAILED, OffReason.INCOMPATIBLE, OffReason.MEASUREMENT_FAILED,
+                OffReason.ENGINE_CHANGED, OffReason.SUBMISSION_UNKNOWN, OffReason.HOOK_EXCEPTION)
 
 
 class ArmingWarning(StrEnum):
@@ -88,6 +107,27 @@ class Refusal(StrEnum):
     # confirmed at once; it never says the capability cannot be turned on.
     STALE_CONFIRMATION = "stale_confirmation"
     STATE_UNAVAILABLE = "state_unavailable"
+    # Keep on (v0.6.14, K8) for a capability that is not on or watched: there is nothing to keep on.
+    NOT_ON = "not_on"
+    # A capability's own choices and rules (v0.6.14, state/choices.py): a value it does not offer,
+    # and each way a rule for Codex's error codes is refused.
+    OPTION_INVALID = "option_invalid"
+    RULE_SHAPE = "rule_shape"                # not letters and digits, starting with a letter, <= 64
+    RULE_KNOWN = "rule_known"                # a code the product already classifies
+    RULE_DECISION = "rule_decision"          # a code that may name a person's decision
+    RULE_RANGE = "rule_range"                # status numbers outside 100-599, or backwards
+    RULE_OVERLAP = "rule_overlap"            # another rule covers this code and these numbers
+    RULES_FULL = "rules_full"                # ten rules already
+    UNKNOWN_RULE = "unknown_rule"
+    # The reset actions (v0.6.14, state/resets.py): a window or a count of resets that is not one on offer;
+    # as many rules waiting as may; a message the check refuses or too long; one waiting in that conversation
+    # already; one being sent, which Cancel no longer reaches; and a message for a conversation switched off.
+    OCCASION_INVALID = "occasion_invalid"
+    RESETS_FULL = "resets_full"
+    MESSAGE_REFUSED = "message_refused"
+    ALREADY_SCHEDULED = "already_scheduled"
+    BEING_SENT = "being_sent"
+    CONVERSATION_OFF = "conversation_off"
 
 
 class JournalCode(StrEnum):
@@ -103,6 +143,17 @@ class JournalCode(StrEnum):
     ACTED = "acted"                          # an armed capability's answer, taken
     CEILING = "ceiling"                      # an armed capability's answer, not taken: no unit left
     CEILING_CHANGED = "ceiling_changed"
+    OPTION_CHANGED = "option_changed"        # a capability's own choice, set in the Dashboard
+    RULE_ADDED = "rule_added"
+    RULE_REMOVED = "rule_removed"
+    # Keep on (v0.6.14, K8): set and let go in the Dashboard, and what a kept-on capability noted
+    # instead of turning itself off - once each time its notice rises, never once a tick.
+    KEEP_ON = "keep_on"
+    KEEP_ON_OFF = "keep_on_off"
+    KEPT = "kept"
+    # Keep on's Send again let go while Keep on stays (v0.6.14): by the person, or by a continuation it
+    # sent again found twice.
+    SEND_AGAIN_OFF = "send_again_off"
     OTHER = "other"
 
 
@@ -120,6 +171,23 @@ class OverrideKind(StrEnum):
     EARLY_RESET = "early_reset"
     CAPACITY_LADDER = "capacity_ladder"
     RESEND_ONCE = "resend_once"
+
+
+class OptionKey(StrEnum):
+    """A choice a capability offers a person (registry.Option), stored in `options` by this key."""
+    ATTEMPTS = "attempts"                    # how many tries a task gets
+    CEILING_HOURS = "ceiling_hours"          # for how long, in hours on the clock, it keeps trying
+
+
+class KeepOn(StrEnum):
+    """What a person chose, in the Dashboard, to keep a capability on through (v0.6.14, the owner's
+    K8): stored in `options` beside its own choices, one row for each, none for none - and every row
+    taken away by any move to off. Not a capability's own choice: every capability may be kept on."""
+    KEEP_ON = "keep_on"                      # it does not turn itself off; what would have, is noted
+    # With Keep on alone (v0.6.14): a continuation it paid for that cannot be proven to have arrived
+    # is sent once more, under the once-more capability's rules (engine/oncemore.py), where the policy
+    # admits that capability too.
+    SEND_AGAIN = "send_again"
 
 
 class Ceiling(StrEnum):
@@ -163,6 +231,40 @@ class BridgeCommand(StrEnum):
     # measurement for the same Codex version (measure.py, evidence.complete). Content-free, the
     # Dashboard's like MEASURE, and reached by no MCP tool.
     MEASURE_VERDICT = "measure-verdict"
+    # A capability's own choices and the rules for Codex's error codes (v0.6.14, state/choices.py): a
+    # choice set, the rules read, one added, one removed, and the samples of what nothing classified
+    # read - the Dashboard's like the rest, each write against the generation the page read, and
+    # reached by no MCP tool.
+    ADVANCED_OPTION = "advanced-option"
+    ADVANCED_RULES = "advanced-rules"
+    ADVANCED_RULE_ADD = "advanced-rule-add"
+    ADVANCED_RULE_REMOVE = "advanced-rule-remove"
+    ADVANCED_SAMPLES = "advanced-samples"
+    # Keep on (v0.6.14, K8): set or let go for one capability that is on or watched, the Dashboard's
+    # alone, after its warning, against the generation the page read; no MCP tool reaches it.
+    ADVANCED_KEEP_ON = "advanced-keep-on"
+    # Send now (v0.6.14): a person's request that one waiting recovery go at the watcher's next look,
+    # by its interruption id, the Dashboard's alone while Send now is on; no MCP tool reaches it.
+    ADVANCED_SEND_NOW = "advanced-send-now"
+    # The watch log (v0.6.14, watchlog.py): what a watched capability would have done, by its id -
+    # read-only, the Dashboard's; no MCP tool reaches it.
+    ADVANCED_WATCH_LOG = "advanced-watch-log"
+    # The reset actions (v0.6.14, control/resets.py): the rules and messages read, one added, one cancelled, one held
+    # over a gap let go on, and a reset credit used now - the Dashboard's alone, against the generation the page
+    # read; no MCP tool reaches any of them.
+    ADVANCED_RESETS = "advanced-resets"
+    ADVANCED_RESET_ADD = "advanced-reset-add"
+    ADVANCED_RESET_CANCEL = "advanced-reset-cancel"
+    ADVANCED_RESET_GO_ON = "advanced-reset-go-on"
+    ADVANCED_CREDIT_NOW = "advanced-credit-now"
+    # The compatibility report (report/flow.py): write it, save it where the person chooses, check what
+    # sending would write, send it, and read how one of the first, third or fourth - each a job this
+    # process holds - is getting on. Like the rest, only the Dashboard's; no MCP tool reaches any of them.
+    ADVANCED_REPORT_BUILD = "advanced-report-build"
+    ADVANCED_REPORT_SAVE = "advanced-report-save"
+    ADVANCED_REPORT_CHECK = "advanced-report-check"
+    ADVANCED_REPORT_SEND = "advanced-report-send"
+    ADVANCED_REPORT_JOB = "advanced-report-job"
 
 
 class Measurement(StrEnum):
@@ -184,6 +286,67 @@ class Measurement(StrEnum):
     MH = "mh"                                # the Desktop runs on a second CODEX_HOME
     MA = "ma"                                # the running app picks up an account logout+login
     MW = "mw"                                # re-proof of the WMI escape, with the job words
+    # The settings panel beside a conversation, in the Codex app's right side panel (v0.6.14): the
+    # engine keeps the panel's side-panel entrypoint and the side panel's New tab lists the panel and
+    # opens it (MP1); Open beside the chat moves it into a side panel tab, and closing the tab brings
+    # it back (MP2); beside the chat it calls its tools and reads again on return, and nothing
+    # appears in the conversation (MP3). Each is what a person sees in the app; MP1 alone reads.
+    MP1 = "mp1"
+    MP2 = "mp2"
+    MP3 = "mp3"
+    # Reset credits (v0.6.14): the usage read carries the count of reset credits, takes the param that
+    # leaves their details out, and keeps a running window's reset time still, and a window opens with
+    # its first use after a reset (MU); a consume with no credit to spend spends nothing (MN); and at a
+    # real limit one consume resets it, spends exactly one credit, and asked again with its key spends no
+    # second one (MR). Each is what the reset actions' routes rest on (engine/credits.py).
+    MU = "mu"
+    MN = "mn"
+    MR = "mr"
+
+
+class RuleState(StrEnum):
+    """Where one of the reset actions' rules stands (state/resets.py): counting the resets or fills of its
+    window, due (READY) and acting or asking, held until a person says go on, or finished - done, or
+    cancelled. Only a message that is counting, due or held holds its words."""
+    COUNTING = "counting"
+    READY = "ready"
+    HELD = "held"
+    DONE = "done"
+    CANCELLED = "cancelled"
+
+
+class RuleReason(StrEnum):
+    """Why a rule stands where it stands (state/resets.py), in the order a rule meets them."""
+    ASK_FIRST = "ask_first"                  # due: a person's click spends the credit (MR, or their choice)
+    COUNT_UNKNOWN = "count_unknown"          # due: how many credits there are cannot be read
+    EXPIRY_UNKNOWN = "expiry_unknown"        # due: when they expire cannot be read (the owner's rule)
+    BOUND = "bound"                          # due: two a day or seven a week spent already
+    NO_METHOD = "no_method"                  # due: this Codex has no way to spend one
+    NOTHING_WAITING = "nothing_waiting"      # due: no recovery waits for usage, so nothing is spent
+    COUNT_GAP = "count_gap"                  # held: two readings further apart than the window
+    WINDOW_GONE = "window_gone"              # held: Codex stopped reporting the window
+    SPENT = "spent"
+    NOTHING_TO_RESET = "nothing_to_reset"
+    NO_CREDIT = "no_credit"
+    LAPSED = "lapsed"                        # the window reset before anything was spent
+    UNKNOWN = "unknown"                      # what came of it cannot be proven
+    DELIVERED = "delivered"
+    EXPIRED = "expired"
+    NOT_STARTED = "not_started"
+    BY_PERSON = "by_person"
+    TURNED_OFF = "turned_off"
+    CONVERSATION_OFF = "conversation_off"    # its conversation was switched off (H5)
+
+
+class SpendOutcome(StrEnum):
+    """What one consume of a reset credit came to (account/rateLimitResetCredit/consume), in this
+    edition's words for Codex's four outcomes (codex/credits.OUTCOMES), and UNKNOWN for no answer, an
+    answer of another shape, or none in time - which is never taken for any of the four."""
+    RESET = "reset"                          # a credit was spent and the window reset
+    NOTHING_TO_RESET = "nothing_to_reset"    # no window was one a credit resets
+    NO_CREDIT = "no_credit"                  # no credit to spend
+    ALREADY_REDEEMED = "already_redeemed"    # the same key had reset it already
+    UNKNOWN = "unknown"
 
 
 class GoalStatus(StrEnum):
@@ -224,6 +387,76 @@ class NoteCode(StrEnum):
 
 NOTE_FOR_PASS = frozenset({NoteCode.AS_EXPECTED})
 NOTE_FOR_FAIL = frozenset(NoteCode) - NOTE_FOR_PASS
+
+
+class ReportRefusal(StrEnum):
+    """Why the compatibility report did not do what the Dashboard asked (report/). The first ten are
+    the reader's (report/records.ReadRefusal), the next four the file's (report/document.
+    DocumentRefusal); the rest are the flow's, the save's and GitHub's, through gh. A word, never an
+    id, a path, a login or text."""
+    NO_STATE = "no_state"
+    STATE_NEWER = "state_newer"
+    STATE_OLDER = "state_older"
+    STATE_UNREADABLE = "state_unreadable"
+    STATE_BUSY = "state_busy"
+    LEDGER_NEWER = "ledger_newer"
+    LEDGER_UNREADABLE = "ledger_unreadable"
+    NO_ENGINE_VERSION = "no_engine_version"
+    VERSION_INVALID = "version_invalid"
+    TOO_MANY_RECORDS = "too_many_records"
+    LOGIN_INVALID = "login_invalid"
+    LOGIN_RESERVED = "login_reserved"
+    LOGIN_OWNER = "login_owner"
+    TOO_LARGE = "too_large"
+    NOT_ON = "not_on"                        # off: nothing of it may be done
+    WATCHED = "watched"                      # watched: written, read and saved, never checked or sent
+    PAUSED = "paused"                        # recovery is paused: nothing is checked or sent (K5)
+    BUSY = "busy"                            # a report is being checked or sent, here or in another window
+    UNKNOWN_BUILD = "unknown_build"          # no report this process wrote has that SHA-256
+    CHANGED = "changed"                      # what sending would write is not what the person read
+    WORD = "word"                            # the word typed was not exactly send
+    FILE_EXISTS = "file_exists"
+    SAVE_FAILED = "save_failed"
+    GH_FAILED = "gh_failed"                  # gh could not be started, or GitHub refused a step
+    GH_TIMEOUT = "gh_timeout"                # gh did not answer in time, and was ended
+    GH_SPELLING = "gh_spelling"              # GitHub spells the login in other letters
+    NOT_OPEN = "not_open"                    # the project is not taking reports yet
+    ALREADY_FILED = "already_filed"
+    PR_OPEN = "pr_open"                      # another report pull request of that login is open
+    FORK_NAMED_OTHERWISE = "fork_named_otherwise"
+    FORK_NOT_READY = "fork_not_ready"
+    BASE_INVALID = "base_invalid"            # GitHub did not answer with the project's main as a commit
+
+
+class ReportStatus(StrEnum):
+    """Where one of the compatibility report's jobs stands, as advanced-report-job answers it."""
+    RUNNING = "running"
+    BUILT = "built"                          # written: the file, its SHA-256 and what it holds
+    SAVED = "saved"
+    CHECKED = "checked"                      # GitHub asked: every write sending would make
+    WEB = "web"                              # gh cannot send it from here: the web's steps instead
+    SENT = "sent"                            # the pull request is open, sent now or already
+    PARTIAL = "partial"                      # stopped after some writes: what is on GitHub now
+    REFUSED = "refused"                      # stopped before anything was written
+    LOST = "lost"                            # a job this process does not hold: whether it was sent is unknown
+
+
+class ReportWrite(StrEnum):
+    """One write sending a report makes to GitHub, in the order it makes them; each is shown, with its
+    name, before the person types send, and the send makes exactly those."""
+    FORK_NEW = "fork_new"
+    FORK_KEPT = "fork_kept"
+    BRANCH_NEW = "branch_new"
+    BRANCH_RESET = "branch_reset"
+    FILE = "file"
+    PR = "pr"
+
+
+class WebReason(StrEnum):
+    """Why a report has to be sent on the web: gh cannot send it from this PC."""
+    NO_GH = "no_gh"
+    GH_SIGNED_OUT = "gh_signed_out"
+    GH_OTHER_LOGIN = "gh_other_login"
 
 
 class McpTool(StrEnum):

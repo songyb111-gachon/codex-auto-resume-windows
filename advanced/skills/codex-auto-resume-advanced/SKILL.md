@@ -67,6 +67,15 @@ anywhere else, and do not present one as active unless `list_advanced_capabiliti
   edition. When arrival cannot be proven, the continuation is treated as uncertain and never sent
   again, and the capability turns itself off; the user can turn it on again in the Dashboard.
 
+- **Compatibility report.** Unlike the others it changes nothing about recovery: it is something the
+  user starts in the Dashboard. It writes a compatibility report from this PC's own records - counts,
+  states and times, no conversation text, ids or paths - shows the whole file, saves it where they
+  choose, and, only while it is on and recovery is not paused, sends it to the project as a public
+  GitHub pull request through the GitHub CLI they installed, after they type the word send there.
+  **Never write, check or send a compatibility report** for the user, and never type that word for
+  them: no tool reaches it, and the Dashboard is where they do it. A report grants nothing and changes
+  nothing the product does.
+
 ## Turning capabilities on and off
 
 - **Never turn a capability on** - not with a tool, a command, a setting or a file, and not when
@@ -83,6 +92,18 @@ anywhere else, and do not present one as active unless `list_advanced_capabiliti
   one from being turned on.
 - A capability that turned itself off after a problem appeared can be turned on again in the
   Dashboard, by the user, like any other.
+- **Keep it on** (a capability that does not turn itself off, with or without *Also send again when
+  unsure*) and **Send now** (one waiting recovery sent at the next look) are the Dashboard's, set or
+  asked for there by the user and nowhere else. No tool sets either, so never claim to have kept a
+  capability on or sent a recovery now; `list_advanced_capabilities` shows whether one is kept on.
+  Turning a capability off always works, kept on or not.
+- **The reset actions** - a reset credit used when a limit the user picked is reached, and a message
+  of the user's own sent to a conversation when the window they picked resets (with *Longer reset
+  messages*, an action that only lets such a message be longer) - are set, listed, cancelled and used
+  now only in the Dashboard, on the Advanced features page or under Scheduled on Pending. No tool reaches
+  a rule, a message's words or a reset credit: never write, schedule or cancel one for the user, and
+  never claim to have, or promise that a credit will be spent. `get_status` shows only how many wait.
+  A credit spent cannot be given back; if they ask, tell them where it is done.
 - Pause stops every capability along with everything else.
 
 ## Moving between editions

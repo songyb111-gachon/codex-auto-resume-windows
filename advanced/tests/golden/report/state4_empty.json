@@ -1,0 +1,116 @@
+{
+  "scenario": "state4_empty",
+  "reporter": "1.5.0",
+  "body": {
+    "codex_version": "codex-cli 0.158.0",
+    "verdict": "CHECKED",
+    "local_checks": {
+      "reports": 3,
+      "first": "2026-09-14T08:00:00Z",
+      "last": "2026-09-22T08:00:00Z",
+      "covers": [
+        "engine_present",
+        "exact_thread_recovery",
+        "loaded_state_detection",
+        "usage_probe"
+      ]
+    },
+    "records": [],
+    "capabilities": {
+      "engine_present": {
+        "confirmed": 0,
+        "missed": 0,
+        "last_confirmed": null,
+        "level": "CHECKED"
+      },
+      "exact_thread_recovery": {
+        "confirmed": 0,
+        "missed": 0,
+        "last_confirmed": null,
+        "level": "CHECKED"
+      },
+      "loaded_state_detection": {
+        "confirmed": 0,
+        "missed": 0,
+        "last_confirmed": null,
+        "level": "CHECKED"
+      },
+      "outcome_observation": {
+        "confirmed": 0,
+        "missed": 0,
+        "last_confirmed": null,
+        "level": null
+      },
+      "projection_freshness": {
+        "confirmed": 0,
+        "missed": 0,
+        "last_confirmed": null,
+        "level": null
+      },
+      "recovery_turn_tracking": {
+        "confirmed": 0,
+        "missed": 0,
+        "last_confirmed": null,
+        "level": null
+      },
+      "thread_eligibility": {
+        "confirmed": 0,
+        "missed": 0,
+        "last_confirmed": null,
+        "level": null
+      },
+      "usage_limit_detection": {
+        "confirmed": 0,
+        "missed": 0,
+        "last_confirmed": null,
+        "level": null
+      },
+      "usage_probe": {
+        "confirmed": 0,
+        "missed": 0,
+        "last_confirmed": null,
+        "level": "CHECKED"
+      },
+      "usage_reset_hint": {
+        "confirmed": 0,
+        "missed": 0,
+        "last_confirmed": null,
+        "level": null
+      }
+    }
+  },
+  "left_out": {
+    "hidden": 0,
+    "another_route": 0,
+    "beyond_reach": 0,
+    "elsewhere": 0,
+    "unplaced": {
+      "no_engine_line_before": 0,
+      "engine_changed_during": 0,
+      "next_line_other_version": 0,
+      "engine_changed_after": 0
+    }
+  },
+  "keys": [
+    "format",
+    "codex_version",
+    "verdict",
+    "recorded_at",
+    "recorded_by",
+    "reporter",
+    "attribution",
+    "local_checks",
+    "records",
+    "capabilities",
+    "note"
+  ],
+  "envelope": {
+    "format": "codex-auto-resume-compat-evidence/1",
+    "attribution": {
+      "rule": "a record counts for this version only when the product's engine reports before and after it - or the version installed now - name this version and no other",
+      "window": null,
+      "basis": null
+    },
+    "note": "Content-free: counts, states and times from this machine's own records, with no conversation text, identifiers or paths, counted only towards the Reported grade beside the version and never towards a version's tier."
+  }
+}

@@ -158,6 +158,20 @@ namespace CodexAutoResume
 
         private int Gap { get { return box ? Soft.Px(Brand.CheckGap) : Soft.Px(9); } }
 
+        /// Whether a line too long for the width it is offered goes on in more lines rather than end in an ellipsis
+        /// (v0.6.14): the power action's switch, whose line says what it is set to - in German, French, Russian and
+        /// Ukrainian longer than the narrowest window's card for sleep and hibernate. A line that fits is measured and
+        /// drawn exactly as without it; a longer one breaks where a WrapLabel's lines break (Soft.Wrap).
+        internal bool Wraps { get; set; }
+
+        private const TextFormatFlags WrapFormat = TextFormatFlags.Left | TextFormatFlags.WordBreak;
+
+        /// Its text in the lines it is drawn in, `width` wide.
+        private string Lines(int width)
+        {
+            return Soft.Wrap(Text ?? "", Font, Math.Max(1, width), WrapFormat);
+        }
+
         /// The switch's track, or the check box's box: at the left, on the control's middle line.
         internal Rectangle Glyph
         {
@@ -186,7 +200,15 @@ namespace CodexAutoResume
                                                  TextFormatFlags.SingleLine);
             int glyphWidth = box ? Soft.Px(Brand.CheckSize) : Soft.Px(Brand.SwitchWidth);
             int glyphHeight = box ? Soft.Px(Brand.CheckSize) : Soft.Px(Brand.SwitchHeight);
-            return new Size(glyphWidth + Gap + text.Width + Soft.Px(6), Math.Max(glyphHeight, text.Height) + Soft.Px(6));
+            int beside = glyphWidth + Gap + Soft.Px(6);
+            // Wrapping, only where the width offered is too narrow for the one line - and, as Label answers, a width of
+            // 0 or 1 is none.
+            if (Wraps && proposedSize.Width > 1 && beside + text.Width > proposedSize.Width)
+            {
+                int width = Math.Max(1, proposedSize.Width - beside);
+                text = Soft.Measure(Lines(width), Font, width, WrapFormat);
+            }
+            return new Size(beside + text.Width, Math.Max(glyphHeight, text.Height) + Soft.Px(6));
         }
 
         protected override void OnCheckedChanged(EventArgs e)
@@ -218,9 +240,21 @@ namespace CodexAutoResume
             if (box) DrawBoxAt(g, glyph, on, Enabled);
             else Soft.SwitchAt(g, glyph, on, Enabled, Parent != null ? Ground.Colour(Parent) : Palette.Card);
             var textBounds = new Rectangle(glyph.Right + Gap, 0, Math.Max(0, Width - glyph.Right - Gap), Height);
-            TextRenderer.DrawText(g, Text, Font, textBounds, Enabled ? ForeColor : Palette.Muted,
-                                  TextFormatFlags.VerticalCenter | TextFormatFlags.Left |
-                                  TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
+            Color ink = Enabled ? ForeColor : Palette.Muted;
+            int room = textBounds.Width - Soft.Px(6);
+            if (Wraps && TextRenderer.MeasureText(Text ?? "", Font, new Size(int.MaxValue, int.MaxValue),
+                                                  TextFormatFlags.SingleLine).Width > room)
+            {
+                // In the lines GetPreferredSize measured, the block centred on the glyph's middle line.
+                string lines = Lines(room);
+                int height = Soft.Measure(lines, Font, Math.Max(1, room), WrapFormat).Height;
+                TextRenderer.DrawText(g, lines, Font, new Rectangle(textBounds.X, (Height - height) / 2, textBounds.Width, height),
+                                      ink, WrapFormat);
+            }
+            else
+                TextRenderer.DrawText(g, Text, Font, textBounds, ink,
+                                      TextFormatFlags.VerticalCenter | TextFormatFlags.Left |
+                                      TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
             if (Focused && ShowFocusCues)
                 Soft.Ring(g, glyph, box ? Soft.PxF(Palette.RadiusCheck) : glyph.Height / 2f);
         }

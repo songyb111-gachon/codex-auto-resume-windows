@@ -138,7 +138,8 @@ class PointTests(unittest.TestCase):
     def test_the_standard_window_declares_the_points_and_gives_none_a_body(self):
         found = points()
         self.assertEqual(found, {"DashboardBuilt": "gui/Dashboard.cs", "SnapshotApplied": "gui/Dashboard.cs",
-                                 "ArgumentParsed": "gui/Dashboard.cs", "ReopenArgumentsWritten": "gui/Dashboard.cs"})
+                                 "PendingBuilt": "gui/Dashboard.cs", "ArgumentParsed": "gui/Dashboard.cs",
+                                 "ReopenArgumentsWritten": "gui/Dashboard.cs"})
         # No other shape of partial method: one with a body in a standard source would be
         # compiled into the standard window, which is the whole thing this rules out.
         whole = guiscan.whole()
@@ -153,7 +154,7 @@ class PointTests(unittest.TestCase):
                     if re.search(r"\b%s\(" % point, line) and not DECLARATION.match(line):
                         self.assertRegex(line, r"^\s*%s\([^;]*\);\s*$" % point)
                         calls[point] = calls.get(point, 0) + 1
-        self.assertEqual(calls, {"DashboardBuilt": 1, "SnapshotApplied": 2, "ArgumentParsed": 1,
+        self.assertEqual(calls, {"DashboardBuilt": 1, "SnapshotApplied": 2, "PendingBuilt": 1, "ArgumentParsed": 1,
                                  "ReopenArgumentsWritten": 1})
 
 
@@ -236,7 +237,7 @@ class WindowTests(unittest.TestCase):
     def test_the_standard_window_is_the_file_it_would_be_without_the_points(self):
         """The measurement the plan asked for: declaring the points and calling them changes
         not one byte of the standard executable."""
-        self.assertEqual(self.cut_lines, 4 + 5, "four declarations and five calls")
+        self.assertEqual(self.cut_lines, 5 + 6, "five declarations and six calls")
         self.assertEqual(self.standard, (self.work / "without" / WINDOW).read_bytes())
         self.assertEqual((self.work / "standard" / LAUNCHER).read_bytes(),
                          (self.work / "without" / LAUNCHER).read_bytes())

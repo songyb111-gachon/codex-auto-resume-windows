@@ -79,6 +79,17 @@ class NeutralTests(unittest.TestCase):
                                   core.consult(core.NULL, point, *arguments))
             self.assertEqual(list(Path(home).iterdir()), [], "nothing was read into being")
 
+    def test_with_nothing_on_it_wants_no_point(self):
+        """Core makes the reads a point needs only while the plug wants it (core's Plug.wants), so
+        with no capability nothing more is read of Codex - and nothing is read here either."""
+        with tempfile.TemporaryDirectory() as home:
+            made = advanced.create(config.Paths(home))
+            for point in core.Point:
+                with self.subTest(point):
+                    self.assertIs(made.wants(point), False)
+                    self.assertIs(core.guard(made).wants(point), False)
+            self.assertEqual(list(Path(home).iterdir()), [], "nothing was read into being")
+
     def test_the_only_thing_it_shows_beside_the_version_is_the_edition(self):
         """The badge (decision C12): the version-bearing surfaces gain the edition and how many
         capabilities are armed - 0, and nothing on disk, while the registry is empty - and no
@@ -102,6 +113,13 @@ class NeutralTests(unittest.TestCase):
                  if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
                  and node.func.attr == "send"]
         self.assertEqual(sends, [])
+
+    def test_only_the_report_s_github_module_names_gh(self):
+        """The compatibility report reaches GitHub through gh, the GitHub CLI the person installed, and one
+        module finds it, starts it and talks to it: no other names it, so no other can start it."""
+        naming = sorted(path.relative_to(PACKAGE_DIR).as_posix() for path in PACKAGE_DIR.rglob("*.py")
+                        if re.search(r"\bgh\.exe\b", path.read_text(encoding="utf-8")))
+        self.assertEqual(naming, ["report/github.py"])
 
     def test_entering_the_edition_where_nothing_was_ever_on_writes_nothing(self):
         """Every capability is turned off on entry (advanced/tests/test_advanced_arming.py); where
