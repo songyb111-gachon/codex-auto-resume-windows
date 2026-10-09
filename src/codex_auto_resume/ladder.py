@@ -89,6 +89,10 @@ CAPACITY_MAX_SECONDS = 12 * 3600
 # most, for every record together, each window as long as one usage reading lasts (engine/freshness.py).
 EARLY_SPACING = 300
 EARLY_WINDOW = 30
+# The waits such a record may be looked at early in: a usage limit's reset, or a poll for one - and, from
+# v0.6.14, a wait for usage a usage read found unavailable. The engine looks early in exactly these, and
+# the claim takes an early look in exactly these (engine/relaxed.py, store/ledger.py).
+EARLY_STATES = ("waiting_reset", "waiting_poll", "waiting_for_usage")
 # Custom... (ownvalues.py): a wait of a person's own between its list's first and last, in whole seconds for
 # the first and whole minutes after it; and a ceiling from the engine's 15 minutes to a week - Off is none.
 OWN = {STEP_FIELDS[0]: ownvalues.Own(ownvalues.DURATION, 5, 2 * 3600, ("s", "m", "h")),

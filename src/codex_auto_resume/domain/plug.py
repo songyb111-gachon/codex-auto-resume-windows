@@ -230,8 +230,8 @@ class Plug:
 
     def schedule(self, record, due):                  # P7
         """When a record is looked at next, asked when core's schedule says it is due; `due` is
-        the moment core's schedule made it so. From v0.6.14 also before then, for a record that
-        waits for a usage limit to reset, while core's early window is open: EARLY looks now. And
+        the moment core's schedule made it so. From v0.6.14 also before then, for a record that waits
+        for a usage limit to reset (or for usage), while core's early window is open: EARLY looks now. And
         for an uncertain submission a look of the watch found no trace of (`due` its send): RESEND
         sends it once more, where core proves it may (engine/resend.py). And for a waiting record its
         retry's wait or a postponement holds: SEND_NOW, a person's request, passes those, its spacing

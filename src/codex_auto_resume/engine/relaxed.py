@@ -8,7 +8,8 @@ taken up waits core's own waits, ends a day on the clock after it was detected, 
 a relaxation the plug's ledger pays for (store/ledger.py); a capacity error retried sooner (CAPACITY)
 counts against core's capacity bounds, for twelve hours on the clock from its task's first failure.
 And P7 (EARLY): a record that waits for a usage limit to reset may be looked at before its time, once a
-window, where every wait it meets is its gate vector alone - it keeps its state, reason and next look.
+window, where every wait it meets is its gate vector alone - it keeps its state, reason and next look; from
+v0.6.14 so may one a usage read found waiting for usage (waiting_for_usage), as the claim takes it too.
 And P7 (SEND_NOW): a waiting record a person asked to send now passes its retry's wait, a postponement,
 the spacing between two continuations, the objection window and an attempt budget of the person's own -
 never a reset ahead, quiet hours or an administrator's MaxRecoveryAttempts - and every other gate holds,
@@ -26,8 +27,9 @@ UNADMITTED_SECONDS = 60
 RELAXED_POINTS = {"admitted": frozenset({Point.GATES}), "capacity": frozenset({Point.GATES}),
                   "early": frozenset({Point.SCHEDULE}), "resend": frozenset({Point.SCHEDULE}),
                   "forced": frozenset({Point.SCHEDULE})}
-# The waits a record may be looked at early in: a usage limit's.
-EARLY_STATES = ("waiting_reset", "waiting_poll")
+# The waits a record may be looked at early in: a usage limit's, and (v0.6.14) a wait for usage a usage
+# read found unavailable - the claim's own list (ladder.EARLY_STATES), so a look early is claimed too.
+EARLY_STATES = ladder.EARLY_STATES
 # How many records of a task are read back, at most, for the kinds of failure it has had (v0.6.14): more
 # than any task's continuations (ladder.CAPACITY_PER_DAY), so only a broken chain reaches it.
 CHAIN_WALK = 64

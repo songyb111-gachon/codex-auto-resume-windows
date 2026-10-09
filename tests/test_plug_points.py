@@ -1256,6 +1256,30 @@ class TickTests(PluggedCase):
         (due,) = dict(plug.asked)["partition"]
         self.assertEqual([row["thread_id"] for row in due], [T1])
 
+    def test_the_view_shows_the_engines_last_usage_reading_and_reading_it_asks_codex_nothing(self):
+        """v0.6.14: P2 and P8's view shows what core last read of usage - (when, the windows), None before
+        it has read any with windows - and reading it is no usage read: the backend is not asked."""
+        windows = [{"bucket": "codex", "window": "primary", "used_percent": 40, "window_minutes": 300,
+                    "reset_at": int(RESET) + 18000}]
+        self.h.backend.usage_result = {"available": True, "reset_at": None, "limit_type": "exposed_windows",
+                                       "reason": "ok", "windows": windows}
+        reads, real = [], self.h.backend.usage
+        self.h.backend.usage = lambda: (reads.append(self.h.now), real())[1]
+        seen = []
+
+        def tick(view):
+            before = len(reads)
+            seen.append(view.last_usage())
+            self.assertEqual(len(reads), before, "showing the last reading reads nothing")
+            return DEFER
+        self.due()
+        self.plugged(Asked(tick=tick))
+        self.h.tick()
+        self.assertEqual(len(reads), 1, "the due record's usage gate read it")
+        self.h.tick(advance=1)
+        self.assertEqual(seen[0], None)
+        self.assertEqual(seen[1], (reads[0], windows))
+
     def test_an_ended_recovery_turn_is_put_to_the_plug_once_with_its_outcome(self):
         self.due()
         plug = Asked()
@@ -2675,6 +2699,40 @@ class EarlyTests(PluggedCase):
                 h.tick(advance=60)
                 self.assertEqual(h.backend.send_calls, [])
                 self.assertEqual(plug.hooks().count("schedule"), 0)
+
+    def test_a_usage_limit_a_usage_read_found_waiting_for_is_looked_at_early_and_sent(self):
+        """v0.6.14: a usage-limited record a usage read found waiting - none available when it fell due -
+        is looked at early too (waiting_for_usage), only while the plug wants the schedule; and the claim
+        takes that look as it takes one at a reset, so it is sent. NULL never looks early, and a plug that
+        wants no schedule is not asked."""
+        for plug, sent in ((None, 0), (Asked(schedule=Alternative.EARLY), 0),
+                           (Asked(wants=True, schedule=Alternative.EARLY), 1)):
+            with self.subTest(plug=None if plug is None else plug.answers.get("wants", False)):
+                h = self.fresh()
+                self.ready_after_reset(h)
+                h.backend.usage_result = dict(NO_USAGE)
+                h.tick()
+                row = h.record()
+                self.assertEqual(row["state"], "waiting_for_usage")
+                self.assertGreater(row["next_retry_at"], h.now + 120, "its own next look is far off")
+                h.backend.usage_result = {"available": True, "reset_at": None, "limit_type": "exposed_windows",
+                                          "reason": "ok"}
+                self.plugged(plug, h)
+                h.tick(advance=60)
+                self.assertEqual(len(h.backend.send_calls), sent)
+                self.assertEqual(h.record()["state"], "queued" if sent else "waiting_for_usage")
+
+    def test_the_claim_takes_an_early_look_at_a_record_waiting_for_usage_as_its_ledger_pays_for_it(self):
+        h = self.h
+        self.ready_after_reset(h)
+        h.backend.usage_result = dict(NO_USAGE)
+        h.tick()
+        row = h.record()
+        self.assertEqual(row["state"], "waiting_for_usage")
+        key, at = row["interruption_id"], h.now + 60
+        self.assertEqual(h.store.reserve_detailed(key, at), (False, "schedule", "not_due"))
+        self.assertEqual(h.store.reserve_detailed(key, at, relaxed="early", ledger=guard(Asked(wants=True)),
+                                                  carried={Point.SCHEDULE}), (True, None, None))
 
     def test_one_window_in_five_minutes_serves_every_record_with_one_usage_reading(self):
         h = self.h

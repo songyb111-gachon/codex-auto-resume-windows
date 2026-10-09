@@ -59,7 +59,7 @@ class Engine(OptionsMixin, AnnounceMixin, FreshnessMixin, DetectMixin, Reconcile
             return
         # The plug is asked nothing more while recovery is paused: a Pause beats every
         # capability, as it beats core. P8 is once a tick, after everything is observed.
-        view = StoreView(self.store, self.clock())
+        view = StoreView(self.store, self.clock(), self.last_usage)
         self.plug.tick(view)
         try:
             self.collect()

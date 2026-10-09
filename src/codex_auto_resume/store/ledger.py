@@ -138,10 +138,11 @@ class LedgerMixin:
     @staticmethod
     def _early_claim(row, relaxed, ledger, carried) -> bool:
         """Whether the claim skips a record's next look and its reset time (EARLY, v0.6.14): only for
-        one that waits for a usage limit to reset, and only as a relaxation the plug's ledger pays for.
+        one that waits for a usage limit to reset, or for usage a read found unavailable - the engine's
+        own early states (ladder.EARLY_STATES) - and only as a relaxation the plug's ledger pays for.
         A postponement, quiet hours and every other gate hold as ever (domain/gates.py)."""
         return (relaxed == "early" and row["category"] == failures.USAGE_LIMIT
-                and row["state"] in ("waiting_reset", "waiting_poll") and not ledger.null
+                and row["state"] in ladder.EARLY_STATES and not ledger.null
                 and Point.SCHEDULE in carried)
 
     @staticmethod
