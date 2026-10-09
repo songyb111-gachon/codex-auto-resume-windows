@@ -119,6 +119,15 @@ class Refusal(StrEnum):
     RULE_OVERLAP = "rule_overlap"            # another rule covers this code and these numbers
     RULES_FULL = "rules_full"                # ten rules already
     UNKNOWN_RULE = "unknown_rule"
+    # The reset actions (v0.6.14, state/resets.py): a window or a count of resets that is not one on offer;
+    # as many rules waiting as may; a message the check refuses; a conversation switched off; one waiting
+    # in that conversation already; and one being sent, which Cancel no longer reaches.
+    OCCASION_INVALID = "occasion_invalid"
+    RESETS_FULL = "resets_full"
+    MESSAGE_REFUSED = "message_refused"
+    CONVERSATION_OFF = "conversation_off"
+    ALREADY_SCHEDULED = "already_scheduled"
+    BEING_SENT = "being_sent"
 
 
 class JournalCode(StrEnum):
@@ -285,6 +294,40 @@ class Measurement(StrEnum):
     MU = "mu"
     MN = "mn"
     MR = "mr"
+
+
+class RuleState(StrEnum):
+    """Where one of the reset actions' rules stands (state/resets.py): counting the resets or fills of its
+    window, due (READY) and acting or asking, held until a person says go on, or finished - done, or
+    cancelled. Only a message that is counting, due or held holds its words."""
+    COUNTING = "counting"
+    READY = "ready"
+    HELD = "held"
+    DONE = "done"
+    CANCELLED = "cancelled"
+
+
+class RuleReason(StrEnum):
+    """Why a rule stands where it stands (state/resets.py), in the order a rule meets them."""
+    ASK_FIRST = "ask_first"                  # due: a person's click spends the credit (MR, or their choice)
+    COUNT_UNKNOWN = "count_unknown"          # due: how many credits there are cannot be read
+    EXPIRY_UNKNOWN = "expiry_unknown"        # due: when they expire cannot be read (the owner's rule)
+    BOUND = "bound"                          # due: two a day or seven a week spent already
+    NO_METHOD = "no_method"                  # due: this Codex has no way to spend one
+    NOTHING_WAITING = "nothing_waiting"      # due: no recovery waits for usage, so nothing is spent
+    COUNT_GAP = "count_gap"                  # held: two readings further apart than the window
+    WINDOW_GONE = "window_gone"              # held: Codex stopped reporting the window
+    SPENT = "spent"
+    NOTHING_TO_RESET = "nothing_to_reset"
+    NO_CREDIT = "no_credit"
+    LAPSED = "lapsed"                        # the window reset before anything was spent
+    UNKNOWN = "unknown"                      # what came of it cannot be proven
+    DELIVERED = "delivered"
+    EXPIRED = "expired"
+    NOT_STARTED = "not_started"
+    BY_PERSON = "by_person"
+    TURNED_OFF = "turned_off"
+    CONVERSATION_OFF = "conversation_off"    # its conversation was switched off (H5)
 
 
 class SpendOutcome(StrEnum):

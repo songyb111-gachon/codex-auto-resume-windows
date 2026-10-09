@@ -13,6 +13,7 @@ it at all: a secret goes to Windows Credential Manager (credentials.py).
     records   the edition's own records, and overrides on core's
     journal   what happened, the sampler's counts, and the bounds on every table
     choices   the capabilities' choices and rules, what they took up, and what they keep of it
+    resets    the reset actions' windows, last reading, rules and spends (v0.6.14)
 """
 from __future__ import annotations
 
@@ -21,12 +22,14 @@ from .arming import ArmingMixin
 from .choices import ChoicesMixin, Refused, Scoped  # noqa: F401
 from .journal import EVENT_LIMIT, EVENT_MAX_AGE, WATCH_LIMIT, JournalMixin  # noqa: F401
 from .records import RecordsMixin
+from .resets import ResetsMixin
 from .schema import ATTACHED, FILE_NAME, SCHEMA_VERSION, TABLES  # noqa: F401
 from .session import SessionMixin, StaleGeneration, StateError  # noqa: F401
 from .spend import SpendMixin
 
 
-class AdvancedState(SessionMixin, ArmingMixin, SpendMixin, RecordsMixin, JournalMixin, ChoicesMixin):
+class AdvancedState(SessionMixin, ArmingMixin, SpendMixin, RecordsMixin, JournalMixin, ChoicesMixin,
+                    ResetsMixin):
     """One installation's advanced state, for one process: opened when first needed."""
 
     def __init__(self, paths, *, registry=REGISTRY, **options):

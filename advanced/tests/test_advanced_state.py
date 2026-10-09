@@ -38,7 +38,8 @@ from codex_auto_resume_advanced.state import schema as schema_module  # noqa: E4
 from codex_auto_resume_advanced.state import journal as journal_module  # noqa: E402
 from codex_auto_resume_advanced.vocabulary import (Actor, ArmingState, ArmingWarning,  # noqa: E402
                                                    JournalCode, OffReason, OptionKey, OverrideKind,
-                                                   RecordState, Refusal)
+                                                   RecordState, Refusal, RuleReason, RuleState,
+                                                   SpendOutcome)
 from test_cli import FakeWinreg, _reset_logging  # noqa: E402
 
 DAY = 86400
@@ -699,6 +700,192 @@ class RecordTests(StateCase):
         self.assertTrue(state.use_override(ac.KEY, "test_wake"))
         self.assertFalse(state.use_override(ac.KEY, "test_wake"))
         self.assertEqual(state.overrides_for(ac.KEY), [])
+
+
+class ResetStateTests(StateCase):
+    """The reset actions' four tables (v0.6.14): windows, the last reading, the rules and the spends - closed
+    words, a message's words only while it is still to act, and one spend for each filling of a window."""
+
+    WORDS = "Pick up the migration where it stopped."
+
+    def message(self, state, thread=ac.THREAD, key=None, **changes):
+        made = dict(thread_id=thread, words=self.WORDS, record_id=key or "%064x" % (len(state.reset_rules(pending=None)) + 7))
+        made.update(changes)
+        return state.add_reset_rule("reset_message", "codex", 300, 1, **made)
+
+    def test_the_tables_are_version_three_and_start_empty_with_one_reading(self):
+        state = self.state()
+        state.move("test_wake", ArmingState.SHADOW, actor=Actor.DASHBOARD, revision=1)
+        self.assertEqual(SCHEMA_VERSION, 3)
+        for name in ("windows", "readings", "reset_rules", "credit_spends"):
+            self.assertIn(name, TABLES)
+        self.assertEqual((state.windows(), state.reset_rules(), state.credit_spends()), ({}, [], []))
+        self.assertEqual(set(state.reading()), set(TABLES["readings"]) - {"singleton"})
+
+    def test_a_message_makes_its_record_one_to_a_conversation_and_ten_in_all(self):
+        state = self.state()
+        rule = self.message(state)
+        found = state.reset_rule(rule)
+        self.assertEqual((found["state"], found["words"], found["thread_id"], found["record_state"]),
+                         (RuleState.COUNTING, self.WORDS, ac.THREAD, RecordState.WAITING))
+        with self.assertRaises(Refused) as refused:
+            self.message(state)
+        self.assertEqual(refused.exception.refusal, Refusal.ALREADY_SCHEDULED)
+        for n in range(9):
+            self.message(state, thread="0a1b2c3d-0001-7000-8000-%012d" % (100 + n))
+        with self.assertRaises(Refused) as refused:
+            self.message(state, thread=ac.OTHER_THREAD)
+        self.assertEqual(refused.exception.refusal, Refusal.RESETS_FULL)
+        for _ in range(4):
+            state.add_reset_rule("reset_credit", "codex", 300, 1)
+        with self.assertRaises(Refused):
+            state.add_reset_rule("reset_credit", "codex", 300, 2)
+
+    def test_what_a_rule_may_be_is_checked_before_it_is_written(self):
+        state = self.state()
+        for call, refusal in ((lambda: state.add_reset_rule("reset_message", "codex", 300, 0, thread_id=ac.THREAD,
+                                                             words="x", record_id="%064x" % 1), Refusal.OCCASION_INVALID),
+                              (lambda: state.add_reset_rule("reset_credit", "codex", 300, 10), Refusal.OCCASION_INVALID),
+                              (lambda: self.message(state, words=""), Refusal.MESSAGE_REFUSED),
+                              (lambda: self.message(state, words="x" * 8193), Refusal.MESSAGE_REFUSED)):
+            with self.subTest(refusal=refusal):
+                with self.assertRaises(Refused) as refused:
+                    call()
+                self.assertEqual(refused.exception.refusal, refusal)
+        for call in (lambda: state.add_reset_rule("goal_continuation", "codex", 300, 1),
+                     lambda: state.add_reset_rule("reset_credit", "team", 300, 1),
+                     lambda: state.add_reset_rule("reset_credit", "codex", 0, 1),
+                     lambda: state.add_reset_rule("reset_credit", "codex", 300, 1, words="no words for a credit"),
+                     lambda: self.message(state, thread="not a thread"),
+                     lambda: self.message(state, key="short")):
+            with self.subTest(call=call):
+                with self.assertRaises(StateError):
+                    call()
+
+    def test_a_finished_rule_holds_no_words_and_the_file_refuses_them(self):
+        state = self.state()
+        rule = self.message(state)
+        self.assertTrue(state.end_rule(rule, RuleState.DONE, RuleReason.EXPIRED))
+        found = state.reset_rule(rule)
+        self.assertEqual((found["words"], found["state"], found["record_state"]), (None, RuleState.DONE, RecordState.FINISHED))
+        connection = self.raw(state)
+        for statement in ("UPDATE reset_rules SET words='back again' WHERE rule_id=%d" % rule,
+                          "INSERT INTO reset_rules (capability, bucket, minutes, ordinal, repeat, ask_first, words, "
+                          "created_at, state) VALUES ('reset_credit','codex',300,1,0,0,'words',1,'counting')",
+                          "INSERT INTO reset_rules (capability, bucket, minutes, ordinal, repeat, ask_first, "
+                          "created_at, state) VALUES ('reset_message','codex',300,1,0,0,1,'counting')",
+                          "INSERT INTO reset_rules (capability, bucket, minutes, ordinal, repeat, ask_first, "
+                          "created_at, state) VALUES ('reset_credit','codex',300,1,0,0,1,'sending')",
+                          "INSERT INTO reset_rules (capability, bucket, minutes, ordinal, repeat, ask_first, "
+                          "created_at, state, reason) VALUES ('reset_credit','codex',300,1,0,0,1,'ready','soon')",
+                          "INSERT INTO reset_rules (capability, bucket, minutes, ordinal, repeat, ask_first, "
+                          "created_at, state, gate) VALUES ('reset_credit','codex',300,1,0,0,1,'ready','a gate!')",
+                          "INSERT INTO windows (bucket, minutes, open_full, resets, hits, misses) VALUES ('codex',300,2,0,0,0)",
+                          "UPDATE readings SET credits=-1",
+                          "INSERT INTO readings (singleton) VALUES (2)"):
+            with self.subTest(statement):
+                with self.assertRaises(sqlite3.IntegrityError):
+                    connection.execute(statement)
+
+    def test_a_rule_changes_only_in_its_own_fields_and_ends_with_its_words(self):
+        state = self.state()
+        rule = self.message(state)
+        self.assertTrue(state.change_rule(rule, state=RuleState.READY, due_at=self.now, gate="thread_available",
+                                          gate_reason="notLoaded"))
+        self.assertEqual(state.reset_rule(rule)["gate"], "thread_available")
+        for changes in ({"words": "other"}, {"state": "sending"}, {"reason": "because"}, {"gate": "two words"},
+                        {"base": -1}, {"ordinal": 10}, {"due_at": "now"}):
+            with self.subTest(changes=changes):
+                with self.assertRaises(StateError):
+                    state.change_rule(rule, **changes)
+        self.assertFalse(state.change_rule(rule, expect=RuleState.COUNTING, base=1), "not while it is not that")
+        self.assertTrue(state.change_rule(rule, state=RuleState.CANCELLED, reason=RuleReason.TURNED_OFF))
+        self.assertIsNone(state.reset_rule(rule)["words"])
+
+    def test_cancel_takes_the_words_and_is_refused_once_it_is_being_sent(self):
+        state = self.state()
+        rule = self.message(state)
+        state.cancel_reset_rule(rule)
+        found = state.reset_rule(rule)
+        self.assertEqual((found["state"], found["reason"], found["words"], found["record_state"]),
+                         (RuleState.CANCELLED, RuleReason.BY_PERSON, None, RecordState.CANCELLED))
+        with self.assertRaises(Refused) as refused:
+            state.cancel_reset_rule(rule)
+        self.assertEqual(refused.exception.refusal, Refusal.UNKNOWN_RULE)
+        launching = self.message(state, key="%064x" % 99)
+        state.change_rule(launching, state=RuleState.READY, launching_at=self.now)
+        with self.assertRaises(Refused) as refused:
+            state.cancel_reset_rule(launching)
+        self.assertEqual(refused.exception.refusal, Refusal.BEING_SENT)
+        self.assertEqual(state.reset_rule(launching)["words"], self.WORDS)
+
+    def test_one_spend_for_each_filling_of_a_window_and_its_outcome_closed(self):
+        state = self.state()
+        rule = state.add_reset_rule("reset_credit", "codex", 300, 1)
+        key = "0a1b2c3d-0001-4000-8000-000000000123"
+        spend = state.add_credit_spend(rule, "codex", 300, 3, key)
+        self.assertIsNotNone(spend)
+        self.assertIsNone(state.add_credit_spend(rule, "codex", 300, 3, "0a1b2c3d-0001-4000-8000-000000000124"))
+        self.assertTrue(state.retry_credit_spend(spend))
+        self.assertFalse(state.retry_credit_spend(spend), "one retry")
+        self.assertFalse(state.drop_credit_spend(spend), "a spend asked twice is never dropped")
+        with self.assertRaises(StateError):
+            state.finish_credit_spend(spend, "refunded")
+        self.assertTrue(state.finish_credit_spend(spend, SpendOutcome.RESET))
+        self.assertFalse(state.finish_credit_spend(spend, SpendOutcome.UNKNOWN), "an outcome is written once")
+        connection = self.raw(state)
+        for statement in ("UPDATE credit_spends SET outcome='maybe'", "UPDATE credit_spends SET tries=3",
+                          "UPDATE credit_spends SET attempt_id='rc_secret_credit_id_ExampleUser_00000'"):
+            with self.subTest(statement):
+                with self.assertRaises(sqlite3.IntegrityError):
+                    connection.execute(statement)
+
+    def test_the_windows_kept_are_exactly_those_saved(self):
+        state = self.state()
+        state.move("test_wake", ArmingState.SHADOW, actor=Actor.DASHBOARD, revision=1)
+        row = {"bucket": "codex", "minutes": 300, "open_reset_at": 1_800_010_000, "open_full": True,
+               "last_closed_at": None, "resets": 2, "hits": 1, "seen_at": self.now, "misses": 0}
+        state.save_windows([row, dict(row, minutes=10080)])
+        self.assertEqual(set(state.windows()), {("codex", 300), ("codex", 10080)})
+        state.save_windows([row])
+        self.assertEqual(state.windows()[("codex", 300)]["hits"], 1)
+        self.assertEqual(set(state.windows()), {("codex", 300)})
+        state.set_reading(credits=2, expiry_known=1, nearest_expiry=1_800_500_000, read_at=self.now)
+        self.assertEqual(state.reading()["credits"], 2)
+        with self.assertRaises(StateError):
+            state.set_reading(account="ExampleUser")
+
+    def test_a_finished_rule_and_an_old_spend_are_pruned_and_nothing_still_to_act(self):
+        state = self.state()
+        pending = self.message(state)
+        done = state.add_reset_rule("reset_credit", "codex", 300, 1)
+        state.end_rule(done, RuleState.DONE, RuleReason.SPENT, at=self.now - EVENT_MAX_AGE - DAY)
+        old = self.now - EVENT_MAX_AGE - DAY
+        state.add_credit_spend(done, "codex", 300, 1, "0a1b2c3d-0001-4000-8000-000000000001", at=old)
+        state.add_credit_spend(done, "codex", 300, 2, "0a1b2c3d-0001-4000-8000-000000000002", at=self.now - 3 * DAY)
+        with state._transaction() as open_:
+            state._prune(open_, self.now)
+        self.assertEqual([rule["rule_id"] for rule in state.reset_rules(pending=None)], [pending])
+        self.assertEqual([spend["occasion"] for spend in state.credit_spends()], [2])
+
+    def test_a_version_three_file_from_before_the_reset_actions_is_given_their_tables(self):
+        """A pre-release build of this beta may have written version 3 without the reset actions' four
+        tables: they are added when it is first read, every row it held kept, its version unchanged."""
+        state = self.state()
+        state.move("test_wake", ArmingState.SHADOW, actor=Actor.DASHBOARD, revision=1)
+        state.close()
+        with contextlib.closing(sqlite3.connect(state.path)) as connection:
+            for name in ("windows", "readings", "reset_rules", "credit_spends"):
+                connection.execute("DROP TABLE %s" % name)
+            connection.commit()
+            self.assertEqual(AdvancedState._tables(connection), schema_module.TABLES_V3_BEFORE_RESETS)
+        again = self.state()
+        self.assertEqual(again.arming()["test_wake"]["state"], ArmingState.SHADOW)
+        self.assertEqual(again.reset_rules(), [])
+        again.close()
+        with contextlib.closing(sqlite3.connect(state.path)) as connection:
+            self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 3)
+            self.assertEqual(AdvancedState._tables(connection), TABLES)
 
 
 class BoundTests(StateCase):

@@ -192,6 +192,9 @@ class JournalMixin:
             connection.execute("DELETE FROM samples WHERE sample_id IN (SELECT sample_id FROM samples "
                                "ORDER BY sample_id LIMIT ?)", (excess,))
         JournalMixin._prune_spend(connection, "main", now)
+        # The reset actions' rules and spends (v0.6.14): the same bounds, and never one still to act.
+        from .resets import prune
+        prune(connection, now, EVENT_MAX_AGE, EVENT_LIMIT)
 
     @staticmethod
     def _prune_spend(connection, schema, now) -> None:

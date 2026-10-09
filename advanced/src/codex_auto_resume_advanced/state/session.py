@@ -11,7 +11,7 @@ The same rules as core's store: no link anywhere on the way, nothing outside the
 connection per process opened the first time it is needed, BEGIN IMMEDIATE for every write and
 synchronous=FULL, and a file whose tables, columns or version are not exactly these is refused
 rather than repaired - but for a file of an earlier version, exactly as that version made it, which
-is brought to this version when it is opened (schema.UPGRADE_FROM_1, UPGRADE_FROM_2), a read's
+is brought to this version when it is opened (schema.UPGRADE_FROM_1, UPGRADE_FROM_2, ADD_RESETS), a read's
 opening too: it is the one write a read makes, and it adds a column and tables and changes no row. Reading never creates the file: an
 installation where nothing was ever turned on has none, and every question about it has the
 answer "off".
@@ -32,8 +32,8 @@ import time
 from codex_auto_resume import config, machine
 from codex_auto_resume.domain import ids
 
-from .schema import (ATTACHED, FILE_NAME, SCHEMA_VERSION, STATEMENTS, TABLES, TABLES_V1,
-                     TABLES_V2, UPGRADE_FROM_1, UPGRADE_FROM_2)
+from .schema import (ADD_RESETS, ATTACHED, FILE_NAME, SCHEMA_VERSION, STATEMENTS, TABLES, TABLES_V1,
+                     TABLES_V2, TABLES_V3_BEFORE_RESETS, UPGRADE_FROM_1, UPGRADE_FROM_2)
 
 
 class StateError(RuntimeError):
@@ -186,7 +186,8 @@ class SessionMixin:
             version = SCHEMA_VERSION
         if version > SCHEMA_VERSION:
             raise StateError("the advanced state was written by a newer version")
-        for old, shape, steps in ((1, TABLES_V1, UPGRADE_FROM_1), (2, TABLES_V2, UPGRADE_FROM_2)):
+        for old, shape, steps in ((1, TABLES_V1, UPGRADE_FROM_1), (2, TABLES_V2, UPGRADE_FROM_2),
+                                  (3, TABLES_V3_BEFORE_RESETS, ADD_RESETS)):
             if version == old and tables == shape:
                 for statement in steps:
                     connection.execute(statement)
