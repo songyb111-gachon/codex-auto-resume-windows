@@ -419,8 +419,9 @@ namespace CodexAutoResume
 
         public override Size GetPreferredSize(Size proposedSize)
         {
-            Size line = TextRenderer.MeasureText(string.IsNullOrEmpty(Text) ? " " : Text, Font, new Size(int.MaxValue, int.MaxValue),
-                                                 TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix);
+            // Remembered (Soft.Measure, v0.6.14): a table asks for this at several widths in every pass.
+            Size line = Soft.Measure(string.IsNullOrEmpty(Text) ? " " : Text, Font, int.MaxValue,
+                                     TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix);
             int width = line.Width + Padding.Horizontal;
             if (MaximumSize.Width > 0) width = Math.Min(width, MaximumSize.Width);
             if (proposedSize.Width > 1 && proposedSize.Width < width) width = proposedSize.Width;

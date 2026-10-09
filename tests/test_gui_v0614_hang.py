@@ -165,6 +165,36 @@ Invoke-Window $window 'UpdateCountdowns' @()
 $out.due = Take-Counts
 $out.dueWords = [string]$next.Text
 $out.dueBounds = @($bounds.Width, $next.Bounds.Width)
+
+# The three controls that measured their words on every call a layout made: asked their size the way a table asks it
+# - several widths, in several passes - each of their words is measured once and remembered (Soft.Measure), keyed by
+# text, font, width and format, so a second pass reads the answer instead of measuring again.
+$soft = $assembly.GetType('CodexAutoResume.Soft', $true)
+$measured = $soft.GetField('measured', $static).GetValue($null)
+function Count-Measured([string]$text) { return @($measured.Keys | Where-Object { $_.EndsWith('|' + $text) }).Count }
+$font = [Drawing.SystemFonts]::MessageBoxFont
+$remembered = @{}
+$line = [Activator]::CreateInstance($assembly.GetType('CodexAutoResume.LineLabel', $true), $true)
+$line.Font = $font
+$line.Text = 'payments-api-retry probe line'
+foreach ($pass in 1..4) { foreach ($width in @(0, 1, 120, 600)) { $null = $line.GetPreferredSize([Drawing.Size]::new($width, 0)) } }
+$remembered.line = Count-Measured $line.Text
+$check = [Activator]::CreateInstance($assembly.GetType('CodexAutoResume.SoftCheck', $true), $true)
+$check.Font = $font
+$check.Text = 'Show a notification probe switch'
+foreach ($pass in 1..4) { foreach ($width in @(0, 1, 600)) { $null = $check.GetPreferredSize([Drawing.Size]::new($width, 0)) } }
+$remembered.check = Count-Measured $check.Text
+$cardType = $assembly.GetType('CodexAutoResume.ChoiceCard', $true)
+$choice = $cardType.GetConstructors($instance)[0].Invoke([object[]]@('probe', 'Probe card title', 'Probe card help'))
+$choice.Font = $font
+$heightFor = $cardType.GetMethod('HeightFor', $instance)
+$heights = @()
+foreach ($pass in 1..4) { $heights += [int]$heightFor.Invoke($choice, [object[]]@([int]600)) }
+$remembered.cardTitle = Count-Measured 'Probe card title'
+$remembered.cardHelp = Count-Measured 'Probe card help'
+$remembered.cardHeights = @($heights | Select-Object -Unique).Count
+$out.remembered = $remembered
+$line.Dispose(); $check.Dispose(); $choice.Dispose()
 $window.Dispose()
 [IO.File]::WriteAllText((Join-Path $work 'result.json'), (ConvertTo-Json $out -Compress -Depth 6), $utf8)
 """
@@ -273,6 +303,17 @@ class WaitingWindowTests(unittest.TestCase):
         self.assertEqual(self.answer["dueWords"], "Due to be checked now")
         self.assertGreater(self.answer["due"]["waitingCard"], 0,
                            "a line that changed its width was not laid out")
+
+    def test_the_words_a_layout_asks_about_are_measured_once(self):
+        """A Conversation line, a switch and a choice card asked their size the way a table asks it. Each layout of a
+        page asked thousands of times and measured every time: 7,510 measurements on the Overview's first visit, 543
+        per status in Settings > General (ko, 150 %). Remembered, a second pass reads the answer."""
+        remembered = self.answer["remembered"]
+        self.assertEqual({name: remembered[name] for name in ("line", "check", "cardTitle", "cardHelp")},
+                         {"line": 1, "check": 1, "cardTitle": 1, "cardHelp": 1},
+                         "words measured again on every call: a Conversation line, a switch, a choice card's title and "
+                         "help each remembered once (Soft.Measure)")
+        self.assertEqual(remembered["cardHeights"], 1, "a choice card's height changed from one pass to the next")
 
 
 if __name__ == "__main__":
