@@ -452,6 +452,11 @@ class Runtime:
         self.states(fresh=True)
         return self.ask(Point.TICK, view)
 
+    def records(self, view):
+        """P2: the records of this edition's own that core is to try, or to watch (v0.6.14). Core checks
+        what it is handed (domain/plughands.records_of) and carries each out itself."""
+        return self.ask(Point.RECORDS, view)
+
     def moved(self, record, state):
         """P14: core has moved `record` to `state`. Its one use is a tripwire's (arming.py): a
         capability that tripped is off from here on, not from the next tick."""

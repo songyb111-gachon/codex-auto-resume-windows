@@ -14,7 +14,9 @@ handed to (P5) and how it is carried and proven (P15, engine/delivery.py) before
 its ledger (P11) inside the claim. Whatever it answers, the send is still this module's one call,
 made after the one claim, the pre-send look (engine/delivery.py) and inside the launch guard, and
 a route named at P16 is carried out the same way in its place - and so is an uncertain submission
-sent once more, which P7 asked for and engine/resend.py proved may go (v0.6.14).
+sent once more, which P7 asked for and engine/resend.py proved may go (v0.6.14) - and a record of
+the plug's own it hands over at P2, the words a person wrote, which takes the same one send after a
+claim and a look of its own (engine/plugrecords.py, v0.6.14).
 """
 from __future__ import annotations
 
@@ -211,7 +213,8 @@ class DispatchMixin:
                    vector)
         return True
 
-    def dispatch(self, row, app, vector, limits, route=None, relaxed=None, resend=False, forced=False):
+    def dispatch(self, row, app, vector, limits, route=None, relaxed=None, resend=False, forced=False,
+                 record=False):
         """Claim, re-check, send. The only method that sends: to core's backend, or to the
         channel the plug names at P5, and either way through the one call below. With a `route`
         (P16) there is no send: the conversation is still one the app does not hold, and the
@@ -219,109 +222,126 @@ class DispatchMixin:
         relaxed for this record (_known_failure), which its ledger pays for at the claim. With
         `resend`, an uncertain submission is sent once more (engine/resend.py): every re-check
         that fails leaves it as it was, since no move takes one back to waiting. `forced` is a
-        person's Send now (SEND_NOW), which the claim re-checks and the plug's ledger pays for."""
-        key = row["interruption_id"]
+        person's Send now (SEND_NOW), which the claim re-checks and the plug's ledger pays for. With
+        `record` (v0.6.14), `row` is a record of the plug's own (P2, engine/plugrecords.py): the
+        person's words, its own claim and pre-send look, no channel - and this same one send."""
         with self.dispatch_lock():
-            current = self.store.get(key)
-            if not current or not self.allowed(current) or not (
-                    self._resendable(current, self.clock()) if resend else current["state"] in UNSENT):
-                return
-            if not self.valid_interruption(current):
-                if not resend:
-                    self.transition(current, *self.supersede_reason(current))
-                return
-            # A fresh process identity prevents a prior app's status authorizing a new app. A
-            # route is for a conversation the app does not hold, and only while it still does not.
-            if (self.backend.app_identity() != app
-                    or self.backend.loaded(current["thread_id"], app) != (
-                        "loaded" if route is None else "notLoaded")):
-                if not resend and not self._parked(current, vector):
-                    self.transition(current, "waiting_for_loaded_thread", "loaded_recheck_failed", delay=60)
-                return
-            if self.usage().get("available") is not True:
-                if not resend and not self._parked(current, vector):
-                    self.transition(current, "waiting_for_usage", "usage_recheck_failed", delay=900)
-                return
-            if route is not None:
-                self._resume_unloaded(current, vector, limits, route, app, relaxed=relaxed, forced=forced)
-                return
-            # The text is decided before the claim, not after it. Building it reads catalogs
-            # and settings; if either were ever broken, the failure has to happen while the
-            # record is still merely waiting. After the claim, any exception is treated as a
-            # send that may have happened - which is the right rule for a send and the wrong
-            # one for a sentence that was never finished.
-            #
-            # Nothing about the text can change what is allowed. Every gate above has
-            # already passed; the style and the Custom message decide words, and the words
-            # are only ever built for a category the classifier has proven recoverable.
-            try:
-                message = _message.for_settings(current["category"], self.policy_values,
-                                                row=current, limits=limits)
-            except Exception:
-                self.log(current["thread_id"], "continuation_text_fallback", None)
-                message = _message.build(current["category"], locale=l10n.DEFAULT)
-            message, worded = self._plugged_text(current, message, limits)
+            if record:
+                # A record of the plug's own (P2): its words are the person's, checked again before
+                # it got here (engine/plugrecords.py), and no P4, P15 or P16 is asked for it.
+                current, message, worded = row, row["words"], False
+            else:
+                key = row["interruption_id"]
+                current = self.store.get(key)
+                if not current or not self.allowed(current) or not (
+                        self._resendable(current, self.clock()) if resend else current["state"] in UNSENT):
+                    return
+                if not self.valid_interruption(current):
+                    if not resend:
+                        self.transition(current, *self.supersede_reason(current))
+                    return
+                # A fresh process identity prevents a prior app's status authorizing a new app. A
+                # route is for a conversation the app does not hold, and only while it still does not.
+                if (self.backend.app_identity() != app
+                        or self.backend.loaded(current["thread_id"], app) != (
+                            "loaded" if route is None else "notLoaded")):
+                    if not resend and not self._parked(current, vector):
+                        self.transition(current, "waiting_for_loaded_thread", "loaded_recheck_failed", delay=60)
+                    return
+                if self.usage().get("available") is not True:
+                    if not resend and not self._parked(current, vector):
+                        self.transition(current, "waiting_for_usage", "usage_recheck_failed", delay=900)
+                    return
+                if route is not None:
+                    self._resume_unloaded(current, vector, limits, route, app, relaxed=relaxed, forced=forced)
+                    return
+                # The text is decided before the claim, not after it. Building it reads catalogs
+                # and settings; if either were ever broken, the failure has to happen while the
+                # record is still merely waiting. After the claim, any exception is treated as a
+                # send that may have happened - which is the right rule for a send and the wrong
+                # one for a sentence that was never finished.
+                #
+                # Nothing about the text can change what is allowed. Every gate above has
+                # already passed; the style and the Custom message decide words, and the words
+                # are only ever built for a category the classifier has proven recoverable.
+                try:
+                    message = _message.for_settings(current["category"], self.policy_values,
+                                                    row=current, limits=limits)
+                except Exception:
+                    self.log(current["thread_id"], "continuation_text_fallback", None)
+                    message = _message.build(current["category"], locale=l10n.DEFAULT)
+                message, worded = self._plugged_text(current, message, limits)
             # P5, decided before the claim like the words: core's own backend, unless the plug
             # names a channel. The one binding of the one sender; whichever it is gets the one
             # send below, after the claim and the pre-send look, inside the launch guard.
             sender = self.plug.sender(current, self.backend)
-            # P15, decided like them before the claim, and written into the record before it - for a
-            # resend, the proof its first send carried, or nothing is sent (engine/delivery.py).
-            client = self._delivery(current, sender, resend=resend)
-            if client is False:
-                return
-            # P11 is asked inside the claim, once every check the store makes there has passed.
-            # The claim is told which of the plug's answers the send carries - its words, its
-            # channel, its way of carrying them - as decided here, where words that fill in to
-            # nothing were dropped: those are paid for in its ledger, so a ledger that breaks holds
-            # the claim instead of letting them go out unpaid, and nothing core dropped is paid
-            # for or held.
-            carried = frozenset(point for point, taken in ((Point.TEXT, worded),
-                                                           (Point.SENDER, sender is not self.backend),
-                                                           (Point.DELIVERY, client is not None))
-                                if taken) | self.relaxed_points("resend" if resend else relaxed)
-            carried |= self.relaxed_points("forced" if forced else None)
-            at = self.clock()
-            claimed, gate, reason = self.store.reserve_detailed(
-                key, at, limits=self.forced_limits(limits) if forced else limits, gates=vector,
-                ledger=self.plug, carried=carried, quiet_until=self.quiet_until(at), relaxed=relaxed,
-                resend=self.resend_window() if resend else None, forced=forced)
-            if not claimed:
-                if not resend:                          # a resend refused stays as it was
-                    self._refused(current, gate, reason)
-                return
-            self.moved(current, "submitting")
-            claim = self.store.get(key)
-            problem = self.presend_problem(claim, forced=True) if forced else self.presend_problem(claim)
-            if problem is None and client is not None and self.proof(claim) != client:
-                # Never sent under an id the watch would not look for (engine/delivery.py).
-                problem = ("waiting_retry", "released_before_send", self.options["state_poll_seconds"])
-            if problem is not None:
-                target, why, delay = problem
-                if resend:          # never given back to a wait: its first send is still uncertain
-                    target, why = "submission_unknown", "released_before_send"
-                    self.transition(claim, target, why, delay=1)
-                else:
-                    self._release(key, claim, target, why, delay)
-                self.log(current["thread_id"], target, why)
-                return
-            self.log(current["thread_id"], "queue_submission_started", None)
-            # Reservation is durable before any external process can accept the message.
-            # The conversation and the marker are the claimed row's, read back from the store
-            # after the claim - the row the pre-send look and the launch guard judged - and not
-            # the dict the plug's points were asked about before it. With no marker (P15), the
-            # client id that row holds goes with the words instead (engine/delivery.py).
-            words, carrying = ((message, {"client_id": client}) if client is not None
-                               else (message + "\n\n" + claim["marker"], {}))
+            if record:
+                claimed = self._record_claim(current, sender, app)
+                if claimed is None:
+                    return
+                thread, words, launch_guard = claimed
+                carrying = {}
+            else:
+                # P15, decided like them before the claim, and written into the record before it - for a
+                # resend, the proof its first send carried, or nothing is sent (engine/delivery.py).
+                client = self._delivery(current, sender, resend=resend)
+                if client is False:
+                    return
+                # P11 is asked inside the claim, once every check the store makes there has passed.
+                # The claim is told which of the plug's answers the send carries - its words, its
+                # channel, its way of carrying them - as decided here, where words that fill in to
+                # nothing were dropped: those are paid for in its ledger, so a ledger that breaks holds
+                # the claim instead of letting them go out unpaid, and nothing core dropped is paid
+                # for or held.
+                carried = frozenset(point for point, taken in ((Point.TEXT, worded),
+                                                               (Point.SENDER, sender is not self.backend),
+                                                               (Point.DELIVERY, client is not None))
+                                    if taken) | self.relaxed_points("resend" if resend else relaxed)
+                carried |= self.relaxed_points("forced" if forced else None)
+                at = self.clock()
+                claimed, gate, reason = self.store.reserve_detailed(
+                    key, at, limits=self.forced_limits(limits) if forced else limits, gates=vector,
+                    ledger=self.plug, carried=carried, quiet_until=self.quiet_until(at), relaxed=relaxed,
+                    resend=self.resend_window() if resend else None, forced=forced)
+                if not claimed:
+                    if not resend:                          # a resend refused stays as it was
+                        self._refused(current, gate, reason)
+                    return
+                self.moved(current, "submitting")
+                claim = self.store.get(key)
+                problem = self.presend_problem(claim, forced=True) if forced else self.presend_problem(claim)
+                if problem is None and client is not None and self.proof(claim) != client:
+                    # Never sent under an id the watch would not look for (engine/delivery.py).
+                    problem = ("waiting_retry", "released_before_send", self.options["state_poll_seconds"])
+                if problem is not None:
+                    target, why, delay = problem
+                    if resend:          # never given back to a wait: its first send is still uncertain
+                        target, why = "submission_unknown", "released_before_send"
+                        self.transition(claim, target, why, delay=1)
+                    else:
+                        self._release(key, claim, target, why, delay)
+                    self.log(current["thread_id"], target, why)
+                    return
+                self.log(current["thread_id"], "queue_submission_started", None)
+                # Reservation is durable before any external process can accept the message.
+                # The conversation and the marker are the claimed row's, read back from the store
+                # after the claim - the row the pre-send look and the launch guard judged - and not
+                # the dict the plug's points were asked about before it. With no marker (P15), the
+                # client id that row holds goes with the words instead (engine/delivery.py).
+                words, carrying = ((message, {"client_id": client}) if client is not None
+                                   else (message + "\n\n" + claim["marker"], {}))
+                thread, launch_guard = claim["thread_id"], self.store.submission_guard(key)
             try:
-                response = sender.send(claim["thread_id"], words,
-                                       launch_guard=self.store.submission_guard(key), **carrying)
+                response = sender.send(thread, words, launch_guard=launch_guard, **carrying)
             except Exception:
                 response = {"outcome": "unknown"}
             if not isinstance(response, dict):
                 response = {"outcome": "unknown"}
             try:
-                self._after_send(current, response, resend)
+                if record:
+                    self._record_sent(current, response)
+                else:
+                    self._after_send(current, response, resend)
             except Exception:
                 # The send happened or may have; the record stays claimed and the watch
                 # resolves it. Never logged as "no submission".

@@ -44,7 +44,7 @@ class AdvancedPlug(Plug):
         return self._runtime
 
     def records(self, view):
-        return self.runtime.ask(Point.RECORDS, view)
+        return self.runtime.records(view)
 
     def gate(self, name, record, facts):
         return self.runtime.ask(Point.GATES, name, record, facts)

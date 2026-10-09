@@ -75,6 +75,8 @@ METHODS = {
     "_forced_claim",
     # and the guard P8's errand of the plug makes its one write in (store/plugclaims.py).
     "errand_guard",
+    # and a record of the plug's own claimed, and the guard its launch is made in (P2).
+    "reserve_record", "record_guard",
 }
 
 # Reachable as `store.<name>` before the split, and still.

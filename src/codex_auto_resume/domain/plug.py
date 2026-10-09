@@ -45,7 +45,7 @@ import copy
 from enum import StrEnum
 import json
 
-from .plughands import Channel, Errand, Route
+from .plughands import Channel, Errand, Route, records_of
 
 # The interface's version. The advanced package writes out the number it was written for, and
 # edition.py takes its plug only when the two agree: otherwise a hook renamed, or given another
@@ -76,7 +76,9 @@ class Point(StrEnum):
 
     There is no P1. Classifying a turn into a core category would write a category that does
     not describe it, so an advanced record stays in the advanced store and reaches core through
-    RECORDS instead.
+    RECORDS instead, which core carries out from v0.6.14 (engine/plugrecords.py): each record is
+    tried through core's gates, its one claim and its one send, and its moves are told at P14 in
+    RecordMove's words.
 
     P14 is not a question: the engine tells the plug a record core holds has moved, as it writes
     the move. A person's own moves - a cancel, or the attempts given back (store/actions.py, and
@@ -148,6 +150,20 @@ class FailureForm(StrEnum):
     ABSENT = "absent"                        # nothing at all
 
 
+class RecordMove(StrEnum):
+    """What core did with a record of the plug's own (P2, v0.6.14), as P14 tells it (RECORD_MOVES): it
+    waits, at a gate and for a reason core names; it was handed back before its send, or its process
+    never started, and waits again with its words; it was sent - its words gone from the plug's state -
+    and is watched; its marker was found in Codex's history; or none was a day after it was sent, and
+    it is never sent again."""
+    WAITING = "waiting"
+    RELEASED = "released"
+    NOT_STARTED = "not_started"
+    SENT = "sent"
+    DELIVERED = "delivered"
+    UNPROVEN = "unproven"
+
+
 class Surface(StrEnum):
     """What a plug may add to at P10 (SURFACES). What it adds sits under the one key EXTRA,
     beside everything core shows there and never in place of any of it."""
@@ -160,6 +176,7 @@ class Surface(StrEnum):
 
 POINTS = tuple(Point)
 SURFACES = tuple(Surface)
+RECORD_MOVES = tuple(RecordMove)
 FAILURE_FORMS = tuple(FailureForm)
 # The key a surface puts a plug's fields under. NULL never adds any, so no standard surface
 # carries it.
@@ -207,8 +224,9 @@ class Plug:
     badge = "Standard"
 
     def records(self, view):                          # P2
-        """Records of the advanced store that are due now, to be tried like core's own. Asked
-        once a tick, after core's own due records, with the engine's view of its store."""
+        """Records of the advanced store that are due now, to be tried like core's own, and those in
+        flight, to be watched: asked once a tick, after core's own due records, with the engine's view
+        of its store, and held to plughands.records_of (Guarded.records)."""
         return DEFER
 
     def gate(self, name, record, facts):              # P3
@@ -348,10 +366,11 @@ RESTRICTIONS = frozenset({Alternative.HOLD})
 # of them is DEFER. At every other point a hook answers with a value - text, a sender, fields -
 # and core checks it where it takes it, as it checks its own.
 #
-# An empty set is a point core asks and carries nothing out at yet. An advanced record tried
-# like core's own, something that follows a finished turn, a division of the due records and a
-# restart each relax what core does alone, so each waits for the commit that teaches core to
-# carry it out - and then joins its point's set, or leaves this table for a value core checks.
+# An empty set is a point core asks and carries nothing out at yet. Something that follows a
+# finished turn, a division of the due records and a restart each relax what core does alone, so
+# each waits for the commit that teaches core to carry it out - and then joins its point's set, or
+# leaves this table for a value core checks, as RECORDS (P2) did in v0.6.14: the records a plug
+# hands over, each checked (plughands.records_of) and carried out by core (engine/plugrecords.py).
 #
 # START_ROUTE (v0.6.11 stage 3) and UNLOADED (P16, stage 3a) have left this table for values core
 # checks: the plug names a route - an object with a `start`, or a `resume` - and core carries it
@@ -370,7 +389,6 @@ TAKE_UP = frozenset({Alternative.ADMIT, Alternative.AS_NETWORK_TRANSIENT, Altern
                      Alternative.AS_RATE_LIMIT_TRANSIENT, Alternative.AS_SERVER_5XX,
                      Alternative.AS_STREAM_INTERRUPTED, Alternative.CAPACITY})
 ALTERNATIVES = {
-    Point.RECORDS: frozenset(),
     Point.GATES: RESTRICTIONS | TAKE_UP,
     Point.OUTCOME: frozenset(),
     Point.SCHEDULE: RESTRICTIONS | {Alternative.EARLY, Alternative.RESEND, Alternative.SEND_NOW},
@@ -515,7 +533,9 @@ class Guarded:
         return consult(self.plug, point, *arguments, failed=told)
 
     def records(self, view):
-        return self._ask(Point.RECORDS, view)
+        """P2: the records the plug hands over that core can carry out (plughands.records_of): a tuple,
+        empty for anything else."""
+        return records_of(self._ask(Point.RECORDS, view))
 
     def gate(self, name, record, facts):
         return self._ask(Point.GATES, name, record, facts)

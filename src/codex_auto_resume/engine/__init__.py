@@ -15,6 +15,7 @@ they did:
     guard       the waits and the two guards of v0.6.11, each asking nothing at the defaults
     relaxed     what the edition's plug may relax (v0.6.14), within core's own bounds
     resend      an uncertain continuation sent once more, where the plug asks and core may (v0.6.14)
+    plugrecords records of the edition's own, tried like core's: gates, the one claim, the one send (v0.6.14)
     notices     the needs-you notices of v0.6.11, told once, and off at the defaults
 
 `tick` is here rather than in any of them: one pass of the loop is the whole of what this
@@ -33,13 +34,14 @@ from .notices import NoticeMixin
 from .options import (BACKOFF_LADDER, TRANSIENT_BACKOFF, OptionsMixin,  # noqa: F401
                       StoreView, backoff_delay, transient_delay)
 from .outcome import OutcomeMixin
+from .plugrecords import PlugRecordsMixin
 from .reconcile import SETTLED, UNSENT, ReconcileMixin, _UNDETERMINED  # noqa: F401
 from .relaxed import RelaxedMixin
 from .resend import ResendMixin
 
 
 class Engine(OptionsMixin, AnnounceMixin, FreshnessMixin, DetectMixin, ReconcileMixin, OutcomeMixin, DispatchMixin,
-             DeliveryMixin, GuardMixin, NoticeMixin, RelaxedMixin, ResendMixin):
+             DeliveryMixin, GuardMixin, NoticeMixin, RelaxedMixin, ResendMixin, PlugRecordsMixin):
     """The part that decides.
     """
 
@@ -82,10 +84,10 @@ class Engine(OptionsMixin, AnnounceMixin, FreshnessMixin, DetectMixin, Reconcile
             # v0.6.14: what the watch found no trace of, put to the plug for one more send (P7).
             if not self.plug.null:
                 self.resend_uncertain()
-            # P2: the records of the advanced store that are due, after core's own. None is tried
-            # yet: an advanced record reaches the one claim only once core has learned to carry it
-            # through it (domain/plug.py, ALTERNATIVES).
-            self.plug.records(view)
+            # P2: the records of the advanced store that are due, after core's own, each carried out
+            # by core - its gates, its one claim, the one send - and those in flight watched
+            # (engine/plugrecords.py, v0.6.14). The standard edition's plug hands over none.
+            self.plug_records(view)
         finally:
             if errand is not DEFER:
                 self._errand(errand)

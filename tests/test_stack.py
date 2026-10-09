@@ -80,7 +80,9 @@ ITEM = {_q(name): item for item, names in {
                # v0.6.14: what the edition's plug may relax, within core's own bounds.
                "engine.relaxed",
                # and an uncertain continuation sent once more, where the plug asks and core may.
-               "engine.resend"),
+               "engine.resend",
+               # and records of the edition's own, tried like core's.
+               "engine.plugrecords"),
     "policy": ("failures", "reasons", "settings", "continuation", "openstate", "domain.gates",
                # what may be done at a tier, and with whose word: policy, not registry data
                "compat.permits",

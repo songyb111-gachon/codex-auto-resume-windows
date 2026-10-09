@@ -136,8 +136,9 @@ class ClosedAlternativeTests(unittest.TestCase):
                 self.assertIs(plug.consult(RecordingPlug(gate=answer), Point.GATES, 1, 2, 3), DEFER)
         taken = plug.consult(RecordingPlug(gate="hold"), Point.GATES, 1, 2, 3)
         self.assertIs(taken, Alternative.HOLD)
-        # A word of another point is no word at an empty-set point: records carries nothing out.
-        self.assertIs(plug.consult(RecordingPlug(records=Alternative.HOLD), Point.RECORDS, 1), DEFER)
+        # A word at a point whose answer is a value core checks is no value: P2 takes records (v0.6.14),
+        # and a word is none of them.
+        self.assertEqual(plug.guard(RecordingPlug(records=Alternative.HOLD)).records(1), ())
 
     def test_every_decision_point_accepts_a_restriction_or_nothing(self):
         """A hook may always restrict and may relax only as core has learned to carry out, which
@@ -176,7 +177,10 @@ class ClosedAlternativeTests(unittest.TestCase):
                          {Point.GATES, Point.SCHEDULE, Point.CLAIM_LEDGER, Point.DELIVERY,
                           Point.ADMISSION})
         self.assertEqual({point for point, accepted in plug.ALTERNATIVES.items() if not accepted},
-                         {Point.RECORDS, Point.OUTCOME, Point.CONCURRENCY, Point.SUPERVISION})
+                         {Point.OUTCOME, Point.CONCURRENCY, Point.SUPERVISION})
+        # v0.6.14: P2 has left the table for a value core checks - the records a plug hands over, each
+        # checked (plughands.records_of) and carried out by core (engine/plugrecords.py).
+        self.assertNotIn(Point.RECORDS, plug.ALTERNATIVES)
         # The start route is no longer a decision point: core checks the value it hands back.
         self.assertNotIn(Point.START_ROUTE, plug.ALTERNATIVES)
         for point, accepted in plug.ALTERNATIVES.items():
@@ -239,6 +243,8 @@ class GuardTests(unittest.TestCase):
                     self.assertIs(answer, given[-1])
                 elif point is Point.MOVED:
                     self.assertIsNone(answer, "a move's answer is not read")
+                elif point is Point.RECORDS:
+                    self.assertEqual(answer, (), "no record of the plug's own")
                 else:
                     self.assertIs(answer, DEFER)
         self.assertEqual(guarded.failures, 0)

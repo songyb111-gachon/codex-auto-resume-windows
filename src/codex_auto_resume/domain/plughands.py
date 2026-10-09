@@ -1,4 +1,5 @@
-"""What core holds of something a plug names: a channel, a route and (v0.6.14) an errand.
+"""What core holds of something a plug names: a channel, a route and (v0.6.14) an errand - and which
+records of the plug's own core takes to carry out (P2).
 
 A hook answers; it never sends, claims or starts anything (domain/plug.py). Where a point's answer is
 something core carries out - a channel the one send is handed to (P5), a route that continues a
@@ -14,6 +15,16 @@ from __future__ import annotations
 
 from contextlib import nullcontext
 
+from . import ids
+from .states import EPOCH_STORE, epoch
+
+# How many records of the plug's own core takes in one tick (P2), at most: more is a plug's mistake.
+RECORDS_LIMIT = 8
+# What one of them is, exactly: no more keys and no fewer.
+RECORD_KEYS = frozenset({"record_id", "thread_id", "marker", "state", "words", "sent_at"})
+# How long the words of one may be, at most: what core's one send carries, less the blank line and the
+# marker it ends with (continuation.validate_prompt checks them again, as text).
+WORDS_LIMIT = 8192
 # How many guards one errand may ask for in one tick: one for each capability whose errand the plug
 # joins into it, and no more. A guard asked for past this is refused without a transaction.
 ERRAND_GUARDS = 8
@@ -121,3 +132,42 @@ class Errand:
             asked.append(None)
             return _Once(guard if len(asked) <= ERRAND_GUARDS else (lambda: nullcontext(False)))
         return self._run(one)
+
+
+def _record(found):
+    """One record the plug handed over, as core takes it - a copy - or None for anything else."""
+    if type(found) is not dict or set(found) != RECORD_KEYS:
+        return None
+    key, thread, state, words, sent = (found["record_id"], found["thread_id"], found["state"], found["words"],
+                                       found["sent_at"])
+    if (type(key) is not str or not ids.is_interruption_id(key) or ids.uuid_problem(thread) is not None
+            or found["marker"] != ids.short_marker(key)):
+        return None
+    if state == "waiting":
+        if type(words) is not str or not 0 < len(words) <= WORDS_LIMIT or sent is not None:
+            return None
+    elif state == "in_flight":
+        if words is not None or not (sent is None or epoch(sent, *EPOCH_STORE, exact=True)):
+            return None
+    else:
+        return None
+    return {"record_id": key, "thread_id": thread, "marker": str(found["marker"]), "state": state,
+            "words": words, "sent_at": None if sent is None else float(sent)}
+
+
+def records_of(answer) -> tuple:
+    """The records of the plug's own core takes from P2's answer (v0.6.14): a list or a tuple of dicts,
+    each with exactly RECORD_KEYS - a record id of 64 lowercase hex, a canonical conversation id, the
+    marker core gives that id (ids.short_marker), and either `waiting` with words and no `sent_at`, or
+    `in_flight` with no words and when it was sent, or None. Anything else is dropped, a record at a
+    time, and past RECORDS_LIMIT the rest are; a second record of one id is the first's. DEFER, or
+    anything that is not a list or a tuple, is none."""
+    if type(answer) not in (list, tuple):
+        return ()
+    taken, seen = [], set()
+    for found in answer[:RECORDS_LIMIT]:
+        made = _record(found)
+        if made is not None and made["record_id"] not in seen:
+            seen.add(made["record_id"])
+            taken.append(made)
+    return tuple(taken)

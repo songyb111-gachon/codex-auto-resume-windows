@@ -106,6 +106,13 @@ _MESSAGES = {
     ("would_send", None): "observe only: every other check passed; a continuation would have been sent now, and none was",
     # v0.6.14: P8's errand of the edition's plug raised; nothing else of the tick was lost.
     ("plug_errand_failed", None): "an advanced capability's errand failed; it was skipped this time",
+    # v0.6.14: a record of the edition's plug's own (P2) - a message a person wrote - as core carried it out.
+    ("plug_record_check_failed", None): "an advanced record could not be checked; nothing was sent",
+    ("plug_record_would_send", None): "observe only: an advanced record would have been sent now, and none was",
+    ("plug_record_released", None): "an advanced record was handed back before its send",
+    ("plug_record_send_started", None): "an advanced record's send started",
+    ("plug_record_sent", None): "an advanced record was sent",
+    ("plug_record_not_started", None): "an advanced record's send never started; it waits again",
     # v0.6.14: a failure the edition's plug took up (domain/plug.py, P17); never in the standard edition.
     ("failure_taken_up", None): "failure of a kind recovered only on request taken up (interruption {detail12})",
     # v0.6.11: the two guards (guards.py), each only when it is on.

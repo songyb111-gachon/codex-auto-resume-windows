@@ -207,6 +207,8 @@ LISTS = {
     "domain.plug.ANSWERS": ("set", 12, "4c1e9268012950b1"),
     "domain.plug.FAILURE_FORMS": ("tuple", 5, "bcc0ad1bd6f81009"),
     "domain.plug.SURFACES": ("tuple", 5, "d41ac5a6d67be21b"),
+    # v0.6.14: what core did with a record of the plug's own (P2), as P14 tells it.
+    "domain.plug.RECORD_MOVES": ("tuple", 6, "714a23886c2dd85c"),
     "domain.plug.EXTRA": "advanced",
 }
 
@@ -388,6 +390,7 @@ HOMES = {
     p.Alternative: ("list", "domain.plug.ANSWERS"),
     p.Surface: ("list", "domain.plug.SURFACES"),
     p.FailureForm: ("list", "domain.plug.FAILURE_FORMS"),
+    p.RecordMove: ("list", "domain.plug.RECORD_MOVES"),
     # v0.6.12: the power action's own words, beside domain/vocabulary.py at its line budget.
     pw.PowerAction: ("list", "poweraction.ACTIONS"),
     pw.PowerAfter: ("list", "poweraction.AFTERS"),

@@ -176,6 +176,8 @@ class OptionsMixin:
         # record looked at early now and when the last early window opened (EARLY, engine/relaxed.py).
         self._unadmitted = {}
         self._early_look = self._early_at = None
+        # v0.6.14: the plug's records whose would-send line was written in this process (plugrecords.py).
+        self._records_noted = set()
         # and what P7 said of the record looked at now, where it was asked at a refused schedule.
         self._schedule_said = None
         self._announced = set()
