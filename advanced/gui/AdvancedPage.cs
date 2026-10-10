@@ -98,6 +98,10 @@ namespace CodexAutoResume
         private bool advancedAsking, advancedReading, advancedReadAgain, advancedFilling, hourlyFilling;
         // What waits for the read in flight to finish, in order (ReadAdvanced).
         private readonly List<MethodInvoker> advancedThen = new List<MethodInvoker>();
+        // The font the list's cells were last measured in, and how many times they were (FillAdvancedList): every
+        // snapshot with the page in front reads the list again, and the cells are measured only when a word changed.
+        private Font advancedMeasuredFont;
+        private int advancedMeasures;
         // The capabilities whose statement the last read of it could not read: their cards say so where the statement
         // would be, rather than leave Turn on and Watch first greyed with no reason given.
         private readonly HashSet<string> advancedUnread = new HashSet<string>();
@@ -732,6 +736,7 @@ namespace CodexAutoResume
             try
             {
                 bool same = advancedList.Items.Count == rows.Count;
+                bool measure = advancedMeasuredFont != advancedList.Font || !cellWidths.ContainsKey(advancedList);
                 for (int i = 0; same && i < rows.Count; i++)
                     same = Str(advancedList.Items[i].Tag as Dictionary<string, object>, "id") == Str(rows[i], "id");
                 if (!same)
@@ -746,6 +751,7 @@ namespace CodexAutoResume
                         advancedList.Items.Add(item);
                     }
                     advancedList.EndUpdate();
+                    measure = true;
                 }
                 else
                 {
@@ -754,7 +760,9 @@ namespace CodexAutoResume
                         ListViewItem item = advancedList.Items[i];
                         item.Tag = rows[i];
                         string state = StateWord(Str(rows[i], "state"));
-                        if (item.SubItems[1].Text != state) item.SubItems[1].Text = state;
+                        if (item.SubItems[1].Text == state) continue;
+                        item.SubItems[1].Text = state;
+                        measure = true;
                     }
                     advancedList.Invalidate();
                 }
@@ -764,7 +772,13 @@ namespace CodexAutoResume
                     if (item.Selected != open) item.Selected = open;
                     if (open && advancedList.FocusedItem == null) item.Focused = true;
                 }
-                MeasureCells(advancedList);
+                // The same rows in the same words measure the same widths: measured again only when one changed.
+                if (measure)
+                {
+                    MeasureCells(advancedList);
+                    advancedMeasuredFont = advancedList.Font;
+                    advancedMeasures++;
+                }
             }
             finally
             {

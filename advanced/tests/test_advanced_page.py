@@ -428,6 +428,24 @@ class PageTests(unittest.TestCase):
         return "en", {"script": script, "steps": steps}, {}
 
     @classmethod
+    def scenario_measured(cls, bridge):
+        """On the page, every snapshot reads the list again (scenario_followed): twice the same list, then one where a
+        capability is watched. The cells are measured when the rows come, and again only when a state's word changed."""
+        script = cls.opening(bridge, "en")
+        definition = registry.REGISTRY.get(IDS[1])
+        listed = bridge("advanced-statement", {"capability": IDS[1], "locale": "en"})["result"]
+        done = bridge("advanced-arm", {"capability": IDS[1], "state": "shadow", "revision": definition.revision,
+                                       "generation": 0, "engine_version": listed["engine_version"],
+                                       "warnings": [item["warning"] for item in listed["warnings"]["items"]]})
+        assert done["result"]["done"], done
+        steps = [{"do": "snapshot", "reply": snapshot()}, {"do": "show"}, {"do": "look"},
+                 {"do": "snapshot", "reply": snapshot()}, {"do": "look"},
+                 {"do": "snapshot", "reply": snapshot()}, {"do": "look"},
+                 {"do": "reply", "key": "advanced-list", "with": [bridge("advanced-list", {})]},
+                 {"do": "snapshot", "reply": snapshot(on=1)}, {"do": "look"}]
+        return "en", {"script": script, "steps": steps}, {}
+
+    @classmethod
     def scenario_keys(cls, bridge):
         """Ctrl+Tab goes from Settings to this page and on to the Overview; Ctrl+Shift+Tab back."""
         script = cls.opening(bridge, "en")
@@ -1153,6 +1171,20 @@ class PageTests(unittest.TestCase):
         self.assertEqual(commands[counts[2]:counts[3]], read)
         self.assertEqual(commands[counts[3]:counts[4]], read)
         self.assertEqual(result["page"], "advanced")
+
+    def test_the_cells_are_measured_again_only_when_a_word_changed(self):
+        """With the page in front, every snapshot read the list again and measured all its cells (32 measurements every
+        few seconds); the same rows in the same words now measure nothing, and a state that changed is measured."""
+        result, _ = self.of("scenario_measured")
+        first, again, third, changed = result["looks"]
+        self.assertEqual(first["page"], "advanced")
+        self.assertGreater(int(first["requests"]), 0)
+        self.assertLess(int(first["requests"]), int(again["requests"]), "the snapshot read the list again")
+        self.assertGreaterEqual(int(first["measures"]), 1, "the rows that came were not measured")
+        self.assertEqual([int(look["measures"]) for look in (again, third)], [int(first["measures"])] * 2,
+                         "the same list in the same words was measured again")
+        self.assertNotEqual(changed["rows"][1][1], third["rows"][1][1])
+        self.assertEqual(int(changed["measures"]), int(first["measures"]) + 1, "a state's new word was not measured")
 
     def test_ctrl_tab_goes_from_settings_to_this_page_and_on(self):
         pages = [look["page"] for look in self.of("scenario_keys")[0]["looks"]]
