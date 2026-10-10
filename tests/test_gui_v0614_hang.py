@@ -7,7 +7,7 @@ measured inside a layout of a whole page. Three timers handed whole pages a layo
   is not the page in front, `Visible` answers false whatever a line was told, so the write took the change branch
   every time and laid out the card and the whole of Settings > General - on a PC where sleep is not offered, or
   once a power action had run, from the first time Settings had been seen.
-- History's "Open the conversation" button was written the same way on every snapshot, beside a row whose
+- History's "Turn on for this conversation" button was written the same way on every snapshot, beside a row whose
   conversation is off.
 - The clock wrote the Overview's "Next check in" line every second, and the line sits in an AutoSize card on an
   AutoSize grid, so each second laid out the Overview's grid and page and measured all four cards - hidden behind

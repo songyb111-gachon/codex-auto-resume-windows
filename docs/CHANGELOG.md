@@ -124,7 +124,7 @@ did it, each by laying out a whole page that nobody was looking at, or that had 
   Settings is not the page in front, a line there always reads as hidden, so the window "showed" it
   again each time and laid out the whole of Settings > General - on a PC where Windows offers no sleep,
   as on many laptops, from the first time Settings had been seen, and on every PC once a power action
-  had run. History's "Open the conversation" button was rewritten the same way.
+  had run. History's "Turn on for this conversation" button was rewritten the same way.
 - Every second, the clock wrote the Overview's "Next check in" line on every page, and each new
   countdown laid out the Overview's cards and measured every line on them - behind Pending, or in front
   for the same size.
