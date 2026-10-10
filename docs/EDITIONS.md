@@ -1,631 +1,555 @@
-# The two editions
-
-From v0.6.11 Codex Auto Resume is built and released as two editions, from one repository, with one
-version, at the same time: the **standard** edition and the **advanced** edition. This page says
-what each is, what each of the advanced edition's capabilities does and what it risks, how to choose
-and switch between them, and what comes next. The rules both editions are held to are listed by id
-in [STANDARDS.md](STANDARDS.md); where this page names one, it says in a few words what it is.
-
-## The standard edition
-
-The standard edition is the product as it is, plus only what keeps every standard in families 0
-and A to J ([0.1](STANDARDS.md#0-the-edition-boundary)). What a release adds to it keeps them too:
-each addition is off, or does what the release before it did, until you change it, and nothing it
-already did is loosened (0.2). Among what it keeps:
-
-- it sends a continuation through one channel only, Codex's own `codex queue`, to one conversation
-  named by its exact id, and ends it with a marker by which it proves the continuation arrived (A2,
-  A3, A4);
-- it never sends again when the first continuation may already have been delivered (A6);
-- it sends only while the Codex app has the conversation open (A11);
-- it starts nothing on its own, and nothing when Codex starts (C4, F14);
-- it never changes a Codex goal, retries a failure it cannot name, or wakes a conversation the app
-  does not hold (0.5, A14).
-
-It holds none of the advanced edition's code. Its archive and its setup program are built from
-trees that do not include `advanced/`, and `build/edition_audit.py` proves from their own bytes, in
-every release build, that nothing of the advanced edition is in them ([K1](STANDARDS.md#k-the-advanced-editions-own-rules)).
-Everything the [guide](GUIDE.md) describes is the standard edition, and the plugin added to Codex
-from GitHub installs it.
-
-## The advanced edition
-
-The advanced edition is the standard edition plus capabilities that each depart, on purpose, from
-at least one of those standards, and say which (K4). A capability that kept every standard would
-belong in the standard edition instead. Until you turn one on or have one watched, the advanced
-edition does what the standard edition does; the plugin's name in Codex carries the word *Advanced*.
-
-**Everything is off until you turn it on, one at a time, in the Dashboard.** Every capability
-starts off, and installing the edition, or switching to it, turns every one off. The Dashboard has
-one more page in this edition, **Advanced features**, the last tab after Settings. Choose a
-capability there and read its statement: what it does, what the standard edition does instead,
-which standards it departs from, what can go wrong and how to stop it, and any warnings it carries
-now. **Turn on** asks once more, with the statement and every warning in front of you; saying yes
-confirms them, for the version of Codex shown. **Watch first** instead has it asked wherever it
-would act, and note what it would have done, while it does nothing. What it would have done is
-counted on its page, under its other cards, for the last 30 days: each answer in words, once for
-each recovery it would have acted on, how many times and when last; a diagnostics export you ask
-for includes the same. If anything changed while you
-were reading, the page reads it again and asks again with what holds now (K3); where it cannot read
-it again, or your administrator's policy now refuses it, it says that nothing was turned on, and why.
-The page reads the list again after everything you do there, and whenever the watcher says a
-capability was turned on or off, here or anywhere else.
-
-**Everywhere else, only off.** Nothing else - the panel inside Codex, the notification-area icon,
-a card - can turn a capability on. Codex's tools (MCP) can list the capabilities and turn one, or
-all of them, off, and no MCP tool turns one on, whatever a client sends (K3). **Turn every advanced
-feature off** on the page turns them all off at once.
-
-**Pause stops everything.** While recovery is paused, no capability is asked anything; a
-conversation you switched off and a recovery you cancelled are never handed to one; and a pause
-that arrives just before a send still stops it at the last moment. Every check a send passes, the
-record that it was claimed and the last look before it stay the standard edition's (K5).
-
-**Ceilings.** Each capability may send only so many times a day, in all and in any one
-conversation, counted when the send is claimed. Over them stands one ceiling for all capabilities
-together, 12 sends an hour, which you can lower on the page, as far as one an hour, and never raise
-past 12. The page shows a capability's own ceilings beside its statement. Every send also counts
-against the standard edition's own limits for the conversation: five in any 24 hours, at least 15
-minutes apart (A20) - except where a capability says it departs from A20: a send of the short retries
-when Codex is at capacity counts against the program's own capacity limits instead, 48 a day, a minute
-apart, and Send now skips the 15 minutes for the one recovery you choose, still within the five a day.
-
-**Warnings, not refusals.** A measurement a capability rests on that failed, or was never made for
-your version of Codex, a compatibility grade of Failed here, Incompatible or Unknown, or a Codex
-version not known yet is shown in its statement as a warning. It does not stop you turning the
-capability on; turning it on confirms you read it (K6).
-
-**Tripwires.** A capability turns itself off when its statement gets a new revision; when a warning
-you did not confirm says that what it stands on went wrong; when one of its parts fails; when a send
-it made becomes one whose delivery cannot be proven; and, while it is on, when Codex is updated. The
-page says so under the capability's state, and why. You can turn it on again, with its statement as
-it then reads (K7). A continuation sent once more and then found twice turns off what sent it again:
-Once more when unsure itself, or the *Also send again when unsure* of a capability kept on.
-
-**Keep it on.** On the page, a capability that is on or watched can be kept on, after its own warning.
-Kept on, it does not turn itself off for any of the tripwires above, nor for a new version of Codex:
-the page notes the most serious of them under its state until you turn it on again; a part of it that
-fails skips only that one recovery; and a send it made whose delivery cannot be proven is held, as the
-standard edition holds one. A Codex version or a compatibility grade that cannot be read still holds
-it back, its ceilings stay, and turning it off - here, from Codex or with every advanced feature at
-once - always works and lets it turn itself off again. With it you can also choose *Also send again
-when unsure*, after a warning of its own: such a send is then sent once more under the rules of Once
-more when unsure below, so the capability departs from what that one departs from too, and only where
-your administrator's policy allows Once more when unsure as well; a continuation sent again and found
-twice turns that choice off, and the capability stays on. The compatibility report sends nothing to
-Codex, so it has no such choice. The policy reads a kept-on capability down
-as any other, by the capability's own id: no policy value reaches Keep it on alone (K8).
-
-**Your administrator's policy.** Three values under `Software\Policies\CodexAutoResume`, in
-`HKEY_LOCAL_MACHINE` or `HKEY_CURRENT_USER`, read and never written: `ForbidAdvanced` (nothing may be
-on or watched), `AllowedCapabilities` (only the ids listed may be) and `ForceShadow` (watched, never
-on). Both places count, together they are the stricter, and a value that cannot be read counts as
-the strictest. The page says when one of them applies. Like the standard edition's policy keys,
-they are what a cooperating installation obeys, not a lock (K6).
-
-What the advanced edition keeps is its own: which capability is on, what each has spent and what it
-did, the choices you made for a capability, the rules you wrote, which capability took up which
-interruption, the samples of failures it could not classify, the reset rules and what it counted of
-the usage windows - and, until each is sent, cancelled or ended, the words of a message you wrote for a
-reset - are kept in
-`config/advanced/advanced.sqlite`, in fixed words, ids, numbers and Codex's own error codes - never a
-word of an error or a conversation, and of yours only a message waiting for a reset - and nothing of it is written into the standard edition's state. It adds no network code; one capability,
-the compatibility report, asks gh - the GitHub CLI you installed - to reach GitHub, and only when
-you start it in the Dashboard (below). Its archive also carries
-the harness the project uses to measure whether a capability's route works on a given version of
-Codex; nothing runs it unless a person asks, and [SECURITY.md](SECURITY.md) says what it does.
-
-## Today's capabilities
-
-Fifteen: eleven that change how a recovery is made, two that act at a usage reset you pick, and two
-actions - Longer reset messages, which only lets a message for a reset be longer, and the compatibility
-report, which only you start. The first three rest on a measurement each that was made, the two reset
-actions on measurements not made yet, and the other ten on none. Each measurement made was made once,
-by hand, on the owner's machine, on `codex-cli 0.158.0-alpha.2.1`; its record is in
-[`docs/evidence/live/`](evidence/live/). On any other version of Codex, and for a measurement not
-made yet, a capability's statement carries the warning that it was not measured there.
-
-### Start with Codex
-
-**What it does.** When Codex starts the plugin's server, recovery is not paused, no watcher is
-running and no installation is in progress, it starts the watcher, through Windows' WMI, outside
-the job Codex closes when it quits, so the watcher keeps running after Codex closes. It starts this
-installation's own launcher and nothing else, never a second watcher, and it sends nothing itself.
-
-**When it helps.** When you do not have the watcher start at sign-in and want it running whenever
-Codex is. The standard edition starts nothing here: a watcher started from inside Codex ends when
-Codex closes, so it says so and waits for you to start the watcher yourself (F14).
-
-**What it risks.** Its whole purpose is to step outside a limit Codex places on its plugins on
-purpose. If WMI is off, or a policy blocks starting processes through it, nothing starts and the
-reason is logged; you are never asked to change that policy.
-
-**Departs from** [C4](STANDARDS.md#c-network) (nothing happens on its own, nothing at start) and
-[F6](STANDARDS.md#f-footprint-on-the-machine) (the processes the product starts are a fixed list,
-and a route through WMI is not on it).
-
-**Ceilings.** None come into play: it sends nothing.
-
-**Measurement MW: passed.** A process started through WMI from inside a job built as Codex builds
-its plugins' jobs landed outside that job and was still running after the job was closed. Nobody has
-yet watched a watcher started this way outlive Codex itself; [LIVE_ACCEPTANCE.md](LIVE_ACCEPTANCE.md)
-asks for that.
-
-### Marker-free continuation
-
-**What it does.** Sends each continuation without the marker the standard edition ends it with. The
-message is added to the conversation's queue through Codex's own app server (`thread/queue/add`),
-under an id made from the interruption, and that id, which Codex keeps on the message, is what proves
-it arrived. Past its ceilings, a continuation goes with the marker, as in the standard edition.
-
-**When it helps.** When you would rather the continuation read as plain words in the conversation,
-without `[codex-auto-resume:…]` at the end.
-
-**What it risks.** It rests on one app-server request, measured on one version of Codex; another
-version may refuse it or stop keeping the id. When arrival cannot be proven - the app server
-refuses or does not answer, or the message never shows - the continuation is treated as uncertain,
-exactly as the standard edition treats one: it is never sent again, and the capability turns itself
-off. Every check and limit stays as it is.
-
-**Departs from** [A2](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (one channel only,
-`codex queue`), A4 (every continuation carries its marker, and counts as delivered only when the
-marker is found), [B3](STANDARDS.md#b-what-it-reads-and-how) (Codex's state changes only through its
-queue, the withdrawal of a queued message and the plugin commands) and B4 (the app server is asked
-only for usage and to withdraw a queued message).
-
-**Ceilings.** 24 a day, and 5 in any one conversation - the standard edition's own limit for a
-conversation.
-
-**Measurement M7: passed.** The app server accepted a message added with such an id, and delivered
-the words `/compact` as plain text rather than running them as a command.
-
-### Goal continuation
-
-**What it does.** For a usage limit only. When the limit paused a conversation's Codex goal and the
-conversation is due to continue while the Codex app does not have it open, it sets that existing
-goal active again through Codex's own app server (`thread/goal/set`), so that Codex carries the goal
-on when the app next opens the conversation. It never creates a goal and never reads or changes what
-the goal says. While the app has the conversation open, the continuation goes through Codex's queue
-as in the standard edition; setting the goal active first there waits for measurement M2b to pass
-for your version of Codex, which has not been made yet. While a goal it set active carries the
-conversation on, the standard continuation waits, for up to ten minutes, so the two do not both run.
-
-**When it helps.** When a usage limit stopped work under a goal and you do not keep that
-conversation open: in the standard edition the goal stays paused until you resume it yourself.
-
-**What it risks.** Measurement M2 found that a goal set active this way is not taken up while the app
-has the conversation open, which is why it acts only where the app does not. In the same measurement
-the goal was live again once the app loaded the conversation, as its statement says, though the
-record in [`docs/evidence/live/`](evidence/live/) keeps only the failing verdict; nobody has yet
-followed Codex carrying such a goal on by itself as the app opens the conversation. Another version
-of Codex may handle goals differently. When the result cannot be confirmed - Codex does not answer,
-or the goal does not read back as active - that interruption is not tried again and the capability
-turns itself off. Turning it off leaves a goal it already set active as it is: pause the goal in
-Codex to stop it.
-
-**Departs from** [0.5](STANDARDS.md#0-the-edition-boundary) (a goal's state is never changed), A2
-(one channel only), A11 (nothing is done for a conversation the app does not have open), B3 and B4.
-
-**Ceilings.** 12 a day, and 3 in any one conversation.
-
-**Measurement M2: failed**, for a conversation the app holds; its statement shows that as a warning.
-M2b, which would let it act while the app holds the conversation, has not been made.
-
-Where the goal continuation and the marker-free continuation are both on and the goal applies, the
-goal continuation carries the send.
-
-### Short retries when Codex is at capacity
-
-**What it does.** When Codex says it is at capacity - its own error code `serverOverloaded`, a server
-error the standard edition recovers already - it tries again sooner and more often: about a minute
-after the failure, then two, four and five minutes, each lengthened by up to a fifth, at least a
-minute apart and at most 48 times a day in one conversation. It keeps this up for as long as you
-choose on the page, one to twelve hours (two by default), counted on the clock from the task's first
-failure; after that the standard edition's waits and limits apply again, and they may end the task.
-Each try is the ordinary continuation through Codex's queue, with its marker. Other server errors,
-rate limits and usage limits keep the standard edition's waits.
-
-**When it helps.** When Codex is busy for a while and you would rather it kept trying than waited the
-standard edition's retry timing and stopped after four attempts.
-
-**What it risks.** Retrying a busy service often adds to its load and spends usage on continuations
-that may fail again, and each try is a visible message in the conversation. While the ceiling for
-all capabilities together is reached, a capacity error is handled as the standard edition handles
-it. However long it keeps answering, the program itself never retries one task for more than twelve
-hours on the clock, 48 times a day, or sooner than a minute apart.
-
-**Departs from** [A20](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (five continuations a
-conversation in 24 hours, 15 minutes apart), A21 (the attempt, no-progress and continuation budgets),
-A22 (waits come only from the retry timing you chose) and [B9](STANDARDS.md#b-what-it-reads-and-how)
-(only a failure's kind is kept: this also reads Codex's own error code, never its words).
-
-**Ceilings.** 48 a day, and 48 in any one conversation - the one capability whose conversation
-ceiling is above the standard edition's five, because it departs from A20.
-
-### Rules for Codex's error codes
-
-**What it does.** Lets you write up to ten rules on the page. Each names one of Codex's own error
-codes, and if you like a range of status numbers, and the kind of temporary failure to treat it as: a
-dropped connection, a timeout, a rate limit, a server error or a broken stream. A rule applies only
-to a failure the program could not classify; it then waits as that kind waits in your retry timing,
-counts against that kind's budget and follows that kind's switch in Settings. A code the program
-already knows can never be a rule, nor one whose name speaks of a policy, budget, quota, permission,
-approval, sign-in or cancellation, and no rule makes a failure a usage limit. Rules read codes, never
-the words of an error. The page lists each rule with how many failures it took up in the last 30
-days, and offers the codes the samples (below) saw.
-
-**When it helps.** When you know that a code Codex sends, which this program does not know yet, is
-temporary.
-
-**What it risks.** A rule is your judgement that a code is temporary. A wrong one retries failures
-that retrying cannot fix, until that kind's budget runs out, and Codex may rename or reuse a code in
-another version. Removing a rule ends what it took up and has not sent.
-
-**Departs from** [0.5](STANDARDS.md#0-the-edition-boundary) (a failure it cannot classify is never
-retried), A13 (only the classified kinds are recovered), A14 (anything unclassified is never
-retried), A26 (continuation text only for a kind that is recovered) and B9.
-
-**Ceilings.** 24 a day, and 5 in any one conversation.
-
-### Retry failures it cannot name
-
-**What it does.** When a turn fails with an error code of Codex's that the program cannot classify,
-it continues the conversation anyway, on a budget of its own: one to three tries a task, as you
-choose on the page (one by default), the first ten minutes after the failure, then 15 and 30. It
-never takes up a failure that came with no code, or a code whose name speaks of a policy, budget,
-quota, permission, approval, sign-in or cancellation; a rule that names the code comes first. Each
-failure it takes up leaves a sample: Codex's error code, the status number, the form of the error,
-how many items of each kind the turn left, a time rounded to the minute and how long the turn ran -
-never a word of the error, the conversation or the reply. The page lists them for the last 30 days,
-and a diagnostics export you ask for includes them; nothing sends them.
-
-**When it helps.** When Codex fails in a way nobody has classified yet, and you would rather the
-conversation tried again than waited for you.
-
-**What it risks.** A failure nobody classified may be one retrying cannot help, or one where trying
-again repeats something a person should have decided. A sample keeps a code Codex chose, which may say
-more than the program's own words. Samples are kept 90 days at most.
-
-**Departs from** 0.5, A13, A14, A26, B9 and [D2](STANDARDS.md#d-privacy-and-the-data-it-keeps)
-(state holds only the program's own fixed words, never a code Codex chose).
-
-**Ceilings.** 12 a day, and 3 in any one conversation.
-
-### Retry when Codex gave up
-
-**What it does.** When Codex ended a turn after its own retries failed (its error code
-`responseTooManyFailedAttempts`) and the last answer it had was a server error or none at all, it
-continues the conversation once Codex has had time to recover: ten minutes after the failure, then
-15, and at most twice a task. When the last answer was a rate limit, the standard edition already
-retries it.
-
-**When it helps.** When Codex gave up during an outage that has since passed.
-
-**What it risks.** Codex already tried several times, so trying again is not a fresh attempt: it may
-fail the same way and use your usage.
-
-**Departs from** A14 (Codex giving up without a 429 is never retried), A26 and B9.
-
-**Ceilings.** 12 a day, and 2 in any one conversation.
-
-### Retry a sign-in failure after proof
-
-**What it does.** When a turn fails because Codex was not signed in (its error code `unauthorized`, or
-status 401), it waits at least ten minutes and continues the conversation once - and only when the
-usage read every continuation already needs shows Codex is signed in again. Once a task and twice a
-day in all; if the continuation fails at sign-in again, it stops there, and after a day without a
-working usage read it gives up. It never reads or changes Codex's sign-in, its `auth.json` or any
-token, and never asks Codex to sign in or out. A permission refusal (403) is never retried.
-
-**When it helps.** When Codex's sign-in lapsed and you signed in again, and you would rather the
-conversation went on by itself than you continued it.
-
-**What it risks.** A usage read proves Codex reaches your account, not that every request will be
-accepted, so the continuation may fail again. If you signed in with another account, the
-conversation continues under that one.
-
-**Departs from** 0.5 (a sign-in failure is never retried), A14 (401 and 403 are never retried) and
-A26.
-
-**Ceilings.** 2 a day, and 2 in any one conversation.
-
-### Notice a usage limit that lifts early
-
-**What it does.** While a conversation waits for a usage limit to reset, it asks Codex every five
-minutes whether usage is available - one question for every conversation waiting - and when two
-answers at least five minutes apart both say yes, it continues the waiting conversations then,
-before the reset time Codex gave. A postponement and quiet hours still hold, and a look that finds no
-usage changes nothing about the conversation: it keeps its state and its next look. It only reads: it
-never sends anything to start a usage window or keep one open.
-
-**When it helps.** When Codex lifts a limit before the time it gave.
-
-**What it risks.** Each question is a request to OpenAI through Codex. Usage that reads as available
-may be available for another model or plan than the one the conversation uses, and the continuation
-may meet the limit again; the usage check every continuation makes still applies.
-
-**Departs from** [A12](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (never before the real reset
-time) and [C9](STANDARDS.md#c-network) (Codex is asked about usage only when a recovery is due).
-
-**Ceilings.** 12 a day, and 3 in any one conversation.
-
-### Once more when unsure
-
-**What it does.** When it cannot be proven that a continuation arrived - the queue command's answer
-was lost, or no receipt came - it sends it once more, its words built the same way and with the same
-marker, between 15 minutes and 6 hours after the first: only if Codex was never seen holding it in
-its queue, neither Codex's history nor its queue holds the marker, the history was current at every
-look since, the conversation has no later turn and nothing queued, its attempts are not used up and
-every check a send passes still holds. A continuation is sent again at most once, one that Pause or
-Observe only takes back is never sent again, and nothing is sent again after the watcher restarts. A
-continuation another advanced feature carried by a route or a channel of its own is never sent again
-by this one.
-
-**When it helps.** When a continuation never reached Codex and nothing could say so.
-
-**What it risks.** If the first continuation did arrive late, the conversation gets the same
-continuation twice and Codex may do the same work twice; if the marker is then found twice, it turns
-itself off. The words are built again from your settings as they are then.
-
-**Departs from** [0.2](STANDARDS.md#0-the-edition-boundary) (never again when the first may already have been delivered),
-[A6](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (an uncertain delivery is never sent again), [E2](STANDARDS.md#e-failure-behaviour) (better to miss a resume than resume
-twice) and [H2](STANDARDS.md#h-user-control) (nothing can resend an uncertain submission).
-
-**Ceilings.** 6 a day, and 2 in any one conversation.
-
-### Send now
-
-**What it does.** While it is on, the page lists the recoveries waiting now, each with *Send now...*.
-For the one you choose, the watcher sends its continuation at its next look instead of when its
-schedule says: it passes the wait before the next try, a postponement, the minutes before a first
-send, the 15 minutes between two continuations in one conversation and an attempt budget you set that
-is used up - never one your administrator set. Every other check still runs. A request not used within
-15 minutes lapses, and turning it off, or setting it to watch, voids one not yet used.
-
-**When it helps.** When the cause of a failure is gone and you do not want to wait for the schedule.
-
-**What it risks.** A continuation sent sooner may meet the same failure again and use an attempt the
-schedule would have kept for later. It never sends before a usage limit resets, in quiet hours, past an
-attempt limit your administrator set, past five continuations in a conversation in a day, while
-recovery is paused or the conversation is off, before the app has the conversation open, while
-something else is queued for it, or without usage.
-
-**Departs from** [A8](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (the claim checks the schedule and the budgets again, passing none),
-[A20](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (at least 15 minutes between two continuations in a conversation), [A21](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (the attempt
-budget stops a recovery) and [H2](STANDARDS.md#h-user-control) (nothing can force a send).
-
-**Ceilings.** 24 a day, and 5 in any one conversation.
-
-None of the eight rests on a measurement: what each sends is the continuation the standard edition sends.
-Each of the four that take up a failure the standard edition leaves for you takes up only failures
-from the last hour, and none from before it was turned on or set to watch; turning it off or setting
-it to watch only ends what it took up and has not sent, and the program ends such a recovery unsent a
-day on the clock after the failure in any case.
-
-### Use a reset credit at the limit you pick
-
-**What it does.** On the page you pick a usage limit ahead of time - the next time the 5-hour limit
-is reached, a later time up to nine from now, or the next weekly limit - once or every time, and
-whether it asks you first. When that limit is reached while a recovery waits for usage, it uses one of
-your reset credits, so the recovery can go on. While a rule waits it reads usage every 15 minutes, at
-most once in five minutes, and counts each window's fills and resets itself, from the first reading
-after you added the rule: a limit reached when you add it is not the next one. Before it spends a
-credit it reads usage again: the window must still be full, a recovery must still be waiting for
-usage, and how many credits you have and when the soonest expires must both be readable. Until
-measurement MR has passed on your version of Codex it never spends on its own: the rule waits for
-you to press *Use a reset credit now...*, which the page also offers whenever a limit is reached. The
-page shows how many credits you have, when the soonest expires and when one was last used; Pending
-shows each rule still waiting under **Scheduled**, with Cancel.
-
-**When it helps.** When your account has reset credits and you would rather spend one than wait for a
-limit you know is coming, without watching for it.
-
-**What it risks.** A credit spent cannot be given back, and one may be spent shortly before the window
-would have reset anyway. If you redeem two credits yourself in Codex's `/usage` inside one window, its
-count can run one window late. If this PC is off or recovery is paused for longer than the window, the
-rule is held until you say *Go on counting* or cancel it, rather than guess. It never spends more than
-one credit for one filling of a window, two in a day or seven in a week; never while recovery is
-paused, in Observe only, in quiet hours or with no recovery waiting; and never when the count or the
-expiry cannot be read. A spend whose result cannot be known turns it off.
-
-**Departs from** [A12](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (a look before the real
-reset time, once a credit reset the window), [B3 and B4](STANDARDS.md#b-what-it-reads-and-how) (it
-changes your account, through Codex's `account/rateLimitResetCredit/consume`, a method beyond the
-app server's three requests), [B10](STANDARDS.md#b-what-it-reads-and-how) (it keeps how many credits
-you have and when the soonest expires), [C4](STANDARDS.md#c-network) (it reads usage and spends on
-its own, at the time you chose) and [C9](STANDARDS.md#c-network) (it reads usage when no recovery is
-due).
-
-**Ceilings.** 12 a day, and 3 in any one conversation; and never more than one credit for one filling
-of a window, two a day or seven a week. Four rules may wait at once.
-
-**Measurements MU, MN and MR: not made yet.** MU reads usage as this capability reads it - with the
-credits' count, and without their details - and how still a window's reset time stays; MN asks for a
-credit on an account with none and checks that nothing is spent; MR, at a real limit and only with
-the person's own second yes, spends exactly one credit and checks that asking again with the same key
-spends no second one. Until they are made on your version of Codex, the statement carries each as a
-warning, and a credit is spent only when you press *Use a reset credit now...*.
-
-### Send your own message when a limit resets
-
-**What it does.** On the page you write a message of your own, up to 2,000 characters, for one
-conversation that is switched on, and pick when it goes: when the 5-hour limit next resets, a later
-reset up to nine from now, or the weekly limit's next reset. At that reset the watcher sends it once,
-exactly as you wrote it, with its marker after a blank line, through every check a continuation passes
-- the conversation open in the app, nothing else queued there, usage available. A recovery waiting in
-that conversation for the same reset sends your message in its place, at the very moment the window
-resets too; it waits for your message up to 30 minutes after the reset, and then goes on. It counts from the first reading after you added it, so the window open
-then is the first to reset; a window not used yet counts once it is. While a message waits it reads
-usage every 15 minutes, at most once in five minutes. One message may wait for a conversation, and
-ten in all; the page lists each with its words, and Pending lists each under **Scheduled**, with
-Cancel - its words are never shown there.
-
-**When it helps.** When you know what a conversation should do once the limit is gone - "carry on with
-the release notes", "run the tests again" - and want it said as soon as it can be, in your words.
-
-**What it risks.** Your message may arrive when you no longer want it: it goes as written, whatever the
-conversation has become. If you redeem two credits yourself inside one window, it can go one window
-late. If this PC is off or recovery is paused for longer than the window, it waits for you to say *Go
-on counting*. It is never sent twice; one that cannot be proven to have arrived a day after it was
-sent turns this off. Your words are kept in the advanced edition's state until they are sent,
-cancelled or ended, and then deleted.
-
-**Departs from** [A8](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (its message passes the
-checks that apply to it; a recovery's budgets and failure checks are not run),
-[A17](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (a turn after it does not take it back),
-[A26](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (the words are yours, not a template, and
-recover no failure), [C4](STANDARDS.md#c-network) (it sends at a time you chose),
-[C9](STANDARDS.md#c-network) (it reads usage when no recovery is due),
-[D2](STANDARDS.md#d-privacy-and-the-data-it-keeps) (your words are kept until they are sent),
-[H4](STANDARDS.md#h-user-control) (a Pause does not take back a message already queued) and
-[H6](STANDARDS.md#h-user-control) (Cancel no longer reaches a message being sent). It keeps A27: a
-message is at most 2,000 characters, as the Custom message is, unless Longer reset messages is on.
-Switching its conversation off cancels it (H5).
-
-**Ceilings.** 10 a day, and 2 in any one conversation.
-
-**Measurement MU: not made yet.** It counts resets from the same usage readings as the reset credit,
-so it rests on MU; until MU is made on your version of Codex, the statement carries it as a warning.
-
-### Longer reset messages
-
-**What it does.** An action: it sends nothing and answers at no point of a recovery. While it is on, a
-message you schedule for a reset may be up to 8,154 characters - the most one continuation can carry -
-instead of 2,000. Turned off, every waiting message longer than 2,000 characters is cancelled.
-
-**When it helps.** When what you want a conversation to do after a reset takes more than 2,000
-characters to say.
-
-**What it risks.** A long message uses more of the window it starts than a short one.
-
-**Departs from** [A27](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (a message a person writes
-is at most 2,000 characters), and from nothing else: on its own it does nothing.
-
-**Ceilings.** None of its own: it sends nothing. **No measurement.**
-
-### Compatibility report
-
-**What it does.** Writes a compatibility report from this PC's own records, as codex-compat-reporter
-does - counts, states and times for the version of Codex in use, with no conversation text, id or
-path - and shows the whole file in the Dashboard, with its SHA-256. Watched, that is all: the file
-can be read and saved wherever you choose. On, it also asks GitHub what sending would write, through
-gh, the GitHub CLI you installed, signed in as you; it shows every write, and sends only after you
-type `send`: it forks the project, adds the file on a branch and opens a public pull request.
-Without gh, or with gh signed in as someone else, it shows the four steps to send it on the web. It
-is an action: it answers at no point of a recovery, sends nothing to Codex and spends nothing, and a
-report grants nothing - it counts towards the Reported grade beside its version of Codex and nothing
-else ([G13](STANDARDS.md#g-the-compatibility-registrys-authority)).
-
-**When it helps.** When you want to tell the project how recovery went with your Codex without a
-second program. The standard edition sends nothing for a report; codex-compat-reporter, a separate
-program, writes and sends the same report from the same records.
-
-**What it risks.** The pull request, the fork and your GitHub login are public, and a pull request
-cannot be unpublished; the report's times are published to the second. A send cut off part way -
-the window closed, the network lost - can leave a fork or a branch behind: checking again shows what
-is on GitHub, and sending again is safe. Whatever gh.exe is first in a full folder on PATH is trusted
-to be the GitHub CLI. While recovery is paused nothing is checked or sent ([K5](STANDARDS.md#k-the-advanced-editions-own-rules)),
-and one check or send runs at a time for an installation, whichever Dashboard window started it.
-
-**Departs from** [B11](STANDARDS.md#b-what-it-reads-and-how) (gh reads your GitHub sign-in on the
-product's behalf), [C1, C2, C3 and C8](STANDARDS.md#c-network) (network work by delegation, from a
-second shipped file, to GitHub addresses beyond the two lists of releases, as your GitHub account
-with gh's own User-Agent), [D1](STANDARDS.md#d-privacy-and-the-data-it-keeps) (the report's counts
-go to the project), [E8](STANDARDS.md#e-failure-behaviour) (a gh that has not answered in two
-minutes, or is still running when the Dashboard's service ends, is ended),
-[F3 and F6](STANDARDS.md#f-footprint-on-the-machine) (the file saved where you choose; gh is not one
-of the listed processes).
-
-**Ceilings.** None of its own: it sends nothing to Codex. Each send needs its own typed `send` for
-exactly the file and the writes shown, and the project takes one report per GitHub login for each
-version of Codex.
-
-**No measurement.** It rests on no route of Codex's, so nothing about your version of Codex is
-measured for it, and a failing Codex - when a report matters most - never holds it back.
-
-## Choosing an edition
-
-- **Standard**, if you want every promise in [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md)
-  to hold in the code itself, not in a setting. It is what the plugin in Codex installs.
-- **Advanced**, if you want one of the capabilities above and accept what its statement says. Until
-  you turn one on or have one watched, it behaves as the standard edition.
-
-Two editions installed side by side are not supported: one installation is one edition.
-
-## Switching
-
-Changing edition is a reinstall, never an update. Run the other edition's setup program, or its
-archive's `Install.cmd`: the installer says which edition is installed, what the change keeps and
-what it changes, and asks before it replaces anything (`Change the edition? [y/N]`; anything but yes
-changes nothing). From a command line, `scripts/bootstrap.ps1 -Edition Standard` or `-Edition
-Advanced` chooses the edition, and over the other edition it needs `-Force` as well. The change keeps
-your settings, your pause, everything waiting to resume and the sign-in choice, and every advanced
-capability starts off (K2). Codex's own copy of the plugin can stay the old edition's until Codex
-lets it be replaced; the installer and the Dashboard's Diagnostics page say so while it is.
-
-The Dashboard has a way too: **Install another version...** on the Diagnostics page lists every
-version of both editions from v0.6.2 on (the advanced edition's from v0.6.11-alpha), and a row of
-the other edition is a change of edition. Its confirmation says what the change means, as the
-installer does - to the standard edition the advanced features go, and their code with them; to the
-advanced edition every advanced feature starts off - and it passes the change to that version's own
-installer only after the archive passed its checks. From the advanced edition, a standard version
-before v0.6.11-alpha is greyed: its installer predates editions and cannot change one. The [guide](GUIDE.md#installing-another-version)
-says what else it asks and keeps.
-
-## Updates and pre-releases
-
-An update stays in the edition you have. **Check for updates** fetches the installed edition's
-archive, and an archive of the other edition is refused. Like every download, the archive is checked
-against the digest pinned for that edition and version in the installed copy's `scripts/release.json`
-where there is one, and otherwise against the `.sha256` published beside it, as the [guide](GUIDE.md)
-explains. A pre-release never has a pinned digest, so it is checked against its published checksum;
-finals are pinned for both editions from v0.6.11 on. A pre-release it offers is your edition's too, and is installed only if you
-say yes (C5, I12, K2). *Install another version...* offers the pre-releases of either edition as it
-offers releases, and installs one only after you confirm it; an older one, or one of the other
-edition, takes `-Force`, which the confirmation passes (I12, amended by the owner on 2026-10-03).
-
-## Verifying
-
-Each release publishes four files to install from - each edition's archive and setup program - each
-with its `.sha256` beside it, and one build attestation names all four. `scripts/release.json` keeps
-a table of pinned digests for each edition; the advanced edition's starts with v0.6.11.
-[VERIFY.md](VERIFY.md) says how to check them, and how to rebuild either edition yourself.
-
-## What comes next
-
-v0.6.12 adds two things people asked for. One is a way to install another version or edition from
-the Dashboard - any release or pre-release of either edition - which says first what the change
-means, as the installer does when you switch (a change of edition turns every advanced capability
-off), and checks what it downloads as every install does. It was planned for v0.6.11 and not
-finished in time; it is built for v0.6.12 and described [above](#switching). The
-other is a power action - sleep, hibernate or shut down - once every recovery waiting for a usage
-limit to reset has ended. It keeps every standard (H14 and F15 in [STANDARDS.md](STANDARDS.md), with
-A28 amended by the owner for its stop button), so it is in the standard edition, off until a person
-turns it on in the Dashboard.
-
-Then, after v0.6.13's fix of how Codex's engine is found, v0.6.14 brings the first part of the rest
-of the advanced edition: the six capabilities [above](#todays-capabilities) that follow the goal
-continuation, and with them Once more when unsure, Send now, Keep it on, the compatibility report
-and the three for a usage reset you pick. It was to be the first of several pre-releases and is
-published as a final instead (owner, 2026-10-10). The rest moves to v0.6.15, each part published as
-a pre-release as it is finished. Each new capability is the advanced edition's alone, off until you
-turn it on, with a statement that names the standards it departs from. This is a direction, not a
-promise; [ROADMAP.md](ROADMAP.md) has the whole list: the two additions in its v0.6.12 section, what
-is built in its v0.6.14 section, and the rest in its v0.6.15 section, under the same four headings
-as below.
-
-- **Recovery through the channels already in use** - several conversations at once,
-  empty-response recovery, an unloaded conversation through a queue that waits for it, a subagent
-  through its parent, keep going after a normal completion, and a prompt queue and recurring
-  wakes.
-- **A route of its own, and other kinds of session** - a conversation nothing holds, run through
-  Codex's app server; CLI, TUI and IDE sessions; a full context compacted, then continued; another
-  model at capacity; a continuation with no words; a continuation inside the turn through a Codex
-  Stop hook; and Codex's own retry settings.
-- **Around recovery** - a live usage meter, a wrap-up nudge near a limit and usage analytics; a
-  provider status feed and push notifications through one courier process, the advanced edition's only
-  outbound network code; a local API and web view, remote control over Telegram and a read-only view
-  of other PCs; switching the Codex account on your command; a weekly update check while idle; crash
-  supervision, a wake timer for a reset and *Open Codex* on the card.
-- **Also moved here** - watching several Codex homes, which the standard edition gains; Arabic and
-  Hebrew; winget manifests for both editions.
+# 두 판
+
+v0.6.10 다음 릴리스부터 Codex Auto Resume은 한 저장소에서, 같은 버전으로, 같은 때에 두 판으로 만들어 냅니다.
+**표준판**과 **고급판**입니다. 이 문서는 두 판이 각각 무엇인지, 고급판의 기능 하나하나가 무엇을 하고 무엇을
+감수하는지, 판을 고르고 바꾸는 방법, 그리고 다음에 올 것을 적습니다. 두 판이 지키는 기준은
+[STANDARDS.md](STANDARDS.md)에 id별로 있고, 이 문서가 기준을 id로 부를 때는 그것이 무엇인지 몇 마디로
+함께 적습니다.
+
+## 표준판
+
+표준판은 지금 있는 그대로의 제품에, 0군과 A~J군의 기준을 모두 지키는 것만 더한 것입니다
+([0.1](STANDARDS.md#0-두-판의-경계)). 릴리스가 표준판에 더하는 것도 그 기준을 지킵니다. 더한 것은 사용자가
+바꾸기 전까지 꺼져 있거나 그 앞 릴리스가 하던 대로 하며, 이미 하던 일은 어느 것도 느슨해지지 않습니다(0.2).
+표준판이 지키는 것 가운데 몇 가지는 이렇습니다.
+
+- 이어서 하기 메시지는 Codex 자신의 `codex queue`라는 한 경로로만, 정확한 id로 지정한 대화 하나에 보내며,
+  끝에 마커를 달아 그 마커로 전달을 증명합니다(A2, A3, A4).
+- 첫 이어서 하기 메시지가 이미 전달되었을 수 있으면 다시 보내지 않습니다(A6).
+- Codex 앱이 그 대화를 열어 두고 있을 때만 보냅니다(A11).
+- 스스로 아무것도 시작하지 않으며, Codex가 시작할 때도 그렇습니다(C4, F14).
+- Codex의 목표를 바꾸지 않고, 이름 붙일 수 없는 실패를 재시도하지 않고, 앱이 열어 두지 않은 대화를 깨우지
+  않습니다(0.5, A14).
+
+표준판에는 고급판의 코드가 하나도 없습니다. 표준판의 압축 파일과 설치 프로그램은 `advanced/`를 넣지 않은
+트리들로 만들고, `build/edition_audit.py`가 릴리스를 빌드할 때마다 그 파일들의 바이트를 직접 읽어 고급판의
+어떤 것도 들어 있지 않음을 증명합니다([K1](STANDARDS.md#k-고급판-자체의-기준)). [안내서](GUIDE.md)가
+설명하는 것은 모두 표준판이며, GitHub에서 Codex에 추가한 플러그인도 표준판을 설치합니다.
+
+## 고급판
+
+고급판은 표준판에, 저마다 그 기준 가운데 적어도 하나를 일부러 벗어나고 어느 기준인지 밝히는 기능들을 더한
+것입니다(K4). 모든 기준을 지키는 기능이라면 표준판에 들어가야 합니다. 기능을 하나도 켜거나 지켜보게 하지
+않았다면 고급판은 표준판과 똑같이 동작하며, Codex에 보이는 플러그인 이름에 *Advanced*라는 낱말이 붙습니다.
+
+**켜기 전까지는 모두 꺼져 있고, 켜는 것은 대시보드에서 하나씩입니다.** 모든 기능은 꺼진 채 시작하며, 이 판을
+설치하거나 이 판으로 바꾸면 모두 꺼집니다. 이 판의 대시보드에는 페이지가 하나 더 있습니다. 설정 다음의 마지막
+탭인 **고급 기능**입니다. 거기서 기능을 고르면 그 설명을 읽을 수 있습니다. 무엇을 하는지, 표준판은 대신
+무엇을 하는지, 어느 기준을 벗어나는지, 무엇이 잘못될 수 있고 어떻게 멈추는지, 그리고 지금 붙어 있는
+경고입니다. **켜기**를 누르면 설명과 모든 경고를 다시 보여 주며 한 번 더 묻고, '예'라고 답하는 것이 보여 준
+Codex 버전에 대해 그것들을 확인하는 것입니다. **먼저 지켜보기**를 고르면 기능은 동작할 자리마다 질문을 받고
+무엇을 했을지 기록하지만, 실제로는 아무것도 하지 않습니다. 무엇을 했을지는 그 기능의 페이지에서 다른 카드들
+아래에 최근 30일 동안 세어 보여 줍니다. 답마다 말로, 그 기능이 동작했을 복구마다 한 번씩, 몇 번이었고 마지막이
+언제였는지입니다. 사용자가 요청한 진단 내보내기에도 같은 내용이 들어갑니다. 읽는 동안 무언가 바뀌었으면 페이지가 다시 읽고,
+지금 상태로 다시 묻습니다(K3). 다시 읽을 수 없거나 관리자의 정책이 이제 그 기능을 거부하면, 아무것도 켜지
+않았다는 것과 그 까닭을 알려 줍니다. 페이지는 거기서 무엇을 하든 그 뒤에, 그리고 이곳이든 다른 곳이든 기능이
+켜지거나 꺼졌다고 워처가 알려 올 때마다 목록을 다시 읽습니다.
+
+**다른 곳에서는 끄기만 됩니다.** 그 밖의 어느 곳 - Codex 안의 패널, 알림 영역 아이콘, 카드 - 에서도 기능을
+켤 수 없습니다. Codex의 도구(MCP)는 기능 목록을 보고 기능 하나나 모두를 끌 수 있으며, 클라이언트가 무엇을
+보내든 기능을 켜는 MCP 도구는 없습니다(K3). 페이지의 **고급 기능 모두 끄기**는 한 번에 모두 끕니다.
+
+**일시 정지는 모든 것을 멈춥니다.** 자동 복구가 일시 정지된 동안에는 어떤 기능에도 아무것도 묻지 않고, 사용자가
+끈 대화나 취소한 복구는 기능에 넘기지 않으며, 보내기 직전에 들어온 일시 정지도 마지막 순간에 전송을 멈춥니다.
+전송이 거치는 모든 확인, 선점했다는 기록, 전송 직전의 마지막 확인은 여전히 표준판의 것입니다(K5).
+
+**상한.** 기능마다 하루에 보낼 수 있는 횟수가 전체와 대화 하나에 대해 따로 있고, 전송을 선점할 때 셉니다. 그
+위에 모든 기능을 합친 상한 하나가 한 시간에 12번으로 서 있으며, 페이지에서 한 시간에 한 번까지 낮출 수는
+있어도 12번 위로 올릴 수는 없습니다. 기능 자신의 상한은 페이지에서 설명 옆에 보입니다. 모든 전송은 그 대화에 대한 표준판 자신의 한도에도 셈에 듭니다. 24시간 안에 다섯 번, 적어도 15분
+간격입니다(A20). 다만 A20을 벗어난다고 밝히는 기능은 다릅니다. Codex가 붐빌 때 짧은 재시도의 전송은 그 대신
+프로그램 자신의 용량 한도에 셈합니다. 하루 48번, 1분 간격입니다. 지금 보내기는 고른 복구 하나에 대해 15분
+간격을 건너뛰며, 그래도 하루 다섯 번 안에서입니다.
+
+**거절이 아니라 경고입니다.** 기능이 기대는 측정이 실패했거나 지금 쓰는 Codex 버전에서 한 적이 없는 것, 호환성
+등급이 이 PC에서 실패, 호환되지 않음, 알 수 없음인 것, 아직 모르는 Codex 버전은 설명에 경고로 나옵니다. 경고가
+있어도 켤 수 있으며, 켜는 것이 그 경고를 읽었다고 확인하는 것입니다(K6).
+
+**스스로 꺼지는 경우.** 설명이 개정되었을 때, 확인하지 않은 경고가 기능이 기대는 것이 잘못되었다고 말할 때,
+기능의 한 부분이 실패했을 때, 기능이 보낸 것이 전달을 증명할 수 없는 전송이 되었을 때, 그리고 켜져 있는 동안
+Codex가 업데이트되었을 때 기능은 스스로 꺼집니다. 페이지는 기능의 상태 아래에 그렇다는 것과 그 까닭을
+알려 줍니다. 그때 읽히는 설명으로 다시 켤 수 있습니다(K7). 한 번 더 보낸 이어서 하기 메시지가 그 뒤 두 번
+발견되면 그것을 다시 보낸 쪽이 꺼집니다. 불확실하면 한 번 더 보내기 자신이거나, 켜 둔 채로 둔 기능의 *불확실하면
+다시 보내기도*입니다.
+
+**켜 둔 채로 두기.** 페이지에서 켜져 있거나 지켜보는 중인 기능은 그 자체의 경고를 본 뒤 켜 둔 채로 둘 수 있습니다.
+켜 둔 채로 두면 위의 어느 경우에도, 새 Codex 버전에도 스스로 꺼지지 않습니다. 페이지는 그 가운데 가장 심각한 것을
+다시 켤 때까지 기능의 상태 아래에 적어 두고, 기능의 한 부분이 실패하면 그 복구 하나만 건너뛰며, 전달을 증명할 수
+없게 된 전송은 표준판이 그런 전송을 붙들어 두듯 붙들어 둡니다. 읽을 수 없는 Codex 버전이나 호환성 등급은 여전히
+기능을 멈춰 두고, 상한은 그대로이며, 여기서든 Codex에서든 고급 기능을 한꺼번에 모두 꺼서든 끄는 것은 언제나 되고
+다시 스스로 꺼지게 됩니다. 함께 그 자체의 경고를 본 뒤 *불확실하면 다시 보내기도*를 고를 수 있습니다. 그러면 그런
+전송은 아래의 불확실하면 한 번 더 보내기 규칙에 따라 한 번 더 보내지므로, 그 기능은 그 기능이 벗어나는 기준에서도
+벗어나며, 관리자의 정책이 불확실하면 한 번 더 보내기도 허용할 때만 됩니다. 다시 보낸 이어서 하기 메시지가 두 번
+발견되면 이 선택이 꺼지고 기능은 켜진 채로 남습니다. 호환성 보고서는 Codex에 아무것도 보내지 않으므로 이
+선택이 없습니다. 정책은 켜 둔 채로 둔 기능도 다른 기능처럼 그 기능 자체의 id로
+낮춰 읽으며, 켜 둔 채로 두기에만 닿는 정책 값은 없습니다(K8).
+
+**관리자의 정책.** `HKEY_LOCAL_MACHINE`이나 `HKEY_CURRENT_USER`의 `Software\Policies\CodexAutoResume` 아래 세
+값으로, 읽기만 하고 쓰지 않습니다. `ForbidAdvanced`(아무것도 켜거나 지켜볼 수 없음), `AllowedCapabilities`(적힌
+id만 가능), `ForceShadow`(지켜보기만, 켜기는 안 됨)입니다. 두 곳이 모두 셈에 들고 둘을 합치면 더 엄격한 쪽이
+되며, 읽을 수 없는 값은 가장 엄격하게 봅니다. 그중 하나가 적용되면 페이지가 그렇다고 알려 줍니다. 표준판의 정책
+키처럼, 협조하는 설치본이 따르는 것이지 잠금이 아닙니다(K6).
+
+고급판이 기억하는 것은 따로 둡니다. 어느 기능이 켜져 있는지, 저마다 얼마나 썼는지, 무엇을 했는지, 기능마다
+사용자가 고른 선택, 사용자가 쓴 규칙, 어느 기능이 어느 중단을 맡았는지, 분류하지 못한 실패의 표본은
+`config/advanced/advanced.sqlite`에 정해진 낱말과 id와 숫자, Codex 자체의 오류 코드로만 두며 - 오류나 대화의
+글은 한 글자도 두지 않습니다 - 그 어느 것도 표준판의 상태에 쓰지 않습니다. 고급판은 네트워크 코드를 더하지 않습니다. 기능 하나,
+호환성 보고서만 사용자가 설치한 GitHub CLI인 gh에게 GitHub에 닿아 달라고 하며, 그것도 사용자가 대시보드에서
+시작할 때뿐입니다(아래). 고급판의 압축 파일에는 기능의 경로가 어떤 Codex 버전에서
+동작하는지 이 프로젝트가 재 보는 측정 도구도 들어 있습니다. 사람이 요청하지 않으면 아무것도 그것을 돌리지
+않으며, 무엇을 하는지는 [SECURITY.md](SECURITY.md)에 있습니다.
+
+## 지금의 기능
+
+열다섯 가지입니다. 열한 가지는 복구하는 방식을 바꾸고, 두 가지는 사용자가 고른 사용량 재설정 때 움직이며, 두
+가지는 동작입니다. 더 긴 재설정 메시지는 재설정 때 보낼 메시지를 더 길게 해 줄 뿐이고, 호환성 보고서는 사용자만
+시작합니다. 앞의 세 가지는 저마다 이미 한 측정 하나에 기대고, 재설정 동작 두 가지는 아직 하지 않은 측정에 기대며,
+나머지 열 가지는 측정에 기대지 않습니다. 이미 한 측정은 모두 프로젝트 소유자의 PC에서
+`codex-cli 0.158.0-alpha.2.1`로 한 번, 손으로 했으며, 기록은 [`docs/evidence/live/`](evidence/live/)에 있습니다.
+다른 Codex 버전에서는, 그리고 아직 하지 않은 측정에는, 기능의 설명에 그 버전에서 측정한 적이 없다는 경고가 붙습니다.
+
+### Codex와 함께 시작
+
+**하는 일.** Codex가 플러그인의 서버를 시작할 때, 자동 복구가 일시 정지되지 않았고, 워처가 돌고 있지 않고,
+설치가 진행 중이 아니면, Windows의 WMI를 통해 Codex가 종료하며 닫는 작업 개체(job) 바깥에서 워처를 시작합니다.
+그래서 Codex를 닫아도 워처는 계속 돕니다. 이 설치본 자신의 실행기만 시작하고, 두 번째 워처는 시작하지 않으며,
+스스로는 아무것도 보내지 않습니다.
+
+**도움이 될 때.** 로그인할 때 워처가 시작되게 두지 않았고, Codex가 켜져 있을 때는 늘 워처도 돌기를 바랄 때입니다.
+표준판은 여기서 아무것도 시작하지 않습니다. Codex 안에서 시작한 워처는 Codex가 닫힐 때 끝나므로, 그렇다고
+적고 사용자가 직접 워처를 시작하기를 기다립니다(F14).
+
+**감수하는 것.** 이 기능의 목적은 Codex가 자기 플러그인에 일부러 건 제한을 벗어나는 것 하나뿐입니다. WMI가
+꺼져 있거나 정책이 WMI를 통한 프로세스 시작을 막으면 아무것도 시작되지 않고 그 이유가 로그에 남습니다. 그
+정책을 바꾸라고 요청하는 일은 없습니다.
+
+**벗어나는 기준.** [C4](STANDARDS.md#c-네트워크)(아무것도 저절로 일어나지 않으며, 시작할 때도 그렇다)와
+[F6](STANDARDS.md#f-컴퓨터에-남기는-흔적)(제품이 시작하는 프로세스는 정해진 목록이고, WMI를 거치는 경로는
+거기에 없다).
+
+**상한.** 스스로 아무것도 보내지 않으므로 적용될 일이 없습니다.
+
+**측정 MW: 통과.** Codex가 플러그인에 만들어 주는 것과 같은 작업 개체 안에서 WMI를 통해 시작한 프로세스가 그
+작업 개체 바깥에 놓였고, 작업 개체를 닫은 뒤에도 돌고 있었습니다. 이렇게 시작한 워처가 Codex 자체보다 오래
+사는 것을 사람이 지켜본 적은 아직 없으며, [LIVE_ACCEPTANCE.md](LIVE_ACCEPTANCE.md)가 그 확인을 요구합니다.
+
+### 마커 없는 이어서 하기
+
+**하는 일.** 표준판이 끝에 붙이는 마커 없이 이어서 하기 메시지를 보냅니다. 메시지는 Codex 자신의 앱 서버를
+통해(`thread/queue/add`), 중단에서 만든 id를 달고 대화의 큐에 들어가며, Codex가 메시지에 보관하는 그 id가
+도착을 증명합니다. 상한을 넘으면 이어서 하기 메시지는 표준판처럼 마커를 달고 갑니다.
+
+**도움이 될 때.** 이어서 하기 메시지가 끝에 `[codex-auto-resume:…]` 없이, 대화 속의 평범한 글로 읽히기를 바랄
+때입니다.
+
+**감수하는 것.** Codex의 한 버전에서 측정한 앱 서버 요청 하나에 기대고 있어서, 다른 버전은 그 요청을 거부하거나
+id를 더 이상 보관하지 않을 수 있습니다. 도착을 증명할 수 없으면 - 앱 서버가 거부하거나 답하지 않거나, 메시지가
+끝내 나타나지 않으면 - 그 이어서 하기는 표준판이 그러듯 불확실한 것으로 다룹니다. 다시 보내지 않으며, 기능은
+스스로 꺼집니다. 모든 확인과 한도는 그대로입니다.
+
+**벗어나는 기준.** [A2](STANDARDS.md#a-codex에-무엇을-언제-보내는가)(보내는 경로는 `codex queue` 하나뿐이다),
+A4(이어서 하기 메시지마다 마커를 달고, 그 마커가 발견될 때만 전달된 것으로 본다),
+[B3](STANDARDS.md#b-무엇을-어떻게-읽는가)(Codex의 상태는 큐, 큐에 넣은 메시지의 회수, 플러그인 명령으로만
+바뀐다), B4(앱 서버에는 사용량 조회와 큐에 넣은 메시지의 회수만 요청한다).
+
+**상한.** 하루 24번, 대화 하나에 5번입니다. 5번은 표준판 자신의 대화당 한도입니다.
+
+**측정 M7: 통과.** 앱 서버가 그런 id를 달고 넣은 메시지를 받아들였고, `/compact`라는 글을 명령으로 실행하지 않고
+평범한 글로 전달했습니다.
+
+### 목표 이어서 하기
+
+**하는 일.** 사용 한도에만 해당합니다. 한도 때문에 대화의 Codex 목표가 멈췄고, Codex 앱이 그 대화를 열어 두지
+않은 동안 이어서 할 차례가 되면, Codex 자신의 앱 서버를 통해(`thread/goal/set`) 이미 있는 그 목표를 다시
+활성으로 돌립니다. 그러면 앱이 다음에 그 대화를 열 때 Codex가 목표를 이어 갑니다. 목표를 새로 만들지 않고,
+목표의 글은 읽지도 바꾸지도 않습니다. 앱이 대화를 열어 두고 있으면 이어서 하기 메시지는 표준판처럼 Codex의
+큐로 갑니다. 그 경우에 목표를 먼저 활성으로 돌리는 것은 지금 쓰는 Codex 버전에서 측정 M2b가 통과해야 하며,
+M2b는 아직 하지 않았습니다. 이 기능이 활성으로 돌린 목표가 대화를 이어 가는 동안 표준 이어서 하기는 최대
+10분까지 기다리므로, 둘이 함께 돌지 않습니다.
+
+**도움이 될 때.** 목표를 두고 하던 작업이 사용 한도로 멈췄고 그 대화를 열어 두지 않을 때입니다. 표준판에서는
+그 목표가 사용자가 직접 재개할 때까지 멈춘 채로 남습니다.
+
+**감수하는 것.** 측정 M2에서, 이렇게 활성으로 돌린 목표는 앱이 대화를 열어 두는 동안에는 이어지지 않았습니다.
+그래서 앱이 열어 두지 않은 대화에서만 동작합니다. 같은 측정에서 앱이 대화를 다시 불러오자, 설명이 말하듯
+목표는 다시 살아 있었습니다. 다만 [`docs/evidence/live/`](evidence/live/)의 기록에는 실패 판정만 남아 있고,
+앱이 대화를 열 때 Codex가 그 목표를 스스로 이어 가는 것을 끝까지 따라가 본 사람은 아직 없습니다. 다른 Codex
+버전은 목표를 다르게 다룰 수 있습니다. 결과를 확인할 수 없으면 - Codex가 답하지 않거나, 목표가 활성으로 읽히지
+않으면 - 그 중단은 다시 시도하지 않으며 기능은 스스로 꺼집니다. 기능을 꺼도 이미 활성으로 돌린 목표는
+그대로이니, 멈추려면 Codex에서 목표를 일시 정지하세요.
+
+**벗어나는 기준.** [0.5](STANDARDS.md#0-두-판의-경계)(목표의 상태는 바꾸지 않는다), A2(보내는 경로는 하나뿐이다),
+A11(앱이 열어 두지 않은 대화에는 아무것도 하지 않는다), B3, B4.
+
+**상한.** 하루 12번, 대화 하나에 3번입니다.
+
+**측정 M2: 실패.** 앱이 대화를 열어 두고 있을 때에 대한 것이며, 설명에 경고로 나옵니다. 앱이 대화를 열어 두고
+있을 때도 동작하게 해 줄 M2b는 아직 하지 않았습니다.
+
+목표 이어서 하기와 마커 없는 이어서 하기가 둘 다 켜져 있고 목표가 해당되면, 전송은 목표 이어서 하기가 맡습니다.
+
+### Codex가 붐빌 때 짧은 재시도
+
+**하는 일.** Codex가 용량이 찼다고 하면 - Codex 자체의 오류 코드 `serverOverloaded`, 표준판이 이미 복구하는
+서버 오류 - 더 빨리, 더 자주 다시 시도합니다. 실패 뒤 약 1분, 이어서 2분, 4분, 5분이며, 각각 최대 5분의
+1만큼 늘어나고, 적어도 1분 간격으로, 한 대화에 하루 최대 48번입니다. 페이지에서 고른 시간 동안 - 1시간에서
+12시간까지, 기본은 2시간 - 작업의 첫 실패부터 시계로 재어 이렇게 합니다. 그 뒤에는 표준판의 대기와 한도가
+다시 적용되며, 그 때문에 작업이 끝날 수 있습니다. 시도마다 Codex의 큐로 가는 평범한 이어서 하기 메시지이며,
+마커가 붙습니다. 다른 서버 오류, 요청 제한, 사용 한도는 표준판의 대기를 그대로 따릅니다.
+
+**도움이 될 때.** Codex가 한동안 붐비고, 표준판의 재시도 간격대로 기다렸다가 네 번 시도한 뒤 멈추기보다
+계속 시도하기를 바랄 때입니다.
+
+**감수하는 것.** 붐비는 서비스에 자주 다시 시도하면 부하가 늘고, 다시 실패할 수 있는 이어서 하기 메시지에
+사용량을 쓰며, 시도마다 대화에 보이는 메시지가 됩니다. 모든 기능을 합친 상한에 닿아 있는 동안에는 용량
+오류를 표준판과 똑같이 다룹니다. 이 기능이 얼마나 오래 답하든, 프로그램 자체는 한 작업을 시계로 12시간보다
+오래, 하루 48번보다 많이, 1분보다 짧은 간격으로 다시 시도하지 않습니다.
+
+**벗어나는 기준.** [A20](STANDARDS.md#a-codex에-무엇을-언제-보내는가)(한 대화에 24시간마다 이어서 하기
+메시지 5개, 15분 간격), A21(시도, 진전 없음, 이어서 하기 예산), A22(대기는 사용자가 고른 재시도 간격에서만
+나온다), [B9](STANDARDS.md#b-무엇을-어떻게-읽는가)(실패에서는 종류만 남긴다. 이 기능은 Codex 자체의 오류
+코드도 읽지만, 그 글은 읽지 않는다).
+
+**상한.** 하루 48번, 대화 하나에 48번입니다. A20을 벗어나므로, 대화당 상한이 표준판의 5번보다 높은 유일한
+기능입니다.
+
+### Codex 오류 코드 규칙
+
+**하는 일.** 페이지에서 규칙을 최대 10개까지 쓸 수 있습니다. 규칙마다 Codex 자체의 오류 코드 하나와, 원하면
+상태 번호의 범위, 그리고 어떤 종류의 일시적 실패로 다룰지 - 끊긴 연결, 시간 초과, 요청 제한, 서버 오류, 끊긴
+스트림 - 를 적습니다. 규칙은 프로그램이 분류하지 못한 실패에만 적용되며, 그러면 그 실패는 재시도 간격에서 그
+종류가 기다리는 만큼 기다리고, 그 종류의 예산에 셈하고, 설정에서 그 종류의 스위치를 따릅니다. 프로그램이 이미
+아는 코드는 규칙이 될 수 없고, 이름이 정책, 예산, 할당량, 권한, 승인, 로그인, 취소를 말하는 코드도 그렇습니다.
+어떤 규칙도 실패를 사용 한도로 만들지 않습니다. 규칙은 코드를 읽고, 오류의 글은 결코 읽지 않습니다. 페이지는
+규칙마다 최근 30일 동안 맡은 실패 수를 보여 주고, 아래의 표본에서 본 코드를 골라 쓸 수 있게 합니다.
+
+**도움이 될 때.** Codex가 보내는 코드 가운데 이 프로그램이 아직 모르는 것이 일시적이라는 것을 알 때입니다.
+
+**감수하는 것.** 규칙은 어떤 코드가 일시적이라는 사용자의 판단입니다. 잘못된 규칙은 다시 시도해도 고쳐지지
+않는 실패를 그 종류의 예산이 다할 때까지 다시 시도하며, Codex는 다른 버전에서 코드 이름을 바꾸거나 다른 뜻으로
+쓸 수 있습니다. 규칙을 지우면 그 규칙이 맡았고 아직 보내지 않은 복구는 끝납니다.
+
+**벗어나는 기준.** [0.5](STANDARDS.md#0-두-판의-경계)(분류하지 못한 실패는 다시 시도하지 않는다), A13(분류된
+종류만 복구한다), A14(분류되지 않은 것은 다시 시도하지 않는다), A26(이어서 하기 문구는 복구하는 종류에만), B9.
+
+**상한.** 하루 24번, 대화 하나에 5번입니다.
+
+### 이름 붙일 수 없는 실패 다시 시도
+
+**하는 일.** 턴이 프로그램이 분류하지 못한 Codex의 오류 코드로 실패하면, 그래도 따로 정한 예산 안에서 대화를
+이어 갑니다. 작업마다 1번에서 3번까지 페이지에서 고르며(기본은 1번), 처음은 실패 10분 뒤, 이어서 15분, 30분
+뒤입니다. 코드 없이 온 실패, 이름이 정책, 예산, 할당량, 권한, 승인, 로그인, 취소를 말하는 코드는 맡지 않으며,
+그 코드를 적은 규칙이 있으면 규칙이 먼저입니다. 맡은 실패마다 표본을 하나 남깁니다. Codex의 오류 코드, 상태
+번호, 오류의 형태, 턴이 남긴 항목 종류별 개수, 분 단위로 내린 시각, 턴이 돈 시간이며, 오류나 대화나 답의 글은
+한 글자도 남기지 않습니다. 페이지는 최근 30일의 표본을 보여 주고, 사용자가 요청한 진단 내보내기에도
+들어갑니다. 아무것도 표본을 보내지 않습니다.
+
+**도움이 될 때.** Codex가 아직 아무도 분류하지 않은 방식으로 실패하고, 대화가 사용자를 기다리기보다 다시
+시도하기를 바랄 때입니다.
+
+**감수하는 것.** 아무도 분류하지 않은 실패는 다시 시도해도 소용없는 실패이거나, 다시 시도하면 사람이 정했어야
+할 일을 되풀이하는 실패일 수 있습니다. 표본은 Codex가 고른 코드를 남기며, 그 코드는 프로그램 자신의 낱말보다
+많은 것을 말할 수 있습니다. 표본은 최대 90일 동안 둡니다.
+
+**벗어나는 기준.** 0.5, A13, A14, A26, B9, [D2](STANDARDS.md#d-개인정보와-보관하는-데이터)(상태에는
+프로그램 자신의 정해진 낱말만 두고, Codex가 고른 코드는 두지 않는다).
+
+**상한.** 하루 12번, 대화 하나에 3번입니다.
+
+### Codex가 포기했을 때 다시 시도
+
+**하는 일.** Codex가 자체 재시도에 실패한 뒤 턴을 끝냈고(오류 코드 `responseTooManyFailedAttempts`), 마지막으로
+받은 응답이 서버 오류였거나 아예 없었다면, Codex가 회복할 시간을 둔 뒤 대화를 이어 갑니다. 실패 10분 뒤,
+이어서 15분 뒤이며, 작업마다 최대 2번입니다. 마지막 응답이 요청 제한이었다면 표준판이 이미 다시 시도합니다.
+
+**도움이 될 때.** 지금은 지나간 장애 동안 Codex가 포기했을 때입니다.
+
+**감수하는 것.** Codex가 이미 여러 번 시도했으므로 다시 시도하는 것은 새로운 시도가 아닙니다. 같은 식으로
+실패하고 사용량을 쓸 수 있습니다.
+
+**벗어나는 기준.** A14(429 없이 Codex가 포기한 경우는 다시 시도하지 않는다), A26, B9.
+
+**상한.** 하루 12번, 대화 하나에 2번입니다.
+
+### 확인되면 로그인 실패 다시 시도
+
+**하는 일.** Codex가 로그인되어 있지 않아 턴이 실패하면(오류 코드 `unauthorized`, 또는 상태 401), 적어도 10분을
+기다린 뒤 대화를 한 번 이어 갑니다. 그것도 모든 이어서 하기 메시지가 원래 필요로 하는 사용량 조회에서 Codex가
+다시 로그인되어 있다고 나올 때만입니다. 작업마다 1번, 모두 합쳐 하루 2번이며, 이어서 하기 메시지가 다시
+로그인에서 실패하면 거기서 멈추고, 사용량 조회가 하루 동안 한 번도 되지 않으면 포기합니다. Codex의 로그인,
+`auth.json`, 어떤 토큰도 읽거나 바꾸지 않으며, Codex에 로그인이나 로그아웃을 요청하지도 않습니다. 권한
+거부(403)는 다시 시도하지 않습니다.
+
+**도움이 될 때.** Codex의 로그인이 풀렸다가 다시 로그인했고, 직접 이어 가기보다 대화가 스스로 이어지기를 바랄
+때입니다.
+
+**감수하는 것.** 사용량 조회로 알 수 있는 것은 Codex가 당신의 계정에 닿는다는 것이지, 모든 요청이 받아들여진다는
+것이 아니므로, 이어서 하기 메시지가 다시 실패할 수 있습니다. 다른 계정으로 로그인했다면 대화는 그 계정으로
+이어집니다.
+
+**벗어나는 기준.** 0.5(로그인 실패는 다시 시도하지 않는다), A14(401과 403은 다시 시도하지 않는다), A26.
+
+**상한.** 하루 2번, 대화 하나에 2번입니다.
+
+### 사용량 한도가 일찍 풀리면 알아차리기
+
+**하는 일.** 대화가 사용 한도의 재설정을 기다리는 동안, 5분마다 Codex에 사용량을 쓸 수 있는지 묻습니다(기다리는
+모든 대화에 대해 한 번의 질문). 적어도 5분 간격을 둔 두 번의 답이 모두 쓸 수 있다고 하면, Codex가 알려 준 재설정
+시각보다 먼저, 그때 기다리던 대화를 이어 갑니다. 미뤄 두기와 조용한 시간은 그대로 지키며, 사용량이 없다고
+나온 확인은 대화에 아무것도 바꾸지 않습니다. 대화는 상태와 다음 확인 시각을 그대로 둡니다. 읽기만 하며, 사용량
+구간을 시작하거나 열어 두려고 무언가를 보내는 일은 없습니다.
+
+**도움이 될 때.** Codex가 알려 준 시각보다 먼저 한도를 풀 때입니다.
+
+**감수하는 것.** 질문할 때마다 Codex를 통해 OpenAI에 요청이 한 번 갑니다. 쓸 수 있다고 읽힌 사용량이 대화가
+쓰는 것과 다른 모델이나 요금제의 것일 수 있으며, 이어서 하기 메시지가 다시 한도에 걸릴 수 있습니다. 모든 이어서
+하기 메시지가 하는 사용량 확인은 그대로 적용됩니다.
+
+**벗어나는 기준.** [A12](STANDARDS.md#a-codex에-무엇을-언제-보내는가)(실제 재설정 시각보다 먼저는 아니다),
+[C9](STANDARDS.md#c-네트워크)(Codex에 사용량을 묻는 것은 복구할 때가 되었을 때만).
+
+**상한.** 하루 12번, 대화 하나에 3번입니다.
+
+### 불확실하면 한 번 더 보내기
+
+**하는 일.** 이어서 하기 메시지가 도착했는지 증명할 수 없을 때 - 대기열 명령의 답을 잃었거나 받았다는 확인이 오지
+않았을 때 - 같은 방식으로 만든 문구와 같은 마커로, 처음 보낸 지 15분에서 6시간 사이에 한 번 더 보냅니다. Codex의
+대기열에 그 메시지가 있는 것이 한 번도 보이지 않았고, Codex의 기록에도 대기열에도 마커가 없고, 그 뒤로 살펴볼
+때마다 기록이 최신이었고, 대화에 뒤이은 턴도 대기 중인 것도 없고, 시도 횟수가 다 쓰이지 않았으며, 보내기 전에
+거치는 모든 확인을 그대로 통과할 때만입니다. 다시 보내는 것은 많아야 한 번이며, 일시 정지나 지켜보기만으로 거둬들인
+메시지는 다시 보내지 않고, 감시자가 다시 시작된 뒤에는 아무것도 다시 보내지 않습니다. 다른 고급 기능이 제 경로나
+채널로 보낸 이어서 하기 메시지는 이 기능이 다시 보내지 않습니다.
+
+**도움이 될 때.** 이어서 하기 메시지가 Codex에 닿지 않았는데 아무것도 그렇다고 말해 줄 수 없었을 때입니다.
+
+**감수하는 것.** 처음 보낸 메시지가 늦게라도 도착했다면 대화는 같은 이어서 하기 메시지를 두 번 받고, Codex가 같은
+작업을 두 번 할 수 있습니다. 그 뒤 마커가 두 번 발견되면 스스로 꺼집니다. 문구는 그때의 설정으로 다시 만들어집니다.
+
+**벗어나는 기준.** [0.2](STANDARDS.md#0-두-판의-경계)(처음 보낸 것이 이미 전달되었을 수 있으면 다시 보내지 않음), [A6](STANDARDS.md#a-codex에-무엇을-언제-보내는가)(불확실한 전달은
+절대 다시 보내지 않음), [E2](STANDARDS.md#e-실패했을-때의-동작)(두 번 이어 가느니 한 번 놓치는 편이 나음), [H2](STANDARDS.md#h-사용자의-제어)(무엇도 불확실한 제출을 다시
+보낼 수 없음).
+
+**상한.** 하루 6번, 대화 하나에 2번입니다.
+
+### 지금 보내기
+
+**하는 일.** 켜져 있는 동안 페이지는 지금 기다리는 복구를 저마다 *지금 보내기...*와 함께 보여 줍니다. 고른 복구에
+대해 감시자는 일정이 말하는 때가 아니라 다음에 살펴볼 때 이어서 하기 메시지를 보냅니다. 다음 시도 전의 기다림,
+미루기, 첫 전송 전의 몇 분, 한 대화에서 두 이어서 하기 메시지 사이의 15분, 직접 정한 시도 한도를 다 쓴 것은
+넘어가지만, 관리자가 정한 한도는 절대 넘지 않습니다. 다른 확인은 모두 그대로 거칩니다. 15분 안에 쓰이지 않은 요청은
+사라지며, 끄거나 지켜보기로 바꾸면 아직 쓰이지 않은 요청은 없어집니다.
+
+**도움이 될 때.** 실패의 원인이 사라졌고 일정을 기다리고 싶지 않을 때입니다.
+
+**감수하는 것.** 더 일찍 보낸 이어서 하기 메시지는 같은 실패를 다시 만날 수 있고, 일정이라면 나중을 위해 남겨 두었을
+시도 하나를 쓸 수 있습니다. 사용량 한도가 재설정되기 전, 조용한 시간, 관리자가 정한 시도 한도를 넘어, 한 대화에서
+하루 다섯 번을 넘어, 복구가 일시 정지되었거나 대화가 꺼져 있을 때, 앱이 대화를 열기 전, 다른 것이 대기 중일 때,
+사용량이 없을 때에는 절대 보내지 않습니다.
+
+**벗어나는 기준.** [A8](STANDARDS.md#a-codex에-무엇을-언제-보내는가)(전송을 맡을 때 일정과 한도를 다시 확인하며 아무것도 넘어가지 않음), [A20](STANDARDS.md#a-codex에-무엇을-언제-보내는가)(한
+대화에서 두 이어서 하기 메시지 사이는 적어도 15분), [A21](STANDARDS.md#a-codex에-무엇을-언제-보내는가)(시도 한도가 복구를 멈춤), [H2](STANDARDS.md#h-사용자의-제어)(무엇도 전송을
+강제할 수 없음).
+
+**상한.** 하루 24번, 대화 하나에 5번입니다.
+
+여덟 가지 모두 측정에 기대지 않습니다. 저마다 보내는 것은 표준판이 보내는 이어서 하기 메시지입니다. 표준판이
+사용자에게 맡기는 실패를 맡는 네 가지는 저마다 최근 1시간 안의 실패만, 그리고 켜거나 지켜보기로 두기 전의
+실패는 맡지 않습니다. 끄거나 지켜보기로 바꾸면 맡았고 아직 보내지 않은 복구는 끝나며, 그렇지 않아도 프로그램은
+그런 복구를 실패한 때부터 시계로 하루가 지나면 보내지 않은 채 끝냅니다.
+
+### 고른 한도에서 재설정 크레딧 쓰기
+
+**하는 일.** 페이지에서 사용량 한도를 미리 고릅니다. 다음에 5시간 한도에 도달할 때, 지금부터 아홉 번째까지의 더
+나중 도달, 또는 다음 주간 한도이며, 한 번만인지 도달할 때마다인지, 먼저 물을지도 고릅니다. 복구가 사용량을 기다리는
+동안 그 한도에 도달하면 재설정 크레딧 하나를 써서 복구가 이어지게 합니다. 규칙이 기다리는 동안 15분마다, 5분에 한
+번을 넘지 않게 사용량을 읽고, 규칙을 추가한 뒤 첫 읽기부터 한도마다 도달과 재설정을 직접 셉니다. 추가할 때 이미
+도달해 있는 한도는 다음 번에 들어가지 않습니다. 크레딧을 쓰기 전에는 사용량을 다시 읽습니다. 한도가 여전히 가득
+차 있어야 하고, 복구가 여전히 사용량을 기다리고 있어야 하며, 크레딧이 몇 개인지와 가장 빠른 만료가 언제인지를
+둘 다 읽을 수 있어야 합니다. 쓰는 Codex 버전에서 측정 MR이 통과하기 전에는 절대 알아서 쓰지 않습니다. 규칙은
+*지금 재설정 크레딧 쓰기...*를 누르기를 기다리며, 페이지는 한도에 도달해 있을 때마다 이 버튼도 보여 줍니다.
+페이지에는 크레딧이 몇 개인지, 가장 빠른 만료가 언제인지, 마지막으로 언제 썼는지가 나오고, 대기 중 페이지의
+**예약됨**에는 아직 기다리는 규칙이 저마다 취소 버튼과 함께 나옵니다.
+
+**도움이 될 때.** 계정에 재설정 크레딧이 있고, 다가올 것을 아는 한도를 지켜보지 않고도 기다리기보다 크레딧을 쓰고
+싶을 때입니다.
+
+**감수하는 것.** 쓴 크레딧은 되돌릴 수 없고, 한도가 곧 재설정될 무렵에 쓰일 수도 있습니다. Codex의 `/usage`에서
+한 한도 안에 직접 크레딧 두 개를 쓰면 세는 것이 한 번 늦어질 수 있습니다. 이 PC가 한도 기간보다 오래 꺼져
+있거나 복구가 그만큼 일시 정지되어 있으면, 추측하지 않고 *계속 세기*를 누르거나 취소할 때까지 규칙을 보류합니다.
+한도가 한 번 찰 때 크레딧을 두 개 이상, 하루에 두 개, 한 주에 일곱 개를 넘게 쓰지 않습니다. 복구가 일시 정지되었거나,
+관찰만 모드이거나, 조용한 시간이거나, 기다리는 복구가 없을 때, 그리고 개수나 만료를 읽을 수 없을 때에는 절대 쓰지
+않습니다. 결과를 알 수 없는 사용은 이 기능을 끕니다.
+
+**벗어나는 기준.** [A12](STANDARDS.md#a-codex에-무엇을-언제-보내는가)(크레딧이 한도를 재설정한 뒤 실제 재설정
+시각 전에 살펴봄), [B3과 B4](STANDARDS.md#b-무엇을-어떻게-읽는가)(앱 서버의 세 요청을 넘어서는 Codex의
+`account/rateLimitResetCredit/consume`으로 계정을 바꿈), [B10](STANDARDS.md#b-무엇을-어떻게-읽는가)(크레딧이 몇
+개인지와 가장 빠른 만료를 보관함), [C4](STANDARDS.md#c-네트워크)(고른 때에 알아서 사용량을 읽고 크레딧을 씀),
+[C9](STANDARDS.md#c-네트워크)(복구할 때가 아니어도 사용량을 읽음).
+
+**상한.** 하루 12번, 대화 하나에 3번입니다. 그리고 한도가 한 번 찰 때 크레딧 하나, 하루 두 개, 한 주 일곱 개를 넘지
+않습니다. 규칙은 한꺼번에 네 개까지 기다릴 수 있습니다.
+
+**측정 MU, MN, MR: 아직 하지 않음.** MU는 이 기능이 읽는 방식대로, 곧 크레딧 개수와 함께, 그리고 크레딧 세부 정보 없이
+사용량을 읽고, 한도의 재설정 시각이 얼마나 그대로인지를 봅니다. MN은 크레딧이 없는 계정에서 크레딧을 요청해 아무것도
+쓰이지 않는지 확인합니다. MR은 실제 한도에서, 그리고 사용자가 직접 두 번째로 승낙했을 때만 크레딧을 정확히 하나 쓰고,
+같은 키로 다시 요청해도 두 번째 크레딧이 쓰이지 않는지 확인합니다. 쓰는 Codex 버전에서 이 측정을 하기 전까지 설명은
+저마다를 경고로 보여 주며, 크레딧은 *지금 재설정 크레딧 쓰기...*를 누를 때만 쓰입니다.
+
+### 한도가 재설정될 때 직접 쓴 메시지 보내기
+
+**하는 일.** 페이지에서 켜져 있는 대화 하나에 보낼 메시지를 2,000자까지 직접 쓰고, 언제 보낼지 고릅니다. 5시간
+한도가 다음에 재설정될 때, 지금부터 아홉 번째까지의 더 나중 재설정, 또는 주간 한도의 다음 재설정입니다. 그 재설정
+때 감시자는 메시지를 쓴 그대로 한 번, 빈 줄 뒤에 마커를 붙여 보내며, 이어서 하기 메시지가 거치는 확인을 모두
+거칩니다. 앱에서 대화가 열려 있어야 하고, 거기에 다른 것이 대기 중이지 않아야 하며, 사용량이 있어야 합니다. 그
+대화에서 같은 재설정을 기다리는 복구는 자기 대신 이 메시지를 보내며, 한도가 재설정되는 바로 그 순간에도 그렇습니다.
+복구는 재설정 뒤 30분까지 메시지를 기다리고, 그다음에는 계속 진행합니다. 메시지를 추가한 뒤 첫 읽기부터 세므로 그때 열려 있는 한도가 첫 번째로 재설정됩니다. 아직
+쓰지 않은 한도는 쓰기 시작한 뒤부터 셉니다. 메시지가 기다리는 동안 15분마다, 5분에 한 번을 넘지 않게 사용량을
+읽습니다. 대화 하나에 메시지 하나, 모두 합쳐 열 개까지 기다릴 수 있습니다. 페이지는 저마다를 그 내용과 함께 보여
+주고, 대기 중 페이지의 **예약됨**은 저마다를 취소 버튼과 함께 보여 주지만, 거기에는 내용을 절대 보여 주지 않습니다.
+
+**도움이 될 때.** 한도가 풀리면 대화가 무엇을 해야 하는지, 예를 들어 "릴리스 노트를 이어서 써 줘"나 "테스트를 다시
+돌려 줘"를 알고 있고, 그 말을 직접 쓴 대로 되도록 빨리 하고 싶을 때입니다.
+
+**감수하는 것.** 더 이상 원하지 않을 때 메시지가 도착할 수 있습니다. 대화가 어떻게 바뀌었든 쓴 그대로 갑니다. 한
+한도 안에 직접 크레딧 두 개를 쓰면 한 번 늦게 갈 수 있습니다. 이 PC가 한도 기간보다 오래 꺼져 있거나 복구가 그만큼
+일시 정지되어 있으면 *계속 세기*를 누를 때까지 기다립니다. 두 번 보내지 않으며, 보낸 지 하루가 지나도 도착했음을
+증명할 수 없으면 이 기능을 끕니다. 쓴 내용은 보내거나 취소하거나 끝날 때까지 고급판의 상태에 보관되고, 그 뒤 지워집니다.
+
+**벗어나는 기준.** [A8](STANDARDS.md#a-codex에-무엇을-언제-보내는가)(메시지는 자기에게 해당하는 확인만 거치며,
+복구의 한도와 실패 확인은 거치지 않음), [A17](STANDARDS.md#a-codex에-무엇을-언제-보내는가)(뒤에 온 턴이 메시지를
+거두지 않음), [A26](STANDARDS.md#a-codex에-무엇을-언제-보내는가)(템플릿이 아닌 직접 쓴 말이며 어떤 실패도 복구하지
+않음), [C4](STANDARDS.md#c-네트워크)(고른 때에 보냄), [C9](STANDARDS.md#c-네트워크)(복구할 때가 아니어도
+사용량을 읽음), [D2](STANDARDS.md#d-개인정보와-보관하는-데이터)(쓴 내용을 보낼 때까지 보관함),
+[H4](STANDARDS.md#h-사용자의-제어)(일시 정지가 이미 대기열에 넣은 메시지를 거두지 않음),
+[H6](STANDARDS.md#h-사용자의-제어)(보내는 중인 메시지에는 취소가 닿지 않음). A27은 지킵니다. 더 긴 재설정
+메시지가 켜져 있지 않으면, 메시지는 사용자 지정 메시지처럼 2,000자까지입니다. 대화를 끄면 그 메시지는 취소됩니다(H5).
+
+**상한.** 하루 10번, 대화 하나에 2번입니다.
+
+**측정 MU: 아직 하지 않음.** 재설정 크레딧과 같은 사용량 읽기로 재설정을 세므로 MU에 기댑니다. 쓰는 Codex 버전에서
+MU를 하기 전까지 설명은 이를 경고로 보여 줍니다.
+
+### 더 긴 재설정 메시지
+
+**하는 일.** 동작입니다. 아무것도 보내지 않고 복구의 어느 지점에서도 답하지 않습니다. 켜져 있는 동안 재설정 때 보낼
+메시지를 2,000자가 아니라 이어서 하기 메시지 하나가 담을 수 있는 최대인 8,154자까지 쓸 수 있습니다. 끄면 기다리는
+메시지 가운데 2,000자보다 긴 것은 모두 취소됩니다.
+
+**도움이 될 때.** 재설정 뒤에 대화가 할 일을 말하는 데 2,000자보다 많이 필요할 때입니다.
+
+**감수하는 것.** 긴 메시지는 짧은 메시지보다 그 메시지가 시작하는 한도를 더 많이 씁니다.
+
+**벗어나는 기준.** [A27](STANDARDS.md#a-codex에-무엇을-언제-보내는가)(사람이 쓰는 메시지는 2,000자까지)뿐이며,
+그 밖에는 없습니다. 이것만으로는 아무것도 하지 않습니다.
+
+**상한.** 아무것도 보내지 않으므로 자기 상한이 없습니다. **측정 없음.**
+
+### 호환성 보고서
+
+**하는 일.** 이 PC의 기록만으로 codex-compat-reporter와 같은 방식으로 호환성 보고서를 씁니다. 지금 쓰는 Codex
+버전에 대한 횟수, 상태, 시각만 담고, 대화 내용, ID, 경로는 담지 않습니다. 파일 전체를 SHA-256과 함께 대시보드에
+보여 줍니다. 지켜보는 중이면 그것이 전부이며, 파일을 읽고 원하는 곳에 저장할 수 있습니다. 켜져 있으면, 사용자가
+설치하고 사용자로 로그인한 GitHub CLI인 gh를 통해 보내기가 무엇을 쓸지도 GitHub에 묻고, 쓰는 일을 하나하나
+보여 주며, 사용자가 `send`를 입력한 뒤에만 보냅니다. 보낼 때는 프로젝트를 포크하고, 브랜치에 파일을 추가하고,
+공개 풀 리퀘스트를 엽니다. gh가 없거나 gh가 다른 사람으로 로그인되어 있으면 웹에서 보내는 네 단계를 보여
+줍니다. 이 기능은 동작(action)입니다. 복구의 어느 지점에서도 답하지 않고, Codex에 아무것도 보내지 않으며,
+아무것도 쓰지(spend) 않습니다. 보고서는 아무 권한도 주지 않습니다. 그 Codex 버전 옆의 *보고됨* 등급에만
+셈해지고 그 밖의 어디에도 셈해지지 않습니다([G13](STANDARDS.md#g-호환성-레지스트리의-권한)).
+
+**도움이 될 때.** 두 번째 프로그램 없이, 내 Codex에서 복구가 어떻게 되었는지 프로젝트에 알리고 싶을 때입니다.
+표준판은 보고서를 위해 아무것도 보내지 않습니다. 별도 프로그램인 codex-compat-reporter가 같은 기록으로 같은
+보고서를 쓰고 보냅니다.
+
+**감수하는 것.** 풀 리퀘스트, 포크, GitHub 로그인 이름은 공개되며, 풀 리퀘스트는 게시를 취소할 수 없습니다.
+보고서의 시각은 초 단위까지 공개됩니다. 창이 닫히거나 네트워크가 끊겨 보내기가 중간에 끊기면 포크나 브랜치가
+남을 수 있습니다. 다시 확인하면 GitHub에 무엇이 있는지 보여 주며, 다시 보내도 안전합니다. PATH의 완전한 경로
+폴더 가운데 처음 나오는 gh.exe를 GitHub CLI로 믿습니다. 복구가 일시 정지된 동안에는 아무것도 확인하거나 보내지
+않으며([K5](STANDARDS.md#k-고급판-자체의-기준)), 어느 대시보드 창에서 시작했든 설치본 하나에서는 확인이나
+보내기가 한 번에 하나만 돕니다.
+
+**벗어나는 기준.** [B11](STANDARDS.md#b-무엇을-어떻게-읽는가)(gh가 제품을 대신해 GitHub 로그인 정보를
+읽는다), [C1, C2, C3, C8](STANDARDS.md#c-네트워크)(위임을 통한 네트워크 작업, 두 번째로 배포되는 파일에서,
+두 릴리스 목록 밖의 GitHub 주소로, 사용자의 GitHub 계정과 gh 자체의 User-Agent로),
+[D1](STANDARDS.md#d-개인정보와-보관하는-데이터)(보고서의 횟수가 프로젝트로 간다),
+[E8](STANDARDS.md#e-실패했을-때의-동작)(2분 동안 응답하지 않거나 대시보드의 서비스가 끝날 때 아직 실행 중인
+gh는 종료한다), [F3, F6](STANDARDS.md#f-컴퓨터에-남기는-흔적)(원하는 곳에 저장하는 파일, 그리고 정해진
+프로세스 목록에 없는 gh).
+
+**상한.** 자체 상한은 없습니다. Codex에 아무것도 보내지 않기 때문입니다. 보내기마다 보여 준 파일과 쓰기에
+대해 따로 `send`를 입력해야 하며, 프로젝트는 Codex 버전마다 GitHub 로그인 이름 하나당 보고서 하나를 받습니다.
+
+**측정 없음.** Codex의 어떤 경로에도 기대지 않으므로, 이 기능을 위해 Codex 버전을 측정하는 일은 없고,
+보고서가 가장 필요한 때인 Codex가 실패하는 때에도 이 기능을 막지 않습니다.
+
+## 판 고르기
+
+- **표준판**: [PRIVACY.md](PRIVACY.md)와 [SECURITY.md](SECURITY.md)의 약속이 설정이 아니라 코드 자체에서
+  지켜지기를 바란다면. Codex의 플러그인이 설치하는 것도 표준판입니다.
+- **고급판**: 위의 기능 가운데 하나가 필요하고, 그 설명이 말하는 것을 받아들인다면. 기능을 하나도 켜거나
+  지켜보게 하지 않았다면 표준판처럼 동작합니다.
+
+두 판을 나란히 설치하는 것은 지원하지 않습니다. 설치본 하나는 한 판입니다.
+
+## 판 바꾸기
+
+판을 바꾸는 것은 업데이트가 아니라 재설치입니다. 다른 판의 설치 프로그램이나, 그 압축 파일의 `Install.cmd`를
+실행하세요. 설치 프로그램이 지금 설치된 판, 바꾸면 그대로 두는 것과 바뀌는 것을 말하고, 무엇이든 바꾸기 전에
+묻습니다(`Change the edition? [y/N]`. 'y' 말고 다른 답은 아무것도 바꾸지 않습니다). 명령줄에서는
+`scripts/bootstrap.ps1 -Edition Standard`나 `-Edition Advanced`로 판을 고르며, 다른 판이 설치되어 있으면 `-Force`도
+함께 줘야 합니다. 판을 바꿔도 설정, 일시 정지, 재개를 기다리는 모든 것, 로그인 때 시작하는 선택은 그대로이며,
+고급 기능은 모두 꺼진 채 시작합니다(K2). Codex가 가진 플러그인 사본은 Codex가 바꿀 수 있게 될 때까지 이전 판의
+것으로 남을 수 있고, 그동안은 설치 프로그램과 대시보드의 진단 페이지가 그렇다고 알려 줍니다.
+
+대시보드에서도 바꿀 수 있습니다. 진단 페이지의 **다른 버전 설치...**는 v0.6.2부터의 두 판의 모든 버전(고급판은
+v0.6.11-alpha부터)을 보여 주며, 다른 판의 행을 고르면 판을 바꾸는 것입니다. 확인 창은 설치 프로그램이 하듯 그
+변경이 무슨 뜻인지 말하고(표준판으로 바꾸면 고급 기능과 그 코드가 사라지고, 고급판으로 바꾸면 고급 기능이 모두
+꺼진 채 시작합니다), 압축 파일이 확인을 통과한 뒤에야 그 버전 자신의 설치 프로그램에 판 변경을 넘깁니다.
+고급판에서는 v0.6.11-alpha보다 이전의 표준판 버전이 흐리게 표시됩니다. 그 설치 프로그램은 판보다 먼저 나와서
+판을 바꿀 수 없기 때문입니다. 그 밖에 무엇을 묻고 무엇을 그대로 두는지는 [안내서](GUIDE.md#다른-버전-설치)에
+있습니다.
+
+## 업데이트와 프리 릴리스
+
+업데이트는 지금 쓰는 판 안에 머뭅니다. **업데이트 확인**은 설치된 판의 압축 파일을 가져오며, 다른 판의 압축
+파일은 거부합니다. 모든 다운로드처럼, 설치본의 `scripts/release.json`에 그 판과 그 버전의 다이제스트가
+고정되어 있으면 그것과, 없으면 옆에 게시된 `.sha256`과 비교합니다. [안내서](GUIDE.md)가 이를 설명합니다.
+프리 릴리스에는 고정된 다이제스트가 없으므로 게시된 체크섬과 비교하며, 정식 릴리스는 v0.6.11부터 두 판 모두 고정됩니다.
+업데이트 확인이 권하는 프리 릴리스도 지금 쓰는 판의 것이며, '예'라고 답할 때만 설치합니다(C5, I12, K2).
+*다른 버전 설치...*는 릴리스를 제공하듯 두 판의 프리 릴리스도 제공하며, 확인한 뒤에만 설치합니다. 더 오래된
+것이나 다른 판의 것에는 `-Force`가 필요하고, 그 확인이 그것을 넘깁니다(I12, 2026-10-03 소유자가 고침).
+
+## 확인하기
+
+릴리스마다 설치할 수 있는 파일 네 개 - 판마다 압축 파일과 설치 프로그램 - 를 게시하며, 저마다 옆에 `.sha256`이
+있고, 빌드 출처 증명 하나가 네 파일을 모두 밝힙니다. `scripts/release.json`에는 판마다 고정된 다이제스트의
+표가 따로 있으며, 고급판의 표는 v0.6.11부터 시작합니다. 확인하는 방법과 어느 판이든 직접 다시 빌드하는 방법은
+[VERIFY.md](VERIFY.md)에 있습니다.
+
+## 다음에 올 것
+
+사람들이 요청한 두 가지가 먼저 옵니다. 하나는 대시보드에서 다른 버전이나 판을 설치하는
+방법입니다. 두 판의 어느 릴리스나 프리 릴리스든 고를 수 있고, 판을 바꿀 때 설치
+프로그램이 하듯 그 변경이 무슨 뜻인지 먼저 말하며(판을 바꾸면 고급 기능이 모두 꺼집니다), 받은 것은 모든 설치가
+하듯 확인합니다. 앞 릴리스에 넣을 계획이었지만 제때 끝나지 않았고, 이제 만들어져 [위](#판-바꾸기)에서 설명합니다.
+다른 하나는 사용 한도가 풀리기를 기다리던 복구가 모두 끝나면 PC를 절전, 최대 절전, 종료하는 전원 동작이며,
+모든 기준을 지키므로([STANDARDS.md](STANDARDS.md)의 H14와 F15, 멈춤 단추를 위해 소유자가 고친 A28)
+표준판에 들어가고, 사람이 대시보드에서 켜기 전까지 꺼져 있습니다.
+
+그 뒤, Codex의 엔진을 찾는 방법을 고친 버전의 다음 버전이 고급판의 나머지 가운데 첫 부분을 가져옵니다.
+[위](#지금의-기능)에서 목표 이어서 하기 다음에 적은 여섯 기능과, 불확실하면 한 번 더 보내기, 지금 보내기, 켜 둔
+채로 두기, 호환성 보고서, 그리고 사용자가 고른 사용량 재설정 때의 세 가지입니다. 여러 프리 릴리스의 첫 번째로
+계획했지만 최종판으로 냅니다(소유자, 2026-10-10). 나머지는 그다음 버전으로 옮기며, 한 부분이 끝날 때마다 프리
+릴리스로 냅니다. 새 기능은 저마다 고급판에만 있고, 켜기 전까지 꺼져 있으며, 벗어나는 기준을 밝히는 설명이
+붙습니다. 약속이 아니라 방향이며, 전체 목록은 [ROADMAP.md](ROADMAP.md)에 있습니다. 두 가지는 그 둘을 담은
+버전의 절에, 만든 것은 그 첫 부분을 담은 버전의 절에, 나머지는 '고급판의 나머지' 절에서 아래와 같은 네 제목 아래
+있습니다.
+
+- **이미 쓰는 경로로 하는 복구** - 여러 대화를 한꺼번에, 빈 응답 복구, 열릴 때까지 기다리는 큐를 통한 열려 있지
+  않은 대화, 부모를 거친 하위 에이전트, 정상 완료 뒤 계속하기, 프롬프트 큐와 반복 깨우기.
+- **제 경로, 그리고 다른 종류의 세션** - 아무도 잡고 있지 않은 대화를 Codex의 앱 서버로 실행하기, CLI·TUI·IDE
+  세션, 가득 찬 컨텍스트 창을 압축한 뒤 이어 가기, 용량을 넘었을 때 다른 모델, 글 없는 이어가기, Codex Stop
+  훅을 거쳐 턴 안에서 이어 가기, Codex 자신의 재시도 설정.
+- **복구 둘레의 기능** - 실시간 사용량 계기, 한도 가까이에서의 마무리 권유, 사용량 분석, 서비스
+  상태 피드와 배달 프로세스 하나를 거치는 푸시 알림(고급판에서 바깥으로 나가는 유일한 네트워크 코드), 로컬
+  API와 웹 화면, Telegram을 통한 원격 제어, 다른 PC 읽기 전용 보기, 사람의 명령에 따른 Codex 계정 전환, 쉬는
+  동안 한 주에 한 번 하는 업데이트 확인, 충돌 감독, 한도 초기화 때의 깨우기 타이머, 카드의 *Codex 열기* 단추.
+- **이리 함께 옮긴 것** - 표준판이 얻는 여러 Codex 홈 지켜보기, 아랍어와 히브리어, 두 판의 winget 매니페스트.

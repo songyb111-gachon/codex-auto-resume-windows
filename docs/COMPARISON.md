@@ -1,205 +1,196 @@
-# Why this project stays small
+# 이 프로젝트가 작게 남는 이유
 
-There is a larger, more ambitious project in this space:
-[`sybxxx/codex-auto-retry`](https://github.com/sybxxx/codex-auto-retry). It is worth reading.
-Several ideas here were shaped by studying it.
+> 🌐 한국어 문서입니다. English version: [`main` 브랜치의 docs/COMPARISON.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/COMPARISON.md)
 
-Reviewed again for v0.5.0 against its current state: `d25fda6`, release **v0.7.9**, last pushed
-2026-09-02 — unchanged since the previous review, so nothing new arrived to reconsider. What did
-change is this project: it now has an MCP server and a settings window, and two entries below
-moved from *rejected* to *adapted* because of it. Saying so is the point of keeping this file.
+같은 영역에 더 크고 야심적인 프로젝트가 있습니다.
+[`sybxxx/codex-auto-retry`](https://github.com/sybxxx/codex-auto-retry). 읽어 볼 가치가 있습니다.
+여기 있는 아이디어 몇 가지는 그 프로젝트를 살펴보며 다듬었습니다.
 
-Not re-reviewed for v0.5.2: that release changed how the product is installed and what it
-looks like, and nothing in it came from reading another project. Saying that is cheaper than
-implying a review that did not happen.
+v0.5.0을 준비하며 그 프로젝트의 현재 상태를 다시 살펴봤습니다. 커밋 `d25fda6`, 릴리스 **v0.7.9**,
+마지막 푸시 2026-09-02입니다. 지난번 검토 이후 바뀐 것이 없었고, 따라서 다시 판단할 거리도 새로
+생기지 않았습니다. 바뀐 쪽은 이 프로젝트입니다. 이제 MCP 서버와 설정 창이 있고, 그래서 아래 항목
+두 개가 *rejected*에서 *adapted*로 옮겨 갔습니다. 그 사실을 적어 두는 것이 이 파일을 유지하는
+이유입니다.
 
-The initial v0.6.0 implementation preceded the comparison update recorded below.
-What changed is this project: the Start Menu window became a Dashboard and the watcher grew a
-notification-area icon, which moves two more entries below — a tray icon out of *rejected*, a
-live countdown out of *deferred*.
+v0.5.2를 위해서는 다시 검토하지 않았습니다. 그 릴리스는 설치 방식과 겉모습을 바꿨을 뿐, 다른
+프로젝트를 읽고 가져온 것은 없습니다. 하지 않은 검토를 한 것처럼 두는 것보다 그렇게 적는 편이
+쌉니다.
 
-Reviewed again for v0.6.0 on 2026-09-12, against `sybxxx/codex-auto-retry` **v0.7.11**,
-published that morning. Its scope has moved since the v0.5.0 review and this file has been
-corrected for it: the list of failures its watchdog says it retries is network failures,
-timeouts, rate limits, HTTP 5xx, one structured upstream wrapper, interrupted streams,
-completions with no final model reply, and temporarily unavailable authentication services -
-and a usage limit is not in it. Its goal handling says plainly that a usage-limited goal is
-never turned into a continuation. Waiting out a usage limit and continuing the exact task is
-therefore the thing this project does that the larger one does not say it does, which is the
-opposite of the shape this file assumed a release ago. It also now recovers empty responses,
-and restores an unloaded *parent* thread - with its own persisted settings rather than current
-defaults - inside goal-mode subagent chains.
+v0.6.0의 초기 구현은 아래에 기록한 비교 문서 갱신보다 앞섰습니다. 바뀐 쪽은 다시 이 프로젝트입니다. 시작 메뉴 창이 대시보드가 되었고 워처에 알림 영역 아이콘이
+생겼으며, 그래서 아래 항목 두 개가 더 옮겨 갔습니다. tray 아이콘은 *rejected*에서, 실시간 카운트다운은 *deferred*에서 나왔습니다.
 
-Two entries below moved because of that re-read, and the rest of this file stands.
+v0.6.0을 준비하며 2026-09-12에 다시 살펴봤습니다. 그날 아침 발행된 `sybxxx/codex-auto-retry`
+**v0.7.11**이 대상입니다. v0.5.0 검토 이후 그쪽의 범위가 바뀌었고, 이 문서를 그에 맞춰
+고쳤습니다. 그쪽 watchdog이 재시도한다고 적어 둔 목록은 네트워크 장애, 시간 초과, 속도 제한,
+HTTP 5xx, 구조화된 upstream 래퍼 하나, 끊긴 스트림, 마지막 모델 답이 없는 완료, 그리고 일시적으로
+쓸 수 없는 인증 서비스이며, 사용량 한도는 거기에 없습니다. 목표 처리에 관해서는 사용량 한도에
+걸린 목표를 결코 이어 가기 턴으로 바꾸지 않는다고 분명히 적고 있습니다. 그러니 사용량 한도가
+풀리기를 기다렸다가 바로 그 작업을 이어 가는 것은, 더 큰 쪽이 한다고 말하지 않는 일이고 이
+프로젝트가 하는 일입니다. 한 릴리스 전에 이 문서가 짐작하던 것과 정반대입니다. 그쪽은 이제 빈
+응답도 복구하고, 목표 모드의 하위 에이전트 연쇄 안에서 미로드 *부모* 스레드를 현재 기본값이
+아니라 그 스레드 자신의 저장된 설정으로 되살립니다.
 
-Checked again for v0.6.3 on 2026-09-14, and narrowly. `sybxxx/codex-auto-retry`'s releases
-page still lists **v0.7.11** as its newest release, so it has published nothing new to
-reconsider; the rest of that repository was not re-read, and the table of other projects below
-was not re-surveyed for v0.6.3. Two READMEs were read that day for the ideas credited to them
-further down - `saaranshM/unsnooze` and `boyso/codex-reset` - and nothing else. What changed is
-this project: v0.6.3 added a per-task Auto-resume check box, a list of the safety checks behind
-each wait, a Cancel all with no retry-all beside it, and a Custom continuation message, which
-moves one entry out of *not exposed*. The deferred and rejected entries were re-read against
-this project's own reasons, and all of them stand.
+그 다시 읽기 때문에 아래 항목 두 개가 옮겨 갔고, 나머지는 그대로입니다.
 
-From v0.6.11 the product comes in two editions, built from one repository and released together.
-The **standard** edition is the one this file has always described, and every *this project* below
-means it unless a row says otherwise. The **advanced** edition adds capabilities the standard one
-refuses, each off until a person turns it on; *Rejected* says, row by row, which exist today and
-which both editions refuse.
+v0.6.3을 위해 2026-09-14에 다시, 좁게 확인했습니다. `sybxxx/codex-auto-retry`의 릴리스 페이지에서 가장 새 릴리스는
+여전히 **v0.7.11**이므로, 새로 따져 볼 것이 나오지 않았습니다. 그 저장소의 나머지는 다시 읽지 않았고, 아래 다른 프로젝트 표도
+v0.6.3을 위해 다시 조사하지 않았습니다. 그날 읽은 것은 아래에서 아이디어의 출처로 적은 README 두 개 —
+`saaranshM/unsnooze`와 `boyso/codex-reset` — 뿐입니다. 바뀐 쪽은 이 프로젝트입니다. v0.6.3에서 작업별 자동 이어 가기
+체크박스, 각 대기 뒤의 안전 확인 목록, 모두 다시 시도 없이 두는 모두 취소, 그리고 직접 입력하는 이어서 하기 메시지가 생겼고,
+그래서 항목 하나가 *노출하지 않음*에서 나왔습니다. deferred와 rejected 항목은 이 프로젝트 자신의 이유에 비추어 다시 읽었고,
+모두 그대로입니다.
 
-## Others in the same space
+이제 제품은 한 저장소에서 만들어 함께 내는 두 판으로 나옵니다. **표준판**은 이 문서가 늘 설명해 온 그 제품이고,
+아래의 *이 프로젝트*는 행에서 따로 말하지 않는 한 표준판을 뜻합니다. **고급판**은 표준판이 거절하는 기능을
+더하되, 저마다 사람이 켜기 전까지 꺼 둡니다. 그중 무엇이 지금 있고 무엇을 두 판이 모두 거절하는지는 *Rejected*가
+행마다 적습니다.
 
-Re-surveyed on 2026-09-12: every project below was checked against its repository that day, and
-each line says what that project says about itself. None of them changed what this project
-builds. They are here because a reader deciding between them deserves an accurate map, and
-because two of them answer the same need in a way this project has ruled out, which is worth
-being explicit about rather than quiet about.
+## 같은 영역의 다른 프로젝트들
 
-| Project | What it is | How it differs from this one |
+2026-09-12에 다시 조사했습니다. 아래 프로젝트는 모두 그날 그 저장소를 상대로 확인했고, 각 줄은
+그 프로젝트가 스스로에 대해 말하는 것입니다. 어느 것도 이 프로젝트가 만드는 것을 바꾸지
+않았습니다. 여기 적는 이유는 둘 중 무엇을 쓸지 고르는 사람에게 정확한 지도가 필요하기
+때문이고, 그중 둘은 같은 필요를 이 프로젝트가 배제한 방식으로 풀기 때문입니다. 조용히 넘어가는
+것보다 분명히 적는 편이 낫습니다.
+
+| 프로젝트 | 무엇인가 | 이 프로젝트와 다른 점 |
 | --- | --- | --- |
-| [`sybxxx/codex-auto-retry`](https://github.com/sybxxx/codex-auto-retry) | A Go watchdog for Codex on Windows with a tray controller and an embedded management panel (v0.7.11) | Broader recovery - unknown provider failures on their own budget, empty responses, goal chains, and an opt-in shared app-server that can restore an unloaded parent thread. Its stated retry list does not include a usage limit. Compared feature by feature below |
-| [`saaranshM/unsnooze`](https://github.com/saaranshM/unsnooze) | A cross-platform resumer for Claude Code, Codex CLI, Grok, Qwen, Kimi, OpenCode and Antigravity across tmux, Zellij and VS Code | Far more agents and three platforms, and it reads `~/.codex/sessions` so it covers the desktop app's session files too. It resumes by **injecting keystrokes into a live terminal pane**, which it says plainly; this project does not simulate input anywhere, and resumes a conversation through Codex's own queue rather than a terminal |
-| [`banana2556/codex-never-give-up`](https://github.com/banana2556/codex-never-give-up) | Auto-retry for the Codex desktop app on Windows, on the app-server IPC stream | Complementary rather than competing: it retries capacity, writer-conflict and shared-task errors and **deliberately does not retry a usage limit**, which is this project's main case. It works by injecting a hook into the app, with a DevTools console for diagnostics; this project adds no code to Codex |
-| [`Matrtex/codex-auto-retry-plugin`](https://github.com/Matrtex/codex-auto-retry-plugin) | A Python Codex plugin that retries high-demand, 429, 5xx and transient stream or network errors | Similar failure classes; a plugin rather than a background watcher, so it acts while Codex is running rather than waiting out a reset after you close the app |
-| [`ravhello/claude-codex-queue`](https://github.com/ravhello/claude-codex-queue) | A queue that continues Claude Code sessions and Codex App tasks after usage limits, preserving prompt order | Covers Claude Code as well, and is a queue rather than a failure classifier: it decides *when* to run queued work, where this decides *whether* a specific failure may be resumed at all |
-| [`StylesDevelopments/agent-autoresume`](https://github.com/StylesDevelopments/agent-autoresume) | Auto-resume for Claude Code and Codex across usage-limit resets, with iTerm2 and tmux watchers | macOS and Linux, and terminal-shaped: it watches and drives a terminal session. This is Windows-only and watches the desktop app's own state |
-| [`qxd-ljy/codex-goal-auto-retry-build`](https://github.com/qxd-ljy/codex-goal-auto-retry-build) | A Rust patch to Codex's own Goal auto-continuation, with reproducible source validation | It changes Codex; this does not, in either edition. The standard edition never reads or sets goal state; the advanced edition's goal continuation, off until a person turns it on, sets an existing goal that a usage limit paused back to active through Codex's own app server |
-| [`tidingman/codex-retry-watcher`](https://github.com/tidingman/codex-retry-watcher) | A macOS menu-bar app that presses Codex Desktop's Retry button when the model is at capacity | Other platform, and the method this project rules out: it clicks the button for you |
-| [`Justin1491/codex-dashboard`](https://github.com/Justin1491/codex-dashboard) | A dashboard for understanding Codex usage and resets | Shows usage; recovers nothing |
-| [`terryso/claude-auto-resume`](https://github.com/terryso/claude-auto-resume) | The most-starred tool in this space (820 stars), resuming Claude CLI tasks when limits lift | Claude only, not Codex. Listed because it is where most people in this space have ended up, and because its one-line description is a lesson in being findable |
+| [`sybxxx/codex-auto-retry`](https://github.com/sybxxx/codex-auto-retry) | tray 컨트롤러와 내장 관리 패널을 갖춘, Windows용 Go 기반 Codex watchdog (v0.7.11) | 복구 범위가 더 넓습니다. unknown provider 장애를 자체 예산으로, 빈 응답을, 목표 연쇄를 다루고, 선택 참여 방식의 shared app-server로 미로드 부모 스레드를 되살릴 수 있습니다. 다만 재시도한다고 적어 둔 목록에 사용량 한도는 없습니다. 아래에서 기능별로 견줍니다 |
+| [`saaranshM/unsnooze`](https://github.com/saaranshM/unsnooze) | Claude Code, Codex CLI, Grok, Qwen, Kimi, OpenCode, Antigravity를 tmux·Zellij·VS Code에서 이어 주는 크로스 플랫폼 도구 | 훨씬 많은 에이전트와 세 플랫폼을 다루고, `~/.codex/sessions`를 읽으므로 데스크톱 앱의 세션 파일도 덮습니다. 다만 **살아 있는 터미널 창에 키 입력을 넣어** 이어 갑니다. 그쪽도 그렇게 밝히고 있습니다. 이 프로젝트는 어디서도 입력을 흉내 내지 않고, 터미널이 아니라 Codex 자신의 큐로 대화를 이어 갑니다 |
+| [`banana2556/codex-never-give-up`](https://github.com/banana2556/codex-never-give-up) | Windows의 Codex 데스크톱 앱을 app-server IPC 스트림에서 지켜보며 자동 재시도 | 겨루기보다 서로를 채웁니다. 용량·writer conflict·shared task 오류를 재시도하고 **사용량 한도는 일부러 재시도하지 않는데**, 그것이 이 프로젝트의 주된 경우입니다. 앱에 훅을 주입해 동작하며 진단은 DevTools 콘솔로 합니다. 이 프로젝트는 Codex에 코드를 넣지 않습니다 |
+| [`Matrtex/codex-auto-retry-plugin`](https://github.com/Matrtex/codex-auto-retry-plugin) | high demand, 429, 5xx, 일시적 stream/network 오류를 재시도하는 Python Codex 플러그인 | 장애 종류는 비슷하지만 배경 watcher가 아니라 플러그인이라, 앱을 닫아 둔 채 한도 해제를 기다리는 대신 Codex가 도는 동안에만 동작합니다 |
+| [`ravhello/claude-codex-queue`](https://github.com/ravhello/claude-codex-queue) | 사용량 한도 이후 Claude Code 세션과 Codex App 작업을 프롬프트 순서를 지키며 이어 가는 큐 | Claude Code도 다루고, 장애 분류기가 아니라 큐입니다. 큐에 담긴 일을 *언제* 돌릴지 정하고, 이쪽은 특정 장애를 *재개해도 되는지*를 정합니다 |
+| [`StylesDevelopments/agent-autoresume`](https://github.com/StylesDevelopments/agent-autoresume) | iTerm2·tmux 감시로 Claude Code와 Codex를 사용량 한도 해제에 맞춰 이어 주는 도구 | macOS와 Linux이고 터미널 모양입니다. 터미널 세션을 지켜보고 몰아갑니다. 이쪽은 Windows 전용이고 데스크톱 앱 자신의 상태를 봅니다 |
+| [`qxd-ljy/codex-goal-auto-retry-build`](https://github.com/qxd-ljy/codex-goal-auto-retry-build) | Codex 자체의 Goal 자동 이어 가기를 고치는 Rust 패치, 재현 가능한 소스 검증 포함 | Codex를 바꿉니다. 이쪽은 두 판 모두 바꾸지 않습니다. 표준판은 목표 상태를 읽지도 쓰지도 않습니다. 고급판의 목표 이어가기는 사람이 켜기 전까지 꺼져 있고, 사용량 한도 때문에 멈춘, 이미 있는 목표를 Codex 자신의 앱 서버를 거쳐 다시 활성으로 돌려놓습니다 |
+| [`tidingman/codex-retry-watcher`](https://github.com/tidingman/codex-retry-watcher) | 모델이 용량에 걸리면 Codex Desktop의 Retry 단추를 눌러 주는 macOS 메뉴 막대 앱 | 다른 플랫폼이고, 이 프로젝트가 배제한 방법입니다. 단추를 대신 눌러 줍니다 |
+| [`Justin1491/codex-dashboard`](https://github.com/Justin1491/codex-dashboard) | Codex 사용량과 초기화를 보여 주는 대시보드 | 사용량을 보여 주고, 복구는 하지 않습니다 |
+| [`terryso/claude-auto-resume`](https://github.com/terryso/claude-auto-resume) | 이 영역에서 별이 가장 많은 도구(820개). 한도가 풀리면 Claude CLI 작업을 이어 갑니다 | Codex가 아니라 Claude 전용입니다. 적어 두는 이유는 이 영역 사람들이 대부분 여기로 모였기 때문이고, 그 한 줄짜리 설명이 찾기 쉬움에 대한 교본이기 때문입니다 |
 
-Different architecture is not worse architecture. Retrying an unknown provider failure, owning a
-shared app-server so an unloaded thread can be woken, or typing into a terminal pane, each buys
-real capability this project does not have; each is the wrong trade *here* because this
-project's promise is narrower. If what you want is maximum recovery, or an agent other than
-Codex, or a platform other than Windows, one of the others will suit you better.
+구조가 다르다고 해서 더 나쁜 구조는 아닙니다. unknown provider 장애를 재시도하는 것도, shared
+app-server를 소유해 미로드 스레드를 깨우는 것도, 터미널 창에 타자를 넣는 것도, 모두 이
+프로젝트에 없는 실제 능력을 사 옵니다. *여기서* 잘못된 거래인 이유는 이 프로젝트의 약속이 더
+좁기 때문일 뿐입니다. 최대한의 복구가 필요하거나, Codex가 아닌 에이전트나, Windows가 아닌
+플랫폼이 필요하다면 다른 쪽이 더 맞을 것입니다.
 
-One thing several of them still do better: they are easier to find. On 2026-09-12 a plain search
-for the sentence this product exists to answer - automatically resume a Codex task after a usage
-limit resets, on Windows - returned Codex's own issues and two unrelated tools, and not this
-repository. That is a fact about this repository, not about theirs.
+그중 여럿이 여전히 더 잘하는 것이 하나 있습니다. 찾기 쉽다는 점입니다. 2026-09-12에, 이 제품이
+답하려고 있는 그 문장 — Windows에서 사용량 한도가 풀린 뒤 Codex 작업을 자동으로 이어 가기 —
+그대로 검색했더니 Codex 자신의 이슈와 무관한 도구 둘이 나왔고, 이 저장소는 나오지 않았습니다.
+그것은 저쪽이 아니라 이 저장소에 대한 사실입니다.
 
-No code was copied, then or now. Everything here was written against this project's own
-architecture, from its own reading of Codex's local state.
+그때도 지금도 코드를 복사하지 않았습니다. 전부 이 프로젝트의 구조에 맞춰, 이 프로젝트가 직접
+읽은 Codex의 로컬 상태를 바탕으로 작성했습니다.
 
-## The two goals
+## 두 가지 목표
 
-| | `codex-auto-retry` | this project |
+| | `codex-auto-retry` | 이 프로젝트 |
 | --- | --- | --- |
-| Goal | maximum recovery capability | minimum necessary complexity for safe recovery |
-| Unknown failure | retried, on its own budget | never retried |
-| Authentication failure | retried, with a lower limit | never retried; a person is needed |
-| Classification | message and wrapper matching | structured `codexErrorInfo`, then HTTP status |
-| Unloaded threads | woken through a shared app-server | left alone until you open them |
-| Long-lived processes | supervisor, worker, optional app-server, MCP server | one watcher, plus an MCP server while Codex runs and one control process while the window is open |
-| Interface | tray icon, settings window, Codex panel | Start Menu Dashboard (Overview, Pending, History, Statistics, Diagnostics, Settings), notification-area icon with a popup, Codex panel, notifications with Don't resume and Open Dashboard; sixteen interface languages |
+| 목표 | 최대한의 복구 능력 | 안전한 복구에 필요한 최소한의 복잡성 |
+| unknown 장애 | 자체 budget을 두고 재시도 | 절대 재시도하지 않음 |
+| 인증 실패 | 더 낮은 상한을 두고 재시도 | 재시도하지 않음. 사람이 필요함 |
+| 분류 방식 | 메시지와 wrapper 매칭 | 구조화된 `codexErrorInfo`, 그다음 HTTP status |
+| 미로드 스레드 | shared app-server로 깨움 | 사용자가 열 때까지 두고 봄 |
+| 상주 프로세스 | supervisor, worker, 선택적 app-server, MCP 서버 | watcher 하나, Codex가 도는 동안의 MCP 서버, 창이 열려 있는 동안의 제어 프로세스 하나 |
+| 인터페이스 | tray 아이콘, 설정 창, Codex 패널 | 시작 메뉴 대시보드(개요, 대기 중, 기록, 통계, 진단, 설정), 알림 영역 아이콘과 팝업, Codex 패널, 재개하지 않음과 대시보드 열기가 달린 알림. 인터페이스 언어 열여섯 개 |
 
-Neither column is a criticism. Retrying an unknown failure is a reasonable choice for a tool whose
-goal is to recover as much as possible. It is the wrong choice for this one, whose promise is
-narrower and, because of that, easier to trust: **it acts only on failures it can name.**
-The right-hand column is the standard edition. The advanced edition moves some of its answers
-toward the left, one capability at a time and only for a person who turns each on; the row-by-row
-account is under *Rejected*.
+어느 쪽도 비판이 아닙니다. 최대한 복구하는 것이 목표인 도구에게 unknown 장애 재시도는 합리적인
+선택입니다. 약속의 범위가 더 좁고 그래서 더 믿기 쉬운 이 프로젝트에는 잘못된 선택일 뿐입니다.
+**이 도구는 이름 붙일 수 있는 장애에만 손을 댑니다.**
+오른쪽 열은 표준판입니다. 고급판은 그 답 가운데 몇몇을 왼쪽으로 옮기되, 기능 하나씩, 그 기능을 켠 사람에게만
+그렇게 합니다. 행마다의 사정은 *Rejected*에 있습니다.
 
-## Feature by feature
+## 기능별로 보기
 
-### Adopted — taken as an idea, built here from scratch
+### Adopted — 아이디어만 가져와 여기서 처음부터 만든 것
 
-| Idea | How it exists here |
+| 아이디어 | 여기서의 구현 |
 | --- | --- |
-| A **named failure taxonomy** instead of a "did it fail" boolean | Built from Codex's structured `codexErrorInfo` variants and HTTP status, not from message text |
-| A **retry budget** so a chain cannot run forever | `max_recovery_attempts`, user-configurable, default 4 |
-| A **no-progress limit**, separate from the retry budget | `max_no_progress`, default 3; carried across interruptions on the same thread |
-| **Per-thread recovery state**, so one stuck thread cannot block another | Per-thread enable flag and per-interruption records in SQLite |
-| **Progress correlation** — a later unrelated success must not mark a retry as recovered | Delivery is proven by this record's own unique marker in that exact thread |
-| **Configurable wait strategy** | Three named presets rather than raw ladders, so no setting can produce a zero or unbounded delay |
-| **Restart an exhausted task with a fresh budget** | `reset_recovery_budget`, which restores the budget and sends nothing |
-| **Retry a pending task now** | `retry_now`, which moves the schedule and nothing else; every gate still runs |
-| **A live countdown per pending recovery** | The Dashboard's Pending page counts down to each record's next check, on the window's own timer (`Dashboard.cs:UpdateCountdowns`); the notification-area tooltip carries the same countdown |
-| **A persistent pause switch** | The existing global kill switch, reused rather than duplicated |
-| **State writes that survive a sharing violation** | Atomic replace from a uniquely named temporary; a failed write raises rather than corrupting |
-| **A self-contained Windows ZIP with a double-click installer**, no runtime prerequisite | The release carries its own Python; no administrator rights, no network at install time |
+| 단순한 "실패했는가" 불리언이 아니라 **이름 붙은 장애 taxonomy** | 메시지 텍스트가 아니라 Codex의 구조화된 `codexErrorInfo` variant와 HTTP status로 구현 |
+| 복구 체인이 끝없이 돌 수 없게 하는 **retry budget** | `max_recovery_attempts`. 사용자가 설정할 수 있고 기본값은 4 |
+| retry budget과는 별개인 **no-progress 상한** | `max_no_progress`, 기본값 3. 같은 thread에서 일어난 중단들 사이에 이어짐 |
+| 막힌 스레드 하나가 다른 스레드를 막지 않게 하는 **스레드별 복구 상태** | SQLite에 저장하는 스레드별 활성화 플래그와 중단 단위 레코드 |
+| **진행 correlation** — 나중에 일어난 무관한 성공이 재시도를 복구됨으로 표시해서는 안 됨 | 전달 여부는 바로 그 thread 안에 있는 이 레코드 고유의 marker로 증명함 |
+| **설정 가능한 대기 전략** | 직접 값을 적는 ladder 대신 이름 붙은 preset 세 개. 어떤 설정으로도 대기가 0이나 무한이 될 수 없음 |
+| **소진된 작업을 새 budget으로 다시 시작** | `reset_recovery_budget`. budget을 되돌릴 뿐 아무것도 보내지 않음 |
+| **대기 중인 작업을 지금 재시도** | `retry_now`. 예정 시각만 옮기고 그 외에는 아무것도 하지 않음. 모든 gate는 그대로 동작함 |
+| **대기 중인 복구별 실시간 카운트다운** | 대시보드의 대기 중 페이지가 각 레코드의 다음 확인까지 남은 시간을 창 자신의 타이머로 세어 보여 줌(`Dashboard.cs:UpdateCountdowns`). 알림 영역 툴팁에도 같은 카운트다운이 들어감 |
+| **영구적인 일시 정지 스위치** | 이미 있는 전역 kill switch를 새로 만들지 않고 재사용 |
+| **sharing violation을 견디는 상태 쓰기** | 고유한 이름의 임시 파일에서 atomic replace. 쓰기가 실패하면 파일을 깨뜨리는 대신 예외를 냄 |
+| 런타임 사전 준비가 필요 없는 **더블 클릭 설치기가 든 자립형 Windows ZIP** | 릴리스가 자체 Python을 함께 담음. 관리자 권한도, 설치 시점의 네트워크도 필요 없음 |
 
-### Adapted — the same need, answered differently
+### Adapted — 같은 필요에 다르게 답한 것
 
-| Their approach | Here |
+| 저쪽의 접근 | 여기서는 |
 | --- | --- |
-| **An embedded Codex management panel** | Adopted in v0.5 as a settings panel over MCP. It shows state and changes settings; it cannot submit a continuation, and the watcher runs whether or not it is open. Previously rejected — the reason given was that it would replace something a user could do in words. That was true of a panel that only *displayed*; it stopped being true once there were sixteen settings to find. |
-| **A graphical settings window** | Adopted in v0.5 as a standalone Start Menu window, for a different reason than theirs: settings must be reachable when Codex is closed and nothing else is running. |
-| **A tray icon and a supervisor process** | The icon was adopted in v0.6.0, as a thread of the watcher itself (`runtime/app.py:App._start_tray`) rather than a second process, so it cannot show a watcher that is not running. Its menu opens the window, pauses recovery and stops the watcher; `show_tray` turns it off. Since v0.6.3 a single click opens a small popup beside it - what is waiting, when the watcher next looks, a switch per task, pause, and Open Dashboard - and a double click still opens the Dashboard. The supervisor is still rejected: another long-lived process to make one visible |
-| **An MCP server** | Adopted, deliberately narrow: typed configuration and safe control only. No tool detects, schedules, reserves or sends. |
-| **Notification of a retry limit being reached** | One of four lifecycle notifications, each with its own switch |
-| **Empty-input continuation, so no user bubble appears** | Not possible without their app-server route. A continuation message is sent, and the README says so plainly rather than implying the conversation is untouched |
-| **A fallback retry text the user can edit** | Adapted in v0.6.3 as the **Custom** continuation message, under constraints that answer the reason it was not exposed before - a user-authored instruction sent automatically into a conversation is a much larger surface than it looks. It is written only in the Dashboard and cannot be set from Codex: `update_settings` does not offer the text and `preview_recovery_message` does not accept it, because text sent into your conversations when nobody is watching must not be something a model can be talked into changing. It is sent exactly as typed, at most 2000 characters, as one message for every interruption or one per kind. It may use `{reason}`, `{category}`, `{attempt}`, `{max_attempts}` and `{reset_time}` and nothing else, and a placeholder that would carry the prompt, the reply, a title, a path, an account or a token is refused by name. The fallback is fixed: the message for that kind, else the message for every interruption, else the localized Standard message. Nothing about the text can make a failure recoverable, skip a check or choose a conversation |
-| **A dry run that says what would happen and why** (`saaranshM/unsnooze`'s `preview`) | v0.6.3's **Why it is waiting**, on the Dashboard's Pending page: the watcher's safety checks for the chosen task, as the watcher last recorded them and when (`control.py:describe_record`, `gates` and `gates_at`). It evaluates nothing when asked, so it cannot disagree with the watcher by being a second code path answering the same question. The Preview beside the continuation settings is the other half: the exact text that would be sent, from the function that sends it |
-| **A checkbox list of which conversations to auto-resume** (`boyso/codex-reset`, macOS) | v0.6.3's **Auto-resume** check box, a switch since v0.6.4, in the notification-area popup and on the Dashboard's Pending page, for each task that is already waiting. A click carries that task's interruption id and conversation id as they were when the row was drawn, and the control layer refuses one that reaches a record which has since finished, disappeared or turned out to belong to another conversation. It changes whether that conversation may be resumed and sends nothing; the watcher still decides and still sends. There is no list of every conversation to tick in advance: the switch exists only where there is an exact record to bind it to |
-| **Bulk actions on every tracked task** (`saaranshM/unsnooze`'s `cancel --all` and `resume-now --all`) | Half of it. v0.6.3's **Cancel all** on the Pending page stops every pending recovery, one exact record at a time, through the same cancel a single task uses (`control.py:cancel_all_pending`); it can only reduce what the tool does. There is deliberately no retry-all: one record at a time under one lock is what keeps the argument that nothing is ever sent twice short enough to check. Cancel all is not an MCP tool |
+| **내장 Codex 관리 패널** | MCP 위에 올린 설정 패널로 v0.5에서 채택했습니다. 상태를 보여 주고 설정을 바꿉니다. continuation을 전송할 수 없고, 패널이 열려 있든 아니든 watcher는 그대로 돕니다. 이전에는 rejected였습니다. 당시 이유는 사용자가 말로 할 수 있는 일을 대체하게 된다는 것이었습니다. *보여 주기만* 하는 패널에는 맞는 말이었지만, 찾아야 할 설정이 열여섯 개가 된 순간부터는 더 이상 맞지 않게 됐습니다 |
+| **그래픽 설정 창** | 독립 실행되는 시작 메뉴 창으로 v0.5에서 채택했습니다. 이유는 저쪽과 다릅니다. Codex가 닫혀 있고 다른 것이 아무것도 돌지 않을 때에도 설정에 닿을 수 있어야 하기 때문입니다 |
+| **tray 아이콘과 supervisor 프로세스** | 아이콘은 v0.6.0에서 채택했습니다. 다만 프로세스를 하나 더 두는 대신 워처 자신의 스레드로 뒀고(`runtime/app.py:App._start_tray`), 그래서 돌고 있지 않은 워처를 보여 줄 수는 없습니다. 메뉴로 창을 열고, 자동 복구를 일시 정지하고, 워처를 중지합니다. `show_tray`로 끌 수 있습니다. v0.6.3부터는 한 번 클릭하면 옆에 작은 팝업이 열려 기다리는 작업, 워처가 다음에 확인하는 시각, 작업별 스위치, 일시 정지, 대시보드 열기를 보여 주고, 두 번 클릭하면 여전히 대시보드가 열립니다. supervisor는 여전히 넣지 않습니다. 하나를 눈에 보이게 하려고 상주 프로세스를 하나 더 두는 일이기 때문입니다 |
+| **MCP 서버** | 채택했지만 의도적으로 좁게 만들었습니다. 타입이 정해진 설정 변경과 안전한 제어만 합니다. 어떤 tool도 감지하거나, 예약하거나, 선점하거나, 전송하지 않습니다 |
+| **재시도 상한 도달 알림** | 각각 개별 스위치를 가진 네 가지 lifecycle 알림 중 하나 |
+| **사용자 말풍선이 생기지 않도록 빈 입력으로 이어 가기** | 저쪽의 app-server 경로 없이는 불가능합니다. 여기서는 이어 가기 메시지를 실제로 보내고, README는 대화가 그대로 남는 것처럼 말하는 대신 그 사실을 있는 그대로 적습니다 |
+| **사용자가 편집할 수 있는 대체 재시도 문구** | v0.6.3에서 **직접 입력** 이어서 하기 메시지로 받아들였습니다. 예전에 노출하지 않은 이유 — 사용자가 쓴 지시문이 대화에 자동으로 들어가는 것은 보기보다 훨씬 큰 표면이라는 것 — 에 답하는 제약을 달았습니다. 문구는 대시보드에서만 쓰고 Codex에서는 설정할 수 없습니다. `update_settings`는 그 문구를 제시하지 않고 `preview_recovery_message`는 받지 않습니다. 아무도 보고 있지 않을 때 대화에 들어가는 문구는 모델이 설득당해 바꿀 수 있는 것이어서는 안 되기 때문입니다. 입력한 그대로, 최대 2000자로, 모든 중단에 하나 또는 중단 종류마다 따로 보냅니다. 쓸 수 있는 자리 표시자는 `{reason}`, `{category}`, `{attempt}`, `{max_attempts}`, `{reset_time}`뿐이며, 프롬프트, 답변, 제목, 경로, 계정, 토큰을 실어 나를 자리 표시자는 이름을 들어 거부합니다. 대체 순서는 정해져 있습니다. 그 종류의 메시지, 없으면 모든 중단용 메시지, 그것도 없으면 현지화된 기본 메시지입니다. 문구가 무엇이든 장애를 복구 대상으로 만들거나, 확인을 건너뛰거나, 대화를 고를 수는 없습니다 |
+| **무슨 일이 일어날지와 그 이유를 말해 주는 dry run** (`saaranshM/unsnooze`의 `preview`) | v0.6.3의 **기다리는 이유**. 대시보드의 대기 중 페이지에서, 고른 작업에 대한 워처의 안전 확인을 워처가 마지막으로 기록한 그대로, 기록한 시각과 함께 보여 줍니다(`control.py:describe_record`의 `gates`와 `gates_at`). 요청받았다고 새로 평가하지 않으므로, 같은 질문에 답하는 두 번째 코드 경로가 되어 워처와 어긋날 수 없습니다. 이어서 하기 설정 옆의 미리보기가 나머지 절반입니다. 보내는 함수가 만든, 보내질 정확한 문구입니다 |
+| **어떤 대화를 자동으로 이어 갈지 고르는 체크박스 목록** (`boyso/codex-reset`, macOS) | v0.6.3의 **자동 이어 가기** 체크박스(지금은 스위치). 알림 영역 팝업과 대시보드의 대기 중 페이지에, 이미 기다리고 있는 작업마다 있습니다. 클릭은 그 행을 그릴 때의 중단 id와 대화 id를 싣고, 제어 계층은 그 사이에 끝났거나, 사라졌거나, 다른 대화의 것으로 밝혀진 기록에 닿은 클릭을 거절합니다. 그 대화를 이어 가도 되는지만 바꾸고 아무것도 보내지 않으며, 결정하고 보내는 것은 여전히 워처입니다. 모든 대화를 미리 골라 두는 목록은 없습니다. 스위치는 묶을 정확한 기록이 있는 곳에만 있습니다 |
+| **추적 중인 모든 작업에 대한 일괄 동작** (`saaranshM/unsnooze`의 `cancel --all`과 `resume-now --all`) | 절반만 받아들였습니다. v0.6.3의 대기 중 페이지에 있는 **모두 취소**는 대기 중인 복구를 모두, 정확한 레코드 하나씩, 작업 하나를 취소할 때와 같은 경로로 멈춥니다(`control.py:cancel_all_pending`). 도구가 하는 일을 줄이기만 할 수 있습니다. 모두 다시 시도는 일부러 없습니다. 잠금 하나 아래에서 한 번에 레코드 하나씩 처리하기 때문에 무엇도 두 번 보내지지 않는다는 논증이 확인 가능할 만큼 짧아집니다. 모두 취소는 MCP tool이 아닙니다 |
 
-### Rejected — a deliberate choice, not an omission
+### Rejected — 빠뜨린 것이 아니라 의도적으로 고른 것
 
-From v0.6.11 there are two editions, and a refusal here is the standard edition's: it keeps every
-one. The advanced edition builds what they ruled out, each capability off until a person turns it on
-in the Dashboard, after reading which of the standard edition's rules it breaks - except what both
-editions refuse. The middle column is what the advanced edition offers today; what it is still to
-build is under *Deferred*, below. Those rules are listed by id in [STANDARDS.md](STANDARDS.md), and
-[EDITIONS.md](EDITIONS.md) says what each edition is.
+이제 제품은 두 판으로 나오고, 여기의 거절은 표준판의 것입니다. 표준판은 그 거절을 하나도 빠짐없이 지킵니다.
+고급판은 그 거절들이 막았던 것을 만들되, 기능마다 표준판의 어떤 규칙을 벗어나는지 사람이 읽고, 대시보드에서
+켜기 전까지 꺼 둡니다. 두 판이 모두 거절하는 것은 예외입니다. 가운데 열은 고급판이 지금 내놓는 것이고, 아직
+만들 것은 아래 *Deferred*에 있습니다. 그 규칙은 [STANDARDS.md](STANDARDS.md)에 id별로 있고, 두 판이 각각
+무엇인지는 [EDITIONS.md](EDITIONS.md)에 있습니다.
 
-| Feature | The standard edition refuses | The advanced edition offers, opt-in | Both refuse |
+| 기능 | 표준판이 거절하는 이유 | 고급판이 켤 수 있게 내놓는 것 | 두 판 모두 거절하는 것 |
 | --- | --- | --- | --- |
-| **Retrying unknown provider failures** on a separate budget | The single line that defines this project. A failure it cannot name is a failure it does not act on | Retry failures it cannot name, on a budget of its own, with Rules for Codex's error codes over its structured error tags ([EDITIONS.md](EDITIONS.md#retry-failures-it-cannot-name)) | Rules matched against a failure's text: the advanced edition's rules will read Codex's structured error tags only |
-| **Retrying authentication failures**, even with a lower limit | An auth failure needs a person. Retrying it can only burn attempts or lock an account | Retry a sign-in failure after proof: once, after a usage read proves the sign-in works ([EDITIONS.md](EDITIONS.md#retry-a-sign-in-failure-after-proof)) | Reading Codex's credentials; retrying a policy, permission or cancelled turn, which would get around a limit or override the person's own decision |
-| **A shared local app-server** (`CODEX_APP_SERVER_WS_URL`) | It means owning a piece of Codex's own transport, and a bug in it degrades Codex itself rather than degrading recovery | Not this. The marker-free and goal continuations start a short-lived `codex app-server` of their own for each send - one call, or at most two for the goal continuation where the app holds the conversation (`thread/goal/set`, then `thread/queue/add`) - which nothing else talks to (`advanced/src/codex_auto_resume_advanced/codex/protocol.py`) | Owning Codex's transport: a shared app-server, a proxy or a retry gateway would mean changing how Codex starts or connects |
-| **Waking unloaded threads** via `thread/resume` | Follows from the above. The one route anybody has demonstrated - restoring an unloaded parent with its persisted settings - runs through that shared app-server, which means Codex pointing at an endpoint this project owns. Re-examined for v0.6.0 and still refused: an unloaded thread waits here until the user opens it, and the README states that limitation rather than engineering around it | Nothing is woken. For a usage limit, the goal continuation sets the paused goal of a conversation the app does not hold active again, so that Codex carries it on when the app next opens that conversation - which no record shows yet: measurement M2 found only that the app does not take such a goal up while it holds the conversation. Waking one is v0.6.15's | — |
-| **Injecting items into a thread** (`thread/inject_items`) | Writing into a conversation by any route other than the documented queue is not something this tool should be able to do | The marker-free continuation adds its message to the conversation's own queue through the app server (`thread/queue/add`), the queue `codex queue` fills | `thread/inject_items`, and writing into a subagent's thread |
-| **Goal-state manipulation** | Reading and setting Codex's native goal state is a second model of what a task *is*, and every ambiguity in it becomes a way to resume the wrong work | The goal continuation: for a usage limit, the conversation's existing goal that the limit paused is set active again (`thread/goal/set`), its status read back | Creating a goal, and reading or changing what a goal says |
-| **Subagent recovery** | Recovering a child thread on a parent's behalf multiplies the identity problem that this project's safety rests on | Not yet (v0.6.15) | Writing into the child's thread: v0.6.15 recovers through the parent |
-| **Restoring model, provider, service tier, reasoning and permission settings** before recovery | It requires reading and replaying a slice of Codex's own session configuration. Here the thread is resumed as the user left it | Not yet (v0.6.15) | — |
-| **Dispatching several due tasks at once** | Sequential dispatch under one lock is what makes the no-duplicate-send argument short enough to check | Not yet (v0.6.15) | More than one send in flight in one conversation |
-| **Starting the watcher when Codex starts** | Codex runs a plugin's server in a job that ends everything it starts, a few seconds later (measured for v0.6.9), so the standard edition refuses where the job would end the watcher | Start with Codex, through WMI: the watcher is started outside Codex's job and outlives it (measurement MW) | — |
-| **A continuation with no marker** | The marker is how the standard edition proves which message arrived | The marker-free continuation: delivery proven by a client id derived from the interruption instead (measurement M7) | — |
-| **Failures only the desktop app's renderer sees** - `writerConflict`, `resumeError`, `sharedTaskUnavailable`, `threadHandoff` | — | — | They are events inside the app, not errors Codex writes to its history; reaching them would mean injecting into the app |
-| **Priming a usage window**, or keep-alive messages | — | — | A message whose only purpose is to start, align or keep a usage window shapes the service's limits instead of doing the person's work |
-| **Rotating accounts**, or switching automatically when a limit hits | — | — | Its purpose is to evade a usage limit. v0.6.15 switches the active account on the person's command only |
-| **Patching Codex, UI automation or code injection** - clicking Retry, a DevTools hook, a patched app or binary | — | — | Both editions act on Codex only through its official interfaces: `codex queue`, its app server and its plugin |
-| **Answering approval or permission prompts automatically** | — | — | The app's approval requests go only to its own private server, and granting one unattended takes away the person's own safety decision; every request a session of the advanced edition receives is declined |
+| 별도의 budget으로 **unknown provider 장애 재시도** | 이 프로젝트를 규정하는 단 하나의 선입니다. 이름 붙일 수 없는 장애는 손대지 않는 장애입니다 | 이름 붙일 수 없는 실패 다시 시도. 자체 예산으로, 구조화된 오류 태그에 거는 Codex 오류 코드 규칙과 함께([EDITIONS.md](EDITIONS.md#이름-붙일-수-없는-실패-다시-시도)) | 장애의 글에 맞춰 보는 규칙. 고급판의 규칙은 Codex의 구조화된 오류 태그만 읽게 됩니다 |
+| 더 낮은 상한을 두더라도 **인증 실패 재시도** | 인증 실패에는 사람이 필요합니다. 재시도해 봐야 시도 횟수를 태우거나 계정을 잠글 뿐입니다 | 확인되면 로그인 실패 다시 시도. 사용량 읽기로 로그인이 되는 것을 확인한 뒤 한 번([EDITIONS.md](EDITIONS.md#확인되면-로그인-실패-다시-시도)) | Codex의 자격 증명 읽기. 정책·권한 때문에 멈췄거나 취소된 턴의 재시도는 한도를 피해 가거나 사람의 결정을 뒤집는 일입니다 |
+| **로컬 shared app-server** (`CODEX_APP_SERVER_WS_URL`) | Codex 자체 transport의 일부를 떠안는다는 뜻이고, 거기서 생긴 버그는 복구 기능이 아니라 Codex 자체를 망가뜨립니다 | 이것은 아닙니다. 마커 없는 이어가기와 목표 이어가기는 보낼 때마다 잠깐 쓰는 자기만의 `codex app-server`를 띄웁니다. 호출은 한 번이고, 앱이 대화를 열어 두고 있을 때의 목표 이어가기만 많아야 두 번(`thread/goal/set` 다음 `thread/queue/add`)이며, 거기에는 다른 무엇도 연결되지 않습니다(`advanced/src/codex_auto_resume_advanced/codex/protocol.py`) | Codex의 transport 떠안기. shared app-server, 프록시, 재시도 게이트웨이는 Codex가 시작하거나 연결하는 방식을 바꾸는 일입니다 |
+| `thread/resume`로 **미로드 스레드 깨우기** | 위에서 이어집니다. 누구든 실제로 보여 준 단 하나의 경로는 미로드 부모를 그 저장된 설정으로 되살리는 것이고, 그것은 그 shared app-server를 지납니다. 곧 Codex가 이 프로젝트가 소유한 엔드포인트를 바라보게 된다는 뜻입니다. v0.6.0에서 다시 따져 보고 여전히 거절했습니다. 미로드 스레드는 사용자가 열 때까지 여기서 기다리고, README는 그 한계를 우회하는 대신 그대로 적습니다 | 깨우는 것은 없습니다. 사용량 한도라면 목표 이어가기가 앱이 열어 두지 않은 대화의 멈춘 목표를 다시 활성으로 돌려놓고, 앱이 다음에 그 대화를 열 때 Codex가 이어 가도록 합니다. 그렇게 된다는 기록은 아직 없습니다. 측정 M2가 알아낸 것은 앱이 대화를 열어 두고 있는 동안에는 그런 목표를 받아 가지 않는다는 것뿐입니다. 깨우기는 고급판의 나머지가 할 일입니다 | — |
+| **스레드에 항목 주입** (`thread/inject_items`) | 문서화된 큐가 아닌 다른 경로로 대화에 쓰는 일은 이 도구가 할 수 있어서는 안 되는 일입니다 | 마커 없는 이어가기는 앱 서버를 거쳐(`thread/queue/add`) 대화 자신의 큐, 곧 `codex queue`가 채우는 그 큐에 메시지를 넣습니다 | `thread/inject_items`, 그리고 하위 에이전트의 스레드에 쓰기 |
+| **Goal 상태 조작** | Codex의 기본 goal 상태를 읽고 설정하는 것은 작업이 *무엇인가*에 대한 두 번째 모델을 두는 일이고, 그 모델의 모호함 하나하나가 엉뚱한 작업을 재개하는 경로가 됩니다 | 목표 이어가기. 사용량 한도라면 그 한도 때문에 멈춘, 이미 있는 목표를 다시 활성으로 돌려놓고(`thread/goal/set`) 그 상태를 다시 읽어 확인합니다 | 목표 만들기, 그리고 목표에 적힌 글을 읽거나 바꾸기 |
+| **subagent 복구** | 부모를 대신해 자식 스레드를 복구하는 일은 이 프로젝트의 안전성이 기대고 있는 식별 문제를 몇 배로 키웁니다 | 아직 없음(고급판의 나머지) | 자식의 스레드에 쓰기. 고급판의 나머지는 부모를 거쳐 복구합니다 |
+| 복구 전에 **model, provider, service tier, reasoning, 권한 설정 복원** | Codex 자체 세션 설정의 일부를 읽어서 다시 적용해야 합니다. 여기서는 사용자가 남겨 둔 그대로 스레드를 재개합니다 | 아직 없음(고급판의 나머지) | — |
+| **기한이 된 작업 여러 개를 한 번에 디스패치** | 잠금 하나 아래에서 순차적으로 디스패치하기 때문에 중복 전송이 없다는 논증이 확인 가능할 만큼 짧아집니다 | 아직 없음(고급판의 나머지) | 한 대화에서 진행 중인 전송을 둘 이상 두기 |
+| **Codex가 시작할 때 워처 시작하기** | Codex는 플러그인의 서버를, 그것이 시작한 모든 것을 몇 초 뒤 끝내는 작업 개체 안에서 돌립니다(v0.6.9 때 측정). 그래서 표준판은 작업 개체가 워처를 끝낼 자리에서는 시작을 거절합니다 | WMI를 통해 Codex와 함께 시작하기. 워처를 Codex의 작업 개체 바깥에서 시작해 Codex보다 오래 살게 합니다(측정 MW) | — |
+| **마커 없는 이어가기** | 표준판은 마커로 어느 메시지가 도착했는지 증명합니다 | 마커 없는 이어가기. 대신 중단에서 만든 클라이언트 ID로 전달을 증명합니다(측정 M7) | — |
+| **데스크톱 앱의 렌더러만 보는 장애** - `writerConflict`, `resumeError`, `sharedTaskUnavailable`, `threadHandoff` | — | — | 앱 안의 사건이지 Codex가 기록에 남기는 오류가 아닙니다. 거기에 닿으려면 앱에 무언가를 주입해야 합니다 |
+| **사용량 창 미리 열어 두기**, 또는 창을 살려 두는 메시지 | — | — | 사용량 창을 열거나 맞추거나 살려 두는 것만이 목적인 메시지는 사람의 일을 하는 대신 서비스의 한도를 주무르는 일입니다 |
+| **계정 돌려쓰기**, 또는 한도에 걸리면 저절로 계정 바꾸기 | — | — | 사용량 한도를 피해 가려는 것입니다. 고급판의 나머지는 사람이 명령할 때만 쓰는 계정을 바꿉니다 |
+| **Codex 고치기, 화면 자동화, 코드 주입** - Retry 누르기, DevTools 훅, 고친 앱이나 실행 파일 | — | — | 두 판 모두 Codex에는 공식 인터페이스로만 손을 댑니다. `codex queue`, 앱 서버, 플러그인입니다 |
+| **승인·권한 요청에 자동으로 답하기** | — | — | 앱의 승인 요청은 앱 자신의 비공개 서버로만 가고, 사람 없이 승인하면 사람이 내릴 안전 판단을 빼앗습니다. 고급판의 세션은 받는 요청을 모두 거절합니다 |
 
-### Deferred — reasonable, not now
+### Deferred — 합리적이지만 지금은 아닌 것
 
-| Feature | Condition |
+| 기능 | 조건 |
 | --- | --- |
-| **Empty-response recovery** — treating a completion with no assistant reply as a temporary failure | Re-examined for v0.6.0. Their handling is careful and privacy-bounded — a boolean for whether a final message was present, never its contents — and they now also note that Codex's own "finished a turn" popup fires before a completion can be classified, so a false completion cannot be un-notified. The failure is real and the detection can be content-free. It stays out of the standard edition because nothing in this repository has ever seen one: distinguishing it from a model that legitimately had nothing to say needs privacy-stripped structural captures from real Codex history, and there are none. The advanced edition plans it for v0.6.15, recognised by the kinds of item a turn left - no agent message and no progress - once per turn and off until a person turns it on |
-| **A break-glass "safely disable" action** | Their version exists because shared mode can leave Codex pointing at a dead endpoint. Nothing in either edition today can put Codex in a state it needs rescuing from, so the action has nothing to undo. v0.6.15 plans the first thing that could: the advanced edition writing Codex's own retry settings through its official configuration. That capability comes with the undo - the settings backed up, and put back when it is turned off or the product uninstalled |
-| **The rest of the advanced edition** - an unloaded conversation queued until it is opened or run headless, subagent recovery through the parent, several conversations at once, a headless run with the settings Codex saved for the conversation | v0.6.15, in the advanced edition only, each off until a person turns it on; the [roadmap](ROADMAP.md) lists them all. v0.6.11 was released with the first three capabilities and v0.6.14 with twelve more, and the rest moved there whole |
-| **Watching several Codex homes** | v0.6.15, in the standard edition. It waited on a measurement of whether the desktop app runs on a second Codex home at all, which passed on 2026-09-28 |
+| **빈 응답 복구** — 어시스턴트 답이 없는 완료를 일시적 장애로 보는 것 | v0.6.0에서 다시 따져 봤습니다. 그쪽 처리는 조심스럽고 개인정보를 지킵니다. 마지막 메시지가 있었는지에 대한 불리언만 남기고 내용은 남기지 않습니다. 그리고 이제 Codex 자신의 "턴을 마쳤습니다" 팝업이 완료를 분류하기 전에 먼저 뜨기 때문에 거짓 완료만 골라 알림을 거둘 수 없다는 점도 적고 있습니다. 장애는 실재하고 감지는 내용 없이 가능합니다. 그럼에도 표준판에서 빼 두는 이유는 이 저장소가 그것을 한 번도 본 적이 없기 때문입니다. 정말로 할 말이 없었던 모델과 구별하려면 실제 Codex 기록에서 개인정보를 걷어 낸 구조 캡처가 있어야 하는데, 하나도 없습니다. 고급판은 그 나머지에서 계획합니다. 턴이 남긴 항목의 종류 - 에이전트 메시지도 진행 항목도 없음 - 로만 알아보고, 턴마다 한 번, 사람이 켜기 전까지 꺼져 있습니다 |
+| 비상용 **"안전하게 비활성화" 동작** | 저쪽에 이 기능이 있는 이유는 shared 모드가 Codex를 죽은 endpoint를 가리킨 채로 남길 수 있기 때문입니다. 지금은 두 판 어느 쪽도 Codex를 구조가 필요한 상태로 만들 수 없으므로 되돌릴 것이 없습니다. 고급판의 나머지가 그럴 수 있는 첫 기능을 계획합니다. 고급판이 Codex 자신의 재시도 설정을 공식 설정 경로로 쓰는 것입니다. 그 기능은 되돌리기와 함께 옵니다. 설정을 백업해 두고, 기능을 끄거나 제품을 제거하면 되돌려 놓습니다 |
+| **고급판의 나머지** - 열릴 때까지 큐에서 기다리거나 화면 없이 실행하는 미로드 대화, 부모를 거친 subagent 복구, 여러 대화를 한꺼번에, Codex가 그 대화에 저장해 둔 설정으로 하는 화면 없는 실행 | 로드맵의 '고급판의 나머지', 고급판에만 있고 저마다 사람이 켜기 전까지 꺼져 있습니다. [로드맵](ROADMAP.md)에 모두 적혀 있습니다. v0.6.11은 고급판의 첫 세 기능만 싣고 나왔고, 그다음 고급판 릴리스가 열두 기능을 더 실었으며, 나머지는 통째로 그리 옮겼습니다 |
+| **여러 Codex 홈 지켜보기** | 고급판의 나머지와 함께, 표준판. 데스크톱 앱이 두 번째 Codex 홈에서 돌기는 하는지를 재는 측정을 기다렸고, 그 측정은 2026-09-28에 통과했습니다 |
 
-**Re-read for v0.6.3 on 2026-09-14**, against this project's own reasons rather than against
-the other projects, which were not re-surveyed for it. Empty-response recovery stays deferred:
-there are still no privacy-stripped captures of a real one to tell it apart from a model that
-had nothing to say. Waking unloaded threads, goal-state manipulation and subagent recovery stay
-rejected, for the reasons in their rows. v0.6.3 changed what the product says and shows, and
-nothing in it moved a condition any of those reasons rests on.
+**v0.6.3을 위해 2026-09-14에 다시 읽었습니다.** 다른 프로젝트가 아니라 이 프로젝트 자신의 이유에 비추어 읽었고, 다른
+프로젝트는 v0.6.3을 위해 다시 조사하지 않았습니다. 빈 응답 복구는 여전히 deferred입니다. 할 말이 없었던 모델과 구별할,
+개인정보를 걷어 낸 실제 캡처가 아직 없습니다. 미로드 스레드 깨우기, Goal 상태 조작, subagent 복구는 각 행에 적은 이유로 여전히
+rejected입니다. v0.6.3은 제품이 무엇을 말하고 보여 주는지를 바꿨을 뿐, 그 이유들이 기대는 조건은 하나도 움직이지
+않았습니다.
 
-**Re-read for v0.6.11 on 2026-09-28**, against this project's own reasons again; the other
-projects were not re-surveyed. Every refusal above still binds the standard edition, and nothing in
-v0.6.11 moved a condition any of them rests on. What changed is that the refusals are now the
-standard edition's, and *Rejected* says, beside each, what the advanced edition does instead - goal
-state and a continuation with no marker among them - and what both editions still refuse.
+**두 판으로 나뉘며 2026-09-28에 다시 읽었습니다.** 이번에도 이 프로젝트 자신의 이유에 비추어 읽었고, 다른 프로젝트는
+다시 조사하지 않았습니다. 위의 거절은 모두 여전히 표준판을 묶고, 이번 릴리스의 어느 것도 그 거절들이 기대는 조건을
+움직이지 않았습니다. 바뀐 것은 그 거절이 이제 표준판의 것이라는 점이고, *Rejected*가 행마다 고급판이 대신 하는 것 -
+목표 상태와 마커 없는 이어가기가 그 가운데 있습니다 - 과 두 판이 여전히 거절하는 것을 함께 적습니다.
 
-## The line that decides
+## 판단 기준이 되는 문장
 
-> Keep the recovery engine small, local, conservative, and fail-closed; expand recovery only for
-> clearly classified transient failures, and improve installation and control without turning the
-> project into a second management application.
+> 복구 엔진은 작고, 로컬에서 돌고, 보수적이며, 불확실하면 멈추는 상태로 유지한다. 복구 범위는 명확히
+> 분류된 일시적 장애에 한해서만 넓히고, 설치와 제어는 두 번째 관리 애플리케이션을 만들지 않으면서
+> 개선한다.
 
-When a proposed feature would make the runtime do more rather than make the tool easier to install,
-understand or trust, it belongs in the other project, not this one. The v0.5 surfaces were added
-under exactly that test: they change how the product is *configured and explained*, and not one of
-them can recover anything. So were v0.6.3's - nine languages, the continuation message's styles
-and Custom text, a popup and a redesign - and the classifier, the gates and the one watcher
-allowed to send are the ones v0.6.2 had.
+어떤 기능 제안이 설치·이해·신뢰를 쉽게 만드는 대신 런타임이 더 많은 일을 하게 만든다면, 그 기능은 이
+프로젝트가 아니라 저쪽 프로젝트에 속합니다. v0.5에서 추가한 표면들도 정확히 그 기준을 통과해서
+들어왔습니다. 그것들은 제품을 *설정하고 설명하는* 방식을 바꿀 뿐, 어느 것도 무엇을 복구할 수 없습니다. v0.6.3의 표면 — 아홉 개 언어,
+이어서 하기 메시지의 스타일과 직접 입력 문구, 팝업, 새 디자인 — 도 마찬가지이며, 분류기와 관문, 그리고 보낼 수 있는 유일한 워처는
+v0.6.2의 것 그대로입니다.
 
-This is the standard edition's line, and it keeps it. The advanced edition exists so that a person
-who wants more can have it without the standard edition's code holding any of it: its capabilities
-are left out of the standard archive, and `build/edition_audit.py` proves from the archives' own
-bytes, in every release build, that none of them is there.
+이것은 표준판의 기준이고, 표준판은 이것을 지킵니다. 고급판은 더 원하는 사람이 그것을 가질 수 있게 하되, 표준판의
+코드에는 그 어느 것도 들어가지 않게 하려고 있습니다. 고급판의 기능은 표준판 압축 파일에서 빠지고,
+`build/edition_audit.py`가 릴리스를 빌드할 때마다 압축 파일의 바이트를 직접 읽어 그 어느 것도 없음을 증명합니다.
