@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.6.14 — Eight more ways to recover, Keep it on, a compatibility report sent from the Dashboard, actions at a usage reset you pick, a watch log and the panel beside the chat
+## v0.6.14 — The window no longer hangs while a recovery waits, eight more ways to recover, Keep it on, a compatibility report sent from the Dashboard, actions at a usage reset you pick, a watch log and the panel beside the chat
 
 [The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.13...v0.6.14)
 
@@ -17,7 +17,8 @@ it departs from ([EDITIONS.md](EDITIONS.md#todays-capabilities)). The standard e
 v0.6.13 did; what a person sees change there is the power action's card, which now turns on and off
 with a switch ([below](#the-power-actions-card-has-a-switch)), the version shown with no *Standard*
 beside it ([below](#no-standard-label-beside-the-version)), and the panel in Codex, which can ask to
-sit beside the chat ([below](#the-panel-beside-the-chat)).
+sit beside the chat ([below](#the-panel-beside-the-chat)). In both editions, the window no longer stops
+answering while a recovery waits ([below](#the-window-no-longer-hangs-while-a-recovery-waits)).
 
 **Going back.** The watcher's state is still schema 4, so going back to v0.6.13 takes only its setup
 program or *Install another version...*. The advanced edition's own file is now version 3 - eight new
@@ -196,6 +197,56 @@ still asks first, with Cancel the default, and the switch is back off after Canc
 turning it off asks nothing, as Pause asks nothing. It still applies at once: Save does not change it.
 The switch's line, which says what it is set to, wraps where the window is narrow rather than end in an
 ellipsis, and so does the card's heading.
+
+### The window no longer hangs while a recovery waits
+
+**What you saw.** In both editions and in every language, while a recovery waited for a usage-limit
+reset, the window stopped answering: clicks did nothing for seconds at a time, and closing and opening
+it again did not help, though the watcher behind it went on recovering as it should (owner,
+2026-10-10).
+
+**Why.** The same text was measured again and again on a timer, for nothing on screen. Three things
+did it, each by laying out a whole page that nobody was looking at, or that had not changed:
+
+- Every five-second status rewrote the power action card's lines in Settings > General as visible. While
+  Settings is not the page in front, a line there always reads as hidden, so the window "showed" it
+  again each time and laid out the whole of Settings > General - on a PC where Windows offers no sleep,
+  as on many laptops, from the first time Settings had been seen, and on every PC once a power action
+  had run. History's "Turn on for this conversation" button was rewritten the same way.
+- Every second, the clock wrote the Overview's "Next check in" line on every page, and each new
+  countdown laid out the Overview's cards and measured every line on them - behind Pending, or in front
+  for the same size.
+- A switch, a conversation's line and a choice card measured their words on every question a layout
+  asked them - several widths per pass, up to four passes - so each layout repeated those measurements
+  thousands of times.
+
+**What changed.** A line's visibility is written only when it really changes. The Overview's waiting
+lines are written while the Overview is in front, and once more as it comes back, so it shows the
+countdown of now; in front, a countdown that needs the same room as the last one is written without
+laying out its card. The three controls measure each of their words once and remember the answer. In the
+advanced edition, the Advanced features list, which measured every cell again every few seconds while its
+page was in front, measures them again only when a row or a word changed. This changes when work happens,
+never what is drawn.
+
+**Before and after**, on the compiled window with the owner's state (one recovery waiting, sleep not
+offered, a power action that has run), advanced edition, Korean, 150 %, all pages built, Pending in
+front; medians of the runs:
+
+| Each... | Before | After |
+| --- | --- | --- |
+| clock second | 164-168 text measurements, 3 layouts, 9.6-13.8 ms | 0 measurements, 0 layouts, 1.5-3.3 ms |
+| five-second snapshot | 595-621 measurements, 8 layouts, 48-62 ms | 9 measurements, no page laid out, 0.6-2.3 ms |
+| clock second, Overview in front | 168 measurements, 3 page layouts, 19.1-21.5 ms | 6 measurements, 0 layouts, 2.7-3.7 ms |
+| first visit to the Overview / Settings | 7,510 / 7,692 measurements | 245 / 888 measurements |
+
+The standard edition in English did the same: 588 measurements per snapshot and 157 per second before,
+none after. Opening the window left the window unanswering for 6-20 of 39 checks before and 2-5 after.
+What a first visit to a page still costs is its one layout, which this change does not touch.
+
+**Nothing drawn changed.** Every control a person sees on every page and every Settings section - its
+place, size, visibility, words, font, colours, margins and items, first shown, after twelve hidden
+clock seconds, and with the Overview in front - is byte-identical before and after, in Korean and
+English, at 100 % and 150 %.
 
 ### For developers
 

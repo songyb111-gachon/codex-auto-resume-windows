@@ -196,8 +196,9 @@ namespace CodexAutoResume
 
         public override Size GetPreferredSize(Size proposedSize)
         {
-            Size text = TextRenderer.MeasureText(Text ?? "", Font, new Size(int.MaxValue, int.MaxValue),
-                                                 TextFormatFlags.SingleLine);
+            // Remembered (Soft.Measure, v0.6.14): a table asks for this at several widths in every pass, and a page
+            // settles in up to four - thousands of measurements of the same words on each layout of Settings.
+            Size text = Soft.Measure(Text ?? "", Font, int.MaxValue, TextFormatFlags.SingleLine);
             int glyphWidth = box ? Soft.Px(Brand.CheckSize) : Soft.Px(Brand.SwitchWidth);
             int glyphHeight = box ? Soft.Px(Brand.CheckSize) : Soft.Px(Brand.SwitchHeight);
             int beside = glyphWidth + Gap + Soft.Px(6);
@@ -493,11 +494,10 @@ namespace CodexAutoResume
         {
             int textWidth = TextColumn(width).Width;
             Font title = TitleFont;
-            int top = TextRenderer.MeasureText(Soft.Wrap(Text ?? "", title, textWidth, Words), title, new Size(textWidth, int.MaxValue),
-                                               Words).Height;
+            // Remembered (Soft.Measure, v0.6.14): a table asks for this at several widths in every pass.
+            int top = Soft.Measure(Soft.Wrap(Text ?? "", title, textWidth, Words), title, textWidth, Words).Height;
             int help = string.IsNullOrEmpty(Help) ? 0
-                     : TextRenderer.MeasureText(Soft.Wrap(Help, Font, textWidth, Words), Font, new Size(textWidth, int.MaxValue),
-                                                Words).Height + Soft.Px(2);
+                     : Soft.Measure(Soft.Wrap(Help, Font, textWidth, Words), Font, textWidth, Words).Height + Soft.Px(2);
             return Soft.Px(12) + top + help + Soft.Px(12);
         }
 

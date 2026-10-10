@@ -419,8 +419,9 @@ namespace CodexAutoResume
 
         public override Size GetPreferredSize(Size proposedSize)
         {
-            Size line = TextRenderer.MeasureText(string.IsNullOrEmpty(Text) ? " " : Text, Font, new Size(int.MaxValue, int.MaxValue),
-                                                 TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix);
+            // Remembered (Soft.Measure, v0.6.14): a table asks for this at several widths in every pass.
+            Size line = Soft.Measure(string.IsNullOrEmpty(Text) ? " " : Text, Font, int.MaxValue,
+                                     TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix);
             int width = line.Width + Padding.Horizontal;
             if (MaximumSize.Width > 0) width = Math.Min(width, MaximumSize.Width);
             if (proposedSize.Width > 1 && proposedSize.Width < width) width = proposedSize.Width;
@@ -910,6 +911,9 @@ namespace CodexAutoResume
                 TableLayoutPanel section = settings && sections.ContainsKey(currentSection) ? sections[currentSection] : null;
                 page.SuspendLayout();
                 if (section != null) section.SuspendLayout();
+                // Coming back to the Overview: its Waiting lines, which the clock writes only while it is in front
+                // (UpdateCountdowns), written before it shows and so laid out with it.
+                if (name == "overview" && snapshot != null) UpdateCountdowns();
                 page.Visible = true;
                 if (section != null) section.ResumeLayout(true);
                 page.ResumeLayout(true);

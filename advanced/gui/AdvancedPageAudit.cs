@@ -560,6 +560,8 @@ namespace CodexAutoResume
             look["note"] = advancedNote == null ? null : advancedNote.Text;
             // How many requests the page had made by then, so a test can tell which step made which.
             look["requests"] = (double)advancedSent.Count;
+            // How many times the list's cells had been measured by then (FillAdvancedList).
+            look["measures"] = (double)advancedMeasures;
             if (advancedHourly != null)
             {
                 // A number in a well, as every limit on the Settings page is (SoftNumber): its least, its most, its value.
