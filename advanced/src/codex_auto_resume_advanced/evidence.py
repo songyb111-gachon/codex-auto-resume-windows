@@ -24,7 +24,7 @@ import re
 from codex_auto_resume import failures, machine
 from codex_auto_resume.diagnostics import EMAIL_RE, KEY_RE, PATH_RE, UUID_RE
 
-from .vocabulary import Measurement, NoteCode, Verdict
+from .vocabulary import Measurement, NoteCode, SpendOutcome, Verdict
 
 # The same tag scripts/live_evidence.py skips these files by; tests/test_advanced_measure.py
 # keeps the two spellings identical, so neither can move without the other.
@@ -36,20 +36,23 @@ DEFAULT_DIRECTORY = Path(__file__).resolve().parents[3] / "docs" / "evidence" / 
 # An id is recorded only as the alias the diagnostics export writes: a prefix and eight hex.
 ALIAS_RE = re.compile(r"^(?:thread|record|chain)-[0-9a-f]{8}$")
 # The closed words a measurement's observation may hold besides booleans and counts: the engine's
-# own turn statuses and failure categories, and this harness's verdicts. A word outside these is
-# free text, and free text is refused.
+# own turn statuses and failure categories, this harness's verdicts, and (v0.6.14) what a consume of
+# a reset credit came to, in this edition's words for Codex's. A word outside these is free text, and
+# free text is refused.
 CLOSED_WORDS = (frozenset(str(word) for word in machine.TURN_STATUSES)
                 | frozenset(str(word) for word in failures.CATEGORIES)
-                | frozenset(str(word) for word in Verdict))
+                | frozenset(str(word) for word in Verdict)
+                | frozenset(str(word) for word in SpendOutcome))
 
 
 def _closed(value: str) -> bool:
-    """A closed word, or one of the protocol methods a measurement declares: the product's own
-    fixed names, which is what a refusal records (`refused_method`), never anything Codex wrote."""
+    """A closed word, or one of the protocol methods a measurement declares - core's usage read
+    among them, which MU, MN and MR make: the product's own fixed names, which is what a refusal
+    records (`refused_method`), never anything Codex wrote."""
     if value in CLOSED_WORDS:
         return True
-    from .codex.protocol import ADVANCED_METHODS
-    return value in ADVANCED_METHODS
+    from .codex.protocol import MEASURED_METHODS
+    return value in MEASURED_METHODS
 
 
 class EvidenceError(RuntimeError):

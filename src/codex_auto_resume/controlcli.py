@@ -387,8 +387,8 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
             # Read only: Windows is asked whether each action is available, and nothing is done.
             return {"ok": True, "result": control.power_options()}
         if command == "power-arm":
-            # The Dashboard's Turn on..., after its confirmation. The choice is checked whole - exact
-            # keys, closed words, whole minutes - by the control layer, the one place it is armed.
+            # The Dashboard's power switch turned on, after its confirmation. The choice is checked whole -
+            # exact keys, closed words, whole minutes - by the control layer, the one place it is armed.
             return {"ok": True, "result": control.arm_power_action(payload, actor="dashboard")}
         if command == "power-disarm":
             if payload:

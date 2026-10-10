@@ -193,9 +193,11 @@ class CustomTextBoundaryTests(unittest.TestCase):
         # Every tool the page can call, and nothing that sends or writes text.
         called = set(re.findall(r"callTool\(\s*'([a-z_]+)'", mcpui._SCRIPT))
         called |= set(re.findall(r"'([a-z_]+_conversation_recovery|[a-z]+_auto_recovery)'", mcpui._SCRIPT))
+        # v0.6.14: and open_settings, which the page reads again beside the chat (readAgain) - a read.
         self.assertEqual(called, {"update_settings", "preview_recovery_message", "start_watcher",
                                   "list_pending", "pause_auto_recovery", "resume_auto_recovery",
-                                  "enable_conversation_recovery", "disable_conversation_recovery"})
+                                  "enable_conversation_recovery", "disable_conversation_recovery",
+                                  "open_settings"})
         tools = {tool["name"] for tool in mcpserver.TOOLS}
         self.assertLessEqual(called, tools)
 
@@ -449,8 +451,8 @@ class CatalogTests(unittest.TestCase):
         "compat.source.": compat.DATA_SOURCES,
         # The refreshed data's standings that are more than "in force", said as the window says them.
         "compat.cache.": tuple(state for state in compat.CACHE_STATES if state not in ("absent", "ok")),
-        # v0.6.11: the edition beside the version in the heading (edition.shown).
-        "edition.": tuple(str(name) for name in edition.EDITIONS) + (edition.NOT_LOADED,),
+        # v0.6.11: the edition beside the version in the heading (edition.shown) - since v0.6.14 an advanced one's only.
+        "edition.": tuple(str(name) for name in edition.EDITIONS if str(name) != "standard") + (edition.NOT_LOADED,),
         # v0.6.11: Custom... - the days, a count's words and a duration's units, as the schema names them.
         "day.": ownvalues.DAY_NAMES,
         "own.": tuple(sorted({getattr(spec, part)[len("own."):] for spec in policy.OWN.values()
@@ -475,6 +477,18 @@ class CatalogTests(unittest.TestCase):
             for name in self.DYNAMIC[prefix]:
                 with self.subTest(key=prefix + name):
                     self.assertIn(prefix + name, ENGLISH)
+        # And `edition.`'s values are the codes the heading does name, as the page draws it: an advanced
+        # installation's, loaded or not, and since v0.6.14 never the standard edition's.
+        if not NODE:
+            self.skipTest("needs Node to run the panel's own code")
+        from test_mcpui_v064 import run_page, say, snapshot
+        named = []
+        for code in tuple(str(name) for name in edition.EDITIONS) + (edition.NOT_LOADED,):
+            data = snapshot()
+            data["status"]["edition"] = code
+            if run_page(say("ROOT_NODE.all(function (n) { return n.className === 'edition'; }).length"), data=data):
+                named.append(code)
+        self.assertEqual(sorted(named), sorted(self.DYNAMIC["edition."]))
 
     def test_no_word_comes_from_the_browser(self):
         # `toLocale...` too: a time formatted by the browser is a time in the browser's

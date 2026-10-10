@@ -10,15 +10,19 @@ from ..words import countdown  # noqa: F401
 
 TIP_CHARS = 128
 
+# v0.6.14: the edition no surface names beside the version or the product (the owner, 2026-10-05: "no
+# Standard label in the standard edition"). The status still carries its code; only the word is not shown.
+UNNAMED_EDITION = "standard"
 
 
 def tooltip(snapshot: dict, strings: dict, now: float, edition: str | None = None) -> str:
     """What hovering over the icon says. Built from the last tick; counted down locally.
 
-    `edition` is the code of the edition that runs (edition.shown): the title names it, in the catalog's
-    word, as every surface that shows the version does (v0.6.11). Without one the title is the name alone."""
+    `edition` is the code of the edition that runs (edition.shown): the title names an advanced one, in the
+    catalog's word, as every surface that shows the version does (v0.6.11). The standard edition, or none, and
+    the title is the name alone (v0.6.14)."""
     title = strings.get("tray.title", "Codex Auto Resume")
-    if edition:
+    if edition and edition != UNNAMED_EDITION:
         title += " · " + strings.get("edition." + edition, edition)
     if not snapshot:
         return title

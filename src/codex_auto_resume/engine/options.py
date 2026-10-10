@@ -40,7 +40,9 @@ def transient_delay(attempt: int) -> int:
 # plug learns what became of a record from the moves core tells it of as it writes them (P14,
 # engine/announce.py), not from a history a pruned entry or a retention bound would change.
 VIEW_READS = frozenset({"get", "records_in", "settings", "thread_enabled", "others_in_flight",
-                        "recent_claims", "recent_claim_count", "claimed_on_thread"})
+                        "recent_claims", "recent_claim_count", "claimed_on_thread",
+                        # v0.6.14: the engine's own last usage reading - what core read, nothing new.
+                        "last_usage"})
 
 
 class StoreView:
@@ -54,6 +56,10 @@ class StoreView:
     of its own rather than the store's bound method: `view._store`, or a read's `__self__`, would
     have been every write the store has.
 
+    From v0.6.14 it shows the engine's own last usage reading too (`last_usage`, engine/freshness.py):
+    (when, the windows), or None - what core already read for a recovery that was due, reused as it is,
+    so a plug that counts usage windows asks Codex for nothing core has just been told.
+
     That keeps a plug from writing by accident, and it is all this can do. The plug is this
     product's own advanced package, running in core's process, and Python keeps nothing there
     from code that means to find it: a closure's cells, a frame's locals, the garbage collector
@@ -62,7 +68,7 @@ class StoreView:
     """
     __slots__ = ("now", "_reads")
 
-    def __init__(self, store, now):
+    def __init__(self, store, now, last_usage=None):
         self.now = now
         # Written out one by one rather than looked up by name, so that each read names the
         # store call it makes and tests/test_ports.py sees every one of them: a call built at
@@ -76,6 +82,7 @@ class StoreView:
             "recent_claims": lambda *a, **k: store.recent_claims(*a, **k),
             "recent_claim_count": lambda *a, **k: store.recent_claim_count(*a, **k),
             "claimed_on_thread": lambda *a, **k: store.claimed_on_thread(*a, **k),
+            "last_usage": lambda: last_usage() if last_usage is not None else None,
         }
         for name, call in reads.items():
             call.__name__ = call.__qualname__ = name
@@ -155,6 +162,9 @@ class OptionsMixin:
                         # classifier can produce" - the shipped behaviour.
                         "retry_ladder": TRANSIENT_BACKOFF,
                         "recoverable_categories": None,
+                        # v0.6.14: how long after its send an uncertain submission may be sent
+                        # once more, where the edition's plug asks (engine/resend.py).
+                        "resend_after_seconds": 900, "resend_until_seconds": 6 * 3600,
                         **(options or {})}
         self._usage_cache = None
         # v0.6.11: records whose task changed under the task-changed guard's Tell, said on their
@@ -162,9 +172,23 @@ class OptionsMixin:
         self._told = set()
         self._random = random.Random()
         self._declined = set()
+        # v0.6.14: when each failure the edition's plug did not take up was last put to it (P17), the
+        # record looked at early now and when the last early window opened (EARLY, engine/relaxed.py).
+        self._unadmitted = {}
+        self._early_look = self._early_at = None
+        # v0.6.14: the plug's records whose would-send line was written in this process (plugrecords.py).
+        self._records_noted = set()
+        # and what P7 said of the record looked at now, where it was asked at a refused schedule.
+        self._schedule_said = None
         self._announced = set()
         self._stale_since = {}
         self._stale_seen = {}
+        # v0.6.14 (engine/resend.py): since when this engine watches, and since when it no longer
+        # knows the lags it saw; uncertain submissions a look found no trace of, those seen in
+        # Codex's queue, since when sightings are known, and the last look for a resend found twice.
+        self._watching_since, self._stale_cleared_at = self.clock(), float("-inf")
+        self._no_trace, self._seen_queued, self._seen_queued_cleared_at = {}, set(), float("-inf")
+        self._resent_looked_at = None
         self._loaded_cache = {}
         self._watch_offset = 0
 
@@ -205,6 +229,20 @@ class OptionsMixin:
             found["max_chain_seconds"] = self.options["max_chain_seconds"]
         return found
 
+    def capacity_limits(self) -> dict:
+        """The budgets of a capacity error the plug vouches for (CAPACITY, v0.6.14): core's own capacity
+        bounds (ladder.py), and the person's own time ceiling when one is set, which only restricts.
+        v0.6.14: and an administrator's MaxRecoveryAttempts, which holds a capacity retry back as it
+        holds every other (managed.clamp): CAPACITY passes the person's budgets, never the key's."""
+        found = {name: ladder.CAPACITY_PER_DAY for name in
+                 ("max_recovery_attempts", "max_no_progress", "max_chain_continuations")}
+        ceiling = self.managed.max_recovery_attempts
+        if ceiling is not None:
+            found["max_recovery_attempts"] = min(found["max_recovery_attempts"], ceiling)
+        if self.options.get("max_chain_seconds") is not None:
+            found["max_chain_seconds"] = self.options["max_chain_seconds"]
+        return found
+
     def recovers(self, category) -> bool:
         """Whether the user has left this category of failure switched on.
 
@@ -238,6 +276,12 @@ class OptionsMixin:
         ends = [end for end in (quiet.quiet_until(now, source)
                                 for source in (self.policy_values,) + self._more_quiet) if end is not None]
         return max(ends) if ends else None
+
+    def errand_held(self) -> bool:
+        """What holds back the one write of P8's errand (v0.6.14) beyond what the store reads in its guard:
+        an administrator's DisableAutoResume, Observe only as the settings say it, and quiet hours now."""
+        return bool(self.managed.disable_auto_resume or self.policy_values.get("observe_only")
+                    or self.quiet_until(self.clock()) is not None)
 
     def tier(self, thread_id) -> str:
         """The tier a conversation has: its own, or the default's (settings.tier_of)."""

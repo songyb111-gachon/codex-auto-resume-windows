@@ -243,6 +243,39 @@ class CancelTests(ControlTestCase):
         with Store(self.paths.state_dir) as store:
             self.assertFalse(store.thread_enabled(THREAD))
 
+    def test_the_plug_is_told_each_time_a_conversation_is_switched_off_and_never_when_one_is_switched_on(self):
+        """So what the edition's plug holds there of its own ends at the switch, as core's own does (H5)."""
+        from codex_auto_resume.domain.plug import Plug
+        told = []
+
+        class Told(Plug):
+            def conversation_off(self, thread_id):
+                told.append(thread_id)
+        self.register()
+        plugged = control.Control(self.paths, plug=Told())
+        plugged.set_thread_enabled(THREAD, True)
+        plugged.set_interruption_recovery(KEY, THREAD, True)
+        self.assertEqual(told, [])
+        plugged.set_thread_enabled(THREAD, False)
+        plugged.set_interruption_recovery(KEY, THREAD, False)
+        plugged.cancel_thread(THREAD)
+        self.assertEqual(told, [THREAD] * 3)
+
+    def test_a_plug_that_raises_when_told_leaves_the_switch_as_the_person_set_it(self):
+        from codex_auto_resume.domain.plug import Plug
+
+        class Broken(Plug):
+            def conversation_off(self, thread_id):
+                raise RuntimeError("its state could not be written")
+        self.register()
+        plugged = control.Control(self.paths, plug=Broken())
+        self.assertEqual(plugged.cancel_thread(THREAD), {"thread_id": THREAD})
+        self.assertEqual(plugged.set_thread_enabled(THREAD, False), {"thread_id": THREAD, "enabled": False})
+        self.assertEqual(plugged.plug.failures, 2)
+        with Store(self.paths.state_dir) as store:
+            self.assertFalse(store.thread_enabled(THREAD))
+            self.assertEqual(store.get(KEY)["state"], "cancelled")
+
 
 class BudgetTests(ControlTestCase):
     def exhaust(self, state="retry_budget_exhausted", category="usage_limit"):

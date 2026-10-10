@@ -51,6 +51,19 @@ MEASUREMENT_METHODS = {
     Measurement.MH: ("thread/loaded/list",),
     Measurement.MA: ("account/read",),
     Measurement.MW: (),
+    # MP1 lists the Codex home's MCP servers as the app does (`mcpServerStatus/list`), to see the
+    # panel's tool still carry its side-panel entrypoint - a read, though Codex starts each server it
+    # lists (measure._mp1 says what that does). MP2 and MP3 are what a person sees in the app, and
+    # open no session.
+    Measurement.MP1: ("mcpServerStatus/list",),
+    Measurement.MP2: (),
+    Measurement.MP3: (),
+    # The reset actions' three (v0.6.14). MU reads usage as core does, with and without the reset
+    # credits' details; MN and MR spend a credit through the one method that does, MN only where there
+    # is none to spend and MR only at a real limit, by a person's explicit yes (measure._mr).
+    Measurement.MU: ("account/rateLimits/read",),
+    Measurement.MN: ("account/rateLimits/read", "account/rateLimitResetCredit/consume"),
+    Measurement.MR: ("account/rateLimits/read", "account/rateLimitResetCredit/consume"),
 }
 
 # The methods a capability's own route may call, beyond `initialize` - each one a measurement
@@ -59,16 +72,24 @@ MEASUREMENT_METHODS = {
 # gives it, as M7 did: nothing else, and never a read. The goal continuation (engine/goal.py) sets
 # an existing goal's status, as M2 did, and - only where M2b passed - adds the one item M2b added
 # after it: never a read over the protocol, since the goal's status is read from its database and
-# its words are read nowhere.
+# its words are read nowhere. A reset credit (engine/credits.py, v0.6.14) reads usage as core does and spends one
+# credit, as MN and MR did - never a credit's id, which the backend picks.
 CAPABILITY_METHODS = {
     "marker_free_continuation": ("thread/queue/add",),
     "goal_continuation": ("thread/goal/set", "thread/queue/add"),
+    "reset_credit": ("account/rateLimits/read", "account/rateLimitResetCredit/consume"),
+    # A message sent at a reset (engine/resetmessage.py) reads usage, to count the resets, and nothing else.
+    "reset_message": ("account/rateLimits/read",),
 }
 
-# Everything this edition may ever ask beyond core's three. A method not here is one no
-# measurement declared, and a session refuses it whatever it was asked for.
-ADVANCED_METHODS = frozenset(method for methods in MEASUREMENT_METHODS.values()
+# Every method some measurement declared: what a capability's own route may be given, and nothing
+# beyond it. Core's usage read is one of them from v0.6.14 (MU, MN, MR), as core's helper calls it.
+MEASURED_METHODS = frozenset(method for methods in MEASUREMENT_METHODS.values()
                              for method in methods)
+# Everything this edition may ever ask beyond core's three. A method not here, nor one of core's
+# three a measurement declared, is one no measurement declared, and a session refuses it whatever it
+# was asked for.
+ADVANCED_METHODS = MEASURED_METHODS - frozenset(PROTOCOL_METHODS)
 
 # Never asked, whatever the allow-list says: the account's own routes and attestation. The
 # product never authenticates by a route of its own and never mints an attestation (B11); a
@@ -186,9 +207,10 @@ def methods_for(measurement) -> frozenset:
 
 def methods_for_capability(capability) -> frozenset:
     """The methods a capability's route may call: its own row of CAPABILITY_METHODS, and of that
-    only what some measurement also declared (ADVANCED_METHODS), `initialize` always among them
-    and a forbidden method never. A capability with no row may call nothing."""
-    allowed = set(CAPABILITY_METHODS.get(capability, ())) & ADVANCED_METHODS - FORBIDDEN_METHODS
+    only what some measurement also declared (MEASURED_METHODS) - core's usage read among them where a
+    measurement declared it -, `initialize` always among them and a forbidden method never. A
+    capability with no row may call nothing."""
+    allowed = set(CAPABILITY_METHODS.get(capability, ())) & MEASURED_METHODS - FORBIDDEN_METHODS
     return frozenset(allowed | {"initialize", "initialized"})
 
 
@@ -288,6 +310,12 @@ class Session:
             return
 
     def call(self, method, params=None):
+        return self.receive(method, self.submit(method, params), params)
+
+    def submit(self, method, params=None) -> int:
+        """Write one request, and wait for nothing: its sequence number, for `receive`. What a caller makes
+        inside a guard it holds for that one write alone (v0.6.14: a reset credit's consume, made inside
+        core's errand guard, its answer awaited outside it - engine/credits.py)."""
         if method not in self.allowed:
             raise SessionRefused("method not permitted for this session")
         from codex_auto_resume.codex.errors import AdapterError
@@ -301,7 +329,16 @@ class Session:
             self._subscribed.append(params["threadId"])
         try:
             self._write(request)
-            deadline = time.monotonic() + 25
+        except (OSError, ValueError):
+            raise AdapterError("protocol_unavailable") from None
+        return sequence
+
+    def receive(self, method, sequence, params=None, seconds=25):
+        """The answer to the request `submit` wrote as `sequence`, waited for up to `seconds`: its result,
+        or Codex's refusal raised (`_refused_by_codex`), or AdapterError where none came."""
+        from codex_auto_resume.codex.errors import AdapterError
+        try:
+            deadline = time.monotonic() + seconds
             while time.monotonic() < deadline:
                 response = self.responses.get(timeout=max(0.01, deadline - time.monotonic()))
                 if response.get("id") != sequence:

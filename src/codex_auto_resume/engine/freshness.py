@@ -63,6 +63,7 @@ class FreshnessMixin:
         if len(self._stale_since) > 512:
             self._stale_since.clear()
             self._stale_seen.clear()
+            self._stale_cleared_at = now         # a lag seen before is no longer known (engine/resend.py)
         self._stale_since.setdefault(thread_id, now)
         self._stale_seen[thread_id] = now
         return False
@@ -131,9 +132,10 @@ class FreshnessMixin:
         if not self.offline():
             return False
         vector["usage"] = machine.gate(machine.WAIT, power.OFFLINE)
-        self.store.record_gates(row["interruption_id"], vector, now)
-        self.transition(row, "waiting_for_usage", power.OFFLINE, delay=self.options["state_poll_seconds"],
-                        usage_probe_at=None)
+        if not self._parked(row, vector):
+            self.store.record_gates(row["interruption_id"], vector, now)
+            self.transition(row, "waiting_for_usage", power.OFFLINE,
+                            delay=self.options["state_poll_seconds"], usage_probe_at=None)
         return True
 
     def after_sleep(self, since, slept) -> int:

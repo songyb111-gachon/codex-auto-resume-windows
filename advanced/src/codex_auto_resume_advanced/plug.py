@@ -16,7 +16,7 @@ from codex_auto_resume.domain.plug import Edition, Plug, Point
 
 # Written out rather than read from core. The check is whether this package was written for the
 # core beside it, and a number taken from that core would agree with any core at all.
-PLUG_API = 1
+PLUG_API = 3
 
 
 class AdvancedPlug(Plug):
@@ -44,7 +44,7 @@ class AdvancedPlug(Plug):
         return self._runtime
 
     def records(self, view):
-        return self.runtime.ask(Point.RECORDS, view)
+        return self.runtime.records(view)
 
     def gate(self, name, record, facts):
         return self.runtime.ask(Point.GATES, name, record, facts)
@@ -89,11 +89,25 @@ class AdvancedPlug(Plug):
     def unloaded(self, record):
         return self.runtime.ask(Point.UNLOADED, record)
 
+    def admission(self, failure):
+        return self.runtime.ask(Point.ADMISSION, failure)
+
+    def wants(self, point):
+        """Whether a capability may answer at `point` now (core's Plug.wants), so core makes the
+        reads that point needs only then (runtime.py)."""
+        return self.runtime.wants(point)
+
     def codex(self, codex_exe, codex_home):
         """The Codex this installation's watcher drives (core's Plug.codex), kept for the
         capabilities' own sessions and reads (codex/inuse.py). Nothing is opened or read."""
         from .codex import inuse
         inuse.tell(self.paths, codex_exe, codex_home)
+        return None
+
+    def conversation_off(self, thread_id):
+        """A person switched a conversation off (core's Plug.conversation_off): every message of a person's
+        own still waiting there ends, its words with it (runtime.py)."""
+        self.runtime.conversation_off(thread_id)
         return None
 
     def edition_changed(self, previous):

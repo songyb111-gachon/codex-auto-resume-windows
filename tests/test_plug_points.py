@@ -8,7 +8,10 @@ and simulated backend the engine's scenarios use (tests/codexsim.py):
 * nothing is asked while recovery is paused, and nothing about a record its conversation's
   switch or a cancel has stopped: the consent gate comes first;
 * at the schedule and the gates, a plug is asked only once core's own gate has passed, and
-  HOLD - the one answer it has - keeps the record waiting for one poll and nothing more;
+  HOLD keeps the record waiting for one poll and nothing more;
+* a failure core never recovers alone is put to it (P17, v0.6.14) only once that failure passed
+  every check core makes of one, with what core would carry out; taken up, it is a core record
+  of its own kind that known_failure puts to the plug again, and that ends unsent without it;
 * its words go out only as a person's Custom message would; a channel it names gets the one
   send, after the one claim and the pre-send look, inside the launch guard;
 * a continuation it asks to send with no marker (P15) goes through its channel under the client
@@ -45,19 +48,20 @@ _HERE = str(Path(__file__).resolve().parent)
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)        # codexsim and the engine's harness live next to this file
 
-from codexsim import RESET  # noqa: E402
+from codexsim import BASE, RESET, new_id  # noqa: E402
 import srcscan  # noqa: E402
 from test_control import ControlTestCase  # noqa: E402
-from test_engine import T1, T2, TURN_A, EngineCase  # noqa: E402
+from test_engine import T1, T2, TURN_A, TURN_B, EngineCase, archive, fail_turn  # noqa: E402
 from test_ports import ENGINE_TO_STORE  # noqa: E402
 from codex_auto_resume import (config, continuation, control, controlcli, diagnostics,  # noqa: E402
-                               edition, mcpserver, settings, startup, windows)
+                               edition, ladder, machine, managed, mcpserver, needsyou, settings, startup,
+                               windows)
 from codex_auto_resume.domain import ids  # noqa: E402
-from codex_auto_resume.domain.plug import (DEFER, EXTRA, Alternative, Guarded, Plug,  # noqa: E402
-                                           Point, Surface, guard)
+from codex_auto_resume.domain.plug import (DEFER, EXTRA, PACED_AS, Alternative, DamagedPlug,  # noqa: E402
+                                           Guarded, Plug, PlugFailure, Point, Surface, guard)
 from codex_auto_resume.engine import Engine  # noqa: E402
 from codex_auto_resume.engine.options import VIEW_READS  # noqa: E402
-from codex_auto_resume.machine import STATES, WAITING  # noqa: E402
+from codex_auto_resume.machine import STATES, TERMINAL, WAITING  # noqa: E402
 from codex_auto_resume.mcp.tools import TOOLS as MCP_TOOLS  # noqa: E402
 from codex_auto_resume.runtime.app import App  # noqa: E402
 from codex_auto_resume.store import Store  # noqa: E402
@@ -65,8 +69,8 @@ from codex_auto_resume.store import Store  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 POLL = 60
 # The gates core puts to the plug, in the order it does - each once core's own has passed.
-ASKED_GATES = ("submission_safe", "chain_budget", "no_progress_budget", "thread_available",
-               "attempt_budget", "usage")
+ASKED_GATES = ("submission_safe", "known_failure", "chain_budget", "no_progress_budget",
+               "thread_available", "attempt_budget", "usage")
 
 
 class Asked(Plug):
@@ -130,6 +134,14 @@ class Asked(Plug):
 
     def unloaded(self, record):
         return self._answer("unloaded", record)
+
+    def admission(self, failure):
+        return self._answer("admission", failure)
+
+    def wants(self, point):
+        """Not a hook: what it is told to say, or NULL's False, and never written down as asked."""
+        wanted = self.answers.get("wants", False)
+        return wanted(point) if callable(wanted) else wanted
 
     def hooks(self):
         return [hook for hook, _ in self.asked]
@@ -205,14 +217,16 @@ class GateTests(PluggedCase):
         self.assertEqual(len(self.h.backend.send_calls), 1)
 
     def test_a_gate_core_refuses_is_not_put_to_the_plug(self):
-        """Nothing can relax a gate yet, so a gate core refuses is not asked about at all."""
+        """A gate core refuses is not asked about at all - known_failure for a record P17 took up
+        aside, which is asked so the plug can take it up again (KnownFailureTests)."""
         self.h.home.fail_usage(T1)
         self.h.tick()
         self.h.now = RESET + 61                                    # due, but never loaded
         plug = Asked()
         self.plugged(plug)
         self.h.tick()
-        self.assertEqual(plug.gates(), ["submission_safe", "chain_budget", "no_progress_budget"])
+        self.assertEqual(plug.gates(), ["submission_safe", "known_failure", "chain_budget",
+                                        "no_progress_budget"])
         self.assertEqual(self.h.record()["last_error"], "notLoaded")
 
     def test_hold_keeps_the_record_waiting_one_poll_as_it_was(self):
@@ -1242,6 +1256,30 @@ class TickTests(PluggedCase):
         (due,) = dict(plug.asked)["partition"]
         self.assertEqual([row["thread_id"] for row in due], [T1])
 
+    def test_the_view_shows_the_engines_last_usage_reading_and_reading_it_asks_codex_nothing(self):
+        """v0.6.14: P2 and P8's view shows what core last read of usage - (when, the windows), None before
+        it has read any with windows - and reading it is no usage read: the backend is not asked."""
+        windows = [{"bucket": "codex", "window": "primary", "used_percent": 40, "window_minutes": 300,
+                    "reset_at": int(RESET) + 18000}]
+        self.h.backend.usage_result = {"available": True, "reset_at": None, "limit_type": "exposed_windows",
+                                       "reason": "ok", "windows": windows}
+        reads, real = [], self.h.backend.usage
+        self.h.backend.usage = lambda: (reads.append(self.h.now), real())[1]
+        seen = []
+
+        def tick(view):
+            before = len(reads)
+            seen.append(view.last_usage())
+            self.assertEqual(len(reads), before, "showing the last reading reads nothing")
+            return DEFER
+        self.due()
+        self.plugged(Asked(tick=tick))
+        self.h.tick()
+        self.assertEqual(len(reads), 1, "the due record's usage gate read it")
+        self.h.tick(advance=1)
+        self.assertEqual(seen[0], None)
+        self.assertEqual(seen[1], (reads[0], windows))
+
     def test_an_ended_recovery_turn_is_put_to_the_plug_once_with_its_outcome(self):
         self.due()
         plug = Asked()
@@ -1298,7 +1336,10 @@ class TickTests(PluggedCase):
 # `update` moves one only when it is handed a state. `register` is not among them: it makes a
 # record rather than moving one, and the plug's view of the store shows it (P2, P8).
 MOVERS = frozenset({"reserve_detailed", "release_claim", "release_withdrawn", "correlate",
-                    "update"})
+                    "update",
+                    # v0.6.14: reserve_detailed's own claim of a resend, which the engine reaches
+                    # only through it (store/ledger.py).
+                    "_resend_claim"})
 # The store calls a person's action makes that move a record (store/actions.py): cancelling one,
 # cancelling a conversation, giving the attempts back. The engine never makes them, and no plug
 # is told of them: P14 tells what the engine writes.
@@ -1367,6 +1408,132 @@ def _told_after(block, index) -> bool:
            and isinstance(block[after].body[-1], ast.Return)):
         after += 1
     return after < len(block) and _tells(block[after])
+
+
+class Errand:
+    """An errand as a plug answers one at P8 (v0.6.14): `body` is what its `run` does with the guards."""
+
+    def __init__(self, body):
+        self.body, self.runs = body, 0
+
+    def run(self, guard):
+        self.runs += 1
+        return self.body(guard)
+
+
+class ErrandTests(PluggedCase):
+    """P8's errand (v0.6.14): what a plug answers at P8 with a callable `run` is run once, last in the
+    tick, with guards of the store's in which a Pause, Observe only, an administrator or quiet hours that
+    committed first refuse its one irrevocable write - and one that raises costs only itself."""
+
+    def entered(self, h=None, **plug):
+        """What each guard the errand asked for said, entered once."""
+        seen = []
+
+        def body(guard):
+            with guard() as permitted:
+                seen.append(permitted)
+        self.plugged(Asked(tick=Errand(body), **plug), h)
+        return seen
+
+    def test_it_runs_once_last_in_the_tick_after_p2(self):
+        self.due()
+        order = []
+        errand = Errand(lambda guard: order.append(("run", len(self.h.backend.send_calls))))
+        self.plugged(Asked(tick=errand, records=lambda view: order.append(("records", None)) or DEFER))
+        self.h.tick()
+        self.assertEqual(order, [("records", None), ("run", 1)], "after P2, and after the due record's send")
+        self.assertEqual(errand.runs, 1)
+
+    def test_its_guard_permits_its_one_write_with_recovery_on_and_nothing_holding_it(self):
+        seen = self.entered()
+        self.h.tick()
+        self.assertEqual(seen, [True])
+        for how in ("observe_only", "policy_observe_only", "quiet_hours"):
+            with self.subTest(how):
+                h = self.fresh()
+                seen = self.entered(h)
+                if how == "observe_only":
+                    h.store.set_observe_only(True)
+                elif how == "policy_observe_only":
+                    h.engine.policy_values = dict(h.engine.policy_values, observe_only=True)
+                else:
+                    h.engine.quiet_until = lambda now: now + 3600
+                h.tick()
+                self.assertEqual(seen, [False])
+
+    def test_it_is_not_asked_while_paused_or_stopped_by_an_administrator(self):
+        """Nor run: the same errand, asked and run at the first tick once recovery goes on again."""
+        from types import SimpleNamespace
+        for how in ("paused", "administrator"):
+            with self.subTest(how):
+                h = self.fresh()
+                seen = self.entered(h)
+                managed = h.engine.managed
+                if how == "paused":
+                    h.store.set_enabled(False, h.now)
+                else:
+                    h.engine.managed = SimpleNamespace(disable_auto_resume=True)
+                h.tick()
+                self.assertEqual(seen, [])
+                self.assertNotIn("tick", h.engine.plug.plug.hooks())
+                if how == "paused":
+                    h.store.set_enabled(True, h.now)
+                else:
+                    h.engine.managed = managed
+                h.tick(advance=5)
+                self.assertEqual(seen, [True], "run once recovery is on again")
+                self.assertIn("tick", h.engine.plug.plug.hooks())
+
+    def test_a_pause_that_commits_between_its_ask_and_its_write_refuses_the_write(self):
+        seen = []
+
+        def body(guard):
+            self.h.store.set_enabled(False, self.h.now)       # another surface's Pause, committed first
+            with guard() as permitted:
+                seen.append(permitted)
+        self.plugged(Asked(tick=Errand(body)))
+        self.h.tick()
+        self.assertEqual(seen, [False])
+
+    def test_a_guard_enters_once_and_an_errand_asks_for_at_most_eight(self):
+        from codex_auto_resume.domain.plughands import ERRAND_GUARDS
+        seen = []
+
+        def body(guard):
+            once = guard()
+            with once as first:
+                seen.append(first)
+            with once as again:
+                seen.append(again)
+            for _ in range(ERRAND_GUARDS):
+                with guard() as permitted:
+                    seen.append(permitted)
+        self.plugged(Asked(tick=Errand(body)))
+        self.h.tick()
+        self.assertEqual(seen, [True, False] + [True] * (ERRAND_GUARDS - 1) + [False])
+
+    def test_an_errand_that_raises_is_logged_and_costs_only_itself(self):
+        self.due()
+        self.plugged(Asked(tick=Errand(lambda guard: 1 / 0)))
+        self.h.tick()
+        self.assertIn((None, "plug_errand_failed", None), self.h.logs)
+        self.assertEqual(len(self.h.backend.send_calls), 1)
+        self.assertEqual(self.h.record()["state"], "queued")
+
+    def test_an_answer_with_no_callable_run_is_no_errand_and_null_runs_none(self):
+        class Unrunnable:
+            run = "run"
+        for answer in ("run", 5, Unrunnable(), {"run": lambda guard: None}):
+            with self.subTest(answer=answer):
+                self.assertIs(guard(Asked(tick=answer)).tick(None), DEFER)
+        self.assertIs(guard(None).tick(None), DEFER)
+        ran = []
+        made = guard(Asked(tick=Errand(lambda g: ran.append(g))))
+        held = made.tick(None)
+        self.assertIsNot(held, DEFER)
+        held.run(lambda: contextlib.nullcontext(True))
+        self.assertEqual(len(ran), 1)
 
 
 class MovedTests(PluggedCase):
@@ -1989,6 +2156,1298 @@ class SupervisionTests(unittest.TestCase):
                 patch.object(edition, "plug") as found:
             self.launcher._supervise(self.home, 0)
         found.assert_not_called()
+
+
+# ------------------------------------------------------------------------- P17 (v0.6.14 stage 3b)
+UNKNOWN_CODE = json.dumps({"codexErrorInfo": "brandNewVariant"})
+UNAUTHORIZED = json.dumps({"codexErrorInfo": "unauthorized"})
+# Every answer core would carry out for an unknown failure with a plain code of Codex's.
+TAKE_UP = frozenset({Alternative.ADMIT}) | frozenset(PACED_AS)
+
+
+def failed(h, error_json=UNKNOWN_CODE, *, thread=T1, turn=TURN_A, completed=BASE):
+    """A failed turn of `thread`, loaded in the app; `error_json=None` is one with no error at all."""
+    h.home.add_turn(thread, turn, "failed", completed=completed, started=completed - 60,
+                    error_json=error_json, progress=False)
+    h.backend.loaded_map[thread] = "loaded"
+    return turn
+
+
+def admitting(answer=Alternative.ADMIT, again=None, **answers):
+    """A plug that wants every point, takes each failure up with `answer` at P17, and again at
+    known_failure with `again` - the same word unless told otherwise."""
+    again = answer if again is None else again
+    return Asked(wants=True, admission=answer,
+                 gate=lambda name, record, facts: again if name == "known_failure" else DEFER, **answers)
+
+
+def admissions(plug):
+    return [arguments[0] for hook, arguments in plug.asked if hook == "admission"]
+
+
+class AdmissionTests(PluggedCase):
+    """P17: a failure core never recovers alone, put to the plug once it has passed every check core
+    makes of one, with what core would carry out for it - and taken up only as one of those."""
+
+    def test_it_is_asked_once_with_what_core_would_take_and_never_a_word_of_the_message(self):
+        failed(self.h, json.dumps({"codexErrorInfo": "brandNewVariant", "message": "secret words"}))
+        plug = Asked(wants=True)
+        self.plugged(plug)
+        self.h.tick()
+        (facts,) = admissions(plug)
+        self.assertEqual(set(facts), {"interruption_id", "thread_id", "turn_id", "category", "code",
+                                      "status", "form", "has_message", "started_at", "completed_at",
+                                      "ordinal", "takes", "chain"})
+        self.assertEqual((facts["thread_id"], facts["turn_id"], facts["category"], facts["code"],
+                          facts["status"], facts["form"], facts["has_message"], facts["chain"]),
+                         (T1, TURN_A, "unknown", "brandNewVariant", None, "tagged", True, None))
+        self.assertEqual(facts["takes"], TAKE_UP)
+        self.assertNotIn("secret", repr(facts))
+        # DEFER takes nothing up, and it is put to the plug again a minute on, not before.
+        self.assertEqual(self.h.records(), [])
+        self.h.tick(advance=30)
+        self.assertEqual(len(admissions(plug)), 1)
+        self.h.tick(advance=31)
+        self.assertEqual(len(admissions(plug)), 2)
+        self.assert_no_send()
+
+    def test_it_is_never_asked_without_consent_or_while_the_plug_wants_nothing(self):
+        for how in ("thread_off", "observe_only", "force_observe_only", "not_wanted"):
+            with self.subTest(how):
+                h = self.fresh()
+                failed(h)
+                plug = admitting() if how != "not_wanted" else Asked(admission=Alternative.ADMIT)
+                engine = self.plugged(plug, h)
+                if how == "thread_off":
+                    h.store.set_thread_enabled(T1, False, at=h.now)
+                elif how == "observe_only":
+                    engine.apply_policy(dict(settings.defaults(), observe_only=True))
+                elif how == "force_observe_only":
+                    engine.apply_policy(settings.defaults(), managed.Managed(force_observe_only=True))
+                h.tick()
+                self.assertNotIn("admission", plug.hooks())
+                self.assertEqual(h.records(), [])
+
+    def test_wanting_nothing_it_reads_of_codex_what_the_standard_edition_reads(self):
+        def reads(plug):
+            h = self.fresh()
+            failed(h)
+            seen, real = [], h.source.latest_failures
+
+            def recorded(*arguments, **keywords):
+                seen.append((arguments, sorted(keywords.items())))
+                return real(*arguments, **keywords)
+            h.source.latest_failures = recorded
+            self.plugged(plug, h)
+            h.tick()
+            return seen
+        standard = reads(None)
+        self.assertEqual(reads(Asked()), standard)
+        self.assertEqual([keywords for _, keywords in standard], [[]])
+        self.assertEqual([keywords for _, keywords in reads(Asked(wants=True))],
+                         [[("admissible", True), ("shapes", True)]])
+
+    def test_a_subagent_or_archived_conversation_is_never_put_to_it(self):
+        for how in ("archived", "subagent"):
+            with self.subTest(how):
+                h = self.fresh()
+                if how == "subagent":
+                    h.home.add_thread(T1, thread_source="subagent")
+                failed(h)
+                if how == "archived":
+                    archive(h.home, T1)
+                plug = admitting()
+                self.plugged(plug, h)
+                h.tick()
+                self.assertEqual((admissions(plug), h.records()), ([], []))
+
+    def test_a_failure_from_more_than_an_hour_ago_is_left_alone(self):
+        failed(self.h, completed=self.h.now - ladder.ADMISSION_MAX_AGE - 1)
+        plug = admitting()
+        self.plugged(plug)
+        self.h.tick()
+        self.assertEqual((admissions(plug), self.h.records()), ([], []))
+
+    def test_nothing_is_asked_that_core_would_not_carry_out(self):
+        """No code, a message alone, a status alone, something unrecognised, a code that names a
+        decision, a kind core knows needs a person, a permission refusal: `takes` is empty."""
+        cases = {"absent": None,
+                 "message_only": json.dumps({"message": "something went wrong"}),
+                 "status_only": json.dumps({"codexErrorInfo": {"httpStatusCode": 302}}),
+                 "unrecognised": json.dumps({"codexErrorInfo": {"one": 1, "two": 2}}),
+                 "decision": json.dumps({"codexErrorInfo": "policyRefused"}),
+                 "terminal_invalid": json.dumps({"codexErrorInfo": "badRequest"}),
+                 "permission": json.dumps({"codexErrorInfo": {"brandNewVariant": {"httpStatusCode": 403}}})}
+        for name, error in cases.items():
+            with self.subTest(name):
+                h = self.fresh()
+                failed(h, error)
+                plug = admitting()
+                self.plugged(plug, h)
+                h.tick()
+                self.assertEqual((admissions(plug), h.records()), ([], []))
+
+    def test_a_failure_core_recovers_is_registered_as_it_always_was(self):
+        rows = []
+        for plug in (None, admitting()):
+            h = self.fresh()
+            failed(h, json.dumps({"codexErrorInfo": "internalServerError"}))
+            self.plugged(plug, h)
+            h.tick()
+            row = h.record()
+            rows.append((row["category"], row["state"], row["next_retry_at"], row["last_error"]))
+            if plug is not None:
+                self.assertEqual(admissions(plug), [])
+        self.assertEqual(rows[0], rows[1])
+
+    def test_an_answer_outside_what_core_offered_takes_nothing(self):
+        failed(self.h, UNAUTHORIZED)
+        plug = admitting(Alternative.AS_TIMEOUT)
+        self.plugged(plug)
+        self.h.tick()
+        (facts,) = admissions(plug)
+        self.assertEqual((facts["category"], facts["takes"]), ("terminal_auth", {Alternative.ADMIT}))
+        self.assertEqual(self.h.records(), [])
+
+    def test_admit_takes_it_up_as_its_own_kind_and_sends_the_short_message_ten_minutes_on(self):
+        failed(self.h)
+        engine = self.plugged(admitting())
+        self.h.tick()
+        row = self.h.record()
+        self.assertEqual((row["category"], row["state"], row["next_retry_at"]),
+                         ("unknown", "waiting_backoff", self.h.now + 600))
+        self.assertIn((T1, "failure_taken_up", row["interruption_id"]), self.h.logs)
+        self.h.tick(advance=599)
+        self.assert_no_send()
+        self.h.tick(advance=1)
+        expected = continuation.for_settings("unknown", engine.policy_values, row=self.h.record(),
+                                             limits=engine.limits())
+        self.assertEqual(continuation.build("unknown"), "Please retry.")
+        self.assertEqual(self.h.backend.send_calls, [(T1, expected + "\n\n" + row["marker"])])
+        self.assertEqual(json.loads(self.h.record()["gate_eval"])["known_failure"], ["PASS", "plugged"])
+        self.follow()
+        self.assertEqual(self.h.record()["state"], "recovered")
+
+    def test_a_failure_taken_up_is_never_told_as_needing_you_on_that_tick_or_any_after(self):
+        """v0.6.14: a failure a record holds is being recovered, or was: a needs-you notice is raised
+        for it on no tick - while the same failure not taken up is told, once."""
+        told = {}
+        for plug in (None, admitting()):
+            with self.subTest(taken_up=plug is not None):
+                h = self.fresh()
+                failed(h, UNAUTHORIZED)
+                engine = self.plugged(plug, h)
+                engine.apply_policy(dict(settings.defaults(), notifications=True, notify_needs_you=True,
+                                         notify_needs_you_auth=True))
+                for step in (0, 5, 60, 600):
+                    h.tick(advance=step)
+                told[plug is not None] = [detail["category"] for event, detail, *_ in h.notifications
+                                          if event == needsyou.EVENT]
+                self.assertEqual(len(h.records()), 0 if plug is None else 1)
+        self.assertEqual(told, {False: ["terminal_auth"], True: []})
+
+    def test_as_timeout_is_paced_as_a_timeout(self):
+        failed(self.h)
+        engine = self.plugged(admitting(Alternative.AS_TIMEOUT))
+        self.h.tick()
+        row = self.h.record()
+        self.assertEqual((row["category"], row["next_retry_at"]),
+                         ("unknown", self.h.now + engine.first_delay("timeout")))
+        self.h.tick(advance=engine.first_delay("timeout"))
+        self.assertEqual(len(self.h.backend.send_calls), 1)
+
+    def test_a_kind_switched_off_in_settings_is_not_offered(self):
+        failed(self.h)
+        plug = Asked(wants=True)
+        engine = self.plugged(plug)
+        engine.apply_policy(dict(settings.defaults(), recover_timeout=False))
+        self.h.tick()
+        (facts,) = admissions(plug)
+        self.assertEqual(facts["takes"], TAKE_UP - {Alternative.AS_TIMEOUT})
+
+
+class KnownFailureTests(PluggedCase):
+    """known_failure for a record P17 took up: the one gate core refuses that is put to the plug,
+    so it goes on only while the plug takes it up again - and otherwise ends, unsent."""
+
+    def admitted(self, h=None, answer=Alternative.ADMIT, error=UNKNOWN_CODE):
+        h = h or self.h
+        failed(h, error)
+        self.plugged(admitting(answer), h)
+        h.tick()
+        row = h.record()
+        self.assertIsNotNone(row, "taken up")
+        return row
+
+    def test_null_a_plug_that_defers_and_one_that_fails_end_it_unsent(self):
+        self.assertTrue(self.h.engine.recovers("unknown"), "no switch: it cannot be what decides")
+        for plug in (None, Asked(wants=True), Asked(wants=True, gate=RuntimeError("broken")),
+                     DamagedPlug(PlugFailure.SHADOWED)):
+            with self.subTest(plug=type(plug).__name__):
+                h = self.fresh()
+                self.admitted(h)
+                self.plugged(plug, h)
+                h.tick(advance=600)
+                row = h.record()
+                self.assertEqual((row["state"], row["last_error"]), ("terminal_failure", "not_recoverable"))
+                self.assertEqual(json.loads(row["gate_eval"])["known_failure"], ["BLOCK", "not_recoverable"])
+                self.assert_no_send(h)
+
+    def test_hold_keeps_it_waiting_and_a_word_its_kind_does_not_take_ends_it(self):
+        h = self.fresh()
+        self.admitted(h)
+        self.plugged(admitting(again=Alternative.HOLD), h)
+        h.tick(advance=600)
+        row = h.record()
+        self.assertEqual(row["state"], "waiting_backoff")
+        self.assertEqual(json.loads(row["gate_eval"])["known_failure"], ["WAIT", "held"])
+        h = self.fresh()
+        self.admitted(h, error=UNAUTHORIZED)
+        self.plugged(admitting(again=Alternative.AS_TIMEOUT), h)
+        h.tick(advance=600)
+        row = h.record()
+        self.assertEqual((row["category"], row["state"], row["last_error"]),
+                         ("terminal_auth", "terminal_failure", "not_recoverable"))
+        self.assert_no_send(h)
+
+    def test_observe_only_keeps_it_waiting_asks_no_plug_and_it_goes_once_that_is_off(self):
+        for administrator in (False, True):
+            with self.subTest(administrator=administrator):
+                h = self.fresh()
+                self.admitted(h)
+                plug = admitting()
+                engine = self.plugged(plug, h)
+                if administrator:
+                    engine.apply_policy(settings.defaults(), managed.Managed(force_observe_only=True))
+                else:
+                    engine.apply_policy(dict(settings.defaults(), observe_only=True))
+                h.tick(advance=600)
+                row = h.record()
+                self.assertEqual(row["state"], "waiting_backoff")
+                self.assertEqual(json.loads(row["gate_eval"])["known_failure"], ["UNKNOWN", "observe_only"])
+                self.assertEqual(plug.gates(), [])
+                self.assert_no_send(h)
+                engine.apply_policy(settings.defaults())
+                h.tick(advance=900)
+                self.assertEqual(len(h.backend.send_calls), 1)
+
+    def test_a_day_on_the_clock_ends_it_unsent_whatever_it_waited_for(self):
+        self.admitted()
+        self.plugged(admitting(again=Alternative.HOLD))
+        self.h.tick(advance=600)
+        self.assertEqual(self.h.record()["state"], "waiting_backoff")
+        self.h.tick(advance=ladder.ADMITTED_MAX_SECONDS)
+        row = self.h.record()
+        self.assertEqual((row["state"], row["last_error"]), ("terminal_failure", "admission_expired"))
+        self.assert_no_send()
+
+    def test_an_as_word_whose_kind_is_switched_off_waits_as_that_kind_does(self):
+        self.admitted(answer=Alternative.AS_TIMEOUT)
+        self.h.engine.apply_policy(dict(settings.defaults(), recover_timeout=False))
+        self.h.tick(advance=600)
+        row = self.h.record()
+        self.assertEqual((row["state"], row["last_error"]), ("waiting_backoff", "category_disabled"))
+        self.assertEqual(json.loads(row["gate_eval"])["known_failure"], ["BLOCK", "category_disabled"])
+        self.assert_no_send()
+
+    def test_the_claim_takes_one_only_as_a_relaxation_its_ledger_pays_for(self):
+        row = self.admitted()
+        ledger = guard(admitting())
+        key, at = row["interruption_id"], row["next_retry_at"] + 1
+        for options in ({"ledger": None, "relaxed": "admitted", "carried": {Point.GATES}},
+                        {"ledger": ledger, "relaxed": "admitted", "carried": frozenset()},
+                        {"ledger": ledger, "relaxed": None, "carried": {Point.GATES}},
+                        {"ledger": ledger, "relaxed": "capacity", "carried": {Point.GATES}}):
+            with self.subTest(options=sorted(options)):
+                self.assertEqual(self.h.store.reserve_detailed(key, at, **options),
+                                 (False, "known_failure", "not_recoverable"))
+        self.assertEqual(self.h.store.reserve_detailed(key, at, ledger=ledger, relaxed="admitted",
+                                                       carried={Point.GATES}), (True, None, None))
+
+
+class ChainTests(PluggedCase):
+    """What P17 is told of the task a failure continues: the record whose own continuation started
+    the turn that failed - the one `register` will make it a child of."""
+
+    def chain_failure(self, h, error=UNKNOWN_CODE):
+        """A usage-limit failure whose continuation Codex runs, and whose turn then fails with
+        `error`: (that record, the failed turn)."""
+        h.backend.after_accept = "queue"
+        self.ready_after_reset(h)
+        h.tick()
+        parent = h.record()
+        self.assertEqual(parent["state"], "queued")
+        turn = h.home.dispatch(T1, status="inProgress", progress=False)
+        fail_turn(h.home, T1, turn, error_json=error)
+        return parent, turn
+
+    def test_a_recovery_turn_the_watch_correlated_is_the_chain_where_owner_alone_finds_none(self):
+        parent, turn = self.chain_failure(self.h)
+        plug = Asked(wants=True)
+        engine = self.plugged(plug)
+        self.h.tick(advance=1)
+        self.assertEqual(self.h.store.get(parent["interruption_id"])["recovery_turn_id"], turn)
+        self.assertIsNone(engine._owner(T1, turn), "the owner read sees only records not correlated yet")
+        (facts,) = admissions(plug)
+        chain = facts["chain"]
+        self.assertEqual((chain["interruption_id"], chain["category"], chain["chain_started_at"]),
+                         (parent["interruption_id"], "usage_limit", parent["detected_at"]))
+        self.assertEqual(self.h.store.chain_parent(T1, turn), self.h.store.get(parent["interruption_id"]))
+
+    def test_one_taken_up_continues_the_chain_register_finds(self):
+        parent, turn = self.chain_failure(self.h)
+        self.plugged(admitting())
+        self.h.tick(advance=1)
+        child = self.h.records()[-1]
+        attempts = self.h.store.get(parent["interruption_id"])["recovery_attempts"]
+        self.assertEqual((child["category"], child["parent_interruption_id"], child["chain_origin_id"]),
+                         ("unknown", parent["interruption_id"], parent["interruption_id"]))
+        self.assertEqual(child["next_retry_at"],
+                         self.h.now + ladder.ADMITTED_WAITS[min(attempts, len(ladder.ADMITTED_WAITS) - 1)])
+
+    def test_the_child_of_a_cancelled_or_spent_task_is_never_put_to_it(self):
+        for how in ("cancelled", "spent"):
+            with self.subTest(how):
+                h = self.fresh()
+                parent, _turn = self.chain_failure(h)
+                plug = admitting()
+                engine = self.plugged(plug, h)
+                if how == "cancelled":
+                    h.store.cancel_interruption(parent["interruption_id"], h.now)
+                else:
+                    engine.options["max_no_progress"] = 1
+                h.tick(advance=1)
+                self.assertEqual(admissions(plug), [])
+                self.assertEqual([row["interruption_id"] for row in h.records()], [parent["interruption_id"]])
+
+    def test_chain_parent_and_register_agree_on_every_kind_of_parent(self):
+        """By the recovery turn, by the marker of a record the watch has not correlated, and none."""
+        h = self.h
+        parent, turn = self.chain_failure(h)
+        self.assertIsNone(h.store.get(parent["interruption_id"])["recovery_turn_id"])
+        owner = h.engine._owner(T1, turn)
+        self.assertEqual(owner, parent["interruption_id"])
+        found = h.store.chain_parent(T1, turn, owner)
+        self.assertEqual(found["interruption_id"], parent["interruption_id"])
+        self.assertIsNone(h.store.get(parent["interruption_id"])["recovery_turn_id"], "nothing written")
+        self.assertIsNone(h.store.chain_parent(T1, turn), "no recovery turn yet, and no owner named")
+        self.assertIsNone(h.store.chain_parent(T2, turn, owner), "another conversation's record")
+        self.plugged(admitting())
+        h.tick(advance=1)
+        self.assertEqual(h.store.chain_parent(T1, turn)["interruption_id"], parent["interruption_id"])
+        child = h.records()[-1]
+        self.assertEqual(child["parent_interruption_id"], h.store.chain_parent(T1, turn)["interruption_id"])
+
+    def test_p17_is_told_every_kind_of_failure_the_task_has_had_or_none_where_it_cannot_be_read_whole(self):
+        """v0.6.14: `chain`'s `categories`, read back from the record a failure continues to its task's
+        origin - so a capability that takes a kind up once a task sees one further back too."""
+        h = self.h
+        parent, _turn = self.chain_failure(h)
+        plug = admitting()
+        engine = self.plugged(plug)
+        h.tick(advance=1)
+        (facts,) = admissions(plug)
+        self.assertEqual(facts["chain"]["categories"], ("usage_limit",))
+        child = h.records()[-1]
+        self.assertEqual((child["category"], child["chain_origin_id"]), ("unknown", parent["interruption_id"]))
+        self.assertEqual(engine.chain_categories(child), ("unknown", "usage_limit"))
+        self.assertEqual(engine.chain_categories(h.store.get(parent["interruption_id"])), ("usage_limit",))
+        with patch.object(h.store, "get", return_value=None):
+            self.assertIsNone(engine.chain_categories(child), "its origin is gone: not the whole task")
+        self.assertIsNone(engine.chain_categories(dict(child, parent_interruption_id=None)))
+        looping = dict(child, parent_interruption_id=child["interruption_id"])
+        with patch.object(h.store, "get", return_value=looping):
+            self.assertIsNone(engine.chain_categories(looping), "a chain that loops never reaches its origin")
+
+
+OVERLOADED = json.dumps({"codexErrorInfo": "serverOverloaded"})
+
+
+class Fixed:
+    """A draw that is always the same, for the jitter a capacity wait always has."""
+
+    def __init__(self, value):
+        self.value = value
+
+    def random(self):
+        return self.value
+
+
+class CapacityTests(PluggedCase):
+    """CAPACITY: a capacity error the plug vouches for retries sooner and more often, within core's
+    own bounds - a minute, two, four and five, each lengthened by up to a fifth, a minute apart, 48
+    a day, for twelve hours on the clock from its task's first failure - however long a plug says so."""
+
+    def vouched(self, h=None, draw=0.0, plug=None):
+        h = h or self.h
+        failed(h, OVERLOADED)
+        engine = self.plugged(plug or admitting(Alternative.CAPACITY), h)
+        engine._random = Fixed(draw)
+        h.backend.after_accept = "queue"
+        h.tick()
+        return engine
+
+    def continue_and_fail(self, h, step=10):
+        """The continuation that is due goes, Codex runs it, and it fails at capacity again: the
+        record of that failure."""
+        sent = len(h.backend.send_calls)
+        for _ in range(60):
+            h.tick(advance=step)
+            if len(h.backend.send_calls) > sent:
+                break
+        self.assertEqual(len(h.backend.send_calls), sent + 1, "a continuation was sent")
+        turn = h.home.dispatch(T1, status="inProgress", progress=False)
+        fail_turn(h.home, T1, turn, error_json=OVERLOADED)
+        h.tick(advance=1)
+        return h.records()[-1]
+
+    def test_the_first_wait_is_a_minute_lengthened_by_up_to_a_fifth(self):
+        for draw, wait in ((0.0, 60), (0.5, 66), (0.99, 72)):
+            with self.subTest(draw=draw):
+                h = self.fresh()
+                plug = admitting(Alternative.CAPACITY)
+                self.vouched(h, draw, plug)
+                (facts,) = admissions(plug)
+                self.assertEqual(facts["takes"], {Alternative.CAPACITY})
+                row = h.record()
+                self.assertEqual((row["category"], row["next_retry_at"] - h.now), ("server_5xx", wait))
+
+    def test_it_retries_at_two_four_and_five_minutes_past_the_standard_floor_and_budgets(self):
+        h = self.h
+        self.vouched(h)
+        times = []
+        h.backend.on_send = lambda thread, prompt: times.append(h.now)
+        waits = [self.continue_and_fail(h)["next_retry_at"] - h.now for _ in range(8)]
+        self.assertEqual(waits, [120, 240, 300, 300, 300, 300, 300, 300])
+        gaps = [later - earlier for earlier, later in zip(times, times[1:])]
+        self.assertTrue(all(ladder.CAPACITY_SPACING <= gap < ladder.SPACING for gap in gaps), gaps)
+        # Eight continuations in an hour: more than the standard edition's five a day, four attempts
+        # and six continuations of one task.
+        self.assertEqual(len(h.backend.send_calls), 8)
+        self.assertNotIn(h.records()[-1]["state"], TERMINAL)
+
+    def test_never_more_than_core_allows_however_long_the_plug_says_so(self):
+        h = self.h
+        self.vouched(h)
+        for _ in range(60):
+            if h.records()[-1]["state"] in TERMINAL:
+                break
+            self.continue_and_fail(h, step=60)
+        self.assertEqual(len(h.backend.send_calls), ladder.CAPACITY_PER_DAY)
+        self.assertIn(h.records()[-1]["state"], ("no_progress_exhausted", "retry_budget_exhausted"))
+        self.assertLess(h.now - h.records()[0]["detected_at"], ladder.CAPACITY_MAX_SECONDS)
+
+    def test_an_administrators_max_recovery_attempts_still_holds_it(self):
+        """CAPACITY passes the person's own budgets, never the administrator's ceiling (managed.clamp):
+        with MaxRecoveryAttempts at 2, two continuations go and the task ends on its attempt budget."""
+        h = self.h
+        failed(h, OVERLOADED)
+        engine = self.plugged(admitting(Alternative.CAPACITY), h)
+        engine.apply_policy(settings.defaults(), managed.Managed(max_recovery_attempts=2))
+        engine._random = Fixed(0.0)
+        h.backend.after_accept = "queue"
+        h.tick()
+        self.assertEqual(engine.capacity_limits()["max_recovery_attempts"], 2)
+        for _ in range(2):
+            self.continue_and_fail(h)
+        for _ in range(30):
+            h.tick(advance=60)
+        row = h.records()[-1]
+        self.assertEqual((row["state"], row["last_error"]), ("retry_budget_exhausted", "recovery_budget"))
+        self.assertEqual(len(h.backend.send_calls), 2)
+        engine.apply_policy(settings.defaults())
+        self.assertEqual(engine.capacity_limits()["max_recovery_attempts"], ladder.CAPACITY_PER_DAY)
+
+    def test_twelve_hours_on_the_clock_end_it_whatever_it_waited_aside(self):
+        h = self.h
+        self.vouched(h)
+        for _ in range(5):
+            self.continue_and_fail(h)          # past the standard edition's four attempts
+        origin, sent = h.records()[0], len(h.backend.send_calls)
+        holding = Asked(wants=True, admission=Alternative.CAPACITY, gate=lambda name, record, facts: (
+            Alternative.HOLD if name == "usage" else Alternative.CAPACITY if name == "known_failure"
+            else DEFER))
+        self.plugged(holding)._random = Fixed(0.0)
+        while h.now + 600 - origin["detected_at"] < ladder.CAPACITY_MAX_SECONDS:
+            h.tick(advance=600)
+            self.assertNotIn(h.records()[-1]["state"], TERMINAL)
+        h.tick(advance=600)                    # and now twelve hours on the clock have passed
+        row = h.records()[-1]
+        self.assertEqual((row["state"], row["last_error"]), ("retry_budget_exhausted", "recovery_budget"))
+        self.assertEqual(len(h.backend.send_calls), sent)
+        # Held at the usage gate all that time, which counts toward no time ceiling: on the clock it
+        # is twelve hours, counted it is a few minutes - and the clock is what bounds CAPACITY.
+        self.assertLess(h.now - row["chain_first_detected_at"], 3600)
+
+    def test_another_server_error_is_never_vouched_for(self):
+        rows = []
+        for plug in (None, admitting(Alternative.CAPACITY)):
+            h = self.fresh()
+            failed(h, json.dumps({"codexErrorInfo": "internalServerError"}))
+            self.plugged(plug, h)
+            h.tick()
+            rows.append((h.record()["state"], h.record()["next_retry_at"]))
+            if plug is not None:
+                self.assertEqual(admissions(plug), [])
+        self.assertEqual(rows[0], rows[1])
+
+    def test_the_claim_takes_a_capacity_retry_only_within_its_twelve_hours(self):
+        self.vouched()
+        row = self.h.record()
+        ledger, key = guard(admitting(Alternative.CAPACITY)), row["interruption_id"]
+        late = row["detected_at"] + ladder.CAPACITY_MAX_SECONDS
+        for at, options in ((late, {"ledger": ledger, "carried": {Point.GATES}}),
+                            (row["next_retry_at"], {"ledger": None, "carried": {Point.GATES}}),
+                            (row["next_retry_at"], {"ledger": ledger, "carried": frozenset()})):
+            with self.subTest(at=at - row["detected_at"], options=sorted(options)):
+                self.assertEqual(self.h.store.reserve_detailed(key, at, relaxed="capacity", **options),
+                                 (False, "chain_budget", "capacity_window"))
+        self.assertEqual(self.h.store.reserve_detailed(key, late - 1, relaxed="capacity", ledger=ledger,
+                                                       carried={Point.GATES}), (True, None, None))
+
+    def test_a_task_older_than_twelve_hours_is_not_offered_capacity(self):
+        """At P17 too: a capacity failure of a task that first failed twelve hours ago on the clock is
+        offered nothing, and is registered as the standard edition registers it."""
+        h = self.h
+        self.vouched(h)
+        h.now = h.records()[0]["detected_at"] + ladder.CAPACITY_MAX_SECONDS
+        plug = Asked(wants=True, admission=Alternative.CAPACITY)
+        engine = self.plugged(plug)
+        child = self.continue_and_fail(h)
+        self.assertEqual(admissions(plug), [])
+        self.assertEqual(child["next_retry_at"] - h.now, engine.first_delay("server_5xx"))
+
+
+NO_USAGE = {"available": False, "reset_at": None, "limit_type": "exposed_windows", "reason": "ok"}
+
+
+class EarlyTests(PluggedCase):
+    """EARLY (P7 before its time): a record that waits for a usage limit to reset may be looked at
+    early, once a window for every record together - and a look that finds no usage, or meets any
+    other wait, leaves it exactly as it was."""
+
+    def waiting(self, h=None, thread=T1, turn=TURN_A):
+        h = h or self.h
+        h.home.fail_usage(thread, turn)
+        h.backend.loaded_map[thread] = "loaded"
+        h.tick()
+        row = h.record(thread)
+        self.assertEqual(row["state"], "waiting_reset")
+        return row
+
+    def test_only_a_record_waiting_for_a_usage_reset_is_looked_at_early(self):
+        before = self.waiting()
+        self.plugged(Asked(wants=True, schedule=Alternative.EARLY))
+        self.h.tick(advance=60)
+        self.assertLess(self.h.now, before["reset_at"])
+        self.assertEqual(len(self.h.backend.send_calls), 1)
+        self.assertEqual(self.h.record()["state"], "queued")
+        h = self.fresh()
+        failed(h, json.dumps({"codexErrorInfo": "internalServerError"}))
+        plug = Asked(wants=True, schedule=Alternative.EARLY)
+        self.plugged(plug, h)
+        h.tick()
+        h.tick(advance=1)
+        # P7 may be asked about it for a person's Send now (SEND_NOW), which this plug never says;
+        # it is never looked at early, and no early window opens for it.
+        self.assertEqual((h.backend.send_calls, h.engine._early_at, h.engine._early_look), ([], None, None))
+        # NULL is never asked early, and a plug that wants no schedule is not either.
+        for plug in (None, Asked(schedule=Alternative.EARLY)):
+            h = self.fresh()
+            self.waiting(h)
+            self.plugged(plug, h)
+            h.tick(advance=60)
+            self.assertEqual(h.backend.send_calls, [])
+
+    def test_a_look_that_finds_no_usage_or_any_other_wait_leaves_the_record_as_it_was(self):
+        kept = ("state", "last_error", "next_retry_at", "usage_probe_at", "usage_unavailable_seconds",
+                "reset_at", "attempt_count")
+        for how in ("no_usage", "held", "loaded_recheck"):
+            with self.subTest(how):
+                h = self.fresh()
+                before = self.waiting(h)
+                plug = Asked(wants=True, schedule=Alternative.EARLY, gate=(
+                    lambda name, record, facts: Alternative.HOLD if name == "usage" else DEFER)
+                    if how == "held" else DEFER)
+                self.plugged(plug, h)
+                if how == "no_usage":
+                    h.backend.usage_result = dict(NO_USAGE)
+                elif how == "loaded_recheck":
+                    real = h.backend.loaded
+                    looks = []
+
+                    def loaded(thread_id, app):
+                        looks.append(thread_id)
+                        return real(thread_id, app) if len(looks) == 1 else "notLoaded"
+                    h.backend.loaded = loaded
+                h.tick(advance=60)
+                after = h.record()
+                self.assertEqual(h.backend.send_calls, [])
+                self.assertEqual({key: after[key] for key in kept}, {key: before[key] for key in kept})
+                self.assertEqual(plug.hooks().count("schedule"), 1)
+                # It was looked at: the wait it met is written down, and that is all.
+                self.assertEqual(json.loads(after["gate_eval"])["schedule"], ["PASS", "plugged"])
+                if how == "loaded_recheck":
+                    self.assertEqual(len(looks), 2, "the look in the lock found it no longer open")
+
+    def test_the_claim_skips_a_reset_only_as_a_relaxation_its_ledger_pays_for(self):
+        row = self.waiting()
+        ledger = guard(Asked(wants=True))
+        key, at = row["interruption_id"], self.h.now + 60
+        self.assertEqual(self.h.store.reserve_detailed(key, at), (False, "schedule", "not_due"))
+        for options in ({"ledger": None, "carried": {Point.SCHEDULE}},
+                        {"ledger": ledger, "carried": frozenset()},
+                        {"ledger": ledger, "carried": {Point.GATES}}):
+            with self.subTest(options=sorted(options)):
+                self.assertEqual(self.h.store.reserve_detailed(key, at, relaxed="early", **options),
+                                 (False, "schedule", "not_due"))
+        self.assertEqual(self.h.store.reserve_detailed(key, at, relaxed="early", ledger=ledger,
+                                                       carried={Point.SCHEDULE}), (True, None, None))
+        h = self.fresh()
+        failed(h, json.dumps({"codexErrorInfo": "internalServerError"}))
+        h.tick()
+        other = h.record()
+        self.assertEqual(h.store.reserve_detailed(other["interruption_id"], h.now, relaxed="early",
+                                                  ledger=ledger, carried={Point.SCHEDULE}),
+                         (False, "schedule", "not_due"))
+
+    def test_a_postponement_and_quiet_hours_still_hold(self):
+        for how in ("postponed", "quiet_hours"):
+            with self.subTest(how):
+                h = self.fresh()
+                row = self.waiting(h)
+                plug = Asked(wants=True, schedule=Alternative.EARLY)
+                engine = self.plugged(plug, h)
+                if how == "postponed":
+                    self.assertTrue(h.store.postpone(row["interruption_id"], T1, h.now + 7200, h.now)[0])
+                else:
+                    engine.quiet_until = lambda now: now + 3600
+                h.tick(advance=60)
+                self.assertEqual(h.backend.send_calls, [])
+                self.assertEqual(plug.hooks().count("schedule"), 0)
+
+    def test_a_usage_limit_a_usage_read_found_waiting_for_is_looked_at_early_and_sent(self):
+        """v0.6.14: a usage-limited record a usage read found waiting - none available when it fell due -
+        is looked at early too (waiting_for_usage), only while the plug wants the schedule; and the claim
+        takes that look as it takes one at a reset, so it is sent. NULL never looks early, and a plug that
+        wants no schedule is not asked."""
+        for plug, sent in ((None, 0), (Asked(schedule=Alternative.EARLY), 0),
+                           (Asked(wants=True, schedule=Alternative.EARLY), 1)):
+            with self.subTest(plug=None if plug is None else plug.answers.get("wants", False)):
+                h = self.fresh()
+                self.ready_after_reset(h)
+                h.backend.usage_result = dict(NO_USAGE)
+                h.tick()
+                row = h.record()
+                self.assertEqual(row["state"], "waiting_for_usage")
+                self.assertGreater(row["next_retry_at"], h.now + 120, "its own next look is far off")
+                h.backend.usage_result = {"available": True, "reset_at": None, "limit_type": "exposed_windows",
+                                          "reason": "ok"}
+                self.plugged(plug, h)
+                h.tick(advance=60)
+                self.assertEqual(len(h.backend.send_calls), sent)
+                self.assertEqual(h.record()["state"], "queued" if sent else "waiting_for_usage")
+
+    def test_the_claim_takes_an_early_look_at_a_record_waiting_for_usage_as_its_ledger_pays_for_it(self):
+        h = self.h
+        self.ready_after_reset(h)
+        h.backend.usage_result = dict(NO_USAGE)
+        h.tick()
+        row = h.record()
+        self.assertEqual(row["state"], "waiting_for_usage")
+        key, at = row["interruption_id"], h.now + 60
+        self.assertEqual(h.store.reserve_detailed(key, at), (False, "schedule", "not_due"))
+        self.assertEqual(h.store.reserve_detailed(key, at, relaxed="early", ledger=guard(Asked(wants=True)),
+                                                  carried={Point.SCHEDULE}), (True, None, None))
+
+    def test_one_window_in_five_minutes_serves_every_record_with_one_usage_reading(self):
+        h = self.h
+        self.waiting(h, T1, TURN_A)
+        self.waiting(h, T2, TURN_B)
+        h.backend.usage_result = dict(NO_USAGE)
+        reads, real = [], h.backend.usage
+        h.backend.usage = lambda: (reads.append(h.now), real())[1]
+        plug = Asked(wants=True, schedule=Alternative.EARLY)
+        self.plugged(plug)
+
+        def asked():
+            return sorted(arguments[0]["thread_id"] for hook, arguments in plug.asked if hook == "schedule")
+        h.tick(advance=60)
+        self.assertEqual((asked(), len(reads)), (sorted([T1, T2]), 1))
+        h.tick(advance=60)
+        h.tick(advance=60)
+        self.assertEqual((asked(), len(reads)), (sorted([T1, T2]), 1))
+        h.tick(advance=ladder.EARLY_SPACING - 120)
+        self.assertEqual((asked(), len(reads)), (sorted([T1, T1, T2, T2]), 2))
+        self.assertEqual(h.backend.send_calls, [])
+
+
+
+def resend_answer(record, due):
+    """P7 as a capability that sends an uncertain submission once more answers it."""
+    return Alternative.RESEND if record["state"] == "submission_unknown" else DEFER
+
+
+def resending(**answers):
+    return Asked(schedule=resend_answer, **answers)
+
+
+def unknown_asked(plug, hook="schedule"):
+    """The records `hook` was asked about while core held them as uncertain submissions."""
+    return [arguments for name, arguments in plug.asked if name == hook
+            and isinstance(arguments[0], dict) and arguments[0].get("state") == "submission_unknown"]
+
+
+class ResendTests(PluggedCase):
+    """RESEND (P7, v0.6.14): an uncertain submission sent once more, where the plug asks and core
+    proves no copy of it anywhere. Driven by ticks and the clock alone, so the watch's own fifteen
+    minutes between looks are what each test meets: no column is set by hand to make it due."""
+
+    def uncertain(self, h=None, plug=None):
+        """A usage-limited record whose continuation went out with an unknown answer, sent by an
+        engine that holds `plug` from before the send; Codex accepts the next send."""
+        h = h or self.h
+        plug = plug if plug is not None else resending()
+        self.plugged(plug, h)
+        self.due(h)
+        h.backend.default_outcome = "unknown"
+        h.tick()
+        row = h.record()
+        self.assertEqual((row["state"], row["last_error"]),
+                         ("submission_unknown", "queue_result_unknown_do_not_resend"))
+        h.backend.default_outcome = "accepted"
+        return row, plug
+
+    def hours(self, h, hours, step=900):
+        for _ in range(int(hours * 3600 // step)):
+            h.tick(advance=step)
+
+    def test_it_goes_once_after_fifteen_minutes_with_its_words_and_marker_and_charges_nothing(self):
+        h = self.h
+        first, _plug = self.uncertain()
+        h.tick(advance=1)                          # the watch's first look: nothing, and 15 minutes on
+        h.tick(advance=898)
+        self.assertEqual(len(h.backend.send_calls), 1, "nothing before fifteen minutes")
+        h.tick(advance=2)                          # its next look, past fifteen minutes
+        self.assertEqual(len(h.backend.send_calls), 2)
+        self.assertEqual(h.backend.send_calls[1], h.backend.send_calls[0], "the same thread, words, marker")
+        self.assertTrue(self.prompt().endswith(first["marker"]))
+        row = h.record()
+        self.assertTrue(machine.was_resent(row))
+        self.assertEqual((row["attempt_count"], row["recovery_attempts"], row["chain_continuations"]),
+                         (2, first["recovery_attempts"], first["chain_continuations"]))
+        self.follow()
+        row = h.record()
+        self.assertEqual(row["state"], "recovered")
+        self.assertNotIn("ambiguous_receipt", [event["reason"] for event in h.store.events(row["interruption_id"])])
+        self.hours(h, 7)
+        self.assertEqual(len(h.backend.send_calls), 2)
+
+    def test_after_six_hours_nothing_is_resent(self):
+        asks = {"now": False}
+        h = self.h
+        self.uncertain(plug=Asked(schedule=lambda record, due: resend_answer(record, due)
+                                  if asks["now"] else DEFER))
+        self.hours(h, 6.25)
+        asks["now"] = True
+        self.hours(h, 2)
+        self.assertEqual(len(h.backend.send_calls), 1)
+        self.assertEqual(h.record()["state"], "submission_unknown")
+
+    def test_a_look_that_raises_or_one_the_budget_skips_resends_nothing(self):
+        for how in ("raises", "skipped"):
+            with self.subTest(how):
+                h = self.fresh()
+                self.uncertain(h)
+                h.tick(advance=1)
+                if how == "raises":
+                    with patch.object(type(h.source), "marker_rows", side_effect=OSError("locked")):
+                        h.tick(advance=900)
+                else:
+                    h.engine.options["watch_budget_seconds"] = -1
+                    h.tick(advance=900)
+                    h.engine.options["watch_budget_seconds"] = 5
+                self.assertEqual(len(h.backend.send_calls), 1)
+                h.tick(advance=1)                  # a look that reads Codex, and finds nothing
+                self.assertEqual(len(h.backend.send_calls), 2)
+
+    def test_its_marker_in_codexs_history_or_queue_stops_it(self):
+        for where in ("history", "queue"):
+            with self.subTest(where):
+                h = self.fresh()
+                row, _plug = self.uncertain(h)
+                if where == "history":
+                    h.home.add_turn(T1, None, "completed", user_text="go on\n\n" + row["marker"])
+                else:
+                    h.home.enqueue(T1, "go on\n\n" + row["marker"])
+                self.hours(h, 6)
+                self.assertEqual(len(h.backend.send_calls), 1)
+                self.assertFalse(machine.was_resent(h.record()))
+
+    def test_one_seen_in_codexs_queue_and_gone_from_it_is_never_resent(self):
+        """Removed in Codex by a person, its reason still the unknown send's: core's own words for
+        what a person decided, never overridden. Seen as it was queued, seen in place after an
+        unknown answer with or without a client id of Codex's, or sent before the sightings were
+        forgotten."""
+        for how in ("queued", "seen with codex's id", "seen with none", "forgotten"):
+            with self.subTest(how):
+                h = self.fresh()
+                plug = resending()
+                self.plugged(plug, h)
+                self.due(h)
+                h.backend.after_accept = "queue"
+                if how == "queued":
+                    h.tick()
+                    self.assertEqual(h.record()["state"], "queued")
+                elif how == "forgotten":
+                    h.backend.default_outcome = "unknown"
+                    h.tick()
+                else:
+                    client = new_id() if how == "seen with codex's id" else None
+                    h.backend.default_outcome = "unknown"
+                    h.backend.on_send = lambda thread, prompt: h.home.enqueue(thread, prompt, client_id=client)
+                    h.tick()
+                    h.backend.on_send = None
+                    h.watch(advance=1)
+                    self.assertEqual(h.home.queued(T1), [h.record()["queue_id"]])
+                for queue_id in h.home.queued(T1):
+                    h.home.remove_queued(queue_id)
+                if how == "forgotten":                 # one more than it remembers: all forgotten
+                    for index in range(4097):
+                        h.engine._sighted("%064x" % index)
+                    self.assertEqual(h.engine._seen_queued_cleared_at, h.now)
+                h.backend.default_outcome = "accepted"
+                self.hours(h, 6)
+                row = h.record()
+                self.assertEqual(row["state"], "submission_unknown")
+                self.assertIn(row["last_error"], machine.RESENDABLE)
+                self.assertEqual(len(h.backend.send_calls), 1)
+
+    def test_a_later_turn_or_someones_queued_input_stops_it(self):
+        for how in ("turn", "queued"):
+            with self.subTest(how):
+                h = self.fresh()
+                self.uncertain(h)
+                if how == "turn":
+                    h.home.add_turn(T1, None, "completed", user_text="their own message")
+                else:
+                    h.home.enqueue(T1, "their own message")
+                self.hours(h, 6)
+                self.assertEqual(len(h.backend.send_calls), 1)
+
+    def test_a_history_seen_behind_since_the_send_or_a_watcher_started_since_stops_it(self):
+        for how in ("behind", "restarted"):
+            with self.subTest(how):
+                h = self.fresh()
+                self.uncertain(h)
+                if how == "behind":
+                    h.home.make_stale(T1)
+                    h.tick(advance=1)
+                    h.home.catch_up(T1)
+                else:
+                    self.plugged(resending(), h)
+                self.hours(h, 6)
+                self.assertEqual(len(h.backend.send_calls), 1)
+
+    def test_no_other_uncertain_reason_is_resent(self):
+        for reason in ("duplicate_marker", "ambiguous_receipt", "withdraw_unconfirmed",
+                       "queue_cleanup_unconfirmed", "released_before_send", "queue_process_not_started"):
+            with self.subTest(reason):
+                h = self.fresh()
+                row, _plug = self.uncertain(h)
+                h.store.update(row["interruption_id"], at=h.now, last_error=reason)
+                self.hours(h, 6)
+                self.assertEqual(len(h.backend.send_calls), 1)
+
+    def test_a_spent_attempt_budget_the_persons_or_the_administrators_stops_it(self):
+        sent = {}
+        for how in ("budget left", "persons", "administrators"):
+            with self.subTest(how):
+                h = self.fresh()
+                engine = self.plugged(resending(), h)
+                if how == "persons":
+                    engine.apply_policy(dict(settings.defaults(), max_recovery_attempts=1))
+                elif how == "administrators":
+                    engine.apply_policy(settings.defaults(), managed.Managed(max_recovery_attempts=1))
+                failed(h, OVERLOADED)
+                h.tick()
+                h.now = h.record()["next_retry_at"] + 1
+                h.backend.default_outcome = "unknown"
+                h.tick()
+                self.assertEqual((h.record()["state"], h.record()["recovery_attempts"]), ("submission_unknown", 1))
+                h.backend.default_outcome = "accepted"
+                self.hours(h, 1)
+                sent[how] = len(h.backend.send_calls)
+        self.assertEqual(sent, {"budget left": 2, "persons": 1, "administrators": 1})
+
+    def test_a_hold_at_any_gate_a_send_passes_sends_nothing_and_writes_nothing(self):
+        for name in ("submission_safe", "chain_budget", "no_progress_budget", "thread_available",
+                     "attempt_budget", "usage"):
+            with self.subTest(name):
+                h = self.fresh()
+                plug = resending(gate=lambda gate, record, facts, name=name: (
+                    Alternative.HOLD if gate == name and record["state"] == "submission_unknown" else DEFER))
+                first, _plug = self.uncertain(h, plug)
+                self.hours(h, 1)
+                row = h.record()
+                self.assertEqual(len(h.backend.send_calls), 1)
+                self.assertEqual((row["state"], row["attempt_count"], row["gate_eval"]),
+                                 ("submission_unknown", 1, first["gate_eval"]))
+                held = [arguments[0] for hook, arguments in plug.asked
+                        if hook == "gate" and arguments[1]["state"] == "submission_unknown"]
+                self.assertIn(name, held, "the plug was asked at that gate, of the uncertain record")
+
+    def test_a_resent_continuation_is_never_resent_again(self):
+        h = self.h
+        self.uncertain()
+        h.backend.default_outcome = "unknown"
+        self.hours(h, 7)
+        row = h.record()
+        self.assertEqual(len(h.backend.send_calls), 2)
+        self.assertEqual((row["state"], row["last_error"]),
+                         ("submission_unknown", "queue_result_unknown_do_not_resend"))
+        self.assertTrue(machine.was_resent(row))
+
+    def test_given_back_before_its_send_or_never_started_it_stays_uncertain_and_never_waits(self):
+        for how in ("pre-send look", "not started", "consent refused at the guard"):
+            with self.subTest(how):
+                h = self.fresh()
+                first, _plug = self.uncertain(h)
+                key = first["interruption_id"]
+                before = len(h.store.events(key))
+                if how == "pre-send look":
+                    h.engine.presend_problem = lambda claim: ("waiting_retry", "released_before_send", 60)
+                elif how == "not started":
+                    h.backend.default_outcome = "not_started"
+                else:
+                    real = h.engine.presend_problem
+
+                    def look_then_pause(claim):
+                        found = real(claim)
+                        h.store.set_enabled(False, h.now)
+                        return found
+                    h.engine.presend_problem = look_then_pause
+                h.tick(advance=1)
+                h.tick(advance=900)
+                row = h.record()
+                self.assertEqual(row["state"], "submission_unknown")
+                self.assertTrue(machine.was_resent(row))
+                h.store.set_enabled(True, h.now)
+                h.backend.default_outcome = "accepted"
+                self.hours(h, 6)
+                self.assertEqual(h.record()["state"], "submission_unknown")
+                moves = [event["to_state"] for event in h.store.events(key)[before:]]
+                self.assertIn("submitting", moves)
+                self.assertEqual([state for state in moves if state in WAITING], [])
+                self.assertEqual(len(h.backend.send_calls), 2 if how == "not started" else 1)
+
+    def test_a_pause_or_observe_only_that_takes_a_queued_resend_back_ends_it_failed(self):
+        for how in ("pause", "observe only"):
+            with self.subTest(how):
+                h = self.fresh()
+                self.uncertain(h)
+                h.backend.after_accept = "queue"
+                h.tick(advance=1)
+                h.tick(advance=900)
+                self.assertEqual((len(h.backend.send_calls), h.record()["state"]), (2, "queued"))
+                if how == "pause":
+                    h.store.set_enabled(False, h.now)
+                else:
+                    h.store.set_observe_only(True)
+                h.tick(advance=1)
+                self.assertEqual(h.record()["state"], "withdrawn_unconfirmed")
+                self.assertEqual(h.record()["withdraw_reason"],
+                                 "paused_unknown" if how == "pause" else "observe_only_unknown")
+                h.tick(advance=181)
+                self.assertEqual(h.record()["state"], "failed")
+                h.store.set_enabled(True, h.now)
+                h.store.set_observe_only(False)
+                self.hours(h, 6)
+                self.assertEqual((len(h.backend.send_calls), h.record()["state"]), (2, "failed"))
+
+    def test_a_pause_observe_only_a_cancel_or_a_conversation_off_is_never_put_to_p7(self):
+        for how in ("pause", "observe only", "cancel", "conversation off"):
+            with self.subTest(how):
+                h = self.fresh()
+                row, plug = self.uncertain(h)
+                if how == "pause":
+                    h.store.set_enabled(False, h.now)
+                elif how == "observe only":
+                    h.store.set_observe_only(True)
+                elif how == "cancel":
+                    h.store.cancel_interruption(row["interruption_id"], h.now)
+                else:
+                    h.store.set_thread_enabled(T1, False, at=h.now)
+                self.hours(h, 2)
+                self.assertEqual(unknown_asked(plug), [])
+                self.assertEqual(len(h.backend.send_calls), 1)
+
+    def test_its_ledger_is_told_the_send_carries_the_schedule_and_a_hold_sends_nothing(self):
+        told = []
+
+        def ledger(connection, record, now, carried):
+            told.append((record["state"], carried))
+            return Alternative.HOLD if record["state"] == "submission_unknown" else DEFER
+        h = self.h
+        first, _plug = self.uncertain(plug=resending(claim_ledger=ledger))
+        h.tick(advance=1)
+        h.tick(advance=900)
+        self.assertIn(("submission_unknown", frozenset({Point.SCHEDULE})), told)
+        row = h.record()
+        self.assertEqual(len(h.backend.send_calls), 1)
+        self.assertEqual((row["state"], row["attempt_count"], row["gate_eval"]),
+                         ("submission_unknown", 1, first["gate_eval"]))
+
+    def test_one_first_sent_with_no_marker_goes_again_only_through_a_channel_under_its_id(self):
+        for how in ("channel", "no channel"):
+            with self.subTest(how):
+                h = self.fresh()
+                channel = QueueAdd(h, outcome="unknown", queued=False)
+                plug = resending(sender=channel, delivery=Alternative.CLIENT_ID)
+                row, _plug = self.uncertain(h, plug)
+                key = row["interruption_id"]
+                self.assertEqual(row["recovery_client_id"], ids.continuation_client_id(key))
+                channel.outcome, channel.queued = "accepted", True
+                if how == "no channel":
+                    plug.answers["sender"] = DEFER
+                h.tick(advance=1)
+                h.tick(advance=900)
+                self.assert_no_send(h)
+                if how == "no channel":
+                    self.assertEqual(len(channel.calls), 1)
+                    self.assertFalse(machine.was_resent(h.record()))
+                    continue
+                self.assertEqual(len(channel.calls), 2)
+                self.assertEqual(channel.calls[1][:3], channel.calls[0][:3])
+                self.follow(h)
+                self.assertEqual(h.record()["state"], "recovered")
+
+    def test_an_uncertain_route_is_never_resent(self):
+        h = self.h
+        route = Resume("unknown")
+        plug = resending(unloaded=route)
+        self.plugged(plug)
+        self.ready_after_reset(loaded=False)
+        h.tick()
+        self.assertEqual(h.record()["state"], "submission_unknown")
+        h.backend.loaded_map[T1] = "loaded"
+        self.hours(h, 6)
+        self.assertEqual((len(route.calls), h.backend.send_calls), (1, []))
+
+    def test_a_resend_found_twice_after_it_ran_is_written_so(self):
+        for when in ("running", "ended"):
+            with self.subTest(when):
+                h = self.fresh()
+                row, _plug = self.uncertain(h)
+                h.backend.turn_status = "inProgress" if when == "running" else "completed"
+                h.tick(advance=1)
+                h.tick(advance=900)
+                self.follow(h)
+                self.assertEqual(h.record()["state"], "turn_started" if when == "running" else "recovered")
+                late = h.home.add_turn(T1, None, "completed", user_text="go on\n\n" + row["marker"])
+                self.assertTrue(late)
+                h.tick(advance=61)
+                found = h.record()
+                self.assertEqual(found["last_error"], "duplicate_marker")
+                self.assertEqual(found["state"], "outcome_unverified" if when == "running" else "recovered")
+                self.assertEqual(len(h.backend.send_calls), 2)
+
+
+
+def send_now_answer(record, due):
+    """P7 as a person's Send now, made in the Dashboard, answers it: for a record that waits."""
+    return Alternative.SEND_NOW if record["state"] in WAITING else DEFER
+
+
+class SendNowTests(PluggedCase):
+    """SEND_NOW (P7, v0.6.14): a waiting record a person asked to send now passes its retry's wait,
+    a postponement, the objection window, the spacing between two continuations and an attempt budget
+    of the person's own - and nothing else, in the engine and again in the claim."""
+
+    def waiting(self, h=None, error=OVERLOADED):
+        """A temporary failure, registered and waiting for its retry, an engine with a plug that
+        defers in place; `asks()` turns the person's Send now on."""
+        h = h or self.h
+        plug = Asked(wants=True)
+        self.plugged(plug, h)
+        failed(h, error)
+        h.tick()
+        row = h.record()
+        self.assertEqual(row["state"], "waiting_backoff")
+        self.assertGreater(row["next_retry_at"], h.now + 1)
+        return row, plug
+
+    @staticmethod
+    def asks(plug):
+        plug.answers["schedule"] = send_now_answer
+
+    def test_it_passes_a_retry_wait_a_postponement_and_an_objection_window(self):
+        for how in ("retry wait", "postponed", "objection window"):
+            for asked in (False, True):
+                with self.subTest(how, asked=asked):
+                    h = self.fresh()
+                    row, plug = self.waiting(h)
+                    if how == "postponed":
+                        h.now = row["next_retry_at"] + 1
+                        self.assertTrue(h.store.postpone(row["interruption_id"], T1, h.now + 7200, h.now)[0])
+                    elif how == "objection window":
+                        h.now = row["next_retry_at"] + 1
+                        h.engine.apply_policy(dict(settings.defaults(), default_tier="objection_window",
+                                                   objection_minutes=60))
+                    if asked:
+                        self.asks(plug)
+                    h.tick(advance=1)
+                    self.assertEqual(len(h.backend.send_calls), 1 if asked else 0)
+                    if asked:
+                        self.assertEqual(json.loads(h.record()["gate_eval"])["schedule"][0], "PASS")
+                        self.follow(h)
+                        self.assertEqual(h.record()["state"], "recovered")
+
+    def test_it_passes_the_spacing_after_a_send_that_never_started(self):
+        for asked in (False, True):
+            with self.subTest(asked=asked):
+                h = self.fresh()
+                row, plug = self.waiting(h)
+                h.now = row["next_retry_at"] + 1
+                h.backend.default_outcome = "not_started"
+                h.tick()
+                self.assertEqual(h.record()["last_error"], "queue_process_not_started")
+                h.backend.default_outcome = "accepted"
+                if asked:
+                    self.asks(plug)
+                h.now = h.record()["next_retry_at"] + 1          # due, inside the fifteen minutes
+                h.tick()
+                self.assertEqual(len(h.backend.send_calls), 2 if asked else 1)
+                if not asked:
+                    self.assertEqual(h.record()["last_error"], "thread_submission_cooldown")
+
+    def test_it_passes_the_persons_own_attempt_budget_and_never_the_administrators(self):
+        ends = {}
+        for who in ("person", "administrator"):
+            for asked in (False, True):
+                with self.subTest(who, asked=asked):
+                    h = self.fresh()
+                    row, plug = self.waiting(h)
+                    if who == "person":
+                        h.engine.apply_policy(dict(settings.defaults(), max_recovery_attempts=1))
+                    else:
+                        h.engine.apply_policy(settings.defaults(), managed.Managed(max_recovery_attempts=1))
+                    h.now = row["next_retry_at"] + 1
+                    h.backend.default_outcome = "not_started"      # an attempt spent, nothing refunded
+                    h.tick()
+                    self.assertEqual(h.record()["recovery_attempts"], 1)
+                    h.backend.default_outcome = "accepted"
+                    if asked:
+                        self.asks(plug)
+                    h.now = h.record()["next_retry_at"] + 1
+                    h.tick()
+                    ends[who, asked] = (len(h.backend.send_calls), h.record()["state"])
+        self.assertEqual(ends, {("person", False): (1, "retry_budget_exhausted"),
+                                ("person", True): (2, "queued"),
+                                ("administrator", False): (1, "retry_budget_exhausted"),
+                                ("administrator", True): (1, "retry_budget_exhausted")})
+
+    def test_it_never_passes_anything_else(self):
+        """A reset ahead, quiet hours (a person's or an administrator's: both are quiet_until's),
+        the day's five, a Pause, a history behind, a conversation the app does not hold, someone's
+        queued input, usage, and a hold of the plug's own at another gate."""
+        for how in ("reset ahead", "quiet hours", "daily five", "paused", "history behind",
+                    "notLoaded", "queued input", "no usage", "held"):
+            with self.subTest(how):
+                h = self.fresh()
+                if how == "reset ahead":
+                    plug = Asked(wants=True)
+                    self.plugged(plug, h)
+                    h.home.fail_usage(T1)
+                    h.backend.loaded_map[T1] = "loaded"
+                    h.tick()
+                else:
+                    _row, plug = self.waiting(h)
+                self.asks(plug)
+                if how == "quiet hours":
+                    h.engine.quiet_until = lambda now: now + 3600
+                elif how == "daily five":
+                    h.store.recent_claim_count = lambda *arguments: 5
+                elif how == "paused":
+                    h.store.set_enabled(False, h.now)
+                elif how == "history behind":
+                    h.home.make_stale(T1)
+                    h.tick(advance=1)
+                    h.tick(advance=200)
+                elif how == "notLoaded":
+                    h.backend.loaded_map[T1] = "notLoaded"
+                elif how == "queued input":
+                    h.home.enqueue(T1, "their own message")
+                elif how == "no usage":
+                    h.backend.usage_result = dict(NO_USAGE)
+                elif how == "held":
+                    plug.answers["gate"] = lambda name, record, facts: (
+                        Alternative.HOLD if name == "thread_available" else DEFER)
+                h.tick(advance=1)
+                self.assert_no_send(h)
+                self.assertNotIn(h.record()["state"], TERMINAL)
+
+    def test_the_claim_takes_it_only_as_its_ledger_pays_for_the_schedule(self):
+        row, _plug = self.waiting()
+        key, at = row["interruption_id"], self.h.now + 1
+        ledger = guard(Asked(wants=True))
+        limits = self.h.engine.limits()
+        self.assertEqual(self.h.store.reserve_detailed(key, at, limits=limits, forced=True)[:2],
+                         (False, "schedule"))
+        for options in ({"ledger": None, "carried": {Point.SCHEDULE}},
+                        {"ledger": ledger, "carried": frozenset()}, {"ledger": ledger, "carried": {Point.GATES}}):
+            with self.subTest(options=sorted(options)):
+                self.assertEqual(self.h.store.reserve_detailed(key, at, limits=limits, forced=True, **options)[:2],
+                                 (False, "schedule"))
+        self.assertEqual(self.h.store.reserve_detailed(key, at, limits=limits, forced=True, ledger=ledger,
+                                                       carried={Point.SCHEDULE}), (True, None, None))
+
+    def test_the_claim_holds_it_to_the_administrators_ceiling_and_quiet_hours(self):
+        h = self.h
+        row, _plug = self.waiting()
+        key = row["interruption_id"]
+        h.store.update(key, at=h.now, recovery_attempts=4)
+        ledger = guard(Asked(wants=True))
+        limits = dict(h.engine.limits(), max_recovery_attempts=2)
+        options = {"forced": True, "ledger": ledger, "carried": {Point.SCHEDULE}, "gates": None}
+        refused = h.store.reserve_detailed(key, h.now + 1, limits=dict(limits, managed_max_recovery_attempts=4),
+                                           **options)
+        self.assertEqual(refused, (False, "attempt_budget", "recovery_budget"))
+        self.assertEqual(h.store.reserve_detailed(key, h.now + 1, limits=limits, quiet_until=h.now + 3600,
+                                                  **options), (False, "schedule", "quiet_hours"))
+        self.assertEqual(h.store.reserve_detailed(key, h.now + 1, limits=dict(limits, managed_max_recovery_attempts=5),
+                                                  **options), (True, None, None))
+
+    def test_the_pre_send_look_still_stops_it(self):
+        """All but a postponement, which a postponed record sent now carries into its claim (above)."""
+        for how in ("cancelled", "paused"):
+            with self.subTest(how):
+                h = self.fresh()
+                row, plug = self.waiting(h)
+                self.asks(plug)
+                key = row["interruption_id"]
+                real = h.store.reserve_detailed
+
+                def claim_then(*arguments, **options):
+                    found = real(*arguments, **options)
+                    if found[0] and how == "cancelled":
+                        h.store.cancel_interruption(key, h.now)
+                    elif found[0]:
+                        h.store.set_enabled(False, h.now)
+                    return found
+                h.store.reserve_detailed = claim_then
+                h.tick(advance=1)
+                self.assert_no_send(h)
+                self.assertNotEqual(h.record()["state"], "submitting")
+
+    def test_deferring_at_a_refused_schedule_leaves_every_row_as_it_was(self):
+        h = self.h
+        row, plug = self.waiting()
+        before = h.store.all_records()
+        h.tick(advance=1)
+        self.assertEqual(h.store.all_records(), before)
+        self.assertIn("schedule", plug.hooks())
+        self.assert_no_send()
 
 
 if __name__ == "__main__":

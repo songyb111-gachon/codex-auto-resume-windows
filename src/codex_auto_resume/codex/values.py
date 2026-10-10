@@ -86,3 +86,19 @@ def normalize(row) -> dict | None:
     if wait is not None and category in failures.TRANSIENT:
         found["retry_after"] = wait
     return found
+
+
+def error_shape(row) -> dict:
+    """What a failed turn's error says of itself (failures.shape), read from its row as `normalize`
+    reads it: Codex's code, a status, a form, whether a message exists - never the message. An error
+    that is there and is no JSON object is unrecognised."""
+    if "error_json" in row:
+        raw = row["error_json"]
+        err = _json(raw)
+        if raw is not None and not isinstance(err, dict):
+            return failures.shape(False)                     # there, and no object: unrecognised
+        info = err.get("codexErrorInfo") if isinstance(err, dict) else None
+        text = err.get("message") if isinstance(err, dict) else None
+    else:
+        info, text = row.get("error_info", row.get("codexErrorInfo")), row.get("message")
+    return failures.shape(info, text)

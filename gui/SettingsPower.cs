@@ -4,11 +4,12 @@
 // this PC to sleep, hibernate it or shut it down, after a notice with a countdown and a stop button. It is off by
 // default and armed here only, once or always (H14); MCP, the icon and a notice can only turn it off.
 //
-// Arming is an act, not a setting. None of this card's controls is an editor: they are never in `editors`, so Save,
-// EditorValues and the unsaved-changes baseline never see them, and a Save cannot arm again a Once that was spent.
-// The card asks the bridge itself - `power-action` for what Windows offers here, `power-arm` after a confirmation
-// whose default is Cancel, `power-disarm` with no question, as Pause asks none - and follows the status every read
-// brings (`power_action`, only while its file exists).
+// Arming is an act, not a setting. The card turns it on and off with the switch every other on-or-off setting in the
+// window is, but none of its controls is an editor: they are never in `editors`, so Save, EditorValues and the
+// unsaved-changes baseline never see them, and a Save cannot arm again a Once that was spent. The switch applies at
+// once: the card asks the bridge itself - `power-action` for what Windows offers here, `power-arm` after a
+// confirmation whose default is Cancel, `power-disarm` with no question, as Pause asks none - and follows the status
+// every read brings (`power_action`, only while its file exists).
 
 using System;
 using System.Collections.Generic;
@@ -33,17 +34,20 @@ namespace CodexAutoResume
         private const string PowerDefaultGrace = "5";
 
         private TableLayoutPanel powerCard;
-        private Label powerState, powerWait, powerUnavailable, powerLast;
+        private Label powerWait, powerUnavailable, powerLast;
         private SoftCombo powerAction, powerAfter, powerRepeat, powerGrace;
-        private Button powerButton;
+        /// The card's switch, its first line: on while something is armed and off otherwise, saying what it is set to.
+        /// A click never moves it by itself (AutoCheck off): PowerSwitched asks first and moves it, and ShowPower sets
+        /// it from what is armed, which fires nothing.
+        private CheckBox powerSwitch;
         /// The last `power-action` answer - the view, each action, the administrator's key, an older watcher - or null
         /// until one came. Until then nothing can be turned on: what Windows offers here is not known yet.
         private Dictionary<string, object> powerOptions;
         /// What is armed, shown and how the last batch ended (PowerView): from that answer, and from every status since.
         private Dictionary<string, object> powerView;
         private bool powerWatcherStopped, powerReading;
-        /// Whether the card's one button may be pressed, busy aside: SetBusy greys it while any call is in flight.
-        private bool powerCanPress;
+        /// Whether the card's switch may be turned, busy aside: SetBusy greys it while any call is in flight.
+        private bool powerCanSwitch;
         /// The actions the Then list holds, so a refresh that offers the same keeps what the person picked.
         private string powerOffered;
 
@@ -51,11 +55,22 @@ namespace CodexAutoResume
         /// last known in, and asks the bridge what Windows offers here only if the card is being shown (B16).
         private void BuildPower(TableLayoutPanel stack)
         {
-            powerCard = NewGroup(S("power.title", "When usage-limit recoveries finish"), stack);
-            powerState = HelpText("");
-            powerState.ForeColor = Ink;
-            powerState.Margin = Pad(0, 0, 0, 2);
-            powerCard.Controls.Add(powerState);
+            string title = S("power.title", "When usage-limit recoveries finish");
+            powerCard = NewGroup(title, stack);
+            // Its heading stretched across the card, so it wraps there as the card's help lines do (v0.6.14): in German
+            // and Russian it is wider than the narrowest window's card. At the opening width it is one line, as it was.
+            powerCard.Controls[0].Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top;
+            // The switch every on-or-off setting is (NewCheck), where the card's first line was, saying what that line
+            // said: Off, what this PC does when they finish, or when it will. Named by the card for a screen reader,
+            // with that line as its description.
+            powerSwitch = NewCheck("", false, false);
+            // Its line wraps where the card is too narrow for it (v0.6.14), as the card's other lines do, rather than end
+            // in an ellipsis: at the opening width it is one line, as it always was.
+            ((SoftCheck)powerSwitch).Wraps = true;
+            powerSwitch.AutoCheck = false;
+            powerSwitch.AccessibleName = title;
+            powerSwitch.Click += delegate { PowerSwitched(); };
+            powerCard.Controls.Add(powerSwitch);
             powerWait = HelpText("");
             powerCard.Controls.Add(powerWait);
 
@@ -84,10 +99,6 @@ namespace CodexAutoResume
 
             powerUnavailable = HelpText("");
             powerCard.Controls.Add(powerUnavailable);
-            powerButton = MakeButton(S("power.turn_on", "Turn on..."), false, delegate { PowerPressed(); });
-            powerButton.Anchor = AnchorStyles.Left | AnchorStyles.Top;
-            powerButton.Margin = Pad(0, 6, 0, 6);
-            powerCard.Controls.Add(powerButton);
             powerLast = HelpText("");
             powerCard.Controls.Add(powerLast);
             powerCard.Controls.Add(HelpText(S("power.help",
@@ -99,7 +110,7 @@ namespace CodexAutoResume
         /// Asks what Windows offers here - whether this account may shut down, which sleep states the PC has - each time
         /// the card is shown: Settings is the page and General the section. The editors, this card with them, are built
         /// at the first idle after the window opens whatever page it opened on, and that alone asks Windows nothing
-        /// (B16). ShowPage and ShowSection ask here as they show it; Turn on and Turn off ask again.
+        /// (B16). ShowPage and ShowSection ask here as they show it; turning the switch on or off asks again.
         private void LoadPowerWhereShown()
         {
             if (currentPage != "settings" || currentSection != "general") return;
@@ -145,8 +156,8 @@ namespace CodexAutoResume
             ShowPower();
         }
 
-        /// The card as the options and the view say: its two lines, the rows, why an action is not offered, the
-        /// button and the last batch's outcome.
+        /// The card as the options and the view say: its switch and the line under it, the rows, why an action is not
+        /// offered and the last batch's outcome.
         private void ShowPower()
         {
             if (powerCard == null) return;
@@ -157,11 +168,16 @@ namespace CodexAutoResume
             var last = Map(powerView, "last");
             string action = armed == null ? null : Known(Str(armed, "action"), PowerActions);
 
-            // The first line: off, on, or counting down.
+            // The first line, the switch: off, on, or counting down - on exactly while something is armed, whatever a
+            // click did before. Set here, it fires nothing: the switch acts only when it is clicked (PowerSwitched).
             double until = Number(shown, "grace_until");
-            if (armed == null) powerState.Text = S("power.state.off", "Off");
-            else if (Str(shown, "phase") == "grace" && until > 0) powerState.Text = PowerGraceLine(action, ClockTime(until));
-            else powerState.Text = PowerOnLine(action);
+            string state;
+            if (armed == null) state = S("power.state.off", "Off");
+            else if (Str(shown, "phase") == "grace" && until > 0) state = PowerGraceLine(action, ClockTime(until));
+            else state = PowerOnLine(action);
+            powerSwitch.Text = state;
+            powerSwitch.AccessibleDescription = state;
+            powerSwitch.Checked = armed != null;
 
             // The second line: what keeps it from acting, or why the card cannot be used.
             string wait = "";
@@ -172,7 +188,7 @@ namespace CodexAutoResume
             ShowLine(powerWait, wait);
 
             // The Then list: the actions Windows will do for this account here. None, when it does not let this
-            // account do any of them; all three, greyed with the button, until that is known.
+            // account do any of them; all three, greyed with the switch, until that is known.
             var offered = new List<string>();
             var reasons = new List<string>();
             bool privilege = false;
@@ -214,10 +230,9 @@ namespace CodexAutoResume
             powerAction.Enabled = rows && powerAction.Items.Count > 0;
             powerAfter.Enabled = powerRepeat.Enabled = powerGrace.Enabled = rows;
 
-            powerButton.Text = armed != null ? S("power.turn_off", "Turn off") : S("power.turn_on", "Turn on...");
-            powerCanPress = powerOptions != null && !managed && !upgrade
-                         && (armed != null || (!privilege && powerAction.Items.Count > 0));
-            powerButton.Enabled = busy == 0 && powerCanPress;
+            powerCanSwitch = powerOptions != null && !managed && !upgrade
+                          && (armed != null || (!privilege && powerAction.Items.Count > 0));
+            powerSwitch.Enabled = busy == 0 && powerCanSwitch;
             ShowLine(powerLast, PowerLastLine(last));
             // The whole card greyed while an administrator holds it or an older watcher holds the state (E4).
             powerCard.Enabled = !managed && !upgrade;
@@ -226,7 +241,11 @@ namespace CodexAutoResume
         private static void ShowLine(Label label, string text)
         {
             label.Text = text ?? "";
-            label.Visible = label.Text.Length > 0;
+            // Only when the line's own bit differs (v0.6.14). Every status (each 5-s snapshot) comes here, and while
+            // Settings is not the page in front `Visible` answers false whatever the line was told, so `Visible = true`
+            // laid out the card and the whole of Settings > General, measuring all of it, every time.
+            bool want = label.Text.Length > 0;
+            if (Soft.OwnVisible(label) != want) label.Visible = want;
         }
 
         /// Fills the Then list with `offered`, only when that changed, so a refresh keeps what the person picked.
@@ -270,15 +289,19 @@ namespace CodexAutoResume
             return word != null && Array.IndexOf(words, word) >= 0 ? word : null;
         }
 
-        /// Turn on... asks first, with Cancel the default, so a reflex Enter arms nothing; Turn off asks nothing - it
-        /// only takes automation away, as Pause does.
-        private void PowerPressed()
+        /// The switch, clicked or pressed. Turning it on asks first, with Cancel the default, so a reflex Enter arms
+        /// nothing: it moves on only at the yes, and back off when the bridge refuses. Turning it off asks nothing - it
+        /// only takes automation away, as Pause does - and it moves at once.
+        private void PowerSwitched()
         {
-            if (!powerCanPress || busy > 0) return;
+            if (!powerCanSwitch || busy > 0) return;
             if (Map(powerView, "armed") != null)
             {
+                powerSwitch.Checked = false;
                 CallAsync("power-disarm", "{}", delegate(Dictionary<string, object> reply)
                 {
+                    // Refused, it is still on, and the switch says so again before the reason is said.
+                    if (!Ok(reply)) ShowPower();
                     Report(reply);
                     LoadPower();
                 });
@@ -294,11 +317,18 @@ namespace CodexAutoResume
             if (action == "shut_down")
                 question += "\n\n" + S("power.confirm.shut_down",
                     "Shutting down closes every program, so save your work first. It never shuts down while someone else is signed in.");
-            if (!Dialog(question, S("power.confirm.affirm", "Turn on"), S("action.cancel", "Cancel"))) return;
+            if (!Dialog(question, S("power.confirm.affirm", "Turn on"), S("action.cancel", "Cancel")))
+            {
+                powerSwitch.Checked = false;
+                return;
+            }
+            powerSwitch.Checked = true;
             string argument = "{\"action\":" + Json.Escape(action) + ",\"after\":" + Json.Escape(after)
                             + ",\"repeat\":" + Json.Escape(repeat) + ",\"grace_minutes\":" + grace + "}";
             CallAsync("power-arm", argument, delegate(Dictionary<string, object> reply)
             {
+                // Refused, nothing is armed: the switch goes back off before the reason is said.
+                if (!Ok(reply)) powerSwitch.Checked = false;
                 Report(reply);
                 LoadPower();
             });

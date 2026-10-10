@@ -26,7 +26,9 @@ from codex_auto_resume.store import Store  # noqa: E402
 MIXINS = (store.SessionMixin, store.SchemaMixin, store.MigrationsMixin, store.JournalMixin,
           store.PolicyMixin, store.RecordsMixin, store.ClaimsMixin, store.LedgerMixin,
           store.ActionsMixin, store.ScheduleMixin, store.WatcherMixin, store.ReportingMixin,
-          store.NoticesMixin)
+          store.NoticesMixin,
+          # v0.6.14: the edition's plug's own work, claimed and guarded as core's is.
+          store.PlugClaimsMixin)
 
 # What `Store` has, as the one class had it. Sixty-one methods, counted the day the file was
 # split; a method added or taken away is a decision, and this is where it is made.
@@ -64,6 +66,17 @@ METHODS = {
     "raise_notice", "_reading",
     # v0.6.11: a watcher that stops on purpose says how - clean, or the memory guard (store/watcher.py).
     "watcher_ended",
+    # v0.6.14: the record of a task a failure continues, read as register finds it and nothing written
+    # (store/records.py), and the claim's check of a relaxation of the plug's (store/ledger.py).
+    "chain_parent", "_find_parent", "_relaxation_refused", "_early_claim",
+    # and the claim of an uncertain submission sent once more, which only the plug's RESEND leads to.
+    "_resend_claim",
+    # and the claim's take of a person's Send now, as the plug's ledger pays for it.
+    "_forced_claim",
+    # and the guard P8's errand of the plug makes its one write in (store/plugclaims.py).
+    "errand_guard",
+    # and a record of the plug's own claimed, and the guard its launch is made in (P2).
+    "reserve_record", "record_guard",
 }
 
 # Reachable as `store.<name>` before the split, and still.

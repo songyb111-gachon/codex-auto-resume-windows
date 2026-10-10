@@ -1283,13 +1283,19 @@ namespace CodexAutoResume
         /// The version as the save bar and Diagnostics show it, with the edition that runs after it (v0.6.11) in the
         /// catalog's word (edition.shown) - since the owner's decision of 2026-10-02 as quiet secondary text, smaller and
         /// in the secondary colour, on the version's baseline, with no separator (VersionLabel). A status that names no
-        /// edition shows the version alone, as it did before.
+        /// edition shows the version alone, as it did before - and since v0.6.14 so does the standard edition, which is
+        /// named nowhere beside the version (the owner, 2026-10-05); only an advanced one is.
         private void ShowVersion(VersionLabel label, Dictionary<string, object> status)
         {
             string edition = Str(status, "edition");
+            bool named = !string.IsNullOrEmpty(edition) && edition != UnnamedEdition;
             label.Set("v" + Convert.ToString(Get(status, "version"), CultureInfo.InvariantCulture),
-                       string.IsNullOrEmpty(edition) ? null : S("edition." + edition, edition));
+                       named ? S("edition." + edition, edition) : null);
         }
+
+        /// The edition whose word stands beside the version nowhere (v0.6.14). The picker's Edition column still names
+        /// it, since there the word says which edition a row installs (DashboardVersions.EditionName).
+        private const string UnnamedEdition = "standard";
 
         // The header as Hero last wrote it, and what decides it (ApplyStatus).
         private string heroHead, heroDetail;

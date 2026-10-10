@@ -77,13 +77,16 @@ class TableTests(unittest.TestCase):
     def test_the_readings_the_owner_recorded(self):
         """2026-09-26: MW, M1, M6 and M7 passed; M2, M3, M4 and M5 failed. 2026-09-28: the owner completed
         MA and MH at the app, both passing. M2b, added that day for the goal continuation, has not been
-        run yet."""
+        run yet, nor have MP1, MP2 and MP3, added on 2026-10-09 for the settings panel beside the chat, nor
+        MU, MN and MR, added that day for the reset actions: the owner measures them, an agent never."""
         passed = {m for m, (verdict, _v) in measured.MEASURED.items() if verdict == Verdict.PASS}
         failed = {m for m, (verdict, _v) in measured.MEASURED.items() if verdict == Verdict.FAIL}
         self.assertEqual(passed, {Measurement.MW, Measurement.M1, Measurement.M6, Measurement.M7,
                                   Measurement.MA, Measurement.MH})
         self.assertEqual(failed, {Measurement.M2, Measurement.M3, Measurement.M4, Measurement.M5})
-        self.assertEqual(set(Measurement) - passed - failed, {Measurement.M2B})
+        self.assertEqual(set(Measurement) - passed - failed,
+                         {Measurement.M2B, Measurement.MP1, Measurement.MP2, Measurement.MP3,
+                          Measurement.MU, Measurement.MN, Measurement.MR})
 
 
 if __name__ == "__main__":

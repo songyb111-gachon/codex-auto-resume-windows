@@ -7,9 +7,13 @@ written as "other", or not at all, and never fails the move it describes. And li
 never read to decide anything: the spend ledger is the only record a decision counts.
 
 Everything here is bounded the way core's journal is - 5,000 entries or 90 days, whichever comes
-first, pruned every 256 entries - and so are the spend ledger, the records and the overrides,
-which are pruned in the same pass. A spend is never pruned inside the day its ceilings count,
-and a record or an override that may still be acted on never at all.
+first, pruned every 256 entries - and so are the spend ledger, the records, the overrides, the
+admissions and the samples, which are pruned in the same pass. A spend is never pruned inside the day its ceilings count,
+and a record or an override that may still be acted on never at all. What a watched capability would have
+done (`would_have` lines) is bounded tighter, inside those: at most WATCH_LIMIT lines a capability, its
+newest, cut in the same pass before the journal's own bound, so one noisy watched capability never
+pushes another's out (between passes one can hold up to WATCH_LIMIT + 255); the journal's own bound
+then cuts every other line before any of them.
 """
 from __future__ import annotations
 
@@ -18,6 +22,7 @@ from codex_auto_resume.domain.plug import Alternative, Point
 from ..vocabulary import Actor, JournalCode, OffReason, RecordState
 
 EVENT_LIMIT = 5000
+WATCH_LIMIT = 250                 # would_have lines kept a capability, its newest
 EVENT_MAX_AGE = 90 * 86400
 _PRUNE_EVERY = 256
 _DAY = 86400
@@ -109,6 +114,23 @@ class JournalMixin:
                 (capability, code, int(now // _DAY)))
         return True
 
+    def counted(self, capability, code, at=None) -> bool:
+        """One of `capability`'s own codes counted today, with its journal line, in one transaction.
+        False, and nothing written, for a code that is not its own or where there is no file."""
+        definition = self.registry.get(capability)
+        if definition is None or code not in definition.codes:
+            return False
+        now = self._now(at)
+        with self._transaction(create=False) as connection:
+            if connection is None:
+                return False
+            connection.execute(
+                "INSERT INTO sampler (capability, code, day, count) VALUES (?,?,?,1) "
+                "ON CONFLICT (capability, code, day) DO UPDATE SET count = count + 1",
+                (capability, code, int(now // _DAY)))
+            self._note(connection, now, definition.code(code), capability=capability)
+        return True
+
     def samples(self, capability) -> dict:
         """{code: count} over the days the sampler keeps."""
         with self._read() as connection:
@@ -125,10 +147,20 @@ class JournalMixin:
         """Every bounded table, in one pass."""
         old = now - EVENT_MAX_AGE
         connection.execute("DELETE FROM journal WHERE at < ?", (old,))
+        # What each watched capability would have done: its newest WATCH_LIMIT lines. The journal's
+        # own bound then cuts every other line first, oldest first, so it never cuts a watched
+        # capability's answers for other lines: all of them together (at most WATCH_LIMIT a
+        # capability, test_advanced_state) fit inside it.
+        watched = str(JournalCode.WOULD_HAVE)
+        for (capability,) in connection.execute("SELECT DISTINCT capability FROM journal WHERE code=?",
+                                                (watched,)).fetchall():
+            connection.execute("DELETE FROM journal WHERE event_id IN (SELECT event_id FROM journal "
+                               "WHERE code=? AND capability IS ? ORDER BY event_id DESC "
+                               "LIMIT -1 OFFSET ?)", (watched, capability, WATCH_LIMIT))
         excess = connection.execute("SELECT count(*) FROM journal").fetchone()[0] - EVENT_LIMIT
         if excess > 0:
             connection.execute("DELETE FROM journal WHERE event_id IN (SELECT event_id FROM journal "
-                               "ORDER BY event_id LIMIT ?)", (excess,))
+                               "ORDER BY code IS ?, event_id LIMIT ?)", (watched, excess))
         connection.execute("DELETE FROM sampler WHERE day < ?", (int(old // _DAY),))
         excess = connection.execute("SELECT count(*) FROM sampler").fetchone()[0] - EVENT_LIMIT
         if excess > 0:
@@ -148,7 +180,24 @@ class JournalMixin:
         if excess > 0:
             connection.execute("DELETE FROM overrides WHERE rowid IN (SELECT rowid FROM overrides "
                                "ORDER BY created_at LIMIT ?)", (excess,))
+        # Which capability took up which interruption, and the samples of what nothing classified
+        # (state/choices.py): the same bounds. An interruption taken up ends within a day on the clock
+        # (core's ladder.ADMITTED_MAX_SECONDS), long before its row is old. Rules and choices are a
+        # person's own, never pruned.
+        connection.execute("DELETE FROM admissions WHERE created_at < ?", (old,))
+        excess = connection.execute("SELECT count(*) FROM admissions").fetchone()[0] - EVENT_LIMIT
+        if excess > 0:
+            connection.execute("DELETE FROM admissions WHERE interruption_id IN (SELECT interruption_id "
+                               "FROM admissions ORDER BY created_at LIMIT ?)", (excess,))
+        connection.execute("DELETE FROM samples WHERE at < ?", (old,))
+        excess = connection.execute("SELECT count(*) FROM samples").fetchone()[0] - EVENT_LIMIT
+        if excess > 0:
+            connection.execute("DELETE FROM samples WHERE sample_id IN (SELECT sample_id FROM samples "
+                               "ORDER BY sample_id LIMIT ?)", (excess,))
         JournalMixin._prune_spend(connection, "main", now)
+        # The reset actions' rules and spends (v0.6.14): the same bounds, and never one still to act.
+        from .resets import prune
+        prune(connection, now, EVENT_MAX_AGE, EVENT_LIMIT)
 
     @staticmethod
     def _prune_spend(connection, schema, now) -> None:

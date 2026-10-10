@@ -419,8 +419,9 @@ namespace CodexAutoResume
 
         public override Size GetPreferredSize(Size proposedSize)
         {
-            Size line = TextRenderer.MeasureText(string.IsNullOrEmpty(Text) ? " " : Text, Font, new Size(int.MaxValue, int.MaxValue),
-                                                 TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix);
+            // Remembered (Soft.Measure, v0.6.14): a table asks for this at several widths in every pass.
+            Size line = Soft.Measure(string.IsNullOrEmpty(Text) ? " " : Text, Font, int.MaxValue,
+                                     TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix);
             int width = line.Width + Padding.Horizontal;
             if (MaximumSize.Width > 0) width = Math.Min(width, MaximumSize.Width);
             if (proposedSize.Width > 1 && proposedSize.Width < width) width = proposedSize.Width;
@@ -698,6 +699,10 @@ namespace CodexAutoResume
         private bool refreshing, refreshAgain;
         // Actions in flight. While there is one, every other action waits its turn, visibly.
         private int busy;
+        // Work a page started that outlasts the call that started it: a job of the service this window talks to, which
+        // ends with the window. While there is any, the window does not reopen itself (CheckReopen, HoldReopen); unlike
+        // `busy`, it holds back no other action.
+        private int reopenHolds;
         // Which statistics request is the latest, so an older answer never overwrites a newer one.
         private int statsToken;
         // One statistics read at a time; a period change made during one is remembered here.
@@ -795,6 +800,9 @@ namespace CodexAutoResume
         // A snapshot has been shown (ApplySnapshot), or there is none and the pages say so
         // (MarkUnavailable, with null). A page of the advanced edition follows the same read.
         partial void SnapshotApplied(Dictionary<string, object> reply);
+        // Pending has been built but for its buttons (BuildPending): what the advanced edition has
+        // waiting for a reset - its own rules, not recoveries - is shown under the list (v0.6.14).
+        partial void PendingBuilt(Panel page);
         // One argument of the window's command line has been read (ParseArguments): a page of
         // the advanced edition's, or the keyboard on its tab, is one the standard checks refuse.
         static partial void ArgumentParsed(string argument, OpenRequest request);
@@ -903,6 +911,9 @@ namespace CodexAutoResume
                 TableLayoutPanel section = settings && sections.ContainsKey(currentSection) ? sections[currentSection] : null;
                 page.SuspendLayout();
                 if (section != null) section.SuspendLayout();
+                // Coming back to the Overview: its Waiting lines, which the clock writes only while it is in front
+                // (UpdateCountdowns), written before it shows and so laid out with it.
+                if (name == "overview" && snapshot != null) UpdateCountdowns();
                 page.Visible = true;
                 if (section != null) section.ResumeLayout(true);
                 page.ResumeLayout(true);

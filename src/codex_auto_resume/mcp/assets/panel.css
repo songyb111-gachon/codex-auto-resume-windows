@@ -529,6 +529,8 @@ details.inner > .fold-body > .setting { border-top: 1px solid var(--line); }
 }
 .savebar .note { flex: 1 1 200px; min-width: 0; }
 .savebar button { margin-inline-start: auto; }
+/* v0.6.14: Open beside the chat stays at the bar's leading edge, wrapped or not. */
+.savebar .beside { margin-inline-start: 0; }
 
 @media (max-width: 520px) {
   body { padding: 10px 10px 16px; }

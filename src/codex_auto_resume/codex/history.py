@@ -20,22 +20,10 @@ from .errors import SourceError
 from .labels import _label
 from .values import (KNOWN_STATUSES, MAX_ITEM_BYTES, MAX_META_BYTES,
                      MAX_SCAN_BYTES, PROGRESS_ITEM_TYPES, _json,
-                     _turn_status, epoch, normalize)
+                     _turn_status, epoch, error_shape, normalize)
 from .paths import _safe_path
 from . import workspace
-from .payload import _choose_reset, _item_is_ours, _queue_has_marker, detect
-
-
-def _needing(row, kinds):
-    """A failed turn whose category is one of `kinds`, normalized as `detect` normalizes one and with
-    the id it would have - or None. Never passed to `detect`, and never registered."""
-    normalized = normalize(row)
-    if (normalized is None or normalized["status"] != "failed"
-            or normalized["category"] not in kinds or normalized["completed_at"] is None):
-        return None
-    normalized["interruption_id"] = ids.interruption_id(
-        *(normalized[k] for k in ("thread_id", "turn_id", "completed_at", "ordinal")))
-    return normalized
+from .payload import _choose_reset, _item_is_ours, _needing, _queue_has_marker, detect  # noqa: F401
 
 
 class HistoryMixin:
@@ -116,12 +104,17 @@ class HistoryMixin:
                 "ORDER BY rollout_ordinal DESC LIMIT 1", (thread_id,)).fetchone()
         return normalize(dict(row)) if row else None
 
-    def latest_failures(self, since: float, *, needs_you=frozenset()) -> list[dict]:
+    def latest_failures(self, since: float, *, needs_you=frozenset(), admissible=False,
+                        shapes=False) -> list[dict]:
         """Every conversation's latest turn that failed since `since` and that this product would
         recover (payload.detect). `needs_you` (v0.6.11) adds, from the same read, those whose category
         is one of these - failures that need a person (needsyou.KINDS) - normalized the same way and
         with the id `detect` would have given them, but never through `detect`, so none of them can
-        ever become a record to recover (A14). Empty, the default, and this is v0.6.10's read."""
+        ever become a record to recover (A14). Empty, the default, and this is v0.6.10's read.
+
+        v0.6.14, only while the plug wants P17 (domain/plug.py): `admissible` adds, marked so, those
+        it may take up (failures.ADMISSIBLE), and `shapes` gives each entry its error's shape - never a
+        word of a message (failures.shape); each through the same check of its conversation (A15)."""
         if not epoch(since):
             raise SourceError("Invalid detection start timestamp")
         # Read only failure metadata; no transcript scanning or folder traversal.
@@ -138,6 +131,12 @@ class HistoryMixin:
             eligible = detect(dict(row))
             if eligible is None and needs_you:
                 eligible = _needing(dict(row), needs_you)
+            if eligible is None and admissible:
+                eligible = _needing(dict(row), failures.ADMISSIBLE)
+            if eligible is not None and admissible and eligible["category"] in failures.ADMISSIBLE:
+                eligible["admissible"] = True
+            if eligible is not None and shapes:
+                eligible["shape"] = error_shape(dict(row))
             if eligible and self._metadata(eligible["thread_id"]) is not None:
                 result.append(eligible)
         return result
@@ -552,6 +551,23 @@ class HistoryMixin:
                     (thread_id, turn_id, *kinds)).fetchone()[0])
         except (SourceError, sqlite3.Error, OSError, ValueError):
             return None
+
+    def turn_item_counts(self, thread_id: str, turn_id: str):
+        """How many items of each kind one turn left, counts only (B7), or None: v0.6.14, for the
+        edition's plug's samples of failures it took up. Core itself never asks it."""
+        if not ids.is_uuid(thread_id) or not ids.is_uuid(turn_id):
+            return None
+        counts = {kind: 0 for kind in sorted(PROGRESS_ITEM_TYPES) + ["userMessage", "other"]}
+        try:
+            with self._db("history") as connection:
+                rows = connection.execute(
+                    "SELECT item_type, count(*) FROM thread_items WHERE thread_id=? AND turn_id=? "
+                    "GROUP BY item_type", (thread_id, turn_id)).fetchall()
+        except (SourceError, sqlite3.Error, OSError, ValueError):
+            return None
+        for kind, count in rows:
+            counts[kind if kind in counts else "other"] += int(count)
+        return counts
 
     def turn_markers(self, thread_id: str, turn_id: str, markers) -> list:
         """Which of these markers - or client ids a marker-free continuation was queued under -

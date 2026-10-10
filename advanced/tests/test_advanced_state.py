@@ -23,18 +23,23 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import advancedcase as ac  # noqa: E402
-from codex_auto_resume import cli, config, settings, shortcut, startup  # noqa: E402
+from codex_auto_resume import cli, config, failures, settings, shortcut, startup  # noqa: E402
+from codex_auto_resume.domain.plug import Alternative, FailureForm  # noqa: E402
 from codex_auto_resume.store import Store  # noqa: E402
 from codex_auto_resume.store.schema import _TABLES_V4  # noqa: E402
 from codex_auto_resume_advanced import vocabulary  # noqa: E402
 from codex_auto_resume_advanced.state import (ATTACHED, EVENT_LIMIT, EVENT_MAX_AGE,  # noqa: E402
-                                              FILE_NAME, SCHEMA_VERSION, TABLES, AdvancedState,
-                                              StateError)
+                                              FILE_NAME, SCHEMA_VERSION, TABLES, WATCH_LIMIT,
+                                              AdvancedState, StateError)
+from codex_auto_resume_advanced.registry import Option  # noqa: E402
+from codex_auto_resume_advanced.state import Refused, StaleGeneration  # noqa: E402
+from codex_auto_resume_advanced.state import choices as choices_module  # noqa: E402
 from codex_auto_resume_advanced.state import schema as schema_module  # noqa: E402
 from codex_auto_resume_advanced.state import journal as journal_module  # noqa: E402
 from codex_auto_resume_advanced.vocabulary import (Actor, ArmingState, ArmingWarning,  # noqa: E402
-                                                   JournalCode, OffReason, OverrideKind,
-                                                   RecordState)
+                                                   JournalCode, OffReason, OptionKey, OverrideKind,
+                                                   RecordState, Refusal, RuleReason, RuleState,
+                                                   SpendOutcome)
 from test_cli import FakeWinreg, _reset_logging  # noqa: E402
 
 DAY = 86400
@@ -59,7 +64,7 @@ class VocabularyTests(unittest.TestCase):
         generate the names."""
         lists = [value for _name, value in inspect.getmembers(vocabulary, inspect.isclass)
                  if issubclass(value, StrEnum) and value is not StrEnum]
-        self.assertGreaterEqual(len(lists), 11)
+        self.assertGreaterEqual(len(lists), 12)
         for words in lists:
             values = [member.value for member in words]
             self.assertEqual(len(values), len(set(values)), words.__name__)
@@ -70,7 +75,7 @@ class VocabularyTests(unittest.TestCase):
     def test_every_tripwire_is_a_reason_a_capability_is_off(self):
         self.assertEqual({str(word) for word in vocabulary.TRIPWIRES},
                          {"submission_unknown", "local_check_failed", "failed_here", "incompatible",
-                          "hook_exception", "statement_changed", "measurement_failed"})
+                          "hook_exception", "statement_changed", "measurement_failed", "duplicate_seen"})
 
 
 class FileTests(StateCase):
@@ -120,7 +125,8 @@ class FileTests(StateCase):
 
     def test_a_file_that_is_not_exactly_this_schema_is_refused_not_repaired(self):
         for damage in ("CREATE TABLE extra (x)", "ALTER TABLE journal ADD COLUMN words TEXT",
-                       "PRAGMA user_version=3", "PRAGMA user_version=1", "DELETE FROM meta"):
+                       "PRAGMA user_version=4", "PRAGMA user_version=2", "PRAGMA user_version=1",
+                       "DELETE FROM meta", "DROP TABLE samples", "ALTER TABLE samples ADD COLUMN words TEXT"):
             with self.subTest(damage):
                 self.home = self.home.parent / ("home-%d" % abs(hash(damage)))
                 self.paths = config.Paths(self.home)
@@ -140,9 +146,9 @@ class FileTests(StateCase):
         (self.paths.advanced_dir / config.OWNER_MARKER).write_text(config.OWNER_TEXT, encoding="utf-8")
         path = self.paths.advanced_dir / FILE_NAME
         with contextlib.closing(sqlite3.connect(path)) as connection:
-            for statement in schema_module.STATEMENTS:
+            for statement in schema_module.STATEMENTS_V2:
                 statement = statement.replace(",\n        %s" % schema_module.WARNINGS_COLUMN, "")
-                connection.execute(statement.replace("user_version=%d" % SCHEMA_VERSION, "user_version=1"))
+                connection.execute(statement.replace("user_version=2", "user_version=1"))
             for capability, state, revision, version in rows:
                 connection.execute("INSERT INTO arming VALUES (?,?,?,?,?,?,?)",
                                    (capability, state, self.now, "dashboard", None, revision, version))
@@ -164,6 +170,47 @@ class FileTests(StateCase):
             self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION)
             self.assertEqual(AdvancedState._tables(connection), TABLES)
         self.assertEqual(self.state().meta(), {"generation": 0, "global_hourly": 12})
+
+    def version_two(self):
+        """A file exactly as v0.6.11 and v0.6.12 made it - version 2, seven tables - with a row in
+        each table a person's or a capability's past is kept in."""
+        self.paths.advanced_dir.mkdir(parents=True)
+        (self.paths.advanced_dir / config.OWNER_MARKER).write_text(config.OWNER_TEXT, encoding="utf-8")
+        path = self.paths.advanced_dir / FILE_NAME
+        with contextlib.closing(sqlite3.connect(path)) as connection:
+            for statement in schema_module.STATEMENTS_V2:
+                connection.execute(statement)
+            connection.execute("INSERT INTO arming VALUES ('test_wake','shadow',?,'dashboard',NULL,1,NULL,"
+                               "'unmeasured')", (self.now,))
+            connection.execute("INSERT INTO spend (at, capability, thread_id) VALUES (?, 'test_wake', ?)",
+                               (self.now, ac.THREAD))
+            connection.execute("INSERT INTO journal (at, code) VALUES (?, 'watched')", (self.now,))
+            connection.execute("UPDATE meta SET generation=7, global_hourly=5")
+            connection.commit()
+            self.assertEqual(AdvancedState._tables(connection), schema_module.TABLES_V2)
+        return path
+
+    def test_a_version_two_file_is_brought_to_version_three_and_keeps_every_row(self):
+        """v0.6.11's and v0.6.12's file: the four tables of version 3 are added when it is first read,
+        every row it held is kept, and the new tables start empty."""
+        path = self.version_two()
+        state = self.state()
+        self.assertEqual(state.arming()["test_wake"]["warnings"], (ArmingWarning.UNMEASURED,))
+        self.assertEqual(state.meta(), {"generation": 7, "global_hourly": 5})
+        self.assertEqual(state.spent("test_wake", ac.THREAD)["conversation_day"], 1)
+        self.assertEqual([line["code"] for line in state.journal()], ["watched"])
+        self.assertEqual((state.rules(), state.failure_samples(0)), ([], []))
+        state.close()
+        with contextlib.closing(sqlite3.connect(path)) as connection:
+            self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION)
+            self.assertEqual(AdvancedState._tables(connection), TABLES)
+
+    def test_a_version_one_file_takes_both_steps(self):
+        path = self.version_one(("test_wake", "shadow", 1, None))
+        self.assertEqual(self.state().arming()["test_wake"]["state"], ArmingState.SHADOW)
+        with contextlib.closing(sqlite3.connect(path)) as connection:
+            self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 3)
+            self.assertEqual(AdvancedState._tables(connection), TABLES)
 
     def test_a_version_one_file_that_is_not_exactly_version_one_is_refused(self):
         path = self.version_one()
@@ -357,6 +404,272 @@ class ClosedWordTests(StateCase):
         self.assertFalse(state.sample("elsewhere", "woke"))
 
 
+class ChoicesCase(StateCase):
+    def definition(self, **changes):
+        fields = dict(points=frozenset({ac.Point.ADMISSION, ac.Point.GATES}), codes=("matched", "sampled"),
+                      options=(Option(OptionKey.ATTEMPTS, (1, 2, 3), 1),), rules_editor=True, samples=True)
+        fields.update(changes)
+        return ac.definition(**fields)
+
+    def armed_state(self, *definitions):
+        state = self.state(*(definitions or (self.definition(),)))
+        state.move("test_wake", ArmingState.SHADOW, actor=Actor.DASHBOARD, revision=1)
+        return state
+
+    def generation(self, state):
+        return state.meta()["generation"]
+
+
+SHAPE = {"code": "brandNewVariant", "status": 503, "form": FailureForm.TAGGED, "has_message": True}
+
+
+class OptionTests(ChoicesCase):
+    def test_every_choice_is_its_default_until_a_person_picks_another_it_offers(self):
+        state = self.state(self.definition())
+        self.assertEqual(state.options("test_wake"), {OptionKey.ATTEMPTS: 1})
+        self.assertFalse(self.home.exists(), "a read makes nothing")
+        after = state.set_option("test_wake", OptionKey.ATTEMPTS, 3, generation=0, actor=Actor.DASHBOARD)
+        self.assertEqual((after, state.options("test_wake")), (1, {OptionKey.ATTEMPTS: 3}))
+        for key, value in ((OptionKey.ATTEMPTS, 4), (OptionKey.ATTEMPTS, "3"), (OptionKey.CEILING_HOURS, 2),
+                           ("tries", 2)):
+            with self.subTest(key=key, value=value):
+                with self.assertRaises(Refused) as raised:
+                    state.set_option("test_wake", key, value, generation=after, actor=Actor.DASHBOARD)
+                self.assertEqual(raised.exception.refusal, Refusal.OPTION_INVALID)
+        with self.assertRaises(StaleGeneration):
+            state.set_option("test_wake", OptionKey.ATTEMPTS, 2, generation=0, actor=Actor.DASHBOARD)
+        self.assertIn(JournalCode.OPTION_CHANGED, [line["code"] for line in state.journal()])
+
+    def test_a_stored_value_the_capability_no_longer_offers_reads_as_its_default(self):
+        state = self.armed_state()
+        state.set_option("test_wake", OptionKey.ATTEMPTS, 2, generation=self.generation(state),
+                         actor=Actor.DASHBOARD)
+        self.raw(state).execute("UPDATE options SET value=9").connection.commit()
+        self.assertEqual(state.options("test_wake"), {OptionKey.ATTEMPTS: 1})
+
+
+class RuleTests(ChoicesCase):
+    def add(self, state, tag="brandNewVariant", low=None, high=None, category="timeout"):
+        return state.add_rule(tag, low, high, category, generation=self.generation(state), actor=Actor.DASHBOARD)
+
+    def refusal(self, state, *arguments, **keywords):
+        with self.assertRaises(Refused) as raised:
+            self.add(state, *arguments, **keywords)
+        return raised.exception.refusal
+
+    def test_a_rule_names_a_code_of_codexs_a_range_and_a_temporary_kind(self):
+        state = self.armed_state()
+        rule, after = self.add(state, low=500, high=599, category="server_5xx")
+        self.assertEqual(after, self.generation(state))
+        (stored,) = state.rules()
+        self.assertEqual((stored["rule_id"], stored["tag"], stored["status_from"], stored["status_to"],
+                          stored["category"], stored["known"]), (rule, "brandNewVariant", 500, 599, "server_5xx", False))
+        self.assertEqual(state.remove_rule(rule, generation=after, actor=Actor.DASHBOARD), after + 1)
+        self.assertEqual(state.rules(), [])
+        with self.assertRaises(Refused) as raised:
+            state.remove_rule(rule, generation=after + 1, actor=Actor.DASHBOARD)
+        self.assertEqual(raised.exception.refusal, Refusal.UNKNOWN_RULE)
+
+    def test_no_code_the_product_knows_and_none_that_may_name_a_decision_is_ever_a_rule(self):
+        state = self.armed_state()
+        for tag in failures.CODES:
+            with self.subTest(tag=tag):
+                self.assertEqual(self.refusal(state, tag), Refusal.RULE_KNOWN)
+        for tag in ("policyRefused", "budgetExceeded", "approvalDenied", "userCancelled", "quotaGone",
+                    "SignInAgain", "tokenExpired", "contextTooLong", "abortedByUser"):
+            with self.subTest(tag=tag):
+                self.assertEqual(self.refusal(state, tag), Refusal.RULE_DECISION)
+        self.assertEqual(state.rules(), [])
+
+    def test_each_other_way_a_rule_is_refused(self):
+        state = self.armed_state()
+        for arguments, refusal in (((("two words",), {}), Refusal.RULE_SHAPE),
+                                   ((("9lives",), {}), Refusal.RULE_SHAPE),
+                                   ((("x" * 65,), {}), Refusal.RULE_SHAPE),
+                                   (((None,), {}), Refusal.RULE_SHAPE),
+                                   (((), {"low": 99, "high": 200}), Refusal.RULE_RANGE),
+                                   (((), {"low": 500, "high": 600}), Refusal.RULE_RANGE),
+                                   (((), {"low": 503, "high": 500}), Refusal.RULE_RANGE),
+                                   (((), {"low": 500}), Refusal.RULE_RANGE),
+                                   (((), {"category": "usage_limit"}), Refusal.INVALID_REQUEST),
+                                   (((), {"category": "terminal_auth"}), Refusal.INVALID_REQUEST)):
+            with self.subTest(arguments=arguments):
+                self.assertEqual(self.refusal(state, *arguments[0], **arguments[1]), refusal)
+        self.add(state, low=500, high=503)
+        self.assertEqual(self.refusal(state, low=503, high=599), Refusal.RULE_OVERLAP)
+        self.assertEqual(self.refusal(state), Refusal.RULE_OVERLAP, "no range covers every status")
+        self.add(state, low=504, high=599, category="server_5xx")
+        for index in range(8):
+            self.add(state, "otherVariant%d" % index)
+        self.assertEqual(len(state.rules()), choices_module.RULES_LIMIT)
+        self.assertEqual(self.refusal(state, "oneMore"), Refusal.RULES_FULL)
+
+    def test_a_rule_whose_code_the_product_comes_to_know_says_so(self):
+        state = self.armed_state()
+        self.add(state)
+        self.raw(state).execute("UPDATE rules SET tag='serverOverloaded'").connection.commit()
+        self.assertTrue(state.rules()[0]["known"])
+
+    def test_the_file_refuses_a_rule_or_a_sample_the_code_would_not_write(self):
+        state = self.armed_state()
+        connection = self.raw(state)
+        for statement in ("INSERT INTO rules (tag, category, created_at) VALUES ('two words', 'timeout', 1)",
+                          "INSERT INTO rules (tag, category, created_at) VALUES ('fine', 'usage_limit', 1)",
+                          "INSERT INTO rules (tag, status_from, category, created_at) VALUES ('fine', 500, 'timeout', 1)",
+                          "INSERT INTO rules (tag, status_from, status_to, category, created_at) "
+                          "VALUES ('fine', 503, 500, 'timeout', 1)",
+                          "INSERT INTO samples (at, tag, form, has_words) VALUES (1, 'a b', 'tagged', 1)",
+                          "INSERT INTO samples (at, form, has_words) VALUES (1, 'spoken', 1)",
+                          "INSERT INTO samples (at, status, form, has_words) VALUES (1, 700, 'tagged', 1)",
+                          "INSERT INTO samples (at, form, has_words, items_agent) VALUES (1, 'tagged', 1, -1)",
+                          "INSERT INTO admissions VALUES ('%s', 'test_wake', 'hold', NULL, NULL, NULL, NULL, "
+                          "NULL, 0, 1)" % ac.KEY,
+                          "INSERT INTO options VALUES ('test_wake', 'tries', 2)",
+                          "INSERT INTO options VALUES ('test_wake', 'attempts', 0)"):
+            with self.subTest(statement):
+                with self.assertRaises(sqlite3.IntegrityError):
+                    connection.execute(statement)
+
+
+class AdmissionTests(ChoicesCase):
+    def test_taking_one_up_again_keeps_its_first_time_and_that_it_was_sampled(self):
+        state = self.armed_state()
+        self.assertTrue(state.admit(ac.KEY, "test_wake", Alternative.ADMIT, shape=SHAPE, at=self.now))
+        self.assertTrue(state.taken(ac.KEY, "test_wake", "sampled", sample=SHAPE, at=self.now + 1))
+        self.assertTrue(state.admit(ac.KEY, "test_wake", Alternative.AS_TIMEOUT, rule_id=4, at=self.now + 9))
+        row = state.admission(ac.KEY)
+        self.assertEqual((row["answer"], row["rule_id"], row["sampled"], row["created_at"], row["tag"]),
+                         (Alternative.AS_TIMEOUT, 4, True, self.now, None))
+        self.assertFalse(state.taken(ac.KEY, "test_wake", "sampled", sample=SHAPE), "once an interruption")
+        self.assertEqual(len(state.failure_samples(0)), 1)
+
+    def test_nothing_is_remembered_where_nothing_was_ever_turned_on(self):
+        state = self.state(self.definition())
+        self.assertFalse(state.admit(ac.KEY, "test_wake", Alternative.ADMIT))
+        self.assertIsNone(state.admission(ac.KEY))
+        self.assertFalse(self.home.exists())
+
+    def test_a_word_that_takes_nothing_up_a_bad_shape_or_another_capabilitys_mark_is_refused(self):
+        state = self.armed_state()
+        for call in (lambda: state.admit(ac.KEY, "test_wake", Alternative.HOLD),
+                     lambda: state.admit(ac.KEY, "test_wake", "admit please"),
+                     lambda: state.admit(ac.KEY, "elsewhere", Alternative.ADMIT),
+                     lambda: state.admit("short", "test_wake", Alternative.ADMIT),
+                     lambda: state.admit(ac.KEY, "test_wake", Alternative.ADMIT, shape=dict(SHAPE, code="a b")),
+                     lambda: state.admit(ac.KEY, "test_wake", Alternative.ADMIT, shape=dict(SHAPE, form="x")),
+                     lambda: state.taken(ac.KEY, "test_wake", "woke")):
+            with self.subTest(call=call):
+                with self.assertRaises(StateError):
+                    call()
+        state.admit(ac.KEY, "test_wake", Alternative.ADMIT)
+        self.assertFalse(state.taken("b" * 64, "test_wake", "sampled"))
+
+    def test_a_sample_keeps_codes_numbers_forms_and_times_and_never_a_word(self):
+        """The fixture's message reaches nothing: the shape a sample is made of has no field for it,
+        and the file's bytes do not hold it."""
+        state = self.armed_state()
+        state.admit(ac.KEY, "test_wake", Alternative.ADMIT, shape=SHAPE)
+        state.taken(ac.KEY, "test_wake", "sampled", at=self.now + 59, sample=dict(
+            SHAPE, message="the secret words", items={"agentMessage": 2, "userMessage": 1, "other": 0},
+            duration=12.5))
+        (sample,) = state.failure_samples(0)
+        self.assertEqual(sample, {"at": float(int((self.now + 59) // 60) * 60), "tag": "brandNewVariant",
+                                  "status": 503, "form": "tagged", "has_words": 1, "items_agent": 2,
+                                  "items_command": None, "items_file": None, "items_tool": None,
+                                  "items_user": 1, "items_other": 0, "duration": 12.5})
+        state.close()
+        self.assertNotIn(b"secret", state.path.read_bytes())
+        line = [line for line in self.state(self.definition()).journal() if line["code"] == "tw.sampled"]
+        self.assertEqual(len(line), 1)
+
+    def test_a_capability_that_does_not_sample_keeps_no_sample(self):
+        state = self.armed_state(self.definition(samples=False))
+        state.admit(ac.KEY, "test_wake", Alternative.ADMIT, shape=SHAPE)
+        self.assertTrue(state.taken(ac.KEY, "test_wake", "matched", sample=SHAPE))
+        self.assertEqual(state.failure_samples(0), [])
+
+    def test_a_rules_hits_are_the_failures_it_took_up_that_core_went_on_with(self):
+        state = self.armed_state()
+        state.admit(ac.KEY, "test_wake", Alternative.AS_TIMEOUT, rule_id=1)
+        state.admit("b" * 64, "test_wake", Alternative.AS_TIMEOUT, rule_id=1)
+        self.assertEqual(state.rule_hits(0), {})
+        state.taken(ac.KEY, "test_wake", "matched")
+        self.assertEqual(state.rule_hits(0), {1: 1})
+        self.assertEqual(state.rule_hits(self.now + 1), {})
+
+    def test_a_capabilitys_view_reads_its_own_and_writes_nothing(self):
+        own, other = self.definition(), self.definition(id="test_other", journal_prefix="to", rules_editor=False)
+        state = self.state(own, other)
+        state.move("test_wake", ArmingState.SHADOW, actor=Actor.DASHBOARD, revision=1)
+        state.add_rule("brandNewVariant", None, None, "timeout", generation=1, actor=Actor.DASHBOARD)
+        state.admit(ac.KEY, "test_wake", Alternative.ADMIT)
+        mine, theirs = state.scoped("test_wake"), state.scoped("test_other")
+        self.assertEqual(mine.admission(ac.KEY)["capability"], "test_wake")
+        self.assertIsNone(theirs.admission(ac.KEY))
+        self.assertEqual(len(mine.rules()), 1)
+        self.assertEqual(theirs.rules(), [], "the rules are the one capability's that edits them")
+        self.assertEqual(mine.options(), {OptionKey.ATTEMPTS: 1})
+        self.assertEqual(mine.now(), self.now)
+        for name in ("admit", "taken", "add_rule", "set_option", "move", "state", "path"):
+            with self.subTest(name):
+                with self.assertRaises(AttributeError):
+                    getattr(mine, name)
+        self.assertIs(mine.count("matched"), False, "a view given no `on` counts nothing")
+
+    def test_a_capabilitys_view_counts_its_own_words_only_while_it_is_on(self):
+        state = self.state(self.definition())
+        state.move("test_wake", ArmingState.SHADOW, actor=Actor.DASHBOARD, revision=1)
+        on = []
+        view = state.scoped("test_wake", on=lambda: bool(on))
+        self.assertIs(view.count("matched"), False)
+        on.append(True)
+        self.assertIs(view.count("matched"), True)
+        self.assertIs(view.count("not_its_own"), False)
+        self.assertEqual(state.samples("test_wake"), {"matched": 1})
+        self.assertIn("tw.matched", [line["code"] for line in state.journal(capability="test_wake")])
+
+
+class ChoiceWriteTests(ChoicesCase):
+    """A person's choices and rules are written only in the Dashboard, against the generation it read,
+    and each moves the generation on - so a page showing old choices cannot arm against new ones."""
+
+    def test_only_the_dashboard_writes_a_choice_or_a_rule_and_a_stale_page_is_refused(self):
+        runtime = self.runtime(self.definition())
+        arming = runtime.arming
+        for actor in (Actor.MCP, Actor.TRAY, Actor.CARD, "someone"):
+            with self.subTest(actor=actor):
+                self.assertEqual(arming.set_option("test_wake", OptionKey.ATTEMPTS, 2, generation=0, actor=actor)
+                                 ["refusal"], Refusal.NOT_THE_DASHBOARD)
+                self.assertEqual(arming.add_rule("brandNewVariant", None, None, "timeout", generation=0,
+                                                 actor=actor)["refusal"], Refusal.NOT_THE_DASHBOARD)
+                self.assertEqual(arming.remove_rule(1, generation=0, actor=actor)["refusal"],
+                                 Refusal.NOT_THE_DASHBOARD)
+        done = arming.set_option("test_wake", OptionKey.ATTEMPTS, 2, generation=0, actor=Actor.DASHBOARD)
+        self.assertEqual((done["done"], done["generation"]), (True, 1))
+        stale = self.arm(runtime, generation=0)
+        self.assertEqual(stale["refusal"], Refusal.STALE_GENERATION, "armed against the old choice")
+        self.assertEqual(arming.set_option("test_wake", OptionKey.ATTEMPTS, 3, generation=0,
+                                           actor=Actor.DASHBOARD)["refusal"], Refusal.STALE_GENERATION)
+        self.assertEqual(arming.set_option("test_wake", OptionKey.ATTEMPTS, 9, generation=1,
+                                           actor=Actor.DASHBOARD)["refusal"], Refusal.OPTION_INVALID)
+        self.assertEqual(arming.set_option("nobody", OptionKey.ATTEMPTS, 2, generation=1,
+                                           actor=Actor.DASHBOARD)["refusal"], Refusal.UNKNOWN_CAPABILITY)
+        added = arming.add_rule("brandNewVariant", None, None, "timeout", generation=1, actor=Actor.DASHBOARD)
+        self.assertEqual((added["done"], added["generation"]), (True, 2))
+        self.assertEqual(arming.add_rule("policyRefused", None, None, "timeout", generation=2,
+                                         actor=Actor.DASHBOARD)["refusal"], Refusal.RULE_DECISION)
+        self.assertEqual(arming.remove_rule(added["rule"], generation=2, actor=Actor.DASHBOARD)["generation"], 3)
+        self.assertEqual(arming.remove_rule(added["rule"], generation=3, actor=Actor.DASHBOARD)["refusal"],
+                         Refusal.UNKNOWN_RULE)
+
+    def test_a_choice_needs_no_capability_on_and_no_policy_refuses_it(self):
+        self.policy = ac.policy.Policy(forbid=True)
+        runtime = self.runtime(self.definition())
+        self.assertTrue(runtime.arming.set_option("test_wake", OptionKey.ATTEMPTS, 3, generation=0,
+                                                  actor=Actor.DASHBOARD)["done"])
+        self.assertEqual(runtime.state.options("test_wake"), {OptionKey.ATTEMPTS: 3})
+
+
 class RecordTests(StateCase):
     def test_records_move_only_along_their_moves_and_a_claim_is_counted(self):
         state = self.state()
@@ -389,6 +702,192 @@ class RecordTests(StateCase):
         self.assertEqual(state.overrides_for(ac.KEY), [])
 
 
+class ResetStateTests(StateCase):
+    """The reset actions' four tables (v0.6.14): windows, the last reading, the rules and the spends - closed
+    words, a message's words only while it is still to act, and one spend for each filling of a window."""
+
+    WORDS = "Pick up the migration where it stopped."
+
+    def message(self, state, thread=ac.THREAD, key=None, **changes):
+        made = dict(thread_id=thread, words=self.WORDS, record_id=key or "%064x" % (len(state.reset_rules(pending=None)) + 7))
+        made.update(changes)
+        return state.add_reset_rule("reset_message", "codex", 300, 1, **made)
+
+    def test_the_tables_are_version_three_and_start_empty_with_one_reading(self):
+        state = self.state()
+        state.move("test_wake", ArmingState.SHADOW, actor=Actor.DASHBOARD, revision=1)
+        self.assertEqual(SCHEMA_VERSION, 3)
+        for name in ("windows", "readings", "reset_rules", "credit_spends"):
+            self.assertIn(name, TABLES)
+        self.assertEqual((state.windows(), state.reset_rules(), state.credit_spends()), ({}, [], []))
+        self.assertEqual(set(state.reading()), set(TABLES["readings"]) - {"singleton"})
+
+    def test_a_message_makes_its_record_one_to_a_conversation_and_ten_in_all(self):
+        state = self.state()
+        rule = self.message(state)
+        found = state.reset_rule(rule)
+        self.assertEqual((found["state"], found["words"], found["thread_id"], found["record_state"]),
+                         (RuleState.COUNTING, self.WORDS, ac.THREAD, RecordState.WAITING))
+        with self.assertRaises(Refused) as refused:
+            self.message(state)
+        self.assertEqual(refused.exception.refusal, Refusal.ALREADY_SCHEDULED)
+        for n in range(9):
+            self.message(state, thread="0a1b2c3d-0001-7000-8000-%012d" % (100 + n))
+        with self.assertRaises(Refused) as refused:
+            self.message(state, thread=ac.OTHER_THREAD)
+        self.assertEqual(refused.exception.refusal, Refusal.RESETS_FULL)
+        for _ in range(4):
+            state.add_reset_rule("reset_credit", "codex", 300, 1)
+        with self.assertRaises(Refused):
+            state.add_reset_rule("reset_credit", "codex", 300, 2)
+
+    def test_what_a_rule_may_be_is_checked_before_it_is_written(self):
+        state = self.state()
+        for call, refusal in ((lambda: state.add_reset_rule("reset_message", "codex", 300, 0, thread_id=ac.THREAD,
+                                                             words="x", record_id="%064x" % 1), Refusal.OCCASION_INVALID),
+                              (lambda: state.add_reset_rule("reset_credit", "codex", 300, 10), Refusal.OCCASION_INVALID),
+                              (lambda: self.message(state, words=""), Refusal.MESSAGE_REFUSED),
+                              (lambda: self.message(state, words="x" * 8193), Refusal.MESSAGE_REFUSED)):
+            with self.subTest(refusal=refusal):
+                with self.assertRaises(Refused) as refused:
+                    call()
+                self.assertEqual(refused.exception.refusal, refusal)
+        for call in (lambda: state.add_reset_rule("goal_continuation", "codex", 300, 1),
+                     lambda: state.add_reset_rule("reset_credit", "team", 300, 1),
+                     lambda: state.add_reset_rule("reset_credit", "codex", 0, 1),
+                     lambda: state.add_reset_rule("reset_credit", "codex", 300, 1, words="no words for a credit"),
+                     lambda: self.message(state, thread="not a thread"),
+                     lambda: self.message(state, key="short")):
+            with self.subTest(call=call):
+                with self.assertRaises(StateError):
+                    call()
+
+    def test_a_finished_rule_holds_no_words_and_the_file_refuses_them(self):
+        state = self.state()
+        rule = self.message(state)
+        self.assertTrue(state.end_rule(rule, RuleState.DONE, RuleReason.EXPIRED))
+        found = state.reset_rule(rule)
+        self.assertEqual((found["words"], found["state"], found["record_state"]), (None, RuleState.DONE, RecordState.FINISHED))
+        connection = self.raw(state)
+        for statement in ("UPDATE reset_rules SET words='back again' WHERE rule_id=%d" % rule,
+                          "INSERT INTO reset_rules (capability, bucket, minutes, ordinal, repeat, ask_first, words, "
+                          "created_at, state) VALUES ('reset_credit','codex',300,1,0,0,'words',1,'counting')",
+                          "INSERT INTO reset_rules (capability, bucket, minutes, ordinal, repeat, ask_first, "
+                          "created_at, state) VALUES ('reset_message','codex',300,1,0,0,1,'counting')",
+                          "INSERT INTO reset_rules (capability, bucket, minutes, ordinal, repeat, ask_first, "
+                          "created_at, state) VALUES ('reset_credit','codex',300,1,0,0,1,'sending')",
+                          "INSERT INTO reset_rules (capability, bucket, minutes, ordinal, repeat, ask_first, "
+                          "created_at, state, reason) VALUES ('reset_credit','codex',300,1,0,0,1,'ready','soon')",
+                          "INSERT INTO reset_rules (capability, bucket, minutes, ordinal, repeat, ask_first, "
+                          "created_at, state, gate) VALUES ('reset_credit','codex',300,1,0,0,1,'ready','a gate!')",
+                          "INSERT INTO windows (bucket, minutes, open_full, resets, hits, misses) VALUES ('codex',300,2,0,0,0)",
+                          "UPDATE readings SET credits=-1",
+                          "INSERT INTO readings (singleton) VALUES (2)"):
+            with self.subTest(statement):
+                with self.assertRaises(sqlite3.IntegrityError):
+                    connection.execute(statement)
+
+    def test_a_rule_changes_only_in_its_own_fields_and_ends_with_its_words(self):
+        state = self.state()
+        rule = self.message(state)
+        self.assertTrue(state.change_rule(rule, state=RuleState.READY, due_at=self.now, gate="thread_available",
+                                          gate_reason="notLoaded"))
+        self.assertEqual(state.reset_rule(rule)["gate"], "thread_available")
+        for changes in ({"words": "other"}, {"state": "sending"}, {"reason": "because"}, {"gate": "two words"},
+                        {"base": -1}, {"ordinal": 10}, {"due_at": "now"}):
+            with self.subTest(changes=changes):
+                with self.assertRaises(StateError):
+                    state.change_rule(rule, **changes)
+        self.assertFalse(state.change_rule(rule, expect=RuleState.COUNTING, base=1), "not while it is not that")
+        self.assertTrue(state.change_rule(rule, state=RuleState.CANCELLED, reason=RuleReason.TURNED_OFF))
+        self.assertIsNone(state.reset_rule(rule)["words"])
+
+    def test_cancel_takes_the_words_and_is_refused_once_it_is_being_sent(self):
+        state = self.state()
+        rule = self.message(state)
+        state.cancel_reset_rule(rule)
+        found = state.reset_rule(rule)
+        self.assertEqual((found["state"], found["reason"], found["words"], found["record_state"]),
+                         (RuleState.CANCELLED, RuleReason.BY_PERSON, None, RecordState.CANCELLED))
+        with self.assertRaises(Refused) as refused:
+            state.cancel_reset_rule(rule)
+        self.assertEqual(refused.exception.refusal, Refusal.UNKNOWN_RULE)
+        launching = self.message(state, key="%064x" % 99)
+        state.change_rule(launching, state=RuleState.READY, launching_at=self.now)
+        with self.assertRaises(Refused) as refused:
+            state.cancel_reset_rule(launching)
+        self.assertEqual(refused.exception.refusal, Refusal.BEING_SENT)
+        self.assertEqual(state.reset_rule(launching)["words"], self.WORDS)
+
+    def test_one_spend_for_each_filling_of_a_window_and_its_outcome_closed(self):
+        state = self.state()
+        rule = state.add_reset_rule("reset_credit", "codex", 300, 1)
+        key = "0a1b2c3d-0001-4000-8000-000000000123"
+        spend = state.add_credit_spend(rule, "codex", 300, 3, key)
+        self.assertIsNotNone(spend)
+        self.assertIsNone(state.add_credit_spend(rule, "codex", 300, 3, "0a1b2c3d-0001-4000-8000-000000000124"))
+        self.assertTrue(state.retry_credit_spend(spend))
+        self.assertFalse(state.retry_credit_spend(spend), "one retry")
+        self.assertFalse(state.drop_credit_spend(spend), "a spend asked twice is never dropped")
+        with self.assertRaises(StateError):
+            state.finish_credit_spend(spend, "refunded")
+        self.assertTrue(state.finish_credit_spend(spend, SpendOutcome.RESET))
+        self.assertFalse(state.finish_credit_spend(spend, SpendOutcome.UNKNOWN), "an outcome is written once")
+        connection = self.raw(state)
+        for statement in ("UPDATE credit_spends SET outcome='maybe'", "UPDATE credit_spends SET tries=3",
+                          "UPDATE credit_spends SET attempt_id='rc_secret_credit_id_ExampleUser_00000'"):
+            with self.subTest(statement):
+                with self.assertRaises(sqlite3.IntegrityError):
+                    connection.execute(statement)
+
+    def test_the_windows_kept_are_exactly_those_saved(self):
+        state = self.state()
+        state.move("test_wake", ArmingState.SHADOW, actor=Actor.DASHBOARD, revision=1)
+        row = {"bucket": "codex", "minutes": 300, "open_reset_at": 1_800_010_000, "open_full": True,
+               "last_closed_at": None, "resets": 2, "hits": 1, "seen_at": self.now, "misses": 0}
+        state.save_windows([row, dict(row, minutes=10080)])
+        self.assertEqual(set(state.windows()), {("codex", 300), ("codex", 10080)})
+        state.save_windows([row])
+        self.assertEqual(state.windows()[("codex", 300)]["hits"], 1)
+        self.assertEqual(set(state.windows()), {("codex", 300)})
+        state.set_reading(credits=2, expiry_known=1, nearest_expiry=1_800_500_000, read_at=self.now)
+        self.assertEqual(state.reading()["credits"], 2)
+        with self.assertRaises(StateError):
+            state.set_reading(account="ExampleUser")
+
+    def test_a_finished_rule_and_an_old_spend_are_pruned_and_nothing_still_to_act(self):
+        state = self.state()
+        pending = self.message(state)
+        done = state.add_reset_rule("reset_credit", "codex", 300, 1)
+        state.end_rule(done, RuleState.DONE, RuleReason.SPENT, at=self.now - EVENT_MAX_AGE - DAY)
+        old = self.now - EVENT_MAX_AGE - DAY
+        state.add_credit_spend(done, "codex", 300, 1, "0a1b2c3d-0001-4000-8000-000000000001", at=old)
+        state.add_credit_spend(done, "codex", 300, 2, "0a1b2c3d-0001-4000-8000-000000000002", at=self.now - 3 * DAY)
+        with state._transaction() as open_:
+            state._prune(open_, self.now)
+        self.assertEqual([rule["rule_id"] for rule in state.reset_rules(pending=None)], [pending])
+        self.assertEqual([spend["occasion"] for spend in state.credit_spends()], [2])
+
+    def test_a_version_three_file_from_before_the_reset_actions_is_given_their_tables(self):
+        """A pre-release build of this beta may have written version 3 without the reset actions' four
+        tables: they are added when it is first read, every row it held kept, its version unchanged."""
+        state = self.state()
+        state.move("test_wake", ArmingState.SHADOW, actor=Actor.DASHBOARD, revision=1)
+        state.close()
+        with contextlib.closing(sqlite3.connect(state.path)) as connection:
+            for name in ("windows", "readings", "reset_rules", "credit_spends"):
+                connection.execute("DROP TABLE %s" % name)
+            connection.commit()
+            self.assertEqual(AdvancedState._tables(connection), schema_module.TABLES_V3_BEFORE_RESETS)
+        again = self.state()
+        self.assertEqual(again.arming()["test_wake"]["state"], ArmingState.SHADOW)
+        self.assertEqual(again.reset_rules(), [])
+        again.close()
+        with contextlib.closing(sqlite3.connect(state.path)) as connection:
+            self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 3)
+            self.assertEqual(AdvancedState._tables(connection), TABLES)
+
+
 class BoundTests(StateCase):
     """Bounded as core's journal is (store/journal.py): 5,000 entries or 90 days."""
 
@@ -412,14 +911,74 @@ class BoundTests(StateCase):
         connection.executemany("INSERT INTO overrides VALUES (?, 'test_wake', 'force_once', ?, NULL)",
                                [("%064x" % n, old) for n in range(4)])
         connection.execute("INSERT INTO sampler VALUES ('test_wake', 'woke', ?, 5)", (int(old // DAY),))
+        connection.executemany("INSERT INTO admissions VALUES (?, 'test_wake', 'admit', NULL, NULL, NULL, NULL, "
+                               "NULL, 0, ?)", [("%064x" % n, old) for n in range(4)]
+                               + [("%064x" % (100 + n), recent) for n in range(EVENT_LIMIT + 5)])
+        connection.executemany("INSERT INTO samples (at, form, has_words) VALUES (?, 'tagged', 0)",
+                               [(old,)] * 6 + [(recent,)] * (EVENT_LIMIT + 7))
+        connection.execute("INSERT INTO rules (tag, category, created_at) VALUES ('brandNewVariant', 'timeout', ?)",
+                           (old,))
+        connection.execute("INSERT INTO options VALUES ('test_wake', 'attempts', 2)")
         connection.commit()
         with state._transaction() as open_:
             state._prune(open_, self.now)
         counts = {table: connection.execute("SELECT count(*) FROM %s" % table).fetchone()[0]
-                  for table in ("journal", "spend", "records", "overrides", "sampler")}
+                  for table in ("journal", "spend", "records", "overrides", "sampler", "admissions",
+                                "samples", "rules", "options")}
         self.assertEqual(counts, {"journal": EVENT_LIMIT, "spend": 30, "records": 3,
-                                  "overrides": 0, "sampler": 0})
+                                  "overrides": 0, "sampler": 0, "admissions": EVENT_LIMIT,
+                                  "samples": EVENT_LIMIT, "rules": 1, "options": 1})
         self.assertEqual({row[0] for row in connection.execute("SELECT state FROM records")}, {"waiting"})
+
+    def test_the_watch_bound_sits_inside_the_journal_s(self):
+        from codex_auto_resume_advanced import registry
+        self.assertEqual(WATCH_LIMIT, 250)
+        # Every capability watched at once, each at its bound, still fits inside the journal's.
+        self.assertLess(len(registry.DEFINITIONS) * WATCH_LIMIT, EVENT_LIMIT)
+        # The journal's own bound cuts every other line first: newer lines of another capability,
+        # a whole journal of them, never push a watched capability's answers out, and the watch
+        # bound still keeps that capability's newest WATCH_LIMIT.
+        state = self.state(ac.definition(), ac.definition(id="test_nap", journal_prefix="tn"))
+        state.move("test_wake", ArmingState.SHADOW, actor=Actor.DASHBOARD, revision=1)
+        connection = self.raw(state)
+        line = "INSERT INTO journal (at, capability, code) VALUES (?, ?, ?)"
+        connection.executemany(line, [(self.now - 3600, "test_wake", "would_have")] * (WATCH_LIMIT + 10))
+        newest = connection.execute("SELECT max(event_id) FROM journal").fetchone()[0]
+        connection.executemany(line, [(self.now - 60, "test_nap", "armed")] * EVENT_LIMIT)
+        connection.commit()
+        with state._transaction() as open_:
+            state._prune(open_, self.now)
+        kept = connection.execute("SELECT count(*), max(event_id) FROM journal WHERE capability='test_wake' "
+                                  "AND code='would_have'").fetchone()
+        self.assertEqual(tuple(kept), (WATCH_LIMIT, newest))
+        self.assertEqual(connection.execute("SELECT count(*) FROM journal").fetchone()[0], EVENT_LIMIT)
+
+    def test_each_capability_keeps_its_newest_watched_answers_and_nothing_else_is_cut(self):
+        state = self.state(ac.definition(), ac.definition(id="test_nap", journal_prefix="tn"))
+        state.move("test_wake", ArmingState.SHADOW, actor=Actor.DASHBOARD, revision=1)
+        connection = self.raw(state)
+        recent = self.now - 3600
+        before = connection.execute("SELECT count(*) FROM journal").fetchone()[0]
+        line = "INSERT INTO journal (at, capability, code) VALUES (?, ?, ?)"
+        connection.executemany(line, [(recent, "test_wake", "would_have")] * (WATCH_LIMIT + 40))
+        first = connection.execute("SELECT min(event_id) FROM journal WHERE code='would_have'").fetchone()[0]
+        connection.executemany(line, [(recent, "test_nap", "would_have")] * 30)
+        connection.executemany(line, [(recent, "test_wake", "armed")] * 60)
+        connection.commit()
+        with state._transaction() as open_:
+            state._prune(open_, self.now)
+
+        def count(capability, code):
+            return connection.execute("SELECT count(*) FROM journal WHERE capability=? AND code=?",
+                                      (capability, code)).fetchone()[0]
+        self.assertEqual(count("test_wake", "would_have"), WATCH_LIMIT)
+        # The newest: the 41st inserted is the oldest kept.
+        self.assertEqual(connection.execute("SELECT min(event_id) FROM journal WHERE capability='test_wake' "
+                                            "AND code='would_have'").fetchone()[0], first + 40)
+        self.assertEqual(count("test_nap", "would_have"), 30)
+        self.assertEqual(count("test_wake", "armed"), 60)
+        self.assertEqual(connection.execute("SELECT count(*) FROM journal").fetchone()[0],
+                         before + WATCH_LIMIT + 30 + 60)
 
     def test_a_spend_inside_the_day_is_never_pruned_however_many_there_are(self):
         state = self.state()

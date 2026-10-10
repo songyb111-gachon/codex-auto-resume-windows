@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import sys
 import time
+import uuid
 
 from codex_auto_resume import config
 from codex_auto_resume.codex.errors import AdapterError
@@ -31,9 +32,9 @@ from codex_auto_resume.diagnostics import Redactor
 from codex_auto_resume.domain.ids import is_uuid
 
 from . import evidence
-from .codex import inuse
+from .codex import credits, inuse
 from .codex.protocol import Session, SessionRefused, methods_for
-from .vocabulary import Measurement, NoteCode, Verdict
+from .vocabulary import Measurement, NoteCode, SpendOutcome, Verdict
 
 MEASUREMENTS = tuple(Measurement)
 
@@ -52,8 +53,12 @@ class Context:
     no test opens a real Codex or starts a real process.
     """
     def __init__(self, measurement, *, session_factory=None, launcher=None, backend=None,
-                 versions=None, redactor=None, thread=None):
+                 versions=None, redactor=None, thread=None, may_spend=False):
         self.measurement = Measurement(measurement)
+        # The person's second, explicit yes that MR may spend one real reset credit (v0.6.14): False
+        # unless the Dashboard's request said so in as many words (surfaces.measure), and nothing
+        # else is ever spent by a measurement.
+        self.may_spend = may_spend is True
         self._session_factory = session_factory
         self.launcher = launcher
         self.backend = backend
@@ -347,10 +352,264 @@ def _mw(ctx):
                     "end it, or did not survive; re-measure before offering start-with-Codex", **observed)
 
 
+def _mp1(ctx):
+    """The side panel's New tab lists the settings panel and opens it (v0.6.14). The harness reads
+    whether the engine kept what the app builds the entry from - the panel tool's template and its
+    `{"type": "thread"}` entrypoint - in the Codex home's MCP listing; that the New tab shows it and
+    opens it is what the person then confirms.
+
+    One read, `mcpServerStatus/list`, and nothing else: no tool is called, no resource read. It asks
+    first for this product's server by the name the plugin gives it (`_MP1_SERVER`), so only that
+    server is started; where Codex lists it under another name, it lists the home's servers - tools
+    only, a few at a time, so no page outgrows the session's one-megabyte line - and starts each of
+    them, as the app does when it starts. Starting this product's installed server runs its own
+    start-with-Codex step: a line in the installation's codex-start log, and where Start with Codex
+    is on and no watcher runs, the watcher started. Run it with the watcher running."""
+    with ctx.open() as session:
+        try:
+            servers = _mcp_servers(session, {"serverName": _MP1_SERVER, "detail": "full"}, pages=1)
+        except AdapterError as exc:
+            if not hasattr(exc, "method"):
+                raise
+            servers = []                              # Codex would not look it up by that name
+        tool = _settings_tool(servers)
+        named = tool is not None
+        if not named:
+            servers = _mcp_servers(session, {"detail": "toolsAndAuthOnly", "limit": _MP1_PAGE},
+                                   pages=_MP1_PAGES)
+            tool = _settings_tool(servers)
+    meta = tool.get("_meta") if isinstance(tool, dict) else None
+    meta = meta if isinstance(meta, dict) else {}
+    ui = meta.get("openai/ui") if isinstance(meta.get("openai/ui"), dict) else {}
+    entrypoints = ui.get("entrypoints") if isinstance(ui.get("entrypoints"), list) else []
+    from codex_auto_resume.mcp.tools import SETTINGS_UI
+    observed = {"servers": len(servers), "named_lookup": named, "server_listed": tool is not None,
+                "template_kept": meta.get("openai/outputTemplate") == SETTINGS_UI,
+                "entrypoint_kept": _THREAD_ENTRYPOINT in entrypoints}
+    if not observed["server_listed"]:
+        return _blocked("Codex lists no server with the settings panel's tool: is the plugin installed "
+                        "and enabled in this Codex home? Then run mp1 again", **observed)
+    if observed["template_kept"] and not observed["entrypoint_kept"]:
+        return Verdict.FAIL, observed, "the engine keeps the panel's template and drops its side-panel entrypoint"
+    if not observed["template_kept"]:
+        return _blocked("the listing carries no template for the panel's tool, so the harness cannot "
+                        "tell whether the engine keeps the entrypoint; confirm in the app as below, "
+                        "then set the verdict", **observed)
+    return _blocked("open a throwaway conversation's right side panel, New tab, More tools...: "
+                    "confirm Open Auto Resume settings is under Plugins and MCPs and opens the panel "
+                    "with the state the Dashboard shows, then set the verdict", **observed)
+
+
+def _mcp_servers(session, params, *, pages) -> list:
+    """The servers `mcpServerStatus/list` answers with `params`, following its cursor for at most
+    `pages` pages. Only what each server is is kept here, for `_settings_tool`; nothing of it is
+    recorded but a count and what that tool carries."""
+    servers, cursor = [], None
+    for _page in range(pages):
+        asked = dict(params, cursor=cursor) if cursor is not None else dict(params)
+        answer = session.call("mcpServerStatus/list", asked)
+        data = answer.get("data") if isinstance(answer, dict) else None
+        servers += [server for server in (data if isinstance(data, list) else []) if isinstance(server, dict)]
+        cursor = answer.get("nextCursor") if isinstance(answer, dict) else None
+        if not isinstance(cursor, str) or not cursor:
+            break
+    return servers
+
+
+def _settings_tool(servers):
+    """The settings panel's tool, as the listing carries it: `open_settings` with this product's
+    template where some server has one, else the first `open_settings` listed, else None. The
+    listing gives a server's tools by name (McpServerStatus.tools); a list is read as well."""
+    from codex_auto_resume.mcp.tools import SETTINGS_UI
+    found = []
+    for server in servers:
+        tools = server.get("tools")
+        tools = tools.values() if isinstance(tools, dict) else tools if isinstance(tools, list) else ()
+        found += [tool for tool in tools if isinstance(tool, dict) and tool.get("name") == "open_settings"]
+    for tool in found:
+        meta = tool.get("_meta")
+        if isinstance(meta, dict) and meta.get("openai/outputTemplate") == SETTINGS_UI:
+            return tool
+    return found[0] if found else None
+
+
+def _mp2(_ctx):
+    """Open beside the chat moves the panel into a right side panel tab, and closing the tab brings
+    it back (v0.6.14). Nothing for the harness to read: no session is opened."""
+    return _blocked("in a throwaway conversation ask Codex to open auto resume settings and press Open "
+                    "beside the chat: confirm a right side panel tab shows the panel, scrollable to Save, "
+                    "with the same state, and that closing the tab puts it back in the conversation with "
+                    "the button; then set the verdict", session_opened=False)
+
+
+def _mp3(_ctx):
+    """Beside the chat the panel calls its tools and reads again on return, and nothing appears in the
+    conversation (v0.6.14). Nothing for the harness to read: no session is opened."""
+    return _blocked("in that side panel tab press Preview, click away for 15 seconds and back (the panel "
+                    "redraws), set Theme to Dark and Save, then back and Save: confirm each works and no "
+                    "new item appears in the conversation, note whether an approval prompt appeared, then "
+                    "set the verdict", session_opened=False)
+
+
+# MP1's lookups: the name the plugin gives this product's server in Codex (build/plugin-mcp.json,
+# `mcpServers`), and how much of the home's listing it reads where Codex lists the server under
+# another name - ten servers to a page, at most ten pages.
+_MP1_SERVER = "codex-auto-resume"
+_MP1_PAGE = 10
+_MP1_PAGES = 10
+# The entrypoint the panel's tool declares for a conversation's side panel (mcp/tools.py).
+_THREAD_ENTRYPOINT = {"type": "thread"}
+
+
+def _read(session, params):
+    """One usage read, as the reset actions keep it (codex/credits.parse), and the reply itself for
+    the one question parse does not answer - whether the credits' details came with it."""
+    reply = session.call(credits.READ, dict(params))
+    return reply, credits.parse(reply)
+
+
+def _running(windows) -> dict:
+    """{(bucket, minutes): reset time} of each window that is running: used, with a reset ahead."""
+    return {(window["bucket"], window["window_minutes"]): window["reset_at"] for window in windows or ()
+            if window["used_percent"] > 0 and window["reset_at"] is not None}
+
+
+def _mu(ctx):
+    """Codex's usage read as the reset actions read it (v0.6.14). The harness reads usage in full, then
+    without the credits' details, then again a minute apart, and records whether the count of reset
+    credits is there, whether the details come with the first read and not with the second - the param
+    taken, not refused - and how far a running window's reset time moved. What the harness cannot see is
+    the person's: across one 5-hour reset with no Codex use, that the window then opens with the first
+    message and resets about five hours after it.
+
+    How the owner runs it: with a 5-hour window running, `measure mu`; then use no Codex from ten
+    minutes before the reset /usage shows until after it, send one short message in a throwaway
+    conversation, and record with `measure-verdict mu pass as_expected` - or a fail."""
+    with ctx.open() as session:
+        detailed, first = _read(session, credits.DETAILED)
+        light, second = _read(session, credits.LIGHT)
+        seen = [first, second]
+        for _again in range(_MU_READS - 1):
+            time.sleep(_MU_SPACING)
+            seen.append(_read(session, credits.LIGHT)[1])
+    running = _running(first["windows"])
+    drift = 0
+    for family, reset_at in running.items():
+        for reading in seen[1:]:
+            later = _running(reading["windows"]).get(family)
+            if later is not None:
+                drift = max(drift, abs(later - reset_at))
+    observed = {"windows_read": first["windows"] is not None, "count_read": first["credits"] is not None,
+                "details_with_full_read": credits.details_listed(detailed),
+                "details_left_out": not credits.details_listed(light) and second["credits"] is not None,
+                "running_windows": len(running), "max_drift_seconds": int(drift)}
+    if not (observed["windows_read"] and observed["count_read"] and observed["details_with_full_read"]
+            and observed["details_left_out"]):
+        return Verdict.FAIL, observed, "the usage read does not carry the reset credits as the schema says"
+    if not running:
+        return _blocked("use Codex until a 5-hour window is running, then run mu again", **observed)
+    if drift > _MU_TOLERANCE:
+        return Verdict.FAIL, observed, "a running window's reset time moved between reads"
+    return _blocked("use no Codex from ten minutes before the 5-hour reset /usage shows until after it, then "
+                    "send one short message in a throwaway conversation: confirm /usage shows the 5-hour "
+                    "window reset about five hours after that message, then set the verdict", **observed)
+
+
+def _mn(ctx):
+    """A consume with no reset credit to spend spends nothing (v0.6.14). Only where a read shows no
+    credit at all: the harness asks for one under a key of its own, reads the count again, asks again
+    with the same key, and records what each came to - `no_credit`, or `nothing_to_reset`, which Codex's
+    schema allows as well where no window is full - and whether the count stayed where it was. With a
+    credit there, it calls nothing: that is MR's, at a limit."""
+    with ctx.open() as session:
+        before = _read(session, credits.DETAILED)[1]
+        if before["credits"] is None:
+            return Verdict.FAIL, {"count_read": False}, "the usage read carries no count of reset credits"
+        if before["credits"] != 0:
+            return _blocked("this account has reset credits: measure mr at a limit instead",
+                            count_read=True, has_credits=True)
+        key = str(uuid.uuid4())                       # never recorded
+        first = credits.outcome(session.call(credits.CONSUME, {"idempotencyKey": key}))
+        after = _read(session, credits.DETAILED)[1]
+        second = credits.outcome(session.call(credits.CONSUME, {"idempotencyKey": key}))
+    observed = {"count_read": True, "has_credits": False, "first_outcome": str(first),
+                "second_outcome": str(second), "count_unchanged": after["credits"] == 0}
+    refused = (SpendOutcome.NO_CREDIT, SpendOutcome.NOTHING_TO_RESET)
+    if first in refused and second in refused and observed["count_unchanged"]:
+        return Verdict.PASS, observed, None
+    return Verdict.FAIL, observed, "a consume with no credit did not refuse, or the count moved"
+
+
+def _mr(ctx):
+    """At a real limit one consume resets it, spends exactly one credit, and asked again with the same
+    key spends no second one (v0.6.14). It spends one real reset credit, so it runs only with the
+    person's second, explicit yes (`may_spend`) - without it no session is opened -, only while a window
+    is full and only while a credit is there - otherwise it calls nothing more and says what is missing. It records what each consume came
+    to, whether the count went down by exactly one and then stayed, which windows changed, and whether
+    Codex then allows ordinary usage; that the limit lifted in the app is the person's to confirm.
+
+    How the owner runs it: when Codex says a limit is reached and /usage shows a reset credit, `measure
+    mr` with may_spend; then send a message in Codex and see it run, and record with `measure-verdict mr
+    pass as_expected` - or a fail."""
+    if not ctx.may_spend:
+        return _blocked("mr spends one real reset credit: run it again with may_spend", may_spend=False)
+    with ctx.open() as session:
+        before = _read(session, credits.DETAILED)[1]
+        full = credits.full(before["windows"])
+        if not full:
+            return _blocked("no usage window is full now: run mr when Codex says a limit is reached",
+                            may_spend=True, limit_reached=False)
+        if not before["credits"]:
+            return _blocked("no reset credit is there to spend: run mr when /usage shows one", may_spend=True,
+                            limit_reached=True, has_credits=False)
+        key = str(uuid.uuid4())                       # never recorded
+        first = credits.outcome(session.call(credits.CONSUME, {"idempotencyKey": key}))
+        after = _read(session, credits.DETAILED)[1]
+        second = credits.outcome(session.call(credits.CONSUME, {"idempotencyKey": key}))
+        last = _read(session, credits.DETAILED)[1]
+    changed = _changed(before["windows"], after["windows"])
+    observed = {"may_spend": True, "limit_reached": True, "has_credits": True, "first_outcome": str(first),
+                "count_down_by_one": after["credits"] == before["credits"] - 1,
+                "five_hour_changed": changed.get(_FIVE_HOURS, False), "weekly_changed": changed.get(_WEEK, False),
+                "ordinary_usage_allowed": after["ordinary_usage_allowed"] is True,
+                "second_outcome": str(second), "count_unchanged_on_retry": last["credits"] == after["credits"]}
+    if not (first == SpendOutcome.RESET and observed["count_down_by_one"]
+            and second == SpendOutcome.ALREADY_REDEEMED and observed["count_unchanged_on_retry"]):
+        return Verdict.FAIL, observed, "the consume did not reset, spent other than one credit, or spent again"
+    return _blocked("send a message in Codex and confirm it runs - the limit lifted -, then set the verdict",
+                    **observed)
+
+
+def _changed(before, after) -> dict:
+    """{window length in minutes: whether it changed} between two readings: a full window no longer
+    full, or a window whose reset time moved."""
+    found = {}
+    old = {(window["bucket"], window["window_minutes"]): window for window in before or ()}
+    for window in after or ():
+        earlier = old.get((window["bucket"], window["window_minutes"]))
+        if earlier is None:
+            continue
+        moved = ((earlier["used_percent"] >= 100 > window["used_percent"])
+                 or earlier["reset_at"] != window["reset_at"])
+        found[window["window_minutes"]] = found.get(window["window_minutes"], False) or moved
+    return found
+
+
+# MU's reads: how many light reads after the first, a minute apart, and how far a running window's
+# reset time may move between them before the count it rests on is not believed (engine/resetwatch.TOL).
+_MU_READS = 3
+_MU_SPACING = 60.0
+_MU_TOLERANCE = 600
+_FIVE_HOURS = 300
+_WEEK = 10080
+
+
 PROBES = {
     Measurement.M1: _m1, Measurement.M2: _m2, Measurement.M2B: _m2b, Measurement.M3: _m3,
     Measurement.M4: _m4, Measurement.M5: _m5, Measurement.M6: _m6, Measurement.M7: _m7,
     Measurement.MH: _mh, Measurement.MA: _ma, Measurement.MW: _mw,
+    Measurement.MP1: _mp1, Measurement.MP2: _mp2, Measurement.MP3: _mp3,
+    Measurement.MU: _mu, Measurement.MN: _mn, Measurement.MR: _mr,
 }
 
 # A conversation and a message id of no one's: the shape a call takes, never a real id. A probe
@@ -401,7 +660,7 @@ def probe(ctx) -> tuple:
 
 
 def run(measurement, *, session_factory=None, launcher=None, backend=None, versions=None,
-        clock=time.time, directory=None, thread=None) -> dict:
+        clock=time.time, directory=None, thread=None, may_spend=False) -> dict:
     """Run one measurement and write its record. Returns a small summary of what was recorded.
 
     `versions` is the build, Codex and Windows the record belongs to; when it is not given they
@@ -410,7 +669,8 @@ def run(measurement, *, session_factory=None, launcher=None, backend=None, versi
 
     `thread` is an optional real throwaway conversation the owner points the measurement at. It
     is validated as a Codex thread id and used in the calls the probe makes; it is never written
-    into the record, which keeps only whether one was given.
+    into the record, which keeps only whether one was given. `may_spend` is the person's second yes
+    that MR may spend one real reset credit (v0.6.14); no other measurement reads it.
 
     A record that cannot say which Codex it measured is not written, and nothing is run for it:
     a measurement speaks for one Codex version - a pass counts only there, as the statement's
@@ -423,7 +683,7 @@ def run(measurement, *, session_factory=None, launcher=None, backend=None, versi
     if versions.get("codex_version") in (None, "", "unknown"):
         raise EvidenceUnavailable("the Codex version this would measure could not be read")
     ctx = Context(measurement, session_factory=session_factory, launcher=launcher,
-                  backend=backend, versions=versions, thread=thread)
+                  backend=backend, versions=versions, thread=thread, may_spend=may_spend)
     verdict, observed, note = probe(ctx)
     record = evidence.build(measurement, verdict, observed,
                             product_version=versions.get("product_version", "0.0.0"),

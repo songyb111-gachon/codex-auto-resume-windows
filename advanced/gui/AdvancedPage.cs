@@ -8,7 +8,13 @@
 // this page is the Dashboard that rule names. It lists every capability in the registry's order, one flat
 // row each - its name and its state in the registry's words - and the one that is open shows its statement
 // in the person's language, what an administrator's Windows policy refuses of it, the warnings its statement
-// carries now, and its limits, with the one limit a person may set: lower, and never above the registry's.
+// carries now, and its limits, with the one limit a person may set: lower, and never above the registry's. Under its
+// limits (v0.6.14), where it has them: its own choices, one drop-down each (advanced-option); the rules a person writes
+// for Codex's error codes, each with what it did in 30 days, removed or added here (advanced-rules, advanced-rule-add,
+// advanced-rule-remove); and the samples of failures nothing classified, codes and numbers only (advanced-samples).
+// Each is written against the generation the page read, and a refusal is told in words. And (v0.6.14) a Keep it on
+// card for one that is on or watched, and Send now's waiting recoveries (advanced/gui/AdvancedKeepOn.cs); and last,
+// what one watched would have done, counted (advanced-watch-log, advanced/gui/AdvancedWatch.cs).
 //
 // Its place is after Settings, the last tab. The Dashboard's pages are gui/Dashboard.cs's PageOrder, and the
 // window's navigation is that one strip of tabs: nothing in it is a place for an edition's page, and a Settings
@@ -33,6 +39,9 @@
 // changed since, the page reads the list and the statement again and asks again, with what holds now - or, where what
 // holds now cannot be asked for (it could not be read again, or an administrator's policy now refuses it), tells the
 // person who said yes why nothing was turned on (ArmHeld). Turning off asks nothing: it only ever does less.
+//
+// A capability that is an action - the compatibility report - has a card of its own under its statement
+// (advanced/gui/AdvancedReport.cs), and its limits say it sends nothing to Codex.
 //
 // advanced/gui/AdvancedPageAudit.cs is this page's audit, and the hooks its tests drive it through.
 //
@@ -89,6 +98,10 @@ namespace CodexAutoResume
         private bool advancedAsking, advancedReading, advancedReadAgain, advancedFilling, hourlyFilling;
         // What waits for the read in flight to finish, in order (ReadAdvanced).
         private readonly List<MethodInvoker> advancedThen = new List<MethodInvoker>();
+        // The font the list's cells were last measured in, and how many times they were (FillAdvancedList): every
+        // snapshot with the page in front reads the list again, and the cells are measured only when a word changed.
+        private Font advancedMeasuredFont;
+        private int advancedMeasures;
         // The capabilities whose statement the last read of it could not read: their cards say so where the statement
         // would be, rather than leave Turn on and Watch first greyed with no reason given.
         private readonly HashSet<string> advancedUnread = new HashSet<string>();
@@ -98,6 +111,22 @@ namespace CodexAutoResume
         // Whether this window replaces one that had this page on screen (ArgumentParsed), and shows it again once this
         // edition has answered (ReturnToAdvanced).
         private bool advancedReturning;
+        // The rules for Codex's error codes and the samples of what nothing classified, as last read (advanced-rules,
+        // advanced-samples), or null until they have been: their cards are built only from what was read.
+        private Dictionary<string, object> advancedRules, advancedSamples;
+        // The open capability's choices, its rules' Remove buttons and the editor of a new rule, as its cards were built.
+        private readonly List<SoftCombo> advancedChoices = new List<SoftCombo>();
+        private readonly List<Button> ruleRemoves = new List<Button>();
+        private SoftTextArea ruleTag, ruleFrom, ruleTo;
+        private SoftCombo ruleKind, ruleSampled;
+        private Button ruleAdd;
+        private bool choiceFilling;
+        // The kinds of temporary failure a rule may name, in core's order (failures.TRANSIENT): never a usage limit.
+        private static readonly string[] RuleKinds =
+            { "network_transient", "timeout", "rate_limit_transient", "server_5xx", "stream_interrupted" };
+        // A code of Codex's as a rule names it (failures.TAG_SHAPE), checked before it is sent.
+        private static readonly System.Text.RegularExpressions.Regex RuleTagShape =
+            new System.Text.RegularExpressions.Regex("^[A-Za-z][A-Za-z0-9]{0,63}$");
 
         // ---------------------------------------------------------------- joining the window
         partial void DashboardBuilt()
@@ -135,6 +164,10 @@ namespace CodexAutoResume
         partial void SnapshotApplied(Dictionary<string, object> reply)
         {
             if (reply == null) return;
+            // The recoveries waiting now, which Send now's card offers (AdvancedKeepOn.cs).
+            advancedPending = Items(reply, "pending");
+            // The reset rules waiting, read again when the status's counts of them change (AdvancedResets.cs).
+            ResetCountsApplied(reply);
             if (advancedWords == null)
             {
                 // Until this edition has answered: asked again with each read, as the window's reads go on.
@@ -543,8 +576,66 @@ namespace CodexAutoResume
                 AdvancedCall("advanced-statement", LocaleArgument(id), false, delegate(Dictionary<string, object> answer)
                 {
                     ShowAdvancedStatement(id, AdvancedResult(answer));
-                    AdvancedReadDone();
+                    ReadAdvancedKept(id, AdvancedReadDone);
                 });
+            });
+        }
+
+        /// What the open capability keeps, read after its statement where it has any: the rules for Codex's error codes
+        /// (advanced-rules) and the samples of failures nothing classified (advanced-samples); then, for every one but an
+        /// action, what it would have done while watched (advanced-watch-log); and the reset rules (advanced-resets) for
+        /// the two reset actions; `done` once all are shown.
+        private void ReadAdvancedKept(string id, MethodInvoker done)
+        {
+            Dictionary<string, object> item = AdvancedItem(id);
+            // The reset actions' rules (advanced-resets) last, for the two that have them.
+            if (IsResets(id))
+            {
+                MethodInvoker after = done;
+                done = delegate { ReadResets(after); };
+            }
+            bool rules = Equals(Get(item, "rules_editor"), true), samples = Equals(Get(item, "samples"), true);
+            MethodInvoker readWatch = delegate
+            {
+                if (IsAction(item))
+                {
+                    done();
+                    return;
+                }
+                AdvancedCall("advanced-watch-log", WatchArgument(id), false, delegate(Dictionary<string, object> reply)
+                {
+                    Dictionary<string, object> result = AdvancedResult(reply);
+                    advancedWatchLog[id] = AdvancedDone(result) ? result : null;
+                    ShowAdvancedDetail();
+                    done();
+                });
+            };
+            MethodInvoker readSamples = delegate
+            {
+                if (!samples)
+                {
+                    readWatch();
+                    return;
+                }
+                AdvancedCall("advanced-samples", "{}", false, delegate(Dictionary<string, object> reply)
+                {
+                    Dictionary<string, object> result = AdvancedResult(reply);
+                    advancedSamples = AdvancedDone(result) ? result : null;
+                    ShowAdvancedDetail();
+                    readWatch();
+                });
+            };
+            if (!rules)
+            {
+                readSamples();
+                return;
+            }
+            AdvancedCall("advanced-rules", "{}", false, delegate(Dictionary<string, object> reply)
+            {
+                Dictionary<string, object> result = AdvancedResult(reply);
+                advancedRules = AdvancedDone(result) ? result : null;
+                ShowAdvancedDetail();
+                readSamples();
             });
         }
 
@@ -645,6 +736,7 @@ namespace CodexAutoResume
             try
             {
                 bool same = advancedList.Items.Count == rows.Count;
+                bool measure = advancedMeasuredFont != advancedList.Font || !cellWidths.ContainsKey(advancedList);
                 for (int i = 0; same && i < rows.Count; i++)
                     same = Str(advancedList.Items[i].Tag as Dictionary<string, object>, "id") == Str(rows[i], "id");
                 if (!same)
@@ -659,6 +751,7 @@ namespace CodexAutoResume
                         advancedList.Items.Add(item);
                     }
                     advancedList.EndUpdate();
+                    measure = true;
                 }
                 else
                 {
@@ -667,7 +760,9 @@ namespace CodexAutoResume
                         ListViewItem item = advancedList.Items[i];
                         item.Tag = rows[i];
                         string state = StateWord(Str(rows[i], "state"));
-                        if (item.SubItems[1].Text != state) item.SubItems[1].Text = state;
+                        if (item.SubItems[1].Text == state) continue;
+                        item.SubItems[1].Text = state;
+                        measure = true;
                     }
                     advancedList.Invalidate();
                 }
@@ -677,7 +772,13 @@ namespace CodexAutoResume
                     if (item.Selected != open) item.Selected = open;
                     if (open && advancedList.FocusedItem == null) item.Focused = true;
                 }
-                MeasureCells(advancedList);
+                // The same rows in the same words measure the same widths: measured again only when one changed.
+                if (measure)
+                {
+                    MeasureCells(advancedList);
+                    advancedMeasuredFont = advancedList.Font;
+                    advancedMeasures++;
+                }
             }
             finally
             {
@@ -715,7 +816,13 @@ namespace CodexAutoResume
             string shown = (advancedListing == null ? "unread" : "read") + "|" + AdvancedWritten(item) + "|" +
                            AdvancedWritten(statement) + "|" + (advancedUnread.Contains(advancedOpen ?? "") ? "unreadable" : "") + "|" +
                            AdvancedWritten(Get(advancedListing, "policy")) + "|" +
-                           AdvancedWritten(Get(advancedListing, "global_hourly"));
+                           AdvancedWritten(Get(advancedListing, "global_hourly")) + "|" +
+                           (Equals(Get(item, "rules_editor"), true) ? AdvancedWritten(advancedRules) : "") + "|" +
+                           (Equals(Get(item, "samples"), true) ? AdvancedWritten(advancedSamples) : "") + "|" +
+                           WatchShown(advancedOpen) + "|" +
+                           KeptShown(item) + "|" +
+                           (IsReport(item) ? ReportShown() : "") + "|" +
+                           ResetsShown(item);
             if (shown == advancedShown)
             {
                 UpdateAdvancedButtons();
@@ -723,6 +830,7 @@ namespace CodexAutoResume
             }
             advancedShown = shown;
             bool focused = advancedStack.ContainsFocus;
+            string reportFocus = focused ? ReportFocus() : null, resetFocus = focused ? ResetFocus() : null;
             advancedStack.SuspendLayout();
             var old = new List<Control>();
             foreach (Control control in advancedStack.Controls) old.Add(control);
@@ -730,6 +838,15 @@ namespace CodexAutoResume
             foreach (Control control in old) control.Dispose();
             advancedStack.RowStyles.Clear();
             advancedHourly = null;
+            advancedChoices.Clear();
+            ruleRemoves.Clear();
+            ruleTag = ruleFrom = ruleTo = null;
+            ruleKind = ruleSampled = null;
+            ruleAdd = null;
+            keepOnButton = sendAgainButton = letGoButton = null;
+            sendNowButtons.Clear();
+            ForgetReportCard();
+            ForgetResetCard();
             if (item == null)
             {
                 TableLayoutPanel card = NewGroup(Word("page.nav", "Advanced features"), advancedStack);
@@ -740,8 +857,10 @@ namespace CodexAutoResume
             advancedStack.ResumeLayout(true);
             if (advancedScroll != null) advancedScroll.PerformLayout();
             UpdateAdvancedButtons();
-            // A limit that was being chosen is gone with the cards it was on: the keyboard goes back to the list.
-            if (focused && advancedList != null && advancedList.CanFocus) advancedList.Focus();
+            // A limit that was being chosen is gone with the cards it was on: the keyboard goes back to the list - or,
+            // in the report's card or a reset form, to the box or button it was on, where that is still there to take it.
+            if (focused && !FocusReport(reportFocus) && !FocusResets(resetFocus) && advancedList != null && advancedList.CanFocus)
+                advancedList.Focus();
         }
 
         private void BuildAdvancedCards(Dictionary<string, object> item, Dictionary<string, object> statement)
@@ -757,6 +876,16 @@ namespace CodexAutoResume
             if (tripped != null)
             {
                 Label line = HelpText(tripped);
+                line.ForeColor = Accent;
+                line.Margin = Pad(0, Brand.SpaceS, 0, 0);
+                head.Controls.Add(line);
+            }
+            // What a kept-on capability noted in place of turning itself off (K8), in the accent beside it: turning it on
+            // again is how the person confirms again.
+            string kept = KeptText(item);
+            if (kept != null)
+            {
+                Label line = HelpText(kept);
                 line.ForeColor = Accent;
                 line.Margin = Pad(0, Brand.SpaceS, 0, 0);
                 head.Controls.Add(line);
@@ -821,17 +950,342 @@ namespace CodexAutoResume
                 }
             }
 
+            // The report's card - what a person starts it doing - under its statement (AdvancedReport.cs).
+            if (IsReport(item)) BuildReportCard(item);
+
             // Its limits, and the one a person may set for every capability together: lower, never above the registry's.
+            // An action has no ceilings of its own: it sends nothing to Codex, and says what bounds it instead.
             TableLayoutPanel limits = NewGroup(Word("page.limits", "Limits"), advancedStack);
-            TableLayoutPanel numbers = Facts(limits);
-            Dictionary<string, object> ceilings = Map(item, "ceilings");
-            Fact(numbers, Word("page.per_day", "Sends a day, all conversations together")).Text = CeilingText(Get(ceilings, "per_day"));
-            Fact(numbers, Word("page.per_conversation", "Sends a day in any one conversation")).Text = CeilingText(Get(ceilings, "per_conversation"));
-            if (Equals(Get(item, "sends"), false))
-                limits.Controls.Add(HelpText(Word("page.nominal", "It sends nothing itself, so these limits never come into play.")));
+            if (IsReport(item))
+                limits.Controls.Add(HelpText(Word("page.action_limits",
+                    "It sends nothing to Codex. A report goes to GitHub only when you type send, and the project takes one report per GitHub login for each Codex version.")));
+            else if (IsAction(item))
+                limits.Controls.Add(HelpText(Word("page.long_limits",
+                    "It sends nothing itself. While it is on, a message at a reset may be as long as one continuation can be, not only {n} characters.",
+                    "n", 2000)));
+            else
+            {
+                TableLayoutPanel numbers = Facts(limits);
+                Dictionary<string, object> ceilings = Map(item, "ceilings");
+                Fact(numbers, Word("page.per_day", "Sends a day, all conversations together")).Text = CeilingText(Get(ceilings, "per_day"));
+                Fact(numbers, Word("page.per_conversation", "Sends a day in any one conversation")).Text = CeilingText(Get(ceilings, "per_conversation"));
+                if (Equals(Get(item, "sends"), false))
+                    limits.Controls.Add(HelpText(Word("page.nominal", "It sends nothing itself, so these limits never come into play.")));
+            }
             advancedHourly = HourlyNumber();
             limits.Controls.Add(NewRow(Word("page.hourly", "Sends an hour, all advanced features together"), advancedHourly));
             limits.Controls.Add(HelpText(Word("page.hourly_note", "You can lower this limit. It never goes above {n}.", "n", HourlyMost())));
+
+            // Under its limits (v0.6.14): whether it is kept on, while it is on or watched; and Send now's waiting recoveries.
+            BuildKeepOn(item);
+            BuildSendNow(item);
+            // The reset actions' rules and the form they are added with, while one is on (AdvancedResets.cs).
+            BuildResets(item);
+
+            // Its own choices, the rules a person writes for Codex's error codes and the samples of what nothing classified,
+            // each only for a capability that has them - the last two once they have been read.
+            List<object> options = Items(item, "options");
+            if (options != null && options.Count > 0) BuildAdvancedChoices(id, options);
+            if (Equals(Get(item, "rules_editor"), true) && advancedRules != null) BuildAdvancedRules();
+            if (Equals(Get(item, "samples"), true) && advancedSamples != null) BuildAdvancedSamples();
+
+            // Last, what it would have done while watched (AdvancedWatch.cs): after every other card, so it moves none.
+            BuildAdvancedWatch(item);
+        }
+
+        // ---------------------------------------------------------------- choices, rules and samples
+        /// A capability's own choices (registry.Option), one drop-down each at what the list says it is now; a choice made
+        /// is sent at once (advanced-option), with the generation the page read.
+        private void BuildAdvancedChoices(string id, List<object> options)
+        {
+            TableLayoutPanel card = NewGroup(Word("page.options", "Choices"), advancedStack);
+            foreach (object entry in options)
+            {
+                var option = entry as Dictionary<string, object>;
+                string key = Str(option, "key");
+                if (key == null) continue;
+                var combo = new SoftCombo();
+                combo.Width = Px(160);
+                IgnoreWheel(combo);
+                int value = Whole(Get(option, "value")), index = -1;
+                choiceFilling = true;
+                try
+                {
+                    foreach (object choice in Items(option, "choices") ?? new List<object>())
+                    {
+                        int number = Whole(choice);
+                        if (number == value) index = combo.Items.Count;
+                        combo.Items.Add(new Choice(number.ToString(CultureInfo.InvariantCulture), OptionText(key, number)));
+                    }
+                    if (index >= 0) combo.SelectedIndex = index;
+                }
+                finally
+                {
+                    choiceFilling = false;
+                }
+                string label = Word("page.option." + key, key);
+                combo.AccessibleName = label;
+                combo.Tag = key;
+                SoftCombo chosen = combo;
+                combo.SelectionChangeCommitted += delegate { SetAdvancedOption(id, key, chosen); };
+                card.Controls.Add(NewRow(label, combo));
+                advancedChoices.Add(combo);
+            }
+        }
+
+        /// One value of a choice as the drop-down shows it: hours with their unit, a count as a number.
+        private string OptionText(string key, int value)
+        {
+            if (key == "ceiling_hours") return Word("page.option.hours", "{n} h", "n", value);
+            return value.ToString(CultureInfo.CurrentCulture);
+        }
+
+        private void SetAdvancedOption(string id, string key, SoftCombo combo)
+        {
+            var choice = combo.SelectedItem as Choice;
+            if (choiceFilling || choice == null || advancedListing == null || busy > 0) return;
+            string argument = "{\"capability\":" + Json.Escape(id) + ",\"key\":" + Json.Escape(key) + ",\"value\":" + choice.Value +
+                              ",\"generation\":" + AdvancedGeneration() + "}";
+            string name = AdvancedName(id);
+            AdvancedCall("advanced-option", argument, true, delegate(Dictionary<string, object> reply)
+            {
+                Dictionary<string, object> result = AdvancedResult(reply);
+                // The drop-down shows what holds after, whatever it was left on.
+                advancedShown = null;
+                if (AdvancedDone(result)) SetNote(advancedNote, Word("page.done.option", "{name} uses this from now on.", "name", name));
+                ReadAdvanced(null);
+                if (!AdvancedDone(result)) TellAdvanced(KeptRefusal(Str(result, "refusal")));
+            });
+        }
+
+        /// The rules, oldest first: each one's code, status numbers, kind and what it did in 30 days, with a button that
+        /// removes it; then, while there is room for one, a new rule's code - typed, or taken from the codes the samples
+        /// saw - its status numbers, if any, and its kind, in core's words for the kinds.
+        private void BuildAdvancedRules()
+        {
+            TableLayoutPanel card = NewGroup(Word("page.rules", "Rules"), advancedStack);
+            List<object> rules = Items(advancedRules, "rules") ?? new List<object>();
+            if (rules.Count == 0) card.Controls.Add(HelpText(Word("page.rules.none", "No rules yet.")));
+            foreach (object entry in rules)
+            {
+                var rule = entry as Dictionary<string, object>;
+                if (rule == null) continue;
+                Label line = HelpText(RuleText(rule));
+                line.ForeColor = Ink;
+                line.Margin = Pad(0, 6, 0, 2);
+                card.Controls.Add(line);
+                if (Equals(Get(rule, "known"), true))
+                {
+                    Label known = HelpText(Word("page.rule.known", "The product knows this code now, so the rule no longer applies."));
+                    known.ForeColor = Accent;
+                    known.Margin = Pad(0, 0, 0, 2);
+                    card.Controls.Add(known);
+                }
+                int id = Whole(Get(rule, "rule"));
+                Button remove = MakeButton(Word("page.rule.remove", "Remove"), false, delegate { RemoveAdvancedRule(id); });
+                remove.Tag = (double)id;
+                remove.AccessibleName = Word("page.rule.remove", "Remove") + " " + (Str(rule, "tag") ?? "");
+                remove.Anchor = AnchorStyles.Left | AnchorStyles.Top;
+                remove.Margin = Pad(0, 2, 0, 8);
+                card.Controls.Add(remove);
+                ruleRemoves.Add(remove);
+            }
+            if (rules.Count >= Math.Max(1, Whole(Get(advancedRules, "limit"))))
+            {
+                card.Controls.Add(HelpText(Word("page.rules.full", "There are ten rules. Remove one to add another.")));
+                return;
+            }
+            card.Controls.Add(Caption(Word("page.rule.add", "Add rule")));
+            string code = Word("page.rule.code", "Codex error code");
+            ruleTag = OneLine(code, 200, 64);
+            card.Controls.Add(NewRow(code, ruleTag));
+            List<object> tags = Items(advancedRules, "tags") ?? new List<object>();
+            if (tags.Count > 0)
+            {
+                string seen = Word("page.rule.sampled", "Seen in the samples");
+                var sampled = new SoftCombo();
+                sampled.Width = Px(200);
+                IgnoreWheel(sampled);
+                foreach (object tag in tags)
+                    if (tag is string) sampled.Items.Add(new Choice((string)tag, (string)tag));
+                sampled.AccessibleName = seen;
+                SoftCombo chosen = sampled;
+                sampled.SelectionChangeCommitted += delegate
+                {
+                    var choice = chosen.SelectedItem as Choice;
+                    if (choice != null && ruleTag != null) ruleTag.Box.Text = choice.Value;
+                };
+                card.Controls.Add(NewRow(seen, sampled));
+                ruleSampled = sampled;
+            }
+            string status = Word("page.rule.status", "Status numbers (optional)");
+            ruleFrom = OneLine(status, 60, 3);
+            ruleTo = OneLine(status, 60, 3);
+            card.Controls.Add(NewRow(status, StatusPair(ruleFrom, ruleTo)));
+            string kind = Word("page.rule.kind", "Treat as");
+            ruleKind = new SoftCombo();
+            ruleKind.Width = Px(200);
+            IgnoreWheel(ruleKind);
+            foreach (string each in RuleKinds) ruleKind.Items.Add(new Choice(each, S("reason." + each, each)));
+            ruleKind.SelectedIndex = 0;
+            ruleKind.AccessibleName = kind;
+            card.Controls.Add(NewRow(kind, ruleKind));
+            ruleAdd = MakeButton(Word("page.rule.add", "Add rule"), false, delegate { AddAdvancedRule(); });
+            ruleAdd.Anchor = AnchorStyles.Left | AnchorStyles.Top;
+            ruleAdd.Margin = Pad(0, 6, 0, 0);
+            card.Controls.Add(ruleAdd);
+        }
+
+        /// One rule in words: its code, its status numbers or any, its kind in core's words, and its uses in 30 days.
+        private string RuleText(Dictionary<string, object> rule)
+        {
+            object from = Get(rule, "status_from"), to = Get(rule, "status_to");
+            string statuses = from is double && to is double
+                ? Whole(from).ToString(CultureInfo.InvariantCulture) + "\u2013" + Whole(to).ToString(CultureInfo.InvariantCulture)
+                : Word("page.rule.any_status", "any status");
+            string category = Str(rule, "category") ?? "";
+            return (Str(rule, "tag") ?? "") + " \u00b7 " + statuses + " \u00b7 " + S("reason." + category, category) + " \u00b7 " +
+                   Word("page.rule.hits", "Used in 30 days") + ": " + Whole(Get(rule, "hits")).ToString(CultureInfo.CurrentCulture);
+        }
+
+        /// A one-line text box in a well, a field high, as the log's search box is.
+        private SoftTextArea OneLine(string name, int width, int length)
+        {
+            var box = new SoftTextArea();
+            box.Font = Font;
+            box.Box.Font = Font;
+            box.Box.AcceptsReturn = false;
+            box.Box.WordWrap = false;
+            box.Box.MaxLength = length;
+            box.Box.AccessibleName = name;
+            box.Width = Px(width);
+            box.Height = SoftCombo.FieldHeight;
+            box.Margin = new Padding(0);
+            return box;
+        }
+
+        /// The two status numbers side by side, a dash between them.
+        private Control StatusPair(Control from, Control to)
+        {
+            var pair = new TableLayoutPanel();
+            pair.ColumnCount = 3;
+            pair.RowCount = 1;
+            pair.AutoSize = true;
+            pair.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            pair.BackColor = Card;
+            pair.Margin = new Padding(0);
+            pair.Padding = new Padding(0);
+            var dash = new Label();
+            dash.AutoSize = true;
+            dash.Text = "\u2013";
+            dash.ForeColor = Secondary;
+            dash.Anchor = AnchorStyles.Left;
+            dash.Margin = Pad(6, 0, 6, 0);
+            from.Margin = to.Margin = new Padding(0);
+            pair.Controls.Add(from, 0, 0);
+            pair.Controls.Add(dash, 1, 0);
+            pair.Controls.Add(to, 2, 0);
+            return pair;
+        }
+
+        private void AddAdvancedRule()
+        {
+            if (busy > 0 || advancedListing == null || ruleTag == null || ruleKind == null) return;
+            string tag = ruleTag.Box.Text.Trim();
+            if (!RuleTagShape.IsMatch(tag))
+            {
+                TellAdvanced(KeptRefusal("rule_shape"));
+                return;
+            }
+            string from = ruleFrom.Box.Text.Trim(), to = ruleTo.Box.Text.Trim();
+            int low = 0, high = 0;
+            bool ranged = from.Length > 0 || to.Length > 0;
+            if (ranged && !(int.TryParse(from, NumberStyles.None, CultureInfo.InvariantCulture, out low) &&
+                            int.TryParse(to, NumberStyles.None, CultureInfo.InvariantCulture, out high)))
+            {
+                TellAdvanced(KeptRefusal("rule_range"));
+                return;
+            }
+            var kind = ruleKind.SelectedItem as Choice;
+            if (kind == null) return;
+            string argument = "{\"tag\":" + Json.Escape(tag) +
+                              ",\"status_from\":" + (ranged ? low.ToString(CultureInfo.InvariantCulture) : "null") +
+                              ",\"status_to\":" + (ranged ? high.ToString(CultureInfo.InvariantCulture) : "null") +
+                              ",\"category\":" + Json.Escape(kind.Value) + ",\"generation\":" + AdvancedGeneration() + "}";
+            AdvancedCall("advanced-rule-add", argument, true, delegate(Dictionary<string, object> reply)
+            {
+                Dictionary<string, object> result = AdvancedResult(reply);
+                if (AdvancedDone(result)) SetNote(advancedNote, Word("page.done.rule_added", "The rule was added."));
+                ReadAdvanced(null);
+                if (!AdvancedDone(result)) TellAdvanced(KeptRefusal(Str(result, "refusal")));
+            });
+        }
+
+        private void RemoveAdvancedRule(int rule)
+        {
+            if (busy > 0 || advancedListing == null) return;
+            string argument = "{\"rule\":" + rule.ToString(CultureInfo.InvariantCulture) + ",\"generation\":" + AdvancedGeneration() + "}";
+            AdvancedCall("advanced-rule-remove", argument, true, delegate(Dictionary<string, object> reply)
+            {
+                Dictionary<string, object> result = AdvancedResult(reply);
+                if (AdvancedDone(result)) SetNote(advancedNote, Word("page.done.rule_removed", "The rule was removed."));
+                ReadAdvanced(null);
+                if (!AdvancedDone(result)) TellAdvanced(KeptRefusal(Str(result, "refusal")));
+            });
+        }
+
+        /// The generation the list was read at, as a request names it.
+        private string AdvancedGeneration()
+        {
+            return Whole(Get(advancedListing, "generation")).ToString(CultureInfo.InvariantCulture);
+        }
+
+        /// A refusal of a choice or a rule in words (vocabulary.Refusal): each of a rule's, a choice not offered, the
+        /// list changed meanwhile, a state that could not be written - and anything else, that it was refused.
+        private string KeptRefusal(string refusal)
+        {
+            if (refusal == "rule_shape")
+                return Word("page.refused.rule_shape", "An error code is letters and digits, starting with a letter, at most 64.");
+            if (refusal == "rule_known")
+                return Word("page.refused.rule_known", "The product already knows this code, so a rule cannot change what it does.");
+            if (refusal == "rule_decision")
+                return Word("page.refused.rule_decision", "This code may name something a person decides, such as a policy, a budget or a permission, so no rule can retry it.");
+            if (refusal == "rule_range")
+                return Word("page.refused.rule_range", "Status numbers go from 100 to 599, the first no larger than the second.");
+            if (refusal == "rule_overlap")
+                return Word("page.refused.rule_overlap", "Another rule already covers this code and these status numbers.");
+            if (refusal == "rules_full")
+                return Word("page.rules.full", "There are ten rules. Remove one to add another.");
+            if (refusal == "option_invalid")
+                return Word("page.refused.option", "That choice is not one this feature offers. Nothing was changed.");
+            if (refusal == "stale_generation" || refusal == "unknown_rule")
+                return Word("page.refused.choice", "Something changed while you were choosing, so nothing was changed. Choose again.");
+            if (refusal == null || refusal == "state_unavailable")
+                return Word("page.refused.unavailable", "The advanced features could not be changed right now. Nothing was changed.");
+            return Word("page.refused.other", "That request was refused. Nothing was changed.");
+        }
+
+        /// The samples of the last 30 days, one line for each code, status number and form: how many times.
+        private void BuildAdvancedSamples()
+        {
+            TableLayoutPanel card = NewGroup(Word("page.samples", "Failures it could not classify, last 30 days"), advancedStack);
+            List<object> samples = Items(advancedSamples, "samples") ?? new List<object>();
+            if (samples.Count == 0) card.Controls.Add(HelpText(Word("page.samples.none", "None seen yet.")));
+            foreach (object entry in samples)
+            {
+                var sample = entry as Dictionary<string, object>;
+                if (sample == null) continue;
+                object status = Get(sample, "status");
+                string text = Word("page.sample.code", "Error code") + ": " + (Str(sample, "tag") ?? Word("page.sample.no_code", "(no code)")) +
+                              " \u00b7 " + Word("page.sample.status", "Status") + ": " +
+                              (status is double ? Whole(status).ToString(CultureInfo.InvariantCulture) : "-") +
+                              " \u00b7 " + Word("page.sample.count", "Times") + ": " +
+                              Whole(Get(sample, "count")).ToString(CultureInfo.CurrentCulture);
+                Label line = HelpText(text);
+                line.ForeColor = Ink;
+                line.Margin = Pad(0, 2, 0, 4);
+                card.Controls.Add(line);
+            }
         }
 
         private static string CeilingText(object value)
@@ -887,6 +1341,8 @@ namespace CodexAutoResume
                 said = Word("page.tripped.statement_changed", "It turned itself off because what it does has changed. Read it again before you turn it on.");
             else if (reason == "engine_changed")
                 said = Word("page.tripped.engine_changed", "It turned itself off because the version of Codex changed. Turn it on again for this version if you want it.");
+            else if (reason == "duplicate_seen")
+                said = Word("page.tripped.duplicate_seen", "It turned itself off because a continuation it sent again was found twice.");
             return said ?? Word("page.tripped", "It turned itself off.");
         }
 
@@ -914,6 +1370,13 @@ namespace CodexAutoResume
             if (advancedWatch != null) advancedWatch.Enabled = idle && read && admits && state != StateShadow;
             if (advancedOff != null) advancedOff.Enabled = idle && item != null && stored != StateOff;
             if (advancedHourly != null) advancedHourly.Enabled = idle && advancedListing != null;
+            bool listed = idle && advancedListing != null;
+            foreach (SoftCombo combo in advancedChoices) combo.Enabled = listed;
+            foreach (Button remove in ruleRemoves) remove.Enabled = listed;
+            if (ruleAdd != null) ruleAdd.Enabled = listed;
+            UpdateKeptButtons(idle);
+            UpdateResetButtons(idle);
+            UpdateReportButtons();
         }
 
         // ---------------------------------------------------------------- the hourly limit
