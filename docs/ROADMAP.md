@@ -1095,5 +1095,6 @@ Maintenance
 
 This document records the current direction; v0.6.14 is out, as a final with no pre-release: in
 the advanced edition eight more ways to recover, Keep it on, the watch log, the reset actions and a
-compatibility report sent from the app, and the panel beside the chat. Before it, v0.6.13 found
-Codex's engine again wherever an update puts it. The rest of the advanced edition, v0.6.15, is next.
+compatibility report sent from the app, and the panel beside the chat; in both editions, a window that
+no longer hangs while a recovery waits. Before it, v0.6.13 found Codex's engine again wherever an
+update puts it. The rest of the advanced edition, v0.6.15, is next.
