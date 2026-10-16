@@ -165,7 +165,7 @@ jobs:
         # docstring was credited to the file after it. A failed part timed its files too, so this
         # runs whatever the suite did; a re-run's seconds replace the first attempt's.
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: seconds-${{ matrix.edition }}-${{ matrix.python-version }}-${{ matrix.part }}
           path: ${{ runner.temp }}/seconds.json
@@ -235,7 +235,7 @@ jobs:
       - name: Keep this part's seconds per file
         # The release lane's table is this job's (the test job's step above says why and how).
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: seconds-release-main-tree-${{ matrix.part }}
           path: ${{ runner.temp }}/seconds.json
