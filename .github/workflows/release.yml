@@ -189,8 +189,9 @@ jobs:
       # this is where that stops being a claim: if the two builds on one machine differ,
       # nothing a reader rebuilds will match either, and the release does not go out.
       #
-      # All three: the standard window and the launcher in build/, the advanced window in
-      # build/advanced/. The two windows share a file name, so each is known by its folder too.
+      # All four: the standard window and the launcher in build/, the advanced window and (v0.6.19)
+      # the Stop hook launcher in build/advanced/. The two windows share a file name, so each is
+      # known by its folder too.
       - name: Check the executables are reproducible
         shell: pwsh
         run: |
@@ -201,8 +202,8 @@ jobs:
           foreach ($exe in Get-Built) {
             $first["$($exe.Directory.Name)/$($exe.Name)"] = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash
           }
-          if ($first.Count -ne 3) {
-            throw "expected three executables, two in build/ and one in build/advanced/; found $($first.Count)"
+          if ($first.Count -ne 4) {
+            throw "expected four executables, two in build/ and two in build/advanced/; found $($first.Count)"
           }
           Start-Sleep -Seconds 2
           ./build/make_gui.ps1 | Out-Null

@@ -43,6 +43,7 @@ from __future__ import annotations
 from codex_auto_resume.domain.plug import DEFER, Alternative
 
 from .registry import CORE_COOLDOWN_SECONDS, CORE_DAILY_CAP
+from .engine.hookclaims import held as hook_held, spent_on
 from .control.sendnow import fresh
 from .state import ATTACHED
 from .vocabulary import ArmingState, Ceiling, KeepOn, OverrideKind, RecordState, RuleState
@@ -63,7 +64,9 @@ def ceiling_reached(counts, definition, global_hourly):
 
 
 def held_by_records(connection, thread_id, now) -> bool:
-    """Whether this edition's records on `thread_id` hold a claim core's own rows allow."""
+    """Whether this edition's records on `thread_id` hold a claim core's own rows allow - and (v0.6.19) the Stop hook's
+    continuations there, each a claim on the conversation as the caps count one (engine/hookclaims.spent_on)."""
+    hooks, hooked = spent_on(connection, ATTACHED, thread_id, now)
     row = connection.execute(
         "SELECT coalesce(sum(state=?), 0), "
         "coalesce(sum(CASE WHEN claimed_at > ? THEN max(claims, 1) ELSE 0 END), 0), "
@@ -72,6 +75,8 @@ def held_by_records(connection, thread_id, now) -> bool:
     in_flight, recent, last = row[0], row[1], row[2]
     if in_flight:
         return True
+    recent += hooks
+    last = hooked if last is None or (hooked is not None and hooked > last) else last
     if recent:
         # Core's count, as core counts it (store/claims.py, recent_claim_count), on the same
         # connection and so under the same lock.
@@ -99,6 +104,10 @@ class ClaimLedger:
             # taken cannot be paid for without one, and is not sent.
             return Alternative.HOLD if acted else DEFER
         thread_id, key = record.get("thread_id"), record.get("interruption_id")
+        # v0.6.19: the Stop hook blocked this very turn - its continuation went in the turn, whatever the capability's
+        # state now (engine/hookclaims.py).
+        if hook_held(connection, ATTACHED, key, now):
+            return Alternative.HOLD
         if held_by_records(connection, thread_id, now):
             return Alternative.HOLD
         if not acted:

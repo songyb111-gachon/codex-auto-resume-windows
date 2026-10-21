@@ -58,6 +58,8 @@ POWERSHELL = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
 STANDARD_WINDOW = b"MZ the standard window"
 ADVANCED_WINDOW = b"MZ the advanced window"
 LAUNCHER = b"MZ the MCP launcher"
+# v0.6.19: the advanced edition's Stop hook launcher, which only its build makes and only its archive ships.
+HOOK_LAUNCHER = b"MZ the Stop hook launcher"
 
 
 def load_builder(name: str):
@@ -84,6 +86,7 @@ def stand_in(builder, work: Path, root: Path = ROOT) -> None:
     (built / builder.GUI_EXE).write_bytes(STANDARD_WINDOW)
     (built / "advanced" / builder.GUI_EXE).write_bytes(ADVANCED_WINDOW)
     (built / builder.MCP_EXE).write_bytes(LAUNCHER)
+    (built / "advanced" / builder.HOOK_EXE).write_bytes(HOOK_LAUNCHER)
     builder.ROOT = root
     builder.CACHE = cache
     builder.BUILT = built
@@ -192,6 +195,8 @@ class EditionBuildTests(unittest.TestCase):
                     expected.append("payload/app/%s/%s" % (placed, path.relative_to(ROOT / tree).as_posix()))
         self.assertIn("payload/app/src/%s/plug.py" % editions.PACKAGE, expected)
         self.assertIn("payload/app/skills/%s/SKILL.md" % self.builder.ADVANCED_SKILL, expected)
+        # v0.6.19: and the Stop hook launcher, in a place of its own (edition_audit.PLACEMENTS).
+        expected.append("payload/app/%s/%s" % (self.builder.HOOK_DIR, self.builder.HOOK_EXE))
         self.assertEqual(added, sorted(expected))
         for name in self.ours:
             self.assertNotIn(editions.PACKAGE, name)
@@ -211,6 +216,9 @@ class EditionBuildTests(unittest.TestCase):
         self.assertEqual(self.ours[edition_audit.WINDOW], STANDARD_WINDOW)
         self.assertEqual(self.theirs[edition_audit.WINDOW], ADVANCED_WINDOW)
         self.assertEqual((self.ours[launcher], self.theirs[launcher]), (LAUNCHER, LAUNCHER))
+        hook = "payload/app/%s/%s" % (self.builder.HOOK_DIR, self.builder.HOOK_EXE)
+        self.assertEqual(self.theirs[hook], HOOK_LAUNCHER)
+        self.assertNotIn(hook, self.ours)
 
     def test_the_audit_finds_nothing_in_the_pair(self):
         """(a)-(d), (f) and (g) on the two archives this build made; (e) needs a commit to

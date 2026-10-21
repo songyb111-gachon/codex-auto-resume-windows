@@ -80,6 +80,12 @@ GUI_EXE = "CodexAutoResumeSettings.exe"
 # inside the plugin, so the launcher ships in the plugin payload and finds the bundled
 # interpreter itself. `.mcp.json` names it by that contained path.
 MCP_EXE = "codex-auto-resume-mcp.exe"
+# v0.6.19: the advanced edition's Stop hook launcher (gui/HookLauncher.cs), built by `make_gui.ps1 -Edition advanced`
+# into build/advanced/ and shipped in that edition's archive alone, at payload/app/HOOK_DIR/ - one of the advanced
+# edition's own places (build/edition_audit.py, PLACEMENTS). The hook's declaration names it there (the advanced
+# package's control/hookplugin.py), and only while "Continue inside the turn" is on.
+HOOK_EXE = "codex-auto-resume-hook.exe"
+HOOK_DIR = "hook"
 # Every top-level document the shipped README links to, so the installed copy does not
 # promise a privacy policy that is not beside it. Asserted by tests/test_plugin.py.
 #
@@ -249,7 +255,8 @@ def collect_gui(stage: Path, edition: str = "standard") -> int:
 
     Each edition has a window of its own: `make_gui.ps1 -Edition advanced` compiles the
     advanced one into build/advanced/, beside the standard one and never over it. The MCP
-    launcher is one file, the same in both editions.
+    launcher is one file, the same in both editions. The Stop hook launcher (v0.6.19) is the
+    advanced edition's alone, taken from build/advanced/ into payload/app/HOOK_DIR/.
     """
     built = BUILT / "advanced" if edition == "advanced" else BUILT
     source = built / GUI_EXE
@@ -272,7 +279,15 @@ def collect_gui(stage: Path, edition: str = "standard") -> int:
     destination = stage / "payload" / "app" / "mcp" / MCP_EXE
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(launcher, destination)
-    return 3
+    if edition != "advanced":
+        return 3
+    hook = built / HOOK_EXE
+    if not hook.is_file():
+        raise SystemExit("missing %s - run build/make_gui.ps1 -Edition advanced first" % hook)
+    placed = stage / "payload" / "app" / HOOK_DIR / HOOK_EXE
+    placed.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(hook, placed)
+    return 4
 
 
 def declare_mcp_server(stage: Path, edition: str = "standard") -> None:

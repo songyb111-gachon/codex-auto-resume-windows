@@ -630,5 +630,11 @@
   "warning.measurement_failed": "對它所依賴部分的測量失敗了。它在您的 Codex 上可能無法運作。",
   "warning.note": "這些警告不會阻止您開啟它。開啟即表示您已讀過這些警告；如果之後出現新問題，它會自動關閉。",
   "warning.title": "警告",
-  "warning.unmeasured": "它所依賴的部分尚未在此版本的 Codex 上測量過。"
+  "warning.unmeasured": "它所依賴的部分尚未在此版本的 Codex 上測量過。",
+  "name.stop_hook_continuation": "在本輪內接續",
+  "statement.stop_hook_continuation.does": "當某一輪因短暫的暫時性故障（連線中斷、逾時、伺服器錯誤或資料串流中斷）而停止時，本產品的 Stop 鉤子會請 Codex 立即在同一輪內繼續，使用標準接續訊息及其標記，而不是由監看器在等待後傳送一則新訊息。Codex 會詢問一次你是否信任本產品的鉤子；請在 Codex 中選擇是。每一輪最多這樣接續一次，只在該對話開啟自動復原時進行，並受與所有接續相同的每日上限約束。",
+  "statement.stop_hook_continuation.instead": "標準版會等待你的重試節奏的第一步，然後透過 Codex 的佇列命令把接續作為一則新訊息傳送。它不會為 Codex 結束一輪的方式加上任何東西。",
+  "statement.stop_hook_continuation.departs": "A2（接續訊息只透過一個管道傳送，即 Codex 的佇列命令）、A5（是否傳送只由監看器自己的認領決定）、A26（接續是加入對話佇列的一則訊息）、B3（Codex 的狀態只透過其佇列命令和外掛命令改變）和 F6（只啟動列出的程序）：由 Codex 啟動的鉤子程式認領接續並以它回覆 Codex，且在此功能開啟期間，其宣告寫入本產品的外掛副本。",
+  "statement.stop_hook_continuation.risks": "它依賴於 Codex 在失敗的一輪之後執行外掛的 Stop 鉤子（M4）、執行鉤子的回覆（M4B），並以測得的格式讀取其宣告（MHK）；其他版本的 Codex 可能改變其中任何一點。如果 Codex 沒有繼續，監看器會在最多十五分鐘的暫停後照常復原對話。無法在兩秒內作出判斷的鉤子會讓這一輪照原樣結束。它只從 Codex 讀取對話和本輪的 ID，從不讀取說過的內容。",
+  "statement.stop_hook_continuation.stop": "在儀表板中關閉它，或一次關閉所有進階功能：鉤子的宣告會從外掛副本中移除，監看器會像以前一樣再次接續每個失敗的輪次。當 Codex 詢問你是否信任該鉤子時，你也可以拒絕。"
 }

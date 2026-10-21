@@ -73,7 +73,9 @@ SENTINEL = "ADVANCED-EDITION-CODE"
 SHIPPED = ("src", "gui", "skills")
 # The advanced edition's places in its archive, and the one name its tree has in the
 # repository. Nothing of the standard archive may lie in any of them.
-PLACEMENTS = tuple("payload/app/%s/" % placed for _tree, placed in make_release.ADVANCED_TREES)
+PLACEMENTS = (tuple("payload/app/%s/" % placed for _tree, placed in make_release.ADVANCED_TREES)
+              # v0.6.19: the Stop hook launcher's folder, which only the advanced build fills (make_release.HOOK_DIR).
+              + ("payload/app/%s/" % make_release.HOOK_DIR,))
 REPOSITORY_TREE = "payload/app/advanced/"
 # The two entries the editions may differ in (f): each builds its own settings window, and the
 # advanced manifest's display name carries the edition's word.
