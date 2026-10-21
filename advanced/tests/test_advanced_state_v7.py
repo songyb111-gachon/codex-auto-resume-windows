@@ -51,8 +51,9 @@ class UpgradeTests(StateCase):
         self.assertEqual(opened.runs(live=False), [])
         opened.close()
         with contextlib.closing(sqlite3.connect(path)) as connection:
-            self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], schema_module.STAGE4_VERSION)
-            self.assertEqual((schema_module.STAGE4_VERSION, schema_module.SCHEMA_VERSION), (7, 7))
+            # And on to the version after stage 4's (v0.6.19's 8, test_advanced_schema_v8), in the same opening.
+            self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], schema_module.SCHEMA_VERSION)
+            self.assertEqual((schema_module.STAGE4_VERSION, schema_module.SCHEMA_VERSION), (7, 8))
             self.assertEqual(connection.execute("SELECT count(*) FROM spend").fetchone()[0], 1)
             self.assertEqual(connection.execute("SELECT count(*) FROM wordings").fetchone()[0], 1)
             self.assertEqual(connection.execute("SELECT count(*) FROM keep_going").fetchone()[0], 1)
@@ -62,7 +63,7 @@ class UpgradeTests(StateCase):
     def test_the_step_adds_and_remakes_nothing(self):
         self.assertTrue(all(statement.startswith(("CREATE TABLE", "CREATE INDEX", "PRAGMA"))
                             for statement in (s.strip() for s in schema_module.UPGRADE_TO_STAGE4)))
-        self.assertEqual(set(schema_module.TABLES) - set(schema_module.TABLES_BEFORE_STAGE4),
+        self.assertEqual(set(schema_module.TABLES_V7) - set(schema_module.TABLES_BEFORE_STAGE4),
                          set(schema_module.STAGE4_TABLES))
 
     def test_a_newer_version_is_refused(self):
@@ -72,7 +73,7 @@ class UpgradeTests(StateCase):
         with contextlib.closing(sqlite3.connect(made.path)) as connection:
             # A newer version with no readable-from mark (v0.6.17): readable from itself alone.
             connection.execute("PRAGMA application_id=0")
-            connection.execute("PRAGMA user_version=%d" % (schema_module.STAGE4_VERSION + 1))
+            connection.execute("PRAGMA user_version=%d" % (schema_module.SCHEMA_VERSION + 1))
             connection.commit()
         with self.assertRaises(StateError):
             self.state().arming()

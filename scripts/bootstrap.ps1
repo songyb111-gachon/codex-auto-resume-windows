@@ -305,10 +305,15 @@ $PolicyValues = @('DisableAutoResume', 'ForceObserveOnly', 'DisableUpdateCheck',
 # one); a target on any other is not offered at all.
 $StateSchemaSince = @(@('0.6.16-beta', 5), @('0.6.15', 4), @('0.6.15-beta', 5), @('0.6.11-beta', 4), @('0.6.0', 3))
 # The advanced settings' form from each version on, newest first; the first row is this version's
-# own. An advanced target on an older form cannot read them: every advanced feature is off there.
+# own. An advanced target on an older form cannot read them: every advanced feature is off there -
+# unless it reads the readable-from mark (from $AdvancedMarkSince on) and its form is at least the
+# one this version's file is marked readable from ($AdvancedReadableFrom, the advanced state's
+# schema.READABLE_FROM): v0.6.17 and v0.6.18 use a form-8 file as it is, v0.6.16 refuses it.
 # v0.6.15 is v0.6.14's code (form 3) between v0.6.15-beta and v0.6.16-beta (both form 4).
-$AdvancedStateSince = @(@('0.6.16-beta.4', 7), @('0.6.16-beta.3', 5), @('0.6.16-beta', 4), @('0.6.15', 3),
-                        @('0.6.15-beta', 4), @('0.6.14', 3), @('0.6.11-beta.2', 2), @('0.6.11-alpha', 1))
+$AdvancedStateSince = @(@('0.6.19-alpha', 8), @('0.6.16-beta.4', 7), @('0.6.16-beta.3', 5), @('0.6.16-beta', 4),
+                        @('0.6.15', 3), @('0.6.15-beta', 4), @('0.6.14', 3), @('0.6.11-beta.2', 2), @('0.6.11-alpha', 1))
+$AdvancedReadableFrom = 7
+$AdvancedMarkSince = '0.6.17'
 # The list is read page by page, $PickPageSize to a page (release_pages in release.json), at most
 # $PickMaxPages of them - a page with fewer ends it, and a full last one is no answer - and all of it
 # within $PickBudgetSeconds, each page within $PickPageTimeoutMax. The window waits longer than that
@@ -1192,7 +1197,9 @@ function Get-VersionVerdict {
     if ($schema -eq $StateSchemaSince[0][1]) { $words += 'kept' } else { $words += 'convert3' }
     if (-not $Entry.Prerelease -and $number -ceq [string]$Latest) { $words += 'latest' }
     if ($other) { $words += 'edition' }
-    if ($Edition -eq 'advanced' -and (Get-SinceValue -Version $number -Table $AdvancedStateSince) -ne $AdvancedStateSince[0][1]) {
+    $form = Get-SinceValue -Version $number -Table $AdvancedStateSince
+    $readsMark = (Compare-ProductVersion -Left $number -Right $AdvancedMarkSince) -ge 0 -and $form -ge $AdvancedReadableFrom
+    if ($Edition -eq 'advanced' -and $form -ne $AdvancedStateSince[0][1] -and -not $readsMark) {
         $words += 'advanced-off'
     }
     $row.Answer = 'offered'

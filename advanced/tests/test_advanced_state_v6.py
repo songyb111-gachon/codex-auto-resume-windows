@@ -63,7 +63,7 @@ class VersionSixTests(StateCase):
         state.close()
         with contextlib.closing(sqlite3.connect(path)) as connection:
             self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], schema_module.SCHEMA_VERSION)
-            self.assertEqual(schema_module.SCHEMA_VERSION, 7)
+            self.assertEqual(schema_module.SCHEMA_VERSION, 8)            # and every later step after it (v0.6.19)
             self.assertEqual(AdvancedState._tables(connection), schema_module.TABLES)
             for name in schema_module.STAGE4_TABLES:
                 self.assertEqual(connection.execute("SELECT count(*) FROM %s" % name).fetchone()[0], 0)
@@ -80,8 +80,9 @@ class VersionSixTests(StateCase):
                 with self.assertRaises(sqlite3.IntegrityError, msg=repr(words)[:20]):
                     connection.execute("INSERT INTO wordings VALUES ('usage_wrap_up', 'wrap_custom_five_hour', ?, 1.0)",
                                        (words,))
-            with self.assertRaises(sqlite3.IntegrityError, msg="a key no version knows"):
-                connection.execute("INSERT INTO wordings VALUES ('usage_wrap_up', 'anything', 'words', 1.0)")
+            # Since version 8 (v0.6.19) a wording's key is the code's to check, as an option's name is: the file takes
+            # one no version knows, and the code passes it over (test_advanced_schema_v8).
+            connection.execute("INSERT INTO wordings VALUES ('usage_wrap_up', 'anything', 'words', 1.0)")
 
     def test_the_way_down_is_every_capability_off_and_nothing_written(self):
         """A build that knows only version 5 (v0.6.16-beta.3) refuses this version's file as newer - every capability
