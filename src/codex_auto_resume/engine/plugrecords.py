@@ -70,7 +70,7 @@ class PlugRecordsMixin:
         for record in self.plug.records(view):
             try:
                 if record["state"] == IN_FLIGHT_RECORD:
-                    record = self._record_carried(record)        # v0.6.19: its proof, asked once (recordchannel.py)
+                    record = self._record_carried(self._record_queued(record))   # v0.6.19 (recordchannel.py)
                     self._flying()[record["record_id"]] = record
                     self._watch_record(record)
                 elif self._worded(record):

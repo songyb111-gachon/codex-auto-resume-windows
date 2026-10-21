@@ -92,6 +92,9 @@ ARGUMENTS = {
     BridgeCommand.ADVANCED_REPORT_SEND: frozenset({"sha256", "writes", "word"}),
     BridgeCommand.ADVANCED_REPORT_JOB: frozenset({"job"}),
     BridgeCommand.ADVANCED_HEADLESS_STOP: frozenset({"interruption_id"}),
+    BridgeCommand.ADVANCED_CHAT_READ: frozenset({"thread_id"}),
+    BridgeCommand.ADVANCED_CHAT_SEND: frozenset({"thread_id", "words", "generation"}),
+    BridgeCommand.ADVANCED_CHAT_CANCEL: frozenset({"thread_id", "generation"}),
 }
 # The compatibility report's commands (report/flow.py), answered by the action itself.
 REPORT_COMMANDS = frozenset({BridgeCommand.ADVANCED_REPORT_BUILD, BridgeCommand.ADVANCED_REPORT_SAVE,
@@ -365,6 +368,14 @@ def bridge(runtime, command, argument):
         return sendnow.request(runtime, argument.get("interruption_id"))
     if command == BridgeCommand.ADVANCED_HEADLESS_STOP:
         return headless_stop(runtime, argument.get("interruption_id"))
+    if command in (BridgeCommand.ADVANCED_CHAT_READ, BridgeCommand.ADVANCED_CHAT_SEND,
+                   BridgeCommand.ADVANCED_CHAT_CANCEL):
+        from .control import chat
+        if command == BridgeCommand.ADVANCED_CHAT_READ:
+            return chat.view(runtime, argument.get("thread_id"))
+        if command == BridgeCommand.ADVANCED_CHAT_SEND:
+            return chat.send(runtime, argument)
+        return chat.cancel(runtime, argument)
     if command == BridgeCommand.ADVANCED_WATCH_LOG:
         from . import watchlog
         return watchlog.view(runtime, argument.get("capability"))

@@ -73,7 +73,7 @@ class RecordsMixin:
                                 else None, record_id))
             return True
 
-    def claim_record(self, connection, record_id, now) -> bool:
+    def claim_record(self, connection, record_id, now, *, own_pace=False) -> bool:
         """Put a waiting record of this edition's in flight: its claim, counted and timed.
 
         Only on core's connection, inside its claim's BEGIN IMMEDIATE, with this file attached
@@ -107,9 +107,9 @@ class RecordsMixin:
             "max(coalesce(submitted_at, last_claim_at)) FROM main.interruptions WHERE thread_id=?",
             (now - DAY, thread_id)).fetchone()
         last = max((at for at in (ours[2], cores[1]) if at is not None), default=None)
-        if (ours[0] or ours[1] + cores[0] >= CORE_DAILY_CAP
-                or (last is not None and now - last < CORE_COOLDOWN_SECONDS)):
-            return False
+        if ours[0] or (not own_pace and (ours[1] + cores[0] >= CORE_DAILY_CAP
+                                         or (last is not None and now - last < CORE_COOLDOWN_SECONDS))):
+            return False                     # v0.6.19: `own_pace` - one that departs A20 - keeps only the first
         connection.execute("UPDATE %s.records SET state=?, claimed_at=?, claims=claims+1 "
                            "WHERE record_id=?" % ATTACHED, (RecordState.IN_FLIGHT, now, record_id))
         return True

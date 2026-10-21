@@ -135,7 +135,7 @@ METHODS = {
     # and P15's SILENT for a route that takes words (engine/routes.py), proven by the turn id it returned (M3B).
     "_silent", "_silent_proven",
     # and a person's message of the plug's carried marker-free (engine/recordchannel.py).
-    "_marker_free", "_record_carried", "_record_client", "_record_proof", "_record_words", "_record_carrying",
+    "_marker_free", "_record_carried", "_record_queued", "_record_client", "_record_proof", "_record_words", "_record_carrying",
 }
 
 # What `from codex_auto_resume.engine import ...` has to keep answering (app.py, the tests).

@@ -42,6 +42,16 @@ class RecordChannelMixin:
         client = ids.continuation_client_id(record["record_id"]) if self._marker_free(record, sender) else None
         return dict(record, client_id=client)
 
+    def _record_queued(self, record) -> dict:
+        """`record` handed in flight, with the queue item Codex said it took at its send where the plug kept none (the
+        chat keeps no queue id): remembered from that send in this process (`_flying`), so a message Codex has not
+        taken can be taken back out of its queue. After a restart nothing is remembered, and one Codex never takes is
+        unproven a day on - never sent again (A6)."""
+        known = self._flying().get(record["record_id"])
+        if record.get("queue_id") is None and isinstance(known, dict) and known.get("queue_id") is not None:
+            return dict(record, queue_id=known["queue_id"])
+        return record
+
     @staticmethod
     def _record_client(record):
         """The client id `record` goes under with no marker: the one core derives from its id, and nothing else."""

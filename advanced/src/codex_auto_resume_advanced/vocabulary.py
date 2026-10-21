@@ -363,6 +363,10 @@ class BridgeCommand(StrEnum):
     ADVANCED_REPORT_JOB = "advanced-report-job"
     # v0.6.16-beta.4: a person's Stop of a turn run here (engine/headless.py) - the Dashboard's alone, never MCP.
     ADVANCED_HEADLESS_STOP = "advanced-headless-stop"
+    # v0.6.19: the Chat page's (control/chat.py) - the Dashboard's alone, never MCP.
+    ADVANCED_CHAT_READ = "advanced-chat-read"
+    ADVANCED_CHAT_SEND = "advanced-chat-send"
+    ADVANCED_CHAT_CANCEL = "advanced-chat-cancel"
 
 
 class Measurement(StrEnum):

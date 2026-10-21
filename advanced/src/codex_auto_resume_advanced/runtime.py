@@ -97,7 +97,7 @@ from codex_auto_resume.domain.plughands import RECORDS_LIMIT, kinds_of, widening
 
 from .arming import Arming
 from .codex import headless
-from .engine import foropen, sessions, silent
+from .engine import chat, foropen, sessions, silent
 from .ledger import ClaimLedger, ceiling_reached
 from .registry import REGISTRY
 from .state import AdvancedState, StateError
@@ -442,7 +442,9 @@ class Runtime:
         The first capability to answer is the one taken, in registry order, with one exception (`_preferred`):
         a person's Send now is preferred to an early look at P7 where core would carry it out (v0.6.17)."""
         definitions = self.registry.at(point)
-        if not definitions or (point in OWN_RECORD_POINTS and _own_record(arguments[0])):
+        if point in OWN_RECORD_POINTS and _own_record(arguments[0]):
+            return self._own_record_answer(point, arguments)
+        if not definitions:
             return getattr(NULL, HOOKS[point])(*arguments)
         states = self.states()
         record = arguments[SENDING[point]] if point in SENDING else None
@@ -785,12 +787,15 @@ class Runtime:
             self.state.release_unlaunched(at=self.clock())
             self.state.release_unlaunched_continuations(UNLAUNCHED_AFTER, at=self.clock())
             self.state.release_unlaunched_prompts(UNLAUNCHED_AFTER, at=self.clock())
+            self.state.release_unlaunched_chats(UNLAUNCHED_AFTER, at=self.clock())
         except StateError:
             pass                                         # tried again at the next P2
         try:
             flying = [handed(rule) for rule in self.state.messages_in_flight()]
             flying += [continued.handed(row) for row in self.state.continuations_in_flight()]
             flying += [promptqueue.handed(row) for row in self.state.prompts_in_flight()]
+            # v0.6.19: and the chat's messages in flight, each taken back once three minutes pass untaken.
+            flying += [chat.watched(row, self.clock()) for row in self.state.chats_in_flight()]
         except StateError:
             flying = []
         # P2's eight (v0.6.15-beta): those in flight first, the longest in flight first, from a place that moves on
@@ -968,6 +973,24 @@ class Runtime:
             return False
         return self.arming.trip(foropen.CAPABILITY, OffReason.NOT_DELIVERED_ON_OPEN)
 
+    def _own_record_answer(self, point, arguments):
+        """P5 and P15 for a record of this edition's own (v0.6.19): a chat message goes through chat's own
+        channel with no marker while chat is on (engine/chat.py), and one in flight is proven by its client id whatever
+        chat stands at now - it was sent with no marker; everything else of the edition's own is asked nothing there,
+        as before - NULL's answer."""
+        record = arguments[0]
+        armed = self.states().get(chat.CAPABILITY) == ArmingState.ARMED
+        if point == Point.DELIVERY or (point == Point.SENDER and armed):
+            definition = self.registry.get(chat.CAPABILITY)
+            try:
+                owned = definition is not None and self.state.chat_by_record(record.get("record_id")) is not None
+            except Exception:
+                owned = False
+            if owned:
+                code = self._code_of(definition)
+                return code.sender(record, arguments[-1]) if point == Point.SENDER else code.delivery(record)
+        return getattr(NULL, HOOKS[point])(*arguments)
+
     def _not_dispatched_by_session(self, record, state) -> bool:
         """The tripwire NOT_DISPATCHED_BY_SESSION (v0.6.16-beta.4): core took back a continuation sent to a
         conversation another Codex session held (its gate vector's `session` pass, core's own column) because that
@@ -1011,6 +1034,10 @@ class Runtime:
                 # or a queued prompt's occurrence (state/prompts.py).
                 moved = self.state.prompt_moved(record.get("record_id"), move, at=self.clock(),
                                                 queue_id=record.get("queue_id"))
+            if moved is None:
+                # or (v0.6.19) a chat message (state/chat.py).
+                moved = self.state.chat_moved(record.get("record_id"), move, reason=record.get("reason"),
+                                              at=self.clock())
         except StateError:
             return DEFER                                 # repaired from the next P2 (resetmessage.records)
         if moved is None:
