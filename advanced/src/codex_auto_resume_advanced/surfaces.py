@@ -93,6 +93,18 @@ ARGUMENTS = {
     BridgeCommand.ADVANCED_REPORT_JOB: frozenset({"job"}),
     BridgeCommand.ADVANCED_HEADLESS_STOP: frozenset({"interruption_id"}),
 }
+# v0.6.19 (the groundwork): the stage's commands, in the vocabulary before any capability that answers one is built.
+# Each is passed over - DEFER, so core says "unknown command" exactly as for a command this edition does not have -
+# until the writer of its capability builds it: that writer gives it its arguments here, takes it out of this set, and
+# answers it in `bridge`.
+UNANSWERED = frozenset({
+    BridgeCommand.ADVANCED_ANALYTICS, BridgeCommand.ADVANCED_ANALYTICS_CSV, BridgeCommand.ADVANCED_COURIER,
+    BridgeCommand.ADVANCED_COURIER_SAVE, BridgeCommand.ADVANCED_COURIER_FORGET, BridgeCommand.ADVANCED_COURIER_TEST,
+    BridgeCommand.ADVANCED_FEED_REFRESH, BridgeCommand.ADVANCED_API, BridgeCommand.ADVANCED_API_TOKEN_NEW,
+    BridgeCommand.ADVANCED_REMOTE_PAIR_START, BridgeCommand.ADVANCED_REMOTE_PAIR_STATE, BridgeCommand.ADVANCED_FLEET,
+    BridgeCommand.ADVANCED_FLEET_SAVE, BridgeCommand.ADVANCED_PROMPT_EDIT, BridgeCommand.ADVANCED_PROMPTS_CLEAR_DONE,
+    BridgeCommand.ADVANCED_ACCOUNT, BridgeCommand.ADVANCED_ACCOUNT_SWITCH})
+ARGUMENTS.update({command: frozenset() for command in UNANSWERED})
 # The compatibility report's commands (report/flow.py), answered by the action itself.
 REPORT_COMMANDS = frozenset({BridgeCommand.ADVANCED_REPORT_BUILD, BridgeCommand.ADVANCED_REPORT_SAVE,
                              BridgeCommand.ADVANCED_REPORT_CHECK, BridgeCommand.ADVANCED_REPORT_SEND,
@@ -307,7 +319,7 @@ def diagnostics(runtime) -> dict:
 
 # ---------------------------------------------------------------------------- the Dashboard
 def bridge(runtime, command, argument):
-    if command not in tuple(BridgeCommand) or not isinstance(argument, dict):
+    if command not in tuple(BridgeCommand) or command in UNANSWERED or not isinstance(argument, dict):
         return DEFER
     command = BridgeCommand(command)
     if set(argument) - ARGUMENTS[command]:
