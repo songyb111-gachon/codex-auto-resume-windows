@@ -41,11 +41,19 @@ NETWORKING = re.compile(
     re.MULTILINE)
 
 # The paths under advanced/src/ that may import a networking module, each a folder ending in "/" or one file - the one
-# place the advanced edition's network code is allowed (v0.6.19, plans/v0619-design/D-groundwork.md section 4). Empty
-# until a capability that reaches the network is built: its commit adds its folder here (the courier's,
-# advanced/src/codex_auto_resume_advanced/courier/) and changes docs/SECURITY.md and docs/PRIVACY.md with it. The
-# standard archive's scan - src/ and scripts/ - never gains an entry.
-ADVANCED_NETWORK_MODULES = frozenset()
+# place the advanced edition's network code is allowed (v0.6.19, plans/v0619-design/D-groundwork.md section 4): the
+# courier's package (plans/v0619-design/D-courier.md), the advanced edition's only network code, whose commit changed
+# docs/SECURITY.md and docs/PRIVACY.md with it. The standard archive's scan - src/ and scripts/ - never gains an entry.
+ADVANCED_NETWORK_MODULES = frozenset({"advanced/src/codex_auto_resume_advanced/courier/"})
+# The shipped files that reach the network, beside the bootstrap: in the courier's package, those that import a
+# networking module or the courier's own request function (`from . import http`) - the request itself, the channels a
+# notice is pushed on, and the status page's reading.
+COURIER = "advanced/src/codex_auto_resume_advanced/courier/"
+COURIER_REACHING = frozenset({COURIER + "http.py", COURIER + "channels.py", COURIER + "feed.py"})
+COURIER_IMPORT = re.compile(r"^\s*from \. import (?:[a-z_]+, )*http\b", re.MULTILINE)
+# The hosts the courier names, each only in its package: Telegram's bot API and OpenAI's status page. The hosts a
+# person types for ntfy, a webhook or e-mail are theirs, never named in a shipped file.
+COURIER_HOSTS = re.compile(r"^https://(?:api\.telegram\.org/bot|status\.openai\.com/api/v2/summary\.json$)")
 
 
 def network_allowed(relative: str) -> bool:
@@ -133,10 +141,10 @@ class CodePropertyTests(unittest.TestCase):
     """The facts the wording depends on. If these change, the wording has to."""
 
     def test_the_recovery_runtime_imports_no_networking_module(self):
-        """The advanced edition's package as well (advanced/src/, shipped beside core in its archive):
-        SECURITY.md and PRIVACY.md say it adds no network code, and this is what makes that so. Its
-        compatibility report reaches GitHub only by delegation - it asks gh, the GitHub CLI the person
-        installed, which is not this product's code (test_only_the_report_starts_gh_and_only_for_github_com)."""
+        """The advanced edition's package as well (advanced/src/, shipped beside core in its archive), but for its
+        courier (ADVANCED_NETWORK_MODULES): SECURITY.md and PRIVACY.md say the courier is its only network code, and
+        this is what makes that so. Its compatibility report reaches GitHub only by delegation - it asks gh, the GitHub
+        CLI the person installed, which is not this product's code (test_only_the_report_starts_gh_and_only_for_github_com)."""
         offenders = []
         for path in tracked("src/*") + tracked("scripts/*.py") + tracked("advanced/src/*"):
             if path.suffix != ".py" or network_allowed(str(path.relative_to(ROOT)).replace("\\", "/")):
@@ -145,10 +153,11 @@ class CodePropertyTests(unittest.TestCase):
                 offenders.append("%s: %s" % (path.relative_to(ROOT), match.group().strip()))
         self.assertEqual(offenders, [], "the watcher would now be able to open a connection")
 
-    def test_exactly_one_shipped_file_reaches_the_network(self):
+    def test_exactly_the_bootstrap_and_the_courier_reach_the_network(self):
         # build/ is developer-only and excluded from the release payload, so it may
         # download the pinned interpreter. Everything that ships may not, except the
-        # bootstrap - which is the whole point of the bootstrap.
+        # bootstrap - which is the whole point of the bootstrap - and, in the advanced
+        # edition, the courier's files that send (COURIER_REACHING, v0.6.19).
         reaching = set()
         for path in (tracked("scripts/*") + tracked("build/install/*") + tracked("src/*") + tracked("gui/*")
                      + tracked("advanced/src/*") + tracked("advanced/gui/*")):
@@ -157,9 +166,12 @@ class CodePropertyTests(unittest.TestCase):
             except (UnicodeDecodeError, OSError):
                 continue
             relative = str(path.relative_to(ROOT)).replace("\\", "/")
-            if PS_NETWORK.search(text) and not network_allowed(relative):
+            if network_allowed(relative):
+                if path.suffix == ".py" and (NETWORKING.search(text) or COURIER_IMPORT.search(text)):
+                    reaching.add(relative)
+            elif PS_NETWORK.search(text):
                 reaching.add(relative)
-        self.assertEqual(reaching, {"scripts/bootstrap.ps1"},
+        self.assertEqual(reaching, {"scripts/bootstrap.ps1"} | set(COURIER_REACHING),
                          "the set of files that reach the network has changed")
 
     def test_only_the_report_starts_gh_and_only_for_github_com(self):
@@ -210,8 +222,9 @@ class CodePropertyTests(unittest.TestCase):
                 text = path.read_text(encoding="utf-8")
             except (UnicodeDecodeError, OSError):
                 continue
+            courier = str(path.relative_to(ROOT)).replace("\\", "/").startswith(COURIER)
             for url in re.findall(r"https?://[^\s\"'`)\]]+", text):
-                if not allowed.match(url):
+                if not allowed.match(url) and not (courier and COURIER_HOSTS.match(url)):
                     offenders.append("%s: %s" % (path.relative_to(ROOT), url))
                 if url.startswith("https://api.github.com"):
                     api.add(url)

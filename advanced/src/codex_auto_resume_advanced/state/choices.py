@@ -229,6 +229,11 @@ class Scoped:
             "failed": lambda measurement: verdict is not None and verdict(measurement) == "fail",
             "armed": lambda other: armed is not None and armed(other) is True,
         })
+        # v0.6.19 (push_notices, status_feed - the courier, plans/v0619-design/D-courier.md): push_notices' outbox, written
+        # only while it is on, and the status feed's last reading, read always. Neither loads a networking module.
+        from ..courier.feed import read as feed_read
+        from ..courier.outbox import OutboxHandle
+        self._reads.update({"outbox": OutboxHandle(state, capability, on), "feed": lambda: feed_read(state)})
 
     def __getattr__(self, name):
         reads = object.__getattribute__(self, "_reads")
