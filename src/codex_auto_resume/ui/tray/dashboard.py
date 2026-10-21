@@ -37,3 +37,18 @@ def open_dashboard(home: Path, page: str = None) -> bool:
     subprocess.Popen(arguments, cwd=str(home), close_fds=True,
                      creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     return True
+
+
+def open_chat(home: Path, thread_id: str) -> bool:
+    """Start the settings window at the advanced edition's chat with one conversation (v0.6.19): a click on a notice
+    goes there while the chat is on (notifier.click_uri). Only a UUID in its canonical text is put on the command line;
+    the advanced window reads `--chat=` (advanced/gui/AdvancedChat.cs) and the standard one ignores all three."""
+    from ...domain import ids
+    if not ids.is_uuid(thread_id):
+        raise ValueError("not a conversation")
+    exe = Path(home) / "CodexAutoResumeSettings.exe"
+    if not exe.is_file():
+        return False
+    subprocess.Popen([str(exe), "--page=advanced", "--capability=codex_chat", "--chat=" + thread_id], cwd=str(home),
+                     close_fds=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    return True

@@ -41,6 +41,14 @@ def cmd_activate(args) -> int:
     card's does (notifier.activate), and what it says afterwards is raised as a toast.
     """
     app = _app(args)
+    chat_thread = notify.parse_chat_uri(args.uri)
+    if chat_thread is not None:
+        # v0.6.19: a click on a notice's body that goes to the advanced edition's chat at that conversation.
+        from ..ui import tray
+        opened = tray.open_chat(app.paths.home, chat_thread)
+        app.logger.info("the chat opened from a notification" if opened
+                        else "activation: the Dashboard is not installed here")
+        return EXIT_OK if opened else EXIT_ERROR
     page = notify.parse_open_uri(args.uri)
     if page is not None:
         from ..ui import tray

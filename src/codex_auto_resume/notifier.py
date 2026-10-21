@@ -162,9 +162,11 @@ def _notice(kind, content, *, key, chip=None, chip_tone=None, line=None) -> Noti
 # v0.6.16 (the owner: "팝업을 클릭하면 무언가가 이미 있나? 없다면 만들어줘"). Until then a click on a card's face only put it
 # away, and a click on a toast's body did nothing of ours. Now both go where the notice is about, and click_uri below is
 # the one place that says where. Three destinations, the setting's values: the notice's own Dashboard page (the
-# default, and the only one while the in-app chat is off); the conversation's chat here (v0.6.16-beta.4's in-app chat
-# adds it, in click_uri); and Codex itself at that conversation (notify.codex_thread_uri). The setting is offered,
-# and read, only while the chat is on (chat_on), so until the chat is merged every click opens the page.
+# default, and the only one while the in-app chat is off); the conversation's chat here (v0.6.19's in-app chat,
+# notify.chat_uri); and Codex itself at that conversation (notify.codex_thread_uri). The setting is offered - in the
+# advanced edition's chat card alone (settings.DASHBOARD_ONLY) - and read only while the chat is on, which the watcher
+# learns from the edition's plug (runtime/app.py, `_chat`): with the chat off, or in the standard edition, every click
+# opens the page.
 CLICK_SETTING = "notice_click"
 CLICK_DESTINATIONS = settings.NOTICE_CLICKS
 DEFAULT_CLICK = settings.FIELDS[CLICK_SETTING][0]
@@ -175,17 +177,11 @@ BODY_PAGES = {"starting": "pending", "resumed": "history", "failed": "history", 
               "stopped": "history", "cancelled": "history", "power_stopped": "settings"}
 
 
-def chat_on(values) -> bool:
-    """Whether the in-app chat is on in these settings. There is none yet - v0.6.16-beta.4 brings it and answers
-    here - so a click goes to the notice's page whatever CLICK_SETTING holds."""
-    return False
-
-
-def click_destination(values) -> str:
-    """Where a click on a notice goes under these settings: CLICK_SETTING's value while the chat is on, else the
-    page. Anything unknown is the page."""
+def click_destination(values, chat=False) -> str:
+    """Where a click on a notice goes under these settings: CLICK_SETTING's value while the chat is on (`chat`, True
+    only where the edition's plug says so), else the page. Anything unknown is the page."""
     values = values if isinstance(values, dict) else {}
-    chosen = values.get(CLICK_SETTING) if chat_on(values) else DEFAULT_CLICK
+    chosen = values.get(CLICK_SETTING) if chat is True else DEFAULT_CLICK
     return chosen if chosen in CLICK_DESTINATIONS else DEFAULT_CLICK
 
 
@@ -206,7 +202,10 @@ def click_uri(kind, actions, key, destination=DEFAULT_CLICK) -> str:
         link = notify.codex_thread_uri(key)
         if link is not None:
             return link
-    # destination == "chat": v0.6.16-beta.4's in-app chat returns that conversation's chat here, where key is one.
+    if destination == "chat":
+        link = notify.chat_uri(key)               # v0.6.19: that conversation's chat here, where key is one
+        if link is not None:
+            return link
     return notify.open_uri(notice_page(kind, actions))
 
 
@@ -503,12 +502,14 @@ def complete(notice, card_shown, *, show=notify.show_content) -> bool:
 
 
 # ------------------------------------------------------------------------- the buttons
-def activate(uri, *, control=None, open_dashboard=None, announce=None, log=None, open_link=None, stay=()) -> str:
+def activate(uri, *, control=None, open_dashboard=None, announce=None, log=None, open_link=None, stay=(),
+             open_chat=None) -> str:
     """Do what a card button's URI asks, in process. Returns what happened, as one word.
 
     "opened" / "not_installed"  an open URI: `open_dashboard(page)` for one of the window's pages
     "opened" / "not_opened"     (v0.6.16) the Codex app's link to one conversation (notify.codex_thread_uri), the
-                                destination a click on a notice may have: `open_link(link)`, Windows' URL handler
+                                destination a click on a notice may have: `open_link(link)`, Windows' URL handler -
+                                or (v0.6.19) the chat at one conversation (notify.chat_uri): `open_chat(thread)`
     "cancelled"                  a cancel URI: that one interruption, through the control layer
     "stopped"                    a power-stop URI (v0.6.12): the power action stopped for its batch
     "refused" / "failed"         the control layer said no (a coded refusal) or broke
@@ -537,6 +538,16 @@ def activate(uri, *, control=None, open_dashboard=None, announce=None, log=None,
             return "failed"
         say("thread %s: Codex opened from a notification card" % thread_id if opened
             else "notification card: Codex could not be opened")
+        return "opened" if opened else "not_opened"
+    chat_thread = notify.parse_chat_uri(uri)
+    if chat_thread is not None:
+        try:
+            opened = open_chat is not None and open_chat(chat_thread) is True
+        except Exception as exc:
+            say("notification card: opening the chat failed (%s)" % type(exc).__name__)
+            return "failed"
+        say("thread %s: the chat opened from a notification card" % chat_thread if opened
+            else "notification card: the chat could not be opened")
         return "opened" if opened else "not_opened"
     page = notify.parse_open_uri(uri)
     if page is not None:

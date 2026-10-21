@@ -174,6 +174,16 @@ class PageTests(ChatCase):
             self.assertIn(command, surfaces.ARGUMENTS)
 
 
+class NoticeTests(ChatCase):
+    def test_the_watcher_is_told_the_chat_is_on_only_while_it_is(self):
+        """Fails with notice_view's chat flag reverted: a click on a notice would always open its page."""
+        plug = self.advanced()
+        self.assertNotIn("chat", surfaces.notice_view(plug.runtime).get("notice", {}))
+        self.arm(plug)
+        plug.runtime.states(fresh=True)
+        self.assertIs(surfaces.notice_view(plug.runtime)["notice"]["chat"], True)
+
+
 class ReaderTests(unittest.TestCase):
     def test_the_last_turns_messages_and_replies_with_counts_and_no_marker(self):
         with tempfile.TemporaryDirectory() as folder:

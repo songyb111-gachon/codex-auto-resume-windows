@@ -113,6 +113,21 @@ def cancel_asks_open_codex(uri) -> bool:
     return values == ["1"]
 
 
+def chat_uri(thread_id) -> str | None:
+    """Capability URI that opens the advanced edition's chat at one conversation (v0.6.19), where a click on a notice
+    may go while the chat is on - or None unless `thread_id` is a UUID in its canonical text, the only thing put in it.
+    Like an open URI it changes nothing: at worst it opens a window."""
+    return "%s:chat?thread=%s" % (SCHEME, thread_id) if ids.is_uuid(thread_id) else None
+
+
+def parse_chat_uri(uri) -> str | None:
+    """The conversation a chat URI names, or None for anything but exactly `chat_uri`'s shape."""
+    text = uri if isinstance(uri, str) else ""
+    prefix = "%s:chat?thread=" % SCHEME
+    thread_id = text[len(prefix):] if text.startswith(prefix) else None
+    return thread_id if ids.is_uuid(thread_id) else None
+
+
 def open_uri(page: str = "pending") -> str:
     """Capability URI that opens one page of the Dashboard.
 

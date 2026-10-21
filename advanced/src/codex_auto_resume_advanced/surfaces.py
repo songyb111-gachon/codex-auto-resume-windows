@@ -250,18 +250,27 @@ def meter_view(runtime) -> dict:
 
 def notice_view(runtime) -> dict:
     """What the watcher adds to the notices it builds (v0.6.18): {"notice": {"open_codex": true}} while Open Codex on
-    a notice stands on and Windows can open a `codex:` link here (control/opencodex.py), {} otherwise - so with it
-    off, or with no handler, every notice is exactly the standard edition's. A closed flag, nothing else."""
+    a notice stands on and Windows can open a `codex:` link here (control/opencodex.py), and (v0.6.19) "chat": true
+    while chat with a conversation is on, so a click on a notice may go where the person chose (core's
+    notifier.click_uri); {} otherwise - so with both off, or with no handler, every notice is exactly the standard
+    edition's. Closed flags, nothing else."""
     from .control import opencodex
+    from .engine import chat
+    found = {}
     try:
         definition = runtime.registry.get(opencodex.CAPABILITY)
-        if definition is None or runtime.states().get(opencodex.CAPABILITY) != ArmingState.ARMED:
-            return {}
-        if runtime.action(definition).available() is not True:
-            return {}
+        if (definition is not None and runtime.states().get(opencodex.CAPABILITY) == ArmingState.ARMED
+                and runtime.action(definition).available() is True):
+            found["open_codex"] = True
     except Exception:
-        return {}
-    return {"notice": {"open_codex": True}}
+        pass
+    try:
+        if (runtime.registry.get(chat.CAPABILITY) is not None
+                and runtime.states().get(chat.CAPABILITY) == ArmingState.ARMED):
+            found["chat"] = True
+    except Exception:
+        pass
+    return {"notice": found} if found else {}
 
 
 def update_view(runtime) -> dict:

@@ -418,8 +418,9 @@ class App(WatchLoop):
                 identity = None     # an unnamed task is still worth announcing
             # v0.6.11: a needs-you notice carries the sound its person chose, if any (notify.py).
             sound = event == needsyou.EVENT and self.settings.get(needsyou.SOUND_FIELD) is True
+            chat = getattr(self, "_chat", False)      # v0.6.19: the in-app chat on (_edition_notices)
             notice = notifier.build(event, detail, identity, sound=sound,
-                                    destination=notifier.click_destination(self.settings),
+                                    destination=notifier.click_destination(self.settings, chat),
                                     stay=notice_kinds.chosen(self.settings))
             # v0.6.18: Open Codex beside its other buttons, where the edition's plug asked for it (_edition_notices).
             notice = notifier.with_open_codex(notice, getattr(self, "_open_codex", False))
@@ -445,7 +446,8 @@ class App(WatchLoop):
         # countdown's carries the promised way to stop it (Q8). Windows' Do not disturb may still hide one.
         if event not in notifier.POWER_EVENTS and not policy.notification_enabled(self.settings, event):
             return False
-        notice = notifier.build(event, detail, destination=notifier.click_destination(self.settings),
+        notice = notifier.build(event, detail, destination=notifier.click_destination(self.settings,
+                                                                                      getattr(self, "_chat", False)),
                                 stay=notice_kinds.chosen(self.settings))
         if notice is None:
             return False
@@ -470,7 +472,8 @@ class App(WatchLoop):
                                      inbox=self._inbox,
                                      setting=self.settings.get(notifier.CARD_SETTING, True) is True),
                                  log=self.logger.info, open_link=notify.open_in_codex,
-                                 stay=notice_kinds.chosen(self.settings))
+                                 stay=notice_kinds.chosen(self.settings),
+                                 open_chat=lambda thread: tray.open_chat(self.paths.home, thread))
 
     def _demo(self):
         """Show me what happens (v0.6.11), asked from Diagnostics: one made-up card, on a worker thread
@@ -623,6 +626,8 @@ class App(WatchLoop):
         extra = added if isinstance(added, dict) else {}
         notice = extra.get("notice")
         self._open_codex = isinstance(notice, dict) and notice.get("open_codex") is True
+        # v0.6.19: whether the in-app chat is on, so a click on a notice may go where `notice_click` says (notifier).
+        self._chat = isinstance(notice, dict) and notice.get("chat") is True
         if added is not DEFER:
             self._near_limit(added)
             self._update_offered(added)
