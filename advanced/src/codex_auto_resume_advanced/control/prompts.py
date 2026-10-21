@@ -1,5 +1,6 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
-"""The Dashboard's prompt queue (v0.6.15-beta): the queued prompts read, one added, one cancelled, one held let go on.
+"""The Dashboard's prompt queue (v0.6.15-beta): the queued prompts read, one added, one cancelled, one held let go on -
+and (v0.6.19, #50) the completed ones a person was shown deleted from the list (Delete completed).
 
 Each is the long-lived bridge's, the Dashboard's alone (surfaces.py), against the generation the page read. No MCP
 tool reaches any of them. A prompt is added only while prompt_queue stands on and its conversation is switched on,
@@ -7,7 +8,9 @@ checked as core checks a message of a person's (continuation.validate_prompt: no
 template), at most 2,000 characters unless Longer messages stands on; twenty waiting in all and five to a
 conversation (state/prompts.py). Cancel takes the words at once - or, for one Codex already holds in its queue, asks
 core to take it back out (the owner's answer of 2026-10-09), which says on its row when Codex will not; one being
-sent, Cancel no longer reaches.
+sent, Cancel no longer reaches. Delete completed takes off the list only the finished prompts it is named that are still
+completed work (state/prompts.COMPLETED), and says how many it deleted and how many it kept because they changed;
+nothing of Codex's and no row the caps count is ever touched.
 """
 from __future__ import annotations
 
@@ -16,7 +19,7 @@ from codex_auto_resume.domain import ids
 
 from ..engine.promptqueue import CAPABILITY, LONG, SHORT_LIMIT
 from ..state.choices import Refused
-from ..state.prompts import PER_CONVERSATION, PROMPTS_LIMIT
+from ..state.prompts import COMPLETED, PER_CONVERSATION, PROMPTS_LIMIT
 from ..vocabulary import Measurement, PromptState, Refusal
 from .resets import _on, _refused, _stale, _standing, switched_off
 
@@ -56,6 +59,8 @@ def view(runtime) -> dict:
         item["words"] = row["words"]
         item["in_codex"] = row["record_state"] == "in_flight" and row["sent_at"] is not None
         item["being_sent"] = row["record_state"] == "in_flight" and row["sent_at"] is None
+        # v0.6.19 (#50): finished as completed work, so Delete completed may take it off the list.
+        item["completed"] = row["state"] == PromptState.DONE and row["reason"] in COMPLETED
         shown.append(item)
     try:
         unproven = runtime.arming.verdict(Measurement.MT) != "pass"
@@ -123,3 +128,18 @@ def go_on(runtime, prompt, generation) -> dict:
     except Exception:
         return _refused(Refusal.STATE_UNAVAILABLE, runtime)
     return dict(view(runtime), done=True)
+
+
+def clear_done(runtime, argument) -> dict:
+    """advanced-prompts-clear-done (v0.6.19, #50): of `prompts`, the ids of the completed prompts the Dashboard showed,
+    those still completed deleted from the list, against the generation it read them at; how many were deleted and how
+    many kept because they changed (`deleted`, `skipped`)."""
+    if _stale(runtime, argument.get("generation")):
+        return _refused(Refusal.STALE_GENERATION, runtime)
+    try:
+        cleared = runtime.state.clear_done(argument.get("prompts"), argument.get("generation"))
+    except Refused as refused:
+        return _refused(refused.refusal, runtime)
+    except Exception:
+        return _refused(Refusal.STATE_UNAVAILABLE, runtime)
+    return dict(view(runtime), done=True, deleted=cleared["deleted"], skipped=cleared["skipped"])

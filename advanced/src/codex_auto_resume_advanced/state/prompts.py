@@ -31,6 +31,12 @@ WORDS_LIMIT = 8192
 # What a prompt's row may be changed in by the engine (engine/promptqueue.py), and nothing else of it.
 CHANGES = frozenset({"state", "reason", "record_id", "gate", "gate_reason", "due_at", "launching_at", "sent_at",
                      "finished_at", "sent_count"})
+# v0.6.19 (#50, Delete completed): a finished prompt that is completed work - delivered, or handed over to the person,
+# who joined the turn it started - and so one a person may take off the list. Never one cancelled, held, still to go,
+# uncertain (unknown), expired, missed or superseded: those stay until `prune`.
+COMPLETED = (PromptReason.DELIVERED, PromptReason.HANDED_OVER)
+# How many prompts one Delete completed names at most: as many rows as the journal's pass lets the table keep.
+CLEAR_MOST = 5000
 
 
 def _prompt(row) -> dict:
@@ -175,6 +181,30 @@ class PromptsMixin:
             # The person's word: it no longer waits for the one before it (`depends`), which did not arrive.
             return connection.execute("UPDATE prompts SET state=?, reason=NULL, depends=0 WHERE prompt_id=? AND state=?",
                                       (PromptState.WAITING, prompt_id, PromptState.HELD)).rowcount == 1
+
+    def clear_done(self, prompt_ids, generation) -> dict:
+        """A person's Delete completed (v0.6.19, #50): of the prompts `prompt_ids` the Dashboard showed as completed,
+        each still finished as completed work (COMPLETED) deleted - its row alone, never its occurrence's row of
+        `records`, which the ledger's caps count - and every other one left as it is and counted: one that moved on,
+        is gone, or was never completed. {"deleted": n, "skipped": n}. Refused (Refused) for ids that are not a list of
+        distinct prompt ids (invalid_request), and as a whole, deleting nothing, where anything moved since the list was
+        read at `generation` (stale_generation) - checked in the deleting transaction."""
+        if (not isinstance(prompt_ids, (list, tuple)) or not 0 < len(prompt_ids) <= CLEAR_MOST
+                or any(type(prompt) is not int for prompt in prompt_ids) or len(set(prompt_ids)) != len(prompt_ids)):
+            raise Refused(Refusal.INVALID_REQUEST)
+        if type(generation) is not int:
+            raise Refused(Refusal.STALE_GENERATION)
+        deleted = 0
+        with self._transaction(create=False) as connection:
+            if connection is None:
+                raise Refused(Refusal.STALE_GENERATION)
+            if connection.execute("SELECT generation FROM meta").fetchone()[0] != generation:
+                raise Refused(Refusal.STALE_GENERATION)
+            for prompt in prompt_ids:
+                deleted += connection.execute(
+                    "DELETE FROM prompts WHERE prompt_id=? AND state=? AND reason IN (%s) AND words IS NULL"
+                    % ",".join("?" for _ in COMPLETED), (prompt, PromptState.DONE, *COMPLETED)).rowcount
+        return {"deleted": deleted, "skipped": len(prompt_ids) - deleted}
 
     def end_prompts(self, reason, *, thread_id=None, at=None) -> int:
         """Every prompt still to go whose occurrence is not in flight - of `thread_id`, or all - ended with `reason`
