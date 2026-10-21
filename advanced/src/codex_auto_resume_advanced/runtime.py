@@ -290,7 +290,7 @@ def _word(answer, point):
 class Runtime:
     def __init__(self, paths, *, registry=REGISTRY, clock=time.time,
                  measure_session_factory=None, measure_launcher=None, measure_backend=None,
-                 measure_cli=None, measure_ipc=None, evidence_dir=None, **arming):
+                 measure_cli=None, measure_ipc=None, measure_hands=None, evidence_dir=None, **arming):
         self.paths = paths
         self.registry = registry
         self.clock = clock
@@ -327,6 +327,7 @@ class Runtime:
         self._measure_backend = measure_backend
         self._measure_cli = measure_cli
         self._measure_ipc = measure_ipc
+        self._measure_hands = measure_hands
         self._evidence_dir = evidence_dir
 
     # ------------------------------------------------------------------ standing
@@ -1136,9 +1137,12 @@ class Runtime:
         # Desktop's IPC pipe (MIPC). Built from the same backend, so they are of the Codex the record names.
         cli = self._measure_cli if self._measure_cli is not None else measure.live_cli(backend, self.paths)
         ipc = self._measure_ipc if self._measure_ipc is not None else measure.live_ipc()
+        # v0.6.19: the groundwork's probes' hands (measure.live_hands), of the same backend.
+        hands = (self._measure_hands if self._measure_hands is not None
+                 else measure.live_hands(backend, self.paths))
         return measure.run(measurement, session_factory=session_factory,
                            launcher=launcher, backend=backend, thread=thread, may_spend=may_spend,
-                           directory=self._evidence_dir, clock=self.clock, cli=cli, ipc=ipc)
+                           directory=self._evidence_dir, clock=self.clock, cli=cli, ipc=ipc, hands=hands)
 
     def complete_measurement(self, measurement, verdict, note):
         """Record a person's completion of a blocked measurement (measure-verdict, measure.py).

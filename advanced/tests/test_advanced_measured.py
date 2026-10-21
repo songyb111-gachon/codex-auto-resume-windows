@@ -164,7 +164,10 @@ class TableTests(unittest.TestCase):
         self.assertTrue(all(measured.MEASURED[m][0] == Verdict.PASS for m in again | v0617))
         self.assertEqual(set(Measurement) - passed - failed,
                          # v0.6.15-beta's own, for several conversations at once: not made yet.
-                         {Measurement.MQ, Measurement.ME, Measurement.MS, Measurement.MK, Measurement.MT})
+                         {Measurement.MQ, Measurement.ME, Measurement.MS, Measurement.MK, Measurement.MT,
+                          # v0.6.19's groundwork probes, made while its stage is built: not made yet.
+                          Measurement.MTOK, Measurement.MOPEN, Measurement.MAL, Measurement.MWAKE, Measurement.MHK,
+                          Measurement.M4B})
 
 
 if __name__ == "__main__":

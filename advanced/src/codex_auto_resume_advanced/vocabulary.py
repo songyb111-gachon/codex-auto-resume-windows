@@ -504,6 +504,19 @@ class Measurement(StrEnum):
     # for opening, opened by the person - whether two turns then run (the goal's and the queued one) or one (M1 and
     # M2 together, which no measurement made; goal_continuation beside queue_for_open rests on it).
     MQG = "mqg"
+    # v0.6.19 (the groundwork, plans/v0619-design/D-groundwork.md section 5), made while the stage is built. MTOK: a
+    # throwaway conversation's rollout keeps per-turn token totals of the five kinds, never decreasing, and the history's
+    # tokens_used agrees (usage_analytics). MOPEN: a conversation the app does not hold loads within ten seconds of its
+    # link being opened (open_to_send). MAL: a `codex logout` and `codex login` in a terminal reach the running app
+    # without a restart (account_switch). MWAKE: a wake timer wakes this PC from sleep (wake_for_reset). MHK: Codex's
+    # generated schema has a Stop event for plugin hooks, and the feature is there (stop_hook_continuation). M4B: a
+    # block from this edition's Stop hook continues the turn - its probe is the Stop hook's writer's to finish.
+    MTOK = "mtok"
+    MOPEN = "mopen"
+    MAL = "mal"
+    MWAKE = "mwake"
+    MHK = "mhk"
+    M4B = "m4b"
 
 
 class ObservedWord(StrEnum):
@@ -545,6 +558,12 @@ class ObservedWord(StrEnum):
     ROLLOUT = "rollout"
     SAME = "same"
     NEITHER = "neither"
+    # v0.6.19: how long a conversation took to load once its link was opened (MOPEN), and what powered the PC (MWAKE).
+    UNDER_2S = "under_2s"
+    S2_TO_10 = "s2_to_10"
+    OVER_10S = "over_10s"
+    AC = "ac"
+    BATTERY = "battery"
 
 
 class RunEnd(StrEnum):
