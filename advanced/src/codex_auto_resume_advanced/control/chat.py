@@ -6,7 +6,8 @@ read or carry reaches a log, the journal, diagnostics, a notification, the statu
 only while chat stands on (codex/conversation.py, read where the page asks and dropped); a message is accepted only
 while chat is on, its conversation is switched on and nothing of the person's from this page waits in it, checked as
 core checks a message of a person's (continuation.validate_prompt: no empty text, no marker, no shipped template), at
-most 2,000 characters. Cancel reaches only a message still waiting: one Codex already holds is its own.
+most 2,000 characters - and taken while Codex's usage limit is full too: it waits, and core sends it once the limit
+resets (`limit_full` tells the page). Cancel reaches only a message still waiting: one Codex already holds is its own.
 """
 from __future__ import annotations
 
@@ -51,7 +52,22 @@ def view(runtime, thread) -> dict:
         item["words"] = row["words"] if row["state"] == ChatState.WAITING else None
         messages.append(item)
     return {"done": True, "refusal": None, "generation": generation, "turns": turns, "messages": messages,
-            "words_limit": WORDS}
+            "words_limit": WORDS, "limit": {"full": limit_full(runtime, now)}}
+
+
+def limit_full(runtime, now) -> bool:
+    """Whether Codex's usage limit is full as the watcher last read it (core's watcher_status): some window at 100 per
+    cent whose reset is still ahead. A message waits through it - core's usage gate holds a chat message as it holds
+    every send - and goes once the limit resets; the page says so. Unreadable is not full."""
+    from codex_auto_resume.store import Store
+    try:
+        with Store(runtime.paths.state_dir) as store:
+            status = store.watcher_status() or {}
+        windows = (status.get("usage") or {}).get("windows") or ()
+        return any(window["used_percent"] >= 100 and (window["reset_at"] is None or window["reset_at"] > now)
+                   for window in windows)
+    except Exception:
+        return False
 
 
 def send(runtime, argument) -> dict:

@@ -155,6 +155,8 @@ namespace CodexAutoResume
             settings.Parent.Controls.Add(tab);
             navButtons[AdvancedPageName] = tab;
             advancedTab = tab;
+            // v0.6.19: the Chat tab right of it, shown only while chat is on (AdvancedChat.cs).
+            AddChatTab(tab);
             // A window that replaces one with this page on screen opens on the Overview, as the standard window opens
             // on a page it does not have, and comes back here once the page can be shown (ReturnToAdvanced).
             advancedReturning = firstPage == AdvancedPageName;
@@ -373,6 +375,7 @@ namespace CodexAutoResume
         {
             if (argument == "--page=" + AdvancedPageName) request.Page = AdvancedPageName;
             else if (argument == "--focus=page." + AdvancedPageName) request.Focus = "page." + AdvancedPageName;
+            else if (ChatArgumentParsed(argument)) { }      // v0.6.19: the chat at one conversation (AdvancedChat.cs)
             else if (argument.StartsWith(CapabilityArgument, StringComparison.Ordinal))
             {
                 string id = argument.Substring(CapabilityArgument.Length);
@@ -779,6 +782,7 @@ namespace CodexAutoResume
         /// state in a chip. Rows are only rewritten where they changed, so the selection and the focus stay where the person left them.
         private void FillAdvancedList()
         {
+            UpdateChatTab();
             if (advancedList == null) return;
             var rows = new List<Dictionary<string, object>>();
             foreach (object entry in Items(advancedListing, "capabilities") ?? new List<object>())
@@ -877,7 +881,7 @@ namespace CodexAutoResume
                            KeptShown(item) + "|" +
                            (IsReport(item) ? ReportShown() : "") + "|" +
                            ResetsShown(item) + "|" + KeepGoingShown(item) + "|" + QueueShown(item) + "|" +
-                           WordingsShown(item) + "|" + RunsShown(item);
+                           WordingsShown(item) + "|" + RunsShown(item) + "|" + ChatShown(item);
             if (shown == advancedShown)
             {
                 UpdateAdvancedButtons();
@@ -1044,8 +1048,10 @@ namespace CodexAutoResume
 
             // Under its limits (v0.6.14): Send now's waiting recoveries. Keep it on is in the head card (v0.6.16-beta.3).
             BuildSendNow(item);
-            // The turns run here now, each with its Stop (v0.6.16-beta.4, AdvancedRuns.cs).
+            // The turns run here now, each with its Stop (v0.6.16-beta.4, AdvancedRuns.cs), and the chat (v0.6.19,
+            // AdvancedChat.cs).
             BuildRuns(item);
+            BuildChat(item);
             // The reset actions' rules and the form they are added with (AdvancedResets.cs); the conversations kept going
             // and the queued prompts (v0.6.15-beta) - each while its capability is on or, from v0.6.16-beta.3, watched.
             BuildResets(item);
