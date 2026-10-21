@@ -1,24 +1,24 @@
-# ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
 """What a compatibility report says of records already read: pure, and counted as
 codex-compat-reporter counts it.
 
 The report's format is the maintainer's own (`codex-auto-resume-compat-evidence/1`), and
-codex-compat-reporter 1.5.0 writes it today (codex_compat_report.py, `build`). The in-app report
-writes the same file of the same records, so every rule here is that program's, in its order and
-to the letter: which engine a record belongs to (`placement`), which route carried it
-(`another_route`, `beyond_reach`), what its words may be (`known`), and how its capabilities and
-its verdict are counted (`body`). advanced/tests/golden/report/ holds what 1.5.0's own `build`
-writes of the fixtures, and advanced/tests/test_advanced_report_records.py holds this to it.
+codex-compat-reporter 1.5.0 writes it today (codex_compat_report.py, `build`). Every report this
+product writes of this PC's own records - the Dashboard's, in either edition (v0.6.19) - writes the
+same body of the same records, so every rule here is that program's, in its order and to the
+letter: which engine a record belongs to (`placement`), which route carried it (`another_route`,
+`beyond_reach`), what its words may be (`known`), and how its capabilities and its verdict are
+counted (`body`). What 1.5.0's own `build` writes of the fixtures is kept beside the tests, and
+they hold this to it.
 
 Where the reporter copies a word from the product, this takes it from the product: the record's
 vocabularies, the progress kinds, the send gate, the client id a marker-free continuation is
-queued under, the gate words only the edition's plug writes, and the engine lines the watcher
+queued under, the gate words only an edition's plug writes, and the engine lines the watcher
 logs (runtime/app.py, imported only when a report is written: it is the composition root). What
-a report leaves out is told in closed codes (`Unplaced`), never in a sentence.
+a report leaves out is told in closed codes (`Unplaced`), never in a sentence. How the project
+counts a report it is sent - worked, failed, neither, or both at once - is `graded`, the one rule
+build/community_report.py counts filed reports by too.
 
-Nothing here opens a file, and nothing here imports the rest of the advanced package: records.py
-reads, and hands this what it read. So both could move into core unchanged if a standard export
-is ever approved (docs: the design's option X).
+Nothing here opens a file: reading.py reads, and hands this what it read.
 """
 from __future__ import annotations
 
@@ -67,7 +67,7 @@ OUTCOMES = frozenset(machine.OUTCOMES) - {str(words.RecordState.OUTCOME_UNVERIFI
 # (compat/standing.py resolve: a registry_* reason is given only on a local PASS).
 LOCAL_PASS_REASONS = frozenset({str(ResolutionReason.LOCAL_CHECKS_PASSED), str(ResolutionReason.REGISTRY_VERIFIED),
                                 str(ResolutionReason.REGISTRY_CHECKED)})
-# Gate words only the edition's plug writes, at any gate but consent (domain/gates.py, HELD and PLUGGED).
+# Gate words only an edition's plug writes, at any gate but consent (domain/gates.py, HELD and PLUGGED).
 PLUG_WORDS = frozenset({gates.PLUGGED, gates.HELD})
 CONSENT = str(words.GateName.CONSENT)
 
@@ -372,3 +372,21 @@ def body(version, rows, lines, watcher, progress) -> dict:
         } for row, counts in zip(rows, progress)],
         "capabilities": {name: capabilities[name] for name in sorted(capabilities)},
     }
+
+
+# ------------------------------------------------------------------------------ how a report counts
+# The project's counting rule (docs/GUIDE.md, the Reported grade): only delivered records speak.
+WORKED = frozenset({str(words.RecordState.RECOVERED)})
+FAILED = frozenset({str(words.RecordState.RECOVERY_TURN_FAILED), str(words.RecordState.FAILED),
+                    str(words.RecordState.TERMINAL_FAILURE)})
+
+
+def graded(records) -> dict:
+    """What one report's records say, in the two words the Reported grade counts: worked when at
+    least one delivered record ended recovered, failed when at least one ended in a failed recovery,
+    neither when no delivered record ended either way - nothing delivered included - and both when
+    it is worked and failed at once, shown, not resolved. `records` are a body's, as `body` writes them."""
+    delivered = [record for record in records if record["delivered_at"]]
+    worked = any(record["state"] in WORKED for record in delivered)
+    failed = any(record["state"] in FAILED for record in delivered)
+    return {"worked": worked, "failed": failed, "neither": not (worked or failed), "both": worked and failed}
