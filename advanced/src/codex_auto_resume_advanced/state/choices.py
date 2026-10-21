@@ -229,6 +229,9 @@ class Scoped:
             "failed": lambda measurement: verdict is not None and verdict(measurement) == "fail",
             "armed": lambda other: armed is not None and armed(other) is True,
         })
+        # v0.6.19: the account account_switch last saw signed in (state/account.py) - its alone.
+        from .account import AccountHandle
+        self._reads["account"] = AccountHandle(state, capability, on)
 
     def __getattr__(self, name):
         reads = object.__getattribute__(self, "_reads")

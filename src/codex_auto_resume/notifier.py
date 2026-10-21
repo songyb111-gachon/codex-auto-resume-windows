@@ -74,6 +74,7 @@ NOTICE_STATUS = {
     "near_limit_press_resume": "attention",
     "near_limit_not_continued": "attention",
     "update_offered": "attention",  # v0.6.18: the advanced edition's weekly update check offers a newer version
+    "account_changed": "paused",    # v0.6.19: the advanced edition saw another account signed in; what waited, waits
 }
 # v0.6.12: the power action after usage-limit recoveries (runtime/afterwork.py), whose kinds are words of
 # its own (domain/power_vocabulary.PowerNotice). Its notices are raised whatever the notification switches
@@ -306,6 +307,11 @@ def _build(event, detail, identity=None, *, sound=False):
         # Diagnostics, where an update is installed. A version not of a release's or a pre-release's shape says nothing.
         content = notify.update_offered_content(detail.get("version"), detail.get("prerelease") is True)
         return None if content is None else _notice("update_offered", content, key=None)
+    if event == "account_changed":
+        # v0.6.19: the advanced edition's account switch saw another Codex account signed in, and held what waited for a
+        # usage limit for a person. About this PC, not a conversation, so it has no key and replaces no card; its one
+        # button opens Pending, where each is let continue or cancelled.
+        return _notice("account_changed", notify.account_changed_content(detail.get("count")), key=None)
     if event in POWER_EVENTS:
         # v0.6.12: the power action (runtime/afterwork.py). About this PC, not a conversation, so it has
         # no key and replaces no card. Only the countdown's has a stop button, named by its batch (A28).

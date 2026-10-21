@@ -640,6 +640,12 @@ namespace CodexAutoResume
                 MethodInvoker after = done;
                 done = delegate { ReadPrompts(after); };
             }
+            // v0.6.19: the account signed in (AdvancedAccount.cs).
+            if (id == AccountId)
+            {
+                MethodInvoker after = done;
+                done = delegate { ReadAccount(after); };
+            }
             // v0.6.16-beta.4: the wrap-up's own wordings (AdvancedUsage.cs).
             if (id == WrapUpId)
             {
@@ -877,7 +883,7 @@ namespace CodexAutoResume
                            KeptShown(item) + "|" +
                            (IsReport(item) ? ReportShown() : "") + "|" +
                            ResetsShown(item) + "|" + KeepGoingShown(item) + "|" + QueueShown(item) + "|" +
-                           WordingsShown(item) + "|" + RunsShown(item);
+                           WordingsShown(item) + "|" + RunsShown(item) + "|" + AccountShown(item);
             if (shown == advancedShown)
             {
                 UpdateAdvancedButtons();
@@ -1051,6 +1057,8 @@ namespace CodexAutoResume
             BuildResets(item);
             BuildKeepGoing(item);
             BuildQueue(item);
+            // v0.6.19: the Codex account signed in, and how to switch it (AdvancedAccount.cs).
+            BuildAccount(item);
 
             // Its own choices, the rules a person writes for Codex's error codes and the samples of what nothing classified,
             // each only for a capability that has them - the last two once they have been read.

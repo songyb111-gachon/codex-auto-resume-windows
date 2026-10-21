@@ -80,7 +80,9 @@ class ShippedTests(unittest.TestCase):
                # v0.6.16-beta.4: how a turn run here starts.
                "silent_continuation",
                # v0.6.18: the weekly update check; and Open Codex on a notice, an action, before the other two.
-               "idle_update_check", "open_codex_button",
+               "idle_update_check",
+               # v0.6.19: switching the Codex account.
+               "account_switch", "open_codex_button",
                "long_reset_message", "compat_report")
 
     def test_the_registry_this_edition_ships_is_its_capabilities_in_their_order(self):
@@ -99,7 +101,8 @@ class ShippedTests(unittest.TestCase):
         answering = {Point.START_ROUTE: ("start_with_codex",),
                      Point.SCHEDULE: ("reset_credit", "early_reset", "once_more_when_unsure", "send_now"),
                      Point.TICK: ("compact_continue", "model_fallback", "headless_run", "reset_credit", "reset_message", "empty_response", "subagent_parent",
-                                  "keep_going", "usage_meter", "usage_wrap_up", "usage_pause", "idle_update_check"),
+                                  "keep_going", "usage_meter", "usage_wrap_up", "usage_pause", "idle_update_check",
+                                  "account_switch"),
                      Point.RECORDS: ("reset_message", "prompt_queue", "empty_response", "subagent_parent",
                                      "keep_going", "usage_wrap_up"),
                      # v0.6.15-beta: the lines a parent's continuation is given of its subagents' stops (5a).
@@ -130,7 +133,7 @@ class ShippedTests(unittest.TestCase):
              "compact_continue", "model_fallback",
              "codex_gave_up",
              "goal_continuation", "subagent_parent", "sign_in_retry", "unknown_failure_budget", "idle_update_check",
-             "structured_rules")
+             "account_switch", "structured_rules")
 
     def test_the_shown_order_names_every_capability_of_the_registry_exactly_once(self):
         order, ids = registry.SHOWN_ORDER, registry.REGISTRY.ids

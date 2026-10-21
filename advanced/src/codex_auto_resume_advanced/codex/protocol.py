@@ -143,6 +143,10 @@ CAPABILITY_METHODS = {
                        "thread/unsubscribe"),
     # The usage meter (engine/usage.py, v0.6.16-beta.3) reads usage on its schedule, and nothing else.
     "usage_meter": ("account/rateLimits/read",),
+    # v0.6.19: which account is signed in (engine/account.py, control/account.py), as MA and MAL read it - and nothing
+    # else: a sign-out and a sign-in are Codex's own `codex logout` and `codex login` (codex/account.switch), never a
+    # method of this session; FORBIDDEN_METHODS refuses every one of those whatever this row said.
+    "account_switch": ("account/read",),
 }
 
 # Every method some measurement declared: what a capability's own route may be given, and nothing

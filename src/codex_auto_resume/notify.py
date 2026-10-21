@@ -564,6 +564,19 @@ def after_sleep_content(slept, count) -> dict:
                     more=[(l10n.message("toast_button_open"), open_uri("pending"))])
 
 
+def account_changed_content(count) -> dict:
+    """v0.6.19, the advanced edition's account switch: another Codex account is signed in, how many recoveries waiting
+    for a usage limit now wait for a person, what to do next, and Open Dashboard at Pending. Only that capability's
+    surface ever asks for it."""
+    try:
+        waiting = max(1, int(count))
+    except (TypeError, ValueError, OverflowError):
+        waiting = 1
+    return _content(l10n.message("toast_account_changed"), l10n.message("toast_after_sleep_next"),
+                    extra=[l10n.message("toast_account_changed_count").replace("{n}", str(waiting))],
+                    more=[(l10n.message("toast_button_open"), open_uri("pending"))])
+
+
 # ------------------------------------------------------------ the memory guard (v0.6.11)
 # The watcher uses more memory than the memory guard allows (memguard.py). Warn: said once, and the
 # watcher goes on; its button opens Diagnostics, where the peak is. Stop: the watcher stopped between

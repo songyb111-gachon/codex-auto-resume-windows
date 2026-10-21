@@ -74,6 +74,7 @@ from codex_auto_resume.domain.plug import Point
 from .control.codexstart import make as make_start_with_codex
 from .control.opencodex import make as make_open_codex_button
 from .control.sendnow import make as make_send_now
+from .engine.account import make as make_account_switch
 from .engine.admitted import (ATTEMPTS, DEFAULT_ATTEMPTS, make_codex_gave_up, make_sign_in_retry,
                               make_structured_rules, make_unknown_failure_budget)
 from .engine.capacity import CEILING_HOURS, DEFAULT_HOURS, make as make_capacity_retry
@@ -1074,6 +1075,32 @@ IDLE_UPDATE_CHECK = CapabilityDef(
     codes=("checked", "offered", "unanswered"),
 )
 
+# Switch the Codex account (v0.6.19, plans/v0619-design/D-account.md): its card in the Dashboard shows the account this
+# PC is signed in to - its plan and a masked address, read by account/read in the Dashboard's process and never stored -
+# and, once MAL passed on the Codex in force, offers Codex's own `codex logout` then `codex login` (codex/account.py);
+# until then it says how to switch in Codex instead (the narrower route, K6: a warning, never a refusal). The product
+# never asks Codex for a sign-in method (codex/protocol.FORBIDDEN_METHODS unchanged) and never reads Codex's sign-in
+# file, a token or a cookie. While on, the watcher reads the account at its start and every 30 minutes at P8 and keeps
+# only a keyed digest of it (engine/account.py); another account signed in holds every recovery waiting for a usage
+# limit (core's hold `account_changed`) and every reset rule still counting, for the person to let go, with one notice.
+# It departs from B4 (account/read beyond core's calls), B10 (an account's plan and address are read), B11 (it starts
+# Codex's own sign-in, which handles the credentials), C4 (it reads on a schedule), C9 (Codex is asked when no recovery
+# is due), D2 (a digest of the account is kept), F6 (`codex logout` and `codex login` are not listed processes) and H7
+# (a change of account holds recoveries, beside the settings that do). It stands on usage_probe - the app server's
+# reads, as the usage meter's - rests on MA and MAL, and sends nothing: its ceilings are the floor and never bind.
+ACCOUNT_SWITCH = CapabilityDef(
+    id="account_switch",
+    points=frozenset({Point.TICK}),
+    revision=1,
+    departs_from=("B4", "B10", "B11", "C4", "C9", "D2", "F6", "H7"),
+    compat="usage_probe",
+    ceilings=Ceilings(per_day=1, per_conversation=1),
+    journal_prefix="account",
+    make=make_account_switch,
+    codes=("changed", "held", "switch_asked", "signed_in", "not_signed_in", "switch_failed"),
+    measurements=(Measurement.MA, Measurement.MAL),
+)
+
 # Longer reset messages (v0.6.14, the owner's answer of 2026-10-08): a message sent at a reset may be up to what one
 # continuation carries (continuation.PROMPT_LIMIT, 8,154 characters) instead of A27's 2,000 - a separate opt-in, off
 # until a person turns it on after its statement, which names A27. An action: it answers at no point and sends
@@ -1147,7 +1174,7 @@ DEFINITIONS = (START_WITH_CODEX, GOAL_CONTINUATION, QUEUE_FOR_OPEN, COMPACT_CONT
                UNKNOWN_FAILURE_BUDGET, CODEX_GAVE_UP, SIGN_IN_RETRY, RESET_CREDIT, RESET_MESSAGE, EARLY_RESET,
                ONCE_MORE, SEND_NOW, PARALLEL_DISPATCH, PROMPT_QUEUE, EMPTY_RESPONSE, SUBAGENT_PARENT, KEEP_GOING,
                USAGE_METER, USAGE_WRAP_UP, USAGE_PAUSE, EVERY_CONVERSATION, SILENT_CONTINUATION, IDLE_UPDATE_CHECK,
-               OPEN_CODEX_BUTTON, LONG_RESET_MESSAGE,
+               ACCOUNT_SWITCH, OPEN_CODEX_BUTTON, LONG_RESET_MESSAGE,
                COMPAT_REPORT)
 # Codex's own retry settings (stage 4's item 6): Attempts (6, 8, 10 or 12; 8 by default) for both of its built-in
 # provider's retry keys, written at P8 and put back (engine/retries.py). MB failed on codex-cli 0.162.0-alpha.17.2 -
@@ -1211,6 +1238,8 @@ SHOWN_ORDER = ("compat_report", "start_with_codex",
                "codex_gave_up", "goal_continuation", "subagent_parent", "sign_in_retry", "unknown_failure_budget",
                # v0.6.18: the weekly update check, which recovers nothing, among the expert settings.
                "idle_update_check",
+               # v0.6.19: switching the Codex account, among the expert settings (the order the owner approved on 2026-10-22).
+               "account_switch",
                "structured_rules")
 
 

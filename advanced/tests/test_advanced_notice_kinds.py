@@ -64,14 +64,14 @@ class NoticeKindTests(unittest.TestCase):
         self.assertEqual(set(covered), set(notifier.STATUS) - {"demo"})
         mine = notice_kinds.ids()[len(notice_kinds.CORE):]
         self.assertEqual(mine, ("near_limit",) + tuple("near_limit_" + said for said in notify.NEAR_LIMIT_KINDS)
-                         + ("update_offered",))
+                         + ("update_offered", "account_changed"))
         with patch.object(l10n, "current", lambda: "ko"):
             entry = [entry for entry in settings.describe() if entry["name"] == notice_kinds.FIELD][0]
         for kind_id in mine:
             with self.subTest(kind=kind_id):
                 self.assertIn(kind_id, entry["kinds"])
                 self.assertEqual(entry["labels"][kind_id], l10n.text("msg.toast_" + kind_id, "ko"))
-        self.assertEqual(len(set(entry["labels"][kind_id] for kind_id in mine)), 5, "five names, none twice")
+        self.assertEqual(len(set(entry["labels"][kind_id] for kind_id in mine)), 6, "six names, none twice")
 
     def test_each_forced_stop_notice_stays_by_its_own_choice_and_a_click_on_it_opens_a_page(self):
         advanced.create(self.paths)

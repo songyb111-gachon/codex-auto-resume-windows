@@ -138,6 +138,8 @@ namespace CodexAutoResume
                 form.advancedSamples = Map(kept, "advanced-samples");
                 form.advancedPending = Items(kept, "pending");
                 form.advancedResets = Map(kept, "advanced-resets");
+                // v0.6.19: the account card at its fullest (AdvancedAccount.cs).
+                form.advancedAccount = Map(kept, "advanced-account");
                 Dictionary<string, object> shot = Map(kept, "snapshot");
                 form.AdoptAdvancedWords(Json.Parse(wordsJson) as Dictionary<string, object>);
                 // The conversations the reset forms offer, and Pending's list, are the snapshot's.

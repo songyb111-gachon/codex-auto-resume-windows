@@ -462,5 +462,73 @@ class PauseBesideResetCreditTests(UsageCase):
         self.assertFalse(all(held), "some minute of the credit's early window is not held")
 
 
+
+# ---------------------------------------------------------------- v0.6.19: account_switch (plans/v0619-design/D-account.md)
+class AccountBesideResetsAndPauseTests(UsageCase):
+    """account_switch beside reset_credit, reset_message and usage_pause: COMPOSE, each still doing its own. Another
+    account signed in holds core's waiting usage-limit records and every reset rule still counting - held in the reset
+    actions' own words, as over a gap in the count (state/resets.py has no word of its own for a change of account, and
+    count_gap is what a count that cannot be carried over is), Go on counting the person's - while usage_pause's own
+    hold of core's records at P3 still answers beside it. reset_message's rule is held the same way
+    (test_advanced_account.ResetRuleTests)."""
+
+    class View:
+        def records_in(self, wanted):
+            return [{"interruption_id": ac.KEY, "category": "usage_limit", "state": "waiting_reset"}]
+
+    def setUp(self):
+        ac.AdvancedCase.setUp(self)
+        from codex_auto_resume_advanced.registry import ACCOUNT_SWITCH
+        from test_advanced_account import ONE, OTHER, Secrets
+        from codex_auto_resume_advanced.codex import account
+        self.compat = {"status": "ok", "engine": {"found": True, "version": ac.ENGINE},
+                       "capabilities": {name: {"state": "COMPATIBLE", "reason": "local_checks_passed"}
+                                        for name in ("usage_probe", "exact_thread_recovery")}}
+        self.rt = self.runtime(ACCOUNT_SWITCH, RESET_CREDIT, USAGE_METER, USAGE_PAUSE)
+        self.rt.arming.catalogs = statement.CATALOGS
+        self.answer, self.calls, self.app = reply(), [], True
+        meter = self.rt._code_of(USAGE_METER)
+        meter._session = lambda: Session(self.answer, self.calls)
+        meter._app_running = lambda: self.app
+        self.signed, self.other, self.holds = ONE, OTHER, []
+        code = self.rt._code_of(ACCOUNT_SWITCH)
+        code._read = lambda paths: account.parse(self.signed)
+        code._secrets = self.rt.arming.secrets = Secrets()
+        code._hold = lambda paths, keys, now: self.holds.append(list(keys)) or len(keys)
+
+    def tick(self):
+        answer = self.rt.tick(self.View())
+        if answer is not DEFER:
+            answer.run(lambda: None)
+        self.rt.states(fresh=True)
+
+    def test_a_counting_credit_rule_is_held_and_core_s_records_too(self):
+        from codex_auto_resume_advanced.vocabulary import RuleReason, RuleState
+        self.on("reset_credit", "account_switch")
+        rule = self.rt.state.add_reset_rule("reset_credit", "codex", 300, 2, at=self.now)
+        self.tick()
+        self.signed = self.other
+        self.now += 1800
+        self.tick()
+        held = self.rt.state.reset_rule(rule)
+        self.assertEqual((held["state"], held["reason"]), (RuleState.HELD, RuleReason.COUNT_GAP))
+        self.assertEqual(self.holds, [[ac.KEY]])
+
+    def test_the_pause_still_holds_beside_the_account_s_hold(self):
+        self.on("usage_pause", "account_switch")
+        self.answer = reply(five=100)
+        self.tick()
+        self.tick()                                   # the pause's own tick marks the window
+        record = {"interruption_id": ac.KEY, "thread_id": ac.THREAD, "category": "usage_limit",
+                  "state": "waiting_reset"}
+        self.assertIs(self.rt.ask(Point.GATES, "submission_safe", record, {}), Alternative.HOLD)
+        self.signed = self.other
+        self.now += 1800
+        self.tick()
+        self.assertEqual(self.holds, [[ac.KEY]], "core's record is held for the person")
+        self.assertIs(self.rt.ask(Point.GATES, "submission_safe", record, {}), Alternative.HOLD,
+                      "and the pause still holds it at P3 until its window resets")
+
+
 if __name__ == "__main__":
     unittest.main()

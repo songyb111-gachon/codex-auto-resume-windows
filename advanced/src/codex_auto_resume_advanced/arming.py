@@ -324,6 +324,9 @@ class Arming:
         # timeout, or not to be opened - is tried again at every sweep until it is, though the
         # record has settled by then (`_settle`).
         self._owed = {}
+        # v0.6.19 (account_switch): Credential Manager as `forget` reaches it (credentials.Secrets' shape) - a test's,
+        # or None for Windows' own, asked only where the account seen is still kept.
+        self.secrets = None
 
     def policy(self):
         try:
@@ -565,6 +568,7 @@ class Arming:
         self._duplicates(core_view)
         self._void_requests(states)
         self._end_resets(states)
+        self._end_account(states)
 
     def _void_requests(self, states) -> None:
         """Every unused FORCE_ONCE - a person's Send now - of a capability that does not stand on now,
@@ -606,6 +610,14 @@ class Arming:
                                                  at=self.clock())
         except StateError:
             return                                   # tried again at the next sweep
+
+    def _end_account(self, states) -> None:
+        """v0.6.19: account_switch turned off - by a person, every feature off, a policy or an edition entered - takes its
+        salt out of Credential Manager and the account seen out of the state (engine/account.forget): only where a row is
+        still kept, so with none nothing is asked of Credential Manager; what fails is tried again at the next sweep."""
+        from .engine import account
+        if states.get(account.CAPABILITY, ArmingState.OFF) == ArmingState.OFF and account.CAPABILITY in self.registry.ids:
+            account.forget(self.state, self.secrets)
 
     def _duplicates(self, core_view) -> None:
         """Each resend still watched (an open RESEND_ONCE) whose record core says was found twice:

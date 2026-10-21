@@ -26,5 +26,6 @@ advanced/gui/AdvancedQueue.cs
 advanced/gui/AdvancedReport.cs
 advanced/gui/AdvancedUsage.cs
 advanced/gui/AdvancedRuns.cs
+advanced/gui/AdvancedAccount.cs
 advanced/gui/AdvancedPageAudit.cs
 advanced/gui/AdvancedRender.cs

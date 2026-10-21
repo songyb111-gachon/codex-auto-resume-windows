@@ -641,6 +641,7 @@ class App(WatchLoop):
         if added is not DEFER:
             self._near_limit(added)
             self._update_offered(added)
+            self._account_changed(added)
 
     def _update_offered(self, added):
         """The advanced edition's weekly update check offers a newer version (v0.6.18): each offer its plug adds to the
@@ -656,6 +657,20 @@ class App(WatchLoop):
             shown.add(key)
             self._watcher_notice("update_offered", {"version": notice.get("version"),
                                                     "prerelease": notice.get("prerelease") is True})
+
+    def _account_changed(self, added):
+        """The advanced edition's account switch saw another Codex account signed in (v0.6.19): each change its plug adds
+        to the icon's snapshot, with how many recoveries it held, is shown once in this watcher's life, by its key,
+        under the notifications switch, off the tick path like every watcher notice. The standard edition adds none."""
+        changed = added.get("account") if isinstance(added, dict) else None
+        notices = changed.get("notices") if isinstance(changed, dict) else None
+        shown = self.__dict__.setdefault("_account_shown", set())
+        for notice in notices if isinstance(notices, list) else ():
+            key = notice.get("key") if isinstance(notice, dict) else None
+            if not isinstance(key, str) or key in shown or len(shown) > 64:
+                continue
+            shown.add(key)
+            self._watcher_notice("account_changed", {"count": notice.get("count")})
 
     def _near_limit(self, added):
         """The advanced edition's usage meter at a warning (v0.6.16-beta.3, issue #29): each notice its plug adds to

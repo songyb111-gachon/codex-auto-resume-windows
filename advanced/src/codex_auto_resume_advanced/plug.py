@@ -143,7 +143,9 @@ NOTICE_KINDS = (("near_limit", ("near_limit",), "msg.toast_near_limit"),
                 ("near_limit_press_resume", ("near_limit_press_resume",), "msg.toast_near_limit_press_resume"),
                 ("near_limit_not_continued", ("near_limit_not_continued",), "msg.toast_near_limit_not_continued"),
                 # v0.6.18: the weekly update check's offer of a newer version.
-                ("update_offered", ("update_offered",), "msg.toast_update_offered"))
+                ("update_offered", ("update_offered",), "msg.toast_update_offered"),
+                # v0.6.19: another Codex account signed in, and what waited for a usage limit waits for you (account_switch).
+                ("account_changed", ("account_changed",), "msg.toast_account_changed"))
 
 
 def register_notice_kinds():

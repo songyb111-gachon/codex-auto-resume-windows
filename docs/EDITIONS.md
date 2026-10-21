@@ -991,6 +991,46 @@ off.
 
 **Ceilings.** None come into play: it sends nothing to Codex. It rests on no measurement.
 
+### Switch the Codex account
+
+**What it does.** Its card on the Advanced features page shows which Codex account this PC is signed in to:
+the plan and a masked e-mail address such as `s•••@e•••.com`, read from Codex (`account/read`) while the card is
+open and never stored. **Sign out and sign in with another account...** asks first, then runs Codex's own
+`codex logout` and `codex login`, with no window: your browser opens Codex's own sign-in page, you sign in
+there, and the card says how it ended - signed in, cancelled, not finished after ten minutes, or failed. The
+product never asks Codex to sign anyone in or out by a route of its own, never reads Codex's sign-in file, a
+token or a cookie, and never lists, remembers or picks an account. While it is on, the watcher reads which
+account is signed in when it starts and every 30 minutes, and keeps only a keyed digest of it (HMAC-SHA256,
+its key in Windows Credential Manager). When another account is signed in, every recovery waiting for a usage
+limit waits for you - Pending says *Another Codex account was signed in after it stopped*, with **Let it
+continue** and **Cancel** - every reset rule still counting is held until you press **Go on counting**, and
+one notification, a kind of its own in **Keep on screen until clicked**, says how many wait. A plan that
+changed is the same account; a reading that failed, or found no one signed in, changes nothing.
+
+**When it helps.** When you use more than one ChatGPT account with Codex and switch between them at a limit.
+
+**What it risks.** `codex login` is Codex's own sign-in: it opens your default browser and listens on this PC
+for the answer. Cancelled there, Codex stays signed out, and recoveries wait - usage cannot be read - until
+you sign in in Codex. A change of account is noticed at the watcher's next reading, up to 30 minutes later.
+The terms of your ChatGPT plan apply to the accounts you use. Until MAL - the running Codex app follows a
+sign-in made with `codex login` without a restart - has passed on the Codex in force, the card offers no
+button: it says to sign out in Codex (Settings > Account) and sign in there with the other account, and a
+change is held for you all the same. Turned off, the digest and its key are deleted the next time the
+watcher runs.
+
+**Departs from** [B4](STANDARDS.md#b-what-it-reads-and-how) (`account/read` beyond core's calls),
+[B10](STANDARDS.md#b-what-it-reads-and-how) (an account's plan and address are read),
+[B11](STANDARDS.md#b-what-it-reads-and-how) (it starts Codex's own sign-in, which handles your credentials),
+[C4](STANDARDS.md#c-network) (it reads on a schedule), [C9](STANDARDS.md#c-network) (Codex is asked when no
+recovery is due), [D2](STANDARDS.md#d-privacy-and-the-data-it-keeps) (a digest of the account is kept),
+[F6](STANDARDS.md#f-footprint-on-the-machine) (`codex logout` and `codex login` are not listed processes) and
+[H7](STANDARDS.md#h-user-control) (a change of account holds recoveries for you). It keeps
+[A12](STANDARDS.md#a-what-it-may-send-to-codex-and-when): a recovery you let continue still reads live usage.
+
+**Ceilings.** None come into play: it sends nothing to Codex. **Measurements MA: passed** on
+`codex-cli 0.162.0-alpha.17.2`, and **MAL: not made yet**; on any version where one has not passed, a warning,
+and the button waits for MAL.
+
 ### Compatibility report
 
 **What it does.** Writes a compatibility report from this PC's own records, as codex-compat-reporter

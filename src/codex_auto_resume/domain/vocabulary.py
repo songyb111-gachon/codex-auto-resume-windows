@@ -619,3 +619,6 @@ class NoticeKind(StrEnum):
     NEAR_LIMIT_NOT_CONTINUED = "near_limit_not_continued"
     # v0.6.18: the advanced edition's weekly update check offers a newer version - shown only from its plug's surface.
     UPDATE_OFFERED = "update_offered"
+    # v0.6.19: the advanced edition's account switch saw another Codex account signed in, and recoveries waiting for a
+    # usage limit wait for a person - shown only from its plug's surface.
+    ACCOUNT_CHANGED = "account_changed"
