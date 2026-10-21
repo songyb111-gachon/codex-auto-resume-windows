@@ -100,6 +100,9 @@ NOT_SCENARIOS = {
                         "(v0.6.16-beta.4), which the neutral plug never does - every continuation carries its words there",
     "test_plug_record_purposes": "gives every engine a plug with continuations and messages of its own (P2), to hold "
                                  "what each purpose may and may not be sent as",
+    "test_record_channel": "gives every engine a plug that names a channel at P5 and CLIENT_ID at P15 for a message of "
+                           "its own (P2, v0.6.19), which the neutral plug never does - every record carries its marker "
+                           "through core's backend there",
     "test_power_action": "builds an engine with no store or backend only to ask engine.activity, which reads a "
                          "codexsim home through the source alone; it ticks, dispatches and claims nothing",
     "test_released_calls": "runs the scenarios above against v0.6.10's tagged package and this one, "

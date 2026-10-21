@@ -38,8 +38,10 @@ MIXINS = (package.OptionsMixin, package.AnnounceMixin, package.FreshnessMixin,
           package.KindsMixin,
           # a continuation sent to a conversation another Codex session holds (P16's TO_SESSION),
           package.ToSessionMixin,
-          # and a full context window's record, which a compaction turn supersedes nothing of.
-          package.CompactionMixin)
+          # and a full context window's record, which a compaction turn supersedes nothing of,
+          package.CompactionMixin,
+          # and a person's message of the plug's, marker-free through its channel.
+          package.RecordChannelMixin)
 
 # The forty-one methods the one class had, counted the day it was split.
 METHODS = {
@@ -132,6 +134,8 @@ METHODS = {
     "compacted_since", "compaction", "foreign",
     # and P15's SILENT for a route that takes words (engine/routes.py), proven by the turn id it returned (M3B).
     "_silent", "_silent_proven",
+    # and a person's message of the plug's carried marker-free (engine/recordchannel.py).
+    "_marker_free", "_record_carried", "_record_client", "_record_proof", "_record_words", "_record_carrying",
 }
 
 # What `from codex_auto_resume.engine import ...` has to keep answering (app.py, the tests).
