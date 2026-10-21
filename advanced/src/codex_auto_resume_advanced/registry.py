@@ -864,11 +864,14 @@ PARALLEL_DISPATCH = CapabilityDef(
 # where asked, paced like every recovery (A20 kept, the owner's answer). Cancel and a Pause take back one Codex already
 # holds (the owner's answer of 2026-10-09). It departs from A8, A17, A26, A27, C4, D2, H4 and H6 as its statement says,
 # and stands on exact_thread_recovery. Its after_turn route rests on MT. Ceilings: core's five a conversation, thirty a
-# day. Before the edition's own continuations, so a person's message is handed first (P2's eight).
+# day. Before the edition's own continuations, so a person's message is handed first (P2's eight). Revision 2 (v0.6.19,
+# issue #50): a message at a time or on a schedule waits while a turn of its conversation runs, or goes into Codex's
+# queue at once, as the person chooses (engine/promptqueue.py) - the statement describes the default, so a person who
+# had it on reads the new one before it is on again.
 PROMPT_QUEUE = CapabilityDef(
     id="prompt_queue",
     points=frozenset({Point.RECORDS}),
-    revision=1,
+    revision=2,
     departs_from=("A8", "A17", "A26", "A27", "C4", "D2", "H4", "H6"),
     compat="exact_thread_recovery",
     ceilings=Ceilings(per_day=30, per_conversation=CORE_DAILY_CAP),

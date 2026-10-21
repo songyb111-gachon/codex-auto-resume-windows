@@ -24,7 +24,9 @@ from ..vocabulary import Measurement, PromptState, Refusal
 from .resets import _on, _refused, _stale, _standing, switched_off
 
 SHOWN = ("prompt_id", "thread_id", "trigger", "at", "every", "occurrences", "sent_count", "until", "depends",
-         "position", "state", "reason", "gate", "gate_reason", "created_at", "due_at", "sent_at", "finished_at")
+         "position", "state", "reason", "gate", "gate_reason", "created_at", "due_at", "sent_at", "finished_at",
+         # v0.6.19 (#50): what it does while a turn of its conversation runs.
+         "while_running")
 
 
 def counts(runtime) -> dict:
@@ -72,8 +74,10 @@ def view(runtime) -> dict:
 
 
 def add(runtime, argument) -> dict:
-    """advanced-prompt-add: one prompt for `thread_id`, its trigger, time, every and occurrences, and whether it waits
-    for the one before it to be delivered."""
+    """advanced-prompt-add: one prompt for `thread_id`, its trigger, time, every and occurrences, whether it waits
+    for the one before it to be delivered, and (v0.6.19, #50) what it does while a turn runs - `while_running`, "wait"
+    or "queue"; where it is not named, "queue", what every prompt did before the choice existed (the Dashboard's
+    editor names it, "wait" unless the person chose the other)."""
     if _stale(runtime, argument.get("generation")):
         return _refused(Refusal.STALE_GENERATION, runtime)
     thread, words = argument.get("thread_id"), argument.get("words")
@@ -92,7 +96,8 @@ def add(runtime, argument) -> dict:
     try:
         prompt = runtime.state.add_prompt(thread, words, argument.get("trigger"), at=argument.get("at"),
                                           every=argument.get("every"), occurrences=argument.get("occurrences", 1),
-                                          depends=argument.get("depends") is True)
+                                          depends=argument.get("depends") is True,
+                                          while_running=argument.get("while_running") or "queue")
     except Refused as refused:
         return _refused(refused.refusal, runtime)
     except Exception:

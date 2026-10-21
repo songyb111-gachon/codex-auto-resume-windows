@@ -83,7 +83,7 @@ ARGUMENTS = {
     BridgeCommand.ADVANCED_KEEP_GOING_STOP: frozenset({"thread_id", "generation"}),
     BridgeCommand.ADVANCED_PROMPTS: frozenset(),
     BridgeCommand.ADVANCED_PROMPT_ADD: frozenset({"thread_id", "words", "trigger", "at", "every", "occurrences",
-                                                  "depends", "generation"}),
+                                                  "depends", "generation", "while_running"}),
     BridgeCommand.ADVANCED_PROMPT_CANCEL: frozenset({"prompt", "generation"}),
     BridgeCommand.ADVANCED_PROMPT_GO_ON: frozenset({"prompt", "generation"}),
     BridgeCommand.ADVANCED_REPORT_BUILD: frozenset({"login"}),

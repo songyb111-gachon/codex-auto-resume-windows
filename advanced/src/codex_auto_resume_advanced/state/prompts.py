@@ -7,14 +7,15 @@ now running, at a time, or on a schedule - in order, each once.
               `until`, 30 days from when it was written at most), whether it waits for the one before it to be
               delivered (`depends`), its place in its conversation's queue, where it stands, and the record of its
               current occurrence - a row of `records` (state/records.py) with an id of its own, which the one
-              claim counts with core's rows (ledger.py)
+              claim counts with core's rows (ledger.py) - and (v0.6.19, #50) what it does while a turn of its
+              conversation runs (`while_running`): goes into Codex's queue, as every prompt did before, or waits
 
 The file refuses words on a prompt that is done or cancelled, a series past 30 occurrences or 30 days, and a
 recurring prompt without its every; this module refuses the rest: twenty waiting in all, five to a conversation.
 """
 from __future__ import annotations
 
-from ..vocabulary import PromptEvery, PromptReason, PromptState, PromptTrigger, RecordState, Refusal
+from ..vocabulary import PromptEvery, PromptReason, PromptState, PromptTrigger, RecordState, Refusal, WhileRunning
 
 PROMPT_QUEUE = "prompt_queue"
 from .choices import Refused
@@ -49,11 +50,12 @@ def _prompt(row) -> dict:
 
 class PromptsMixin:
     def add_prompt(self, thread_id, words, trigger, *, at=None, every=None, occurrences=1, until=None,
-                   depends=False, now=None) -> int:
+                   depends=False, while_running=WhileRunning.QUEUE, now=None) -> int:
         """A person's prompt, waiting, last in its conversation's queue; its id. Refused (Refused) for words that
         are empty or too long (prompt_refused), a time or schedule that is not one on offer (occasion_invalid),
         twenty waiting in all or five in that conversation (queue_full), and a prompt that waits for the one
-        before it where there is none (dependency_unknown)."""
+        before it where there is none (dependency_unknown). `while_running` (v0.6.19, #50): what it does while a turn
+        of its conversation runs - after_turn goes into Codex's queue by its nature, so it waits for nothing."""
         _thread(thread_id)
         current = self._now(now)
         if not isinstance(words, str) or not words.strip() or len(words) > WORDS_LIMIT:
@@ -61,8 +63,11 @@ class PromptsMixin:
         try:
             trigger = _word(trigger, PromptTrigger, "trigger")
             every = None if every is None else _word(every, PromptEvery, "every")
+            while_running = _word(while_running, WhileRunning, "while_running")
         except StateError:
             raise Refused(Refusal.OCCASION_INVALID) from None
+        if trigger == PromptTrigger.AFTER_TURN and while_running != WhileRunning.QUEUE:
+            raise Refused(Refusal.OCCASION_INVALID)
         if trigger == PromptTrigger.AFTER_TURN:
             shaped = at is None and every is None and occurrences == 1 and until is None
             due = current
@@ -90,9 +95,10 @@ class PromptsMixin:
                 raise Refused(Refusal.DEPENDENCY_UNKNOWN)
             cursor = connection.execute(
                 "INSERT INTO prompts (thread_id, words, trigger, at, every, occurrences, sent_count, until, depends, "
-                "position, state, created_at, due_at) VALUES (?,?,?,?,?,?,0,?,?,?,?,?,?)",
+                "position, state, created_at, due_at, while_running) VALUES (?,?,?,?,?,?,0,?,?,?,?,?,?,?)",
                 (thread_id, words, trigger, None if trigger == PromptTrigger.AFTER_TURN else due, every, occurrences,
-                 until, int(bool(depends)), 0 if last is None else last + 1, PromptState.WAITING, current, due))
+                 until, int(bool(depends)), 0 if last is None else last + 1, PromptState.WAITING, current, due,
+                 while_running))
             return cursor.lastrowid
 
     def prompts(self, *, thread_id=None, pending=True) -> list:
