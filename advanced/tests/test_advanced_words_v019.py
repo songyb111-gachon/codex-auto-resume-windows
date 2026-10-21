@@ -40,6 +40,11 @@ COMMANDS = ("advanced-analytics", "advanced-analytics-csv", "advanced-courier", 
             "advanced-api-token-new", "advanced-remote-pair-start", "advanced-remote-pair-state", "advanced-fleet",
             "advanced-fleet-save", "advanced-prompt-edit", "advanced-prompts-clear-done", "advanced-account",
             "advanced-account-switch")
+# The commands whose capability is built, each answered by it now (one line a capability, appended by its writer).
+BUILT = frozenset({
+    "advanced-analytics", "advanced-analytics-csv",          # usage_analytics (control/analytics.py)
+})
+WAITING = tuple(command for command in COMMANDS if command not in BUILT)
 
 
 class WordTests(unittest.TestCase):
@@ -64,8 +69,8 @@ class UnansweredTests(SurfaceCase):
         """Until its capability answers it, a new command is DEFER, so core says "unknown command" - exactly what an
         installation said for it before the word was added. Fails with the guard reverted: the request falls through
         to the last command `bridge` answers (the global ceiling) and is refused as that one."""
-        self.assertEqual(surfaces.UNANSWERED, frozenset(BridgeCommand(command) for command in COMMANDS))
-        for command in COMMANDS:
+        self.assertEqual(surfaces.UNANSWERED, frozenset(BridgeCommand(command) for command in WAITING))
+        for command in WAITING:
             with self.subTest(command):
                 self.assertEqual(self.bridge(command, {}),
                                  {"ok": False, "error": "unknown command", "error_code": "request_failed"})
@@ -73,7 +78,7 @@ class UnansweredTests(SurfaceCase):
 
     def test_nothing_is_written_for_one(self):
         before = self.advanced.runtime.state.exists()
-        for command in COMMANDS:
+        for command in WAITING:
             self.bridge(command, {})
         self.assertEqual(self.advanced.runtime.state.exists(), before)
 

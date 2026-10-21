@@ -200,6 +200,8 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "option.custom",
     # (j) the percentages of a window in order, and the forced stop below the words' stop only said.
     "refused.option_order", "warn.stop_before_words"))
+# usage_analytics (v0.6.19): how many days its card shows (OptionKey.ANALYTICS_DAYS).
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in ("option.analytics_days",))
 # The edition's own continuations' words (v0.6.15-beta): what empty_response, subagent_parent and keep_going send -
 # fixed, each passing core's continuation.validate_continuation in every language (nothing is filled in but, for a
 # subagent's line, its id and a closed kind word).

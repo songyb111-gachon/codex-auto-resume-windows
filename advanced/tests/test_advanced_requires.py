@@ -70,7 +70,9 @@ class RegistryShapeTests(unittest.TestCase):
         """The audit (v0.6.16-beta.3): no capability before it needs another. Longer messages lengthens what the
         message at a reset and the prompt queue send - either one - so it requires neither."""
         shipped = {d.id: d.requires for d in registry.DEFINITIONS if d.requires}
-        self.assertEqual(shipped, {"usage_wrap_up": ("usage_meter",), "usage_pause": ("usage_meter",)})
+        # v0.6.19: the usage and token analytics read the meter's readings for their pace, so they need it too.
+        self.assertEqual(shipped, {"usage_wrap_up": ("usage_meter",), "usage_pause": ("usage_meter",),
+                                   "usage_analytics": ("usage_meter",)})
         self.assertEqual(registry.REGISTRY.get("long_reset_message").requires, ())
 
 
