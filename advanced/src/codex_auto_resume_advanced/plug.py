@@ -16,7 +16,7 @@ from codex_auto_resume.domain.plug import Edition, Plug, Point
 
 # Written out rather than read from core. The check is whether this package was written for the
 # core beside it, and a number taken from that core would agree with any core at all.
-PLUG_API = 5
+PLUG_API = 6
 
 
 class AdvancedPlug(Plug):
@@ -86,6 +86,9 @@ class AdvancedPlug(Plug):
 
     def moved(self, record, state):
         return self.runtime.moved(record, state)
+
+    def notice(self, facts):
+        return self.runtime.ask(Point.NOTICE, facts)
 
     def delivery(self, record):
         return self.runtime.ask(Point.DELIVERY, record)

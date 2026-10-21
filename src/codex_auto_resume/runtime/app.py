@@ -24,7 +24,7 @@ from .. import (compatio, config, edition, l10n, managed, needsyou, notice_kinds
 from ..codex import LocalSource
 from ..codex.chains import memory as chain_memory
 from ..codex.pairing import app_engines
-from ..domain.plug import DEFER, EXTRA, Surface, guard
+from ..domain.plug import DEFER, EXTRA, Point, Surface, guard
 from ..engine import Engine
 from ..logbook import LOGGER_NAME, EngineLog, setup_logging
 from ..openstate import open_state
@@ -425,9 +425,24 @@ class App(WatchLoop):
             notice = notifier.with_open_codex(notice, getattr(self, "_open_codex", False))
             if notice is None:
                 return False
-            return notifier.deliver(notice, inbox=self._inbox,
-                                    setting=self.settings.get(notifier.CARD_SETTING, True) is True)[1]
+            return self._deliver(notice, detail, inbox=self._inbox,
+                                 setting=self.settings.get(notifier.CARD_SETTING, True) is True)[1]
         return announce
+
+    def _deliver(self, notice, detail, **route):
+        """notifier.deliver, the notice told to the edition's plug first while it wants it (P20, v0.6.19): closed words
+        and numbers only (notifier.told). The standard edition's plug wants nothing and is told nothing."""
+        if self.plug.wants(Point.NOTICE):
+            self.plug.notice(notifier.told(notice, detail, self._pending))
+        return notifier.deliver(notice, **route)
+
+    def _pending(self):
+        """Pending as core lists it (store.pending, oldest first), on a connection of its own: P20's places."""
+        store = self.worker_store()
+        try:
+            return store.pending()
+        finally:
+            store.close()
 
     def _watcher_notice(self, event, detail, *, final=False):
         """A notice about the watcher itself (v0.6.11: the memory guard's, memguard.py; v0.6.12: the power
@@ -450,7 +465,7 @@ class App(WatchLoop):
         if notice is None:
             return False
         card = not final and self.settings.get(notifier.CARD_SETTING, True) is True
-        return notifier.deliver(notice, inbox=None if final else self._inbox, setting=card)[1]
+        return self._deliver(notice, detail, inbox=None if final else self._inbox, setting=card)[1]
 
     def _notice_action(self, uri):
         """A card's button, on a worker thread: what its toast button would do, done in process.

@@ -42,7 +42,9 @@ class ScenarioListTests(unittest.TestCase):
         """The rest are asked by the control layer, the bridge and the launcher, and
         tests/test_plug_points.py holds each of those where it stands."""
         self.assertEqual(set(Point) - neutral.ENGINE_POINTS,
-                         {Point.START_ROUTE, Point.SURFACES, Point.SUPERVISION})
+                         {Point.START_ROUTE, Point.SURFACES, Point.SUPERVISION,
+                          # v0.6.19: P20, told by the watcher as a notice goes (runtime/app.py).
+                          Point.NOTICE})
 
 
 class NeutralPlugTests(unittest.TestCase):

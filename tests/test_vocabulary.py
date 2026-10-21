@@ -217,8 +217,9 @@ LISTS = {
     # and EARLY, P7's look at a usage-limited record before its time; and the form a failure's error took.
     # And RESEND, P7's word for an uncertain submission sent once more, which core proves may go, and
     # SEND_NOW, its word for a waiting record a person asked to send now.
-    "domain.plug.POINTS": ("tuple", 18, "99df46d4da526400"),   # v0.6.16-beta.3: P19 eligibility; beta.4: P18
-    "domain.plug.ANSWERS": ("set", 15, "f05b746425d54856"),
+    # v0.6.16-beta.3: P19 eligibility; beta.4: P18; v0.6.19: P20 notice - and P13's SUPERVISE and RESTART.
+    "domain.plug.POINTS": ("tuple", 19, "79ff2fd1efcf1944"),
+    "domain.plug.ANSWERS": ("set", 17, "4e304e4fc7bba412"),
     "domain.plug.FAILURE_FORMS": ("tuple", 5, "bcc0ad1bd6f81009"),
     "domain.plug.SURFACES": ("tuple", 5, "d41ac5a6d67be21b"),
     # v0.6.14: what core did with a record of the plug's own (P2), as P14 tells it.

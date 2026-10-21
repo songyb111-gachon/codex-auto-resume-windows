@@ -60,7 +60,11 @@ class Point(StrEnum):
 
     P17 (v0.6.14 stage 3b) is whether a failure core never recovers alone is taken up, asked with
     the answers core would carry out for it (failures.takes): taken, it is a core record of its true
-    category, which core follows as its own and known_failure (P3) puts to the plug again."""
+    category, which core follows as its own and known_failure (P3) puts to the plug again.
+
+    P20 (v0.6.19) is not a question either: core tells the plug each notice it raises, as P14 tells a move - its kind,
+    its category word, its record's place in Pending and when, closed words and numbers only (Guarded.notice), and
+    only while the plug wants it. Its answer is not read."""
     RECORDS = "records"                      # P2  records of the advanced store, due now
     GATES = "gates"                          # P3  the gates a record passes before it is sent
     TEXT = "text"                            # P4  what the continuation says
@@ -79,6 +83,7 @@ class Point(StrEnum):
     ADMISSION = "admission"                  # P17 a failure core never recovers alone, taken up
     SESSIONS = "sessions"                    # P18 which conversations besides the app's core watches
     ELIGIBILITY = "eligibility"              # P19 which of the app's conversations core takes up
+    NOTICE = "notice"                        # P20 a notice core raised, told
 
 
 class Alternative(StrEnum):
@@ -109,6 +114,10 @@ class Alternative(StrEnum):
     EARLY = "early"                          # P7: a usage-limited record looked at before its time
     RESEND = "resend"                        # P7: an uncertain submission sent once more, if core may
     SEND_NOW = "send_now"                    # P7: a waiting record sent now, as a person asked
+    # P13 (v0.6.19): asked at the watcher's start, run it as the launcher's child and stay; asked once a child ended,
+    # start it once more. Core asks both and carries neither out yet: that is the commit that builds the supervisor's.
+    SUPERVISE = "supervise"
+    RESTART = "restart"
 
 
 class FailureForm(StrEnum):
