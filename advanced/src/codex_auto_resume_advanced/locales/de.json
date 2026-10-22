@@ -444,6 +444,8 @@
   "page.watchlog.answer.send_now": "Jetzt senden",
   "page.watchlog.answer.sender": "Auf eigenem Weg senden",
   "page.watchlog.answer.silent": "Den Durchgang ohne Worte gestartet",
+  "page.watchlog.answer.supervise": "Den Watcher als Kindprozess ausgeführt",
+  "page.watchlog.answer.restart": "Den Watcher erneut gestartet",
   "page.watchlog.answer.start_route": "Den Watcher auf eigenem Weg starten",
   "page.watchlog.answer.text": "Eigene Worte schreiben",
   "page.watchlog.answer.tick": "Zwischen zwei Prüfungen handeln",

@@ -444,6 +444,8 @@
   "page.watchlog.answer.send_now": "Envoyer maintenant",
   "page.watchlog.answer.sender": "Envoyer à sa façon",
   "page.watchlog.answer.silent": "A démarré le tour sans mots",
+  "page.watchlog.answer.supervise": "Exécuter le surveillant comme processus enfant",
+  "page.watchlog.answer.restart": "Redémarrer le surveillant",
   "page.watchlog.answer.start_route": "Démarrer le surveillant à sa façon",
   "page.watchlog.answer.text": "Écrire ses propres mots",
   "page.watchlog.answer.tick": "Agir entre deux vérifications",

@@ -444,6 +444,8 @@
   "page.watchlog.answer.send_now": "Şimdi göndermek",
   "page.watchlog.answer.sender": "Kendi yoluyla göndermek",
   "page.watchlog.answer.silent": "Turu sözcüksüz başlatmak",
+  "page.watchlog.answer.supervise": "İzleyiciyi alt süreç olarak çalıştırmak",
+  "page.watchlog.answer.restart": "İzleyiciyi yeniden başlatmak",
   "page.watchlog.answer.start_route": "İzleyiciyi kendi yoluyla başlatmak",
   "page.watchlog.answer.text": "Kendi sözlerini yazmak",
   "page.watchlog.answer.tick": "İki kontrol arasında harekete geçmek",

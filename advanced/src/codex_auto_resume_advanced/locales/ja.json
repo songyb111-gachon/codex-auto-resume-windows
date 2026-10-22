@@ -444,6 +444,8 @@
   "page.watchlog.answer.send_now": "今すぐ送った",
   "page.watchlog.answer.sender": "独自の方法で送った",
   "page.watchlog.answer.silent": "言葉なしでターンを開始した",
+  "page.watchlog.answer.supervise": "監視プロセスを子プロセスとして実行",
+  "page.watchlog.answer.restart": "監視プロセスをもう一度起動",
   "page.watchlog.answer.start_route": "独自の方法で監視プロセスを起動した",
   "page.watchlog.answer.text": "独自の文面を書いた",
   "page.watchlog.answer.tick": "確認の合間に動いた",

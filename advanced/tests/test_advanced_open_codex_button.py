@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import advancedcase as ac  # noqa: E402
 from codex_auto_resume import notifier, notify  # noqa: E402
-from codex_auto_resume.domain.plug import DEFER, Surface  # noqa: E402
+from codex_auto_resume.domain.plug import DEFER, NULL, Surface, guard  # noqa: E402
 from codex_auto_resume.runtime.app import App  # noqa: E402
 from codex_auto_resume_advanced import registry, statement, surfaces  # noqa: E402
 from codex_auto_resume_advanced.control import opencodex  # noqa: E402
@@ -244,6 +244,7 @@ class WatcherTests(unittest.TestCase):
                 app.settings = Settings(notifications=True)
                 app._open_codex = flag
                 app._inbox = None
+                app._plug = guard(NULL)                # v0.6.19: told each notice first (P20)
                 source = type("Source", (), {"identity": lambda _self, _thread: None})()
                 with patch.object(notifier, "deliver", lambda notice, **_kw: built.append(notice) or ("toast", True)):
                     App._notifier(app, source)("interruption", {"thread_id": THREAD, "interruption_id": ac.KEY,
