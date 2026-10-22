@@ -24,7 +24,7 @@ from .. import (compatio, config, edition, l10n, managed, needsyou, notice_kinds
 from ..codex import LocalSource
 from ..codex.chains import memory as chain_memory
 from ..codex.pairing import app_engines
-from ..domain.plug import DEFER, EXTRA, Point, Surface, guard
+from ..domain.plug import DEFER, EXTRA, Surface, guard
 from ..engine import Engine
 from ..logbook import LOGGER_NAME, EngineLog, setup_logging
 from ..openstate import open_state
@@ -83,7 +83,12 @@ class App(WatchLoop):
         # leave them - which is what every part of this process works from - kept apart from the
         # stored ones the engine is handed with them.
         self.managed = self._read_managed()
-        self._stored = config.load_settings(paths)
+        # v0.6.18: a settings file that is there and cannot be read leaves the defaults on screen alone - no engine is
+        # built, so nothing is sent or cancelled, until a read succeeds (`engine`, refresh_settings).
+        self._settings_unread = False
+        stored = self._read_settings()
+        self._settings_good = stored is not None
+        self._stored = stored if self._settings_good else policy.defaults()
         self.settings = managed.clamp(self._stored, self.managed)
         # Everything this process says - the icon, its menu, every notification - is in the
         # Interface language the user stored, which is `system` until they choose.
@@ -99,6 +104,7 @@ class App(WatchLoop):
         self._inbox = notifier.Inbox()
         # v0.6.11: notices about the watcher itself - the memory guard's - off the tick path.
         self._watcher_toasts = None
+        self._codex_exe_arg = codex_exe
         self._codex_exe_override = codex_exe or self.settings.get("codex_exe")
         self.codex_home = Path(codex_home).resolve() if codex_home else config.codex_home()
         # Fixed at construction, so what the lock protects cannot move under a running
@@ -117,7 +123,7 @@ class App(WatchLoop):
         self._discovery = {}
         self._compat = None
         self._engine_state = None
-        self._settings_stamp_seen = self._settings_stamp()
+        self._settings_stamp_seen = self._settings_stamp() if self._settings_good else False
         self._home_lock = None
         self._plug = None
         # v0.6.15-beta: the one dispatch lock of this watcher, handed to every engine it builds (one per
@@ -279,6 +285,13 @@ class App(WatchLoop):
         return LocalSource(self.codex_home, chains=chain_memory(self.paths.split_chains_file))
 
     def engine(self, store: Store, *, dispatch_lock=None) -> Engine:
+        if not self._settings_good:
+            # v0.6.18: never built on defaults a failed read left; the loop tries again next tick, quietly.
+            self.refresh_settings(None)
+            if not self._settings_good:
+                raise policy.Unreadable("not read yet", True)
+            if self._backend is None:
+                self._codex_exe_override = self._codex_exe_arg or self.settings.get("codex_exe")
         source = self.source()
         kwargs = {"log": EngineLog(self.logger), "notify": Toasts(self._notifier(source), self.logger),
                   "language": l10n.current(), "engine_state": self.engine_state,
@@ -348,7 +361,23 @@ class App(WatchLoop):
             return None
         return (status.st_mtime_ns, status.st_size)
 
-    def refresh_settings(self, engine: Engine) -> bool:
+    def _read_settings(self):
+        """The stored settings, or None while the file is there and cannot be read (v0.6.18, settings.read): said in
+        the log once, by its error's class name alone, and once more when it is read again."""
+        try:
+            stored = policy.read(self.paths.settings_file)
+        except policy.Unreadable as exc:
+            if not self._settings_unread:
+                self._settings_unread = True
+                self.logger.info("the settings file could not be read (%s); the settings in force are kept, nothing "
+                                 "is done on the defaults, and it is read again at the next tick", exc.reason)
+            return None
+        if self._settings_unread:
+            self._settings_unread = False
+            self.logger.info("the settings file was read again")
+        return stored
+
+    def refresh_settings(self, engine) -> bool:
         """Adopt settings edited while the watcher is running.
 
         Someone changing a preference expects it to take effect, not to have to restart
@@ -361,25 +390,30 @@ class App(WatchLoop):
         held = self._read_managed()
         stamp = self._settings_stamp()
         if stamp == self._settings_stamp_seen and held == self.managed:
-            self._managed_pause(engine)
+            if engine is not None:
+                self._managed_pause(engine)
             return False
-        self._settings_stamp_seen = stamp
         keys_changed = held != self.managed
         if keys_changed:
             self.logger.info("administrator's policy keys: %s", ", ".join(held.codes()) or "none")
             self.managed = held
-        self._stored = config.load_settings(self.paths)
+        if stamp != self._settings_stamp_seen:
+            # v0.6.18: a read that fails keeps the settings in force, and the stamp unseen so the next tick reads again.
+            stored = self._read_settings()
+            if stored is not None:
+                self._settings_stamp_seen, self._stored, self._settings_good = stamp, stored, True
         values = managed.clamp(self._stored, held)
         if values == self.settings and not keys_changed:
             return False
         previous = self.settings.get("interface_language")
         self.settings = values
-        engine.apply_policy(self._stored, held)
-        homes = getattr(self, "_homes", None)
-        if homes is not None:
-            homes.apply_policy(self._stored, held)
-        self._observe_only(engine)
-        self._managed_pause(engine)
+        if engine is not None:
+            engine.apply_policy(self._stored, held)
+            homes = getattr(self, "_homes", None)
+            if homes is not None:
+                homes.apply_policy(self._stored, held)
+            self._observe_only(engine)
+            self._managed_pause(engine)
         from ..ui import popup
         popup.adopt_settings(values)
         if values.get("interface_language") != previous:
@@ -430,19 +464,9 @@ class App(WatchLoop):
         return announce
 
     def _deliver(self, notice, detail, **route):
-        """notifier.deliver, the notice told to the edition's plug first while it wants it (P20, v0.6.19): closed words
-        and numbers only (notifier.told). The standard edition's plug wants nothing and is told nothing."""
-        if self.plug.wants(Point.NOTICE):
-            self.plug.notice(notifier.told(notice, detail, self._pending))
+        """notifier.deliver, the notice told first to a plug that wants it (P20, v0.6.19, notifier.told)."""
+        self.plug.notice(lambda: notifier.told(notice, detail, self.worker_store))
         return notifier.deliver(notice, **route)
-
-    def _pending(self):
-        """Pending as core lists it (store.pending, oldest first), on a connection of its own: P20's places."""
-        store = self.worker_store()
-        try:
-            return store.pending()
-        finally:
-            store.close()
 
     def _watcher_notice(self, event, detail, *, final=False):
         """A notice about the watcher itself (v0.6.11: the memory guard's, memguard.py; v0.6.12: the power

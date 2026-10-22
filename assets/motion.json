@@ -84,7 +84,7 @@
       "passed": true,
       "worst": 0
     },
-    "window": "556466de4c67876d72d1f6564a54cee7abdee3b0119717b5843df16d1f643b1b"
+    "window": "efe1040d9924b13d628928ca241eb30cca89d49dcfdfa8a468f16d900078a315"
   },
   "images": {
     "assets/logo-motion-dark.png": {
@@ -110,17 +110,17 @@
       "size": "192x192"
     },
     "docs/images/notification-card-motion-ko.png": {
-      "bytes": 1592187,
+      "bytes": 1585598,
       "frames": 240,
       "ms": 8424,
       "scenes": {
-        "C0": 106897,
-        "C1": 297080,
+        "C0": 106810,
+        "C1": 295997,
         "C2": 1685,
-        "C3": 1167841,
+        "C3": 1162422,
         "C4": 18581
       },
-      "sha256": "9bfb734571c9d5f3db4955848350003232ec83fcc985ebcf67b961a820ee3c77",
+      "sha256": "9e6f2d90215e5486abdde6aa21b86e561acb7447eef6f808186a122620e20152",
       "size": "776x524"
     },
     "docs/images/notification-card-motion.png": {
@@ -138,60 +138,62 @@
       "size": "776x540"
     },
     "docs/images/readme-motion-ko.png": {
-      "bytes": 6341911,
-      "frames": 1075,
-      "ms": 29117,
+      "bytes": 6961601,
+      "frames": 1197,
+      "ms": 32057,
       "scenes": {
-        "S0": 108072,
-        "S1": 288328,
-        "S10": 264639,
-        "S11": 720608,
-        "S12": 53038,
-        "S12b": 1502936,
-        "S13": 62682,
-        "S14": 33905,
-        "S15": 425986,
-        "S16": 59118,
-        "S5": 216566,
-        "S6": 250696,
-        "S7": 290504,
-        "S8": 251515,
-        "S9": 1813215
+        "S0": 108143,
+        "S1": 271341,
+        "S10": 246033,
+        "S11": 852668,
+        "S12": 47283,
+        "S12b": 1530074,
+        "S13": 62738,
+        "S14": 19193,
+        "S15": 438999,
+        "S16": 64879,
+        "S1m": 746945,
+        "S5": 307315,
+        "S6": 179075,
+        "S7": 305142,
+        "S8": 292258,
+        "S9": 1489412
       },
-      "sha256": "a94e6bc7848b5c8d1641d6b1fd05d942912a1f0220a1e31722680c42a498a66d",
+      "sha256": "4a0cf44e0765b14c58d0c16ebedc88baa59e17c311c398d87b6192dd706bbf00",
       "size": "1500x1041"
     },
     "docs/images/readme-motion.png": {
-      "bytes": 6635579,
-      "frames": 1084,
-      "ms": 29337,
+      "bytes": 7509443,
+      "frames": 1208,
+      "ms": 32277,
       "scenes": {
         "S0": 113714,
-        "S1": 336310,
-        "S10": 315411,
-        "S11": 785923,
-        "S12": 59739,
-        "S12b": 1332218,
-        "S13": 64489,
-        "S14": 34894,
-        "S15": 375154,
-        "S16": 60399,
-        "S5": 257811,
-        "S6": 299133,
-        "S7": 349214,
-        "S8": 302939,
-        "S9": 1948128
+        "S1": 319590,
+        "S10": 289944,
+        "S11": 939094,
+        "S12": 56131,
+        "S12b": 1574452,
+        "S13": 51097,
+        "S14": 19998,
+        "S15": 371209,
+        "S16": 63494,
+        "S1m": 865410,
+        "S5": 351412,
+        "S6": 212741,
+        "S7": 364135,
+        "S8": 360391,
+        "S9": 1556528
       },
-      "sha256": "547ec8a807e0a6c2b80eb8c08c1c4f6ac71838cba70833bfb18dd9339d4e11a9",
+      "sha256": "df326f29b941ab44c3e35dcdbd4c9535e60b0168614f310eb018edebfc8a013c",
       "size": "1500x1041"
     }
   },
   "inputs": {
-    "<motion:card-en>": "e1333127506fcaa0f1e8a2d3afd4c73a46695dd8bafa4e7bcbbd9901dfa68923",
-    "<motion:card-ko>": "3b904fca23c7fa4d89236a86054d4e18219e261dc82691cb5d94c1844ba77057",
+    "<motion:card-en>": "10327d6e74a764fd7d8d119f5b743a9d21fa36cb54066c71e089cfccbc93eb03",
+    "<motion:card-ko>": "cd9990462b387e7e1de6c59ba948f118eef41deae86b21381756c73f336b2c5c",
     "<motion:logo-dark>": "4dfe3238f39ea88c7af2d9415561f25a758b58ac419575cbaa549f3bd811d159",
     "<motion:logo-light>": "e30f23a553b3ff5cc333efa162e11d280073213b463e80e2da1ce125326216f9",
-    "<motion:readme-en>": "3cf9bed89a8947972fcbae08c36e4a0bd4818c05fbe2e9938feb6284831b4935",
-    "<motion:readme-ko>": "edc9012815eb4a38e52876743705f48bb925d9d55658bce8e0c7ea6c6f3f7510"
+    "<motion:readme-en>": "504028ec7ba166585f3062f8413432abcd0019288e02a32e6d61f052136617b3",
+    "<motion:readme-ko>": "ebb14e616461cc3bbf995ae83602cd76811fb4bac475f63e70497ca5c45f74b9"
   }
 }

@@ -72,6 +72,19 @@ AMENDED = {
         "turn_completed, then recovered (progress_then_turn_cut_off)",
     "test_engine.OutcomeTests.test_T17_a_stuck_observed_record_does_not_block_a_newer_failure":
         "turn_completed, then recovered (progress_then_turn_cut_off); the newer failure is sent as before",
+    # 2026-10-22, the owner (rank 1 of plans/notif-check.md): a recovery turn that made progress before a person's
+    # message entered it is recovered (progress_then_user_joined) and its next failure recovered; these scenarios keep
+    # testing the hand-over, with the person joining before any progress.
+    "test_outcomes.T16UserJoinedTests.test_T16_an_extra_user_message_hands_the_turn_over_at_once":
+        "the person joins before any progress: handed over as before",
+    "test_outcomes.T16UserJoinedTests.test_T16_a_steered_message_from_codexsim_is_seen_the_same_way":
+        "the person joins before any progress: handed over as before",
+    "test_outcomes.T16UserJoinedTests.test_T16_when_the_handed_over_turn_fails_the_child_is_superseded_and_never_claimed":
+        "the person joins before any progress: the child is superseded as before",
+    "test_outcomes.T48NotificationTests.test_T48_children_registered_cancelled_or_superseded_are_announced_as_stopped_only":
+        "the person joins before any progress: the superseded child is announced as before",
+    "test_engine.OutcomeTests.test_T16_a_person_joining_the_turn_hands_it_over_and_blocks_its_child":
+        "the person joins before any progress: handed over and its child blocked as before",
 }
 MARKER = re.compile(r"\[codex-auto-resume:([0-9a-f]{64}|[0-9a-f]{16})\]")
 

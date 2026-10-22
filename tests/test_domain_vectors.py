@@ -241,6 +241,8 @@ DEFAULT_FILE = """{
   "default_tier": "automatic",
   "design": "soft",
   "detection_lookback_hours": 6.0,
+  "home_suggestions": true,
+  "home_suggestions_dismissed": [],
   "interface_language": "system",
   "keep_awake": "off",
   "keep_awake_hours": "h6",

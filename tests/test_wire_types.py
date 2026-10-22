@@ -86,6 +86,8 @@ WHERE = {
     wire.PowerChoice: [("bridge:power-action", "result.actions[]")],
     wire.PowerOptions: [("bridge:power-action", "result")],
     wire.PowerDisarmed: [("bridge:power-disarm", "result")],
+    # v0.6.18: the Codex home Settings > Advanced offers to watch too, and what Not now leaves to offer.
+    wire.HomeSuggestion: [("bridge:home-suggestion", "result"), ("bridge:home-dismiss", "result")],
 }
 
 

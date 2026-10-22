@@ -336,6 +336,14 @@ class HomesView(TypedDict):
     unmeasured: bool
 
 
+class HomeSuggestion(TypedDict):
+    """`home-suggestion` and `home-dismiss` (v0.6.18, homefind.offer): whether it looks at all, the Codex home it
+    offers to watch too or None, and whether every home is already added - when the card says so instead."""
+    on: bool
+    path: str | None
+    full: bool
+
+
 class StatusSnapshot(TypedDict):
     """`status`, and the part of `dashboard` every page opens with."""
     enabled: bool

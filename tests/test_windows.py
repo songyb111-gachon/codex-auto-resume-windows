@@ -276,7 +276,7 @@ class BackendTests(unittest.TestCase):
             result = self.backend.send(THREAD, prompt)
         self.assertEqual(result, {"outcome": "accepted", "queue_id": QUEUE})
         argv = popen.call_args.args[0]
-        self.assertEqual(argv[-5:], ["queue", "--thread", THREAD, "--message", prompt])
+        self.assertEqual(argv[-4:], ["queue", "--thread", THREAD, "--message=" + prompt])
         self.assertIs(popen.call_args.kwargs["shell"], False)
         self.assertEqual(popen.call_args.kwargs["stderr"], subprocess.DEVNULL)
         self.assertNotIn("--last", argv)

@@ -261,11 +261,17 @@ namespace CodexAutoResume
                 remove.Choose(true);
                 cases.Add(Case("repair-remove", remove));
                 cases.Add(Case("dashboard-update", new InstallerFlow(InstallerFlow.Update, home, InstallerFlow.Standard, InstallerFlow.Standard, "0.6.16")));
+                // Install another version... (v0.6.18): an older version of the other edition, run as the update is.
+                var pick = new InstallerFlow(InstallerFlow.Update, home, InstallerFlow.Advanced, InstallerFlow.Standard, "0.6.11-beta.2");
+                pick.Another = true;
+                cases.Add(Case("dashboard-pick", pick));
                 cases.Add(Case("uninstall", new InstallerFlow(InstallerFlow.Uninstall, home, InstallerFlow.Standard, InstallerFlow.Standard, "0.6.16")));
                 foreach (KeyValuePair<string, InstallerFlow> each in cases)
                 {
                     // An update's pages carry what is new: a changelog section, its lines as long as the real ones.
-                    if (each.Value.Upgrade && !each.Value.EditionChange || each.Value.Mode == InstallerFlow.Update)
+                    // A pick prints no notes (scripts/bootstrap.ps1: -AskFirst is the update's alone): none to carry.
+                    if (each.Value.Another) each.Value.From = "0.6.16";
+                    else if (each.Value.Upgrade && !each.Value.EditionChange || each.Value.Mode == InstallerFlow.Update)
                     {
                         each.Value.From = "0.6.15";
                         each.Value.NotesText = SampleNotes;

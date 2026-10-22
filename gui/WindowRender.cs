@@ -6,7 +6,8 @@
 // builds it - never shown, not even a top-level window - answered from the job's own canned replies instead of
 // a bridge, so nothing is read from an installation, nothing is written anywhere but the job's folder, and no
 // process is started. For each frame of the job it is put in a state - a page, a Settings section, a scroll
-// offset, a control's hover or pressed face, a drop-down's value, its open list, the moment of its lights -
+// offset, a control's hover or pressed face, a drop-down's value, its open list, a Pending row chosen and its own
+// menu open (v0.6.18), the moment of its lights -
 // waits until it holds still as a capture waits (Settled), and draws itself into a bitmap; only what changed
 // since the frame before is written.
 
@@ -266,12 +267,15 @@ namespace CodexAutoResume
                 moved = true;
             }
             moved |= RenderCombo(Map(frame, "combo"));
+            moved |= RenderSelected(Map(frame, "selected"));
             if (moved)
             {
                 Materialise(this);
                 PerformLayout();
                 if (!HoldStill(true)) writer.Note("frame " + frame["index"] + ": the " + page + " page did not hold still: " + Unsettled());
             }
+            // The chosen row again, now that the page holds still (RenderSelected).
+            RenderSelected(Map(frame, "selected"));
             RenderScroll(page, Map(frame, "scroll"));
             RenderFace(Str(frame, "hover"), Str(frame, "pressed"), writer);
             object light;
@@ -308,6 +312,29 @@ namespace CodexAutoResume
                 return true;
             }
             return false;
+        }
+
+        // The Pending row the last frame chose (RenderSelected), or -1.
+        private int renderSelected = -1;
+
+        /// v0.6.18: the Pending row a right click chose - `{"pending": n}` - as the list chooses the row under the pointer
+        /// (DashboardPages, MouseDown); none again once no frame names one. True when anything changed.
+        private bool RenderSelected(Dictionary<string, object> selected)
+        {
+            object given;
+            int row = selected != null && selected.TryGetValue("pending", out given) && given != null
+                ? Convert.ToInt32(given, CultureInfo.InvariantCulture) : -1;
+            if (pendingList == null || (row < 0 && renderSelected < 0)) return false;
+            renderSelected = row;
+            // Asked of every frame, not only when it changes: a read the window makes while it settles fills the list
+            // again, and the row chosen with it.
+            bool chosen = row >= 0 && row < pendingList.Items.Count;
+            if (chosen && pendingList.SelectedIndices.Count == 1 && pendingList.Items[row].Selected) return false;
+            if (!chosen && pendingList.SelectedIndices.Count == 0) return false;
+            pendingList.SelectedIndices.Clear();
+            if (chosen) pendingList.Items[row].Selected = true;
+            pendingList.Invalidate();
+            return true;
         }
 
         /// The page scrolled `notches` turns of the wheel down, the last of them `glide_ms` into its glide - as
@@ -348,7 +375,9 @@ namespace CodexAutoResume
             if (renderFaced != null) SetRenderFace(renderFaced, false, false);
             renderFaced = null;
             string name = pressed ?? hover;
-            if (name == null || name.StartsWith("row.", StringComparison.Ordinal)) return;
+            // A row of an open list, a Pending row or an item of the row menu: drawn by RenderPicture, not a control's face.
+            if (name == null || name.StartsWith("row.", StringComparison.Ordinal) ||
+                name.StartsWith("task.", StringComparison.Ordinal) || name.StartsWith("menu.", StringComparison.Ordinal)) return;
             Control control = FocusTarget(name);
             if (control == null) { writer.Note("no control is called " + name); return; }
             SetRenderFace(control, true, pressed != null);
@@ -376,11 +405,93 @@ namespace CodexAutoResume
             Invalidate(true);
             DrawToBitmap(picture, new Rectangle(Point.Empty, ClientSize));
             renderRows = null;
-            var listed = Map(frame, "droplist");
-            if (listed == null) return picture;
+            renderMenu = null;
+            // v0.6.18: a Pending row's own menu, over everything: a window of its own too (SoftMenu), drawn by its own
+            // card where it opens.
+            RenderDropList(picture, Map(frame, "droplist"), writer);
+            var menu = Map(frame, "menu");
+            if (menu != null) RenderMenu(picture, Str(menu, "at"), Str(frame, "hover"), writer);
+            return picture;
+        }
+
+        // The items of the row menu the last picture showed open, by name (`menu.<n>`), in client coordinates.
+        private Dictionary<string, Rectangle> renderMenu;
+
+        /// The Pending row `name` names (`task.<n>`) in client coordinates, and its index; false when it is not shown.
+        private bool RenderTask(string name, out Rectangle bounds, out int index)
+        {
+            bounds = Rectangle.Empty;
+            index = -1;
+            if (name == null || !name.StartsWith("task.", StringComparison.Ordinal) || pendingList == null) return false;
+            if (!int.TryParse(name.Substring(5), NumberStyles.None, CultureInfo.InvariantCulture, out index)) return false;
+            if (index < 0 || index >= pendingList.Items.Count) return false;
+            for (Control c = pendingList; c != null && c != this; c = c.Parent) if (!OwnVisible(c)) return false;
+            Rectangle row = pendingList.Items[index].Bounds;
+            Point list = InClient(pendingList);
+            bounds = new Rectangle(list.X + row.X, list.Y + row.Y, row.Width, row.Height);
+            return true;
+        }
+
+        /// The row menu of the Pending row `at` names, as a right click there opens it - filled by FillRowMenu as the
+        /// menu's Opening fills it, the item `hover` names (`menu.<n>`) in hand - drawn by its own card (SoftMenuLayer)
+        /// with the card's corner where the pointer is (RenderMenuPlace), and its items named for the pointer.
+        private void RenderMenu(Bitmap picture, string at, string hover, RenderWriter writer)
+        {
+            Rectangle row;
+            int index;
+            if (!RenderTask(at, out row, out index)) { writer.Note("no Pending row is called " + at); return; }
+            if (pendingMenu == null || !FillRowMenu(pendingList.Items[index].Tag as Dictionary<string, object>))
+            {
+                writer.Note("the row menu offers nothing on " + at);
+                return;
+            }
+            pendingMenu.Size = pendingMenu.GetPreferredSize(Size.Empty);
+            pendingMenu.PerformLayout();
+            IntPtr made = pendingMenu.Handle;
+            int held;
+            if (hover != null && hover.StartsWith("menu.", StringComparison.Ordinal) &&
+                int.TryParse(hover.Substring(5), NumberStyles.None, CultureInfo.InvariantCulture, out held) &&
+                held < pendingMenu.Items.Count)
+                pendingMenu.Items[held].Select();
+            SoftMenuLayer layer = pendingMenu.Layer;
+            if (layer == null) { writer.Note("the row menu is Windows' own here: no card to draw"); return; }
+            layer.Render();
+            Bitmap image = layer.Image;
+            if (image == null) return;
+            // Where the pointer stands on the row: its centre, as the pointer is put on a target (motion_compose.locate).
+            var anchor = new Point(row.X + row.Width / 2, row.Y + row.Height / 2);
+            Point corner = RenderMenuPlace(anchor, image.Size, SoftMenuLayer.Reach, ClientSize);
+            using (Graphics g = Graphics.FromImage(picture)) g.DrawImage(image, corner.X, corner.Y, image.Width, image.Height);
+            renderMenu = new Dictionary<string, Rectangle>();
+            for (int i = 0; i < pendingMenu.Items.Count; i++)
+            {
+                ToolStripItem item = pendingMenu.Items[i];
+                if (item is ToolStripSeparator || !item.Available) continue;
+                renderMenu["menu." + i.ToString(CultureInfo.InvariantCulture)] =
+                    new Rectangle(corner.X + item.Bounds.X, corner.Y + item.Bounds.Y, item.Bounds.Width, item.Bounds.Height);
+            }
+        }
+
+        /// Where a menu's window `size` big goes, with its card `reach` in from each edge, when it opens at `anchor` in
+        /// a client area `client` big: its card's top left corner at the anchor - or, where the card has no room right
+        /// of it or below it, its right or bottom edge, as Windows turns a menu round to fit - and the card kept inside.
+        internal static Point RenderMenuPlace(Point anchor, Size size, Padding reach, Size client)
+        {
+            int wide = size.Width - reach.Horizontal, tall = size.Height - reach.Vertical;
+            int left = anchor.X + wide <= client.Width ? anchor.X : anchor.X - wide;
+            int top = anchor.Y + tall <= client.Height ? anchor.Y : anchor.Y - tall;
+            left = Math.Max(0, Math.Min(left, client.Width - wide));
+            top = Math.Max(0, Math.Min(top, client.Height - tall));
+            return new Point(left - reach.Left, top - reach.Top);
+        }
+
+        /// A drop-down's open list over the picture, when the frame has one (see RenderPicture).
+        private void RenderDropList(Bitmap picture, Dictionary<string, object> listed, RenderWriter writer)
+        {
+            if (listed == null) return;
             Control editor;
             var combo = editors.TryGetValue(Str(listed, "field") ?? "", out editor) ? editor as SoftCombo : null;
-            if (combo == null) { writer.Note("no drop-down is called " + Str(listed, "field")); return picture; }
+            if (combo == null) { writer.Note("no drop-down is called " + Str(listed, "field")); return; }
             int hovered = -1;
             string value = Str(listed, "hover");
             for (int i = 0; i < combo.Items.Count; i++)
@@ -399,7 +510,7 @@ namespace CodexAutoResume
                 double appear = listed.TryGetValue("appear_ms", out appearing) && appearing != null
                     ? Convert.ToDouble(appearing, CultureInfo.InvariantCulture) : -1;
                 Bitmap image = list.PaintAt(hovered, area, appear);
-                if (image == null) return picture;
+                if (image == null) return;
                 Rectangle card = list.Card;
                 Padding margin = list.Margin;
                 int rise = list.CardOnScreen.Y - card.Y;
@@ -424,7 +535,6 @@ namespace CodexAutoResume
                                                                           pill.Width, pill.Height);
                 }
             }
-            return picture;
         }
 
         // The rows of the list the last picture showed open, by name, in client coordinates.
@@ -447,6 +557,10 @@ namespace CodexAutoResume
                 string name = Convert.ToString(item, CultureInfo.InvariantCulture);
                 Rectangle rect;
                 if (renderRows != null && renderRows.TryGetValue(name, out rect)) { found[name] = Box(rect); continue; }
+                if (renderMenu != null && renderMenu.TryGetValue(name, out rect)) { found[name] = Box(rect); continue; }
+                int row;
+                if (RenderTask(name, out rect, out row)) { found[name] = Box(rect); continue; }
+                if (name.StartsWith("menu.", StringComparison.Ordinal) || name.StartsWith("task.", StringComparison.Ordinal)) continue;
                 Control control = name.StartsWith("row.", StringComparison.Ordinal) ? null : FocusTarget(name);
                 if (control == null) continue;
                 bool shows = true;

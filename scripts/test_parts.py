@@ -268,9 +268,27 @@ class Runner(unittest.TextTestRunner):
     resultclass = Recorder
 
 
+def no_real_toast() -> bool:
+    """Install the guard that fails a test which reaches the real Windows toast (tests/no_real_toast.py),
+    which tests/sitecustomize.py installs wherever tests/ is on the path - the lanes put only src there. A
+    tree without tests/ (the release archive ships this file) has nothing to guard."""
+    import importlib.util
+    guard = sys.modules.get("no_real_toast")
+    if guard is None:
+        path = ROOT / "tests" / "no_real_toast.py"
+        if not path.is_file():
+            return False
+        spec = importlib.util.spec_from_file_location("no_real_toast", path)
+        guard = importlib.util.module_from_spec(spec)
+        sys.modules["no_real_toast"] = guard
+        spec.loader.exec_module(guard)
+    return guard.install()
+
+
 def work(suite: str, names: list[str], report: str, verbose: bool) -> int:
     """What `python -m unittest discover -s <suite>` does - all of it when `names` is empty, else for
     `names` only - and the record of it."""
+    no_real_toast()
     # `python -m` puts the working directory first on the path, where running this file put scripts/.
     sys.path[0] = os.getcwd()
     sys.argv = ["python -m unittest", "discover", "-s", suite] + (["-v"] if verbose else [])

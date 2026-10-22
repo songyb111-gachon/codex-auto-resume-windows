@@ -304,6 +304,12 @@ $PolicyValues = @('DisableAutoResume', 'ForceObserveOnly', 'DisableUpdateCheck',
 # the word `convert3` on its row, which has meant "converted first" since schema 3 was the only older
 # one); a target on any other is not offered at all.
 $StateSchemaSince = @(@('0.6.16-beta', 5), @('0.6.15', 4), @('0.6.15-beta', 5), @('0.6.11-beta', 4), @('0.6.0', 3))
+# The oldest schema whose reader may use this version's state (store/schema.py READABLE_FROM), and the first version
+# whose store reads that mark. A target on this version's own schema keeps the state as it is (`kept`), and so does one
+# from $StateMarkSince on whose schema is $StateReadableFrom or later: it reads a newer state so marked as its own. A
+# version before $StateMarkSince knows no mark and reads its own schema alone.
+$StateReadableFrom = 5
+$StateMarkSince = '0.6.18'
 # The advanced settings' form from each version on, newest first; the first row is this version's
 # own. An advanced target on an older form cannot read them: every advanced feature is off there -
 # unless it reads the readable-from mark (from $AdvancedMarkSince on) and its form is at least the
@@ -450,7 +456,11 @@ function Get-OutsideSource {
     #>
     param([string]$Script, [string[]]$Switches, [hashtable]$Values, [string[]]$Arguments, [string]$Log, [string]$CodeFile,
           [hashtable]$Environment)
-    $literal = { param($text) "'" + ([string]$text).Replace("'", "''") + "'" }
+    # Every character PowerShell ends a single-quoted string at - the ASCII one and U+2018, U+2019, U+201A, U+201B -
+    # doubled: with the ASCII one alone, a path holding a curly quote broke the script, and a folder name made for it
+    # ran code here (v0.6.18 security review, M3).
+    $quotes = '[' + "'" + [char]0x2018 + [char]0x2019 + [char]0x201A + [char]0x201B + ']'
+    $literal = { param($text) "'" + (([string]$text) -replace $quotes, '$0$0') + "'" }
     $call = '& ' + (& $literal $Script)
     foreach ($name in $Switches) { $call += ' -' + $name }
     if ($Values) { foreach ($name in @($Values.Keys | Sort-Object)) { $call += ' -' + $name + ' ' + (& $literal $Values[$name]) } }
@@ -1171,7 +1181,9 @@ function Get-VersionVerdict {
     if ((Compare-ProductVersion -Left $number -Right $PickFloor) -lt 0) { return $null }
     if ($Edition -eq 'advanced' -and (Compare-ProductVersion -Left $number -Right $EditionsSince) -lt 0) { return $null }
     $schema = Get-SinceValue -Version $number -Table $StateSchemaSince
-    if ($schema -ne $StateSchemaSince[0][1] -and $schema -ne 4 -and $schema -ne 3) { return $null }
+    $kept = ($schema -eq $StateSchemaSince[0][1] -or
+             ($schema -ge $StateReadableFrom -and (Compare-ProductVersion -Left $number -Right $StateMarkSince) -ge 0))
+    if (-not $kept -and $schema -ne 4 -and $schema -ne 3) { return $null }
     $order = Compare-ProductVersion -Left $number -Right $Installed
     $other = $Edition -ne $InstalledEdition
     $row = [pscustomobject]@{ Version = $number; Edition = $Edition; Answer = 'refused'; Detail = '' }
@@ -1194,13 +1206,14 @@ function Get-VersionVerdict {
     $words = @()
     if ($order -gt 0) { $words += 'newer' } elseif ($order -lt 0) { $words += 'older' } else { $words += 'same' }
     if ($Entry.Prerelease) { $words += 'prerelease' } else { $words += 'release' }
-    if ($schema -eq $StateSchemaSince[0][1]) { $words += 'kept' } else { $words += 'convert3' }
+    if ($kept) { $words += 'kept' } else { $words += 'convert3' }
     if (-not $Entry.Prerelease -and $number -ceq [string]$Latest) { $words += 'latest' }
     if ($other) { $words += 'edition' }
-    $form = Get-SinceValue -Version $number -Table $AdvancedStateSince
-    $readsMark = (Compare-ProductVersion -Left $number -Right $AdvancedMarkSince) -ge 0 -and $form -ge $AdvancedReadableFrom
-    if ($Edition -eq 'advanced' -and $form -ne $AdvancedStateSince[0][1] -and -not $readsMark) {
-        $words += 'advanced-off'
+    if ($Edition -eq 'advanced') {
+        # An older form is read only by a version that reads the advanced state's mark, on a form it is marked readable from.
+        $form = Get-SinceValue -Version $number -Table $AdvancedStateSince
+        $readsMark = (Compare-ProductVersion -Left $number -Right $AdvancedMarkSince) -ge 0 -and $form -ge $AdvancedReadableFrom
+        if ($form -ne $AdvancedStateSince[0][1] -and -not $readsMark) { $words += 'advanced-off' }
     }
     $row.Answer = 'offered'
     $row.Detail = $words -join ','
@@ -1249,11 +1262,24 @@ function Get-Remote {
     # rides on an update check takes it. An archive never does - on a slow link it simply takes long.
     # Without -Deadline - the archive and its checksum - the body is streamed to the file as it comes
     # (Save-StreamedDownload), and -Count prints its bytes for the setup window's bar.
+    # With -Deadline, -MaxBytes bounds what of the body is written (Save-BoundedDownload): one byte past it at most.
     param([string]$Uri, [string]$OutFile, [string]$What, [string[]]$Hosts = $AllowedHosts,
-          [int]$TimeoutSec = 300, [switch]$Deadline, [switch]$Count)
+          [int]$TimeoutSec = 300, [switch]$Deadline, [switch]$Count, [long]$MaxBytes = 0)
     # -UseBasicParsing keeps this working on a Windows with no Internet Explorer engine,
     # which is every current one.
     if ($Deadline) {
+        # Every hop checked before it is asked and the body bounded as it arrives, as the archive's download does; the
+        # request under a deadline below only where the .NET request cannot be made at all (the archive's own rule).
+        $bounded = $null
+        try {
+            $bounded = New-DownloadRequest -Uri ([Uri]$Uri) -Offset 0 -Cookies (New-Object Net.CookieContainer) `
+                                           -TimeoutSec $TimeoutSec
+        } catch { $bounded = $null }
+        if ($null -ne $bounded) {
+            Save-BoundedDownload -First $bounded -Uri ([Uri]$Uri) -OutFile $OutFile -What $What -Hosts $Hosts `
+                                 -Seconds $TimeoutSec -MaxBytes $MaxBytes
+            return
+        }
         $response = Invoke-BoundedWebRequest -What $What -Seconds $TimeoutSec -Parameters @{
             Uri = $Uri; OutFile = $OutFile; UseBasicParsing = $true; PassThru = $true; MaximumRedirection = 5
             TimeoutSec = $TimeoutSec }
@@ -1404,15 +1430,21 @@ function Open-Download {
         caller's hosts, or over http, is refused without a byte asked of it. Any other 3xx, or one with no Location,
         fails as the cmdlet's request failed for it (New-ServerError); a Location that is no address, as it failed
         for that. The answer is checked again, where it says it came from, before a byte of its body is read.
-        -Request is the first request when it is already made.
+        -Request is the first request when it is already made. With -Clock (Save-BoundedDownload), $TimeoutSec is a
+        deadline for all of it, from when that clock started: each request gets only what is left of it.
     #>
     param([Uri]$Uri, [long]$Offset, [Net.CookieContainer]$Cookies, [string]$What, [string[]]$Hosts,
-          [int]$TimeoutSec, $Request)
+          [int]$TimeoutSec, $Request, [Diagnostics.Stopwatch]$Clock)
     $address = $Uri
     $hops = 0
     while ($true) {
         if ($null -eq $Request) {
-            $Request = New-DownloadRequest -Uri $address -Offset $Offset -Cookies $Cookies -TimeoutSec $TimeoutSec
+            $seconds = $TimeoutSec
+            if ($null -ne $Clock) {
+                $seconds = $TimeoutSec - [int][Math]::Floor($Clock.Elapsed.TotalSeconds)
+                if ($seconds -le 0) { throw ($What + ' did not arrive within ' + $TimeoutSec + ' s.') }
+            }
+            $Request = New-DownloadRequest -Uri $address -Offset $Offset -Cookies $Cookies -TimeoutSec $seconds
         }
         $response = Get-DownloadResponse -Request $Request
         $Request = $null
@@ -1567,6 +1599,74 @@ function Save-StreamedDownload {
     }
 }
 
+function Save-BoundedDownload {
+    <#
+        A download that rides on an update check (Get-Remote -Deadline): all of it - every hop, the answer and its body
+        - within $Seconds of being asked, and no more than $MaxBytes of its body written (0: no bound). Every redirect
+        hop is held to the caller's hosts BEFORE it is asked, and the answer before a byte of it is read (Open-Download,
+        the archive's own rule); the body goes through a fixed 64 KB buffer into a file of its own beside $OutFile, read
+        no further than one byte past $MaxBytes - a file longer than the bound, which the caller refuses as too large,
+        never one of whatever length a server chose - and becomes $OutFile only once it is all there. On any failure
+        nothing is left at $OutFile. It replaced Invoke-WebRequest -MaximumRedirection 5 -OutFile under a deadline,
+        which followed every redirect before it checked where the answer came from and wrote the whole body before
+        anyone looked at its size (v0.6.18 security review, M5). A rate limit a failure carries is noted as that
+        download's was (Get-RateLimitReset).
+    #>
+    param($First, [Uri]$Uri, [string]$OutFile, [string]$What, [string[]]$Hosts, [int]$Seconds, [long]$MaxBytes)
+    $clock = [Diagnostics.Stopwatch]::StartNew()
+    $late = $What + ' did not arrive within ' + $Seconds + ' s.'
+    $deadline = [long]$Seconds * 1000
+    try {
+        $response = Open-Download -Uri $Uri -Offset 0 -Cookies $First.CookieContainer -What $What -Hosts $Hosts `
+                                  -TimeoutSec $Seconds -Request $First -Clock $clock
+    } catch {
+        $limit = Get-RateLimitReset $_.Exception
+        if ($limit) { $script:RateLimitReset = $limit }
+        throw
+    }
+    $partial = $OutFile + '.' + [Guid]::NewGuid().ToString('N') + '.partial'
+    $file = $null
+    $kept = $false
+    try {
+        $total = [long]$response.ContentLength
+        $file = New-Object IO.FileStream($partial, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
+        $buffer = New-Object byte[] 65536
+        $received = [long]0
+        $stream = $response.GetResponseStream()
+        while ($true) {
+            $left = $deadline - $clock.ElapsedMilliseconds
+            if ($left -le 0) { throw $late }
+            # A read that waits is given only what is left; a stream that takes no timeout is bounded by the check above.
+            try { $stream.ReadTimeout = [int][Math]::Min([long][int]::MaxValue, $left) } catch { }
+            $want = $buffer.Length
+            if ($MaxBytes -gt 0) { $want = [int][Math]::Min([long]$want, $MaxBytes + 1 - $received) }
+            try { $read = $stream.Read($buffer, 0, $want) }
+            catch {
+                if ($clock.ElapsedMilliseconds -ge $deadline) { throw $late }
+                throw
+            }
+            if ($read -le 0) { break }
+            $file.Write($buffer, 0, $read)
+            $received += $read
+            if ($MaxBytes -gt 0 -and $received -gt $MaxBytes) { break }
+        }
+        if ($clock.ElapsedMilliseconds -gt $deadline) { throw $late }
+        $over = $MaxBytes -gt 0 -and $received -gt $MaxBytes
+        if (-not $over -and $total -ge 0 -and $received -lt $total) {
+            throw ($What + ' was cut short: ' + $received + ' of ' + $total + ' bytes arrived.')
+        }
+        $file.Dispose()
+        $file = $null
+        if (Test-Path -LiteralPath $OutFile) { Remove-Item -LiteralPath $OutFile -Force }
+        [IO.File]::Move($partial, $OutFile)
+        $kept = $true
+    } finally {
+        $response.Close()
+        if ($null -ne $file) { $file.Dispose() }
+        if (-not $kept) { Remove-Item -LiteralPath $partial -Force -ErrorAction SilentlyContinue }
+    }
+}
+
 function Get-CompatibilityTimeout {
     <#
         The seconds the refresh that rides on an update check may wait for its download,
@@ -1630,7 +1730,7 @@ function Update-CompatibilityData {
         $file = Join-Path $folder 'codex_compat.json'
         try {
             Get-Remote -Uri $CompatibilityUrl -OutFile $file -What 'The compatibility data' `
-                       -Hosts $CompatibilityHosts -TimeoutSec $TimeoutSec -Deadline
+                       -Hosts $CompatibilityHosts -TimeoutSec $TimeoutSec -Deadline -MaxBytes $CompatibilityMaxBytes
         } catch { return 'unavailable' }
         if (-not (Test-Path -LiteralPath $file)) { return 'unavailable' }
         if ((Get-Item -LiteralPath $file).Length -gt $CompatibilityMaxBytes) { return 'refused too_large' }
@@ -1771,9 +1871,9 @@ function Get-Edition {
 function Get-InstalledVersion {
     param([string]$Home_)
     $manifest = Join-Path $Home_ 'app\.codex-plugin\plugin.json'
-    if (-not (Test-Path (Join-Path $Home_ 'runtime\python.exe'))) { return $null }
-    if (-not (Test-Path $manifest)) { return $null }
-    try { return (Get-Content $manifest -Raw -Encoding UTF8 | ConvertFrom-Json).version }
+    if (-not (Test-Path -LiteralPath (Join-Path $Home_ 'runtime\python.exe'))) { return $null }
+    if (-not (Test-Path -LiteralPath $manifest)) { return $null }
+    try { return (Get-Content -LiteralPath $manifest -Raw -Encoding UTF8 | ConvertFrom-Json).version }
     catch { return $null }
 }
 
@@ -1907,11 +2007,93 @@ function Remove-EntryBeforeOlder {
 function Start-CurrentWatcher {
     # The installed version's watcher started again, after a conversion that failed: `setup
     # --keep-state`, the repair branch's own run, which changes no decision a person made.
-    param([string]$Home_, [switch]$NoStartup)
+    # -WasStopped: no watcher ran before (--watcher-was-stopped, v0.6.16 on), so it is started only where it runs at
+    # sign-in anyway. Setup's exit code is left in $script:CurrentWatcherCode; nothing is returned.
+    param([string]$Home_, [switch]$NoStartup, [switch]$WasStopped)
     $arguments = @('setup', '--keep-state')
     if ($NoStartup) { $arguments += '--no-startup' }
+    if ($WasStopped) { $arguments += '--watcher-was-stopped' }
     # It writes the registrations the repair branch writes, so outside another app's view as that branch does.
-    $null = Invoke-InstalledSetup -Home_ $Home_ -Arguments $arguments -Outside
+    $script:CurrentWatcherCode = (Invoke-InstalledSetup -Home_ $Home_ -Arguments $arguments -Outside).Code
+}
+
+function Test-CurrentWatcherStopped {
+    # $true when the installed version says its watcher is not running (`watcher-running` exits 1), $false when it
+    # runs (0), $null when the version cannot say (no such command before v0.6.17: argparse's 2).
+    param([string]$Home_)
+    $code = $null
+    try { $code = (Invoke-InstalledSetup -Home_ $Home_ -Arguments @('watcher-running')).Code } catch { return $null }
+    if ($code -eq 0) { return $false }
+    if ($code -eq 1) { return $true }
+    return $null
+}
+
+function Restore-AfterFailedPick {
+    <#
+        After Install another version...'s installer failed (-Pick, a non-zero exit) while the version that was
+        installed still is - it stopped before it moved anything, or put its copy back - what this run changed
+        before it is put back as it was (v0.6.18 installer audit, R4): the state the conversion rewrote, from the copy
+        the conversion took of it moments before (the newest state.v<N>-backup-*.sqlite written since -Since, and only
+        while the watcher is not running); the uninstaller kept for the entry in Add or remove programs, from the copy
+        saved before remove-entry took it (-KeptCopy); and then the installed version's own `setup --keep-state`,
+        which writes the entry again and starts the watcher (only where it would run at sign-in when none ran before:
+        -WasStopped). Where the installer replaced the program files before it failed, the version it installed
+        owns the converted state, and nothing is put back. Returns 'restored', or 'replaced' for that case.
+    #>
+    param([string]$Home_, [string]$Installed, [string]$Converted, [datetime]$Since, [string]$KeptCopy,
+          [switch]$NoStartup, [switch]$WasStopped)
+    $now = Get-InstalledVersion -Home_ $Home_
+    if (-not $now -or [string]$now -cne $Installed) {
+        Step 'The installer stopped after it had replaced the program files; read its messages above.'
+        return 'replaced'
+    }
+    Step ('v' + $Installed + ' is still installed. Putting back what was changed for the other version.')
+    if ($Converted -clike 'converted *') {
+        $config = Join-Path $Home_ 'config'
+        $state = Join-Path $config 'state.sqlite'
+        $copies = @(Get-ChildItem -LiteralPath $config -File -Filter 'state.v*-backup-*.sqlite' -ErrorAction SilentlyContinue |
+                    Where-Object { $_.Name -cmatch '^state\.v[345]-backup-[0-9]{8}T[0-9]{6}Z\.sqlite\z' -and
+                                   $_.LastWriteTimeUtc -ge $Since.ToUniversalTime().AddSeconds(-2) -and
+                                   -not ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) } |
+                    Sort-Object -Property Name -Descending)
+        if ($copies.Count -eq 0) {
+            Fail 'The state stays converted for the older version: the copy taken before the conversion was not found.'
+        } elseif ((Test-CurrentWatcherStopped -Home_ $Home_) -eq $false) {
+            Fail 'The state stays converted for the older version: the watcher is running, so it was not replaced under it.'
+        } else {
+            $writing = $state + '.restoring'
+            try {
+                [IO.File]::Copy($copies[0].FullName, $writing, $true)
+                # [NullString]: a plain $null reaches .NET as an empty path, which Replace refuses.
+                [IO.File]::Replace($writing, $state, [NullString]::Value)
+                Ok 'The state was put back as it was before the conversion'
+            } catch {
+                Remove-Item -LiteralPath $writing -Force -ErrorAction SilentlyContinue
+                Fail ('The state stays converted for the older version: ' + $_.Exception.Message)
+            }
+        }
+    }
+    $folder = Join-Path $Home_ 'uninstall'
+    $kept = Join-Path $folder 'install.ps1'
+    if ($KeptCopy -and (Test-Path -LiteralPath $KeptCopy -PathType Leaf) -and -not (Test-Path -LiteralPath $kept)) {
+        try {
+            $item = New-Object IO.DirectoryInfo $folder
+            if ($item.Exists -and ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'its folder is a link' }
+            if (-not $item.Exists) { $null = [IO.Directory]::CreateDirectory($folder) }
+            [IO.File]::Copy($KeptCopy, $kept, $false)
+            Ok 'The uninstaller kept for the entry in Add or remove programs was put back'
+        } catch {
+            Fail ('The uninstaller kept for the entry in Add or remove programs could not be put back: ' + $_.Exception.Message)
+        }
+    }
+    $script:CurrentWatcherCode = $null
+    try {
+        if ($WasStopped) { Start-CurrentWatcher -Home_ $Home_ -NoStartup:$NoStartup -WasStopped }
+        else { Start-CurrentWatcher -Home_ $Home_ -NoStartup:$NoStartup }
+    } catch { $script:CurrentWatcherCode = $null }
+    if ($script:CurrentWatcherCode -eq 0) { Ok 'The entry in Add or remove programs and the watcher are as they were' }
+    else { Fail 'The installed version''s setup did not confirm everything; open the Dashboard and choose Repair installation.' }
+    return 'restored'
 }
 
 # ---------------------------------------------------------------------------- run
@@ -2397,9 +2579,9 @@ try {
     $zip = Join-Path $work $name
 
     if ($ArchivePath) {
-        if (-not (Test-Path $ArchivePath)) { Fail ('No such file: ' + $ArchivePath); exit 1 }
+        if (-not (Test-Path -LiteralPath $ArchivePath)) { Fail ('No such file: ' + $ArchivePath); exit 1 }
         Step ('Using the archive you provided: ' + $ArchivePath)
-        Copy-Item -Path $ArchivePath -Destination $zip -Force
+        Copy-Item -LiteralPath $ArchivePath -Destination $zip -Force
     } else {
         $base = $release.download.Replace('{version}', $target)
         Step ('Downloading v' + $target + ' from github.com over HTTPS.')
@@ -2462,6 +2644,18 @@ try {
             Step 'Nothing was installed, and nothing was changed.'
             exit $ExitPickRefused
         }
+        # What a failed installer below finds put back (Restore-AfterFailedPick): when this began, whether a watcher
+        # ran, and the uninstaller kept for the entry in Add or remove programs, saved before remove-entry takes it.
+        $pickSince = Get-Date
+        $pickWatcherStopped = Test-CurrentWatcherStopped -Home_ $installHome
+        $pickKeptCopy = Join-Path $work 'kept-uninstaller.ps1'
+        $pickKept = Join-Path (Join-Path $installHome 'uninstall') 'install.ps1'
+        # Read through .NET, not Get-Item: a plain file, never a link.
+        $pickKeptItem = New-Object IO.FileInfo $pickKept
+        if ($pickKeptItem.Exists -and -not ($pickKeptItem.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+            try { [IO.File]::Copy($pickKept, $pickKeptCopy, $true) } catch { }
+        }
+        $converted = 'nothing'
         if ($pickConvert) {
             Step 'Converting the state for the older version, after asking the watcher to stop. A copy of it'
             Step 'as it is now is kept beside it.'
@@ -2509,6 +2703,14 @@ try {
     $code = $LASTEXITCODE
     if ($null -eq $code) { $code = 0 }
     if ($Pick -and $code -eq 0) { Write-Host ('pick: installed ' + $target + ' ' + $targetEdition) }
+    # A failed pick leaves the version that was installed as it was: its state, its entry in Add or remove programs
+    # and its watcher (v0.6.18 installer audit, R4). The exit code stays the installer's.
+    if ($Pick -and $code -ne 0) {
+        Write-Host ''
+        $null = Restore-AfterFailedPick -Home_ $installHome -Installed ([string]$installed) -Converted $converted `
+                                        -Since $pickSince -KeptCopy $pickKeptCopy -NoStartup:$NoStartup `
+                                        -WasStopped:($pickWatcherStopped -eq $true)
+    }
     exit $code
 } catch {
     Write-Host ''

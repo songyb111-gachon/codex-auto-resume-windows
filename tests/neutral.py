@@ -114,6 +114,14 @@ NOT_SCENARIOS = {
     "test_downgrade": "sends one continuation with this version's engine only to leave it queued, then "
                       "downgrades the state and runs v0.6.10's tagged watcher on it in a process of its "
                       "own, which no plug of this version reaches",
+    "test_once_words_race": "drives the engine over codexsim homes with words for this time changed between the read "
+                            "and the claim (v0.6.18, audit R1) - a race v0.6.10's watcher lost, so its calls cannot be "
+                            "the tag's",
+    "test_core_audit_minors": "holds the core audit's minor fixes (v0.6.18, M1-M7) over codexsim homes, one with its own "
+                              "plug for a resend's claim - behaviour v0.6.10's package does not have",
+    "test_progress_then_user_joined": "drives a recovery turn a person joined after it made progress (v0.6.18, the "
+                                      "owner's amendment of A23) - v0.6.10's engine handed it over, so its calls "
+                                      "cannot be the tag's",
 }
 # The module whose scenarios simulate days of ticks, handed out first (run_all).
 FIRST = ("test_outcomes",)

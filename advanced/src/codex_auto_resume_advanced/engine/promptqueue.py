@@ -1,6 +1,6 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
 """The prompt queue (v0.6.15-beta, the plan's item 7, on reset_message's way): a person's queued messages go after the
-current turn, at a time or on a schedule, in order, each once, and their words go once they are sent - at P2.
+current turn, at a time or on a schedule, in order, each once, and their words go once each has ended - at P2.
 
 The standard edition sends one thing of its own, a continuation for a recovery that is due (A26, C4). With this on, a
 person writes messages in the Dashboard for one conversation each (control/prompts.py): after the turn now running
@@ -22,9 +22,11 @@ At P2, each conversation's prompts in their order (`position`), the first still 
   is handed once the turn is final; one that goes into Codex's queue ("queue", what every prompt did before) is
   handed as always. Either way core's every gate still applies, and an uncertain send still blocks.
 
-The words leave the disk at a one-time prompt's send, at a series' end, at a cancel, at expiry, when the conversation
-is switched off and when this is turned off (state/prompts.py; watched, they are kept - v0.6.16-beta.3), and never reach a log, the journal,
-diagnostics, a notification, the status, MCP or a golden.
+The words leave the disk when a one-time prompt's occurrence ends - delivered, or ended any other way - not at its
+send: while Codex holds it they are kept, so a Pause that takes it back can send them again on Go on (state/prompts.py,
+prompt_moved) - and at a series' end, at a cancel, at expiry, when the conversation is switched off and when this is
+turned off (watched, they are kept - v0.6.16-beta.3). They never reach a log, the journal, diagnostics, a
+notification, the status, MCP or a golden.
 """
 from __future__ import annotations
 

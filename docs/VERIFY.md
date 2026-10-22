@@ -210,7 +210,7 @@ and does not prove:
 | --- | --- | --- |
 | `.sha256` beside the archive | The download is intact: you have the file GitHub is serving. | Who put it there. It comes from the same place as the archive, so a replaced archive can come with a matching replaced `.sha256`. |
 | Digest on the release page | The same, computed by GitHub rather than by the workflow. | The same. |
-| Digest pinned in `release.json` on `main` | The file is the one the maintainer recorded after publication, through a separate channel: a commit in the repository's history rather than a release file. Changing it takes another commit on `main`, which shows in the history unless someone with write access rewrites that history with a force-push; whether the branch is protected against that has not been verified. | That the file was built from the tagged source. The maintainer took the digest from the published file. |
+| Digest pinned in `release.json` on `main` | The file is the one the maintainer recorded after publication, through a separate channel: a commit in the repository's history rather than a release file. Changing it takes another commit on `main`, which shows in the history unless someone with write access rewrites that history with a force-push; `main` refuses force pushes and deletion (a repository ruleset since 2026-10-10), which an administrator could still lift - that would show in the repository's settings rather than in its history. | That the file was built from the tagged source. The maintainer took the digest from the published file. |
 | `gh attestation verify`, with the options in step 4 | The file was built by a run of the release workflow in this repository for that tag. For an archive published by a tag push, it was built from the commit the attestation names; the earlier single-job workflow could also publish from a manual run on the tag that built another ref whose `plugin.json` declared that version, and the attestation records which event started the run. | That the commit contains what you would want it to. |
 | Rebuilding it yourself | For a release whose tag contains `build/normalize_pe.py`: the bytes come from the tagged source. | It applies to no release from v0.5.0 through v0.5.7, because none of their tags contains that file. See [the limitation](#what-a-rebuild-can-and-cannot-show-today) below. |
 
@@ -318,8 +318,8 @@ state, and every click should be yours rather than a script's.
 A rebuild compares a published archive with what its tagged source produces. It can match only
 for a release whose tag contains `build/normalize_pe.py`, and no release from v0.5.0 through
 v0.5.7 does. Reproducible builds - `build/normalize_pe.py`, the CRLF checkout and the release
-workflow's second build - are new in v0.6.0. Every archive published so far, v0.5.0 through
-v0.5.7, was built by the earlier single-job release workflow, which referred to its actions by
+workflow's second build - are new in v0.6.0. Every archive from v0.5.0 through
+v0.5.7 was built by the earlier single-job release workflow, which referred to its actions by
 floating tags rather than pinned commits, and its executables carry a build time and a random
 GUID that no rebuild reproduces. For those releases, the digest checks above apply, and the
 attestation check applies from v0.5.4 on (there is no pinned digest for v0.5.0 or v0.5.1).
@@ -336,8 +336,8 @@ For a release whose tag has `build/normalize_pe.py`, you need:
   Windows, Python 3.14 and later use a different zlib implementation (zlib-ng), so a
   newer Python can write a different archive from identical files.
   `python -c "import zlib; print(zlib.ZLIB_RUNTIME_VERSION)"` prints the zlib yours uses;
-  the builds compared so far all used zlib 1.3.1. The workflow does not pin the 3.13 patch
-  release, and its run log names the one it installed.
+  the builds compared so far all used zlib 1.3.1. The tag's `release.yml` names the exact Python it
+  installs (3.13.15 for the workflows now); use that one for a digest comparison.
 
 No administrator rights are needed. The build downloads the embeddable Python it bundles
 from python.org and refuses it unless its SHA-256 matches the one written in
@@ -538,7 +538,7 @@ If either one blocks you, please open an issue naming the file and the message.
 
 - **The releases are not GitHub immutable releases.** GitHub reports every release from
   v0.5.0 through v0.6.0 as not immutable, v0.6.0 included - the API was asked after it was
-  published. Immutability is the repository setting that
+  published - and so is v0.6.17, asked on 2026-10-22. Immutability is the repository setting that
   makes GitHub itself refuse to change a published release's files or move its tag.
   The release workflow, from v0.5.4 on, refuses to publish over a version that already
   has assets. Its v0.5.2 and v0.5.3 versions did the opposite: a dispatch given a tag
@@ -582,11 +582,11 @@ If either one blocks you, please open an issue naming the file and the message.
 - **All four proposed action upgrades are in, and two of them nothing can test.**
   Dependabot opened pull requests raising `actions/checkout` to v7.0.1,
   `actions/setup-python` to v7.0.0, `actions/attest-build-provenance` to v4.2.2, and the
-  artifact pair to `upload-artifact` v7.0.1 with `download-artifact` v8.0.1. All four keep
+  artifact pair, which has since moved on to `upload-artifact` v7.0.2 with `download-artifact` v8.0.2. All four keep
   the full-commit pinning and its version comment, and none is a published security fix.
 
   They went in after v0.6.0 was published and verified, `checkout` and `setup-python`
-  first, in the order the plan below named. Every new digest was resolved from the upstream
+  first. Every new digest was resolved from the upstream
   repository's own git ref before being written here, and every digest being replaced was
   re-resolved at the same time, to check that nothing had been quietly retargeted. Each was
   applied as the one line it is: the proposed pull requests also rewrote whole workflow
@@ -596,7 +596,7 @@ If either one blocks you, please open an issue naming the file and the message.
   check on them, and it passed. The other three are not: `download-artifact` and
   `attest-build-provenance` run only in the publish job, which neither CI nor a
   `workflow_dispatch` enters, and `upload-artifact` runs in a dispatch but its partner does
-  not. The first proof of that half is a real tag push.
+  not. Every release since has run that half, so a real tag push has proved it.
 
   What makes that acceptable rather than reckless is where a failure lands. Both steps run
   *before* `gh release create`: an artifact that will not download, or an attestation that

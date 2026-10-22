@@ -20,7 +20,7 @@
 <p align="center"><sub>🇰🇷 <a href="https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/ko/README.md">한국어 README</a> · The app speaks sixteen languages: English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia</sub></p>
 
 <p align="center">
-<img src="docs/images/readme-motion.png" alt="The Codex Auto Resume Dashboard at work, drawn by the product's own code from synthetic sample data: the Overview with two recoveries waiting; the pointer opens Pending, then History, Statistics and Diagnostics, opens Settings and scrolls; it changes the interface language to Korean, saves, and the window opens again in Korean" width="750"><br>
+<img src="docs/images/readme-motion.png" alt="The Codex Auto Resume Dashboard at work, drawn by the product's own code from synthetic sample data: the Overview with two recoveries waiting; the pointer opens Pending, right-clicks a waiting task to open its menu and closes it, then opens History, Statistics and Diagnostics, opens Settings and scrolls; it changes the interface language to Korean, saves, and the window opens again in Korean" width="750"><br>
 <sub>The exact conversation, by UUID · the reset time Codex reports · fails closed · no telemetry · standard and advanced editions</sub>
 </p>
 
@@ -51,7 +51,7 @@ setting, the notification, the command line, the safety model and privacy in ful
 | **Identity** | the exact conversation UUID only — never `--last`, never "the most recent one", never a title or a folder name |
 | **Configure it** | the Dashboard from the Start Menu, a settings panel inside Codex, or the command line |
 | **Languages** | English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia |
-| **Privacy** | no telemetry, no analytics, no automatic update check. Setting it up from Codex downloads the release from GitHub, and *Check for updates* asks GitHub which release is newest, and reads its list of releases on api.github.com for a newer pre-release, only when you press it; *Install another version...* reads that whole list there when you open it and again when you confirm a version, and downloads only the version you confirmed. The watcher has no network code; the usage check and the resumed turn go to OpenAI through Codex, as Codex's traffic always does |
+| **Privacy** | no telemetry, no analytics, no automatic update check. Setting it up from Codex downloads the release from GitHub, and *Check for updates* asks GitHub which release is newest, and reads its list of releases on api.github.com for a newer pre-release, only when you press it - and it then also refreshes the Codex compatibility data from raw.githubusercontent.com, sending nothing about your machine; *Install another version...* reads that whole list there when you open it and again when you confirm a version, and downloads only the version you confirmed. The watcher has no network code; the usage check and the resumed turn go to OpenAI through Codex, as Codex's traffic always does |
 
 > [!IMPORTANT]
 > **One honest limitation, up front.** Codex has to currently have that conversation open for a

@@ -51,14 +51,31 @@ def reply(locale: str) -> dict:
 
 
 def run_probe(script: str, work: Path, timeout: int, **env) -> dict:
+    """Runs `script` in Windows PowerShell and returns the result.json it writes into `work`.
+
+    Its output goes to files, never to pipes (v0.6.18): a process the probe started that outlived it - a stand-in
+    for the watcher, which nothing may end (ChildTree.Spared) - held the inherited pipe open, and reading the pipe to
+    its end waited for that process, past the timeout too (subprocess.run reads the pipes again after it kills the
+    probe). Dev CI hung two hours on every lane that way on 2026-10-22. With files, `timeout` is the longest a probe
+    can take."""
     probe = work / "probe.ps1"
     probe.write_text(script, encoding="utf-8")
-    done = subprocess.run([str(POWERSHELL), "-STA", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
-                           "-File", str(probe)], capture_output=True, text=True, encoding="utf-8", errors="replace",
-                          timeout=timeout, creationflags=NO_WINDOW, env=dict(os.environ, CAR_WORK=str(work), **env))
+    said, errors = work / "probe.out", work / "probe.err"
+    try:
+        with open(said, "wb") as out, open(errors, "wb") as err:
+            done = subprocess.run([str(POWERSHELL), "-STA", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+                                   "-File", str(probe)], stdin=subprocess.DEVNULL, stdout=out, stderr=err,
+                                  timeout=timeout, creationflags=NO_WINDOW,
+                                  env=dict(os.environ, CAR_WORK=str(work), **env))
+        returncode = done.returncode
+    except subprocess.TimeoutExpired:
+        returncode = None
+    text = lambda path: path.read_text(encoding="utf-8", errors="replace") if path.is_file() else ""
     answer = work / "result.json"
-    if done.returncode != 0 or not answer.is_file():
-        raise AssertionError("the probe did not run: " + (done.stderr or done.stdout)[-3000:])
+    if returncode is None:
+        raise AssertionError("the probe did not finish in %d s: %s" % (timeout, (text(errors) or text(said))[-3000:]))
+    if returncode != 0 or not answer.is_file():
+        raise AssertionError("the probe did not run: " + (text(errors) or text(said))[-3000:])
     return json.loads(answer.read_text(encoding="utf-8-sig"))
 
 

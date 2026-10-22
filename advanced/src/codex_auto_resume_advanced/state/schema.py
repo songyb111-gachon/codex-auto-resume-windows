@@ -211,15 +211,15 @@ TABLES = {
                       "finished_at"),
     # Version 8 (v0.6.19, the groundwork): the stage's ten.
     "usage_samples": ("bucket", "minutes", "at", "used_percent", "reset_at"),
-    "token_days": ("day", "thread_id", "project_key", "input", "cached", "output", "reasoning", "turns"),
-    "token_files": ("file_key", "thread_id", "size", "offset", "mtime_ns", "read_at"),
+    "token_days": ("day", "thread_id", "project_digest", "input", "cached", "output", "reasoning", "turns"),
+    "token_files": ("file_digest", "thread_id", "size", "offset", "mtime_ns", "read_at"),
     "outbox": ("item_id", "channel", "event", "category", "alias", "at", "tries", "state", "finished_at"),
     "feed": ("singleton", "checked_at", "word", "codex_word", "incidents"),
     "remote": ("channel", "paired_at", "bad_codes", "update_offset", "code_digest", "code_expires_at"),
-    "opens": ("open_id", "thread_id", "record_key", "at", "outcome"),
+    "opens": ("open_id", "thread_id", "record_id", "at", "outcome"),
     "restarts": ("at", "exit_code", "restarted"),
     "account_seen": ("singleton", "identity_digest", "plan", "read_at"),
-    "hook_claims": ("interruption_id", "turn_key", "at", "outcome"),
+    "hook_claims": ("interruption_id", "turn_digest", "at", "outcome"),
 }
 # Version 8's (v0.6.19).
 V019_TABLES = ("usage_samples", "token_days", "token_files", "outbox", "feed", "remote", "opens", "restarts",
@@ -723,17 +723,17 @@ _STATEMENTS_V019 = (
     """CREATE TABLE token_days (
         day TEXT NOT NULL CHECK (length(day) = 10 AND day GLOB '[0-9][0-9][0-9][0-9]-[01][0-9]-[0-3][0-9]'),
         thread_id TEXT NOT NULL %s,
-        project_key TEXT %s,
+        project_digest TEXT %s,
         input INTEGER NOT NULL %s,
         cached INTEGER NOT NULL %s,
         output INTEGER NOT NULL %s,
         reasoning INTEGER NOT NULL %s,
         turns INTEGER NOT NULL %s,
         PRIMARY KEY (day, thread_id)
-    )""" % (_UUID, _HEX16 % (("project_key",) * 3),
+    )""" % (_UUID, _HEX16 % (("project_digest",) * 3),
             *(_int(name, null=False) for name in ("input", "cached", "output", "reasoning", "turns"))),
     """CREATE TABLE token_files (
-        file_key TEXT PRIMARY KEY CHECK (length(file_key) = 16 AND file_key NOT GLOB '*[^0-9a-f]*'),
+        file_digest TEXT PRIMARY KEY CHECK (length(file_digest) = 16 AND file_digest NOT GLOB '*[^0-9a-f]*'),
         thread_id TEXT NOT NULL %s,
         size INTEGER NOT NULL %s,
         offset INTEGER NOT NULL %s,
@@ -776,10 +776,10 @@ _STATEMENTS_V019 = (
     """CREATE TABLE opens (
         open_id INTEGER PRIMARY KEY AUTOINCREMENT,
         thread_id TEXT NOT NULL %s,
-        record_key TEXT NOT NULL %s,
+        record_id TEXT NOT NULL %s,
         at REAL NOT NULL,
         outcome TEXT NOT NULL %s
-    )""" % (_UUID, _HEX64 % ("record_key", "record_key"), _one_of("outcome", OpenOutcome)),
+    )""" % (_UUID, _HEX64 % ("record_id", "record_id"), _one_of("outcome", OpenOutcome)),
     "CREATE INDEX opens_at ON opens(at)",
     """CREATE TABLE restarts (
         at REAL PRIMARY KEY,
@@ -794,10 +794,10 @@ _STATEMENTS_V019 = (
     )""" % (_HEX16 % (("identity_digest",) * 3), ", ".join("'%s'" % word for word in PlanWord)),
     """CREATE TABLE hook_claims (
         interruption_id TEXT PRIMARY KEY %s,
-        turn_key TEXT NOT NULL %s,
+        turn_digest TEXT NOT NULL %s,
         at REAL NOT NULL,
         outcome TEXT NOT NULL %s
-    )""" % (_HEX64 % ("interruption_id", "interruption_id"), _HEX64 % ("turn_key", "turn_key"),
+    )""" % (_HEX64 % ("interruption_id", "interruption_id"), _HEX64 % ("turn_digest", "turn_digest"),
             _one_of("outcome", HookOutcome)),
     "CREATE INDEX hook_claims_at ON hook_claims(at)",
 )

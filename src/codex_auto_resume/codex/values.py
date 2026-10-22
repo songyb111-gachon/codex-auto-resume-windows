@@ -55,6 +55,8 @@ KNOWN_STATUSES = machine.TURN_STATUSES - {"other"}      # Codex's own four; "oth
 # Item types that count as a turn having produced something. Anything Codex adds later
 # does not count until it is added here on purpose.
 PROGRESS_ITEM_TYPES = frozenset({"agentMessage", "commandExecution", "fileChange", "mcpToolCall"})
+# The same, in one order, for a query's parameters.
+PROGRESS_KINDS = tuple(sorted(PROGRESS_ITEM_TYPES))
 
 
 def _turn_status(value):
