@@ -427,7 +427,11 @@ class T16UserJoinedTests(Base):
         while the turn is still running."""
         for client_id in (None, "0a1b2c3d-0016-7000-8000-000000000001"):
             with self.subTest(client_id=client_id):
-                w, thread, key, turn = self.join(client_id)
+                w = self.world()
+                w.enable()
+                thread, key = w.queued()
+                turn = w.home.dispatch(thread, status="inProgress", progress=False)
+                w.home.add_item(thread, turn, "userMessage", "typed while it ran", client_id)
                 w.tick(1)
                 row = w.get(key)
                 self.assertEqual((row["state"], row["last_error"]), ("handed_over", "user_joined"))
@@ -438,11 +442,15 @@ class T16UserJoinedTests(Base):
     def test_T16_a_steered_message_from_codexsim_is_seen_the_same_way(self):
         w = self.world()
         w.enable()
-        thread, key, _ = w.started(steer_user=True)
+        thread, key, _ = w.started(steer_user=True, progress=False)
         self.assertEqual(w.get(key)["state"], "handed_over")
 
     def test_T16_when_the_handed_over_turn_fails_the_child_is_superseded_and_never_claimed(self):
-        w, thread, key, turn = self.join(None)
+        w = self.world()
+        w.enable()
+        thread, key = w.queued()
+        turn = w.home.dispatch(thread, status="inProgress", progress=False)
+        w.home.add_item(thread, turn, "userMessage", "typed while it ran", None)
         w.tick(1)
         w.finish(thread, turn, "failed", SERVER_5XX)
         w.tick(1)
@@ -1411,7 +1419,7 @@ class T48NotificationTests(Base):
 
         w = self.world()
         w.enable()
-        thread, key, turn = w.started(steer_user=True)
+        thread, key, turn = w.started(steer_user=True, progress=False)
         w.finish(thread, turn, "failed", SERVER_5XX)
         w.tick(1)
         child = w.records(thread)[-1]

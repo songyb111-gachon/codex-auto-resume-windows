@@ -199,9 +199,13 @@ class OnceWords:
         finally:
             lock.__exit__(None, None, None)
 
-    def put(self, key, text, now=None):
+    def put(self, key, text, now=None, guard=None):
         """Words for interruption `key`, replacing any it had. Raises OnceWordsError: the text refused (in the Custom
-        message's own words), one more interruption than MAX_ENTRIES, or a store that could not be written."""
+        message's own words), one more interruption than MAX_ENTRIES, or a store that could not be written.
+
+        `guard`, when given, is called under the file's lock before anything is written, and whatever it raises
+        leaves the file as it was: the Dashboard's check that the recovery still waits, made where the engine's look
+        after its claim (`unchanged`) cannot fall between the check and the write."""
         if ids.read_interruption_id(str(key or "")) != key:
             raise OnceWordsError("invalid interruption id", "invalid_id")
         try:
@@ -211,6 +215,8 @@ class OnceWords:
         moment = time.time() if now is None else float(now)
 
         def change(held):
+            if guard is not None:
+                guard()
             if key not in held and len(held) >= MAX_ENTRIES:
                 return "too_many"
             held[key] = {"text": text, "written_at": moment}
@@ -229,6 +235,13 @@ class OnceWords:
         False where the lock or Windows refused - then they are still there."""
         _, written = self._change(lambda held: held.pop(key, None))
         return written
+
+    def unchanged(self, key, seen):
+        """Whether this interruption's words are still `seen` (None for none), read under the file's lock, so a
+        write a person has begun is finished first: True or False, or None where the lock or the file could not be
+        had just now. Nothing is changed (engine/delivery.py, after the claim)."""
+        answer, written = self._change(lambda held: (held.get(key) or {}).get("text") == seen)
+        return answer if written else None
 
     def restore(self, key, text, now=None) -> bool:
         """Words put back for `key` only if it holds none now (a send that never started, engine/dispatch.py)."""

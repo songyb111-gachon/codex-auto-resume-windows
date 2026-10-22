@@ -6,8 +6,7 @@ a reader's: somebody wondering what this thing reads of theirs should be able to
 opening one file, and `PRIVACY.md` makes that promise on this file's behalf.
 
 Everything is read-only - the connections are opened `mode=ro`, with `query_only` set - and
-nothing here writes to Codex, ever.
-"""
+nothing here writes to Codex, ever."""
 from __future__ import annotations
 
 import json
@@ -18,7 +17,7 @@ from .. import failures, guards, machine, projects
 from ..domain import ids, skips
 from .errors import SourceError
 from .labels import _label
-from .values import KNOWN_STATUSES, PROGRESS_ITEM_TYPES, _json, _turn_status, epoch, normalize
+from .values import KNOWN_STATUSES, PROGRESS_ITEM_TYPES, PROGRESS_KINDS, _json, _turn_status, epoch, normalize
 from . import eligibility, rollout, workspace
 from .payload import (_choose_reset, _item_is_ours, _needing, _queue_has_marker, detect,  # noqa: F401
                       judge, later_turn, marker_row)
@@ -151,10 +150,9 @@ class HistoryMixin:
         return owner if why is None else None
 
     def _rollout_path(self, thread_id: str) -> Path | None:
-        """Where a conversation's file is, confined to the Codex sessions folder (rollout.confined). Only for
-        the size comparison behind projection freshness: the file is not opened, and whether the thread is
-        still eligible does not matter - a settle must tell, for an archived thread too, whether Codex's
-        history has caught up."""
+        """Where a conversation's file is, confined to the Codex sessions folder (rollout.confined). Only for the size
+        comparison behind projection freshness: the file is not opened, and whether the thread is still eligible does
+        not matter - a settle must tell, for an archived thread too, whether Codex's history has caught up."""
         if not ids.is_uuid(thread_id):
             return None
         with self._db("state") as connection:
@@ -178,9 +176,9 @@ class HistoryMixin:
         (payload.detect). `needs_you` (v0.6.11) adds those of these categories (needsyou.KINDS), normalized the
         same way with the id `detect` would give, but never through it: none can become a record (A14).
 
-        v0.6.14, only while the plug wants P17 (domain/plug.py): `admissible` adds, marked so, those
-        it may take up (failures.ADMISSIBLE), and `shapes` gives each entry its error's shape - never a
-        word of a message (failures.shape); each through the same check of its conversation (A15)."""
+        v0.6.14, only while the plug wants P17 (domain/plug.py): `admissible` adds, marked so, those it may take up
+        (failures.ADMISSIBLE), and `shapes` gives each entry its error's shape - never a word of a message
+        (failures.shape); each through the same check of its conversation (A15)."""
         if not epoch(since):
             raise SourceError("Invalid detection start timestamp")
         # Read only failure metadata; no transcript scanning or folder traversal.
@@ -529,21 +527,24 @@ class HistoryMixin:
             counts = {row[0]: row[1] for row in connection.execute(
                 "SELECT item_type, count(*) FROM thread_items WHERE thread_id=? AND turn_id=? "
                 "GROUP BY item_type", (turns, turn_id)) if isinstance(row[0], str)}
-            foreign, branded = connection.execute(          # branded: any marker of this product's (Rescan, #39)
-                "SELECT count(*), EXISTS(SELECT 1 FROM thread_items WHERE thread_id=? AND turn_id=? AND item_type="
-                "'userMessage' AND instr(item_json,?)>0) FROM thread_items WHERE thread_id=? AND turn_id=? "
-                "AND item_type='userMessage' AND instr(item_json,?)=0",
-                (turns, turn_id, ids.MARKER_PREFIX, turns, turn_id, marker)).fetchone()
+            foreign, branded, worked = connection.execute(  # branded: our marker (#39); worked: progress first
+                "SELECT count(*), EXISTS(SELECT 1 FROM thread_items WHERE thread_id=? AND turn_id=? AND item_type='userMessage' "
+                "AND instr(item_json,?)>0), EXISTS(SELECT 1 FROM thread_items p WHERE thread_id=? AND turn_id=? AND item_type "
+                "IN (%s) AND NOT EXISTS(SELECT 1 FROM thread_items WHERE thread_id=? AND turn_id=? AND item_type='userMessage' "
+                "AND instr(item_json,?)=0 AND coalesce(rollout_ordinal<=p.rollout_ordinal,1))) FROM thread_items WHERE "
+                "thread_id=? AND turn_id=? AND item_type='userMessage' AND instr(item_json,?)=0"
+                % ",".join("?" * len(PROGRESS_KINDS)), (turns, turn_id, ids.MARKER_PREFIX, turns, turn_id, *PROGRESS_KINDS,
+                                                         turns, turn_id, marker, turns, turn_id, marker)).fetchone()
             after, values = self._after(chain, turn["rollout_ordinal"]) if type(turn["rollout_ordinal"]) is int else ("0", ())
             later_terminal, later_started = map(bool, connection.execute(     # later_started: any status, running too
                 "SELECT EXISTS(SELECT 1 FROM thread_turns WHERE %s AND status IN ('completed','failed','interrupted')), "
                 "EXISTS(SELECT 1 FROM thread_turns WHERE %s)" % (after, after), (*values, *values)).fetchone())
         return {
             "found": True, "ordinal": turn["rollout_ordinal"],     # across a split (rollout.SPAN): Rescan's anchor
-            "status": _turn_status(turn["status"]),
-            "completed_at": turn["completed_at"] if epoch(turn["completed_at"]) else None,
+            "status": _turn_status(turn["status"]), "completed_at": turn["completed_at"] if epoch(turn["completed_at"]) else None,
             "progress": any(counts.get(kind, 0) > 0 for kind in PROGRESS_ITEM_TYPES),
             "foreign_user_messages": foreign, "branded_user_messages": int(bool(branded)),
+            "progress_before_foreign": bool(foreign and worked),   # 2026-10-22: it worked, then a person joined it
             "later_terminal": later_terminal, "later_started": later_started,   # one turn at a time: so not running
             "compaction_only": "contextCompaction" in counts and set(counts) <= {"contextCompaction", "reasoning"},
         }
@@ -552,14 +553,13 @@ class HistoryMixin:
         """Whether one turn produced anything: True, False, or None when unreadable."""
         if not ids.is_uuid(thread_id) or not ids.is_uuid(turn_id):
             return None
-        kinds = tuple(sorted(PROGRESS_ITEM_TYPES))
         try:
             chain = self._ids(thread_id)
             with self._db("history") as connection:
                 return bool(connection.execute(
                     "SELECT EXISTS(SELECT 1 FROM thread_items WHERE %s AND turn_id=? "
-                    "AND item_type IN (%s))" % (self._of(chain), ",".join("?" for _ in kinds)),
-                    (*chain, turn_id, *kinds)).fetchone()[0])
+                    "AND item_type IN (%s))" % (self._of(chain), ",".join("?" for _ in PROGRESS_KINDS)),
+                    (*chain, turn_id, *PROGRESS_KINDS)).fetchone()[0])
         except (SourceError, sqlite3.Error, OSError, ValueError):
             return None
 

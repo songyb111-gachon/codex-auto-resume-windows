@@ -101,6 +101,7 @@ from .engine import chat, foropen, sessions, silent
 from .ledger import ClaimLedger, ceiling_reached
 from .registry import REGISTRY
 from .state import AdvancedState, StateError
+from .state.schema import HEADLESS_CAPABILITIES
 from .vocabulary import (TRIPWIRES, ArmingState, ArmingWarning, CapabilityKind, ContinuationReason, JournalCode,
                          KeepReason, OffReason, OverrideKind, PromptReason)
 
@@ -290,7 +291,7 @@ def _word(answer, point):
 class Runtime:
     def __init__(self, paths, *, registry=REGISTRY, clock=time.time,
                  measure_session_factory=None, measure_launcher=None, measure_backend=None,
-                 measure_cli=None, measure_ipc=None, evidence_dir=None, **arming):
+                 measure_cli=None, measure_ipc=None, measure_hands=None, evidence_dir=None, **arming):
         self.paths = paths
         self.registry = registry
         self.clock = clock
@@ -311,6 +312,8 @@ class Runtime:
         # {record: (capability, ...)}: the capabilities at P12 a claim that pooled the record paid, journalled as
         # acted once that claim is known to have committed (`moved`, v0.6.17).
         self._pooled = {}
+        # v0.6.18: the capabilities whose words (P4) a committed claim carries, told once core moves it on (`moved`).
+        self._texted = {}
         self._noted = set()
         # (capability, record) a kept-on capability's hook raised for: passed over for it (K8).
         self._skipped = set()
@@ -327,6 +330,7 @@ class Runtime:
         self._measure_backend = measure_backend
         self._measure_cli = measure_cli
         self._measure_ipc = measure_ipc
+        self._measure_hands = measure_hands
         self._evidence_dir = evidence_dir
 
     # ------------------------------------------------------------------ standing
@@ -339,7 +343,19 @@ class Runtime:
                 for capability in self._since:
                     if self._states.get(capability, ArmingState.OFF) != ArmingState.ARMED:
                         self._down_at[capability] = now
+                self._rearmed_silent()
         return self._states
+
+    def _rearmed_silent(self) -> None:
+        """v0.6.18: silent_continuation turned on again after REFUSED_BY_CODEX turned it off - a person's choice made
+        since - is asked again: the process's refusal is forgotten, so it is not shown on while it answers DEFER until
+        the watcher restarts. A refusal met again trips it again."""
+        tripped = self.__dict__.get("_refused_tripped")
+        since = self._since.get(silent.CAPABILITY)
+        if (type(tripped) is float and self._states.get(silent.CAPABILITY) == ArmingState.ARMED
+                and isinstance(since, (int, float)) and since >= tripped):
+            headless.EMPTY_REFUSED = False
+            self._refused_tripped = None
 
     def _code_of(self, definition):
         """A capability's code, made once. One that reads the state is given its own view of it
@@ -749,6 +765,7 @@ class Runtime:
         (`_Errands`, v0.6.14); a watched one's is only journalled, never run."""
         self._acted.clear()
         self._pooled.clear()
+        self._texted.clear()
         if not len(self.registry):
             return DEFER
         self.arming.sweep(view)
@@ -756,6 +773,20 @@ class Runtime:
         errands = []
         for definition in self.registry.at(Point.TICK):
             state = states.get(definition.id, ArmingState.OFF)
+            tend = (_own(self._code_of(definition), "tend")
+                    if state != ArmingState.ARMED and definition.id in HEADLESS_CAPABILITIES else None)
+            if tend is not None:
+                # v0.6.18: what a run kind turned off or watched still owes what it started - a live run's Stop
+                # handed on and its end written, a model put back (engine/headless.follow_up, engine/fallback.py):
+                # its clean-up alone, never a turn of its own, whatever it stands at.
+                try:
+                    answer = tend(view)
+                    run = None if answer is DEFER else getattr(answer, "run", None)
+                except Exception:
+                    continue                             # already off or watched; the next tick tends it again
+                if callable(run):
+                    errands.append((definition, answer))
+                continue
             if state == ArmingState.OFF:
                 continue
             try:
@@ -942,12 +973,28 @@ class Runtime:
             return self._record_moved(record, RecordMove(state))
         if state == SUBMITTING and isinstance(record, dict):
             self._pooled_acted(record)
+            self._words_sent(record)
         if (self._not_delivered_on_open(record, state) or self._not_dispatched_by_session(record, state)
                 or self._refused_by_codex()):
             self.states(fresh=True)
         if self.arming.moved(record, state):
             self.states(fresh=True)
         return DEFER
+
+    def _words_sent(self, record) -> None:
+        """v0.6.18: a claim that carried a capability's words (P4) committed - core moved it to submitting - so the
+        capability is told, through its optional `words_sent`, what it may now take as said (subagent_parent's lines:
+        told once only when they go, never when a claim held after P4 sent core's own words instead)."""
+        for capability in self._texted.pop(record.get("interruption_id"), ()):
+            definition = self.registry.get(capability)
+            if definition is None:
+                continue
+            told = _own(self._code_of(definition), "words_sent")
+            if told is not None:
+                try:
+                    told(record)
+                except Exception:
+                    pass                                 # nothing kept: the lines are told again at the next send
 
     def _pooled_acted(self, record) -> None:
         """v0.6.17 (#47 P-7): a claim that pooled `record` committed - core moved it to submitting - so the
@@ -1015,7 +1062,7 @@ class Runtime:
         if not headless.EMPTY_REFUSED or self.__dict__.get("_refused_tripped") or self.registry.get(
                 silent.CAPABILITY) is None:
             return False
-        self._refused_tripped = True
+        self._refused_tripped = float(self.clock())
         return self.arming.trip(silent.CAPABILITY, OffReason.REFUSED_BY_CODEX)
 
     def _record_moved(self, record, move):
@@ -1129,6 +1176,8 @@ class Runtime:
             if acted:
                 return Alternative.HOLD
             raise
+        if Point.TEXT in carried and answer is not Alternative.HOLD:
+            self._texted[key] = tuple(capability for point, capability, _w in entries if point == Point.TEXT)
         if Point.CONCURRENCY in carried and answer is not Alternative.HOLD:
             # Journalled once the claim committed (`moved`): this runs inside its transaction.
             self._pooled[key] = tuple(capability for point, capability, _w in entries if point == Point.CONCURRENCY)
@@ -1163,9 +1212,12 @@ class Runtime:
         # Desktop's IPC pipe (MIPC). Built from the same backend, so they are of the Codex the record names.
         cli = self._measure_cli if self._measure_cli is not None else measure.live_cli(backend, self.paths)
         ipc = self._measure_ipc if self._measure_ipc is not None else measure.live_ipc()
+        # v0.6.19: the groundwork's probes' hands (measure.live_hands), of the same backend.
+        hands = (self._measure_hands if self._measure_hands is not None
+                 else measure.live_hands(backend, self.paths))
         return measure.run(measurement, session_factory=session_factory,
                            launcher=launcher, backend=backend, thread=thread, may_spend=may_spend,
-                           directory=self._evidence_dir, clock=self.clock, cli=cli, ipc=ipc)
+                           directory=self._evidence_dir, clock=self.clock, cli=cli, ipc=ipc, hands=hands)
 
     def complete_measurement(self, measurement, verdict, note):
         """Record a person's completion of a blocked measurement (measure-verdict, measure.py).

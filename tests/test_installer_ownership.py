@@ -472,7 +472,7 @@ class UninstallVerifierTests(unittest.TestCase):
         self.assertLess(payload, installed,
                         "the installed engine may be a fallback, never the first choice")
         guard = branch[branch.rindex("\n", 0, installed):installed]
-        self.assertIn("-not (Test-Path $verifier)", guard,
+        self.assertIn("-not (Test-Path -LiteralPath $verifier)", guard,
                       "the fallback must apply only when the payload carries no engine")
 
     def test_the_check_runs_the_verifier_that_was_chosen(self):

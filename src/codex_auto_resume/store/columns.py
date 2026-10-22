@@ -113,6 +113,11 @@ _SCHEMA_5_COLUMNS = (
 _RECORD_COLUMNS = _V4_RECORD_COLUMNS + tuple(name for table, name, _ in _SCHEMA_5_COLUMNS
                                              if table == "interruptions")
 
+# A record and a notice as this version reads them in a later version's state marked readable from this one
+# (schema.READABLE_FROM): its own columns, by name, in the order SELECT * gives them in its own state - so the rows read
+# the same, whatever columns that version added after them.
+RECORD_SELECT = "SELECT %s FROM interruptions" % ", ".join(_RECORD_COLUMNS)
+
 _SETTINGS_COLUMNS = ("singleton", "enabled", "armed_at", "poll_seconds", "observe_only")
 
 _THREAD_COLUMNS = ("thread_id", "enabled", "tier")
@@ -121,6 +126,8 @@ _THREAD_COLUMNS = ("thread_id", "enabled", "tier")
 # raised once. Ids, its kind (needsyou.NOTICE_KINDS), times - and nothing the engine's dispatch ever
 # reads (tests/test_schema_v4.py).
 _NOTICE_COLUMNS = ("interruption_id", "thread_id", "category", "raised_at", "seen_at")
+
+NOTICE_SELECT = "SELECT %s FROM notices" % ", ".join(_NOTICE_COLUMNS)
 
 # Core's tables that nothing deciding a send may read: the claim refuses its ledger any read of
 # them (store/ledger.py), and core's own dispatch reads none (tests/test_schema_v4.py).

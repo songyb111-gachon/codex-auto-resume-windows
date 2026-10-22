@@ -52,7 +52,7 @@ from codex_auto_resume.domain import ids
 from codex_auto_resume.domain.plug import Alternative
 
 from ..codex import inuse
-from ..codex.protocol import Session, SessionRefused
+from ..codex.protocol import Session, SessionRefused, submitted
 from ..vocabulary import ArmingWarning, Measurement
 
 CAPABILITY = "marker_free_continuation"
@@ -153,7 +153,7 @@ class MarkerFreeContinuation:
             return {"outcome": "not_started", "error_code": "queue_preflight_failed"}
         params = {"threadId": thread_id, "input": [{"type": "text", "text": prompt}],
                   "clientUserMessageId": client_id or str(uuid.uuid4())}
-        session, opened = None, False
+        session, opened, pending = None, False, None
         try:
             with launch_guard if launch_guard is not None else nullcontext(True) as permitted:
                 if permitted is not True:
@@ -161,14 +161,19 @@ class MarkerFreeContinuation:
                 session = self._session()
                 session.__enter__()
                 opened = True
+                # v0.6.18: the add written inside core's launch guard, with the session's start - a Pause or Cancel
+                # that commits after the guard stops it; its answer awaited outside.
+                pending = submitted(session, METHOD, params)
         except Exception:
-            # No app server, none that would talk, or a guard that failed: the call was never
-            # made, so nothing can be in Codex.
-            if opened:
-                _close(session)
-            return {"outcome": "not_started", "error_code": "queue_spawn_failed"}
+            # No app server, none that would talk, or a guard that failed before the add: the call was never made, so
+            # nothing can be in Codex. A guard that failed as it closed, after the add was written, is read as core's
+            # queue launch is: its answer below, never an unsent attempt.
+            if pending is None:
+                if opened:
+                    _close(session)
+                return {"outcome": "not_started", "error_code": "queue_spawn_failed"}
         try:
-            result = session.call(METHOD, params)
+            result = pending()
         except SessionRefused:
             return {"outcome": "not_started", "error_code": "queue_preflight_failed"}
         except Exception as exc:

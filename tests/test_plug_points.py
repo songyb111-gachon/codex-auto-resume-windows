@@ -2156,15 +2156,21 @@ class SupervisionTests(unittest.TestCase):
                     plug = Asked(supervise=answer)
                     returned, relaunch, found = self.launch([], code, plug)
                     self.assertEqual(returned, code)
-                    self.assertEqual(plug.asked, [("supervise", ({"exit_code": code},))])
+                    # v0.6.19: asked before the run too, and told whether it ended cleanly (test_plug_supervision).
+                    self.assertEqual(plug.asked, [("supervise", ({"phase": "start"},)),
+                                                  ("supervise", ({"phase": "ended", "exit_code": code,
+                                                                  "clean": None},))])
                     self.assertEqual(found.call_args.args[0].home, self.home.resolve())
                     relaunch.assert_not_called()
 
     def test_the_launchers_own_relaunch_and_other_commands_ask_nothing(self):
+        """Of the relaunch's run only the start question is asked (v0.6.19): nothing about how it ended."""
         plug = Asked()
         returned, relaunch, _ = self.launch([], self.launcher.EXIT_SCHEMA_NEWER, plug)
         self.assertEqual(returned, self.launcher.EXIT_SCHEMA_NEWER)
         relaunch.assert_called_once()
+        self.assertEqual(plug.asked, [("supervise", ({"phase": "start"},))])
+        plug.asked.clear()
         self.launch(["activate", "codex-auto-resume:open?page=pending"], 0, plug)
         self.assertEqual(plug.asked, [])
 

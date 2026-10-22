@@ -25,6 +25,7 @@ Until ME passes for the Codex in force, the same route, with the UNMEASURED warn
 from __future__ import annotations
 
 from codex_auto_resume.domain.plug import DEFER
+from codex_auto_resume.domain.plughands import Widening
 
 from .. import statement
 from ..codex import inuse
@@ -32,6 +33,7 @@ from ..codex.goals import Goals, GoalsUnavailable
 from ..codex.turns import Turns, TurnsUnavailable
 from ..vocabulary import ContinuationKind, ContinuationReason, GoalStatus, RecordState
 from .continued import answer_key, handed, words_pass
+from .usage import EVERY_CONVERSATION
 
 CAPABILITY = "empty_response"
 # The kinds an empty turn's items may be, and nothing else: the person's message and Codex's reasoning.
@@ -81,6 +83,19 @@ class EmptyResponse:
     def _codex_home(self):
         return self._home if self._home is not None else inuse.home(self.paths)
 
+    def _source(self):
+        """Core's reader, judging a conversation as core does (v0.6.18) - a person's own, or P19's widening while
+        Recover every conversation is on - never a subagent's, a review's or another kind Codex makes for itself, which
+        core never recovers and whose record would wait for good (as the wrap-up and the forced stop judge one)."""
+        from codex_auto_resume.codex import LocalSource
+        source = LocalSource(self._codex_home())
+        try:
+            widened = self._scoped.armed(EVERY_CONVERSATION) is True
+        except Exception:
+            widened = False
+        source.widened = frozenset({Widening.EVERY_DESKTOP}) if widened else frozenset()
+        return source
+
     # ------------------------------------------------------------------ P8
     def tick(self, view):
         scoped = self._scoped
@@ -103,14 +118,16 @@ class EmptyResponse:
             home = self._codex_home()
             turns = Turns(home)
             candidates = turns.recent(now - RECENT)
+            source = self._source()
         except Exception:
             return None
+        self._not_own(handle, source)
         if len(self._seen) > SEEN_LIMIT:
             self._seen.clear()
         for thread in candidates:
             try:
-                if view.thread_enabled(thread) is not True:
-                    continue
+                if view.thread_enabled(thread) is not True or source.latest(thread) is None:
+                    continue                             # switched off, or not a conversation of a person's own
                 turn = turns.latest(thread)
             except (TurnsUnavailable, Exception):
                 continue
@@ -127,6 +144,22 @@ class EmptyResponse:
             self._seen.pop(thread, None)
             self._answer(handle, home, turns, thread, turn)
         return None
+
+    @staticmethod
+    def _not_own(handle, source) -> None:
+        """v0.6.18: a continuation waiting for a conversation core does not take for a person's own - made before this
+        look judged them so, or one Recover every conversation widened to and no longer does - ended: core holds it
+        WAITING for good (not_user_conversation), ahead of this capability's others at P2."""
+        try:
+            waiting = {row["thread_id"] for row in handle.mine() if row["record_state"] == RecordState.WAITING}
+        except Exception:
+            return
+        for thread in waiting:
+            try:
+                if source.latest(thread) is None:
+                    handle.end(ContinuationReason.WITHDRAWN, thread_id=thread)
+            except Exception:
+                continue
 
     def _answer(self, handle, home, turns, thread, turn) -> None:
         key = answer_key(CAPABILITY, thread, turn.turn_id)

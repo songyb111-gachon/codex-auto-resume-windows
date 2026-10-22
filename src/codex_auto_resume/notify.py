@@ -516,6 +516,26 @@ def stopped(thread_id: str, identity=None, *, reason: str | None = None) -> bool
     return show_content(stopped_content(thread_id, identity, reason=reason))
 
 
+# 2026-10-22: a record born already stopped although nothing gave up - the person took the conversation over (a message
+# of theirs reached the turn a continuation started, or their own turn ran before ours: domain/gates.birth_stop's
+# parent_handed_over), or the task's recovery had been cancelled (parent_cancelled) - is said as that, under the new
+# failure's reason, never as "stopped trying". The retry budgets' stops keep stopped_content's words.
+NOT_RESUMED = {"parent_handed_over": "toast_handed_over_body", "parent_cancelled": "toast_parent_cancelled_body"}
+
+
+def not_resumed_message(reason) -> str:
+    """The sentence for a record born stopped for `reason`, one of NOT_RESUMED's."""
+    return l10n.message(NOT_RESUMED[reason])
+
+
+def not_resumed_content(thread_id: str, identity=None, *, reason: str, category: str = "usage_limit") -> dict:
+    """What a new failure of a conversation the person took over, or whose recovery was cancelled, says: its name,
+    then the failure's reason and why nothing will be sent, then where it lives - no button, as stopped_content."""
+    title = headline(identity)
+    return _content(title, _origin_line(identity, title, thread_id),
+                    extra=[_reason_label(category) + " · " + not_resumed_message(reason)])
+
+
 # ------------------------------------------------------------ needs-you notices (v0.6.11)
 # A conversation that needs a person (needsyou.py): a failure this product will never resume, or a
 # turn that has recorded nothing new for a while. Said once, with one next step from the catalog, and

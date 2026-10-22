@@ -79,9 +79,14 @@ namespace CodexAutoResume
             Soft.ReduceMotionSetting = reduce;
             Palette.AdoptDesign(design);
             Palette.Adopt(Theme.Current(theme));
+            // v0.6.18: at the scale of the monitor it opens on - CenterScreen puts it on the pointer's - as the Dashboard
+            // is drawn (SettingsForm.AdoptDisplayScale), and as far as that screen holds Windows' text size.
+            Rectangle pointer = new Rectangle(Cursor.Position.X, Cursor.Position.Y, 1, 1);
+            SettingsForm.AdoptDisplayScale(SettingsForm.ScaleOfMonitor(pointer));
+            SettingsForm.ScaleDefaultFont();
             double read = TextScale.Read();
-            SettingsForm.AdoptTextSize(read, TextScale.Fitting(read, Screen.PrimaryScreen.WorkingArea.Size, SettingsForm.DpiScale));
-            return TextScale.Apply(SystemFonts.MessageBoxFont, read, SettingsForm.TextSize);
+            SettingsForm.AdoptTextSize(read, TextScale.Fitting(read, Screen.FromRectangle(pointer).WorkingArea.Size, SettingsForm.DpiScale));
+            return SettingsForm.AtDisplayScale(TextScale.Apply(SystemFonts.MessageBoxFont, read, SettingsForm.TextSize));
         }
 
         /// The installation's words, in the language its settings store or Windows prefers.

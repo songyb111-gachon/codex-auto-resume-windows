@@ -204,7 +204,7 @@ match, because a pin that does not exist is not a check that passed.
 **Proves.** That the archive installs, registers the plugin from the files it carries,
 and leaves one installation behind rather than a second one beside an existing install.
 
-**Do.** Extract the archive and run `Install.cmd`. Let it finish. Then open Codex and
+**Do.** Run the setup program, `CodexAutoResume-Setup-vX.Y.Z.exe`, or extract the archive and run `Install.cmd`. Let it finish. Then open Codex and
 confirm the plugin is registered and its panel opens (*open auto resume settings*).
 
 **A pass.** Setup ended with exit code 0, the installation is in one place — by default
@@ -213,7 +213,7 @@ accepted. An exit code of 2 means everything asked for was done but a running wa
 could not be confirmed; that is its own answer and is not a pass for this step, so record
 it and carry on to the next one, which looks at the watcher directly.
 
-**Record.** `route` as `"Install.cmd"` or `"plugin-bootstrap"`; `setup_exit_code`;
+**Record.** `route` as `"setup"`, `"Install.cmd"` or `"plugin-bootstrap"`; `setup_exit_code`;
 `install_root` as `"default"` or `"custom"`; `plugin_registered`.
 
 ### 3. A watcher is running, and says so where you can see it — `watcher-starts`
@@ -265,7 +265,7 @@ Do not invent a record alias for an excluded failure.
 
 **Record.** `category` (a failure category — `usage_limit`, a transient one, a terminal
 one or `unknown`); `code` (the public code shown); `thread` and `record` as aliases from a
-diagnostics export; `notification_shown` if you saw the toast.
+diagnostics export; say in the step's `note` whether you saw the toast (the validator lists no `observed` key for it).
 
 ### 5. The continuation reached that conversation and no other — `continuation-exact-thread`
 
@@ -283,7 +283,7 @@ alias matches the record, and no other conversation received anything.
 
 **Record.** `thread` and `record` as aliases; `queue_items_owned` as the number of queued
 items the watcher owned (1); `other_threads_touched` as the number of other conversations
-that received anything (0); `marker_present` if you confirmed the continuation's marker.
+that received anything (0); say in the `note` whether you confirmed the continuation's marker.
 
 ### 6. The engine watched the turn its own continuation started — `follows-its-turn`
 
@@ -324,7 +324,7 @@ and the History row says the same thing as the export. `outcome_unverified` is a
 this step: it is the product declining to guess.
 
 **Record.** `record` as an alias; `code`; `outcome_at_recorded` as `true` when an outcome
-time is stored; `reason` when the record shows one.
+time is stored; the reason, when the record shows one, in the `note`.
 
 ### 8. The window shows it, in the same words — `dashboard-shows-it`
 
@@ -378,8 +378,8 @@ is switched off; confirm it is disabled in one of those situations too.
 **A pass.** The check happens at once and the record either moves on or goes back to
 waiting for the same reason. Nothing is sent because the button was pressed.
 
-**Record.** `code_before`; `code_after`; `continuation_sent` as `false`; `offered_when`
-as a short machine value describing where you found the button disabled, such as
+**Record.** `code_before`; `code_after`; `continuation_sent` as `false`; and in the `note`
+a short machine value describing where you found the button disabled, such as
 `"disabled-while-paused"`.
 
 ### 11. Giving attempts back is explicit, limited, and not a send — `give-attempts-back`
@@ -411,7 +411,7 @@ continue that task in Codex yourself.
 
 **Record.** `code_before` (`exhausted`); `code_after` (the waiting code it re-entered);
 `budget_resets` as the number of resets the record had used when the button went quiet
-(3); `continuation_sent` as `false`; `said_thread_is_off` as `true` when the message said
+(3); `continuation_sent` as `false`; and in the `note` whether the message said
 the conversation was switched off.
 
 ### 12. Pause withdraws, and resume picks up again — `pause-resume`
@@ -494,9 +494,9 @@ uninstall aborts before removing anything, which is also a pass and is recorded 
 The sign-in entry is removed only while it is this installation's; one that starts another
 copy is reported and kept. Settings and pending recoveries survive a plain uninstall.
 
-**Record.** `route` as `"Uninstall.cmd"`, `"codex"` or `"source"`; `watcher_stopped`;
+**Record.** `route` as `"apps"` (Settings > Apps), `"setup"` (the setup program's Remove), `"Uninstall.cmd"`, `"codex"` or `"source"`; `watcher_stopped`;
 `startup_entry` as `"removed"`, `"kept-not-ours"` or `"absent"`; `state_kept`;
-`refused_directories` as the number of directories it refused to delete from.
+and in the `note` the number of directories it refused to delete from.
 
 ## What v0.6.3 adds, and where to write it down
 
@@ -580,8 +580,9 @@ the two by eye. *A pass:* it reads as Preview showed, followed by the watcher's 
 Note whether they matched, never the words.
 
 **The header's activity states, and Reduce motion — step 8, noted in
-`dashboard-shows-it`.** Watch the word beside the status dot in the Dashboard's header as the
-steps go by: *Monitoring* with nothing waiting, *Waiting* while a task waits for its time,
+`dashboard-shows-it`.** Watch the word beside the status light at the top of the popup, and of the panel in Codex, as the
+steps go by (the Dashboard's header keeps its own headline - *Watching for interruptions*, *Automatic recovery paused*,
+*Watcher not running* - and its light follows the same rule): *Monitoring* with nothing waiting, *Waiting* while a task waits for its time,
 *Checking* as one comes due, *Recovering* while the continuation runs in Codex, *Paused*
 while recovery is paused, and *Needs your attention* once the watcher is stopped in this
 step. Then turn on **Settings → Appearance → Reduce motion**. *A pass:* each word matches
@@ -687,7 +688,9 @@ checks below, and change it back before step 14, so that steps 14 and 15 run on 
 edition as written.
 
 **Turning a capability on.** In the Dashboard, open **Advanced features**, the last tab after
-Settings, and choose the capability: Start with Codex, Marker-free continuation or Goal continuation.
+Settings, and choose the capability (the page lists every one, the compatibility report first; this checklist covers
+Start with Codex, Marker-free continuation and Goal continuation, and the others are accepted through their own
+sections of [EDITIONS.md](EDITIONS.md)).
 Read its statement and every warning it shows, since turning it on says you did, then choose **Turn
 on** and answer yes. If something changed while you read, the page asks again with the capability
 as it now stands: read it again before you answer. If it says nothing was turned on, it says why.
@@ -700,8 +703,8 @@ capability that turned itself off says so under its state, with the reason.
 | Start with Codex surviving Codex closing | In the advanced edition | This table | not run |
 | The marker-free continuation, on a throwaway conversation | In the advanced edition | This table | not run |
 | The goal continuation, on a throwaway conversation | In the advanced edition, when a usage limit really happens | This table | not run |
-| M2b: a goal set active beside a queued turn, while the app holds the conversation | From a source checkout of the release | `docs/evidence/live/measurement-m2b.json` | not run |
-| MP1 to MP3: the settings panel beside a conversation, in the Codex app's right side panel | From a source checkout of the release, with the watcher running | `docs/evidence/live/measurement-mp1.json`, `-mp2`, `-mp3` | not run |
+| M2b: a goal set active beside a queued turn, while the app holds the conversation | From a source checkout of the release | `docs/evidence/live/measurement-m2b.json` | passed on `codex-cli 0.163.0-alpha.10.2`; not run for this release |
+| MP1 to MP3: the settings panel beside a conversation, in the Codex app's right side panel | From a source checkout of the release, with the watcher running | `docs/evidence/live/measurement-mp1.json`, `-mp2`, `-mp3` | passed on `codex-cli 0.162` and `0.163.0-alpha.10.2`; not run for this release |
 
 **The edition change - after step 13, noted in `upgrade-keeps-decisions`.** Run the advanced
 archive's `Install.cmd`, or the advanced setup program, over the standard installation. It says the

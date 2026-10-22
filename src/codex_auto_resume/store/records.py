@@ -127,7 +127,7 @@ class RecordsMixin:
         _uuid(thread_id, "thread_id")
         with self._read() as connection:
             return [_validated_record(dict(row)) for row in connection.execute(
-                "SELECT * FROM interruptions WHERE thread_id=? AND (last_claim_at IS NOT NULL "
+                self._record_sql + " WHERE thread_id=? AND (last_claim_at IS NOT NULL "
                 "OR submitted_at IS NOT NULL OR legacy=1) ORDER BY detected_at", (thread_id,))]
 
     def chain_parent(self, thread_id: str, turn_id: str, owner_id: str | None = None):
@@ -141,7 +141,7 @@ class RecordsMixin:
         """The record whose recovery turn is `turn_id`, else the owner of the marker in it on the
         same conversation - the one the watch has not correlated yet - or None."""
         found = connection.execute(
-            "SELECT * FROM interruptions WHERE thread_id=? AND recovery_turn_id=?",
+            self._record_sql + " WHERE thread_id=? AND recovery_turn_id=?",
             (thread_id, turn_id)).fetchone()
         if found is not None:
             return _validated_record(dict(found))
@@ -177,7 +177,7 @@ class RecordsMixin:
     def all_records(self) -> list[dict[str, Any]]:
         with self._read() as connection:
             return [_validated_record(dict(row)) for row in connection.execute(
-                "SELECT * FROM interruptions ORDER BY detected_at, interruption_id"
+                self._record_sql + " ORDER BY detected_at, interruption_id"
             )]
 
     def records_in(self, states, home_key=None) -> list[dict[str, Any]]:
@@ -189,7 +189,7 @@ class RecordsMixin:
         home = "" if home_key is None else " AND home_key=?"
         with self._read() as connection:
             return [_validated_record(dict(row)) for row in connection.execute(
-                "SELECT * FROM interruptions WHERE state IN (%s)%s ORDER BY detected_at, interruption_id"
+                self._record_sql + " WHERE state IN (%s)%s ORDER BY detected_at, interruption_id"
                 % (",".join("?" for _ in wanted), home), wanted + (() if home_key is None else (home_key,)))]
 
     def home_keys(self) -> set:
@@ -209,7 +209,7 @@ class RecordsMixin:
             raise StoreError("The default Codex home is never removed")
         with self._transaction() as connection:
             rows = [_validated_record(dict(row)) for row in connection.execute(
-                "SELECT * FROM interruptions WHERE home_key=? AND state IN (%s)"
+                self._record_sql + " WHERE home_key=? AND state IN (%s)"
                 % ",".join("?" for _ in WAITING), (home_key,) + tuple(sorted(WAITING)))]
             for row in rows:
                 connection.execute(
@@ -245,7 +245,7 @@ class RecordsMixin:
         where = "" if include_hidden else "WHERE history_hidden_at IS NULL"
         with self._read() as connection:
             return [_validated_record(dict(row)) for row in connection.execute(
-                "SELECT * FROM interruptions %s ORDER BY detected_at DESC, interruption_id LIMIT ?"
+                self._record_sql + " %s ORDER BY detected_at DESC, interruption_id LIMIT ?"
                 % where, (limit,))]
 
     def update(self, interruption_id: str, *, at: float | None = None, actor: str = "engine",

@@ -103,6 +103,17 @@ MEASUREMENT_METHODS = {
     Measurement.MQP: ("thread/loaded/list", "thread/queue/add", "thread/queue/list"),
     Measurement.MQG: ("thread/loaded/list", "thread/goal/get", "thread/goal/set", "thread/queue/add",
                       "thread/queue/list"),
+    # v0.6.19 (the groundwork). MTOK reads a rollout and the history's database and runs the engine's own schema
+    # generation on a scratch home - no session; MOPEN lists what the app holds before and after it opens a link; MAL
+    # reads the account, MA's call, while the person signs out and in; MWAKE reads power settings and sets a wake timer
+    # - no session; MHK runs the engine on a scratch home - no session; M4B lists the hooks, M4's call, and is the Stop
+    # hook's writer's to finish.
+    Measurement.MTOK: (),
+    Measurement.MOPEN: ("thread/loaded/list",),
+    Measurement.MAL: ("account/read",),
+    Measurement.MWAKE: (),
+    Measurement.MHK: (),
+    Measurement.M4B: ("hooks/list",),
 }
 
 # The methods a capability's own route may call, beyond `initialize` - each one a measurement
@@ -267,6 +278,25 @@ def methods_for_capability(capability) -> frozenset:
     capability with no row may call nothing."""
     allowed = set(CAPABILITY_METHODS.get(capability, ())) & MEASURED_METHODS - FORBIDDEN_METHODS
     return frozenset(allowed | {"initialize", "initialized"})
+
+
+def submitted(session, method, params=None):
+    """v0.6.18: one request written now - inside a guard its caller holds (core's launch guard around a channel's first
+    change of state) - and its answer awaited later, outside it: a callable that gives the answer, or raises what the
+    request raised. A session with no `submit` (a test's) is called whole, now. Never raises itself."""
+    try:
+        submit, receive = getattr(session, "submit", None), getattr(session, "receive", None)
+        if callable(submit) and callable(receive):
+            sequence = submit(method, params)
+            return lambda: receive(method, sequence, params)
+        result = session.call(method, params)
+        return lambda: result
+    except Exception as exc:
+        failure = exc
+
+        def again():
+            raise failure
+        return again
 
 
 class Session:

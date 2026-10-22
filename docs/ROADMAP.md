@@ -1,6 +1,6 @@
-# Codex Auto Resume roadmap: v0.6.7 → v0.6.22
+# Codex Auto Resume roadmap: v0.6.3 → v0.6.22
 
-This is the current development direction for Codex Auto Resume after v0.6.6.
+This is the current development direction for Codex Auto Resume from v0.6.3.
 
 This is a **planned roadmap, not a promise**. Details may change as Codex evolves or as testing
 reveals better or safer implementation paths.
@@ -12,8 +12,9 @@ advanced features, more than any program like this, in two editions → stabiliz
 core with Rust and make it Rust-native → stabilize Rust**
 
 The default recovery behavior stays as conservative as it has always been, through every release
-here: what v0.6.11, v0.6.12, v0.6.14, v0.6.15, v0.6.16, v0.6.18 and v0.6.19 add to it is there for a person to turn on, never
-on by itself.
+here: what v0.6.11, v0.6.12, v0.6.14, v0.6.16, v0.6.18 and v0.6.19 add to it is there for a person to turn on, never
+on by itself - except fixes: v0.6.15's detection of the conversations Codex hands over, and v0.6.18's judgment of a
+cut-off recovery turn, are on by themselves.
 
 ---
 
@@ -775,6 +776,24 @@ statement that names the standards it departs from, as v0.6.11's and v0.6.14's a
 measurement of the real Codex; one that fails narrows the route, or becomes a warning the person
 confirms, and does not drop the capability.
 
+### v0.6.16-beta ✅ — Stage 3c
+
+### Recovery through the channels already in use
+
+- several conversations at once, still one send in flight in each,
+- empty-response recovery, recognised by the kinds of item a turn left and never by its words,
+- an unloaded conversation, through a queue that waits until it is opened (measurement M1),
+- a subagent recovered through its parent, never written to directly,
+- keep going after a normal completion, a set number of times,
+- a prompt queue and recurring wakes, carrying the person's own words only (its *at the next reset*
+  part is v0.6.14's Send your own message when a limit resets).
+
+  **Built for v0.6.16-beta (first published as v0.6.15-beta; stage 3c):** these six, as Several conversations at once, Queue for when a
+  conversation is opened, Continue a turn that ended with no reply, Tell a parent which of its subagents
+  stopped, Keep a conversation going and Queue messages for later - each described in
+  [EDITIONS.md](EDITIONS.md#todays-capabilities). The measurements they rest on that are new - MQ, ME, MS,
+  MK and MT - are not made yet, and each capability says so as a warning.
+
 ### v0.6.16-beta.3 ✅ — Words for this time (standard edition)
 
 What the owner asked for on 2026-10-10: pick one waiting recovery on Pending and, this one time, when its
@@ -791,22 +810,6 @@ the first of the usage capabilities - a usage meter, a wrap-up near a limit that
 finish its step, and a pause that holds our continuations until the reset
 ([#29](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/29)). The
 [changelog](CHANGELOG.md) has the rest.
-
-### Recovery through the channels already in use
-
-- several conversations at once, still one send in flight in each,
-- empty-response recovery, recognised by the kinds of item a turn left and never by its words,
-- an unloaded conversation, through a queue that waits until it is opened (measurement M1),
-- a subagent recovered through its parent, never written to directly,
-- keep going after a normal completion, a set number of times,
-- a prompt queue and recurring wakes, carrying the person's own words only (its *at the next reset*
-  part is v0.6.14's Send your own message when a limit resets).
-
-  **Built for v0.6.15-beta (stage 3c):** these six, as Several conversations at once, Queue for when a
-  conversation is opened, Continue a turn that ended with no reply, Tell a parent which of its subagents
-  stopped, Keep a conversation going and Queue messages for later - each described in
-  [EDITIONS.md](EDITIONS.md#todays-capabilities). The measurements they rest on that are new - MQ, ME, MS,
-  MK and MT - are not made yet, and each capability says so as a warning.
 
 ### v0.6.16-beta.4 ✅ — A route of its own, and other kinds of session
 
@@ -850,7 +853,7 @@ Also in the final, and what the owner asked for as the beta line went on:
   kinds too (the usage meter's warning and each of its three notices about a stop near a limit), set in the
   Dashboard alone,
 - **an installer wizard**: the setup program is a window of its own in the Dashboard's design and the
-  product's eighteen languages, with *Repair* and *Remove* offered when the same version is already
+  product's sixteen languages, with *Repair* and *Remove* offered when the same version is already
   installed, no console window, and `-Silent` as before; the installation is listed in Settings > Apps, and
   its Uninstall button shows the same window,
 - **an update that explains itself**: a notes page before the update, from what version to what and what is
@@ -870,9 +873,9 @@ Also in the final, and what the owner asked for as the beta line went on:
 ### Also moved here
 
 - **Watching several Codex homes**, a standard-edition addition that waited on measurement MH, which
-  passed on 2026-09-28. Built for v0.6.15-beta: up to three more homes, in the
+  passed on 2026-09-28. Built for v0.6.16-beta (first published as v0.6.15-beta): up to three more homes, in the
   [guide](GUIDE.md#several-codex-homes); MH passed again on codex-cli 0.162.0-alpha.17.2 on 2026-10-10.
-- **winget** manifests for both editions, pointing at the pinned archives; submitting them is a
+- **winget** manifests for both editions, pointing at each edition's setup program; submitting them is a
   public pull request the owner makes.
 
 ---
@@ -943,13 +946,16 @@ In both editions:
   and a download cut short named and resumed. Nothing else about it changed - the same words, codes, proxy and TLS. The
   installed version's own updater does the download, so the bytes show from the update after v0.6.18.
 - **The install picture in the README** shows the bar filling by those counts.
+- **Install another version... runs in the setup window**, headed as an install of another version, with the
+  download and the steps filling its bar, as an update does; where it installed, the new Dashboard opens.
 
 In the advanced edition, each off until a person turns it on:
 
 - **Open Codex on a notice**: a button beside *Open Dashboard* opens that conversation in the Codex app, where Windows
   has a handler for `codex:` links.
 - **A weekly update check while idle**: at most once in seven days, only while nothing waits or runs, the Dashboard's own
-  check; a newer version is offered in a notice of its own, kept across restarts, and nothing is downloaded.
+  check; a newer version is offered in a notice of its own, kept across restarts, and nothing is downloaded. Each
+  check writes one line in the watcher's log: nothing newer, the version it offered, or why it could not check.
 
 For developers: `test_released_calls` records the four scenarios the owner amended, and the streamed download has a test
 seam of its own.

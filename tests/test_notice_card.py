@@ -801,7 +801,7 @@ class ActivateTests(unittest.TestCase):
             ("failed", pending, {"open_dashboard": boom}, "(OSError)"),
             ("cancelled", cancel, {"control": control({"thread_id": THREAD, "changed": True})},
              "thread %s: cancelled from a notification card" % THREAD),
-            ("cancelled", cancel, {"control": control({"thread_id": THREAD, "changed": False})},
+            ("already_finished", cancel, {"control": control({"thread_id": THREAD, "changed": False})},
              "thread %s: " % THREAD),
             ("refused", cancel, {"control": control(error=refusal("no_such_interruption"))}, "(no_such_interruption)"),
             ("refused", cancel, {"control": control(error=refusal("state_busy"))}, "(state_busy)"),

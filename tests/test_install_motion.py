@@ -215,7 +215,7 @@ class PlanTests(unittest.TestCase):
                 if shown[0][0] == "starting":
                     shown = shown[1:]
                 self.assertEqual([step for step, _ms in shown],
-                                 ["unpack", "codex", "files", "plugin", "setup", "check"])
+                                 ["unpack", "codex", "prepare", "files", "plugin", "setup", "check"])
                 for step, ms in shown:
                     self.assertGreaterEqual(ms, 900, step)
 

@@ -73,7 +73,8 @@ LISTS = {
     # version_newer_than_engine, one of those a newer Codex wrote than the engine here (the version skew guard).
     # 2026-10-21: progress_then_turn_cut_off - a recovery turn that did work and that Codex closing, or the PC going
     # off, left inProgress for good (engine/outcome.py).
-    "machine.REASONS": ("set", 80, "51cd45279887543c"),
+    # 2026-10-22: progress_then_user_joined - a recovery turn that did work before a person's message entered it.
+    "machine.REASONS": ("set", 81, "9768467e207d7669"),
     # v0.6.11: postponed, held, hold_released and tier_set - a person's (or the objection window's)
     # later time, a hold, letting it go, and a conversation's tier - and observe only's would_send.
     # And dispatched_while_observing and unpostponed: one taken back for Observe only that ran all the
@@ -98,7 +99,8 @@ LISTS = {
     # v0.6.15-beta: and home_removed and home_not_watched, as every reason is.
     # v0.6.16-beta.4: and held_by_other_session and version_newer_than_engine.
     # 2026-10-21: and progress_then_turn_cut_off, as every reason is.
-    "machine.GATE_REASONS": ("set", 98, "efef3661b38c49f9"),
+    # 2026-10-22: and progress_then_user_joined, as every reason is.
+    "machine.GATE_REASONS": ("set", 99, "b69124d1a9eca7a0"),
     "machine.PASS": "PASS",
     "machine.WAIT": "WAIT",
     "machine.BLOCK": "BLOCK",
@@ -217,8 +219,9 @@ LISTS = {
     # and EARLY, P7's look at a usage-limited record before its time; and the form a failure's error took.
     # And RESEND, P7's word for an uncertain submission sent once more, which core proves may go, and
     # SEND_NOW, its word for a waiting record a person asked to send now.
-    "domain.plug.POINTS": ("tuple", 18, "99df46d4da526400"),   # v0.6.16-beta.3: P19 eligibility; beta.4: P18
-    "domain.plug.ANSWERS": ("set", 15, "f05b746425d54856"),
+    # v0.6.16-beta.3: P19 eligibility; beta.4: P18; v0.6.19: P20 notice - and P13's SUPERVISE and RESTART.
+    "domain.plug.POINTS": ("tuple", 19, "79ff2fd1efcf1944"),
+    "domain.plug.ANSWERS": ("set", 17, "4e304e4fc7bba412"),
     "domain.plug.FAILURE_FORMS": ("tuple", 5, "bcc0ad1bd6f81009"),
     "domain.plug.SURFACES": ("tuple", 5, "d41ac5a6d67be21b"),
     # v0.6.14: what core did with a record of the plug's own (P2), as P14 tells it.
