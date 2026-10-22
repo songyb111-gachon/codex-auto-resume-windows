@@ -213,6 +213,7 @@ class Scoped:
         from .continuations import ContinuationsHandle
         from .meter import MeterHandle
         from .runs import RunsHandle
+        from .opens import OpensHandle
         from .prompts import PromptsHandle
         from .resets import ResetsHandle
         self._reads.update({
@@ -225,6 +226,8 @@ class Scoped:
             "meter": MeterHandle(state, capability, on),
             # v0.6.16-beta.4: a headless capability's own runs (state/runs.py).
             "runs": RunsHandle(state, capability, on),
+            # v0.6.19 (#50): open_to_send's opens (state/opens.py).
+            "opens": OpensHandle(state, capability, on),
             "passed": lambda measurement: verdict is not None and verdict(measurement) == "pass",
             "failed": lambda measurement: verdict is not None and verdict(measurement) == "fail",
             "armed": lambda other: armed is not None and armed(other) is True,

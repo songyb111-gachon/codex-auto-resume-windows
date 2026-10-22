@@ -65,6 +65,11 @@ def standards_text(rule) -> str:
             return line
     raise AssertionError(f"{rule} is not in the standards file")
 
+
+# v0.6.19: the capabilities waiting in registry.WAITING whose statement is written already, so that a measurement's pass
+# offers them whole (open_to_send, MOPEN) - their names and statements are in every catalog while they wait.
+STATED_WAITING = (registry.OPEN_TO_SEND,)
+
 class ShippedTests(unittest.TestCase):
     SHIPPED = ("start_with_codex", "goal_continuation", "queue_for_open",
                # v0.6.16-beta.4: a full conversation compacted, then continued; a conversation nothing holds, run here
@@ -122,7 +127,7 @@ class ShippedTests(unittest.TestCase):
             self.assertEqual(tuple(d.id for d in registry.REGISTRY.at(point)), answering.get(point, ()))
 
     # The order a person reads them in (the owner's, 2026-10-10): the compatibility report first, then by importance.
-    SHOWN = ("compat_report", "start_with_codex", "every_conversation", "queue_for_open", "headless_run",
+    SHOWN = ("compat_report", "start_with_codex", "every_conversation", "queue_for_open", "open_to_send", "headless_run",
              "other_sessions", "marker_free_continuation", "silent_continuation", "reset_credit",
              "early_reset", "parallel_dispatch", "reset_message", "long_reset_message",
              "usage_meter", "usage_wrap_up", "usage_pause", "keep_going", "prompt_queue",
@@ -138,12 +143,15 @@ class ShippedTests(unittest.TestCase):
         self.assertEqual(twice, [], "named more than once in SHOWN_ORDER: %s" % twice)
         missing = sorted(set(ids) - set(order))
         self.assertEqual(missing, [], "in the registry but not in SHOWN_ORDER: %s" % missing)
-        unknown = sorted(set(order) - set(ids))
+        # v0.6.19: one waiting in WAITING (hidden until its measurement passes) may hold the place it takes once offered.
+        waiting = {definition.id for definition, _measurement in registry.WAITING}
+        unknown = sorted(set(order) - set(ids) - waiting)
         self.assertEqual(unknown, [], "in SHOWN_ORDER but not in the registry: %s" % unknown)
 
     def test_the_capabilities_are_shown_in_the_owner_s_order_and_answer_in_the_registry_s(self):
         self.assertEqual(registry.SHOWN_ORDER, self.SHOWN)
-        self.assertEqual(tuple(d.id for d in registry.shown(registry.REGISTRY)), self.SHOWN)
+        self.assertEqual(tuple(d.id for d in registry.shown(registry.REGISTRY)),
+                         tuple(capability for capability in self.SHOWN if capability in registry.REGISTRY.ids))
         # Presentation only: the registry itself, which decides who answers first, keeps its own order.
         self.assertEqual(registry.REGISTRY.ids, self.SHIPPED)
         # A registry of some of them (one a test makes) shows those in the owner's order too.
@@ -838,7 +846,7 @@ class ShippedCatalogTests(unittest.TestCase):
         english = set(tables["en"])
         # The fixed words, plus the five statement fields of every capability the edition ships.
         shipped_statements = {statement.key(definition.id, field)
-                              for definition in registry.DEFINITIONS for field in statement.FIELDS}
+                              for definition in registry.DEFINITIONS + STATED_WAITING for field in statement.FIELDS}
         self.assertEqual(english, {statement.SENTINEL_KEY, statement.ALL_OFF_KEY}
                          | set(statement.EDITION_KEYS)
                          | {statement.title_key(field) for field in statement.FIELDS}
@@ -846,7 +854,7 @@ class ShippedCatalogTests(unittest.TestCase):
                          | set(statement.WARNING_KEYS)
                          | set(statement.PAGE_KEYS)
                          | set(statement.CONTINUATION_KEYS)
-                         | {statement.name_key(definition.id) for definition in registry.DEFINITIONS}
+                         | {statement.name_key(definition.id) for definition in registry.DEFINITIONS + STATED_WAITING}
                          | shipped_statements)
         self.assertEqual(len(statement.WARNING_KEYS), 2 + len(ArmingWarning))
         for locale, table in tables.items():
@@ -862,7 +870,7 @@ class ShippedCatalogTests(unittest.TestCase):
         capability the edition ships and the three states' words - in the person's language, each language's own."""
         english = statement.CATALOGS.words("en")
         wanted = (set(statement.PAGE_KEYS) | {"state.off", "state.shadow", "state.armed"}
-                  | {statement.name_key(definition.id) for definition in registry.DEFINITIONS})
+                  | {statement.name_key(definition.id) for definition in registry.DEFINITIONS + STATED_WAITING})
         self.assertEqual(set(english), wanted)
         for locale in l10n.LOCALES:
             with self.subTest(locale):

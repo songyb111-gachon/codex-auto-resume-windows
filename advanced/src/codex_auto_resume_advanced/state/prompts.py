@@ -19,6 +19,7 @@ from ..vocabulary import PromptEvery, PromptReason, PromptState, PromptTrigger, 
 
 PROMPT_QUEUE = "prompt_queue"
 from .choices import Refused
+from .resets import _gate_word
 from .schema import PROMPT_SPAN
 from .session import StateError, _key, _thread, _timestamp, _word
 
@@ -266,13 +267,14 @@ def next_slot(row):
 
 
 class PromptMovesMixin:
-    def prompt_moved(self, record_id, move, *, at=None, queue_id=None) -> dict | None:
+    def prompt_moved(self, record_id, move, *, at=None, queue_id=None, gate=None, reason=None) -> dict | None:
         """What core told of a prompt's occurrence (P14), in one transaction across the prompt and its record: sent,
         the queue item is kept, and so are its words while Codex holds it (they go when it ends); handed back or
         never started, it waits again; delivered, unproven, superseded or handed over, the occurrence is used - a
         series waits for its next, anything else is done; withdrawn on a person's Cancel, it is cancelled, and on a
-        Pause held for them to say go on or cancel (no guess, E1); refused by Codex, said, and left. The capability and
-        whether it turns it off (UNPROVEN), or None where it is no prompt's."""
+        Pause held for them to say go on or cancel (no guess, E1); refused by Codex, said, and left; waiting (v0.6.19,
+        #50), the gate and the reason core named kept, as a reset message's are - what open_to_send reads. The
+        capability and whether it turns it off (UNPROVEN), or None where it is no prompt's."""
         _key(record_id, "record id")
         now = self._now(at)
         move = str(move)
@@ -323,7 +325,12 @@ class PromptMovesMixin:
                 connection.execute("UPDATE prompts SET reason=? WHERE prompt_id=?", (PromptReason.WITHDRAW_REFUSED,
                                                                                      prompt))
                 connection.execute("UPDATE records SET withdraw=0 WHERE record_id=?", (record_id,))
-            elif move != "waiting":
+            elif move == "waiting":
+                gate, reason = _gate_word(gate), _gate_word(reason)
+                if (row["gate"], row["gate_reason"]) != (gate, reason):
+                    connection.execute("UPDATE prompts SET gate=?, gate_reason=? WHERE prompt_id=?", (gate, reason,
+                                                                                                    prompt))
+            else:
                 return None
             return {"capability": PROMPT_QUEUE, "trip": move == "unproven"}
 

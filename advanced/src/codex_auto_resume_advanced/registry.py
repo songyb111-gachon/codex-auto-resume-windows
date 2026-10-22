@@ -87,6 +87,8 @@ from .engine.subagent import make as make_subagent_parent
 from .engine.keepgoing import make as make_keep_going
 from .engine.promptqueue import make as make_prompt_queue
 from .engine.foropen import CODES as FOROPEN_CODES, DAYS, DEFAULT_DAYS, make as make_queue_for_open
+from .engine.opentarget import (DEFAULT_IDLE as OPEN_DEFAULT_IDLE, IDLE_MINUTES as OPEN_IDLE_MINUTES, OFF as OPEN_OFF,
+                               make as make_open_to_send)
 from .engine.fallback import (ATTEMPTS as FALLBACK_ATTEMPTS, DEFAULT_ATTEMPTS as FALLBACK_DEFAULT_ATTEMPTS,
                               NOT_RESTORED, make as make_model_fallback)
 from .engine.goal import make as make_goal_continuation
@@ -1168,11 +1170,42 @@ CODEX_RETRY_SETTINGS = CapabilityDef(
     measurements=(Measurement.MB,),
 )
 
+# Open a waiting conversation in Codex (v0.6.19, issue #50). At P8, as an errand, a recovery or a scheduled message
+# that waits only because the Codex app does not have its conversation open - core's record failing thread_available
+# alone with the conversation known not loaded, one queue_for_open queued for when it is opened, or a message of the
+# edition's own waiting at that gate - gets that exact conversation opened through Codex's own link (core's
+# codex_link), once, only while the PC has been idle for the minutes chosen (2, 5 or 15; 5 by default), Windows has a
+# `codex:` handler and the Codex app is running - unless Also start Codex is on (off by default). Nothing is sent here:
+# the next check finds it loaded and sends as always. The caps are kept in `opens` (state/opens.py): ten minutes
+# between opens, an hour a conversation, three a record, twelve a day (engine/opentarget.py). It departs from 0.5 (it
+# wakes a conversation the app does not hold, through the app's own link), B16 (it asks Windows the last input time and
+# reads the `codex:` handler), C4 (it acts on its own) and F6 (explorer opens the link); it keeps B13 - it simulates no
+# input and drives no UI - and A11, since nothing is sent until core's own loaded check passes. It stands on
+# loaded_state_detection, what says a conversation is not loaded, and rests on MOPEN: until opening is measured to load
+# a conversation on the Codex in force it waits in WAITING, hidden - with no narrower route, since opening that loads
+# nothing does nothing. It composes with queue_for_open (opening delivers what that queued) and leaves a conversation
+# another session holds alone. Ceilings: the schema's, beside its own caps; it spends nothing.
+OPEN_TO_SEND = CapabilityDef(
+    id="open_to_send",
+    points=frozenset({Point.TICK}),
+    revision=1,
+    departs_from=("0.5", "B16", "C4", "F6"),
+    compat="loaded_state_detection",
+    ceilings=Ceilings(per_day=12, per_conversation=3),
+    journal_prefix="open",
+    make=make_open_to_send,
+    codes=("opened", "loaded", "not_loaded"),
+    options=(Option(OptionKey.OPEN_IDLE_MINUTES, OPEN_IDLE_MINUTES, OPEN_DEFAULT_IDLE),
+             Option(OptionKey.OPEN_START_CODEX, SWITCH, OPEN_OFF)),
+    measurements=(Measurement.MOPEN,),
+)
+
 # The one gate for a capability that cannot work on any Codex measured so far (the owner's rule of 2026-10-16): each
 # here, with the measurement that must pass first, is hidden - not in the registry this edition runs, so no row, no
 # statement and no switch anywhere - until that measurement passes (measured.MEASURED), and then offered after
-# DEFINITIONS. Its code and its probe stay in the tree.
-WAITING = ((CODEX_RETRY_SETTINGS, Measurement.MB),)
+# DEFINITIONS. Its code and its probe stay in the tree. (v0.6.19: open_to_send's statement is written already, so a
+# pass offers it whole; codex_retry_settings' is not.)
+WAITING = ((CODEX_RETRY_SETTINGS, Measurement.MB), (OPEN_TO_SEND, Measurement.MOPEN))
 
 
 def offered(measured) -> tuple:
@@ -1194,10 +1227,13 @@ REGISTRY = _registry()
 # 호환성 보고서를 제일 위로 해줘"): the compatibility report at the top, then 1) what gets work going again
 # after a usage limit with no hands, 2) what saves the person work, 3) the other common failures, 4) rare
 # cases and expert settings. A measurement's warning never pushes a capability down. Every capability of
-# DEFINITIONS appears here exactly once (test_advanced_registry holds it).
+# DEFINITIONS appears here exactly once, and so may one waiting in WAITING, at the place it takes once offered
+# (test_advanced_registry holds it).
 SHOWN_ORDER = ("compat_report", "start_with_codex",
                # v0.6.16-beta.3: which conversations are recovered at all, beside what starts the recovering.
                "every_conversation", "queue_for_open",
+               # v0.6.19 (#50): opening a waiting conversation, beside queueing for its opening - shown once MOPEN passes.
+               "open_to_send",
                # v0.6.16-beta.4: what gets a conversation going when nothing holds it, beside queue for opening (Q12).
                "headless_run", "other_sessions", "marker_free_continuation",
                # v0.6.16-beta.4: how a turn run here starts, beside the other continuation that goes without a marker
