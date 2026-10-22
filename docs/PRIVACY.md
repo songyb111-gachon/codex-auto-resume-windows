@@ -25,7 +25,7 @@ footnote. There are four kinds, and they are genuinely different:
   Installing or updating from the Codex plugin downloads the release from GitHub, as does
   downloading the ZIP yourself. The installer then asks Codex to refresh marketplaces: the
   installers of v0.4.0 through v0.5.7 refresh every Git marketplace you have configured,
-  wherever it is hosted, while the installer from v0.6.0, refreshes only a surviving `codex-auto-resume-windows` registration, from
+  wherever it is hosted, while the installer from v0.6.0 refreshes only a surviving `codex-auto-resume-windows` registration, from
   wherever it points.
 
 - **GitHub, when you ask whether there is a newer version.** From v0.6.0 the Diagnostics
@@ -100,7 +100,7 @@ footnote. There are four kinds, and they are genuinely different:
   commit names the author's GitHub login and account number in its message, and the pull request
   and the comment it is answered with stay public on GitHub, as every pull request does.
 
-**There is no automatic update check, and no automatic compatibility refresh.** Nothing polls,
+**In the standard edition there is no automatic update check, and no automatic compatibility refresh.** (The advanced edition's *Check for updates once a week* is off until a person turns it on; its section says what it sends.) Nothing polls,
 nothing checks on a schedule, and nothing checks when the window opens or when the watcher starts.
 A machine that is never asked makes none of these requests, and a machine that never installs
 makes none of the GitHub requests at all.
@@ -111,7 +111,7 @@ The sections below take each in turn.
 
 Nothing, beyond the aggregate download count GitHub shows for every release (see
 [Installing it](#installing-it)) and, if you press *Check for updates* or *Refresh
-compatibility data*, up to three more anonymous requests to public GitHub addresses. There is no
+compatibility data*, up to three more anonymous requests to public GitHub addresses and, for *Install another version...*, up to five reads of the list of releases each time it is read (when you open it and again when you confirm), then the download you confirmed. There is no
 telemetry, no analytics, no crash reporting, no opt-in reporting, no automatic update check and
 no automatic compatibility refresh — no endpoint of any kind exists to
 receive them, because no collection service is operated for this project. Local statistics
@@ -220,7 +220,10 @@ GitHub CLI you can also check which workflow built the archive, for releases fro
 roots):
 
 ```powershell
-gh attestation verify .\CodexAutoResume-vX.Y.Z-win-x64.zip --repo songyb111-gachon/codex-auto-resume-windows
+gh attestation verify .\CodexAutoResume-vX.Y.Z-win-x64.zip `
+    --repo songyb111-gachon/codex-auto-resume-windows `
+    --signer-workflow songyb111-gachon/codex-auto-resume-windows/.github/workflows/release.yml `
+    --source-ref refs/tags/vX.Y.Z
 ```
 
 An attestation says which workflow run built the archive. Archives
@@ -228,10 +231,10 @@ v0.5.0 through v0.5.7 were built by the earlier single-job release workflow, whi
 its GitHub Actions by floating tags rather than pinned commits, and the executables in those
 archives are not reproducible, so you cannot rebuild them byte for byte to compare. The
 separate build and publish jobs, the commit-pinned actions and the reproducible executables are
-new in v0.6.0. Nothing this project builds is Authenticode-signed — the two executables,
+new in v0.6.0. Nothing this project builds is Authenticode-signed — the two executables, the setup programs,
 `Install.cmd`, `Uninstall.cmd` and the PowerShell scripts — while the bundled Python
 interpreter (`pythonw.exe`, `python.exe` and its DLLs) keeps the Python Software Foundation's
-signature.
+signature, and the two Visual C++ runtime DLLs keep Microsoft's.
 
 The watcher itself contacts no GitHub host: the code that reaches the network is the
 PowerShell installer, and a test fails if any module under `src/` or `scripts/*.py` imports
@@ -300,7 +303,16 @@ notification card and the icon's motion ask a few more, all content-free and des
 values an administrator may set under `Software\Policies\CodexAutoResume` in `HKEY_LOCAL_MACHINE` and
 `HKEY_CURRENT_USER` - five switches, a number and a span of hours (the guide's *Settings an
 administrator manages*) - each time it reads its settings. Nothing else under that key is read, and a
-PC nobody manages has none. Also from v0.6.11, and only while the setting that needs it is on (each
+PC nobody manages has none. From v0.6.18, to suggest a Codex home this PC's Codex uses that is not
+watched yet (the guide's *Several Codex homes*), an installed copy's Dashboard reads two things each time
+it shows *Settings > Advanced*, unless the switch *Suggest Codex homes found on this PC* is off: the
+`CODEX_HOME` value of your account's environment (`HKEY_CURRENT_USER\Environment`), read and never
+written; and the Codex app's own list of where it has run,
+`%LOCALAPPDATA%\OpenAI\Codex\chrome-native-hosts-v2.json` (at most 1 MiB, opened for reading), of which
+only each entry's `codexHome` folder is kept - nothing else in that file is looked at. The folders found
+are checked as a home you add is checked, shown only on that card, and never sent anywhere or told to
+Codex; one you set aside with **Not now** is kept in the settings file, and the diagnostics file says only
+how many. Also from v0.6.11, and only while the setting that needs it is on (each
 is off by default): how long the PC has been awake (`QueryUnbiasedInterruptTime`), which beside the
 clock says how long it slept, and a notice from Windows when it wakes
 (`RegisterSuspendResumeNotification`), for **Ask me after a sleep longer than** and **Keep this PC
@@ -397,7 +409,7 @@ interfaces:
 
 Codex makes those changes itself. The Codex processes it starts may also update Codex's own
 logs and caches as a side effect, as any Codex process does. In the advanced edition, a
-capability that is on asks for two more, described under
+capability that is on asks for more, described under
 [The advanced edition](#the-advanced-edition).
 
 ## What it runs
@@ -465,7 +477,7 @@ The plugin gives Codex tools — `get_status`, `list_pending`, `get_recovery_tim
 `get_recovery_statistics`, `open_settings`, and the controls (`retry_now`, `cancel_recovery`,
 `reset_recovery_budget`, `pause_auto_recovery` and `resume_auto_recovery`,
 `disable_conversation_recovery` and `enable_conversation_recovery`, `clear_recovery_history`,
-`start_watcher`, `update_settings`, `restore_default_settings`, and from v0.6.11 `postpone_recovery` and `release_hold`), and, from v0.6.3, `preview_recovery_message` — in the advanced edition also
+`start_watcher`, `update_settings`, `restore_default_settings`, from v0.6.11 `postpone_recovery` and `release_hold`, and from v0.6.12 `turn_off_power_action`), and, from v0.6.3, `preview_recovery_message` — in the advanced edition also
 `list_advanced_capabilities`, `disarm_advanced_capability` and `disarm_all_advanced` — and a skill that runs the
 tool's commands (for example `status`, `pending`, `doctor` and `logs`). When they run inside a
 Codex conversation, what they return becomes part of that conversation. The
@@ -475,7 +487,7 @@ conversation to OpenAI like any tool output. That is:
 - from `get_status`: the version and, from v0.6.11, the edition installed (a code: standard,
   advanced, or advanced_not_loaded), whether recovery is on, whether the watcher is running and
   whether sign-in autostart is registered, counts by state, and your settings — which
-  include the Codex executable path if you set one and, from v0.6.3, the text of any Custom
+  say only whether you set a Codex executable path, never the path itself, and, from v0.6.3, the text of any Custom
   message you have written (Codex can read it there, not change it). From v0.6.5 it also
   carries the Codex compatibility summary that the Dashboard's Diagnostics page shows, as codes
   only: the overall result and the one the watcher acts on, whether the
@@ -628,6 +640,12 @@ default (or wherever `CODEX_AUTO_RESUME_PLUGIN_HOME`, or failing that
   or `-Silent`) asks an open Dashboard to close: the page the Dashboard was on, its place and size on screen,
   its theme and design and which control had the focus - no conversation, path or text. The installer reads it
   once to open the new version where it was, and deletes it;
+- `config/edition-left.txt`, from v0.6.16, only when an uninstall keeps your state (as `Uninstall.cmd` does
+  unless you pass `-Purge`, and `uninstall --keep-state` does): one word, the edition that uninstall took
+  away. The installer reads it when it installs the advanced edition over state left behind, to tell the same
+  edition coming back from a change of edition, and the next install deletes it. No path, id or text. It goes
+  with the rest of `config/` under `Uninstall.cmd -Purge`, and the command line's `uninstall` deletes it unless
+  you pass `--keep-state`;
 - `logs/` — `auto-resume.log`, what the watcher did, by reason code and conversation UUID;
   `errors.log`, the Python traceback when something goes wrong; `launcher.log`, a line
   per launch (and why, if one failed); and, from v0.6.9, `codex-start.log`, a line each time Codex
@@ -741,7 +759,7 @@ service is involved, as none is for the toast. Once the card has been on screen,
 raised silently - no banner, no sound - so Windows' notification history holds what it held before;
 if a card cannot be drawn, the toast is raised instead. A card's button does what the toast's
 does, in the watcher itself rather than through the `codex-auto-resume:` handler: cancel one
-recovery or open one page of the Dashboard. Each press leaves one line in the log: the
+recovery, open one page of the Dashboard or, from v0.6.12, stop the power action for one batch. Each press leaves one line in the log: the
 conversation's UUID when it cancelled one, or a refusal code or an exception class when nothing
 happened, as the toast's buttons do.
 
@@ -762,8 +780,12 @@ notification-area icon move, it asks whether battery saver is on and how long Wi
 notification on screen, and it notices when the session is locked or disconnected - which the
 settings window's taskbar button asks Windows outright for this session, so that it stops behind the
 lock screen as the icon does - and whether the icon is in the overflow area, which it reads from the
-settings Windows itself keeps for that icon. It reads these and changes none of them; any answer it
-cannot get means Windows' own toast.
+settings Windows itself keeps for the notification-area icons (`NotifyIconSettings`). To find its own
+icon there it looks through every program's entry: it reads each entry's icon number and whether it
+has a GUID, and the program path only of an entry that could be its own, and keeps none of it. The icon
+also reads whether the overflow flyout's own window is shown - a window's class and whether it is shown,
+nothing of what is in it, and nothing kept - because the icon moves while the flyout is open and stands
+still only while it is closed. It reads these and changes none of them; any answer it cannot get means Windows' own toast.
 
 ## Languages
 
@@ -796,7 +818,7 @@ installed, to reach GitHub, and only when you start it (*What it sends to GitHub
   capabilities are listed, over that bridge or by `list_advanced_capabilities`, when one is being
   turned on, and at each look while one is on or watched. While the goal continuation is on or
   watched, from Codex's goals database, opened read-only: which goal a conversation has, its status
-  and when it changed. The goal's words are never selected. From v0.6.15-beta, while the capabilities
+  and when it changed. The goal's words are never selected. From v0.6.16-beta (first published as v0.6.15-beta), while the capabilities
   that use them are on: from Codex's turn history, the kinds and counts of the items a turn left, whether
   it recorded a final reply, a plan's step statuses (never a step's words), and from the state database
   which subagents a conversation spawned and how each one's latest turn ended, as a category word.
@@ -807,17 +829,25 @@ installed, to reach GitHub, and only when you start it (*What it sends to GitHub
   end it, the server starts the launcher itself, as *Start watcher* does. While the marker-free or the
   goal continuation is on: `codex app-server --stdio` sessions of their own, started as the standard
   edition starts its own - the same client name, the same analytics and telemetry settings, the same
-  pinned ChatGPT address - that call, after `initialize`, `thread/queue/add` (the continuation's
-  words, under a client id derived from the interruption) and `thread/goal/set` (a goal's status),
-  and nothing else.
+  pinned ChatGPT address - that call, after `initialize`, only the methods that capability declares (the advanced package's `codex/protocol.py`): `thread/queue/add` (the continuation's
+  words, under a client id derived from the interruption), `thread/goal/set` (a goal's status), and, for the capabilities that run, compact or
+  re-model a conversation here, `thread/resume`, `turn/start`, `turn/interrupt`, `thread/compact/start`, `model/list`,
+  `thread/settings/update` and `thread/unsubscribe`, and, for usage and a reset credit, `account/rateLimits/read` and
+  the account's request that spends one reset credit; nothing else.
 - **What reaches OpenAI.** Nothing new from a capability, except the turn run while Codex is closed
-  (the next bullet) and that, while the early usage-reset
-  check is on, Codex is asked about your usage every five minutes while a conversation waits for a
-  reset (`account/rateLimits/read`, as the standard edition asks when a recovery is due): the resumed
+  (the next bullet) and that Codex is asked about your usage on a schedule while one of these is on: the early
+  usage-reset check every five minutes while a conversation waits for a reset, the usage meter every 5 to 60 minutes
+  (15 by default), and a waiting reset-credit rule or reset message about every 15 minutes
+  (`account/rateLimits/read`, as the standard edition asks when a recovery is due); a reset credit the credit capability
+  spends is one of your own, used on your account: the resumed
   turn still runs in your Codex desktop app. A marker-free continuation arrives without the `[codex-auto-resume:…]` marker,
   and Codex keeps the client id on the message. A goal set active is left for Codex to carry on when
   the app next opens the conversation, under your own Codex settings. A measurement is the
   exception, below.
+- **What else it starts or reads near a notice or a limit.** While *Open Codex on a notice* is on, pressing *Open Codex* starts
+  `explorer.exe` with the conversation's `codex:` link, and the program reads - never writes - whether Windows has
+  something registered for such links. While *Stop near a limit* is on, a window that reaches its stop percentage
+  has each running turn stopped through the Codex app's own channel, the `\\.\pipe\codex-ipc` pipe, once for that window.
 - **A conversation run while Codex is closed.** With the advanced edition's feature that runs a
   conversation here while Codex is closed, and the features that build on it, a turn runs on Codex's own
   app server on this PC, started by this program and signed in as you, under the conversation's own
@@ -829,14 +859,14 @@ installed, to reach GitHub, and only when you start it (*What it sends to GitHub
   capability spent, with the ids of the conversation and interruption it spent it on; the edition's
   own records and what a capability asked of a standard one, as ids, states and times; the global
   ceiling a person set; a journal and per-day counts of closed codes, bounded as the standard
-  journal is, and what a watched capability would have done at most 200 lines each (250 before
-  v0.6.15-beta); and, for the
+  journal is, and what a watched capability would have done at most 150 lines each (180 until
+  v0.6.16-beta.4); and, for the
   capabilities that use them, the choices you made, the rules you wrote (an
   error code, status numbers, a kind), which capability took up which interruption, and samples of
   failures it could not classify: Codex's error code, the status number, the form of the error, item
   counts, a time rounded to the minute and a duration - never a word of the error or the
   conversation, and kept 90 days at most. A message you wrote for a reset (from v0.6.14) or queue (from
-  v0.6.15-beta) is kept there until it is sent - a series until its last occurrence - cancelled or ended,
+  v0.6.16-beta) is kept there until it is sent - a series until its last occurrence - cancelled or ended,
   and then deleted; the edition's own continuations, in its fixed words, until they are sent; and which
   conversations you keep going, with their counts. No reply, error text, title, path or secret. `Uninstall.cmd -Purge` removes it
   with the rest of `config\`. A diagnostics export you ask for adds, for each capability watched or
@@ -844,7 +874,7 @@ installed, to reach GitHub, and only when you start it (*What it sends to GitHub
   the minute its answers are counted from and whether older ones were cut; and the word of each
   answer it would have given, where it was asked, how many times and the first and last minute. No
   conversation's or interruption's id.
-- **What it sends to GitHub.** Only the compatibility report, only while it is on, and only after you
+- **What it sends to GitHub.** Besides the weekly update check below, only the compatibility report, only while it is on, and only after you
   type `send` in the Dashboard for exactly the file and the writes it showed you: through gh, signed in
   as you, it forks the project, adds the report on a branch and opens a public pull request, so the
   report, your GitHub login and the fork are public. The report is the one codex-compat-reporter
@@ -857,6 +887,12 @@ installed, to reach GitHub, and only when you start it (*What it sends to GitHub
   its full path from a folder on PATH with no shell, gives the file to it on its standard input, and
   writes no temporary file. A paused recovery stops any checking or sending; the report and its
   status are kept only in the Dashboard's memory, and its journal holds only closed codes.
+- **Check for updates once a week.** While that capability is on, at most once a week, while no recovery waits, is
+  sent or is watched, and never while recovery is paused or `DisableUpdateCheck` is set, the watcher runs the installed
+  `scripts/bootstrap.ps1 -CheckOnly` - the requests a *Check for updates* you press makes, to github.com, to the list of
+  releases on api.github.com and, once github.com has answered, for the Codex compatibility data on
+  raw.githubusercontent.com - so GitHub sees this PC's address and the time, once a week. It downloads nothing; the
+  time of the last check, and a version it found, are kept in `config/advanced/advanced.sqlite`.
 - **What Codex is told.** What its three MCP tools return, listed under
   [When you use it from Codex](#when-you-use-it-from-codex).
 - **Measurements.** The harness that measures whether a capability's route can work on this Codex

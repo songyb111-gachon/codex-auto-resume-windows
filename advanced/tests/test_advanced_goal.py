@@ -813,7 +813,7 @@ class RouteTests(unittest.TestCase):
 
         session = Session(self, then=self.activate)
         self.assertEqual(self.made(session).resume(T1, still_unloaded=look(True))["outcome"], "accepted")
-        self.assertEqual(order, ["session", "look"])
+        self.assertEqual(order, ["session", "look", "look"], "before the set, and again once it reads back (v0.6.18)")
         for answer in (False, None, "notLoaded", OSError("gone")):
             with self.subTest(answer=answer):
                 set_goal(self.root, T1, "usage_limited")

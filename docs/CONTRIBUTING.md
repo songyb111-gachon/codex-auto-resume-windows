@@ -16,8 +16,9 @@ properties intact.
   bundled runtime. `tests/test_python_support.py` fails if the workflows, or the minimum this
   page and the README state, stop agreeing with that file.
 - The ChatGPT/Codex desktop app, if you want to run anything beyond the unit tests.
-- .NET Framework 4.8 (already on every supported Windows) to build the two small C#
-  executables — the window and the MCP launcher (`gui/McpLauncher.cs`). The window is
+- .NET Framework 4.8 (already on every supported Windows) to build the three C#
+  programs — the window, the MCP launcher (`gui/McpLauncher.cs`) and the setup program (`build/setup/`, built by
+  `build/make_setup.py`). The window is
   `gui/SettingsApp.cs` for the form and the Settings page and `gui/Dashboard.cs` for the
   navigation and the Overview, Pending, History, Statistics and Diagnostics pages; the soft
   controls both are drawn with are `gui/SoftTheme.cs` (the colours, sizes and motion),
@@ -165,13 +166,14 @@ declaring an MCP server (see below).
 This section describes the release process as it is from v0.6.0. The split of the release
 workflow into build and publish jobs, the actions pinned to commits, Dependabot, the
 reproducible executables, the CRLF checkout and the executables' version resources are new in
-v0.6.0. Every archive published so far, v0.5.0 through v0.5.7, was built by the earlier
+v0.6.0. Every archive from v0.5.0 through v0.5.7 was built by the earlier
 single-job workflow, which referred to its actions by floating tags, and with executables that
 cannot be reproduced.
 
 ```bash
 powershell -ExecutionPolicy Bypass -File build/make_gui.ps1
 python build/make_release.py
+python build/make_release.py --edition advanced
 python build/smoke_archive.py build/dist/CodexAutoResume-v<version>-win-x64.zip <version>
 ```
 
@@ -179,7 +181,8 @@ The first builds `CodexAutoResumeSettings.exe` and `codex-auto-resume-mcp.exe`, 
 reproducible (below), and prints the compiler it used and each executable's SHA-256; it
 needs `python` on `PATH` for that step. The second downloads the pinned embeddable Python
 (checksum-verified), assembles the payload, and writes the ZIP and its SHA-256 into
-`build/dist/`.
+`build/dist/`; with it comes each edition's setup program, `CodexAutoResume-Setup-v<version>.exe` and
+`CodexAutoResume-Advanced-Setup-v<version>.exe`, with their `.sha256` files.
 
 The third drives the archive's own bytes: it extracts the ZIP and runs the engine inside
 it with the interpreter inside it, against a state directory that exists only for that run,
@@ -203,15 +206,13 @@ checks its own settings on GitHub.
 
 A version built in stages ships each finished stage as a pre-release while the next stage is
 built, so one version can have more pre-releases than one `-alpha` and one `-beta`. The word a
-pre-release carries says how far it can be relied on:
+pre-release carries says whether a person can notice what it brings:
 
-- **`-alpha`, then `-alpha.2`, `-alpha.3`, and so on**, while the stage is not yet for real use:
-  groundwork with nothing to switch on; a feature that cannot yet be said to work end to end,
-  because a live measurement is still pending or a known gap blocks it; or a stored format that
-  may still change before the release.
-- **`-beta`, then `-beta.2`, `-beta.3`, and so on**, once every feature in it works end to end,
-  has passed review and both editions' tests and has been shown to the maintainer as a before and
-  after, and what it stores is what the release will keep. Once a version has had a beta, every
+- **`-alpha`, then `-alpha.2`, `-alpha.3`, and so on**, when it carries nothing a person can
+  notice: refactoring, module splits, groundwork, stored-format or seam work, probes, internal
+  tests.
+- **`-beta`, then `-beta.2`, `-beta.3`, and so on**, when it carries something a person can
+  notice: a new feature, or a change they can see or feel. Once a version has had a beta, every
   later pre-release of it is a `-beta.N`; it never goes back to an alpha.
 - **No suffix** - the release - once every stage is done and live acceptance
   ([`docs/LIVE_ACCEPTANCE.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/LIVE_ACCEPTANCE.md))
@@ -300,7 +301,7 @@ and compare the files inside the two archives;
 has a snippet that does that without extracting either. If every file matches and the
 archive digest still differs, look at the Python and zlib that wrote the archive. A tag
 whose source has no `build/normalize_pe.py` predates all of this - that is every release
-published so far, v0.5.0 through v0.5.7 - and its executables will not match.
+from v0.5.0 through v0.5.7 - and its executables will not match.
 
 ### After a release is published: pin its digest
 
@@ -319,7 +320,8 @@ So, once the release is up:
 
 1. Download the published `CodexAutoResume-v<version>-win-x64.zip`.
 2. `Get-FileHash <zip> -Algorithm SHA256` — and check it against the published `.sha256`.
-3. Put that digest in `scripts/release.json` under the version, and commit.
+3. Put that digest in `scripts/release.json` under the version - under `sha256` for the standard archive, and
+   under the `advanced` table's `sha256` for the advanced one - and commit.
 
 A planned pre-release - a suffixed tag such as `v0.6.9-alpha` - is not pinned at all. The
 table's keys are releases, `releases/latest` never answers with a pre-release, and the check that
@@ -426,7 +428,7 @@ python build/l10n.py check                  # exit 1 if anything is incomplete
 ```
 
 So adding an English string, or changing one, is not finished until every catalog has caught
-up: the key is missing or stale in the other eight, and `tests/test_l10n.py` fails until each
+up: the key is missing or stale in every other catalog, and `tests/test_l10n.py` fails until each
 has been translated and imported, or marked as reviewed. An import that loses or invents a
 placeholder is refused. Nothing here reaches the network, and a test holds the localization
 modules and this tool to that.
@@ -504,9 +506,11 @@ records that somebody did.
 
 ## Screenshots
 
-`python build/make_screenshots.py` renders the whole set from the working tree: the Codex
-panel, and the window's Overview, Pending and Settings pages, in English and Korean, into
-`assets/` with copies in `docs/images/`. Nothing is captured by hand and nothing is edited
+`python build/make_screenshots.py` renders the whole set from the working tree - every Dashboard page, the Codex
+panel, the popup and the notification card, in English and Korean, and some of them also in Japanese,
+Simplified Chinese and German - into
+`assets/` with copies in `docs/images/`. The motion pictures, the social preview and the Advanced page's stills
+have generators of their own: `build/make_motion.py`, `build/make_social.py` and `build/advanced_shots.py`. Nothing is captured by hand and nothing is edited
 afterwards. A whole regeneration is two steps, in this order, both from PowerShell - launched
 from a POSIX shell such as Git Bash, headless Edge exits at once and prints nothing:
 
@@ -569,8 +573,8 @@ holds for the notification card as well, which until then was pictured in both t
 is pinned the same way: every picture is Soft's but the designs' own.
 
 `assets/screenshots.json` records a digest of every input each image was rendered from.
-The window is recorded in two halves. One is the files it is compiled from — its three
-sources, its palette, its DPI manifest, the plugin manifest, the icon, and the capture and
+The window is recorded in two halves. One is the files it is compiled from — every source
+`gui/window.sources` compiles (one `<window sources>` input), its DPI manifest, the plugin manifest, the icon, and the capture and
 build scripts; `WINDOW_INPUTS` in `build/make_screenshots.py` is that list. The other is what
 the bridge tells it: the generator asks the bridge the window's own questions against a
 scratch installation, with the clock, the paths and the machine's answers pinned, and records

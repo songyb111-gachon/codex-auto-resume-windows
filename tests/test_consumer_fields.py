@@ -173,6 +173,8 @@ _RECEIVERS = {
     "gui/SettingsHomes.cs": {
         "view": [("bridge:status", "status.codex_homes"), ("bridge:dashboard", "status.codex_homes")],
         "home": [("bridge:status", "status.codex_homes.homes[]"), ("bridge:dashboard", "status.codex_homes.homes[]")],
+        # v0.6.18: the Codex home the card suggests, and what Not now leaves to suggest.
+        "suggestion": [("bridge:home-suggestion", "result"), ("bridge:home-dismiss", "result")],
     },
     "panel": {
         "payload": [("@", "")],
@@ -198,7 +200,9 @@ _LOCAL = {
     "gui/InstallerFlow.cs": {"manifest"},
     # v0.6.16: the render mode's job (build/motion_window.py writes it, not the bridge): the job, its forms and
     # frames, and a frame's own parts - never a reply's.
-    "gui/WindowRender.cs": {"job", "forms", "frame", "answer", "combo", "listed", "scroll", "Map(forms, locale)"},
+    # v0.6.18: and a frame's chosen Pending row and its open row menu.
+    "gui/WindowRender.cs": {"job", "forms", "frame", "answer", "combo", "listed", "scroll", "Map(forms, locale)",
+                            "selected", "menu"},
 }
 
 # The window was two files until v0.6.10-alpha, when each became several. The three tables above
@@ -295,7 +299,7 @@ _TYPED = {
         "offer": wire.PowerChoice, "choice": wire.PowerChoice, "powerView": wire.PowerView,
         "armed": wire.PowerArmed, "shown": wire.PowerShown, "last": wire.PowerLast,
     },
-    "gui/SettingsHomes.cs": {"view": wire.HomesView, "home": wire.HomeView},
+    "gui/SettingsHomes.cs": {"view": wire.HomesView, "home": wire.HomeView, "suggestion": wire.HomeSuggestion},
 }
 TYPED = {(name, receiver): contract for name, table in _spread(_TYPED).items()
          for receiver, contract in table.items()}

@@ -29,7 +29,7 @@ import secrets
 import sys
 import time
 
-from . import config, homes, interface, logbook, machine, oncewords, startup
+from . import config, homefind, homes, interface, logbook, machine, oncewords, startup
 from .domain import ids
 from .domain.plug import DEFER, EXTRA, Surface
 from .settings import is_custom_text
@@ -239,6 +239,10 @@ def collect(control, *, now=None, redact=None, check=None, report=None) -> dict:
     if homes.FIELD in settings:
         named = settings[homes.FIELD]
         settings[homes.FIELD] = len(named) if isinstance(named, list) else None
+    # v0.6.18: the folders set aside from the Dashboard's suggestion are paths too: only how many.
+    if homefind.DISMISSED in settings:
+        aside = settings[homefind.DISMISSED]
+        settings[homefind.DISMISSED] = len(aside) if isinstance(aside, list) else None
     # A Custom message is the user's own writing and may say anything, so the bundle records
     # only whether each one is set. What was sent is not something a bug report needs.
     for name in list(settings):

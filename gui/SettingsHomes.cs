@@ -7,6 +7,11 @@
 // against this PC (homes.strict) and answers a refusal in words a person can act on; Save does not change it.
 // What the watcher found of each home - watched, another watcher has it, unavailable, the Codex app on another
 // home, the same folder as another, being removed - comes with every status read (`codex_homes`).
+//
+// v0.6.18: a Codex home this PC's Codex uses that is not watched yet is suggested on the card - "Codex also uses
+// <folder>. Watch it too?" with Add, which adds it as Add a Codex home... does, and Not now, which sets it aside for
+// good - asked of the bridge (`home-suggestion`, homefind.py) each time the card is shown and after each change of
+// the homes; never added on its own. A switch under it turns the looking off.
 
 using System;
 using System.Collections.Generic;
@@ -28,6 +33,13 @@ namespace CodexAutoResume
         /// The homes as the last status said them: `codex_homes.homes`, each {alias, path, state}, the default first.
         private List<Dictionary<string, object>> homesShown = new List<Dictionary<string, object>>();
         private string homesSignature;
+        /// v0.6.18: the suggestion - its line, its Add and Not now, and the switch that turns the looking off.
+        private Label homesSuggestLine;
+        private FlowLayoutPanel homesSuggestActions;
+        private Button homesSuggestAdd;
+        private CheckBox homesSuggestSwitch;
+        private string homesSuggested;
+        private bool homesSuggestReading, homesSuggestSetting;
 
         /// Builds the card at the end of `stack` - Settings > Advanced, after the limits.
         private void BuildHomes(TableLayoutPanel stack)
@@ -58,7 +70,120 @@ namespace CodexAutoResume
             homesAdd.Anchor = AnchorStyles.Left | AnchorStyles.Top;
             homesAdd.Margin = Pad(0, 6, 0, 0);
             homesCard.Controls.Add(homesAdd);
+            BuildHomeSuggestion();
             ShowHomes();
+        }
+
+        /// v0.6.18: the suggestion's line and its two buttons, hidden until there is one, and its switch with what it
+        /// looks at - at the card's foot, after Add a Codex home...
+        private void BuildHomeSuggestion()
+        {
+            homesSuggestLine = HelpText("");
+            homesSuggestLine.ForeColor = Ink;
+            homesSuggestLine.Margin = Pad(0, 10, 0, 2);
+            homesCard.Controls.Add(homesSuggestLine);
+            homesSuggestActions = ButtonRow();
+            homesSuggestActions.BackColor = Palette.Card;   // the card's ground (issue #34)
+            homesSuggestActions.Dock = DockStyle.None;
+            homesSuggestActions.Padding = Pad(0, 2, 0, 6);
+            homesSuggestAdd = MakeButton(S("homes.suggest.add", "Add"), false, delegate { AddSuggestedHome(); });
+            homesSuggestActions.Controls.Add(homesSuggestAdd);
+            homesSuggestActions.Controls.Add(MakeButton(S("action.not_now", "Not now"), false, delegate { DismissSuggestedHome(); }));
+            homesCard.Controls.Add(homesSuggestActions);
+            ShowLine(homesSuggestLine, "");
+            homesSuggestActions.Visible = false;
+            homesSuggestSwitch = NewCheck(S("homes.suggest.switch", "Suggest Codex homes found on this PC"), true, false);
+            homesSuggestSwitch.Margin = Pad(0, 10, 0, 2);
+            homesSuggestSwitch.CheckedChanged += delegate { if (!homesSuggestSetting) WriteSuggestSwitch(homesSuggestSwitch.Checked); };
+            homesCard.Controls.Add(homesSuggestSwitch);
+            homesCard.Controls.Add(HelpText(S("homes.suggest.help",
+                "Looks only at the CODEX_HOME variable of your Windows account and at the Codex app's own list of where it has run. Nothing is added until you choose Add.")));
+        }
+
+        /// Asks for the suggestion each time the card is shown: Settings is the page and Advanced the section.
+        private void LoadHomeSuggestionWhereShown()
+        {
+            if (currentPage != "settings" || currentSection != "advanced") return;
+            LoadHomeSuggestion();
+        }
+
+        /// On a worker, as every call is (CallAsync). Never while the window is being audited.
+        private void LoadHomeSuggestion()
+        {
+            if (homesCard == null || auditing || homesSuggestReading) return;
+            homesSuggestReading = true;
+            CallAsync("home-suggestion", null, delegate(Dictionary<string, object> reply)
+            {
+                homesSuggestReading = false;
+                if (Ok(reply)) ApplyHomeSuggestion(Map(reply, "result"));
+            });
+        }
+
+        /// The line as the bridge says it: the folder offered with Add and Not now, or - every home added - that it
+        /// cannot be added, with Not now alone; nothing when there is none or the switch is off.
+        private void ApplyHomeSuggestion(Dictionary<string, object> suggestion)
+        {
+            if (homesSuggestLine == null || suggestion == null) return;
+            homesSuggested = Equals(Get(suggestion, "on"), true) ? Str(suggestion, "path") : null;
+            bool full = Equals(Get(suggestion, "full"), true);
+            if (string.IsNullOrEmpty(homesSuggested))
+            {
+                homesSuggested = null;
+                ShowLine(homesSuggestLine, "");
+                homesSuggestActions.Visible = false;
+                return;
+            }
+            ShowLine(homesSuggestLine, full
+                ? S("homes.suggest.full", "Codex also uses {path}, but three Codex homes are already added. Remove one to watch it.", "path", homesSuggested)
+                : S("homes.suggest.line", "Codex also uses {path}. Watch it too?", "path", homesSuggested));
+            homesSuggestAdd.Visible = !full;
+            homesSuggestActions.Visible = true;
+        }
+
+        /// Add: the folder offered, named as Add a Codex home... names one, through the same write (WriteHomes).
+        private void AddSuggestedHome()
+        {
+            string path = homesSuggested;
+            if (path == null || Extras().Count >= HomesMax) return;
+            string name = Path.GetFileName(path.TrimEnd('\\', '/'));
+            string alias = AskAlias(string.IsNullOrEmpty(name) ? path : name);
+            if (alias == null) return;
+            var homes = Extras();
+            var entry = new Dictionary<string, object>();
+            entry["path"] = path;
+            entry["alias"] = alias;
+            homes.Add(entry);
+            WriteHomes(homes);
+        }
+
+        /// Not now: the folder is set aside for good, and whatever is offered next is shown.
+        private void DismissSuggestedHome()
+        {
+            string path = homesSuggested;
+            if (path == null) return;
+            var argument = new Dictionary<string, object>();
+            argument["path"] = path;
+            CallAsync("home-dismiss", Json.Write(argument), delegate(Dictionary<string, object> reply)
+            {
+                if (Ok(reply)) ApplyHomeSuggestion(Map(reply, "result"));
+                else ShowLine(homesRefusal, S("homes.refused", "Not saved: {reason}", "reason", Str(reply, "error") ?? ""));
+            });
+        }
+
+        /// The switch written at once, as the card's other changes are, and the suggestion asked again.
+        private void WriteSuggestSwitch(bool on)
+        {
+            var changes = new Dictionary<string, object>();
+            changes["home_suggestions"] = on;
+            CallAsync("update", Json.Write(changes), delegate(Dictionary<string, object> reply)
+            {
+                if (!Ok(reply))
+                {
+                    ShowLine(homesRefusal, S("homes.refused", "Not saved: {reason}", "reason", Str(reply, "error") ?? ""));
+                    return;
+                }
+                LoadHomeSuggestion();
+            });
         }
 
         /// From a status read (ApplyStatus): the homes and what the watcher found of each, and whether watching a
@@ -74,6 +199,14 @@ namespace CodexAutoResume
                 if (home != null) shown.Add(home);
             }
             homesShown = shown;
+            // v0.6.18: the switch as the settings hold it, set without writing it back.
+            bool suggesting = !Equals(Get(Map(status, "settings"), "home_suggestions"), false);
+            if (homesSuggestSwitch != null && homesSuggestSwitch.Checked != suggesting)
+            {
+                homesSuggestSetting = true;
+                homesSuggestSwitch.Checked = suggesting;
+                homesSuggestSetting = false;
+            }
             ShowLine(homesWarning, Equals(Get(view, "unmeasured"), true)
                 ? S("homes.unmeasured", "Watching a second Codex home was proven on Codex 0.162; on this Codex it is unproven.")
                 : "");
@@ -214,6 +347,7 @@ namespace CodexAutoResume
                 }
                 homesSignature = null;
                 RefreshNow();
+                LoadHomeSuggestion();
             });
         }
 

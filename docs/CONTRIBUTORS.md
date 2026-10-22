@@ -40,6 +40,8 @@ Project creator and maintainer. Copyright holder.
 - Security review and adversarial audit (three rounds, plus mutation testing, a crash-window matrix, and
   a cross-process race test)
 - Public release preparation
+- The v0.6.x development, maintenance and releases: the Dashboard, the two editions, the installer and the
+  releases themselves, as [CHANGELOG.md](CHANGELOG.md) tells release by release
 
 ## People who reported, suggested and tested
 
@@ -69,9 +71,13 @@ accounts.**
 They are credited here because they did meaningful design and implementation work, and because readers
 of the source deserve to know how it was produced. They are deliberately **not**:
 
-- listed as commit authors or co-authors with invented email addresses,
 - given GitHub accounts, profiles, or contributor avatars,
-- named as copyright holders.
+- named as copyright holders,
+- given an e-mail address of their own invention.
+
+The commits that were written with Claude carry a `Co-Authored-By` trailer that names the Claude model that wrote
+them, with Anthropic's own `noreply@anthropic.com` address. People, the maintainer and everyone who reported or
+suggested something, are credited by their GitHub login.
 
 Copyright is held by the human maintainer. Responsibility for the code, including its safety properties,
 rests with the maintainer, not with the tools.

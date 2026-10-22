@@ -22,7 +22,7 @@ state dot breathes while the watcher is watching. The flat cards with an accent 
 before are gone.
 
 v0.6.4 made them one material rather than three similar ones. The panel in Codex was the
-reference: its shadows, sizes and control recipes moved into `brand.py` as data, and the
+reference: its shadows, sizes and control recipes moved into `brand` as data, and the
 Dashboard and the popup now draw the same lifted cards, the same shallow wells and the same
 switches from those numbers. Each surface kept its own text sizes and its own layout. The state
 light kept its shape and got back the colour it had before v0.6.3: cyan whenever the watcher is
@@ -39,7 +39,7 @@ does and spreads a little once it is lit, the notification-area icon moves in it
 boxes fade on one curve (`MOTION`), what stands on the popup's card is raised and what holds a
 value is sunken, and the drop-down's open list is drawn in the cards' material rather than by
 Windows. A notification can appear as the popup's own card beside the notification area. The
-mark's geometry moved into `brand.py` (`ICON_SHAPE`), because the watcher now draws the icon's
+mark's geometry moved into `brand` (`ICON_SHAPE`), because the watcher now draws the icon's
 frames from it.
 
 v0.6.10 settled that look and then drew it more than one way. The audit gave every header one light rule, the
@@ -55,9 +55,9 @@ duration as well.
 
 | Surface | How it gets the palette |
 | --- | --- |
-| The Codex panel | `mcpui.py` builds its `:root` block at import from `brand.LIGHT` and `brand.DARK`, `brand.css_scale()` - which also writes the check box's colours for each of its states - and `brand.css_elevation()`, which writes the shadow recipes of both themes as CSS. |
+| The Codex panel | `mcp/panel.py` builds its `:root` block at import from `brand.LIGHT` and `brand.DARK`, `brand.css_scale()` - which also writes the check box's colours for each of its states - and `brand.css_elevation()`, which writes the shadow recipes of both themes as CSS. |
 | The Dashboard | `build/make_brand.py` generates `gui/Brand.cs`: every light token as a `Color`, and in the nested class `Brand.Dark` the dark twin of everything that changes with the theme, under the same name - and since v0.6.10 `Brand.Classic` and `Brand.Plain`, each with its own `Dark`, for the two designs with colours of their own, and the design's rules (`Brand.DesignDepth`, `DesignGlow`, `DesignAccentBar`, `DesignRadius`), all of which `Brand.LookOf(design, dark)` answers at once for one design in one theme; the scale, the layout sizes, the shadow recipes and the state light's numbers as constants; and the per-state rules of the state light, the shadows and the check box as small generated methods. `gui/SoftTheme.cs` adopts one theme before the first control is made and reads the brand's colours through one `Tokens` class, the only place a colour is read, from what `Brand.LookOf` answers - so the window's own code never chooses a design's colours by its name, and `tests/test_gui_theme.py` fails if any of it names a design; its `Palette` class is also the one place High Contrast is honoured, and the other soft-control sources draw through both. The generated file is committed, so a contributor with no Python can still read what the window will look like. |
-| The notification-area popup | `tray_popup/` imports `brand` and draws with `brand.palette(theme)`, `brand.card_ground(theme)`, `brand.shadows(recipe, theme)`, the scale, `brand.glow()` and `brand.ease()` directly, in the theme it resolved when it opened - and since v0.6.10 in the design it read with it, which every one of those takes as `design`. The notification card is the popup's card, drawn by the popup's own renderer. |
+| The notification-area popup | `ui/popup/` imports `brand` and draws with `brand.palette(theme)`, `brand.card_ground(theme)`, `brand.shadows(recipe, theme)`, the scale, `brand.glow()` and `brand.ease()` directly, in the theme it resolved when it opened - and since v0.6.10 in the design it read with it, which every one of those takes as `design`. The notification card is the popup's card, drawn by the popup's own renderer. |
 | The icon | `assets/make_icon.py` imports the four icon colours and `brand.ICON_SHAPE`, and rasterises with `brand.icon_render()`; the notification-area icon's motion frames come from the same geometry and rasteriser inside the watcher (`tray.py`). |
 | The plugin card | `.codex-plugin/plugin.json` carries `brandColor`, checked against `brand.BRAND`. |
 
@@ -138,7 +138,7 @@ window and a card in Codex round their corners by the same amount.
 
 The window gets these as constants in `gui/Brand.cs` - `RadiusCard`, `SpaceM`, `TypeBody`,
 `ButtonHeight`, `FieldHeight`, the shadow recipes and the glow's numbers - and multiplies them
-by its own scale factor. The popup reads the same tables from `brand.py`. The panel gets CSS
+by its own scale factor. The popup reads the same tables from `brand`. The panel gets CSS
 custom properties from `brand.css_scale()`: `--radius-*`, `--space-*`, `--type-*`, `--lh-*`,
 `--size-*`, `--glow-*`, `--transition` and `--transition-ease`. The curve is solved the way
 browsers solve a cubic-bezier - `brand.ease()` in the popup, `Brand.Ease` in the window - so all
@@ -310,13 +310,13 @@ which is every slot of its loop and of recovering's and a failure's sweeps, and 
 breath. Since v0.6.8 nothing is drawn on top of the mark - no status badge in its corner - so the
 notification-area icon and the window's taskbar button are one picture. Its own few
 numbers - how many breaths come before a sweep, how long its slot is and how that slot is spent, the
-head's positions, the breath's levels and the frame rates - are `tray.py`'s `ICON_MOTION`,
-deliberately not `brand.py`'s, because every `GLOW` key is generated into the window's status light,
+head's positions, the breath's levels and the frame rates - are `ui/tray/motion.py`'s `ICON_MOTION`,
+deliberately not `brand`'s, because every `GLOW` key is generated into the window's status light,
 and the window's taskbar button reads the icon's own from `Brand.Mark`. The README shows the motion
 as an animated PNG drawn from the icon's own frames (`docs/images/icon-motion.png`, made by
 `build/make_screenshots.py`). It holds still under Reduce motion, Windows' animation setting, High
 Contrast, battery saver, a locked session, and while Windows' own settings for the icon say it sits
-in the overflow area (`tray_place.IconPlacement`, which reads them and writes nothing): the icon's
+in the overflow area and the flyout is closed (`tray_place.IconPlacement`, which reads them and writes nothing; it moves while the flyout is open): the icon's
 rectangle cannot say, because Windows 11 build 26200 gives an icon in the overflow area the overflow
 button's own rectangle rather than none, and the icon moved there unseen.
 
@@ -408,7 +408,7 @@ High Contrast, which replaces every design and draws one look whichever is chose
 corners. Depth is the design's and never High Contrast's. What moves is no design's: the light and
 the controls move unless a stopper holds them, and the stoppers are each surface's own and the same
 in every design - Reduce motion, Windows' animation effects and High Contrast everywhere, and battery
-saver, a locked session, the overflow area or a hidden surface where they apply. Each design's light
+saver, a locked session, a closed overflow flyout or a hidden surface where they apply. Each design's light
 keeps its word beside it.
 
 **A design changes paint, never layout.** Every size, padding, dot and reserved shadow margin is the
@@ -550,7 +550,7 @@ catalog, to say that nothing is installed in that location.
 ## Depth in the popup
 
 v0.6.5 gave the inside of the popup's card the depth its outside had. What stands on the card is
-raised and what holds a value is sunken, and every part of it is one of `brand.py`'s recipes -
+raised and what holds a value is sunken, and every part of it is one of `brand`'s recipes -
 the popup adds no number of its own:
 
 | What | How it is drawn |

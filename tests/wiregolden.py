@@ -325,6 +325,27 @@ def _host_app(watcher_inside):
     return using
 
 
+def _home_found():
+    """A Codex home this PC's Codex uses beside the watched one (v0.6.18, homefind.py), for this one case: the copy
+    looks as an installed one does, the account's CODEX_HOME names a folder of the scratch workspace holding a Codex
+    state, and the Codex app's list names that folder and the watched home again - never this machine's registry
+    or Codex app."""
+    @contextmanager
+    def using(workspace):
+        from codex_auto_resume import config, homefind
+        from codex_auto_resume.win import userenv
+
+        other = workspace / "other-codex"
+        other.mkdir(exist_ok=True)
+        (other / "state_5.sqlite").write_bytes(b"")
+        app = [str(config.codex_home()), str(other) + "\\"]
+        with patch.object(homefind, "looks", return_value=True), \
+                patch.object(userenv, "codex_home", return_value=str(other)), \
+                patch.object(homefind, "app_homes", return_value=app):
+            yield
+    return using
+
+
 def _postponed(key, thread):
     """A task a person postponed by an hour (v0.6.11), so Don't postpone has something to take away.
     Through the product's own store, and left as it is for the cases after it."""
@@ -775,6 +796,15 @@ BRIDGE_CASES = {
         Case("a finished task", {"interruption_id": RECOVERED, "thread_id": T3, "always": False})],
     # v0.6.12: the power action after usage-limit recoveries - what Windows offers here (a stand-in port),
     # armed only from the Dashboard, and turned off.
+    # v0.6.18: the Codex home Settings > Advanced offers to watch too - none from a checkout, which looks nowhere -
+    # and Not now, after which that folder is never offered again.
+    "home-suggestion": [
+        Case("a copy run from a checkout looks nowhere"),
+        Case("a folder the account's CODEX_HOME names, not watched yet", using=_home_found())],
+    "home-dismiss": [
+        Case("set aside with Not now: nothing else to offer", lambda workspace: {"path": str(workspace / "other-codex")},
+             using=_home_found()),
+        Case("no folder named is refused", {}, using=_home_found())],
     "power-action": [
         Case("nothing armed, and every action offered", using=_power()),
         Case("hibernation off in Windows", using=_power(NO_HIBERNATION)),

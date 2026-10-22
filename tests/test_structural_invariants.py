@@ -36,8 +36,10 @@ PROCESS_STARTERS = SPAWNERS | {
     "ShellExecuteW", "ShellExecuteExW", "CreateProcessW"}
 QUEUE_WORD = re.compile(r"\bqueue\b")
 # The message flag as an argument: a token on its own, or after `queue` in a command line.
-# "`codex queue` still offers --thread/--message" is a sentence, and does not match.
-MESSAGE_ARGUMENT = re.compile(r"^\s*--message\s*$|\bqueue\s+(?:\S+\s+)*?--message\b")
+# "`codex queue` still offers --thread/--message" is a sentence, and does not match. The send spells
+# `"--message=" + prompt`, read here as `--message={}` (one argument, so a message starting with "-"
+# is the message, not an option).
+MESSAGE_ARGUMENT = re.compile(r"^\s*--message(?:=\{\})?\s*$|\bqueue\s+(?:\S+\s+)*?--message\b")
 
 
 def calls(predicate):
@@ -229,14 +231,15 @@ class OneSenderTests(unittest.TestCase):
         that names `queue` asks it for `--help`, to prove the flags still exist."""
         spawns = calls(lambda node: getattr(node.func, "attr", getattr(node.func, "id", None)) in SPAWNERS
                        and "queue" in constants(node))
-        sending = [(where, name, node) for where, name, node in spawns if "--message" in constants(node)]
+        # v0.6.18: the message goes as one `--message=<text>` argument (tests/test_message_leading_hyphen.py).
+        sending = [(where, name, node) for where, name, node in spawns if "--message=" in constants(node)]
         self.assertEqual([(where, name) for where, name, _ in sending],
                          [("codex_auto_resume/codex/transport.py", "Backend.send")])
         self.assertEqual(sending[0][2].func.attr, "Popen")
-        self.assertLessEqual({"--thread", "--message"}, constants(sending[0][2]))
+        self.assertLessEqual({"--thread", "--message="}, constants(sending[0][2]))
         for where, name, node in spawns:
             with self.subTest(where=where, name=name):
-                self.assertTrue("--message" in constants(node) or "--help" in constants(node),
+                self.assertTrue("--message=" in constants(node) or "--help" in constants(node),
                                 "a process names `queue` without being the send or the help probe")
 
     def test_every_function_that_starts_a_process_and_names_the_queue_is_known(self):

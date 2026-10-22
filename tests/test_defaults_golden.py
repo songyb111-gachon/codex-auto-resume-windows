@@ -70,6 +70,11 @@ ADDED: dict = {
     "status_file": (False, "off: no status file is written"),
     "custom_message_by_thread": (None, "no conversation has a message of its own: each gets the style's, as in v0.6.10"),
     "codex_homes": ([], "none: the default Codex home alone is watched, as v0.6.10 watched it"),
+    # v0.6.18: on, the owner's choice (2026-10-22): it only shows a line in Settings > Advanced offering a Codex home it
+    # found - nothing is added, watched, recovered or sent until a person chooses Add - so what is recovered, and how,
+    # stays v0.6.10's.
+    "home_suggestions": (True, "on, and only a suggestion: nothing is watched or sent unless a person chooses Add"),
+    "home_suggestions_dismissed": ([], "none: no folder has been set aside, and nothing is watched for it either way"),
     # v0.6.16: the one entry here that does not keep v0.6.10's behaviour, and says so. A click on a notice's card or
     # on the body of Windows' notification opens the Dashboard page the notice is about - the owner's deliberate
     # change of 2026-10-15/16, which v0.6.16 makes for everyone; "page" names it. No surface offers this setting in

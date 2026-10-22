@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import time
 
-from .. import config, notice_kinds, notifier, notify
+from .. import config, edition, notice_kinds, notifier, notify
 from ..app import EXIT_ERROR, EXIT_OK
-from ..store import LegacyStore
+from ..store import LegacyStore, StoreError
 from ..windows import WakeEvent
 from .base import CliError, _app, _now, _open_state, _print
 
@@ -26,6 +26,21 @@ def cmd_stop(args) -> int:
         return EXIT_OK
     _print("no running watcher found")
     return EXIT_OK
+
+
+def _open_codex_on(app) -> bool:
+    """Whether a notice raised here may offer Open Codex now (v0.6.18): never in the standard edition, whose buttons
+    cancel, stop the power action or open a Dashboard page and nothing else (A28); in the advanced edition only while
+    its plug's icon surface says so - the capability on and Windows able to open the link - as the watcher's own
+    notices ask it (runtime/app.py). Asked only of a cancel URI that carries the flag."""
+    if edition.name() != edition.Edition.ADVANCED:
+        return False
+    try:
+        added = edition.plug(app.paths).surface("tray", {})
+    except Exception:
+        return False
+    notice = added.get("notice") if isinstance(added, dict) else None
+    return isinstance(notice, dict) and notice.get("open_codex") is True
 
 
 def cmd_activate(args) -> int:
@@ -61,27 +76,50 @@ def cmd_activate(args) -> int:
     # The button names one interruption, so it stops that task and whatever continues
     # it - not every later interruption in the conversation. Only while an older watcher
     # still owns the state does it fall back to that watcher's thread-wide cancel.
-    with _open_state(app) as store:
-        if isinstance(store, LegacyStore):
-            thread_id = store.thread_of(interruption_id)
-            if thread_id is None:
-                app.logger.info("activation ignored: no record for that interruption")
+    # v0.6.18: tried again while the watcher holds the state, for as long as a card's Cancel is (control/actions.py
+    # CANCEL_RETRY_SECONDS) - a busy store used to end this windowless process in an error nobody saw.
+    from ..control.actions import CANCEL_RETRY_SECONDS
+    deadline = time.monotonic() + CANCEL_RETRY_SECONDS
+    while True:
+        try:
+            with _open_state(app) as store:
+                if isinstance(store, LegacyStore):
+                    thread_id = store.thread_of(interruption_id)
+                    if thread_id is None:
+                        app.logger.info("activation ignored: no record for that interruption")
+                        return EXIT_ERROR
+                    store.cancel_thread(thread_id, _now())
+                else:
+                    record = store.get(interruption_id)
+                    if record is None:
+                        app.logger.info("activation ignored: no record for that interruption")
+                        return EXIT_ERROR
+                    thread_id = record["thread_id"]
+                    result = store.cancel_interruption(interruption_id, _now(), actor="toast")
+                    if isinstance(result, dict) and result.get("changed") is False:
+                        # v0.6.18: a stale notice's Cancel on a recovery that has finished since says nothing:
+                        # the notice below says it was cancelled, which is not true (notifier.activate does the
+                        # same for a card).
+                        app.logger.info("thread %s: the notification's cancel changed nothing; it had already "
+                                        "finished", thread_id)
+                        _print("thread %s had already finished; nothing changed" % thread_id)
+                        return EXIT_OK
+            break
+        except StoreError:
+            if time.monotonic() >= deadline:
+                app.logger.info("activation: the state stayed busy; the cancel was not recorded")
                 return EXIT_ERROR
-            store.cancel_thread(thread_id, _now())
-        else:
-            record = store.get(interruption_id)
-            if record is None:
-                app.logger.info("activation ignored: no record for that interruption")
-                return EXIT_ERROR
-            thread_id = record["thread_id"]
-            store.cancel_interruption(interruption_id, _now(), actor="toast")
+            time.sleep(0.5)
     app.logger.info("thread %s: cancelled from the notification", thread_id)
     # What it says afterwards is the notice a card's cancel announces (notifier.build_cancelled): the same words,
     # a body that opens its page, and staying on screen when a person chose that kind (v0.6.16) - Windows' toast,
     # as the power-stop branch above raises its own.
     # v0.6.18: with Open Codex where the notice pressed offered it - the decision the watcher made, carried on the
     # button's URI (notify.cancel_asks_open_codex), since this process loads no plug.
+    # v0.6.18: the flag is honoured only where the edition offers the button now (_open_codex_on), so a crafted URI
+    # cannot put Open Codex on a standard edition's notice (A28).
+    open_codex = notify.cancel_asks_open_codex(args.uri) and _open_codex_on(app)
     notifier.deliver(notifier.with_open_codex(notifier.build_cancelled(thread_id, notice_kinds.chosen(app.settings)),
-                                              notify.cancel_asks_open_codex(args.uri)), inbox=None, setting=False)
+                                              open_codex), inbox=None, setting=False)
     _print("thread %s cancelled" % thread_id)
     return EXIT_OK

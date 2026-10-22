@@ -344,9 +344,9 @@ class EditionWordTests(unittest.TestCase):
         text = INSTALLER.read_text(encoding="utf-8")
         read = text.index("$edition = Get-Edition -Src (Join-Path $Payload 'app\\src')")
         said = text.index("Write-Host ('edition: ' + $edition)")
-        self.assertLess(text.index("if (-not (Test-Path $Payload))"), read)
+        self.assertLess(text.index("if (-not (Test-Path -LiteralPath $Payload))"), read)
         self.assertLess(read, said)
-        self.assertLess(said, text.index("$upgrade = Test-Path $AppDir"))
+        self.assertLess(said, text.index("$upgrade = Test-Path -LiteralPath $AppDir"))
         self.assertEqual(text.count(editions.PACKAGE), 1, "the package is spelled once, in Get-Edition")
 
     def test_the_bootstrap_says_it_before_it_asks_or_fetches_anything(self):

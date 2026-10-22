@@ -625,6 +625,9 @@ class BridgeTests(ControlTestCase):
             "rescan",
             # v0.6.17: Diagnostics' read of whether the watcher and the bridge run inside another app - nothing sent.
             "host-app",
+            # v0.6.18: the Codex home Settings > Advanced offers to watch too - read only - and Not now, a settings
+            # write that sets that folder aside. Nothing is added or sent.
+            "home-suggestion", "home-dismiss",
             # v0.6.19: Diagnostics' compatibility report from this PC's own records - read only, sent nowhere.
             "own-report"]))
 

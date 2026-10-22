@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import advancedcase as ac  # noqa: E402
 from codex_auto_resume import notifier, notify  # noqa: E402
-from codex_auto_resume.domain.plug import DEFER, Surface  # noqa: E402
+from codex_auto_resume.domain.plug import DEFER, NULL, Surface, guard  # noqa: E402
 from codex_auto_resume.runtime.app import App  # noqa: E402
 from codex_auto_resume_advanced import registry, statement, surfaces  # noqa: E402
 from codex_auto_resume_advanced.control import opencodex  # noqa: E402
@@ -166,7 +166,9 @@ class ToastCancelTests(unittest.TestCase):
     """The notice a cancel pressed on Windows' toast raises comes from a separate process with no plug: the decision
     rides on the button's own URI."""
 
-    def activate(self, uri):
+    def activate(self, uri, on=True):
+        """`on`: whether the capability stands on here now (v0.6.18: commands/watcher.py honours the flag only
+        then, and never in the standard edition)."""
         from contextlib import contextmanager
         from types import SimpleNamespace
         from codex_auto_resume.commands import watcher as command
@@ -184,7 +186,7 @@ class ToastCancelTests(unittest.TestCase):
 
         app = SimpleNamespace(paths=None, settings={}, logger=SimpleNamespace(info=lambda *_a, **_k: None))
         delivered = []
-        with patch.object(command, "_app", lambda _args: app), patch.object(command, "_open_state", opened),                 patch.object(command, "_print", lambda *_a: None),                 patch.object(notifier, "deliver", lambda notice, **_k: delivered.append(notice) or ("toast", True)):
+        with patch.object(command, "_app", lambda _args: app), patch.object(command, "_open_state", opened),                 patch.object(command, "_print", lambda *_a: None),                 patch.object(command, "_open_codex_on", lambda _app: on),                 patch.object(notifier, "deliver", lambda notice, **_k: delivered.append(notice) or ("toast", True)):
             command.cmd_activate(SimpleNamespace(uri=uri))
         return delivered[-1]
 
@@ -201,6 +203,10 @@ class ToastCancelTests(unittest.TestCase):
         flagged = notifier.with_open_codex(interruption(), True).toast_content()["uri"]
         self.assertIn(LINK, [uri for _label, uri in self.activate(flagged).actions])
         self.assertNotIn(LINK, [uri for _label, uri in self.activate(notify.cancel_uri(ac.KEY)).actions])
+
+    def test_a_flag_is_not_honoured_while_the_capability_is_off(self):
+        flagged = notifier.with_open_codex(interruption(), True).toast_content()["uri"]
+        self.assertNotIn(LINK, [uri for _label, uri in self.activate(flagged, on=False).actions])
 
 
 class WatcherTests(unittest.TestCase):
@@ -238,6 +244,7 @@ class WatcherTests(unittest.TestCase):
                 app.settings = Settings(notifications=True)
                 app._open_codex = flag
                 app._inbox = None
+                app._plug = guard(NULL)                # v0.6.19: told each notice first (P20)
                 source = type("Source", (), {"identity": lambda _self, _thread: None})()
                 with patch.object(notifier, "deliver", lambda notice, **_kw: built.append(notice) or ("toast", True)):
                     App._notifier(app, source)("interruption", {"thread_id": THREAD, "interruption_id": ac.KEY,

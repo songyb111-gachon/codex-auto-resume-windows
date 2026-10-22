@@ -102,6 +102,7 @@ foreach ($name in $wanted) {
 $constants = @{}
 foreach ($name in @('$ReleasesHosts', '$ReleasesMaxChars', '$ReleasesTimeoutMin', '$PickFloor', '$EditionsSince',
                     '$PolicySince', '$PolicyKeys', '$PolicyPath', '$PolicyValues', '$StateSchemaSince',
+                    '$StateReadableFrom', '$StateMarkSince',
                     '$AdvancedStateSince', '$AdvancedReadableFrom', '$AdvancedMarkSince', '$PickPageSize',
                     '$PickMaxPages', '$PickBudgetSeconds', '$PickPageTimeoutMax',
                     '$PickNewerPrereleases', '$PickOlderPrereleases')) {
@@ -356,7 +357,7 @@ VERDICT_CASES = [
     row("0.6.15-beta", "offered newer,prerelease,kept", offer="0.6.15-beta"),
     # The advanced settings: an advanced target on an older form than this version's (8, from 0.6.19-alpha; 7 from
     # 0.6.16-beta.4) cannot read them - every one of these, 0.6.16-beta.4 too, which reads no readable-from mark - and
-    # one that reads the mark on a form it is marked readable from can (tests/test_version_picker_readable.py).
+    # one that reads the mark on a form it is marked readable from can (tests/test_version_picker_advanced_readable.py).
     row("0.6.11-beta", "offered older,prerelease,convert3,advanced-off", edition="advanced",
         installed_edition="advanced", older=True),
     row("0.6.11-beta.2", "offered older,prerelease,convert3,advanced-off", edition="advanced", installed_edition="advanced",

@@ -44,6 +44,7 @@ gui/WindowReopen.cs
 gui/WindowAudit.cs
 gui/SettingsRemove.cs
 gui/WindowRender.cs
+gui/ChildTree.cs
 
 [dashboard]
 gui/Dashboard.cs
@@ -68,6 +69,7 @@ gui/SoftLayout.cs
 gui/SoftFields.cs
 gui/SoftCombo.cs
 gui/SoftList.cs
+gui/SoftMenu.cs
 gui/SoftCallout.cs
 gui/Marks.cs
 

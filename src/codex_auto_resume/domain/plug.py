@@ -542,9 +542,15 @@ class Guarded:
         return self._ask(Point.SUPERVISION, facts)
 
     def notice(self, facts):
-        """P20 (v0.6.19), told only while the plug wants it: NULL, and a plug that wants nothing, are told nothing. The
-        facts go as a copy (`consult`), and the answer is not read."""
+        """P20 (v0.6.19), told only while the plug wants it: NULL, and a plug that wants nothing, are told nothing.
+        `facts` may be a function that makes them, called only then - so what they cost to read (a store's Pending) is
+        spent for a plug that wants them alone; one that raises tells nothing. The facts go as a copy (`consult`), and
+        the answer is not read."""
         if self.wants(Point.NOTICE):
+            try:
+                facts = facts() if callable(facts) else facts
+            except Exception:
+                return
             self._ask(Point.NOTICE, facts)
 
     def moved(self, record, state):
