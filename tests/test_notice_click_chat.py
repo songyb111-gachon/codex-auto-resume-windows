@@ -24,7 +24,7 @@ from codex_auto_resume import config, notifier, notify
 from codex_auto_resume.ui import tray
 from codex_auto_resume.ui.tray import dashboard
 
-THREAD = "019a0000-0000-7000-8000-00000000c4a7"
+from test_notice_card import THREAD  # noqa: E402  (a fixture conversation)
 
 
 class LinkTests(unittest.TestCase):
