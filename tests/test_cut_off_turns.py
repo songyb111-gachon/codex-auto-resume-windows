@@ -104,12 +104,17 @@ class CutOffTurnTests(unittest.TestCase):
         self.assertEqual(row["state"], "turn_started")
         self.assertEqual(row["recovery_turn_status"], "inProgress")
 
-    def test_a_persons_message_in_the_turn_still_hands_it_over(self):
-        w = self.world()
-        thread, key, _ = w.started(progress=True, steer_user=True)
-        w.home.add_turn(thread, status="inProgress")
-        _, judged = self.outcome(w, key)
-        self.assertEqual(judged, ("handed_over", "user_joined"))
+    def test_a_persons_message_in_the_turn_is_judged_first(self):
+        """Before the cut-off: a person's message after the turn's work makes it a recovery the person joined
+        (2026-10-22, tests/test_progress_then_user_joined.py); one before any work still hands it over."""
+        for progress, expected in ((True, ("recovered", "progress_then_user_joined")),
+                                   (False, ("handed_over", "user_joined"))):
+            with self.subTest(progress=progress):
+                w = self.world()
+                thread, key, _ = w.started(progress=progress, steer_user=True)
+                w.home.add_turn(thread, status="inProgress")
+                _, judged = self.outcome(w, key)
+                self.assertEqual(judged, expected)
 
     def test_the_reason_is_a_known_one(self):
         """Not shown as `other` anywhere a reason is shown or stored."""

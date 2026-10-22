@@ -73,7 +73,8 @@ LISTS = {
     # version_newer_than_engine, one of those a newer Codex wrote than the engine here (the version skew guard).
     # 2026-10-21: progress_then_turn_cut_off - a recovery turn that did work and that Codex closing, or the PC going
     # off, left inProgress for good (engine/outcome.py).
-    "machine.REASONS": ("set", 80, "51cd45279887543c"),
+    # 2026-10-22: progress_then_user_joined - a recovery turn that did work before a person's message entered it.
+    "machine.REASONS": ("set", 81, "9768467e207d7669"),
     # v0.6.11: postponed, held, hold_released and tier_set - a person's (or the objection window's)
     # later time, a hold, letting it go, and a conversation's tier - and observe only's would_send.
     # And dispatched_while_observing and unpostponed: one taken back for Observe only that ran all the
@@ -98,7 +99,8 @@ LISTS = {
     # v0.6.15-beta: and home_removed and home_not_watched, as every reason is.
     # v0.6.16-beta.4: and held_by_other_session and version_newer_than_engine.
     # 2026-10-21: and progress_then_turn_cut_off, as every reason is.
-    "machine.GATE_REASONS": ("set", 98, "efef3661b38c49f9"),
+    # 2026-10-22: and progress_then_user_joined, as every reason is.
+    "machine.GATE_REASONS": ("set", 99, "b69124d1a9eca7a0"),
     "machine.PASS": "PASS",
     "machine.WAIT": "WAIT",
     "machine.BLOCK": "BLOCK",

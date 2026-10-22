@@ -130,7 +130,7 @@ class PolicyMixin:
             if hold is not None:
                 waiting = sorted(WAITING)
                 for value in connection.execute(
-                        "SELECT * FROM interruptions WHERE thread_id=? AND hold IS NULL "
+                        self._record_sql + " WHERE thread_id=? AND hold IS NULL "
                         "AND submitted_at IS NULL AND cancel_requested=0 AND state IN (%s)"
                         % ",".join("?" for _ in waiting), (thread_id, *waiting)).fetchall():
                     row = _validated_record(dict(value))
@@ -172,7 +172,7 @@ class PolicyMixin:
         waiting = sorted(WAITING)
         with self._transaction() as connection:
             value = connection.execute(
-                "SELECT * FROM interruptions WHERE interruption_id=? AND hold IS NULL "
+                self._record_sql + " WHERE interruption_id=? AND hold IS NULL "
                 "AND submitted_at IS NULL AND cancel_requested=0 AND task_print IS NOT NULL "
                 "AND state IN (%s)" % ",".join("?" for _ in waiting), (interruption_id, *waiting)).fetchone()
             if value is None:
@@ -195,7 +195,7 @@ class PolicyMixin:
         with self._transaction() as connection:
             for key in sorted(set(interruption_ids)):
                 value = connection.execute(
-                    "SELECT * FROM interruptions WHERE interruption_id=? AND hold IS NULL "
+                    self._record_sql + " WHERE interruption_id=? AND hold IS NULL "
                     "AND submitted_at IS NULL AND cancel_requested=0 AND state IN (%s)"
                     % ",".join("?" for _ in waiting), (key, *waiting)).fetchone()
                 if value is None:

@@ -1,6 +1,8 @@
 # Development history
 
-This project was built in four phases by one human maintainer working with two AI coding tools.
+This project was built in five phases (0 to 4) by one human maintainer working with two AI coding tools.
+This page covers the work up to the v0.5 releases; [CHANGELOG.md](CHANGELOG.md) and
+[ROADMAP.md](ROADMAP.md) tell what came after.
 It is recorded here because the *investigation* is a large part of the value: most of the effort went
 into finding out what the Windows ChatGPT/Codex desktop app actually supports, and into proving what
 it does **not** support.
@@ -121,5 +123,5 @@ Beyond code review, three empirical techniques were used:
 
 ## Credits
 
-See [`../CONTRIBUTORS.md`](CONTRIBUTORS.md). OpenAI Codex and Anthropic Claude Code are AI development
+See [CONTRIBUTORS.md](CONTRIBUTORS.md). OpenAI Codex and Anthropic Claude Code are AI development
 tools, not human contributors or GitHub accounts. Copyright is held by the human maintainer.

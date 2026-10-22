@@ -34,6 +34,11 @@ MAX_ADVISORIES = 200
 MAX_EVIDENCE = 8
 # A published_at this far ahead of the local clock is not believed.
 FUTURE_SKEW_SECONDS = 24 * 3600
+# How far a refreshed document's sequence may run ahead of the bundled baseline's (v0.6.18, security M4). The
+# project numbers its data one by one, about one a week, and every release bundles the newest; a document further
+# ahead than this is not the project's, and taking it would refuse every later one as a rollback - the project's
+# own refreshes and every release's bundled data - while its INCOMPATIBLE entries applied for good.
+MAX_SEQUENCE_LEAD = 100
 # A report newer than the clock by more than this is not believed either.
 REPORT_FUTURE_SECONDS = 300
 # How old a report may be before a reader stops believing it: the watcher recomputes at

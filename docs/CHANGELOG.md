@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.6.18 — A recovery turn that worked and was cut off is recovered, a setup bar that fills by real counts, and a streamed update download
+## v0.6.18 — A recovery that worked is recovered however its turn ended, a suggestion for the Codex homes this PC uses, Install another version in the setup window, a setup bar that fills by real counts, a streamed update download, and the fixes of a full audit
 
 [The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.17...v0.6.18)
 
@@ -10,16 +10,42 @@ v0.6.17 with the changes below. Both editions change in the first group; the sec
 and what it changes is off until you turn it on. What this release does not carry - the rest of the advanced
 edition's last stage, which the roadmap had planned for v0.6.18 - is v0.6.19 now.
 
-**Going back.** The watcher's state stays schema 5 and the advanced edition's own file stays version 7, as in
-v0.6.17, and the file's mark of the oldest version that reads it is unchanged, so *Install another version...* back
-to v0.6.17 or v0.6.16 keeps every advanced feature on there, as it was. The weekly update check keeps three numbers in
-the file's table of choices - when it last ran, the newest version it offered, and when - beside the choices
-themselves. No feature offers them as a choice, and v0.6.17 and v0.6.16 pass over a row they do not know, as every
-reader of that table always did, so going back loses nothing and shows nothing of them. Nothing else was added to
-either file.
+**Going back.** The advanced edition's own file stays version 7, as in v0.6.17, and the file's mark of the oldest
+version that reads it is unchanged. The watcher's state stays schema 5 and now also carries a readable-from mark, as
+the advanced edition's file has since v0.6.17: it says that a reader from schema 5 on may use the state. The mark is
+written once - when the state is created, when it is upgraded, or when this version first opens a schema-5 state that
+has none - and the schema does not change with it, so v0.6.17 and v0.6.16 open a marked file as their own, as they
+open any schema-5 state, and read no mark. What it is for comes later: a future release that adds only a table, or a
+column at the end of a table, can keep the mark, and this version then uses that newer state as it is - every table it
+knows holding at least its columns, nothing upgraded - instead of refusing it as newer. A state marked newer than the
+reader, marked by another schema than the one it holds, or not marked is refused with the words it always was.
+*Install another version...* keeps the state for a target that reads the mark - v0.6.18 on - exactly as it keeps it
+for a target on this schema; today both rules give the same rows, and the schemas 4 and 3 are still converted first.
+The state conversion that *Install another version...* makes for an older target takes the mark off. Going back to v0.6.17 or v0.6.16 keeps every
+advanced feature on there, as it was. The weekly update check keeps three numbers in the advanced file's table of
+choices - when it last ran, the newest version it offered, and when - beside the choices themselves. No feature
+offers them as a choice, and v0.6.17 and v0.6.16 pass over a row they do not know, as every reader of that table
+always did, so going back loses nothing and shows nothing of them. The settings file gains two keys of the Codex homes
+suggestion (below), on by default and the folders set aside; v0.6.17 and v0.6.16 do not know them and drop them the next
+time they save the file, so going back loses nothing but the folders you set aside with *Not now*, which are suggested
+again if you come forward. Nothing else was added to either file.
 
 ### Both editions
 
+- **A Codex home this PC uses and the watcher does not watch is suggested.** This is the release's improvement to the
+  standard edition. The Codex homes card in Settings > Advanced now says *Codex also uses <folder>. Watch it too?* with
+  **Add** and **Not now**. Add puts the folder among the extra Codex homes through the one way a home is added, so the
+  limit of three still holds, and with all three taken the line says so instead of offering; **Not now** remembers the
+  folder and never offers it again. A switch, *Suggest Codex homes found on this PC*, is on by default and turns the
+  looking off; nothing is added until you choose Add. It looks in two places only, and reads them without writing:
+  the `CODEX_HOME` variable of your Windows account (`HKEY_CURRENT_USER\Environment`), and the Codex app's own list of
+  where it has run (`chrome-native-hosts-v2.json`, which it writes for its browser extension), at most 1 MiB of it, of
+  which only each entry's `codexHome` is kept. A folder is offered only if it is a local folder holding Codex's state
+  database that is not the default home and not already added. It looks only in an installed copy, never in a
+  checkout; nothing is sent anywhere and nothing is told to Codex; the diagnostics count the folders you set aside and
+  name none. The standard B16, which lists every registry read, names the `CODEX_HOME` one, marked as extended for this
+  suggestion at the owner's request; the guide's *Several Codex homes* and the privacy notice say where it looks and
+  what is kept. Its words are in all 18 languages.
 - **A recovery turn that worked and was then cut off is recovered.** Codex writes a turn's end only while the turn is
   running, so a recovery turn that Codex closing, or the PC sleeping or restarting, interrupted said it was in progress
   for good. Such a turn is now taken to be cut off as soon as a later turn of the same conversation has started - Codex
@@ -27,9 +53,37 @@ either file.
   is: one that made progress is **recovered**, with the reason `progress_then_turn_cut_off`, which keeps that the turn
   itself did not end cleanly; one that did nothing stays unverified, as it did. Before, the record showed the turn as
   running until a later turn of the conversation finished or a day had passed, and then called it unverified however
-  much it had done. A message you write in the conversation still hands it over first, a turn that is really running
-  still shows as running, and a history that cannot be read never counts as "no progress". The owner amended standard
-  E6 for it on 2026-10-21; two recoveries on the owner's own PC were the report.
+  much it had done. A message you write in the conversation before the turn has done anything still hands it over
+  first (see the next item for one that comes after), a turn that is really running still shows as running, and a
+  history that cannot be read never counts as "no progress". The owner amended standard E6 for it on 2026-10-21; two
+  recoveries on the owner's own PC were the report.
+- **A recovery turn that worked before you joined it is recovered, and its next failure is recovered too.** When a
+  message of yours entered the recovery turn after that turn had made progress - one you had queued in the Codex app,
+  or the answer to a question Codex asked you inside the turn - the conversation used to be handed over to you on sight
+  of the message. If the turn then hit the usage limit, that failure was born superseded and never resumed, although
+  the limit had stopped you as well. Now the record ends **recovered**, with the reason `progress_then_user_joined`,
+  and the turn's next failure is an ordinary chain child that is recovered in its turn. A message that enters the turn
+  before it made any progress hands the conversation over as before, and standard A23 still keeps that child stopped.
+  The owner amended A23 and five of the frozen scenarios for it on 2026-10-22; two cases on the owner's own PC were the
+  report - a queued message that entered a recovery turn 52 minutes after it started, and an answer given to a question
+  in the recovery turn that then hit the limit at once.
+- **A conversation you took over, or whose recovery you cancelled, is told in those words.** A new failure of a
+  conversation whose recovery turn you joined before it did anything, or of a task whose automatic recovery was
+  cancelled, is rightly never resumed - but it was announced with the words of a recovery that ran out of retries ("stopped
+  trying"). The notice now names the conversation, the new failure's reason and why nothing will be sent ("You are
+  continuing this conversation yourself, so it will not be resumed automatically", "Automatic recovery was cancelled
+  for this task, ..."), in all 18 languages; the card shows the reason in its chip. It is still a "stopped" notice, under
+  the same switch, without a button. The notices of a recovery that did run out of retries keep their words. The
+  owner's notice of 2026-10-22 was the report.
+- **The notification-area icon moves in the overflow flyout while the flyout is open.** Windows can keep the watcher's
+  icon in the overflow flyout, and since v0.6.5 it was held still there, open or closed, because nobody would see it
+  move; but a person looks at it by opening the flyout. The icon now moves from the tick after the flyout opens until
+  the tick after it closes, and is held still as before while the flyout is closed. The check asks Windows only for the
+  class of each top-level window and whether it is shown and not cloaked, never what is in it, and it looks at the
+  overflow window of every taskbar, so a taskbar on a second screen with its flyout closed no longer hides one that is
+  open. Reduce motion, Windows' own animation setting, High Contrast, battery saver and a locked session hold the icon
+  still as before, and nothing drawn changes: the frames, rates and colours are the same. Standard H13 says so. The
+  owner's report was that the icon seemed still again.
 - **The setup window's bar fills by real, counted work.** The setup program shows it, and so does an update or an
   uninstall started from the Dashboard or from Settings. The installer now counts the files it copies, the files and
   folders it removes and the plugin's three commands to Codex; setup counts its own seven steps and the health check
@@ -54,7 +108,158 @@ either file.
   **The download is done by the updater of the version you are updating from**, so this takes effect from the update
   after this one: the update to v0.6.18 still downloads as v0.6.17's updater does, and the bar shows the bytes from
   the update after it.
-- **The README's and the guide's install picture shows the bar filling by those counts**, in English and Korean.
+- **The README's and the guide's install picture shows the bar filling by those counts**, in English and Korean. The
+  README's first motion picture now also right-clicks a waiting task on the Pending page and opens its menu, as the
+  window draws it, before it goes on to History.
+- **Install another version... runs in the setup window.** The Dashboard's picker used to run the installer with no
+  window of its own. It now opens the same window an update does, headed *Installing another version* and finished
+  with *Installed v...*, with the download and the installer's steps on its bar as they happen, and the finished page
+  with its exit code and the log. It has no *What is new* page, because the picker's installer prints no notes. What
+  the installer printed still reaches the same answers it always did, and when the pick installed and you open the new
+  Dashboard, the Dashboard that was running closes, as after an update, saying first what the state conversion did.
+- **The setup window's steps no longer show one label twice.** The step before the copy - finding Codex, claiming the
+  folder, setting the old program files aside - is named *Preparing the program files*, so *Copying the program files*
+  shows once, for the copy alone; the watcher's and the Dashboard's steps no longer sit between two of the same name.
+- **The right-click menu of a Pending row is drawn in the product's own design.** It is a rounded card with the
+  window's shadow and hairline, the item in hand a raised pill, the palette's colours, the window's font and its scale
+  (100% to 200%), and submenus open beside their parent's card. In High Contrast the menu stays Windows' own. The items,
+  their words, their order and what they do are unchanged. The README's first motion picture shows it: a right-click
+  on a waiting task opens that menu.
+- **Fixes from an audit of the Dashboard window.**
+  - The Dashboard never hangs on a stuck call to the program behind it. A call reads the program's output and errors
+    together, gives up after 60 seconds (180 for a one-shot call), and ends only the child processes it started,
+    never the watcher; closing the window ends every one-shot child on its way out. A bridge the window gave up on is
+    tried again after five minutes.
+  - The window no longer waits for its words: it opens in English after five seconds without them and opens again in
+    its own language when they arrive.
+  - The window is drawn at the scale of the monitor it opens on, and redrawn at the next monitor's scale after Windows
+    reports a scale change - once a drag ends, and never while you have unsaved edits.
+  - The window is kept on, and centred on, the screen it opens on rather than the primary one, and a width it holds
+    never makes it larger than the screen (on a small screen at 200% or more it used to grow past the work area).
+  - The log dialog skips its five-second look while a look is still on its way.
+  - The setup window's bar is announced to screen readers: its percent and its description tell assistive technology
+    when they change.
+- **Fixes from an audit of the control layer.**
+  - Words for this time that you write, change or take away while the watcher is already sending a recovery are now
+    either sent or kept, never deleted unsent: the watcher looks at them again after it claims the recovery and gives
+    the claim back if they changed, and the Dashboard checks that the recovery still waits under the same lock.
+  - *Always* and *Never* for a project read each record's project in the Codex home that holds it. A row of a home you
+    added in Settings was refused as unreadable, and *Never* on a row of the default home left the waiting records of
+    the same project in an added home unheld.
+  - A stale notice's *Cancel* on a recovery that has finished since no longer says it was cancelled: the card answers
+    that it had already finished and Windows' notification logs the truth, and neither announces anything. The
+    notification's *Cancel* also tries again for 30 seconds when the state is busy, as a card's does, where a lock held
+    past the store's own wait used to end its windowless process in an error nobody saw.
+  - The plugin's MCP replies carry no path of the Codex program: `get_status`, `open_settings` and `update_settings`
+    say only whether one is set (`<set>`, or none), as the diagnostics do, because the path may hold your Windows user
+    name and these replies go on to Codex. The MCP server also answers only an unknown tool or resource as an invalid
+    request; a lookup that breaks inside is an internal error and no longer goes out as the caller's mistake in its raw
+    text. Standard D7 says so.
+  - The *Open Codex* flag of a *Cancel* link is honoured only where the edition offers that button, never in the
+    standard edition: a crafted `codex-auto-resume:` cancel link made a standard installation's follow-up notice offer
+    the advanced edition's button, against A28.
+- **Fixes from an audit of the core.**
+  - A settings file that cannot be read right now is never taken as the defaults. The watcher keeps the settings in
+    force, reads the file again at the next tick and says so once in its log; with no good read yet it builds no
+    engine, so nothing is sent or cancelled. A save refuses rather than write the defaults over a file it could not
+    read (a file that holds no settings is still repaired), and *Restore defaults* keeps the Codex homes only through
+    a good read.
+  - A recovery message that starts with a dash - a Custom message, a queued prompt or a chat message like "- keep
+    going" or "-1 more step" - reaches `codex queue` as the message. It was read as an unknown option, Codex exited
+    with an error, and the record became "submission unknown" and was never sent again; the message now goes as one
+    `--message=` argument.
+  - Every write that cancels a record gives it its outcome time, so cancelled and superseded records are ordered and
+    aged as the others are.
+  - A Codex home whose folder is on a mapped network drive is not retired when the drive's name changes between its
+    online and offline forms, and the start's sweep of records no Settings home names waits while a named folder is
+    out of reach, so neither cancels that home's waiting records.
+  - A clock set back by hand or by a time-server step ends the cached usage reading and the cached loaded state, which
+    were kept for the whole step back.
+  - A queue delete that worked stays reported as worked when the Codex app server is slow to exit afterwards; it used
+    to turn into a failure and leave a Pause or Observe-only withdrawal that could never be released.
+  - The engine check reads a `codex --version` that is not UTF-8 instead of raising.
+  - While the default home's engine is being rebuilt - during a Codex update, say - and another home has something
+    queued, the one-second watch no longer writes a "watch failed" traceback every second; it watches the other homes
+    until the engine is back.
+- **Fixes from an audit of the installer and the update.**
+  - A line that setup writes to stderr no longer stops the installer half way when it runs outside another app: setup's
+    exit code decides, as it does inside one. `verify-home` and `claim-home` likewise answer with their exit code, so a
+    line on stderr no longer replaces their refusal with a raw error.
+  - An update that is put back, or that stops before its setup, starts again the watcher it stopped, and a failed
+    setup says when that watcher is not running.
+  - A failed *Install another version...* puts back what it changed while the previous version is still installed: the
+    state it converted (from the copy the conversion took), the kept uninstaller and with it the entry in Settings >
+    Apps, and the watcher.
+  - An uninstall that cannot remove a program file keeps the runtime and what its verification runs, so the retry can
+    finish; it used to delete the runtime anyway and leave the retry stuck at "No installed runtime found". A purge
+    says it removed the settings and recovery history only when it did, and names what something still held, and the
+    uninstall's sweep of its leftovers no longer prints a bare `True` or `False` into its log.
+  - A bracket in the installation's folder or in an archive's path is a character, not a wildcard, so an update there
+    moves the old files aside as everywhere else. A rollback that cannot clear the half-copied tree leaves the
+    previous one aside under its own name, never inside it, and says it could not put everything back. A Dashboard
+    program that cannot be replaced is said, and the update goes on to set up the watcher instead of ending there.
+  - The installer's calls to `codex` run with telemetry off, with the same variable and overrides as the watcher's
+    own (standard C10).
+  - An installation folder outside your profile (the plugin home variable) is made private to you - you, SYSTEM and
+    Administrators, full control, nothing inherited - before the program goes into it, because a folder under a drive
+    root inherits `Authenticated Users: Modify` and other accounts on the PC could replace the launcher, the program
+    or the runtime that run as you at each sign-in. Where the drive keeps no access list, or it cannot be written, the
+    installer says so and goes on. A path holding a curly single quote is a path and never code: the gate doubles
+    every single-quote character PowerShell knows. The compatibility data's download checks every redirect before it
+    is asked and writes no more than one byte past its bound, as the archive's download does.
+- **Fixes from the security audit and a bug hunt.**
+  - A named object another account made first is refused. The watcher's mutex and its stop, wake and demo events have
+    names anyone can work out; the check refused one made by a process of lower integrity, but a process of another
+    account at the same integrity - the sandbox account Codex runs commands under, say - could still create one first
+    with a permissive access list and then hold it or signal it. An existing one is now refused too when its owner is
+    neither this account, the administrators nor SYSTEM.
+  - The Dashboard ignores a close-for-update event that someone else made first. An update asks the Dashboard's
+    windows to close through a named event; one created and set first by a low-integrity process or another account
+    closed every Dashboard as it opened. The Dashboard now refuses an event that existed before it under the same rule
+    as above.
+  - A compatibility document that runs more than 100 sequences ahead of the data the release bundles is refused. Any
+    number up to 2^31-1 was taken in, so one imported file, or one mistaken document, at the top number refused every
+    later document as a rollback - the project's own refreshes and the data of every release - and its
+    *incompatible* entries kept the gate there for good. One kept from before is now not in force and blocks no later
+    import.
+  - The watcher sweeps what an update set aside and could not delete, as it starts. An update moves the old program,
+    runtime and Dashboard files aside as `.old-` folders and deletes them after the copy unless something still had
+    them open; about 14 MB each stayed in the home until the next install. The watcher now removes them once it holds
+    its mutex - only in an installation folder provably its own, never while an install is running or its copy journal
+    is there, never through a link, renaming a folder first so one still in use is never half deleted - and writes one
+    log line saying what it removed and what it left.
+- **A state that is marked readable from schema 5** (see *Going back* above) is used by a later schema that so marks
+  itself instead of being refused, and the version picker keeps it for a target that reads the mark.
+- **All 17 translations were reviewed** against the English in both catalogs, the standard's and the advanced
+  edition's: Korean, Japanese, Simplified and Traditional Chinese, German, French, Italian, Spanish, Brazilian
+  Portuguese, Russian, Ukrainian, Polish, Turkish, Arabic, Hebrew, Vietnamese and Indonesian. Each now says one word for each thing - for example the
+  watcher, the continuation, a turn, the recovery, the edition's own name and, in Korean, the usage limit and its
+  reset, are one term each across both catalogs - and keeps the formal or informal address its language uses
+  (Traditional Chinese addresses you as 您 in both catalogs; German keeps *Sie*, and Spanish and Italian the
+  informal *tú* and *tu*, throughout). A usage window is no longer worded as an application window in the Asian languages, the word for
+  "change the edition" no longer reads as changing the version, a few sentences that claimed more than the English
+  (that a long conversation is "the usual cause") were corrected, and broken text - stray spaces inside words, split
+  measurement ids, wrong particles and genders - was made consistent. The advanced-edition statements (goal
+  continuation, continuation with no marker, start with Codex) that were still in English in Arabic and in Hebrew are
+  translated, and both languages, which are held back until the Dashboard mirrors right to left but ship, were read
+  string by string. The English is unchanged. The Korean usage-limit notice now says the usage is reset (재설정), as
+  every other Korean string does. The Russian *Retry now* button now reads "Повторить сейчас", a verb like the English, and
+  the two strings that quote it follow (suggested by [@TheEleage](https://github.com/TheEleage), in a review of the
+  Russian labels in their fork).
+- **The Korean documents were reviewed page by page against the English.** Every Korean page now names the versions
+  its English page names, follows its English page again where it had drifted, and uses the Korean interface's own
+  words (워처, 사전 릴리스, 공개, 재설정, 설치 마법사 for the setup program and 설치 프로그램 for the installer).
+- **The documents say what the code does now.** A full review of the README, the guide, the privacy, security, support,
+  plugin, editions, verify, brand, comparison, contributing and contributors pages, the feature matrix, the roadmap and
+  this changelog against the code corrected their counts and lists - the plugin's twenty tools, the advanced edition's
+  thirty-two capabilities, each catalog and window input, the processes and requests a click starts - and added the
+  setup window's bar, the streamed download, *Open Codex* and the weekly check where they were missing; the guide leads
+  with the setup program as the README does. At the owner's word on 2026-10-22, standards D7 (MCP replies carry only
+  whether a Codex program path is set), H13 (motion stops in a closed overflow flyout) and A23 were reworded, the
+  contributors page says that commits written with Claude carry a `Co-Authored-By` trailer naming the model, and the
+  contributing page now tells an alpha from a beta by whether it carries something a person can notice: an alpha
+  nothing a person can notice, a beta something they can. Standards B6, B16, C5 and F6 were corrected to match the code
+  and say they were corrected, not amended by the owner.
 
 ### Advanced edition
 
@@ -74,26 +279,65 @@ either file.
   one - appears as one notification, *A newer version is available*, a kind of its own in *Keep on screen until
   clicked*, whose *Open Dashboard* button opens Diagnostics, where you install it as always. Nothing is downloaded or
   installed by it. The time of the last check is kept before the check starts, so a check that fails, that GitHub
-  refuses or that takes too long says nothing and waits for the next week, and turning the feature off and on again
-  does not check sooner. A version it offered is kept across restarts and shown again each time the watcher starts,
-  until that version is installed, a later check finds nothing newer, or you turn the feature off. Each check makes
-  the requests a check you start makes - to github.com, to GitHub's list of releases and for the Codex compatibility
-  data - so GitHub sees this PC's address and the time, once a week. It departs from standards C4, C5 and C7, which
-  the page says.
+  refuses or that takes too long says nothing on screen and waits for the next week, and turning the feature off and on
+  again does not check sooner. A version it offered is kept across restarts and shown again each time the watcher
+  starts, until that version is installed, a later check finds nothing newer, or you turn the feature off. Each check
+  makes the requests a check you start makes - to github.com, to GitHub's list of releases and for the Codex
+  compatibility data - so GitHub sees this PC's address and the time, once a week. It departs from standards C4, C5 and
+  C7, which the page says. **Every check now leaves one line in the watcher's log** (`logs\auto-resume.log`), beginning
+  "weekly update check:" - nothing newer (with the newest published version, or that this build is ahead of it), the
+  version it offered (a pre-release said so), or why it could not check, in the Dashboard's own words - so a week of
+  silence can be told from a week of no news.
 - **Both are listed in the advanced edition's count of capabilities** (thirty-two now), with a section of each in the
   editions document and its words in all 18 languages. The advanced edition's Korean catalog calls the watcher 워처,
   as the product's own does.
+- **Fixes from an audit of the advanced features.**
+  - A run kind that is turned off or only watched still hands a *Stop* to its live turn. Running a conversation here
+    while Codex is closed, compacting then continuing, and using Codex's default model at capacity each keep their
+    follow-up bookkeeping while off: a *Stop* reaches the turn they started, a row no turn follows is ended as lost,
+    and a model they owe back is put back. Before, turning one off left a running turn out of *Stop*'s reach until its
+    cap, and a fallback model unrestored.
+  - *Stop near a limit* starts no continuation after a reset while another of its windows still holds: the five-hour
+    window resetting no longer starts a turn through the app while the weekly window is still held. A continuation
+    after the reset that was written and got no answer in time is unconfirmed and no longer told as one that failed
+    ("could not continue"); the next look ends the row as superseded if the turn had started.
+  - *Compact a full conversation, then continue* continues only after a compaction that completed: a compaction still
+    running is waited for, and an interrupted one counts as nothing compacted.
+  - *Tell a parent which of its subagents stopped* marks a stop told only when the message carrying its line goes out;
+    a message held back, or the program's own words sent instead, no longer marks the subagents told with nothing said.
+  - *Continue a turn that ended with no reply* answers only conversations the program takes for a person's own -
+    with *Recover every conversation* on, the wider set - so a subagent's or a review's empty turn gets no
+    continuation, and a waiting one for a conversation that is not a person's own is ended as withdrawn instead of
+    waiting for good.
+  - *Goal continuation* and *Marker-free continuation* make the first change of state inside the program's launch
+    guard, so a *Pause* or *Cancel* committed after the guard stops them; a guard that fails as it closes after the
+    write reads the answer instead of calling it an unsent attempt.
+  - *Continue with no words*, turned on again after Codex refused it, is asked again without a watcher restart.
+  - The pipe to the Codex app is opened at identification level and talked to only when its server runs as this
+    account, in this session, at no lower integrity and outside an AppContainer, before anything is written; otherwise
+    it is treated as no app running, so the pipe's server can no longer impersonate the watcher.
+  - A resend's claim reads the conversation's day and spacing limits again, as a first claim does, so a claim of the
+    same conversation committed between the resend's check and its claim is counted.
+  - A goal set while the Codex app may have opened the conversation is unknown, not accepted. *Goal continuation* asks
+    whether the app still does not hold the conversation just before it sets the goal, but the app could open it in
+    between, and such a set is not seen though the goal read back as active. The question is now asked again once the
+    goal reads back; where the app holds the conversation then, the answer is unknown: neither route tries it again,
+    and the capability's tripwire turns it off, as its statement already says of a result it cannot confirm. The set is
+    never taken back.
 
 ### For developers
 
-- **`test_released_calls` records an amendment.** Its rule is still that the scenario modules - `test_engine`,
+- **`test_released_calls` records the amendments.** Its rule is still that the scenario modules - `test_engine`,
   `test_outcomes` and the rest of the list in `tests/neutral.py` - are v0.6.10's, byte for byte. The owner's amendment
   of E6 changes four scenarios (the later-terminal-turn and stuck-observing cases of `test_outcomes`' T13 and T17, and
   the two of `test_engine`'s that mirror them): they now expect `turn_completed`, then a recovery with
-  `progress_then_turn_cut_off`. The new `AMENDED` record names the four test ids, the date and the decision. A module
-  may differ from the tag in those tests' bodies alone, v0.6.10's run takes each of them from the tag's own module, and
-  the calls v0.6.10's made must still begin the calls this checkout's makes: an amended scenario may ask for more ticks,
-  never for other calls before them. The cut-off rule has its own module, `tests/test_cut_off_turns.py`.
+  `progress_then_turn_cut_off`. The owner's amendment of 2026-10-22 changes five more - three of `test_outcomes`' T16,
+  its T48 and one of `test_engine`'s T16 - which keep testing the hand-over, now with the person joining before any
+  progress. The `AMENDED` record names the nine test ids, the dates and the decisions. A module may differ from the tag
+  in those tests' bodies alone, v0.6.10's run takes each of them from the tag's own module, and the calls v0.6.10's
+  made must still begin the calls this checkout's makes: an amended scenario may ask for more ticks, never for other
+  calls before them. The cut-off rule has its own module, `tests/test_cut_off_turns.py`, and the person-joined rule
+  `tests/test_progress_then_user_joined.py`.
 - **The streamed download has a test seam.** `Get-DownloadResponse` in `scripts/bootstrap.ps1` is the one door to the
   network for a download without a deadline; a function of that name in the session stands in for it, as one named
   `Invoke-WebRequest` does. The whole-script tests bridge it to their `Invoke-WebRequest` stand-ins
@@ -104,6 +348,36 @@ either file.
   copy and removal loops use names of their own, because PowerShell's names are case-blind and the removal's `$entries`
   was the table of Add or remove programs entries the uninstall tests stand in for; and its progress function sits
   beside the helpers every lifted installer test takes.
+- **No test can reach Windows' real notification centre any more.** The notifier looked up `notify.show_content` as a
+  default argument bound when the module was imported, so `test_downgrade`'s patch of it missed and the command line's
+  cancel raised a real toast under the product's identity on every run that included it - the "automatic recovery
+  cancelled" toasts seen between 2026-10-20 and 2026-10-22 came from there, not from the product. `deliver` and
+  `complete` now look it up when called (`tests/test_notifier_show_lookup.py`); `tests/no_real_toast.py`, loaded by
+  `tests/sitecustomize.py` and by `scripts/test_parts.py`, refuses a real toast script, fails the test that was
+  running even when the refusal is swallowed, and ends a process with status 1 for an attempt no test claimed
+  (`tests/test_no_real_toast.py`); and the structural rule is that a default argument in `src/` never names a function
+  of another product module.
+- **The new behaviours have test modules of their own**, each proved to fail without its change: the setup window's
+  pick (`tests/test_gui_pick_window.py`) and prepare step (`tests/test_installer_prepare_step.py`), the open-flyout
+  check (`tests/test_tray_overflow_open.py`), the not-resumed notice (`tests/test_not_resumed_notice.py`), words for
+  this time mid-dispatch (`tests/test_once_words_race.py`), per-home project rules (`tests/test_project_rule_homes.py`),
+  the stale and busy cancels (`tests/test_stale_cancel.py`, `tests/test_toast_cancel_busy.py`), and the advanced
+  edition's weekly-check log lines (its own test module).
+- **The installer audit's fixes have test modules of their own**: the setup step's stderr, the watcher's restart, the
+  uninstall's sweep, the Codex calls' telemetry (`tests/test_installer_codex_telemetry.py`) and the outside gate's
+  quotes (`tests/test_outside_gate_quotes.py`), among others. The update-check test records the compatibility data's
+  request at the bounded download's door, which it now goes through.
+- **The bug hunt's fixes have test modules of their own**: the named object's owner (`tests/test_named_object_owner.py`),
+  the update event (`tests/test_update_event_squat.py`), the sequence lead (`tests/test_compat_sequence_lead.py`) and the
+  set-aside sweep (`tests/test_set_aside_sweep.py`), and the goal race in the advanced edition's own tests.
+- **The Codex homes suggestion has its own test module**, `tests/test_home_suggestions.py`. It reads no registry below the
+  adapters: the control layer hands the suggestion the account's `CODEX_HOME` and whether this copy is installed, so no
+  test reads this machine's registry or Codex app, and a test that means to look stands in for the lookup.
+- **The window audit and the menus have test modules of their own**: `tests/test_gui_v0620_audit.py` (the real window against a
+  stand-in `python.exe`), `tests/test_gui_v0620_menus.py`, `tests/test_gui_v0620_keep.py` and `tests/test_motion_menu.py`
+  (the picture's right-click scene, with the `right` and `dismiss` steps and the `selected` and `menu` states in the
+  motion plan). A window the layout audit builds is measured against the primary screen, as it always was; a person's
+  window measures the screen it opens on.
 - **The CI release lane is dealt into five parts**, as the standard and advanced lanes' parts are, by the seconds of
   tests recorded in `tests/data/durations.json`, now that the faster layout audits are in it.
 

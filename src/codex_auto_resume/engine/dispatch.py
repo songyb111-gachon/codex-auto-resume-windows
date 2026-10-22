@@ -296,7 +296,7 @@ class DispatchMixin:
                     key, at, limits=self.forced_limits(limits) if forced else limits, gates=vector,
                     ledger=self.plug, carried=carried, quiet_until=self.quiet_until(at), relaxed=relaxed,
                     resend=self.resend_window() if resend else None, forced=forced,
-                    caps=None if resend else self.caps(relaxed))
+                    caps=self.caps() if resend else self.caps(relaxed))
                 if not claimed:
                     if not resend:                          # a resend refused stays as it was
                         self._refused(current, gate, reason)
@@ -315,6 +315,8 @@ class DispatchMixin:
                     else:
                         self._release(key, claim, target, why, delay)
                     self.log(current["thread_id"], target, why)
+                    return
+                if not resend and self._once_words_moved(claim):     # given back (engine/delivery.py)
                     return
                 if once is not None and not self._spend_once_words(claim, once):
                     message = plain             # v0.6.16-beta.3: never sent twice (engine/delivery.py)

@@ -3,7 +3,7 @@
 scripts/bootstrap.ps1 sets `Set-StrictMode -Version 2.0` and runs the installer it downloaded; under strict mode reading
 a variable that was never set throws. v0.6.18's Progress read `$script:ProgressSaid` before anything set it, so the
 first counted copy threw inside the copy's try, the update rolled back and exited 1 - every update from the Dashboard
-(the v0.6.20 installer audit, found before v0.6.18 was published). The function is lifted out of install.ps1 and run
+(the v0.6.18 installer audit, found before v0.6.18 was published). The function is lifted out of install.ps1 and run
 in a strict-mode parent, the way the bootstrap's own scope would run it.
 """
 from __future__ import annotations

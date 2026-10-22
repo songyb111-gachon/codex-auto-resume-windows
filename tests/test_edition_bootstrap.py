@@ -173,7 +173,7 @@ ConvertTo-Json $out -Compress
                                    "cache_only": "standard", "tree_advanced": "advanced",
                                    "tree_standard": "standard"})
         installer = INSTALLER.read_text(encoding="utf-8")
-        self.assertIn("$upgrade = Test-Path $AppDir", installer)
+        self.assertIn("$upgrade = Test-Path -LiteralPath $AppDir", installer)
         self.assertIn("$previousEdition = Get-Edition -Src (Join-Path $AppDir 'src')", installer)
 
 

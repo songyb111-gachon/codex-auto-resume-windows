@@ -937,7 +937,7 @@ class ShippedCatalogTests(unittest.TestCase):
                 self.assertNotIn("Standardedition", value)
         for definition in registry.DEFINITIONS:
             self.assertIn("Schalten Sie", tables["de"][statement.key(definition.id, Field.STOP)])
-        for locale, edition, other in (("ko", "표준판", "표준 에디션"), ("ja", "標準版", "標準エディション")):
+        for locale, edition, other in (("ko", "표준판", "표준 에디션"), ("ja", "スタンダード版", "標準版")):
             with self.subTest(locale=locale):
                 self.assertIn(edition, tables[locale][statement.title_key(Field.INSTEAD)])
                 self.assertFalse([key for key, value in tables[locale].items() if other in value])

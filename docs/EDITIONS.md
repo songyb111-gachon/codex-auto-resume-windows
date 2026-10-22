@@ -130,11 +130,15 @@ interruption, the samples of failures it could not classify, the reset rules and
 the usage windows - and, until each is sent, cancelled or ended, the words of a message you wrote for a
 reset - are kept in
 `config/advanced/advanced.sqlite`, in fixed words, ids, numbers and Codex's own error codes - never a
-word of an error or a conversation, and of yours only a message waiting for a reset - and nothing of it is written into the standard edition's state. It adds no network code; one capability,
-the compatibility report, asks gh - the GitHub CLI you installed - to reach GitHub, and only when
-you start it in the Dashboard (below). Its archive also carries
+word of an error or a conversation, and of yours only a message waiting for a reset - and nothing of it is written into the standard edition's state. It adds no network code. Two capabilities cause GitHub traffic: the compatibility report asks gh - the GitHub CLI you
+installed - to reach GitHub, and only when you start it in the Dashboard (below), and
+*Check for updates once a week* runs the installed `bootstrap.ps1 -CheckOnly` once a week (below). Its archive also carries
 the harness the project uses to measure whether a capability's route works on a given version of
 Codex; nothing runs it unless a person asks, and [SECURITY.md](SECURITY.md) says what it does.
+
+No capability stores a secret today. The package carries one way to keep a capability's secret, in Windows'
+Credential Manager under a name of its own and never in its database, a settings file or a log, for a capability
+that will need one; nothing calls it, and it never reads Codex's own credentials.
 
 ## Today's capabilities
 
@@ -571,8 +575,8 @@ open without the conversation, or not at all. Nothing is sent and nothing in the
 **Departs from** [A28](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (a notice's button only cancels
 one interruption or opens one page of the Dashboard), [B16](STANDARDS.md#b-what-it-reads-and-how) (Windows
 is asked only the listed questions; whether something is registered for Codex's links is read too) and
-[F6](STANDARDS.md#f-footprint-on-the-machine) (explorer.exe, which hands the link to Windows, is not one of
-the listed processes).
+[F6](STANDARDS.md#f-footprint-on-the-machine) (starting explorer.exe with a Codex link, which hands the link to Windows, is not one of
+its listed uses: showing the logs folder).
 
 **Ceilings.** None: it is an action, and sends nothing. It rests on no measurement of its own.
 
@@ -655,7 +659,7 @@ recover no failure), [C4](STANDARDS.md#c-network) (it sends at a time you chose)
 [C9](STANDARDS.md#c-network) (it reads usage when no recovery is due),
 [D2](STANDARDS.md#d-privacy-and-the-data-it-keeps) (your words are kept until they are sent),
 [H4](STANDARDS.md#h-user-control) (a Pause takes back a message Codex already holds and cancels it, rather
-than returning it to waiting; revision 2, from v0.6.15-beta) and
+than returning it to waiting; revision 2, from v0.6.16-beta, first published as v0.6.15-beta) and
 [H6](STANDARDS.md#h-user-control) (Cancel no longer reaches a message being sent). It keeps A27: a
 message is at most 2,000 characters, as the Custom message is, unless Longer reset messages is on.
 Switching its conversation off cancels it (H5).
@@ -669,7 +673,7 @@ there, the statement carries it as a warning.
 ### Longer messages
 
 **What it does.** An action: it sends nothing and answers at no point of a recovery. While it is on, a
-message you schedule for a reset, and from v0.6.15-beta (revision 2) a message you queue, may be up to
+message you schedule for a reset, and from v0.6.16-beta (revision 2) a message you queue, may be up to
 8,154 characters - the most one continuation can carry - instead of 2,000. Turned off, every waiting
 message longer than 2,000 characters is cancelled.
 
@@ -1138,11 +1142,11 @@ a table of pinned digests for each edition; the advanced edition's starts with v
 
 ## What comes next
 
-v0.6.12 adds two things people asked for. One is a way to install another version or edition from
+v0.6.12 added two things people asked for. One is a way to install another version or edition from
 the Dashboard - any release or pre-release of either edition - which says first what the change
 means, as the installer does when you switch (a change of edition turns every advanced capability
 off), and checks what it downloads as every install does. It was planned for v0.6.11 and not
-finished in time; it is built for v0.6.12 and described [above](#switching). The
+finished in time; it was built for v0.6.12 and is described [above](#switching). The
 other is a power action - sleep, hibernate or shut down - once every recovery waiting for a usage
 limit to reset has ended. It keeps every standard (H14 and F15 in [STANDARDS.md](STANDARDS.md), with
 A28 amended by the owner for its stop button), so it is in the standard edition, off until a person
@@ -1161,7 +1165,7 @@ with a pre-release, v0.6.19-alpha, and publishes each part as a pre-release as i
 turn it on, with a statement that names the standards it departs from. This is a direction, not a
 promise; [ROADMAP.md](ROADMAP.md) has the whole list: the two additions in its v0.6.12 section, what
 is built in its v0.6.14, v0.6.16 and v0.6.18 sections, and the rest in its v0.6.19 section, under the same
-four headings as below.
+headings as the last four bullets below.
 
 - **Recovery through the channels already in use** - several conversations at once,
   empty-response recovery, an unloaded conversation through a queue that waits for it, a subagent
@@ -1179,6 +1183,12 @@ four headings as below.
   of other PCs; switching the Codex account on your command; crash supervision and a wake timer for a reset.
   *Open Codex* on a notice and a weekly update check while idle are built in v0.6.18, described
   [above](#todays-capabilities).
-- **Also moved here** - watching several Codex homes, which the standard edition gains and
-  v0.6.16-beta built; Arabic and
-  Hebrew; winget manifests for both editions.
+- **The chat inside the Dashboard** - chatting with a Codex conversation inside the Dashboard, reading it and
+  sending it a message: advanced only, off by default, on this PC only and never through a remote channel, with
+  "in progress" while a turn runs and the result once it ends, and approvals still answered in Codex.
+- **Compatibility data for the advanced edition** - verdicts for each Codex engine in a file of its own, which
+  installed advanced editions fetch, and the compatibility reporter counting the advanced edition's outcomes as
+  "reported" without ever raising a verdict.
+- **Also moved here** - a continuation inside the turn through a Codex Stop hook, and Arabic and Hebrew. Watching
+  several Codex homes, which the standard edition gains, was built in v0.6.16-beta, and the winget manifests for both
+  editions in v0.6.16 ([WINGET.md](WINGET.md)).

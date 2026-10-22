@@ -87,9 +87,6 @@ class AdvancedPlug(Plug):
     def moved(self, record, state):
         return self.runtime.moved(record, state)
 
-    def notice(self, facts):
-        return self.runtime.ask(Point.NOTICE, facts)
-
     def delivery(self, record):
         return self.runtime.ask(Point.DELIVERY, record)
 

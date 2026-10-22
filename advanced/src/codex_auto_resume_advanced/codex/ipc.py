@@ -110,9 +110,106 @@ def _overlapped():
     return _OVERLAPPED[0]
 
 
+# v0.6.18 (security review S5): the pipe is opened at SECURITY_IDENTIFICATION, so whoever serves it may learn who asks
+# but never act as us; and its server is checked before anything is written (`server_trusted`).
+SECURITY_SQOS = 0x00100000 | 0x00010000            # SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION
+
+
+def server_trusted(pid) -> bool:
+    """Whether the process `pid` serving the pipe runs as this account, in this Windows session, at no lower integrity
+    than this process and outside an AppContainer - what the person's own Codex app is. The pipe's name is machine-wide:
+    another account, or a sandboxed process of this one, could create it while the app is not running. False wherever
+    anything cannot be read."""
+    import ctypes
+    import os
+    from ctypes import wintypes
+    if not isinstance(pid, int) or pid <= 0:
+        return False
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    adv = ctypes.WinDLL("advapi32", use_last_error=True)
+    k32.OpenProcess.restype = wintypes.HANDLE
+    k32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    k32.GetCurrentProcess.restype = wintypes.HANDLE
+    k32.CloseHandle.argtypes = [wintypes.HANDLE]
+    k32.ProcessIdToSessionId.argtypes = [wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
+    adv.OpenProcessToken.argtypes = [wintypes.HANDLE, wintypes.DWORD, ctypes.POINTER(wintypes.HANDLE)]
+    adv.GetTokenInformation.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD,
+                                        ctypes.POINTER(wintypes.DWORD)]
+    adv.EqualSid.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    adv.GetSidSubAuthorityCount.argtypes = [ctypes.c_void_p]
+    adv.GetSidSubAuthorityCount.restype = ctypes.POINTER(ctypes.c_ubyte)
+    adv.GetSidSubAuthority.argtypes = [ctypes.c_void_p, wintypes.DWORD]
+    adv.GetSidSubAuthority.restype = ctypes.POINTER(wintypes.DWORD)
+    token_query, query_limited = 0x0008, 0x1000
+    token_user, token_integrity, token_app_container = 1, 25, 29
+
+    def information(token, kind):
+        needed = wintypes.DWORD(0)
+        adv.GetTokenInformation(token, kind, None, 0, ctypes.byref(needed))
+        if not 0 < needed.value <= 65536:
+            return None
+        buffer = ctypes.create_string_buffer(needed.value)
+        if not adv.GetTokenInformation(token, kind, buffer, needed, ctypes.byref(needed)):
+            return None
+        return buffer
+
+    def sid_of(buffer):                                 # TOKEN_USER and TOKEN_MANDATORY_LABEL: a SID pointer first
+        return ctypes.c_void_p.from_buffer(buffer).value
+
+    def integrity(buffer):
+        sid = sid_of(buffer)
+        count = adv.GetSidSubAuthorityCount(sid)[0]
+        return adv.GetSidSubAuthority(sid, count - 1)[0] if count else None
+
+    def token_of(process):
+        token = wintypes.HANDLE()
+        return token if adv.OpenProcessToken(process, token_query, ctypes.byref(token)) else None
+
+    ours = token_of(k32.GetCurrentProcess())
+    process = k32.OpenProcess(query_limited, False, pid)
+    theirs = token_of(process) if process else None
+    try:
+        if ours is None or theirs is None:
+            return False
+        session, own_session = wintypes.DWORD(), wintypes.DWORD()
+        if (not k32.ProcessIdToSessionId(pid, ctypes.byref(session))
+                or not k32.ProcessIdToSessionId(os.getpid(), ctypes.byref(own_session))
+                or session.value != own_session.value):
+            return False
+        user, own_user = information(theirs, token_user), information(ours, token_user)
+        if user is None or own_user is None or not adv.EqualSid(sid_of(user), sid_of(own_user)):
+            return False
+        level, own_level = information(theirs, token_integrity), information(ours, token_integrity)
+        if level is None or own_level is None:
+            return False
+        theirs_level, own = integrity(level), integrity(own_level)
+        if theirs_level is None or own is None or theirs_level < own:
+            return False
+        contained = information(theirs, token_app_container)
+        return contained is not None and wintypes.DWORD.from_buffer(contained).value == 0
+    except Exception:
+        return False
+    finally:
+        for handle in (ours, theirs):
+            if handle:
+                k32.CloseHandle(handle)
+        if process:
+            k32.CloseHandle(process)
+
+
+def server_pid(k32, pipe):
+    """The process serving `pipe` (GetNamedPipeServerProcessId), or None."""
+    import ctypes
+    from ctypes import wintypes
+    k32.GetNamedPipeServerProcessId.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.ULONG)]
+    found = wintypes.ULONG(0)
+    return found.value if k32.GetNamedPipeServerProcessId(pipe, ctypes.byref(found)) and found.value else None
+
+
 class Channel:
-    """One connection to the pipe, opened read-write, overlapped, closed by `close`. `opener` is a seam a test fills
-    with a scratch pipe of its own name - never the real one."""
+    """One connection to the pipe, opened read-write, overlapped, at SECURITY_IDENTIFICATION, closed by `close` - and
+    refused (NO_PIPE, as where no app runs) where its server is not this account's own (`server_trusted`). `name` is a
+    seam a test fills with a scratch pipe of its own name - never the real one."""
 
     def __init__(self, name=None):
         import ctypes
@@ -138,11 +235,14 @@ class Channel:
         self._pipe = None
         self._event = None
         generic_read_write, open_existing, overlapped = 0xC0000000, 3, 0x40000000
-        pipe = k32.CreateFileW(PIPE if name is None else name, generic_read_write, 0, None, open_existing, overlapped,
-                               None)
+        pipe = k32.CreateFileW(PIPE if name is None else name, generic_read_write, 0, None, open_existing,
+                               overlapped | SECURITY_SQOS, None)
         if pipe in (None, wintypes.HANDLE(-1).value):
             raise _Failed(Stop.NO_PIPE)
         self._pipe = pipe
+        if not server_trusted(server_pid(k32, pipe)):
+            self.close()                                # nothing written: not the person's own Codex app
+            raise _Failed(Stop.NO_PIPE)
         self._event = k32.CreateEventW(None, True, False, None)
         if not self._event:
             self.close()
@@ -293,7 +393,8 @@ def stop_turn(thread_id, turn_id=None, *, channel=None, gate=None) -> tuple:
 def start_turn(thread_id, text, *, channel=None, gate=None):
     """Start a turn of `thread_id` the app holds with `text` - the product's continuation after a window reset, for a
     conversation the forced stop stopped (its queue may be paused): Start.STARTED, or the Stop word of what failed -
-    NO_CLIENT above all, the app not holding the conversation. `gate` is core's errand guard, around the start's
+    NO_CLIENT above all, the app not holding the conversation; UNCONFIRMED where it was written and no answer came in
+    time (it may have started). `gate` is core's errand guard, around the start's
     writing (HELD where it refuses). `channel` is a seam (a Channel of a test's own pipe)."""
     try:
         opened = channel if channel is not None else Channel()
@@ -310,8 +411,15 @@ def start_turn(thread_id, text, *, channel=None, gate=None):
                          {"thread": thread_id}).get("handledByClientId")
         if not isinstance(owner, str) or not owner:
             return Stop.NO_CLIENT
-        _request(opened, client, "thread-follower-start-turn", REQUESTS["thread-follower-start-turn"],
-                 {"thread": thread_id, "message": str(uuid.uuid4()), "text": text}, target=owner, gate=gate)
+        try:
+            _request(opened, client, "thread-follower-start-turn", REQUESTS["thread-follower-start-turn"],
+                     {"thread": thread_id, "message": str(uuid.uuid4()), "text": text}, target=owner, gate=gate)
+        except _Failed as failed:
+            # v0.6.18: written and no answer in time - the turn may have started, as a stop with no answer may have
+            # been made: UNCONFIRMED, never said to have failed; the next look at the turns tells which.
+            if failed.word == Stop.NO_ANSWER:
+                return Stop.UNCONFIRMED
+            raise
         return Start.STARTED
     except _Failed as failed:
         return failed.word

@@ -405,6 +405,13 @@ function Invoke-WebRequest {
     $response | Add-Member -MemberType NoteProperty -Name BaseResponse -Value $base
     return $response
 }
+# The bounded download's one door (Get-DownloadResponse, which the script defines only where none is): written down
+# the same way, with the seconds the request was given, and refused as a port nothing listens on refuses it.
+function Get-DownloadResponse {
+    param($Request)
+    Add-Content -LiteralPath $env:CAR_ASKED -Value ('Get ' + $Request.RequestUri.AbsoluteUri + ' ' + [int]($Request.Timeout / 1000))
+    throw (New-Object Net.WebException('Unable to connect to the remote server', [Net.WebExceptionStatus]::ConnectFailure))
+}
 & $env:CAR_SCRIPT -CheckOnly
 exit $LASTEXITCODE
 """

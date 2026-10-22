@@ -226,7 +226,9 @@ class OneShotBridgeTests(unittest.TestCase):
         self.assertIn("info.RedirectStandardInput = true", self.method)
         self.assertIn("new UTF8Encoding(false).GetBytes(argument)", self.method,
                       "a redirected stdin takes the console code page unless the bytes are UTF-8")
-        self.assertIn("process.StandardInput.Close()", self.method)
+        # v0.6.18: closed on its own task beside the reads, so a child that never reads cannot hold the write.
+        self.assertIn("Stream input = process.StandardInput.BaseStream;", self.method)
+        self.assertIn("input.Close();", self.method)
 
     def test_the_command_line_it_builds_reads_its_argument_from_stdin(self):
         import json
@@ -890,7 +892,7 @@ class WindowCompositionTests(unittest.TestCase):
         constructor = self.window[self.window.index("private SettingsForm(PersistentBridge bridge, Dictionary<string, object> catalog"):]
         constructor = constructor[:constructor.index("\n        }\n")]
         self.assertLess(constructor.index("StringsCache.Key(root)"), constructor.index("StringsCache.Read(root, cacheKey)"))
-        self.assertLess(constructor.index("Task.Factory.StartNew"), constructor.index("Font = windowFont ?? TextScale.Apply(SystemFonts.MessageBoxFont, textRead, TextSize);"),
+        self.assertLess(constructor.index("Task.Factory.StartNew"), constructor.index("Font = windowFont ?? AtDisplayScale(TextScale.Apply(SystemFonts.MessageBoxFont, textRead, TextSize));"),
                         "the strings are asked for while the fonts and the icon are made")
         read = self.method(self.window, "internal static Dictionary<string, object> Read(")
         self.assertIn("(string)stored != key) return null;", read)

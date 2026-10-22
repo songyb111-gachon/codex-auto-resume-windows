@@ -108,6 +108,11 @@ class ModelFallback:
             owed = []
         return _Restore(self, owed[0]) if owed else DEFER
 
+    # v0.6.18: turned off - by the person, a tripwire, All off or an edition's entry - or watched, a model still owed
+    # back is put back all the same (runtime.Runtime.tick): a clean-up of its own turn, never a turn of its own; and a
+    # Stop still reaches a live run.
+    tend = tick
+
 
 class _Restore:
     """P8's errand: the model a fallback turn still owes its conversation put back - only while no run is live, Codex

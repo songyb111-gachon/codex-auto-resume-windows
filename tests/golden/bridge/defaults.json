@@ -77,6 +77,8 @@
           "memory_guard_limit": "mb1024",
           "status_file": false,
           "codex_homes": [],
+          "home_suggestions": true,
+          "home_suggestions_dismissed": [],
           "notice_click": "page",
           "notices_stay": []
         }

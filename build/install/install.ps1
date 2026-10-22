@@ -166,7 +166,11 @@ function Get-OutsideSource {
     #>
     param([string]$Script, [string[]]$Switches, [hashtable]$Values, [string[]]$Arguments, [string]$Log, [string]$CodeFile,
           [hashtable]$Environment)
-    $literal = { param($text) "'" + ([string]$text).Replace("'", "''") + "'" }
+    # Every character PowerShell ends a single-quoted string at - the ASCII one and U+2018, U+2019, U+201A, U+201B -
+    # doubled: with the ASCII one alone, a path holding a curly quote broke the script, and a folder name made for it
+    # ran code here (v0.6.18 security review, M3).
+    $quotes = '[' + "'" + [char]0x2018 + [char]0x2019 + [char]0x201A + [char]0x201B + ']'
+    $literal = { param($text) "'" + (([string]$text) -replace $quotes, '$0$0') + "'" }
     $call = '& ' + (& $literal $Script)
     foreach ($name in $Switches) { $call += ' -' + $name }
     if ($Values) { foreach ($name in @($Values.Keys | Sort-Object)) { $call += ' -' + $name + ' ' + (& $literal $Values[$name]) } }
@@ -838,17 +842,28 @@ function Invoke-Codex {
     # Native stderr must not become a terminating error: PowerShell 5.1 wraps it in an
     # ErrorRecord, and `codex` writes ordinary progress there. Capture to files instead
     # of using 2>&1, and judge the result by the exit code alone.
+    #
+    # Telemetry off, as every codex process this product starts (standard C10): the variable and the `-c` overrides the
+    # watcher's own calls carry (src/codex_auto_resume/codex/transport.py, Backend._environment and Backend._argv),
+    # before this call's own arguments; the variable for this call alone. `codex -c ... plugin ...` measured on
+    # codex-cli 0.163.0-alpha.11 against a scratch CODEX_HOME (tests/test_installer_codex_telemetry.py).
     param([string]$Exe, [string[]]$Arguments)
+    $telemetryOff = @('-c', 'analytics.enabled=false', '-c', 'otel.exporter="none"', '-c', 'otel.trace_exporter="none"',
+                      '-c', 'otel.metrics_exporter="none"', '-c', 'otel.log_user_prompt=false',
+                      '-c', 'chatgpt_base_url="https://chatgpt.com/backend-api/"')
     $out = [System.IO.Path]::GetTempFileName()
     $err = [System.IO.Path]::GetTempFileName()
-    $line = (($Arguments | ForEach-Object { Quote-Argument $_ }) -join ' ')
+    $line = ((@($telemetryOff) + @($Arguments) | ForEach-Object { Quote-Argument $_ }) -join ' ')
+    $otelBefore = $env:OTEL_SDK_DISABLED
     try {
+        $env:OTEL_SDK_DISABLED = 'true'
         $p = Start-Process -FilePath $Exe -ArgumentList $line -NoNewWindow -Wait -PassThru `
              -RedirectStandardOutput $out -RedirectStandardError $err
         return @{ Code = $p.ExitCode
                   Out  = (Get-Content -Raw -ErrorAction SilentlyContinue $out)
                   Err  = (Get-Content -Raw -ErrorAction SilentlyContinue $err) }
     } finally {
+        $env:OTEL_SDK_DISABLED = $otelBefore
         Remove-Item -Force -ErrorAction SilentlyContinue $out, $err
     }
 }
@@ -983,6 +998,12 @@ function Invoke-Setup {
     $counted = $script:ProgressLines -and @($Arguments).Count -gt 0 -and
                (@($Arguments)[0] -ceq 'setup' -or @($Arguments)[0] -ceq 'doctor')
     if ($counted) { $env:CODEX_AUTO_RESUME_PROGRESS_LINES = '1' }
+    # Setup's exit code decides, never its stderr. Run outside another app, this script's streams are merged
+    # (Get-OutsideSource: `*>&1`), and Windows PowerShell then makes each stderr line of a native program a
+    # NativeCommandError, which this script's 'Stop' made terminating: setup's `error: ...` line stopped setup half way
+    # and failed the install (v0.6.18 installer audit, R1). For this call alone; the bootstrap's Invoke-InstalledSetup
+    # does the same.
+    $ErrorActionPreference = 'Continue'
     try { & $Python $setup @Arguments | ForEach-Object { Write-Host ('    ' + $_) } }
     finally { if ($counted) { $env:CODEX_AUTO_RESUME_PROGRESS_LINES = $null } }
     return $LASTEXITCODE
@@ -1054,6 +1075,42 @@ function Test-DefaultHome {
     $here = Resolve-Canonical $Root
     if (-not $ordinary -or -not $here) { return $false }
     return [string]::Equals($ordinary, $here, [StringComparison]::OrdinalIgnoreCase)
+}
+
+function Protect-RelocatedHome {
+    <#
+        An installation root outside the person's profile $Profile (CODEX_AUTO_RESUME_PLUGIN_HOME) given an access list of
+        its own: the person, SYSTEM and Administrators, full control, inherited by everything under it, and nothing
+        inherited from above. A folder made under a drive root takes the root's `Authenticated Users: Modify`, and every
+        other account on the PC could then replace the launcher, the program or the runtime that run as the person at
+        each sign-in (v0.6.18 security review, R2). Inside the profile nothing changes: the profile is the person's own.
+
+        Chosen over refusing such a home: an installation already relocated keeps working and is made private on its next
+        update or repair, and nothing the person can do there today is taken away. Where the drive keeps no access list
+        (FAT, exFAT) or the list cannot be written, it says so and goes on. Returns 'profile', 'protected' or 'failed'.
+    #>
+    param([string]$Root, [string]$Profile)
+    if (-not [string]::IsNullOrWhiteSpace($Profile) -and (Test-PathInside $Root $Profile)) { return 'profile' }
+    try {
+        $person = [Security.Principal.WindowsIdentity]::GetCurrent().User
+        $system = New-Object Security.Principal.SecurityIdentifier 'S-1-5-18'
+        $administrators = New-Object Security.Principal.SecurityIdentifier 'S-1-5-32-544'
+        $acl = New-Object Security.AccessControl.DirectorySecurity
+        $acl.SetAccessRuleProtection($true, $false)
+        $inherit = [Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit'
+        foreach ($who in @($person, $system, $administrators)) {
+            $acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule(
+                $who, [Security.AccessControl.FileSystemRights]::FullControl, $inherit,
+                [Security.AccessControl.PropagationFlags]::None, [Security.AccessControl.AccessControlType]::Allow)))
+        }
+        (New-Object IO.DirectoryInfo $Root).SetAccessControl($acl)
+        return 'protected'
+    } catch {
+        Warn ('The installation folder outside your profile could not be made private to you: ' + $_.Exception.Message)
+        Write-Host '       Other accounts on this PC may be able to change its files. Install into your profile, or'
+        Write-Host '       give the folder an access list that lets only you, SYSTEM and Administrators change it.'
+        return 'failed'
+    }
 }
 
 function Read-UninstallEntry {
@@ -1236,11 +1293,6 @@ if ($Uninstall) {
     # the canonical root. Every deletion below is confined to that canonical path, not to
     # the string this script started from - so a junction cannot widen the target after
     # the check has passed.
-    if (-not (Test-Path $Python)) {
-        Warn 'No installed runtime found here, so nothing can be verified or removed.'
-        Write-Host ('       Looked in ' + $InstallHome)
-        exit 1
-    }
     # Ask the *payload's* copy of the engine, not the installed one.
     #
     # `verify-home` arrived in v0.5.4, and this uninstaller has to work against an
@@ -1249,10 +1301,21 @@ if ($Uninstall) {
     # installation. The payload travels with this script and is always its own version,
     # so it can always answer. Measured, by running exactly that against a v0.5.3 tree.
     $verifier = Join-Path $Payload 'app\scripts\plugin_setup.py'
-    if (-not (Test-Path $verifier)) { $verifier = Join-Path $AppDir 'scripts\plugin_setup.py' }
+    if (-not (Test-Path -LiteralPath $verifier)) { $verifier = Join-Path $AppDir 'scripts\plugin_setup.py' }
     $interpreter = $Python
-    if (-not (Test-Path $interpreter)) { $interpreter = Join-Path $Payload 'runtime\python.exe' }
+    if (-not (Test-Path -LiteralPath $interpreter)) { $interpreter = Join-Path $Payload 'runtime\python.exe' }
+    # Refused only when neither interpreter is there: an uninstall run from the archive (Uninstall.cmd) over an
+    # installation whose runtime\ an earlier run already removed still has the payload's to ask (v0.6.18 audit, R3).
+    if (-not (Test-Path -LiteralPath $interpreter)) {
+        Warn 'No installed runtime found here, so nothing can be verified or removed.'
+        Write-Host ('       Looked in ' + $InstallHome)
+        exit 1
+    }
+    # 'Continue' for this call: under 'Stop', Windows PowerShell 5.1 makes a native stderr line a terminating error even
+    # with 2>$null, and a traceback then replaced the refusal below with a raw error (v0.6.18 installer audit, M1).
+    $ErrorActionPreference = 'Continue'
     $verify = & $interpreter $verifier 'verify-home' 2>$null
+    $ErrorActionPreference = 'Stop'
     if ($LASTEXITCODE -ne 0) {
         Fail 'This directory is not a Codex Auto Resume installation, so nothing was removed.'
         Write-Host ('       ' + $InstallHome)
@@ -1275,7 +1338,7 @@ if ($Uninstall) {
         Write-Host '       Close it, and run this uninstaller again.'
         exit 1
     }
-    if (Test-Path $Python) {
+    if (Test-Path -LiteralPath $Python) {
         Step 'Removing the watcher, autostart, notification identity and Start Menu entry'
         # Without -Purge this keeps settings and pending recoveries, which is what the
         # message at the end of this branch promises. It used to call plain `uninstall`,
@@ -1370,33 +1433,50 @@ if ($Uninstall) {
         foreach ($process in $ours) { Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue }
         Start-Sleep -Milliseconds 800
     }
-    foreach ($stale in (Get-ChildItem -Path $OwnedHome -Filter '*.old-*' -ErrorAction SilentlyContinue)) {
-        Remove-OwnedItem $stale.FullName
+    foreach ($stale in (Get-ChildItem -LiteralPath $OwnedHome -Filter '*.old-*' -ErrorAction SilentlyContinue)) {
+        # Its True or False is not a line for the log or the setup window.
+        $null = Remove-OwnedItem $stale.FullName
     }
     $stuck = @()
     # What is in the two program folders goes entry by entry, each proved inside the installation again
     # (Remove-OwnedItem), so the setup window's bar follows the removal (Progress); then each folder itself, as before.
-    $programDirs = @(@($AppDir, $RunDir) | Where-Object { Test-Path $_ })
-    $programEntries = @(foreach ($dir in $programDirs) {
-        Get-ChildItem -LiteralPath $dir -Force -ErrorAction SilentlyContinue
-    })
-    $removeTotal = $programEntries.Count + $programDirs.Count
-    $removedCount = 0
-    foreach ($programEntry in $programEntries) {
-        $null = Remove-OwnedItem $programEntry.FullName
-        $removedCount++
-        Progress 'remove_files' $removedCount $removeTotal
+    #
+    # The retry this branch asks for below needs what it ran on: runtime\python.exe, and app\scripts and app\src for
+    # verify-home (the kept uninstaller has no payload to fall back on). So app\ goes first, those two of it last and
+    # only while nothing before them stuck, and runtime\ only once app\ is gone: one file held open under app\ used to
+    # leave runtime\ deleted anyway, and the retry then stopped at "No installed runtime found" for good (v0.6.18
+    # installer audit, R3).
+    $retryNeeds = @('scripts', 'src')
+    $programDirs = @(@($AppDir, $RunDir) | Where-Object { Test-Path -LiteralPath $_ })
+    $programEntries = @{}
+    $removeTotal = $programDirs.Count
+    foreach ($dir in $programDirs) {
+        $inside = @(Get-ChildItem -LiteralPath $dir -Force -ErrorAction SilentlyContinue)
+        if ($dir -eq $AppDir) {
+            $inside = @($inside | Where-Object { $retryNeeds -notcontains $_.Name }) +
+                      @($inside | Where-Object { $retryNeeds -contains $_.Name })
+        }
+        $programEntries[$dir] = $inside
+        $removeTotal += $inside.Count
     }
-    foreach ($dir in @($AppDir, $RunDir)) {
-        if (-not (Test-Path $dir)) { continue }
-        $dirGone = Remove-OwnedItem $dir
-        $removedCount++
-        Progress 'remove_files' $removedCount $removeTotal
-        if (-not $dirGone) { $stuck += $dir; continue }
-        # -ErrorAction SilentlyContinue swallows a sharing violation, so ask afterwards
-        # rather than assuming. A half-deleted installation reported as "Removed." is
-        # worse than an honest failure: nothing tells the user to try again.
-        if (Test-Path $dir) { $stuck += $dir }
+    $removedCount = 0
+    foreach ($dir in $programDirs) {
+        foreach ($programEntry in $programEntries[$dir]) {
+            if ($stuck.Count -gt 0 -and $retryNeeds -contains $programEntry.Name) { continue }
+            # -ErrorAction SilentlyContinue swallows a sharing violation, so Remove-OwnedItem asks afterwards. A
+            # half-deleted installation reported as "Removed." is worse than an honest failure.
+            if (-not (Remove-OwnedItem $programEntry.FullName)) { $stuck += $programEntry.FullName }
+            $removedCount++
+            Progress 'remove_files' $removedCount $removeTotal
+        }
+        if ($stuck.Count -eq 0) {
+            $dirGone = Remove-OwnedItem $dir
+            $removedCount++
+            Progress 'remove_files' $removedCount $removeTotal
+            if (-not $dirGone) { $stuck += $dir }
+        }
+        # Nothing of runtime\ goes while anything of app\ is left.
+        if ($stuck.Count -ne 0) { break }
     }
     if ($stuck.Count -gt 0) {
         Write-Host ''
@@ -1404,6 +1484,7 @@ if ($Uninstall) {
         foreach ($dir in $stuck) { Write-Host ('       ' + $dir) }
         Write-Host '       Close the ChatGPT/Codex app and run this again. The watcher is'
         Write-Host '       already stopped and unregistered, so nothing is running now.'
+        if (Test-Path -LiteralPath $Python) { Write-Host 'The installed runtime was kept so this uninstall can be retried.' }
         exit 1
     }
     # The last thing to go is the proof that any of this was ours.
@@ -1426,15 +1507,23 @@ if ($Uninstall) {
                         'runtime.json', '.owned-by-codex-auto-resume',
                         '.codex-auto-resume-install-journal.json')) {
         $path = Join-Path $OwnedHome $file
-        if (Test-Path $path) { $null = Remove-OwnedItem $path }
+        if (Test-Path -LiteralPath $path) { $null = Remove-OwnedItem $path }
     }
     if ($Purge) {
         # Only on an explicit request: this is the user's recovery history.
+        # Asked whether it worked: a held log file used to stay while this said it was removed (v0.6.18 audit, M3).
+        $kept = @()
         foreach ($dir in @((Join-Path $OwnedHome 'config'), (Join-Path $OwnedHome 'logs'))) {
-            if (Test-Path $dir) { $null = Remove-OwnedItem $dir }
+            if ((Test-Path -LiteralPath $dir) -and -not (Remove-OwnedItem $dir)) { $kept += $dir }
         }
         Write-Host ''
-        Write-Host 'Removed, including settings and recovery history.'
+        if ($kept.Count -gt 0) {
+            Fail 'Removed, but some settings or recovery history could not be removed:'
+            foreach ($dir in $kept) { Write-Host ('       ' + $dir) }
+            Write-Host '       The program is gone; close what is using them, then delete them yourself.'
+        } else {
+            Write-Host 'Removed, including settings and recovery history.'
+        }
     } else {
         Write-Host ''
         Write-Host 'Removed. Settings and pending recoveries were kept.'
@@ -1454,7 +1543,7 @@ if ($Uninstall) {
 }
 
 # -------------------------------------------------------------------------- install
-if (-not (Test-Path $Payload)) { Fail 'This installer is missing its payload folder.'; exit 1 }
+if (-not (Test-Path -LiteralPath $Payload)) { Fail 'This installer is missing its payload folder.'; exit 1 }
 
 # Said before anything is done: which edition this archive installs. Every route in - Install.cmd,
 # the bootstrap, an update - passes here, so every install says it.
@@ -1487,8 +1576,11 @@ if ((Invoke-Codex $codex @('plugin', '--help')).Code -ne 0) {
 # the deletions would authorise them backwards, which is not authorisation.
 $claimer = Join-Path $Payload 'app\scripts\plugin_setup.py'
 $claimPython = Join-Path $Payload 'runtime\python.exe'
-if (-not (Test-Path $claimPython)) { $claimPython = $Python }
+if (-not (Test-Path -LiteralPath $claimPython)) { $claimPython = $Python }
+# 'Continue' for this call, as for verify-home above: the exit code decides, never a stderr line (M1).
+$ErrorActionPreference = 'Continue'
 $claim = & $claimPython $claimer 'claim-home' 2>$null
+$ErrorActionPreference = 'Stop'
 if ($LASTEXITCODE -ne 0) {
     Fail 'This directory holds files no installation of ours has claimed; nothing was installed.'
     Write-Host ('       ' + $InstallHome)
@@ -1502,6 +1594,10 @@ $OwnedHome = Resolve-Canonical (@($claim)[1])
 if (-not $OwnedHome -or -not (Test-PathInside $AppDir $OwnedHome)) {
     Fail 'The installation root could not be resolved; nothing was installed.'
     exit 1
+}
+# A root outside the profile is made private to the person before a file of the program goes into it (R2).
+if ((Protect-RelocatedHome -Root $OwnedHome -Profile $env:USERPROFILE) -eq 'protected') {
+    Ok 'The installation folder, outside your profile, is private to you'
 }
 
 # Finish the previous run's move before deciding anything else.
@@ -1577,13 +1673,40 @@ function Open-ClosedDashboard {
     }
 }
 
+function Start-StoppedWatcher {
+    <#
+        Starts again the watcher this update stopped (the hand-over below), when the update stops before its own setup
+        starts the new version's: a copy that was put back, a payload found incomplete, anything that throws. Without
+        this the closing line said nothing was changed while recovery stayed off until the next sign-in (v0.6.18
+        installer audit, R2). It is the installation's own `setup --keep-state` - whichever version's files are in
+        place, the put-back ones after a rollback - which changes no decision a person made, as the bootstrap's repair
+        runs it. Where that cannot run or does not confirm the watcher, it says recovery is off and how to start it.
+        Once, and only while $script:WatcherStoppedForUpdate says a watcher was stopped and nothing has started one.
+    #>
+    if (-not $script:WatcherStoppedForUpdate) { return }
+    $script:WatcherStoppedForUpdate = $false
+    if ((Test-Path -LiteralPath $Python) -and (Test-Path -LiteralPath (Join-Path $AppDir 'scripts\plugin_setup.py'))) {
+        Step 'Starting the watcher that was stopped for this update again'
+        $restartArgs = @('setup', '--keep-state')
+        if ($SkipStartup) { $restartArgs += '--no-startup' }
+        if ((Invoke-Setup $restartArgs) -eq 0) {
+            Ok 'The watcher was started again'
+            return
+        }
+    }
+    Warn 'The watcher that was stopped for this update is not running, so nothing is being recovered now.'
+    Write-Host '       Open Start Menu > Codex Auto Resume and use Start watcher, or sign out and back in.'
+}
+
 # From here on, the Dashboard windows an update asks to close (below) open again on every way out, through the
-# `finally` at the end - an update that finishes, and one that stops, is refused or is put back alike.
+# `finally` at the end - an update that finishes, and one that stops, is refused or is put back alike. So does the
+# watcher the update stopped, until the update's own setup takes over (Start-StoppedWatcher).
+$script:WatcherStoppedForUpdate = $false
 $script:DashboardsAskedAt = $null
 $script:DashboardsReopened = $false
 $script:DashboardsFallback = @()
 try {
-    $upgrade = Test-Path $AppDir
+    $upgrade = Test-Path -LiteralPath $AppDir
 
     # Which edition is installed, read while the old program files are still where they were.
     # The move-aside below takes the whole app tree away, which is why no advanced package can
@@ -1624,7 +1747,7 @@ try {
     # whatever was using them has exited, which is normally by now - except the ones the
     # journal still accounts for, which are either the tree just put back or the one an
     # interrupted run was replacing and could not.
-    foreach ($stale in (Get-ChildItem -Path $OwnedHome -Directory -Filter '*.old-*' -ErrorAction SilentlyContinue)) {
+    foreach ($stale in (Get-ChildItem -LiteralPath $OwnedHome -Directory -Filter '*.old-*' -ErrorAction SilentlyContinue)) {
         $canonical = Resolve-Canonical $stale.FullName
         if ($canonical -and ($claimedAside -contains $canonical)) {
             Step ('Keeping ' + $stale.Name + ' until this installation is complete')
@@ -1653,7 +1776,7 @@ try {
     $watcherWasRunning = (Get-OwnedWatcherProcess).Count -gt 0
     if ($watcherWasRunning) {
         Step 'Stopping the running watcher so the new version takes over'
-        if ((Test-Path $Python) -and (Test-Path (Join-Path $AppDir 'scripts\plugin_setup.py'))) {
+        if ((Test-Path -LiteralPath $Python) -and (Test-Path -LiteralPath (Join-Path $AppDir 'scripts\plugin_setup.py'))) {
             $null = Invoke-Setup @('stop')
         }
         $deadline = (Get-Date).AddSeconds(60)
@@ -1665,6 +1788,8 @@ try {
             Warn 'The previous watcher is still finishing and was left running.'
         } else {
             Ok 'The previous watcher stopped'
+            # Started again on every way out before the setup below (the `finally` at the end, Start-StoppedWatcher).
+            $script:WatcherStoppedForUpdate = $true
         }
     }
 
@@ -1717,10 +1842,10 @@ try {
     # fails while putting it back is still free.
     $rootFiles = @('CodexAutoResumeSettings.exe', 'codex-auto-resume.ico')
     foreach ($pair in $pairs) {
-        if (-not (Test-Path (Join-Path $Payload $pair.src))) { Fail ('Payload is incomplete: ' + $pair.src); exit 1 }
+        if (-not (Test-Path -LiteralPath (Join-Path $Payload $pair.src))) { Fail ('Payload is incomplete: ' + $pair.src); exit 1 }
     }
     foreach ($name in $rootFiles) {
-        if (-not (Test-Path (Join-Path $Payload $name))) { Fail ('Payload is incomplete: ' + $name); exit 1 }
+        if (-not (Test-Path -LiteralPath (Join-Path $Payload $name))) { Fail ('Payload is incomplete: ' + $name); exit 1 }
     }
 
     # Move everything aside first, copy second, and undo the whole thing on any failure -
@@ -1734,7 +1859,7 @@ try {
     $stamp = Get-Date -Format 'yyyyMMddHHmmss'
     $plan = @()
     foreach ($pair in $pairs) {
-        if (-not (Test-Path $pair.dst)) { continue }
+        if (-not (Test-Path -LiteralPath $pair.dst)) { continue }
         $aside = $pair.dst + '.old-' + $stamp
         $plan += @{ src = $pair.src; dst = $pair.dst; aside = $aside }
     }
@@ -1745,7 +1870,7 @@ try {
         if ($plan.Count -gt 0) { Write-CopyJournal -Path $Journal -Root $OwnedHome -Entries $plan }
         foreach ($pair in $plan) {
             $aside = $pair.aside
-            Move-Item -Path $pair.dst -Destination $aside -ErrorAction Stop
+            Move-Item -LiteralPath $pair.dst -Destination $aside -ErrorAction Stop
             $moved += @{ from = $aside; to = $pair.dst }
         }
         # File by file, so the setup window's bar follows the copy as it goes (Progress): every folder first, then
@@ -1769,12 +1894,25 @@ try {
         }
     } catch {
         Warn ('Could not replace the installation: ' + $_.Exception.Message)
+        $notBack = @()
         foreach ($undo in $moved) {
-            if (Test-Path $undo.to) { $null = Remove-OwnedItem $undo.to }
-            Move-Item -Path $undo.from -Destination $undo.to -Force -ErrorAction SilentlyContinue
+            if (Test-Path -LiteralPath $undo.to) { $null = Remove-OwnedItem $undo.to }
+            # Moved back only where the half-copied tree is gone: moved onto a folder that is still there, it went INTO
+            # it (apppp.old-<stamp>), and a later run swept it with the rest (v0.6.18 installer audit, M5). Left
+            # aside under its own name, the journal below keeps it from every sweep.
+            if (Test-Path -LiteralPath $undo.to) { $notBack += $undo; continue }
+            Move-Item -LiteralPath $undo.from -Destination $undo.to -Force -ErrorAction SilentlyContinue
+            if (-not (Test-Path -LiteralPath $undo.to)) { $notBack += $undo }
         }
         # The journal is deliberately left where it is. The undo above is best-effort, and if
         # any part of it did not take, that file is the only record of where the tree went.
+        if ($notBack.Count -gt 0) {
+            Fail 'The existing installation could not be put back completely:'
+            foreach ($undo in $notBack) { Write-Host ('       ' + $undo.from + ' could not be put back at ' + $undo.to) }
+            Write-Host '       It is kept under that name until an installation completes.'
+            Write-Host '       Close the ChatGPT/Codex app and run this installer again.'
+            exit 1
+        }
         Fail 'The existing installation was put back; nothing was changed.'
         Write-Host '       Close the ChatGPT/Codex app and run this installer again.'
         exit 1
@@ -1792,17 +1930,23 @@ try {
         $source = Join-Path $Payload $name
         $target = Join-Path $InstallHome $name
         try {
-            Copy-Item -Path $source -Destination $target -Force -ErrorAction Stop
+            Copy-Item -LiteralPath $source -Destination $target -Force -ErrorAction Stop
         } catch {
             $aside = $target + '.old-' + (Get-Date -Format 'yyyyMMddHHmmss')
-            Move-Item -Path $target -Destination $aside -Force -ErrorAction SilentlyContinue
-            Copy-Item -Path $source -Destination $target -Force
+            Move-Item -LiteralPath $target -Destination $aside -Force -ErrorAction SilentlyContinue
+            # A second failure is said, and the run goes on to its setup: thrown here, it ended the update after the
+            # program trees were replaced and before the watcher was set up, with no last word (v0.6.18 audit, M6).
+            try { Copy-Item -LiteralPath $source -Destination $target -Force -ErrorAction Stop }
+            catch {
+                Fail ($name + ' could not be replaced: ' + $_.Exception.Message)
+                Write-Host '       Close the Dashboard and run this installer again; the rest of the update goes on.'
+            }
         }
     }
-    foreach ($stale in (Get-ChildItem -Path $OwnedHome -File -Filter '*.old-*' -ErrorAction SilentlyContinue)) {
+    foreach ($stale in (Get-ChildItem -LiteralPath $OwnedHome -File -Filter '*.old-*' -ErrorAction SilentlyContinue)) {
         $null = Remove-OwnedItem $stale.FullName
     }
-    if (-not (Test-Path $Python)) { Fail 'The bundled Python runtime is missing from the payload.'; exit 1 }
+    if (-not (Test-Path -LiteralPath $Python)) { Fail 'The bundled Python runtime is missing from the payload.'; exit 1 }
     $runtimeVersion = & $Python -c 'import sys;print(str(sys.version_info[0])+chr(46)+str(sys.version_info[1]))'
     Ok ('Bundled Python ' + $runtimeVersion + ' (no system Python needed)')
 
@@ -1881,6 +2025,8 @@ try {
     }
 
     Step 'Setting up the watcher'
+    # From here the new version's setup starts the watcher, and nothing else does.
+    $script:WatcherStoppedForUpdate = $false
     $setupArgs = @('setup')
     # An upgrade repairs an installation; it does not get to decide anything for its owner.
     # Plain `setup` runs the engine's `enable` and registers the sign-in entry, so upgrading
@@ -1930,6 +2076,11 @@ try {
     $watcherUnconfirmed = $code -eq $SETUP_UNCONFIRMED
     if ($code -ne 0 -and -not $watcherUnconfirmed) {
         Fail 'Setup did not complete. Nothing was removed; read the message above.'
+        # A watcher stopped for this update that the failed setup did not start again is said, not left unsaid.
+        if ($watcherWasRunning -and (Invoke-Setup @('watcher-running')) -ne 0) {
+            Warn 'The watcher that was stopped for this update is not running, so nothing is being recovered now.'
+            Write-Host '       Open Start Menu > Codex Auto Resume and use Start watcher, or run this again.'
+        }
         exit 1
     }
 
@@ -1975,6 +2126,8 @@ try {
     Write-Host 'or use Start Menu > Codex Auto Resume.'
     exit 0
 } finally {
+    # Every way out before the setup step - a put-back installation, a stop, an error - starts the stopped watcher again.
+    try { Start-StoppedWatcher } catch { }
     # Every way out once the Dashboard was asked to close - a stop, a put-back installation, an error - opens it again.
     try { Open-ClosedDashboard } catch { }
 }

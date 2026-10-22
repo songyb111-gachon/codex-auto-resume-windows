@@ -273,14 +273,14 @@ class InPlaceUpgradeTests(unittest.TestCase):
         self.text = PS1.read_text(encoding="utf-8")
 
     def test_program_directories_are_moved_aside_not_deleted(self):
-        self.assertIn("Move-Item -Path $pair.dst -Destination $aside", self.text)
+        self.assertIn("Move-Item -LiteralPath $pair.dst -Destination $aside", self.text)
         self.assertNotIn("if (Test-Path $pair.dst) { Remove-Item -Recurse -Force $pair.dst }", self.text)
 
     def test_a_failure_at_either_step_puts_the_installation_back(self):
         # The first version of this rolled back a failed move but not a failed copy, and
         # left the application present with the interpreter missing - which is how the
         # bug it fixes was reproduced in the first place.
-        move = self.text.index("Move-Item -Path $pair.dst -Destination $aside")
+        move = self.text.index("Move-Item -LiteralPath $pair.dst -Destination $aside")
         copy = self.text.index("[IO.File]::Copy($payloadItem.From, $payloadItem.To, $true)")
         rollback = self.text.index("foreach ($undo in $moved)")
         self.assertLess(move, copy, "moves must all happen before any copy")
@@ -291,7 +291,7 @@ class InPlaceUpgradeTests(unittest.TestCase):
         # Moving the original back over a half-written directory would merge the two.
         rollback = self.text[self.text.index("foreach ($undo in $moved)"):]
         self.assertLess(rollback.index("Remove-OwnedItem $undo.to"),
-                        rollback.index("Move-Item -Path $undo.from"))
+                        rollback.index("Move-Item -LiteralPath $undo.from"))
 
     @unittest.skipUnless(shutil.which("powershell") or shutil.which("powershell.exe"),
                          "PowerShell is unavailable")
@@ -551,8 +551,8 @@ class UpgradeKeepsTheOwnersChoiceTests(unittest.TestCase):
 
     def test_whether_it_is_an_upgrade_is_decided_before_the_files_move(self):
         # $upgrade is `Test-Path $AppDir`, and app\ is about to be moved aside.
-        self.assertLess(self.text.index("$upgrade = Test-Path $AppDir"),
-                        self.text.index("Move-Item -Path $pair.dst -Destination $aside"))
+        self.assertLess(self.text.index("$upgrade = Test-Path -LiteralPath $AppDir"),
+                        self.text.index("Move-Item -LiteralPath $pair.dst -Destination $aside"))
 
     def test_the_flag_is_one_the_setup_command_actually_accepts(self):
         # The installer passing a flag the bridge does not define is an argparse error
@@ -634,7 +634,7 @@ class CrashDuringTheCopyTests(unittest.TestCase):
 
     def test_it_is_written_before_the_first_move(self):
         self.assertLess(self.text.index("Write-CopyJournal -Path $Journal"),
-                        self.text.index("Move-Item -Path $pair.dst -Destination $aside"))
+                        self.text.index("Move-Item -LiteralPath $pair.dst -Destination $aside"))
 
     def test_it_names_what_was_moved_where_and_the_target(self):
         body = block(self.text, "function Write-CopyJournal", "function Restore-InterruptedCopy")
@@ -657,7 +657,7 @@ class CrashDuringTheCopyTests(unittest.TestCase):
     def test_it_is_read_before_the_run_decides_it_is_a_first_install(self):
         # A restored app\ is an upgrade; the sweep order used to make it look new.
         self.assertLess(self.text.index("Restore-InterruptedCopy -Path $Journal"),
-                        self.text.index("$upgrade = Test-Path $AppDir"))
+                        self.text.index("$upgrade = Test-Path -LiteralPath $AppDir"))
 
     def test_the_sweep_spares_the_copies_the_journal_claims(self):
         sweep = block(self.text, "# Sweep up copies moved aside", "# Hand over from a running watcher")
@@ -679,7 +679,7 @@ class CrashDuringTheCopyTests(unittest.TestCase):
     def test_the_uninstaller_takes_its_own_file_with_it(self):
         # An installation being removed has nothing left to put back, so the journal
         # must not outlive the thing it described.
-        section = block(self.text, "if ($Uninstall)", "if (-not (Test-Path $Payload))")
+        section = block(self.text, "if ($Uninstall)", "if (-not (Test-Path -LiteralPath $Payload))")
         self.assertIn(JOURNAL, section)
 
 
@@ -992,13 +992,13 @@ class PayloadRootTests(unittest.TestCase):
 
     def test_it_fails_before_anything_has_been_moved(self):
         self.assertLess(self.text.index("Fail ('Payload is incomplete: ' + $name)"),
-                        self.text.index("Move-Item -Path $pair.dst -Destination $aside"))
+                        self.text.index("Move-Item -LiteralPath $pair.dst -Destination $aside"))
 
     def test_the_move_aside_rule_still_covers_an_open_settings_window(self):
         copy = block(self.text, "# The settings window and the icon live at the payload root",
                      "foreach ($stale in")
         self.assertIn("$aside = $target + '.old-'", copy)
-        self.assertIn("Move-Item -Path $target -Destination $aside", copy)
+        self.assertIn("Move-Item -LiteralPath $target -Destination $aside", copy)
 
 
 class ArchiveContentsTests(unittest.TestCase):
