@@ -383,7 +383,7 @@ def bridge(runtime, command, argument):
         if command == BridgeCommand.ADVANCED_CHAT_READ:
             return chat.view(runtime, argument.get("thread_id"))
         if command == BridgeCommand.ADVANCED_CHAT_SEND:
-            return chat.send(runtime, argument)
+            return chat.add(runtime, argument)
         return chat.cancel(runtime, argument)
     if command == BridgeCommand.ADVANCED_WATCH_LOG:
         from . import watchlog

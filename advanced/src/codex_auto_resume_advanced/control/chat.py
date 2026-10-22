@@ -70,8 +70,8 @@ def limit_full(runtime, now) -> bool:
         return False
 
 
-def send(runtime, argument) -> dict:
-    """advanced-chat-send: one message to `thread_id`, waiting for core to take it at its next look."""
+def add(runtime, argument) -> dict:
+    """advanced-chat-send: one message to `thread_id` added, waiting for core to take and send it at its next look."""
     if _stale(runtime, argument.get("generation")):
         return _refused(Refusal.STALE_GENERATION, runtime)
     thread, words = argument.get("thread_id"), argument.get("words")
