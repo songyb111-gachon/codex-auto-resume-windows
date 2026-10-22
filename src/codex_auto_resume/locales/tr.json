@@ -789,6 +789,8 @@
   "msg.toast_power_stop.shut_down": "Kapatma",
   "msg.toast_power_stop.sleep": "Uyuma",
   "msg.toast_power_stopped": "Bilgisayar bu sefer açık kalıyor",
+  "msg.toast_restart_gave_up": "İzleyici durmuş halde bırakıldı",
+  "msg.toast_restart_gave_up_body": "Bir saat içinde üç kez beklenmedik şekilde durdu ve durmuş halde bırakıldı. Gösterge Paneli'nden yeniden başlatın.",
   "msg.toast_resumed_body": "Kesintiye uğrayan görev yeniden çalışıyor.",
   "msg.toast_resumed_title": "Sürdürüldü",
   "msg.toast_starting_body": "Devam mesajı bu sohbete gönderiliyor.",

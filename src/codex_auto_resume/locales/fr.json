@@ -789,6 +789,8 @@
   "msg.toast_power_stop.shut_down": "Ne pas arrêter",
   "msg.toast_power_stop.sleep": "Pas de veille",
   "msg.toast_power_stopped": "Le PC reste allumé cette fois",
+  "msg.toast_restart_gave_up": "Le surveillant reste arrêté",
+  "msg.toast_restart_gave_up_body": "Il s'est arrêté de façon inattendue trois fois en une heure et reste arrêté. Redémarrez-le depuis le Tableau de bord.",
   "msg.toast_resumed_body": "La tâche interrompue a repris.",
   "msg.toast_resumed_title": "Tâche reprise",
   "msg.toast_starting_body": "Envoi de la relance dans cette conversation.",

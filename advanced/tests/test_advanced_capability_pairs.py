@@ -462,5 +462,41 @@ class PauseBesideResetCreditTests(UsageCase):
         self.assertFalse(all(held), "some minute of the credit's early window is not held")
 
 
+# v0.6.19 W4 (plans/v0619-design/D-watcher-ops.md): the watcher operations beside what they meet.
+class CrashRestartBesideStartWithCodexTests(ac.AdvancedCase):
+    """crash_restart and start_with_codex: COMPOSE. Start with Codex starts this installation's launcher through WMI,
+    outside Codex's job (P9); the launcher it started asks P13, and crash_restart supervises the watcher from there - one
+    answers at P9, the other at P13, about one launcher, and neither stands aside."""
+
+    def setUp(self):
+        super().setUp()
+        from codex_auto_resume_advanced.registry import CRASH_RESTART, START_WITH_CODEX
+        self.compat = ac.view(capability="engine_present")
+        self.rt = self.runtime(START_WITH_CODEX, CRASH_RESTART)
+        self.rt.arming.catalogs = statement.CATALOGS
+        code = self.rt._code_of(CRASH_RESTART)
+        code._stop = type("Stop", (), {"hold": lambda self: True, "signalled": lambda self: False,
+                                       "wait": lambda self, seconds: False})()
+        code._notify = lambda paths: None
+
+    def on(self, capability):
+        definition = self.rt.registry.get(capability)
+        result = self.rt.arming.arm(capability, state="armed", revision=definition.revision,
+                                    generation=self.rt.state.meta()["generation"], acknowledged_version=ac.ENGINE,
+                                    warnings=[str(w) for w in self.rt.arming.warnings(definition)], actor=Actor.DASHBOARD)
+        self.assertTrue(result["done"], result)
+
+    def test_both_on_the_launcher_started_with_codex_supervises_the_watcher(self):
+        from codex_auto_resume_advanced.control.codexstart import StartWithCodex
+        self.on("start_with_codex")
+        self.on("crash_restart")
+        self.assertIsInstance(self.rt.start_route({"in_job": True, "kill_on_close": True, "breakaway_ok": False,
+                                                   "silent_breakaway_ok": False}), StartWithCodex)
+        self.assertIs(self.rt.supervise({"phase": "start"}), Alternative.SUPERVISE)
+        self.assertIs(self.rt.supervise({"phase": "ended", "exit_code": 1, "clean": False}), Alternative.RESTART)
+        overruled = [line for line in self.rt.state.journal() if line["code"] == JournalCode.OVERRULED]
+        self.assertEqual(overruled, [])
+
+
 if __name__ == "__main__":
     unittest.main()

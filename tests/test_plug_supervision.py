@@ -1,8 +1,9 @@
 """P13 in the launcher (v0.6.19, plans/v0619-design/D-groundwork.md section 3): asked before the watcher runs -
 `{"phase": "start"}`, where SUPERVISE would mean run it as a child and stay - and once it ended - `{"phase": "ended",
-"exit_code": n, "clean": ...}`, where RESTART would mean start it once more. Both words are the point's now, and
-the launcher carries neither out yet (the supervisor's own commit does): with the standard edition's NULL plug, and
-with any answer at all, it runs the watcher once and returns what it returned, exactly as before.
+"exit_code": n, "clean": ...}`, where RESTART would mean start it once more. Both words are the point's, and with the
+standard edition's NULL plug, and with any answer but SUPERVISE, the launcher runs the watcher once and returns what it
+returned, exactly as before. SUPERVISE is carried out by the crash restart's commit (v0.6.19, the supervisor: its own
+tests are tests/test_launcher_supervisor.py); here it is held to the one call it leads to.
 
     PYTHONPATH="src;tests" python -m unittest test_plug_supervision
 """
@@ -56,6 +57,7 @@ class LauncherCase(unittest.TestCase):
         with patch.object(self.launcher, "resolve_plugin_root", return_value=ROOT), \
                 patch("codex_auto_resume.cli.main", return_value=code) as watcher, \
                 patch.object(self.launcher, "_relaunch_once") as relaunch, \
+                patch.object(self.launcher, "_supervised", return_value=None) as self.supervised, \
                 patch.object(edition, "plug", return_value=found):
             returned = self.launcher.main(argv)
         return returned, [call.args for call in watcher.call_args_list], [call.args for call in relaunch.call_args_list]
@@ -104,9 +106,10 @@ class AskedTests(LauncherCase):
         self.launch(["activate", "codex-auto-resume:open"], 0, asked)
         self.assertEqual(asked.asked, [])
 
-    def test_supervise_and_restart_are_the_points_words_and_change_nothing_yet(self):
-        """Taken by the guard as the point's own (not DEFER), and carried out by no one: the watcher runs once, its
-        code is returned and nothing is relaunched, whatever the plug says."""
+    def test_supervise_and_restart_are_the_points_words_and_only_supervise_changes_the_start(self):
+        """Taken by the guard as the point's own (not DEFER). At the start only SUPERVISE leads anywhere - to the
+        supervisor (v0.6.19), which here starts no child, so the watcher runs here once, its code returned, and nothing
+        more is asked; anything else, RESTART at the start included, runs it here as before."""
         self.assertEqual(plug.ALTERNATIVES[Point.SUPERVISION], frozenset({Alternative.SUPERVISE, Alternative.RESTART}))
         for answer in (Alternative.SUPERVISE, Alternative.RESTART, "restart", Alternative.HOLD, RuntimeError("no")):
             with self.subTest(answer=answer):
@@ -116,6 +119,7 @@ class AskedTests(LauncherCase):
                 self.assertIs(plug.guard(asked).supervise({"phase": "start"}), expected)
                 returned, runs, relaunches = self.launch([], 1, Asked(supervise=answer))
                 self.assertEqual((returned, len(runs), relaunches), (1, 1, []))
+                self.assertEqual(self.supervised.call_count, int(answer == Alternative.SUPERVISE))
 
     def test_the_plugs_answer_never_reaches_the_watchers_arguments(self):
         returned, runs, _ = self.launch([], 0, Asked(supervise=Alternative.SUPERVISE))

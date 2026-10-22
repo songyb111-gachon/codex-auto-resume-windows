@@ -84,6 +84,7 @@ from .engine.earlyreset import make as make_early_reset
 from .engine.emptyreply import make as make_empty_response
 from .engine.everyconversation import make as make_every_conversation
 from .engine.subagent import make as make_subagent_parent
+from .engine.supervise import make as make_crash_restart
 from .engine.keepgoing import make as make_keep_going
 from .engine.promptqueue import make as make_prompt_queue
 from .engine.foropen import CODES as FOROPEN_CODES, DAYS, DEFAULT_DAYS, make as make_queue_for_open
@@ -389,6 +390,29 @@ START_WITH_CODEX = CapabilityDef(
            "refused", "failed", "ended"),
     make=make_start_with_codex,
     measurements=(Measurement.MW,),
+)
+
+# Restart the watcher if it stops unexpectedly (v0.6.19, plans/v0619-design/D-watcher-ops.md A). At P13 it answers
+# SUPERVISE before the launcher runs the watcher, so the launcher runs it as a child - itself again, under pythonw.exe,
+# with no window - and stays; and once that child ended, RESTART only for an abnormal end: not clean in the heartbeat,
+# an exit code that is none of 0, EXIT_BUSY 3, EXIT_SCHEMA_NEWER 4 (whose relaunch-once path is unchanged) and
+# EXIT_MEMORY_GUARD 5, no stop asked through the stop event, and fewer than three restarts in the hour before, each a
+# row of `restarts` written before it is made (engine/supervise.py). After the third in an hour the watcher is left
+# stopped - the standard "stopped unexpectedly" - with one notice of its own kind, restart_gave_up. It departs from F6 (a
+# second pythonw.exe of the product's own, the supervisor beside the watcher) and F8 (a resident helper: the launcher
+# stays as the watcher's parent); it never kills anything (E8 kept), and a restarted watcher reconciles before it sends
+# as every watcher does (E2, A5-A7 kept). It sends nothing and reads nothing of Codex, and stands on engine_present, the
+# installation every recovery stands on; its ceilings are the schema's floor and never bind.
+CRASH_RESTART = CapabilityDef(
+    id="crash_restart",
+    points=frozenset({Point.SUPERVISION}),
+    revision=1,
+    departs_from=("F6", "F8"),
+    compat="engine_present",
+    ceilings=Ceilings(per_day=1, per_conversation=1),
+    journal_prefix="crash",
+    make=make_crash_restart,
+    codes=("restarted", "gave_up"),
 )
 
 # The marker-free continuation (v0.6.11 stage 3a, the owner's request of 2026-09-26): each
@@ -1143,7 +1167,7 @@ COMPAT_REPORT = CapabilityDef(
 
 # In this order, which is also which answers first where two answer at one point; the action, which
 # answers at none, last.
-DEFINITIONS = (START_WITH_CODEX, GOAL_CONTINUATION, QUEUE_FOR_OPEN, COMPACT_CONTINUE, MODEL_FALLBACK, HEADLESS_RUN, OTHER_SESSIONS, MARKER_FREE, CAPACITY_RETRY, STRUCTURED_RULES,
+DEFINITIONS = (START_WITH_CODEX, CRASH_RESTART, GOAL_CONTINUATION, QUEUE_FOR_OPEN, COMPACT_CONTINUE, MODEL_FALLBACK, HEADLESS_RUN, OTHER_SESSIONS, MARKER_FREE, CAPACITY_RETRY, STRUCTURED_RULES,
                UNKNOWN_FAILURE_BUDGET, CODEX_GAVE_UP, SIGN_IN_RETRY, RESET_CREDIT, RESET_MESSAGE, EARLY_RESET,
                ONCE_MORE, SEND_NOW, PARALLEL_DISPATCH, PROMPT_QUEUE, EMPTY_RESPONSE, SUBAGENT_PARENT, KEEP_GOING,
                USAGE_METER, USAGE_WRAP_UP, USAGE_PAUSE, EVERY_CONVERSATION, SILENT_CONTINUATION, IDLE_UPDATE_CHECK,
@@ -1193,6 +1217,9 @@ REGISTRY = _registry()
 # cases and expert settings. A measurement's warning never pushes a capability down. Every capability of
 # DEFINITIONS appears here exactly once (test_advanced_registry holds it).
 SHOWN_ORDER = ("compat_report", "start_with_codex",
+               # v0.6.19 (the order the owner approved on 2026-10-22): what keeps the watcher itself going, after what
+               # starts it.
+               "crash_restart",
                # v0.6.16-beta.3: which conversations are recovered at all, beside what starts the recovering.
                "every_conversation", "queue_for_open",
                # v0.6.16-beta.4: what gets a conversation going when nothing holds it, beside queue for opening (Q12).

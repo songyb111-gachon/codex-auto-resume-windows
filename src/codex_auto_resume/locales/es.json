@@ -789,6 +789,8 @@
   "msg.toast_power_stop.shut_down": "No apagar",
   "msg.toast_power_stop.sleep": "No suspender",
   "msg.toast_power_stopped": "El PC sigue encendido esta vez",
+  "msg.toast_restart_gave_up": "El monitor quedó detenido",
+  "msg.toast_restart_gave_up_body": "Se detuvo inesperadamente tres veces en una hora y quedó detenido. Vuelve a iniciarlo desde el Panel.",
   "msg.toast_resumed_body": "La tarea interrumpida vuelve a ejecutarse.",
   "msg.toast_resumed_title": "Reanudada",
   "msg.toast_starting_body": "Enviando la continuación a esta conversación.",

@@ -789,6 +789,8 @@
   "msg.toast_power_stop.shut_down": "بلا إيقاف تشغيل",
   "msg.toast_power_stop.sleep": "بلا سكون",
   "msg.toast_power_stopped": "يبقى الكمبيوتر قيد التشغيل هذه المرة",
+  "msg.toast_restart_gave_up": "تُرك المراقِب متوقفًا",
+  "msg.toast_restart_gave_up_body": "توقف على نحو غير متوقع ثلاث مرات خلال ساعة فتُرك متوقفًا. شغّله مجددًا من لوحة المعلومات.",
   "msg.toast_resumed_body": "المهمة المنقطعة تعمل مجددًا.",
   "msg.toast_resumed_title": "استُؤنفت",
   "msg.toast_starting_body": "جارٍ إرسال المتابعة إلى هذه المحادثة.",

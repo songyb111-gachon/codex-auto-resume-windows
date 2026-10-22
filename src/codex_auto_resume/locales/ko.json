@@ -789,6 +789,8 @@
   "msg.toast_power_stop.shut_down": "종료 안 함",
   "msg.toast_power_stop.sleep": "절전 안 함",
   "msg.toast_power_stopped": "이번에는 PC가 켜진 채로 있습니다",
+  "msg.toast_restart_gave_up": "워처가 멈춘 채로 있습니다",
+  "msg.toast_restart_gave_up_body": "한 시간에 세 번 예기치 않게 멈춰서 멈춘 채로 두었습니다. 대시보드에서 다시 시작하세요.",
   "msg.toast_resumed_body": "중단되었던 작업이 다시 실행되고 있습니다.",
   "msg.toast_resumed_title": "재개되었습니다",
   "msg.toast_starting_body": "이 대화에 이어서 진행할 메시지를 보내는 중입니다.",

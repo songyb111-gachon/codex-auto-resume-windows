@@ -789,6 +789,8 @@
   "msg.toast_power_stop.shut_down": "בלי כיבוי",
   "msg.toast_power_stop.sleep": "בלי שינה",
   "msg.toast_power_stopped": "המחשב נשאר דולק הפעם",
+  "msg.toast_restart_gave_up": "תהליך הניטור נשאר עצור",
+  "msg.toast_restart_gave_up_body": "הוא נעצר באופן לא צפוי שלוש פעמים בתוך שעה ונשאר עצור. הפעל אותו שוב מלוח המחוונים.",
   "msg.toast_resumed_body": "המשימה שהופסקה פועלת שוב.",
   "msg.toast_resumed_title": "חודשה",
   "msg.toast_starting_body": "הודעת ההמשך נשלחת לשיחה הזו.",

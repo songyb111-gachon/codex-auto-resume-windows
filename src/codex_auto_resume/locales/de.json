@@ -789,6 +789,8 @@
   "msg.toast_power_stop.shut_down": "Nicht herunterfahren",
   "msg.toast_power_stop.sleep": "Nicht schlafen",
   "msg.toast_power_stopped": "Der PC bleibt dieses Mal an",
+  "msg.toast_restart_gave_up": "Der Watcher bleibt beendet",
+  "msg.toast_restart_gave_up_body": "Er wurde innerhalb einer Stunde dreimal unerwartet beendet und bleibt beendet. Starten Sie ihn über das Dashboard neu.",
   "msg.toast_resumed_body": "Die unterbrochene Aufgabe läuft wieder.",
   "msg.toast_resumed_title": "Fortgesetzt",
   "msg.toast_starting_body": "Die Fortsetzung wird an diese Unterhaltung gesendet.",

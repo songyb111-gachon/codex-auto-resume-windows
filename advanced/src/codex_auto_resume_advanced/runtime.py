@@ -411,6 +411,17 @@ class Runtime:
         """Why the last start route asked named none, or None (core's Plug.start_held)."""
         return self._start_held
 
+    def supervise(self, facts):
+        """P13, asked by the launcher before it runs the watcher and once a watcher it ran has ended (v0.6.19,
+        crash_restart). As at P9, what every capability here stands at is read afresh, with a fresh check of Codex
+        where the watcher's report cannot be used - at sign-in no watcher has run for a while, and the watcher not
+        running is the one case the start question is asked in (Arming.read's `live`)."""
+        definitions = self.registry.at(Point.SUPERVISION)
+        if not definitions:
+            return NULL.supervise(facts)
+        self.states(fresh=True, live=frozenset(definition.id for definition in definitions))
+        return self.ask(Point.SUPERVISION, facts)
+
     def _held_start(self, definitions):
         """Why no capability at P9 named a route, as one word, for the first stored on or watched at
         the read; None where every one was stored off. A capability turned off on the way - at the

@@ -181,6 +181,31 @@ its plugins' jobs landed outside that job and was still running after the job wa
 yet watched a watcher started this way outlive Codex itself; [LIVE_ACCEPTANCE.md](LIVE_ACCEPTANCE.md)
 asks for that.
 
+### Restart the watcher if it stops unexpectedly
+
+**What it does.** The watcher's launcher stays running beside the watcher, as its parent. When the watcher
+stops unexpectedly - not stopped by you, by an update or the uninstaller, by the memory guard, or because
+another watcher already runs for this installation - the launcher starts it again five seconds later, at
+most three times an hour. After the third restart in an hour it is left stopped: the Dashboard says it
+*stopped unexpectedly*, as in the standard edition, and one notification, *The watcher was left stopped*,
+says so. The notification is a kind of its own in **Keep on screen until clicked**. A watcher started again
+checks what it was doing before it sends anything, as every watcher does when it starts.
+
+**When it helps.** When the watcher should keep recovering while you are away, even if something makes it
+crash.
+
+**What it risks.** A watcher that fails again each time it starts is started three times in the hour before
+it is left stopped, so the same fault can happen three times. The launcher stays in memory, small, for as
+long as the watcher runs. It never ends anything itself; it only starts again what ended. Each restart is
+kept, with its exit code, in the advanced state for seven days.
+
+**Departs from** [F6](STANDARDS.md#f-footprint-on-the-machine) (the processes the product starts are a
+fixed list, and a second `pythonw.exe` of its own - the launcher kept beside the watcher - is not on it) and
+[F8](STANDARDS.md#f-footprint-on-the-machine) (no resident helpers: the launcher stays as the watcher's
+parent).
+
+**Ceilings.** None come into play: it sends nothing to Codex. It rests on no measurement.
+
 ### Marker-free continuation
 
 **What it does.** Sends each continuation without the marker the standard edition ends it with. The

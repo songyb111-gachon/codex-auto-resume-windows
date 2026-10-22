@@ -74,6 +74,7 @@ NOTICE_STATUS = {
     "near_limit_press_resume": "attention",
     "near_limit_not_continued": "attention",
     "update_offered": "attention",  # v0.6.18: the advanced edition's weekly update check offers a newer version
+    "restart_gave_up": "attention",  # v0.6.19: the advanced edition's crash restart left the watcher stopped
 }
 # v0.6.12: the power action after usage-limit recoveries (runtime/afterwork.py), whose kinds are words of
 # its own (domain/power_vocabulary.PowerNotice). Its notices are raised whatever the notification switches
@@ -306,6 +307,11 @@ def _build(event, detail, identity=None, *, sound=False):
         # Diagnostics, where an update is installed. A version not of a release's or a pre-release's shape says nothing.
         content = notify.update_offered_content(detail.get("version"), detail.get("prerelease") is True)
         return None if content is None else _notice("update_offered", content, key=None)
+    if event == "restart_gave_up":
+        # v0.6.19: the advanced edition's crash restart started the watcher three times in an hour and left it stopped.
+        # About this installation, not a conversation, so it has no key and replaces no card; its one button opens the
+        # Dashboard's Overview, where the watcher is started again.
+        return _notice("restart_gave_up", notify.restart_gave_up_content(), key=None)
     if event in POWER_EVENTS:
         # v0.6.12: the power action (runtime/afterwork.py). About this PC, not a conversation, so it has
         # no key and replaces no card. Only the countdown's has a stop button, named by its batch (A28).

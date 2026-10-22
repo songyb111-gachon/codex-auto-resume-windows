@@ -789,6 +789,8 @@
   "msg.toast_power_stop.shut_down": "不要关机",
   "msg.toast_power_stop.sleep": "不要睡眠",
   "msg.toast_power_stopped": "本次电脑保持开启",
+  "msg.toast_restart_gave_up": "监视程序保持停止",
+  "msg.toast_restart_gave_up_body": "它在一小时内三次意外停止，因此保持停止。请从仪表板重新启动。",
   "msg.toast_resumed_body": "被中断的任务已重新运行。",
   "msg.toast_resumed_title": "已继续",
   "msg.toast_starting_body": "正在向此对话发送续接消息。",

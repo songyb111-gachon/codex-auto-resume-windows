@@ -327,12 +327,13 @@ class PageTests(PageCase):
         self.assertEqual([row[:2] for row in result["rows"]],
                          [[words["name." + capability], words["state.off"]] for capability in SHOWN])
         # v0.6.16-beta.3: which conversations are recovered at all, right after what starts the recovering.
-        self.assertEqual(SHOWN[:4], ["compat_report", "start_with_codex", "every_conversation", "queue_for_open"])
+        # v0.6.19: what keeps the watcher itself going comes right after what starts it.
+        self.assertEqual(SHOWN[:4], ["compat_report", "start_with_codex", "crash_restart", "every_conversation"])
         self.assertEqual(sorted(SHOWN), sorted(IDS))
         # v0.6.16-beta.3: every conversation, the usage meter, the wrap-up, the pause; beta.4: a conversation run here,
         # other sessions, compacting, the model fallback, no words; v0.6.18: Open Codex on a notice, the weekly update
-        # check.
-        self.assertEqual(len(IDS), 32)
+        # check; v0.6.19: the crash restart.
+        self.assertEqual(len(IDS), 33)
         self.assertEqual(result["page"], "advanced")
         # The row chosen is the capability open, and nothing else is.
         self.assertEqual(result["open"], IDS[1])

@@ -66,7 +66,10 @@ def standards_text(rule) -> str:
     raise AssertionError(f"{rule} is not in the standards file")
 
 class ShippedTests(unittest.TestCase):
-    SHIPPED = ("start_with_codex", "goal_continuation", "queue_for_open",
+    SHIPPED = ("start_with_codex",
+               # v0.6.19: the watcher started again after it stopped unexpectedly, beside what starts it.
+               "crash_restart",
+               "goal_continuation", "queue_for_open",
                # v0.6.16-beta.4: a full conversation compacted, then continued; a conversation nothing holds, run here
                # while Codex is closed.
                "compact_continue", "model_fallback", "headless_run", "other_sessions", "marker_free_continuation", "capacity_retry",
@@ -97,6 +100,8 @@ class ShippedTests(unittest.TestCase):
         # are on and the goal applies its channel carries the send. Those that take failures up (v0.6.14)
         # answer at P17 and again at P3, in the order that is precedence where two would answer.
         answering = {Point.START_ROUTE: ("start_with_codex",),
+                     # v0.6.19: the launcher's two questions about the watcher.
+                     Point.SUPERVISION: ("crash_restart",),
                      Point.SCHEDULE: ("reset_credit", "early_reset", "once_more_when_unsure", "send_now"),
                      Point.TICK: ("compact_continue", "model_fallback", "headless_run", "reset_credit", "reset_message", "empty_response", "subagent_parent",
                                   "keep_going", "usage_meter", "usage_wrap_up", "usage_pause", "idle_update_check"),
@@ -122,7 +127,7 @@ class ShippedTests(unittest.TestCase):
             self.assertEqual(tuple(d.id for d in registry.REGISTRY.at(point)), answering.get(point, ()))
 
     # The order a person reads them in (the owner's, 2026-10-10): the compatibility report first, then by importance.
-    SHOWN = ("compat_report", "start_with_codex", "every_conversation", "queue_for_open", "headless_run",
+    SHOWN = ("compat_report", "start_with_codex", "crash_restart", "every_conversation", "queue_for_open", "headless_run",
              "other_sessions", "marker_free_continuation", "silent_continuation", "reset_credit",
              "early_reset", "parallel_dispatch", "reset_message", "long_reset_message",
              "usage_meter", "usage_wrap_up", "usage_pause", "keep_going", "prompt_queue",

@@ -789,6 +789,8 @@
   "msg.toast_power_stop.shut_down": "Đừng tắt máy",
   "msg.toast_power_stop.sleep": "Đừng ngủ",
   "msg.toast_power_stopped": "Lần này PC vẫn bật",
+  "msg.toast_restart_gave_up": "Bộ theo dõi được để ở trạng thái dừng",
+  "msg.toast_restart_gave_up_body": "Nó đã dừng bất ngờ ba lần trong một giờ nên được để ở trạng thái dừng. Hãy khởi động lại từ Bảng điều khiển.",
   "msg.toast_resumed_body": "Tác vụ bị gián đoạn đang chạy lại.",
   "msg.toast_resumed_title": "Đã tiếp tục",
   "msg.toast_starting_body": "Đang gửi tin nhắn tiếp tục vào cuộc trò chuyện này.",
