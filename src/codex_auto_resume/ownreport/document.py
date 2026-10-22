@@ -92,7 +92,7 @@ def windows_version():
 def encode(document) -> bytes:
     """The bytes a report is: two-space JSON, ASCII, one newline at the end - the reporter's, and
     the project's own (build/community_report.py encode)."""
-    return (json.dumps(document, indent=2, ensure_ascii=True) + "\n").encode("ascii")
+    return (json.dumps(document, indent=2, ensure_ascii=True, allow_nan=False) + "\n").encode("ascii")
 
 
 # ------------------------------------------------------------------------------ the self-check

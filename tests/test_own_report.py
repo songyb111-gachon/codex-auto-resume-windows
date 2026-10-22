@@ -241,9 +241,12 @@ class SourceTests(unittest.TestCase):
 
     def test_codexs_own_files_are_never_opened(self):
         """B17: the Dashboard's bridge never imports Codex's readers; the report reads only this product's files."""
-        for path in sorted((ROOT / "src" / "codex_auto_resume" / "ownreport").glob("*.py")):
-            source = path.read_text(encoding="utf-8")
-            with self.subTest(path.name):
+        import srcscan
+        paths = srcscan.files_of("codex_auto_resume.ownreport")
+        self.assertEqual(len(paths), 4)
+        for path in paths:
+            source = srcscan.read(path)
+            with self.subTest(srcscan.relative(path)):
                 for word in ("LocalSource", "codex.history", "codex.schema", "thread_items", "newest_generation",
                              "codex_home", "_db("):
                     self.assertNotIn(word, source)

@@ -113,7 +113,10 @@ class OneHomeForTheSqlTests(unittest.TestCase):
     # built (step 11 of the plan), not before.
     ALLOWED = {"codex_auto_resume/codex/history.py": "everything asked of Codex",
                # compatio.py's probes are compat/probes.py since v0.6.10-alpha.
-               "codex_auto_resume/compat/probes.py": "the registry's probe of Codex's own schema"}
+               "codex_auto_resume/compat/probes.py": "the registry's probe of Codex's own schema",
+               # v0.6.19: this PC's own compatibility report reads the product's own state read-only, as
+               # codex-compat-reporter reads it - never through the Store, which makes its folder and opens it writable.
+               "codex_auto_resume/ownreport/reading.py": "the compatibility report's read-only look at the state"}
 
     def test_only_the_modules_that_own_a_database_hold_sql(self):
         found = self.modules_with_sql()
