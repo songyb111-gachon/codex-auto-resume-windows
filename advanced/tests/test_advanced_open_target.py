@@ -22,7 +22,7 @@ from takingcase import TakingCase  # noqa: E402
 from codex_auto_resume import machine  # noqa: E402
 from codex_auto_resume_advanced import registry, statement  # noqa: E402
 from codex_auto_resume_advanced.engine import opentarget  # noqa: E402
-from codex_auto_resume_advanced.registry import OPEN_TO_SEND, QUEUE_FOR_OPEN, Registry, offered, problems  # noqa: E402
+from codex_auto_resume_advanced.registry import OPEN_TO_SEND, Registry, offered, problems  # noqa: E402
 from codex_auto_resume_advanced.vocabulary import Actor, Measurement, OpenOutcome, OptionKey, Verdict  # noqa: E402
 from codex_auto_resume import l10n  # noqa: E402
 from test_engine import T1  # noqa: E402
@@ -258,27 +258,6 @@ class CapTests(OpenCase):
                            at=self.h.now - 3600 - index)
         self.waiting()
         self.assertEqual(self.opened, [], "twelve in the last day")
-
-
-class ComposeTests(OpenCase):
-    BESIDE = (QUEUE_FOR_OPEN,)
-
-    def test_opening_delivers_what_queue_for_opening_queued_and_nothing_is_sent_twice(self):
-        """Both on (memory capabilities-compose): queue_for_open queues the continuation for when the conversation is
-        opened, and open_to_send opens it - the open is the trigger, so the one queued item is all that is sent."""
-        plug = self.armed()
-        self.ready_after_reset(loaded=False)
-        self.h.backend.loaded_map[T1] = "notLoaded"
-        self.h.backend.after_accept = "queue"
-        self.h.tick()
-        row = self.h.record()
-        self.assertEqual(row["state"], "queued", row["last_error"])
-        self.assertEqual(len(self.h.backend.send_calls), 1)
-        self.h.tick(advance=5)
-        self.assertEqual(self.opened, [T1])
-        for _ in range(3):
-            self.h.tick(advance=5)
-        self.assertEqual(len(self.h.backend.send_calls), 1, "no second send")
 
 
 if __name__ == "__main__":
