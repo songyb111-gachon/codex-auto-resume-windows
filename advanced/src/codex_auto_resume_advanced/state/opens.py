@@ -2,7 +2,7 @@
 """The conversations opened in Codex for a waiting message to be sent (version 8's `opens`, v0.6.19, issue #50).
 
     opens   one row an open: its conversation, the record it was opened for (the edition's own record id, or a digest
-            of core's interruption id - engine/opentarget.record_key), when, and what came of it (OpenOutcome): opened,
+            of core's interruption id - engine/opentarget.record_of), when, and what came of it (OpenOutcome): opened,
             then loaded (the next look found the conversation loaded) or not_loaded (still not after two looks) - or
             refused, where the open was never made
 
@@ -21,24 +21,24 @@ SETTLED = (OpenOutcome.LOADED, OpenOutcome.NOT_LOADED, OpenOutcome.REFUSED)
 
 class OpensMixin:
     def opens(self, since) -> list:
-        """The opens at `since` or later, oldest first: {open_id, thread_id, record_key, at, outcome}."""
+        """The opens at `since` or later, oldest first: {open_id, thread_id, record_id, at, outcome}."""
         if isinstance(since, bool) or not isinstance(since, (int, float)):
             raise StateError("invalid time")
         with self._read() as connection:
             if connection is None:
                 return []
             return [dict(row) for row in connection.execute(
-                "SELECT open_id, thread_id, record_key, at, outcome FROM opens WHERE at >= ? ORDER BY at, open_id",
+                "SELECT open_id, thread_id, record_id, at, outcome FROM opens WHERE at >= ? ORDER BY at, open_id",
                 (float(since),)).fetchall()]
 
-    def add_open(self, thread_id, record_key, at=None) -> int:
+    def add_open(self, thread_id, record_id, at=None) -> int:
         """An open about to be made, written first: `opened`; its id."""
         _thread(thread_id)
-        _key(record_key, "record key")
+        _key(record_id, "record id")
         now = self._now(at)
         with self._transaction() as connection:
-            return connection.execute("INSERT INTO opens (thread_id, record_key, at, outcome) VALUES (?,?,?,?)",
-                                      (thread_id, record_key, now, OpenOutcome.OPENED)).lastrowid
+            return connection.execute("INSERT INTO opens (thread_id, record_id, at, outcome) VALUES (?,?,?,?)",
+                                      (thread_id, record_id, now, OpenOutcome.OPENED)).lastrowid
 
     def settle_open(self, open_id, outcome) -> bool:
         """What came of an open still `opened`: loaded, not_loaded, or refused (never made). False where it had settled

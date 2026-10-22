@@ -61,8 +61,8 @@ LOOKED_AT = states.WAITING | states.IN_FLIGHT | states.OBSERVING | states.CLAIME
 RESET_MESSAGE = "reset_message"
 
 
-def record_key(kind, identity) -> str:
-    """The 64-hex key an open is kept under: the edition's own record id as it is, and a digest of core's interruption
+def record_of(kind, identity) -> str:
+    """The 64-hex record id an open is kept under: the edition's own record id as it is, and a digest of core's interruption
     id - never the id itself."""
     if kind != "core" and isinstance(identity, str) and len(identity) == 64:
         return identity
@@ -180,11 +180,11 @@ class OpenTarget:
             return None
         chosen = None
         for kind, identity, thread in found:
-            key = record_key(kind, identity)
-            if (sum(row["record_key"] == key for row in made) >= PER_RECORD
+            record = record_of(kind, identity)
+            if (sum(row["record_id"] == record for row in made) >= PER_RECORD
                     or any(row["thread_id"] == thread and now - row["at"] < PER_CONVERSATION for row in made)):
                 continue
-            chosen = (kind, identity, thread, key)
+            chosen = (kind, identity, thread, record)
             break
         if chosen is None:
             return None
@@ -194,8 +194,8 @@ class OpenTarget:
             return None
         if not start_codex and app_running() is not True:
             return None
-        kind, identity, thread, key = chosen
-        opened = handle.add_open(thread, key, at=now)            # the claim, before the link is opened
+        kind, identity, thread, record = chosen
+        opened = handle.add_open(thread, record, at=now)            # the claim, before the link is opened
         with guard() as permitted:
             handed = bool(permitted) and self._open(thread)
         if not handed:
