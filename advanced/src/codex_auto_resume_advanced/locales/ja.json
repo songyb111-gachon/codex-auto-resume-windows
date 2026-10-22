@@ -639,7 +639,7 @@
   "page.chat.words": "メッセージ",
   "page.chat.not_taken": "Codexが受け付けませんでした",
   "page.chat.you": "あなた",
-  "statement.codex_chat.instead": "標準版は自身の短い続きのメッセージだけを送り、会話の内容を読むことはなく、あなたのメッセージを保存することもありません。",
+  "statement.codex_chat.instead": "スタンダード版は自身の短い続きのメッセージだけを送り、会話の内容を読むことはなく、あなたのメッセージを保存することもありません。",
   "page.chat.codex": "Codex",
   "statement.codex_chat.stop": "ここでオフにするか、すべての高度な機能をオフにしてください。まだ送られていないメッセージは、その言葉とともに取り消されます。",
   "page.done.chat": "送信しています。監視プロセスが次の確認のときに受け取ります。",
