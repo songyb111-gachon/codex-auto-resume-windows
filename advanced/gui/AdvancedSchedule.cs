@@ -169,7 +169,8 @@ namespace CodexAutoResume
 
         private void FitDone()
         {
-            if (doneHolder == null || scheduleView == null || !doneHolder.Visible) return;
+            // Read from its rows, not its Visible: a page never shown has no visible control.
+            if (doneHolder == null || scheduleView == null || doneList.Items.Count == 0) return;
             int rows = Math.Max(1, doneList.Items.Count);
             int each = doneList.SmallImageList != null ? doneList.SmallImageList.ImageSize.Height : Px(34);
             int needed = doneHolder.Padding.Vertical + Px(16) + each * (rows + 1) + clearDoneButton.Height + Px(24);

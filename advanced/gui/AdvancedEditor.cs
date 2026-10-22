@@ -223,16 +223,32 @@ namespace CodexAutoResume
             editorDialog = dialog;
             ShowEditorState();
 
-            // As tall as everything with the longest refusal said: the dialog never grows under a person's hand.
+            // As tall as everything with the longest refusal said: the dialog never grows under a person's hand. Each line
+            // that wraps is held to the width it is laid out at, then the dialog is laid out and grown until nothing in it
+            // is cut off - a measure taken at a wider width read Hebrew at 200% short by two lines.
             editorSaid.Text = PromptRefusal("queue_full");
             editorAfterTurn.Visible = editorMode.Visible = true;
             int inner = width - body.Padding.Horizontal;
+            int lines = inner - card.Padding.Horizontal;
+            foreach (Control control in card.Controls)
+                if (control is WrapLabel) control.MaximumSize = new Size(lines, 0);
             editorSaid.MaximumSize = new Size(inner, 0);
+            int buttonsTall = buttons.GetPreferredSize(new Size(width, 0)).Height;
             int tall = body.Padding.Vertical + card.GetPreferredSize(new Size(inner, 0)).Height +
                        editorSaid.GetPreferredSize(new Size(inner, 0)).Height + editorSaid.Margin.Vertical;
+            dialog.ClientSize = new Size(width, tall + buttonsTall);
+            for (int pass = 0; pass < 4; pass++)
+            {
+                dialog.PerformLayout();
+                body.PerformLayout();
+                card.PerformLayout();
+                int bottom = Math.Max(card.Bottom, editorSaid.Bottom + editorSaid.Margin.Bottom) + body.Padding.Bottom;
+                int over = bottom - body.ClientSize.Height;
+                if (over <= 0) break;
+                dialog.ClientSize = new Size(width, dialog.ClientSize.Height + over);
+            }
             editorSaid.Text = "";
             ShowEditorState();
-            dialog.ClientSize = new Size(width, tall + buttons.GetPreferredSize(new Size(width, 0)).Height);
             return dialog;
         }
 
