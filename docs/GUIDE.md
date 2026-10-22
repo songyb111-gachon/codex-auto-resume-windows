@@ -724,6 +724,21 @@ ownership information. It never acquires a lock on the app's file.
   check and nothing the watcher sends moves with them, and Codex is never handed them - the
   compatibility card in the Codex panel points to the Dashboard instead.
 
+  From v0.6.19 the Dashboard writes such a report of your own as well, in either edition:
+  **Diagnostics > Compatibility report from this PC...** reads this installation's own records -
+  its state, the engine lines of its log and the watcher's own compatibility report, never
+  Codex's files - and shows, for every version of Codex the log names, how many records it holds,
+  how many were delivered and how the rule above counts them (worked, failed, neither, or worked
+  and failed), what was left out and why, the report's SHA-256, and the whole report under them.
+  *Copy report* copies exactly the text the SHA-256 is of, and *Write again* reads the records
+  anew. Each version's part is the body codex-compat-reporter writes, except that its progress
+  counts are left empty, because the Dashboard does not read Codex's history. Nothing is sent and
+  nothing is kept: the report lives in that window, and *Export diagnostics* puts one written for
+  the file into the file, under `compatibility_report`. To have it counted, send it with
+  codex-compat-reporter as above. An installation that once held the advanced edition's state
+  leaves out the records that edition's features may have carried, since only that edition can
+  tell them apart.
+
 **Python is not required by either install route** — the installation brings its own runtime
 (Python 3.13.15), and the plugin's setup script is PowerShell. Python 3.12 or newer is needed only if
 you run the engine from a source checkout; see [Testing](#testing) for the versions CI runs.
