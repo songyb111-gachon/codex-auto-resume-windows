@@ -100,6 +100,7 @@ from .engine.silent import make as make_silent_continuation
 from .engine.oncemore import make as make_once_more
 from .engine.parallel import DEFAULT_WORKERS, WORKERS, make as make_parallel
 from .engine.updatecheck import make as make_idle_update_check
+from .engine.wake import DEFAULT_LEAD as WAKE_DEFAULT_LEAD, LEADS as WAKE_LEADS, make as make_wake_for_reset
 from .engine.usage import (DEFAULT_PAUSE, DEFAULT_POLL, DEFAULT_STOP_WORDS, DEFAULT_STYLE, DEFAULT_WARN,
                            DEFAULT_WRAP, ON, PERCENT_RANGE, PERCENTS, POLL_RANGE, SWITCH,
                            POLL_CHOICES, STYLES, make_meter, make_pause, make_wrap_up)
@@ -1098,6 +1099,31 @@ IDLE_UPDATE_CHECK = CapabilityDef(
     codes=("checked", "offered", "unanswered"),
 )
 
+# Wake this PC for a reset (v0.6.19, plans/v0619-design/D-watcher-ops.md B). At P8 it finds the earliest time something
+# waits for - core's waiting usage-limit records, the reset actions' pending rules, the forced stop's held window - and
+# sets a waitable timer of the watcher's own, with fResume, for that time less the lead a person chose (1, 2 or 5
+# minutes; 2), only where Windows' Allow wake timers already allows it for the power source in use - read, never
+# written; moved when that time changes, cancelled when nothing waits, recovery is paused, it is turned off or the
+# watcher stops (engine/wake.py, win/waketimer.py). Waking only lets the watcher's ordinary tick run sooner; every gate
+# is unchanged. Last of the capabilities at P8, so its errand reads the due times the others' errands just kept. It
+# departs from C4 (it acts on a schedule of its own) and B16 (Windows is asked the power scheme's Allow wake timers
+# value, a question not on the list); F1 is kept. It rests on MWAKE - whether such a timer wakes this PC - which the
+# measurement session makes; until then the statement says it is unmeasured. It sends nothing to Codex and stands on
+# engine_present; its ceilings are the schema's floor and never bind.
+WAKE_FOR_RESET = CapabilityDef(
+    id="wake_for_reset",
+    points=frozenset({Point.TICK}),
+    revision=1,
+    departs_from=("B16", "C4"),
+    compat="engine_present",
+    ceilings=Ceilings(per_day=1, per_conversation=1),
+    journal_prefix="wake",
+    make=make_wake_for_reset,
+    codes=("set", "cancelled", "not_allowed"),
+    measurements=(Measurement.MWAKE,),
+    options=(Option(OptionKey.WAKE_LEAD_MINUTES, WAKE_LEADS, WAKE_DEFAULT_LEAD),),
+)
+
 # Longer reset messages (v0.6.14, the owner's answer of 2026-10-08): a message sent at a reset may be up to what one
 # continuation carries (continuation.PROMPT_LIMIT, 8,154 characters) instead of A27's 2,000 - a separate opt-in, off
 # until a person turns it on after its statement, which names A27. An action: it answers at no point and sends
@@ -1171,6 +1197,7 @@ DEFINITIONS = (START_WITH_CODEX, CRASH_RESTART, GOAL_CONTINUATION, QUEUE_FOR_OPE
                UNKNOWN_FAILURE_BUDGET, CODEX_GAVE_UP, SIGN_IN_RETRY, RESET_CREDIT, RESET_MESSAGE, EARLY_RESET,
                ONCE_MORE, SEND_NOW, PARALLEL_DISPATCH, PROMPT_QUEUE, EMPTY_RESPONSE, SUBAGENT_PARENT, KEEP_GOING,
                USAGE_METER, USAGE_WRAP_UP, USAGE_PAUSE, EVERY_CONVERSATION, SILENT_CONTINUATION, IDLE_UPDATE_CHECK,
+               WAKE_FOR_RESET,
                OPEN_CODEX_BUTTON, LONG_RESET_MESSAGE,
                COMPAT_REPORT)
 # Codex's own retry settings (stage 4's item 6): Attempts (6, 8, 10 or 12; 8 by default) for both of its built-in
@@ -1219,7 +1246,7 @@ REGISTRY = _registry()
 SHOWN_ORDER = ("compat_report", "start_with_codex",
                # v0.6.19 (the order the owner approved on 2026-10-22): what keeps the watcher itself going, after what
                # starts it.
-               "crash_restart",
+               "crash_restart", "wake_for_reset",
                # v0.6.16-beta.3: which conversations are recovered at all, beside what starts the recovering.
                "every_conversation", "queue_for_open",
                # v0.6.16-beta.4: what gets a conversation going when nothing holds it, beside queue for opening (Q12).

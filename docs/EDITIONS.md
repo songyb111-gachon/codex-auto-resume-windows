@@ -206,6 +206,33 @@ parent).
 
 **Ceilings.** None come into play: it sends nothing to Codex. It rests on no measurement.
 
+### Wake this PC for a reset
+
+**What it does.** When a usage limit, a reset credit or a message of your own waits for a reset, it sets a
+wake timer for that time, less the minutes you choose (**Minutes before the reset to wake it**: 1, 2 or 5; 2
+by default), so a PC asleep wakes and the watcher looks at once. It does so only where Windows' **Allow wake
+timers** already allows it for the power source in use (Control Panel > Power Options > Change plan settings >
+Change advanced power settings > Sleep > Allow wake timers); the product reads that setting and never changes
+it. The timer is moved when the time changes, and taken back when nothing waits, when recovery is paused,
+when the feature is turned off or when the watcher stops - the timer belongs to the watcher's process, so
+Windows drops it when the watcher ends. Waking changes nothing else: every recovery is checked as before.
+
+**When it helps.** When this PC sleeps while a usage limit waits to reset, and you would rather the work went
+on at the reset than when you next wake it.
+
+**What it risks.** A laptop may wake in a bag or with its lid closed - on battery too, where Windows allows
+wake timers on battery - and stays awake until it sleeps again by its own settings. Some PCs that sleep the
+modern way (Modern Standby) are not woken by such a timer at all; there, the standard edition's **Keep this PC
+awake while a task waits** is the way.
+
+**Departs from** [C4](STANDARDS.md#c-network) (nothing happens on its own, on a schedule: it wakes the PC at
+a time of its own) and [B16](STANDARDS.md#b-what-it-reads-and-how) (Windows is asked only the listed questions; the
+power plan's Allow wake timers value is asked too). It changes nothing machine-wide (F1 kept).
+
+**Ceilings.** None come into play: it sends nothing to Codex. **Measurement MWAKE: not made yet** - whether
+such a timer wakes this PC (Modern Standby, the lid, the battery); until it is, the statement carries the
+warning that it was not measured.
+
 ### Marker-free continuation
 
 **What it does.** Sends each continuation without the marker the standard edition ends it with. The

@@ -200,6 +200,8 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "option.custom",
     # (j) the percentages of a window in order, and the forced stop below the words' stop only said.
     "refused.option_order", "warn.stop_before_words"))
+# v0.6.19 (wake_for_reset): its one choice's label, how many minutes before a reset the PC is woken.
+PAGE_KEYS = PAGE_KEYS + (PAGE_PREFIX + "option.wake_lead_minutes",)
 # The edition's own continuations' words (v0.6.15-beta): what empty_response, subagent_parent and keep_going send -
 # fixed, each passing core's continuation.validate_continuation in every language (nothing is filled in but, for a
 # subagent's line, its id and a closed kind word).
