@@ -746,6 +746,8 @@ namespace CodexAutoResume
         // the pointer's, and from the keyboard the chosen row's.
         private SoftMenu pendingMenu;
         private bool menuByMouse;
+        // v0.6.19: the row a double left-click opened the menu on, until the menu has read it (PrepareRowMenu).
+        private Dictionary<string, object> menuRow;
         // The times a task can be postponed by, and how much a conversation asks before it resumes, least first
         // (quiet.PRESETS, machine.IMPORTANCE_TIERS).
         private static readonly string[] PostponePresets = { "30_minutes", "1_hour", "3_hours", "tomorrow_morning" };

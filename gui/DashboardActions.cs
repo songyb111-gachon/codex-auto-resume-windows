@@ -216,6 +216,39 @@ namespace CodexAutoResume
         }
 
         // ------------------------------------------------------------ a row's own menu (v0.6.11)
+        /// The row the menu is for, as it opens: the one a double-click opened it on, else - opened by the right button -
+        /// the row under the pointer, else - from the keyboard - the chosen row; then filled for it (FillRowMenu).
+        private bool PrepareRowMenu()
+        {
+            Dictionary<string, object> task;
+            if (menuRow != null) task = menuRow;
+            else if (menuByMouse)
+            {
+                Point at = pendingList.PointToClient(Cursor.Position);
+                ListViewItem under = pendingList.GetItemAt(at.X, at.Y);
+                task = under == null ? null : under.Tag as Dictionary<string, object>;
+            }
+            else task = Selected(pendingList);
+            menuRow = null;
+            menuByMouse = false;
+            return FillRowMenu(task);
+        }
+
+        /// v0.6.19 (the owner, 2026-10-23): a double left-click on a row opens the same menu a right click does, at the
+        /// pointer, for the row double-clicked - which becomes the chosen one, as a right click makes it. On empty space
+        /// (`under` null) nothing opens. A window no one sees (the audits) fills the menu and shows nothing.
+        private bool OpenRowMenu(ListViewItem under, Point at)
+        {
+            var task = under == null ? null : under.Tag as Dictionary<string, object>;
+            if (task == null) return false;
+            under.Selected = true;
+            under.Focused = true;
+            menuRow = task;
+            if (auditing) return PrepareRowMenu();
+            pendingMenu.Show(pendingList, at);
+            return true;
+        }
+
         /// Fills the Pending row menu for `row`, the task it was opened on. False when there is none.
         private bool FillRowMenu(Dictionary<string, object> row)
         {
