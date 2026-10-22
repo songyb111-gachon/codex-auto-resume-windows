@@ -1,6 +1,7 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
 """The Dashboard's prompt queue (v0.6.15-beta): the queued prompts read, one added, one cancelled, one held let go on -
-and (v0.6.19, #50) the completed ones a person was shown deleted from the list (Delete completed).
+and (v0.6.19, #50) one still waiting edited, and the completed ones a person was shown deleted from the list (Delete
+completed).
 
 Each is the long-lived bridge's, the Dashboard's alone (surfaces.py), against the generation the page read. No MCP
 tool reaches any of them. A prompt is added only while prompt_queue stands on and its conversation is switched on,
@@ -133,6 +134,43 @@ def go_on(runtime, prompt, generation) -> dict:
     except Exception:
         return _refused(Refusal.STATE_UNAVAILABLE, runtime)
     return dict(view(runtime), done=True)
+
+
+def edit(runtime, argument) -> dict:
+    """advanced-prompt-edit (v0.6.19, #50): one prompt still waiting given new words, a new time or schedule, whether it
+    waits for the one before it and what it does while a turn runs, against the generation the list was read at - checked
+    as a new one is (add), and refused where it moved past waiting since."""
+    if _stale(runtime, argument.get("generation")):
+        return _refused(Refusal.STALE_GENERATION, runtime)
+    prompt, words = argument.get("prompt"), argument.get("words")
+    if type(prompt) is not int:
+        return _refused(Refusal.INVALID_REQUEST, runtime)
+    if not _standing(runtime, CAPABILITY):
+        return _refused(Refusal.NOT_ON, runtime)
+    try:
+        row = runtime.state.prompt(prompt)
+    except Exception:
+        return _refused(Refusal.STATE_UNAVAILABLE, runtime)
+    if row is None:
+        return _refused(Refusal.INVALID_REQUEST, runtime)
+    if switched_off(runtime, row["thread_id"]):
+        return _refused(Refusal.CONVERSATION_OFF, runtime)
+    try:
+        continuation.validate_prompt(words)
+    except Exception:
+        return _refused(Refusal.PROMPT_REFUSED, runtime)
+    if len(words) > words_limit(runtime):
+        return _refused(Refusal.PROMPT_REFUSED, runtime)
+    try:
+        runtime.state.edit_prompt(prompt, argument.get("generation"), words, argument.get("trigger"),
+                                  at=argument.get("at"), every=argument.get("every"),
+                                  occurrences=argument.get("occurrences", 1), depends=argument.get("depends") is True,
+                                  while_running=argument.get("while_running") or "queue", now=runtime.clock())
+    except Refused as refused:
+        return _refused(refused.refusal, runtime)
+    except Exception:
+        return _refused(Refusal.STATE_UNAVAILABLE, runtime)
+    return dict(view(runtime), done=True, prompt=prompt)
 
 
 def clear_done(runtime, argument) -> dict:

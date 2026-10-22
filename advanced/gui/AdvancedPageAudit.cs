@@ -186,6 +186,9 @@ namespace CodexAutoResume
                     form.AuditScheduled("pending/scheduled", findings);
                     form.ShowAdvanced();
                 }
+                // v0.6.19 (#50): the prompt queue's editor, built and never shown - for a time (its send mode showing), for
+                // after this turn, and with the longest refusal said above its buttons.
+                form.AuditEditor("editor", findings);
                 form.ShowAdvancedList(null);
                 form.AuditAdvanced("advanced unread", findings);
                 if (ids.Count > 0)
@@ -230,6 +233,29 @@ namespace CodexAutoResume
             PerformLayout();
             Walk(nav, where + "/" + AuditName(nav), findings);
             if (advancedList != null) AuditList(where + "/" + AuditName(advancedList), advancedList, findings);
+        }
+
+        /// The prompt queue's editor (AdvancedEditor.cs), built and never shown, held to the standard audit's checks: nothing
+        /// cut off, nothing scrolling sideways, every control named - for a time, for after this turn, and refused.
+        private void AuditEditor(string where, List<string> findings)
+        {
+            foreach (string when in new[] { "at_time", "after_turn" })
+            {
+                using (Form dialog = BuildEditor(null))
+                {
+                    dialog.TopLevel = false;
+                    SelectChoice(editorWhen, when);
+                    ShowEditorState();
+                    if (when == "after_turn") editorSaid.Text = PromptRefusal("queue_full");
+                    Materialise(dialog);
+                    dialog.PerformLayout();
+                    Walk(dialog, where + "/" + when, findings);
+                    AuditSpoken(where + "/" + when, dialog, findings);
+                    if (editorWords.Box.Font.SizeInPoints < Font.SizeInPoints + ReadingLarger - 0.01f)
+                        findings.Add(where + " :: the words are not at the reading size");
+                }
+                ForgetEditor();
+            }
         }
 
         /// Pending with its scheduled group: the standard audit's checks, on a page that is not this one.
@@ -494,6 +520,29 @@ namespace CodexAutoResume
                         if (found == null || !found.Enabled) disabled.Add(what);
                         else Pressed.Invoke(found, new object[] { EventArgs.Empty });
                     }
+                    else if (what == "editor")
+                    {
+                        // v0.6.19 (#50): the editor opened - for a new message, or for the prompt `prompt` - filled and
+                        // answered as `step` says, never shown; what it showed and said into "editors".
+                        var record = new Dictionary<string, object>();
+                        Dictionary<string, object> answer = step;
+                        Dictionary<string, object> row = null;
+                        if (Get(step, "prompt") != null)
+                            foreach (object listed in Items(form.advancedPrompts, "prompts") ?? new List<object>())
+                                if (Equals(Get(listed as Dictionary<string, object>, "prompt_id"), Get(step, "prompt")))
+                                    row = listed as Dictionary<string, object>;
+                        form.editorAnswer = delegate(Form dialog) { form.AnswerEditor(dialog, answer, record); };
+                        try
+                        {
+                            form.OpenEditor(row);
+                        }
+                        finally
+                        {
+                            form.editorAnswer = null;
+                        }
+                        record["saved"] = (double)form.editorSaved;
+                        dialogs.Add(record);
+                    }
                     else if (what == "run_stop")
                     {
                         Button stop = form.runStops.Find(delegate(Button each) { return Equals(each.Tag, Str(step, "key")); });
@@ -573,6 +622,47 @@ namespace CodexAutoResume
             Pressed.Invoke(use, new object[] { EventArgs.Empty });
             // Still open where the number was refused: what it says then, above the number.
             record["after"] = dialog.IsDisposed ? null : ownHint.Text;
+        }
+
+        /// The editor (AdvancedEditor.cs), built and never shown: what it opened with written into `record`, its fields filled
+        /// as `step` says - "thread", "words", "when", "hour", "times", "depends", "mode" - and "press" save or cancel; then
+        /// what it said, and whether it saved.
+        private void AnswerEditor(Form dialog, Dictionary<string, object> step, Dictionary<string, object> record)
+        {
+            record["title"] = dialog.Text;
+            record["conversations"] = ItemsOf(editorConversation);
+            record["conversation_enabled"] = editorConversation.Enabled;
+            record["words"] = editorWords.Box.Text;
+            record["reading_points"] = (double)editorWords.Box.Font.SizeInPoints;
+            record["window_points"] = (double)Font.SizeInPoints;
+            record["when"] = ((Choice)editorWhen.SelectedItem).Value;
+            record["mode"] = editorMode.Value;
+            var modes = new List<object>();
+            foreach (Control card in editorMode.Controls) modes.Add(card.Text);
+            record["modes"] = modes;
+            record["buttons"] = new List<object> { editorSave.Text, editorCancel.Text };
+            record["accept"] = dialog.AcceptButton == editorSave;
+            foreach (KeyValuePair<string, SoftCombo> field in new Dictionary<string, SoftCombo> {
+                         { "thread", editorConversation }, { "when", editorWhen }, { "hour", editorHour }, { "times", editorTimes },
+                         { "depends", editorDepends } })
+                if (Str(step, field.Key) != null)
+                {
+                    Choose(field.Value, Str(step, field.Key));
+                    Committed.Invoke(field.Value, new object[] { EventArgs.Empty });
+                }
+            if (Str(step, "words") != null) editorWords.Box.Text = Str(step, "words");
+            if (Str(step, "mode") != null) editorMode.Value = Str(step, "mode");
+            record["mode_shown"] = OwnVisible(editorMode);
+            record["after_turn_shown"] = OwnVisible(editorAfterTurn);
+            if (Str(step, "press") == "save")
+            {
+                if (!editorSave.Enabled) record["save_disabled"] = true;
+                else Pressed.Invoke(editorSave, new object[] { EventArgs.Empty });
+            }
+            else Pressed.Invoke(editorCancel, new object[] { EventArgs.Empty });
+            record["taken"] = dialog.DialogResult == DialogResult.OK;
+            record["said"] = editorSaid.Text;
+            record["words_after"] = editorWords.Box.Text;
         }
 
         // Control.OnClick, which raises Click as a press of the button does.
@@ -767,6 +857,12 @@ namespace CodexAutoResume
             scheduled["cancels"] = Tags(scheduledCancels);
             scheduled["go_ons"] = Tags(scheduledGoOns);
             look["scheduled"] = scheduled;
+            // v0.6.19 (#50): the prompt queue's card - Schedule a message... and the prompts its Edit... buttons name.
+            var queue = new Dictionary<string, object>();
+            queue["add"] = queueAdd == null ? (object)null : queueAdd.Enabled;
+            queue["edits"] = Tags(queueEdits);
+            queue["cancels"] = Tags(queueCancels);
+            look["queue"] = queue;
             // The report's card: what its boxes hold, what each of its buttons may do (null where there is none), the
             // job it is reading, what it said and how the last check or send ended, the text it shows in boxes that can
             // be selected (a link, a SHA-256), and how many holds on the window's reopen there are.

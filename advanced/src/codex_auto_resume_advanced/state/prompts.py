@@ -49,6 +49,41 @@ def _prompt(row) -> dict:
     return found
 
 
+def _occasion(words, trigger, at, every, occurrences, until, while_running, current):
+    """A prompt's words and when it goes, checked as one a person writes - (trigger, every, while_running, due, until) -
+    or Refused: prompt_refused for words that are empty or too long, occasion_invalid for a time or schedule that is not
+    one on offer (add_prompt, and v0.6.19's edit_prompt). A recurring one with no `until` ends 30 days from `current`."""
+    if not isinstance(words, str) or not words.strip() or len(words) > WORDS_LIMIT:
+        raise Refused(Refusal.PROMPT_REFUSED)
+    try:
+        trigger = _word(trigger, PromptTrigger, "trigger")
+        every = None if every is None else _word(every, PromptEvery, "every")
+        while_running = _word(while_running, WhileRunning, "while_running")
+    except StateError:
+        raise Refused(Refusal.OCCASION_INVALID) from None
+    if trigger == PromptTrigger.AFTER_TURN and while_running != WhileRunning.QUEUE:
+        raise Refused(Refusal.OCCASION_INVALID)
+    if trigger == PromptTrigger.AFTER_TURN:
+        shaped = at is None and every is None and occurrences == 1 and until is None
+        due = current
+    else:
+        shaped = (at is not None and (every is not None) == (trigger == PromptTrigger.RECURRING)
+                  and type(occurrences) is int and occurrences in OCCURRENCES
+                  and (occurrences == 1 or trigger == PromptTrigger.RECURRING))
+        due = at
+    if trigger == PromptTrigger.RECURRING and until is None:
+        until = current + PROMPT_SPAN
+    try:
+        due = _timestamp(due, "time")
+        until = None if until is None else _timestamp(until, "until")
+    except StateError:
+        raise Refused(Refusal.OCCASION_INVALID) from None
+    if (not shaped or (trigger != PromptTrigger.AFTER_TURN and due < current - 60)
+            or (until is not None and not current < until <= current + PROMPT_SPAN)):
+        raise Refused(Refusal.OCCASION_INVALID)
+    return trigger, every, while_running, due, until
+
+
 class PromptsMixin:
     def add_prompt(self, thread_id, words, trigger, *, at=None, every=None, occurrences=1, until=None,
                    depends=False, while_running=WhileRunning.QUEUE, now=None) -> int:
@@ -59,34 +94,8 @@ class PromptsMixin:
         of its conversation runs - after_turn goes into Codex's queue by its nature, so it waits for nothing."""
         _thread(thread_id)
         current = self._now(now)
-        if not isinstance(words, str) or not words.strip() or len(words) > WORDS_LIMIT:
-            raise Refused(Refusal.PROMPT_REFUSED)
-        try:
-            trigger = _word(trigger, PromptTrigger, "trigger")
-            every = None if every is None else _word(every, PromptEvery, "every")
-            while_running = _word(while_running, WhileRunning, "while_running")
-        except StateError:
-            raise Refused(Refusal.OCCASION_INVALID) from None
-        if trigger == PromptTrigger.AFTER_TURN and while_running != WhileRunning.QUEUE:
-            raise Refused(Refusal.OCCASION_INVALID)
-        if trigger == PromptTrigger.AFTER_TURN:
-            shaped = at is None and every is None and occurrences == 1 and until is None
-            due = current
-        else:
-            shaped = (at is not None and (every is not None) == (trigger == PromptTrigger.RECURRING)
-                      and type(occurrences) is int and occurrences in OCCURRENCES
-                      and (occurrences == 1 or trigger == PromptTrigger.RECURRING))
-            due = at
-        if trigger == PromptTrigger.RECURRING and until is None:
-            until = current + PROMPT_SPAN
-        try:
-            due = _timestamp(due, "time")
-            until = None if until is None else _timestamp(until, "until")
-        except StateError:
-            raise Refused(Refusal.OCCASION_INVALID) from None
-        if (not shaped or (trigger != PromptTrigger.AFTER_TURN and due < current - 60)
-                or (until is not None and not current < until <= current + PROMPT_SPAN)):
-            raise Refused(Refusal.OCCASION_INVALID)
+        trigger, every, while_running, due, until = _occasion(words, trigger, at, every, occurrences, until,
+                                                              while_running, current)
         with self._transaction() as connection:
             waiting = connection.execute("SELECT thread_id FROM prompts WHERE state IN (?,?,?)", PENDING).fetchall()
             if len(waiting) >= PROMPTS_LIMIT or sum(row[0] == thread_id for row in waiting) >= PER_CONVERSATION:
@@ -101,6 +110,43 @@ class PromptsMixin:
                  until, int(bool(depends)), 0 if last is None else last + 1, PromptState.WAITING, current, due,
                  while_running))
             return cursor.lastrowid
+
+    def edit_prompt(self, prompt_id, generation, words, trigger, *, at=None, every=None, occurrences=1, depends=False,
+                    while_running=WhileRunning.QUEUE, now=None) -> None:
+        """A person's edit of one prompt still waiting (v0.6.19, #50): its words, when it goes, whether it waits for the
+        one before it and what it does while a turn runs - its conversation and its place kept. Refused (Refused) as
+        add_prompt refuses the same fields; where anything moved since the list was read at `generation`
+        (stale_generation); and for a prompt that is not waiting with no occurrence made - due, being sent, held,
+        finished or gone (invalid_request) - checked in the writing transaction, so an edit never reaches a message
+        core may be sending. A series keeps the occurrences it used and the 30 days from when it was written."""
+        if type(prompt_id) is not int:
+            raise Refused(Refusal.INVALID_REQUEST)
+        if type(generation) is not int:
+            raise Refused(Refusal.STALE_GENERATION)
+        current = self._now(now)
+        with self._transaction(create=False) as connection:
+            if connection is None:
+                raise Refused(Refusal.INVALID_REQUEST)
+            if connection.execute("SELECT generation FROM meta").fetchone()[0] != generation:
+                raise Refused(Refusal.STALE_GENERATION)
+            row = connection.execute("SELECT thread_id, position, created_at, sent_count FROM prompts WHERE prompt_id=? "
+                                     "AND state=? AND record_id IS NULL AND launching_at IS NULL AND sent_at IS NULL",
+                                     (prompt_id, PromptState.WAITING)).fetchone()
+            if row is None:
+                raise Refused(Refusal.INVALID_REQUEST)
+            until = row["created_at"] + PROMPT_SPAN if str(trigger) == PromptTrigger.RECURRING else None
+            trigger, every, while_running, due, until = _occasion(words, trigger, at, every, occurrences, until,
+                                                                  while_running, current)
+            if occurrences < row["sent_count"] or (row["sent_count"] and trigger != PromptTrigger.RECURRING):
+                raise Refused(Refusal.OCCASION_INVALID)
+            if depends and connection.execute("SELECT 1 FROM prompts WHERE thread_id=? AND position<?",
+                                              (row["thread_id"], row["position"])).fetchone() is None:
+                raise Refused(Refusal.DEPENDENCY_UNKNOWN)
+            connection.execute(
+                "UPDATE prompts SET words=?, trigger=?, at=?, every=?, occurrences=?, until=?, depends=?, due_at=?, "
+                "while_running=?, reason=NULL, gate=NULL, gate_reason=NULL WHERE prompt_id=?",
+                (words, trigger, None if trigger == PromptTrigger.AFTER_TURN else due, every, occurrences, until,
+                 int(bool(depends)), due, while_running, prompt_id))
 
     def prompts(self, *, thread_id=None, pending=True) -> list:
         """The prompts in queue order - by conversation, then place - each with its current occurrence's record

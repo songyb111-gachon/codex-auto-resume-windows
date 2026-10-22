@@ -102,11 +102,14 @@ UNANSWERED = frozenset({
     BridgeCommand.ADVANCED_COURIER_SAVE, BridgeCommand.ADVANCED_COURIER_FORGET, BridgeCommand.ADVANCED_COURIER_TEST,
     BridgeCommand.ADVANCED_FEED_REFRESH, BridgeCommand.ADVANCED_API, BridgeCommand.ADVANCED_API_TOKEN_NEW,
     BridgeCommand.ADVANCED_REMOTE_PAIR_START, BridgeCommand.ADVANCED_REMOTE_PAIR_STATE, BridgeCommand.ADVANCED_FLEET,
-    BridgeCommand.ADVANCED_FLEET_SAVE, BridgeCommand.ADVANCED_PROMPT_EDIT,
+    BridgeCommand.ADVANCED_FLEET_SAVE,
     BridgeCommand.ADVANCED_ACCOUNT, BridgeCommand.ADVANCED_ACCOUNT_SWITCH})
 ARGUMENTS.update({command: frozenset() for command in UNANSWERED})
 # #50 (v0.6.19): the completed prompts the Dashboard showed, deleted from the list (control/prompts.clear_done).
 ARGUMENTS[BridgeCommand.ADVANCED_PROMPTS_CLEAR_DONE] = frozenset({"prompts", "generation"})
+# and one waiting edited (control/prompts.edit): its id, and what advanced-prompt-add takes but the conversation.
+ARGUMENTS[BridgeCommand.ADVANCED_PROMPT_EDIT] = frozenset({"prompt", "words", "trigger", "at", "every", "occurrences",
+                                                          "depends", "while_running", "generation"})
 # The compatibility report's commands (report/flow.py), answered by the action itself.
 REPORT_COMMANDS = frozenset({BridgeCommand.ADVANCED_REPORT_BUILD, BridgeCommand.ADVANCED_REPORT_SAVE,
                              BridgeCommand.ADVANCED_REPORT_CHECK, BridgeCommand.ADVANCED_REPORT_SEND,
@@ -124,8 +127,8 @@ KEEP_GOING_COMMANDS = frozenset({BridgeCommand.ADVANCED_KEEP_GOING, BridgeComman
 # The prompt queue's commands (control/prompts.py, v0.6.15-beta), the Dashboard's alone.
 PROMPT_COMMANDS = frozenset({BridgeCommand.ADVANCED_PROMPTS, BridgeCommand.ADVANCED_PROMPT_ADD,
                              BridgeCommand.ADVANCED_PROMPT_CANCEL, BridgeCommand.ADVANCED_PROMPT_GO_ON,
-                             # v0.6.19 (#50): Delete completed.
-                             BridgeCommand.ADVANCED_PROMPTS_CLEAR_DONE})
+                             # v0.6.19 (#50): Delete completed, and an edit.
+                             BridgeCommand.ADVANCED_PROMPTS_CLEAR_DONE, BridgeCommand.ADVANCED_PROMPT_EDIT})
 
 _NO_ARGUMENTS = {"type": "object", "properties": {}, "additionalProperties": False}
 _OFF_ONLY = ("Turning a capability on is not something any tool does: the user does it in the "
@@ -396,6 +399,8 @@ def bridge(runtime, command, argument):
             return prompts.cancel(runtime, argument.get("prompt"), argument.get("generation"))
         if command == BridgeCommand.ADVANCED_PROMPTS_CLEAR_DONE:
             return prompts.clear_done(runtime, argument)
+        if command == BridgeCommand.ADVANCED_PROMPT_EDIT:
+            return prompts.edit(runtime, argument)
         return prompts.go_on(runtime, argument.get("prompt"), argument.get("generation"))
     if command in KEEP_GOING_COMMANDS:
         from .control import keepgoing

@@ -41,7 +41,8 @@ COMMANDS = ("advanced-analytics", "advanced-analytics-csv", "advanced-courier", 
             "advanced-fleet-save", "advanced-prompt-edit", "advanced-prompts-clear-done", "advanced-account",
             "advanced-account-switch")
 # The commands whose capability has been built since, each with what answers it now: no longer passed over.
-BUILT = {"advanced-prompts-clear-done": "#50, Delete completed (control/prompts.clear_done)"}
+BUILT = {"advanced-prompts-clear-done": "#50, Delete completed (control/prompts.clear_done)",
+         "advanced-prompt-edit": "#50, the editor's Save and return on a waiting message (control/prompts.edit)"}
 
 
 class WordTests(unittest.TestCase):

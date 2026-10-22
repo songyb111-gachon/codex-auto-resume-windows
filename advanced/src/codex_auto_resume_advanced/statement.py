@@ -202,6 +202,12 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "refused.option_order", "warn.stop_before_words"))
 # open_to_send's two choices (v0.6.19, #50): how long the PC has been idle first, and Also start Codex (a switch).
 PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in ("option.open_idle_minutes", "option.open_start_codex"))
+# The prompt queue's editor (v0.6.19, #50: advanced/gui/AdvancedEditor.cs): Schedule a message..., Edit..., what a
+# message does while a turn runs as its line says it, the dialog's titles, its send mode, Save and return, and what it says.
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
+    "scheduled.add", "queue.edit", "queue.mode.wait", "queue.mode.queue", "editor.title_new", "editor.title_edit",
+    "editor.mode", "editor.mode.wait", "editor.mode.queue", "editor.mode.after_turn", "editor.save", "done.prompt_saved",
+    "refused.prompt_moved"))
 # The edition's own continuations' words (v0.6.15-beta): what empty_response, subagent_parent and keep_going send -
 # fixed, each passing core's continuation.validate_continuation in every language (nothing is filled in but, for a
 # subagent's line, its id and a closed kind word).
