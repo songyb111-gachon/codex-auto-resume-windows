@@ -55,7 +55,8 @@ SCALES = (1.0, 1.25, 1.5, 1.75, 2.0)
 IDS = [definition.id for definition in registry.DEFINITIONS]
 # The order the rows are in (the owner's, 2026-10-10): the compatibility report first, and so the one open before any
 # is chosen - an action, so a scenario that turns the first route on or off chooses it.
-SHOWN = list(registry.SHOWN_ORDER)
+# v0.6.19: less any capability waiting hidden in registry.WAITING, which holds its place there but has no row yet.
+SHOWN = [capability for capability in registry.SHOWN_ORDER if capability in IDS]
 # The capability the turn-on scenario opens: one whose statement carries a warning (M7 unmeasured there), named
 # rather than counted, since the registry grew (v0.6.15-beta put queue_for_open third).
 MARKER_FREE = "marker_free_continuation"
