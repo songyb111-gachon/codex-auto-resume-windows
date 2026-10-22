@@ -393,7 +393,7 @@ class ClaimTests(unittest.TestCase):
 
     def test_the_korean_readme_leads_with_the_setup_program_route(self):
         install = self.readme.index("## 설치")
-        setup = self.readme.index("설치 프로그램으로 설치 (권장)", install)
+        setup = self.readme.index("설치 마법사로 설치 (권장)", install)
         plugin = self.readme.index("Codex에서 설치", install)
         archive = self.readme.index("릴리스 압축 파일로 설치", install)
         self.assertLess(setup, plugin)

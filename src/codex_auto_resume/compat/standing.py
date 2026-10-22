@@ -6,8 +6,8 @@ from __future__ import annotations
 import time
 
 from .model import (CAPABILITIES, CHECKED, COARSE, COMPATIBLE, FAIL, FAILED_HERE,
-                    FUTURE_SKEW_SECONDS, INCOMPATIBLE, NOT_APPLICABLE, PASS, RESULTS, SEND_GATE,
-                    UNAVAILABLE, UNKNOWN, VERIFIED, _ORDER, parse_version, product_key)
+                    FUTURE_SKEW_SECONDS, INCOMPATIBLE, MAX_SEQUENCE_LEAD, NOT_APPLICABLE, PASS, RESULTS,
+                    SEND_GATE, UNAVAILABLE, UNKNOWN, VERIFIED, _ORDER, parse_version, product_key)
 
 def document_standing(document, *, product, bundled=None, now=None, role="cache"):
     """Whether a validated document may be used, as one of CACHE_STATES.
@@ -30,6 +30,9 @@ def document_standing(document, *, product, bundled=None, now=None, role="cache"
     if bundled is not None:
         if document["sequence"] < bundled["sequence"]:
             return "superseded"
+        if document["sequence"] > bundled["sequence"] + MAX_SEQUENCE_LEAD:
+            # Not the project's numbering: neither taken in nor, kept from before, in force.
+            return "rejected"
         if bundled.get("requires_signature") and not document.get("requires_signature"):
             return "rejected"
     if document["published_at"] > now + FUTURE_SKEW_SECONDS:

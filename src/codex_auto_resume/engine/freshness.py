@@ -18,7 +18,8 @@ from ..machine import WAITING, WATCHED
 class FreshnessMixin:
     def usage(self):
         now = self.clock()
-        if self._usage_cache is None or now - self._usage_cache[0] > 30:
+        # v0.6.18: a clock set back (a manual change, an NTP step) ends a cached reading too.
+        if self._usage_cache is None or not 0 <= now - self._usage_cache[0] <= 30:
             self._usage_cache = (now, self.backend.usage())
         return self._usage_cache[1]
 
@@ -37,7 +38,7 @@ class FreshnessMixin:
         """The loaded state of one thread, re-read at most every few seconds."""
         now = self.clock()
         cached = self._loaded_cache.get(thread_id)
-        if cached and now - cached[0] < self.options["loaded_check_seconds"]:
+        if cached and 0 <= now - cached[0] < self.options["loaded_check_seconds"]:
             return cached[1]
         app = self.backend.app_identity()
         value = self.backend.loaded(thread_id, app) if app else "unknown"

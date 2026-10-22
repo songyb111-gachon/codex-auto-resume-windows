@@ -122,6 +122,9 @@ class ReasonCode(StrEnum):
     # And one that worked and whose turn Codex never finished: Codex closed, or the PC went off, mid-turn, so its row
     # says inProgress for good - a later turn of the conversation has started, or Windows started since (2026-10-21).
     PROGRESS_THEN_TURN_CUT_OFF = "progress_then_turn_cut_off"
+    # And one that worked before a person's message entered its turn - one they had queued in the Codex app, or an
+    # answer to a question Codex asked: recovered, not handed over, so its turn's next failure is recovered (2026-10-22).
+    PROGRESS_THEN_USER_JOINED = "progress_then_user_joined"
     TURN_INTERRUPTED = "turn_interrupted"
     # a withdrawal's, as WithdrawReason
     CANCEL = "cancel"

@@ -158,6 +158,54 @@ class IconPlacement:
         return _same_path(stored) == self.executable
 
 
+# The overflow flyout's own window: Windows 11's, and Windows 10's. Explorer keeps it while the flyout is closed and
+# shows it while it is open, so whether it is shown is whether somebody is looking at the icons kept in it.
+OVERFLOW_WINDOWS = ("TopLevelWindowForOverflowXamlIsland", "NotifyIconOverflowWindow")
+DWMWA_CLOAKED = 14
+
+
+def overflow_open(dll=None) -> bool:
+    """True while Windows shows the overflow flyout - somebody opened it and sees the icons it keeps - False while it
+    is closed or where Windows cannot say. Rule 2 holds an icon in the flyout still because nobody sees it move there;
+    that holds only while the flyout is closed (the owner, on an icon that stood still in the open flyout: "트레이
+    아이콘이 또 가만히 있는거 같아"). Read only: a window's class and whether it is shown, nothing of what is in it."""
+    if dll is None:
+        if os.name != "nt":
+            return False
+        dll = _dll
+    try:
+        user32 = dll("user32")
+        user32.FindWindowExW.argtypes = (W.HWND, W.HWND, W.LPCWSTR, W.LPCWSTR)
+        user32.FindWindowExW.restype = W.HWND
+        user32.IsWindowVisible.argtypes, user32.IsWindowVisible.restype = (W.HWND,), W.BOOL
+        for name in OVERFLOW_WINDOWS:
+            hwnd, seen = None, 0
+            while seen < 16:                          # one per taskbar at most; the bound only guards the loop
+                hwnd = user32.FindWindowExW(None, hwnd, name, None)
+                if not hwnd:
+                    break
+                seen += 1
+                if user32.IsWindowVisible(hwnd) and not _cloaked(dll, hwnd):
+                    return True
+        return False
+    except Exception:
+        return False
+
+
+def _cloaked(dll, hwnd) -> bool:
+    """Whether the desktop window manager hides a window Windows calls visible; False where it will not say."""
+    try:
+        dwm = dll("dwmapi")
+        value = W.DWORD(0)
+        dwm.DwmGetWindowAttribute.argtypes = (W.HWND, W.DWORD, C.c_void_p, W.DWORD)
+        dwm.DwmGetWindowAttribute.restype = C.c_long
+        if dwm.DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, C.byref(value), C.sizeof(value)) != 0:
+            return False
+        return value.value != 0
+    except Exception:
+        return False
+
+
 def _same_path(value: str) -> str:
     """A path as it is compared: Windows' own case and separators."""
     return os.path.normcase(os.path.normpath(value))

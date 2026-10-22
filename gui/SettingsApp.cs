@@ -131,8 +131,22 @@ namespace CodexAutoResume
 
     internal sealed class Bridge
     {
+        /// The longest one call may take (v0.6.18): twice the long-lived pipe's own reply limit, for the interpreter's
+        /// start on top of the answer. Past it the child is ended, with what it started (ChildTree.End), and the call
+        /// throws, as a pipe that does not answer does: a stuck controlcli - a locked state file, a stuck import, an
+        /// antivirus scan holding python.exe - could otherwise hold the call, and with it every later one queued behind
+        /// the long-lived bridge's lock, for good. Not readonly, so the tests can make it short.
+        internal static int CallMilliseconds = 60000;
+        /// The same for CallOnce's commands: the compatibility refresh waits up to 150 s on the network
+        /// (compat.files.REFRESH_TIMEOUT_SECONDS), and the interpreter's start comes on top.
+        internal static int LongCallMilliseconds = 180000;
+
         private readonly string python;
         private readonly string appSrc;
+        // Every one-shot child on its way, so the window's close can end them (Stop): the long-lived bridge's own
+        // Stop could only end its own process.
+        private readonly List<Process> running = new List<Process>();
+        private volatile bool stopped;
 
         internal Bridge(string root)
         {
@@ -144,6 +158,20 @@ namespace CodexAutoResume
 
         internal Dictionary<string, object> Call(string command, string argument)
         {
+            return Call(command, argument, CallMilliseconds);
+        }
+
+        /// One call, ended after `milliseconds` (see CallMilliseconds).
+        ///
+        /// Both of the child's streams are read at once, from the moment it starts: stdout read to its end before
+        /// stderr was read at all, so a child that wrote more than a pipe holds to stderr first - a traceback from
+        /// before main's own try - waited for the window to read it while the window waited for its stdout, for good.
+        /// The argument goes in on its own task too, so a child that never reads its stdin cannot hold the write.
+        /// The time limit holds the child's end and its output's end together: a process it started that kept its
+        /// stdout open (a probe of Codex) holds the output's end past its own exit.
+        internal Dictionary<string, object> Call(string command, string argument, int milliseconds)
+        {
+            if (stopped) throw new ObjectDisposedException("the window is closing");
             var info = new ProcessStartInfo();
             info.FileName = python;
             // The module path is passed as an argument, not embedded in the code: a
@@ -170,24 +198,79 @@ namespace CodexAutoResume
             info.CreateNoWindow = true;
             info.StandardOutputEncoding = Encoding.UTF8;
 
+            var clock = Stopwatch.StartNew();
             using (Process process = Process.Start(info))
             {
-                // UTF-8 written by hand, as the long-lived bridge writes its requests: .NET
-                // Framework encodes a redirected stdin with the console code page. Closed with or
-                // without an argument, so the child never waits on a stdin nobody writes to.
-                if (hasArgument)
+                lock (running) running.Add(process);
+                try
                 {
-                    byte[] bytes = new UTF8Encoding(false).GetBytes(argument);
-                    process.StandardInput.BaseStream.Write(bytes, 0, bytes.Length);
+                    System.Threading.Tasks.Task<string> output = process.StandardOutput.ReadToEndAsync();
+                    System.Threading.Tasks.Task<string> errors = process.StandardError.ReadToEndAsync();
+                    // UTF-8 written by hand, as the long-lived bridge writes its requests: .NET
+                    // Framework encodes a redirected stdin with the console code page. Closed with or
+                    // without an argument, so the child never waits on a stdin nobody writes to.
+                    byte[] bytes = hasArgument ? new UTF8Encoding(false).GetBytes(argument) : new byte[0];
+                    Stream input = process.StandardInput.BaseStream;
+                    System.Threading.Tasks.Task written = System.Threading.Tasks.Task.Factory.StartNew(delegate
+                    {
+                        try
+                        {
+                            if (bytes.Length > 0) input.Write(bytes, 0, bytes.Length);
+                            input.Close();
+                        }
+                        catch (Exception) { /* the child ended or was ended; its answer, or none, says what happened */ }
+                    });
+                    // Ended at once when the window closed while it started (Stop looked before it was listed).
+                    bool done = !stopped && process.WaitForExit(Math.Max(0, milliseconds));
+                    if (done) done = output.Wait(Left(clock, milliseconds));
+                    if (!done || stopped)
+                    {
+                        ChildTree.End(process);
+                        // The reads end with the pipes; nobody waits for them, and what they throw is looked at, so
+                        // nothing is left unobserved.
+                        Observe(output);
+                        Observe(errors);
+                        if (stopped) throw new ObjectDisposedException("the window is closing");
+                        throw new TimeoutException("the local service did not answer in time");
+                    }
+                    Observe(errors);
+                    string said = output.Result;
+                    if (string.IsNullOrEmpty(said))
+                        throw new InvalidOperationException("No response from the local service.");
+                    return (Dictionary<string, object>)Json.Parse(said);
                 }
-                process.StandardInput.Close();
-                string output = process.StandardOutput.ReadToEnd();
-                process.StandardError.ReadToEnd();
-                process.WaitForExit(30000);
-                if (string.IsNullOrEmpty(output))
-                    throw new InvalidOperationException("No response from the local service.");
-                return (Dictionary<string, object>)Json.Parse(output);
+                finally
+                {
+                    lock (running) running.Remove(process);
+                }
             }
+        }
+
+        private static int Left(Stopwatch clock, int milliseconds)
+        {
+            return (int)Math.Max(0, milliseconds - clock.ElapsedMilliseconds);
+        }
+
+        private static void Observe(System.Threading.Tasks.Task task)
+        {
+            task.ContinueWith(delegate(System.Threading.Tasks.Task ended) { var ignored = ended.Exception; },
+                              System.Threading.Tasks.TaskContinuationOptions.OnlyOnFaulted);
+        }
+
+        /// As the window closes: every one-shot child on its way is ended, with what it started (ChildTree.End), and
+        /// no new one starts. On the window's own thread, so it waits for nothing.
+        internal void Stop()
+        {
+            stopped = true;
+            Process[] children;
+            lock (running) children = running.ToArray();
+            foreach (Process child in children) ChildTree.End(child);
+        }
+
+        /// How many one-shot children are on their way now (for the tests).
+        internal int Running
+        {
+            get { lock (running) return running.Count; }
         }
 
         // Windows command-line quoting, by the documented CommandLineToArgvW rules: a
@@ -278,6 +361,20 @@ namespace CodexAutoResume
         private string openedLanguage, openedTheme, openedDesign, storedLanguage, storedTheme, storedDesign;
         private string wordsLanguage;
         private bool settingsRead, readingSettings, reopening, recheck;
+        // v0.6.18: the screen the window opens on (OpeningScreen), taken once.
+        private Screen opening;
+        // v0.6.18: on a monitor of another scale since WM_DPICHANGED (CheckScale), in the middle of a move or resize, held
+        // for later, and the scale a reopen for it opens at (0: none).
+        private bool scaleMoved, sizing, recheckScale;
+        private double reopenScale;
+        // v0.6.18 B3: the window's size while it was still at the scale it is drawn at (ReopenBounds); empty until a move.
+        private Size drawnSize;
+        // v0.6.18 B3: the bounds a reopened window was placed at (PlaceOnScreen), held to as it is shown (KeepPlacedBounds).
+        private Rectangle placedBounds;
+        // v0.6.18: the words were not had in time and the window opened in English (StringsWaitMilliseconds); the reply,
+        // once it comes, is lateReply until the window has taken it (TakeLateWords).
+        private bool lateWords;
+        private volatile Dictionary<string, object> lateReply;
         private long settingsStamp;
         // The language, theme and design a reopen on its way is for; and the three a new window was last started
         // for that never showed, which this window does not try again (CheckReopen, FinishReopen).
@@ -353,6 +450,41 @@ namespace CodexAutoResume
                                                                                CultureInfo.InvariantCulture));
         }
 
+        /// How long a window with no words cached for it waits for them before it opens (v0.6.18), in English, its own
+        /// words: on the window's own thread, before there is a window, so past this a stuck interpreter left a process
+        /// running with no window and no taskbar button - after every update or change of language, whose words are not
+        /// cached yet - and a second click started a second one. The words that come later open the window again in its
+        /// language (TakeLateWords). Not readonly, so the tests can make it short.
+        internal static int StringsWaitMilliseconds = 5000;
+
+        /// What `openedLanguage` says while the words the window opened in were not had in time: no language a setting
+        /// stores, so the first answer that comes - from the strings or the settings - reopens the window in its own
+        /// (ReopenDecision), as a language changed anywhere else does.
+        internal const string LateLanguage = "(not yet read)";
+
+        /// The words that came after the window had opened in English, on its own thread: kept, as any reply is, for the
+        /// next window to open in (StringsCache.Write, on the worker that had them), and the window opened again in
+        /// them where it is - as a change of language reopens it, so never under unsaved edits (CheckReopen). English
+        /// words are this window's already; a window that a reopen opened stays as it is, so a bridge that is always
+        /// slower than the wait cannot reopen it over and over.
+        private void TakeLateWords()
+        {
+            Dictionary<string, object> reply = lateReply;
+            if (!lateWords || reply == null || IsDisposed) return;
+            lateWords = false;
+            lateReply = null;
+            if (!Ok(reply) || !(Get(reply, "strings") is Dictionary<string, object>)) return;
+            string language = Get(reply, "language") as string;
+            if (language == "en")
+            {
+                openedLanguage = Get(reply, "preference") as string;
+                return;
+            }
+            if (request.Generation != 0) return;
+            openedLanguage = LateLanguage;
+            if (settingsRead) CheckReopen(false);
+        }
+
         /// The bridge's strings reply, or null when it could not be had.
         private Dictionary<string, object> AskStrings()
         {
@@ -389,6 +521,23 @@ namespace CodexAutoResume
 
         private static readonly double SystemScale = MeasureDpiScale();
         private static double dpiScale = SystemScale;
+        // v0.6.18: the scale of the monitor the window is drawn for (AdoptDisplayScale) - SystemScale until it is adopted.
+        private static double displayScale = SystemScale;
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        private struct NativeRect { public int Left, Top, Right, Bottom; }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern IntPtr MonitorFromRect(ref NativeRect rect, int flags);
+
+        [System.Runtime.InteropServices.DllImport("shcore.dll")]
+        private static extern int GetDpiForMonitor(IntPtr monitor, int type, out uint dpiX, out uint dpiY);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern int GetDpiForWindow(IntPtr window);
+
+        private const int MONITOR_DEFAULTTONEAREST = 2;
+        private const int MDT_EFFECTIVE_DPI = 0;
 
         /// The window's opening client size, in logical pixels.
         ///
@@ -434,7 +583,85 @@ namespace CodexAutoResume
         {
             textRead = Math.Max(1.0, read);
             TextSize = Math.Max(1.0, drawn);
-            dpiScale = SystemScale * TextSize;
+            dpiScale = displayScale * TextSize;
+        }
+
+        /// v0.6.18: draws the window from here on at `scale`, the scale of the monitor it opens on (ScaleOfMonitor), in
+        /// place of the one Windows had at sign-in (SystemScale). Before AdoptTextSize, and before the window is made
+        /// (Program.Main).
+        ///
+        /// The manifest says per-monitor v2, so Windows never stretches the window's pixels for a monitor: every one is
+        /// the window's own. Drawn at the sign-in scale on every monitor, the window was twice too big on a 100% monitor
+        /// beside a 200% laptop, half size the other way, and tiny on a screen whose scaling was raised without
+        /// signing out - GetDpiForSystem keeps the scale of the sign-in. The window drawn at one monitor's scale opens
+        /// again at the next one's when it is moved there (WM_DPICHANGED, CheckScale).
+        internal static void AdoptDisplayScale(double scale)
+        {
+            displayScale = scale >= 0.5 ? scale : SystemScale;
+            dpiScale = displayScale * TextSize;
+        }
+
+        /// The scale the window is drawn for (AdoptDisplayScale), without the text size.
+        internal static double DisplayScale { get { return displayScale; } }
+
+        /// How much larger a size in points is drawn than Windows draws it (v0.6.18): Windows turns points into pixels
+        /// at the sign-in scale whatever monitor the window is on, so on a monitor of another scale the window's fonts
+        /// are made that much larger or smaller - as LayoutAudit stands another scaling in, which matched a real window
+        /// to the pixel. 1 where the monitor's scale is the sign-in's.
+        internal static float FontFactor { get { return (float)(displayScale / SystemScale); } }
+
+        /// `font` at FontFactor: itself where that is 1.
+        internal static Font AtDisplayScale(Font font)
+        {
+            float factor = FontFactor;
+            if (font == null || Math.Abs(factor - 1f) < 0.001f) return font;
+            return new Font(font.FontFamily, font.SizeInPoints * factor, font.Style, GraphicsUnit.Point);
+        }
+
+        /// The scale of the monitor most of `area` is on (1 at 96 DPI), as Windows has it now; SystemScale where it
+        /// cannot say (before Windows 8.1).
+        internal static double ScaleOfMonitor(Rectangle area)
+        {
+            try
+            {
+                var rect = new NativeRect();
+                rect.Left = area.Left;
+                rect.Top = area.Top;
+                rect.Right = Math.Max(area.Right, area.Left + 1);
+                rect.Bottom = Math.Max(area.Bottom, area.Top + 1);
+                IntPtr monitor = MonitorFromRect(ref rect, MONITOR_DEFAULTTONEAREST);
+                uint x, y;
+                if (monitor != IntPtr.Zero && GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, out x, out y) == 0 && x >= 48)
+                    return x / 96.0;
+            }
+            catch (Exception) { /* no shcore.dll: the sign-in scale */ }
+            return SystemScale;
+        }
+
+        /// The scale of the monitor this window is on now (GetDpiForWindow), or 0 when it cannot be told.
+        private double WindowScale()
+        {
+            try
+            {
+                if (!IsHandleCreated) return 0;
+                int dpi = GetDpiForWindow(Handle);
+                return dpi >= 48 ? dpi / 96.0 : 0;
+            }
+            catch (Exception) { return 0; }
+        }
+
+        /// Where a window opened with `request` goes, on the virtual screen: the bounds a reopen passes on, or the pointer
+        /// - the window opens centred on the screen the pointer is on, as a window opened from the Start menu or the
+        /// notification-area icon should (CenterOn).
+        internal static Rectangle OpeningPlace(OpenRequest request, Point pointer)
+        {
+            return request != null && request.HasBounds ? request.Bounds : new Rectangle(pointer.X, pointer.Y, 1, 1);
+        }
+
+        /// The screen a window opened with `request` goes on (OpeningPlace).
+        internal static Screen OpeningScreen(OpenRequest request)
+        {
+            return Screen.FromRectangle(OpeningPlace(request, Cursor.Position));
         }
 
         // Every fixed number in this file is written at 96 DPI and scaled here.
@@ -524,8 +751,9 @@ namespace CodexAutoResume
                 else asking = System.Threading.Tasks.Task.Factory.StartNew<Dictionary<string, object>>(AskStrings);
             }
             Text = "Codex Auto Resume";
-            // v0.6.11: at the text size the window opens at (TextScale, AdoptTextSize).
-            Font = windowFont ?? TextScale.Apply(SystemFonts.MessageBoxFont, textRead, TextSize);
+            // v0.6.11: at the text size the window opens at (TextScale, AdoptTextSize); v0.6.18: and at the scale of the
+            // monitor it opens on (AtDisplayScale).
+            Font = windowFont ?? AtDisplayScale(TextScale.Apply(SystemFonts.MessageBoxFont, textRead, TextSize));
             // The type roles (Soft.RoleFont) are variants of the window's own font.
             Soft.BaseFont = Font;
             ForeColor = Ink;
@@ -558,11 +786,27 @@ namespace CodexAutoResume
             catch (Exception) { /* an icon is decoration; never fail the window over it */ }
             if (asking != null)
             {
-                Dictionary<string, object> reply = asking.Result;
-                AdoptStrings(reply);
                 string key = cacheKey;
-                // Kept only if it answers for the settings the key was taken of (StringsCache.Write).
-                System.Threading.ThreadPool.QueueUserWorkItem(delegate { StringsCache.Write(root, key, reply); });
+                // A bounded wait (StringsWaitMilliseconds): the window opens in English past it, and its words come after.
+                if (asking.Wait(Math.Max(0, StringsWaitMilliseconds)))
+                {
+                    Dictionary<string, object> reply = asking.Result;
+                    AdoptStrings(reply);
+                    // Kept only if it answers for the settings the key was taken of (StringsCache.Write).
+                    System.Threading.ThreadPool.QueueUserWorkItem(delegate { StringsCache.Write(root, key, reply); });
+                }
+                else
+                {
+                    lateWords = true;
+                    asking.ContinueWith(delegate(System.Threading.Tasks.Task<Dictionary<string, object>> asked)
+                    {
+                        Dictionary<string, object> reply = asked.Result;
+                        StringsCache.Write(root, key, reply);
+                        lateReply = reply;
+                        try { if (IsHandleCreated && !IsDisposed) BeginInvoke(new MethodInvoker(TakeLateWords)); }
+                        catch (Exception) { /* closed meanwhile, or not yet shown: Shown takes them */ }
+                    });
+                }
             }
             // v0.6.11: in a language whose letters Windows' UI font does not all have, and Segoe UI does - Vietnamese
             // on a Korean Windows - the window is set in Segoe UI, as the popup, the card and the panel are (Typeface).
@@ -579,13 +823,22 @@ namespace CodexAutoResume
             BuildHeader();
             BuildColumns();
             BuildDashboard();
+            if (catalog == null) opening = OpeningScreen(request);
             KeepOnScreen();
+            if (catalog == null && !request.HasBounds)
+            {
+                // Centred on that screen by hand, as CenterScreen centres a window on the pointer's - which it measured
+                // again as the window was shown, by when the pointer may have moved to another one.
+                StartPosition = FormStartPosition.Manual;
+                Location = CenterOn(opening.WorkingArea, Size);
+            }
             if (request.HasBounds)
             {
                 // Reopened where the window it replaces was, on the screen that window was on: the frame one
                 // sees where that one's was, with the invisible border that window measured around it.
                 StartPosition = FormStartPosition.Manual;
                 Bounds = PlaceOnScreen(request.Bounds, Screen.FromRectangle(request.Bounds).WorkingArea, MinimumSize, request.Frame);
+                placedBounds = Bounds;
             }
             if (request.Maximized) WindowState = FormWindowState.Maximized;
             // A dark title bar over a dark window.
@@ -619,6 +872,11 @@ namespace CodexAutoResume
             Shown += delegate
             {
                 shown = true;
+                // v0.6.18 B3: a window that replaces another is the size it was placed at once it is on screen, whatever
+                // creating it on a monitor of another scale than Windows' own did to that size on the way.
+                KeepPlacedBounds();
+                // Words that came before the window had a handle to be told on (StringsWaitMilliseconds).
+                TakeLateWords();
                 // Measured once it is on screen, for a reopen from this window maximized (Reopen).
                 Padding measured = InvisibleFrame();
                 if (measured != Padding.Empty) invisibleFrame = measured;
@@ -637,12 +895,54 @@ namespace CodexAutoResume
         /// scrolling one can. Settled here, before it is shown, so it never jumps once it is.
         private void KeepOnScreen()
         {
-            Rectangle screen = Screen.FromControl(this).WorkingArea;
-            int frameWidth = Width - ClientSize.Width, frameHeight = Height - ClientSize.Height;
+            // v0.6.18: the screen it opens on - the pointer's, or a reopen's (OpeningScreen, taken as `opening`) - and not
+            // Screen.FromControl, which before the window has a place answers the primary: a window opened on a smaller
+            // secondary screen kept the primary's height and ran off it, its footer out of reach. A window LayoutAudit or
+            // the render mode builds opens on no screen and is measured against the primary, as it always was: the
+            // audit's sizes at a scaling this machine is not set to are taken from there (wherever the pointer is, its
+            // 200% text-size audit cut the Settings section list off against a smaller screen).
+            Rectangle screen = (opening ?? Screen.FromControl(this)).WorkingArea;
+            // v0.6.18: the frame its style adds (SizeFromClientSize), not Width less ClientSize.Width: Windows holds a
+            // form's Width to the largest window the screen allows (SystemInformation.MaxWindowTrackSize) while the client
+            // area keeps what was asked, so on a small screen at 200% that read went negative and the clamp let the
+            // window grow past the screen - as the Advanced tab's frame did (HoldTabs, fixed the same way).
+            Size frame = SizeFromClientSize(Size.Empty);
+            int frameWidth = frame.Width, frameHeight = frame.Height;
             if (MinimumSize.Width > screen.Width || MinimumSize.Height > screen.Height)
                 MinimumSize = new Size(Math.Min(MinimumSize.Width, screen.Width), Math.Min(MinimumSize.Height, screen.Height));
             ClientSize = new Size(Math.Max(Px(340), Math.Min(ClientSize.Width, screen.Width - frameWidth)),
                                   Math.Max(Px(340), Math.Min(ClientSize.Height, screen.Height - frameHeight)));
+        }
+
+        /// A reopened window back at the bounds it was placed at, when anything on the way to the screen changed them and
+        /// it is neither maximized nor minimized.
+        private void KeepPlacedBounds()
+        {
+            if (placedBounds.IsEmpty || WindowState != FormWindowState.Normal) return;
+            if (Bounds != placedBounds) Bounds = placedBounds;
+            placedBounds = Rectangle.Empty;
+        }
+
+        /// Where CenterScreen puts a window `size` big on a screen whose work area is `area`: centred, and never above or
+        /// left of it.
+        internal static Point CenterOn(Rectangle area, Size size)
+        {
+            return new Point(Math.Max(area.X, area.X + (area.Width - size.Width) / 2),
+                             Math.Max(area.Y, area.Y + (area.Height - size.Height) / 2));
+        }
+
+        /// Control.DefaultFont, which an unparented control measures in, at FontFactor too - as LayoutAudit sets it for a
+        /// scaling it stands in (v0.6.18). Once, before the window is made; nothing where the factor is 1.
+        internal static void ScaleDefaultFont()
+        {
+            if (Math.Abs(FontFactor - 1f) < 0.001f) return;
+            try
+            {
+                System.Reflection.FieldInfo fallback = typeof(Control).GetField("defaultFont",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+                if (fallback != null) fallback.SetValue(null, AtDisplayScale(Control.DefaultFont));
+            }
+            catch (Exception) { /* measured in Windows' own size: a few pixels off, never a failure */ }
         }
 
         // ------------------------------------------------------------------- chrome
@@ -809,6 +1109,8 @@ namespace CodexAutoResume
             }
             // General holds the power action's card: what Windows offers is asked the first time it is shown.
             LoadPowerWhereShown();
+            // v0.6.18: Advanced holds the homes' card: the Codex home it suggests is asked each time it is shown.
+            LoadHomeSuggestionWhereShown();
         }
 
         private const int WM_SETREDRAW = 0x000B;
@@ -1115,10 +1417,13 @@ namespace CodexAutoResume
             Design.Opened = request.Design ?? storedDesign;
             Palette.AdoptDesign(Design.Opened);
             Palette.Adopt(Theme.Current(Theme.Opened));
+            // v0.6.18: drawn at the scale of the monitor it opens on, the pointer's or a reopen's (AdoptDisplayScale).
+            Screen opening = SettingsForm.OpeningScreen(request);
+            SettingsForm.AdoptDisplayScale(SettingsForm.ScaleOfMonitor(SettingsForm.OpeningPlace(request, Cursor.Position)));
+            SettingsForm.ScaleDefaultFont();
             // v0.6.11: Windows' text size, as far as the screen the window opens on holds it at its narrowest.
             double text = TextScale.Read();
-            SettingsForm.AdoptTextSize(text, TextScale.Fitting(text, Screen.FromPoint(Cursor.Position).WorkingArea.Size,
-                                                               SettingsForm.DpiScale));
+            SettingsForm.AdoptTextSize(text, TextScale.Fitting(text, opening.WorkingArea.Size, SettingsForm.DpiScale));
             var window = new SettingsForm(new PersistentBridge(root, bridge));
             // A window a person opened comes to the front - after Finish, and opened again outside (v0.6.17); a window
             // that reopens itself, and a capture's, keep their place.

@@ -99,6 +99,10 @@ class HeadlessRunCode:
         """P8: the bookkeeping every run kind shares (`follow_up`)."""
         return follow_up(self._scoped, self.follower, CAPABILITY, self._routes.values())
 
+    # v0.6.18: turned off or watched, the same bookkeeping (runtime.Runtime.tick) - a turn already running ends at its
+    # cap, and a person's Stop still reaches it at once, as the statement says.
+    tend = tick
+
 
 def follow_up(scoped, follower, capability, routes=(), on_end=None):
     """P8 of each of the three run kinds - headless_run, compact_continue, model_fallback - the one path: the live

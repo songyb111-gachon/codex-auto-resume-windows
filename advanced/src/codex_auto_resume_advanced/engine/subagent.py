@@ -76,13 +76,15 @@ class _Errand:
 
 class SubagentParent:
     """The capability's code: its hooks at P4, P8 and P2. `bind` gives it its view of the state (state.Scoped)."""
-    __slots__ = ("paths", "_scoped", "_home", "_looked")
+    __slots__ = ("paths", "_scoped", "_home", "_looked", "_pending")
 
     def __init__(self, paths, *, home=None):
         self.paths = paths
         self._scoped = None
         self._home = home
         self._looked = None
+        # v0.6.18: the lines P4 put in a parent's words, by its interruption, told once the claim carrying them commits.
+        self._pending = {}
 
     def bind(self, scoped):
         self._scoped = scoped
@@ -127,13 +129,27 @@ class SubagentParent:
         words = text + "\n\n" + "\n".join(line_ for _key, line_ in stopped)
         if len(words) > 2000:
             return DEFER
-        try:
-            for key, _line in stopped:
-                scoped.continuations.note(key, ContinuationKind.SUBAGENT, thread, ContinuationReason.MENTIONED)
-        except Exception:
-            return DEFER                                 # watched, or a write that failed: only core's words
-        self._count("told")
+        key = record.get("interruption_id")
+        if not ids.is_interruption_id(key) or not scoped.continuations.on():
+            return DEFER                                 # watched: only core's words
+        # v0.6.18: told only once the claim carrying these words commits (`words_sent`): a claim held after P4, or
+        # core's own words sent instead (a conversation's Custom message, the validator), tells nothing - and the
+        # lines come again at the next send.
+        if len(self._pending) >= SEEN_LIMIT:
+            self._pending.clear()
+        self._pending[key] = (thread, tuple(child for child, _line in stopped))
         return words
+
+    def words_sent(self, record):
+        """The claim that carried P4's lines for `record` committed (runtime.Runtime._words_sent): each child told."""
+        key = record.get("interruption_id") if isinstance(record, dict) else None
+        pending = self._pending.pop(key, None)
+        if pending is None:
+            return
+        thread, children = pending
+        for child in children:
+            self._scoped.continuations.note(child, ContinuationKind.SUBAGENT, thread, ContinuationReason.MENTIONED)
+        self._count("told")
 
     # ------------------------------------------------------------------ P8 (5b)
     def tick(self, view):

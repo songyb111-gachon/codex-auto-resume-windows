@@ -118,6 +118,8 @@ METHODS = {
     "_wrap_up_markers", "persons_turns", "_only_wrap_ups_after",
     # v0.6.16-beta.3: the words for this time, added once, spent at the send, deleted when not waiting.
     "_once_words", "_spend_once_words", "_prune_once_words",
+    # v0.6.18: and whether a person changed them between the read and the claim (the claim is then given back).
+    "_once_words_moved",
     # v0.6.16-beta.4: P16 asked with the app closed and nothing holding the conversation, and the look made again.
     "_unheld", "_unheld_now", "_holder", "_route", "_still_where",
     # and which conversations besides the app's are watched, asked once a tick (P18, engine/kinds.py), and whether

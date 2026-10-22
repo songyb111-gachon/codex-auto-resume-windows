@@ -87,6 +87,8 @@ METHODS = {
     "cancel_home", "home_keys",
     # v0.6.16-beta.4: the waiting records of a kind of conversation the plug no longer watches (P18).
     "cancel_waiting",
+    # v0.6.18: the oldest version whose reader may use the state on disk (store/schema.py READABLE_FROM).
+    "readable_from",
 }
 
 # Reachable as `store.<name>` before the split, and still.

@@ -649,7 +649,10 @@ class ChannelTests(unittest.TestCase):
         self.assertEqual(self.channel(session).send(T1, "go", launch_guard=refusing(), client_id=self.CID),
                          {"outcome": "not_started", "error_code": "queue_consent_refused"})
 
-    def test_a_guard_that_fails_as_it_closes_asks_nothing_of_codex(self):
+    def test_a_guard_that_fails_as_it_closes_reads_the_add_it_wrote(self):
+        """v0.6.18 (the advanced audit's M3): the add is written inside the guard, so a guard that fails as it closes
+        comes after it - its answer is read, as core's queue launch reads the receipt of a process that exists, never
+        called an unsent attempt that core may send again."""
         @contextlib.contextmanager
         def failing():
             yield True
@@ -658,8 +661,18 @@ class ChannelTests(unittest.TestCase):
         session = self.Session(result={})
         session.__exit__ = lambda *unused: closed.append(True)
         self.assertEqual(self.channel(session).send(T1, "go", launch_guard=failing(), client_id=self.CID),
+                         {"outcome": "accepted", "queue_id": None})
+        self.assertEqual(([method for method, _ in session.params], closed), (["thread/queue/add"], [True]))
+
+    def test_a_guard_that_fails_before_anything_is_written_asks_nothing_of_codex(self):
+        @contextlib.contextmanager
+        def failing():
+            raise OSError("the lock went away")
+            yield True
+        session = self.Session(result={})
+        self.assertEqual(self.channel(session).send(T1, "go", launch_guard=failing(), client_id=self.CID),
                          {"outcome": "not_started", "error_code": "queue_spawn_failed"})
-        self.assertEqual((session.params, closed), ([], [True]))
+        self.assertEqual(session.params, [])
 
     def test_its_session_may_call_its_one_method_and_nothing_else(self):
         allowed = protocol.methods_for_capability(CAP)

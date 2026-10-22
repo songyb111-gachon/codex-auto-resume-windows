@@ -1184,7 +1184,7 @@ class OutcomeTests(EngineCase):
             with self.subTest(client_id=client_id):
                 h = self.fresh()
                 self.send_and_hold(h)
-                turn = h.home.dispatch(T1, status="inProgress")
+                turn = h.home.dispatch(T1, status="inProgress", progress=False)
                 h.home.add_item(T1, turn, "userMessage", "and also this", client_id)
                 h.tick(advance=1)
                 parent = h.record()

@@ -79,7 +79,7 @@ $claimedAside = @()
 $AllowEditionChange = ($env:CAR_ALLOW -eq '1')
 $SkipStartup = $false
 $edition = Get-Edition -Src (Join-Path $Payload 'app\src')
-Invoke-Expression (Get-Region '$upgrade = Test-Path $AppDir' '# The settings window and the icon live at the payload root')
+Invoke-Expression (Get-Region '$upgrade = Test-Path -LiteralPath $AppDir' '# The settings window and the icon live at the payload root')
 Invoke-Expression (Get-Region "`$setupArgs = @('setup')" '# 2 means everything was done')
 Write-Output ('SETUP ' + ($setupArgs -join ' '))
 exit 0
@@ -265,11 +265,11 @@ class EditionChangeTextTests(unittest.TestCase):
     def test_the_edition_is_read_before_the_sweep_the_handover_and_the_move(self):
         read = self.text.index("$previousEdition = Get-Edition -Src (Join-Path $AppDir 'src')")
         refused = self.text.index("exit $EDITION_CHANGE_REFUSED")
-        self.assertLess(self.text.index("$upgrade = Test-Path $AppDir"), read)
+        self.assertLess(self.text.index("$upgrade = Test-Path -LiteralPath $AppDir"), read)
         self.assertLess(read, refused)
-        for later in ("Get-ChildItem -Path $OwnedHome -Directory -Filter '*.old-*'",
+        for later in ("Get-ChildItem -LiteralPath $OwnedHome -Directory -Filter '*.old-*'",
                       "if ((Get-OwnedWatcherProcess).Count -gt 0)", "Write-CopyJournal -Path $Journal",
-                      "Move-Item -Path $pair.dst -Destination $aside"):
+                      "Move-Item -LiteralPath $pair.dst -Destination $aside"):
             with self.subTest(later):
                 self.assertLess(refused, self.text.index(later))
 

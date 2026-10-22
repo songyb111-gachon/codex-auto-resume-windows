@@ -277,6 +277,25 @@ def methods_for_capability(capability) -> frozenset:
     return frozenset(allowed | {"initialize", "initialized"})
 
 
+def submitted(session, method, params=None):
+    """v0.6.18: one request written now - inside a guard its caller holds (core's launch guard around a channel's first
+    change of state) - and its answer awaited later, outside it: a callable that gives the answer, or raises what the
+    request raised. A session with no `submit` (a test's) is called whole, now. Never raises itself."""
+    try:
+        submit, receive = getattr(session, "submit", None), getattr(session, "receive", None)
+        if callable(submit) and callable(receive):
+            sequence = submit(method, params)
+            return lambda: receive(method, sequence, params)
+        result = session.call(method, params)
+        return lambda: result
+    except Exception as exc:
+        failure = exc
+
+        def again():
+            raise failure
+        return again
+
+
 class Session:
     """A one-turn App Server helper for one measurement, over `codex app-server --stdio`.
 

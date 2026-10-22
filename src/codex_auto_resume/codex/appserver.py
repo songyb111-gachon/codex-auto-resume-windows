@@ -127,7 +127,10 @@ class Protocol:
                 process.wait(timeout=4)
             except S.TimeoutExpired:
                 process.terminate()  # only our own finite helper
-                process.wait(timeout=4)
+                try:
+                    process.wait(timeout=4)
+                except S.TimeoutExpired:
+                    pass    # v0.6.18: never raised from here - a delete that worked stays reported as worked
         finally:
             if hasattr(self, "reader"):
                 self.reader.join(timeout=1)

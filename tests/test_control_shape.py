@@ -93,7 +93,9 @@ METHODS = {
     # v0.6.16: a Save keeps the kinds of notice an edition registered that this process draws no box for.
     "_keep_unlisted_kinds",
     "list_pending", "preview_continuation", "request_retry_now", "reset_recovery_budget",
-    "restore_defaults", "_strict_homes", "homes_view", "set_enabled", "set_interruption_recovery", "set_startup_enabled",
+    "restore_defaults", "_strict_homes", "homes_view",
+    # v0.6.18: the Codex home Settings > Advanced offers to watch too, and Not now for it (control/policy.py).
+    "home_suggestion", "dismiss_home_suggestion", "set_enabled", "set_interruption_recovery", "set_startup_enabled",
     "set_thread_enabled", "settings_path", "start_for_codex", "start_watcher",
     "startup_enabled", "statistics", "stop_watcher", "timeline", "update_settings",
     "watcher_running",
