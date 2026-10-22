@@ -178,12 +178,16 @@ namespace CodexAutoResume
                     }
                     form.AdoptReportState(item, null);
                 }
-                // Pending, with every reset rule still to act scheduled under its list (AdvancedResets.cs).
+                // Pending's Scheduled tab (AdvancedSchedule.cs, v0.6.19), with every reset rule still to act and every queued
+                // message as rows, and the Done section at its fullest.
                 if (form.advancedResets != null)
                 {
+                    form.advancedPrompts = Map(kept, "advanced-prompts");
                     form.ShowPage("pending");
                     form.FillScheduled();
+                    form.ChooseSchedule(true);
                     form.AuditScheduled("pending/scheduled", findings);
+                    form.ChooseSchedule(false);
                     form.ShowAdvanced();
                 }
                 // v0.6.19 (#50): the prompt queue's editor, built and never shown - for a time (its send mode showing), for
@@ -258,12 +262,15 @@ namespace CodexAutoResume
             }
         }
 
-        /// Pending with its scheduled group: the standard audit's checks, on a page that is not this one.
+        /// Pending on its Scheduled tab: the standard audit's checks, on a page that is not this one - and each list's columns
+        /// within it.
         private void AuditScheduled(string where, List<string> findings)
         {
             AdvancedAudited++;
-            if (currentPage != "pending" || scheduledHolder == null || !OwnVisible(scheduledHolder))
-                findings.Add(where + " :: the scheduled group is not showing");
+            if (currentPage != "pending" || scheduleTabs == null || !OwnVisible(scheduleTabs) || !OwnVisible(scheduleView))
+                findings.Add(where + " :: the Scheduled tab is not showing");
+            if (scheduledList != null) AuditList(where + "/" + AuditName(scheduledList), scheduledList, findings);
+            if (doneList != null && OwnVisible(doneHolder)) AuditList(where + "/" + AuditName(doneList), doneList, findings);
             Audit(where, findings);
             AuditSpoken(where, this, findings);
             AuditPins(where, findings);
@@ -383,7 +390,7 @@ namespace CodexAutoResume
                                       : name == "let_go" ? form.letGoButton
                                       : name == "report_write" ? form.reportWrite : name == "report_save" ? form.reportSave
                                       : name == "report_check" ? form.reportCheck : name == "report_send" ? form.reportSend
-                                      : null;
+                                      : name == "queue_go" ? form.queueAdd : null;
                         if (button == null || !button.Enabled || !OwnVisible(button)) disabled.Add(name);
                         else Pressed.Invoke(button, new object[] { EventArgs.Empty });
                     }
@@ -509,12 +516,54 @@ namespace CodexAutoResume
                             else Pressed.Invoke(form.resetAdd, new object[] { EventArgs.Empty });
                         }
                     }
-                    else if (what == "reset_cancel" || what == "reset_go_on" || what == "scheduled_cancel" ||
-                             what == "scheduled_go_on" || what == "credit_now")
+                    else if (what == "scheduled_cancel" || what == "scheduled_go_on")
+                    {
+                        // v0.6.19: the rule's row chosen on Pending's Scheduled tab, then its Cancel or Go on pressed.
+                        form.ChooseScheduledRow("rule " + Whole(Get(step, "rule")).ToString(System.Globalization.CultureInfo.InvariantCulture));
+                        Button button = what == "scheduled_cancel" ? form.scheduleCancelButton : form.scheduleGoOnButton;
+                        if (button == null || !button.Enabled) disabled.Add(what);
+                        else Pressed.Invoke(button, new object[] { EventArgs.Empty });
+                    }
+                    else if (what == "tab") form.ChooseSchedule(Str(step, "name") == "scheduled");
+                    else if (what == "scheduled_choose") form.ChooseScheduledRow(Str(step, "key"));
+                    else if (what == "scheduled_press")
+                    {
+                        // v0.6.19 (#50): one of the Scheduled tab's buttons pressed, if it can be - the editor it opens
+                        // answered as "editor" says, never shown; what it showed into "dialogs".
+                        string name = Str(step, "button");
+                        Button button = name == "add" ? form.scheduleAddButton : name == "edit" ? form.scheduleEditButton
+                                      : name == "cancel" ? form.scheduleCancelButton : name == "go_on" ? form.scheduleGoOnButton
+                                      : name == "clear" ? form.clearDoneButton : null;
+                        if (button == null || !button.Enabled) disabled.Add("scheduled_press " + name);
+                        else
+                        {
+                            var record = new Dictionary<string, object>();
+                            Dictionary<string, object> answer = Map(step, "editor");
+                            if (answer == null)
+                            {
+                                answer = new Dictionary<string, object>();
+                                answer["press"] = "cancel";
+                            }
+                            form.editorAnswer = delegate(Form dialog) { form.AnswerEditor(dialog, answer, record); };
+                            try
+                            {
+                                Pressed.Invoke(button, new object[] { EventArgs.Empty });
+                            }
+                            finally
+                            {
+                                form.editorAnswer = null;
+                            }
+                            if (record.Count > 0)
+                            {
+                                record["saved"] = (double)form.editorSaved;
+                                dialogs.Add(record);
+                            }
+                        }
+                    }
+                    else if (what == "reset_cancel" || what == "reset_go_on" || what == "credit_now")
                     {
                         List<Button> buttons = what == "reset_cancel" ? form.resetCancels : what == "reset_go_on" ? form.resetGoOns
-                                             : what == "scheduled_cancel" ? form.scheduledCancels
-                                             : what == "scheduled_go_on" ? form.scheduledGoOns : form.creditNowButtons;
+                                             : form.creditNowButtons;
                         object key = Get(step, "rule") ?? Get(step, "family");
                         Button found = buttons.Find(delegate(Button each) { return Equals(each.Tag, key); });
                         if (found == null || !found.Enabled) disabled.Add(what);
@@ -849,19 +898,48 @@ namespace CodexAutoResume
                 look["resets"] = resets;
             }
             else look["resets"] = null;
+            // v0.6.19 (#50): Pending's tabs and its Scheduled tab - whether the strip shows and which is chosen, each tab's
+            // words, each row as the list draws it with the key it stands for and whether it is chosen, the Done section's
+            // rows, what each button may do, Delete completed's words, and the note beside the buttons.
             var scheduled = new Dictionary<string, object>();
-            scheduled["group_shown"] = scheduledHolder != null && OwnVisible(scheduledHolder);
-            var lines = new List<object>();
-            if (scheduledCard != null) Texts(scheduledCard, lines);
-            scheduled["texts"] = lines;
-            scheduled["cancels"] = Tags(scheduledCancels);
-            scheduled["go_ons"] = Tags(scheduledGoOns);
+            scheduled["tabs_shown"] = scheduleTabs != null && OwnVisible(scheduleTabs);
+            scheduled["chosen"] = scheduleChosen ? "scheduled" : "recoveries";
+            var tabs = new List<object>();
+            if (scheduleTabs != null)
+            {
+                tabs.Add(recoveriesTab.Text);
+                tabs.Add(scheduledTab.Text);
+            }
+            scheduled["tabs"] = tabs;
+            scheduled["rows"] = ListCells(scheduledList);
+            var keys = new List<object>();
+            var chosenKeys = new List<object>();
+            if (scheduledList != null)
+                foreach (ListViewItem item in scheduledList.Items)
+                {
+                    keys.Add(RowKey(item.Tag as Dictionary<string, object>));
+                    if (item.Selected) chosenKeys.Add(RowKey(item.Tag as Dictionary<string, object>));
+                }
+            scheduled["keys"] = keys;
+            scheduled["selected"] = chosenKeys;
+            scheduled["done"] = ListCells(doneList);
+            scheduled["done_shown"] = doneHolder != null && OwnVisible(doneHolder);
+            var scheduleButtons = new Dictionary<string, object>();
+            if (scheduleAddButton != null)
+            {
+                scheduleButtons["add"] = scheduleAddButton.Enabled;
+                scheduleButtons["edit"] = scheduleEditButton.Enabled;
+                scheduleButtons["cancel"] = scheduleCancelButton.Enabled;
+                scheduleButtons["go_on"] = scheduleGoOnButton.Enabled;
+                scheduleButtons["clear"] = clearDoneButton.Enabled;
+                scheduled["clear_text"] = clearDoneButton.Text;
+            }
+            scheduled["buttons"] = scheduleButtons;
+            scheduled["note"] = scheduledNote == null ? null : scheduledNote.Text;
             look["scheduled"] = scheduled;
-            // v0.6.19 (#50): the prompt queue's card - Schedule a message... and the prompts its Edit... buttons name.
+            // v0.6.19 (#50): the prompt queue's card - its one line and Go to Scheduled.
             var queue = new Dictionary<string, object>();
-            queue["add"] = queueAdd == null ? (object)null : queueAdd.Enabled;
-            queue["edits"] = Tags(queueEdits);
-            queue["cancels"] = Tags(queueCancels);
+            queue["go"] = queueAdd == null ? (object)null : (object)queueAdd.Enabled;
             look["queue"] = queue;
             // The report's card: what its boxes hold, what each of its buttons may do (null where there is none), the
             // job it is reading, what it said and how the last check or send ended, the text it shows in boxes that can

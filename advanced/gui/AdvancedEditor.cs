@@ -58,6 +58,8 @@ namespace CodexAutoResume
             ForgetEditor();
             if (!taken) return;
             ResetNote(Word("page.done.prompt_saved", "Saved."));
+            // The list as the save answered it, the saved row chosen (AdvancedSchedule.cs), then read again.
+            FillScheduled();
             ReadAdvanced(null);
             if (advancedOpen != PromptQueueId) ReadPrompts(null);
         }

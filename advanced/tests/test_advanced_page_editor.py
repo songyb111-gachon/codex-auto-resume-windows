@@ -143,8 +143,6 @@ class PageTests(PageCase):
 
     def test_edit_opens_filled_for_that_message_and_saves_it(self):
         result, expected = self.of("scenario_edit")
-        (look,) = result["looks"]
-        self.assertIn(expected["prompt"], look["queue"]["edits"], "a waiting message has its Edit...")
         (editor,) = result["dialogs"]
         self.assertEqual(editor["words"], "the words as written")
         self.assertFalse(editor["conversation_enabled"], "an edit keeps its conversation")

@@ -14,7 +14,8 @@
 # actions' rules on it and on Pending (v0.6.14), the compatibility report's card on it, and the page's own
 # audit - and (v0.6.15-beta) keep going's card, and the prompt queue's on it and on Pending - and (v0.6.16-beta.4) the
 # near-the-limit choices with the wrap-up's own wordings, and the turns run here, each with its Stop - and (v0.6.16)
-# the page in the render mode the documentation's pictures are drawn in - and (v0.6.19, #50) the prompt queue's editor.
+# the page in the render mode the documentation's pictures are drawn in - and (v0.6.19, #50) the prompt queue's editor and
+# Pending's Recoveries | Scheduled tabs.
 
 [advanced]
 advanced/gui/AdvancedPage.cs
@@ -24,6 +25,7 @@ advanced/gui/AdvancedResets.cs
 advanced/gui/AdvancedKeepGoing.cs
 advanced/gui/AdvancedQueue.cs
 advanced/gui/AdvancedEditor.cs
+advanced/gui/AdvancedSchedule.cs
 advanced/gui/AdvancedReport.cs
 advanced/gui/AdvancedUsage.cs
 advanced/gui/AdvancedRuns.cs

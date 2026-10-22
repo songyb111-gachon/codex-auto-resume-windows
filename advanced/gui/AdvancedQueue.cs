@@ -2,16 +2,12 @@
 //
 // Codex Auto Resume - the prompt queue on the Advanced features page, and on Pending's Scheduled group (v0.6.15-beta).
 //
-// While prompt_queue is on, its column has a card under its limits: each message queued, a flat line saying for which
-// conversation, when it goes, what it does while a turn runs and where it stands, with Edit... for one still waiting,
-// Go on for one held and Cancel while Cancel reaches it - and Schedule a message..., which opens the editor
-// (AdvancedEditor.cs, v0.6.19, issue #50), the one place a message is written or changed. Cancel takes back one Codex
-// already holds (the owner's answer of 2026-10-09); one being sent it no longer reaches. Each request is the bridge's
-// (advanced-prompts, advanced-prompt-add, advanced-prompt-edit, advanced-prompt-cancel, advanced-prompt-go-on), with the
-// generation the list was read at.
-//
-// On Pending, the same lines join the Scheduled group under the reset actions' rules (AddScheduledPrompts), so a message
-// queued for later is seen beside the recoveries waiting.
+// While prompt_queue is on or watched, its column has a card under its limits that says messages are scheduled on Pending >
+// Scheduled, with Go to Scheduled (v0.6.19, issue #50: one place for one result). There (AdvancedSchedule.cs) each message
+// is a row with Edit..., Cancel and Go on, and Schedule a message... opens the editor (AdvancedEditor.cs). Cancel takes back
+// one Codex already holds (the owner's answer of 2026-10-09); one being sent it no longer reaches. Each request is the
+// bridge's (advanced-prompts, advanced-prompt-add, advanced-prompt-edit, advanced-prompt-cancel, advanced-prompt-go-on,
+// advanced-prompts-clear-done), with the generation the list was read at.
 //
 // Nothing here draws anything the page does not draw already.
 //
@@ -32,10 +28,6 @@ namespace CodexAutoResume
         // advanced-prompts' last answer, or null where it was not read or the read failed.
         private Dictionary<string, object> advancedPrompts;
         private Button queueAdd;
-        private readonly List<Button> queueCancels = new List<Button>();
-        private readonly List<Button> queueGoOns = new List<Button>();
-        // v0.6.19 (#50): each waiting message's Edit..., which opens the editor filled.
-        private readonly List<Button> queueEdits = new List<Button>();
 
         private string QueueShown(Dictionary<string, object> item)
         {
@@ -95,91 +87,37 @@ namespace CodexAutoResume
             return Word("page.queue.state.waiting", "waiting");
         }
 
-        private string PromptLine(Dictionary<string, object> row)
-        {
-            return Word("page.queue.line", "{conversation} · {when} · {state}", "conversation", ConversationOf(Str(row, "thread_id")))
-                   .Replace("{when}", PromptWhen(row) + PromptMode(row)).Replace("{state}", PromptState(row));
-        }
-
-        /// What one does while a turn runs, said after when it goes (v0.6.19, #50): ", waits for a running turn" or ", joins
-        /// Codex's queue" - After this turn always the second, by its nature, and so said by its when alone.
-        private string PromptMode(Dictionary<string, object> row)
-        {
-            if (Str(row, "trigger") == "after_turn") return "";
-            return Str(row, "while_running") == "wait"
-                ? Word("page.queue.mode.wait", ", waits for a running turn")
-                : Word("page.queue.mode.queue", ", joins Codex's queue");
-        }
-
         // ---------------------------------------------------------------- the card
         private void BuildQueue(Dictionary<string, object> item)
         {
             ForgetQueueCard();
             if (Str(item, "id") != PromptQueueId || !Standing(item) || advancedPrompts == null) return;
             TableLayoutPanel card = NewGroup(Word("page.queue.title", "Queued messages"), advancedStack);
-            List<Dictionary<string, object>> rows = PendingPrompts();
-            if (rows.Count == 0) card.Controls.Add(HelpText(Word("page.queue.none", "No message is queued.")));
-            foreach (Dictionary<string, object> row in rows) AddPromptLine(card, row, queueCancels, queueGoOns, queueEdits);
-            // v0.6.19 (#50): a message is written in the editor (AdvancedEditor.cs), the one place for it.
-            queueAdd = CardButton(card, Word("page.scheduled.add", "Schedule a message..."), delegate { OpenEditor(null); });
+            // v0.6.19 (#50): one place for one result - messages are written, changed and cancelled on Pending's Scheduled
+            // tab (AdvancedSchedule.cs), and this card says so and goes there.
+            card.Controls.Add(HelpText(Word("page.queue.moved", "Messages are scheduled on {pending} > {scheduled}.", "pending",
+                                            S("nav.pending", "Pending")).Replace("{scheduled}", Word("page.scheduled", "Scheduled"))));
+            queueAdd = CardButton(card, Word("page.queue.go", "Go to Scheduled"), delegate { GoToScheduled(); });
             queueAdd.Margin = Pad(0, 8, 0, 4);
         }
 
-        /// One prompt's line, with Go on for one held and Cancel while Cancel reaches it, into `card`.
-        private void AddPromptLine(TableLayoutPanel card, Dictionary<string, object> row, List<Button> cancels, List<Button> goOns,
-                                   List<Button> edits)
+        /// Pending, on its Scheduled tab.
+        private void GoToScheduled()
         {
-            int prompt = Whole(Get(row, "prompt_id"));
-            string text = PromptLine(row);
-            Label shown = HelpText(text);
-            shown.ForeColor = Ink;
-            shown.Margin = Pad(0, 6, 0, 2);
-            card.Controls.Add(shown);
-            if (Str(row, "state") == "waiting" && edits != null)
-            {
-                Dictionary<string, object> shownRow = row;
-                Button edit = CardButton(card, Word("page.queue.edit", "Edit..."), delegate { OpenEditor(shownRow); });
-                edit.Tag = (double)prompt;
-                edit.AccessibleName = Word("page.queue.edit", "Edit...") + " " + text;
-                edits.Add(edit);
-            }
-            if (Str(row, "state") == "held")
-            {
-                Button goOn = CardButton(card, Word("page.queue.go_on", "Go on"), delegate { GoOnPrompt(prompt); });
-                goOn.Tag = (double)prompt;
-                goOn.AccessibleName = Word("page.queue.go_on", "Go on") + " " + text;
-                goOns.Add(goOn);
-            }
-            if (Equals(Get(row, "being_sent"), true) || Str(row, "reason") == "withdraw_refused") return;
-            Button cancel = CardButton(card, Word("page.resets.cancel", "Cancel"), delegate { CancelPrompt(prompt); });
-            cancel.Tag = (double)prompt;
-            cancel.AccessibleName = Word("page.resets.cancel", "Cancel") + " " + text;
-            cancels.Add(cancel);
-        }
-
-        /// Pending's Scheduled group: the prompts still to go, under the reset rules (AdvancedResets.FillScheduled).
-        private int AddScheduledPrompts(TableLayoutPanel lines)
-        {
-            List<Dictionary<string, object>> rows = PendingPrompts();
-            foreach (Dictionary<string, object> row in rows) AddPromptLine(lines, row, scheduledCancels, scheduledGoOns, null);
-            return rows.Count;
+            ShowPage("pending");
+            FillScheduled();
+            ChooseSchedule(true);
         }
 
         private void ForgetQueueCard()
         {
             queueAdd = null;
-            queueCancels.Clear();
-            queueGoOns.Clear();
-            queueEdits.Clear();
         }
 
         private void UpdateQueueButtons(bool idle)
         {
             bool listed = idle && advancedListing != null && advancedPrompts != null;
             if (queueAdd != null) queueAdd.Enabled = listed;
-            foreach (Button button in queueCancels) button.Enabled = listed;
-            foreach (Button button in queueGoOns) button.Enabled = listed;
-            foreach (Button button in queueEdits) button.Enabled = listed;
         }
 
         /// The next time the hour chosen comes, in Codex's seconds: today's, or tomorrow's where it has gone by.

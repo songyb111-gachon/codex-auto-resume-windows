@@ -723,6 +723,8 @@ namespace CodexAutoResume
             }
             FillAdvancedList();
             ShowAdvancedDetail();
+            // v0.6.19 (#50): Pending's tabs follow whether the prompt queue stands (AdvancedSchedule.cs).
+            ScheduleListingApplied();
         }
 
         /// A statement as advanced-statement answers it; one that could not be read is none, and nothing can be turned
