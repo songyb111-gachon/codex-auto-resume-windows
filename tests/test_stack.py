@@ -180,6 +180,8 @@ ITEM = {_q(name): item for item, names in {
                 # v0.6.16-beta.3: the words for this time, in a file of their own beside the state, as that one is.
                 "oncewords",
                 "auto_resume", "cli", "controlcli", "diagnostics",
+                # v0.6.19: this PC's own compatibility report, which Diagnostics shows and the export carries.
+                "ownreport", "ownreport.document", "ownreport.evidence", "ownreport.reading",
                 "commands", "commands.base", "commands.install", "commands.records",
                 "commands.status", "commands.watcher",
                 "mcp", "mcp.panel", "mcp.server", "mcp.tools", "mcpserver"),

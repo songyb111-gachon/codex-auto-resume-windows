@@ -203,6 +203,9 @@ LAYER = {_q(name): layer for layer, names in {
               "checkup",
               # v0.6.16: and its own rules asked again of every waiting recovery, for Rescan and reconcile (issue #39).
               "rescan",
+              # v0.6.19: this PC's own compatibility report, for Diagnostics and the export - with the watcher's own
+              # engine lines (runtime/app.py), read only when a report is written.
+              "ownreport", "ownreport.document", "ownreport.evidence", "ownreport.reading",
               # v0.6.10-alpha: cli.py's command bodies became commands/; cli.py is the parser.
               "commands", "commands.base", "commands.install", "commands.records",
               "commands.status", "commands.watcher",
@@ -307,6 +310,15 @@ LAZY_IMPORTS = {(_q(importer), _q(imported)): (kind, reason) for (importer, impo
     # v0.6.16-beta.3: Diagnostics' check, which builds an engine, only when it is asked for or exported.
     ("controlcli", "checkup"): ("cost", "Diagnostics' check and the engine it asks, only when it runs"),
     ("commands.install", "checkup"): ("cost", "Diagnostics' check, only while a bundle is exported"),
+    # v0.6.19: this PC's own compatibility report, written only when Diagnostics or the export asks for one.
+    ("controlcli", "ownreport"): ("cost", "the own-report command and the export only"),
+    ("commands.install", "ownreport"): ("cost", "this PC's own compatibility report, only while a bundle is exported"),
+    ("ownreport", "ownreport.document"): ("cost", "the report's code, imported only when one is written"),
+    ("ownreport", "ownreport.reading"): ("cost", "the report's code, imported only when one is written"),
+    ("ownreport.evidence", "runtime.app"): ("cost", "the watcher's engine lines, only when a report reads the log"),
+    ("ownreport.evidence", "runtime"): ("cost", "the package runtime/app.py is in, which Python loads first"),
+    ("ownreport.reading", "compatio"): ("cost", "the watcher's own report, read only when a report is written"),
+    ("ownreport.reading", "settings"): ("cost", "the settings that report is read with, only when a report is written"),
     # v0.6.16: Rescan and reconcile, which builds an engine for each Codex home, only when a person asks for it.
     ("controlcli", "rescan"): ("cost", "Rescan and reconcile and the engines it asks, only when it runs"),
     # v0.6.15-beta: the Codex version in force, read only while another Codex home is added (homes.unmeasured).

@@ -11,8 +11,8 @@ counted (`body`). What 1.5.0's own `build` writes of the fixtures is kept beside
 they hold this to it.
 
 Where the reporter copies a word from the product, this takes it from the product: the record's
-vocabularies, the progress kinds, the send gate, the client id a marker-free continuation is
-queued under, the gate words only an edition's plug writes, and the engine lines the watcher
+vocabularies, the progress kinds (written out, and held equal by a test), the send gate, the
+client id a marker-free continuation is queued under, the gate words only an edition's plug writes, and the engine lines the watcher
 logs (runtime/app.py, imported only when a report is written: it is the composition root). What
 a report leaves out is told in closed codes (`Unplaced`), never in a sentence. How the project
 counts a report it is sent - worked, failed, neither, or both at once - is `graded`, the one rule
@@ -32,7 +32,6 @@ import re
 import time
 
 from codex_auto_resume import compat, machine
-from codex_auto_resume.codex.values import PROGRESS_ITEM_TYPES
 from codex_auto_resume.domain import gates, ids
 from codex_auto_resume.domain import vocabulary as words
 from codex_auto_resume.domain.compat_vocabulary import Capability, ResolutionReason
@@ -59,7 +58,10 @@ CATEGORIES = frozenset(str(word) for word in words.FailureCategory)
 STATES = frozenset(str(word) for word in words.RecordState)
 REASONS = frozenset(str(word) for word in words.ReasonCode)
 TURN_STATUSES = frozenset(str(word) for word in words.TurnStatus)
-PROGRESS = tuple(sorted(PROGRESS_ITEM_TYPES))
+# The four kinds a progress count names (codex/values.py PROGRESS_ITEM_TYPES, a fixed list: B9), written out here
+# rather than imported, so that nothing which writes a report reaches Codex's adapter package (B17: the Dashboard's
+# bridge never imports Codex's readers); tests/test_own_report.py holds the two equal.
+PROGRESS = ("agentMessage", "commandExecution", "fileChange", "mcpToolCall")
 GATE = tuple(str(name) for name in compat.SEND_GATE)
 # An outcome the product observed; `outcome_unverified` says it could not observe one.
 OUTCOMES = frozenset(machine.OUTCOMES) - {str(words.RecordState.OUTCOME_UNVERIFIED)}

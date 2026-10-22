@@ -215,12 +215,14 @@ class ReadOnlyTests(Case):
         call that writes, makes or removes a file."""
         writes = {"write_text", "write_bytes", "mkdir", "unlink", "rename", "replace", "touch", "rmdir",
                   "commit", "executescript"}
-        for path in sorted(PACKAGE.glob("*.py")):
+        for path in sorted(PACKAGE.glob("*.py")) + sorted(CORE.glob("*.py")):
             with self.subTest(path.name):
                 tree = ast.parse(path.read_text(encoding="utf-8"))
                 names = {getattr(node, "attr", None) or getattr(node, "id", None) for node in ast.walk(tree)}
                 self.assertEqual(names & (writes | {"Store", "open_state", "AdvancedState"}), set())
-        source = (PACKAGE / "records.py").read_text(encoding="utf-8")
+        # v0.6.19: the one opener is core's (ownreport/reading.py readonly), which the ledger is opened through too.
+        self.assertNotIn("sqlite3.connect(", (PACKAGE / "records.py").read_text(encoding="utf-8"))
+        source = (CORE / "reading.py").read_text(encoding="utf-8")
         self.assertEqual(source.count("sqlite3.connect("), 1)
         self.assertIn('as_uri() + "?mode=ro", uri=True', source)
 

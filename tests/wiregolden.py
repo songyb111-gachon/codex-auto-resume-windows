@@ -293,6 +293,16 @@ def _state_access(word):
     return using
 
 
+@contextmanager
+def _own_report_pinned(_workspace):
+    """The Windows build the own report names (v0.6.19, ownreport/document.py windows_version), for this one case: a
+    stand-in for the one question asked of this process, so the answer is the same on every machine."""
+    from codex_auto_resume.ownreport import document
+
+    with patch.object(document, "windows_version", return_value="10.0.26100"):
+        yield
+
+
 def _host_app(watcher_inside):
     """Where the watcher and the bridge run, for this one case (v0.6.17, win/kernel.py host_app): a stand-in for the
     one function that walks the live process table, so the answer is the same on every machine - outside, or, with
@@ -563,6 +573,11 @@ BRIDGE_CASES = {
         Case("the watcher and the bridge outside every app", using=_host_app(False)),
         Case("the watcher inside the Codex app, the bridge outside", using=_host_app(True))],
     "demo": [Case("the made-up rows, and no watcher's icon to ask for the card")],
+    # v0.6.19: Diagnostics' compatibility report from this PC's own records, read only and sent nowhere (ownreport/):
+    # with no Codex version named anywhere, and with the watcher's report naming the pictures' Codex.
+    "own-report": [Case("no Codex version is named yet"),
+                   Case("the pinned records, on the Codex the watcher's report names", engine=True,
+                        using=_own_report_pinned)],
     # v0.6.16-beta.3: Diagnostics' check of why a failure was not taken up, read only (checkup.py).
     "detection-check": [Case("the recent conversations, the homes, usage, notices and Codex", using=_check_pinned)],
     # v0.6.11: Diagnostics compares the edition installed with Codex's copy of the plugin, read only.

@@ -159,10 +159,11 @@ class SliceTests(unittest.TestCase):
         # DashboardVersions.cs, Install another version..., a thirteenth part in a fourteenth; and SettingsPower.cs,
         # the power action's card, a fourteenth part in a fifteenth. v0.6.15-beta: SettingsHomes.cs, the Codex
         # homes' card, a fifteenth part in a sixteenth. v0.6.16: WindowRender.cs, the render mode that draws the
-        # README's motion pictures, a sixteenth part in a seventeenth.
-        self.assertEqual(len(declared) - len(set(declared)), 15,
+        # README's motion pictures, a sixteenth part in a seventeenth. v0.6.19: DashboardOwnReport.cs, this PC's own
+        # compatibility report, a seventeenth part in an eighteenth.
+        self.assertEqual(len(declared) - len(set(declared)), 16,
                          "`partial class SettingsForm` written once per file that holds part "
-                         "of it, which is sixteen of the window's seventeen sources")
+                         "of it, which is seventeen of the window's eighteen sources")
         for source, count in counts.items():
             with self.subTest(source):
                 self.assertGreater(count, 0)

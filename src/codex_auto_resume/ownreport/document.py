@@ -200,7 +200,9 @@ def check(document) -> bytes:
             or document["note"] != NOTE):
         raise DocumentError("the format or one of its sentences is not the format's")
     moment(document["recorded_at"], "recorded_at", required=True)
-    if not isinstance(document["product_version"], str) or not PRODUCT_VERSION.match(document["product_version"]):
+    version = document["product_version"]
+    # "unknown" is what config.version says of a damaged manifest: the report of the records still stands.
+    if not isinstance(version, str) or not (version == "unknown" or PRODUCT_VERSION.match(version)):
         raise DocumentError("product_version is not this product's version as a release names it")
     if document["windows"] is not None and not (isinstance(document["windows"], str)
                                                 and WINDOWS.match(document["windows"])):

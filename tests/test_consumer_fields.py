@@ -151,6 +151,13 @@ _RECEIVERS = {
         # LayoutAudit's input: a dashboard reply, with the compatibility reply's view beside it.
         "snapshot": [("bridge:dashboard", ""), ("bridge:compatibility", "")],
     },
+    # v0.6.19: this PC's own compatibility report, beside what it has as a part of the Dashboard half (_spread): each
+    # version's line, what was left out and the codes it was left out by.
+    "gui/DashboardOwnReport.cs": {
+        "ownVersion": [("bridge:own-report", "result.versions[]")],
+        "ownLeftOut": [("bridge:own-report", "result.left_out")],
+        "ownUnplaced": [("bridge:own-report", "result.left_out.unplaced")],
+    },
     "gui/SoftTheme.cs": {
         # Theme.Stored reads the settings file for the theme before the window has a bridge.
         "map": SETTINGS,
