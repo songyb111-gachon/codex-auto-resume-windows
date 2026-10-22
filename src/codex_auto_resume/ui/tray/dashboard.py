@@ -6,6 +6,7 @@ here and why `tests/test_structural_invariants.py` names this path rather than t
 from __future__ import annotations
 
 from pathlib import Path
+import re
 import subprocess
 
 from ... import machine
@@ -15,6 +16,9 @@ from ... import machine
 # The pages the window will open on, from the one closed list (machine.PAGES): the value is
 # spliced into a command line, so nothing else may ever reach it, whatever a caller passes.
 PAGES = machine.PAGES
+# A conversation id as the chat is opened at (open_chat): a UUID's canonical text, the only thing put on its command
+# line - the same shape notify.chat_uri reads, checked again here because the value is spliced into an argument.
+_CONVERSATION = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 
 
 def open_dashboard(home: Path, page: str = None) -> bool:
@@ -43,8 +47,7 @@ def open_chat(home: Path, thread_id: str) -> bool:
     """Start the settings window at the advanced edition's chat with one conversation (v0.6.19): a click on a notice
     goes there while the chat is on (notifier.click_uri). Only a UUID in its canonical text is put on the command line;
     the advanced window reads `--chat=` (advanced/gui/AdvancedChat.cs) and the standard one ignores all three."""
-    from ...domain import ids
-    if not ids.is_uuid(thread_id):
+    if not isinstance(thread_id, str) or not _CONVERSATION.fullmatch(thread_id):
         raise ValueError("not a conversation")
     exe = Path(home) / "CodexAutoResumeSettings.exe"
     if not exe.is_file():
