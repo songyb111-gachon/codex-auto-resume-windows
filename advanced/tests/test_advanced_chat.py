@@ -22,7 +22,7 @@ from takingcase import TakingCase  # noqa: E402
 from advancedcase import ENGINE  # noqa: E402
 from codexsim import CodexHome  # noqa: E402
 from codex_auto_resume.domain import ids  # noqa: E402
-from codex_auto_resume.domain.plug import Point  # noqa: E402
+from codex_auto_resume.domain.plug import DEFER, Point  # noqa: E402
 from codex_auto_resume_advanced import registry, surfaces  # noqa: E402
 from codex_auto_resume_advanced.codex.conversation import Conversation  # noqa: E402
 from codex_auto_resume_advanced.control import chat as control  # noqa: E402
@@ -138,6 +138,18 @@ class SendTests(ChatCase):
                 json.dumps(surfaces.mcp(plug.runtime, {}), default=str)]
         for text in seen:
             self.assertNotIn("heron", text)
+
+
+class RecoveryTests(ChatCase):
+    def test_a_recovery_of_core_s_is_never_carried_by_the_chat(self):
+        """Fails with chat's own-record check reverted: every recovery would go through the chat's channel."""
+        plug = self.armed()
+        code = plug.runtime._code_of(plug.runtime.registry.get(self.cap))
+        recovery = {"interruption_id": "ab" * 32, "thread_id": T1, "marker": "[codex-auto-resume:0123456789abcdef]"}
+        self.assertIs(code.sender(recovery, object()), DEFER)
+        self.assertIs(code.delivery(recovery), DEFER)
+        backend = object()
+        self.assertIs(plug.runtime.ask(Point.SENDER, recovery, backend), backend)
 
 
 class PageTests(ChatCase):

@@ -57,6 +57,12 @@ def watched(row, now) -> dict | None:
     return record
 
 
+def _ours(record) -> bool:
+    """Whether `record` is a record of this edition's own (P2) - a record id and no interruption id - which is the only
+    kind a chat message is; a recovery of core's never is."""
+    return isinstance(record, dict) and "record_id" in record and "interruption_id" not in record
+
+
 class Channel(MarkerFreeContinuation):
     """The one call a chat message goes by: thread/queue/add with its client id, over a session restricted to this
     capability's methods (codex/protocol.CAPABILITY_METHODS)."""
@@ -107,12 +113,14 @@ class CodexChat:
         return found or DEFER
 
     def sender(self, record, backend):
-        """P5: the channel, for a message of its own."""
-        return self.channel
+        """P5: the channel, for a message of its own - and nothing for anything else: a recovery of core's, or any
+        record of another capability's, goes as it would with chat off (the runtime asks this only for a chat
+        message, runtime._own_record_answer; this holds it even where it is asked otherwise)."""
+        return self.channel if _ours(record) else DEFER
 
     def delivery(self, record):
-        """P15: no marker; core proves it by the client id it derives from the record's id."""
-        return Alternative.CLIENT_ID
+        """P15: no marker for a message of its own; core proves it by the client id it derives from the record's id."""
+        return Alternative.CLIENT_ID if _ours(record) else DEFER
 
 
 def make(paths) -> CodexChat:

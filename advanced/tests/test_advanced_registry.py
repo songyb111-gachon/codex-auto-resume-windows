@@ -79,6 +79,8 @@ class ShippedTests(unittest.TestCase):
                "every_conversation",
                # v0.6.16-beta.4: how a turn run here starts.
                "silent_continuation",
+               # v0.6.19: chat with a conversation in the Dashboard.
+               "codex_chat",
                # v0.6.18: the weekly update check; and Open Codex on a notice, an action, before the other two.
                "idle_update_check", "open_codex_button",
                "long_reset_message", "compat_report")
@@ -101,7 +103,7 @@ class ShippedTests(unittest.TestCase):
                      Point.TICK: ("compact_continue", "model_fallback", "headless_run", "reset_credit", "reset_message", "empty_response", "subagent_parent",
                                   "keep_going", "usage_meter", "usage_wrap_up", "usage_pause", "idle_update_check"),
                      Point.RECORDS: ("reset_message", "prompt_queue", "empty_response", "subagent_parent",
-                                     "keep_going", "usage_wrap_up"),
+                                     "keep_going", "usage_wrap_up", "codex_chat"),
                      # v0.6.15-beta: the lines a parent's continuation is given of its subagents' stops (5a).
                      Point.TEXT: ("subagent_parent",),
                      Point.UNLOADED: ("goal_continuation", "queue_for_open", "compact_continue", "model_fallback",
@@ -112,8 +114,9 @@ class ShippedTests(unittest.TestCase):
                                    "early_reset", "usage_pause"),
                      Point.ADMISSION: ("compact_continue", "capacity_retry", "structured_rules", "unknown_failure_budget",
                                        "codex_gave_up", "sign_in_retry"),
-                     Point.SENDER: ("goal_continuation", "marker_free_continuation"),
-                     Point.DELIVERY: ("marker_free_continuation", "silent_continuation"),
+                     # v0.6.19: and the chat, for its own messages alone (engine/chat.py).
+                     Point.SENDER: ("goal_continuation", "marker_free_continuation", "codex_chat"),
+                     Point.DELIVERY: ("marker_free_continuation", "silent_continuation", "codex_chat"),
                      # v0.6.15-beta: several sends waiting for their receipts at once.
                      Point.CONCURRENCY: ("parallel_dispatch",),
                      # v0.6.16-beta.3: which conversations core takes up.
@@ -126,6 +129,8 @@ class ShippedTests(unittest.TestCase):
              "other_sessions", "marker_free_continuation", "silent_continuation", "reset_credit",
              "early_reset", "parallel_dispatch", "reset_message", "long_reset_message",
              "usage_meter", "usage_wrap_up", "usage_pause", "keep_going", "prompt_queue",
+             # v0.6.19: chat with a conversation, beside the queued messages.
+             "codex_chat",
              "empty_response", "once_more_when_unsure", "send_now", "open_codex_button", "capacity_retry",
              "compact_continue", "model_fallback",
              "codex_gave_up",
@@ -335,11 +340,11 @@ class ShippedTests(unittest.TestCase):
     def test_a_capability_that_moves_an_engine_constant_departs_from_h2(self):
         """H2: no setting moves an engine constant, and A20's caps are engine constants (the standards
         file says so). A capability that departs from A20 lets a person's choice move them, so it names
-        H2 as well: the capacity retries and Send now."""
+        H2 as well: the capacity retries, Send now and (v0.6.19) the chat, paced on its own."""
         self.assertIn("engine constants", standards_text("A20"))
         self.assertIn("move an engine constant", standards_text("H2"))
         moving = [definition.id for definition in registry.DEFINITIONS if "A20" in definition.departs_from]
-        self.assertEqual(moving, ["capacity_retry", "send_now"])
+        self.assertEqual(moving, ["capacity_retry", "send_now", "codex_chat"])
         for definition in registry.DEFINITIONS:
             if "A20" in definition.departs_from:
                 with self.subTest(definition.id):
