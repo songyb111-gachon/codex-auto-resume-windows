@@ -51,7 +51,9 @@ class SupervisorCase(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
-        self.home = Path(self.temporary.name)
+        # Resolved, as the launcher resolves its own folder (Path(__file__).resolve()): a TEMP spelt in 8.3 form - a CI
+        # runner's RUNNER~1 for runneradmin - is another spelling of the same folder.
+        self.home = Path(self.temporary.name).resolve()
         copy = self.home / "watcher-launcher.py"
         shutil.copyfile(ROOT / "scripts" / "watcher_launcher.py", copy)
         (self.home / "runtime.json").write_text(json.dumps({"home": str(self.home)}), encoding="utf-8")
