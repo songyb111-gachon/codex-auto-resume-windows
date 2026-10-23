@@ -25,7 +25,7 @@ if _HERE not in sys.path:
 from test_version_picker import BOOTSTRAP, LIFT, POWERSHELL, RELEASE, row  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
-INSTALLED = "0.6.19-alpha"
+INSTALLED = "0.6.19-beta"
 CASES = [
     # The readers of the mark, on form 7: the file is theirs to use as it is.
     row("0.6.18", "offered older,release,kept,latest", edition="advanced", installed=INSTALLED,
@@ -82,7 +82,7 @@ class ReadableFromTests(unittest.TestCase):
         readable = int(re.search(r"^READABLE_FROM = (\d+)$", text, re.M).group(1))
         self.assertEqual(c["AdvancedReadableFrom"], readable)
         self.assertEqual(c["AdvancedMarkSince"], "0.6.17", "the first release whose reader honours the mark")
-        self.assertEqual(c["AdvancedStateSince"][0], ["0.6.19-alpha", 8])
+        self.assertEqual(c["AdvancedStateSince"][0], ["0.6.19-beta", 8])
 
 
 if __name__ == "__main__":

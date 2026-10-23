@@ -316,7 +316,7 @@ $StateMarkSince = '0.6.18'
 # one this version's file is marked readable from ($AdvancedReadableFrom, the advanced state's
 # schema.READABLE_FROM): v0.6.17 and v0.6.18 use a form-8 file as it is, v0.6.16 refuses it.
 # v0.6.15 is v0.6.14's code (form 3) between v0.6.15-beta and v0.6.16-beta (both form 4).
-$AdvancedStateSince = @(@('0.6.19-alpha', 8), @('0.6.16-beta.4', 7), @('0.6.16-beta.3', 5), @('0.6.16-beta', 4),
+$AdvancedStateSince = @(@('0.6.19-beta', 8), @('0.6.16-beta.4', 7), @('0.6.16-beta.3', 5), @('0.6.16-beta', 4),
                         @('0.6.15', 3), @('0.6.15-beta', 4), @('0.6.14', 3), @('0.6.11-beta.2', 2), @('0.6.11-alpha', 1))
 $AdvancedReadableFrom = 7
 $AdvancedMarkSince = '0.6.17'
