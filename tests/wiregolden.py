@@ -296,10 +296,12 @@ def _state_access(word):
 @contextmanager
 def _own_report_pinned(_workspace):
     """The Windows build the own report names (v0.6.19, ownreport/document.py windows_version), for this one case: a
-    stand-in for the one question asked of this process, so the answer is the same on every machine."""
+    stand-in for the one question asked of this process, so the answer is the same on every machine. The product
+    version it names is pinned too: the reply carries the report's SHA-256 and size, which `<version>` cannot stand in
+    for, so without it every release would be a wire change."""
     from codex_auto_resume.ownreport import document
 
-    with patch.object(document, "windows_version", return_value="10.0.26100"):
+    with patch.object(document, "windows_version", return_value="10.0.26100"),             patch.object(document.config, "version", return_value="0.0.0"):
         yield
 
 
