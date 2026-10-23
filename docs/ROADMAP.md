@@ -924,7 +924,7 @@ messages in any Windows language; and a timing test measures the icon's own work
 
 ---
 
-## v0.6.18 — A final on v0.6.17: a cut-off recovery turn that worked is recovered, a setup bar that fills by real counts, a streamed update download, and two small advanced capabilities 🚧
+## v0.6.18 — A final on v0.6.17: a cut-off recovery turn that worked is recovered, a setup bar that fills by real counts, a streamed update download, and two small advanced capabilities ✅
 
 A final on v0.6.17, with no pre-release of its own. On 2026-10-21 the owner took the simple parts of what this roadmap
 had planned for v0.6.18 and put them into a release of their own now, with the fixes made meanwhile. The rest of that
@@ -1331,9 +1331,11 @@ Final Rust audit and stabilization: the Rust bug hunt
 Maintenance
 ```
 
-This document records the current direction; v0.6.18 is in development: a recovery turn that worked and was then cut
-off is recovered, the setup window's bar fills by real counts, the update's download is streamed, and the advanced edition
-gains Open Codex on a notice and a weekly update check while idle. Before it, v0.6.17 moved installs started from inside
+This document records the current direction; v0.6.18 is out: a recovery that worked is recovered however its turn ended,
+the standard edition suggests the Codex homes this PC uses, Install another version runs in the setup window, the setup
+window's bar fills by real counts, the update's download is streamed, all seventeen translations were reviewed, a full
+audit's fixes landed in every layer, and the advanced edition gains Open Codex on a notice and a weekly update check while
+idle. Before it, v0.6.17 moved installs started from inside
 another app outside it, kept the uninstaller through updates, gave honest words when pre-releases could not be checked,
 fixed every capability pair that kept another from working, and made Japanese and Chinese fast in their own Windows
 faces. Before it, v0.6.16 brought most

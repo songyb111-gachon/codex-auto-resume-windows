@@ -22,6 +22,12 @@ this checkout's makes - an amended scenario may ask for more ticks, never for ot
 
 Where the tag is not in the checkout this is skipped, except on CI, which fetches tags
 (tests/released.py). Temporary homes only, and no console window for any worker.
+
+The comparison runs in SHARES, one module each (tests/test_released_calls_1.py to _4): as one test it took 12 to 21
+minutes of one CI part, and scripts/test_parts.py deals whole files. Each share holds its scenarios to every rule above;
+this module holds that the shares together are every scenario exactly once, amended ones included, and that what was
+asked of all of them at once - more than 100 sends, every kind of call, more than 200 scenarios that build an engine -
+still follows from what each share is held to.
 """
 from __future__ import annotations
 
@@ -43,6 +49,7 @@ if _HERE not in sys.path:
 
 import neutral  # noqa: E402
 import released  # noqa: E402
+from test_neutral_plug import entry_of  # noqa: E402
 
 HERE = Path(_HERE)
 ROOT = HERE.parent
@@ -87,6 +94,20 @@ AMENDED = {
         "the person joins before any progress: handed over and its child blocked as before",
 }
 MARKER = re.compile(r"\[codex-auto-resume:([0-9a-f]{64}|[0-9a-f]{16})\]")
+# The scenarios in shares of about equal time, share N run by tests/test_released_calls_<N>.py; an entry is a module or
+# a class, and a scenario is in the share whose entry names it most closely (test_neutral_plug.entry_of). test_outcomes'
+# T28 usage expiries and T18 usage chain, a week of ticks each, are most of the time, so they are shares of their own.
+# With each: the kinds of call its scenarios must make between them, and how many sends and scenarios that build an
+# engine they make at least (the shares' figures add up to every kind, more than 100 sends and more than 200 engines).
+KINDS = frozenset({"send", "usage", "loaded", "delete_queue"})
+SHARES = (
+    {"entries": ("test_outcomes.T28UsageExpiryTests",), "kinds": frozenset({"usage", "loaded"}),
+     "sends": 0, "driven": 4},
+    {"entries": ("test_outcomes.T18ChainTests", "test_correlation"), "kinds": KINDS, "sends": 24, "driven": 25},
+    {"entries": ("test_outcomes", "test_compat_io", "test_compat_characterization", "test_pause_unknown"),
+     "kinds": KINDS, "sends": 25, "driven": 53},
+    {"entries": ("test_engine", "test_recovery", "test_engine_gates"), "kinds": KINDS, "sends": 53, "driven": 120},
+)
 
 
 def unchanged(name: str) -> bool:
@@ -190,6 +211,63 @@ def run_all(ids, source: Path, *, count=None, stall=neutral.STALL, modules=None)
     return packages, results
 
 
+def share_of(test_id: str) -> int | None:
+    """The 1-based share whose entry names `test_id` most closely, or None where no entry names it."""
+    found = [(len(entry), index) for index, share in enumerate(SHARES, 1)
+             for entry in [entry_of(test_id, share["entries"])] if entry]
+    return max(found)[1] if found else None
+
+
+def check_share(case: unittest.TestCase, share: int) -> None:
+    """Every scenario of share `share` (1-based) run against v0.6.10's tagged package and this checkout, each asking
+    Codex what v0.6.10 asked - an amended one beginning with what it asked - and held to the share's figures."""
+    rules = SHARES[share - 1]
+    source = released.package(TAG)
+    ids = [key for key in neutral.scenarios(tuple(name for name in neutral.MODULES if name not in AFTER))
+           if share_of(key) == share]
+    case.assertTrue(ids, "share %d has no scenarios" % share)
+    plain = [key for key in ids if key not in AMENDED]
+    then_packages, then = run_all(plain, source)
+    amended = [key for key in ids if key in AMENDED]
+    with tempfile.TemporaryDirectory(prefix="released-tagged-") as folder:
+        for name in {key.split(".")[0] for key in amended}:
+            (Path(folder) / (name + ".py")).write_text(tagged(name), encoding="utf-8")
+        packages, results = run_all(amended, source, modules=folder)
+    then_packages |= packages
+    then.update(results)
+    now_packages, now = run_all(ids, ROOT / "src")
+    case.assertEqual([Path(path).resolve().parent.parent for path in then_packages], [source.resolve()],
+                     "the v0.6.10 run imported the tag's package and nothing else")
+    case.assertEqual([Path(path).resolve().parent.parent for path in now_packages], [(ROOT / "src").resolve()])
+    for results in (then, now):
+        case.assertEqual(sorted(set(ids) - set(results)), [], "scenarios that never ran")
+        case.assertEqual({key: result["error"] for key, result in results.items() if "error" in result}, {})
+    case.assertEqual({key: then[key]["problems"] for key in ids if not then[key]["ok"]}, {},
+                     "a scenario fails against v0.6.10's own package: the comparison is of nothing")
+    case.assertEqual({key: now[key]["problems"] for key in ids if not now[key]["ok"]}, {})
+    differ = {}
+    for key in ids:
+        before, after = short(then[key]["calls"]), now[key]["calls"]
+        if key in AMENDED:
+            after = after[:len(before)]
+        if before != after:
+            index = next((i for i, (a, b) in enumerate(zip(before, after)) if a != b),
+                         min(len(before), len(after)))
+            differ[key] = "call %d: %s then, %s now" % (index, (before[index:index + 1] or [["nothing"]])[0],
+                                                        (after[index:index + 1] or [["nothing"]])[0])
+    case.assertEqual(differ, {}, "a scenario asks Codex something v0.6.10 did not, or not as it did")
+    # The one difference, said the other way round: now only the short marker goes out.
+    sent = [call[1][1] for key in ids for call in now[key]["calls"] if call[0] == "send"]
+    case.assertGreaterEqual(len(sent), rules["sends"], "the scenarios send")
+    case.assertTrue(all(len(found) == 16 for text in sent for found in MARKER.findall(text)))
+    before_sent = [call[1][1] for key in ids for call in then[key]["calls"] if call[0] == "send"]
+    case.assertTrue(all(len(found) == 64 for text in before_sent for found in MARKER.findall(text)))
+    asked = {call[0] for key in ids for call in now[key]["calls"]}
+    case.assertLessEqual(rules["kinds"], asked, "every kind of call is compared somewhere")
+    driven = [key for key in ids if now[key]["engines"]]
+    case.assertGreaterEqual(len(driven), rules["driven"])
+
+
 class ReleasedCallsTests(unittest.TestCase):
     def test_the_scenarios_are_the_ones_v0_6_10_was_tested_with(self):
         released.package(TAG)
@@ -210,52 +288,31 @@ class ReleasedCallsTests(unittest.TestCase):
                                                              "def test_renamed")))
         self.assertTrue(AMENDED_ON and AMENDED_BECAUSE and all(AMENDED.values()))
 
-    def test_at_the_defaults_every_scenario_asks_codex_what_v0_6_10_asked(self):
-        source = released.package(TAG)
+    def test_the_shares_are_every_scenario_exactly_once(self):
+        """What the one run of every scenario was held to as a whole, held over the shares: each scenario v0.6.10 was
+        tested with is in exactly one share, every amended one too, each share has a module of its own that runs it,
+        and the shares' figures add up to every kind of call, more than 100 sends and more than 200 engines."""
         ids = neutral.scenarios(tuple(name for name in neutral.MODULES if name not in AFTER))
         self.assertGreater(len(ids), 250, "the listing itself looks wrong")
-        plain = [key for key in ids if key not in AMENDED]
-        then_packages, then = run_all(plain, source)
-        amended = [key for key in ids if key in AMENDED]
-        self.assertEqual(sorted(amended), sorted(AMENDED), "an amended scenario is not one of the scenarios")
-        with tempfile.TemporaryDirectory(prefix="released-tagged-") as folder:
-            for name in {key.split(".")[0] for key in amended}:
-                (Path(folder) / (name + ".py")).write_text(tagged(name), encoding="utf-8")
-            packages, results = run_all(amended, source, modules=folder)
-        then_packages |= packages
-        then.update(results)
-        now_packages, now = run_all(ids, ROOT / "src")
-        self.assertEqual([Path(path).resolve().parent.parent for path in then_packages], [source.resolve()],
-                         "the v0.6.10 run imported the tag's package and nothing else")
-        self.assertEqual([Path(path).resolve().parent.parent for path in now_packages], [(ROOT / "src").resolve()])
-        for results in (then, now):
-            self.assertEqual(sorted(set(ids) - set(results)), [], "scenarios that never ran")
-            self.assertEqual({key: result["error"] for key, result in results.items() if "error" in result}, {})
-        self.assertEqual({key: then[key]["problems"] for key in ids if not then[key]["ok"]}, {},
-                         "a scenario fails against v0.6.10's own package: the comparison is of nothing")
-        self.assertEqual({key: now[key]["problems"] for key in ids if not now[key]["ok"]}, {})
-        differ = {}
-        for key in ids:
-            before, after = short(then[key]["calls"]), now[key]["calls"]
-            if key in AMENDED:
-                after = after[:len(before)]
-            if before != after:
-                index = next((i for i, (a, b) in enumerate(zip(before, after)) if a != b),
-                             min(len(before), len(after)))
-                differ[key] = "call %d: %s then, %s now" % (index, (before[index:index + 1] or [["nothing"]])[0],
-                                                            (after[index:index + 1] or [["nothing"]])[0])
-        self.assertEqual(differ, {}, "a scenario asks Codex something v0.6.10 did not, or not as it did")
-        # The one difference, said the other way round: now only the short marker goes out.
-        sent = [call[1][1] for key in ids for call in now[key]["calls"] if call[0] == "send"]
-        self.assertGreater(len(sent), 100, "the scenarios send")
-        self.assertTrue(all(len(found) == 16 for text in sent for found in MARKER.findall(text)))
-        before_sent = [call[1][1] for key in ids for call in then[key]["calls"] if call[0] == "send"]
-        self.assertTrue(all(len(found) == 64 for text in before_sent for found in MARKER.findall(text)))
-        asked = {call[0] for key in ids for call in now[key]["calls"]}
-        self.assertLessEqual({"send", "usage", "loaded", "delete_queue"}, asked,
-                             "every kind of call is compared somewhere")
-        driven = [key for key in ids if now[key]["engines"]]
-        self.assertGreater(len(driven), 200)
+        self.assertEqual([key for key in ids if share_of(key) is None], [], "scenarios no share runs")
+        self.assertEqual(sorted({share_of(key) for key in ids}), list(range(1, len(SHARES) + 1)), "a share with nothing")
+        self.assertEqual(sorted(key for key in ids if key in AMENDED), sorted(AMENDED),
+                         "an amended scenario is not one of the scenarios")
+        entries = [entry for share in SHARES for entry in share["entries"]]
+        self.assertEqual(len(entries), len(set(entries)), "an entry in two shares")
+        self.assertEqual(sorted(set(neutral.MODULES) - set(AFTER) - set(entries)), [], "a module no share names")
+        self.assertEqual(sorted(entry.split(".")[0] for entry in entries if entry.split(".")[0] in AFTER), [])
+        self.assertEqual(frozenset().union(*(share["kinds"] for share in SHARES)), KINDS)
+        self.assertGreater(sum(share["sends"] for share in SHARES), 100)
+        self.assertGreater(sum(share["driven"] for share in SHARES), 200)
+        modules = sorted(path.stem for path in HERE.glob(Path(__file__).stem + "_*.py"))
+        self.assertEqual(modules, ["%s_%d" % (Path(__file__).stem, index) for index in range(1, len(SHARES) + 1)])
+        for index, name in enumerate(modules, 1):
+            with self.subTest(name):
+                module = __import__(name)
+                self.assertEqual(module.SHARE, index)
+                self.assertEqual(list(unittest.defaultTestLoader.getTestCaseNames(module.ReleasedCallsShareTests)),
+                                 ["test_at_the_defaults_every_scenario_of_this_share_asks_codex_what_v0_6_10_asked"])
 
     def test_the_comparison_sees_a_call_that_differs(self):
         call = ["send", ["0a1b2c3d-0001-7000-8000-000000000001",
