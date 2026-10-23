@@ -105,7 +105,9 @@ namespace CodexAutoResume
             int width = Px(560);
 
             var body = new SoftStack();
-            body.Dock = DockStyle.Fill;
+            body.Dock = DockStyle.Top;
+            body.AutoSize = true;
+            body.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             body.ColumnCount = 1;
             body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             body.GrowStyle = TableLayoutPanelGrowStyle.AddRows;
@@ -203,7 +205,16 @@ namespace CodexAutoResume
             editorSaid = HelpText("");
             editorSaid.ForeColor = Palette.Danger;
             body.Controls.Add(editorSaid);
-            dialog.Controls.Add(body);
+            // On a page of its own that scrolls up and down: at 200% on a screen smaller than it, Windows holds the dialog
+            // to the screen, and what does not fit is scrolled to rather than cut off.
+            var host = new SoftPage();
+            host.Dock = DockStyle.Fill;
+            host.Margin = new Padding(0);
+            host.Padding = new Padding(0);
+            host.BackColor = Canvas;
+            host.Controls.Add(body);
+            host.Scrolls = true;
+            dialog.Controls.Add(host);
 
             FlowLayoutPanel buttons = ButtonRow();
             buttons.FlowDirection = FlowDirection.RightToLeft;
@@ -224,8 +235,8 @@ namespace CodexAutoResume
             ShowEditorState();
 
             // As tall as everything with the longest refusal said: the dialog never grows under a person's hand. Each line
-            // that wraps is held to the width it is laid out at, then the dialog is laid out and grown until nothing in it
-            // is cut off - a measure taken at a wider width read Hebrew at 200% short by two lines.
+            // that wraps is held to the width it is laid out at - a measure taken at a wider width read Hebrew at 200% short
+            // by two lines - and the dialog is laid out once to read how tall it all is.
             editorSaid.Text = PromptRefusal("queue_full");
             editorAfterTurn.Visible = editorMode.Visible = true;
             int inner = width - body.Padding.Horizontal;
@@ -234,19 +245,14 @@ namespace CodexAutoResume
                 if (control is WrapLabel) control.MaximumSize = new Size(lines, 0);
             editorSaid.MaximumSize = new Size(inner, 0);
             int buttonsTall = buttons.GetPreferredSize(new Size(width, 0)).Height;
-            int tall = body.Padding.Vertical + card.GetPreferredSize(new Size(inner, 0)).Height +
-                       editorSaid.GetPreferredSize(new Size(inner, 0)).Height + editorSaid.Margin.Vertical;
-            dialog.ClientSize = new Size(width, tall + buttonsTall);
-            for (int pass = 0; pass < 4; pass++)
-            {
-                dialog.PerformLayout();
-                body.PerformLayout();
-                card.PerformLayout();
-                int bottom = Math.Max(card.Bottom, editorSaid.Bottom + editorSaid.Margin.Bottom) + body.Padding.Bottom;
-                int over = bottom - body.ClientSize.Height;
-                if (over <= 0) break;
-                dialog.ClientSize = new Size(width, dialog.ClientSize.Height + over);
-            }
+            dialog.ClientSize = new Size(width, Px(400));
+            dialog.PerformLayout();
+            host.PerformLayout();
+            body.PerformLayout();
+            int tall = Math.Max(body.Height, body.GetPreferredSize(new Size(width, 0)).Height);
+            // As tall as all of it, and never taller than the screen it opens on lets a window be.
+            int most = Math.Min(Screen.GetWorkingArea(this).Height, SystemInformation.MaxWindowTrackSize.Height) - Px(96);
+            dialog.ClientSize = new Size(width, Math.Max(Px(240), Math.Min(tall + buttonsTall, most)));
             editorSaid.Text = "";
             ShowEditorState();
             return dialog;
