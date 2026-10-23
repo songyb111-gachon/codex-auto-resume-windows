@@ -268,11 +268,12 @@ class DispatchMixin:
             # send below, after the claim and the pre-send look, inside the launch guard.
             sender = self.plug.sender(current, self.backend)
             if record:
+                current = self._record_carried(current, sender)  # v0.6.19: marker-free or not (engine/recordchannel.py)
                 claimed = self._record_claim(current, sender, app)
                 if claimed is None:
                     return
                 thread, words, launch_guard = claimed
-                carrying = {}
+                carrying = self._record_carrying(current)       # v0.6.19 (engine/recordchannel.py)
             else:
                 # P15, decided like them before the claim, and written into the record before it - for a
                 # resend, the proof its first send carried, or nothing is sent (engine/delivery.py).

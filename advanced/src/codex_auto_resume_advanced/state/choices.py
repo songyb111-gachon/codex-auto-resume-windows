@@ -213,6 +213,7 @@ class Scoped:
         from .continuations import ContinuationsHandle
         from .meter import MeterHandle
         from .runs import RunsHandle
+        from .chat import ChatHandle
         from .prompts import PromptsHandle
         from .resets import ResetsHandle
         from .restarts import RestartsHandle
@@ -229,6 +230,8 @@ class Scoped:
             # v0.6.19: the watcher's restarts after it stopped unexpectedly, written by crash_restart alone
             # (state/restarts.py).
             "restarts": RestartsHandle(state, capability, on),
+            # v0.6.19: codex_chat's messages (state/chat.py).
+            "chat": ChatHandle(state, capability, on),
             "passed": lambda measurement: verdict is not None and verdict(measurement) == "pass",
             "failed": lambda measurement: verdict is not None and verdict(measurement) == "fail",
             "armed": lambda other: armed is not None and armed(other) is True,

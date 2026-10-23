@@ -92,6 +92,9 @@ ARGUMENTS = {
     BridgeCommand.ADVANCED_REPORT_SEND: frozenset({"sha256", "writes", "word"}),
     BridgeCommand.ADVANCED_REPORT_JOB: frozenset({"job"}),
     BridgeCommand.ADVANCED_HEADLESS_STOP: frozenset({"interruption_id"}),
+    BridgeCommand.ADVANCED_CHAT_READ: frozenset({"thread_id"}),
+    BridgeCommand.ADVANCED_CHAT_SEND: frozenset({"thread_id", "words", "generation"}),
+    BridgeCommand.ADVANCED_CHAT_CANCEL: frozenset({"thread_id", "generation"}),
 }
 # v0.6.19 (the groundwork): the stage's commands, in the vocabulary before any capability that answers one is built.
 # Each is passed over - DEFER, so core says "unknown command" exactly as for a command this edition does not have -
@@ -259,18 +262,27 @@ def meter_view(runtime) -> dict:
 
 def notice_view(runtime) -> dict:
     """What the watcher adds to the notices it builds (v0.6.18): {"notice": {"open_codex": true}} while Open Codex on
-    a notice stands on and Windows can open a `codex:` link here (control/opencodex.py), {} otherwise - so with it
-    off, or with no handler, every notice is exactly the standard edition's. A closed flag, nothing else."""
+    a notice stands on and Windows can open a `codex:` link here (control/opencodex.py), and (v0.6.19) "chat": true
+    while chat with a conversation is on, so a click on a notice may go where the person chose (core's
+    notifier.click_uri); {} otherwise - so with both off, or with no handler, every notice is exactly the standard
+    edition's. Closed flags, nothing else."""
     from .control import opencodex
+    from .engine import chat
+    found = {}
     try:
         definition = runtime.registry.get(opencodex.CAPABILITY)
-        if definition is None or runtime.states().get(opencodex.CAPABILITY) != ArmingState.ARMED:
-            return {}
-        if runtime.action(definition).available() is not True:
-            return {}
+        if (definition is not None and runtime.states().get(opencodex.CAPABILITY) == ArmingState.ARMED
+                and runtime.action(definition).available() is True):
+            found["open_codex"] = True
     except Exception:
-        return {}
-    return {"notice": {"open_codex": True}}
+        pass
+    try:
+        if (runtime.registry.get(chat.CAPABILITY) is not None
+                and runtime.states().get(chat.CAPABILITY) == ArmingState.ARMED):
+            found["chat"] = True
+    except Exception:
+        pass
+    return {"notice": found} if found else {}
 
 
 def update_view(runtime) -> dict:
@@ -377,6 +389,14 @@ def bridge(runtime, command, argument):
         return sendnow.request(runtime, argument.get("interruption_id"))
     if command == BridgeCommand.ADVANCED_HEADLESS_STOP:
         return headless_stop(runtime, argument.get("interruption_id"))
+    if command in (BridgeCommand.ADVANCED_CHAT_READ, BridgeCommand.ADVANCED_CHAT_SEND,
+                   BridgeCommand.ADVANCED_CHAT_CANCEL):
+        from .control import chat
+        if command == BridgeCommand.ADVANCED_CHAT_READ:
+            return chat.view(runtime, argument.get("thread_id"))
+        if command == BridgeCommand.ADVANCED_CHAT_SEND:
+            return chat.add(runtime, argument)
+        return chat.cancel(runtime, argument)
     if command == BridgeCommand.ADVANCED_WATCH_LOG:
         from . import watchlog
         return watchlog.view(runtime, argument.get("capability"))

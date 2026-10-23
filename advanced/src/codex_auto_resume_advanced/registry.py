@@ -77,6 +77,7 @@ from .control.sendnow import make as make_send_now
 from .engine.admitted import (ATTEMPTS, DEFAULT_ATTEMPTS, make_codex_gave_up, make_sign_in_retry,
                               make_structured_rules, make_unknown_failure_budget)
 from .engine.capacity import CEILING_HOURS, DEFAULT_HOURS, make as make_capacity_retry
+from .engine.chat import make as make_codex_chat
 from .engine.compact import make as make_compact_continue
 from .engine.credits import make as make_reset_credit
 from .engine.resetmessage import make as make_reset_message, make_long as make_long_messages
@@ -623,6 +624,27 @@ SILENT_CONTINUATION = CapabilityDef(
     make=make_silent_continuation,
     measurements=(Measurement.M3B,),
     keepable=False,
+)
+
+# Chat with a conversation in the Dashboard (v0.6.19, stage 4's item 7; the owner's of 2026-10-02). A person
+# reads a conversation the Codex app has open on the Dashboard's Chat page - its messages and replies, read on demand
+# (codex/conversation.py; MC2: in progress until Codex records the turn finished, approvals answered in Codex) - and
+# sends a message of up to 2,000 characters (control/chat.py). At P2 its oldest waiting message in a conversation is
+# core's MESSAGE record; at P5 and P15 it is the channel and CLIENT_ID: the words go into the conversation exactly as
+# typed through thread/queue/add under the client id core derives (MC1), proven by it (core's
+# engine/recordchannel.py). Its own pace (A20, H2): one in flight in a conversation, thirty a conversation and sixty a
+# day. It departs from A2, A4, A8, A17, A20, A26, A27, B3, B4, B7, D2, H2, H4 and H6; stands on
+# recovery_turn_tracking; rests on M7, MC1 and MC2 (MC2 a warning: partial).
+CODEX_CHAT = CapabilityDef(
+    id="codex_chat",
+    points=frozenset({Point.RECORDS, Point.SENDER, Point.DELIVERY}),
+    revision=1,
+    departs_from=("A2", "A4", "A8", "A17", "A20", "A26", "A27", "B3", "B4", "B7", "D2", "H2", "H4", "H6"),
+    compat="recovery_turn_tracking",
+    ceilings=Ceilings(per_day=60, per_conversation=30),
+    journal_prefix="chat",
+    make=make_codex_chat,
+    measurements=(Measurement.M7, Measurement.MC1, Measurement.MC2),
 )
 
 # Short retries when Codex is at capacity (v0.6.14 stage 3b; the plan's row: serverOverloaded alone,
@@ -1196,7 +1218,7 @@ COMPAT_REPORT = CapabilityDef(
 DEFINITIONS = (START_WITH_CODEX, CRASH_RESTART, GOAL_CONTINUATION, QUEUE_FOR_OPEN, COMPACT_CONTINUE, MODEL_FALLBACK, HEADLESS_RUN, OTHER_SESSIONS, MARKER_FREE, CAPACITY_RETRY, STRUCTURED_RULES,
                UNKNOWN_FAILURE_BUDGET, CODEX_GAVE_UP, SIGN_IN_RETRY, RESET_CREDIT, RESET_MESSAGE, EARLY_RESET,
                ONCE_MORE, SEND_NOW, PARALLEL_DISPATCH, PROMPT_QUEUE, EMPTY_RESPONSE, SUBAGENT_PARENT, KEEP_GOING,
-               USAGE_METER, USAGE_WRAP_UP, USAGE_PAUSE, EVERY_CONVERSATION, SILENT_CONTINUATION, IDLE_UPDATE_CHECK,
+               USAGE_METER, USAGE_WRAP_UP, USAGE_PAUSE, EVERY_CONVERSATION, SILENT_CONTINUATION, CODEX_CHAT, IDLE_UPDATE_CHECK,
                WAKE_FOR_RESET,
                OPEN_CODEX_BUTTON, LONG_RESET_MESSAGE,
                COMPAT_REPORT)
@@ -1257,7 +1279,9 @@ SHOWN_ORDER = ("compat_report", "start_with_codex",
                "early_reset", "parallel_dispatch", "reset_message", "long_reset_message",
                # v0.6.16-beta.3 (issue #29): the usage meter and what it serves, beside the other usage-limit features.
                "usage_meter", "usage_wrap_up", "usage_pause", "keep_going",
-               "prompt_queue", "empty_response", "once_more_when_unsure", "send_now",
+               "prompt_queue",
+               # v0.6.19: chat with a conversation, beside the queued messages (stage 4's Q12).
+               "codex_chat", "empty_response", "once_more_when_unsure", "send_now",
                # v0.6.18: Open Codex on a notice, beside Send now - both what a person does about one conversation.
                "open_codex_button", "capacity_retry",
                # v0.6.16-beta.4: what a failure of Codex's own is taken up with, beside the capacity retry (Q12).

@@ -142,7 +142,7 @@ that will need one; nothing calls it, and it never reads Codex's own credentials
 
 ## Today's capabilities
 
-Thirty-two: twenty-two that change how a recovery is made, which conversations are recovered or what
+Thirty-three: twenty-two that change how a recovery is made, which conversations are recovered or what
 follows a turn, three that send at a time you pick - the two at a usage reset, and queued messages - three
 before a usage limit is reached - the usage meter, and the wrap-up and the forced stop that need it - one that
 checks for updates once a week, and three actions: Longer messages, which only lets a message be longer, Open Codex on a notice, which only adds a button
@@ -157,7 +157,9 @@ capabilities rest on, once more on `codex-cli 0.163.0-alpha.10.2` (2026-10-17) -
 the continuation with no marker, several conversations at once and the goal continuation sit beside the queue for
 when a conversation is opened, on the same version on 2026-10-20;
 its record is in [`docs/evidence/live/`](evidence/live/). On any other version of Codex, and for a
-measurement not made yet, a capability's statement carries the warning that it was not measured there.
+measurement not made yet, a capability's statement carries the warning that it was not measured there. The thirty-third,
+chat with a conversation in the Dashboard (v0.6.19), sends a message of yours from the Dashboard and rests
+on M7, MC1 and MC2, as its own section below says.
 
 ### Start with Codex
 
@@ -880,6 +882,37 @@ A20.
 
 **Ceilings.** 30 a day, and core's 5 in any one conversation. **Measurement MT: not made yet** - "after this
 turn" says it is unproven until it is.
+
+### Chat with a conversation in the Dashboard
+
+**What it does.** A **Chat** tab beside **Advanced features**, there only while this is on, opens the chat
+on that page. You pick a conversation the Codex app has open and read its last twenty turns - your messages
+and Codex's replies, read from Codex's history on this PC while the chat is open, with a turn's commands and
+file changes as counts - and send a message of up to 2,000 characters. It goes into the conversation exactly
+as you typed it, with no marker, through Codex's own queue (`thread/queue/add`), and shows there as your own
+message. While its turn runs the chat says "in progress"; the reply shows once the turn ends. Approvals are
+still answered in Codex. A message written while the usage limit is full waits - at the same usage check every
+send waits at, with no schedule of its own - and goes when the limit resets. While it is on you also pick where a
+click on a notification goes: its page, that conversation's chat here, or Codex at that conversation.
+
+**When it helps.** When you want to tell a conversation what to do next without switching to Codex, or to
+leave the next instruction for when the limit resets.
+
+**What it risks.** Messages and replies are read and shown on this PC, never kept, logged or sent anywhere
+else. Your words are kept in the advanced edition's state only until the message is sent, and deleted then.
+A message Codex does not take within three minutes is taken back and never sent again by itself. It works
+only where the Codex app has the conversation open - with Codex closed nothing is sent - and on this PC only.
+
+**Departs from** [A2](STANDARDS.md#a-what-it-may-send-to-codex-and-when), [A4](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (no marker: it is proven by its id), [A8](STANDARDS.md#a-what-it-may-send-to-codex-and-when), [A17](STANDARDS.md#a-what-it-may-send-to-codex-and-when),
+[A20](STANDARDS.md#a-what-it-may-send-to-codex-and-when) and [H2](STANDARDS.md#h-user-control) (its own pace), [A26](STANDARDS.md#a-what-it-may-send-to-codex-and-when), [A27](STANDARDS.md#a-what-it-may-send-to-codex-and-when), [B3](STANDARDS.md#b-what-it-reads-and-how) and [B4](STANDARDS.md#b-what-it-reads-and-how) (the app
+server's queue), [B7](STANDARDS.md#b-what-it-reads-and-how) (it reads messages and replies), [D2](STANDARDS.md#d-privacy-and-the-data-it-keeps), [H4](STANDARDS.md#h-user-control) and [H6](STANDARDS.md#h-user-control).
+
+**Ceilings.** 60 a day, 30 in one conversation, one in flight in a conversation at a time - its own pace, not
+core's fifteen minutes and five a day. **Measurements M7, MC1 and MC2.** MC1 (a message shows as your own and
+starts a turn) passed on `codex-cli 0.162.0-alpha.17.2`; MC2 (where a turn's progress is read) found that the
+history says first that a turn started and ended but shows no wait for an approval, so the chat says only "in
+progress" - recorded as a fail, which is the warning its statement carries on every Codex; on any other
+version MC1 is unmeasured too.
 
 ### Recover every conversation but Codex's own
 

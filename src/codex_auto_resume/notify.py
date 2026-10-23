@@ -25,6 +25,7 @@ import time
 from . import l10n, machine, needsyou, pwsh
 # Moved to codex_link.py in v0.6.18; read here as `notify.<name>` by the notifier, the watcher and the advanced edition.
 from .codex_link import CODEX_THREAD_LINK, codex_thread_uri, open_in_codex, parse_codex_thread_uri  # noqa: F401
+from .codex_link import chat_uri, parse_chat_uri  # noqa: F401  (v0.6.19: the chat at one conversation)
 from .domain import ids
 
 SCHEME = "codex-auto-resume"

@@ -610,7 +610,10 @@ shown, and turning the needed one off turns off first what needs it.
 You turn one on in the Dashboard, on the page that edition adds, **Advanced features**, and nowhere
 else; from v0.6.14 that page can also send one waiting recovery now, while Send now is on, and have a
 reset credit used, or a message of your own sent, at a usage reset you pick, each shown on Pending
-under Scheduled until it acts. Their code is left
+under Scheduled until it acts - and, from v0.6.19, while chat with a conversation is on, a **Chat** tab beside
+**Advanced features** reads a conversation the Codex app has open and sends it a message of yours: the reply shows
+once its turn ends ("in progress" until then), approvals are still answered in Codex, and a message written while
+the usage limit is full waits and goes when it resets. Their code is left
 out of the standard edition's archive, and `build/edition_audit.py` proves from the archive's own
 bytes, in every release build, that none of it is there. An installation updates within its edition;
 moving to the other is a reinstall. The [roadmap](ROADMAP.md) says what each has, and what is still
@@ -966,6 +969,11 @@ notification - opens the Dashboard on the page the notification is about: the pa
 Dashboard** button opens, or, for a notification without that button, Pending while a continuation is
 being sent, History once it has ended, Settings for the power action's, and otherwise the Overview. The card then goes, as a click always made it go; a right
 click only puts it away, and the buttons do what they always did.
+
+In the advanced edition, while **Chat with a conversation in the Dashboard** is on (v0.6.19), you pick where
+that click goes, under the chat on the Advanced features page: the notification's page as above, that
+conversation's chat in the Dashboard, or Codex itself at that conversation. A notification about no
+conversation opens its page whichever you pick, and with the chat off every click opens the page.
 
 A notification goes away by itself after a while. **Keep on screen until clicked**, under Settings >
 General > Notifications, lists each kind of notification - an interruption detected, a recovery

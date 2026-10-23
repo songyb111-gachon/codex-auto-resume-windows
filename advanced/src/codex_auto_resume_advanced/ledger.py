@@ -200,7 +200,9 @@ class ClaimLedger:
             counts = self.state.counts(connection, ATTACHED, capability, found[2], now)
             if ceiling_reached(counts, definition, global_hourly) is not None:
                 return Alternative.HOLD
-            if not self.state.claim_record(connection, key, now):
+            # v0.6.19: one that departs from A20 (codex_chat) is paced by its own ceilings alone - one in
+            # flight in a conversation still - never by core's five a day or fifteen minutes.
+            if not self.state.claim_record(connection, key, now, own_pace="A20" in definition.departs_from):
                 return Alternative.HOLD
             self.state.record_spend(connection, ATTACHED, capability, found[2], None, now)
             return DEFER
@@ -240,4 +242,13 @@ class ClaimLedger:
             if found[4] != "ready" or found[5] is not None:
                 return None
             return found[0], found[1], found[2], found[3], "UPDATE %s.prompts SET launching_at=? WHERE prompt_id=?"
+        found = connection.execute(
+            "SELECT c.state, c.capability, c.thread_id, m.chat_id, m.state, m.sent_at "
+            "FROM %s.records c JOIN %s.chat_messages m ON m.record_id = c.record_id WHERE c.record_id=?"
+            % (ATTACHED, ATTACHED), (key,)).fetchone()
+        if found is not None:
+            # (v0.6.19) a chat message: waiting, its send not begun.
+            if found[4] != "waiting" or found[5] is not None:
+                return None
+            return found[0], found[1], found[2], found[3], "UPDATE %s.chat_messages SET sent_at=? WHERE chat_id=?"
         return None
