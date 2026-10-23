@@ -1095,7 +1095,9 @@ else ([G13](STANDARDS.md#g-the-compatibility-registrys-authority)).
 
 **When it helps.** When you want to tell the project how recovery went with your Codex without a
 second program. The standard edition sends nothing for a report; codex-compat-reporter, a separate
-program, writes and sends the same report from the same records.
+program, writes and sends the same report from the same records. Both editions' Dashboards also
+write each version's part of it for every version of Codex on this PC, with one code, under
+Diagnostics > Compatibility report from this PC... - shown and exported, never sent.
 
 **What it risks.** The pull request, the fork and your GitHub login are public, and a pull request
 cannot be unpublished; the report's times are published to the second. A send cut off part way -

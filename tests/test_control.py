@@ -627,7 +627,9 @@ class BridgeTests(ControlTestCase):
             "host-app",
             # v0.6.18: the Codex home Settings > Advanced offers to watch too - read only - and Not now, a settings
             # write that sets that folder aside. Nothing is added or sent.
-            "home-suggestion", "home-dismiss"]))
+            "home-suggestion", "home-dismiss",
+            # v0.6.19: Diagnostics' compatibility report from this PC's own records - read only, sent nowhere.
+            "own-report"]))
 
     def test_serve_answers_every_line_with_exactly_one_line(self):
         requests = "\n".join([

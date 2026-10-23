@@ -265,12 +265,13 @@ def cmd_uninstall(args) -> int:
 
 
 def cmd_diagnostics(args) -> int:
-    from .. import checkup, control, diagnostics
+    from .. import checkup, control, diagnostics, ownreport
     paths = config.Paths(args.home)
     target = Path(args.out) if args.out else Path.cwd() / diagnostics.default_name()
     try:
         surface = control.Control(paths)
-        written = diagnostics.write(surface, target, check=checkup.for_bundle(surface))
+        written = diagnostics.write(surface, target, check=checkup.for_bundle(surface),
+                                    report=ownreport.for_bundle(paths))
     except FileExistsError as exc:
         raise CliError(str(exc)) from None
     _print("diagnostics written to %s" % written)

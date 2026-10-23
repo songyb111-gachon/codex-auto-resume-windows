@@ -702,7 +702,11 @@ namespace CodexAutoResume
                 versionsButton,
                 // v0.6.16-beta.3, last, so no button before it moves: why a failure was not taken up (issue #27).
                 MakeButton(S("action.detection_check", "Check why a failure was not taken up..."), false,
-                           delegate { OpenDetectionCheck(); }) })
+                           delegate { OpenDetectionCheck(); }),
+                // v0.6.19, last, so no button before it moves: this PC's own compatibility report, sent nowhere
+                // (DashboardOwnReport.cs).
+                MakeButton(S("action.own_report", "Compatibility report from this PC..."), false,
+                           delegate { OpenOwnReport(); }) })
             {
                 button.Margin = Pad(0, 0, 0, 9);
                 tools.Controls.Add(button);

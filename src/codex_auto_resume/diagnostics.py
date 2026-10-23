@@ -214,10 +214,12 @@ def _system() -> dict:
     return {"windows": windows, "python": sys.version.split()[0], "machine": machine}
 
 
-def collect(control, *, now=None, redact=None, check=None) -> dict:
+def collect(control, *, now=None, redact=None, check=None, report=None) -> dict:
     """The whole bundle, redacted. Works with the watcher stopped and Codex closed. v0.6.16-beta.3: `check`,
     the Diagnostics check as the bundle runs it (checkup.for_bundle), is asked with this bundle's
-    Redactor, so its aliases are the bundle's."""
+    Redactor, so its aliases are the bundle's. v0.6.19: `report`, this PC's own compatibility report as
+    the bundle writes it (ownreport.for_bundle), is put in whole: it holds only counts, states, times and
+    versions, so there is nothing in it to redact, and its SHA-256 is of the report as written."""
     redact = redact or Redactor()
     now = time.time() if now is None else now
     bundle = {
@@ -282,6 +284,11 @@ def collect(control, *, now=None, redact=None, check=None) -> dict:
             bundle["detection_check"] = check(redact)
         except Exception as exc:
             bundle["detection_check"] = {"error": type(exc).__name__}
+    if report is not None:
+        try:
+            bundle["compatibility_report"] = report()
+        except Exception as exc:
+            bundle["compatibility_report"] = {"error": type(exc).__name__}
     added = control.plug.surface(Surface.DIAGNOSTICS, {})
     if added is not DEFER:
         bundle[EXTRA] = _redacted(added, redact)
@@ -292,15 +299,17 @@ def collect(control, *, now=None, redact=None, check=None) -> dict:
     return bundle
 
 
-def write(control, target: Path, check=None) -> Path:
-    """Write the bundle as one JSON file. Refuses to overwrite anything. `check` as `collect` takes it."""
+def write(control, target: Path, check=None, report=None) -> Path:
+    """Write the bundle as one JSON file. Refuses to overwrite anything. `check` and `report` as `collect`
+    takes them."""
     target = Path(target)
     if target.exists():
         raise FileExistsError("refusing to overwrite %s" % target.name)
     redact = Redactor()
     # Written whole or not at all: the text is made before the file is, so a value that
     # cannot be written leaves no half a bundle behind to block the next attempt's name.
-    text = json.dumps(collect(control, redact=redact, **({} if check is None else {"check": check})), indent=1, ensure_ascii=False, allow_nan=False,
+    asked = dict({} if check is None else {"check": check}, **({} if report is None else {"report": report}))
+    text = json.dumps(collect(control, redact=redact, **asked), indent=1, ensure_ascii=False, allow_nan=False,
                       default=redact.unexpected)
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("x", encoding="utf-8") as stream:

@@ -1,0 +1,55 @@
+{
+  "command": "own-report",
+  "cases": [
+    {
+      "case": "no Codex version is named yet",
+      "argument": null,
+      "reply": {
+        "ok": true,
+        "result": {
+          "refusal": "no_engine_version"
+        }
+      }
+    },
+    {
+      "case": "the pinned records, on the Codex the watcher's report names",
+      "argument": null,
+      "reply": {
+        "ok": true,
+        "result": {
+          "sha256": "8dfb0314e9e20709646cd86f22c2ec80a45206e806dbfffd7c7f49ea8c4c7d78",
+          "bytes": 3652,
+          "text": "{\n  \"format\": \"codex-auto-resume-own-report/1\",\n  \"recorded_at\": \"2027-01-15T08:00:00Z\",\n  \"product_version\": \"<version>\",\n  \"windows\": \"10.0.26100\",\n  \"engine\": {\n    \"current\": \"codex-cli 0.153.4\",\n    \"from\": \"watcher_report\"\n  },\n  \"rule\": \"a record counts for this version only when the product's engine reports before and after it - or the version installed now - name this version and no other\",\n  \"counting\": \"a version is worked when at least one delivered record ended recovered, failed when at least one ended in a failed recovery, neither when no delivered record ended either way, and both when it is worked and failed at once\",\n  \"left_out\": {\n    \"hidden\": 0,\n    \"another_route\": 0,\n    \"beyond_reach\": 0,\n    \"unplaced\": {\n      \"no_engine_line_before\": 9,\n      \"engine_changed_during\": 0,\n      \"next_line_other_version\": 0,\n      \"engine_changed_after\": 0\n    }\n  },\n  \"versions\": [\n    {\n      \"codex_version\": \"codex-cli 0.153.4\",\n      \"counted\": {\n        \"worked\": false,\n        \"failed\": false,\n        \"neither\": true,\n        \"both\": false\n      },\n      \"refusal\": null,\n      \"body\": {\n        \"codex_version\": \"codex-cli 0.153.4\",\n        \"verdict\": \"CHECKED\",\n        \"local_checks\": {\n          \"reports\": 0,\n          \"first\": null,\n          \"last\": null,\n          \"covers\": [\n            \"engine_present\",\n            \"exact_thread_recovery\",\n            \"loaded_state_detection\",\n            \"outcome_observation\",\n            \"projection_freshness\",\n            \"recovery_turn_tracking\",\n            \"thread_eligibility\",\n            \"usage_limit_detection\",\n            \"usage_probe\",\n            \"usage_reset_hint\"\n          ]\n        },\n        \"records\": [],\n        \"capabilities\": {\n          \"engine_present\": {\n            \"confirmed\": 0,\n            \"missed\": 0,\n            \"last_confirmed\": null,\n            \"level\": \"CHECKED\"\n          },\n          \"exact_thread_recovery\": {\n            \"confirmed\": 0,\n            \"missed\": 0,\n            \"last_confirmed\": null,\n            \"level\": \"CHECKED\"\n          },\n          \"loaded_state_detection\": {\n            \"confirmed\": 0,\n            \"missed\": 0,\n            \"last_confirmed\": null,\n            \"level\": \"CHECKED\"\n          },\n          \"outcome_observation\": {\n            \"confirmed\": 0,\n            \"missed\": 0,\n            \"last_confirmed\": null,\n            \"level\": \"CHECKED\"\n          },\n          \"projection_freshness\": {\n            \"confirmed\": 0,\n            \"missed\": 0,\n            \"last_confirmed\": null,\n            \"level\": \"CHECKED\"\n          },\n          \"recovery_turn_tracking\": {\n            \"confirmed\": 0,\n            \"missed\": 0,\n            \"last_confirmed\": null,\n            \"level\": \"CHECKED\"\n          },\n          \"thread_eligibility\": {\n            \"confirmed\": 0,\n            \"missed\": 0,\n            \"last_confirmed\": null,\n            \"level\": \"CHECKED\"\n          },\n          \"usage_limit_detection\": {\n            \"confirmed\": 0,\n            \"missed\": 0,\n            \"last_confirmed\": null,\n            \"level\": \"CHECKED\"\n          },\n          \"usage_probe\": {\n            \"confirmed\": 0,\n            \"missed\": 0,\n            \"last_confirmed\": null,\n            \"level\": \"CHECKED\"\n          },\n          \"usage_reset_hint\": {\n            \"confirmed\": 0,\n            \"missed\": 0,\n            \"last_confirmed\": null,\n            \"level\": \"CHECKED\"\n          }\n        }\n      }\n    }\n  ],\n  \"note\": \"Written on this PC from its own records and sent nowhere: counts, states and times, with no conversation text, identifiers, paths or names. progress_items are null: the Dashboard does not read Codex's history.\"\n}\n",
+          "engine": {
+            "current": "codex-cli 0.153.4",
+            "from": "watcher_report"
+          },
+          "versions": [
+            {
+              "codex_version": "codex-cli 0.153.4",
+              "refusal": null,
+              "verdict": "CHECKED",
+              "records": 0,
+              "delivered": 0,
+              "worked": false,
+              "failed": false,
+              "neither": true,
+              "both": false
+            }
+          ],
+          "left_out": {
+            "hidden": 0,
+            "another_route": 0,
+            "beyond_reach": 0,
+            "unplaced": {
+              "no_engine_line_before": 9,
+              "engine_changed_during": 0,
+              "next_line_other_version": 0,
+              "engine_changed_after": 0
+            }
+          }
+        }
+      }
+    }
+  ]
+}
