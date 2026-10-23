@@ -431,7 +431,11 @@ task's conversation. The click carries the exact interruption and conversation t
 drawn from, and a click that reaches a task which has since finished, disappeared or turned
 out to belong to another conversation is refused and changes nothing; either way the switch sends
 nothing. **Retry now** only asks the watcher to look again now — every check still applies, and
-nothing is sent unless they all pass. **Cancel** stops recovering that interruption and
+nothing is sent unless they all pass. On a task waiting for a usage reset it also has the watcher read
+your usage once, at that moment: if Codex says the limit has lifted, the newer reset replaces the one
+recorded and the task goes on through every check as usual; still limited, unknown or a failed read
+changes nothing. The selected row then says when it checked, what it read and whether the task went on,
+and if the watcher is not running Retry now says so and reads nothing. Nothing is read on a schedule. **Cancel** stops recovering that interruption and
 everything that continues it: a record that was never sent is cancelled outright, one that may
 already be in Codex is marked and taken back if it is still queued, and a finished one is
 marked too, so no later failure of that task can start a new chain from it. A turn already
