@@ -61,7 +61,7 @@ def handed(row) -> dict | None:
     return None
 
 
-def turn_running(paths, thread_id):
+def turn_in_progress(paths, thread_id):
     """Whether conversation `thread_id`'s latest turn is in progress now (v0.6.19, #50): True, False for one that is
     final or no turn at all, or None where that cannot be read - read-only, from Codex's turn history (codex/turns.py)
     of the home the watcher drives (codex/inuse.py)."""
@@ -80,7 +80,7 @@ def holds_for_turn(paths, row):
     whose conversation has no turn running."""
     if row.get("while_running") != WhileRunning.WAIT:
         return False
-    running = turn_running(paths, row["thread_id"])
+    running = turn_in_progress(paths, row["thread_id"])
     return True if running is None else running
 
 
@@ -217,7 +217,7 @@ class PromptQueue:
         where the turn is known to run."""
         if row.get("while_running") != WhileRunning.WAIT:
             return False
-        running = turn_running(self.paths, row["thread_id"])
+        running = turn_in_progress(self.paths, row["thread_id"])
         if running is True and row["reason"] != PromptReason.TURN_RUNNING:
             handle.change(row["prompt_id"], reason=PromptReason.TURN_RUNNING)
         return running is not False

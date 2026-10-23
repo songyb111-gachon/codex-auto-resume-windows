@@ -75,7 +75,7 @@ class WaitTests(ModeCase):
         """Unknown never sends: the history unreadable holds a waiting message, and says nothing it does not know."""
         plug = self.on()
         prompt = self.timed(plug, "wait")["prompt"]
-        with mock.patch.object(promptqueue, "turn_running", lambda paths, thread: None):
+        with mock.patch.object(promptqueue, "turn_in_progress", lambda paths, thread: None):
             self.h.tick(advance=120)
             self.h.tick(advance=10)
         self.assertEqual(self.sends(), [])
@@ -120,7 +120,7 @@ class QueueModeTests(ModeCase):
         plug = self.on()
         reader = mock.Mock(return_value=True)
         self.timed(plug, "queue")
-        with mock.patch.object(promptqueue, "turn_running", reader):
+        with mock.patch.object(promptqueue, "turn_in_progress", reader):
             self.h.tick(advance=120)
         reader.assert_not_called()
         self.assertEqual(len(self.sends()), 1)

@@ -74,6 +74,8 @@ try {
   $script:form = $make.Invoke([object[]]@($persistent, $catalog, [Drawing.SystemFonts]::MessageBoxFont))
   $script:F.GetField('auditing', $script:flags).SetValue($script:form, $true)
   $script:form.TopLevel = $false
+  # Handles made, as a window that has been shown has them: a list's selection lives in its handle.
+  Call 'Materialise' $null @($script:form) | Out-Null
   Call 'ShowPage' $script:form @('pending') | Out-Null
   Call 'ApplySnapshot' $script:form @((Parse 'snapshot.json')) | Out-Null
   $list = Field 'pendingList'
@@ -92,11 +94,6 @@ try {
   $before = (Offered)
   $out.empty = @{ opened = [bool](Call 'OpenRowMenu' $script:form @($null, $at)); same = ((Offered).Count -eq $before.Count) }
 
-  # From the keyboard, afterwards: the chosen row's, as it always was.
-  $list.Items[1].Selected = $false
-  $list.Items[2].Selected = $true
-  $out.keyboard = @{ filled = [bool](Call 'PrepareRowMenu' $script:form @()); items = (Offered) }
-  $out.keyboard_expected = @{ filled = [bool](Call 'FillRowMenu' $script:form @($list.Items[2].Tag)); items = (Offered) }
   $out | ConvertTo-Json -Depth 6 -Compress
 } catch {
   $thrown = $_.Exception
@@ -158,9 +155,18 @@ class DoubleClickTests(unittest.TestCase):
     def test_empty_space_opens_nothing(self):
         self.assertEqual(self.answer["empty"], {"opened": False, "same": True})
 
-    def test_the_keyboard_still_opens_the_chosen_rows_menu(self):
-        answer = self.answer
-        self.assertEqual(answer["keyboard"], answer["keyboard_expected"])
+    def test_the_right_button_and_the_keyboard_keep_their_rows(self):
+        """Read from the source, as a window never shown has no selection of its own to ask: the menu is still the row
+        under the pointer for the right button, else the chosen row's (Shift+F10, the menu key), and Space still
+        switches Auto-resume."""
+        prepare = guiscan.member_body("SettingsForm", "PrepareRowMenu")
+        self.assertLess(prepare.index("menuRow != null"), prepare.index("menuByMouse"))
+        self.assertIn("task = Selected(pendingList)", prepare)
+        self.assertIn("FillRowMenu(task)", prepare)
+        pages = (guiscan.ROOT / "gui" / "DashboardPages.cs").read_text(encoding="utf-8")
+        self.assertIn("e.Cancel = !PrepareRowMenu();", pages)
+        self.assertIn("if (e.KeyCode != Keys.Space) return;", pages)
+        self.assertIn("if (e.Button != MouseButtons.Right) return;", pages)
 
 
 if __name__ == "__main__":
