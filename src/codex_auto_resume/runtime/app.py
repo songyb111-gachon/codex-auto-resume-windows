@@ -459,13 +459,13 @@ class App(WatchLoop):
             notice = notifier.with_open_codex(notice, getattr(self, "_open_codex", False))
             if notice is None:
                 return False
-            return self._deliver(notice, detail, inbox=self._inbox,
-                                 setting=self.settings.get(notifier.CARD_SETTING, True) is True)[1]
+            return App._deliver(self, notice, detail, inbox=self._inbox,
+                                setting=self.settings.get(notifier.CARD_SETTING, True) is True)[1]
         return announce
 
     def _deliver(self, notice, detail, **route):
-        """notifier.deliver, the notice told first to a plug that wants it (P20, v0.6.19, notifier.told)."""
-        self.plug.notice(lambda: notifier.told(notice, detail, self.worker_store))
+        """notifier.deliver, told first to a plug that wants it (P20, v0.6.19, notifier.told); a stand-in has NULL's."""
+        getattr(self, "plug", guard(None)).notice(lambda: notifier.told(notice, detail, self.worker_store))
         return notifier.deliver(notice, **route)
 
     def _watcher_notice(self, event, detail, *, final=False):
@@ -489,7 +489,7 @@ class App(WatchLoop):
         if notice is None:
             return False
         card = not final and self.settings.get(notifier.CARD_SETTING, True) is True
-        return self._deliver(notice, detail, inbox=None if final else self._inbox, setting=card)[1]
+        return App._deliver(self, notice, detail, inbox=None if final else self._inbox, setting=card)[1]
 
     def _notice_action(self, uri):
         """A card's button, on a worker thread: what its toast button would do, done in process.

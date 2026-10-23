@@ -214,7 +214,7 @@ class CheckTests(V8Case):
         "INSERT INTO usage_samples VALUES ('codex', 300, 2.0, -1, NULL)",
         "INSERT INTO token_days VALUES ('22/10/2026', '%s', NULL, 1, 0, 2, 0, 1)" % ac.THREAD,
         "INSERT INTO token_days VALUES ('2026-10-22', 'not-a-thread', NULL, 1, 0, 2, 0, 1)",
-        "INSERT INTO token_days VALUES ('2026-10-22', '%s', 'C:/Users/x', 1, 0, 2, 0, 1)" % ac.THREAD,
+        "INSERT INTO token_days VALUES ('2026-10-22', '%s', 'C:/work/project', 1, 0, 2, 0, 1)" % ac.THREAD,
         "INSERT INTO token_days VALUES ('2026-10-23', '%s', NULL, -1, 0, 2, 0, 1)" % ac.THREAD,
         "INSERT INTO token_files VALUES ('C:/sessions/x.jsonl', '%s', 10, 4, 5, 1.0)" % ac.THREAD,
         "INSERT INTO outbox (channel, event, at, tries, state) VALUES ('sms', 'recovered', 1.0, 0, 'waiting')",

@@ -45,13 +45,15 @@ SYNTHETIC_UUID = re.compile(
 # concepts - the compatibility and DPI-awareness manifest ids, and the property key for
 # System.AppUserModel.ID - so they have to appear exactly as Microsoft documents them; and the shell's
 # ShellWindows, IServiceProvider, IShellBrowser, IShellView and IDispatch ids the way out of another app's private
-# view goes through (gui/HostApp.cs, v0.6.17).
+# view goes through (gui/HostApp.cs, v0.6.17); and the power plan's sleep subgroup and Allow wake timers setting, as
+# powercfg names them, which MWAKE reads (advanced measure.py, v0.6.19).
 # Listed by file rather than by value, so a new GUID in one of these still gets a look.
 GUID_ALLOWLIST = {"gui/app.manifest",
                   "gui/HostApp.cs",
                   "build/setup/setup.manifest",
                   "src/codex_auto_resume/shortcut.py",
-                  "src/codex_auto_resume/notify.py"}
+                  "src/codex_auto_resume/notify.py",
+                  "advanced/src/codex_auto_resume_advanced/measure.py"}
 
 # `.css` and `.js` since v0.6.10-alpha: the settings panel's stylesheet and script were
 # 2,173 lines inside `mcpui.py` and are files of their own now. They are still shipped code
