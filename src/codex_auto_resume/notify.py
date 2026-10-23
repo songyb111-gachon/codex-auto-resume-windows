@@ -25,6 +25,7 @@ import time
 from . import l10n, machine, needsyou, pwsh
 # Moved to codex_link.py in v0.6.18; read here as `notify.<name>` by the notifier, the watcher and the advanced edition.
 from .codex_link import CODEX_THREAD_LINK, codex_thread_uri, open_in_codex, parse_codex_thread_uri  # noqa: F401
+from .codex_link import chat_uri, parse_chat_uri  # noqa: F401  (v0.6.19: the chat at one conversation)
 from .domain import ids
 
 SCHEME = "codex-auto-resume"
@@ -111,21 +112,6 @@ def cancel_asks_open_codex(uri) -> bool:
     except (ValueError, TypeError):
         return False
     return values == ["1"]
-
-
-def chat_uri(thread_id) -> str | None:
-    """Capability URI that opens the advanced edition's chat at one conversation (v0.6.19), where a click on a notice
-    may go while the chat is on - or None unless `thread_id` is a UUID in its canonical text, the only thing put in it.
-    Like an open URI it changes nothing: at worst it opens a window."""
-    return "%s:chat?thread=%s" % (SCHEME, thread_id) if ids.is_uuid(thread_id) else None
-
-
-def parse_chat_uri(uri) -> str | None:
-    """The conversation a chat URI names, or None for anything but exactly `chat_uri`'s shape."""
-    text = uri if isinstance(uri, str) else ""
-    prefix = "%s:chat?thread=" % SCHEME
-    thread_id = text[len(prefix):] if text.startswith(prefix) else None
-    return thread_id if ids.is_uuid(thread_id) else None
 
 
 def open_uri(page: str = "pending") -> str:
