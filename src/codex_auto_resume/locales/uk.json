@@ -799,6 +799,8 @@
   "msg.toast_power_stop.shut_down": "Не вимикати",
   "msg.toast_power_stop.sleep": "Не засинати",
   "msg.toast_power_stopped": "Цього разу ПК лишається ввімкненим",
+  "msg.toast_restart_gave_up": "Монітор залишено зупиненим",
+  "msg.toast_restart_gave_up_body": "Він неочікувано зупинявся тричі за годину й залишений зупиненим. Запустіть його знову з Dashboard.",
   "msg.toast_resumed_body": "Перерване завдання знову виконується.",
   "msg.toast_resumed_title": "Продовжено",
   "msg.toast_starting_body": "Надсилання продовження в цю розмову.",

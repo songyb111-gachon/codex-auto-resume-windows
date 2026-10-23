@@ -799,6 +799,8 @@
   "msg.toast_power_stop.shut_down": "57ef87d6e863239c",
   "msg.toast_power_stop.sleep": "9fcffeae70e638ce",
   "msg.toast_power_stopped": "6e5c17c818e30b31",
+  "msg.toast_restart_gave_up": "2e5a76f1e219548b",
+  "msg.toast_restart_gave_up_body": "a2d46ba62cbb3e3a",
   "msg.toast_resumed_body": "90f277e387732057",
   "msg.toast_resumed_title": "a97d32ddb6baca01",
   "msg.toast_starting_body": "77be5d9fffc242e4",

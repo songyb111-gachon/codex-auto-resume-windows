@@ -799,6 +799,8 @@
   "msg.toast_power_stop.shut_down": "Non arrestare",
   "msg.toast_power_stop.sleep": "Non sospendere",
   "msg.toast_power_stopped": "Il PC resta acceso questa volta",
+  "msg.toast_restart_gave_up": "Il monitor è rimasto fermo",
+  "msg.toast_restart_gave_up_body": "Si è arrestato inaspettatamente tre volte in un'ora ed è rimasto fermo. Riavvialo dalla Dashboard.",
   "msg.toast_resumed_body": "L'attività interrotta è di nuovo in esecuzione.",
   "msg.toast_resumed_title": "Ripresa",
   "msg.toast_starting_body": "Invio della continuazione a questa conversazione.",

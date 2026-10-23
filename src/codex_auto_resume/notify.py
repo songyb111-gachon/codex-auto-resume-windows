@@ -653,6 +653,12 @@ def update_offered_content(version, prerelease=False):
                     more=[(l10n.message("toast_button_open"), open_uri("diagnostics"))])
 
 
+def restart_gave_up_content():
+    """v0.6.19: the advanced crash restart left the watcher stopped (three ends in an hour); one button opens Overview."""
+    return _content(l10n.message("toast_restart_gave_up"), l10n.message("toast_restart_gave_up_body"),
+                    more=[(l10n.message("toast_button_open"), open_uri("overview"))])
+
+
 # ------------------------------------------------- the power action after recoveries (v0.6.12)
 # Every usage-limit recovery of a batch has ended and nothing else runs in Codex, so this PC is about to
 # go to sleep, hibernate or shut down (runtime/afterwork.py). The countdown's notice says when, and has

@@ -799,6 +799,8 @@
   "msg.toast_power_stop.shut_down": "Nie zamykaj",
   "msg.toast_power_stop.sleep": "Nie usypiaj",
   "msg.toast_power_stopped": "Tym razem komputer zostaje włączony",
+  "msg.toast_restart_gave_up": "Monitor pozostał zatrzymany",
+  "msg.toast_restart_gave_up_body": "Zatrzymał się nieoczekiwanie trzy razy w ciągu godziny i pozostał zatrzymany. Uruchom go ponownie z Dashboardu.",
   "msg.toast_resumed_body": "Przerwane zadanie znów działa.",
   "msg.toast_resumed_title": "Wznowiono",
   "msg.toast_starting_body": "Wysyłanie kontynuacji do tej rozmowy.",

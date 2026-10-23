@@ -84,6 +84,7 @@ from .engine.earlyreset import make as make_early_reset
 from .engine.emptyreply import make as make_empty_response
 from .engine.everyconversation import make as make_every_conversation
 from .engine.subagent import make as make_subagent_parent
+from .engine.supervise import make as make_crash_restart
 from .engine.keepgoing import make as make_keep_going
 from .engine.promptqueue import make as make_prompt_queue
 from .engine.foropen import CODES as FOROPEN_CODES, DAYS, DEFAULT_DAYS, make as make_queue_for_open
@@ -99,6 +100,7 @@ from .engine.silent import make as make_silent_continuation
 from .engine.oncemore import make as make_once_more
 from .engine.parallel import DEFAULT_WORKERS, WORKERS, make as make_parallel
 from .engine.updatecheck import make as make_idle_update_check
+from .engine.wake import DEFAULT_LEAD as WAKE_DEFAULT_LEAD, LEADS as WAKE_LEADS, make as make_wake_for_reset
 from .engine.usage import (DEFAULT_PAUSE, DEFAULT_POLL, DEFAULT_STOP_WORDS, DEFAULT_STYLE, DEFAULT_WARN,
                            DEFAULT_WRAP, ON, PERCENT_RANGE, PERCENTS, POLL_RANGE, SWITCH,
                            POLL_CHOICES, STYLES, make_meter, make_pause, make_wrap_up)
@@ -389,6 +391,29 @@ START_WITH_CODEX = CapabilityDef(
            "refused", "failed", "ended"),
     make=make_start_with_codex,
     measurements=(Measurement.MW,),
+)
+
+# Restart the watcher if it stops unexpectedly (v0.6.19, plans/v0619-design/D-watcher-ops.md A). At P13 it answers
+# SUPERVISE before the launcher runs the watcher, so the launcher runs it as a child - itself again, under pythonw.exe,
+# with no window - and stays; and once that child ended, RESTART only for an abnormal end: not clean in the heartbeat,
+# an exit code that is none of 0, EXIT_BUSY 3, EXIT_SCHEMA_NEWER 4 (whose relaunch-once path is unchanged) and
+# EXIT_MEMORY_GUARD 5, no stop asked through the stop event, and fewer than three restarts in the hour before, each a
+# row of `restarts` written before it is made (engine/supervise.py). After the third in an hour the watcher is left
+# stopped - the standard "stopped unexpectedly" - with one notice of its own kind, restart_gave_up. It departs from F6 (a
+# second pythonw.exe of the product's own, the supervisor beside the watcher) and F8 (a resident helper: the launcher
+# stays as the watcher's parent); it never kills anything (E8 kept), and a restarted watcher reconciles before it sends
+# as every watcher does (E2, A5-A7 kept). It sends nothing and reads nothing of Codex, and stands on engine_present, the
+# installation every recovery stands on; its ceilings are the schema's floor and never bind.
+CRASH_RESTART = CapabilityDef(
+    id="crash_restart",
+    points=frozenset({Point.SUPERVISION}),
+    revision=1,
+    departs_from=("F6", "F8"),
+    compat="engine_present",
+    ceilings=Ceilings(per_day=1, per_conversation=1),
+    journal_prefix="crash",
+    make=make_crash_restart,
+    codes=("restarted", "gave_up"),
 )
 
 # The marker-free continuation (v0.6.11 stage 3a, the owner's request of 2026-09-26): each
@@ -1074,6 +1099,31 @@ IDLE_UPDATE_CHECK = CapabilityDef(
     codes=("checked", "offered", "unanswered"),
 )
 
+# Wake this PC for a reset (v0.6.19, plans/v0619-design/D-watcher-ops.md B). At P8 it finds the earliest time something
+# waits for - core's waiting usage-limit records, the reset actions' pending rules, the forced stop's held window - and
+# sets a waitable timer of the watcher's own, with fResume, for that time less the lead a person chose (1, 2 or 5
+# minutes; 2), only where Windows' Allow wake timers already allows it for the power source in use - read, never
+# written; moved when that time changes, cancelled when nothing waits, recovery is paused, it is turned off or the
+# watcher stops (engine/wake.py, win/waketimer.py). Waking only lets the watcher's ordinary tick run sooner; every gate
+# is unchanged. Last of the capabilities at P8, so its errand reads the due times the others' errands just kept. It
+# departs from C4 (it acts on a schedule of its own) and B16 (Windows is asked the power scheme's Allow wake timers
+# value, a question not on the list); F1 is kept. It rests on MWAKE - whether such a timer wakes this PC - which the
+# measurement session makes; until then the statement says it is unmeasured. It sends nothing to Codex and stands on
+# engine_present; its ceilings are the schema's floor and never bind.
+WAKE_FOR_RESET = CapabilityDef(
+    id="wake_for_reset",
+    points=frozenset({Point.TICK}),
+    revision=1,
+    departs_from=("B16", "C4"),
+    compat="engine_present",
+    ceilings=Ceilings(per_day=1, per_conversation=1),
+    journal_prefix="wake",
+    make=make_wake_for_reset,
+    codes=("set", "cancelled", "not_allowed"),
+    measurements=(Measurement.MWAKE,),
+    options=(Option(OptionKey.WAKE_LEAD_MINUTES, WAKE_LEADS, WAKE_DEFAULT_LEAD),),
+)
+
 # Longer reset messages (v0.6.14, the owner's answer of 2026-10-08): a message sent at a reset may be up to what one
 # continuation carries (continuation.PROMPT_LIMIT, 8,154 characters) instead of A27's 2,000 - a separate opt-in, off
 # until a person turns it on after its statement, which names A27. An action: it answers at no point and sends
@@ -1143,10 +1193,11 @@ COMPAT_REPORT = CapabilityDef(
 
 # In this order, which is also which answers first where two answer at one point; the action, which
 # answers at none, last.
-DEFINITIONS = (START_WITH_CODEX, GOAL_CONTINUATION, QUEUE_FOR_OPEN, COMPACT_CONTINUE, MODEL_FALLBACK, HEADLESS_RUN, OTHER_SESSIONS, MARKER_FREE, CAPACITY_RETRY, STRUCTURED_RULES,
+DEFINITIONS = (START_WITH_CODEX, CRASH_RESTART, GOAL_CONTINUATION, QUEUE_FOR_OPEN, COMPACT_CONTINUE, MODEL_FALLBACK, HEADLESS_RUN, OTHER_SESSIONS, MARKER_FREE, CAPACITY_RETRY, STRUCTURED_RULES,
                UNKNOWN_FAILURE_BUDGET, CODEX_GAVE_UP, SIGN_IN_RETRY, RESET_CREDIT, RESET_MESSAGE, EARLY_RESET,
                ONCE_MORE, SEND_NOW, PARALLEL_DISPATCH, PROMPT_QUEUE, EMPTY_RESPONSE, SUBAGENT_PARENT, KEEP_GOING,
                USAGE_METER, USAGE_WRAP_UP, USAGE_PAUSE, EVERY_CONVERSATION, SILENT_CONTINUATION, IDLE_UPDATE_CHECK,
+               WAKE_FOR_RESET,
                OPEN_CODEX_BUTTON, LONG_RESET_MESSAGE,
                COMPAT_REPORT)
 # Codex's own retry settings (stage 4's item 6): Attempts (6, 8, 10 or 12; 8 by default) for both of its built-in
@@ -1193,6 +1244,9 @@ REGISTRY = _registry()
 # cases and expert settings. A measurement's warning never pushes a capability down. Every capability of
 # DEFINITIONS appears here exactly once (test_advanced_registry holds it).
 SHOWN_ORDER = ("compat_report", "start_with_codex",
+               # v0.6.19 (the order the owner approved on 2026-10-22): what keeps the watcher itself going, after what
+               # starts it.
+               "crash_restart", "wake_for_reset",
                # v0.6.16-beta.3: which conversations are recovered at all, beside what starts the recovering.
                "every_conversation", "queue_for_open",
                # v0.6.16-beta.4: what gets a conversation going when nothing holds it, beside queue for opening (Q12).

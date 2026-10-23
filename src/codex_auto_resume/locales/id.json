@@ -799,6 +799,8 @@
   "msg.toast_power_stop.shut_down": "Jangan matikan",
   "msg.toast_power_stop.sleep": "Jangan tidur",
   "msg.toast_power_stopped": "PC tetap menyala kali ini",
+  "msg.toast_restart_gave_up": "Pemantau dibiarkan berhenti",
+  "msg.toast_restart_gave_up_body": "Pemantau berhenti tiba-tiba tiga kali dalam satu jam dan dibiarkan berhenti. Jalankan lagi dari Dasbor.",
   "msg.toast_resumed_body": "Tugas yang terhenti berjalan lagi.",
   "msg.toast_resumed_title": "Dilanjutkan",
   "msg.toast_starting_body": "Mengirim pesan lanjutan ke percakapan ini.",

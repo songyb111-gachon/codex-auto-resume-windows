@@ -181,7 +181,7 @@ class Plug:
         before it runs the watcher - SUPERVISE, run it as a child and stay - and `{"phase": "ended", "exit_code": n,
         "clean": True, False or None}` once it ended - RESTART, start it once more - `clean` whether its heartbeat says
         it stopped on purpose (None where that cannot be read, and never read for NULL). DEFER to both is today's
-        launcher, which carries neither answer out yet (v0.6.19)."""
+        launcher; SUPERVISE and RESTART it carries out (v0.6.19, scripts/watcher_launcher.py `_supervised`)."""
         return DEFER
 
     def moved(self, record, state):                   # P14

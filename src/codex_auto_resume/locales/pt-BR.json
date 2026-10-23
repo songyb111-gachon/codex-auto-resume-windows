@@ -799,6 +799,8 @@
   "msg.toast_power_stop.shut_down": "Não desligar",
   "msg.toast_power_stop.sleep": "Não suspender",
   "msg.toast_power_stopped": "O PC fica ligado desta vez",
+  "msg.toast_restart_gave_up": "O monitor ficou parado",
+  "msg.toast_restart_gave_up_body": "Ele parou inesperadamente três vezes em uma hora e ficou parado. Inicie-o novamente pelo Dashboard.",
   "msg.toast_resumed_body": "A tarefa interrompida está em execução novamente.",
   "msg.toast_resumed_title": "Retomada",
   "msg.toast_starting_body": "Enviando a continuação para esta conversa.",

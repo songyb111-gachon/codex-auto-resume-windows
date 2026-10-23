@@ -215,6 +215,7 @@ class Scoped:
         from .runs import RunsHandle
         from .prompts import PromptsHandle
         from .resets import ResetsHandle
+        from .restarts import RestartsHandle
         self._reads.update({
             "resets": ResetsHandle(state, capability, on),
             # v0.6.15-beta: a continuation capability's own continuations (state/continuations.py).
@@ -225,6 +226,9 @@ class Scoped:
             "meter": MeterHandle(state, capability, on),
             # v0.6.16-beta.4: a headless capability's own runs (state/runs.py).
             "runs": RunsHandle(state, capability, on),
+            # v0.6.19: the watcher's restarts after it stopped unexpectedly, written by crash_restart alone
+            # (state/restarts.py).
+            "restarts": RestartsHandle(state, capability, on),
             "passed": lambda measurement: verdict is not None and verdict(measurement) == "pass",
             "failed": lambda measurement: verdict is not None and verdict(measurement) == "fail",
             "armed": lambda other: armed is not None and armed(other) is True,

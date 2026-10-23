@@ -799,6 +799,8 @@
   "msg.toast_power_stop.shut_down": "シャットダウンしない",
   "msg.toast_power_stop.sleep": "スリープしない",
   "msg.toast_power_stopped": "今回は PC はオンのままです",
+  "msg.toast_restart_gave_up": "監視プロセスは停止したままです",
+  "msg.toast_restart_gave_up_body": "1 時間に 3 回予期せず停止したため、停止したままにしました。ダッシュボードから再び開始してください。",
   "msg.toast_resumed_body": "中断されたタスクが再び実行されています。",
   "msg.toast_resumed_title": "再開しました",
   "msg.toast_starting_body": "この会話に継続メッセージを送信しています。",

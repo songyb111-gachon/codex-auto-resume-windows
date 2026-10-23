@@ -899,6 +899,8 @@
   "msg.toast_update_offered": "A newer version is available",
   "msg.toast_update_offered_body": "Version {version} has been published. Install it from the Dashboard.",
   "msg.toast_update_offered_prerelease_body": "Pre-release {version} has been published; it is tested less than a release. Install it from the Dashboard if you want it.",
+  "msg.toast_restart_gave_up": "The watcher was left stopped",
+  "msg.toast_restart_gave_up_body": "It stopped unexpectedly three times in an hour and was left stopped. Start it again from the Dashboard.",
   "msg.near_limit_not_continued_body": "The limit has reset, but a conversation stopped near it is not open in the Codex app, so it could not be continued. Open it in Codex; it is continued once it is open.",
   "diag.memory_peak": "Peak memory",
   "diag.memory_mb": "{n} MB",

@@ -799,6 +799,8 @@
   "msg.toast_power_stop.shut_down": "Не выключать",
   "msg.toast_power_stop.sleep": "Не засыпать",
   "msg.toast_power_stopped": "На этот раз компьютер остаётся включённым",
+  "msg.toast_restart_gave_up": "Монитор оставлен остановленным",
+  "msg.toast_restart_gave_up_body": "Он неожиданно останавливался три раза за час и оставлен остановленным. Запустите его снова из Дашборда.",
   "msg.toast_resumed_body": "Прерванная задача снова выполняется.",
   "msg.toast_resumed_title": "Продолжено",
   "msg.toast_starting_body": "Отправка продолжения в эту беседу.",

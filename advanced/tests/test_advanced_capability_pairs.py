@@ -462,5 +462,111 @@ class PauseBesideResetCreditTests(UsageCase):
         self.assertFalse(all(held), "some minute of the credit's early window is not held")
 
 
+# v0.6.19 W4 (plans/v0619-design/D-watcher-ops.md): the watcher operations beside what they meet.
+class CrashRestartBesideStartWithCodexTests(ac.AdvancedCase):
+    """crash_restart and start_with_codex: COMPOSE. Start with Codex starts this installation's launcher through WMI,
+    outside Codex's job (P9); the launcher it started asks P13, and crash_restart supervises the watcher from there - one
+    answers at P9, the other at P13, about one launcher, and neither stands aside."""
+
+    def setUp(self):
+        super().setUp()
+        from codex_auto_resume_advanced.registry import CRASH_RESTART, START_WITH_CODEX
+        self.compat = ac.view(capability="engine_present")
+        self.rt = self.runtime(START_WITH_CODEX, CRASH_RESTART)
+        self.rt.arming.catalogs = statement.CATALOGS
+        code = self.rt._code_of(CRASH_RESTART)
+        code._stop = type("Stop", (), {"hold": lambda self: True, "signalled": lambda self: False,
+                                       "wait": lambda self, seconds: False})()
+        code._notify = lambda paths: None
+
+    def on(self, capability):
+        definition = self.rt.registry.get(capability)
+        result = self.rt.arming.arm(capability, state="armed", revision=definition.revision,
+                                    generation=self.rt.state.meta()["generation"], acknowledged_version=ac.ENGINE,
+                                    warnings=[str(w) for w in self.rt.arming.warnings(definition)], actor=Actor.DASHBOARD)
+        self.assertTrue(result["done"], result)
+
+    def test_both_on_the_launcher_started_with_codex_supervises_the_watcher(self):
+        from codex_auto_resume_advanced.control.codexstart import StartWithCodex
+        self.on("start_with_codex")
+        self.on("crash_restart")
+        self.assertIsInstance(self.rt.start_route({"in_job": True, "kill_on_close": True, "breakaway_ok": False,
+                                                   "silent_breakaway_ok": False}), StartWithCodex)
+        self.assertIs(self.rt.supervise({"phase": "start"}), Alternative.SUPERVISE)
+        self.assertIs(self.rt.supervise({"phase": "ended", "exit_code": 1, "clean": False}), Alternative.RESTART)
+        overruled = [line for line in self.rt.state.journal() if line["code"] == JournalCode.OVERRULED]
+        self.assertEqual(overruled, [])
+
+
+class WakeBesideTheResetCapabilitiesTests(ac.AdvancedCase):
+    """wake_for_reset beside reset_credit, reset_message and usage_pause: COMPOSE. Each keeps its own due time - a
+    credit's or a message's rule (`due_at`), the forced stop's held window (the meter's `paused_reset_at`) - and core
+    keeps its waiting usage-limit records'; the wake timer is set for the earliest of them all, read through the same
+    view, so whichever acts first finds the PC awake, and none of them is changed by it."""
+
+    class Timer:
+        def __init__(self):
+            self.due = None
+
+        def allowed(self):
+            return True
+
+        def set(self, when):
+            self.due = when
+            return True
+
+        def cancel(self):
+            found, self.due = self.due is not None, None
+            return found
+
+    class View:
+        def __init__(self, rows):
+            self.rows = rows
+
+        def records_in(self, states):
+            return [row for row in self.rows if row["state"] in states]
+
+    def setUp(self):
+        super().setUp()
+        from codex_auto_resume_advanced.registry import WAKE_FOR_RESET
+        self.compat = {"status": "ok", "engine": {"found": True, "version": ac.ENGINE},
+                       "capabilities": {name: {"state": "COMPATIBLE", "reason": "local_checks_passed"}
+                                        for name in ("engine_present", "usage_probe")}}
+        self.rt = self.runtime(WAKE_FOR_RESET, RESET_CREDIT)
+        self.rt.arming.catalogs = statement.CATALOGS
+        self.code = self.rt._code_of(WAKE_FOR_RESET)
+        self.code._timer = self.timer = self.Timer()
+        self.code._start = lambda target: None
+
+    def on(self, capability):
+        definition = self.rt.registry.get(capability)
+        result = self.rt.arming.arm(capability, state="armed", revision=definition.revision,
+                                    generation=self.rt.state.meta()["generation"], acknowledged_version=ac.ENGINE,
+                                    warnings=[str(w) for w in self.rt.arming.warnings(definition)], actor=Actor.DASHBOARD)
+        self.assertTrue(result["done"], result)
+        self.rt.states(fresh=True)
+
+    def errand(self, rows):
+        self.code.tick(self.View(rows)).run(lambda: None)
+
+    def test_the_timer_is_set_for_the_earliest_due_time_of_them_all(self):
+        self.on("wake_for_reset")
+        self.on("reset_credit")
+        core = {"state": "waiting_reset", "category": "usage_limit", "next_check_at": self.now + 3 * 3600}
+        self.errand([core])
+        self.assertEqual(self.timer.due, self.now + 3 * 3600 - 120)
+        rule = self.rt.state.add_reset_rule("reset_credit", "codex", 300, 1)
+        self.assertTrue(self.rt.state.change_rule(rule, due_at=self.now + 2 * 3600))
+        self.errand([core])
+        self.assertEqual(self.timer.due, self.now + 2 * 3600 - 120, "the credit's rule comes first")
+        self.rt.state.save_meter([{"bucket": "codex", "window_minutes": 10080, "used_percent": 97.0,
+                                   "reset_at": int(self.now + 3600)}])
+        self.assertTrue(self.rt.state.mark_meter("codex", 10080, paused_reset_at=int(self.now + 3600)))
+        self.errand([core])
+        self.assertEqual(self.timer.due, int(self.now + 3600) - 120, "the forced stop's held window comes first")
+        self.assertEqual([row["due_at"] for row in self.rt.state.reset_rules()], [self.now + 2 * 3600],
+                         "the credit's rule is unchanged")
+
+
 if __name__ == "__main__":
     unittest.main()

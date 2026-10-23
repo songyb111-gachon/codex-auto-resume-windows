@@ -799,6 +799,8 @@
   "msg.toast_power_stop.shut_down": "不要關機",
   "msg.toast_power_stop.sleep": "不要睡眠",
   "msg.toast_power_stopped": "這次電腦保持開啟",
+  "msg.toast_restart_gave_up": "監看程式保持停止",
+  "msg.toast_restart_gave_up_body": "它在一小時內三次意外停止，因此保持停止。請從儀表板重新啟動。",
   "msg.toast_resumed_body": "中斷的任務已重新執行。",
   "msg.toast_resumed_title": "已接續",
   "msg.toast_starting_body": "正在將接續訊息傳送到此對話。",
