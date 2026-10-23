@@ -53,7 +53,10 @@ GUID_ALLOWLIST = {"gui/app.manifest",
                   "build/setup/setup.manifest",
                   "src/codex_auto_resume/shortcut.py",
                   "src/codex_auto_resume/notify.py",
-                  "advanced/src/codex_auto_resume_advanced/measure.py"}
+                  "advanced/src/codex_auto_resume_advanced/measure.py",
+                  # Windows' published power-setting GUIDs (the sleep subgroup and Allow wake timers), read by
+                  # wake_for_reset, as measure.py's MWAKE probe reads them.
+                  "advanced/src/codex_auto_resume_advanced/win/waketimer.py"}
 
 # `.css` and `.js` since v0.6.10-alpha: the settings panel's stylesheet and script were
 # 2,173 lines inside `mcpui.py` and are files of their own now. They are still shipped code
