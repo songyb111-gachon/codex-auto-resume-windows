@@ -986,7 +986,10 @@ format of the whole stage (state version 8, readable from 7), the chat inside th
 an unexpected stop and the wake for a reset; and, in both editions, the compatibility report from this PC. It is
 published as a pre-release while the rest is built.
 
-<!-- W9 (issue #50, the Pending page's rework): fold in here when it is merged -->
+It also carries the rework of Pending that [#50](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/50) asked for: in the advanced edition, a Scheduled tab beside
+Recoveries with an editor, Delete completed and, for each message, whether it waits for a running turn; opening a
+waiting conversation in Codex, built and hidden until measurement MOPEN passes; and, in both editions, a double-click
+on a Pending row that opens its menu.
 
 ### Around recovery
 

@@ -35,6 +35,8 @@ nothing, and *Install another version...* says so before it installs one of them
   that edition can tell them apart. The advanced edition's own report and this one are written by the same code from
   the same records. The guide, the privacy notice and the editions page say what it reads and that it never sends; its
   words are in all 18 languages.
+- **A double-click on a Pending row opens its menu.** A double left-click on a row of Pending opens the same menu a
+  right click does, for that row, as the owner asked.
 
 ### Advanced edition
 
@@ -80,8 +82,28 @@ nothing, and *Install another version...* says so before it installs one of them
 - **The stage's stored format, fixed once.** The advanced file's version 8 (above) and the closed words the later parts
   of the stage will use are in place, so none of them needs a rebuild of the file; nothing reads the nine tables that
   are still empty until the part that writes it is built.
-
-<!-- W9 (issue #50, the Pending page's rework; thanks to weng-wen-jun): fold in here when it is merged -->
+- **Scheduled messages in one place, on Pending** (asked for by [@weng-wen-jun](https://github.com/weng-wen-jun),
+  [#50](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/50)). While queued messages are on, or
+  anything is scheduled, Pending has two tabs: **Recoveries**, Pending as it was, and **Scheduled (N)**, which lists
+  every message still to go and every reset rule still to act - the conversation, where it stands, when it goes and
+  what it does while a turn runs, never its words - with **Schedule a message...**, **Edit...** for a message still
+  waiting (a double-click on its row opens it), **Cancel** and **Go on**. The editor shows the words larger than the
+  rest of the window and has **Save and return**: saved, it closes and the saved row is chosen; refused, every field
+  stays as you typed it and the reason is said above the buttons. An edit is refused if anything changed since the
+  list was read. Under the list, **Done** shows the last 30 days' delivered messages with **Delete completed
+  (N)...**: it asks first, deletes only the completed messages it shows that are unchanged since, says how many it
+  deleted and how many it kept, and never touches a waiting, held, cancelled or failed message, the recovery history
+  or anything of Codex's. The Advanced features page's card keeps its switch and limits and points to the tab.
+- **What a scheduled message does while a turn runs.** For a message at a time or on a schedule you choose **Wait
+  until it ends** (recommended, and chosen for a new message) or **Add it to Codex's queue now**, for Codex to run
+  after that turn; a message queued before this choice existed goes into Codex's queue, as every message did. One
+  that waits keeps waiting while whether a turn runs cannot be read. The statement is at revision 2: if queued
+  messages were on, you read the new statement once and turn them on again.
+- **Open a waiting conversation in Codex - built, not offered yet.** When a recovery or a scheduled message waits
+  only because the Codex app does not have its conversation open, it will open that conversation once through
+  Codex's own link, only while this PC has been idle for the minutes you choose, and the next ordinary check sends as
+  always. It stays hidden - no row, statement or switch - until measurement MOPEN shows on your Codex that opening a
+  conversation through its link loads it.
 
 ### For developers
 
