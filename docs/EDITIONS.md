@@ -142,24 +142,25 @@ that will need one; nothing calls it, and it never reads Codex's own credentials
 
 ## Today's capabilities
 
-Thirty-three: twenty-two that change how a recovery is made, which conversations are recovered or what
+Thirty-five: twenty-two that change how a recovery is made, which conversations are recovered or what
 follows a turn, three that send at a time you pick - the two at a usage reset, and queued messages - three
 before a usage limit is reached - the usage meter, and the wrap-up and the forced stop that need it - one that
-checks for updates once a week, and three actions: Longer messages, which only lets a message be longer, Open Codex on a notice, which only adds a button
-that shows a conversation, and the compatibility report, which only you start. Four rest on a measurement each that was made - the first three, and queue for when a conversation
+checks for updates once a week, two that look after the watcher and the PC - restart the watcher if it stops unexpectedly,
+and wake this PC for a reset (v0.6.19) - and four actions: Longer messages, which only lets a message be longer, Open Codex on a notice, which only adds a button
+that shows a conversation, chat with a conversation in the Dashboard (v0.6.19), which sends a message of yours, and the
+compatibility report, which only you start. Four rest on a measurement each that was made - the first three, and queue for when a conversation
 is opened. All five added in v0.6.16-beta.4 rest on measurements that were made - running a conversation
 here, the other sessions, compacting a full conversation, another model at capacity and a continuation with
 no words - and four more (the reset credit, the reset message, the usage meter and the forced stop) rest on
-measurements made on `codex-cli 0.162.0-alpha.17.2` and, for the forced stop, again on the newer one. Six rest on
-measurements not made yet, and the other thirteen on none. Each measurement made was made by hand, on the
+measurements made on `codex-cli 0.162.0-alpha.17.2` and, for the forced stop, again on the newer one. Seven rest on
+measurements not made yet - wake this PC for a reset is the new one, on MWAKE - the chat rests on M7, MC1 and MC2, which were made, as its own
+section below says, and the other fourteen on none. Each measurement made was made by hand, on the
 owner's machine, first on `codex-cli 0.158.0-alpha.2.1`, again on `codex-cli 0.162.0-alpha.17.2` and, for those this release's
 capabilities rest on, once more on `codex-cli 0.163.0-alpha.10.2` (2026-10-17) - and MQO, MQP and MQG, which decide how
 the continuation with no marker, several conversations at once and the goal continuation sit beside the queue for
 when a conversation is opened, on the same version on 2026-10-20;
 its record is in [`docs/evidence/live/`](evidence/live/). On any other version of Codex, and for a
-measurement not made yet, a capability's statement carries the warning that it was not measured there. The thirty-third,
-chat with a conversation in the Dashboard (v0.6.19), sends a message of yours from the Dashboard and rests
-on M7, MC1 and MC2, as its own section below says.
+measurement not made yet, a capability's statement carries the warning that it was not measured there.
 
 ### Start with Codex
 
@@ -1196,7 +1197,7 @@ rest went to v0.6.16, which came in four pre-releases and is out: its first, v0.
 six capabilities of stage 3c, and the next three a route of its own, other kinds of session and the
 usage capabilities. v0.6.18 then took two small capabilities of stage 5, Open Codex on a notice and the weekly
 update check, and published them as a final (owner, 2026-10-21). What is left - the rest of stage 5 and the chat inside the Dashboard - is v0.6.19, which begins
-with a pre-release, v0.6.19-alpha, and publishes each part as a pre-release as it is finished. Each new capability is the advanced edition's alone, off until you
+with a pre-release, v0.6.19-beta, that carries the chat, the restart of the watcher and the wake for a reset, and publishes each further part as a pre-release as it is finished. Each new capability is the advanced edition's alone, off until you
 turn it on, with a statement that names the standards it departs from. This is a direction, not a
 promise; [ROADMAP.md](ROADMAP.md) has the whole list: the two additions in its v0.6.12 section, what
 is built in its v0.6.14, v0.6.16 and v0.6.18 sections, and the rest in its v0.6.19 section, under the same
@@ -1215,12 +1216,13 @@ headings as the last four bullets below.
 - **Around recovery** - usage analytics (the live usage meter and the wrap-up near a limit are built,
   described [above](#todays-capabilities)); a provider status feed and push notifications through one courier process, the advanced edition's only
   outbound network code; a local API and web view, remote control over Telegram and a read-only view
-  of other PCs; switching the Codex account on your command; crash supervision and a wake timer for a reset.
-  *Open Codex* on a notice and a weekly update check while idle are built in v0.6.18, described
+  of other PCs; switching the Codex account on your command. *Open Codex* on a notice and a weekly update check while idle are
+  built in v0.6.18, and crash supervision and a wake timer for a reset in v0.6.19-beta, described
   [above](#todays-capabilities).
 - **The chat inside the Dashboard** - chatting with a Codex conversation inside the Dashboard, reading it and
   sending it a message: advanced only, off by default, on this PC only and never through a remote channel, with
-  "in progress" while a turn runs and the result once it ends, and approvals still answered in Codex.
+  "in progress" while a turn runs and the result once it ends, and approvals still answered in Codex. Built in
+  v0.6.19-beta, described [above](#todays-capabilities).
 - **Compatibility data for the advanced edition** - verdicts for each Codex engine in a file of its own, which
   installed advanced editions fetch, and the compatibility reporter counting the advanced edition's outcomes as
   "reported" without ever raising a verdict.

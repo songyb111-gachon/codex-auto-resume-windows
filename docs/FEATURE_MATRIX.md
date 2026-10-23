@@ -643,7 +643,7 @@ New in v0.6.11. The standard edition is every row above. The advanced edition is
 plus capabilities that each depart from a standard the standard edition keeps - start with Codex,
 the marker-free continuation and the goal continuation, from v0.6.14 six that recover what the
 standard edition leaves alone, and from v0.6.16-beta.4 five that run or recover conversations the Codex
-app is not holding, and since then the rest of the thirty-two that [EDITIONS.md](EDITIONS.md) lists - each off until a person turns it on. The
+app is not holding, and since then the rest of the thirty-five that [EDITIONS.md](EDITIONS.md) lists - each off until a person turns it on. The
 rows below are about keeping the two apart and about what each capability does once it is on;
 `docs/SECURITY.md` and `docs/PRIVACY.md` say the same in prose. The advanced rows rest on the engine
 driven through `tests/codexsim.py` and on a fake app server, and the Dashboard page's on the compiled
