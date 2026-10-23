@@ -994,7 +994,25 @@ namespace CodexAutoResume
             var chosen = Selected(pendingList);
             bool mine = pendingNoteFor == BulkNote || (pendingNoteFor != null && chosen != null &&
                         Str(chosen, "interruption_id") == pendingNoteFor);
-            SetNote(pendingNote, mine ? pendingNoteText : "");
+            // v0.6.19 (issue #50): once the watcher has read usage at a Retry now, the chosen row says when and what it
+            // read, and whether the recovery went on - a check told apart from a resume.
+            string checkedText = UsageCheckText(Map(chosen, "usage_check"));
+            SetNote(pendingNote, checkedText ?? (mine ? pendingNoteText : ""));
+        }
+
+        /// What a usage reading a person's Retry now asked for said (the row's `usage_check`), in words, or null.
+        internal string UsageCheckText(Dictionary<string, object> check)
+        {
+            if (check == null || !(Get(check, "at") is double)) return null;
+            string time = ClockTime(Number(check, "at"));
+            string read = Str(check, "read");
+            if (read == "available")
+                return Equals(Get(check, "lifted"), true)
+                    ? S("retry.checked_available", "Usage checked at {time}: available. The recovery went on through every check.", "time", time)
+                    : S("retry.checked_available_waiting", "Usage checked at {time}: available, but the recovery was no longer waiting for its reset.", "time", time);
+            if (read == "still_limited")
+                return S("retry.checked_limited", "Usage checked at {time}: still limited. It waits for the reset Codex gave.", "time", time);
+            return S("retry.checked_unknown", "Usage checked at {time}: it could not be told. Nothing changed; it waits for the reset Codex gave.", "time", time);
         }
 
         /// Whether Retry now is worth offering for this record.

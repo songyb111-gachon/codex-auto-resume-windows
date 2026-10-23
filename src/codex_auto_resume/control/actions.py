@@ -135,9 +135,13 @@ class ActionsMixin:
         """Make a waiting interruption eligible immediately.
 
         This brings the *schedule* forward and nothing else. It does not send, does not
-        bypass the loaded-thread requirement, does not bypass a usage window and does
-        not skip revalidation: the watcher still runs the entire pipeline, and if usage
-        is still exhausted the record simply goes back to waiting.
+        bypass the loaded-thread requirement and does not skip revalidation: the watcher
+        still runs the entire pipeline. From v0.6.19 (issue #50; A12 amended by the owner on
+        2026-10-24), for a usage limit whose reset is still ahead, it also asks the watcher to
+        read usage once, at the look it brings forward: if Codex says the limit has lifted, the
+        reset is the newer one and every gate runs as usual; still limited, unknown or a failed
+        read changes nothing. With no watcher running, nothing is read, and it says so
+        (`usage_check`: asked, not_running, or None where no reading was asked for).
         """
         key = _identifier(interruption_id)
         with self._open() as store:
@@ -145,6 +149,13 @@ class ActionsMixin:
             if record is None:
                 raise ControlError("no such interruption", code="no_such_interruption")
             accepted, detail = store.request_retry_now(key, time.time(), actor=actor)
+            now = time.time()
+            # Only where the watcher would act on the reading: recovery on, the conversation on, nothing held, no
+            # postponement of the person's own - a Pause beats a click, as it beats every recovery.
+            check = (accepted and record["category"] == "usage_limit" and (record["reset_at"] or 0) > now
+                     and (record["not_before"] or 0) <= now and not record.get("hold")
+                     and store.settings()["enabled"] and store.thread_enabled(record["thread_id"])
+                     and store.ask_usage_check(key))
         if not accepted:
             message, code = _refusal(_REFUSALS_RETRY, detail)
             raise ControlError(message, code=code)
@@ -153,8 +164,21 @@ class ActionsMixin:
             woke = WakeEvent(str(self.paths.state_dir)).signal()
         except Exception:
             woke = False
+        usage_check = None
+        if check and not woke:
+            # Asked now or not at all: a watcher that starts later reads usage when the recovery is due, as always.
+            with self._open() as store:
+                store.usage_check_taken(key)
+            usage_check = "not_running"
+        elif check:
+            usage_check = "asked"
         now = time.time()
-        if detail > now + 1 and (record["reset_at"] or 0) >= detail:
+        if usage_check == "asked":
+            note = ("checking usage now: if Codex says the limit has lifted, the recovery goes on through "
+                    "every safety check; otherwise it waits for the reset Codex gave")
+        elif usage_check == "not_running":
+            note = "the watcher is not running, so usage was not checked; it waits for the reset Codex gave"
+        elif detail > now + 1 and (record["reset_at"] or 0) >= detail:
             note = ("the usage reset is at a later time; the watcher checks then, and every "
                     "safety check still applies")
         elif detail > now + 1:
@@ -166,7 +190,7 @@ class ActionsMixin:
         else:
             note = "the watcher checks at its next poll; every safety check still applies"
         return {"interruption_id": key, "state": record["state"], "eligible_at": detail,
-                "woke": woke, "note": note}
+                "woke": woke, "note": note, "usage_check": usage_check}
 
 
     def set_interruption_recovery(self, interruption_id, thread_id, enabled, *,

@@ -57,6 +57,10 @@ METHODS = {
     "unpostpone",
     # v0.6.16: what Rescan and reconcile found of one waiting record, applied unless it changed meanwhile (issue #39).
     "rescan_apply",
+    # v0.6.19 (issue #50): the usage reading a person's Retry now asks for, asked, taken, written and shown -
+    # store/schedule.py (asked as a file, beside the database, so no schema changes) and store/journal.py.
+    "_usage_checks", "ask_usage_check", "usage_checks_asked", "usage_check_taken", "usage_checked",
+    "usage_checks_shown",
     "_thread_tier", "thread_tier", "thread_tiers", "set_thread_tier",
     # v0.6.11: observe only's switch and its "would have been sent", a conversation first seen given
     # Only notify me, and a project's waiting records held - store/policy.py and store/claims.py.

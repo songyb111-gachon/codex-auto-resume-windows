@@ -88,6 +88,9 @@ ENGINE_TO_STORE = {
     # and a record the task-changed guard holds for a person when it falls due (engine/guard.py) -
     # never at the defaults, where the guard is off.
     "hold_changed",
+    # v0.6.19 (issue #50): the usage reading a person's Retry now asked for - which are asked, one taken, and
+    # what it read written (a lift only where the reading says available).
+    "usage_checks_asked", "usage_check_taken", "usage_checked",
     # v0.6.15-beta: a worker's own store closed once its receipt came (engine/launches.py) - never the engine's.
     "close",
     # v0.6.18: when Windows last started, read off the watcher's heartbeat, so a recovery turn begun before it is
@@ -196,6 +199,9 @@ CONTROL_TO_STORE = {
     "unpostpone",
     # v0.6.16: what Rescan and reconcile found of one waiting record, applied only if it did not change meanwhile.
     "rescan_apply",
+    # v0.6.19 (issue #50): Retry now asks for one usage reading (taken back with no watcher), and the rows say what
+    # it read.
+    "ask_usage_check", "usage_check_taken", "usage_checks_shown",
 }
 
 

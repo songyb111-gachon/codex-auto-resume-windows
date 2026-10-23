@@ -7,10 +7,13 @@ v0.6.11 adds two things that say whether a reading may be trusted at all, both o
 (power.py): a PC that has just woken, whose last readings of the app and of usage are forgotten -
 and, after a sleep longer than Settings allow, whose recoveries that fell due meanwhile wait for a
 person - and a PC Windows reports without internet, for which usage is not read.
+
+v0.6.19 (issue #50; A12 amended by the owner on 2026-10-24): a person's Retry now on a recovery that waits for a usage
+reset is a moment usage is read too - once, fresh, at the look the click brought forward (`_asked_usage`).
 """
 from __future__ import annotations
 
-from .. import machine, power
+from .. import failures, machine, power
 from ..domain import usage as readings
 from ..machine import WAITING, WATCHED
 
@@ -22,6 +25,46 @@ class FreshnessMixin:
         if self._usage_cache is None or not 0 <= now - self._usage_cache[0] <= 30:
             self._usage_cache = (now, self.backend.usage())
         return self._usage_cache[1]
+
+    def _schedule_gate(self, row, vector, now, quiet_until):
+        """The schedule gate for `row`, and the record it is for: a usage reset still ahead at a look a person's Retry
+        now brought forward is first put to `_asked_usage` - and where the reading lifted it, the record goes on from
+        here as usual. A record that moved meanwhile is not due this look."""
+        gate = machine.gate_schedule(row, now, quiet_until=quiet_until)
+        if gate[1] != "waiting_reset" or (row.get("next_retry_at") or 0) > now:
+            return gate, row
+        found = self._asked_usage(row, vector, now, quiet_until)
+        if found is None:
+            return machine.gate(machine.WAIT, "not_due"), row
+        return machine.gate_schedule(found, now, quiet_until=quiet_until), found
+
+    def _asked_usage(self, row, vector, now, quiet_until):
+        """A person's Retry now asked for usage to be read for `row`, which waits for a usage reset still ahead
+        (store/actions.py USAGE_CHECKS): the request taken, and - only where every gate before the schedule passed, the
+        record is a usage limit's, and no postponement or quiet hours hold it - usage read once, afresh. What it read
+        is written with the record (store usage_checked): available lifts the reset to now, and the record goes on
+        through every gate from the schedule as usual; still limited, unknown or a failed read changes nothing. The
+        record as it stands after, or None where it moved. Never a send of its own."""
+        key = row["interruption_id"]
+        try:
+            asked = key in self.store.usage_checks_asked(now)
+        except Exception:
+            asked = False
+        if not asked:
+            return row
+        self.store.usage_check_taken(key)
+        if (vector["consent"][0] != machine.PASS or row["category"] != failures.USAGE_LIMIT
+                or machine.gate_schedule(row, now, quiet_until=quiet_until, early=True)[0] != machine.PASS):
+            return row
+        self._usage_cache = None                        # read at the click's look, not a reading from before it
+        try:
+            available = self.usage().get("available")
+        except Exception:
+            available = None
+        read = ("usage_available" if available is True else "usage_unavailable" if available is False
+                else "usage_unknown")
+        found = self.store.usage_checked(key, now, read)
+        return found
 
     def last_usage(self):
         """The last usage reading this engine made that had windows, as (time, windows) - None until it

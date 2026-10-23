@@ -59,6 +59,22 @@ class JournalMixin:
                 "DELETE FROM events WHERE event_id IN (SELECT event_id FROM events WHERE NOT (%s) "
                 "ORDER BY event_id LIMIT ?)" % keep, (*running, excess))
 
+    def usage_checks_shown(self, since) -> dict:
+        """What the last usage reading a person's Retry now asked for said of each record (v0.6.19, issue #50), from
+        `since` on: {interruption id: {at, read (available, still_limited, unknown), lifted}} - for the Dashboard to
+        show, never an input to a decision."""
+        found = {}
+        with self._read() as connection:
+            rows = connection.execute(
+                "SELECT interruption_id, at, reason, flags FROM events WHERE event_id IN (SELECT max(event_id) FROM "
+                "events WHERE code='usage_checked' AND interruption_id IS NOT NULL AND at >= ? GROUP BY "
+                "interruption_id)", (_finite(since, 0.0),)).fetchall()
+        for key, at, reason, flags in rows:
+            read = ("available" if reason is None else "still_limited" if reason == "usage_unavailable"
+                    else "unknown")
+            found[key] = {"at": _finite(at, 0.0), "read": read, "lifted": bool(flags & 1)}
+        return found
+
     def events(self, interruption_id=None, *, chain_origin_id=None, limit=500) -> list:
         """Journal entries, oldest first. Rows are coerced, never trusted: an entry
         that does not fit the vocabulary is shown as "other", and never fails a read."""

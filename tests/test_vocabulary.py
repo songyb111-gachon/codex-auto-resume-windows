@@ -81,7 +81,7 @@ LISTS = {
     # same, and a person's own postponement taken away.
     # v0.6.16 (issue #39): rescan_retired, rescan_rechecked, rescan_unresolved and rescan_changed - what a
     # person's Rescan and reconcile found of each waiting record, one journal word for each outcome.
-    "machine.EVENT_CODES": ("set", 32, "405d5c00a0cd7440"),
+    "machine.EVENT_CODES": ("set", 33, "43847d96aef72657"),
     "machine.WAITING_CODES": ("set", 5, "aef153e5808afe46"),
     "machine.PUBLIC_CODES": ("set", 22, "33761768f9d99cd0"),
     "machine.PAGES": ("tuple", 6, "ffad1c9f0521398d"),
