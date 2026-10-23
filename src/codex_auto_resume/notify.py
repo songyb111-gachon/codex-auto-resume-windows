@@ -654,9 +654,7 @@ def update_offered_content(version, prerelease=False):
 
 
 def restart_gave_up_content():
-    """The advanced edition's crash restart left the watcher stopped (v0.6.19): it stopped unexpectedly three times in
-    an hour, and one button opens the Dashboard's Overview, where it is started again. About no conversation; only that
-    capability raises it, from the launcher."""
+    """v0.6.19: the advanced crash restart left the watcher stopped (three ends in an hour); one button opens Overview."""
     return _content(l10n.message("toast_restart_gave_up"), l10n.message("toast_restart_gave_up_body"),
                     more=[(l10n.message("toast_button_open"), open_uri("overview"))])
 
