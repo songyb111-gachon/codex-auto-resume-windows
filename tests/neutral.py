@@ -85,6 +85,7 @@ NOT_SCENARIOS = {
     "test_source": "reads a Codex home through the source alone; it builds no engine",
     "test_screenshots": "draws the settings window's pictures, one GUI module at a time",
     "test_plug_points": "gives every engine a plug of its own, to hold each point where it stands",
+    "test_plug_points_2": "test_plug_points' second half (the capabilities that move a record's waits), its plugs the same",
     "test_plug_records": "gives every engine a plug with records of its own (P2), to hold each of their moves",
     "test_queue_for_open": "gives every engine a plug that answers QUEUE_FOR_OPEN at P16, which the neutral plug never "
                            "answers - a conversation the app does not hold waits there",
