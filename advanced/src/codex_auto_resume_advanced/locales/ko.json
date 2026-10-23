@@ -444,6 +444,8 @@
   "page.watchlog.answer.send_now": "지금 보냄",
   "page.watchlog.answer.sender": "자체 방식으로 보냄",
   "page.watchlog.answer.silent": "말 없이 턴을 시작함",
+  "page.watchlog.answer.supervise": "워처를 자식 프로세스로 실행함",
+  "page.watchlog.answer.restart": "워처를 다시 시작함",
   "page.watchlog.answer.start_route": "자체 방식으로 워처를 시작함",
   "page.watchlog.answer.text": "자체 문구로 씀",
   "page.watchlog.answer.tick": "확인 사이에 동작함",

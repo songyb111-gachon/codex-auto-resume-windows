@@ -444,6 +444,8 @@
   "page.watchlog.answer.send_now": "Gửi ngay",
   "page.watchlog.answer.sender": "Gửi theo cách riêng của nó",
   "page.watchlog.answer.silent": "Đã bắt đầu lượt mà không có lời nào",
+  "page.watchlog.answer.supervise": "Chạy bộ theo dõi như một tiến trình con",
+  "page.watchlog.answer.restart": "Khởi động lại bộ theo dõi",
   "page.watchlog.answer.start_route": "Chạy bộ theo dõi theo cách riêng của nó",
   "page.watchlog.answer.text": "Viết lời của riêng nó",
   "page.watchlog.answer.tick": "Hành động giữa hai lần xem",

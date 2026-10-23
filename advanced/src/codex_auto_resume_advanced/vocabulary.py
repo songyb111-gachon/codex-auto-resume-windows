@@ -253,6 +253,28 @@ class OptionKey(StrEnum):
     # was found.
     OFFERED_VERSION = "offered_version"
     OFFERED_AT = "offered_at"
+    # v0.6.19 (the groundwork, plans/v0619-design/D-groundwork.md), added in one block so the stage's writers never edit
+    # this list at once. A person's choices: how many days the analytics keep (usage_analytics), how often the status
+    # feed is read in minutes (status_feed), which events are pushed (push_notices: a bit set of CourierEvent's, in its
+    # order), each push channel on or off, the loopback API's port (local_api), how long a conversation may sit unopened
+    # before it is opened and whether Codex is started to open it (open_to_send), how many minutes before a reset the PC
+    # is woken (wake_for_reset), and the crash restarts' cap (crash_restart: fixed at 3, kept as a stamp only). And the
+    # times a capability's own code keeps (stamps): the last token ingest, feed read and fleet write.
+    ANALYTICS_DAYS = "analytics_days"
+    FEED_MINUTES = "feed_minutes"
+    PUSH_EVENTS = "push_events"
+    NTFY = "ntfy"
+    WEBHOOK = "webhook"
+    TELEGRAM = "telegram"
+    EMAIL = "email"
+    API_PORT = "api_port"
+    OPEN_IDLE_MINUTES = "open_idle_minutes"
+    OPEN_START_CODEX = "open_start_codex"
+    WAKE_LEAD_MINUTES = "wake_lead_minutes"
+    RESTART_CAP = "restart_cap"
+    LAST_INGEST = "last_ingest"
+    LAST_FEED = "last_feed"
+    LAST_FLEET_WRITE = "last_fleet_write"
 
 
 class WordingKey(StrEnum):
@@ -260,6 +282,10 @@ class WordingKey(StrEnum):
     the custom continuation text is (continuation.MAX_CUSTOM_LENGTH)."""
     WRAP_CUSTOM_FIVE_HOUR = "wrap_custom_five_hour"
     WRAP_CUSTOM_WEEKLY = "wrap_custom_weekly"
+    # v0.6.19 (fleet_view): this PC's alias among the person's PCs, and the folder their status files are shared in -
+    # which `wordings` holds since it was freed of the CHECK on its keys (advanced state version 8).
+    FLEET_ALIAS = "fleet_alias"
+    FLEET_FOLDER = "fleet_folder"
 
 
 class KeepOn(StrEnum):
@@ -363,6 +389,30 @@ class BridgeCommand(StrEnum):
     ADVANCED_REPORT_JOB = "advanced-report-job"
     # v0.6.16-beta.4: a person's Stop of a turn run here (engine/headless.py) - the Dashboard's alone, never MCP.
     ADVANCED_HEADLESS_STOP = "advanced-headless-stop"
+    # v0.6.19 (the groundwork): every command the stage's designs name, in one block, each the Dashboard's alone and
+    # reached by no MCP tool. Until the capability that answers one is built, the bridge passes it over as it passes a
+    # command this edition does not have (surfaces.UNANSWERED). The analytics' aggregates and their CSV
+    # (usage_analytics); the courier's card read, one channel saved or forgotten, a test notice, and the status feed read
+    # now (push_notices, status_feed); the loopback API's state and a new token, Telegram's pairing started and its state,
+    # the other PCs read and this PC's alias and folder saved (local_api, telegram_remote, fleet_view); a queued prompt
+    # edited and the done ones cleared (#50); the account read and a switch asked for (account_switch).
+    ADVANCED_ANALYTICS = "advanced-analytics"
+    ADVANCED_ANALYTICS_CSV = "advanced-analytics-csv"
+    ADVANCED_COURIER = "advanced-courier"
+    ADVANCED_COURIER_SAVE = "advanced-courier-save"
+    ADVANCED_COURIER_FORGET = "advanced-courier-forget"
+    ADVANCED_COURIER_TEST = "advanced-courier-test"
+    ADVANCED_FEED_REFRESH = "advanced-feed-refresh"
+    ADVANCED_API = "advanced-api"
+    ADVANCED_API_TOKEN_NEW = "advanced-api-token-new"
+    ADVANCED_REMOTE_PAIR_START = "advanced-remote-pair-start"
+    ADVANCED_REMOTE_PAIR_STATE = "advanced-remote-pair-state"
+    ADVANCED_FLEET = "advanced-fleet"
+    ADVANCED_FLEET_SAVE = "advanced-fleet-save"
+    ADVANCED_PROMPT_EDIT = "advanced-prompt-edit"
+    ADVANCED_PROMPTS_CLEAR_DONE = "advanced-prompts-clear-done"
+    ADVANCED_ACCOUNT = "advanced-account"
+    ADVANCED_ACCOUNT_SWITCH = "advanced-account-switch"
 
 
 class Measurement(StrEnum):
@@ -454,6 +504,19 @@ class Measurement(StrEnum):
     # for opening, opened by the person - whether two turns then run (the goal's and the queued one) or one (M1 and
     # M2 together, which no measurement made; goal_continuation beside queue_for_open rests on it).
     MQG = "mqg"
+    # v0.6.19 (the groundwork, plans/v0619-design/D-groundwork.md section 5), made while the stage is built. MTOK: a
+    # throwaway conversation's rollout keeps per-turn token totals of the five kinds, never decreasing, and the history's
+    # tokens_used agrees (usage_analytics). MOPEN: a conversation the app does not hold loads within ten seconds of its
+    # link being opened (open_to_send). MAL: a `codex logout` and `codex login` in a terminal reach the running app
+    # without a restart (account_switch). MWAKE: a wake timer wakes this PC from sleep (wake_for_reset). MHK: Codex's
+    # generated schema has a Stop event for plugin hooks, and the feature is there (stop_hook_continuation). M4B: a
+    # block from this edition's Stop hook continues the turn - its probe is the Stop hook's writer's to finish.
+    MTOK = "mtok"
+    MOPEN = "mopen"
+    MAL = "mal"
+    MWAKE = "mwake"
+    MHK = "mhk"
+    M4B = "m4b"
 
 
 class ObservedWord(StrEnum):
@@ -495,6 +558,12 @@ class ObservedWord(StrEnum):
     ROLLOUT = "rollout"
     SAME = "same"
     NEITHER = "neither"
+    # v0.6.19: how long a conversation took to load once its link was opened (MOPEN), and what powered the PC (MWAKE).
+    UNDER_2S = "under_2s"
+    S2_TO_10 = "s2_to_10"
+    OVER_10S = "over_10s"
+    AC = "ac"
+    BATTERY = "battery"
 
 
 class RunEnd(StrEnum):
@@ -787,3 +856,83 @@ class PromptReason(StrEnum):
     WITHDRAWN = "withdrawn"                  # taken back out of Codex's queue on a Cancel or a Pause
     WITHDRAW_REFUSED = "withdraw_refused"    # Codex would not give it back: left there, never sent again
     UNKNOWN = "unknown"
+    # v0.6.19 (#50's send mode): a prompt that waits while a turn runs is not handed to core this tick, the latest turn
+    # of its conversation still in progress.
+    TURN_RUNNING = "turn_running"
+
+
+# ------------------------------------------------------------------ v0.6.19 (the groundwork)
+# The closed words the stage's capabilities store and journal, added in one block before any of them is built
+# (plans/v0619-design/D-groundwork.md), so the parallel writers never edit one list at once and the stored format is
+# fixed once: a later writer that needs a word this missed appends it in a block headed with its capability id.
+class WhileRunning(StrEnum):
+    """What a queued prompt does while a turn of its conversation runs (#50, state `prompts.while_running`): goes into
+    Codex's queue as every prompt always did, or waits for that turn to end."""
+    QUEUE = "queue"
+    WAIT = "wait"
+
+
+class CourierChannel(StrEnum):
+    """Where a notice is pushed (push_notices, state `outbox`): each the person's own service, its address and secret
+    in Credential Manager, never here."""
+    NTFY = "ntfy"
+    WEBHOOK = "webhook"
+    TELEGRAM = "telegram"
+    EMAIL = "email"
+
+
+class CourierEvent(StrEnum):
+    """What a pushed notice says happened - each one of core's notice kinds or one of this edition's, never free text
+    (push_notices maps them 1:1, engine/push.py) - and the test notice a person sends from the card."""
+    USAGE_LIMIT_DETECTED = "usage_limit_detected"
+    RECOVERED = "recovered"
+    FAILED = "failed"
+    NEEDS_YOU = "needs_you"
+    STOPPED_UNEXPECTEDLY = "stopped_unexpectedly"
+    RESTARTED = "restarted"
+    UPDATE_OFFERED = "update_offered"
+    TEST = "test"
+
+
+class OutboxState(StrEnum):
+    """Where one pushed notice stands (state `outbox`): waiting to go, sent, or dropped after its tries."""
+    WAITING = "waiting"
+    SENT = "sent"
+    DROPPED = "dropped"
+
+
+class FeedWord(StrEnum):
+    """What the status feed last said (status_feed, state `feed`): of the service, and of Codex in it."""
+    OPERATIONAL = "operational"
+    DEGRADED = "degraded"
+    OUTAGE = "outage"
+    UNKNOWN = "unknown"
+
+
+class OpenOutcome(StrEnum):
+    """What came of opening a conversation for a message to be sent (open_to_send, state `opens`): the link opened,
+    the app then loaded it, it did not, or the open was refused."""
+    OPENED = "opened"
+    LOADED = "loaded"
+    NOT_LOADED = "not_loaded"
+    REFUSED = "refused"
+
+
+class HookOutcome(StrEnum):
+    """What the Stop hook did with a turn (stop_hook_continuation, state `hook_claims`): blocked its end with a
+    continuation, let it pass, or was refused."""
+    BLOCKED = "blocked"
+    PASSED = "passed"
+    REFUSED = "refused"
+
+
+class PlanWord(StrEnum):
+    """The plan the signed-in account is on, as Codex names it, or `other` (account_switch, state `account_seen`)."""
+    FREE = "free"
+    PLUS = "plus"
+    PRO = "pro"
+    TEAM = "team"
+    BUSINESS = "business"
+    ENTERPRISE = "enterprise"
+    EDU = "edu"
+    OTHER = "other"

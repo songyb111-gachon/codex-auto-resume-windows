@@ -409,6 +409,8 @@
   "page.watchlog.answer.queue_for_open": "Queued it for when the conversation is opened",
   "page.watchlog.answer.to_session": "Queued it for the other Codex session that has the conversation",
   "page.watchlog.answer.silent": "Started the turn with no words",
+  "page.watchlog.answer.supervise": "Ran the watcher as its child",
+  "page.watchlog.answer.restart": "Started the watcher again",
   "page.watchlog.answer.records": "A message of yours it would have sent",
   "name.queue_for_open": "Queue for when a conversation is opened",
   "statement.queue_for_open.does": "When a usage limit has reset in a conversation the Codex app does not have open, sends the ordinary continuation anyway and leaves it in Codex's queue, so Codex runs it when you open that conversation. It stays queued for the days you choose (3 by default, 7 at most) and is taken back after that. Each interruption is queued this way once; once taken back, it waits for the app as usual. Measured on codex-cli 0.158 (M1); on another version of Codex it is unmeasured.",

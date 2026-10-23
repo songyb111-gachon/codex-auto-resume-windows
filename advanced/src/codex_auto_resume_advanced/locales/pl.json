@@ -444,6 +444,8 @@
   "page.watchlog.answer.send_now": "Wysłano teraz",
   "page.watchlog.answer.sender": "Wysłano po swojemu",
   "page.watchlog.answer.silent": "Rozpoczęto turę bez słów",
+  "page.watchlog.answer.supervise": "Uruchomiono monitor jako proces potomny",
+  "page.watchlog.answer.restart": "Uruchomiono monitor ponownie",
   "page.watchlog.answer.start_route": "Uruchomiono monitor po swojemu",
   "page.watchlog.answer.text": "Napisano własne słowa",
   "page.watchlog.answer.tick": "Działano między sprawdzeniami",

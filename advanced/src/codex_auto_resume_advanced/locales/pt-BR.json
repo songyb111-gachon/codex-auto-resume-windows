@@ -444,6 +444,8 @@
   "page.watchlog.answer.send_now": "Enviar agora",
   "page.watchlog.answer.sender": "Enviar do seu jeito",
   "page.watchlog.answer.silent": "Iniciou o turno sem palavras",
+  "page.watchlog.answer.supervise": "Executar o monitor como processo filho",
+  "page.watchlog.answer.restart": "Iniciar o monitor de novo",
   "page.watchlog.answer.start_route": "Iniciar o monitor do seu jeito",
   "page.watchlog.answer.text": "Escrever as próprias palavras",
   "page.watchlog.answer.tick": "Agir entre duas verificações",

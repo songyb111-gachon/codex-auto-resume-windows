@@ -2,8 +2,9 @@
 the CHECK on its names - the code alone keeps a name it does not know out, and passes one over that a later version
 wrote - and the readable-from mark (schema.READABLE_FROM), by which a reader uses a later version's file that says it
 may, and still refuses one marked newer than itself. v0.6.16's file is freed of the CHECK with every row kept, once, and
-a run cut short leaves the old table whole. The way down: v0.6.16 compares columns alone, reads the file with every
-feature on, and its own code still refuses a name it does not know.
+a run cut short leaves the old table whole. The way down: v0.6.16 compared columns alone and read v0.6.17's file with
+every feature on; since version 8 (v0.6.19) the oldest release that reads this version's file is v0.6.17 (OLDEST_READER),
+which reads the mark - and its own code still refuses a name it does not know.
 
     PYTHONPATH=src python -m unittest discover -s advanced/tests
 """
@@ -37,6 +38,12 @@ from codex_auto_resume_advanced.vocabulary import (Actor, ArmingState, KeepOn, O
 ROOT = Path(__file__).resolve().parents[2]
 UNKNOWN = "tries"                                   # a name no version's vocabulary holds
 MARKED_7 = schema_module.MARK | 7
+# What a file is once this version opened it: its version (8 since v0.6.19, schema.SCHEMA_VERSION), marked readable from 7,
+# `options` free.
+OPENED = (schema_module.SCHEMA_VERSION, MARKED_7, False)
+# The oldest release whose own code reads this version's file: v0.6.17, the first to read the mark. v0.6.16 read the file
+# v0.6.17 made, version 7, as its own; since version 8 it refuses it as newer (test_advanced_schema_v8).
+OLDEST_READER = "v0.6.17"
 
 
 def dump(path) -> dict:
@@ -45,6 +52,11 @@ def dump(path) -> dict:
         names = [row[0] for row in connection.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")]
         return {name: sorted(map(tuple, connection.execute("SELECT * FROM %s" % name)), key=repr) for name in names}
+
+
+def kept(path) -> dict:
+    """`dump`, less the tables version 8 added (v0.6.19), which a version-7 file had none of."""
+    return {name: rows for name, rows in dump(path).items() if name not in schema_module.V019_TABLES}
 
 
 def header(path) -> tuple:
@@ -104,9 +116,9 @@ class FreeingTests(OptionsCase):
         self.assertTrue(state.arming()["test_wake"]["keep_on"])
         self.assertEqual(state.options("test_wake"), {OptionKey.ATTEMPTS: 3})
         state.close()
-        self.assertEqual(header(path), (7, MARKED_7, False))
-        self.assertEqual(schema_module.SCHEMA_VERSION, 7, "no new version: v0.6.16 reads the file as its own")
-        self.assertEqual(dump(path), before, "every row of every table kept, and no table more or less")
+        self.assertEqual(header(path), OPENED)
+        self.assertEqual(schema_module.READABLE_FROM, 7, "marked readable from 7: v0.6.17 on reads the file as it is")
+        self.assertEqual(kept(path), before, "every row of every table kept, and no table less")
         with contextlib.closing(sqlite3.connect(path)) as connection:
             self.assertEqual(AdvancedState._tables(connection), schema_module.TABLES)
             connection.execute("INSERT INTO options VALUES ('test_wake', ?, 1)", (UNKNOWN,))   # no CHECK on names
@@ -117,7 +129,7 @@ class FreeingTests(OptionsCase):
         state = self.state(self.definition())
         state.move("test_wake", ArmingState.SHADOW, actor=Actor.DASHBOARD, revision=1)
         state.close()
-        self.assertEqual(header(state.path), (7, MARKED_7, False))
+        self.assertEqual(header(state.path), OPENED)
 
     def test_it_is_done_once_and_never_on_a_free_table(self):
         """Opened again, a freed file - or a new one, free from the start - is left as it is: the step is not taken."""
@@ -151,8 +163,8 @@ class FreeingTests(OptionsCase):
         self.assertEqual(header(path), (7, 0, True))
         self.assertEqual(dump(path), before)
         self.opened()
-        self.assertEqual(header(path), (7, MARKED_7, False))
-        self.assertEqual(dump(path), before)
+        self.assertEqual(header(path), OPENED)
+        self.assertEqual(kept(path), before)
 
 
 class NameTests(OptionsCase):
@@ -366,7 +378,8 @@ class MarkTests(OptionsCase):
             self.assertEqual(schema_module.readable_from(connection, 9), 7)
 
 
-# Run with v0.6.16's own sources: its shipped registry, reading the file this version freed and marked. One of its
+# Run with the oldest reader's own sources (v0.6.16's until version 8): its shipped registry, reading the file this
+# version freed and marked. One of its
 # capabilities is armed there with a choice of its own; it reads both, refuses a name it does not know, and sets its
 # own choice into the free table.
 V0616 = """
@@ -395,7 +408,7 @@ state.close()
 print(json.dumps(out))
 """
 
-# v0.6.16's own sources again, reading the units this version wrote for two claims of one record at one reading of the
+# The oldest reader's own sources again, reading the units this version wrote for two claims of one record at one reading of the
 # clock - the second at the next float above the first (state/spend.claim_time) - and paying a unit of its own.
 V0616_SPEND = """
 import json, sys
@@ -421,32 +434,33 @@ print(json.dumps(out))
 
 
 class DowngradeTests(OptionsCase):
-    """Install another version back to v0.6.16 (version 7, which reads no mark and compares column names only)."""
+    """Install another version back to the oldest release that reads this version's file (OLDEST_READER, which reads
+    the mark and compares column names only) - v0.6.16 until version 8, whose file v0.6.16 refuses as newer."""
 
     def migrated(self):
         path = self.as_v0616_made_it(
             "INSERT INTO arming VALUES ('queue_for_open','armed',%r,'dashboard',NULL,1,NULL,NULL)" % self.now,
             "INSERT INTO options VALUES ('queue_for_open', 'days', 5)")
         self.opened()
-        self.assertEqual(header(path), (7, MARKED_7, False))
+        self.assertEqual(header(path), OPENED)
         return path
 
-    def v0616(self):
-        """v0.6.16's own sources, from its tag; skipped where the tag is not in the checkout."""
-        archive = subprocess.run(["git", "-C", str(ROOT), "archive", "--format=tar", "v0.6.16", "--",
+    def oldest(self):
+        """The oldest reader's own sources, from its tag; skipped where the tag is not in the checkout."""
+        archive = subprocess.run(["git", "-C", str(ROOT), "archive", "--format=tar", OLDEST_READER, "--",
                                   "src/codex_auto_resume", "advanced/src/codex_auto_resume_advanced"],
                                  capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         if archive.returncode != 0:
-            self.skipTest("the v0.6.16 tag is not in this checkout")
+            self.skipTest("the %s tag is not in this checkout" % OLDEST_READER)
         tree = tempfile.TemporaryDirectory()
         self.addCleanup(tree.cleanup)
         with tarfile.open(fileobj=io.BytesIO(archive.stdout)) as tar:
             tar.extractall(tree.name, filter="data")
         return Path(tree.name)
 
-    def run_v0616(self, script, *arguments) -> dict:
-        """`script` run by v0.6.16's own sources against this home, `arguments` after it: what it printed."""
-        tree = self.v0616()
+    def run_oldest(self, script, *arguments) -> dict:
+        """`script` run by the oldest reader's own sources against this home, `arguments` after it: what it printed."""
+        tree = self.oldest()
         ran = subprocess.run([sys.executable, "-I", "-c", script, str(self.home), *arguments, str(tree / "src"),
                               str(tree / "advanced" / "src")], capture_output=True, text=True, timeout=120,
                              env=dict(os.environ, CODEX_AR_EDITION="advanced"), cwd=tree,
@@ -454,9 +468,9 @@ class DowngradeTests(OptionsCase):
         self.assertEqual(ran.returncode, 0, ran.stderr)
         return json.loads(ran.stdout)
 
-    def test_v0616s_own_code_reads_the_units_of_two_claims_at_one_reading(self):
+    def test_the_oldest_readers_own_code_reads_the_units_of_two_claims_at_one_reading(self):
         """The second of two claims of one record at one reading of the clock writes its units at the next float
-        above the first's - no column for it, so v0.6.16 still reads the file as its own: it counts both units, finds
+        above the first's - no column for it, so the oldest reader reads the file as it is: it counts both units, finds
         both paid for that send of the record (within its SAME_CLAIM), and pays a unit of its own beside them."""
         from codex_auto_resume_advanced.registry import REGISTRY
         path = self.migrated()
@@ -473,18 +487,18 @@ class DowngradeTests(OptionsCase):
                 "SELECT at FROM spend WHERE interruption_id=? ORDER BY spend_id", (key,))]
         self.assertEqual(len(times), 2)
         self.assertLess(times[0], times[1], "the second claim's units stand apart from the first's")
-        found = self.run_v0616(V0616_SPEND, json.dumps({"now": self.now, "thread": ac.THREAD, "key": key,
+        found = self.run_oldest(V0616_SPEND, json.dumps({"now": self.now, "thread": ac.THREAD, "key": key,
                                                         "at": self.now}))
         self.assertNotIn("refused", found)
         self.assertEqual(found["spent"]["capability_day"], 2)
-        self.assertEqual(found["spent"]["global_hour"], 3, "v0.6.16 counts units: these two and test_wake's")
+        self.assertEqual(found["spent"]["global_hour"], 3, "it counts units: these two and test_wake's")
         self.assertEqual(found["payers"], {"queue_for_open": [times[1], times[0]]})
         self.assertEqual(found["after"], 3)
-        self.assertEqual(header(path), (7, MARKED_7, False))
+        self.assertEqual(header(path), OPENED)
 
-    def test_v0616s_own_code_reads_a_choice_set_back_to_its_default_as_the_default(self):
-        """This version takes the queue's `days=5` away when a person sets it back to its default; v0.6.16's own code
-        reads the default where there is no row, and the file is still version 7, marked."""
+    def test_the_oldest_readers_own_code_reads_a_choice_set_back_to_its_default_as_the_default(self):
+        """This version takes the queue's `days=5` away when a person sets it back to its default; the oldest reader's
+        own code reads the default where there is no row, and the file is still this version's, marked."""
         from codex_auto_resume_advanced.registry import REGISTRY
         path = self.migrated()
         default = REGISTRY.get("queue_for_open").option("days").default
@@ -496,18 +510,18 @@ class DowngradeTests(OptionsCase):
         with contextlib.closing(sqlite3.connect(path)) as connection:
             self.assertIsNone(connection.execute("SELECT 1 FROM options WHERE capability='queue_for_open' "
                                                  "AND choice='days'").fetchone())
-        found = self.run_v0616(V0616)
+        found = self.run_oldest(V0616)
         self.assertNotIn("refused", found)
         self.assertEqual(found["options"], {"days": default})
         self.assertEqual(found["unknown"], "option_invalid")
-        self.assertEqual(header(path), (7, MARKED_7, False))
+        self.assertEqual(header(path), OPENED)
 
-    def test_v0616s_own_code_reads_the_freed_file_with_its_features_on(self):
+    def test_the_oldest_readers_own_code_reads_the_freed_file_with_its_features_on(self):
         """Its features as they stood, its own choice read and set, a name it does not know refused by its code, and the
-        file still version 7, marked, every other row as it was. Fails with the version moved to 8: v0.6.16 refuses
-        the file as newer."""
+        file still this version's, marked readable from 7, every other row as it was. Fails with the mark moved past 7:
+        the oldest reader refuses the file as newer."""
         path = self.migrated()
-        tree = self.v0616()
+        tree = self.oldest()
         ran = subprocess.run([sys.executable, "-I", "-c", V0616, str(self.home), str(tree / "src"),
                               str(tree / "advanced" / "src")], capture_output=True, text=True, timeout=120,
                              env=dict(os.environ, CODEX_AR_EDITION="advanced"), cwd=tree,
@@ -518,9 +532,9 @@ class DowngradeTests(OptionsCase):
         self.assertEqual(found["arming"], {"queue_for_open": "armed"})
         self.assertEqual(found["options"], {"days": 5})
         self.assertEqual(found["unknown"], "option_invalid")
-        self.assertEqual(header(path), (7, MARKED_7, False))
+        self.assertEqual(header(path), OPENED)
         with contextlib.closing(sqlite3.connect(path)) as connection:
-            # Less the window switches v0.6.16 carries over for its own wrap-up and stop on opening (session._carry_windows).
+            # Less the window switches the oldest reader carries over for its own wrap-up and stop on opening (session._carry_windows).
             stored = {(row[0], row[1]): row[2] for row in connection.execute("SELECT * FROM options")
                       if row[1] not in schema_module.WINDOW_CHOICES}
         self.assertEqual(stored, {("test_wake", "attempts"): 3, ("test_wake", "keep_on"): 1,

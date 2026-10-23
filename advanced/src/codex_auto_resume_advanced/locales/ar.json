@@ -444,6 +444,8 @@
   "page.watchlog.answer.send_now": "الإرسال الآن",
   "page.watchlog.answer.sender": "الإرسال بطريقتها الخاصة",
   "page.watchlog.answer.silent": "بدء الدور بلا كلمات",
+  "page.watchlog.answer.supervise": "تشغيل المراقِب كعملية فرعية",
+  "page.watchlog.answer.restart": "تشغيل المراقِب مرة أخرى",
   "page.watchlog.answer.start_route": "بدء المراقِب بطريقتها الخاصة",
   "page.watchlog.answer.text": "كتابة كلماتها الخاصة",
   "page.watchlog.answer.tick": "التصرف بين نظرتين",

@@ -15,9 +15,10 @@ application directory to prefer.
 This file only locates and starts the existing watcher. It contains no detection,
 no scheduling and no submission logic.
 
-When the watcher it ran has ended, the installed edition's plug is asked what the launcher
-should do about it (P13, `_supervise`). The standard edition has nothing to say, and nothing
-a plug says is carried out yet, so the launcher returns what the watcher returned, as ever.
+Before it runs the watcher, and once the watcher it ran has ended, the installed edition's plug
+is asked what the launcher should do about it (P13, `_supervise`: SUPERVISE at the start, RESTART
+at the end, v0.6.19). The standard edition has nothing to say, and nothing a plug says is carried
+out yet, so the launcher runs the watcher and returns what it returned, as ever.
 """
 from __future__ import annotations
 
@@ -40,6 +41,8 @@ RELAUNCH_MARK = "CODEX_AUTO_RESUME_RELAUNCHED"
 # The marketplace names this product is published under. See resolve_plugin_root.
 OUR_MARKETPLACES = frozenset({"codex-auto-resume-windows"})
 EXIT_ERROR = 1
+# P13's two questions (v0.6.19): before the watcher runs, and once it ended.
+PHASE_START, PHASE_ENDED = "start", "ended"
 
 
 def codex_home() -> Path:
@@ -181,21 +184,26 @@ def main(argv=None) -> int:
     # registers `activate` through this same stable path, so a plugin update cannot leave
     # the button pointing at a version directory that no longer exists.
     command = [str(argument) for argument in (argv or [])] or ["run"]
+    if command == ["run"]:
+        _supervise(home, {"phase": PHASE_START})
     code = cli_main(["--home", str(home), "--quiet"] + command)
     if code == EXIT_SCHEMA_NEWER and command == ["run"]:
         _relaunch_once(here, command)
     elif command == ["run"]:
-        _supervise(home, code)
+        _supervise(home, {"phase": PHASE_ENDED, "exit_code": code})
     return code
 
 
-def _supervise(home: Path, code: int) -> None:
-    """P13: ask the installed edition's plug about a watcher that has ended with `code`.
+def _supervise(home: Path, facts) -> None:
+    """P13: ask the installed edition's plug about the watcher - `{"phase": "start"}` before it
+    runs, `{"phase": "ended", "exit_code": n}` once it ended, and then with `clean` too: whether its
+    heartbeat says it stopped on purpose (`_ended_cleanly`), read only for a plug that is not NULL.
 
-    Asked after the watcher's own run, in this process, and never about the relaunch above,
-    which is the one restart the launcher makes of itself. The launcher carries out nothing a
-    plug answers yet - a restart relaxes what it does today - so the answer is not read. An
-    engine from before editions has no plug to ask, and is the standard edition anyway.
+    Asked in this process, and never about the relaunch above, which is the one restart the
+    launcher makes of itself. The launcher carries out nothing a plug answers yet - a supervisor
+    and a restart relax what it does today (v0.6.19: SUPERVISE and RESTART are the words, the
+    supervisor's commit carries them out) - so the answer is not read. An engine from before
+    editions has no plug to ask, and is the standard edition anyway.
     """
     try:
         from codex_auto_resume import config, edition
@@ -203,9 +211,33 @@ def _supervise(home: Path, code: int) -> None:
     except ImportError:
         return
     try:
-        guard(edition.plug(config.Paths(home))).supervise({"exit_code": code})
+        plug = guard(edition.plug(config.Paths(home)))
+        if isinstance(facts, dict) and facts.get("phase") == PHASE_ENDED and not plug.null:
+            facts = dict(facts, clean=_ended_cleanly(config.Paths(home)))
+        plug.supervise(facts)
     except Exception:                               # noqa: BLE001 - supervision never fails a launch
         pass
+
+
+def _ended_cleanly(paths):
+    """Whether the watcher's heartbeat says it stopped on purpose - CLEAN or MEMORY_GUARD, as
+    control/watcher.how_it_ended reads it: True; False where it still says RUNNING; None where
+    there is no state, it cannot be read, or it says neither. Read on a connection of its own."""
+    try:
+        from codex_auto_resume.domain.vocabulary import WatcherEnd
+        from codex_auto_resume.store import Store
+        if not (Path(paths.state_dir) / "state.sqlite").is_file():
+            return None
+        store = Store(paths.state_dir, check=False)
+        try:
+            mark = (store.watcher_status() or {}).get("end_mark")
+        finally:
+            store.close()
+    except Exception:                               # noqa: BLE001 - a fact not known is None
+        return None
+    if mark in (WatcherEnd.CLEAN, WatcherEnd.MEMORY_GUARD):
+        return True
+    return False if mark == WatcherEnd.RUNNING else None
 
 
 def _relaunch_once(here: Path, command) -> None:

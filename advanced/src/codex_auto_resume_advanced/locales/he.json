@@ -444,6 +444,8 @@
   "page.watchlog.answer.send_now": "לשלוח עכשיו",
   "page.watchlog.answer.sender": "לשלוח בדרך משלה",
   "page.watchlog.answer.silent": "להתחיל את הסבב בלי מילים",
+  "page.watchlog.answer.supervise": "להריץ את תהליך הניטור כתהליך בן",
+  "page.watchlog.answer.restart": "להפעיל את תהליך הניטור מחדש",
   "page.watchlog.answer.start_route": "להפעיל את תהליך הניטור בדרך משלה",
   "page.watchlog.answer.text": "לכתוב מילים משלה",
   "page.watchlog.answer.tick": "לפעול בין שתי בדיקות",

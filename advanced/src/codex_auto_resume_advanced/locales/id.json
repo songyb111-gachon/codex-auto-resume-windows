@@ -444,6 +444,8 @@
   "page.watchlog.answer.send_now": "Mengirim sekarang",
   "page.watchlog.answer.sender": "Mengirim dengan caranya sendiri",
   "page.watchlog.answer.silent": "Memulai giliran tanpa kata",
+  "page.watchlog.answer.supervise": "Menjalankan pemantau sebagai proses anak",
+  "page.watchlog.answer.restart": "Memulai pemantau lagi",
   "page.watchlog.answer.start_route": "Memulai pemantau dengan caranya sendiri",
   "page.watchlog.answer.text": "Menulis kata-katanya sendiri",
   "page.watchlog.answer.tick": "Bertindak di antara dua pemeriksaan",

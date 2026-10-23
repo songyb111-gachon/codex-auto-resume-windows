@@ -444,6 +444,8 @@
   "page.watchlog.answer.send_now": "Надіслано зараз",
   "page.watchlog.answer.sender": "Надіслано по-своєму",
   "page.watchlog.answer.silent": "Розпочато хід без слів",
+  "page.watchlog.answer.supervise": "Запущено монітор як дочірній процес",
+  "page.watchlog.answer.restart": "Монітор запущено знову",
   "page.watchlog.answer.start_route": "Монітор запущено по-своєму",
   "page.watchlog.answer.text": "Написано власні слова",
   "page.watchlog.answer.tick": "Дія між перевірками",

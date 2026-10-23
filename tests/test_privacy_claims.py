@@ -40,6 +40,21 @@ NETWORKING = re.compile(
     r"ftplib|smtplib|poplib|imaplib|telnetlib|xmlrpc|webbrowser|asyncio\.streams)\b",
     re.MULTILINE)
 
+# The paths under advanced/src/ that may import a networking module, each a folder ending in "/" or one file - the one
+# place the advanced edition's network code is allowed (v0.6.19, plans/v0619-design/D-groundwork.md section 4). Empty
+# until a capability that reaches the network is built: its commit adds its folder here (the courier's,
+# advanced/src/codex_auto_resume_advanced/courier/) and changes docs/SECURITY.md and docs/PRIVACY.md with it. The
+# standard archive's scan - src/ and scripts/ - never gains an entry.
+ADVANCED_NETWORK_MODULES = frozenset()
+
+
+def network_allowed(relative: str) -> bool:
+    """Whether `relative` (a repository path with forward slashes) is one ADVANCED_NETWORK_MODULES allows."""
+    return relative.startswith("advanced/src/") and any(
+        relative == allowed or (allowed.endswith("/") and relative.startswith(allowed))
+        for allowed in ADVANCED_NETWORK_MODULES)
+
+
 # The PowerShell verbs that would reach the network - and the .NET request the bootstrap's streamed download makes.
 PS_NETWORK = re.compile(
     r"Invoke-WebRequest|Invoke-RestMethod|System\.Net\.WebClient|DownloadFile|"
@@ -124,7 +139,7 @@ class CodePropertyTests(unittest.TestCase):
         installed, which is not this product's code (test_only_the_report_starts_gh_and_only_for_github_com)."""
         offenders = []
         for path in tracked("src/*") + tracked("scripts/*.py") + tracked("advanced/src/*"):
-            if path.suffix != ".py":
+            if path.suffix != ".py" or network_allowed(str(path.relative_to(ROOT)).replace("\\", "/")):
                 continue
             for match in NETWORKING.finditer(path.read_text(encoding="utf-8")):
                 offenders.append("%s: %s" % (path.relative_to(ROOT), match.group().strip()))
@@ -141,8 +156,9 @@ class CodePropertyTests(unittest.TestCase):
                 text = path.read_text(encoding="utf-8")
             except (UnicodeDecodeError, OSError):
                 continue
-            if PS_NETWORK.search(text):
-                reaching.add(str(path.relative_to(ROOT)).replace("\\", "/"))
+            relative = str(path.relative_to(ROOT)).replace("\\", "/")
+            if PS_NETWORK.search(text) and not network_allowed(relative):
+                reaching.add(relative)
         self.assertEqual(reaching, {"scripts/bootstrap.ps1"},
                          "the set of files that reach the network has changed")
 

@@ -1,6 +1,6 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
 """Where a conversation came from, and the kind of the newest event its rollout holds, read-only (v0.6.16-beta.4) -
-for the measurements MO and MC2 alone, never what either says.
+for the measurements MO and MC2 alone, never what either says - and (v0.6.19) where its rollout is, for MTOK.
 
 MO records which source, originator and holder a terminal's TUI and VS Code's conversations have, so the words the
 edition takes them by (core's codex/eligibility.py) are measured rather than guessed: `origin` reads the
@@ -67,6 +67,12 @@ class Origins:
         if not path.is_relative_to(sessions) or path.suffix != ".jsonl" or thread_id not in path.name:
             return None
         return path
+
+    def rollout(self, thread_id):
+        """The conversation's rollout, where it is its own .jsonl file inside the sessions folder - else None (MTOK,
+        v0.6.19). The path is the reader's to open, never to keep."""
+        row = self._row(thread_id)
+        return self._rollout(thread_id, row.get("rollout_path")) if row is not None else None
 
     def origin(self, thread_id):
         """(the `threads` row's source, thread source and history mode, the first line's originator, source and

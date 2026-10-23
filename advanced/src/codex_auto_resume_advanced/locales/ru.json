@@ -444,6 +444,8 @@
   "page.watchlog.answer.send_now": "Отправить сейчас",
   "page.watchlog.answer.sender": "Отправить по-своему",
   "page.watchlog.answer.silent": "Начат ход без слов",
+  "page.watchlog.answer.supervise": "Запустить монитор как дочерний процесс",
+  "page.watchlog.answer.restart": "Запустить монитор снова",
   "page.watchlog.answer.start_route": "Запустить монитор по-своему",
   "page.watchlog.answer.text": "Написать свои слова",
   "page.watchlog.answer.tick": "Действовать между проверками",

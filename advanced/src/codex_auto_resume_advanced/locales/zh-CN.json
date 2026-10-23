@@ -444,6 +444,8 @@
   "page.watchlog.answer.send_now": "立即发送",
   "page.watchlog.answer.sender": "用它自己的方式发送",
   "page.watchlog.answer.silent": "以无文字的方式开始了回合",
+  "page.watchlog.answer.supervise": "将监视程序作为子进程运行",
+  "page.watchlog.answer.restart": "再次启动监视程序",
   "page.watchlog.answer.start_route": "用它自己的方式启动监视程序",
   "page.watchlog.answer.text": "写下它自己的文字",
   "page.watchlog.answer.tick": "在两次查看之间行动",

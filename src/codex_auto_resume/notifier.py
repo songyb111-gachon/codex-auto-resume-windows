@@ -45,8 +45,9 @@ import collections
 from dataclasses import dataclass, replace
 import re
 import threading
+import time
 
-from . import demo, l10n, notice_kinds, notice_presence, notify, reasons, settings
+from . import demo, failures, l10n, notice_kinds, notice_presence, notify, reasons, settings
 
 # The setting that turns the card off (settings.py, the "windows" group, default on).
 CARD_SETTING = "notification_card"
@@ -462,6 +463,33 @@ class Inbox:
 def _presence() -> dict:
     """What Windows says now, asked about the identity the toast is raised under."""
     return notice_presence.snapshot(notify.aumid())
+
+
+def told(notice, detail, opened=None, at=None) -> dict:
+    """What the edition's plug is told of `notice` at P20 (v0.6.19): its kind; its failure category, where it has one
+    (an interruption's, usage_limit when it names none, as `build` reads it), else None; its record's 1-based place in
+    Pending as core lists it (store.pending, oldest first) - read from `opened()`, a store of its own closed after, and
+    only for a notice about one record - else None; and when. Closed words and numbers only: never a label, an id, a
+    path or a word of the notice."""
+    detail = detail if isinstance(detail, dict) else {}
+    category = detail.get("category") or ("usage_limit" if notice.kind == "interruption" else None)
+    key, thread = detail.get("interruption_id"), detail.get("thread_id")
+    index = None
+    if opened is not None and (key or thread):
+        try:
+            store = opened()
+            try:
+                pending = store.pending()
+            finally:
+                store.close()
+            for place, record in enumerate(pending, start=1):
+                if (record.get("interruption_id") == key) if key else (record.get("thread_id") == thread):
+                    index = place
+                    break
+        except Exception:
+            index = None
+    return {"kind": notice.kind, "category": category if category in failures.CATEGORIES else None,
+            "alias_index": index, "at": time.time() if at is None else at}
 
 
 def deliver(notice, *, inbox=None, setting=True, probe=None, show=None):
