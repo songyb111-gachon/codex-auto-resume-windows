@@ -45,6 +45,7 @@ from codex_auto_resume.domain.plug import DEFER, Alternative
 from .registry import CORE_COOLDOWN_SECONDS, CORE_DAILY_CAP
 from .control.sendnow import fresh
 from .state import ATTACHED
+from .state.records import not_among, own_paced
 from .vocabulary import ArmingState, Ceiling, KeepOn, OverrideKind, RecordState, RuleState
 
 DAY = 86400
@@ -62,13 +63,15 @@ def ceiling_reached(counts, definition, global_hourly):
     return None
 
 
-def held_by_records(connection, thread_id, now) -> bool:
-    """Whether this edition's records on `thread_id` hold a claim core's own rows allow."""
+def held_by_records(connection, thread_id, now, own=()) -> bool:
+    """Whether this edition's records on `thread_id` hold a claim core's own rows allow. One of `own` - a capability
+    with a pace of its own (state/records.own_paced, v0.6.19: the chat) - holds it only while in flight."""
     row = connection.execute(
         "SELECT coalesce(sum(state=?), 0), "
-        "coalesce(sum(CASE WHEN claimed_at > ? THEN max(claims, 1) ELSE 0 END), 0), "
-        "max(claimed_at) FROM %s.records WHERE thread_id=?" % ATTACHED,
-        (RecordState.IN_FLIGHT, now - DAY, thread_id)).fetchone()
+        "coalesce(sum(CASE WHEN claimed_at > ? AND %s THEN max(claims, 1) ELSE 0 END), 0), "
+        "max(CASE WHEN %s THEN claimed_at END) FROM %s.records WHERE thread_id=?"
+        % (not_among(own), not_among(own), ATTACHED),
+        (RecordState.IN_FLIGHT, now - DAY, *own, *own, thread_id)).fetchone()
     in_flight, recent, last = row[0], row[1], row[2]
     if in_flight:
         return True
@@ -99,7 +102,7 @@ class ClaimLedger:
             # taken cannot be paid for without one, and is not sent.
             return Alternative.HOLD if acted else DEFER
         thread_id, key = record.get("thread_id"), record.get("interruption_id")
-        if held_by_records(connection, thread_id, now):
+        if held_by_records(connection, thread_id, now, own_paced(self.registry)):
             return Alternative.HOLD
         if not acted:
             return DEFER
