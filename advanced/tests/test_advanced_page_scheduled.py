@@ -121,6 +121,14 @@ class PageTests(PageCase):
         self.assertEqual(scheduled["scheduled"]["chosen"], "scheduled")
         self.assertEqual(back["scheduled"]["chosen"], "recoveries")
 
+    def test_the_tab_shown_is_drawn_pressed_from_the_strips_first_appearance(self):
+        """Fails with the first marking reverted: the strip first appears with neither tab pressed (seen in the
+        pictures of 2026-10-24, "복구 | 예약됨 (4)" with Recoveries shown but plain)."""
+        result, _expected = self.of("scenario_tabs")
+        opened, scheduled, _chosen, _saved, _cleared, back = result["looks"]
+        self.assertEqual([look["scheduled"]["pressed"] for look in (opened, scheduled, back)],
+                         ["recoveries", "scheduled", "recoveries"])
+
     def test_scheduled_lists_each_message_with_its_send_mode_and_no_words(self):
         result, expected = self.of("scenario_tabs")
         words = expected["words"]

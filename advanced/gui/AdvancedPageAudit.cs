@@ -904,6 +904,9 @@ namespace CodexAutoResume
             var scheduled = new Dictionary<string, object>();
             scheduled["tabs_shown"] = scheduleTabs != null && OwnVisible(scheduleTabs);
             scheduled["chosen"] = scheduleChosen ? "scheduled" : "recoveries";
+            // and which tab is drawn pressed (NavButton.Current), which has to be the chosen one from the first paint.
+            scheduled["pressed"] = scheduleTabs == null ? null : recoveriesTab.Current ? "recoveries"
+                                   : scheduledTab.Current ? "scheduled" : null;
             var tabs = new List<object>();
             if (scheduleTabs != null)
             {

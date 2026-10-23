@@ -81,6 +81,8 @@ namespace CodexAutoResume
             scheduleTabs.Controls.Add(recoveriesTab);
             scheduleTabs.Controls.Add(scheduledTab);
             scheduleTabs.Visible = false;
+            // The chosen tab pressed from the strip's first paint: Recoveries, the view shown, until a tab is chosen.
+            MarkScheduleTabs();
             page.Controls.Add(scheduleTabs);
 
             BuildScheduleView();
@@ -190,13 +192,7 @@ namespace CodexAutoResume
             {
                 recoveriesView.Visible = !scheduleChosen;
                 scheduleView.Visible = scheduleChosen;
-                foreach (NavButton tab in new[] { recoveriesTab, scheduledTab })
-                {
-                    bool current = (tab == scheduledTab) == scheduleChosen;
-                    tab.ForeColor = current ? Ink : Secondary;
-                    tab.Font = Soft.RoleFont(current ? "nav_current" : "nav");
-                    tab.Current = current;
-                }
+                MarkScheduleTabs();
             }
             finally
             {
@@ -204,6 +200,19 @@ namespace CodexAutoResume
             }
             if (scheduleChosen && !auditing && advancedScript == null && advancedListing != null) ReadResets(null);
             UpdateScheduleButtons();
+        }
+
+        /// The tab of the view shown pressed into its well, its name in the accent and heavier, as the nav strip marks its
+        /// chosen page; the other plain.
+        private void MarkScheduleTabs()
+        {
+            foreach (NavButton tab in new[] { recoveriesTab, scheduledTab })
+            {
+                bool current = (tab == scheduledTab) == scheduleChosen;
+                tab.ForeColor = current ? Ink : Secondary;
+                tab.Font = Soft.RoleFont(current ? "nav_current" : "nav");
+                tab.Current = current;
+            }
         }
 
         /// The list read: the queued messages read once where the prompt queue stands and they were not yet, else the tabs
