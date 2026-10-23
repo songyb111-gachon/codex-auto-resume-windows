@@ -42,7 +42,7 @@ from .domain.public import (ACTORS, EVENT_CODES, FLAG_AFTER_USER_WORK, FLAG_LEGA
                             PUBLIC_CODES, REASONS, RELEASABLE_WITHDRAWALS, SESSION_WITHDRAWALS, SUPERSEDE_WITHDRAWALS,
                             UNDETERMINED_WAITS,
                             TURN_STATUSES, WAITING_CODES, WITHDRAW_REASONS, actor_code, describe,
-                            eligible_at, event_code, hold_for_tier, overlays, own_postponement,
+                            eligible_at, event_code, hold_for_tier, is_uuid, overlays, own_postponement,
                             public_code, public_reason, reason_code,
                             turn_status)
 from .domain.states import (CLAIMED, EPOCH_CODEX, EPOCH_STORE, EPOCH_USAGE, EXHAUSTED,
@@ -62,7 +62,7 @@ __all__ = ["ACTORS", "BLOCK", "CLAIMED", "EPOCH_CODEX", "EPOCH_STORE", "EPOCH_US
            "WAITING_CODES", "WATCHED",
            "WITHDRAW_REASONS", "actor_code", "birth_stop", "counted_from", "decode_gates", "describe", "eligible_at",
            "encode_gates", "epoch", "event_code", "first_refusal", "gate", "gate_budgets",
-           "gate_consent", "gate_schedule", "gate_submission_safe", "hold_for_tier", "inherited",
+           "gate_consent", "gate_schedule", "gate_submission_safe", "hold_for_tier", "inherited", "is_uuid",
            "may_be_queued",
            "over_ceiling", "overlays", "own_budget_only", "own_postponement",
            "plain_move_allowed", "public_code", "public_reason", "reason_code", "resend_candidate",
