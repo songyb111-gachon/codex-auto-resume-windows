@@ -742,6 +742,39 @@ chance that a conversation will be opened). It keeps A17, H4 and H6: every withd
 0.163.0-alpha.10.2`; on any other version, a warning. **MQO and MQG: passed** there too (MQO is described
 under Marker-free continuation).
 
+### Open a waiting conversation in Codex
+
+**Not offered yet.** It is built and waits, hidden, until a measurement (MOPEN) shows on the Codex you have that
+opening a conversation through its link loads it; until then no row, statement or switch of it is shown.
+
+**What it does.** When a recovery or a scheduled message is due and waits only because the Codex app does not have
+its conversation open, it opens that exact conversation once, through Codex's own link (`codex://threads/<id>`,
+the one Open Codex on a notice uses), and the next ordinary check finds it loaded and sends as always - opening is
+never taken as proof of loading. It opens only where the app is known not to hold the conversation, never where
+that is unknown; only while this PC has been idle for the minutes you choose (2, 5 or 15; 5 by default - opening
+brings Codex to the front); only while a handler for `codex:` links is registered; and only while Codex is running,
+unless **Also start Codex when it is closed** is on (off by default). A Pause, Observe only and quiet hours hold
+it. Beside Queue for when a conversation is opened, the opening delivers what that queued - nothing is sent twice;
+a conversation another session holds is never opened.
+
+**When it helps.** When you are away and the only thing between a recovery or a scheduled message and Codex is that
+nobody opened the conversation.
+
+**What it risks.** Codex comes to the front when it opens a conversation - which is why it waits until the PC is
+idle. If opening does not load the conversation, nothing is sent; it tries again later, three times for one
+message at most.
+
+**Departs from** [0.5](STANDARDS.md#0-the-edition-boundary) (it wakes a conversation the app does not hold, through
+the app's own link), [B16](STANDARDS.md#b-what-it-reads-and-how) (it asks Windows when this PC was last used - a time,
+nothing of what was typed - and reads whether the `codex:` handler is registered),
+[C4](STANDARDS.md#c-network) (it acts on its own) and [F6](STANDARDS.md#f-footprint-on-the-machine) (Windows opens
+the link). It keeps B13 - it simulates no input and drives no window - and A11: nothing is sent until the ordinary
+check finds the conversation loaded.
+
+**Ceilings.** Ten minutes between any two opens, an hour between two of one conversation, three for one message and
+twelve a day - kept on disk, so they hold after a restart. **Measurement MOPEN: not made yet** - hidden until it
+passes.
+
 ### Run a conversation here while Codex is closed
 
 **What it does.** When a recovery is due in a conversation that nothing has open - the Codex app is closed
@@ -859,17 +892,34 @@ read from the content of a conversation's items).
 
 ### Queue messages for later
 
-**What it does.** You queue messages of your own for one conversation on the page: to go after the turn now
-running, at a time you pick, or every day or week from a time - 30 times and 30 days at most. They go in the
-order you queued them, each once, exactly as you wrote them, and one can wait for the one before it to
-arrive. They are paced like every recovery: fifteen minutes apart and five a day in one conversation. Pending
-lists each under **Scheduled**, with Cancel - its words are never shown there. Codex's own automations are
-the official way to schedule work; these wait for usage and go to one exact conversation.
+**What it does.** You queue messages of your own for one conversation: to go after the turn now running, at a
+time you pick, or every day or week from a time - 30 times and 30 days at most. They go in the order you queued
+them, each once, exactly as you wrote them, and one can wait for the one before it to arrive. For a message at a
+time or on a schedule you choose what it does while a turn is running in that conversation: **Wait until it ends**
+(recommended, and what a new message does unless you choose otherwise) or **Add it to Codex's queue now**, for
+Codex to run after that turn; a message queued before this choice existed goes into Codex's queue, as every message
+did. They are paced like every recovery: fifteen minutes apart and five a day in one conversation. Codex's own
+automations are the official way to schedule work; these wait for usage and go to one exact conversation.
+
+Messages are written and changed in one place: Pending's **Scheduled** tab, beside **Recoveries** (today's Pending,
+as it was). The tab strip is there while this is on or anything is scheduled. Scheduled lists every message still
+to go and every reset rule still to act - the conversation, where it stands, when it goes and what it does while a
+turn runs, never its words - with **Schedule a message...**, **Edit...** for a message still waiting, **Cancel** and
+**Go on**. The editor shows the words larger than the rest of the window, marks the recommended mode and chooses it
+for a new message, and has **Save and return**: saved, it closes and the saved row is chosen; refused, every field
+stays as you typed it and the reason is said above the buttons. An edit reaches only a message still waiting, and
+is refused if anything changed since the list was read. Under the list, the **Done** section lists the messages of
+the last 30 days that were delivered, with **Delete completed (N)...**: it asks first, deletes only the completed
+messages it shows that are unchanged since, says how many it deleted and how many it kept because they changed, and
+never touches a waiting, held, cancelled or failed message, the recovery history or anything of Codex's. The
+Advanced features page's card for this capability keeps its switch and limits and points to the tab.
 
 **When it helps.** When you want the next instruction to be there as soon as Codex can take it.
 
 **What it risks.** A queued message can go when you no longer want it: cancel it. One Codex already holds
-is taken back out of its queue; if Codex will not give it back, its row says so and it is never sent again.
+is taken back out of its queue; if Codex will not give it back, its row says so and it is never sent again. One
+added to Codex's queue while a turn runs waits there - Codex decides when it runs it; one that waits for a running
+turn keeps waiting while whether a turn is running cannot be read. Both still pass every check a message passes.
 Your words are kept in the advanced edition's state until each has arrived, been cancelled or ended -
 while Codex holds one, so that Go on after a Pause can send it again - and then deleted.
 
@@ -882,7 +932,8 @@ on or cancel) and [H6](STANDARDS.md#h-user-control) (Cancel no longer reaches a 
 A20.
 
 **Ceilings.** 30 a day, and core's 5 in any one conversation. **Measurement MT: not made yet** - "after this
-turn" says it is unproven until it is.
+turn" says it is unproven until it is. Its statement is at revision 2 since the send mode (v0.6.19): if it was on,
+you read the new statement once and turn it on again.
 
 ### Chat with a conversation in the Dashboard
 

@@ -210,6 +210,20 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "refused.option_order", "warn.stop_before_words"))
 # v0.6.19 (wake_for_reset): its one choice's label, how many minutes before a reset the PC is woken.
 PAGE_KEYS = PAGE_KEYS + (PAGE_PREFIX + "option.wake_lead_minutes",)
+# open_to_send's two choices (v0.6.19, #50): how long the PC has been idle first, and Also start Codex (a switch).
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in ("option.open_idle_minutes", "option.open_start_codex"))
+# The prompt queue's editor (v0.6.19, #50: advanced/gui/AdvancedEditor.cs): Schedule a message..., Edit..., the dialog's
+# titles, its send mode, Save and return, and what it says.
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
+    "scheduled.add", "queue.edit", "editor.title_new", "editor.title_edit",
+    "editor.mode", "editor.mode.wait", "editor.mode.queue", "editor.mode.after_turn", "editor.save", "done.prompt_saved",
+    "refused.prompt_moved"))
+# Pending's Recoveries | Scheduled tabs (v0.6.19, #50: advanced/gui/AdvancedSchedule.cs): the tabs, the list's columns, the
+# Done section and Delete completed, what a row says of a message, and the prompt queue's card pointing there.
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
+    "pending.recoveries", "pending.scheduled", "scheduled.col_mode", "scheduled.col_finished", "scheduled.done",
+    "scheduled.clear", "confirm.clear", "done.cleared", "done.cleared_kept", "scheduled.state.delivered",
+    "scheduled.state.handed_over", "scheduled.mode.wait", "scheduled.mode.queue", "queue.moved", "queue.go"))
 # The edition's own continuations' words (v0.6.15-beta): what empty_response, subagent_parent and keep_going send -
 # fixed, each passing core's continuation.validate_continuation in every language (nothing is filled in but, for a
 # subagent's line, its id and a closed kind word).

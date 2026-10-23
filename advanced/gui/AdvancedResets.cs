@@ -14,10 +14,9 @@
 // generation the list was read at, and the card is read again after each. What is being written is kept while the
 // card is built again, and the keyboard goes back to where it was.
 //
-// On Pending (PendingBuilt), a group under the list, shown only while something is scheduled: one flat line for each
-// rule still to act, with Cancel - and Go on counting for one held over a gap - so a message waiting for a reset is seen
-// beside the recoveries waiting for theirs.
-// It is read when the status's counts of them change (surfaces.status).
+// On Pending, each rule still to act is a row of the Scheduled tab (AdvancedSchedule.cs, v0.6.19), with Cancel - and Go
+// on counting for one held over a gap - so a message waiting for a reset is seen beside the recoveries waiting for theirs.
+// The rules are read when the status's counts of them change (surfaces.status).
 //
 // Nothing here draws anything the page does not draw already: the cards, captions, help lines, rows, drop-downs, text
 // box and buttons are the Settings page's.
@@ -51,15 +50,6 @@ namespace CodexAutoResume
         private readonly List<Button> creditNowButtons = new List<Button>();
         // What is being written in each form ("credit.family", "message.words", ...), kept while its card is built again.
         private readonly Dictionary<string, string> resetDrafts = new Dictionary<string, string>();
-        // Pending's group of what is scheduled, its card, its Cancel and Go on counting buttons, and what it was last
-        // filled from.
-        private Panel scheduledPage;
-        private SoftStack scheduledHolder;
-        private TableLayoutPanel scheduledCard, scheduledLines;
-        private SoftPage scheduledScroll;
-        private readonly List<Button> scheduledCancels = new List<Button>();
-        private readonly List<Button> scheduledGoOns = new List<Button>();
-        private string scheduledShown;
 
         private static bool IsResets(string id)
         {
@@ -538,8 +528,8 @@ namespace CodexAutoResume
             foreach (Button button in creditNowButtons) button.Enabled = listed;
             foreach (Button button in resetCancels) button.Enabled = listed;
             foreach (Button button in resetGoOns) button.Enabled = listed;
-            foreach (Button button in scheduledCancels) button.Enabled = idle && advancedListing != null;
-            foreach (Button button in scheduledGoOns) button.Enabled = idle && advancedListing != null;
+            // v0.6.19 (#50): and Pending's Scheduled tab (AdvancedSchedule.cs).
+            UpdateScheduleButtons();
         }
 
         /// Which of the form's boxes or drop-downs has the keyboard, or null.
@@ -676,6 +666,8 @@ namespace CodexAutoResume
         private void ResetNote(string text)
         {
             if (advancedNote != null) SetNote(advancedNote, text);
+            // v0.6.19 (#50): and beside Pending's Scheduled buttons, where they were pressed.
+            if (scheduledNote != null) SetNote(scheduledNote, text);
         }
 
         /// A refusal of a reset action in words; one of every page's as the page says it.
@@ -695,121 +687,6 @@ namespace CodexAutoResume
                 return Word("page.refused.conversation_off", "That conversation is switched off, so no message can wait for it. Switch it on first.");
             if (refusal == "not_on") return Word("page.refused.not_on", "Turn it on first.");
             return KeptRefusal(refusal);
-        }
-
-        // ---------------------------------------------------------------- Pending's scheduled group
-        /// Pending's group of what is scheduled, under its list and above its buttons (PendingBuilt), hidden while
-        /// nothing is.
-        partial void PendingBuilt(Panel page)
-        {
-            scheduledPage = page;
-            scheduledHolder = new SoftStack();
-            scheduledHolder.ColumnCount = 1;
-            scheduledHolder.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-            scheduledHolder.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-            scheduledHolder.Dock = DockStyle.Bottom;
-            scheduledHolder.Margin = new Padding(0);
-            // The page's gap between the list's card and this one: docking keeps no margin.
-            scheduledHolder.Padding = Pad(0, Brand.PageGap, 0, 0);
-            scheduledHolder.Visible = false;
-            // As the explanation beside the list is: its lines scroll inside it, on the soft bar, below its heading, so
-            // however many wait the list keeps most of the page and the page itself never scrolls.
-            scheduledCard = MakeCard(Word("page.scheduled", "Scheduled"));
-            scheduledCard.Dock = DockStyle.Fill;
-            scheduledCard.AutoSize = false;
-            scheduledCard.Margin = new Padding(0);
-            scheduledScroll = new SoftPage();
-            scheduledScroll.BackColor = Card;
-            scheduledScroll.Dock = DockStyle.Fill;
-            scheduledScroll.Margin = new Padding(0);
-            scheduledScroll.Padding = Pad(0, 0, 6, 0);
-            scheduledLines = new TableLayoutPanel();
-            scheduledLines.ColumnCount = 1;
-            scheduledLines.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-            scheduledLines.GrowStyle = TableLayoutPanelGrowStyle.AddRows;
-            scheduledLines.AutoSize = true;
-            scheduledLines.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            scheduledLines.Dock = DockStyle.Top;
-            scheduledLines.BackColor = Card;
-            scheduledLines.Margin = new Padding(0);
-            scheduledLines.Padding = new Padding(0);
-            scheduledScroll.Controls.Add(scheduledLines);
-            scheduledScroll.Scrolls = true;
-            scheduledCard.Controls.Add(scheduledScroll);
-            scheduledCard.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            scheduledCard.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-            scheduledHolder.Controls.Add(scheduledCard);
-            page.Controls.Add(scheduledHolder);
-            page.SizeChanged += delegate { FitScheduled(); };
-            scheduledShown = null;
-            FillScheduled();
-        }
-
-        /// The group as tall as its lines need, and never more than two fifths of the page.
-        private void FitScheduled()
-        {
-            if (scheduledHolder == null || scheduledHolder.IsDisposed || scheduledPage == null) return;
-            int width = Math.Max(Px(120), scheduledPage.ClientSize.Width - scheduledPage.Padding.Horizontal -
-                                          scheduledCard.Padding.Horizontal - scheduledScroll.Padding.Horizontal);
-            Control heading = scheduledCard.Controls[0];
-            int needed = scheduledHolder.Padding.Vertical + scheduledCard.Padding.Vertical + heading.Height +
-                         heading.Margin.Vertical + scheduledLines.GetPreferredSize(new System.Drawing.Size(width, 0)).Height;
-            int most = Math.Max(Px(120), (scheduledPage.ClientSize.Height - scheduledPage.Padding.Vertical) * 2 / 5);
-            int height = Math.Min(needed, most);
-            if (scheduledHolder.Height != height) scheduledHolder.Height = height;
-        }
-
-        /// Each rule still to act, a flat line with its Cancel - and Go on counting, held - as the last advanced-resets
-        /// read held them.
-        private void FillScheduled()
-        {
-            if (scheduledCard == null || scheduledCard.IsDisposed) return;
-            List<object> rules = ResetRules(null, true);
-            string heading = Word("page.scheduled", "Scheduled");
-            string shown = heading + "|" + AdvancedWritten(rules) + "|" + AdvancedWritten(PendingPrompts()) + "|" +
-                           AdvancedWritten(ConversationsWritten());
-            if (shown == scheduledShown)
-            {
-                UpdateResetButtons(busy == 0);
-                return;
-            }
-            scheduledShown = shown;
-            scheduledLines.SuspendLayout();
-            scheduledCard.Controls[0].Text = heading;
-            var old = new List<Control>();
-            foreach (Control control in scheduledLines.Controls) old.Add(control);
-            scheduledLines.Controls.Clear();
-            scheduledLines.RowStyles.Clear();
-            foreach (Control control in old) control.Dispose();
-            scheduledCancels.Clear();
-            scheduledGoOns.Clear();
-            foreach (object entry in rules)
-            {
-                var rule = (Dictionary<string, object>)entry;
-                int ruleId = Whole(Get(rule, "rule_id"));
-                string text = RuleLine(rule);
-                Label line = HelpText(text);
-                line.ForeColor = Ink;
-                line.Margin = Pad(0, 4, 0, 2);
-                scheduledLines.Controls.Add(line);
-                if (Str(rule, "state") == "held")
-                {
-                    Button goOn = CardButton(scheduledLines, Word("page.resets.go_on", "Go on counting"), delegate { GoOnReset(ruleId); });
-                    goOn.Tag = (double)ruleId;
-                    goOn.AccessibleName = Word("page.resets.go_on", "Go on counting") + " " + text;
-                    scheduledGoOns.Add(goOn);
-                }
-                if (Equals(Get(rule, "being_sent"), true)) continue;
-                Button cancel = CardButton(scheduledLines, Word("page.resets.cancel", "Cancel"), delegate { CancelReset(ruleId); });
-                cancel.Tag = (double)ruleId;
-                cancel.AccessibleName = Word("page.resets.cancel", "Cancel") + " " + text;
-                scheduledCancels.Add(cancel);
-            }
-            int prompts = AddScheduledPrompts(scheduledLines);
-            scheduledLines.ResumeLayout(true);
-            if (scheduledHolder != null) scheduledHolder.Visible = rules.Count + prompts > 0;
-            FitScheduled();
-            UpdateResetButtons(busy == 0);
         }
     }
 }

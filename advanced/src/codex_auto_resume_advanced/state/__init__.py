@@ -20,6 +20,7 @@ it at all: a secret goes to Windows Credential Manager (credentials.py).
     runs      a turn run here (v0.6.16-beta.4)
     chat      the Dashboard's chat messages (v0.6.16-beta.4)
     restarts  the watcher's restarts after it stopped unexpectedly (v0.6.19, crash_restart)
+    opens     the conversations opened in Codex for a waiting message to be sent (v0.6.19, #50)
 """
 from __future__ import annotations
 
@@ -28,6 +29,7 @@ from .arming import ArmingMixin
 from .choices import ChoicesMixin, Refused, Scoped  # noqa: F401
 from .continuations import ContinuationsMixin
 from .meter import MeterMixin
+from .opens import OpensMixin
 from .journal import EVENT_LIMIT, EVENT_MAX_AGE, WATCH_LIMIT, JournalMixin  # noqa: F401
 from .prompts import PromptMovesMixin, PromptsMixin
 from .records import RecordsMixin
@@ -42,7 +44,7 @@ from .spend import SpendMixin
 
 class AdvancedState(SessionMixin, ArmingMixin, SpendMixin, RecordsMixin, JournalMixin, ChoicesMixin,
                     ResetsMixin, ContinuationsMixin, PromptsMixin, PromptMovesMixin, MeterMixin, RunsMixin,
-                    ChatMixin, RestartsMixin):
+                    ChatMixin, RestartsMixin, OpensMixin):
     """One installation's advanced state, for one process: opened when first needed."""
 
     def __init__(self, paths, *, registry=REGISTRY, **options):

@@ -1091,7 +1091,8 @@ class Runtime:
             if moved is None:
                 # or a queued prompt's occurrence (state/prompts.py).
                 moved = self.state.prompt_moved(record.get("record_id"), move, at=self.clock(),
-                                                queue_id=record.get("queue_id"))
+                                                queue_id=record.get("queue_id"), gate=record.get("gate"),
+                                                reason=record.get("reason"))
             if moved is None:
                 # or (v0.6.19) a chat message (state/chat.py).
                 moved = self.state.chat_moved(record.get("record_id"), move, reason=record.get("reason"),

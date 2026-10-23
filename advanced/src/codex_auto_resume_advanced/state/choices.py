@@ -214,6 +214,7 @@ class Scoped:
         from .meter import MeterHandle
         from .runs import RunsHandle
         from .chat import ChatHandle
+        from .opens import OpensHandle
         from .prompts import PromptsHandle
         from .resets import ResetsHandle
         from .restarts import RestartsHandle
@@ -232,6 +233,8 @@ class Scoped:
             "restarts": RestartsHandle(state, capability, on),
             # v0.6.19: codex_chat's messages (state/chat.py).
             "chat": ChatHandle(state, capability, on),
+            # v0.6.19 (#50): open_to_send's opens (state/opens.py).
+            "opens": OpensHandle(state, capability, on),
             "passed": lambda measurement: verdict is not None and verdict(measurement) == "pass",
             "failed": lambda measurement: verdict is not None and verdict(measurement) == "fail",
             "armed": lambda other: armed is not None and armed(other) is True,

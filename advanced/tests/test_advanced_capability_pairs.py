@@ -821,5 +821,70 @@ class ChatBesideCrashRestartTests(_ChatPair):
         self.assertEqual(again.runtime.state.chat_by_record(key)["reason"], ChatReason.DELIVERED)
 
 
+# ---------------------------------------------------------------- open_to_send (v0.6.19, issue #50)
+from test_advanced_open_target import OpenCase  # noqa: E402
+from codex_auto_resume_advanced.registry import OPEN_TO_SEND  # noqa: E402,F401
+from codex_auto_resume_advanced.engine import opentarget  # noqa: E402
+
+
+class OpenToSendBesideQueueForOpenTests(OpenCase):
+    """COMPOSE (memory capabilities-compose): queue_for_open queues the continuation for when the conversation is opened,
+    and open_to_send opens it - the open is the trigger, as M1 and MQO measured, so the one queued item is all that is
+    ever sent for it."""
+    BESIDE = (QUEUE_FOR_OPEN,)
+
+    def test_opening_delivers_what_queue_for_opening_queued_and_nothing_is_sent_twice(self):
+        self.armed()
+        self.ready_after_reset(loaded=False)
+        self.h.backend.loaded_map[T1] = "notLoaded"
+        self.h.backend.after_accept = "queue"
+        self.h.tick()
+        row = self.h.record()
+        self.assertEqual(row["state"], "queued", row["last_error"])
+        self.assertEqual(len(self.h.backend.send_calls), 1)
+        self.h.tick(advance=5)
+        self.assertEqual(self.opened, [T1], "the queued conversation opened")
+        for _ in range(3):
+            self.h.tick(advance=61)
+        self.assertEqual(len(self.h.backend.send_calls), 1, "no second send")
+
+
+class OpenToSendBesideOtherSessionsTests(OpenCase):
+    """EXCLUSIVE by its rule: a conversation another session holds (a terminal's, VS Code's) is never opened in the app -
+    core waits for it with held_by_other_session, never notLoaded, and other_sessions is the one to act on it."""
+    BESIDE = (OTHER_SESSIONS,)
+
+    def test_a_conversation_another_session_holds_is_not_opened(self):
+        self.armed()
+        self.ready_after_reset(loaded=False)
+        self.h.backend.loaded_map[T1] = "elsewhere"
+        for _ in range(4):
+            self.h.tick(advance=61)
+        self.assertEqual(self.opened, [])
+
+
+class OpenToSendBesideHeadlessRunTests(OpenCase, UnheldCase):
+    """EXCLUSIVE where headless_run takes it: with Codex closed and nothing holding the conversation, headless_run's route
+    runs it at P16, before P8's errand - so even with Also start Codex on the conversation is not opened as well
+    (headless first; the owner may change that)."""
+    BESIDE = (HEADLESS_RUN,)
+
+    def setUp(self):
+        super().setUp()
+        self.compat = _compat(*{definition.compat for definition in (*self.BESIDE, self.DEFINITION)})
+
+    def test_a_conversation_headless_run_takes_is_not_opened(self):
+        plug = self.armed()
+        self.choose(plug, "open_start_codex", opentarget.ON)
+        route = Silent(self.h)
+        plug.runtime._code[HEADLESS_RUN.id] = _RouteOnly(route)
+        self.running = False
+        self.closed()
+        for _ in range(3):
+            self.h.tick(advance=61)
+        self.assertEqual(len(route.calls), 1, "headless_run ran it")
+        self.assertEqual(self.opened, [])
+
+
 if __name__ == "__main__":
     unittest.main()

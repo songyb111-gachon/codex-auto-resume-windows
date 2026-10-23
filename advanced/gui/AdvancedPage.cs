@@ -726,6 +726,8 @@ namespace CodexAutoResume
             }
             FillAdvancedList();
             ShowAdvancedDetail();
+            // v0.6.19 (#50): Pending's tabs follow whether the prompt queue stands (AdvancedSchedule.cs).
+            ScheduleListingApplied();
         }
 
         /// A statement as advanced-statement answers it; one that could not be read is none, and nothing can be turned
@@ -1138,7 +1140,9 @@ namespace CodexAutoResume
         /// acted on or not.
         private static bool IsSwitchChoice(string key)
         {
-            return key == "wrap_reset_time" || key == "wrap_after_reset" || key.StartsWith("window_", StringComparison.Ordinal);
+            // v0.6.19 (#50): and open_to_send's Also start Codex.
+            return key == "wrap_reset_time" || key == "wrap_after_reset" || key == "open_start_codex" ||
+                   key.StartsWith("window_", StringComparison.Ordinal);
         }
 
         /// An on/off choice as the Dashboard's own switch (NewCheck, as Settings draws its switches), in the row a drop-down
@@ -1173,7 +1177,7 @@ namespace CodexAutoResume
         {
             if (key == "ceiling_hours") return Word("page.option.hours", "{n} h", "n", value);
             // v0.6.16-beta.3 (issue #29): the meter's spacing, a stage's percentage, the wrap-up's wording.
-            if (key == "poll_minutes") return Word("page.option.minutes", "{n} min", "n", value);
+            if (key == "poll_minutes" || key == "open_idle_minutes") return Word("page.option.minutes", "{n} min", "n", value);
             if (key == "wrap_style")
                 return Word("page.option.style." + value.ToString(CultureInfo.InvariantCulture),
                             value == 1 ? "Short" : value == 3 ? "Detailed" : value == 4 ? "With the numbers" :
