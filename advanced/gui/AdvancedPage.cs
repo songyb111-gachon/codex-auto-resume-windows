@@ -163,8 +163,6 @@ namespace CodexAutoResume
             // The strip as tall as its rows where it has had to take two (HoldTabs): again whenever the window's width
             // or font changes, after the standard window's own fitting of it to one row.
             nav.SizeChanged += delegate { FitTabs(); };
-            // v0.6.19: and every tab whole however it lays out (KeepTabsWhole), whatever HoldTabs measured.
-            settings.Parent.Layout += delegate { KeepTabsWhole(); };
             FontChanged += delegate { FitTabs(); };
             // Asked once the window opens, as its other reads are; a window the layout audit builds never opens.
             Load += delegate { if (!auditing) ReadAdvancedWords(); };
@@ -322,45 +320,6 @@ namespace CodexAutoResume
             }
             if (MinimumSize.Width < least) MinimumSize = new Size(least, MinimumSize.Height);
             return least;
-        }
-
-        // Whether KeepTabsWhole is holding the window now: its own change of size lays the strip out again.
-        private bool keepingTabs;
-
-        /// Every tab whole in the strip as it is laid out, not only as HoldTabs measured it (v0.6.19). HoldTabs reckons
-        /// the strip from TextRenderer's widths of the tabs' words, the chosen tab's in its heavier font included; on
-        /// GitHub's runner the chosen tab laid out a few pixels wider than that, and with the Chat tab the eighth on the
-        /// strip, Spanish's last tab ended 3 px past the window that HoldTabs held (v0.6.19-beta's CI). So whenever the
-        /// strip lays out on one row and its tabs need more than it has, the window is held that much wider - or, where the screen
-        /// has no room for that, the strip takes a second row, every tab whole, as HoldTabs does for a narrow screen.
-        private void KeepTabsWhole()
-        {
-            var strip = advancedTab == null ? null : advancedTab.Parent as FlowLayoutPanel;
-            if (strip == null || keepingTabs || strip.WrapContents) return;
-            // What one row of the tabs needs as they are now - each at its own preferred size, in the font it has -
-            // asked of the strip's layout itself: Layout is raised before the strip places its tabs, so their bounds
-            // are still the last layout's here.
-            int over = strip.GetPreferredSize(Size.Empty).Width - strip.ClientSize.Width;
-            if (over <= 0) return;
-            keepingTabs = true;
-            try
-            {
-                int want = Width + over;
-                if (want > ScreenRoom())
-                {
-                    strip.WrapContents = true;
-                    FitTabs();
-                }
-                else
-                {
-                    if (MinimumSize.Width < want) MinimumSize = new Size(want, MinimumSize.Height);
-                    if (Width < want) Width = want;
-                }
-            }
-            finally
-            {
-                keepingTabs = false;
-            }
         }
 
         /// What the window's frame adds to its width, as Windows works it out from the window's style
