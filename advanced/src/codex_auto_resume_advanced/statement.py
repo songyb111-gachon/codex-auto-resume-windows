@@ -181,7 +181,8 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
 # Chat with a conversation (v0.6.19, advanced/gui/AdvancedChat.cs): its tab, its card, a message's states, the limit it
 # waits for, and where a click on a notice goes while it is on.
 PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
-    "chat.nav", "chat.title", "chat.none", "chat.unread", "chat.you", "chat.codex", "chat.counts", "chat.in_progress",
+    "chat.nav", "chat.title", "chat.open", "chat.none", "chat.unread", "chat.you", "chat.codex", "chat.counts",
+    "chat.in_progress",
     "chat.sending", "chat.sent", "chat.not_taken", "chat.words", "chat.send", "chat.cancel", "confirm.chat",
     "done.chat", "chat.limit", "chat.click", "chat.click.page", "chat.click.chat", "chat.click.codex"))
 # The usage meter's, the wrap-up's and the pause's choices (v0.6.16-beta.3, issue #29): each OptionKey's label, and

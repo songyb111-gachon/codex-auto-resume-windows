@@ -682,6 +682,7 @@
   "warning.unmeasured": "Ce sur quoi elle s'appuie n'a pas été mesuré avec cette version de Codex.",
   "statement.codex_chat.does": "Ajoute une page Chat au Tableau de bord : choisissez une conversation que l'app Codex a ouverte, lisez ses derniers tours (vos messages et les réponses de Codex, lus dans l'historique de Codex sur ce PC tant que la page est ouverte) et envoyez un message de 2 000 caractères au plus, qui entre dans la conversation exactement comme vous l'avez saisi, sans marqueur. Une réponse s'affiche à la fin de son tour ; pendant qu'il s'exécute, la page indique qu'il est en cours. Les approbations se donnent toujours dans Codex. Un message écrit pendant que la limite d'utilisation est atteinte attend et est envoyé à sa réinitialisation. Tant qu'elle est activée, vous choisissez où mène un clic sur une notification : sa page, le chat de la conversation ici, ou Codex sur cette conversation.",
   "page.chat.title": "Chat",
+  "page.chat.open": "Ouvrir le chat",
   "page.chat.in_progress": "En cours - les approbations se donnent dans Codex.",
   "page.chat.words": "Message",
   "page.chat.not_taken": "Codex ne l'a pas prise en compte",

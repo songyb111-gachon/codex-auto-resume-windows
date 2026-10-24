@@ -1015,6 +1015,8 @@ namespace CodexAutoResume
             if (pendingList == null) return;
             foreach (ListViewItem item in pendingList.Items)
             {
+                // v0.6.19: a row of the edition's own keeps the time its own cell was written with (ListRowsJoined).
+                if (EditionRow(item.Tag as Dictionary<string, object>)) continue;
                 string text = CountdownText(item.Tag as Dictionary<string, object>, now);
                 if (item.SubItems[CountdownColumn].Text != text) item.SubItems[CountdownColumn].Text = text;
             }

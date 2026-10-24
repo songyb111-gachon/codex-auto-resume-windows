@@ -682,6 +682,7 @@
   "warning.unmeasured": "Dayandığı şey Codex'in bu sürümünde ölçülmedi.",
   "statement.codex_chat.does": "Gösterge Paneli'ne bir Sohbet sayfası ekler: Codex uygulamasının açık tuttuğu bir konuşmayı seçin, son turlarını okuyun - sayfa açıkken bu bilgisayardaki Codex geçmişinden okunan iletileriniz ve Codex'in yanıtları - ve en fazla 2.000 karakterlik bir ileti gönderin; ileti konuşmaya tam yazdığınız gibi, işaretsiz girer. Yanıt, turu bittiğinde görünür; tur çalışırken sayfa turun sürdüğünü söyler. Onaylar yine Codex'te verilir. Kullanım sınırı doluyken yazılan bir ileti bekler ve sınır sıfırlandığında gönderilir. Açık olduğu sürece bir bildirime tıklamanın nereye gideceğini seçersiniz: sayfasına, konuşmanın buradaki sohbetine veya o konuşmada Codex'e.",
   "page.chat.title": "Sohbet",
+  "page.chat.open": "Sohbeti aç",
   "page.chat.in_progress": "Sürüyor - onaylar Codex'te yanıtlanır.",
   "page.chat.words": "İleti",
   "page.chat.not_taken": "Codex almadı",

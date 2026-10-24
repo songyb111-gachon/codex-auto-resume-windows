@@ -682,6 +682,7 @@
   "warning.unmeasured": "Ciò su cui si basa non è stato misurato con questa versione di Codex.",
   "statement.codex_chat.does": "Aggiunge una pagina Chat alla Dashboard: scegli una conversazione che l'app Codex ha aperta, leggi i suoi ultimi turni - i tuoi messaggi e le risposte di Codex, letti dalla cronologia di Codex su questo PC finché la pagina è aperta - e invia un messaggio di al massimo 2000 caratteri, che entra nella conversazione esattamente come l'hai digitato, senza marcatore. Una risposta compare quando il suo turno termina; finché è in esecuzione, la pagina dice che è in corso. Le approvazioni si danno ancora in Codex. Un messaggio scritto mentre il limite di utilizzo è pieno attende e viene inviato quando si azzera. Finché è attiva, scegli dove porta un clic su una notifica: alla sua pagina, alla chat della conversazione qui o a Codex su quella conversazione.",
   "page.chat.title": "Chat",
+  "page.chat.open": "Apri la chat",
   "page.chat.in_progress": "In corso - le approvazioni si danno in Codex.",
   "page.chat.words": "Messaggio",
   "page.chat.not_taken": "Codex non l'ha accettato",

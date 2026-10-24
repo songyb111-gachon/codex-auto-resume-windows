@@ -682,6 +682,7 @@
   "warning.unmeasured": "它所依赖的部分尚未在此版本的 Codex 上测量过。",
   "statement.codex_chat.does": "在仪表板中添加一个聊天页面：选择 Codex 应用打开着的一个对话，阅读它最近的回合（你的消息和 Codex 的回复，在页面打开期间从此电脑上 Codex 的历史记录中读取），并发送最多 2000 个字符的消息，该消息会原样进入对话，没有标记。回复会在其回合结束时显示；回合运行期间，页面会显示进行中。批准仍然在 Codex 中回答。在用量限额已满时写下的消息会等待，并在限额重置时发送。开启期间，你可以选择点击通知时去往哪里：对应页面、此处该对话的聊天，或 Codex 中的该对话。",
   "page.chat.title": "聊天",
+  "page.chat.open": "打开聊天",
   "page.chat.in_progress": "进行中 - 批准请在 Codex 中答复。",
   "page.chat.words": "消息",
   "page.chat.not_taken": "Codex 未接收",

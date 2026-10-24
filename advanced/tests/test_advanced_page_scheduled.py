@@ -157,7 +157,12 @@ class PageTests(PageCase):
         rule = opened["pending_rows"][self.index(opened, "rule %d" % found["rule"])]
         message = opened["pending_rows"][self.index(opened, "prompt %d" % found["waiting"])]
         self.assertEqual(rule[2], words["page.pending.kind.rule"])
-        self.assertEqual(message[2], words["page.pending.kind.message"] + " · " + words["page.scheduled.mode.wait"])
+        self.assertEqual(message[2], words["page.pending.kind.message"])
+        message_chosen = result["looks"][3]
+        self.assertIn(words["page.scheduled.mode.wait"], message_chosen["explain_empty"],
+                      "what it does while a turn runs is said in Why it is waiting")
+        self.assertIn(message[3], message_chosen["explain_empty"], "and when it goes")
+        self.assertTrue(message[3], "its Next check cell says when it goes")
         self.assertIn(expected["pending"][0]["name"], message[0])
         self.assertNotIn("the words as written", " ".join(message))
         self.assertNotIn(WORDS, " ".join(rule))

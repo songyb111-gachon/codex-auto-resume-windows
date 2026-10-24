@@ -949,8 +949,11 @@ you read the new statement once and turn it on again.
 
 ### Chat with a conversation in the Dashboard
 
-**What it does.** A **Chat** tab beside **Advanced features**, there only while this is on, opens the chat
-on that page. You pick a conversation the Codex app has open and read its last twenty turns - your messages
+**What it does.** A **Chat** tab beside **Advanced features**, there only while this is on, opens a **Chat**
+page of its own, and is marked as the chosen tab while that page is on screen (from v0.6.19; v0.6.19-beta.2's tab
+went to a card on the Advanced features page). That page's card for this capability keeps its switch, its limits
+and its statement, with a button that opens the chat; a notification whose click goes to a conversation's chat opens
+the Chat page at that conversation. You pick a conversation the Codex app has open and read its last twenty turns - your messages
 and Codex's replies, read from Codex's history on this PC while the chat is open, with a turn's commands and
 file changes as counts - and send a message of up to 2,000 characters. It goes into the conversation exactly
 as you typed it, with no marker, through Codex's own queue (`thread/queue/add`), and shows there as your own

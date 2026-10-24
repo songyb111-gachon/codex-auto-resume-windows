@@ -197,6 +197,9 @@ namespace CodexAutoResume
                 form.ShowPage("pending");
                 form.AuditEarly("pending/early", findings);
                 form.ShowAdvanced();
+                // v0.6.19 (the owner's decision of 2026-10-24): the Chat page, its tab the eighth in the strip.
+                form.AuditChat("chat", findings);
+                form.ShowAdvanced();
                 // v0.6.19 (#50): the prompt queue's editor, built and never shown - for a time (its send mode showing), for
                 // after this turn, and with the longest refusal said above its buttons.
                 form.AuditEditor("editor", findings);
@@ -327,6 +330,77 @@ namespace CodexAutoResume
             }
         }
 
+        // A conversation the audit's Chat page is opened at: the fixtures' shape, nobody's.
+        private const string AuditChatThread = "0a1b2c3d-0000-7000-8000-00000000c0de";
+
+        /// The Chat page with a conversation of two long messages, their counts and a turn in progress, a message of the
+        /// page's on its way and the box, its tab shown beside the other seven and marked as the chosen one: the standard
+        /// audit's checks. It reads nothing (Offline): what it shows is put in place here.
+        private void AuditChat(string where, List<string> findings)
+        {
+            AdvancedAudited++;
+            bool tabShown = chatTab != null && OwnVisible(chatTab);
+            if (chatTab != null && !tabShown)
+            {
+                chatTab.Visible = true;
+                HoldTabs();
+            }
+            string keptThread = chatThread;
+            Dictionary<string, object> keptView = chatView;
+            chatThread = AuditChatThread;
+            chatView = AuditChatView();
+            var item = new Dictionary<string, object>();
+            item["id"] = ChatId;
+            item["state"] = StateArmed;
+            ShowChat();
+            FillChatPage(item);
+            PerformLayout();
+            if (currentPage != ChatPageName || chatTab == null || !chatTab.Current)
+                findings.Add(where + " :: the Chat page is not the one showing, or its tab is not marked as chosen");
+            Audit(where, findings);
+            AuditSpoken(where, this, findings);
+            AuditPins(where, findings);
+            chatThread = keptThread;
+            chatView = keptView;
+            chatPageShown = null;
+            if (chatTab != null && !tabShown)
+            {
+                chatTab.Visible = false;
+                HoldTabs();
+            }
+        }
+
+        /// What advanced-chat-read answers at its fullest, for the audit: a turn of a long message each way with its counts,
+        /// running, and a message of the page's waiting.
+        private Dictionary<string, object> AuditChatView()
+        {
+            string longest = Word("page.chat.limit", "The usage limit is full: this message waits and is sent when it resets.") + " " +
+                             Word("page.chat.in_progress", "In progress - approvals are answered in Codex.");
+            var you = new Dictionary<string, object>();
+            you["from"] = "you";
+            you["words"] = longest;
+            var codex = new Dictionary<string, object>();
+            codex["from"] = "codex";
+            codex["words"] = longest + " " + longest;
+            var counts = new Dictionary<string, object>();
+            counts["commands"] = 12.0;
+            counts["files"] = 7.0;
+            var turn = new Dictionary<string, object>();
+            turn["messages"] = new List<object> { you, codex };
+            turn["counts"] = counts;
+            turn["status"] = "inProgress";
+            var waiting = new Dictionary<string, object>();
+            waiting["state"] = "waiting";
+            var view = new Dictionary<string, object>();
+            view["turns"] = new List<object> { turn };
+            view["messages"] = new List<object> { waiting };
+            view["words_limit"] = 4000.0;
+            var limit = new Dictionary<string, object>();
+            limit["full"] = true;
+            view["limit"] = limit;
+            return view;
+        }
+
         /// History with the completed messages listed after the recoveries and Delete completed under them: the standard
         /// audit's checks, with the list's columns.
         private void AuditHistoryDone(string where, List<string> findings)
@@ -386,6 +460,14 @@ namespace CodexAutoResume
                 found += StrayTabs(child);
             }
             return found;
+        }
+
+        /// Whether `control` is `parent` or one of its descendants.
+        private static bool Within(Control control, Control parent)
+        {
+            for (Control c = control; c != null; c = c.Parent)
+                if (c == parent) return true;
+            return false;
         }
 
         /// A control's children as an array, for a loop that may meet a control with none.
@@ -697,6 +779,20 @@ namespace CodexAutoResume
                         }
                     }
                     else if (what == "usage_asked") form.UsageAsked();
+                    else if (what == "chat_tab") form.OpenChat();
+                    else if (what == "chat_open")
+                    {
+                        // v0.6.19: the Advanced features card's Open the chat, pressed if it can be.
+                        if (form.chatOpen == null || !form.chatOpen.Enabled) disabled.Add("chat_open");
+                        else Pressed.Invoke(form.chatOpen, new object[] { EventArgs.Empty });
+                    }
+                    else if (what == "chat_argument")
+                    {
+                        // v0.6.19: the window started with `--chat=<conversation>`, as a notice's click starts it: read, then
+                        // the page it opens on, as ReturnToAdvanced opens it once the edition has answered.
+                        ChatArgumentParsed(Str(step, "argument"));
+                        if (!form.OpenAskedChat()) disabled.Add("chat_argument");
+                    }
                     else if (what == "scheduled_choose") form.ChooseScheduledRow(Str(step, "key"));
                     else if (what == "scheduled_press")
                     {
@@ -1126,6 +1222,7 @@ namespace CodexAutoResume
             early["text"] = earlyShown == null ? null : EarlyText(earlyShown);
             look["early"] = early;
             look["explain_note"] = explainList == null ? null : explainList.Note;
+            look["explain_empty"] = explainList == null ? null : explainList.Empty;
             var pendingButtons = new List<object>();
             if (cancelAllButton != null && cancelAllButton.Parent != null)
                 foreach (Control control in cancelAllButton.Parent.Controls)
@@ -1133,6 +1230,17 @@ namespace CodexAutoResume
                         if (button is Button && OwnVisible(button)) pendingButtons.Add(button.Text);
             look["pending_buttons"] = pendingButtons;
             look["retry_enabled"] = retryButton != null && retryButton.Enabled;
+            // v0.6.19 (the owner's decision of 2026-10-24): the Chat page - whether its tab shows and is marked as chosen,
+            // whether the chat's own controls are on the Chat page or on the Advanced features page, the card's button
+            // there, and the conversation the chat is at.
+            var chat = new Dictionary<string, object>();
+            chat["tab_shown"] = chatTab != null && OwnVisible(chatTab);
+            chat["tab_current"] = chatTab != null && chatTab.Current;
+            chat["on_page"] = chatConversation != null && chatPage != null && Within(chatConversation, chatPage);
+            chat["on_advanced"] = chatConversation != null && advancedPage != null && Within(chatConversation, advancedPage);
+            chat["link"] = chatOpen != null && Within(chatOpen, advancedPage);
+            chat["thread"] = chatThread;
+            look["chat"] = chat;
             // v0.6.19 (#50): the prompt queue's card - its one line and Go to Scheduled.
             var queue = new Dictionary<string, object>();
             queue["go"] = queueAdd == null ? (object)null : (object)queueAdd.Enabled;

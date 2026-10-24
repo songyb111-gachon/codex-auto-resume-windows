@@ -682,6 +682,7 @@
   "warning.unmeasured": "Hal yang diandalkannya belum diukur pada versi Codex ini.",
   "statement.codex_chat.does": "Menambahkan halaman Chat ke Dasbor: pilih percakapan yang dibuka aplikasi Codex, baca giliran terakhirnya - pesan Anda dan balasan Codex, dibaca dari riwayat Codex di PC ini selama halaman terbuka - lalu kirim pesan sampai 2.000 karakter, yang masuk ke percakapan persis seperti yang Anda ketik, tanpa penanda. Balasan muncul saat gilirannya berakhir; selama giliran berjalan, halaman menyatakan sedang berlangsung. Persetujuan tetap dijawab di Codex. Pesan yang ditulis saat batas penggunaan penuh menunggu dan dikirim saat batasnya diatur ulang. Selama fitur ini aktif, Anda memilih ke mana klik pada pemberitahuan mengarah: halamannya, obrolan percakapan itu di sini, atau Codex di percakapan itu.",
   "page.chat.title": "Obrolan",
+  "page.chat.open": "Buka obrolan",
   "page.chat.in_progress": "Sedang berjalan - persetujuan dijawab di Codex.",
   "page.chat.words": "Pesan",
   "page.chat.not_taken": "Codex tidak menerimanya",

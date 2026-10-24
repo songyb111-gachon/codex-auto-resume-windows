@@ -238,10 +238,11 @@ namespace CodexAutoResume
                 ? Word("page.scheduled.mode.queue", "Codex's queue")
                 : Word("page.scheduled.mode.wait", "waits");
             string stands = PromptState(row), when = PromptWhen(row);
-            var cells = new[] { ConversationOf(Str(row, "thread_id")), stands,
-                                Word("page.pending.kind.message", "Scheduled message") + " · " + mode, when, "", "" };
+            var cells = new[] { ConversationOf(Str(row, "thread_id")), stands, Word("page.pending.kind.message", "Scheduled message"),
+                                when, "", "" };
+            // What it does while a turn runs is said in Why it is waiting, beside where it stands and when it goes.
             return Joined(KindMessage, "prompt " + Whole(Get(row, "prompt_id")).ToString(CultureInfo.InvariantCulture), code, row,
-                          cells, stands + " · " + when);
+                          cells, stands + " · " + when + " · " + mode);
         }
 
         /// A completed message's row in History: its conversation, delivered or handed over, a message, when it was due and

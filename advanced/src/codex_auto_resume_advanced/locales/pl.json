@@ -682,6 +682,7 @@
   "warning.unmeasured": "To, na czym się opiera, nie zostało zmierzone w tej wersji Codex.",
   "statement.codex_chat.does": "Dodaje do Dashboard stronę Czat: wybierz rozmowę, którą ma otwartą aplikacja Codex, przeczytaj jej ostatnie tury - twoje wiadomości i odpowiedzi Codex, odczytane z historii Codex na tym komputerze, gdy strona jest otwarta - i wyślij wiadomość do 2000 znaków, która trafia do rozmowy dokładnie tak, jak została wpisana, bez znacznika. Odpowiedź pojawia się, gdy kończy się jej tura; gdy tura trwa, strona pokazuje, że jest w toku. Zatwierdzenia nadal odbywają się w Codex. Wiadomość napisana, gdy limit użycia jest wyczerpany, czeka i zostaje wysłana po jego odnowieniu. Dopóki jest włączona, wybierasz, dokąd prowadzi kliknięcie powiadomienia: do jego strony, do czatu tej rozmowy tutaj albo do Codex przy tej rozmowie.",
   "page.chat.title": "Czat",
+  "page.chat.open": "Otwórz czat",
   "page.chat.in_progress": "W toku - zatwierdzenia obsługuje się w Codex.",
   "page.chat.words": "Wiadomość",
   "page.chat.not_taken": "Codex tego nie przyjął",

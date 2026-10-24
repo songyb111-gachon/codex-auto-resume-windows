@@ -682,6 +682,7 @@
   "warning.unmeasured": "Phần mà nó dựa vào chưa được đo với phiên bản Codex này.",
   "statement.codex_chat.does": "Thêm một trang Chat vào Bảng điều khiển: chọn một cuộc trò chuyện mà ứng dụng Codex đang mở, đọc các lượt gần nhất của nó - tin nhắn của bạn và câu trả lời của Codex, đọc từ lịch sử của Codex trên máy tính này khi trang đang mở - và gửi một tin nhắn tối đa 2.000 ký tự, tin nhắn vào cuộc trò chuyện đúng như bạn đã gõ, không có dấu đánh dấu. Một câu trả lời hiện ra khi lượt của nó kết thúc; trong lúc lượt chạy, trang cho biết nó đang diễn ra. Các phê duyệt vẫn được trả lời trong Codex. Tin nhắn được viết khi giới hạn sử dụng đã đầy sẽ chờ và được gửi khi giới hạn được đặt lại. Khi tính năng đang bật, bạn chọn nơi một lần nhấp vào thông báo dẫn tới: trang của nó, trò chuyện của cuộc hội thoại tại đây, hoặc Codex tại cuộc hội thoại đó.",
   "page.chat.title": "Trò chuyện",
+  "page.chat.open": "Mở trò chuyện",
   "page.chat.in_progress": "Đang tiến hành - các phê duyệt được trả lời trong Codex.",
   "page.chat.words": "Tin nhắn",
   "page.chat.not_taken": "Codex không nhận",

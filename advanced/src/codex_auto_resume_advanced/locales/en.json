@@ -675,6 +675,7 @@
   "statement.codex_chat.stop": "Turn it off here or turn every advanced feature off; a message not yet sent is cancelled, its words with it.",
   "page.chat.nav": "Chat",
   "page.chat.title": "Chat",
+  "page.chat.open": "Open the chat",
   "page.chat.none": "Pick a conversation the Codex app has open.",
   "page.chat.unread": "This conversation cannot be read now.",
   "page.chat.you": "You",

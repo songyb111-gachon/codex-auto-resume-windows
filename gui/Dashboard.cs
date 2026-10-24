@@ -586,8 +586,9 @@ namespace CodexAutoResume
         private string empty = "";
         // v0.6.11: a sentence under the rows - why the first check that did not pass stops it - or "".
         private string note = "";
-        /// The sentence under the rows, as it was last set (the audits and the tests read it).
+        /// The sentence under the rows, as it was last set (the audits and the tests read it), and what it says with none.
         internal string Note { get { return note; } }
+        internal string Empty { get { return empty; } }
 
         internal GateList()
         {

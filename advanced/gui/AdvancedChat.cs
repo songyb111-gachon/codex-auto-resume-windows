@@ -1,9 +1,12 @@
 // ADVANCED-EDITION-CODE: in the advanced edition's window, never the standard one's.
 //
-// Codex Auto Resume - chat with a conversation, on the Advanced features page (v0.6.19).
+// Codex Auto Resume - chat with a conversation, on a Chat page of its own (v0.6.19).
 //
 // While Chat with a conversation in the Dashboard is on, a Chat tab sits right of the Advanced features tab (and only
-// then); it opens this page at the chat's own column. There, under its limits, a card: the conversation picked from
+// then); it opens the Chat page, and is drawn as the chosen tab while that page is on screen (the owner's decision of
+// 2026-10-24: until then it jumped to the Advanced features page's chat card and never marked itself). The capability's
+// card on the Advanced features page keeps its switch, its limits and its statement, and a button that opens the
+// chat. On the Chat page, a card: the conversation picked from
 // those Pending and History list, its last turns as flat lines - "You:" and "Codex:" with the words, a turn's commands
 // and file changes as counts, "In progress" while a turn runs (approvals are answered in Codex) - this page's own
 // messages to it ("Sending...", "Sent", "Codex did not take it"), and the box a message is written in, with Send... and,
@@ -13,7 +16,8 @@
 // A message written while the usage limit is full waits, and the card says it is sent when the limit resets. Under the
 // box, while chat is on, where a click on a notice goes - its page, that conversation's chat here, or Codex at that
 // conversation - which is the standard setting `notice_click`, written here alone (`update`, settings.DASHBOARD_ONLY).
-// A notice whose click opens the chat starts the window with `--chat=<conversation>` (ui/tray/dashboard.open_chat).
+// A notice whose click opens the chat starts the window with `--chat=<conversation>` (ui/tray/dashboard.open_chat), and
+// the window opens the Chat page at that conversation.
 //
 // Nothing here draws anything the page does not draw already.
 //
@@ -21,6 +25,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Globalization;
 using System.Windows.Forms;
 
@@ -39,6 +44,12 @@ namespace CodexAutoResume
         private Dictionary<string, object> chatView;
         private Timer chatTimer;
         private SoftCombo chatClick;
+        // The Chat page, its column of cards as the Advanced features page has one, and what they were last built from.
+        private SoftPage chatPage, chatScroll;
+        private TableLayoutPanel chatStack;
+        private string chatPageShown;
+        // The Advanced features card's button that opens the chat.
+        private Button chatOpen;
         // The conversation the command line asked the chat to open at (`--chat=`, AdvancedPage.ArgumentParsed), until
         // the card takes it.
         private static string askedChat;
@@ -76,6 +87,9 @@ namespace CodexAutoResume
             tab.Click += delegate { OpenChat(); };
             advanced.Parent.Controls.Add(tab);
             chatTab = tab;
+            // One of the window's pages: its tab is marked as the chosen one while it is on screen, by every page's
+            // switch (ShowPage, ShowAdvanced, ShowChat).
+            navButtons[ChatPageName] = tab;
             chatTimer = new Timer();
             chatTimer.Interval = 2000;
             chatTimer.Tick += delegate { ChatPoll(); };
@@ -93,16 +107,169 @@ namespace CodexAutoResume
             }
             chatTab.Text = Word("page.chat.nav", "Chat");
             chatTab.AccessibleName = chatTab.Text;
-            if (chatTab.Visible == on) return;
-            chatTab.Visible = on;
-            HoldTabs();
+            FillChatPage(null);
+            if (Soft.OwnVisible(chatTab) != on)
+            {
+                chatTab.Visible = on;
+                HoldTabs();
+            }
+            // Turned off while its page is on screen: the Advanced features page, where it is turned on again.
+            if (!on && currentPage == ChatPageName && advancedListing != null) ShowAdvanced();
         }
 
-        /// The Chat tab pressed: this page, at chat's own column.
+        /// The Chat tab pressed, or the Advanced features card's Open the chat: the Chat page.
         private void OpenChat()
         {
-            ShowAdvanced();
-            OpenAdvanced(ChatId);
+            ShowChat();
+        }
+
+        /// The conversation the command line asked for (`--chat=`), or a window that reopens on the Chat page: the Chat
+        /// page; true where it was opened.
+        private bool OpenAskedChat()
+        {
+            if (askedChat == null && firstPage != ChatPageName) return false;
+            ShowChat();
+            return true;
+        }
+
+        // ---------------------------------------------------------------- the page
+        /// The Chat page on screen, as ShowAdvanced shows its page: painting held while the others are hidden, its tab
+        /// marked as the chosen one, its cards built from what was last read, and the list and the conversation read.
+        private void ShowChat()
+        {
+            if (advancedWords == null) return;
+            currentPage = ChatPageName;
+            bool paused = Redraw(pageHost, false);
+            try
+            {
+                Control page = ChatPageBuilt();
+                pageHost.SuspendLayout();
+                foreach (Control other in pageHost.Controls)
+                    if (other != page) other.Visible = false;
+                page.SuspendLayout();
+                page.Visible = true;
+                page.ResumeLayout(true);
+                pageHost.ResumeLayout(false);
+                pageHost.PerformLayout();
+                foreach (var pair in navButtons)
+                {
+                    bool here = pair.Key == ChatPageName;
+                    pair.Value.ForeColor = here ? Ink : Secondary;
+                    pair.Value.Font = Soft.RoleFont(here ? "nav_current" : "nav");
+                    pair.Value.Current = here;
+                }
+                if (saveButton != null) saveButton.Visible = false;
+                if (restoreButton != null) restoreButton.Visible = false;
+            }
+            finally
+            {
+                if (paused) Redraw(pageHost, true);
+            }
+            FitChatStack();
+            FillChatPage(null);
+            if (Offline) return;
+            ReadAdvanced(null);
+            if (chatThread != null) ReadChat();
+        }
+
+        /// The Chat page, built the first time it is shown: a column of cards that scrolls, as wide as the page less the
+        /// scroll bar's gutter (FitChatStack), as the Advanced features page's column is.
+        private Control ChatPageBuilt()
+        {
+            if (chatPage != null) return chatPage;
+            var page = (SoftPage)Page();
+            Padding room = CardRoom();
+            page.Padding = new Padding(0, 0, 0, room.Bottom);
+            page.Scrolls = false;
+            var stack = new SoftStack();
+            stack.Location = Point.Empty;
+            stack.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+            stack.ColumnCount = 1;
+            stack.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            stack.GrowStyle = TableLayoutPanelGrowStyle.AddRows;
+            stack.AutoSize = true;
+            stack.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            stack.Font = Font;
+            stack.Padding = new Padding(room.Left, room.Top, room.Right, Math.Max(0, room.Bottom - Px(Brand.PageGap)));
+            chatStack = stack;
+            var scroll = new SoftPage();
+            scroll.Dock = DockStyle.Fill;
+            scroll.Margin = new Padding(0);
+            scroll.Controls.Add(stack);
+            scroll.Scrolls = true;
+            scroll.SizeChanged += delegate { FitChatStack(); };
+            chatScroll = scroll;
+            page.Controls.Add(scroll);
+            page.Visible = false;
+            pageHost.Controls.Add(page);
+            chatPage = page;
+            chatPageShown = null;
+            return page;
+        }
+
+        /// The column as wide as the page less the scroll bar's gutter, whether or not the bar shows (FitAdvancedStack).
+        private void FitChatStack()
+        {
+            if (chatScroll == null || chatStack == null) return;
+            int width = chatScroll.Width - SoftBar.Gutter;
+            if (width <= Px(160)) return;
+            if (chatStack.MinimumSize.Width == width && chatStack.MaximumSize.Width == width) return;
+            if (width < chatStack.MinimumSize.Width)
+            {
+                chatStack.MinimumSize = new Size(width, 0);
+                chatStack.MaximumSize = new Size(width, 0);
+            }
+            else
+            {
+                chatStack.MaximumSize = new Size(width, 0);
+                chatStack.MinimumSize = new Size(width, 0);
+            }
+        }
+
+        /// The Chat page's cards, built again only when what they show changed - from the capability as the list says
+        /// it, or from `forced` (the layout audit's, which reads nothing).
+        private void FillChatPage(Dictionary<string, object> forced)
+        {
+            if (chatStack == null) return;
+            Dictionary<string, object> item = forced ?? AdvancedItem(ChatId);
+            string shown = (advancedListing == null ? "unread" : "read") + "|" + AdvancedWritten(item) + "|" + ChatShown(item);
+            if (shown == chatPageShown && forced == null)
+            {
+                UpdateChatButtons(busy == 0);
+                return;
+            }
+            chatPageShown = forced == null ? shown : null;
+            bool typing = chatWords != null && chatWords.ContainsFocus;
+            chatStack.SuspendLayout();
+            var old = new List<Control>();
+            foreach (Control control in chatStack.Controls) old.Add(control);
+            chatStack.Controls.Clear();
+            foreach (Control control in old) control.Dispose();
+            chatStack.RowStyles.Clear();
+            if (item == null || Str(item, "state") != StateArmed)
+            {
+                TableLayoutPanel card = NewGroup(Word("page.chat.title", "Chat"), chatStack);
+                card.Controls.Add(HelpText(advancedListing == null ? Word("page.unavailable", "The advanced features cannot be read right now.")
+                                                                    : Word("refused.not_on", "Turn it on first.")));
+                chatConversation = null;
+                chatClick = null;
+                chatWords = null;
+                chatSend = chatCancel = null;
+            }
+            else BuildChat(item, chatStack);
+            chatStack.ResumeLayout(true);
+            if (chatScroll != null) chatScroll.PerformLayout();
+            if (typing && chatWords != null && chatWords.Box.CanFocus) chatWords.Box.Focus();
+        }
+
+        // ---------------------------------------------------------------- the Advanced features card
+        /// On the capability's own column, while chat is on: a card whose button opens the Chat page.
+        private void BuildChatLink(Dictionary<string, object> item)
+        {
+            chatOpen = null;
+            if (Str(item, "id") != ChatId || Str(item, "state") != StateArmed) return;
+            TableLayoutPanel card = NewGroup(Word("page.chat.title", "Chat"), advancedStack);
+            chatOpen = CardButton(card, Word("page.chat.open", "Open the chat"), delegate { ShowChat(); });
         }
 
         // ---------------------------------------------------------------- the card
@@ -115,7 +282,7 @@ namespace CodexAutoResume
                    AdvancedWritten(chatView);
         }
 
-        private void BuildChat(Dictionary<string, object> item)
+        private void BuildChat(Dictionary<string, object> item, TableLayoutPanel stack)
         {
             chatConversation = null;
             chatClick = null;
@@ -126,7 +293,7 @@ namespace CodexAutoResume
                 if (chatTimer != null) chatTimer.Stop();
                 return;
             }
-            TableLayoutPanel card = NewGroup(Word("page.chat.title", "Chat"), advancedStack);
+            TableLayoutPanel card = NewGroup(Word("page.chat.title", "Chat"), stack);
             if (askedChat != null)
             {
                 // Opened from a notice (`--chat=`): that conversation, once.
@@ -286,7 +453,7 @@ namespace CodexAutoResume
 
         private void ChatPoll()
         {
-            if (currentPage != AdvancedPageName || advancedOpen != ChatId || chatThread == null || busy > 0)
+            if (currentPage != ChatPageName || chatThread == null || busy > 0)
             {
                 chatTimer.Stop();
                 return;
@@ -304,7 +471,7 @@ namespace CodexAutoResume
                     if (thread != chatThread) return;
                     Dictionary<string, object> result = AdvancedResult(reply);
                     chatView = AdvancedDone(result) ? result : null;
-                    ShowAdvancedDetail();
+                    FillChatPage(null);
                 });
         }
 
@@ -313,6 +480,7 @@ namespace CodexAutoResume
             if (chatSend != null)
                 chatSend.Enabled = free && chatThread != null && chatView != null && chatDraft.Trim().Length > 0;
             if (chatCancel != null) chatCancel.Enabled = free;
+            if (chatOpen != null) chatOpen.Enabled = free;
         }
 
         /// Ask, then send the message written: it waits until the watcher's next look takes it.

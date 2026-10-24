@@ -682,6 +682,7 @@
   "warning.unmeasured": "Worauf sie sich stützt, wurde mit dieser Codex-Version nicht gemessen.",
   "statement.codex_chat.does": "Fügt dem Dashboard eine Chat-Seite hinzu: Wählen Sie eine Unterhaltung, die die Codex-App geöffnet hat, lesen Sie ihre letzten Durchgänge - Ihre Nachrichten und die Antworten von Codex, gelesen aus dem Verlauf von Codex auf diesem PC, solange die Seite geöffnet ist - und senden Sie eine Nachricht mit bis zu 2.000 Zeichen, die genau so in die Unterhaltung gelangt, wie Sie sie getippt haben, ohne Markierung. Eine Antwort erscheint, wenn ihr Durchgang endet; solange er läuft, meldet die Seite, dass er in Arbeit ist. Genehmigungen werden weiterhin in Codex beantwortet. Eine Nachricht, die geschrieben wird, während das Nutzungslimit erreicht ist, wartet und wird gesendet, sobald es zurückgesetzt wird. Solange sie an ist, wählen Sie, wohin ein Klick auf eine Meldung führt: zu ihrer Seite, zum Chat der Unterhaltung hier oder zu Codex bei dieser Unterhaltung.",
   "page.chat.title": "Chat",
+  "page.chat.open": "Chat öffnen",
   "page.chat.in_progress": "In Arbeit - Genehmigungen werden in Codex beantwortet.",
   "page.chat.words": "Nachricht",
   "page.chat.not_taken": "Codex hat sie nicht übernommen",
