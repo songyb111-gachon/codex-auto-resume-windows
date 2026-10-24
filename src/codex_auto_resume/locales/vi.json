@@ -852,6 +852,7 @@
   "nav.settings": "Cài đặt",
   "nav.statistics": "Thống kê",
   "note.reopen_pending": "Cửa sổ sẽ mở lại với ngôn ngữ hoặc chủ đề mới sau khi bạn lưu hoặc hủy bỏ các thay đổi.",
+  "note.reconnecting": "Đang khôi phục kết nối với dịch vụ của sản phẩm này. Hãy thử lại sau giây lát.",
   "once.help": "Được gửi một lần, sau tin nhắn tiếp tục thường lệ, vào lần tới tác vụ này được tiếp tục. Lời này không bắt đầu, đẩy sớm hay bỏ qua điều gì, và bị xóa sau khi đã gửi hoặc khi tác vụ kết thúc mà không gửi. Chỉ viết ở đây và được gửi đúng như bạn viết.",
   "once.removed": "Lần tiếp tục tới của tác vụ này được gửi mà không có lời của bạn.",
   "once.set": "Đã thêm lời cho lần này vào lần tiếp tục tới của tác vụ này.",

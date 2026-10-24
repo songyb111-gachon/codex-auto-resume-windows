@@ -852,6 +852,7 @@
   "nav.settings": "Einstellungen",
   "nav.statistics": "Statistik",
   "note.reopen_pending": "Sobald Sie Ihre Änderungen speichern oder verwerfen, wird das Fenster in der neuen Sprache oder im neuen Design neu geöffnet.",
+  "note.reconnecting": "Die Verbindung zum Dienst dieses Produkts wird wiederhergestellt. Versuchen Sie es gleich noch einmal.",
   "once.help": "Wird einmal gesendet, nach der üblichen Fortsetzungsnachricht, wenn diese Aufgabe das nächste Mal fortgesetzt wird. Die Worte starten, beschleunigen oder überspringen nichts und werden gelöscht, sobald sie gesendet sind oder die Aufgabe ohne Senden endet. Sie werden nur hier geschrieben und genau so gesendet, wie Sie sie schreiben.",
   "once.removed": "Die nächste Fortsetzung dieser Aufgabe wird ohne Ihre Worte gesendet.",
   "once.set": "Der nächsten Fortsetzung dieser Aufgabe sind Worte für dieses Mal beigefügt.",

@@ -852,6 +852,7 @@
   "nav.settings": "Pengaturan",
   "nav.statistics": "Statistik",
   "note.reopen_pending": "Jendela akan dibuka ulang dalam bahasa atau tema baru setelah Anda menyimpan atau membuang perubahan.",
+  "note.reconnecting": "Koneksi ke layanan produk ini sedang dipulihkan. Coba lagi sebentar lagi.",
   "once.help": "Dikirim sekali, setelah pesan lanjutan yang biasa, saat tugas ini dilanjutkan berikutnya. Kata ini tidak memulai, mempercepat, atau melewati apa pun, dan dihapus setelah terkirim atau saat tugas berakhir tanpa pengiriman. Hanya ditulis di sini dan dikirim persis seperti yang Anda tulis.",
   "once.removed": "Lanjutan berikutnya dari tugas ini dikirim tanpa kata dari Anda.",
   "once.set": "Kata untuk kali ini ditambahkan ke lanjutan berikutnya dari tugas ini.",

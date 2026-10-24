@@ -852,6 +852,7 @@
   "nav.settings": "Impostazioni",
   "nav.statistics": "Statistiche",
   "note.reopen_pending": "La finestra si riaprirà nella nuova lingua o con il nuovo tema non appena salvi o annulli le modifiche.",
+  "note.reconnecting": "La connessione al servizio di questo prodotto è in fase di ripristino. Riprova tra un momento.",
   "once.help": "Inviate una sola volta, dopo il solito messaggio di continuazione, la prossima volta che questa attività viene ripresa. Non avviano, anticipano né saltano nulla, e vengono eliminate dopo l’invio o quando l’attività finisce senza invio. Si scrivono solo qui e vengono inviate esattamente come le scrivi.",
   "once.removed": "La prossima continuazione di questa attività viene inviata senza parole tue.",
   "once.set": "Alla prossima continuazione di questa attività sono state aggiunte parole per questa volta.",

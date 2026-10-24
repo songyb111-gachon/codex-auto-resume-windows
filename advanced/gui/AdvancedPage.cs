@@ -1988,6 +1988,7 @@ namespace CodexAutoResume
         /// A notice in the window's own dialog (Tell); written down in a window a test drives.
         private void TellAdvanced(string text)
         {
+            if (advancedQuiet) return;
             if (advancedScript == null) Tell(text);
             else advancedTold.Add(text);
         }
@@ -2017,7 +2018,9 @@ namespace CodexAutoResume
         {
             if (advancedScript != null)
             {
-                done(AdvancedScripted(command, argument));
+                Dictionary<string, object> scripted = AdvancedScripted(command, argument);
+                if (Str(scripted, "error_code") == PersistentBridge.ReconnectingCode) AdvancedReconnecting(action, done, scripted);
+                else done(scripted);
                 UpdateAdvancedButtons();
                 return;
             }
@@ -2027,17 +2030,43 @@ namespace CodexAutoResume
             System.Threading.ThreadPool.QueueUserWorkItem(delegate
             {
                 Dictionary<string, object> reply;
-                try { reply = bridge.Call(command, argument); }
+                // v0.6.19: only the long-lived bridge carries this edition's calls (PersistentBridge.CallAdvanced).
+                try { reply = bridge.CallAdvanced(command, argument, action); }
                 catch (Exception error) { reply = Failure(error); }
                 MethodInvoker finish = delegate
                 {
                     if (action) SetBusy(false);
-                    done(reply);
+                    if (Str(reply, "error_code") == PersistentBridge.ReconnectingCode) AdvancedReconnecting(action, done, reply);
+                    else
+                    {
+                        advancedReconnectTold = false;
+                        done(reply);
+                    }
                     UpdateAdvancedButtons();
                 };
                 try { if (IsHandleCreated && !IsDisposed) BeginInvoke(finish); }
                 catch (Exception) { }
             });
+        }
+
+        // v0.6.19: whether the reconnecting note has been said since the last call the long-lived bridge answered.
+        private bool advancedReconnectTold;
+        // While a reconnecting answer is handed to its page: the page's own refusal is not said over it.
+        private bool advancedQuiet;
+
+        /// The long-lived bridge could not be reached for this call (PersistentBridge.CallAdvanced), so nothing was
+        /// carried out by this call. The page is handed the answer as any refusal, with its own words held back, and
+        /// the person is told once in the one note every page shares - after an action every time, since a click is
+        /// what tries the connection again.
+        private void AdvancedReconnecting(bool action, Action<Dictionary<string, object>> done, Dictionary<string, object> reply)
+        {
+            string words = S("note.reconnecting", "The connection to this product's service is being restored. Try again in a moment.");
+            advancedQuiet = true;
+            try { done(reply); }
+            finally { advancedQuiet = false; }
+            if (advancedNote != null) SetNote(advancedNote, words);
+            if (action || !advancedReconnectTold) TellAdvanced(words);
+            advancedReconnectTold = true;
         }
 
         /// A reply's part written out, to compare with what was shown; "" for one that cannot be.
