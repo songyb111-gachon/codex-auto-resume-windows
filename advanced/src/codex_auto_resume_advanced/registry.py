@@ -540,7 +540,9 @@ HEADLESS_RUN = CapabilityDef(
 # Codex session holds (`holder="session"`), it answers TO_SESSION: core's ordinary send through `codex queue`, with
 # its marker, for that session to take (M5) - taken back when that session lets go of it, and given back to waiting;
 # taken back because the session did not take it within core's delivery window, it turns off
-# (NOT_DISPATCHED_BY_SESSION), and so it may not be kept on (keepable). It departs from A15 (only the app's
+# (NOT_DISPATCHED_BY_SESSION). A person may keep it on (K8; the owner's word of 2026-10-24, v0.6.19-beta.3, before
+# it could not be): kept on, that tripwire - and a new Codex version - is a note and it stays on, while what was sent
+# is still taken back and given back to waiting, and its ceilings and every gate hold. It departs from A15 (only the app's
 # conversations are detected), A11 (sent while a session other than the app holds the conversation) and B6 (the
 # version skew guard reads which Codex wrote such a conversation off its file's first line, core's engine/kinds.py,
 # and waits while that is newer than the engine), keeps A2, A3,
@@ -556,7 +558,6 @@ OTHER_SESSIONS = CapabilityDef(
     journal_prefix="sess",
     make=make_other_sessions,
     measurements=(Measurement.M5, Measurement.MO),
-    keepable=False,
 )
 
 # Compact a full conversation, then continue (v0.6.16-beta.4, stage 4). At P17 it takes up Codex's own

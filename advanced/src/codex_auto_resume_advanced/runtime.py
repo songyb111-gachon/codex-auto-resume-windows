@@ -1053,8 +1053,8 @@ class Runtime:
         """The tripwire NOT_DISPATCHED_BY_SESSION (v0.6.16-beta.4): core took back a continuation sent to a
         conversation another Codex session held (its gate vector's `session` pass, core's own column) because that
         session did not take it within the delivery window - stored as not_delivered_on_open, the word every schema-5
-        reader knows (core's engine/tosession.py). other_sessions, whose answer sent it, turns off, or - never kept
-        on (keepable) - would note it. Whether it was turned off."""
+        reader knows (core's engine/tosession.py). other_sessions, whose answer sent it, turns off, or - kept on
+        (K8, v0.6.19-beta.3) - notes it and stays on. Whether it was turned off."""
         if (state != WITHDRAWN_UNCONFIRMED or not isinstance(record, dict)
                 or record.get("withdraw_reason") != NOT_DELIVERED_ON_OPEN):
             return False
