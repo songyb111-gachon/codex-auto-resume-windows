@@ -757,7 +757,7 @@ ownership information. It never acquires a lock on the app's file.
   tell them apart.
 
 **Python is not required by either install route** — the installation brings its own runtime
-(Python 3.13.15), and the plugin's setup script is PowerShell. Python 3.12 or newer is needed only if
+(Python 3.14.9), and the plugin's setup script is PowerShell. Python 3.13 or newer is needed only if
 you run the engine from a source checkout; see [Testing](#testing) for the versions CI runs.
 
 ## What is recovered, and what is not
@@ -866,7 +866,7 @@ Measurements MP1 to MP3, that the Codex app shows the panel there as it should, 
 
 For development, or if you would rather run it yourself. This is not a third way to install the
 product — it is the engine on its own, with no settings window, no panel and no bundled runtime,
-and it needs **Python 3.12 or newer** on your PATH (CI runs it on 3.12, 3.13 and 3.14).
+and it needs **Python 3.13 or newer** on your PATH (CI runs it on 3.13 and 3.14).
 
 ```bash
 git clone https://github.com/songyb111-gachon/codex-auto-resume-windows.git
@@ -1851,7 +1851,7 @@ python -m unittest discover -s tests
 
 These tests use fakes and temporary directories. They never contact the ChatGPT app and never send a
 message to any conversation, so they are safe to run anywhere and are what CI runs. CI runs every one
-of them on Python 3.12, 3.13 and 3.14, each of which has to pass, and on the 3.15 pre-release as an
+of them on Python 3.13 and 3.14, each of which has to pass, and on Python 3.15 as an experimental,
 advisory job whose result is shown but does not block.
 
 There is also an opt-in live check against your real environment. It verifies binary discovery,

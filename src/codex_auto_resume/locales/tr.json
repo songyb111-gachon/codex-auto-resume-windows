@@ -760,7 +760,7 @@
   "msg.no_pending": "Sürdürülmeyi bekleyen görev yok.",
   "msg.not_installed": "Windows çalışma zamanı henüz yüklü değil, bu nedenle izleyicinin çalıştıracağı bir şey yok. Eklenti, eşleşen sürümü indiren, kontrol eden ve yükleyen bir kurulum betiği içerir:",
   "msg.not_installed_hint": "Öncesinde başka hiçbir şey gerekmez: Python, yönetici hakları veya elle indirme gerekmez.",
-  "msg.python_missing": "Otomatik sürdürme izleyicisini çalıştırmak için Python 3.12 veya daha yenisi gerekir.",
+  "msg.python_missing": "Otomatik sürdürme izleyicisini çalıştırmak için Python 3.13 veya daha yenisi gerekir.",
   "msg.ready_b1": "Kullanım sınırı sıfırlandıktan sonra sürdür",
   "msg.ready_b2": "Yalnızca kesintiye uğrayan görevin kendisini sürdür",
   "msg.ready_b3": "Kullanım hakkı açılana kadar bekle",

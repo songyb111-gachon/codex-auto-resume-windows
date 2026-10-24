@@ -760,7 +760,7 @@
   "msg.no_pending": "沒有等待接續的任務。",
   "msg.not_installed": "尚未安裝 Windows 執行階段，因此監看程式沒有可執行的內容。外掛程式隨附一個安裝指令碼，會下載相符的發行版，經過驗證後再安裝：",
   "msg.not_installed_hint": "不需要事先準備其他東西：不需要 Python、不需要系統管理員權限，也不需要手動下載。",
-  "msg.python_missing": "執行自動接續監看程式需要 Python 3.12 或更新版本。",
+  "msg.python_missing": "執行自動接續監看程式需要 Python 3.13 或更新版本。",
   "msg.ready_b1": "在使用量限制重設後接續",
   "msg.ready_b2": "只接續確實中斷的那一項任務",
   "msg.ready_b3": "等到使用量恢復後再進行",

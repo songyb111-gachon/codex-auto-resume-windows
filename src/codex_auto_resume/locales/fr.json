@@ -760,7 +760,7 @@
   "msg.no_pending": "Aucune tâche n'attend d'être reprise.",
   "msg.not_installed": "L'environnement d'exécution Windows n'est pas encore installé : le surveillant n'a donc rien à exécuter. Le plugin contient un script d'installation qui télécharge la version correspondante, la vérifie et l'installe :",
   "msg.not_installed_hint": "Rien d'autre n'est nécessaire au préalable : ni Python, ni droits d'administrateur, ni téléchargement manuel.",
-  "msg.python_missing": "Python 3.12 ou version ultérieure est requis pour exécuter le surveillant de reprise automatique.",
+  "msg.python_missing": "Python 3.13 ou version ultérieure est requis pour exécuter le surveillant de reprise automatique.",
   "msg.ready_b1": "Reprendre après la réinitialisation de la limite d'utilisation",
   "msg.ready_b2": "Reprendre uniquement la tâche interrompue exacte",
   "msg.ready_b3": "Attendre que l'utilisation soit de nouveau disponible",

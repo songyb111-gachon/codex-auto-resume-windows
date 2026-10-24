@@ -760,7 +760,7 @@
   "msg.no_pending": "Tidak ada tugas yang menunggu untuk dilanjutkan.",
   "msg.not_installed": "Runtime Windows belum terinstal, jadi belum ada yang dapat dijalankan pemantau. Plugin ini menyertakan skrip penyiapan yang mengunduh rilis yang sesuai, memeriksanya, dan menginstalnya:",
   "msg.not_installed_hint": "Tidak ada hal lain yang diperlukan terlebih dahulu: tanpa Python, tanpa hak administrator, dan tanpa unduhan manual.",
-  "msg.python_missing": "Python 3.12 atau yang lebih baru diperlukan untuk menjalankan pemantau lanjut otomatis.",
+  "msg.python_missing": "Python 3.13 atau yang lebih baru diperlukan untuk menjalankan pemantau lanjut otomatis.",
   "msg.ready_b1": "Lanjutkan setelah batas penggunaan direset",
   "msg.ready_b2": "Lanjutkan hanya tugas yang persis terhenti",
   "msg.ready_b3": "Tunggu hingga penggunaan tersedia",

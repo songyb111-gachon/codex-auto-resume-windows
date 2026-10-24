@@ -33,7 +33,7 @@ RUNTIME_DIR_NAME = ".codex-auto-resume"
 # The directory names the installer creates under the root - and therefore the ones
 # it would destroy if it ever ran against a directory that merely contained them.
 OCCUPIED_NAMES = ("app", "runtime", "config", "logs")
-MIN_PYTHON = (3, 12)
+MIN_PYTHON = (3, 13)
 CHECK = "✓"
 EXIT_OK = 0
 EXIT_ERROR = 1

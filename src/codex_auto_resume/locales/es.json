@@ -760,7 +760,7 @@
   "msg.no_pending": "No hay tareas en espera de reanudarse.",
   "msg.not_installed": "El entorno de ejecución de Windows aún no está instalado, así que el monitor no tiene nada que ejecutar. El complemento incluye un script de instalación que descarga la versión correspondiente, la comprueba y la instala:",
   "msg.not_installed_hint": "No hace falta nada más antes: ni Python, ni permisos de administrador, ni descargas manuales.",
-  "msg.python_missing": "Se requiere Python 3.12 o posterior para ejecutar el monitor de reanudación automática.",
+  "msg.python_missing": "Se requiere Python 3.13 o posterior para ejecutar el monitor de reanudación automática.",
   "msg.ready_b1": "Reanudar tras el restablecimiento del límite de uso",
   "msg.ready_b2": "Reanudar solo la tarea exacta que se interrumpió",
   "msg.ready_b3": "Esperar hasta que haya uso disponible",

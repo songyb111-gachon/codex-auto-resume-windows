@@ -760,7 +760,7 @@
   "msg.no_pending": "Żadne zadania nie czekają na wznowienie.",
   "msg.not_installed": "Środowisko uruchomieniowe dla Windows nie jest jeszcze zainstalowane, więc monitor nie ma czego uruchomić. Wtyczka zawiera skrypt konfiguracyjny, który pobiera pasujące wydanie, sprawdza je i instaluje:",
   "msg.not_installed_hint": "Wcześniej nie jest potrzebne nic więcej: ani Python, ani uprawnienia administratora, ani ręczne pobieranie.",
-  "msg.python_missing": "Do uruchomienia monitora automatycznego wznawiania wymagany jest Python 3.12 lub nowszy.",
+  "msg.python_missing": "Do uruchomienia monitora automatycznego wznawiania wymagany jest Python 3.13 lub nowszy.",
   "msg.ready_b1": "Wznawiaj po odnowieniu limitu użycia",
   "msg.ready_b2": "Wznawiaj tylko dokładnie przerwane zadanie",
   "msg.ready_b3": "Czekaj, aż limit użycia będzie dostępny",
