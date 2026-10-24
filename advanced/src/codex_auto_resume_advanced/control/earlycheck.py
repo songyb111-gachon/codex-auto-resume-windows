@@ -3,8 +3,9 @@
 
 While early_reset stands on, Pending shows one compact line: when it last read usage early, what that reading found,
 and whether anything was continued - counts and times only, never a word of a conversation. `view` makes it from the
-capability's own times (engine/earlyreset.py: CHECKED_AT, AVAILABLE_AT, LIFTED_AT, CHECK_ASKED) and from the usage gate
-each waiting record's look at that probe wrote in core's state: found (passed, or held for the second reading), still
+capability's own times (engine/earlyreset.py: CHECKED_AT, AVAILABLE_AT, LIFTED_AT, CHECK_ASKED, FOUND_AT - the last says
+the probe found usage, however its recoveries have gone on since) and otherwise from the usage gate each waiting
+record's look at that probe wrote in core's state: found (passed, or held for the second reading), still
 limited, or nothing could be told - or not read at all, where an earlier gate (the conversation not open in the app,
 say) held the record first.
 
@@ -87,7 +88,8 @@ def view(runtime, store=None) -> dict:
             return {}
         state, now = runtime.state, runtime.clock()
         times = {key: state.stamped(CAPABILITY, key) for key in (OptionKey.CHECKED_AT, OptionKey.AVAILABLE_AT,
-                                                                  OptionKey.LIFTED_AT, OptionKey.CHECK_ASKED)}
+                                                                  OptionKey.LIFTED_AT, OptionKey.CHECK_ASKED,
+                                                                  OptionKey.FOUND_AT)}
     except Exception:
         return {}
     try:
@@ -97,7 +99,11 @@ def view(runtime, store=None) -> dict:
         rows = []
     checked, available = times[OptionKey.CHECKED_AT], times[OptionKey.AVAILABLE_AT]
     lifted, asked = times[OptionKey.LIFTED_AT], times[OptionKey.CHECK_ASKED]
-    shown = {"checked_at": checked, "read": _read(rows, checked) if checked else None,
+    # What the last probe read: found, as the capability itself stamped it - which stays true once the recoveries it
+    # continued wait no more - or else what the waiting records' looks at it wrote (the review of 2026-10-24).
+    found = times[OptionKey.FOUND_AT]
+    read = None if not checked else READ_AVAILABLE if found == checked else _read(rows, checked)
+    shown = {"checked_at": checked, "read": read,
              "available_at": available, "confirm_at": available + SPACING if available else None,
              "lifted_at": lifted, "lifted": bool(checked and lifted == checked), "waiting": len(rows),
              "asked": bool(_time(asked) and 0 <= now - asked < SPACING + 1 and (not checked or asked > checked))}

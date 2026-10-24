@@ -20,7 +20,8 @@ window or keep one open (the plan's exclusion).
 
 v0.6.19 (issue #50): what it did is shown on Pending, so it keeps three times beside its choices (state `stamp`, written
 only while it is on): when a probe last began (CHECKED_AT), when the first yes of the count now running was found
-(AVAILABLE_AT, taken away when the count starts again) and when two readings last lifted a limit (LIFTED_AT). And a person's Check now there (control/earlycheck.py, CHECK_ASKED, which core
+(AVAILABLE_AT, taken away when the count starts again), when a probe last found usage (FOUND_AT) and when two readings
+last lifted a limit (LIFTED_AT). And a person's Check now there (control/earlycheck.py, CHECK_ASKED, which core
 is asked with too) opens the next probe at once, past the five minutes between two - never inside one reading's life,
 and every click made before that probe began is the one request. The probe it opens is a probe like any other: it is
 one of the two readings, and the two still have to be at least five minutes apart.
@@ -136,6 +137,8 @@ class EarlyReset:
                 or record.get("interruption_id") not in self.released
                 or tuple(facts.get("schedule") or ()) != LOOKED_EARLY):
             return DEFER
+        if not self.reached:
+            self._stamp(OptionKey.FOUND_AT, self.probe_at)   # this probe's reading found usage (the line on Pending)
         self.reached = True
         if self.first_available_at is None:
             self.first_available_at = self.probe_at

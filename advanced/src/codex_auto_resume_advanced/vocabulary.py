@@ -260,6 +260,9 @@ class OptionKey(StrEnum):
     AVAILABLE_AT = "available_at"
     LIFTED_AT = "lifted_at"
     CHECK_ASKED = "check_asked"
+    # and (the review of 2026-10-24) when a probe last found usage available - so the line tells that reading, and what
+    # it continued, even once the recoveries it continued wait no more.
+    FOUND_AT = "found_at"
     # v0.6.19 (the groundwork, plans/v0619-design/D-groundwork.md), added in one block so the stage's writers never edit
     # this list at once. A person's choices: how many days the analytics keep (usage_analytics), how often the status
     # feed is read in minutes (status_feed), which events are pushed (push_notices: a bit set of CourierEvent's, in its

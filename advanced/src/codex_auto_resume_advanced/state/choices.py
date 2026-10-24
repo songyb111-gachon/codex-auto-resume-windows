@@ -44,7 +44,7 @@ STAMPS = {"idle_update_check": (str(OptionKey.LAST_CHECK), str(OptionKey.OFFERED
                                 str(OptionKey.OFFERED_AT)),
           # v0.6.19 (issue #50): early_reset's times for the line on Pending, and a person's Check now.
           "early_reset": (str(OptionKey.CHECKED_AT), str(OptionKey.AVAILABLE_AT), str(OptionKey.LIFTED_AT),
-                          str(OptionKey.CHECK_ASKED))}
+                          str(OptionKey.CHECK_ASKED), str(OptionKey.FOUND_AT))}
 RULES_LIMIT = 10
 STATUS_RANGE = (100, 599)
 # How far back the Dashboard counts a rule's hits and shows samples.
