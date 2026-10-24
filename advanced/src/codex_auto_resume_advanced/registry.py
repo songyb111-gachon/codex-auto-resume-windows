@@ -44,8 +44,6 @@ asked to agree to and everything the plug holds it to:
   one off turns off what requires it; a required one an administrator's policy forbids, or whose
   compatibility is Failed here, keeps the dependent off, with that reason (arming.py). Never names
   itself, and the registry is acyclic (Registry rejects a cycle when it is made);
-* `keepable` - whether a person may keep it on (K8; v0.6.16-beta.4): False for one whose tripwire is what stops it
-  doing harm, which Keep on would turn into a note (arming.py refuses it);
 * `make` - the factory for its code: given the installation's paths, it returns an object whose
   methods are the plug's hooks for its points, each answering as a plug would.
 
@@ -178,7 +176,8 @@ class CapabilityDef:
     kind: CapabilityKind = CapabilityKind.ROUTE
     # v0.6.16-beta.4: the WordingKeys of a person's own text it keeps (state `wordings`): the wrap-up's Custom text.
     wordings: tuple = ()
-    keepable: bool = True
+    # No `keepable` (v0.6.16-beta.4 to v0.6.19-beta.2): the owner's word of 2026-10-24 is that a person may keep every
+    # capability on (K8) - the choice is offered on each, and none is kept on unless the person chose it there.
 
     def option(self, key) -> Option | None:
         """The choice of `key` this capability offers, or None."""
@@ -272,8 +271,6 @@ def problems(definition) -> list:
     if type(definition.resends) is not bool or (
             definition.resends is True and Point.SCHEDULE not in (points if isinstance(points, frozenset) else ())):
         found.append("resends")
-    if type(definition.keepable) is not bool:
-        found.append("keepable")
     requires = definition.requires
     if (not isinstance(requires, tuple)
             or not all(isinstance(other, str) for other in requires)

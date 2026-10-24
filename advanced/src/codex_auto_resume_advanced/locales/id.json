@@ -137,7 +137,6 @@
   "page.keep.title": "Percakapan yang dijaga berjalan",
   "page.keep_on": "Biarkan tetap aktif",
   "page.keep_on.again": "Tetap aktif, dan pesan lanjutan yang tidak pasti dikirim sekali lagi.",
-  "page.keep_on.never": "Tidak dapat dibiarkan aktif: mematikan diri saat terjadi masalah itulah yang membuatnya aman.",
   "page.keep_on.off": "Fitur ini mati dengan sendirinya bila sesuatu yang diandalkannya bermasalah.",
   "page.keep_on.on": "Tetap aktif: fitur ini tidak mati dengan sendirinya.",
   "page.keep_on.send_again": "Kirim ulang juga bila tidak pasti...",

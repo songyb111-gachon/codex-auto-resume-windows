@@ -137,7 +137,6 @@
   "page.keep.title": "Các cuộc trò chuyện được giữ tiếp tục",
   "page.keep_on": "Giữ bật",
   "page.keep_on.again": "Được giữ bật, và tin nhắn tiếp tục không chắc chắn được gửi thêm một lần.",
-  "page.keep_on.never": "Không thể giữ bật: tự tắt khi có sự cố là điều giữ cho nó an toàn.",
   "page.keep_on.off": "Nó tự tắt khi một thứ nó dựa vào gặp trục trặc.",
   "page.keep_on.on": "Được giữ bật: nó không tự tắt.",
   "page.keep_on.send_again": "Cũng gửi lại khi không chắc...",

@@ -137,7 +137,6 @@
   "page.keep.title": "Conversazioni portate avanti",
   "page.keep_on": "Tienila attiva",
   "page.keep_on.again": "Tenuta attiva, e una continuazione incerta viene inviata ancora una volta.",
-  "page.keep_on.never": "Non può restare attiva: disattivarsi quando qualcosa va storto è ciò che la rende sicura.",
   "page.keep_on.off": "Si disattiva da sola quando qualcosa su cui si basa va storto.",
   "page.keep_on.on": "Tenuta attiva: non si disattiva da sola.",
   "page.keep_on.send_again": "Reinvia anche in caso di dubbio...",

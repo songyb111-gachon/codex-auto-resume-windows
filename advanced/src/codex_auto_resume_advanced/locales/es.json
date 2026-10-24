@@ -137,7 +137,6 @@
   "page.keep.title": "Conversaciones en marcha",
   "page.keep_on": "Mantenerla activada",
   "page.keep_on.again": "Se mantiene activada, y una continuación incierta se envía una vez más.",
-  "page.keep_on.never": "No se puede mantener activada: desactivarse cuando algo sale mal es lo que la hace segura.",
   "page.keep_on.off": "Se desactiva sola cuando algo de lo que depende falla.",
   "page.keep_on.on": "Se mantiene activada: no se desactiva sola.",
   "page.keep_on.send_again": "Enviar también otra vez si hay duda...",

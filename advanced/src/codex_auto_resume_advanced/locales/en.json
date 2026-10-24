@@ -666,7 +666,6 @@
   "page.row.compact": "Run /compact in Codex; it continues after",
   "page.row.model_not_restored": "This conversation now uses another model; switch it back in Codex",
   "page.row.silent": "continued with no words, proven by its id",
-  "page.keep_on.never": "It cannot be kept on: turning itself off when something goes wrong is what keeps it safe.",
   "name.open_codex_button": "Open Codex on a notice",
   "statement.open_codex_button.does": "Adds an Open Codex button to every notice about one conversation, beside Open Dashboard, on the product's card and on Windows' own notification alike. A click shows that conversation in the Codex app through Codex's own link to it: a running or minimized app comes to the front at that conversation, and a closed one starts there. The button is offered only where Windows can open Codex's links. Nothing is sent, and nothing in the conversation changes.",
   "statement.open_codex_button.instead": "The standard edition's notices offer only Don't resume (or Don't retry) and Open Dashboard; you open the conversation in Codex yourself.",
