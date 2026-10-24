@@ -208,6 +208,11 @@ namespace CodexAutoResume
                     // v0.6.19: a tab that lays out wider than it was measured - CI's fonts drew the strip 3 px past
                     // what HoldTabs held - on a screen that holds the strip and on one that cannot.
                     form.AuditTabWider(int.MaxValue, "advanced/" + ids[0] + " with a tab wider than measured", findings);
+                    // and with the window allowed no wider than HoldTabs held it, so the tab's few pixels more are room it
+                    // has not got: the strip takes a second row (GitHub's 1024-wide runner, where Windows holds a window to
+                    // MaxWindowTrackSize whatever screen the audit stands in).
+                    form.AuditTabWider(-1, "advanced/" + ids[0] + " with a tab wider than measured in a window that may "
+                                           + "grow no wider", findings);
                     form.AuditTabWider(form.Px(TextScale.NarrowestWidth),
                                        "advanced/" + ids[0] + " with a tab wider than measured on the narrowest screen",
                                        findings);
@@ -248,6 +253,7 @@ namespace CodexAutoResume
             AdvancedAudited++;
             Materialise(this);
             PerformLayout();
+            SettleTabs();
             int opening = Px(OpeningWidth) + FrameWidth;
             if (builtMinimum.Width > opening)
                 findings.Add(where + " :: the window was made " + builtMinimum.Width + " px wide as it was built, wider than "
@@ -272,21 +278,37 @@ namespace CodexAutoResume
             Padding before = chatTab.Padding;
             chatTab.Text = Word("page.chat.nav", "Chat");
             chatTab.Visible = true;
-            advancedScreen = screen;
+            advancedScreen = screen < 0 ? int.MaxValue : screen;
             MinimumSize = Size.Empty;
             ClientSize = new Size(SystemInformation.MaxWindowTrackSize.Width + Px(100), ClientSize.Height);
             int least = HoldTabs();
-            ClientSize = new Size(Math.Max(Px(800) - Px(16), least - FrameWidth), ClientSize.Height);
+            // A negative `screen`: the window exactly as wide as its tabs need, on a screen as wide as that window and
+            // not a pixel wider - else the window's own narrowest, 800, can leave the strip room to spare.
+            ClientSize = new Size(screen < 0 ? least - FrameWidth : Math.Max(Px(800) - Px(16), least - FrameWidth),
+                                  ClientSize.Height);
             FitTabs();
+            // There the window may grow no wider (advancedTrack, as SystemInformation.MaxWindowTrackSize holds a window
+            // on GitHub's 1024-wide runner) while the screen the audit stands in is as wide as anything needs.
+            if (screen < 0) advancedTrack = Width;
+            var strip = chatTab.Parent as FlowLayoutPanel;
+            PerformLayout();
+            int spare = strip == null ? 0 : strip.ClientSize.Width - strip.GetPreferredSize(Size.Empty).Width;
             try
             {
                 chatTab.Padding = new Padding(before.Left + Px(3), before.Top, before.Right + Px(3), before.Bottom);
                 AuditNarrowest(where, findings);
+                if (screen < 0 && Width > advancedTrack)
+                    findings.Add(where + " :: the window was made " + Width + " px wide, wider than the " + advancedTrack
+                                 + " px Windows lets it be");
+                if (screen < 0 && spare < Px(6) && strip != null && !strip.WrapContents)
+                    findings.Add(where + " :: the tabs stayed on one row, the window " + Width + " px wide where it may be "
+                                 + advancedTrack + " px wide at most");
             }
             finally
             {
                 chatTab.Padding = before;
                 chatTab.Visible = shown;
+                advancedTrack = 0;
             }
         }
 
@@ -299,6 +321,7 @@ namespace CodexAutoResume
             AdvancedAudited++;
             Materialise(this);
             PerformLayout();
+            SettleTabs();
             Walk(nav, where + "/" + AuditName(nav), findings);
             if (advancedList != null) AuditList(where + "/" + AuditName(advancedList), advancedList, findings);
         }
@@ -340,9 +363,20 @@ namespace CodexAutoResume
             AuditPins(where, findings);
         }
 
+        /// What KeepTabsWhole posted after the strip's last layout (BeginInvoke), done now - the window no one sees
+        /// has no message loop - and the window laid out again after it.
+        private void SettleTabs()
+        {
+            Application.DoEvents();
+            PerformLayout();
+        }
+
         private void AuditAdvanced(string where, List<string> findings)
         {
             AdvancedAudited++;
+            Materialise(this);
+            PerformLayout();
+            SettleTabs();
             if (currentPage != AdvancedPageName || advancedPage == null || !OwnVisible(advancedPage))
                 findings.Add(where + " :: the page is not the one showing");
             if (advancedTab == null || !OwnVisible(advancedTab))
