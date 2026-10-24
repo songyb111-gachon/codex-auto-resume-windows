@@ -1052,11 +1052,12 @@ namespace CodexAutoResume
                            code == "scheduled" || code == "failed_retryable";
             if (!waiting) return false;
             if (Equals(Get(row, "cancel_requested"), true)) return false;
-            // Retry now brings the check forward. It never moves past a usage reset that is
-            // still ahead, and never past a pause or a conversation that is switched off; where
-            // it could do none of that it is not offered. A reset that has passed, or one that
-            // is unknown, is exactly where it helps.
-            if (Number(row, "reset_at") > now) return false;
+            // Retry now brings the check forward. It never moves past a pause or a conversation that is switched off;
+            // where it could do none of that it is not offered. A reset that has passed, or one that is unknown, is
+            // exactly where it helps - and from v0.6.19 (issue #50) so is a usage limit's reset still ahead: the click
+            // asks the watcher to read usage once (control/actions.py request_retry_now), which is how a limit that
+            // lifted early goes on. A reset ahead of anything else it cannot move, and it is not offered there.
+            if (Number(row, "reset_at") > now && Str(row, "category") != "usage_limit") return false;
             if (HasOverlay(row, "paused") || HasOverlay(row, "thread_disabled")) return false;
             // v0.6.11: nor past a hold. A held task waits for a person to let it continue, and a check
             // brought forward would only find it held again.
