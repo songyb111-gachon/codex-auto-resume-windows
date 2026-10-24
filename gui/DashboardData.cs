@@ -1007,16 +1007,15 @@ namespace CodexAutoResume
         /// Why usage was not read at a person's Retry now (store/schedule.py NOT_CHECKED, the click's or the watcher's).
         internal string NotCheckedText(string why)
         {
-            switch (why)
-            {
-                case "paused": return S("retry.not_checked.paused", "Usage was not checked because recovery was paused. It waits for the reset Codex gave.");
-                case "conversation_off": return S("retry.not_checked.conversation_off", "Usage was not checked because recovery was off for this conversation. It waits for the reset Codex gave.");
-                case "observe_only": return S("retry.not_checked.observe_only", "Usage was not checked because Observe only was on. It waits for the reset Codex gave.");
-                case "quiet_hours": return S("retry.not_checked.quiet_hours", "Usage was not checked because it was quiet hours. It waits for the reset Codex gave.");
-                case "offline": return S("retry.not_checked.offline", "Usage was not checked because Windows reported no internet. It waits for the reset Codex gave.");
-                case "busy": return S("retry.not_checked.busy", "Usage was not checked because the watcher was busy for too long. Press Retry now to ask again.");
-                default: return S("retry.not_checked.held", "Usage was not checked because something else held the recovery. It waits for the reset Codex gave.");
-            }
+            // An if for each, not a string switch: the in-box compiler builds a switch of six strings on a class it names at
+            // random, and the window is reproducible (build/normalize_pe.py refuses it).
+            if (why == "paused") return S("retry.not_checked.paused", "Usage was not checked because recovery was paused. It waits for the reset Codex gave.");
+            if (why == "conversation_off") return S("retry.not_checked.conversation_off", "Usage was not checked because recovery was off for this conversation. It waits for the reset Codex gave.");
+            if (why == "observe_only") return S("retry.not_checked.observe_only", "Usage was not checked because Observe only was on. It waits for the reset Codex gave.");
+            if (why == "quiet_hours") return S("retry.not_checked.quiet_hours", "Usage was not checked because it was quiet hours. It waits for the reset Codex gave.");
+            if (why == "offline") return S("retry.not_checked.offline", "Usage was not checked because Windows reported no internet. It waits for the reset Codex gave.");
+            if (why == "busy") return S("retry.not_checked.busy", "Usage was not checked because the watcher was busy for too long. Press Retry now to ask again.");
+            return S("retry.not_checked.held", "Usage was not checked because something else held the recovery. It waits for the reset Codex gave.");
         }
 
         /// What a usage reading a person's Retry now asked for said (the row's `usage_check`), in words, or null.
