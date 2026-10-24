@@ -164,12 +164,15 @@ namespace CodexAutoResume
         }
 
         /// What the Keep it on and Send now buttons may do now: nothing while another action is under way; the turn-ons
-        /// only where an administrator's policy admits what they would do - Send again, the once-more capability too.
+        /// only where an administrator's policy admits what they would do - Send again, the once-more capability too - and
+        /// Keep it on only once the statement it confirms has been read, as Turn on (v0.6.19-beta.3: before, it was live
+        /// with the statement unread and its click did nothing, said nothing).
         private void UpdateKeptButtons(bool idle)
         {
             string id = advancedOpen;
             bool listed = idle && advancedListing != null && id != null;
-            if (keepOnButton != null) keepOnButton.Enabled = listed && PolicyAdmits(id) && PolicyRefusalOf(id, StateArmed) == null;
+            if (keepOnButton != null)
+                keepOnButton.Enabled = listed && AdvancedStatement(id) != null && PolicyAdmits(id) && PolicyRefusalOf(id, StateArmed) == null;
             if (sendAgainButton != null)
                 sendAgainButton.Enabled = listed && PolicyAdmits(id) && PolicyAdmits("once_more_when_unsure") &&
                                           Str(AdvancedItem(id), "state") != StateOff;
