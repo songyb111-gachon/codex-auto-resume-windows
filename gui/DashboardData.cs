@@ -998,6 +998,13 @@ namespace CodexAutoResume
             // read, and whether the recovery went on - a check told apart from a resume - after, never instead of, what a
             // person's action on the row just said (the review of 2026-10-24).
             string own = mine ? pendingNoteText ?? "" : "";
+            // v0.6.19 (the owner's decision of 2026-10-24): a Rescan's note goes on to say what its click did about Codex's
+            // usage - and, once the watcher has read it, what it read.
+            if (mine && pendingNoteFor == BulkNote && rescanNoteText != null && ReferenceEquals(pendingNoteText, rescanNoteText))
+            {
+                string usage = RescanReadText(rescanAskedAt - 5) ?? rescanUsageNote;
+                if (!string.IsNullOrEmpty(usage)) own = own.Length == 0 ? usage : own + " " + usage;
+            }
             string checkedText = UsageCheckText(Map(chosen, "usage_check"));
             if (checkedText != null && checkedText != own)
                 own = own.Length == 0 ? checkedText : own + " " + checkedText;

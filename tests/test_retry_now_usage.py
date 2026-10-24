@@ -127,7 +127,7 @@ class NothingReleasedTests(CheckCase):
         row = self.h.record()
         self.assertEqual((row["state"], row["reset_at"], self.sends()), ("waiting_reset", RESET, 0))
         self.assertEqual(self.pending()["usage_check"], {"at": self.h.now, "read": "still_limited", "lifted": False, "why": None,
-                                                        "continued": False})
+                                                        "continued": False, "source": "retry_now"})
 
     def test_an_unknown_or_failed_read_releases_nothing(self):
         for name, usage in (("unknown", lambda: {"available": None, "reason": "unknown"}),

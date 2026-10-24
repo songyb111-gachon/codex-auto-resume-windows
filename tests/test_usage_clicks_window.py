@@ -28,9 +28,10 @@ import unittest
 from unittest import mock
 
 import guiscan
-from test_engine import T1, TURN_A, Harness  # noqa: E402
+from test_engine import T1, T2, TURN_A, TURN_B, Harness  # noqa: E402
 from codex_auto_resume import config, control, controlcli, l10n  # noqa: E402
 from codex_auto_resume.control import actions as control_actions  # noqa: E402
+from codex_auto_resume.store.actions import RECHECKED  # noqa: E402
 
 CSC = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Microsoft.NET" / "Framework64" / "v4.0.30319" / "csc.exe"
 POWERSHELL = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
@@ -77,6 +78,16 @@ $flags = [Reflection.BindingFlags]'Instance,Static,NonPublic,Public'
 $utf8 = New-Object Text.UTF8Encoding $false
 function Parse($name) { return ,$J.GetMethod('Parse', $flags).Invoke($null, [object[]]@([IO.File]::ReadAllText((Join-Path $env:CAR_WORK $name), $utf8))) }
 $out = @{ retry = @{} }
+function Wait-For([string]$command, [int]$count) {
+    $deadline = [DateTime]::UtcNow.AddSeconds(20)
+    while ([DateTime]::UtcNow -lt $deadline) {
+        [Windows.Forms.Application]::DoEvents()
+        $seen = @([Recorder]::Seen() | Where-Object { $_.StartsWith($command + "`n") }).Count
+        if ($seen -ge $count -and [int]$F.GetField('busy', $flags).GetValue($script:form) -eq 0) { return }
+        Start-Sleep -Milliseconds 20
+    }
+    throw ('the window made no ' + $command + ' call')
+}
 try {
     $Soft.GetField('StillNow', $flags).SetValue($null, [double]$env:CAR_NOW)
     $can = $F.GetMethod('CanRetryNow', $flags)
@@ -87,19 +98,22 @@ try {
     $answer = [Delegate]::CreateDelegate($PB.GetField('Answers', $flags).FieldType, [Recorder].GetMethod('Answer'))
     $PB.GetField('Answers', $flags).SetValue($null, $answer)
     $dialogs = $F.GetField('DialogAnswers', $flags)
-    if ($dialogs) { $dialogs.SetValue($null, [Delegate]::CreateDelegate($dialogs.FieldType, [Recorder].GetMethod('Yes'))) }
+    # No seam, no click that asks: the window's own dialog must never open on anyone's desktop.
+    if (-not $dialogs) { throw 'the window has no DialogAnswers: a click that asks would show a dialog' }
+    $dialogs.SetValue($null, [Delegate]::CreateDelegate($dialogs.FieldType, [Recorder].GetMethod('Yes')))
     $dashboard = Parse 'dashboard.json'
     [Recorder]::Replies['dashboard'] = $dashboard
     [Recorder]::Replies['retry-now'] = (Parse 'retry.json')
     [string]$nowhere = Join-Path $env:CAR_WORK 'nowhere'
     $bridge = $BT.GetConstructor($flags, $null, [type[]]@([string]), $null).Invoke([object[]]@($nowhere))
     $persistent = $PB.GetConstructor($flags, $null, [type[]]@([string], $BT), $null).Invoke([object[]]@($nowhere, $bridge))
-    $catalog = (Parse 'strings.json')['strings']
+    $catalog = Parse 'strings.json'
     $make = $F.GetConstructor($flags, $null, [type[]]@($PB, [Collections.Generic.Dictionary[string,object]], [Drawing.Font]), $null)
-    $form = $make.Invoke([object[]]@($persistent, $catalog, [Drawing.SystemFonts]::MessageBoxFont))
+    $script:form = $make.Invoke([object[]]@($persistent, $catalog, [Drawing.SystemFonts]::MessageBoxFont))
     $F.GetField('auditing', $flags).SetValue($form, $true)
     $form.TopLevel = $false
     $form.ClientSize = New-Object Drawing.Size 1100, 760
+    $form = $script:form
     $null = $form.Handle
     $F.GetMethod('ShowPage', $flags).Invoke($form, [object[]]@('pending')) | Out-Null
     $F.GetMethod('ApplySnapshot', $flags).Invoke($form, [object[]]@($dashboard)) | Out-Null
@@ -112,15 +126,26 @@ try {
     $out.enabled = [bool]$button.Enabled
     # The window's own handler, as the button's click runs it.
     $F.GetMethod('RetryNow', $flags).Invoke($form, $null) | Out-Null
-    $deadline = [DateTime]::UtcNow.AddSeconds(20)
-    while ([DateTime]::UtcNow -lt $deadline) {
-        [Windows.Forms.Application]::DoEvents()
-        $done = @([Recorder]::Seen() | Where-Object { $_.StartsWith("retry-now`n") }).Count -gt 0
-        if ($done -and [int]$F.GetField('busy', $flags).GetValue($form) -eq 0) { break }
-        Start-Sleep -Milliseconds 20
-    }
-    $out.calls = @([Recorder]::Seen())
+    Wait-For 'retry-now' 1
     $out.note = [string]$F.GetField('pendingNoteText', $flags).GetValue($form)
+    # Rescan, "check all": the second scene's two usage-waiting rows, the button, its question, its call and its note.
+    $rescanned = Parse 'dashboard-rescan.json'
+    [Recorder]::Replies['dashboard'] = $rescanned
+    [Recorder]::Replies['rescan'] = (Parse 'rescan-asked.json')
+    $F.GetMethod('ApplySnapshot', $flags).Invoke($form, [object[]]@($rescanned)) | Out-Null
+    $list.Items[0].Selected = $true
+    $F.GetMethod('UpdatePendingButtons', $flags).Invoke($form, $null) | Out-Null
+    $out.rescanEnabled = [bool]$F.GetField('rescanButton', $flags).GetValue($form).Enabled
+    $out.rescanText = [string]$F.GetField('rescanButton', $flags).GetValue($form).Text
+    $F.GetMethod('Rescan', $flags).Invoke($form, $null) | Out-Null
+    Wait-For 'rescan' 1
+    $out.rescanNote = [string]$F.GetField('pendingNote', $flags).GetValue($form).Text
+    # And under a Pause: the reply says why no usage was read, and the note says it in words.
+    [Recorder]::Replies['rescan'] = (Parse 'rescan-paused.json')
+    $F.GetMethod('Rescan', $flags).Invoke($form, $null) | Out-Null
+    Wait-For 'rescan' 2
+    $out.pausedNote = [string]$F.GetField('pendingNote', $flags).GetValue($form).Text
+    $out.calls = @([Recorder]::Seen())
     $form.Dispose()
 } catch {
     [Console]::Error.WriteLine($_.Exception.ToString())
@@ -133,7 +158,7 @@ $out | ConvertTo-Json -Depth 5 -Compress
 class Scene:
     """One usage-limited conversation waiting for a reset an hour ahead, on test_engine's harness, in a home of its own."""
 
-    def __init__(self, folder: Path):
+    def __init__(self, folder: Path, threads=((T1, TURN_A),)):
         self.paths = config.Paths(folder / "home")
         self.paths.ensure()
         self.h = Harness(self.paths.state_dir)
@@ -145,11 +170,14 @@ class Scene:
             self.reads += 1
             return usage()
         self.h.backend.usage = counted
-        self.h.home.fail_usage(T1, TURN_A)
-        self.h.backend.loaded_map[T1] = "loaded"
+        for thread, turn in threads:
+            self.h.home.fail_usage(thread, turn)
+            self.h.backend.loaded_map[thread] = "loaded"
         self.h.tick()
+        self.threads = [thread for thread, _turn in threads]
         self.key = self.h.record()["interruption_id"]
-        assert self.h.record()["state"] == "waiting_reset" and self.h.record()["reset_at"] > self.h.now
+        for thread in self.threads:
+            assert self.h.record(thread)["state"] == "waiting_reset" and self.h.record(thread)["reset_at"] > self.h.now
 
     def control(self):
         return control.Control(self.paths)
@@ -157,7 +185,9 @@ class Scene:
     def ask(self, command, payload):
         """The bridge's own dispatch, as the window's call reaches it, on the harness's clock with a watcher to wake."""
         with mock.patch.object(control_actions.WakeEvent, "signal", lambda _self: True), \
-                mock.patch("time.time", lambda: self.h.now):
+                mock.patch("time.time", lambda: self.h.now), \
+                mock.patch("codex_auto_resume.rescan.judge_for", lambda _control: lambda _row, _kin: (RECHECKED, None)):
+            # The rescan's judge stands in for the one that reads a Codex home: nothing here reads this machine's Codex.
             return controlcli.dispatch(self.control(), command, payload)
 
     def row(self):
@@ -200,6 +230,7 @@ class CheckOneTests(unittest.TestCase):
         cls.cases = _cases(work / "cases")
         # The click's scene: a fresh one, untouched by a Retry now.
         cls.scene = Scene(work / "click")
+        cls.rescan_scene = Scene(work / "rescan", ((T1, TURN_A), (T2, TURN_B)))
         exe = work / "CodexAutoResumeSettings.exe"
         subprocess.run([str(CSC), "/nologo", "/target:winexe", "/platform:x64", "/out:" + str(exe),
                         "/reference:System.dll", "/reference:System.Drawing.dll",
@@ -207,11 +238,16 @@ class CheckOneTests(unittest.TestCase):
                        check=True, capture_output=True, timeout=300,
                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         write = lambda name, value: (work / name).write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
-        write("strings.json", {"strings": l10n.catalog("en")})
+        write("strings.json", {"ok": True, "language": "en", "strings": l10n.catalog("en")})
         write("rows.json", {name: row for name, (_scene, row, _answer) in cls.cases.items()})
         write("dashboard.json", cls.scene.ask("dashboard", {}))
         write("retry.json", {"ok": True, "result": {"interruption_id": cls.scene.key, "usage_check": "asked",
                                                     "eligible_at": cls.scene.h.now, "woke": True}})
+        write("dashboard-rescan.json", cls.rescan_scene.ask("dashboard", {}))
+        counts = {"scanned": 2, "not_waiting": 0, "retired": 0, "rechecked": 2, "unresolved": 0, "changed": 0,
+                  "records": [], "woke": True}
+        write("rescan-asked.json", {"ok": True, "result": dict(counts, usage_check="asked", usage_asked=2)})
+        write("rescan-paused.json", {"ok": True, "result": dict(counts, usage_check="paused", usage_asked=0)})
         probe = work / "probe.ps1"
         probe.write_text(PROBE, encoding="utf-8")
         cls.result = subprocess.run(
@@ -226,6 +262,7 @@ class CheckOneTests(unittest.TestCase):
         for scene, _row, _answer in cls.cases.values():
             scene.close()
         cls.scene.close()
+        cls.rescan_scene.close()
         cls.folder.cleanup()
 
     def setUp(self):
@@ -263,6 +300,32 @@ class CheckOneTests(unittest.TestCase):
         self.scene.h.tick(advance=1)
         self.assertEqual(self.scene.reads - before, 1, "read once, at the look the click asked for")
         self.assertEqual(len(self.scene.h.backend.send_calls), 1, "Codex said the limit lifted: it went on")
+
+    def test_rescan_is_offered_asks_first_and_says_it_reads_usage_once(self):
+        english = l10n.catalog("en")
+        self.assertEqual(self.answer["rescanText"], english["action.rescan"])
+        self.assertEqual(english["action.rescan"], "Rescan")
+        self.assertTrue(self.answer["rescanEnabled"])
+        dialogs = [call for call in self.answer["calls"] if call.startswith("dialog\n")]
+        self.assertTrue(dialogs and "read Codex's usage once" in dialogs[0], dialogs)
+        calls = [call for call in self.answer["calls"] if call.startswith("rescan\n")]
+        self.assertEqual(calls, ["rescan\n", "rescan\n"], "the bridge's no-argument rescan, once a click")
+        self.assertIn("Rechecked: 2", self.answer["rescanNote"])
+        self.assertIn(english["rescan.usage_asked"].replace("{n}", "2"), self.answer["rescanNote"])
+
+    def test_rescan_says_why_no_usage_was_read_under_a_pause(self):
+        """Retry now is not offered under a Pause; Rescan is how the click says why nothing was read."""
+        self.assertIn(l10n.catalog("en")["retry.not_checked.paused"], self.answer["pausedNote"])
+
+    def test_the_windows_rescan_reaches_one_usage_read_for_every_waiting_recovery(self):
+        calls = [call.split("\n", 1) for call in self.answer["calls"] if call.startswith("rescan\n")]
+        reply = self.rescan_scene.ask(calls[0][0], {})
+        self.assertEqual((reply["result"]["usage_check"], reply["result"]["usage_asked"]), ("asked", 2))
+        before = self.rescan_scene.reads
+        self.rescan_scene.h.tick(advance=1)
+        self.assertEqual(self.rescan_scene.reads - before, 1, "one reading for both")
+        for thread in self.rescan_scene.threads:
+            self.assertLess(self.rescan_scene.h.record(thread)["reset_at"], self.rescan_scene.h.now + 1)
 
 
 if __name__ == "__main__":

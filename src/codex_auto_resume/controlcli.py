@@ -481,7 +481,9 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
             return {"ok": True, "result": control.cancel_all_pending(actor="gui")}
         if command == "rescan":
             from . import rescan            # the engine's own rules, loaded only when a person asks for this
-            return {"ok": True, "result": control.rescan_pending(rescan.judge_for(control), actor="gui")}
+            # v0.6.19 (the owner, 2026-10-24): the Dashboard's Rescan reads Codex's usage once too ("check all"); only here.
+            return {"ok": True, "result": control.rescan_pending(rescan.judge_for(control), actor="gui",
+                                                                 read_usage=True)}
         if command == "postpone":
             return {"ok": True, "result": control.postpone(
                 payload.get("interruption_id"), payload.get("thread_id"), until=payload.get("until"),

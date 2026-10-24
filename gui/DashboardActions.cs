@@ -42,6 +42,9 @@ namespace CodexAutoResume
         /// offer of a pre-release asks this way, so a reflex Enter keeps the version that is installed.
         private bool Dialog(string text, string affirm, string away)
         {
+            // The tests' answers to the window's questions, in place of the dialog (null for every window a person opens):
+            // a test that drives a click through its handler must never show a dialog on anyone's desktop.
+            if (DialogAnswers != null) return DialogAnswers(text, affirm);
             using (var dialog = new Form())
             {
                 dialog.Text = "Codex Auto Resume";
@@ -222,6 +225,8 @@ namespace CodexAutoResume
                     : Equals(Get(result, "woke"), true)
                     ? S("retry.checking", "Checking now. Every safety check still applies.")
                     : S("retry.next_poll", "The watcher checks at its next poll. Every safety check still applies.");
+                // The advanced edition: with early_reset on, this reading counts as one of its two (AdvancedEarly.cs).
+                if (check == "asked") UsageAsked();
                 ShowPendingNote();
                 RefreshAfterChange();
             });
@@ -560,16 +565,19 @@ namespace CodexAutoResume
             });
         }
 
-        /// Rescan and reconcile (v0.6.16, issue #39): every waiting recovery looked at again by the watcher's own
-        /// rules, once the person says yes. One is retired only where Codex's history proves a person's newer work
-        /// came after it; every other one waits as it did, under every check. The note says how many were retired,
-        /// rechecked, left unresolved and changed meanwhile - the bridge's `rescan`, which sends nothing.
+        /// Rescan (v0.6.16, issue #39; "check all" from v0.6.19, the owner's decision of 2026-10-24): every waiting recovery
+        /// looked at again by the watcher's own rules, once the person says yes. One is retired only where Codex's history
+        /// proves a person's newer work came after it; every other one waits as it did, under every check. And Codex's
+        /// usage is read once for every recovery that waits for a usage reset (the bridge's `rescan`, which reads it only
+        /// for this click): one whose limit Codex says lifted goes on through every check, as with Retry now. The note says
+        /// how many were retired, rechecked, left unresolved and changed meanwhile, then that usage is being read - or why
+        /// it was not - and, once the watcher has read it, what it read (ShowPendingNote, RescanReadText).
         private void Rescan()
         {
             if (busy > 0 || pendingList.Items.Count == 0) return;
             if (!Confirm(S("confirm.rescan",
-                           "Look at every waiting recovery again? One is retired only where Codex's history proves newer work of yours came after it; every other one keeps waiting, with every check, and nothing is sent."),
-                         S("action.rescan", "Rescan and reconcile")))
+                           "Look at every waiting recovery again, and read Codex's usage once for those waiting for a usage reset? One is retired only where Codex's history proves newer work of yours came after it; one whose limit Codex says has lifted goes on through every check; every other one keeps waiting. Nothing is sent now."),
+                         S("action.rescan", "Rescan")))
                 return;
             CallAsync("rescan", null, delegate(Dictionary<string, object> reply)
             {
@@ -584,9 +592,55 @@ namespace CodexAutoResume
                 pendingNoteText = RescanNote(S("result.rescan",
                     "Retired: {retired} \u00B7 Rechecked: {rechecked} \u00B7 Unresolved: {unresolved} \u00B7 Changed meanwhile: {changed}"),
                     result);
+                string check = Str(result, "usage_check");
+                rescanNoteText = pendingNoteText;
+                rescanAskedAt = check == "asked" ? Now() : 0;
+                rescanUsageNote = RescanUsageText(check, Number(result, "usage_asked"));
+                // The advanced edition: with early_reset on, this reading counts as one of its two (AdvancedEarly.cs).
+                if (check == "asked") UsageAsked();
                 ShowPendingNote();
                 RefreshAfterChange();
             });
+        }
+
+        /// What a Rescan's click did about Codex's usage, in words: reading it now for so many, the watcher not running, or
+        /// why nothing was read (NotCheckedText) - nothing where nothing waits for a usage reset.
+        internal string RescanUsageText(string check, double asked)
+        {
+            if (string.IsNullOrEmpty(check)) return null;
+            if (check == "asked")
+                return S("rescan.usage_asked", "Reading Codex's usage once now for the recoveries waiting for a usage reset ({n}).")
+                    .Replace("{n}", Count(asked));
+            if (check == "not_running")
+                return S("retry.not_running", "The watcher is not running, so usage was not checked. It waits for the reset Codex gave.");
+            return NotCheckedText(check);
+        }
+
+        /// What the reading a Rescan asked for said, once the watcher has made it: the newest reading a Rescan asked for, at
+        /// or after the click, of any row the snapshot's Pending or History holds - one reading answers them all - or null before it.
+        internal string RescanReadText(double since)
+        {
+            if (snapshot == null || since <= 0) return null;
+            double at = 0;
+            string read = null;
+            var rows = new List<object>(Items(snapshot, "pending") ?? new List<object>());
+            rows.AddRange(Items(snapshot, "history") ?? new List<object>());
+            foreach (object listed in rows)
+            {
+                var row = listed as Dictionary<string, object>;
+                var check = Map(row, "usage_check");
+                if (check == null || Str(check, "source") != "rescan" || !(Get(check, "at") is double)) continue;
+                if (Str(check, "read") == "not_checked" || Number(check, "at") < since || Number(check, "at") <= at) continue;
+                at = Number(check, "at");
+                read = Str(check, "read");
+            }
+            if (read == null) return null;
+            string time = ClockTime(at);
+            return read == "available"
+                ? S("rescan.read_available", "Usage read at {time}: available. Each recovery it lifted goes on through every check.", "time", time)
+                : read == "still_limited"
+                ? S("rescan.read_limited", "Usage read at {time}: still limited. They wait for the reset Codex gave.", "time", time)
+                : S("rescan.read_unknown", "Usage read at {time}: it could not be told. Nothing changed.", "time", time);
         }
 
         /// The rescan's result line: each of its four counts in its place, each read by its own name and written as Count writes it (DashboardCompat.cs). Pure.

@@ -7,7 +7,7 @@ from __future__ import annotations
 from .. import machine
 from ..domain import ids
 from ..machine import STATES, TERMINAL
-from .schedule import NOT_CHECKED
+from .schedule import NOT_CHECKED, USAGE_BY_RESCAN, USAGE_BY_RETRY, USAGE_RESCAN_FLAG
 from .validate import _finite
 
 
@@ -61,10 +61,10 @@ class JournalMixin:
                 "ORDER BY event_id LIMIT ?)" % keep, (*running, excess))
 
     def usage_checks_shown(self, since) -> dict:
-        """What the last usage reading a person's Retry now asked for said of each record (v0.6.19, issue #50), from
-        `since` on: {interruption id: {at, read (available, still_limited, unknown, not_checked), lifted, why}} - why
-        one of store/schedule.NOT_CHECKED where it was not checked, else None - for the Dashboard to show, never an
-        input to a decision."""
+        """What the last usage reading a person's Retry now or Rescan asked for said of each record (v0.6.19, issue #50),
+        from `since` on: {interruption id: {at, read (available, still_limited, unknown, not_checked), lifted, why,
+        source}} - why one of store/schedule.NOT_CHECKED where it was not checked, else None; source who asked
+        (USAGE_BY_RETRY, USAGE_BY_RESCAN) - for the Dashboard to show, never an input to a decision."""
         found = {}
         with self._read() as connection:
             rows = connection.execute(
@@ -80,7 +80,8 @@ class JournalMixin:
             else:
                 read = ("available" if reason is None else "still_limited" if reason == "usage_unavailable"
                         else "unknown")
-            found[key] = {"at": _finite(at, 0.0), "read": read, "lifted": bool(flags & 1), "why": why}
+            found[key] = {"at": _finite(at, 0.0), "read": read, "lifted": bool(flags & 1), "why": why,
+                          "source": USAGE_BY_RESCAN if flags & USAGE_RESCAN_FLAG else USAGE_BY_RETRY}
         return found
 
     def events(self, interruption_id=None, *, chain_origin_id=None, limit=500) -> list:

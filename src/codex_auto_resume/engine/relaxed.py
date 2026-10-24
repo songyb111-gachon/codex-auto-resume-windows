@@ -192,8 +192,9 @@ class RelaxedMixin:
             return False
         opened = self._early_at
         inside = opened is not None and 0 <= now - opened < ladder.EARLY_WINDOW
-        # v0.6.19 (issue #50): a person's Check now (the advanced edition's early_reset) opens the window before its five
-        # minutes are up - never inside one reading's life - and the reading it opens is a fresh one.
+        # v0.6.19 (issue #50): a person's reading (the advanced edition asks it with a Retry now's or a Rescan's, while
+        # early_reset stands on) opens the window before its five minutes are up - never inside one reading's life - and a
+        # reading of the last 30 seconds answers it (C9): the click's own, made at this look, is the one.
         asked = not inside and self.store.early_check_asked(now)
         if not inside and opened is not None and 0 <= now - opened < ladder.EARLY_SPACING and not asked:
             return False
@@ -206,7 +207,6 @@ class RelaxedMixin:
             self._early_at = now
             if asked:
                 self.store.early_check_taken()
-                self._usage_cache = None
         self._early_look = row["interruption_id"]
         vector["schedule"] = machine.gate(machine.PASS, machine.PLUGGED)
         return True

@@ -43,7 +43,7 @@ function Parse($name) { return ,$J.GetMethod('Parse', $flags).Invoke($null, [obj
 [string]$nowhere = Join-Path $env:CAR_WORK 'nowhere'
 $bridge = $BT.GetConstructor($flags, $null, [type[]]@([string]), $null).Invoke([object[]]@($nowhere))
 $persistent = $PB.GetConstructor($flags, $null, [type[]]@([string], $BT), $null).Invoke([object[]]@($nowhere, $bridge))
-$catalog = (Parse 'strings.json')['strings']
+$catalog = Parse 'strings.json'
 $make = $F.GetConstructor($flags, $null, [type[]]@($PB, [Collections.Generic.Dictionary[string,object]], [Drawing.Font]), $null)
 $form = $make.Invoke([object[]]@($persistent, $catalog, [Drawing.SystemFonts]::MessageBoxFont))
 $F.GetField('auditing', $flags).SetValue($form, $true)
@@ -61,7 +61,7 @@ $out = @{
   index = [int]$row.Controls.GetChildIndex($button)
   cancelAllIndex = [int]$row.Controls.GetChildIndex($cancelAll)
   enabled = [bool]$button.Enabled
-  note = [string]$note.Invoke($null, [object[]]@([string]$catalog['result.rescan'], $result))
+  note = [string]$note.Invoke($null, [object[]]@([string]$catalog['strings']['result.rescan'], $result))
 }
 $form.Dispose()
 $out | ConvertTo-Json -Depth 4 -Compress
@@ -80,7 +80,7 @@ class WindowTests(unittest.TestCase):
                         "/reference:System.Windows.Forms.dll", *[str(path) for path in guiscan.sources()]],
                        check=True, capture_output=True, timeout=300,
                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-        (work / "strings.json").write_text(json.dumps({"strings": l10n.catalog("en")}, ensure_ascii=False),
+        (work / "strings.json").write_text(json.dumps({"ok": True, "language": "en", "strings": l10n.catalog("en")}, ensure_ascii=False),
                                            encoding="utf-8")
         (work / "result.json").write_text(json.dumps({"retired": 2, "rechecked": 3, "unresolved": 1, "changed": 4}),
                                           encoding="utf-8")

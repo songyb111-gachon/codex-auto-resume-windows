@@ -112,6 +112,16 @@ namespace CodexAutoResume
             return Word("page.early.not_read", "Early reset check at {time}: usage was not read, because another check came first. Nothing was continued.", "time", time);
         }
 
+        /// v0.6.19 (the owner's decision of 2026-10-24): a person's Retry now or Rescan asked the watcher to read Codex's
+        /// usage once. While early_reset stands on, that reading is also one of its two - the probe for every waiting
+        /// conversation together, opened at the click's look and answered by the click's own reading (advanced-early-check,
+        /// which folds a request made within one reading's life). Its answer changes nothing on the page.
+        partial void UsageAsked()
+        {
+            if (earlyShown == null) return;
+            AdvancedCall("advanced-early-check", "{}", false, delegate(Dictionary<string, object> reply) { });
+        }
+
         /// Check now: one reading asked for at once; repeated clicks are one request (the bridge folds them).
         private void EarlyCheckNow()
         {

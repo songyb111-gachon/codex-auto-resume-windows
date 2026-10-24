@@ -782,6 +782,13 @@ namespace CodexAutoResume
             "no_progress_budget", "thread_available", "no_newer_user_work", "usage" };
         private NoteLabel pendingNote, historyNote;
         private string pendingNoteFor, pendingNoteText = "";
+        // v0.6.19 (the owner's decision of 2026-10-24): the Rescan note this belongs to, what its click did about Codex's
+        // usage, and when it asked for the reading (0: none) - so the note says what was read once the watcher has read it.
+        private string rescanNoteText, rescanUsageNote;
+        private double rescanAskedAt;
+        /// The tests' answers to the window's questions, in place of the dialog (Dialog): null for every window a person
+        /// opens, as PersistentBridge.Answers is.
+        internal static Func<string, string, bool> DialogAnswers;
         private Button historyTimeline, historyReset, historyThread, historyClear;
         // Statistics
         private ComboBox period;
@@ -844,6 +851,9 @@ namespace CodexAutoResume
         // standard window goes: a page of the advanced edition's, and what the frame asks of it, is
         // put in place here, `moved` set when anything changed.
         partial void RenderStateNamed(Dictionary<string, object> frame, RenderWriter writer, ref bool moved);
+        // v0.6.19 (the owner's decision of 2026-10-24): a person's Retry now or Rescan has asked the watcher to read Codex's
+        // usage once. The advanced edition counts that reading as one of early_reset's two while it stands on.
+        partial void UsageAsked();
 
         // ----------------------------------------------------------------- chrome
         private void BuildDashboard()

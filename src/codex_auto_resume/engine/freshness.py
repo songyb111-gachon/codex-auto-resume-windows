@@ -12,7 +12,9 @@ v0.6.19 (issue #50; A12 amended by the owner on 2026-10-24): a person's Retry no
 reset is a moment usage is read too - once, at the look the click brought forward (`_asked_usage`), a reading taken in
 the last 30 seconds answering it (C9). A request is served at the watcher's next look or not at all; one it could not
 serve - paused, observe only, quiet hours, no internet, busy too long, held - is never read later, and the row says why
-(`_usage_checks_left`).
+(`_usage_checks_left`). So is a person's Rescan (the owner's decision of 2026-10-24, "check all"): one request for each
+recovery that waits for a usage reset, served at its next look - which a Rescan does not bring forward - and all of them
+answered by one reading, the 30 seconds' cache.
 """
 from __future__ import annotations
 
@@ -34,11 +36,12 @@ class FreshnessMixin:
         return self._usage_cache[1]
 
     def _schedule_gate(self, row, vector, now, quiet_until):
-        """The schedule gate for `row`, and the record it is for: a usage reset still ahead at a look a person's Retry
-        now brought forward is first put to `_asked_usage` - and where the reading lifted it, the record goes on from
-        here as usual. A record that moved meanwhile is not due this look."""
+        """The schedule gate for `row`, and the record it is for: a usage reset still ahead is first put to
+        `_asked_usage` - at a look a person's Retry now brought forward, or (v0.6.19, the owner's decision of 2026-10-24)
+        at any look where a person's Rescan asked, which brings no schedule forward - and where the reading lifted it,
+        the record goes on from here as usual. A record that moved meanwhile is not due this look."""
         gate = machine.gate_schedule(row, now, quiet_until=quiet_until)
-        if gate[1] != "waiting_reset" or (row.get("next_retry_at") or 0) > now:
+        if not (gate[1] == "waiting_reset" or (gate[1] == "not_due" and (row.get("reset_at") or 0) > now)):
             return gate, row
         found = self._asked_usage(row, vector, now, quiet_until)
         if found is None:
@@ -63,15 +66,15 @@ class FreshnessMixin:
         if why is not None:
             self.store.usage_not_checked(key, now, why)
             return row
-        self.store.usage_check_taken(key)
+        source = self.store.usage_check_taken(key)
         try:
-            available = self.usage().get("available")   # a reading of the last 30 seconds answers it (C9)
+            # A reading of the last 30 seconds answers it (C9): a Rescan's requests, one per recovery, are one reading.
+            available = self.usage().get("available")
         except Exception:
             available = None
         read = ("usage_available" if available is True else "usage_unavailable" if available is False
                 else "usage_unknown")
-        found = self.store.usage_checked(key, now, read)
-        return found
+        return self.store.usage_checked(key, now, read, source=source)
 
     def _not_served(self, row, now, quiet_until, vector=None, asked=None):
         """Why a person's request to read usage for `row` cannot be served at this look (store/schedule.NOT_CHECKED),
