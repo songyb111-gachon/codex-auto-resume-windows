@@ -307,6 +307,8 @@ class ProcessTests(unittest.TestCase):
                                                  "bootstrap's -Compatibility fetch",
         "codex_auto_resume/pwsh.py": "the one place PowerShell is run",
         "codex_auto_resume/control/watcher.py": "starts the watcher, detached (a lazy import in start_watcher)",
+        "codex_auto_resume/startup.py": "starts an entry point once more with remote debugging off, where Windows "
+                                        "started it with it on (a lazy import in again_without_remote_debug)",
         "codex_auto_resume/ui/tray/dashboard.py": "opens the settings window from the icon",
         "codex_auto_resume/notify.py": "catches SubprocessError from pwsh.run",
         "codex_auto_resume/codex_link.py": "since v0.6.16 hands a Codex conversation link to explorer.exe "

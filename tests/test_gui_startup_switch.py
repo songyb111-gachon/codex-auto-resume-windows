@@ -60,7 +60,7 @@ class SourceTests(unittest.TestCase):
                 self.assertTrue(l10n._read(locale).get("settings.startup_unchecked"))
 
 
-# A stand-in for the installation's python.exe: the bridge runs `python.exe -c CODE APP_SRC serve` (one request a
+# A stand-in for the installation's python.exe: the bridge runs `python.exe [-X OPTION ...] -c CODE APP_SRC serve` (one request a
 # line) or `python.exe -c CODE APP_SRC COMMAND [-]`. It answers status as CAR_FAKE_STATUS says (fail, true or
 # false; after a startup write, what was written), update and startup with ok, and writes each command - startup
 # with its argument - to CAR_FAKE_LOG.
@@ -84,6 +84,10 @@ static class Fake {
         return "{\"ok\":false,\"error\":\"unknown\"}";
     }
     static int Main(string[] args) {
+        // The interpreter's own options come first (-X disable-remote-debug, v0.6.19-beta.3), as python.exe reads them.
+        int options = 0;
+        while (options + 1 < args.Length && args[options] == "-X") options += 2;
+        if (options > 0) { var rest = new string[args.Length - options]; System.Array.Copy(args, options, rest, 0, rest.Length); args = rest; }
         string command = args.Length > 3 ? args[3] : "";
         if (command != "serve") {
             string argument = args.Length > 4 && args[4] == "-" ? Console.In.ReadToEnd() : "";

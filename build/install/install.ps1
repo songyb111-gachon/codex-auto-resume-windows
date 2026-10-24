@@ -1004,7 +1004,9 @@ function Invoke-Setup {
     # and failed the install (v0.6.18 installer audit, R1). For this call alone; the bootstrap's Invoke-InstalledSetup
     # does the same.
     $ErrorActionPreference = 'Continue'
-    try { & $Python $setup @Arguments | ForEach-Object { Write-Host ('    ' + $_) } }
+    # -X disable-remote-debug, before anything else, wherever this script runs the bundled interpreter: remote debugging
+    # off (PEP 768, Python 3.14; src/codex_auto_resume/startup.py, NO_REMOTE_DEBUG).
+    try { & $Python -X disable-remote-debug $setup @Arguments | ForEach-Object { Write-Host ('    ' + $_) } }
     finally { if ($counted) { $env:CODEX_AUTO_RESUME_PROGRESS_LINES = $null } }
     return $LASTEXITCODE
 }
@@ -1314,7 +1316,7 @@ if ($Uninstall) {
     # 'Continue' for this call: under 'Stop', Windows PowerShell 5.1 makes a native stderr line a terminating error even
     # with 2>$null, and a traceback then replaced the refusal below with a raw error (v0.6.18 installer audit, M1).
     $ErrorActionPreference = 'Continue'
-    $verify = & $interpreter $verifier 'verify-home' 2>$null
+    $verify = & $interpreter -X disable-remote-debug $verifier 'verify-home' 2>$null
     $ErrorActionPreference = 'Stop'
     if ($LASTEXITCODE -ne 0) {
         Fail 'This directory is not a Codex Auto Resume installation, so nothing was removed.'
@@ -1579,7 +1581,7 @@ $claimPython = Join-Path $Payload 'runtime\python.exe'
 if (-not (Test-Path -LiteralPath $claimPython)) { $claimPython = $Python }
 # 'Continue' for this call, as for verify-home above: the exit code decides, never a stderr line (M1).
 $ErrorActionPreference = 'Continue'
-$claim = & $claimPython $claimer 'claim-home' 2>$null
+$claim = & $claimPython -X disable-remote-debug $claimer 'claim-home' 2>$null
 $ErrorActionPreference = 'Stop'
 if ($LASTEXITCODE -ne 0) {
     Fail 'This directory holds files no installation of ours has claimed; nothing was installed.'
@@ -1947,7 +1949,7 @@ try {
         $null = Remove-OwnedItem $stale.FullName
     }
     if (-not (Test-Path -LiteralPath $Python)) { Fail 'The bundled Python runtime is missing from the payload.'; exit 1 }
-    $runtimeVersion = & $Python -c 'import sys;print(str(sys.version_info[0])+chr(46)+str(sys.version_info[1]))'
+    $runtimeVersion = & $Python -X disable-remote-debug -c 'import sys;print(str(sys.version_info[0])+chr(46)+str(sys.version_info[1]))'
     Ok ('Bundled Python ' + $runtimeVersion + ' (no system Python needed)')
 
     # The payload is itself a valid local marketplace, so the plugin installs from the bytes

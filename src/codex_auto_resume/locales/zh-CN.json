@@ -760,7 +760,7 @@
   "msg.no_pending": "没有等待继续的任务。",
   "msg.not_installed": "Windows 运行时尚未安装，因此监视程序没有可运行的内容。该插件附带一个安装脚本，它会下载匹配的发布版本、进行检查并安装：",
   "msg.not_installed_hint": "无需事先做任何其他准备：不需要 Python，不需要管理员权限，也不需要手动下载。",
-  "msg.python_missing": "运行自动继续监视程序需要 Python 3.12 或更高版本。",
+  "msg.python_missing": "运行自动继续监视程序需要 Python 3.13 或更高版本。",
   "msg.ready_b1": "在用量上限重置后继续",
   "msg.ready_b2": "只继续被中断的那个任务",
   "msg.ready_b3": "等到用量可用再继续",

@@ -131,6 +131,11 @@ namespace CodexAutoResume
 
     internal sealed class Bridge
     {
+        /// What every python.exe this window starts is given first (the bridges, the Dashboard's long-lived one, Repair's
+        /// setup): remote debugging off (PEP 768, Python 3.14), or any process of this user could make it run code of its
+        /// choosing. Hyphens: `-X disable_remote_debug` is an unknown option, kept without a word, and leaves it on
+        /// (src/codex_auto_resume/startup.py, NO_REMOTE_DEBUG).
+        internal const string NoRemoteDebug = "-X disable-remote-debug ";
         /// The longest one call may take (v0.6.18): twice the long-lived pipe's own reply limit, for the interpreter's
         /// start on top of the answer. Past it the child is ended, with what it started (ChildTree.End), and the call
         /// throws, as a pipe that does not answer does: a stuck controlcli - a locked state file, a stuck import, an
@@ -181,7 +186,7 @@ namespace CodexAutoResume
                           "from codex_auto_resume.controlcli import main;" +
                           "sys.exit(main(sys.argv[2:]))";
             var arguments = new StringBuilder();
-            arguments.Append("-c ").Append(Quote(code)).Append(' ').Append(Quote(appSrc));
+            arguments.Append(NoRemoteDebug).Append("-c ").Append(Quote(code)).Append(' ').Append(Quote(appSrc));
             arguments.Append(' ').Append(command);
             // The argument goes in on stdin, never on the command line: "-" tells the bridge to
             // read it there. This call answers whenever the long-lived process has failed, and

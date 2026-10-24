@@ -760,7 +760,7 @@
   "msg.no_pending": "Nenhuma tarefa está aguardando para ser retomada.",
   "msg.not_installed": "O ambiente de execução para Windows ainda não está instalado, então não há nada para o monitor executar. O plug-in inclui um script de instalação que baixa a versão correspondente, verifica-a e a instala:",
   "msg.not_installed_hint": "Não é preciso mais nada antes: nem Python, nem direitos de administrador, nem download manual.",
-  "msg.python_missing": "É necessário o Python 3.12 ou mais recente para executar o monitor de retomada automática.",
+  "msg.python_missing": "É necessário o Python 3.13 ou mais recente para executar o monitor de retomada automática.",
   "msg.ready_b1": "Retomar após a redefinição do limite de uso",
   "msg.ready_b2": "Retomar apenas a tarefa exata que foi interrompida",
   "msg.ready_b3": "Aguardar até que haja uso disponível",

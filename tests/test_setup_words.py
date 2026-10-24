@@ -175,7 +175,7 @@ class CallersLookAgainTests(unittest.TestCase):
 
     def test_the_bootstraps_check_over_tells_setup_it_will_look_again_and_does(self):
         text = BOOTSTRAP.read_text(encoding="utf-8")
-        start = text.index("$arguments = @($setup, 'setup', '--keep-state')")
+        start = text.index("$arguments = @('-X', 'disable-remote-debug', $setup, 'setup', '--keep-state')")
         branch = text[start:text.index("exit $code", start)]
         self.assertIn("$lookAgain = @{ CODEX_AUTO_RESUME_SETUP_WILL_LOOK_AGAIN = '1' }", branch)
         self.assertIn("-Environment $lookAgain", branch, "the run outside gets it too")

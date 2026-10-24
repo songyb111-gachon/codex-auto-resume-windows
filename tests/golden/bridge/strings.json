@@ -393,7 +393,7 @@
           "msg.no_pending": "No tasks are waiting to be resumed.",
           "msg.not_installed": "The Windows runtime is not installed yet, so there is nothing for the watcher to run. The plugin carries a setup script that downloads the matching release, checks it and installs it:",
           "msg.not_installed_hint": "Nothing else is needed first: no Python, no administrator rights and no manual download.",
-          "msg.python_missing": "Python 3.12 or newer is required to run the auto-resume watcher.",
+          "msg.python_missing": "Python 3.13 or newer is required to run the auto-resume watcher.",
           "msg.ready_b1": "Resume after a usage-limit reset",
           "msg.ready_b2": "Resume only the exact interrupted task",
           "msg.ready_b3": "Wait until usage becomes available",

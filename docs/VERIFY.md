@@ -330,14 +330,15 @@ For a release whose tag has `build/normalize_pe.py`, you need:
   and Windows 10 version 1903 or later include it; an older Windows 10 build, such as
   LTSC 2019, comes with 4.7.2, so for a digest comparison install 4.8 first.
 - Git.
-- Python on `PATH`. The build runs on Python 3.12 or newer, but for a digest comparison
-  use Python 3.13, the line the release workflow uses. The archive is written by the
-  `zipfile` and `zlib` modules of the Python that runs `build/make_release.py`, and on
-  Windows, Python 3.14 and later use a different zlib implementation (zlib-ng), so a
-  newer Python can write a different archive from identical files.
-  `python -c "import zlib; print(zlib.ZLIB_RUNTIME_VERSION)"` prints the zlib yours uses;
-  the builds compared so far all used zlib 1.3.1. The tag's `release.yml` names the exact Python it
-  installs (3.13.15 for the workflows now); use that one for a digest comparison.
+- Python on `PATH`. The build runs on Python 3.13 or newer, but for a digest comparison
+  use the Python line the tag's release workflow used: 3.14 from v0.6.19-beta.3 on, 3.13
+  before it. The archive is written by the `zipfile` and `zlib` modules of the Python that
+  runs `build/make_release.py`, and on Windows, Python 3.14 and later use a different zlib
+  implementation (zlib-ng), so a 3.13 and a 3.14 build write different archives from
+  identical files. `python -c "import zlib; print(zlib.ZLIB_RUNTIME_VERSION)"` prints the
+  zlib yours uses: `1.3.1` on 3.13, `1.3.1.zlib-ng` on 3.14. The tag's `release.yml` names
+  the exact Python it installs (3.14.9 for the workflows now); use that one for a digest
+  comparison.
 
 No administrator rights are needed. The build downloads the embeddable Python it bundles
 from python.org and refuses it unless its SHA-256 matches the one written in
@@ -447,7 +448,8 @@ tampering:
 - **A different Python or zlib build.** If every file inside the two archives is
   identical (the comparison below prints nothing) but the archive digests differ, the
   difference is in how the archive was written, which points to the compressor. Check
-  that you built with Python 3.13 and which zlib it reports.
+  that you built with the tag's Python line (3.14 from v0.6.19-beta.3 on, 3.13 before it) and
+  which zlib it reports.
 - **Which files differ.** This compares the files inside two archives without extracting
   either. Run it in the clone, with `$published` set to where you saved the download. It
   prints nothing when every file is identical, and otherwise lists each differing file

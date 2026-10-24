@@ -760,7 +760,7 @@
   "msg.no_pending": "Nessuna attività è in attesa di essere ripresa.",
   "msg.not_installed": "Il runtime di Windows non è ancora installato, quindi il monitor non ha nulla da eseguire. Il plugin include uno script di installazione che scarica la release corrispondente, la verifica e la installa:",
   "msg.not_installed_hint": "Non serve altro prima: niente Python, niente diritti di amministratore e nessun download manuale.",
-  "msg.python_missing": "Per eseguire il monitor di ripresa automatica è necessario Python 3.12 o versione successiva.",
+  "msg.python_missing": "Per eseguire il monitor di ripresa automatica è necessario Python 3.13 o versione successiva.",
   "msg.ready_b1": "Riprendere dopo il ripristino dell'utilizzo",
   "msg.ready_b2": "Riprendere solo l'esatta attività interrotta",
   "msg.ready_b3": "Attendere che l'utilizzo torni disponibile",

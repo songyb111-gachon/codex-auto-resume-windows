@@ -760,7 +760,7 @@
   "msg.no_pending": "Không có tác vụ nào đang chờ tiếp tục.",
   "msg.not_installed": "Môi trường chạy cho Windows chưa được cài đặt, nên bộ theo dõi không có gì để chạy. Plugin có sẵn một tập lệnh thiết lập để tải xuống bản phát hành phù hợp, kiểm tra và cài đặt nó:",
   "msg.not_installed_hint": "Không cần chuẩn bị gì khác trước: không cần Python, không cần quyền quản trị và không cần tải xuống thủ công.",
-  "msg.python_missing": "Cần Python 3.12 trở lên để chạy bộ theo dõi tự động tiếp tục.",
+  "msg.python_missing": "Cần Python 3.13 trở lên để chạy bộ theo dõi tự động tiếp tục.",
   "msg.ready_b1": "Tiếp tục sau khi giới hạn sử dụng được đặt lại",
   "msg.ready_b2": "Chỉ tiếp tục đúng tác vụ bị gián đoạn",
   "msg.ready_b3": "Chờ đến khi có hạn mức sử dụng",

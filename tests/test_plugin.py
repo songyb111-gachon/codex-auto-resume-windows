@@ -400,8 +400,9 @@ class BridgeTests(unittest.TestCase):
         """What the launcher would hand to the command-line interface for this command."""
         sample = "codex-auto-resume:cancel?i=" + "ab" * 32
         argv = startup.parse_command(command)
-        # Windows substitutes the real URI for %1 before launching.
-        extra = [sample if a == "%1" else a for a in argv[2:]] or ["run"]
+        # Windows substitutes the real URI for %1 before launching. The interpreter's own options (remote debugging
+        # off, v0.6.19-beta.3) are the interpreter's: the launcher sees what follows its own path.
+        extra = [sample if a == "%1" else a for a in argv[startup.script_index(argv) + 1:]] or ["run"]
         return ["--home", str(self.home), "--quiet"] + extra
 
     def test_the_registered_commands_are_ones_the_cli_actually_accepts(self):
@@ -416,7 +417,8 @@ class BridgeTests(unittest.TestCase):
     def test_both_registrations_go_through_the_stable_launcher(self):
         # Neither may name the versioned plugin directory, or an update orphans it.
         for command in (self.bridge.watcher_command(self.home), self.bridge.notification_command(self.home)):
-            script = startup.parse_command(command)[1]
+            argv = startup.parse_command(command)
+            script = argv[startup.script_index(argv)]
             # Compared the way the product compares them. Windows can spell one
             # directory several ways - an 8.3 short name, a different case - and a
             # literal comparison passes or fails depending on which spelling the

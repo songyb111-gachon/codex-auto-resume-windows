@@ -760,7 +760,7 @@
   "msg.no_pending": "Keine Aufgaben warten auf Fortsetzung.",
   "msg.not_installed": "Die Windows-Laufzeit ist noch nicht installiert, daher gibt es für den Watcher nichts auszuführen. Das Plug-in enthält ein Einrichtungsskript, das das passende Release herunterlädt, prüft und installiert:",
   "msg.not_installed_hint": "Vorher ist nichts weiter nötig: kein Python, keine Administratorrechte und kein manueller Download.",
-  "msg.python_missing": "Für den Watcher zum automatischen Fortsetzen ist Python 3.12 oder neuer erforderlich.",
+  "msg.python_missing": "Für den Watcher zum automatischen Fortsetzen ist Python 3.13 oder neuer erforderlich.",
   "msg.ready_b1": "Nach dem Zurücksetzen des Nutzungslimits fortsetzen",
   "msg.ready_b2": "Nur genau die unterbrochene Aufgabe fortsetzen",
   "msg.ready_b3": "Warten, bis Nutzung verfügbar ist",
