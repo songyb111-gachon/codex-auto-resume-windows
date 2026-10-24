@@ -111,9 +111,6 @@ namespace CodexAutoResume
         // The width of the working area of the screen the window is held to (HoldTabs): the screen's own, or one the
         // page's audit stands in (AdvancedLayoutAudit). 0 is the screen's.
         private int advancedScreen;
-        // The widest the window may be (v0.6.19): Windows' own limit, SystemInformation.MaxWindowTrackSize - a window
-        // asked to be wider is held to it - or one the page's audit stands in. 0 is Windows'.
-        private int advancedTrack;
         // Whether this window replaces one that had this page on screen (ArgumentParsed), and shows it again once this
         // edition has answered (ReturnToAdvanced).
         private bool advancedReturning;
@@ -166,9 +163,6 @@ namespace CodexAutoResume
             // The strip as tall as its rows where it has had to take two (HoldTabs): again whenever the window's width
             // or font changes, after the standard window's own fitting of it to one row.
             nav.SizeChanged += delegate { FitTabs(); };
-            // v0.6.19: and every tab whole however it lays out (KeepTabsWhole), whatever HoldTabs measured - looked at
-            // once the strip's layout is over, never inside it.
-            settings.Parent.Layout += delegate { KeepTabsWholeLater(); };
             FontChanged += delegate { FitTabs(); };
             // Asked once the window opens, as its other reads are; a window the layout audit builds never opens.
             Load += delegate { if (!auditing) ReadAdvancedWords(); };
@@ -301,20 +295,21 @@ namespace CodexAutoResume
         {
             Control strip = advancedTab == null ? null : advancedTab.Parent;
             if (strip == null) return MinimumSize.Width;
-            // The strip as it is now, less what the chosen tab's heavier words add to it, plus the most any tab's would:
-            // whichever page is on screen, its tab is set in nav_current (ShowPage).
-            int now = 0, heaviest = 0;
-            var any = new Size(int.MaxValue, int.MaxValue);
+            // One row of the tabs as the strip lays them out: each shown tab at the width a button of its words, padding
+            // and the regular tab font prefers, with its margins - and the most any one of them grows when it is the
+            // chosen tab, in nav_current (ShowPage) - measured on buttons of their own, never added to any control
+            // (TabWidth). v0.6.19: TextRenderer's widths of the words, which this was reckoned from before, were a few
+            // pixels short of the buttons' own on GitHub's runner, and Spanish's Chat tab was cut off there.
+            int row = 0, heaviest = 0;
             foreach (Control control in strip.Controls)
             {
                 var tab = control as NavButton;
-                if (tab == null) continue;
-                int regular = TextRenderer.MeasureText(tab.Text, Soft.RoleFont("nav"), any, TextFormatFlags.SingleLine).Width;
-                now += TextRenderer.MeasureText(tab.Text, tab.Font, any, TextFormatFlags.SingleLine).Width - regular;
-                heaviest = Math.Max(heaviest, TextRenderer.MeasureText(tab.Text, Soft.RoleFont("nav_current"), any,
-                                                                       TextFormatFlags.SingleLine).Width - regular);
+                if (tab == null || !Soft.OwnVisible(tab)) continue;
+                int regular = TabWidth(tab, Soft.RoleFont("nav"));
+                row += regular + tab.Margin.Horizontal;
+                heaviest = Math.Max(heaviest, TabWidth(tab, Soft.RoleFont("nav_current")) - regular);
             }
-            int least = strip.PreferredSize.Width - now + heaviest + nav.Padding.Horizontal + FrameWidth;
+            int least = row + heaviest + strip.Padding.Horizontal + nav.Padding.Horizontal + FrameWidth;
             int room = ScreenRoom();
             bool rows = least > room;
             if (rows) least = room;
@@ -325,67 +320,24 @@ namespace CodexAutoResume
                 FitTabs();
             }
             if (MinimumSize.Width < least) MinimumSize = new Size(least, MinimumSize.Height);
-            tabsHeld = true;
             return least;
         }
 
-        // Whether KeepTabsWhole is holding the window now: its own change of size lays the strip out again.
-        private bool keepingTabs;
-        // Whether HoldTabs has held the window to its tabs once (this edition's words read): KeepTabsWhole corrects
-        // what it measured, and before it there is nothing to correct - the window is still being built.
-        private bool tabsHeld;
-
-        /// Every tab whole in the strip as it is laid out, not only as HoldTabs measured it (v0.6.19). HoldTabs reckons
-        /// the strip from TextRenderer's widths of the tabs' words, the chosen tab's in its heavier font included; on
-        /// GitHub's runner the chosen tab laid out a few pixels wider than that, and with the Chat tab the eighth on the
-        /// strip, Spanish's last tab ended 3 px past the window that HoldTabs held (v0.6.19-beta's CI). So whenever the
-        /// strip lays out on one row and its tabs need more than it has, the window is held that much wider - or, where the screen
-        /// has no room for that, the strip takes a second row, every tab whole, as HoldTabs does for a narrow screen.
-        /// KeepTabsWhole asked for once the strip's layout is over (BeginInvoke): Layout is raised before the strip
-        /// places its tabs, and a row or a width changed inside it was laid out with the old one (v0.6.19-beta's CI).
-        /// One asked for at a time; with no window handle yet there is nothing laid out to look at.
-        private void KeepTabsWholeLater()
+        /// The width `tab` prefers in `font`: a button of its own with the tab's words and padding, set as every tab is
+        /// (DashboardBuilt), asked as the strip asks a tab - and disposed, never added to any control.
+        private static int TabWidth(NavButton tab, Font font)
         {
-            if (tabsPosted || keepingTabs || !tabsHeld || rendering || !IsHandleCreated) return;
-            tabsPosted = true;
-            try { BeginInvoke(new MethodInvoker(delegate { tabsPosted = false; KeepTabsWhole(); })); }
-            catch (Exception) { tabsPosted = false; }
-        }
-
-        // Whether a KeepTabsWhole is posted and not yet done.
-        private bool tabsPosted;
-
-        private void KeepTabsWhole()
-        {
-            var strip = advancedTab == null ? null : advancedTab.Parent as FlowLayoutPanel;
-            if (strip == null || keepingTabs || !tabsHeld || rendering || strip.WrapContents) return;
-            // Only a strip laid out at the width it is given: the tab bar as wide as the window, and the strip as
-            // wide as the bar's room. Layout is raised before the strip is placed, so while the window is still being
-            // laid out the strip has a width of before (a new window's own default), which says nothing.
-            if (nav.Width != ClientSize.Width || strip.Width != nav.DisplayRectangle.Width) return;
-            // What one row of the tabs needs as they are now - each at its own preferred size, in the font it has -
-            // asked of the strip's layout itself.
-            int over = strip.GetPreferredSize(Size.Empty).Width - strip.ClientSize.Width;
-            if (over <= 0) return;
-            keepingTabs = true;
-            try
+            using (var scratch = new NavButton())
             {
-                int want = Width + over;
-                if (want > ScreenRoom())
-                {
-                    strip.WrapContents = true;
-                    FitTabs();
-                }
-                else
-                {
-                    if (MinimumSize.Width < want) MinimumSize = new Size(want, MinimumSize.Height);
-                    if (Width < want) Width = want;
-                }
-                strip.PerformLayout();
-            }
-            finally
-            {
-                keepingTabs = false;
+                scratch.Font = font;
+                scratch.Text = tab.Text;
+                scratch.Padding = tab.Padding;
+                scratch.AutoSize = true;
+                scratch.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                scratch.FlatStyle = FlatStyle.Flat;
+                scratch.FlatAppearance.BorderSize = 0;
+                scratch.UseVisualStyleBackColor = false;
+                return scratch.GetPreferredSize(Size.Empty).Width;
             }
         }
 
@@ -403,16 +355,9 @@ namespace CodexAutoResume
         /// The width of the working area of the screen the window is on, or of the one the audit stands in.
         private int ScreenRoom()
         {
-            int room;
-            if (advancedScreen > 0) room = advancedScreen;
-            else
-            {
-                try { room = Screen.FromControl(this).WorkingArea.Width; }
-                catch (Exception) { room = int.MaxValue; }
-            }
-            // v0.6.19: and never wider than Windows lets a window be (advancedTrack): a window asked to be wider is held
-            // to it, its tabs cut off (GitHub's 1024-wide runner, where the audit's screen is as wide as anything needs).
-            return Math.Min(room, advancedTrack > 0 ? advancedTrack : SystemInformation.MaxWindowTrackSize.Width);
+            if (advancedScreen > 0) return advancedScreen;
+            try { return Screen.FromControl(this).WorkingArea.Width; }
+            catch (Exception) { return int.MaxValue; }
         }
 
         /// The strip of tabs as tall as its rows at the width it has, where it takes more than one (HoldTabs); one row is
