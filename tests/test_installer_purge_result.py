@@ -1,4 +1,4 @@
-"""A purge says it removed the settings and the recovery history only when it did.
+r"""A purge says it removed the settings and the recovery history only when it did.
 
 -Purge removed config\ and logs\ without asking whether that worked, and always ended "Removed, including settings
 and recovery history" - over a log file something still held (the v0.6.18 installer audit, M3). The uninstall tail is
