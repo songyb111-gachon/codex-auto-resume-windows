@@ -202,6 +202,12 @@ namespace CodexAutoResume
                     form.AuditNarrowestOn(int.MaxValue, "advanced/" + ids[0] + " at the narrowest", findings);
                     form.AuditNarrowestOn(form.Px(TextScale.NarrowestWidth),
                                           "advanced/" + ids[0] + " at the narrowest on the narrowest screen", findings);
+                    // v0.6.19: a tab that lays out wider than it was measured - CI's fonts drew the strip 3 px past
+                    // what HoldTabs held - on a screen that holds the strip and on one that cannot.
+                    form.AuditTabWider(int.MaxValue, "advanced/" + ids[0] + " with a tab wider than measured", findings);
+                    form.AuditTabWider(form.Px(TextScale.NarrowestWidth),
+                                       "advanced/" + ids[0] + " with a tab wider than measured on the narrowest screen",
+                                       findings);
                 }
             });
             return string.Join("\n", findings.ToArray());
@@ -224,6 +230,35 @@ namespace CodexAutoResume
             ClientSize = new Size(Math.Max(Px(800) - Px(16), least - FrameWidth), ClientSize.Height);
             FitTabs();
             AuditNarrowest(where, findings);
+        }
+
+        /// The window held to its tabs (HoldTabs) with the Chat tab shown, and then one tab laid out wider than HoldTabs
+        /// measured it - as a machine whose fonts draw a few pixels wider than TextRenderer measured (GitHub's runner,
+        /// v0.6.19) lays it out: every tab must still be whole, the window held wider where the screen has room and the
+        /// strip on two rows where it does not (KeepTabsWhole).
+        private void AuditTabWider(int screen, string where, List<string> findings)
+        {
+            if (chatTab == null) return;
+            bool shown = Soft.OwnVisible(chatTab);
+            Padding before = chatTab.Padding;
+            chatTab.Text = Word("page.chat.nav", "Chat");
+            chatTab.Visible = true;
+            advancedScreen = screen;
+            MinimumSize = Size.Empty;
+            ClientSize = new Size(SystemInformation.MaxWindowTrackSize.Width + Px(100), ClientSize.Height);
+            int least = HoldTabs();
+            ClientSize = new Size(Math.Max(Px(800) - Px(16), least - FrameWidth), ClientSize.Height);
+            FitTabs();
+            try
+            {
+                chatTab.Padding = new Padding(before.Left + Px(3), before.Top, before.Right + Px(3), before.Bottom);
+                AuditNarrowest(where, findings);
+            }
+            finally
+            {
+                chatTab.Padding = before;
+                chatTab.Visible = shown;
+            }
         }
 
         /// The narrowest window, held to what it must never give up: every tab whole in the strip (the Walk of the
