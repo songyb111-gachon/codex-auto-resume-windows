@@ -83,6 +83,8 @@ namespace CodexAutoResume
                 {
                     form.auditing = true;
                     form.TopLevel = false;
+                    // v0.6.19: the smallest size the window was built with, before the audit sizes it (AuditOpened).
+                    form.builtMinimum = form.MinimumSize;
                     form.MinimumSize = Size.Empty;
                     form.ClientSize = new Size(form.Px(OpeningWidth), form.Px(OpeningHeight));
                     // On a screen as wide as anything needs, whatever this machine's is: the window holds its tabs on one
@@ -146,6 +148,7 @@ namespace CodexAutoResume
                 foreach (KeyValuePair<string, object> pair in statements)
                     form.ShowAdvancedStatement(pair.Key, pair.Value as Dictionary<string, object>);
                 form.ShowAdvanced();
+                form.AuditOpened("advanced at the opening size", findings);
                 var ids = new List<string>();
                 foreach (object entry in Items(listing, "capabilities") ?? new List<object>())
                 {
@@ -230,6 +233,32 @@ namespace CodexAutoResume
             ClientSize = new Size(Math.Max(Px(800) - Px(16), least - FrameWidth), ClientSize.Height);
             FitTabs();
             AuditNarrowest(where, findings);
+        }
+
+        // The window's MinimumSize as the window was built, before the audit sized it (WithAdvancedWindow).
+        private Size builtMinimum;
+
+        /// The window as it opens, its words and list read and this page in front, on a screen as wide as anything
+        /// needs (v0.6.19): built no wider than it opens - KeepTabsWhole does nothing while the window is being built,
+        /// whose strip has a width of before - and no wider now than its tabs need where they need more than that, on
+        /// one row. The window was opened wider, or the render's frame resized, when it acted on a strip not yet laid
+        /// out at its width.
+        private void AuditOpened(string where, List<string> findings)
+        {
+            AdvancedAudited++;
+            Materialise(this);
+            PerformLayout();
+            int opening = Px(OpeningWidth) + FrameWidth;
+            if (builtMinimum.Width > opening)
+                findings.Add(where + " :: the window was made " + builtMinimum.Width + " px wide as it was built, wider than "
+                             + opening + " (KeepTabsWhole acted on a strip not laid out)");
+            int least = HoldTabs();
+            if (Width > Math.Max(opening, least))
+                findings.Add(where + " :: the window is " + Width + " px wide, wider than its tabs need (" + least + ")");
+            var strip = advancedTab == null ? null : advancedTab.Parent as FlowLayoutPanel;
+            if (strip != null && strip.WrapContents)
+                findings.Add(where + " :: the tabs took a second row on a screen that holds them on one");
+            Walk(nav, where + "/" + AuditName(nav), findings);
         }
 
         /// The window held to its tabs (HoldTabs) with the Chat tab shown, and then one tab laid out wider than HoldTabs
