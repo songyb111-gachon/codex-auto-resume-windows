@@ -201,7 +201,6 @@
   "page.queue.depends.no": "Không",
   "page.queue.depends.yes": "Có",
   "page.queue.edit": "Sửa...",
-  "page.queue.go": "Mở {pending}",
   "page.queue.go_on": "Tiếp tục",
   "page.queue.hour": "Lúc",
   "page.queue.line": "{conversation} · {when} · {state}",
@@ -428,8 +427,7 @@
   "page.sample.status": "Trạng thái",
   "page.samples": "Các lỗi nó không phân loại được, 30 ngày qua",
   "page.samples.none": "Chưa thấy lỗi nào.",
-  "page.scheduled.add": "Lên lịch tin nhắn...",
-  "page.scheduled.clear": "Xóa các mục đã xong ({n})...",
+  "page.scheduled.add": "Lên lịch...",
   "page.scheduled.mode.queue": "hàng đợi của Codex",
   "page.scheduled.mode.wait": "chờ",
   "page.scheduled.state.delivered": "đã giao",
@@ -709,5 +707,7 @@
   "page.chat.sending": "Đang gửi...",
   "page.chat.click": "Nhấp vào thông báo sẽ mở",
   "page.pending.kind.message": "Tin nhắn đã lên lịch",
-  "page.pending.kind.rule": "Quy tắc đặt lại"
+  "page.pending.kind.rule": "Quy tắc đặt lại",
+  "page.pending.rule.held": "đang giữ",
+  "page.confirm.clear_both": "Ẩn {recoveries} lần khôi phục đã xong khỏi lịch sử và xóa {n} tin nhắn đã gửi? Các tin nhắn đã đổi từ đó, cùng những tin đang chờ, đang giữ, đã hủy và thất bại vẫn được giữ, và không có gì trong Codex thay đổi."
 }

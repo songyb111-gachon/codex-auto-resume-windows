@@ -47,8 +47,12 @@ namespace CodexAutoResume
         {
             advancedSent.Add(command + " " + argument);
             string capability = null;
-            try { capability = Str(Json.Parse(argument) as Dictionary<string, object>, "capability"); }
-            catch (FormatException) { }
+            // A core command the page asks with no argument (clear-history) names no capability.
+            if (argument != null)
+            {
+                try { capability = Str(Json.Parse(argument) as Dictionary<string, object>, "capability"); }
+                catch (FormatException) { }
+            }
             List<object> replies;
             if (!(capability != null && advancedScript.TryGetValue(command + " " + capability, out replies)) &&
                 !advancedScript.TryGetValue(command, out replies))
@@ -88,11 +92,22 @@ namespace CodexAutoResume
                     // On a screen as wide as anything needs, whatever this machine's is: the window holds its tabs on one
                     // row (HoldTabs), and the narrow screen is one the audit stands in on purpose (AuditNarrowestOn).
                     form.advancedScreen = int.MaxValue;
+                    // v0.6.19: the window's own questions (core's Dialog: Clear history, a refusal's notice) answered as the
+                    // page's are - from the scenario's answers, written down with them - and never shown on anyone's desktop.
+                    SettingsForm driven = form;
+                    DialogAnswers = delegate(string text, string affirm)
+                    {
+                        driven.advancedAsked.Add(text);
+                        bool yes = driven.advancedAnswers.Count > 0 && driven.advancedAnswers[0];
+                        if (driven.advancedAnswers.Count > 0) driven.advancedAnswers.RemoveAt(0);
+                        return affirm != null && yes;
+                    };
                     use(form);
                 }
             }
             finally
             {
+                DialogAnswers = null;
                 dpiScale = SystemScale;
                 if (fallback != null) fallback.SetValue(null, defaultBefore);
                 Soft.BaseFont = baseBefore;
@@ -324,6 +339,18 @@ namespace CodexAutoResume
                 PerformLayout();
                 string at = where + "/" + (kind ?? "recovery");
                 AuditList(at + "/" + AuditName(pendingList), pendingList, findings);
+                // The buttons under the list on one line at the window's size, whatever the chosen row's kind (the
+                // owner, 2026-10-24: a button that wraps to a line of its own is the row grown).
+                int rows = ButtonLines(cancelAllButton.Parent);
+                if (rows > 1)
+                {
+                    int needs = 0;
+                    foreach (Control control in cancelAllButton.Parent.Controls)
+                        if (OwnVisible(control) && (control is Button || control == kindButtons))
+                            needs += control.Width + control.Margin.Horizontal;
+                    findings.Add(at + " :: the buttons under Pending's list take " + rows + " lines: they need " + needs +
+                                 " px of the row's " + cancelAllButton.Parent.ClientSize.Width);
+                }
                 Audit(at, findings);
                 AuditSpoken(at, this, findings);
                 AuditPins(at, findings);
@@ -401,14 +428,27 @@ namespace CodexAutoResume
             return view;
         }
 
+        /// How many lines the visible buttons of a button row stand on - those in a group within it too.
+        private int ButtonLines(Control row)
+        {
+            var tops = new HashSet<int>();
+            foreach (Control control in row.Controls)
+            {
+                if (!OwnVisible(control)) continue;
+                if (control is Button) tops.Add(control.Top);
+                else if (control == kindButtons) tops.Add(control.Top);
+            }
+            return tops.Count;
+        }
+
         /// History with the completed messages listed after the recoveries and Delete completed under them: the standard
         /// audit's checks, with the list's columns.
         private void AuditHistoryDone(string where, List<string> findings)
         {
             AdvancedAudited++;
             if (currentPage != "history") findings.Add(where + " :: History is not the page showing");
-            if (joinedDone.Count > 0 && (clearDoneButton == null || !OwnVisible(clearDoneButton)))
-                findings.Add(where + " :: Delete completed is not showing beside the completed messages");
+            if (joinedDone.Count > 0 && (historyClear == null || !historyClear.Enabled))
+                findings.Add(where + " :: Clear history is not offered beside the completed messages");
             AuditList(where + "/" + AuditName(historyList), historyList, findings);
             Audit(where, findings);
             AuditSpoken(where, this, findings);
@@ -801,7 +841,7 @@ namespace CodexAutoResume
                         string name = Str(step, "button");
                         Button button = name == "add" ? form.scheduleAddButton : name == "edit" ? form.scheduleEditButton
                                       : name == "cancel" ? form.scheduleCancelButton : name == "go_on" ? form.scheduleGoOnButton
-                                      : name == "clear" ? form.clearDoneButton : null;
+                                      : name == "clear" ? form.historyClear : null;
                         if (button == null || !button.Enabled) disabled.Add("scheduled_press " + name);
                         else
                         {
@@ -1199,11 +1239,16 @@ namespace CodexAutoResume
                 scheduleButtons["go_on"] = scheduleGoOnButton.Enabled && OwnVisible(scheduleGoOnButton);
             }
             // History's Delete completed exists once History has been built.
-            if (clearDoneButton != null)
+            if (historyClear != null)
             {
-                scheduleButtons["clear"] = clearDoneButton.Enabled && OwnVisible(clearDoneButton);
-                scheduled["clear_text"] = clearDoneButton.Text;
-                scheduled["clear_shown"] = OwnVisible(clearDoneButton);
+                scheduleButtons["clear"] = historyClear.Enabled;
+                scheduled["clear_text"] = historyClear.Text;
+                // Clear history is History's one clearing action (the owner's decision of 2026-10-24): its buttons by
+                // their words, as they show.
+                var historyButtons = new List<object>();
+                foreach (Control button in historyClear.Parent.Controls)
+                    if (button is Button && OwnVisible(button)) historyButtons.Add(button.Text);
+                scheduled["history_buttons"] = historyButtons;
             }
             scheduled["buttons"] = scheduleButtons;
             scheduled["note"] = pendingNote == null ? null : pendingNote.Text;
@@ -1230,6 +1275,8 @@ namespace CodexAutoResume
                         if (button is Button && OwnVisible(button)) pendingButtons.Add(button.Text);
             look["pending_buttons"] = pendingButtons;
             look["retry_enabled"] = retryButton != null && retryButton.Enabled;
+            look["button_lines"] = cancelAllButton == null || cancelAllButton.Parent == null ? 0.0
+                                 : (double)ButtonLines(cancelAllButton.Parent);
             // v0.6.19 (the owner's decision of 2026-10-24): the Chat page - whether its tab shows and is marked as chosen,
             // whether the chat's own controls are on the Chat page or on the Advanced features page, the card's button
             // there, and the conversation the chat is at.

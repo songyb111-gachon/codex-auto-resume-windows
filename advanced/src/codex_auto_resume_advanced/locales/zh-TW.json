@@ -201,7 +201,6 @@
   "page.queue.depends.no": "否",
   "page.queue.depends.yes": "是",
   "page.queue.edit": "編輯...",
-  "page.queue.go": "開啟「{pending}」",
   "page.queue.go_on": "繼續",
   "page.queue.hour": "時刻",
   "page.queue.line": "{conversation} · {when} · {state}",
@@ -428,8 +427,7 @@
   "page.sample.status": "狀態碼",
   "page.samples": "無法分類的失敗（最近 30 天）",
   "page.samples.none": "尚未見到。",
-  "page.scheduled.add": "排程一則訊息...",
-  "page.scheduled.clear": "刪除已完成的 ({n})...",
+  "page.scheduled.add": "排程...",
   "page.scheduled.mode.queue": "Codex 的佇列",
   "page.scheduled.mode.wait": "等待",
   "page.scheduled.state.delivered": "已送達",
@@ -709,5 +707,7 @@
   "page.chat.sending": "正在傳送...",
   "page.chat.click": "點按通知時開啟",
   "page.pending.kind.message": "已排程的訊息",
-  "page.pending.kind.rule": "重設規則"
+  "page.pending.kind.rule": "重設規則",
+  "page.pending.rule.held": "已暫停",
+  "page.confirm.clear_both": "從記錄中隱藏 {recoveries} 個已結束的復原，並刪除 {n} 則已送達的訊息？之後有變化的訊息，以及等待中、已暫停、已取消和失敗的訊息都會保留，Codex 中的任何內容都不會改變。"
 }

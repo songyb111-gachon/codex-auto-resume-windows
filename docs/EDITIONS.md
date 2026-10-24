@@ -914,17 +914,20 @@ reset rule still to act as rows after the recoveries (from v0.6.19; v0.6.19-beta
 There is no tab strip and the list stays flat; its **Kind** column tells a recovery, a scheduled message (with what it
 does while a turn runs) and a reset rule apart, and a row says the conversation, where it stands and when it goes,
 never its words. The buttons under the list follow the row you choose: for a recovery, Retry now, Cancel, Timeline and
-Turn off for this conversation; for a message, **Edit...** (while it is still waiting), **Go on** and **Cancel**; for a
-rule, **Go on** and **Cancel** - the others are hidden, and Cancel all, Rescan and **Schedule a message...** (shown
-while this is on) never move. A double-click on a waiting message opens its editor. The editor shows the words larger
+Turn off for this conversation; for a message, **Edit...** (while it is still waiting), **Go on**, **Cancel** and
+**Schedule...**; for a rule, **Go on**, **Cancel** and **Schedule...** - the others are hidden, Cancel all and Rescan
+never move, and the row stands on one line in every language. With nothing scheduled yet, this capability's card on
+the Advanced features page has **Schedule...**, which opens the editor on Pending. A double-click on a waiting message opens its editor. The editor shows the words larger
 than the rest of the window, marks the recommended mode and chooses it for a new message, and has **Save and return**:
 saved, it closes and the saved row is chosen; refused, every field stays as you typed it and the reason is said above
 the buttons. An edit reaches only a message still waiting, and is refused if anything changed since the list was
-read. Completed messages are history: the History page lists the messages of the last 30 days that were delivered,
-with **Delete completed (N)...** under them: it asks first, deletes only the completed messages it shows that are
-unchanged since, says how many it deleted and how many it kept because they changed, and never touches a waiting,
-held, cancelled or failed message, the recovery history or anything of Codex's. The Advanced features page's card for
-this capability keeps its switch and limits and points to Pending.
+read. A reset rule's row says where it stands in a word, and Why it is waiting says it in full. Completed messages
+are history: the History page lists the messages of the last 30 days that were delivered, their times written as a
+recovery's are, and its one **Clear history** clears them with the finished recoveries: it asks first, saying how many
+of each; hides the recoveries as it always did; deletes only the completed messages it shows that are unchanged
+since; says how many it deleted and how many it kept because they changed; and never touches a waiting, held,
+cancelled or failed message or anything of Codex's. The Advanced features page's card for
+this capability keeps its switch and limits and says that messages are scheduled on Pending.
 
 **When it helps.** When you want the next instruction to be there as soon as Codex can take it.
 

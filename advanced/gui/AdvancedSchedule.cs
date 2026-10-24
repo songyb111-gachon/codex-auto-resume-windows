@@ -8,14 +8,16 @@
 // apart. A row of this edition's own (gui/Dashboard.cs RowKindKey) is offered none of a recovery's buttons: under the
 // list, the buttons that apply to the chosen row's kind show and the others are hidden - a recovery's Retry now,
 // Cancel, Timeline and Turn off; a message's Edit..., Go on and Cancel; a rule's Go on and Cancel - in one group as
-// wide as the widest kind's, so Cancel all, Rescan and Schedule a message... never move as the choice moves. Schedule a
-// message... is there only while the prompt queue stands on. A double click on a waiting message opens its editor
+// wide as the widest kind's, so Cancel all and Rescan never move as the choice moves, and the row stands on one line in
+// every language. Schedule... is a message's and a rule's, there while the prompt queue stands on; with nothing scheduled
+// yet, the prompt queue's card on the Advanced features page opens the editor (AdvancedQueue.cs). A double click on a waiting message opens its editor
 // (AdvancedEditor.cs, the one place a message is written); on a recovery, its menu, as always. Once the editor saves,
 // the list is read again and the saved row is chosen.
 //
 // Completed messages are History: the delivered and handed-over messages of the last 30 days are rows of History's list,
-// and Delete completed (N)... - shown under it while any is - asks, then sends the ids it shows and the generation it
-// read (advanced-prompts-clear-done) and says how many were deleted and how many kept because they changed.
+// and History's one Clear history clears them with the finished recoveries - it asks, saying how many of each, hides the
+// recoveries as it always did, sends the ids of the messages it shows and the generation it read
+// (advanced-prompts-clear-done), and says how many were deleted and how many kept because they changed.
 //
 // C# 5 (the in-box compiler), as the rest of the window.
 
@@ -35,17 +37,17 @@ namespace CodexAutoResume
         private const string RowCellsKey = "row_cells", RowSourceKey = "row_source";
         // The chosen row's own buttons: a recovery's (core's, moved in here) and a message's or a rule's (this edition's).
         private SoftFlow kindButtons;
-        private Button scheduleAddButton, scheduleEditButton, scheduleCancelButton, scheduleGoOnButton, clearDoneButton;
+        private Button scheduleAddButton, scheduleEditButton, scheduleCancelButton, scheduleGoOnButton;
         // What the joined rows were last made from, and the rows themselves.
         private string scheduledShown;
         private readonly List<Dictionary<string, object>> joinedPending = new List<Dictionary<string, object>>();
         private readonly List<Dictionary<string, object>> joinedDone = new List<Dictionary<string, object>>();
-        // What the last Delete completed did, said under History until another row there is chosen.
+        // What the last Clear history did of the messages, said under History until another row there is chosen.
         private string doneNote, doneNoteFor;
 
         // ---------------------------------------------------------------- built
         /// Pending's buttons: the chosen row's own in one group at the start - core's four for a recovery, then Edit...,
-        /// Go on and Cancel for a message or a rule - and Schedule a message... after Rescan.
+        /// Go on, Cancel and Schedule... for a message or a rule.
         partial void PendingButtonsBuilt(FlowLayoutPanel row)
         {
             kindButtons = new SoftFlow();
@@ -62,7 +64,10 @@ namespace CodexAutoResume
                 row.Controls.Remove(button);
                 kindButtons.Controls.Add(button);
             }
-            foreach (Button button in new[] { scheduleEditButton, scheduleGoOnButton, scheduleCancelButton })
+            // Schedule... is a message's action too: in the group, with a message's and a rule's, so the row keeps the
+            // number of buttons it had and fits on one line in every language (the owner, 2026-10-24).
+            scheduleAddButton = MakeButton(Word("page.scheduled.add", "Schedule..."), false, delegate { OpenEditor(null); });
+            foreach (Button button in new[] { scheduleEditButton, scheduleGoOnButton, scheduleCancelButton, scheduleAddButton })
             {
                 button.Margin = Pad(0, 0, 6, 0);
                 button.Visible = false;
@@ -70,21 +75,7 @@ namespace CodexAutoResume
             }
             row.Controls.Add(kindButtons);
             row.Controls.SetChildIndex(kindButtons, 0);
-            scheduleAddButton = MakeButton(Word("page.scheduled.add", "Schedule a message..."), false, delegate { OpenEditor(null); });
-            scheduleAddButton.Margin = Pad(0, 0, 6, 0);
-            scheduleAddButton.Visible = false;
-            row.Controls.Add(scheduleAddButton);
             FitKindButtons();
-        }
-
-        /// History's buttons: Delete completed (N)..., shown while completed messages are listed.
-        partial void HistoryButtonsBuilt(FlowLayoutPanel row)
-        {
-            clearDoneButton = MakeButton(Word("page.scheduled.clear", "Delete completed ({n})...", "n", 0), false,
-                                         delegate { ClearDone(); });
-            clearDoneButton.Margin = Pad(0, 0, 9, 0);
-            clearDoneButton.Visible = false;
-            row.Controls.Add(clearDoneButton);
         }
 
         /// The group as wide as the widest kind's buttons - Turn off and Turn on measured both - so what follows it never
@@ -95,7 +86,8 @@ namespace CodexAutoResume
             int recovery = Across(retryButton) + Across(cancelButton) + Across(timelineButton) +
                            Math.Max(Across(threadButton, S("action.thread_off", "Turn off for this conversation")),
                                     Across(threadButton, S("action.thread_on", "Turn on for this conversation")));
-            int message = Across(scheduleEditButton) + Across(scheduleGoOnButton) + Across(scheduleCancelButton);
+            int message = Across(scheduleEditButton) + Across(scheduleGoOnButton) + Across(scheduleCancelButton) +
+                          Across(scheduleAddButton);
             int widest = Math.Max(recovery, message);
             if (kindButtons.MinimumSize.Width != widest) kindButtons.MinimumSize = new Size(widest, 0);
         }
@@ -189,13 +181,13 @@ namespace CodexAutoResume
         private void ChooseScheduledRow(string key)
         {
             if (pendingList == null) return;
+            // Each row told whether it is the one, as a list with no window of its own keeps no SelectedIndices to clear.
             foreach (ListViewItem item in pendingList.Items)
-                if (Str(item.Tag as Dictionary<string, object>, RowKeyKey) == key)
-                {
-                    pendingList.SelectedIndices.Clear();
-                    item.Selected = true;
-                    item.Focused = true;
-                }
+            {
+                bool one = Str(item.Tag as Dictionary<string, object>, RowKeyKey) == key;
+                if (item.Selected != one) item.Selected = one;
+                if (one) item.Focused = true;
+            }
             UpdatePendingButtons();
         }
 
@@ -222,10 +214,25 @@ namespace CodexAutoResume
             string code = state == "held" ? "exhausted" : Equals(Get(rule, "being_sent"), true) ? "submitted" : "scheduled";
             string thread = Str(rule, "thread_id");
             string stands = RuleStateWord(rule), what = RuleWhat(rule);
-            var cells = new[] { thread != null ? ConversationOf(thread) : Word("name.reset_credit", "Reset credit"), stands,
+            var cells = new[] { thread != null ? ConversationOf(thread) : Word("name.reset_credit", "Reset credit"), RuleStateShort(rule),
                                 Word("page.pending.kind.rule", "Reset rule"), what, "", "" };
             return Joined(KindRule, "rule " + Whole(Get(rule, "rule_id")).ToString(CultureInfo.InvariantCulture), code, rule,
                           cells, stands + " · " + what);
+        }
+
+        /// Where one rule stands, in a word short enough for Pending's Status column; the whole sentence (RuleStateWord) is
+        /// what Why it is waiting says of the row.
+        private string RuleStateShort(Dictionary<string, object> rule)
+        {
+            string state = Str(rule, "state");
+            if (Equals(Get(rule, "being_sent"), true)) return Word("page.resets.state.being_sent", "being sent");
+            if (state == "held") return Word("page.pending.rule.held", "held");
+            if (state == "ready") return Word("page.resets.state.due", "due");
+            object counted = Get(rule, "counted");
+            if (state == "counting" && counted is double)
+                return Word("page.resets.state.counting", "{n} of {of} counted", "n", Whole(counted))
+                    .Replace("{of}", Whole(Get(rule, "ordinal")).ToString(CultureInfo.CurrentCulture));
+            return Word("page.queue.state.waiting", "waiting");
         }
 
         /// A queued message's row: its conversation, where it stands, a message and what it does while a turn runs, when.
@@ -252,8 +259,9 @@ namespace CodexAutoResume
             string outcome = Str(row, "reason") == "handed_over"
                 ? Word("page.scheduled.state.handed_over", "handed over to you")
                 : Word("page.scheduled.state.delivered", "delivered");
+            // Its times as a recovery's are written in History (When): when it was due, when it finished.
             var cells = new[] { ConversationOf(Str(row, "thread_id")), outcome, Word("page.pending.kind.message", "Scheduled message"),
-                                PromptWhen(row), ClockTime(Number(row, "finished_at")) };
+                                When(Number(row, "due_at")), When(Number(row, "finished_at")) };
             return Joined(KindDone, "done " + Whole(Get(row, "prompt_id")).ToString(CultureInfo.InvariantCulture), "recovered",
                           row, cells, outcome);
         }
@@ -278,22 +286,16 @@ namespace CodexAutoResume
             scheduleGoOnButton.Enabled = idle && advancedListing != null && source != null && state == "held";
             Dictionary<string, object> queue = advancedListing == null ? null : AdvancedItem(PromptQueueId);
             bool standing = queue != null && Standing(queue);
-            Show(scheduleAddButton, standing);
+            Show(scheduleAddButton, standing && (message || rule));
             scheduleAddButton.Enabled = listed && standing;
         }
 
-        /// History's Delete completed (N)..., offered while completed messages are listed and nothing else runs.
+        /// History's Clear history, offered while completed messages are listed too - it clears them with the recoveries -
+        /// and what the last one said, until another row there is chosen.
         partial void HistoryButtonsUpdated(Dictionary<string, object> row, bool idle)
         {
-            if (clearDoneButton == null) return;
-            string text = Word("page.scheduled.clear", "Delete completed ({n})...", "n", joinedDone.Count);
-            if (clearDoneButton.Text != text)
-            {
-                clearDoneButton.Text = text;
-                clearDoneButton.AccessibleName = text;
-            }
-            Show(clearDoneButton, joinedDone.Count > 0);
-            clearDoneButton.Enabled = idle && advancedListing != null && advancedPrompts != null && joinedDone.Count > 0;
+            if (historyClear == null) return;
+            if (joinedDone.Count > 0 && advancedListing != null && advancedPrompts != null) historyClear.Enabled = idle;
             if (doneNote != null && ListRowId(Selected(historyList)) != doneNoteFor) doneNote = null;
             if (doneNote != null && historyNote != null) SetNote(historyNote, doneNote);
         }
@@ -343,42 +345,71 @@ namespace CodexAutoResume
             else if (kind == KindMessage) GoOnPrompt(Whole(Get(row, "prompt_id")));
         }
 
-        /// Delete completed (N)...: asked first, then the ids History lists, against the generation they were read at; how
-        /// many were deleted, and how many kept because they changed, said beside History's buttons.
-        private void ClearDone()
+        /// Clear history while History lists completed messages (the owner's decision of 2026-10-24: one action, not two):
+        /// asked first, saying how many finished recoveries it hides and how many delivered messages it deletes; then the
+        /// recoveries hidden as Clear history always hid them (clear-history), and only the completed messages it showed
+        /// that are unchanged since deleted, against the generation they were read at (advanced-prompts-clear-done); how
+        /// many it deleted and how many it kept because they changed said under History. Nothing waiting, held, cancelled
+        /// or failed, and nothing of Codex's, is touched.
+        partial void ClearHistoryPressed(ref bool handled)
         {
-            if (busy > 0 || advancedListing == null || advancedPrompts == null || joinedDone.Count == 0) return;
+            if (joinedDone.Count == 0 || advancedListing == null || advancedPrompts == null) return;
+            handled = true;
+            if (busy > 0) return;
+            int recoveries = 0;
+            foreach (ListViewItem item in historyList.Items)
+            {
+                var row = item.Tag as Dictionary<string, object>;
+                if (row != null && !EditionRow(row) && !IsDemo(row) && Number(row, "outcome_at") > 0) recoveries++;
+            }
             var ids = new List<string>();
             foreach (Dictionary<string, object> row in joinedDone)
                 ids.Add(Whole(Get(Map(row, RowSourceKey), "prompt_id")).ToString(CultureInfo.InvariantCulture));
-            string question = Word("page.confirm.clear",
-                "Delete {n} completed messages from this list? Waiting, held, cancelled and failed ones are kept, and nothing in Codex changes.",
-                "n", ids.Count);
-            if (!AskAdvanced(question, Affirm(Word("page.scheduled.clear", "Delete completed ({n})...", "n", ids.Count)))) return;
+            string question = recoveries > 0
+                ? Word("page.confirm.clear_both",
+                       "Hide {recoveries} finished recoveries from the history and delete {n} delivered messages? Messages that changed since, and waiting, held, cancelled and failed ones, are kept, and nothing in Codex changes.",
+                       "n", ids.Count).Replace("{recoveries}", recoveries.ToString(CultureInfo.CurrentCulture))
+                : Word("page.confirm.clear",
+                       "Delete {n} completed messages from this list? Waiting, held, cancelled and failed ones are kept, and nothing in Codex changes.",
+                       "n", ids.Count);
+            if (!AskAdvanced(question, Affirm(S("action.clear_history", "Clear history")))) return;
             string generation = Get(advancedPrompts, "generation") is double
                 ? Whole(Get(advancedPrompts, "generation")).ToString(CultureInfo.InvariantCulture) : AdvancedGeneration();
             string argument = "{\"prompts\":[" + string.Join(",", ids.ToArray()) + "],\"generation\":" + generation + "}";
-            AdvancedCall("advanced-prompts-clear-done", argument, true, delegate(Dictionary<string, object> reply)
+            MethodInvoker messages = delegate
             {
-                Dictionary<string, object> result = AdvancedResult(reply);
-                if (AdvancedDone(result))
+                AdvancedCall("advanced-prompts-clear-done", argument, true, delegate(Dictionary<string, object> reply)
                 {
-                    int deleted = Whole(Get(result, "deleted")), skipped = Whole(Get(result, "skipped"));
-                    string said = skipped > 0
-                        ? Word("page.done.cleared_kept", "Deleted {deleted}, kept {skipped} that changed.", "deleted", deleted)
-                              .Replace("{skipped}", skipped.ToString(CultureInfo.CurrentCulture))
-                        : Word("page.done.cleared", "Deleted {deleted}.", "deleted", deleted);
-                    doneNote = said;
-                    doneNoteFor = ListRowId(Selected(historyList));
-                    if (advancedNote != null) SetNote(advancedNote, said);
-                    advancedPrompts = result;
-                    FillScheduled();
-                }
-                else
-                {
-                    ReadPrompts(null);
-                    TellAdvanced(PromptRefusal(Str(result, "refusal")));
-                }
+                    Dictionary<string, object> result = AdvancedResult(reply);
+                    if (AdvancedDone(result))
+                    {
+                        int deleted = Whole(Get(result, "deleted")), skipped = Whole(Get(result, "skipped"));
+                        doneNote = skipped > 0
+                            ? Word("page.done.cleared_kept", "Deleted {deleted}, kept {skipped} that changed.", "deleted", deleted)
+                                  .Replace("{skipped}", skipped.ToString(CultureInfo.CurrentCulture))
+                            : Word("page.done.cleared", "Deleted {deleted}.", "deleted", deleted);
+                        doneNoteFor = ListRowId(Selected(historyList));
+                        advancedPrompts = result;
+                        FillScheduled();
+                    }
+                    else
+                    {
+                        ReadPrompts(null);
+                        TellAdvanced(PromptRefusal(Str(result, "refusal")));
+                    }
+                });
+            };
+            if (recoveries == 0)
+            {
+                messages();
+                return;
+            }
+            // The recoveries first, as Clear history hides them; the messages once that has answered.
+            AdvancedCall("clear-history", null, true, delegate(Dictionary<string, object> reply)
+            {
+                Report(reply);
+                RefreshAfterChange();
+                messages();
             });
         }
     }

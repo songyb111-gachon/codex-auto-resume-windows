@@ -201,7 +201,6 @@
   "page.queue.depends.no": "No",
   "page.queue.depends.yes": "Sì",
   "page.queue.edit": "Modifica...",
-  "page.queue.go": "Apri {pending}",
   "page.queue.go_on": "Continua",
   "page.queue.hour": "Alle",
   "page.queue.line": "{conversation} · {when} · {state}",
@@ -428,8 +427,7 @@
   "page.sample.status": "Stato",
   "page.samples": "Errori che non ha saputo classificare, ultimi 30 giorni",
   "page.samples.none": "Ancora nessuno.",
-  "page.scheduled.add": "Pianifica un messaggio...",
-  "page.scheduled.clear": "Elimina i completati ({n})...",
+  "page.scheduled.add": "Pianifica...",
   "page.scheduled.mode.queue": "coda di Codex",
   "page.scheduled.mode.wait": "aspetta",
   "page.scheduled.state.delivered": "consegnato",
@@ -709,5 +707,7 @@
   "page.chat.sending": "Invio...",
   "page.chat.click": "Un clic su una notifica apre",
   "page.pending.kind.message": "Messaggio pianificato",
-  "page.pending.kind.rule": "Regola di ripristino"
+  "page.pending.kind.rule": "Regola di ripristino",
+  "page.pending.rule.held": "trattenuta",
+  "page.confirm.clear_both": "Nascondere {recoveries} recuperi conclusi dalla cronologia ed eliminare {n} messaggi consegnati? I messaggi cambiati da allora e quelli in attesa, trattenuti, annullati o non riusciti restano, e in Codex non cambia nulla."
 }

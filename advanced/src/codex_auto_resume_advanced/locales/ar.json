@@ -201,7 +201,6 @@
   "page.queue.depends.no": "لا",
   "page.queue.depends.yes": "نعم",
   "page.queue.edit": "تعديل...",
-  "page.queue.go": "فتح {pending}",
   "page.queue.go_on": "متابعة",
   "page.queue.hour": "الساعة",
   "page.queue.line": "{conversation} · {when} · {state}",
@@ -428,8 +427,7 @@
   "page.sample.status": "الحالة",
   "page.samples": "إخفاقات لم تستطع تصنيفها، آخر 30 يومًا",
   "page.samples.none": "لم يُرَ شيء بعد.",
-  "page.scheduled.add": "جدولة رسالة...",
-  "page.scheduled.clear": "حذف المنجزة ({n})...",
+  "page.scheduled.add": "جدولة...",
   "page.scheduled.mode.queue": "طابور Codex",
   "page.scheduled.mode.wait": "تنتظر",
   "page.scheduled.state.delivered": "سُلّمت",
@@ -709,5 +707,7 @@
   "page.chat.sending": "جارٍ الإرسال...",
   "page.chat.click": "النقر على إشعار يفتح",
   "page.pending.kind.message": "رسالة مجدولة",
-  "page.pending.kind.rule": "قاعدة إعادة التعيين"
+  "page.pending.kind.rule": "قاعدة إعادة التعيين",
+  "page.pending.rule.held": "معلّقة",
+  "page.confirm.clear_both": "هل تريد إخفاء {recoveries} من عمليات الاستعادة المنتهية من السجل وحذف {n} من الرسائل المسلَّمة؟ تُحفظ الرسائل التي تغيّرت منذ ذلك الحين والرسائل المنتظرة والمعلّقة والملغاة والفاشلة، ولا يتغير شيء في Codex."
 }

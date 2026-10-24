@@ -201,7 +201,6 @@
   "page.queue.depends.no": "Nein",
   "page.queue.depends.yes": "Ja",
   "page.queue.edit": "Bearbeiten...",
-  "page.queue.go": "{pending} öffnen",
   "page.queue.go_on": "Fortfahren",
   "page.queue.hour": "Um",
   "page.queue.line": "{conversation} · {when} · {state}",
@@ -428,8 +427,7 @@
   "page.sample.status": "Status",
   "page.samples": "Fehler, die sie nicht einordnen konnte, letzte 30 Tage",
   "page.samples.none": "Noch keine gesehen.",
-  "page.scheduled.add": "Nachricht planen...",
-  "page.scheduled.clear": "Erledigte löschen ({n})...",
+  "page.scheduled.add": "Planen...",
   "page.scheduled.mode.queue": "Warteschlange von Codex",
   "page.scheduled.mode.wait": "wartet",
   "page.scheduled.state.delivered": "zugestellt",
@@ -709,5 +707,7 @@
   "page.chat.sending": "Wird gesendet...",
   "page.chat.click": "Ein Klick auf eine Meldung öffnet",
   "page.pending.kind.message": "Geplante Nachricht",
-  "page.pending.kind.rule": "Reset-Regel"
+  "page.pending.kind.rule": "Reset-Regel",
+  "page.pending.rule.held": "angehalten",
+  "page.confirm.clear_both": "{recoveries} abgeschlossene Wiederherstellungen aus dem Verlauf ausblenden und {n} zugestellte Nachrichten löschen? Seitdem geänderte sowie wartende, angehaltene, abgebrochene und fehlgeschlagene Nachrichten bleiben, und in Codex ändert sich nichts."
 }

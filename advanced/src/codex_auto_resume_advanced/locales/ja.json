@@ -201,7 +201,6 @@
   "page.queue.depends.no": "いいえ",
   "page.queue.depends.yes": "はい",
   "page.queue.edit": "編集...",
-  "page.queue.go": "{pending}を開く",
   "page.queue.go_on": "続ける",
   "page.queue.hour": "時刻",
   "page.queue.line": "{conversation} · {when} · {state}",
@@ -428,8 +427,7 @@
   "page.sample.status": "ステータス",
   "page.samples": "分類できなかった失敗（直近 30 日）",
   "page.samples.none": "まだありません。",
-  "page.scheduled.add": "メッセージを予約...",
-  "page.scheduled.clear": "完了分を削除 ({n})...",
+  "page.scheduled.add": "予約...",
   "page.scheduled.mode.queue": "Codex のキュー",
   "page.scheduled.mode.wait": "待つ",
   "page.scheduled.state.delivered": "届いた",
@@ -709,5 +707,7 @@
   "page.chat.sending": "送信しています...",
   "page.chat.click": "通知をクリックすると開くもの",
   "page.pending.kind.message": "予約メッセージ",
-  "page.pending.kind.rule": "リセット時のルール"
+  "page.pending.kind.rule": "リセット時のルール",
+  "page.pending.rule.held": "保留中",
+  "page.confirm.clear_both": "完了した復旧 {recoveries} 件を履歴から隠し、配信済みのメッセージ {n} 件を削除しますか? その後に変わったメッセージと、待機中・保留中・取り消し済み・失敗したものは残し、Codex の中は何も変わりません。"
 }

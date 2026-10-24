@@ -201,7 +201,6 @@
   "page.queue.depends.no": "否",
   "page.queue.depends.yes": "是",
   "page.queue.edit": "编辑...",
-  "page.queue.go": "打开“{pending}”",
   "page.queue.go_on": "继续",
   "page.queue.hour": "时刻",
   "page.queue.line": "{conversation} · {when} · {state}",
@@ -428,8 +427,7 @@
   "page.sample.status": "状态码",
   "page.samples": "无法分类的失败（最近 30 天）",
   "page.samples.none": "尚未见到。",
-  "page.scheduled.add": "安排一条消息...",
-  "page.scheduled.clear": "删除已完成的 ({n})...",
+  "page.scheduled.add": "安排...",
   "page.scheduled.mode.queue": "Codex 的队列",
   "page.scheduled.mode.wait": "等待",
   "page.scheduled.state.delivered": "已送达",
@@ -709,5 +707,7 @@
   "page.chat.sending": "正在发送...",
   "page.chat.click": "点击通知时打开",
   "page.pending.kind.message": "已安排的消息",
-  "page.pending.kind.rule": "重置规则"
+  "page.pending.kind.rule": "重置规则",
+  "page.pending.rule.held": "已暂停",
+  "page.confirm.clear_both": "从历史中隐藏 {recoveries} 个已结束的恢复，并删除 {n} 条已送达的消息？之后有变化的消息，以及等待中、已暂停、已取消和失败的消息都会保留，Codex 中的任何内容都不会改变。"
 }

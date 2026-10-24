@@ -1131,6 +1131,11 @@ namespace CodexAutoResume
 
         private void ClearHistory()
         {
+            // v0.6.19 (the owner's decision of 2026-10-24): one Clear history, which the advanced edition widens to the
+            // completed messages History lists beside the recoveries.
+            bool handled = false;
+            ClearHistoryPressed(ref handled);
+            if (handled) return;
             if (!Confirm(S("confirm.clear", "Hide finished recoveries from the history?"),
                          S("action.clear_history", "Clear history"))) return;
             Send("clear-history", null);

@@ -201,7 +201,6 @@
   "page.queue.depends.no": "Hayır",
   "page.queue.depends.yes": "Evet",
   "page.queue.edit": "Düzenle...",
-  "page.queue.go": "{pending} sayfasını aç",
   "page.queue.go_on": "Sürdür",
   "page.queue.hour": "Saat",
   "page.queue.line": "{conversation} · {when} · {state}",
@@ -428,8 +427,7 @@
   "page.sample.status": "Durum",
   "page.samples": "Sınıflandıramadığı hatalar, son 30 gün",
   "page.samples.none": "Henüz hiç görülmedi.",
-  "page.scheduled.add": "İleti zamanla...",
-  "page.scheduled.clear": "Tamamlananları sil ({n})...",
+  "page.scheduled.add": "Zamanla...",
   "page.scheduled.mode.queue": "Codex'in kuyruğu",
   "page.scheduled.mode.wait": "bekler",
   "page.scheduled.state.delivered": "teslim edildi",
@@ -709,5 +707,7 @@
   "page.chat.sending": "Gönderiliyor...",
   "page.chat.click": "Bir bildirime tıklamak şunu açar",
   "page.pending.kind.message": "Zamanlanmış ileti",
-  "page.pending.kind.rule": "Sıfırlama kuralı"
+  "page.pending.kind.rule": "Sıfırlama kuralı",
+  "page.pending.rule.held": "bekletiliyor",
+  "page.confirm.clear_both": "Geçmişten {recoveries} biten kurtarma gizlensin ve {n} teslim edilmiş ileti silinsin mi? O zamandan beri değişen iletiler ile bekleyen, bekletilen, iptal edilen ve başarısız olanlar kalır; Codex'te hiçbir şey değişmez."
 }

@@ -201,7 +201,6 @@
   "page.queue.depends.no": "Tidak",
   "page.queue.depends.yes": "Ya",
   "page.queue.edit": "Ubah...",
-  "page.queue.go": "Buka {pending}",
   "page.queue.go_on": "Lanjutkan",
   "page.queue.hour": "Pukul",
   "page.queue.line": "{conversation} · {when} · {state}",
@@ -428,8 +427,7 @@
   "page.sample.status": "Status",
   "page.samples": "Kegagalan yang tidak dapat diklasifikasikannya, 30 hari terakhir",
   "page.samples.none": "Belum ada yang terlihat.",
-  "page.scheduled.add": "Jadwalkan pesan...",
-  "page.scheduled.clear": "Hapus yang selesai ({n})...",
+  "page.scheduled.add": "Jadwalkan...",
   "page.scheduled.mode.queue": "antrean Codex",
   "page.scheduled.mode.wait": "menunggu",
   "page.scheduled.state.delivered": "terkirim",
@@ -709,5 +707,7 @@
   "page.chat.sending": "Mengirim...",
   "page.chat.click": "Klik pada pemberitahuan membuka",
   "page.pending.kind.message": "Pesan terjadwal",
-  "page.pending.kind.rule": "Aturan reset"
+  "page.pending.kind.rule": "Aturan reset",
+  "page.pending.rule.held": "ditahan",
+  "page.confirm.clear_both": "Sembunyikan {recoveries} pemulihan yang selesai dari riwayat dan hapus {n} pesan yang terkirim? Pesan yang berubah sejak itu serta yang menunggu, ditahan, dibatalkan, dan gagal tetap disimpan, dan tidak ada yang berubah di Codex."
 }

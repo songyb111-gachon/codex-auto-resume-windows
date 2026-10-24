@@ -97,8 +97,13 @@ namespace CodexAutoResume
             // one list (AdvancedSchedule.cs), and this card says so and goes there.
             card.Controls.Add(HelpText(Word("page.queue.moved", "Messages are scheduled on {pending}.", "pending",
                                             S("nav.pending", "Pending"))));
-            queueAdd = CardButton(card, Word("page.queue.go", "Open {pending}", "pending", S("nav.pending", "Pending")),
-                                  delegate { GoToScheduled(); });
+            // Its one button opens the editor on Pending (the one place a message is written) - the way to schedule the
+            // first one, before Pending lists any of this edition's rows to offer Schedule... on.
+            queueAdd = CardButton(card, Word("page.scheduled.add", "Schedule..."), delegate
+            {
+                GoToScheduled();
+                OpenEditor(null);
+            });
             queueAdd.Margin = Pad(0, 8, 0, 4);
         }
 

@@ -224,7 +224,6 @@
   "page.queue.depends.no": "아니요",
   "page.queue.depends.yes": "예",
   "page.queue.edit": "편집...",
-  "page.queue.go": "{pending} 열기",
   "page.queue.go_on": "계속",
   "page.queue.hour": "시각",
   "page.queue.line": "{conversation} · {when} · {state}",
@@ -451,8 +450,7 @@
   "page.sample.status": "상태",
   "page.samples": "분류하지 못한 실패, 최근 30일",
   "page.samples.none": "아직 본 것이 없습니다.",
-  "page.scheduled.add": "메시지 예약...",
-  "page.scheduled.clear": "완료된 항목 삭제 ({n})...",
+  "page.scheduled.add": "예약...",
   "page.scheduled.mode.queue": "Codex 대기열",
   "page.scheduled.mode.wait": "기다림",
   "page.scheduled.state.delivered": "전달됨",
@@ -709,5 +707,7 @@
   "warning.title": "경고",
   "warning.unmeasured": "이 기능이 기대는 부분은 이 Codex 버전에서 측정된 적이 없습니다.",
   "page.pending.kind.message": "예약 메시지",
-  "page.pending.kind.rule": "재설정 규칙"
+  "page.pending.kind.rule": "재설정 규칙",
+  "page.pending.rule.held": "보류됨",
+  "page.confirm.clear_both": "기록에서 끝난 복구 {recoveries}건을 숨기고 전달된 메시지 {n}개를 지울까요? 그 뒤에 바뀐 메시지와 기다리는 것, 보류된 것, 취소된 것, 실패한 메시지는 남기며, Codex의 어떤 것도 바뀌지 않습니다."
 }

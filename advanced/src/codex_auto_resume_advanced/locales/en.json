@@ -495,7 +495,7 @@
   "page.queue.go_on": "Go on",
   "page.confirm.prompt": "Queue this message for {conversation}, {when}? It is sent once, exactly as written.",
   "page.done.prompt_added": "Queued.",
-  "page.scheduled.add": "Schedule a message...",
+  "page.scheduled.add": "Schedule...",
   "page.queue.edit": "Edit...",
   "page.editor.title_new": "Schedule a message",
   "page.editor.title_edit": "Edit the message",
@@ -512,7 +512,6 @@
   "page.early.limited": "Early reset check at {time}: still limited. Nothing was continued.",
   "page.early.unknown": "Early reset check at {time}: usage could not be told. Nothing was continued.",
   "page.early.not_read": "Early reset check at {time}: usage was not read, because another check came first. Nothing was continued.",
-  "page.scheduled.clear": "Delete completed ({n})...",
   "page.confirm.clear": "Delete {n} completed messages from this list? Waiting, held, cancelled and failed ones are kept, and nothing in Codex changes.",
   "page.done.cleared": "Deleted {deleted}.",
   "page.done.cleared_kept": "Deleted {deleted}, kept {skipped} that changed.",
@@ -521,7 +520,6 @@
   "page.scheduled.mode.wait": "waits",
   "page.scheduled.mode.queue": "Codex's queue",
   "page.queue.moved": "Messages are scheduled on {pending}.",
-  "page.queue.go": "Open {pending}",
   "page.refused.prompt_refused": "That message cannot be queued: it is empty or too long, holds a marker of this product's, or is one of its own continuations.",
   "page.refused.queue_full": "As many messages are queued as may: five for a conversation, twenty in all. Cancel one to queue another.",
   "page.refused.dependency_unknown": "No message is queued before it in that conversation, so it cannot wait for one.",
@@ -709,5 +707,7 @@
   "statement.wake_for_reset.stop": "Turn it off here or turn every advanced feature off. A timer already set is taken back within a quarter of a minute, and the PC is not woken any more.",
   "page.option.wake_lead_minutes": "Minutes before the reset to wake it",
   "page.pending.kind.message": "Scheduled message",
-  "page.pending.kind.rule": "Reset rule"
+  "page.pending.kind.rule": "Reset rule",
+  "page.pending.rule.held": "held",
+  "page.confirm.clear_both": "Hide {recoveries} finished recoveries from the history and delete {n} delivered messages? Messages that changed since, and waiting, held, cancelled and failed ones, are kept, and nothing in Codex changes."
 }

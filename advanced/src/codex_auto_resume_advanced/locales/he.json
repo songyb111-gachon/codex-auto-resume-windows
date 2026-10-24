@@ -224,7 +224,6 @@
   "page.queue.depends.no": "לא",
   "page.queue.depends.yes": "כן",
   "page.queue.edit": "עריכה...",
-  "page.queue.go": "פתיחת {pending}",
   "page.queue.go_on": "להמשיך",
   "page.queue.hour": "בשעה",
   "page.queue.line": "{conversation} · {when} · {state}",
@@ -451,8 +450,7 @@
   "page.sample.status": "מצב",
   "page.samples": "כשלים שלא הצליחה לסווג, 30 הימים האחרונים",
   "page.samples.none": "עדיין לא נראו.",
-  "page.scheduled.add": "תזמון הודעה...",
-  "page.scheduled.clear": "מחיקת ההודעות שהושלמו ({n})...",
+  "page.scheduled.add": "תזמון...",
   "page.scheduled.mode.queue": "התור של Codex",
   "page.scheduled.mode.wait": "ממתינה",
   "page.scheduled.state.delivered": "נמסרה",
@@ -709,5 +707,7 @@
   "warning.title": "אזהרות",
   "warning.unmeasured": "מה שהיא נשענת עליו לא נמדד עם הגרסה הזו של Codex.",
   "page.pending.kind.message": "הודעה מתוזמנת",
-  "page.pending.kind.rule": "כלל איפוס"
+  "page.pending.kind.rule": "כלל איפוס",
+  "page.pending.rule.held": "מוחזק",
+  "page.confirm.clear_both": "להסתיר {recoveries} שחזורים שהסתיימו מההיסטוריה ולמחוק {n} הודעות שנמסרו? הודעות שהשתנו מאז, וכאלה שממתינות, מוחזקות, בוטלו או נכשלו, נשמרות, ושום דבר ב-Codex לא משתנה."
 }

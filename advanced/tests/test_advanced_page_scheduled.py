@@ -96,6 +96,7 @@ class PageTests(PageCase):
         script["advanced-prompts"] = [bridge("advanced-prompts", {})]
         generation = script["advanced-list"][0]["result"]["generation"]
         cleared = bridge("advanced-prompts-clear-done", {"prompts": [found["done"]], "generation": generation})
+        script["clear-history"] = [{"ok": True, "result": {"hidden": 6}}]
         steps = [{"do": "snapshot", "reply": counted}, {"do": "page", "name": "history"}, {"do": "look"},
                  {"do": "answer", "with": [True]},
                  {"do": "reply", "key": "advanced-prompts-clear-done", "with": [cleared]},
@@ -113,6 +114,7 @@ class PageTests(PageCase):
         script["advanced-prompts"] = [bridge("advanced-prompts", {})]
         kept = copy.deepcopy(bridge("advanced-prompts", {}))
         kept["result"].update(deleted=0, skipped=1)
+        script["clear-history"] = [{"ok": True, "result": {"hidden": 6}}]
         steps = [{"do": "snapshot", "reply": counted}, {"do": "page", "name": "history"},
                  {"do": "answer", "with": [True]},
                  {"do": "reply", "key": "advanced-prompts-clear-done", "with": [kept]},
@@ -184,10 +186,27 @@ class PageTests(PageCase):
         self.assertNotIn(english["edit"], rule["pending_buttons"])
         self.assertIn(english["edit"], message["pending_buttons"])
         self.assertTrue(message["scheduled"]["buttons"]["edit"], "a waiting message can be edited")
-        for look in (recovery, rule, message):
-            self.assertIn(english["add"], look["pending_buttons"], "Schedule a message... while the queue stands")
+        for look in (rule, message):
+            self.assertIn(english["add"], look["pending_buttons"], "Schedule... with a message's or a rule's, while the queue stands")
+        self.assertNotIn(english["add"], recovery["pending_buttons"], "a recovery's row keeps the buttons it had")
         lefts = {tuple(look["scheduled"]["later_lefts"]) for look in (recovery, rule, message)}
         self.assertEqual(len(lefts), 1, "Cancel all and Rescan stay where they are: %r" % lefts)
+
+    def test_a_rules_status_is_a_short_word_and_its_whole_sentence_is_in_why_it_is_waiting(self):
+        """Fails with the whole sentence back in the Status column, which cut the Next check column short."""
+        result, expected = self.of("scenario_list")
+        words, found = expected["words"], expected["found"]
+        opened, _recovery, rule = result["looks"][:3]
+        cells = opened["pending_rows"][self.index(opened, "rule %d" % found["rule"])]
+        self.assertEqual(cells[1], words["page.queue.state.waiting"])
+        self.assertIn(words["page.resets.state.starting"], rule["explain_empty"])
+
+    def test_schedule_is_short_and_the_buttons_stand_on_one_line_for_every_kind(self):
+        """Fails with "Schedule a message..." back: the row took a second line in English at the window's size."""
+        result, expected = self.of("scenario_list")
+        self.assertEqual(expected["words"]["page.scheduled.add"], "Schedule...")
+        for look in result["looks"][1:4]:
+            self.assertEqual(look["button_lines"], 1, look["pending_buttons"])
 
     def test_a_double_click_on_a_waiting_message_edits_it_and_the_saved_row_is_chosen_after(self):
         result, expected = self.of("scenario_list")
@@ -198,7 +217,19 @@ class PageTests(PageCase):
         self.assertEqual(sent(result, "advanced-prompt-edit")[0]["prompt"], expected["found"]["waiting"])
         self.assertEqual(saved["scheduled"]["selected"], ["prompt %d" % expected["found"]["waiting"]])
 
-    def test_history_lists_the_completed_messages_and_delete_completed_works_there(self):
+    def test_history_lists_the_completed_messages_with_their_times_as_a_recoverys(self):
+        """Fails with the message's own clock time back ("at 10:00" beside "2027-01-15 07:59")."""
+        import re
+        result, _expected = self.of("scenario_history")
+        opened = result["looks"][0]
+        done = opened["scheduled"]["history"][-1]
+        recovery = opened["scheduled"]["history"][0]
+        shape = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$")
+        self.assertTrue(shape.match(recovery[3]), recovery)
+        self.assertTrue(shape.match(done[3]) and shape.match(done[4]), done)
+
+    def test_one_clear_history_clears_the_recoveries_and_the_completed_messages(self):
+        """Fails with Delete completed back beside Clear history: two buttons for one result."""
         result, expected = self.of("scenario_history")
         words = expected["words"]
         opened, cleared = result["looks"]
@@ -207,13 +238,17 @@ class PageTests(PageCase):
         done = opened["scheduled"]["history"][-1]
         self.assertEqual((done[1], done[2]), (words["page.scheduled.state.delivered"], words["page.pending.kind.message"]))
         self.assertNotIn("already delivered", " ".join(done), "History shows no words of a message")
-        self.assertTrue(opened["scheduled"]["clear_shown"])
-        self.assertEqual(opened["scheduled"]["clear_text"], words["page.scheduled.clear"].replace("{n}", "1"))
-        self.assertEqual(result["asked"][-1], words["page.confirm.clear"].replace("{n}", "1"))
+        self.assertEqual(opened["scheduled"]["clear_text"], "Clear history")
+        self.assertNotIn("page.scheduled.clear", words)
+        self.assertEqual([text for text in opened["scheduled"]["history_buttons"] if "Delete" in text], [])
+        self.assertTrue(opened["scheduled"]["buttons"]["clear"])
+        finished = sum(1 for row in expected["history"] if row.get("outcome_at"))
+        self.assertEqual(result["asked"][-1], words["page.confirm.clear_both"].replace("{n}", "1")
+                         .replace("{recoveries}", str(finished)))
+        self.assertIn("clear-history ", result["sent"], "the recoveries hidden as Clear history hides them")
         (request,) = sent(result, "advanced-prompts-clear-done")
         self.assertEqual(request, {"prompts": [expected["found"]["done"]], "generation": expected["generation"]})
         self.assertEqual(cleared["scheduled"]["history_note"], words["page.done.cleared"].replace("{deleted}", "1"))
-        self.assertFalse(cleared["scheduled"]["clear_shown"], (cleared["scheduled"], expected["cleared"]))
         self.assertNotIn("message_done", cleared["scheduled"]["history_kinds"])
 
     def test_one_kept_because_it_changed_is_said(self):
@@ -227,9 +262,9 @@ class PageTests(PageCase):
         (look,) = result["looks"]
         self.assertFalse(look["scheduled"]["tab_strip"])
         self.assertEqual(look["scheduled"]["kinds"], [None] * len(expected["pending"]))
-        self.assertNotIn("Schedule a message...", look["pending_buttons"])
+        self.assertNotIn("Schedule...", look["pending_buttons"])
 
-    def test_the_advanced_page_card_points_to_pending_and_goes_there(self):
+    def test_the_advanced_page_card_points_to_pending_and_its_button_opens_the_editor_there(self):
         result, expected = self.of("scenario_card")
         words = expected["words"]
         on_card, there = result["looks"]
@@ -237,6 +272,7 @@ class PageTests(PageCase):
         self.assertIn(words["page.queue.moved"].replace("{pending}", "Pending"), card)
         self.assertNotIn("the words as written", " ".join(card), "no message is listed or written there any more")
         self.assertEqual(there["page"], "pending")
+        self.assertTrue(on_card["queue"]["go"], "the card's one button, Schedule..., is offered")
         self.assertEqual([kind for kind, chosen in zip(there["scheduled"]["kinds"], there["scheduled"]["keys"])
                           if chosen in there["scheduled"]["selected"]], ["message"])
 

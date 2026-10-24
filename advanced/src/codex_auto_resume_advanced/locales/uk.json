@@ -201,7 +201,6 @@
   "page.queue.depends.no": "Ні",
   "page.queue.depends.yes": "Так",
   "page.queue.edit": "Змінити...",
-  "page.queue.go": "Відкрити «{pending}»",
   "page.queue.go_on": "Продовжити",
   "page.queue.hour": "О",
   "page.queue.line": "{conversation} · {when} · {state}",
@@ -428,8 +427,7 @@
   "page.sample.status": "Статус",
   "page.samples": "Збої, які вона не змогла класифікувати, за останні 30 днів",
   "page.samples.none": "Поки жодного.",
-  "page.scheduled.add": "Запланувати повідомлення...",
-  "page.scheduled.clear": "Видалити виконані ({n})...",
+  "page.scheduled.add": "Запланувати...",
   "page.scheduled.mode.queue": "черга Codex",
   "page.scheduled.mode.wait": "чекає",
   "page.scheduled.state.delivered": "доставлено",
@@ -709,5 +707,7 @@
   "page.chat.sending": "Надсилання...",
   "page.chat.click": "Клацання на сповіщенні відкриває",
   "page.pending.kind.message": "Заплановане повідомлення",
-  "page.pending.kind.rule": "Правило скидання"
+  "page.pending.kind.rule": "Правило скидання",
+  "page.pending.rule.held": "затримано",
+  "page.confirm.clear_both": "Приховати з історії завершені відновлення ({recoveries}) і видалити доставлені повідомлення ({n})? Повідомлення, що змінилися відтоді, а також ті, що чекають, затримані, скасовані й невдалі, залишаються, і в Codex нічого не змінюється."
 }

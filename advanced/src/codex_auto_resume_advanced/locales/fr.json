@@ -201,7 +201,6 @@
   "page.queue.depends.no": "Non",
   "page.queue.depends.yes": "Oui",
   "page.queue.edit": "Modifier...",
-  "page.queue.go": "Ouvrir {pending}",
   "page.queue.go_on": "Continuer",
   "page.queue.hour": "À",
   "page.queue.line": "{conversation} · {when} · {state}",
@@ -428,8 +427,7 @@
   "page.sample.status": "État",
   "page.samples": "Échecs qu'elle n'a pas pu classer, 30 derniers jours",
   "page.samples.none": "Aucun pour l'instant.",
-  "page.scheduled.add": "Planifier un message...",
-  "page.scheduled.clear": "Supprimer les terminés ({n})...",
+  "page.scheduled.add": "Planifier...",
   "page.scheduled.mode.queue": "file de Codex",
   "page.scheduled.mode.wait": "attend",
   "page.scheduled.state.delivered": "livré",
@@ -709,5 +707,7 @@
   "page.chat.sending": "Envoi...",
   "page.chat.click": "Un clic sur une notification ouvre",
   "page.pending.kind.message": "Message planifié",
-  "page.pending.kind.rule": "Règle de réinitialisation"
+  "page.pending.kind.rule": "Règle de réinitialisation",
+  "page.pending.rule.held": "retenue",
+  "page.confirm.clear_both": "Masquer {recoveries} récupérations terminées de l'historique et supprimer {n} messages remis ? Les messages modifiés depuis, et ceux en attente, retenus, annulés ou en échec, sont gardés, et rien ne change dans Codex."
 }

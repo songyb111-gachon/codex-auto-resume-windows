@@ -201,7 +201,6 @@
   "page.queue.depends.no": "No",
   "page.queue.depends.yes": "Sí",
   "page.queue.edit": "Editar...",
-  "page.queue.go": "Abrir {pending}",
   "page.queue.go_on": "Continuar",
   "page.queue.hour": "A las",
   "page.queue.line": "{conversation} · {when} · {state}",
@@ -428,8 +427,7 @@
   "page.sample.status": "Estado",
   "page.samples": "Fallos que no pudo clasificar, últimos 30 días",
   "page.samples.none": "Aún no se ha visto ninguno.",
-  "page.scheduled.add": "Programar un mensaje...",
-  "page.scheduled.clear": "Eliminar los completados ({n})...",
+  "page.scheduled.add": "Programar...",
   "page.scheduled.mode.queue": "cola de Codex",
   "page.scheduled.mode.wait": "espera",
   "page.scheduled.state.delivered": "entregado",
@@ -709,5 +707,7 @@
   "page.chat.sending": "Enviando...",
   "page.chat.click": "Un clic en un aviso abre",
   "page.pending.kind.message": "Mensaje programado",
-  "page.pending.kind.rule": "Regla de restablecimiento"
+  "page.pending.kind.rule": "Regla de restablecimiento",
+  "page.pending.rule.held": "retenida",
+  "page.confirm.clear_both": "¿Ocultar {recoveries} recuperaciones terminadas del historial y eliminar {n} mensajes entregados? Se conservan los mensajes que cambiaron desde entonces y los que esperan, están retenidos, cancelados o fallidos, y nada cambia en Codex."
 }

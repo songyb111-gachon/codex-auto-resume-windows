@@ -878,6 +878,9 @@ namespace CodexAutoResume
         partial void HistoryButtonsUpdated(Dictionary<string, object> row, bool idle);
         // A row of the edition's own was double-clicked on Pending (a recovery's opens its menu).
         partial void EditionRowOpened(Dictionary<string, object> row);
+        // Clear history was pressed: the advanced edition, while History lists completed messages of its own, asks and
+        // clears them together with the finished recoveries, and says so (`handled`); otherwise Clear history is as it was.
+        partial void ClearHistoryPressed(ref bool handled);
 
         // ----------------------------------------------------------------- chrome
         private void BuildDashboard()

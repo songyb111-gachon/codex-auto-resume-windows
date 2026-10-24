@@ -224,9 +224,9 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
 # message's and a rule's row, what a message does while a turn runs, History's completed messages and Delete completed,
 # and the prompt queue's card pointing to Pending. The tab strip's words went with the strip.
 PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
-    "pending.kind.message", "pending.kind.rule",
-    "scheduled.clear", "confirm.clear", "done.cleared", "done.cleared_kept", "scheduled.state.delivered",
-    "scheduled.state.handed_over", "scheduled.mode.wait", "scheduled.mode.queue", "queue.moved", "queue.go"))
+    "pending.kind.message", "pending.kind.rule", "pending.rule.held", "confirm.clear_both",
+    "confirm.clear", "done.cleared", "done.cleared_kept", "scheduled.state.delivered",
+    "scheduled.state.handed_over", "scheduled.mode.wait", "scheduled.mode.queue", "queue.moved"))
 # early_reset on Pending (v0.6.19, #50: advanced/gui/AdvancedEarly.cs): what Why it is waiting says of its last reading. Its
 # line's Check now and settings button went with the line (the owner's decision of 2026-10-24), and their words.
 PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (

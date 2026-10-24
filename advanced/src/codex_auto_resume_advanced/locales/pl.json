@@ -201,7 +201,6 @@
   "page.queue.depends.no": "Nie",
   "page.queue.depends.yes": "Tak",
   "page.queue.edit": "Edytuj...",
-  "page.queue.go": "Otwórz {pending}",
   "page.queue.go_on": "Kontynuuj",
   "page.queue.hour": "O",
   "page.queue.line": "{conversation} · {when} · {state}",
@@ -428,8 +427,7 @@
   "page.sample.status": "Stan",
   "page.samples": "Błędy, których nie umiała sklasyfikować, ostatnie 30 dni",
   "page.samples.none": "Na razie żadnych.",
-  "page.scheduled.add": "Zaplanuj wiadomość...",
-  "page.scheduled.clear": "Usuń wykonane ({n})...",
+  "page.scheduled.add": "Zaplanuj...",
   "page.scheduled.mode.queue": "kolejka Codex",
   "page.scheduled.mode.wait": "czeka",
   "page.scheduled.state.delivered": "dostarczona",
@@ -709,5 +707,7 @@
   "page.chat.sending": "Wysyłanie...",
   "page.chat.click": "Kliknięcie powiadomienia otwiera",
   "page.pending.kind.message": "Zaplanowana wiadomość",
-  "page.pending.kind.rule": "Reguła resetu"
+  "page.pending.kind.rule": "Reguła resetu",
+  "page.pending.rule.held": "wstrzymana",
+  "page.confirm.clear_both": "Ukryć {recoveries} zakończonych odzyskiwań w historii i usunąć {n} dostarczonych wiadomości? Wiadomości zmienione od tego czasu oraz oczekujące, wstrzymane, anulowane i nieudane zostają, a w Codex nic się nie zmienia."
 }
