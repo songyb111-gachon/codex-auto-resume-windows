@@ -1,5 +1,47 @@
 {
   "fidelity": {
+    "en/diagnostics": {
+      "exact": 1.0,
+      "light": 388,
+      "outside": 0,
+      "passed": true,
+      "worst": 0
+    },
+    "en/history": {
+      "exact": 1.0,
+      "light": 388,
+      "outside": 0,
+      "passed": true,
+      "worst": 0
+    },
+    "en/overview": {
+      "exact": 1.0,
+      "light": 388,
+      "outside": 0,
+      "passed": true,
+      "worst": 0
+    },
+    "en/pending": {
+      "exact": 1.0,
+      "light": 388,
+      "outside": 0,
+      "passed": true,
+      "worst": 0
+    },
+    "en/settings": {
+      "exact": 1.0,
+      "light": 388,
+      "outside": 0,
+      "passed": true,
+      "worst": 0
+    },
+    "en/statistics": {
+      "exact": 1.0,
+      "light": 388,
+      "outside": 0,
+      "passed": true,
+      "worst": 0
+    },
     "ko/diagnostics": {
       "exact": 1.0,
       "light": 388,
@@ -86,11 +128,11 @@
       "size": "1500x1041"
     },
     "docs/images/advanced-scheduled-after-ko.png": {
-      "sha256": "b2c6088615e073eb7fb41b68c46ee01a213a39969ae89c028dbd74facc115553",
+      "sha256": "c3f8ba3b660b6dc65ae23b5ecccf805df5807803ce3494d8a384c1cf8c6c18bf",
       "size": "1500x1041"
     },
     "docs/images/advanced-scheduled-after.png": {
-      "sha256": "7cd10e36067086c0c7267db8524b5db70abd159b7a8810677195a0e53c15c1e2",
+      "sha256": "bda9733005b132f89e6afc4a8ba6a923a1c6c9cc6d045219dab574b5d0c13143",
       "size": "1500x1041"
     },
     "docs/images/advanced-scheduled-before-ko.png": {
@@ -111,22 +153,22 @@
     }
   },
   "inputs": {
-    "<advanced shot:P1-after:en>": "9412eaa0f52f689ca93cad77c482175e03985534e29a35df03cd99714a957768",
-    "<advanced shot:P1-after:ko>": "7a35a80dfcd433e2bf31c1e0dafec436d51c39c98aaab72fd24f079d54a3ebab",
+    "<advanced shot:P1-after:en>": "44a961d9720d9bdd8b3b14bdfaceb3d339256f6e83c903879a76a4f14caafab1",
+    "<advanced shot:P1-after:ko>": "f49e238c55ad4086656263a2c3b110c10fcaa30cbbc9f3c216467eaa867a2690",
     "<advanced shot:P1-before:en>": "0ab947971fcd7452248eefa9af86a8a20e00282cd52b6e79990311e4aa7a1d42",
     "<advanced shot:P1-before:ko>": "eaa02e61aa0396bda21ef59c42875e200cb44806b1ddabe466e6f0103242597e",
-    "<advanced shot:P4-after:en>": "94b54bbb29ce5242fe9e7dba1f6591a92fd7efba652385a50f645555ca4b8f7c",
-    "<advanced shot:P4-after:ko>": "6a36afa3963f121b22f928806088767a9620385d39c54b266bbc0c7f8849807f",
+    "<advanced shot:P4-after:en>": "c41888b91b6b0e641bf7c482ceeb3b1894a4721238fae3bc3e391c2e9f74c5e5",
+    "<advanced shot:P4-after:ko>": "5c15debc39e7ac2d1498c5c67254bdd6c71cbe786a7a9398e61ab5517445f345",
     "<advanced shot:P4-before:en>": "0f1526f073c53280e10911e6b7d6e9b91339a9a76d5ed33d79c0f06f2d98ae57",
     "<advanced shot:P4-before:ko>": "8b97811788c2f42c6b1ab5dad13303c70247d288b7285830ecd3439f2f0a67fb",
-    "<advanced shot:P5:en>": "cae22869939314dc4aeaccac4d75f228de2c85e38d92973d6c0a6626e3aed2cc",
-    "<advanced shot:P5:ko>": "3ccdff2a587d9a4b2bd721bef8d0ea387dfce82c85a27bb555b1c91372b851f9",
-    "<advanced shot:P7-after:en>": "9bfdb4dfd4c49d6cf7ba29e022b7e4942a06633cd14f86fcb9f42dad7981b7b5",
-    "<advanced shot:P7-after:ko>": "a438849e1afff5d3e8571fbdd63eefd842d24e5aea4435604fa04ae4bcb6eaf1",
+    "<advanced shot:P5:en>": "f3bf700cf67f162ec5b5f99c36d2ee636054dbb9fe751a8de9f4e55c7ac72d6f",
+    "<advanced shot:P5:ko>": "7cd6092c18fe3f5a27c028b92be92ab8c5db991486e13cf8fd1991e3dca90546",
+    "<advanced shot:P7-after:en>": "6dd80d93edb816b651e986ad5aea1d505eca0cc59c2e86846a57030c1d0c37a9",
+    "<advanced shot:P7-after:ko>": "d0123164086a5ddd9a2dde7ecc6f92eb4ec13a9be3958df2fd0c7556d880db3b",
     "<advanced shot:P7-before:en>": "d9c07dae156825c8fccb91d650e5e61c13e3f23949cc181e588cde18e631ab0b",
     "<advanced shot:P7-before:ko>": "a39445dcf1beed31653fc0cf9e2acd91dba8cae66ae6aaba9e08ebe4dd128a2c",
-    "<advanced shot:P8:en>": "b701a4d239a33633c2b4bab9aa47a0eab0a635e856a260d14ada021b3981bd0d",
-    "<advanced shot:P8:ko>": "7e65832be62505ab20b09bb3daa1ea2f13cbd4f191d7ed2325a1c598ae76d3db"
+    "<advanced shot:P8:en>": "f66c988332ad391ee162128db6c720d84c6dafd95f48433f00d75f8f50bcba9f",
+    "<advanced shot:P8:ko>": "5cafa8290abea407e0cff10593e8f29b2704c055e2b1686d07d1512f78587fe7"
   },
   "parts": {
     "<advanced shot:P1-after:en>": {
