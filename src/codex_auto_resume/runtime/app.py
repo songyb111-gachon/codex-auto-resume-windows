@@ -453,15 +453,20 @@ class App(WatchLoop):
             # v0.6.11: a needs-you notice carries the sound its person chose, if any (notify.py).
             sound = event == needsyou.EVENT and self.settings.get(needsyou.SOUND_FIELD) is True
             notice = notifier.build(event, detail, identity, sound=sound,
-                                    destination=notifier.click_destination(self.settings),
+                                    destination=notifier.click_destination(self.settings, getattr(self, "_chat", 0)),
                                     stay=notice_kinds.chosen(self.settings))
             # v0.6.18: Open Codex beside its other buttons, where the edition's plug asked for it (_edition_notices).
             notice = notifier.with_open_codex(notice, getattr(self, "_open_codex", False))
             if notice is None:
                 return False
-            return notifier.deliver(notice, inbox=self._inbox,
-                                    setting=self.settings.get(notifier.CARD_SETTING, True) is True)[1]
+            return App._deliver(self, notice, detail, inbox=self._inbox,
+                                setting=self.settings.get(notifier.CARD_SETTING, True) is True)[1]
         return announce
+
+    def _deliver(self, notice, detail, **route):
+        """notifier.deliver, told first to a plug that wants it (P20, v0.6.19, notifier.told); a stand-in has NULL's."""
+        getattr(self, "plug", guard(None)).notice(lambda: notifier.told(notice, detail, self.worker_store))
+        return notifier.deliver(notice, **route)
 
     def _watcher_notice(self, event, detail, *, final=False):
         """A notice about the watcher itself (v0.6.11: the memory guard's, memguard.py; v0.6.12: the power
@@ -484,7 +489,7 @@ class App(WatchLoop):
         if notice is None:
             return False
         card = not final and self.settings.get(notifier.CARD_SETTING, True) is True
-        return notifier.deliver(notice, inbox=None if final else self._inbox, setting=card)[1]
+        return App._deliver(self, notice, detail, inbox=None if final else self._inbox, setting=card)[1]
 
     def _notice_action(self, uri):
         """A card's button, on a worker thread: what its toast button would do, done in process.
@@ -504,7 +509,8 @@ class App(WatchLoop):
                                      inbox=self._inbox,
                                      setting=self.settings.get(notifier.CARD_SETTING, True) is True),
                                  log=self.logger.info, open_link=notify.open_in_codex,
-                                 stay=notice_kinds.chosen(self.settings))
+                                 stay=notice_kinds.chosen(self.settings),
+                                 open_chat=lambda thread: tray.open_chat(self.paths.home, thread))
 
     def _demo(self):
         """Show me what happens (v0.6.11), asked from Diagnostics: one made-up card, on a worker thread
@@ -649,14 +655,13 @@ class App(WatchLoop):
             pass
 
     def _edition_notices(self, added):
-        """What the edition's plug added to the icon's snapshot, taken up by the watcher: the usage meter's warnings
-        (_near_limit), and from v0.6.18 the weekly update check's offers (_update_offered) and whether a notice about
-        one conversation offers Open Codex
-        (notifier.with_open_codex) - true only while the plug says so, so a plug that says nothing, or the standard
-        edition's, leaves every notice as it was."""
-        extra = added if isinstance(added, dict) else {}
-        notice = extra.get("notice")
+        """What the edition's plug added to the icon's snapshot, for the watcher: the meter's warnings (_near_limit),
+        from v0.6.18 the update check's offers (_update_offered) and whether a notice offers Open Codex, from v0.6.19
+        whether the in-app chat is on (notifier.click_destination) - each only while the plug says so: a plug that says
+        nothing, or the standard edition's, leaves every notice as it was."""
+        notice = (added if isinstance(added, dict) else {}).get("notice")
         self._open_codex = isinstance(notice, dict) and notice.get("open_codex") is True
+        self._chat = isinstance(notice, dict) and notice.get("chat") is True
         if added is not DEFER:
             self._near_limit(added)
             self._update_offered(added)

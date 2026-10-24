@@ -25,6 +25,7 @@ import time
 from . import l10n, machine, needsyou, pwsh
 # Moved to codex_link.py in v0.6.18; read here as `notify.<name>` by the notifier, the watcher and the advanced edition.
 from .codex_link import CODEX_THREAD_LINK, codex_thread_uri, open_in_codex, parse_codex_thread_uri  # noqa: F401
+from .codex_link import chat_uri, parse_chat_uri  # noqa: F401  (v0.6.19: the chat at one conversation)
 from .domain import ids
 
 SCHEME = "codex-auto-resume"
@@ -651,6 +652,12 @@ def update_offered_content(version, prerelease=False):
     body = l10n.message("toast_update_offered_prerelease_body" if prerelease else "toast_update_offered_body")
     return _content(l10n.message("toast_update_offered"), body.replace("{version}", version),
                     more=[(l10n.message("toast_button_open"), open_uri("diagnostics"))])
+
+
+def restart_gave_up_content():
+    """v0.6.19: the advanced crash restart left the watcher stopped (three ends in an hour); one button opens Overview."""
+    return _content(l10n.message("toast_restart_gave_up"), l10n.message("toast_restart_gave_up_body"),
+                    more=[(l10n.message("toast_button_open"), open_uri("overview"))])
 
 
 # ------------------------------------------------- the power action after recoveries (v0.6.12)

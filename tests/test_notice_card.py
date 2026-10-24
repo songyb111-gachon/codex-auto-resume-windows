@@ -1468,10 +1468,11 @@ class SafetyTests(unittest.TestCase):
     def test_the_notifier_draws_nothing(self):
         """v0.6.11 adds demo.py, the made-up task a demo card is built from, which draws nothing either; v0.6.16
         settings, for the values of the setting that says where a click on a notice goes, and notice_kinds, which
-        says whether a notice stays on screen until clicked - both pure but for the catalogs."""
+        says whether a notice stays on screen until clicked - both pure but for the catalogs; v0.6.19 failures, whose
+        closed category words are all P20 tells an edition's plug of a notice's category (notifier.told) - pure."""
         package, _ = self.imports("notifier.py")
-        self.assertLessEqual(package, {"demo", "l10n", "notice_kinds", "notice_presence", "notify", "reasons",
-                                       "settings"})
+        self.assertLessEqual(package, {"demo", "failures", "l10n", "notice_kinds", "notice_presence", "notify",
+                                       "reasons", "settings"})
 
     def test_no_new_module_raises_powershell_itself(self):
         for name in self.CARD + ("notifier.py", "notice_presence.py"):

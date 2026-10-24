@@ -103,6 +103,17 @@ MEASUREMENT_METHODS = {
     Measurement.MQP: ("thread/loaded/list", "thread/queue/add", "thread/queue/list"),
     Measurement.MQG: ("thread/loaded/list", "thread/goal/get", "thread/goal/set", "thread/queue/add",
                       "thread/queue/list"),
+    # v0.6.19 (the groundwork). MTOK reads a rollout and the history's database and runs the engine's own schema
+    # generation on a scratch home - no session; MOPEN lists what the app holds before and after it opens a link; MAL
+    # reads the account, MA's call, while the person signs out and in; MWAKE reads power settings and sets a wake timer
+    # - no session; MHK runs the engine on a scratch home - no session; M4B lists the hooks, M4's call, and is the Stop
+    # hook's writer's to finish.
+    Measurement.MTOK: (),
+    Measurement.MOPEN: ("thread/loaded/list",),
+    Measurement.MAL: ("account/read",),
+    Measurement.MWAKE: (),
+    Measurement.MHK: (),
+    Measurement.M4B: ("hooks/list",),
 }
 
 # The methods a capability's own route may call, beyond `initialize` - each one a measurement
@@ -130,6 +141,9 @@ CAPABILITY_METHODS = {
     # conversation's own model put back.
     "model_fallback": ("thread/resume", "model/list", "turn/start", "turn/interrupt", "thread/settings/update",
                        "thread/unsubscribe"),
+    # v0.6.19: a chat message (engine/chat.py) is added to its conversation's queue under its client id, as
+    # MC1 added one - nothing else, and never a read: the page reads Codex's history (codex/conversation.py).
+    "codex_chat": ("thread/queue/add",),
     # The usage meter (engine/usage.py, v0.6.16-beta.3) reads usage on its schedule, and nothing else.
     "usage_meter": ("account/rateLimits/read",),
 }

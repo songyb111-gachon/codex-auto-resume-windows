@@ -85,6 +85,7 @@ NOT_SCENARIOS = {
     "test_source": "reads a Codex home through the source alone; it builds no engine",
     "test_screenshots": "draws the settings window's pictures, one GUI module at a time",
     "test_plug_points": "gives every engine a plug of its own, to hold each point where it stands",
+    "test_plug_points_2": "test_plug_points' second half (the capabilities that move a record's waits), its plugs the same",
     "test_plug_records": "gives every engine a plug with records of its own (P2), to hold each of their moves",
     "test_queue_for_open": "gives every engine a plug that answers QUEUE_FOR_OPEN at P16, which the neutral plug never "
                            "answers - a conversation the app does not hold waits there",
@@ -100,6 +101,9 @@ NOT_SCENARIOS = {
                         "(v0.6.16-beta.4), which the neutral plug never does - every continuation carries its words there",
     "test_plug_record_purposes": "gives every engine a plug with continuations and messages of its own (P2), to hold "
                                  "what each purpose may and may not be sent as",
+    "test_record_channel": "gives every engine a plug that names a channel at P5 and CLIENT_ID at P15 for a message of "
+                           "its own (P2, v0.6.19), which the neutral plug never does - every record carries its marker "
+                           "through core's backend there",
     "test_power_action": "builds an engine with no store or backend only to ask engine.activity, which reads a "
                          "codexsim home through the source alone; it ticks, dispatches and claims nothing",
     "test_released_calls": "runs the scenarios above against v0.6.10's tagged package and this one, "

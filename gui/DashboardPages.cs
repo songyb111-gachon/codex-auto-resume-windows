@@ -430,22 +430,22 @@ namespace CodexAutoResume
                 e.Handled = true;
             };
             // v0.6.11: the row's own menu - postpone it, let a held one continue, how its conversation
-            // resumes - on a right click, Shift+F10 or the menu key. Nothing on the page moves for it, and
-            // each item acts on the row the menu was opened on, whatever the list does while it is open.
+            // resumes - on a right click, Shift+F10 or the menu key, and (v0.6.19, the owner's word of 2026-10-23) a
+            // double left-click on a row. Nothing on the page moves for it, and each item acts on the row the menu was
+            // opened on, whatever the list does while it is open.
             pendingMenu = new SoftMenu();
             pendingMenu.Font = Font;
             pendingMenu.Opening += delegate(object sender, System.ComponentModel.CancelEventArgs e)
             {
-                Dictionary<string, object> task = null;
-                if (menuByMouse)
-                {
-                    Point at = pendingList.PointToClient(Cursor.Position);
-                    ListViewItem under = pendingList.GetItemAt(at.X, at.Y);
-                    task = under == null ? null : under.Tag as Dictionary<string, object>;
-                }
-                else task = Selected(pendingList);
-                menuByMouse = false;
-                e.Cancel = !FillRowMenu(task);
+                e.Cancel = !PrepareRowMenu();
+            };
+            pendingList.MouseDoubleClick += delegate(object sender, MouseEventArgs e)
+            {
+                if (e.Button != MouseButtons.Left) return;
+                ListViewHitTestInfo hit = pendingList.HitTest(e.Location);
+                // The Auto-resume box answers each click itself, so a double-click on it opens nothing.
+                if (hit.Item == null || (hit.SubItem != null && hit.Item.SubItems.IndexOf(hit.SubItem) == ResumeColumn)) return;
+                OpenRowMenu(hit.Item, e.Location);
             };
             pendingList.ContextMenuStrip = pendingMenu;
             pendingList.MouseDown += delegate(object sender, MouseEventArgs e)
@@ -702,7 +702,11 @@ namespace CodexAutoResume
                 versionsButton,
                 // v0.6.16-beta.3, last, so no button before it moves: why a failure was not taken up (issue #27).
                 MakeButton(S("action.detection_check", "Check why a failure was not taken up..."), false,
-                           delegate { OpenDetectionCheck(); }) })
+                           delegate { OpenDetectionCheck(); }),
+                // v0.6.19, last, so no button before it moves: this PC's own compatibility report, sent nowhere
+                // (DashboardOwnReport.cs).
+                MakeButton(S("action.own_report", "Compatibility report from this PC..."), false,
+                           delegate { OpenOwnReport(); }) })
             {
                 button.Margin = Pad(0, 0, 0, 9);
                 tools.Controls.Add(button);

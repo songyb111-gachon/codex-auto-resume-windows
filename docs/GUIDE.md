@@ -610,7 +610,10 @@ shown, and turning the needed one off turns off first what needs it.
 You turn one on in the Dashboard, on the page that edition adds, **Advanced features**, and nowhere
 else; from v0.6.14 that page can also send one waiting recovery now, while Send now is on, and have a
 reset credit used, or a message of your own sent, at a usage reset you pick, each shown on Pending
-under Scheduled until it acts. Their code is left
+under Scheduled until it acts - and, from v0.6.19, while chat with a conversation is on, a **Chat** tab beside
+**Advanced features** reads a conversation the Codex app has open and sends it a message of yours: the reply shows
+once its turn ends ("in progress" until then), approvals are still answered in Codex, and a message written while
+the usage limit is full waits and goes when it resets. Their code is left
 out of the standard edition's archive, and `build/edition_audit.py` proves from the archive's own
 bytes, in every release build, that none of it is there. An installation updates within its edition;
 moving to the other is a reinstall. The [roadmap](ROADMAP.md) says what each has, and what is still
@@ -728,6 +731,21 @@ ownership information. It never acquires a lock on the app's file.
   a report filed later waits for the next release. They change nothing: no capability's state, no
   check and nothing the watcher sends moves with them, and Codex is never handed them - the
   compatibility card in the Codex panel points to the Dashboard instead.
+
+  From v0.6.19 the Dashboard writes such a report of your own as well, in either edition:
+  **Diagnostics > Compatibility report from this PC...** reads this installation's own records -
+  its state, the engine lines of its log and the watcher's own compatibility report, never
+  Codex's files - and shows, for every version of Codex the log names, how many records it holds,
+  how many were delivered and how the rule above counts them (worked, failed, neither, or worked
+  and failed), what was left out and why, the report's SHA-256, and the whole report under them.
+  *Copy report* copies exactly the text the SHA-256 is of, and *Write again* reads the records
+  anew. Each version's part is the body codex-compat-reporter writes, except that its progress
+  counts are left empty, because the Dashboard does not read Codex's history. Nothing is sent and
+  nothing is kept: the report lives in that window, and *Export diagnostics* puts one written for
+  the file into the file, under `compatibility_report`. To have it counted, send it with
+  codex-compat-reporter as above. An installation that once held the advanced edition's state
+  leaves out the records that edition's features may have carried, since only that edition can
+  tell them apart.
 
 **Python is not required by either install route** — the installation brings its own runtime
 (Python 3.13.15), and the plugin's setup script is PowerShell. Python 3.12 or newer is needed only if
@@ -966,6 +984,11 @@ notification - opens the Dashboard on the page the notification is about: the pa
 Dashboard** button opens, or, for a notification without that button, Pending while a continuation is
 being sent, History once it has ended, Settings for the power action's, and otherwise the Overview. The card then goes, as a click always made it go; a right
 click only puts it away, and the buttons do what they always did.
+
+In the advanced edition, while **Chat with a conversation in the Dashboard** is on (v0.6.19), you pick where
+that click goes, under the chat on the Advanced features page: the notification's page as above, that
+conversation's chat in the Dashboard, or Codex itself at that conversation. A notification about no
+conversation opens its page whichever you pick, and with the chat off every click opens the page.
 
 A notification goes away by itself after a while. **Keep on screen until clicked**, under Settings >
 General > Notifications, lists each kind of notification - an interruption detected, a recovery

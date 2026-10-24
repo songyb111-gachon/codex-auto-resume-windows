@@ -964,6 +964,10 @@ seam of its own.
 
 ## v0.6.19 — The advanced edition's last stage
 
+**In development: v0.6.19-beta 🚧, its first pre-release, carries the groundwork, the chat inside the Dashboard,
+the watcher's restart after an unexpected stop and the wake for a reset in the advanced edition, and in both editions
+a compatibility report from this PC. The rest of the stage is next.**
+
 Stage 5, moved out of v0.6.16 by the owner on 2026-10-16 so that the v0.6.16 final comes sooner, is a release
 of its own, and the owner moved the in-app chat here the same day. Two of its small capabilities - a weekly update
 check while idle and an *Open Codex* button on a notice - went out in v0.6.18 on 2026-10-21, and what is left is
@@ -972,12 +976,20 @@ on, with a statement that names the standards it departs from; some rest on a me
 and one that fails narrows the route, or becomes a warning the person confirms, and does not drop the
 capability.
 
-### v0.6.19-alpha — The last stage's first pre-release (a pre-release)
+### v0.6.19-beta — The last stage's first visible parts (a pre-release)
 
-The two changes to how the advanced edition stores its choices and how state files are read, which this alpha
-was to make first, are v0.6.17's now (the options table checks names in code only, and state files carry a
-"readable from" marker), so every capability below adds an option or a stored field without a rebuild. The
-alpha is the first of the last stage's capabilities, published as a pre-release while the rest is built.
+The two changes to how the advanced edition stores its choices and how state files are read, which the stage's first
+pre-release was to make first, are v0.6.17's now (the options table checks names in code only, and state files carry a
+"readable from" marker), so every capability below adds an option or a stored field without a rebuild. The owner chose
+a beta, with no alpha before it, for the first parts a person can see. It carries, in the advanced edition, the stored
+format of the whole stage (state version 8, readable from 7), the chat inside the Dashboard, the watcher's restart after
+an unexpected stop and the wake for a reset; and, in both editions, the compatibility report from this PC. It is
+published as a pre-release while the rest is built.
+
+It also carries the rework of Pending that [#50](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/50) asked for: in the advanced edition, a Scheduled tab beside
+Recoveries with an editor, Delete completed and, for each message, whether it waits for a running turn; opening a
+waiting conversation in Codex, built and hidden until measurement MOPEN passes; and, in both editions, a double-click
+on a Pending row that opens its menu.
 
 ### Around recovery
 
@@ -988,7 +1000,8 @@ alpha is the first of the last stage's capabilities, published as a pre-release 
 - a loopback API and web view on 127.0.0.1, remote control over Telegram, and a read-only view of
   other PCs through a folder the person syncs,
 - switching the active Codex account on the person's command (measurement MA),
-- crash supervision and a wake timer for a reset.
+- crash supervision and a wake timer for a reset (both built in v0.6.19-beta; the wake waits on measurement
+  MWAKE).
 
 ### The chat inside the Dashboard
 
@@ -1000,6 +1013,10 @@ alpha is the first of the last stage's capabilities, published as a pre-release 
 - where a click on a popup's body goes, when the chat is on: the person picks that conversation's chat here, or
   Codex at that conversation,
 - a message written while the limit is full, sent when it resets.
+
+All four are built in v0.6.19-beta; where a click on a popup's body goes is chosen on the chat's page, and the
+measurements MC1 and MC2 behind the chat are on `codex-cli 0.162.0-alpha.17.2`, MC2 recorded as a fail, which the
+chat's statement carries as its warning.
 
 ### Compatibility data for the advanced edition
 
@@ -1296,17 +1313,17 @@ from working
 
         ↓
 
-v0.6.18  🚧 In development
+v0.6.18  ✅ Released
 A final on v0.6.17: a recovery turn that worked and was cut off is recovered, a setup bar that fills by real
 counts, a streamed update download
 + Open Codex on a notice and a weekly update check while idle, in the advanced edition
 
         ↓
 
-v0.6.19-alpha → v0.6.19
-The advanced edition's last stage, begun in a pre-release: analytics, the courier, the loopback API and remote control,
-account switching, crash supervision, the chat inside the Dashboard, the Stop hook continuation,
-Arabic and Hebrew
+v0.6.19-beta → v0.6.19  🚧 In development
+The advanced edition's last stage, begun in a pre-release that has the chat inside the Dashboard, crash supervision and
+the wake for a reset, and a compatibility report from this PC in both editions; still to come: analytics, the courier,
+the loopback API and remote control, account switching, the Stop hook continuation, Arabic and Hebrew
 
         ↓
 
@@ -1331,7 +1348,8 @@ Final Rust audit and stabilization: the Rust bug hunt
 Maintenance
 ```
 
-This document records the current direction; v0.6.18 is out: a recovery that worked is recovered however its turn ended,
+This document records the current direction; v0.6.19-beta is in development, the first pre-release of v0.6.19; v0.6.18
+is out: a recovery that worked is recovered however its turn ended,
 the standard edition suggests the Codex homes this PC uses, Install another version runs in the setup window, the setup
 window's bar fills by real counts, the update's download is streamed, all seventeen translations were reviewed, a full
 audit's fixes landed in every layer, and the advanced edition gains Open Codex on a notice and a weekly update check while
@@ -1345,5 +1363,5 @@ conversations ChatGPT hands over, and the ones Codex labels not at all, are reco
 eight more ways to recover, Keep it on, the watch log, the reset actions and a compatibility report sent from
 the app, and the panel beside the chat, in the advanced edition; and a window that no longer hangs while a
 recovery waits, in both. v0.6.18 is a final on v0.6.17 with no pre-release of its own, and v0.6.19 follows it, starting with its
-pre-release, v0.6.19-alpha: the owner moved stage 5 out of v0.6.16 on 2026-10-16, so that the v0.6.16 final came
+pre-release, v0.6.19-beta: the owner moved stage 5 out of v0.6.16 on 2026-10-16, so that the v0.6.16 final came
 sooner, made v0.6.17 a final on v0.6.16 on 2026-10-19, and on 2026-10-21 put the simple parts of stage 5 into v0.6.18 and the rest into v0.6.19.

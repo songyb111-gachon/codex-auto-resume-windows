@@ -155,6 +155,8 @@ namespace CodexAutoResume
             settings.Parent.Controls.Add(tab);
             navButtons[AdvancedPageName] = tab;
             advancedTab = tab;
+            // v0.6.19: the Chat tab right of it, shown only while chat is on (AdvancedChat.cs).
+            AddChatTab(tab);
             // A window that replaces one with this page on screen opens on the Overview, as the standard window opens
             // on a page it does not have, and comes back here once the page can be shown (ReturnToAdvanced).
             advancedReturning = firstPage == AdvancedPageName;
@@ -293,20 +295,21 @@ namespace CodexAutoResume
         {
             Control strip = advancedTab == null ? null : advancedTab.Parent;
             if (strip == null) return MinimumSize.Width;
-            // The strip as it is now, less what the chosen tab's heavier words add to it, plus the most any tab's would:
-            // whichever page is on screen, its tab is set in nav_current (ShowPage).
-            int now = 0, heaviest = 0;
-            var any = new Size(int.MaxValue, int.MaxValue);
+            // One row of the tabs as the strip lays them out: each shown tab at the width a button of its words, padding
+            // and the regular tab font prefers, with its margins - and the most any one of them grows when it is the
+            // chosen tab, in nav_current (ShowPage) - measured on buttons of their own, never added to any control
+            // (TabWidth). v0.6.19: TextRenderer's widths of the words, which this was reckoned from before, were a few
+            // pixels short of the buttons' own on GitHub's runner, and Spanish's Chat tab was cut off there.
+            int row = 0, heaviest = 0;
             foreach (Control control in strip.Controls)
             {
                 var tab = control as NavButton;
-                if (tab == null) continue;
-                int regular = TextRenderer.MeasureText(tab.Text, Soft.RoleFont("nav"), any, TextFormatFlags.SingleLine).Width;
-                now += TextRenderer.MeasureText(tab.Text, tab.Font, any, TextFormatFlags.SingleLine).Width - regular;
-                heaviest = Math.Max(heaviest, TextRenderer.MeasureText(tab.Text, Soft.RoleFont("nav_current"), any,
-                                                                       TextFormatFlags.SingleLine).Width - regular);
+                if (tab == null || !Soft.OwnVisible(tab)) continue;
+                int regular = TabWidth(tab, Soft.RoleFont("nav"));
+                row += regular + tab.Margin.Horizontal;
+                heaviest = Math.Max(heaviest, TabWidth(tab, Soft.RoleFont("nav_current")) - regular);
             }
-            int least = strip.PreferredSize.Width - now + heaviest + nav.Padding.Horizontal + FrameWidth;
+            int least = row + heaviest + strip.Padding.Horizontal + nav.Padding.Horizontal + FrameWidth;
             int room = ScreenRoom();
             bool rows = least > room;
             if (rows) least = room;
@@ -317,7 +320,32 @@ namespace CodexAutoResume
                 FitTabs();
             }
             if (MinimumSize.Width < least) MinimumSize = new Size(least, MinimumSize.Height);
+            // The layout audit stands in a screen as wide as anything needs (advancedScreen), but Windows still holds a
+            // form's Width to the largest window this machine's screen allows (SystemInformation.MaxWindowTrackSize): on
+            // GitHub's runner, whose screen is small, the window stayed narrower than its tabs, the Chat tab 3 px past the
+            // strip (v0.6.19-beta's CI) - a window no screen of that size shows, where the tabs take a second row. As
+            // AuditNarrowestOn does, the audit asks for the client area itself, which Windows keeps as asked.
+            if (auditing && advancedScreen > 0 && ClientSize.Width < least - FrameWidth)
+                ClientSize = new Size(least - FrameWidth, ClientSize.Height);
             return least;
+        }
+
+        /// The width `tab` prefers in `font`: a button of its own with the tab's words and padding, set as every tab is
+        /// (DashboardBuilt), asked as the strip asks a tab - and disposed, never added to any control.
+        private static int TabWidth(NavButton tab, Font font)
+        {
+            using (var scratch = new NavButton())
+            {
+                scratch.Font = font;
+                scratch.Text = tab.Text;
+                scratch.Padding = tab.Padding;
+                scratch.AutoSize = true;
+                scratch.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                scratch.FlatStyle = FlatStyle.Flat;
+                scratch.FlatAppearance.BorderSize = 0;
+                scratch.UseVisualStyleBackColor = false;
+                return scratch.GetPreferredSize(Size.Empty).Width;
+            }
         }
 
         /// What the window's frame adds to its width, as Windows works it out from the window's style
@@ -373,6 +401,7 @@ namespace CodexAutoResume
         {
             if (argument == "--page=" + AdvancedPageName) request.Page = AdvancedPageName;
             else if (argument == "--focus=page." + AdvancedPageName) request.Focus = "page." + AdvancedPageName;
+            else if (ChatArgumentParsed(argument)) { }      // v0.6.19: the chat at one conversation (AdvancedChat.cs)
             else if (argument.StartsWith(CapabilityArgument, StringComparison.Ordinal))
             {
                 string id = argument.Substring(CapabilityArgument.Length);
@@ -723,6 +752,8 @@ namespace CodexAutoResume
             }
             FillAdvancedList();
             ShowAdvancedDetail();
+            // v0.6.19 (#50): Pending's tabs follow whether the prompt queue stands (AdvancedSchedule.cs).
+            ScheduleListingApplied();
         }
 
         /// A statement as advanced-statement answers it; one that could not be read is none, and nothing can be turned
@@ -779,6 +810,7 @@ namespace CodexAutoResume
         /// state in a chip. Rows are only rewritten where they changed, so the selection and the focus stay where the person left them.
         private void FillAdvancedList()
         {
+            UpdateChatTab();
             if (advancedList == null) return;
             var rows = new List<Dictionary<string, object>>();
             foreach (object entry in Items(advancedListing, "capabilities") ?? new List<object>())
@@ -877,7 +909,7 @@ namespace CodexAutoResume
                            KeptShown(item) + "|" +
                            (IsReport(item) ? ReportShown() : "") + "|" +
                            ResetsShown(item) + "|" + KeepGoingShown(item) + "|" + QueueShown(item) + "|" +
-                           WordingsShown(item) + "|" + RunsShown(item);
+                           WordingsShown(item) + "|" + RunsShown(item) + "|" + ChatShown(item);
             if (shown == advancedShown)
             {
                 UpdateAdvancedButtons();
@@ -1044,8 +1076,10 @@ namespace CodexAutoResume
 
             // Under its limits (v0.6.14): Send now's waiting recoveries. Keep it on is in the head card (v0.6.16-beta.3).
             BuildSendNow(item);
-            // The turns run here now, each with its Stop (v0.6.16-beta.4, AdvancedRuns.cs).
+            // The turns run here now, each with its Stop (v0.6.16-beta.4, AdvancedRuns.cs), and the chat (v0.6.19,
+            // AdvancedChat.cs).
             BuildRuns(item);
+            BuildChat(item);
             // The reset actions' rules and the form they are added with (AdvancedResets.cs); the conversations kept going
             // and the queued prompts (v0.6.15-beta) - each while its capability is on or, from v0.6.16-beta.3, watched.
             BuildResets(item);
@@ -1132,7 +1166,9 @@ namespace CodexAutoResume
         /// acted on or not.
         private static bool IsSwitchChoice(string key)
         {
-            return key == "wrap_reset_time" || key == "wrap_after_reset" || key.StartsWith("window_", StringComparison.Ordinal);
+            // v0.6.19 (#50): and open_to_send's Also start Codex.
+            return key == "wrap_reset_time" || key == "wrap_after_reset" || key == "open_start_codex" ||
+                   key.StartsWith("window_", StringComparison.Ordinal);
         }
 
         /// An on/off choice as the Dashboard's own switch (NewCheck, as Settings draws its switches), in the row a drop-down
@@ -1167,7 +1203,7 @@ namespace CodexAutoResume
         {
             if (key == "ceiling_hours") return Word("page.option.hours", "{n} h", "n", value);
             // v0.6.16-beta.3 (issue #29): the meter's spacing, a stage's percentage, the wrap-up's wording.
-            if (key == "poll_minutes") return Word("page.option.minutes", "{n} min", "n", value);
+            if (key == "poll_minutes" || key == "open_idle_minutes") return Word("page.option.minutes", "{n} min", "n", value);
             if (key == "wrap_style")
                 return Word("page.option.style." + value.ToString(CultureInfo.InvariantCulture),
                             value == 1 ? "Short" : value == 3 ? "Detailed" : value == 4 ? "With the numbers" :

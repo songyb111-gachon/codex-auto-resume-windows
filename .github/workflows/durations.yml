@@ -7,8 +7,9 @@ name: durations
 # folding them back in was a hand job, so the deal drifted: on 2026-10-10 a dev run's advanced lane took
 # 33, 28, 15 and 62 minutes. This reads the seconds of every green tests run on dev and, when a new deal
 # would make some lane's longest part shorter by enough (scripts/test_parts.py REFRESH_FRACTION and
-# REFRESH_SECONDS, both), commits the refreshed table to dev and runs the tests there again, so the
-# commit it made has a run of its own.
+# REFRESH_SECONDS, both), or some file is dealt by a figure far from what it took - a new file's
+# estimate, or one STALE_FACTOR and STALE_SECONDS off - commits the refreshed table to dev and runs the
+# tests there again, so the commit it made has a run of its own.
 #
 # Why it cannot loop: the run it asks for tests its own commit, and a run of that commit wakes this
 # again, which sees its own trailer on the head commit and stops. Why it never fights a person: it
@@ -93,7 +94,7 @@ jobs:
         with:
           python-version: "3.13"
 
-      # The tested commit's own merge, with no token: it writes the table only on enough of a gain.
+      # The tested commit's own merge, with no token: it writes the table only on enough of a gain or a stale figure.
       # --parts is each lane's own PARTS: test.yml deals the standard lane into 3 and the advanced into 5,
       # and release.yml and the main-tree job deal the release lane into 5.
       - name: Weigh a new deal

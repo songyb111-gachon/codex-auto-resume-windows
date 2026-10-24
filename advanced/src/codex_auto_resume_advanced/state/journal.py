@@ -8,7 +8,8 @@ never read to decide anything: the spend ledger is the only record a decision co
 
 Everything here is bounded the way core's journal is - 5,000 entries or 90 days, whichever comes
 first, pruned every 256 entries - and so are the spend ledger, the records, the overrides, the
-admissions and the samples, which are pruned in the same pass. A spend is never pruned inside the day its ceilings count,
+admissions and the samples, which are pruned in the same pass - and from v0.6.19 the stage's tables (advanced state
+version 8), each as the groundwork bounded it. A spend is never pruned inside the day its ceilings count,
 and a record or an override that may still be acted on never at all. What a watched capability would have
 done (`would_have` lines) is bounded tighter, inside those: at most WATCH_LIMIT lines a capability, its
 newest, cut in the same pass before the journal's own bound, so one noisy watched capability never
@@ -17,15 +18,26 @@ then cuts every other line before any of them.
 """
 from __future__ import annotations
 
+import time
+
 from codex_auto_resume.domain.plug import Alternative, Point
 
 from ..vocabulary import Actor, ArmingWarning, JournalCode, OffReason, RecordState
 
 EVENT_LIMIT = 5000
-WATCH_LIMIT = 150                 # would_have lines kept a capability, its newest (250; 200; 180 until v0.6.16-beta.4: 30 fit)
+WATCH_LIMIT = 140                 # would_have lines kept a capability, its newest (250; 200; 180; 150 until v0.6.19: 34 fit)
 EVENT_MAX_AGE = 90 * 86400
 _PRUNE_EVERY = 256
 _DAY = 86400
+# The v0.6.19 stage's bounds (advanced state version 8, plans/v0619-design/D-groundwork.md): the usage readings 90 days
+# and 20,000 rows, the token days and the rollouts read 90 days (the owner may make it 400), the pushed notices 7 days and
+# 500, the conversations opened 7 days and 1,000, the restarts 7 days, the Stop hook's answers 90 days.
+SAMPLES_MAX_AGE, SAMPLES_LIMIT = 90 * _DAY, 20000
+TOKENS_MAX_AGE = 90 * _DAY
+OUTBOX_MAX_AGE, OUTBOX_LIMIT = 7 * _DAY, 500
+OPENS_MAX_AGE, OPENS_LIMIT = 7 * _DAY, 1000
+RESTARTS_MAX_AGE = 7 * _DAY
+HOOK_CLAIMS_MAX_AGE = 90 * _DAY
 
 
 def prune_every(row_id) -> bool:
@@ -215,6 +227,27 @@ class JournalMixin:
         from . import continuations, prompts
         continuations.prune(connection, now, EVENT_MAX_AGE, EVENT_LIMIT)
         prompts.prune(connection, now, EVENT_MAX_AGE, EVENT_LIMIT)
+        # And the v0.6.19 stage's (advanced state version 8): each bound the groundwork fixed, one call a table. The
+        # feed, a remote channel's pairing and the account seen are one row each, and need none.
+        bound = JournalMixin._bound
+        bound(connection, "usage_samples", "at", now - SAMPLES_MAX_AGE, SAMPLES_LIMIT)
+        connection.execute("DELETE FROM token_days WHERE day < ?",
+                           (time.strftime("%Y-%m-%d", time.gmtime(now - TOKENS_MAX_AGE)),))
+        bound(connection, "token_files", "read_at", now - TOKENS_MAX_AGE)
+        bound(connection, "outbox", "at", now - OUTBOX_MAX_AGE, OUTBOX_LIMIT, first="state = 'waiting', ")
+        bound(connection, "opens", "at", now - OPENS_MAX_AGE, OPENS_LIMIT)
+        bound(connection, "restarts", "at", now - RESTARTS_MAX_AGE)
+        bound(connection, "hook_claims", "at", now - HOOK_CLAIMS_MAX_AGE)
+
+    @staticmethod
+    def _bound(connection, table, column, before, limit=None, first="") -> None:
+        """`table`'s rows older than `before` by `column`, then - where it has a `limit` - its oldest beyond it (those
+        `first` puts last, kept longest)."""
+        connection.execute("DELETE FROM %s WHERE %s < ?" % (table, column), (before,))
+        excess = connection.execute("SELECT count(*) FROM %s" % table).fetchone()[0] - (limit or 0)
+        if limit and excess > 0:
+            connection.execute("DELETE FROM %s WHERE rowid IN (SELECT rowid FROM %s ORDER BY %s%s LIMIT ?)"
+                               % (table, table, first, column), (excess,))
 
     @staticmethod
     def _prune_spend(connection, schema, now) -> None:

@@ -1145,6 +1145,14 @@ namespace CodexAutoResume
                 dialog.PerformLayout();
                 AuditSpoken("detection_check", dialog, findings);
             }
+            // v0.6.19: this PC's own compatibility report, as it stands before its answer.
+            using (Form dialog = BuildOwnReport())
+            {
+                dialog.TopLevel = false;
+                Materialise(dialog);
+                dialog.PerformLayout();
+                AuditSpoken("own_report", dialog, findings);
+            }
         }
 
         /// A -Versions answer with every kind of row and the longest words a row says: what the audit fills Install

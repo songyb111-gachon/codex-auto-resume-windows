@@ -619,3 +619,6 @@ class NoticeKind(StrEnum):
     NEAR_LIMIT_NOT_CONTINUED = "near_limit_not_continued"
     # v0.6.18: the advanced edition's weekly update check offers a newer version - shown only from its plug's surface.
     UPDATE_OFFERED = "update_offered"
+    # v0.6.19: the advanced edition's crash restart left the watcher stopped after its third restart in an hour - raised by
+    # its plug in the launcher, as Windows' toast.
+    RESTART_GAVE_UP = "restart_gave_up"

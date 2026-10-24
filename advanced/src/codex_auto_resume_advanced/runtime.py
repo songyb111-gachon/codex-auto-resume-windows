@@ -97,7 +97,7 @@ from codex_auto_resume.domain.plughands import RECORDS_LIMIT, kinds_of, widening
 
 from .arming import Arming
 from .codex import headless
-from .engine import foropen, sessions, silent
+from .engine import chat, foropen, sessions, silent
 from .ledger import ClaimLedger, ceiling_reached
 from .registry import REGISTRY
 from .state import AdvancedState, StateError
@@ -291,7 +291,7 @@ def _word(answer, point):
 class Runtime:
     def __init__(self, paths, *, registry=REGISTRY, clock=time.time,
                  measure_session_factory=None, measure_launcher=None, measure_backend=None,
-                 measure_cli=None, measure_ipc=None, evidence_dir=None, **arming):
+                 measure_cli=None, measure_ipc=None, measure_hands=None, evidence_dir=None, **arming):
         self.paths = paths
         self.registry = registry
         self.clock = clock
@@ -330,6 +330,7 @@ class Runtime:
         self._measure_backend = measure_backend
         self._measure_cli = measure_cli
         self._measure_ipc = measure_ipc
+        self._measure_hands = measure_hands
         self._evidence_dir = evidence_dir
 
     # ------------------------------------------------------------------ standing
@@ -425,6 +426,17 @@ class Runtime:
         """Why the last start route asked named none, or None (core's Plug.start_held)."""
         return self._start_held
 
+    def supervise(self, facts):
+        """P13, asked by the launcher before it runs the watcher and once a watcher it ran has ended (v0.6.19,
+        crash_restart). As at P9, what every capability here stands at is read afresh, with a fresh check of Codex
+        where the watcher's report cannot be used - at sign-in no watcher has run for a while, and the watcher not
+        running is the one case the start question is asked in (Arming.read's `live`)."""
+        definitions = self.registry.at(Point.SUPERVISION)
+        if not definitions:
+            return NULL.supervise(facts)
+        self.states(fresh=True, live=frozenset(definition.id for definition in definitions))
+        return self.ask(Point.SUPERVISION, facts)
+
     def _held_start(self, definitions):
         """Why no capability at P9 named a route, as one word, for the first stored on or watched at
         the read; None where every one was stored off. A capability turned off on the way - at the
@@ -457,7 +469,9 @@ class Runtime:
         The first capability to answer is the one taken, in registry order, with one exception (`_preferred`):
         a person's Send now is preferred to an early look at P7 where core would carry it out (v0.6.17)."""
         definitions = self.registry.at(point)
-        if not definitions or (point in OWN_RECORD_POINTS and _own_record(arguments[0])):
+        if point in OWN_RECORD_POINTS and _own_record(arguments[0]):
+            return self._own_record_answer(point, arguments)
+        if not definitions:
             return getattr(NULL, HOOKS[point])(*arguments)
         states = self.states()
         record = arguments[SENDING[point]] if point in SENDING else None
@@ -815,12 +829,15 @@ class Runtime:
             self.state.release_unlaunched(at=self.clock())
             self.state.release_unlaunched_continuations(UNLAUNCHED_AFTER, at=self.clock())
             self.state.release_unlaunched_prompts(UNLAUNCHED_AFTER, at=self.clock())
+            self.state.release_unlaunched_chats(UNLAUNCHED_AFTER, at=self.clock())
         except StateError:
             pass                                         # tried again at the next P2
         try:
             flying = [handed(rule) for rule in self.state.messages_in_flight()]
             flying += [continued.handed(row) for row in self.state.continuations_in_flight()]
             flying += [promptqueue.handed(row) for row in self.state.prompts_in_flight()]
+            # v0.6.19: and the chat's messages in flight, each taken back once three minutes pass untaken.
+            flying += [chat.watched(row, self.clock()) for row in self.state.chats_in_flight()]
         except StateError:
             flying = []
         # P2's eight (v0.6.15-beta): those in flight first, the longest in flight first, from a place that moves on
@@ -1014,6 +1031,24 @@ class Runtime:
             return False
         return self.arming.trip(foropen.CAPABILITY, OffReason.NOT_DELIVERED_ON_OPEN)
 
+    def _own_record_answer(self, point, arguments):
+        """P5 and P15 for a record of this edition's own (v0.6.19): a chat message goes through chat's own
+        channel with no marker while chat is on (engine/chat.py), and one in flight is proven by its client id whatever
+        chat stands at now - it was sent with no marker; everything else of the edition's own is asked nothing there,
+        as before - NULL's answer."""
+        record = arguments[0]
+        armed = self.states().get(chat.CAPABILITY) == ArmingState.ARMED
+        if point == Point.DELIVERY or (point == Point.SENDER and armed):
+            definition = self.registry.get(chat.CAPABILITY)
+            try:
+                owned = definition is not None and self.state.chat_by_record(record.get("record_id")) is not None
+            except Exception:
+                owned = False
+            if owned:
+                code = self._code_of(definition)
+                return code.sender(record, arguments[-1]) if point == Point.SENDER else code.delivery(record)
+        return getattr(NULL, HOOKS[point])(*arguments)
+
     def _not_dispatched_by_session(self, record, state) -> bool:
         """The tripwire NOT_DISPATCHED_BY_SESSION (v0.6.16-beta.4): core took back a continuation sent to a
         conversation another Codex session held (its gate vector's `session` pass, core's own column) because that
@@ -1056,7 +1091,12 @@ class Runtime:
             if moved is None:
                 # or a queued prompt's occurrence (state/prompts.py).
                 moved = self.state.prompt_moved(record.get("record_id"), move, at=self.clock(),
-                                                queue_id=record.get("queue_id"))
+                                                queue_id=record.get("queue_id"), gate=record.get("gate"),
+                                                reason=record.get("reason"))
+            if moved is None:
+                # or (v0.6.19) a chat message (state/chat.py).
+                moved = self.state.chat_moved(record.get("record_id"), move, reason=record.get("reason"),
+                                              at=self.clock())
         except StateError:
             return DEFER                                 # repaired from the next P2 (resetmessage.records)
         if moved is None:
@@ -1184,9 +1224,12 @@ class Runtime:
         # Desktop's IPC pipe (MIPC). Built from the same backend, so they are of the Codex the record names.
         cli = self._measure_cli if self._measure_cli is not None else measure.live_cli(backend, self.paths)
         ipc = self._measure_ipc if self._measure_ipc is not None else measure.live_ipc()
+        # v0.6.19: the groundwork's probes' hands (measure.live_hands), of the same backend.
+        hands = (self._measure_hands if self._measure_hands is not None
+                 else measure.live_hands(backend, self.paths))
         return measure.run(measurement, session_factory=session_factory,
                            launcher=launcher, backend=backend, thread=thread, may_spend=may_spend,
-                           directory=self._evidence_dir, clock=self.clock, cli=cli, ipc=ipc)
+                           directory=self._evidence_dir, clock=self.clock, cli=cli, ipc=ipc, hands=hands)
 
     def complete_measurement(self, measurement, verdict, note):
         """Record a person's completion of a blocked measurement (measure-verdict, measure.py).

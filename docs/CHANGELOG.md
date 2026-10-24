@@ -1,5 +1,123 @@
 # Changelog
 
+## v0.6.19-beta — Chat with a conversation in the Dashboard, the watcher started again after an unexpected stop, the PC woken for a reset, and a compatibility report from this PC
+
+[The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.18...v0.6.19-beta)
+
+**A pre-release: the first parts of v0.6.19 that a person can see.** The owner chose a beta, with no alpha before it,
+because they can be seen. It is a GitHub pre-release, so `releases/latest` stays v0.6.18. An installation of v0.6.18 or
+earlier is offered it by *Check for updates* only where pre-releases are offered - the check asks first and says it is
+tested less - and *Install another version...* lists it. Both editions change in the first group; the second is the
+advanced edition's alone, and what it adds is off until you turn it on.
+
+**Going back.** The watcher's state stays schema 5, and the standard edition's settings file gains no key. The advanced
+edition's own file is now version 8, brought up from version 7 the first time it is opened, every row kept: ten tables
+for the whole of this stage, and one column at the end of the table of queued messages. Of the ten, only the record of
+the watcher's restarts is written by this pre-release; the others stay empty until a later part of the stage writes
+them. The file stays marked as readable from version 7, because all that version 8 adds is what a version-7 reader from
+v0.6.17 on passes over: v0.6.18 and v0.6.17 use the file as it is and keep every advanced feature on. v0.6.16 and the
+versions before it read no such mark, refuse the file as newer and run with every advanced feature off, writing
+nothing, and *Install another version...* says so before it installs one of them.
+
+### Both editions
+
+- **A compatibility report from this PC.** This is the release's improvement to the standard edition. *Diagnostics* >
+  *Tools* has a new last button, **Compatibility report from this PC...**. It reads this installation's own records - its
+  state, the engine lines of its log and the watcher's own compatibility report, never Codex's files - and shows, for
+  every version of Codex the log names, how many records it holds, how many were delivered and how the project's rule
+  counts them (worked, failed, neither, or worked and failed), what was left out and why, the report's SHA-256 and the
+  whole report under them. *Copy report* copies exactly the text the SHA-256 is of, and *Write again* reads the records
+  anew. Each version's part is the body the separate reporter program writes, except that its progress counts are left
+  empty, because the Dashboard does not read Codex's history. Nothing is sent and nothing is kept: the report lives in
+  that window, and *Export diagnostics...* (or the command line's `diagnostics`) puts one into the file, with its
+  SHA-256, under a key of its own. To have a report counted, send it with the reporter as before. An installation that
+  once held the advanced edition's state leaves out the records that edition's features may have carried, since only
+  that edition can tell them apart. The advanced edition's own report and this one are written by the same code from
+  the same records. The guide, the privacy notice and the editions page say what it reads and that it never sends; its
+  words are in all 18 languages.
+- **A double-click on a Pending row opens its menu.** A double left-click on a row of Pending opens the same menu a
+  right click does, for that row, as the owner asked.
+
+### Advanced edition
+
+- **Chat with a conversation in the Dashboard.** While it is on, a **Chat** tab beside *Advanced features* opens the
+  chat. You pick a conversation the Codex app has open and read its last twenty turns - your messages and Codex's
+  replies, read from Codex's history on this PC while the chat is open, with a turn's commands and file changes as
+  counts - and send a message of up to 2,000 characters. It goes into the conversation exactly as you typed it, with no
+  marker, proven to be the one you sent by its id, through Codex's own queue, and shows there as your own message. While
+  its turn runs the chat says "in progress"; the reply shows once the turn ends, and approvals are still answered in
+  Codex. A message written while the usage limit is full waits - at the same usage check every send waits at, with no
+  schedule of its own - and goes when the limit resets. Your words are kept only until the message is sent, and deleted
+  then; one Codex does not take within three minutes is taken back and never sent again by itself. It works only where
+  the Codex app has the conversation open, on this PC only: at most 60 messages a day and 30 in one conversation, one
+  in flight in a conversation at a time. Its statement names the standards it departs from and carries a warning on
+  every Codex: the test that a message shows as your own and starts a turn passed on one version of Codex, and the test
+  of where a turn's progress can be read failed there - Codex's history says that a turn started and ended but not that
+  it waits for an approval - which is why the chat says only "in progress".
+- **Where a click on a notice goes.** While the chat is on, a choice on the chat's page sets what a click on a notice's
+  face or body does: open its page as before, open that conversation's chat here, or open Codex at that conversation. A
+  notice about no conversation opens its page whichever you pick, and with the chat off every click opens the page.
+- **The chat composes with every capability it meets, and its messages pace nobody else.** A chat message keeps its own
+  pace. Before, its claims counted in the five a day and the fifteen minutes of every other capability on the same
+  conversation, so a queued message, a kept-going continuation, a wrap-up, a reset message or a recovery sent now went
+  fifteen minutes behind every chat message; they no longer do. Where the longer reset message splits a message, the
+  chat's message stays at 2,000 characters, which is all its table holds.
+- **Restart the watcher if it stops unexpectedly.** The watcher's launcher stays running beside the watcher, as its
+  parent. When the watcher stops unexpectedly - not stopped by you, by an update or the uninstaller, by the memory guard,
+  or because another watcher already runs for this installation - the launcher starts it again five seconds later, at
+  most three times an hour. After the third restart in an hour it is left stopped: the Dashboard says it *stopped
+  unexpectedly*, as the standard edition does, and one notification, *The watcher was left stopped*, says so; it is a
+  kind of its own under *Keep on screen until clicked*. A watcher started again checks what it was doing before it sends
+  anything, as every watcher does when it starts. Each restart is kept with its exit code in the advanced file for seven
+  days. It departs from the standards that fix the processes the product starts and forbid resident helpers; it sends
+  nothing to Codex and rests on no measurement.
+- **Wake this PC for a reset.** When a usage limit, a reset credit or a message of your own waits for a reset, it sets a
+  wake timer for that time, less the minutes you choose (1, 2 or 5; 2 by default), so a PC asleep wakes and the watcher
+  looks at once. It does so only where Windows' *Allow wake timers* already allows it for the power source in use; the
+  product reads that setting and never changes it. The timer is moved when the time changes and taken back when nothing
+  waits, when recovery is paused, when the feature is turned off or when the watcher stops. A laptop may wake in a bag or
+  with its lid closed, and some PCs that sleep the modern way are not woken by such a timer at all; there, the standard
+  edition's *Keep this PC awake while a task waits* is the way. Whether such a timer wakes this PC is a measurement not
+  made yet, so its statement carries the warning that it was not measured.
+- **The stage's stored format, fixed once.** The advanced file's version 8 (above) and the closed words the later parts
+  of the stage will use are in place, so none of them needs a rebuild of the file; nothing reads the nine tables that
+  are still empty until the part that writes it is built.
+- **Scheduled messages in one place, on Pending** (asked for by [@weng-wen-jun](https://github.com/weng-wen-jun),
+  [#50](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/50)). While queued messages are on, or
+  anything is scheduled, Pending has two tabs: **Recoveries**, Pending as it was, and **Scheduled (N)**, which lists
+  every message still to go and every reset rule still to act - the conversation, where it stands, when it goes and
+  what it does while a turn runs, never its words - with **Schedule a message...**, **Edit...** for a message still
+  waiting (a double-click on its row opens it), **Cancel** and **Go on**. The editor shows the words larger than the
+  rest of the window and has **Save and return**: saved, it closes and the saved row is chosen; refused, every field
+  stays as you typed it and the reason is said above the buttons. An edit is refused if anything changed since the
+  list was read. Under the list, **Done** shows the last 30 days' delivered messages with **Delete completed
+  (N)...**: it asks first, deletes only the completed messages it shows that are unchanged since, says how many it
+  deleted and how many it kept, and never touches a waiting, held, cancelled or failed message, the recovery history
+  or anything of Codex's. The Advanced features page's card keeps its switch and limits and points to the tab.
+- **What a scheduled message does while a turn runs.** For a message at a time or on a schedule you choose **Wait
+  until it ends** (recommended, and chosen for a new message) or **Add it to Codex's queue now**, for Codex to run
+  after that turn; a message queued before this choice existed goes into Codex's queue, as every message did. One
+  that waits keeps waiting while whether a turn runs cannot be read. The statement is at revision 2: if queued
+  messages were on, you read the new statement once and turn them on again.
+- **Open a waiting conversation in Codex - built, not offered yet.** When a recovery or a scheduled message waits
+  only because the Codex app does not have its conversation open, it will open that conversation once through
+  Codex's own link, only while this PC has been idle for the minutes you choose, and the next ordinary check sends as
+  always. It stays hidden - no row, statement or switch - until measurement MOPEN shows on your Codex that opening a
+  conversation through its link loads it.
+
+### For developers
+
+- The measurement session has probes for five measurements the stage waits on and for the start of M4B; nothing runs
+  one by itself, and building the edition runs none.
+- The watcher's launcher asks the installed edition twice - before the watcher runs and once it has ended - and the
+  standard edition answers neither, so it runs the watcher itself as before; the edition is also told each notice as it
+  is raised. Neither changes anything in the standard edition. The advanced edition's one list of hosts it may reach is
+  a constant that both network tests read, empty until a capability needs one.
+- The CI parts deal the neutral-plug and released-calls comparisons in four shares each, and the plug-points tests in
+  two files, so no one part runs long; a durations refresh also writes the table when a file is dealt by a figure far
+  from what it took, and the table holds both runs' measured medians.
+- The repository hygiene check allows the wake timer's two Windows power-setting GUIDs.
+
 ## v0.6.18 — A recovery that worked is recovered however its turn ended, a suggestion for the Codex homes this PC uses, Install another version in the setup window, a setup bar that fills by real counts, a streamed update download, and the fixes of a full audit
 
 [The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.17...v0.6.18)

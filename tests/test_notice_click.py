@@ -7,12 +7,12 @@ away, and a toast's body had no launch of its own; the Open button was the only 
   page - its Open button's page, else the page its kind is about - by default and whenever the in-app chat is off;
   Codex at that conversation (`codex://threads/<id>`, measured 2026-10-16 on Codex app 26.1007) when the setting says
   so while the chat is on, a notice about no conversation falling back to its page; the conversation's chat here
-  comes with v0.6.16-beta.4's chat, in that same function;
+  (v0.6.19's chat, in that same function - tests/test_notice_click_chat.py);
 * the Codex link holds a UUID's canonical text and nothing else (`LinkTests`), and is opened through Windows' URL
   handler with no shell and no command string (`OpenerTests`);
 * the toast's body carries the same destination as its `launch` (`ToastTests`); the card's face hands it to the same
   in-process handler its buttons reach, and still goes (`ActivateTests`, `CardTests`);
-* the setting is stored and validated now, and offered nowhere until the chat is merged (`SettingTests`);
+* the setting is stored and validated, and written in the advanced edition's chat card alone (`SettingTests`);
 * the watcher builds every notice with the destination its settings give (`AppTests`).
 
 Nothing here opens Codex, the Dashboard or a real toast: the opener, PowerShell and the process start are stubbed,
@@ -89,8 +89,11 @@ class DestinationTests(unittest.TestCase):
         self.assertIsNone(memory.key)
         self.assertEqual(memory.click, notify.open_uri(open_page(memory)), "about no conversation: its page")
 
-    def test_the_chat_is_the_page_until_the_chat_is_merged_and_anything_else_is_the_page(self):
-        for destination in ("chat", "page", None, "", "somewhere"):
+    def test_the_chat_opens_the_conversation_s_chat_and_anything_else_is_the_page(self):
+        self.assertEqual(notifier.click_uri("resumed", (), THREAD, "chat"), notify.chat_uri(THREAD))
+        self.assertEqual(notifier.click_uri("resumed", (), None, "chat"), notify.open_uri("history"),
+                         "about no conversation: its page")
+        for destination in ("page", None, "", "somewhere"):
             with self.subTest(destination=destination):
                 self.assertEqual(notifier.click_uri("resumed", (), THREAD, destination), notify.open_uri("history"))
 
@@ -102,16 +105,15 @@ class DestinationTests(unittest.TestCase):
 
     def test_the_setting_is_read_only_while_the_chat_is_on(self):
         stored = {notifier.CLICK_SETTING: "codex"}
-        self.assertFalse(notifier.chat_on(stored), "no chat until v0.6.16-beta.4 brings it")
-        self.assertEqual(notifier.click_destination(stored), "page")
-        with patch.object(notifier, "chat_on", lambda values: True):
-            for value in notifier.CLICK_DESTINATIONS:
-                with self.subTest(value=value):
-                    self.assertEqual(notifier.click_destination({notifier.CLICK_SETTING: value}), value)
-            for value in (None, "", "Codex", 3):
-                with self.subTest(value=value):
-                    self.assertEqual(notifier.click_destination({notifier.CLICK_SETTING: value}), "page")
-            self.assertEqual(notifier.click_destination(None), "page")
+        self.assertEqual(notifier.click_destination(stored), "page", "the chat off: the page")
+        self.assertEqual(notifier.click_destination(stored, chat=1), "page", "only True is on")
+        for value in notifier.CLICK_DESTINATIONS:
+            with self.subTest(value=value):
+                self.assertEqual(notifier.click_destination({notifier.CLICK_SETTING: value}, chat=True), value)
+        for value in (None, "", "Codex", 3):
+            with self.subTest(value=value):
+                self.assertEqual(notifier.click_destination({notifier.CLICK_SETTING: value}, chat=True), "page")
+        self.assertEqual(notifier.click_destination(None, chat=True), "page")
 
 
 # ------------------------------------------------------------------------------ the link
@@ -247,8 +249,9 @@ class SettingTests(unittest.TestCase):
             with self.subTest(value=value):
                 self.assertEqual(coerce(value, default), kept)
 
-    def test_it_is_offered_nowhere_until_the_chat_is_merged(self):
-        self.assertIn(notifier.CLICK_SETTING, settings.NOT_YET_OFFERED)
+    def test_it_is_written_in_the_dashboard_alone(self):
+        self.assertIn(notifier.CLICK_SETTING, settings.DASHBOARD_ONLY)
+        self.assertNotIn(notifier.CLICK_SETTING, settings.NOT_YET_OFFERED)
         self.assertNotIn(notifier.CLICK_SETTING, {entry["name"] for entry in settings.describe()})
         from codex_auto_resume import mcpserver
         self.assertNotIn(notifier.CLICK_SETTING, mcpserver.settings_schema()["properties"])
@@ -276,7 +279,7 @@ class AppTests(unittest.TestCase):
             built.append(kwargs.get("destination"))
             return real(*args, **kwargs)
         with patch.object(notifier, "build", recording), \
-                patch.object(notifier, "click_destination", lambda values: "codex"), \
+                patch.object(notifier, "click_destination", lambda values, chat=False: "codex"), \
                 patch.object(notifier, "deliver", lambda notice, **kwargs: ("toast", True)):
             source = types.SimpleNamespace(identity=lambda thread: FULL)
             instance._notifier(source)("starting", {"thread_id": THREAD})

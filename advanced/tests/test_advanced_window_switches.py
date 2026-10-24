@@ -92,7 +92,7 @@ class CarryOverTests(WindowSwitchCase):
         self.assertEqual(self.windows(again, WRAP), (ON, ON))
         self.assertEqual(self.windows(again, PAUSE), (ON, ON))
 
-    def test_it_is_written_once_moves_no_generation_and_keeps_version_seven(self):
+    def test_it_is_written_once_moves_no_generation_and_keeps_the_version(self):
         state = self.state()
         self.switch(state, METER, WEEKLY, OFF)
         self.as_beta4_left_it(state)
@@ -106,8 +106,8 @@ class CarryOverTests(WindowSwitchCase):
                                 (WRAP, "window_weekly", OFF)])
         second.close()
         with contextlib.closing(sqlite3.connect(second.path)) as connection:
-            self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 7)
-        self.assertEqual(schema_module.SCHEMA_VERSION, 7)
+            self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], schema_module.SCHEMA_VERSION)
+        self.assertEqual(schema_module.SCHEMA_VERSION, 8)                # v0.6.19's, not this carry-over's
 
     def rows(self, state):
         with state._read() as connection:

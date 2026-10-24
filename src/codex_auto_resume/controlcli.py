@@ -83,7 +83,10 @@ PLAIN = ("status", "settings", "describe", "defaults", "pending", "pending-all",
          # view), and which; read only (control/tools.py host_app).
          "host-app",
          # v0.6.18: the Codex home Settings > Advanced offers to watch too, read only (homefind.py).
-         "home-suggestion")
+         "home-suggestion",
+         # v0.6.19: Diagnostics - this PC's own compatibility report, written from its own records and sent nowhere
+         # (ownreport/), read only.
+         "own-report")
 WITH_ARGUMENT = ("update", "enabled", "startup", "cancel", "reset-budget", "retry-now",
                  "timeline", "statistics", "thread-enabled", "cancel-thread", "diagnostics",
                  "preview-continuation", "interruption-recovery",
@@ -403,6 +406,10 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
             # Read only: the watcher's own decisions asked on the spot, in the Interface language.
             from . import checkup
             return {"ok": True, "result": checkup.run(control)}
+        if command == "own-report":
+            # Read only: this PC's own records, written up as a compatibility report and sent nowhere.
+            from . import ownreport
+            return {"ok": True, "result": ownreport.write(control.paths)}
         if command == "demo":
             # Made-up rows for the Dashboard, and a made-up card asked of the icon: nothing is sent.
             return {"ok": True, "result": control.show_demo()}
@@ -523,12 +530,13 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
         if command == "compat-refresh":
             return {"ok": True, "result": _compat_refresh(control)}
         if command == "diagnostics":
-            from . import checkup, diagnostics
+            from . import checkup, diagnostics, ownreport
             target = payload.get("path")
             if not isinstance(target, str) or not target.lower().endswith(".json"):
                 raise ControlError("choose a .json file to write")
             try:
-                written = diagnostics.write(control, Path(target), check=checkup.for_bundle(control))
+                written = diagnostics.write(control, Path(target), check=checkup.for_bundle(control),
+                                            report=ownreport.for_bundle(control.paths))
             except FileExistsError:
                 raise ControlError("that file already exists; choose a new name",
                                    code="file_exists") from None

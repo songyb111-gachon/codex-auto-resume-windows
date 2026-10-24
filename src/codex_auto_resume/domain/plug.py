@@ -56,8 +56,9 @@ from .plughands import (Channel, Errand, RecordMove, RecordPurpose, Route, Sessi
 # edition.py takes its plug only when the two agree: otherwise a hook renamed, or given another
 # argument, would be called the old way or not at all, and nothing would say so. 2: P17 and `wants`.
 # 3 (v0.6.14): P8's errand, and P2's records carried out. 4 (v0.6.15-beta): P12, QUEUE_FOR_OPEN.
-# 5 (v0.6.16-beta.4): P16 asked with the app closed, and a route that takes core's words.
-PLUG_API = 5
+# 5 (v0.6.16-beta.4): P16 asked with the app closed, and a route that takes core's words. 6 (v0.6.19): P13 asked at the
+# watcher's start and once it ended, with SUPERVISE and RESTART; P20, a notice told.
+PLUG_API = 6
 
 
 POINTS = tuple(Point)
@@ -176,7 +177,11 @@ class Plug:
         return DEFER
 
     def supervise(self, facts):                       # P13
-        """What the launcher does about a watcher that is not running."""
+        """What the launcher does about the watcher (scripts/watcher_launcher.py), asked twice: `{"phase": "start"}`
+        before it runs the watcher - SUPERVISE, run it as a child and stay - and `{"phase": "ended", "exit_code": n,
+        "clean": True, False or None}` once it ended - RESTART, start it once more - `clean` whether its heartbeat says
+        it stopped on purpose (None where that cannot be read, and never read for NULL). DEFER to both is today's
+        launcher; SUPERVISE and RESTART it carries out (v0.6.19, scripts/watcher_launcher.py `_supervised`)."""
         return DEFER
 
     def moved(self, record, state):                   # P14
@@ -217,6 +222,13 @@ class Plug:
         """Which conversations besides the Codex app's core watches (v0.6.16-beta.4): SessionKind words, asked once a
         tick while not paused, and read by every eligibility check core makes (codex/eligibility.py). DEFER - the
         app's alone (A15) - is NULL's."""
+        return DEFER
+
+    def notice(self, facts):                          # P20
+        """A notice core raised (v0.6.19), told as it is handed to the card or the toast: `{"kind": the notifier's
+        kind, "category": its category word or None, "alias_index": its record's 1-based place in Pending or None,
+        "at": when}` - closed words and numbers only, never a label, an id, a path or a word of the notice. Told only
+        while the plug wants it (Guarded.notice). Its answer is not read."""
         return DEFER
 
     def eligibility(self):                            # P19
@@ -269,6 +281,7 @@ HOOKS = {
     Point.CLAIM_LEDGER: "claim_ledger", Point.CONCURRENCY: "partition",
     Point.SUPERVISION: "supervise", Point.MOVED: "moved", Point.DELIVERY: "delivery",
     Point.UNLOADED: "unloaded", Point.ADMISSION: "admission", Point.ELIGIBILITY: "eligibility", Point.SESSIONS: "sessions",
+    Point.NOTICE: "notice",
 }
 
 # A hook may always restrict. HOLD keeps a record waiting, exactly as a gate that says WAIT
@@ -306,7 +319,9 @@ ALTERNATIVES = {
     Point.OUTCOME: frozenset(),
     Point.SCHEDULE: RESTRICTIONS | {Alternative.EARLY, Alternative.RESEND, Alternative.SEND_NOW},
     Point.CLAIM_LEDGER: RESTRICTIONS,
-    Point.SUPERVISION: frozenset(),
+    # P13 (v0.6.19): the two words the launcher is to carry out (scripts/watcher_launcher.py), asked from this version
+    # and carried out by none yet - the supervisor's commit teaches the launcher to.
+    Point.SUPERVISION: frozenset({Alternative.SUPERVISE, Alternative.RESTART}),
     Point.DELIVERY: frozenset({Alternative.CLIENT_ID, Alternative.SILENT}),
     Point.ADMISSION: TAKE_UP,
 }
@@ -525,6 +540,18 @@ class Guarded:
 
     def supervise(self, facts):
         return self._ask(Point.SUPERVISION, facts)
+
+    def notice(self, facts):
+        """P20 (v0.6.19), told only while the plug wants it: NULL, and a plug that wants nothing, are told nothing.
+        `facts` may be a function that makes them, called only then - so what they cost to read (a store's Pending) is
+        spent for a plug that wants them alone; one that raises tells nothing. The facts go as a copy (`consult`), and
+        the answer is not read."""
+        if self.wants(Point.NOTICE):
+            try:
+                facts = facts() if callable(facts) else facts
+            except Exception:
+                return
+            self._ask(Point.NOTICE, facts)
 
     def moved(self, record, state):
         """P14. The record goes as a copy (`consult`), and the answer is not read."""

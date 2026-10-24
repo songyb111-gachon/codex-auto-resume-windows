@@ -15,7 +15,7 @@ written: CI's lanes (.github/workflows/test.yml), the release's suite (release.y
     python scripts/test_parts.py --record-durations ...   # write this run's per-file times
     python scripts/test_parts.py --seconds FILE ...       # the same times, to a file of their own
     python scripts/test_parts.py --merge-seconds DIR      # such files, from CI, into the durations
-    python scripts/test_parts.py --refresh-seconds DIR    # the same, only when the parts get much shorter
+    python scripts/test_parts.py --refresh-seconds DIR    # the same, when the parts get much shorter or a figure is stale
     python scripts/test_parts.py --list --parts 8         # show how 8 parts are dealt
     python scripts/test_parts.py --check                  # prove the parts are the discovered suite
 
@@ -761,6 +761,15 @@ def merge_seconds(paths, path: Path | None = None) -> dict:
 # and 3 minutes alone a long lane for what its own noise is.
 REFRESH_FRACTION = 0.10
 REFRESH_SECONDS = 180.0
+# And a file whose figure is far from what it took is written whatever the gain (2026-10-23): a new file is dealt by
+# an estimate until a refresh takes its measurement, and the split files of 2026-10-23 kept theirs - test_neutral_plug_4
+# was dealt by 147 s and took 421 s in the standard lane, 584 s against 222 s in the advanced - while no lane's longest
+# part shrank by enough to refresh. Such a file is one the lane's own table lacks, or one its measurement and its
+# figure are more than STALE_FACTOR apart, and either way at least STALE_SECONDS apart: a medians' run-to-run noise
+# rarely doubles a file's figure (the four Pythons' jobs of one part took 25 to 48 minutes on one deal, but the
+# median of four smooths that), and a minute is below what moves a part.
+STALE_FACTOR = 2.0
+STALE_SECONDS = 60.0
 
 
 def longest_part(parts: list[list[str]], seconds: dict) -> float:
@@ -802,6 +811,29 @@ def uneven_lanes(counts, path: Path | None = None) -> list[str]:
                 found.append("the %s lane's %d parts would take %s s, more than %.1f times apart: %s alone "
                              "takes %.0f s" % (lane, count, [round(total) for total in totals], SPREAD,
                                                heaviest, seconds.get(heaviest, 0.0)))
+    return found
+
+
+def stale_files(medians: dict, path: Path | None = None) -> list[str]:
+    """A line for each file in `medians` (by lane, as read_seconds gives them) whose lane deals it by a figure far from
+    what it took: one the lane's table lacks, or one STALE_FACTOR apart from it, and STALE_SECONDS apart either way.
+    A file the lane no longer runs is not one. The lanes in LANES' order, the files in name order."""
+    every, lanes = read_durations(path)
+    found = []
+    for lane in LANES:
+        if lane not in medians:
+            continue
+        table = lanes.get(lane, {})
+        dealt = dict(every)
+        dealt.update(table)
+        present = set(lane_files(lane))
+        for name, measured in sorted(medians[lane].items()):
+            figure = dealt.get(name, 0.0)
+            if name not in present or abs(measured - figure) < STALE_SECONDS:
+                continue
+            if name not in table or measured > STALE_FACTOR * figure or figure > STALE_FACTOR * measured:
+                found.append("stale: lane %s: %s is dealt by %.0f s%s and took %.0f s"
+                             % (lane, name, figure, "" if name in table else " (its table has none)", measured))
     return found
 
 
@@ -848,7 +880,8 @@ def gains(medians: dict, count, path: Path | None = None) -> dict:
 
 
 def refresh_seconds(paths, count, path: Path | None = None) -> tuple[bool, list[str]]:
-    """merge_seconds, only when some lane's longest part shrinks enough (worth_refreshing) and the table it
+    """merge_seconds, only when some lane's longest part shrinks enough (worth_refreshing) or some file is dealt by a
+    figure far from what it took (stale_files, a `stale:` line each), and the table it
     would write keeps every lane within SPREAD (uneven_lanes); a table the suite would reject is never
     written. Returns whether the durations were written, and a line for each lane saying what its longest
     part would be, then a `refused:` line for each lane the fresh table leaves uneven. `count` is every
@@ -861,7 +894,9 @@ def refresh_seconds(paths, count, path: Path | None = None) -> tuple[bool, list[
         worth = worth or enough
         lines.append("lane %s: longest of %d parts %.1f min under the current table, %.1f min under the "
                      "fresh one%s" % (lane, counts[lane], before / 60, after / 60, " - enough" if enough else ""))
-    if not worth:
+    stale = stale_files(medians, path)
+    lines.extend(stale)
+    if not (worth or stale):
         return False, lines
     path = path or DURATIONS
     fresh = path.with_name(path.name + ".fresh")
@@ -951,8 +986,9 @@ def main(argv=None) -> int:
         elif any(line.startswith("refused: ") for line in lines):
             say("kept: the fresh table would leave a lane's parts uneven")
         else:
-            say("kept: no lane's longest part shrinks by %d%% and %d minutes" % (round(REFRESH_FRACTION * 100),
-                                                                                 round(REFRESH_SECONDS / 60)))
+            say("kept: no lane's longest part shrinks by %d%% and %d minutes, and no file is dealt by a figure %g times "
+                "and a minute from what it took" % (round(REFRESH_FRACTION * 100), round(REFRESH_SECONDS / 60),
+                                                    STALE_FACTOR))
         return 0
     if options.check:
         ok, answers = check([int(value) for value in options.counts.split(",") if value.strip()])

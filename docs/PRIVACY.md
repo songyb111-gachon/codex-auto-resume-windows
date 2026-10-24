@@ -89,7 +89,9 @@ footnote. There are four kinds, and they are genuinely different:
   a file of their own (`src/codex_auto_resume/data/reported.json`) beside the compatibility data
   and never inside it, and the refresh above still fetches the compatibility data and nothing
   else. They are numbers per Codex version, naming nobody, and they are only shown - nothing that
-  decides reads them. This product sends no report of its own. A report reaches GitHub only when
+  decides reads them. This product sends no report of its own: from v0.6.19 its Dashboard can write
+  one from this PC's own records (**Diagnostics > Compatibility report from this PC...**) and show
+  it, and puts it in a diagnostics export you ask for, but it never sends it. A report reaches GitHub only when
   its author runs the separate
   [codex-compat-reporter](https://github.com/songyb111-gachon/codex-compat-reporter), reads the
   file it wrote, and opens the pull request on GitHub themselves;
@@ -687,8 +689,9 @@ One more file exists only if you ask for it, and only where you put it. **Export
 diagnostics...** in the window, or `auto_resume.py diagnostics` on the command line (`--out`
 names the file; without it, a new one in the current directory), writes one JSON file: your
 settings (a Custom message included), one entry per recovery with its state,
-reason and the checks it is waiting on, up to 2,000 journal entries, and the last 300 lines
-of each log. Conversation and interruption ids are replaced by aliases that mean nothing
+reason and the checks it is waiting on, up to 2,000 journal entries, the last 300 lines
+of each log and, from v0.6.19, this PC's own compatibility report - counts, states, times and
+Codex versions, with its SHA-256. Conversation and interruption ids are replaced by aliases that mean nothing
 outside that one file; paths, your Windows user name and e-mail-shaped text are removed.
 `errors.log` can carry exception text this tool did not write, which is redacted the same way
 rather than filtered - so read the file before you send it to anyone. Nothing is sent by this

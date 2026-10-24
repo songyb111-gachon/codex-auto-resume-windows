@@ -35,7 +35,7 @@ from codex_auto_resume.domain.ids import is_uuid
 from . import evidence
 from .codex import credits, inuse
 from .codex.protocol import Session, SessionRefused, methods_for
-from .vocabulary import Measurement, NoteCode, ObservedWord, SpendOutcome, Verdict
+from .vocabulary import Measurement, NoteCode, ObservedWord, PlanWord, SpendOutcome, Verdict
 
 MEASUREMENTS = tuple(Measurement)
 
@@ -54,8 +54,13 @@ class Context:
     no test opens a real Codex or starts a real process.
     """
     def __init__(self, measurement, *, session_factory=None, launcher=None, backend=None,
-                 versions=None, redactor=None, thread=None, may_spend=False, cli=None, ipc=None):
+                 versions=None, redactor=None, thread=None, may_spend=False, cli=None, ipc=None, hands=None):
         self.measurement = Measurement(measurement)
+        # v0.6.19: the run's other hands, each a callable by name - `open_link` (a conversation's link opened),
+        # `power` (the power settings read), `wake_after` (a wake timer set and waited for) and `scratch_cli` (the
+        # engine run on a scratch Codex home). Production wires live_hands; a test wires fakes; one not given does
+        # nothing, so no test reaches the real one.
+        self._hands = dict(hands or {})
         # v0.6.16-beta.3, the read-only probes: `cli` runs the engine's own CLI help (a callable given a
         # tuple of arguments, answering its stdout text or None), and `ipc` looks at the Desktop's IPC pipe
         # (a callable answering a dict of booleans). Both are seams: production wires the real ones
@@ -120,6 +125,34 @@ class Context:
             found = self._cli(tuple(arguments))
         except Exception:
             return None
+        return found if isinstance(found, str) else None
+
+    def _hand(self, name, *arguments):
+        hand = self._hands.get(name)
+        if not callable(hand):
+            return None
+        try:
+            return hand(*arguments)
+        except Exception:
+            return None
+
+    def open_link(self, thread) -> bool:
+        """Whether the conversation's link was handed to Windows (MOPEN)."""
+        return self._hand("open_link", thread) is True
+
+    def power_look(self) -> dict:
+        """The power settings read (MWAKE): a dict, empty where there is no hand or it failed."""
+        found = self._hand("power")
+        return found if isinstance(found, dict) else {}
+
+    def wake_after(self, seconds, bound) -> dict:
+        """A wake timer set `seconds` on and waited for at most `bound` seconds (MWAKE): what came of it, a dict."""
+        found = self._hand("wake_after", seconds, bound)
+        return found if isinstance(found, dict) else {}
+
+    def scratch_cli(self, home, arguments) -> str | None:
+        """The engine's stdout, run with `arguments` on the scratch Codex home `home` (MTOK, MHK), or None."""
+        found = self._hand("scratch_cli", home, tuple(arguments))
         return found if isinstance(found, str) else None
 
     def ipc_look(self) -> dict:
@@ -1533,6 +1566,388 @@ _MQO_FIND_SECONDS = 30.0         # and then the history for the message under it
 _MC2_POLL_SECONDS = 0.25
 
 
+# --------------------------------------------------------------------------- v0.6.19 (the groundwork)
+# Five probes the measurement session runs while the stage's capabilities are built (plans/v0619-design/
+# D-groundwork.md section 5), and M4B's start, which the Stop hook's writer finishes. Each is content-free: booleans,
+# counts, buckets and closed words, never a path, an address, a name or anything a turn said. What a person must do is
+# left to them, the verdict blocked. Every effect beyond a session is one of the run's hands (Context._hands), which the
+# Dashboard's runtime wires to live_hands and a test to fakes: a link opened, a power read, a wake timer, the engine run
+# on a scratch Codex home.
+_TOKEN_KEYS = ("input_tokens", "cached_input_tokens", "output_tokens", "reasoning_output_tokens", "total_tokens")
+_TOKEN_SCAN_BYTES = 16 * 1024 * 1024          # how much of a rollout MTOK reads, at most
+_TOKENS_USED = "SELECT tokens_used FROM threads WHERE id=?"
+_SCHEMA_FILES = 2000                          # how many generated schema files a probe reads, at most
+_SCHEMA_FILE_BYTES = 4 * 1024 * 1024          # and how much of each
+_SCHEMA_ARGUMENTS = ("app-server", "generate-json-schema", "--out")
+_MOPEN_SECONDS = 30.0                         # how long MOPEN looks for the conversation to load after its link opened
+_MOPEN_POLL_SECONDS = 0.5
+_MAL_SECONDS = 300.0                          # how long MAL follows the account while the person signs out and in
+_MAL_POLL_SECONDS = 2.0
+_MWAKE_SECONDS = 180                          # the wake timer MWAKE sets, from when it starts
+_MWAKE_BOUND = 900                            # how long it waits for that timer, at most
+_MWAKE_SLEPT = 60                             # how long the PC must have slept for the wake to count
+_MWAKE_LATE = 120                             # and how soon after the timer it must have woken
+# The Stop hook input's keys MHK looks for, by their letters alone (case and separators set aside). Membership only;
+# no word of the schema is recorded.
+_HOOK_INPUT_KEYS = ("session_id", "turn_id", "hook_event_name", "transcript_path", "stop_hook_active")
+
+
+def _letters(word) -> str:
+    return "".join(character for character in word.lower() if character.isalnum()) if isinstance(word, str) else ""
+
+
+def _schema_documents(folder) -> list:
+    """The JSON documents a schema generation wrote under `folder`, each a (file stem, document) pair: at most
+    _SCHEMA_FILES files of at most _SCHEMA_FILE_BYTES, a link never followed, anything unreadable passed over."""
+    import json
+    found = []
+    for path in sorted(Path(folder).rglob("*.json"))[:_SCHEMA_FILES]:
+        try:
+            if path.is_symlink() or path.stat().st_size > _SCHEMA_FILE_BYTES:
+                continue
+            found.append((path.stem, json.loads(path.read_text(encoding="utf-8"))))
+        except (OSError, ValueError, UnicodeError):
+            continue
+    return found
+
+
+def _definitions(documents):
+    """Every (name, schema) the documents define: each file as its stem, and each entry of its definitions."""
+    for stem, document in documents:
+        if not isinstance(document, dict):
+            continue
+        yield stem, document
+        for key in ("definitions", "$defs"):
+            table = document.get(key)
+            if isinstance(table, dict):
+                for name, schema in table.items():
+                    if isinstance(schema, dict):
+                        yield name, schema
+
+
+def _enum_words(schema) -> set:
+    """The words a schema's value may be: its enum, or its alternatives' consts and enums - by their letters."""
+    words = set()
+    if not isinstance(schema, dict):
+        return words
+    for word in schema.get("enum") or ():
+        words.add(_letters(word))
+    if "const" in schema:
+        words.add(_letters(schema["const"]))
+    for key in ("oneOf", "anyOf"):
+        for item in schema.get(key) or ():
+            words |= _enum_words(item)
+    return words - {""}
+
+
+def _strings(value):
+    """Every string in a JSON value, keys and values alike."""
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            yield key
+            yield from _strings(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _strings(item)
+
+
+def _generated_schema(ctx, scratch):
+    """The documents Codex's own schema generation wrote, run on a scratch Codex home inside `scratch` - [] where it
+    could not be run or wrote nothing."""
+    home, out = scratch / "codex-home", scratch / "schema"
+    home.mkdir(exist_ok=True)
+    out.mkdir(exist_ok=True)
+    if ctx.scratch_cli(home, _SCHEMA_ARGUMENTS + (str(out),)) is None:
+        return []
+    return _schema_documents(out)
+
+
+def _token_events(path):
+    """(how many token_count events with totals the rollout at `path` holds, whether every one has the five kinds as
+    whole numbers, whether the totals never decreased, the last total) - the first _TOKEN_SCAN_BYTES read, numbers
+    alone kept."""
+    import json
+    with path.open("rb") as stream:
+        data = stream.read(_TOKEN_SCAN_BYTES)
+    count, keyed, monotone, last = 0, True, True, None
+    for line in data.split(b"\n"):
+        if b'"token_count"' not in line:
+            continue
+        try:
+            event = json.loads(line.decode("utf-8"))
+        except (ValueError, UnicodeError):
+            continue
+        payload = event.get("payload") if isinstance(event, dict) else None
+        info = payload.get("info") if isinstance(payload, dict) and payload.get("type") == "token_count" else None
+        totals = info.get("total_token_usage") if isinstance(info, dict) else None
+        if not isinstance(totals, dict):
+            continue
+        count += 1
+        keyed = keyed and all(type(totals.get(key)) is int for key in _TOKEN_KEYS)
+        total = totals.get("total_tokens")
+        if type(total) is int:
+            monotone = monotone and (last is None or total >= last)
+            last = total
+    return count, keyed and count > 0, monotone, last
+
+
+def _tokens_used(home, thread):
+    """(whether the history's `threads` has tokens_used to read, the conversation's value there or None)."""
+    import sqlite3
+    from .codex.turns import TurnsUnavailable, connect
+    try:
+        connection = connect(home, "state", {"threads": frozenset({"id", "tokens_used"})})
+    except TurnsUnavailable:
+        return False, None
+    try:
+        row = connection.execute(_TOKENS_USED, (thread,)).fetchone()
+    except sqlite3.Error:
+        row = None
+    finally:
+        connection.close()
+    return True, (row[0] if row is not None and type(row[0]) is int else None)
+
+
+def _mtok(ctx):
+    """Per-day token analytics (usage_analytics): the owner names a throwaway conversation with at least two finished
+    turns. Its rollout's token_count events are read - how many carry totals, whether each has the five kinds as whole
+    numbers, whether the totals never decrease - and the history's tokens_used for it compared with the last total; and
+    Codex's own generated schema (on a scratch Codex home) is searched for a thread token read. Numbers are compared,
+    never recorded. Pass where the keys are there and the totals never decrease, over two counts at least."""
+    import shutil
+    import tempfile
+    from .codex import sessions
+    home = getattr(ctx.backend, "codex_home", None)
+    if not ctx.thread_given or home is None:
+        return _blocked("name a throwaway conversation with at least two finished turns", rollout_read=False)
+    try:
+        path = sessions.Origins(home).rollout(ctx.probe_thread)
+        count, keyed, monotone, last = _token_events(path) if path is not None else (0, False, True, None)
+    except Exception:
+        path, count, keyed, monotone, last = None, 0, False, True, None
+    column, used = _tokens_used(home, ctx.probe_thread)
+    scratch = Path(tempfile.mkdtemp(prefix="car-mtok-"))
+    try:
+        documents = _generated_schema(ctx, scratch)
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
+    methods = {text for _stem, document in documents for text in _strings(document) if text.startswith("thread/")}
+    observed = {"rollout_read": path is not None, "token_events": count, "keys_present": keyed,
+                "totals_monotone": monotone, "tokens_used_column": column,
+                "tokens_used_matches": column and used is not None and used == last,
+                "schema_read": bool(documents),
+                "thread_token_read_listed": any("token" in method.lower() for method in methods)}
+    if path is None or count < 2:
+        return _blocked("the conversation's rollout holds fewer than two token counts: finish two turns in it, then "
+                        "run mtok again", **observed)
+    if keyed and monotone:
+        return Verdict.PASS, observed, None
+    return Verdict.FAIL, observed, "the token counts lack a kind or their totals decreased"
+
+
+def _loaded_bucket(seconds) -> str:
+    if seconds is None:
+        return str(ObservedWord.NEVER)
+    if seconds < 2:
+        return str(ObservedWord.UNDER_2S)
+    return str(ObservedWord.S2_TO_10 if seconds <= 10 else ObservedWord.OVER_10S)
+
+
+def _mopen(ctx):
+    """Opening a conversation for a message to be sent (open_to_send): the owner names a throwaway conversation the app
+    does not hold. The harness lists what the app holds - and stops there if it holds this one - then opens the
+    conversation's link once (codex_link.open_in_codex, one of the run's hands) and looks for it among what the app
+    holds for up to _MOPEN_SECONDS. It records whether Codex was running, whether the link was handed over, and how long
+    the load took as a bucket. Not loaded within ten seconds is a fail; within them, whether the window came to the
+    front is the person's to confirm."""
+    if not ctx.thread_given:
+        return _blocked("name a throwaway conversation the app does not hold", loaded_listed=False)
+    running = _app_running(ctx)
+    with ctx.open() as session:
+        held = _held(session, [ctx.probe_thread])
+        if held is None:
+            return _blocked("the conversations the app holds could not be listed", loaded_listed=False)
+        if held:
+            return _blocked("the app holds the throwaway conversation: quit and reopen the Codex app without opening "
+                            "it, then run mopen again", loaded_listed=True, held_before=True)
+        began = time.monotonic()
+        opened = ctx.open_link(ctx.probe_thread)
+        loaded = None
+        while opened:
+            if _held(session, [ctx.probe_thread]):
+                loaded = time.monotonic() - began
+                break
+            if time.monotonic() - began >= _MOPEN_SECONDS:
+                break
+            time.sleep(_MOPEN_POLL_SECONDS)
+    observed = {"loaded_listed": True, "held_before": False, "codex_running": running, "link_opened": opened,
+                "loaded_seconds": _loaded_bucket(loaded)}
+    if not opened:
+        return _blocked("the conversation's link could not be handed to Windows", **observed)
+    if loaded is None or loaded > 10:
+        return Verdict.FAIL, observed, "the conversation was not loaded within ten seconds of opening its link"
+    return _blocked("it loaded within ten seconds: confirm whether the Codex window came to the front, then set the "
+                    "verdict", **observed)
+
+
+def _account(reply):
+    """(whether account/read names a signed-in account - None where it did not answer as one - and its plan word)."""
+    if not isinstance(reply, dict) or "account" not in reply:
+        return None, None
+    account = reply.get("account")
+    if not isinstance(account, dict):
+        return False, None
+    plan = account.get("planType", account.get("plan_type"))
+    if not isinstance(plan, str):
+        return True, None
+    return True, plan.lower() if plan.lower() in {str(word) for word in PlanWord} else str(PlanWord.OTHER)
+
+
+def _mal(ctx):
+    """An account switch made outside the app (account_switch): with the app open and signed in, the person signs out
+    with `codex logout` and back in with `codex login` in a terminal, with their own account. The harness reads the
+    account (account/read: whether one is signed in, and its plan word - never the address) before, then every
+    _MAL_POLL_SECONDS for up to _MAL_SECONDS, and records whether it saw the sign-out and the sign-in after it. That
+    the running app shows the new sign-in without a restart is the person's to confirm."""
+    with ctx.open() as session:
+        present, plan = _account(session.call("account/read", {}))
+        if not present:
+            return _blocked("sign in to Codex first, then run mal again", account_read=present is not None,
+                            signed_in_before=False)
+        out = back = False
+        after = None
+        deadline = time.monotonic() + _MAL_SECONDS
+        while time.monotonic() < deadline:
+            time.sleep(_MAL_POLL_SECONDS)
+            now, found = _account(session.call("account/read", {}))
+            if now is False:
+                out = True
+            elif now and out:
+                back, after = True, found
+                break
+    observed = {"account_read": True, "signed_in_before": True, "plan_before": plan, "signed_out_seen": out,
+                "signed_in_again_seen": back, "plan_after": after}
+    return _blocked("run `codex logout` and then `codex login` in a terminal within five minutes of starting this; "
+                    "confirm the running app shows the new sign-in without a restart, then set the verdict",
+                    **observed)
+
+
+def _power_source(on_battery) -> str:
+    if on_battery is None:
+        return str(ObservedWord.UNKNOWN)
+    return str(ObservedWord.BATTERY if on_battery else ObservedWord.AC)
+
+
+def _kept(found, key, kind):
+    value = found.get(key)
+    return value if type(value) is kind else None
+
+
+def _mwake(ctx):
+    """Waking this PC for a reset (wake_for_reset): the harness reads - never writes - whether wake timers are allowed
+    on mains and on battery (the active power plan's Allow wake timers: 0 off, 1 on, 2 important ones only), what powers
+    the PC now, whether it has a lid and whether it sleeps in Modern Standby; then it sets one wake timer _MWAKE_SECONDS
+    on (a waitable timer with resume) and waits for it while the person puts the PC to sleep. Its own process notes how
+    long the PC slept and how late after the timer it woke. Pass where it slept and woke within _MWAKE_LATE seconds of
+    the timer."""
+    power = ctx.power_look()
+    woke = ctx.wake_after(_MWAKE_SECONDS, _MWAKE_BOUND)
+    slept, late = woke.get("slept_seconds"), woke.get("late_seconds")
+    asleep = type(slept) in (int, float) and slept >= _MWAKE_SLEPT
+    fired = woke.get("fired") is True
+    observed = {"wake_timers_ac": _kept(power, "wake_ac", int), "wake_timers_dc": _kept(power, "wake_dc", int),
+                "power_source": _power_source(_kept(power, "on_battery", bool)),
+                "modern_standby": _kept(power, "modern_standby", bool), "lid_present": _kept(power, "lid_present", bool),
+                "timer_set": woke.get("set") is True, "timer_fired": fired, "slept": asleep,
+                "woke_on_time": fired and asleep and type(late) in (int, float) and late <= _MWAKE_LATE}
+    if not observed["timer_set"]:
+        return _blocked("the wake timer could not be set", **observed)
+    if not asleep:
+        return _blocked("put the PC to sleep within three minutes of starting this, then run mwake again", **observed)
+    if observed["woke_on_time"]:
+        return Verdict.PASS, observed, None
+    return Verdict.FAIL, observed, "the PC slept and did not wake within two minutes of its wake timer"
+
+
+def _feature(text, name):
+    """(whether `codex features list` lists `name`, whether it is on - None where its line says neither)."""
+    if not isinstance(text, str):
+        return False, None
+    for line in text.splitlines():
+        words = line.replace("|", " ").split()
+        if words and words[0] == name:
+            states = {word.lower() for word in words[1:]}
+            if states & {"true", "enabled", "on", "yes"}:
+                return True, True
+            if states & {"false", "disabled", "off", "no"}:
+                return True, False
+            return True, None
+    return False, None
+
+
+def _hook_words(documents) -> dict:
+    """What Codex's generated schema says of hooks, as counts and memberships: the hook event names and whether Stop is
+    one, the hook sources and whether a plugin is one, the Stop hook input's keys and which of _HOOK_INPUT_KEYS it has,
+    and the decision words its output takes and whether block is one."""
+    events, sources, keys, decisions = set(), set(), set(), set()
+    for name, schema in _definitions(documents):
+        letters = _letters(name)
+        properties = schema.get("properties")
+        properties = properties if isinstance(properties, dict) else {}
+        if letters == "hookeventname":
+            events |= _enum_words(schema)
+        elif letters == "hooksource":
+            sources |= _enum_words(schema)
+        elif "stop" in letters and ("input" in letters or "payload" in letters):
+            keys |= {_letters(key) for key in properties}
+        elif "stop" in letters and "output" in letters:
+            decisions |= _enum_words(properties.get("decision"))
+    found = {"hook_event_names": len(events), "stop_event": "stop" in events, "hook_sources": len(sources),
+             "plugin_source": "plugin" in sources, "stop_input_keys": len(keys),
+             "decision_words": len(decisions), "decision_block": "block" in decisions}
+    found.update({"input_" + key: _letters(key) in keys for key in _HOOK_INPUT_KEYS})
+    return found
+
+
+def _mhk(ctx):
+    """The Stop hook's declaration (stop_hook_continuation), with Codex closed and nothing of the person's touched: on a
+    scratch Codex home the harness makes and removes, `codex features list` (is plugin_hooks there, and on) and Codex's
+    own generated schema (`codex app-server generate-json-schema`): the hook event names, the hook sources, the Stop
+    hook input's keys and its output's decision words - counts and memberships, never a word of the schema. Pass where
+    plugin hooks are a feature and Stop is one of their events."""
+    import shutil
+    import tempfile
+    scratch = Path(tempfile.mkdtemp(prefix="car-mhk-"))
+    try:
+        documents = _generated_schema(ctx, scratch)
+        features = ctx.scratch_cli(scratch / "codex-home", ("features", "list"))
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
+    listed, on = _feature(features, "plugin_hooks")
+    observed = dict({"features_read": features is not None, "plugin_hooks_listed": listed, "plugin_hooks_on": on,
+                     "schema_read": bool(documents), "scratch_home": True}, **_hook_words(documents))
+    if features is None or not documents:
+        return _blocked("the engine could not be run on a scratch Codex home: check the Codex in force, then run mhk "
+                        "again", **observed)
+    if listed and observed["stop_event"]:
+        return Verdict.PASS, observed, None
+    return Verdict.FAIL, observed, "plugin hooks are not a feature, or Stop is not one of their events"
+
+
+def _m4b(ctx):
+    """A block from this edition's Stop hook (stop_hook_continuation's M4B, D-stop-hook.md): the harness reads whether
+    the hooks Codex knows can be listed; the rest is the person's in a throwaway with the hook installed. The Stop
+    hook's writer finishes this probe with the hook it installs."""
+    with ctx.open() as session:
+        hooks = session.call("hooks/list", {"cwds": []})
+    observed = {"hooks_listed": isinstance(hooks, (dict, list))}
+    return _blocked("with this edition's Stop hook installed in a throwaway, fail a turn: confirm the hook's block "
+                    "continued the turn, where the history keeps its reason, that no console window appeared and the "
+                    "trust prompt appeared once, then set the verdict", **observed)
+
+
 PROBES = {
     Measurement.M1: _m1, Measurement.M2: _m2, Measurement.M2B: _m2b, Measurement.M3: _m3,
     Measurement.M4: _m4, Measurement.M5: _m5, Measurement.M6: _m6, Measurement.M7: _m7,
@@ -1545,6 +1960,8 @@ PROBES = {
     Measurement.M6B: _m6b, Measurement.MO: _mo, Measurement.MX: _mx, Measurement.MXA: _mxa, Measurement.MF: _mf,
     Measurement.M3B: _m3b, Measurement.MB: _mb, Measurement.MC1: _mc1, Measurement.MC2: _mc2,
     Measurement.MQO: _mqo, Measurement.MQP: _mqp, Measurement.MQG: _mqg,
+    Measurement.MTOK: _mtok, Measurement.MOPEN: _mopen, Measurement.MAL: _mal, Measurement.MWAKE: _mwake,
+    Measurement.MHK: _mhk, Measurement.M4B: _m4b,
 }
 
 # A conversation and a message id of no one's: the shape a call takes, never a real id. A probe
@@ -1595,7 +2012,7 @@ def probe(ctx) -> tuple:
 
 
 def run(measurement, *, session_factory=None, launcher=None, backend=None, versions=None,
-        clock=time.time, directory=None, thread=None, may_spend=False, cli=None, ipc=None) -> dict:
+        clock=time.time, directory=None, thread=None, may_spend=False, cli=None, ipc=None, hands=None) -> dict:
     """Run one measurement and write its record. Returns a small summary of what was recorded.
 
     `versions` is the build, Codex and Windows the record belongs to; when it is not given they
@@ -1618,7 +2035,8 @@ def run(measurement, *, session_factory=None, launcher=None, backend=None, versi
     if versions.get("codex_version") in (None, "", "unknown"):
         raise EvidenceUnavailable("the Codex version this would measure could not be read")
     ctx = Context(measurement, session_factory=session_factory, launcher=launcher,
-                  backend=backend, versions=versions, thread=thread, may_spend=may_spend, cli=cli, ipc=ipc)
+                  backend=backend, versions=versions, thread=thread, may_spend=may_spend, cli=cli, ipc=ipc,
+                  hands=hands)
     verdict, observed, note = probe(ctx)
     record = evidence.build(measurement, verdict, observed,
                             product_version=versions.get("product_version", "0.0.0"),
@@ -1810,6 +2228,130 @@ def _ipc_look(found):
         if event:
             k32.CloseHandle(event)
         k32.CloseHandle(pipe)
+
+
+# The v0.6.19 probes' hands (MOPEN, MWAKE, MTOK, MHK). The engine on a scratch home is given this long to answer.
+_SCRATCH_CLI_SECONDS = 60
+# The active power plan's Allow wake timers: the sleep subgroup and the setting, as powercfg names them.
+_SUB_SLEEP = "238c9fa8-0aad-41ed-83f4-97be242c8f20"
+_RTC_WAKE = "bd3b718a-0680-4d9d-8ab2-e1d2b4ac806d"
+# SYSTEM_POWER_CAPABILITIES (GetPwrCapabilities): the byte that says the PC has a lid, and the one for Modern Standby.
+_LID_PRESENT_BYTE, _AOAC_BYTE = 2, 20
+
+
+def live_hands(backend=None, paths=None) -> dict:
+    """The real hands of the v0.6.19 probes, built from the Codex the record names: a conversation's link opened
+    (MOPEN, codex_link.open_in_codex - the app's own link, handed to Windows' handler), the power settings read and a
+    wake timer set and waited for (MWAKE), and the engine run on a scratch Codex home the probe made (MTOK, MHK) -
+    windowless, its stdout answered, never the person's home. Each is called only by its probe, when a person runs it;
+    a test wires fakes, and never reaches these."""
+    def open_link(thread):
+        from codex_auto_resume import codex_link
+        link = codex_link.codex_thread_uri(thread)
+        return link is not None and codex_link.open_in_codex(link) is True
+
+    def scratch_cli(home, arguments):
+        import os
+        import subprocess as S
+        from codex_auto_resume.win.kernel import NO_WINDOW
+        used = backend if backend is not None else live_backend(paths)
+        try:
+            result = S.run([str(used.codex_exe), *arguments], stdin=S.DEVNULL, stdout=S.PIPE, stderr=S.DEVNULL,
+                           text=True, encoding="utf-8", errors="replace", timeout=_SCRATCH_CLI_SECONDS,
+                           creationflags=NO_WINDOW, shell=False, env=dict(os.environ, CODEX_HOME=str(home)))
+        except Exception:
+            return None
+        return result.stdout if result.returncode == 0 else None
+
+    return {"open_link": open_link, "power": _power_look, "wake_after": _wake_after, "scratch_cli": scratch_cli}
+
+
+def _guid(text):
+    import ctypes
+
+    class GUID(ctypes.Structure):
+        _fields_ = [("Data1", ctypes.c_ulong), ("Data2", ctypes.c_ushort), ("Data3", ctypes.c_ushort),
+                    ("Data4", ctypes.c_ubyte * 8)]
+    value = uuid.UUID(text)
+    found = GUID(value.time_low, value.time_mid, value.time_hi_version)
+    found.Data4[:] = list(value.bytes[8:])
+    return found
+
+
+def _power_look() -> dict:
+    """What MWAKE reads of this PC's power, read-only: Allow wake timers on mains and on battery (the active plan's
+    index, 0, 1 or 2), whether it runs on battery now, whether it has a lid, and whether it sleeps in Modern Standby.
+    A value it cannot read is left out."""
+    import ctypes
+    from ctypes import wintypes
+    found = {}
+    powrprof = ctypes.WinDLL("powrprof")
+    kernel = ctypes.WinDLL("kernel32")
+    scheme = ctypes.c_void_p()
+    if powrprof.PowerGetActiveScheme(None, ctypes.byref(scheme)) == 0:
+        try:
+            sub, setting = _guid(_SUB_SLEEP), _guid(_RTC_WAKE)
+            for key, read in (("wake_ac", powrprof.PowerReadACValueIndex), ("wake_dc", powrprof.PowerReadDCValueIndex)):
+                value = wintypes.DWORD()
+                if read(None, scheme, ctypes.byref(sub), ctypes.byref(setting), ctypes.byref(value)) == 0:
+                    found[key] = int(value.value)
+        finally:
+            kernel.LocalFree(scheme)
+
+    class SYSTEM_POWER_STATUS(ctypes.Structure):
+        _fields_ = [("ACLineStatus", ctypes.c_ubyte), ("BatteryFlag", ctypes.c_ubyte),
+                    ("BatteryLifePercent", ctypes.c_ubyte), ("SystemStatusFlag", ctypes.c_ubyte),
+                    ("BatteryLifeTime", wintypes.DWORD), ("BatteryFullLifeTime", wintypes.DWORD)]
+    status = SYSTEM_POWER_STATUS()
+    if kernel.GetSystemPowerStatus(ctypes.byref(status)) and status.ACLineStatus in (0, 1):
+        found["on_battery"] = status.ACLineStatus == 0
+    capabilities = ctypes.create_string_buffer(256)
+    if powrprof.GetPwrCapabilities(capabilities):
+        found["lid_present"] = capabilities.raw[_LID_PRESENT_BYTE] != 0
+        found["modern_standby"] = capabilities.raw[_AOAC_BYTE] != 0
+    return found
+
+
+def _wake_after(seconds, bound) -> dict:
+    """MWAKE's one wake timer: a waitable timer `seconds` on with resume (SetWaitableTimer's fResume), waited for at
+    most `bound` seconds, then cancelled and closed. Whether it was set and fired, how long the PC slept meanwhile - the
+    wall clock's time less the interrupt time, which stands still while it sleeps - and how late after its time it
+    fired. Nothing else is changed."""
+    import ctypes
+    from ctypes import wintypes
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.CreateWaitableTimerW.restype = wintypes.HANDLE
+    kernel.CreateWaitableTimerW.argtypes = [ctypes.c_void_p, wintypes.BOOL, wintypes.LPCWSTR]
+    kernel.SetWaitableTimer.argtypes = [wintypes.HANDLE, ctypes.POINTER(ctypes.c_longlong), wintypes.LONG,
+                                        ctypes.c_void_p, ctypes.c_void_p, wintypes.BOOL]
+    kernel.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+    kernel.WaitForSingleObject.restype = wintypes.DWORD
+    kernel.CancelWaitableTimer.argtypes = [wintypes.HANDLE]
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+
+    def unbiased():
+        value = ctypes.c_ulonglong()
+        kernel.QueryUnbiasedInterruptTime(ctypes.byref(value))
+        return value.value / 10_000_000
+
+    found = {"set": False, "fired": False, "slept_seconds": 0.0, "late_seconds": None}
+    timer = kernel.CreateWaitableTimerW(None, True, None)
+    if not timer:
+        return found
+    try:
+        due = ctypes.c_longlong(-int(seconds * 10_000_000))      # relative, in 100-nanosecond steps
+        wall, interrupt = time.time(), unbiased()
+        found["set"] = bool(kernel.SetWaitableTimer(timer, ctypes.byref(due), 0, None, None, True))
+        if not found["set"]:
+            return found
+        found["fired"] = kernel.WaitForSingleObject(timer, int(bound * 1000)) == 0
+        spent_wall, spent_interrupt = time.time() - wall, unbiased() - interrupt
+        found["slept_seconds"] = max(0.0, spent_wall - spent_interrupt)
+        found["late_seconds"] = spent_wall - seconds if found["fired"] else None
+        return found
+    finally:
+        kernel.CancelWaitableTimer(timer)
+        kernel.CloseHandle(timer)
 
 
 def complete(measurement, verdict, note, *, backend=None, versions=None, clock=time.time,

@@ -121,10 +121,11 @@ class ReadableFromTests(unittest.TestCase):
         self.assertEqual(c["StateReadableFrom"], READABLE_FROM)
         self.assertLessEqual(c["StateReadableFrom"], SCHEMA_VERSION)
         self.assertEqual(c["StateSchemaSince"][0][1], SCHEMA_VERSION)
-        # The first version whose store reads the mark: this one, which the plugin manifest names.
+        # The first version whose store reads the mark is v0.6.18; the version the plugin manifest names reads it too.
         version = json.loads((ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"))["version"]
         self.assertEqual(c["StateMarkSince"], "0.6.18")
-        self.assertEqual(version.split("-")[0], c["StateMarkSince"])
+        number = lambda text: tuple(int(part) for part in text.split("-")[0].split("."))
+        self.assertGreaterEqual(number(version), number(c["StateMarkSince"]))
 
     def verdicts(self, cases):
         start = CASES.index(cases[0])

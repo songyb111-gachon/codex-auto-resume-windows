@@ -200,13 +200,13 @@ LISTS = {
     # v0.6.11: and the needs-you notice's light, attention; and a long sleep's, paused (power.py).
     # and Show me what happens' card, waiting.
     # v0.6.16-beta.3: near_limit; v0.6.16: the forced stop's three notices near a limit, each a kind of its own.
-    # v0.6.18: the weekly update check's offer.
-    "notifier.NOTICE_STATUS": ("dict", 17, "0b1f0983ec85da07"),
+    # v0.6.18: the weekly update check's offer; v0.6.19: the crash restart's notice that it left the watcher stopped.
+    "notifier.NOTICE_STATUS": ("dict", 18, "74bf5830649a542d"),
     # v0.6.12: the power action's five notices follow them, in a table of their own (PowerNotice), and the
     # whole table is both.
     "notifier.POWER_STATUS": ("dict", 5, "d403490eeafa7732"),
     "notifier.POWER_EVENTS": ("tuple", 5, "e5a05bae37eb8e45"),
-    "notifier.STATUS": ("dict", 22, "b4ac13dcfeeee6c9"),
+    "notifier.STATUS": ("dict", 23, "f9f6a61a367203b7"),
     "mcpserver.Server.START_WORDING": ("dict", 4, "f15e04a780f57870"),
     # v0.6.11: the two editions, and the plug that is the whole difference between them.
     "edition.EDITIONS": ("tuple", 2, "49cc206af3867704"),
@@ -219,8 +219,9 @@ LISTS = {
     # and EARLY, P7's look at a usage-limited record before its time; and the form a failure's error took.
     # And RESEND, P7's word for an uncertain submission sent once more, which core proves may go, and
     # SEND_NOW, its word for a waiting record a person asked to send now.
-    "domain.plug.POINTS": ("tuple", 18, "99df46d4da526400"),   # v0.6.16-beta.3: P19 eligibility; beta.4: P18
-    "domain.plug.ANSWERS": ("set", 15, "f05b746425d54856"),
+    # v0.6.16-beta.3: P19 eligibility; beta.4: P18; v0.6.19: P20 notice - and P13's SUPERVISE and RESTART.
+    "domain.plug.POINTS": ("tuple", 19, "79ff2fd1efcf1944"),
+    "domain.plug.ANSWERS": ("set", 17, "4e304e4fc7bba412"),
     "domain.plug.FAILURE_FORMS": ("tuple", 5, "bcc0ad1bd6f81009"),
     "domain.plug.SURFACES": ("tuple", 5, "d41ac5a6d67be21b"),
     # v0.6.14: what core did with a record of the plug's own (P2), as P14 tells it.

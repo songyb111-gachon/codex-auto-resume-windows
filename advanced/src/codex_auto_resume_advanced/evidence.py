@@ -24,7 +24,7 @@ import re
 from codex_auto_resume import failures, machine
 from codex_auto_resume.diagnostics import EMAIL_RE, KEY_RE, PATH_RE, UUID_RE
 
-from .vocabulary import Measurement, NoteCode, ObservedWord, SpendOutcome, Verdict
+from .vocabulary import Measurement, NoteCode, ObservedWord, PlanWord, SpendOutcome, Verdict
 
 # The same tag scripts/live_evidence.py skips these files by; tests/test_advanced_measure.py
 # keeps the two spellings identical, so neither can move without the other.
@@ -44,7 +44,9 @@ CLOSED_WORDS = (frozenset(str(word) for word in machine.TURN_STATUSES)
                 | frozenset(str(word) for word in Verdict)
                 | frozenset(str(word) for word in SpendOutcome)
                 # v0.6.16-beta.4: and the stage-4 measurements' own (vocabulary.ObservedWord).
-                | frozenset(str(word) for word in ObservedWord))
+                | frozenset(str(word) for word in ObservedWord)
+                # v0.6.19: and the plan an account is on (MAL), as account_switch keeps it (vocabulary.PlanWord).
+                | frozenset(str(word) for word in PlanWord))
 
 
 def _closed(value: str) -> bool:

@@ -112,6 +112,46 @@ class ChatMixin:
                                    (state, now, record_id))
             return ended
 
+    def chat_moved(self, record_id, move, *, reason=None, at=None) -> dict | None:
+        """What core told of a chat message's record (P14): sent, its words gone; handed back or never started, it
+        waits again with its words; delivered, superseded or handed over, done; unproven, done as unknown; taken back
+        out of Codex's queue - not taken in time (not_taken), or at a Pause (withdrawn). The capability and whether it
+        turns it off (UNPROVEN), or None where it is no chat message."""
+        _key(record_id, "record id")
+        move = str(move)
+        if self.chat_by_record(record_id) is None:
+            return None
+        if move == "sent":
+            self.chat_sent(record_id, at=at)
+        elif move in ("released", "not_started"):
+            self.chat_released(record_id)
+        elif move == "withdrawn":
+            self.chat_ended(record_id, "withdrawn" if reason == "paused" else "not_taken", at=at)
+        elif move in _ENDS:
+            self.chat_ended(record_id, move, at=at)
+        elif move not in ("waiting", "withdraw_refused"):
+            return None
+        return {"capability": CAPABILITY, "trip": move == "unproven"}
+
+    def chats_in_flight(self) -> list:
+        """Every chat message in flight, whatever chat stands at: core watches each to its end."""
+        return [row for row in self.chats(pending=True) if row["state"] == ChatState.IN_FLIGHT]
+
+    def release_unlaunched_chats(self, after, at=None) -> int:
+        """Every message claimed `after` seconds ago whose send never began, handed back (as state/prompts)."""
+        now = self._now(at)
+        with self._transaction(create=False) as connection:
+            if connection is None:
+                return 0
+            keys = [row[0] for row in connection.execute(
+                "SELECT c.record_id FROM chat_messages m JOIN records c ON c.record_id = m.record_id WHERE m.state=? "
+                "AND m.sent_at IS NULL AND c.state=? AND c.claimed_at IS NOT NULL AND c.claimed_at <= ?",
+                (ChatState.WAITING, RecordState.IN_FLIGHT, now - after)).fetchall()]
+            for key in keys:
+                connection.execute("UPDATE records SET state=? WHERE record_id=? AND state=?",
+                                   (RecordState.WAITING, key, RecordState.IN_FLIGHT))
+            return len(keys)
+
     def cancel_chat(self, reason, *, record_id=None, thread_id=None, at=None) -> int:
         """Waiting messages cancelled - one by its record, a conversation's, or every one - their words gone: a
         person's Cancel, chat turned off, a conversation switched off. One in flight is its watch's to end."""
@@ -135,3 +175,33 @@ class ChatMixin:
                 connection.execute("UPDATE records SET state=?, finished_at=? WHERE record_id=?",
                                    (RecordState.CANCELLED, now, key))
             return len(keys)
+
+
+class ChatHandle:
+    """What codex_chat's code is given of the state (state.Scoped's `chat`): the messages to hand or watch, read
+    always; a message whose conversation was switched off cancelled only while the runtime has chat on."""
+    __slots__ = ("_state", "_on")
+
+    def __init__(self, state, capability, on):
+        self._state, self._on = state, (on if capability == CAPABILITY else (lambda: False))
+
+    def pending(self) -> list:
+        return self._state.chats(pending=True)
+
+    def conversation_off(self, record_id) -> int:
+        if self._on is None or self._on() is not True:
+            return 0
+        return self._state.cancel_chat(ChatReason.CONVERSATION_OFF, record_id=record_id)
+
+
+def end_pending(connection, capabilities, now) -> None:
+    """Every chat message still waiting, cancelled with its words (turned_off), in the caller's transaction, when chat
+    stops being on (state/arming.py): turning it on again revives none. One in flight is its watch's to end."""
+    if CAPABILITY not in capabilities:
+        return
+    rows = connection.execute("SELECT record_id FROM chat_messages WHERE state=?", (ChatState.WAITING,)).fetchall()
+    for (record,) in rows:
+        connection.execute("UPDATE chat_messages SET state=?, reason=?, words=NULL, finished_at=? WHERE record_id=?",
+                           (ChatState.CANCELLED, ChatReason.TURNED_OFF, now, record))
+        connection.execute("UPDATE records SET state=?, finished_at=? WHERE record_id=? AND state<>?",
+                           (RecordState.CANCELLED, now, record, RecordState.FINISHED))

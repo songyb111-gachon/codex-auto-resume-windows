@@ -101,6 +101,31 @@ feature on, and its own writes stay checked by its code.
 The first marked file did not bump the version: v0.6.16 reads no mark, so a version 8 - however readable - would be
 refused there as newer, every feature off after a pick of v0.6.16 in Install another version. Kept at 7, it is read
 there as its own; the mark serves every version from v0.6.17 on, the first time a later version (v0.6.18's) moves it.
+
+Version 8, the v0.6.19 stage's (plans/v0619-design/D-groundwork.md), fixes the stage's stored format once, before any of
+its capabilities is built - nothing reads its tables until one is - and stays marked readable from 7: it adds ten tables
+and a column at the end of `prompts` with a default, which a reader of version 7 from v0.6.17 on passes over, and frees
+`wordings` of the CHECK on its keys, as v0.6.17 freed `options`. A version-7 file is brought to it when it is opened
+(UPGRADE_TO_V019), every row kept; a file of an older version takes the earlier steps first.
+
+    usage_samples  each usage window's share at each reading, for the burn rate (usage_analytics)
+    token_days     the tokens a conversation used on a day, by kind, and its turns - never a word of it
+    token_files    how far each rollout was read, under a digest of its path and never the path
+    outbox         each notice to be pushed, by channel: a closed event and category, a `task N` alias, its tries
+    feed           one row: what the status feed last said, of the service and of Codex
+    remote         a remote channel's pairing (Telegram): when it was paired, a digest of its one-time code
+    opens          each conversation opened for a message to be sent, and what came of it
+    restarts       each restart of a watcher that stopped unexpectedly (crash_restart's cap counts them)
+    account_seen   one row: a keyed digest of the signed-in account, never the address, and its plan word
+    hook_claims    each turn the Stop hook answered, by interruption, under a digest of the turn
+    prompts        + while_running: whether a queued prompt goes into Codex's queue while a turn runs, or waits
+    wordings       a wording's key is checked by the code alone (WordingKey), as an option's name is
+
+`prompts` is made again on the way, every row kept, so its reasons' CHECK takes the word version 8 added (PromptReason
+turn_running): SQLite cannot change a CHECK in place, and the version-7 file's would refuse it. Every table is bounded
+by the journal's pass (state/journal.py), each as the groundwork fixed it. A version-7 reader from v0.6.17 on uses the
+file as it is - every table it knows holding its columns, first - and v0.6.16, which reads no mark, refuses it as newer,
+every capability off and nothing written: the way down every version before had.
 """
 from __future__ import annotations
 
@@ -110,10 +135,10 @@ from codex_auto_resume import failures
 from codex_auto_resume.domain.plug import TAKE_UP, FailureForm
 
 from ..registry import GLOBAL_HOURLY
-from ..vocabulary import (ArmingState, ChatReason, ChatState, ContinuationKind, ContinuationReason,
-                          KeepReason, KeepState, OverrideKind, PromptEvery, PromptReason,
-                          PromptState, PromptTrigger, RecordState, RuleReason, RuleState, RunEnd, SpendOutcome,
-                          WordingKey)
+from ..vocabulary import (ArmingState, ChatReason, ChatState, ContinuationKind, ContinuationReason, CourierChannel,
+                          CourierEvent, FeedWord, HookOutcome, KeepReason, KeepState, OpenOutcome, OutboxState,
+                          OverrideKind, PlanWord, PromptEvery, PromptReason, PromptState, PromptTrigger, RecordState,
+                          RuleReason, RuleState, RunEnd, SpendOutcome, WhileRunning, WordingKey)
 
 # The window switches (v0.6.16 final, the owner's request of 2026-10-18): Wrap up near a limit and Stop near a limit
 # offer a pair of their own, rows of `options` whose CHECK has admitted these words since version 6 - no new version.
@@ -124,14 +149,14 @@ WINDOW_LEADER = "usage_meter"
 WINDOW_FOLLOWERS = ("usage_wrap_up", "usage_pause")
 WINDOW_ON, WINDOW_OFF = 1, 2
 
-# Stage 4's version (v0.6.16-beta.4): the one place it is numbered - a literal, which the setup's version picker reads
-# (tests/test_version_picker.py) - the step after the version before it (6, the usage additions' own). v0.6.17 keeps it
-# (above): `options` free of its CHECK and the mark change no table and no column.
-SCHEMA_VERSION = 7
-STAGE4_VERSION = SCHEMA_VERSION
-# The oldest version whose reader may use a file this version writes (above): 7, this version itself - the first file
-# with a mark keeps the version v0.6.16 reads. A later version raises it only where a version-7 reader cannot use its
-# file.
+# The v0.6.19 stage's version (the groundwork): the one place it is numbered - a literal, which the setup's version
+# picker reads (tests/test_version_picker.py) - the step after stage 4's (7, v0.6.16-beta.4, which v0.6.17 and v0.6.18
+# kept: `options` free of its CHECK and the mark changed no table and no column).
+SCHEMA_VERSION = 8
+STAGE4_VERSION = 7
+V019_VERSION = SCHEMA_VERSION
+# The oldest version whose reader may use a file this version writes (above): 7 - version 8 only adds what a version-7
+# reader from v0.6.17 on passes over. A later version raises it only where a version-7 reader cannot use its file.
 READABLE_FROM = 7
 # "CA" in the high half of SQLite's application id: the mark that the low half is a readable-from version.
 MARK = 0x43410000
@@ -171,7 +196,9 @@ TABLES = {
     "keep_going": ("thread_id", "count", "used", "armed_at", "state", "reason", "finished_at"),
     "prompts": ("prompt_id", "thread_id", "words", "trigger", "at", "every", "occurrences", "sent_count", "until",
                 "depends", "position", "state", "reason", "record_id", "gate", "gate_reason", "created_at", "due_at",
-                "launching_at", "sent_at", "finished_at"),
+                "launching_at", "sent_at", "finished_at",
+                # Version 8 (v0.6.19, #50's send mode), at the end with a default.
+                "while_running"),
     # Version 5 (v0.6.16-beta.3): the usage meter's last reading of each window, and what each stage acted for.
     "meter": ("bucket", "minutes", "used_percent", "reset_at", "read_at", "warned_reset_at", "warned_at",
               "paused_reset_at"),
@@ -182,7 +209,25 @@ TABLES = {
                       "ended_at", "end", "restore_model"),
     "chat_messages": ("chat_id", "thread_id", "words", "state", "reason", "record_id", "created_at", "sent_at",
                       "finished_at"),
+    # Version 8 (v0.6.19, the groundwork): the stage's ten.
+    "usage_samples": ("bucket", "minutes", "at", "used_percent", "reset_at"),
+    "token_days": ("day", "thread_id", "project_digest", "input", "cached", "output", "reasoning", "turns"),
+    "token_files": ("file_digest", "thread_id", "size", "offset", "mtime_ns", "read_at"),
+    "outbox": ("item_id", "channel", "event", "category", "alias", "at", "tries", "state", "finished_at"),
+    "feed": ("singleton", "checked_at", "word", "codex_word", "incidents"),
+    "remote": ("channel", "paired_at", "bad_codes", "update_offset", "code_digest", "code_expires_at"),
+    "opens": ("open_id", "thread_id", "record_id", "at", "outcome"),
+    "restarts": ("at", "exit_code", "restarted"),
+    "account_seen": ("singleton", "identity_digest", "plan", "read_at"),
+    "hook_claims": ("interruption_id", "turn_digest", "at", "outcome"),
 }
+# Version 8's (v0.6.19).
+V019_TABLES = ("usage_samples", "token_days", "token_files", "outbox", "feed", "remote", "opens", "restarts",
+               "account_seen", "hook_claims")
+# Version 7's tables, as stage 4 left them and v0.6.17 and v0.6.18 kept them: what every older shape is taken from, and
+# what a version-8 file holds for a version-7 reader (holds).
+TABLES_V7 = dict({name: columns for name, columns in TABLES.items() if name not in V019_TABLES},
+                 prompts=TABLES["prompts"][:-1])
 V4_TABLES = ("continuations", "keep_going", "prompts")
 # Version 5's (v0.6.16-beta.3).
 V5_TABLES = ("meter",)
@@ -530,7 +575,8 @@ _STATEMENTS_V4 = (
     )""" % (_UUID, _int("count", low=1, high=10, null=False), _int("used", null=False), _one_of("state", KeepState),
             ", ".join("'%s'" % word for word in KeepReason)),
     # A person's queued prompts: after the turn now running, at a time, or on a schedule - their words only while one
-    # is still to go, a series 30 occurrences and 30 days at most.
+    # is still to go, a series 30 occurrences and 30 days at most. Its reasons are the vocabulary's (PromptReason) -
+    # made again with them in version 8 (UPGRADE_TO_V019); a test builds a version-7 file with V7_PROMPT_REASONS.
     """CREATE TABLE prompts (
         prompt_id INTEGER PRIMARY KEY AUTOINCREMENT,
         thread_id TEXT NOT NULL %s,
@@ -632,12 +678,139 @@ _OPTIONS_FREE = """CREATE TABLE options (
         value INTEGER NOT NULL CHECK (typeof(value) = 'integer' AND value >= 1),
         PRIMARY KEY (capability, choice)
     )"""
+# `wordings` as version 8 makes it (v0.6.19): its keys the code's to check (WordingKey), its words still the file's too.
+_WORDINGS_FREE = """CREATE TABLE wordings (
+        capability TEXT NOT NULL,
+        choice TEXT NOT NULL,
+        words TEXT NOT NULL CHECK (typeof(words) = 'text' AND length(words) BETWEEN 1 AND %d),
+        changed_at REAL NOT NULL,
+        PRIMARY KEY (capability, choice)
+    )""" % WORDING_LIMIT
+# The reasons `prompts` admitted (versions 4 to 7) and the keys `wordings` did (6 and 7), frozen as v0.6.18 left them:
+# what a version-7 file refuses, and what a test builds one from. PromptReason and WordingKey may grow; these do not.
+V7_PROMPT_REASONS = ("delivered", "handed_over", "superseded", "expired", "missed", "dependency_failed", "by_person",
+                     "turned_off", "too_long", "conversation_off", "withdrawn", "withdraw_refused", "unknown")
+V7_WORDING_KEYS = ("wrap_custom_five_hour", "wrap_custom_weekly")
+_PROMPTS_V4 = next(s for s in _STATEMENTS_V4 if s.lstrip().startswith("CREATE TABLE prompts"))
+_PROMPTS_INDEX = "CREATE INDEX prompts_thread ON prompts(thread_id, position)"
+_REASONS_NOW = "reason TEXT CHECK (reason IS NULL OR reason IN (%s))" % ", ".join("'%s'" % w for w in PromptReason)
+_PROMPTS_V7 = _PROMPTS_V4.replace(_REASONS_NOW, "reason TEXT CHECK (reason IS NULL OR reason IN (%s))"
+                                  % ", ".join("'%s'" % word for word in V7_PROMPT_REASONS), 1)
+_WORDINGS_V7 = _STATEMENTS_V6[0].replace(_one_of("choice", WordingKey), _one_of("choice", V7_WORDING_KEYS), 1)
+
+# Version 8's own (v0.6.19, the groundwork). Ids, enums, counts and times, each word one of the vocabulary's, each id or
+# digest of its shape - never a path, a name, an address or anything a person or Codex wrote. Nothing is added to any
+# of them until a capability that writes it is built.
+_HEX16 = "CHECK (%s IS NULL OR (length(%s) = 16 AND %s NOT GLOB '*[^0-9a-f]*'))"
+_HEX64 = "CHECK (length(%s) = 64 AND %s NOT GLOB '*[^0-9a-f]*')"
+# A pushed notice names its conversation only as its place in Pending: `task 1` to `task 9999`.
+_ALIAS = ("CHECK (alias IS NULL OR (length(alias) BETWEEN 6 AND 9 AND alias GLOB 'task [1-9]*' "
+          "AND substr(alias, 6) NOT GLOB '*[^0-9]*'))")
+# The one remote channel there is (telegram_remote), of the courier's channels.
+REMOTE_CHANNELS = (CourierChannel.TELEGRAM,)
+_STATEMENTS_V019 = (
+    "ALTER TABLE prompts ADD COLUMN while_running TEXT NOT NULL DEFAULT '%s' %s"
+    % (WhileRunning.QUEUE, _one_of("while_running", WhileRunning)),
+    """CREATE TABLE usage_samples (
+        bucket TEXT NOT NULL %s,
+        minutes INTEGER NOT NULL %s,
+        at REAL NOT NULL,
+        used_percent REAL NOT NULL CHECK (typeof(used_percent) IN ('real', 'integer') AND used_percent >= 0),
+        reset_at INTEGER %s,
+        PRIMARY KEY (bucket, minutes, at)
+    )""" % (_one_of("bucket", BUCKETS), _int("minutes", low=1, high=100800, null=False), _int("reset_at")),
+    "CREATE INDEX usage_samples_at ON usage_samples(at)",
+    """CREATE TABLE token_days (
+        day TEXT NOT NULL CHECK (length(day) = 10 AND day GLOB '[0-9][0-9][0-9][0-9]-[01][0-9]-[0-3][0-9]'),
+        thread_id TEXT NOT NULL %s,
+        project_digest TEXT %s,
+        input INTEGER NOT NULL %s,
+        cached INTEGER NOT NULL %s,
+        output INTEGER NOT NULL %s,
+        reasoning INTEGER NOT NULL %s,
+        turns INTEGER NOT NULL %s,
+        PRIMARY KEY (day, thread_id)
+    )""" % (_UUID, _HEX16 % (("project_digest",) * 3),
+            *(_int(name, null=False) for name in ("input", "cached", "output", "reasoning", "turns"))),
+    """CREATE TABLE token_files (
+        file_digest TEXT PRIMARY KEY CHECK (length(file_digest) = 16 AND file_digest NOT GLOB '*[^0-9a-f]*'),
+        thread_id TEXT NOT NULL %s,
+        size INTEGER NOT NULL %s,
+        offset INTEGER NOT NULL %s,
+        mtime_ns INTEGER NOT NULL %s,
+        read_at REAL NOT NULL
+    )""" % (_UUID, _int("size", null=False), _int("offset", null=False), _int("mtime_ns", null=False)),
+    """CREATE TABLE outbox (
+        item_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        channel TEXT NOT NULL %s,
+        event TEXT NOT NULL %s,
+        category TEXT CHECK (category IS NULL OR category IN (%s)),
+        alias TEXT %s,
+        at REAL NOT NULL,
+        tries INTEGER NOT NULL %s,
+        state TEXT NOT NULL %s,
+        finished_at REAL,
+        CHECK ((state = '%s') = (finished_at IS NULL))
+    )""" % (_one_of("channel", CourierChannel), _one_of("event", CourierEvent),
+            ", ".join("'%s'" % word for word in sorted(failures.CATEGORIES)), _ALIAS,
+            _int("tries", high=3, null=False), _one_of("state", OutboxState), OutboxState.WAITING),
+    "CREATE INDEX outbox_at ON outbox(at)",
+    """CREATE TABLE feed (
+        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        checked_at REAL,
+        word TEXT CHECK (word IS NULL OR word IN (%s)),
+        codex_word TEXT CHECK (codex_word IS NULL OR codex_word IN (%s)),
+        incidents INTEGER %s
+    )""" % (", ".join("'%s'" % word for word in FeedWord), ", ".join("'%s'" % word for word in FeedWord),
+            _int("incidents", high=99)),
+    """CREATE TABLE remote (
+        channel TEXT PRIMARY KEY %s,
+        paired_at REAL,
+        bad_codes INTEGER NOT NULL DEFAULT 0 %s,
+        update_offset INTEGER %s,
+        code_digest TEXT CHECK (code_digest IS NULL OR (length(code_digest) = 64
+                                AND code_digest NOT GLOB '*[^0-9a-f]*')),
+        code_expires_at REAL,
+        CHECK (code_digest IS NULL OR paired_at IS NULL)
+    )""" % (_one_of("channel", REMOTE_CHANNELS), _int("bad_codes", high=5, null=False), _int("update_offset")),
+    """CREATE TABLE opens (
+        open_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        thread_id TEXT NOT NULL %s,
+        record_id TEXT NOT NULL %s,
+        at REAL NOT NULL,
+        outcome TEXT NOT NULL %s
+    )""" % (_UUID, _HEX64 % ("record_id", "record_id"), _one_of("outcome", OpenOutcome)),
+    "CREATE INDEX opens_at ON opens(at)",
+    """CREATE TABLE restarts (
+        at REAL PRIMARY KEY,
+        exit_code INTEGER CHECK (exit_code IS NULL OR typeof(exit_code) = 'integer'),
+        restarted INTEGER NOT NULL %s
+    )""" % _flag("restarted"),
+    """CREATE TABLE account_seen (
+        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        identity_digest TEXT %s,
+        plan TEXT CHECK (plan IS NULL OR plan IN (%s)),
+        read_at REAL NOT NULL
+    )""" % (_HEX16 % (("identity_digest",) * 3), ", ".join("'%s'" % word for word in PlanWord)),
+    """CREATE TABLE hook_claims (
+        interruption_id TEXT PRIMARY KEY %s,
+        turn_digest TEXT NOT NULL %s,
+        at REAL NOT NULL,
+        outcome TEXT NOT NULL %s
+    )""" % (_HEX64 % ("interruption_id", "interruption_id"), _HEX64 % ("turn_digest", "turn_digest"),
+            _one_of("outcome", HookOutcome)),
+    "CREATE INDEX hook_claims_at ON hook_claims(at)",
+)
 _STATEMENTS_V7 = _STATEMENTS_V2 + _STATEMENTS_V3 + _STATEMENTS_V4 + _STATEMENTS_V5 + _STATEMENTS_V6 + _STATEMENTS_STAGE4
 MARKED = "PRAGMA application_id=%d" % (MARK | READABLE_FROM)
-STATEMENTS = (tuple(_OPTIONS_FREE if statement is _STATEMENTS_V3[0] else statement for statement in _STATEMENTS_V7)
+_FREED = {id(_STATEMENTS_V3[0]): _OPTIONS_FREE, id(_STATEMENTS_V6[0]): _WORDINGS_FREE}
+STATEMENTS = (tuple(_FREED.get(id(statement), statement) for statement in _STATEMENTS_V7) + _STATEMENTS_V019
               + (MARKED, "PRAGMA user_version=%d" % SCHEMA_VERSION))
-# The file exactly as v0.6.16 made it - its `options` CHECK on names, no mark: what a test builds the file before from.
-STATEMENTS_V7 = _STATEMENTS_V7 + ("PRAGMA user_version=%d" % SCHEMA_VERSION,)
+# The file exactly as v0.6.16 made it - its `options` CHECK on names, no mark, and the reasons and keys version 7 knew:
+# what a test builds the file before from.
+STATEMENTS_V7 = (tuple(_PROMPTS_V7 if statement is _PROMPTS_V4 else _WORDINGS_V7 if statement is _STATEMENTS_V6[0]
+                       else statement for statement in _STATEMENTS_V7)
+                 + ("PRAGMA user_version=%d" % STAGE4_VERSION,))
 # Version 2's file exactly as v0.6.11 and v0.6.12 made it: what a test builds an older file from.
 STATEMENTS_V2 = _STATEMENTS_V2 + ("PRAGMA user_version=2",)
 
@@ -652,13 +825,13 @@ UPGRADE_FROM_2 = _STATEMENTS_V3 + ("PRAGMA user_version=3",)
 STATEMENTS_V3 = _STATEMENTS_V2 + _STATEMENTS_V3 + ("PRAGMA user_version=3",)
 # A version-3 file a pre-release build made before the reset actions' tables (v0.6.14): those four
 # added, every row kept, its version unchanged.
-TABLES_V3_BEFORE_RESETS = dict({name: TABLES[name] for name in TABLES
+TABLES_V3_BEFORE_RESETS = dict({name: TABLES_V7[name] for name in TABLES_V7
                                 if name not in RESET_TABLES + V4_TABLES + V5_TABLES + V6_TABLES + STAGE4_TABLES},
                                records=RECORDS_V3)
 ADD_RESETS = _STATEMENTS_RESETS
 # Version 4 (v0.6.15-beta): the tables whose CHECKs name a closed list that grew are made again with the new list, every
 # row kept - SQLite cannot change a CHECK in place - and the tables of 3c added. A version-3 file is brought to it.
-TABLES_V3 = {name: columns for name, columns in dict(TABLES, records=RECORDS_V3).items()
+TABLES_V3 = {name: columns for name, columns in dict(TABLES_V7, records=RECORDS_V3).items()
              if name not in V4_TABLES + V5_TABLES + V6_TABLES + STAGE4_TABLES}
 # The choices version 4 added to `options` (OptionKey): what a version-3 file's CHECK refuses.
 V4_OPTION_WORDS = ("workers", "days")
@@ -685,7 +858,7 @@ UPGRADE_FROM_3 = (
 
 # Version 5 (v0.6.16-beta.3, issue #29): `options` and `continuations` made again with their wider lists, every row kept,
 # and the meter's table added. A version-4 file is brought to it; a version-3 one takes UPGRADE_FROM_3 first.
-TABLES_V4 = {name: columns for name, columns in TABLES.items() if name not in V5_TABLES + V6_TABLES + STAGE4_TABLES}
+TABLES_V4 = {name: columns for name, columns in TABLES_V7.items() if name not in V5_TABLES + V6_TABLES + STAGE4_TABLES}
 # The choices version 5 added to `options` (OptionKey), and the words to `continuations`: what a version-4 file refuses.
 V5_OPTION_WORDS = ("poll_minutes", "warn_five_hour", "warn_weekly", "wrap_five_hour", "wrap_weekly", "wrap_style",
                    "pause_five_hour", "pause_weekly")
@@ -698,7 +871,7 @@ UPGRADE_FROM_4 = (
 
 # Version 6 (v0.6.16-beta.4): `options` and `continuations` made again with their wider lists, every row kept, and the
 # wordings' table added. A version-5 file is brought to it; an older one takes the earlier steps first.
-TABLES_V5 = {name: columns for name, columns in TABLES.items() if name not in V6_TABLES + STAGE4_TABLES}
+TABLES_V5 = {name: columns for name, columns in TABLES_V7.items() if name not in V6_TABLES + STAGE4_TABLES}
 # The choices version 6 added to `options` (OptionKey), and the kind to `continuations`: what a version-5 file refuses.
 V6_OPTION_WORDS = ("window_five_hour", "window_weekly", "stop_words_five_hour", "stop_words_weekly", "wrap_reset_time",
                    "wrap_after_reset")
@@ -709,7 +882,7 @@ UPGRADE_FROM_5 = (
               TABLES["continuations"], "CREATE INDEX continuations_thread ON continuations(thread_id)", suffix="v6")
     + _STATEMENTS_V6 + ("PRAGMA user_version=6",))
 # Stage 4 (v0.6.16-beta.4): the version before it, and the step from it - two tables added, every row kept.
-TABLES_BEFORE_STAGE4 = {name: columns for name, columns in TABLES.items() if name not in STAGE4_TABLES}
+TABLES_BEFORE_STAGE4 = {name: columns for name, columns in TABLES_V7.items() if name not in STAGE4_TABLES}
 UPGRADE_TO_STAGE4 = _STATEMENTS_STAGE4 + ("PRAGMA user_version=%d" % STAGE4_VERSION,)
 STATEMENTS_BEFORE_STAGE4 = (_STATEMENTS_V2 + _STATEMENTS_V3 + _STATEMENTS_V4 + _STATEMENTS_V5 + _STATEMENTS_V6
                             + ("PRAGMA user_version=%d" % (STAGE4_VERSION - 1),))
@@ -717,3 +890,19 @@ STATEMENTS_BEFORE_STAGE4 = (_STATEMENTS_V2 + _STATEMENTS_V3 + _STATEMENTS_V4 + _
 # READABLE_FROM - its version left at 7. Taken while names_checked, in the opening's one transaction, so a run cut short
 # leaves the old table whole, to be made again at the next opening.
 FREE_OPTIONS = _remade(_OPTIONS_FREE, "options", TABLES["options"], suffix="free") + (MARKED,)
+
+
+def wordings_checked(connection) -> bool:
+    """Whether `wordings` as stored still has the CHECK on its keys that versions 6 and 7 made it with."""
+    stored = connection.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='wordings'").fetchone()
+    return stored is not None and re.search(r"CHECK\s*\(\s*choice\s+IN\b", stored[0], re.I) is not None
+
+
+# Version 8 (v0.6.19, the groundwork): a version-7 file - v0.6.16's, v0.6.17's or v0.6.18's - is brought to it by one
+# step: `prompts` made again with the reasons this version knows (PromptReason turn_running; every row kept, its index
+# made again), the column at its end added with its default - so every prompt already queued goes into Codex's queue as
+# it always did - and the ten tables added; nothing else is made again. `wordings` is freed after the step, as `options`
+# is: while its stored CREATE still names its keys (wordings_checked), in the opening's one transaction.
+UPGRADE_TO_V019 = (_remade(_PROMPTS_V4, "prompts", TABLES_V7["prompts"], _PROMPTS_INDEX, suffix="v8")
+                   + _STATEMENTS_V019 + ("PRAGMA user_version=%d" % V019_VERSION,))
+FREE_WORDINGS = _remade(_WORDINGS_FREE, "wordings", TABLES["wordings"], suffix="free")

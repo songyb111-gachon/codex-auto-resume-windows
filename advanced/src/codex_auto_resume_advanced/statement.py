@@ -109,6 +109,8 @@ PAGE_KEYS = tuple(PAGE_PREFIX + name for name in (
     "watchlog.answer.sender", "watchlog.answer.tick", "watchlog.answer.start_route", "watchlog.answer.unloaded",
     "watchlog.answer.concurrency", "watchlog.answer.queue_for_open", "watchlog.answer.to_session",
     "watchlog.answer.silent",
+    # v0.6.19 (the groundwork): P13's two words, which a watched supervisor would answer.
+    "watchlog.answer.supervise", "watchlog.answer.restart",
     # v0.6.16-beta.3: a message a watched capability would have sent.
     "watchlog.answer.records",
     "watchlog.answer.other",
@@ -175,6 +177,12 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     # What Pending and History say beside a row this edition had a hand in (AdvancedRuns.cs, CellsWritten).
     "row.kind.cli", "row.kind.ide", "row.compact", "row.model_not_restored",
     "row.silent"))
+# Chat with a conversation (v0.6.19, advanced/gui/AdvancedChat.cs): its tab, its card, a message's states, the limit it
+# waits for, and where a click on a notice goes while it is on.
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
+    "chat.nav", "chat.title", "chat.none", "chat.unread", "chat.you", "chat.codex", "chat.counts", "chat.in_progress",
+    "chat.sending", "chat.sent", "chat.not_taken", "chat.words", "chat.send", "chat.cancel", "confirm.chat",
+    "done.chat", "chat.limit", "chat.click", "chat.click.page", "chat.click.chat", "chat.click.codex"))
 # The usage meter's, the wrap-up's and the pause's choices (v0.6.16-beta.3, issue #29): each OptionKey's label, and
 # how its values are said.
 PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
@@ -200,6 +208,22 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "option.custom",
     # (j) the percentages of a window in order, and the forced stop below the words' stop only said.
     "refused.option_order", "warn.stop_before_words"))
+# v0.6.19 (wake_for_reset): its one choice's label, how many minutes before a reset the PC is woken.
+PAGE_KEYS = PAGE_KEYS + (PAGE_PREFIX + "option.wake_lead_minutes",)
+# open_to_send's two choices (v0.6.19, #50): how long the PC has been idle first, and Also start Codex (a switch).
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in ("option.open_idle_minutes", "option.open_start_codex"))
+# The prompt queue's editor (v0.6.19, #50: advanced/gui/AdvancedEditor.cs): Schedule a message..., Edit..., the dialog's
+# titles, its send mode, Save and return, and what it says.
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
+    "scheduled.add", "queue.edit", "editor.title_new", "editor.title_edit",
+    "editor.mode", "editor.mode.wait", "editor.mode.queue", "editor.mode.after_turn", "editor.save", "done.prompt_saved",
+    "refused.prompt_moved"))
+# Pending's Recoveries | Scheduled tabs (v0.6.19, #50: advanced/gui/AdvancedSchedule.cs): the tabs, the list's columns, the
+# Done section and Delete completed, what a row says of a message, and the prompt queue's card pointing there.
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
+    "pending.recoveries", "pending.scheduled", "scheduled.col_mode", "scheduled.col_finished", "scheduled.done",
+    "scheduled.clear", "confirm.clear", "done.cleared", "done.cleared_kept", "scheduled.state.delivered",
+    "scheduled.state.handed_over", "scheduled.mode.wait", "scheduled.mode.queue", "queue.moved", "queue.go"))
 # The edition's own continuations' words (v0.6.15-beta): what empty_response, subagent_parent and keep_going send -
 # fixed, each passing core's continuation.validate_continuation in every language (nothing is filled in but, for a
 # subagent's line, its id and a closed kind word).

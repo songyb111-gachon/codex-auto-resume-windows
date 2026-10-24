@@ -29,6 +29,7 @@ from codex_auto_resume.store import Store
 
 from test_homes import App as HomesApp, T1, TURN
 import test_plug_points as plug_points  # its cases are not bound here, so they run in their own module alone
+import test_plug_points_2 as plug_points_2  # ResendTests' half of it, likewise not bound here
 
 THREAD = "11111111-1111-7111-8111-111111111111"
 QUEUED = "22222222-2222-7222-8222-222222222222"
@@ -202,7 +203,7 @@ class OutcomeTimeTests(Scratch):
 
 
 class ResendSpacingTests(plug_points.PluggedCase):
-    uncertain = plug_points.ResendTests.uncertain
+    uncertain = plug_points_2.ResendTests.uncertain
 
     def test_a_claim_committed_after_the_gate_holds_the_resend(self):
         h = self.h

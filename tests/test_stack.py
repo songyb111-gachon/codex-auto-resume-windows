@@ -101,7 +101,7 @@ ITEM = {_q(name): item for item, names in {
                "engine.routes",
                # and which conversations besides the app's are watched (P18), one sent to another session (P16),
                # and a full context window's compaction turns.
-               "engine.kinds", "engine.tosession", "engine.compaction"),
+               "engine.kinds", "engine.tosession", "engine.compaction", "engine.recordchannel"),
     "policy": ("failures", "reasons", "settings", "settings_schema", "continuation", "openstate", "domain.gates",
                # what may be done at a tier, and with whose word: policy, not registry data
                "compat.permits",
@@ -184,6 +184,8 @@ ITEM = {_q(name): item for item, names in {
                 # v0.6.16-beta.3: the words for this time, in a file of their own beside the state, as that one is.
                 "oncewords",
                 "auto_resume", "cli", "controlcli", "diagnostics",
+                # v0.6.19: this PC's own compatibility report, which Diagnostics shows and the export carries.
+                "ownreport", "ownreport.document", "ownreport.evidence", "ownreport.reading",
                 "commands", "commands.base", "commands.install", "commands.records",
                 "commands.status", "commands.watcher",
                 "mcp", "mcp.panel", "mcp.server", "mcp.tools", "mcpserver"),
