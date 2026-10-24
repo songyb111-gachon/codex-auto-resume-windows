@@ -492,12 +492,15 @@ minutes whether usage is available - one question for every conversation waiting
 answers at least five minutes apart both say yes, it continues the waiting conversations then,
 before the reset time Codex gave. A postponement and quiet hours still hold, and a look that finds no
 usage changes nothing about the conversation: it keeps its state and its next look. It only reads: it
-never sends anything to start a usage window or keep one open. While it is on, a line at the top of
-Pending says when it last asked, what the answer was and whether anything was continued, and
-**Check now** there asks once at once instead of at the next five minutes - for every waiting
-conversation together, without choosing a row. That answer is one of the two, which still have to be
-at least five minutes apart, and every other check still runs. It is turned on and off only on the
-Advanced features page.
+never sends anything to start a usage window or keep one open. While it is on, Pending's **Why it is
+waiting** says, for a conversation that waits for a usage limit and under the other usage readings, when
+it last asked, what the answer was and whether anything was continued. It has no line or button of its
+own on Pending (from v0.6.19; the Check now and Early reset settings buttons of v0.6.19-beta.2 are gone):
+a **Retry now** or a **Rescan** there reads usage at once, and while this is on that reading counts as
+one of its questions, for every waiting conversation together - the next one at least five minutes
+after it. If that reading says usage is available, the conversations it was asked for go on through
+every check, as they would without this; every other check still runs. It is turned on and off only on
+the Advanced features page.
 
 **When it helps.** When Codex lifts a limit before the time it gave.
 
