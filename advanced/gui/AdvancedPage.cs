@@ -111,9 +111,6 @@ namespace CodexAutoResume
         // The width of the working area of the screen the window is held to (HoldTabs): the screen's own, or one the
         // page's audit stands in (AdvancedLayoutAudit). 0 is the screen's.
         private int advancedScreen;
-        // The widest the window may be (v0.6.19): Windows' own limit, SystemInformation.MaxWindowTrackSize - a window
-        // asked to be wider is held to it - or one the page's audit stands in. 0 is Windows'.
-        private int advancedTrack;
         // Whether this window replaces one that had this page on screen (ArgumentParsed), and shows it again once this
         // edition has answered (ReturnToAdvanced).
         private bool advancedReturning;
@@ -166,9 +163,8 @@ namespace CodexAutoResume
             // The strip as tall as its rows where it has had to take two (HoldTabs): again whenever the window's width
             // or font changes, after the standard window's own fitting of it to one row.
             nav.SizeChanged += delegate { FitTabs(); };
-            // v0.6.19: and every tab whole however it lays out (KeepTabsWhole), whatever HoldTabs measured - looked at
-            // once the strip's layout is over, never inside it.
-            settings.Parent.Layout += delegate { KeepTabsWholeLater(); };
+            // v0.6.19: and every tab whole however it lays out (KeepTabsWhole), whatever HoldTabs measured.
+            settings.Parent.Layout += delegate { KeepTabsWhole(); };
             FontChanged += delegate { FitTabs(); };
             // Asked once the window opens, as its other reads are; a window the layout audit builds never opens.
             Load += delegate { if (!auditing) ReadAdvancedWords(); };
@@ -341,20 +337,6 @@ namespace CodexAutoResume
         /// strip, Spanish's last tab ended 3 px past the window that HoldTabs held (v0.6.19-beta's CI). So whenever the
         /// strip lays out on one row and its tabs need more than it has, the window is held that much wider - or, where the screen
         /// has no room for that, the strip takes a second row, every tab whole, as HoldTabs does for a narrow screen.
-        /// KeepTabsWhole asked for once the strip's layout is over (BeginInvoke): Layout is raised before the strip
-        /// places its tabs, and a row or a width changed inside it was laid out with the old one (v0.6.19-beta's CI).
-        /// One asked for at a time; with no window handle yet there is nothing laid out to look at.
-        private void KeepTabsWholeLater()
-        {
-            if (tabsPosted || keepingTabs || !tabsHeld || rendering || !IsHandleCreated) return;
-            tabsPosted = true;
-            try { BeginInvoke(new MethodInvoker(delegate { tabsPosted = false; KeepTabsWhole(); })); }
-            catch (Exception) { tabsPosted = false; }
-        }
-
-        // Whether a KeepTabsWhole is posted and not yet done.
-        private bool tabsPosted;
-
         private void KeepTabsWhole()
         {
             var strip = advancedTab == null ? null : advancedTab.Parent as FlowLayoutPanel;
@@ -364,7 +346,8 @@ namespace CodexAutoResume
             // laid out the strip has a width of before (a new window's own default), which says nothing.
             if (nav.Width != ClientSize.Width || strip.Width != nav.DisplayRectangle.Width) return;
             // What one row of the tabs needs as they are now - each at its own preferred size, in the font it has -
-            // asked of the strip's layout itself.
+            // asked of the strip's layout itself: Layout is raised before the strip places its tabs, so their bounds
+            // are still the last layout's here.
             int over = strip.GetPreferredSize(Size.Empty).Width - strip.ClientSize.Width;
             if (over <= 0) return;
             keepingTabs = true;
@@ -381,7 +364,6 @@ namespace CodexAutoResume
                     if (MinimumSize.Width < want) MinimumSize = new Size(want, MinimumSize.Height);
                     if (Width < want) Width = want;
                 }
-                strip.PerformLayout();
             }
             finally
             {
@@ -403,16 +385,9 @@ namespace CodexAutoResume
         /// The width of the working area of the screen the window is on, or of the one the audit stands in.
         private int ScreenRoom()
         {
-            int room;
-            if (advancedScreen > 0) room = advancedScreen;
-            else
-            {
-                try { room = Screen.FromControl(this).WorkingArea.Width; }
-                catch (Exception) { room = int.MaxValue; }
-            }
-            // v0.6.19: and never wider than Windows lets a window be (advancedTrack): a window asked to be wider is held
-            // to it, its tabs cut off (GitHub's 1024-wide runner, where the audit's screen is as wide as anything needs).
-            return Math.Min(room, advancedTrack > 0 ? advancedTrack : SystemInformation.MaxWindowTrackSize.Width);
+            if (advancedScreen > 0) return advancedScreen;
+            try { return Screen.FromControl(this).WorkingArea.Width; }
+            catch (Exception) { return int.MaxValue; }
         }
 
         /// The strip of tabs as tall as its rows at the width it has, where it takes more than one (HoldTabs); one row is
