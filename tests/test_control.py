@@ -1012,7 +1012,9 @@ class StartWatcherTests(ControlTestCase):
             result = self.control.start_watcher()
         self.assertIs(result["started"], True)
         argv = popen.call_args.args[0]
-        self.assertEqual(Path(argv[1]).name, "watcher-launcher.py")
+        # Remote debugging off right after the interpreter (v0.6.19-beta.3, tests/test_remote_debug_off.py).
+        self.assertEqual(argv[1:3], ["-X", "disable-remote-debug"])
+        self.assertEqual(Path(argv[3]).name, "watcher-launcher.py")
         self.assertEqual(argv[-1], "run")
 
     def test_it_refuses_to_start_a_second_watcher(self):

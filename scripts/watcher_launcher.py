@@ -53,6 +53,10 @@ SUPERVISE, RESTART = "supervise", "restart"
 # The argument, after `run`, that starts the watcher as a supervised child: the launcher's own, in this process, and
 # never a supervisor of its own - no grandchildren.
 CHILD_ARGUMENT = "--supervised-child"
+# PEP 768 (Python 3.14): remote debugging off, in this process and in every one it starts - the copy of
+# startup.NO_REMOTE_DEBUG this file keeps, since it runs before any engine is found. Hyphens: `-X disable_remote_debug`
+# is an unknown option, kept without a word, and leaves remote debugging on.
+NO_REMOTE_DEBUG = ("-X", "disable-remote-debug")
 
 
 def codex_home() -> Path:
@@ -226,7 +230,7 @@ def _supervised(here: Path, home: Path):
     if not interpreter.is_file():
         _note(here, "no pythonw.exe to run a supervised watcher under; running it here")
         return None
-    arguments = [str(interpreter), str(Path(__file__).resolve()), "run", CHILD_ARGUMENT]
+    arguments = [str(interpreter), *NO_REMOTE_DEBUG, str(Path(__file__).resolve()), "run", CHILD_ARGUMENT]
     started = False
     while True:
         try:
@@ -316,7 +320,7 @@ def _relaunch_once(here: Path, command) -> None:
         flags = (getattr(subprocess, "DETACHED_PROCESS", 0)
                  | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
     try:
-        subprocess.Popen([str(interpreter), str(Path(__file__).resolve())] + list(command),
+        subprocess.Popen([str(interpreter), *NO_REMOTE_DEBUG, str(Path(__file__).resolve())] + list(command),
                          env=dict(os.environ, **{RELAUNCH_MARK: "1"}), close_fds=True,
                          creationflags=flags, stdin=subprocess.DEVNULL,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -349,5 +353,39 @@ def _guarded(argv=None) -> int:
         return EXIT_ERROR
 
 
+def _again_without_remote_debug():
+    """Start this launcher again with remote debugging off, where it is on (PEP 768): True when it was, and this
+    process ends; False to go on here.
+
+    The sign-in value keeps the form every released version reads (startup.command_line), and a notification-button
+    value an older version wrote has no option either, so the launcher Windows starts under pythonw.exe may have
+    remote debugging on. It is then started once more, detached, as `_relaunch_once` starts it - the same arguments
+    with NO_REMOTE_DEBUG in front - before anything is read or run. What the product starts itself passes the option
+    and never comes here. Once at most: a launcher given the option never starts another, and one that cannot be
+    started leaves this one to go on. A launcher run by hand with python.exe goes on as it is."""
+    probe = getattr(sys, "is_remote_debug_enabled", None)
+    try:
+        if probe is None or not probe() or NO_REMOTE_DEBUG[1] in getattr(sys, "_xoptions", {}):
+            return False
+    except Exception:                               # noqa: BLE001 - a question that cannot be asked is a no
+        return False
+    if Path(sys.executable).name.lower() != "pythonw.exe":
+        return False
+    import subprocess
+    here = Path(__file__).resolve().parent
+    # pythonw.exe, a GUI program: detached opens nothing (see _relaunch_once).
+    interpreter = Path(sys.executable).resolve().with_name("pythonw.exe")
+    flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    try:
+        subprocess.Popen([str(interpreter), *NO_REMOTE_DEBUG, str(Path(__file__).resolve()), *sys.argv[1:]],
+                         close_fds=True, creationflags=flags, stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except OSError as exc:
+        _complain(here, "could not start again with remote debugging off: %s" % exc)
+        return False
+    _note(here, "remote debugging was on; started again without it")
+    return True
+
+
 if __name__ == "__main__":
-    sys.exit(_guarded(sys.argv[1:]))
+    sys.exit(0 if _again_without_remote_debug() else _guarded(sys.argv[1:]))

@@ -47,6 +47,72 @@ def python_launcher() -> Path:
     return windowless
 
 
+# PEP 768, new in Python 3.14: an interpreter with remote debugging on can be made, by any process of the same
+# user, to run a script of that process's choosing (sys.remote_exec) - and it is on unless the interpreter is told
+# otherwise. Every process of the bundled Python this product starts is told so on its command line, right after
+# the interpreter. The spelling is `disable-remote-debug`, with hyphens: an unknown -X option is kept without a
+# word, and `-X disable_remote_debug`, as PEP 768 wrote it, leaves remote debugging on (measured on 3.14.7 and on
+# the bundled 3.14.9). Before 3.14 the option is unknown and kept the same way, so one command line serves every
+# supported line. Not the PYTHON_DISABLE_REMOTE_DEBUG variable: an environment is handed on to everything a
+# process starts, Codex and other people's Python among it, and this is for the product's own processes alone.
+NO_REMOTE_DEBUG = ("-X", "disable-remote-debug")
+_NO_REMOTE_DEBUG_OPTION = NO_REMOTE_DEBUG[1]
+
+
+def remote_debug_on() -> bool:
+    """Whether another process could make this one run code (PEP 768). Always False before 3.14."""
+    probe = getattr(sys, "is_remote_debug_enabled", None)
+    try:
+        return bool(probe is not None and probe())
+    except Exception:                               # noqa: BLE001 - a question that cannot be asked is a no
+        return False
+
+
+def again_without_remote_debug(script) -> int | None:
+    """Run this script again with remote debugging off, where it is on: the exit code to end with, or None to go on
+    in this process.
+
+    For a script's `__main__` alone, which passes its own `__file__` (src/auto_resume.py, scripts/plugin_setup.py;
+    the stable launcher keeps a copy of its own, since it runs before any engine is found). What the product starts
+    itself carries NO_REMOTE_DEBUG already; this is for what it does not start: a sign-in or notification-button
+    value an older version wrote, or a published bootstrap that runs setup the way it always did. The script runs
+    again with the same arguments and the option in front. Under pythonw.exe - started by Windows, with no streams
+    and nobody waiting for an answer - the new process is detached and this one ends; under python.exe the new one
+    runs windowless on this process's streams and its exit code is this one's. Once at most: a process given the
+    option never starts another, and where the new one cannot be started this one goes on as it is."""
+    if not remote_debug_on() or _NO_REMOTE_DEBUG_OPTION in getattr(sys, "_xoptions", {}):
+        return None
+    import subprocess
+    try:
+        if Path(sys.executable).name.lower() == "pythonw.exe":
+            # A GUI program: Windows makes no console for it, so a detached one opens nothing (python_launcher).
+            interpreter = Path(sys.executable).resolve().with_name("pythonw.exe")
+            flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+            subprocess.Popen([str(interpreter), *NO_REMOTE_DEBUG, str(script), *sys.argv[1:]], close_fds=True,
+                             creationflags=flags, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL)
+            return 0
+        streams = [stream.fileno() if stream is not None else subprocess.DEVNULL
+                   for stream in (sys.stdin, sys.stdout, sys.stderr)]
+        for stream in (sys.stdout, sys.stderr):
+            if stream is not None:
+                stream.flush()
+        return subprocess.run([sys.executable, *NO_REMOTE_DEBUG, str(script), *sys.argv[1:]],
+                              creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                              stdin=streams[0], stdout=streams[1], stderr=streams[2]).returncode
+    except (OSError, ValueError, AttributeError):
+        return None
+
+
+def script_index(argv) -> int:
+    """Where the script is in an interpreter's command line: after the interpreter and its options, `-X` and `-W`
+    each with its value (NO_REMOTE_DEBUG, which a notification-button value carries)."""
+    index = 1
+    while index < len(argv) and argv[index].startswith("-") and argv[index] != "-":
+        index += 2 if argv[index] in ("-X", "-W") else 1
+    return index
+
+
 def quote_argument(value) -> str:
     """Quote one argument for a Windows command line, always.
 
@@ -81,9 +147,16 @@ def quote_argument(value) -> str:
     return "".join(quoted)
 
 
-def command_line(entry_script: Path, home: Path | None = None, launcher: Path | None = None) -> str:
+def command_line(entry_script: Path, home: Path | None = None, launcher: Path | None = None,
+                 options=()) -> str:
+    """The sign-in (Run) value's command line, or with `options` (NO_REMOTE_DEBUG) one the product starts itself.
+
+    The Run value keeps the form every released version reads: their `belongs_to` takes the argument after the
+    interpreter for the launcher, so an option there would make an older setup - a downgrade - refuse this
+    installation's own value as another's. The launcher it names turns remote debugging off itself, before it does
+    anything else (scripts/watcher_launcher.py, `_again_without_remote_debug`), and so does src/auto_resume.py."""
     launcher = launcher or python_launcher()
-    argv = [str(launcher), str(Path(entry_script).resolve())]
+    argv = [str(launcher), *options, str(Path(entry_script).resolve())]
     if home is not None:
         argv += ["--home", str(Path(home).resolve())]
     argv.append("run")
@@ -181,7 +254,8 @@ def unregister_aumid() -> bool:
 def protocol_command_line(entry_script: Path, home: Path, launcher: Path | None = None) -> str:
     """Command Windows runs when a toast button activates our URI."""
     launcher = launcher or python_launcher()
-    argv = [str(launcher), str(Path(entry_script).resolve()), "--home", str(Path(home).resolve()),
+    # With NO_REMOTE_DEBUG: only `doctor` reads this value back (script_index), and setup writes it whole each time.
+    argv = [str(launcher), *NO_REMOTE_DEBUG, str(Path(entry_script).resolve()), "--home", str(Path(home).resolve()),
             "--quiet", "activate"]
     # Quoted the same way as the autostart value, and for the same reason: under a path
     # with a space, an unquoted handler makes the notification's button do nothing.
@@ -309,9 +383,10 @@ def belongs_to(command: str, home: Path) -> bool:
     for index, argument in enumerate(argv):
         if argument == "--home" and index + 1 < len(argv) and _same_path(argv[index + 1], home):
             return True
-    if len(argv) >= 2:
+    script = script_index(argv)
+    if len(argv) > script:
         # A launcher living inside the home identifies the installation on its own.
-        return _inside(argv[1], home)
+        return _inside(argv[script], home)
     return False
 
 

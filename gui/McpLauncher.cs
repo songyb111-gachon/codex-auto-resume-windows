@@ -72,7 +72,9 @@ namespace CodexAutoResume
 
             var info = new ProcessStartInfo();
             info.FileName = python;
-            info.Arguments = "-I -c " + Quote(code) + " " + Quote(source) +
+            // -X disable-remote-debug: remote debugging off (PEP 768, Python 3.14), or any process of this user could make
+            // the server run code of its choosing (src/codex_auto_resume/startup.py, NO_REMOTE_DEBUG).
+            info.Arguments = "-I -X disable-remote-debug -c " + Quote(code) + " " + Quote(source) +
                              " --home " + Quote(home);
             info.UseShellExecute = false;
             info.RedirectStandardInput = true;

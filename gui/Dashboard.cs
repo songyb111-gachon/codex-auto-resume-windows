@@ -199,7 +199,7 @@ namespace CodexAutoResume
                           "sys.exit(main(sys.argv[2:]))";
             // "-c", as the one-shot bridge has it: without it python.exe takes the code for a
             // script path, exits, and every call silently falls back to the one-shot bridge.
-            info.Arguments = "-c " + Bridge.Quote(code) + " " + Bridge.Quote(appSrc) + " serve";
+            info.Arguments = Bridge.NoRemoteDebug + "-c " + Bridge.Quote(code) + " " + Bridge.Quote(appSrc) + " serve";
             info.UseShellExecute = false;
             info.RedirectStandardInput = true;
             info.RedirectStandardOutput = true;

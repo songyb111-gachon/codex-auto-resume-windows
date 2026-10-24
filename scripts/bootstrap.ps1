@@ -1738,7 +1738,9 @@ function Update-CompatibilityData {
         # own argument, which survives a non-ASCII profile directory.
         $code = 'import sys;sys.path.insert(0,sys.argv[1]);from codex_auto_resume.controlcli import main;sys.exit(main(sys.argv[2:]))'
         $ErrorActionPreference = 'Continue'
-        $printed = @(& $Python -c $code $Source --home $Home_ compat-import --file $file --origin main)
+        # -X disable-remote-debug, before anything else, wherever this script runs the bundled interpreter: remote
+        # debugging off (PEP 768, Python 3.14; src/codex_auto_resume/startup.py, NO_REMOTE_DEBUG).
+        $printed = @(& $Python -X disable-remote-debug -c $code $Source --home $Home_ compat-import --file $file --origin main)
         $line = @($printed | Where-Object { $_ -and ([string]$_).Trim() }) | Select-Object -Last 1
         if (-not $line) { return 'unavailable' }
         $reply = ([string]$line) | ConvertFrom-Json
@@ -1944,11 +1946,11 @@ function Invoke-InstalledSetup {
     $python = Join-Path $Home_ 'runtime\python.exe'
     $setup = Join-Path $Home_ 'app\scripts\plugin_setup.py'
     if ($Outside) {
-        $outsideCode = Resolve-OutsideRun -Script $python -Arguments (@($setup) + @($Arguments))
+        $outsideCode = Resolve-OutsideRun -Script $python -Arguments (@('-X', 'disable-remote-debug', $setup) + @($Arguments))
         if ($null -ne $outsideCode) { return [pscustomobject]@{ Printed = @(); Code = $outsideCode } }
     }
     $ErrorActionPreference = 'Continue'
-    $printed = @(& $python $setup @Arguments)
+    $printed = @(& $python -X disable-remote-debug $setup @Arguments)
     $code = $LASTEXITCODE
     if ($null -eq $code) { $code = 1 }
     return [pscustomobject]@{ Printed = @($printed | ForEach-Object { [string]$_ }); Code = $code }
@@ -2527,7 +2529,7 @@ if ($null -ne $standing -and $standing -ge 0 -and -not $Force) {
     # `setup` runs the engine's `enable` and re-registers the sign-in entry, which would
     # switch recovery back on for someone who paused it and put back a sign-in entry they
     # removed - a decision, taken while claiming to check the installation over.
-    $arguments = @($setup, 'setup', '--keep-state')
+    $arguments = @('-X', 'disable-remote-debug', $setup, 'setup', '--keep-state')
     if ($NoStartup) { $arguments += '--no-startup' }
     # This branch looks at the watcher again below (watcher-running) and says the last word, so a watcher setup could
     # not confirm within its wait is "not confirmed yet" in setup's own line (v0.6.17). Said as a variable for this
@@ -2550,7 +2552,7 @@ if ($null -ne $standing -and $standing -ge 0 -and -not $Force) {
     if ($code -eq 2) {
         # In English, for this English log. An installed setup that predates watcher-running fails with 2: still unconfirmed.
         $env:CODEX_AUTO_RESUME_SETUP_ENGLISH = '1'
-        try { & $python $setup 'watcher-running' } finally { $env:CODEX_AUTO_RESUME_SETUP_ENGLISH = $null }
+        try { & $python -X disable-remote-debug $setup 'watcher-running' } finally { $env:CODEX_AUTO_RESUME_SETUP_ENGLISH = $null }
         if ($LASTEXITCODE -eq 0) { $code = 0 }
     }
     exit $code

@@ -176,7 +176,7 @@ def notification_command(home: Path) -> str:
     Registering the plugin's own path here would break on the next update, because the
     plugin lives in a directory named after its version.
     """
-    argv = [str(python_for_watcher(home)), str(home / LAUNCHER_NAME), "activate"]
+    argv = [str(python_for_watcher(home)), *startup.NO_REMOTE_DEBUG, str(home / LAUNCHER_NAME), "activate"]
     return " ".join(startup.quote_argument(argument) for argument in argv) + ' "%1"'
 
 
@@ -212,7 +212,7 @@ def start_watcher(home: Path) -> str:
         flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
     # Never the setup window's request for progress lines: the watcher lives on long after the window has gone.
     environment = {name: value for name, value in os.environ.items() if name != PROGRESS_LINES}
-    process = subprocess.Popen([str(interpreter), str(home / LAUNCHER_NAME), "run"],
+    process = subprocess.Popen([str(interpreter), *startup.NO_REMOTE_DEBUG, str(home / LAUNCHER_NAME), "run"],
                                cwd=str(home), close_fds=True, creationflags=flags, env=environment,
                                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return control.await_watcher(app.watcher_running, process)["state"]
@@ -622,4 +622,7 @@ def main(argv=None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # Remote debugging off (PEP 768) where whatever ran this did not say so: a published bootstrap runs setup as it
+    # always has. What the product starts itself passes startup.NO_REMOTE_DEBUG, and this then does nothing.
+    again = startup.again_without_remote_debug(__file__)
+    sys.exit(main() if again is None else again)

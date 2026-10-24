@@ -477,7 +477,7 @@ class UninstallVerifierTests(unittest.TestCase):
 
     def test_the_check_runs_the_verifier_that_was_chosen(self):
         branch = self.uninstall_branch()
-        self.assertIn("& $interpreter $verifier 'verify-home'", branch,
+        self.assertIn("& $interpreter -X disable-remote-debug $verifier 'verify-home'", branch,
                       "the chosen verifier is the one that must be asked")
         self.assertIn("$LASTEXITCODE -ne 0", branch,
                       "a failed check must still refuse")
