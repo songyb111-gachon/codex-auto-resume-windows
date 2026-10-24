@@ -492,7 +492,12 @@ minutes whether usage is available - one question for every conversation waiting
 answers at least five minutes apart both say yes, it continues the waiting conversations then,
 before the reset time Codex gave. A postponement and quiet hours still hold, and a look that finds no
 usage changes nothing about the conversation: it keeps its state and its next look. It only reads: it
-never sends anything to start a usage window or keep one open.
+never sends anything to start a usage window or keep one open. While it is on, a line at the top of
+Pending says when it last asked, what the answer was and whether anything was continued, and
+**Check now** there asks once at once instead of at the next five minutes - for every waiting
+conversation together, without choosing a row. That answer is one of the two, which still have to be
+at least five minutes apart, and every other check still runs. It is turned on and off only on the
+Advanced features page.
 
 **When it helps.** When Codex lifts a limit before the time it gave.
 

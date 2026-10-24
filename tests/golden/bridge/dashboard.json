@@ -243,7 +243,8 @@
             "project": null,
             "cwd_basename": null,
             "home": null,
-            "once_words": false
+            "once_words": false,
+            "usage_check": null
           },
           {
             "interruption_id": "8888888888888888888888888888888888888888888888888888888888888888",
@@ -338,7 +339,8 @@
             "project": null,
             "cwd_basename": null,
             "home": null,
-            "once_words": false
+            "once_words": false,
+            "usage_check": null
           }
         ],
         "history": [
@@ -435,7 +437,8 @@
             "project": null,
             "cwd_basename": null,
             "home": null,
-            "once_words": false
+            "once_words": false,
+            "usage_check": null
           },
           {
             "interruption_id": "7777777777777777777777777777777777777777777777777777777777777777",
@@ -530,7 +533,8 @@
             "project": null,
             "cwd_basename": null,
             "home": null,
-            "once_words": false
+            "once_words": false,
+            "usage_check": null
           },
           {
             "interruption_id": "9999999999999999999999999999999999999999999999999999999999999999",
@@ -572,7 +576,8 @@
             "project": null,
             "cwd_basename": null,
             "home": null,
-            "once_words": false
+            "once_words": false,
+            "usage_check": null
           },
           {
             "interruption_id": "6666666666666666666666666666666666666666666666666666666666666666",
@@ -614,7 +619,8 @@
             "project": null,
             "cwd_basename": null,
             "home": null,
-            "once_words": false
+            "once_words": false,
+            "usage_check": null
           },
           {
             "interruption_id": "5555555555555555555555555555555555555555555555555555555555555555",
@@ -656,7 +662,8 @@
             "project": null,
             "cwd_basename": null,
             "home": null,
-            "once_words": false
+            "once_words": false,
+            "usage_check": null
           },
           {
             "interruption_id": "4444444444444444444444444444444444444444444444444444444444444444",
@@ -698,7 +705,8 @@
             "project": null,
             "cwd_basename": null,
             "home": null,
-            "once_words": false
+            "once_words": false,
+            "usage_check": null
           },
           {
             "interruption_id": "3333333333333333333333333333333333333333333333333333333333333333",
@@ -740,7 +748,8 @@
             "project": null,
             "cwd_basename": null,
             "home": null,
-            "once_words": false
+            "once_words": false,
+            "usage_check": null
           },
           {
             "interruption_id": "2222222222222222222222222222222222222222222222222222222222222222",
@@ -782,7 +791,8 @@
             "project": null,
             "cwd_basename": null,
             "home": null,
-            "once_words": false
+            "once_words": false,
+            "usage_check": null
           },
           {
             "interruption_id": "1111111111111111111111111111111111111111111111111111111111111111",
@@ -824,7 +834,8 @@
             "project": null,
             "cwd_basename": null,
             "home": null,
-            "once_words": false
+            "once_words": false,
+            "usage_check": null
           }
         ],
         "week": {

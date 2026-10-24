@@ -99,6 +99,8 @@ METHODS = {
     "set_thread_enabled", "settings_path", "start_for_codex", "start_watcher",
     "startup_enabled", "statistics", "stop_watcher", "timeline", "update_settings",
     "watcher_running",
+    # v0.6.19 (the review of 2026-10-24): what would stop the watcher reading usage at a person's Retry now.
+    "_not_checked",
 }
 
 

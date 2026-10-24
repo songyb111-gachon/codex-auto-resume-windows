@@ -49,6 +49,7 @@
             "cwd_basename": null,
             "home": null,
             "once_words": false,
+            "usage_check": null,
             "demo": true
           },
           "history": {
@@ -92,6 +93,7 @@
             "cwd_basename": null,
             "home": null,
             "once_words": false,
+            "usage_check": null,
             "demo": true
           },
           "asked": false

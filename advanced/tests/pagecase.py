@@ -391,8 +391,9 @@ AUDIT_SECONDS = 30
 
 def audited_views() -> int:
     """The views each audit lays out: each capability open, then unread, the narrowest window on two screens, the
-    action's card in each report state, and Pending with the reset rules scheduled under its list."""
-    return len(IDS) + 3 + len(report_states()) + 1
+    action's card in each report state, Pending with the reset rules scheduled under its list, and (v0.6.19, #50)
+    early_reset's line on Pending."""
+    return len(IDS) + 3 + len(report_states()) + 2
 
 
 def audit_timeout(costs: list, workers: int) -> int:

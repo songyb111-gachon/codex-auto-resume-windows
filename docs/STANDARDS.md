@@ -80,8 +80,8 @@ changed).
 **A11** It sends only while the desktop app is running and the exact thread is loaded. notLoaded or unknown waits at waiting_for_loaded_thread; nothing is queued on the off chance.  
 *tested*: `test_engine.py`
 
-**A12** Never before the real reset time, and live usage is re-checked.  
-*tested*: `test_engine.py`
+**A12** Never before the real reset time, and live usage is re-checked. The real reset is the newest one Codex reports, read when a recovery is due or when a person asks for it (Retry now); a reading that says the limit has not lifted, or cannot be told, or fails, changes nothing (amended by the owner on 2026-10-24).  
+*tested*: `test_engine.py`, `test_retry_now_usage.py`
 
 **A13** Only classified kinds are recovered: usage limit, connection failure, timeout (408/425), rate limit (429, including responseTooManyFailedAttempts carrying 429), 5xx, and stream disconnect. The structured code comes first; message text is used only when there is no code, against a fixed phrase list.  
 *tested*: `test_failures.py`, `test_plug_points.py`

@@ -95,6 +95,8 @@ ARGUMENTS = {
     BridgeCommand.ADVANCED_CHAT_READ: frozenset({"thread_id"}),
     BridgeCommand.ADVANCED_CHAT_SEND: frozenset({"thread_id", "words", "generation"}),
     BridgeCommand.ADVANCED_CHAT_CANCEL: frozenset({"thread_id", "generation"}),
+    # v0.6.19 (issue #50): early_reset's Check now, which names no row.
+    BridgeCommand.ADVANCED_EARLY_CHECK: frozenset(),
 }
 # v0.6.19 (the groundwork): the stage's commands, in the vocabulary before any capability that answers one is built.
 # Each is passed over - DEFER, so core says "unknown command" exactly as for a command this edition does not have -
@@ -215,6 +217,9 @@ def status(runtime) -> dict:
     if found:
         shown["runs"] = found
     shown.update(rows(runtime))
+    # v0.6.19 (issue #50): early_reset's line on Pending, only while it stands on (control/earlycheck.py).
+    from .control import earlycheck
+    shown.update(earlycheck.view(runtime))
     return shown
 
 
@@ -396,6 +401,9 @@ def bridge(runtime, command, argument):
         return sendnow.request(runtime, argument.get("interruption_id"))
     if command == BridgeCommand.ADVANCED_HEADLESS_STOP:
         return headless_stop(runtime, argument.get("interruption_id"))
+    if command == BridgeCommand.ADVANCED_EARLY_CHECK:
+        from .control import earlycheck
+        return earlycheck.check(runtime)
     if command in (BridgeCommand.ADVANCED_CHAT_READ, BridgeCommand.ADVANCED_CHAT_SEND,
                    BridgeCommand.ADVANCED_CHAT_CANCEL):
         from .control import chat

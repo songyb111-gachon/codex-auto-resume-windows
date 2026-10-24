@@ -66,6 +66,18 @@ class RecordView(TypedDict):
     context_tokens: int | None
 
 
+class UsageCheck(TypedDict):
+    """What a usage reading a person's Retry now asked for said (v0.6.19, issue #50): when, its word, and whether that
+    lifted the reset the recovery waited for."""
+    at: float
+    read: str
+    lifted: bool
+    # v0.6.19 (the review of 2026-10-24): why it was not checked (read not_checked; store/schedule.NOT_CHECKED), and
+    # whether the recovery has been continued since the reading lifted its reset.
+    why: str | None
+    continued: bool
+
+
 class PendingRow(RecordView):
     """A row of Pending or History: the record, and what Codex calls its conversation."""
     thread_enabled: bool
@@ -81,6 +93,8 @@ class PendingRow(RecordView):
     home: str | None
     # v0.6.16-beta.3: whether a person added words for this time to it - never the words.
     once_words: bool
+    # v0.6.19 (issue #50): what the last usage reading a person's Retry now asked for said, a day back, or None.
+    usage_check: UsageCheck | None
 
 
 class DemoRow(PendingRow):
