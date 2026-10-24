@@ -639,7 +639,7 @@ press *Use a reset credit now...*.
 
 **What it does.** On the page you write a message of your own, up to 2,000 characters, for one
 conversation that is switched on, and pick when it goes: when the 5-hour limit next resets, a later
-reset up to nine from now, or the weekly limit's next reset. At that reset the watcher sends it once,
+reset up to nine from now, or the weekly limit's next reset. The page offers the conversations the Dashboard knows from Pending and History that are switched on; one that has never appeared in either is not offered yet. At that reset the watcher sends it once,
 exactly as you wrote it, with its marker after a blank line, through every check a continuation passes
 - the conversation open in the app, nothing else queued there, usage available. A recovery waiting in
 that conversation for the same reset sends your message in its place, at the very moment the window
@@ -876,7 +876,8 @@ parent that finished normally is told nothing.
 
 ### Keep a conversation going
 
-**What it does.** For a conversation you pick on the page, with a count of 1 to 10: when its latest turn
+**What it does.** For a conversation you pick on the page - one the Dashboard knows from Pending and
+History that is switched on - with a count of 1 to 10: when its latest turn
 ended well and it has been idle for a minute, it sends one continuation of its own - "Carry on with the next
 step of the plan." - up to the count you chose. It stops when a turn made no progress, when every step of
 the plan is completed, when a plan cannot be read, when a goal of Codex's own is keeping it going, when a
@@ -897,7 +898,8 @@ read from the content of a conversation's items).
 
 ### Queue messages for later
 
-**What it does.** You queue messages of your own for one conversation: to go after the turn now running, at a
+**What it does.** You queue messages of your own for one conversation - one the Dashboard knows from Pending
+and History that is switched on: to go after the turn now running, at a
 time you pick, or every day or week from a time - 30 times and 30 days at most. They go in the order you queued
 them, each once, exactly as you wrote them, and one can wait for the one before it to arrive. For a message at a
 time or on a schedule you choose what it does while a turn is running in that conversation: **Wait until it ends**
@@ -943,7 +945,8 @@ you read the new statement once and turn it on again.
 ### Chat with a conversation in the Dashboard
 
 **What it does.** A **Chat** tab beside **Advanced features**, there only while this is on, opens the chat
-on that page. You pick a conversation the Codex app has open and read its last twenty turns - your messages
+on that page. You pick a conversation - one the Dashboard knows from Pending and History that is switched
+on, or the one a notice opened the chat on - and read its last twenty turns - your messages
 and Codex's replies, read from Codex's history on this PC while the chat is open, with a turn's commands and
 file changes as counts - and send a message of up to 2,000 characters. It goes into the conversation exactly
 as you typed it, with no marker, through Codex's own queue (`thread/queue/add`), and shows there as your own

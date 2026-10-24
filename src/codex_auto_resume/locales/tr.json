@@ -1117,6 +1117,7 @@
   "settings.language_changed": "Dil değiştirildi. Zaten açık olan her şey bir sonraki açılışında değişir.",
   "settings.load_failed": "Yerel ayarlar okunamadı",
   "settings.managed": "Yöneticiniz tarafından ayarlandı.",
+  "settings.managed_ceiling": "Yöneticiniz en fazla {n} değerine izin veriyor.",
   "settings.restore_failed": "Varsayılanlar geri yüklenemedi.",
   "settings.save_failed": "Kaydedilemedi.",
   "settings.saved": "Kaydedildi. İzleyici bunları bir sonraki kontrolünden itibaren kullanır.",

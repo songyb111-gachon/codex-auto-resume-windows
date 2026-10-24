@@ -181,13 +181,19 @@ class SettingsMixin:
 
     def describe_settings(self) -> list:
         """settings.describe(), with `"managed": true` on each setting a policy key decides while
-        one does - which every surface draws greyed, as set by your administrator. With no key set,
+        one does - which every surface draws greyed, as set by your administrator - and, on one the key
+        holds only under a ceiling, `"ceiling": <the most it may be>`, which stays editable up to there. With no key set,
         exactly settings.describe(). The edition's plug is taken first (v0.6.16): making it is when an edition registers
         its kinds of notice (notice_kinds.register), which the schema lists among the ones that may stay on screen."""
         self.plug
         described = settings.describe()
-        decided = managed.fields(self.managed())
+        held = self.managed()
+        decided, ceilings = managed.fields(held), managed.ceilings(held)
         if decided:
-            described = [dict(entry, managed=True) if entry["name"] in decided else entry
+            # v0.6.19: a setting a key holds under a ceiling (managed.ceilings) also carries the
+            # ceiling, and a surface keeps it editable up to there instead of greying it.
+            described = [dict(entry, managed=True, **({"ceiling": ceilings[entry["name"]]}
+                                                      if entry["name"] in ceilings else {}))
+                         if entry["name"] in decided else entry
                          for entry in described]
         return described

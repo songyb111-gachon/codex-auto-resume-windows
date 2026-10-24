@@ -1117,6 +1117,7 @@
   "settings.language_changed": "언어를 바꿨습니다. 이미 열려 있는 것은 다음에 열 때 바뀝니다.",
   "settings.load_failed": "로컬 설정을 읽지 못했습니다",
   "settings.managed": "관리자가 정한 설정입니다.",
+  "settings.managed_ceiling": "관리자가 허용하는 최대값은 {n}입니다.",
   "settings.restore_failed": "기본값으로 되돌리지 못했습니다.",
   "settings.save_failed": "저장하지 못했습니다.",
   "settings.saved": "저장했습니다. 워처가 다음 확인부터 이 설정을 씁니다.",

@@ -1117,6 +1117,7 @@
   "settings.language_changed": "Bahasa diubah. Apa pun yang sudah terbuka akan berubah saat dibuka lagi.",
   "settings.load_failed": "Tidak dapat membaca pengaturan lokal",
   "settings.managed": "Diatur oleh administrator Anda.",
+  "settings.managed_ceiling": "Administrator Anda mengizinkan paling banyak {n}.",
   "settings.restore_failed": "Tidak dapat memulihkan default.",
   "settings.save_failed": "Tidak dapat menyimpan.",
   "settings.saved": "Disimpan. Pemantau menggunakannya mulai pemeriksaan berikutnya.",

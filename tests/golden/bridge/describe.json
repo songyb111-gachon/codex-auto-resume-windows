@@ -1022,7 +1022,8 @@
             "max": 20,
             "high": 8,
             "group": "limits",
-            "managed": true
+            "managed": true,
+            "ceiling": 2
           },
           {
             "name": "max_no_progress",

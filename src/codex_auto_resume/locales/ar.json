@@ -1117,6 +1117,7 @@
   "settings.language_changed": "تغيّرت اللغة. ما هو مفتوح بالفعل يتغير في المرة التالية التي يُفتح فيها.",
   "settings.load_failed": "تعذّرت قراءة الإعدادات المحلية",
   "settings.managed": "يضبطه المسؤول لديك.",
+  "settings.managed_ceiling": "يسمح المسؤول لديك بـ {n} كحد أقصى.",
   "settings.restore_failed": "تعذّرت استعادة الإعدادات الافتراضية.",
   "settings.save_failed": "تعذّر الحفظ.",
   "settings.saved": "تم الحفظ. يستخدمها المراقِب بدءًا من فحصه التالي.",

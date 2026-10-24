@@ -1117,6 +1117,7 @@
   "settings.language_changed": "השפה שונתה. כל מה שכבר פתוח ישתנה בפעם הבאה שייפתח.",
   "settings.load_failed": "לא ניתן היה לקרוא את ההגדרות המקומיות",
   "settings.managed": "הוגדר על ידי מנהל המערכת שלך.",
+  "settings.managed_ceiling": "מנהל המערכת שלך מתיר לכל היותר {n}.",
   "settings.restore_failed": "לא ניתן היה לאפס לברירות המחדל.",
   "settings.save_failed": "לא ניתן היה לשמור.",
   "settings.saved": "נשמר. תהליך הניטור ישתמש בהגדרות האלה מהבדיקה הבאה שלו.",

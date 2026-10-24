@@ -1117,6 +1117,7 @@
   "settings.language_changed": "Idioma alterado. O que já estiver aberto muda na próxima vez que for aberto.",
   "settings.load_failed": "Não foi possível ler as configurações locais",
   "settings.managed": "Definido pelo seu administrador.",
+  "settings.managed_ceiling": "Seu administrador permite no máximo {n}.",
   "settings.restore_failed": "Não foi possível restaurar os padrões.",
   "settings.save_failed": "Não foi possível salvar.",
   "settings.saved": "Salvo. O monitor usa estas configurações a partir da próxima verificação.",

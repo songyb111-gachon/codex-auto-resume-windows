@@ -1117,6 +1117,7 @@
   "settings.language_changed": "言語を変更しました。既に開いているものは、次に開いたときに切り替わります。",
   "settings.load_failed": "ローカルの設定を読み取れませんでした",
   "settings.managed": "管理者によって設定されています。",
+  "settings.managed_ceiling": "管理者が許可する上限は {n} です。",
   "settings.restore_failed": "既定値に戻せませんでした。",
   "settings.save_failed": "保存できませんでした。",
   "settings.saved": "保存しました。次回の確認から監視プロセスに反映されます。",

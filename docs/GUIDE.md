@@ -1467,7 +1467,9 @@ While any of these values but `DisablePowerAction` is there, in either place, **
 version before v0.6.11-beta, the first that reads them: an older one would stop keeping them.
 
 What a value decides is drawn greyed, with **Set by your administrator** under it, in the Dashboard's
-Settings and in the panel in Codex. The Overview says **managed by your administrator** beside
+Settings and in the panel in Codex. **Attempts per interruption** under `MaxRecoveryAttempts` is the
+exception: it stays yours to change up to the ceiling, which it will not go past, with **Your administrator
+allows at most** and the ceiling under it. The Overview says **managed by your administrator** beside
 Automatic recovery - or **paused by your administrator** - and Diagnostics names the values in force. A change to a setting a value decides is refused, except a number of attempts within the
 ceiling. Your own choices stay in the settings file: nothing a value holds is written there, and they
 apply again once the value is removed. A pause is the one exception: removing `DisableAutoResume` does
