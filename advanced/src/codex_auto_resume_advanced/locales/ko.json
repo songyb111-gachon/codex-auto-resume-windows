@@ -159,7 +159,6 @@
   "page.keep.title": "계속 이어가는 대화",
   "page.keep_on": "켜 둔 채로 두기",
   "page.keep_on.again": "켜 둔 채로 두며, 불확실한 이어서 하기 메시지는 한 번 더 보냅니다.",
-  "page.keep_on.never": "켜진 채로 둘 수 없습니다. 문제가 생기면 스스로 꺼지는 것이 이 기능을 안전하게 지키는 방법입니다.",
   "page.keep_on.off": "기대는 것이 잘못되면 스스로 꺼집니다.",
   "page.keep_on.on": "켜 둔 채로 둡니다. 스스로 꺼지지 않습니다.",
   "page.keep_on.send_again": "불확실하면 다시 보내기도...",

@@ -137,7 +137,6 @@
   "page.keep.title": "Podtrzymywane rozmowy",
   "page.keep_on": "Nie wyłączaj",
   "page.keep_on.again": "Nie wyłącza się, a niepewna kontynuacja jest wysyłana jeszcze raz.",
-  "page.keep_on.never": "Nie można jej pozostawić włączonej: wyłączanie się, gdy coś pójdzie nie tak, jest tym, co zapewnia jej bezpieczeństwo.",
   "page.keep_on.off": "Funkcja sama się wyłącza, gdy coś, na czym się opiera, zawiedzie.",
   "page.keep_on.on": "Nie wyłącza się: funkcja sama się nie wyłącza.",
   "page.keep_on.send_again": "Wysyłaj też ponownie w razie wątpliwości...",

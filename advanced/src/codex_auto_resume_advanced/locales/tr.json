@@ -137,7 +137,6 @@
   "page.keep.title": "Sürdürülen sohbetler",
   "page.keep_on": "Açık tut",
   "page.keep_on.again": "Açık tutuluyor ve belirsiz bir devam mesajı bir kez daha gönderilir.",
-  "page.keep_on.never": "Açık tutulamaz: bir şeyler ters gittiğinde kendini kapatması onu güvenli kılan şeydir.",
   "page.keep_on.off": "Dayandığı bir şey ters gittiğinde kendiliğinden kapanır.",
   "page.keep_on.on": "Açık tutuluyor: kendiliğinden kapanmaz.",
   "page.keep_on.send_again": "Emin değilse yeniden de gönder...",

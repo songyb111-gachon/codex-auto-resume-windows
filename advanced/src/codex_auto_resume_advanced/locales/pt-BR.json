@@ -137,7 +137,6 @@
   "page.keep.title": "Conversas mantidas andando",
   "page.keep_on": "Manter ligado",
   "page.keep_on.again": "Mantido ligado, e uma continuação incerta é enviada mais uma vez.",
-  "page.keep_on.never": "Não pode ser mantida ativada: desativar-se quando algo dá errado é o que a mantém segura.",
   "page.keep_on.off": "Ele se desliga sozinho quando algo de que depende dá errado.",
   "page.keep_on.on": "Mantido ligado: ele não se desliga sozinho.",
   "page.keep_on.send_again": "Também reenviar se houver dúvida...",

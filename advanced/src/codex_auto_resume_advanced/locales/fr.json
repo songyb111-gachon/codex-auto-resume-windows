@@ -137,7 +137,6 @@
   "page.keep.title": "Conversations qui avancent",
   "page.keep_on": "La garder activée",
   "page.keep_on.again": "Gardée activée, et une relance incertaine est envoyée une fois de plus.",
-  "page.keep_on.never": "Elle ne peut pas rester activée : se désactiver quand quelque chose tourne mal est ce qui la rend sûre.",
   "page.keep_on.off": "Elle se désactive d'elle-même quand quelque chose dont elle dépend tourne mal.",
   "page.keep_on.on": "Gardée activée : elle ne se désactive pas d'elle-même.",
   "page.keep_on.send_again": "Renvoyer aussi en cas de doute...",

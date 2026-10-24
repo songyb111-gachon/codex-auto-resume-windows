@@ -137,7 +137,6 @@
   "page.keep.title": "Weiterlaufende Unterhaltungen",
   "page.keep_on": "Eingeschaltet lassen",
   "page.keep_on.again": "Eingeschaltet gelassen, und eine unsichere Fortsetzung wird noch einmal gesendet.",
-  "page.keep_on.never": "Sie kann nicht dauerhaft an bleiben: Dass sie sich abschaltet, wenn etwas schiefgeht, macht sie sicher.",
   "page.keep_on.off": "Die Funktion schaltet sich selbst aus, wenn etwas, worauf sie sich stützt, schiefgeht.",
   "page.keep_on.on": "Eingeschaltet gelassen: Die Funktion schaltet sich nicht selbst aus.",
   "page.keep_on.send_again": "Bei Unsicherheit auch erneut senden...",

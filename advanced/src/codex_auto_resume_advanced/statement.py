@@ -171,9 +171,9 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
 PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "tripped.not_dispatched_by_session", "kept.not_dispatched_by_session", "tripped.refused_by_codex",
     "kept.refused_by_codex",
-    # The turns run here, each with its Stop (advanced/gui/AdvancedRuns.cs), and a capability never kept on.
+    # The turns run here, each with its Stop (advanced/gui/AdvancedRuns.cs).
     "runs.title", "runs.none", "runs.until", "runs.stopping", "runs.stop", "runs.conversation", "confirm.run_stop",
-    "done.run_stop", "keep_on.never",
+    "done.run_stop",
     # What Pending and History say beside a row this edition had a hand in (AdvancedRuns.cs, CellsWritten).
     "row.kind.cli", "row.kind.ide", "row.compact", "row.model_not_restored",
     "row.silent"))

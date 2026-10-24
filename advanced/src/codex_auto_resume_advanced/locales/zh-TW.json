@@ -137,7 +137,6 @@
   "page.keep.title": "繼續進行的對話",
   "page.keep_on": "維持開啟",
   "page.keep_on.again": "維持開啟，不確定的接續訊息會再傳一次。",
-  "page.keep_on.never": "無法保持開啟：出問題時自行關閉正是它保持安全的方式。",
   "page.keep_on.off": "它依賴的東西出問題時，它會自行關閉。",
   "page.keep_on.on": "維持開啟：它不會自行關閉。",
   "page.keep_on.send_again": "不確定時也再傳一次...",

@@ -113,8 +113,8 @@ when unsure*, after a warning of its own: such a send is then sent once more und
 more when unsure below, so the capability departs from what that one departs from too, and only where
 your administrator's policy allows Once more when unsure as well; a continuation sent again and found
 twice turns that choice off, and the capability stays on. The compatibility report sends nothing to
-Codex, so it has no such choice. Recover CLI, TUI and VS Code conversations and Continue with no words cannot
-be kept on at all; the page does not offer it for them. The policy reads a kept-on capability down
+Codex, so it has no such choice. Every capability offers Keep it on, and none is kept on until you choose it on
+that capability's card. The policy reads a kept-on capability down
 as any other, by the capability's own id: no policy value reaches Keep it on alone (K8).
 
 **Your administrator's policy.** Three values under `Software\Policies\CodexAutoResume`, in
@@ -823,8 +823,8 @@ conversation held by another session waits with a reason of its own.
 **What it risks.** The words Codex uses to tell these conversations apart (MO) were measured on
 `codex-cli 0.163.0-alpha.10.2` and may differ in another version of Codex: a wrong word finds nothing, never the wrong conversation. A session that ends with
 the continuation still queued leaves it to be taken back, and one that cannot be taken back is never sent
-twice. A session that did not take a queued message within three minutes turns this off, so it cannot be kept
-on.
+twice. A session that did not take a queued message within three minutes turns this off; kept on, it stays on and
+the page notes it, and the message is still taken back and waits again.
 
 **Departs from** [A15](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (only the desktop app's
 conversations are detected) and A11 (it sends while a Codex session other than the app holds the
@@ -1103,7 +1103,8 @@ marker, this serves the routes and that one the sends that carry words.
 **When it helps.** When you would rather the program's sentence did not appear in a conversation.
 
 **What it risks.** That Codex starts and ends a turn with no words was measured (M3B).
-Where Codex refuses it, this stops answering for that version of Codex. It cannot be kept on.
+Where Codex refuses it, this stops answering for that version of Codex. Kept on, it stays on after such a refusal
+and the page notes it; the next continuation still carries words.
 
 **Departs from** [A4](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (no marker: the turn is proven by
 its id) and A26 (no words at all).

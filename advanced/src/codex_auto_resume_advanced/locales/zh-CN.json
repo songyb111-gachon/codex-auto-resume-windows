@@ -137,7 +137,6 @@
   "page.keep.title": "继续进行的对话",
   "page.keep_on": "保持开启",
   "page.keep_on.again": "保持开启，不确定的续接消息会再发一次。",
-  "page.keep_on.never": "无法保持开启：出问题时自行关闭正是它保持安全的方式。",
   "page.keep_on.off": "它依赖的东西出问题时，它会自行关闭。",
   "page.keep_on.on": "保持开启：它不会自行关闭。",
   "page.keep_on.send_again": "不确定时也再发一次...",
