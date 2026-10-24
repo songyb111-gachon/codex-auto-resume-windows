@@ -964,9 +964,10 @@ seam of its own.
 
 ## v0.6.19 — The advanced edition's last stage
 
-**In development: v0.6.19-beta 🚧, its first pre-release, carries the groundwork, the chat inside the Dashboard,
-the watcher's restart after an unexpected stop and the wake for a reset in the advanced edition, and in both editions
-a compatibility report from this PC. The rest of the stage is next.**
+**In development: v0.6.19-beta.2 🚧, its second pre-release, makes Retry now check usage in both editions and the
+advanced edition's early look at a usage limit show what it read - the follow-up to issue #50. The first, v0.6.19-beta,
+carried the groundwork, the chat inside the Dashboard, the watcher's restart after an unexpected stop, the wake for a
+reset and a compatibility report from this PC. The rest of the stage is next.**
 
 Stage 5, moved out of v0.6.16 by the owner on 2026-10-16 so that the v0.6.16 final comes sooner, is a release
 of its own, and the owner moved the in-app chat here the same day. Two of its small capabilities - a weekly update
@@ -976,7 +977,7 @@ on, with a statement that names the standards it departs from; some rest on a me
 and one that fails narrows the route, or becomes a warning the person confirms, and does not drop the
 capability.
 
-### v0.6.19-beta — The last stage's first visible parts (a pre-release)
+### v0.6.19-beta ✅ — The last stage's first visible parts (a pre-release)
 
 The two changes to how the advanced edition stores its choices and how state files are read, which the stage's first
 pre-release was to make first, are v0.6.17's now (the options table checks names in code only, and state files carry a
@@ -990,6 +991,16 @@ It also carries the rework of Pending that [#50](https://github.com/songyb111-ga
 Recoveries with an editor, Delete completed and, for each message, whether it waits for a running turn; opening a
 waiting conversation in Codex, built and hidden until measurement MOPEN passes; and, in both editions, a double-click
 on a Pending row that opens its menu.
+
+### v0.6.19-beta.2 — Retry now checks usage (a pre-release)
+
+The follow-up to [#50](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/50). In both editions, a
+person's *Retry now* on a recovery that waits for a usage reset has the watcher read Codex's usage once, and the recovery
+goes on, through every check, only if Codex says the limit lifted; the row says when it checked, what it read and
+whether the recovery was continued, and the owner amended standard A12 for it on 2026-10-24 (the real reset is the newest
+one Codex reports, read when a recovery is due or when a person asks). In the advanced edition, the early look at a usage
+limit shows on Pending when it last read and what that did, and a **Check now** takes one reading at once; every other
+check still runs.
 
 ### Around recovery
 
@@ -1320,10 +1331,16 @@ counts, a streamed update download
 
         ↓
 
-v0.6.19-beta → v0.6.19  🚧 In development
+v0.6.19-beta  ✅ Released
 The advanced edition's last stage, begun in a pre-release that has the chat inside the Dashboard, crash supervision and
-the wake for a reset, and a compatibility report from this PC in both editions; still to come: analytics, the courier,
-the loopback API and remote control, account switching, the Stop hook continuation, Arabic and Hebrew
+the wake for a reset, and a compatibility report from this PC in both editions
+
+        ↓
+
+v0.6.19-beta.2 → v0.6.19  🚧 In development
+The second pre-release: Retry now checks usage in both editions, and the early look at a usage limit shows what it read;
+still to come: analytics, the courier, the loopback API and remote control, account switching, the Stop hook
+continuation, Arabic and Hebrew
 
         ↓
 
@@ -1348,8 +1365,8 @@ Final Rust audit and stabilization: the Rust bug hunt
 Maintenance
 ```
 
-This document records the current direction; v0.6.19-beta is in development, the first pre-release of v0.6.19; v0.6.18
-is out: a recovery that worked is recovered however its turn ended,
+This document records the current direction; v0.6.19-beta is out and v0.6.19-beta.2 is in development, the first two
+pre-releases of v0.6.19; v0.6.18 is out: a recovery that worked is recovered however its turn ended,
 the standard edition suggests the Codex homes this PC uses, Install another version runs in the setup window, the setup
 window's bar fills by real counts, the update's download is streamed, all seventeen translations were reviewed, a full
 audit's fixes landed in every layer, and the advanced edition gains Open Codex on a notice and a weekly update check while
