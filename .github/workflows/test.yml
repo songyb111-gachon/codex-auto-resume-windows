@@ -74,11 +74,11 @@ jobs:
     # 3.14 blocking and 3.15 advisory, which frees the 8 jobs of 3.12's lanes; the jobs freed went to more
     # parts. By tests/data/durations.json as CI run 40084551770 left it, the standard lane is 5465 s (3 parts
     # 1822 s each, 4 parts 1366 s), the advanced lane 8296 s (5 parts 1659 s, 6 parts 1383 s, its floor one file,
-    # advanced/tests/test_advanced_page_layout_1.py at 753 s) and the release lane 7453 s (5 parts 1491 s). The
-    # longest part of a run was the standard lane's third at 1822 s; now it is the main-tree job's 1491 s, whose
-    # count is release.yml's (MainTreeTests holds the two equal), and the lanes here are 1366 and 1383 s. A dev
-    # run is 10 + 10 + 10 + 5 = 35 jobs: 4 standard parts and 6 advanced parts for each of 2 Pythons and the
-    # next one, and the 5 of the main-tree job - under the 37 a run may take, so a dev run and part of another
+    # advanced/tests/test_advanced_page_layout_1.py at 753 s) and the release lane 7453 s (5 parts 1491 s, 6 parts
+    # 1242 s). The longest part of a run was the standard lane's third at 1822 s; with the release lane in 6 - the
+    # main-tree job's count is release.yml's (MainTreeTests holds the two equal) - the longest is the advanced lane's
+    # 1383 s. A dev run is 10 + 10 + 10 + 6 = 36 jobs: 4 standard parts and 6 advanced parts for each of 2 Pythons
+    # and the next one, and the 6 of the main-tree job - under the 37 a run may take, so a dev run and part of another
     # still fit GitHub's 40 jobs at once.
     strategy:
       fail-fast: false
@@ -246,7 +246,7 @@ jobs:
       fail-fast: false
       matrix:
         # PARTS below is the length of this list; tests/test_split_runs.py holds the two together.
-        part: [1, 2, 3, 4, 5]
+        part: [1, 2, 3, 4, 5, 6]
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -275,7 +275,7 @@ jobs:
         env:
           CODEX_AR_TREE: main
           PART: ${{ matrix.part }}
-          PARTS: "5"
+          PARTS: "6"
         run: python scripts/test_parts.py --lane release --part "$env:PART/$env:PARTS" -v --annotate --seconds "$env:RUNNER_TEMP\seconds.json"
 
       - name: Keep this part's seconds per file

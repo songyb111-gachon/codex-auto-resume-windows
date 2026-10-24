@@ -303,7 +303,7 @@ class WorkflowShapeTests(unittest.TestCase):
     def test_it_deals_as_many_parts_as_test_yml_runs_and_runs_no_test(self):
         weigh = self.measure_steps["Weigh a new deal"]
         call = re.findall(r"python scripts/test_parts\.py (.*)", weigh)
-        self.assertEqual(call, ['--refresh-seconds "$RUNNER_TEMP/seconds" --parts standard=4,advanced=6,release=5 '
+        self.assertEqual(call, ['--refresh-seconds "$RUNNER_TEMP/seconds" --parts standard=4,advanced=6,release=6 '
                                 '> "$out/report.txt"'])
         # Each lane's own count: test.yml's test job gives each edition one, and its main-tree job and
         # release.yml deal the release lane into theirs.

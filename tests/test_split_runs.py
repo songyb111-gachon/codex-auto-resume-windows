@@ -757,8 +757,8 @@ class WorkflowPartsTests(unittest.TestCase):
     def test_every_lane_runs_in_parts_and_each_part_names_its_lane(self):
         counts = edition_parts(self.tests)
         self.assertEqual(counts, {"standard": 4, "advanced": 6}, "the lanes' own counts (2026-10-24)")
-        self.assertEqual(declared_parts(job(workflow("test.yml"), "main-tree")), 5, "the release lane's count")
-        self.assertEqual(declared_parts(job(workflow("release.yml"), "test")), 5, "the same one in the release")
+        self.assertEqual(declared_parts(job(workflow("test.yml"), "main-tree")), 6, "the release lane's count")
+        self.assertEqual(declared_parts(job(workflow("release.yml"), "test")), 6, "the same one in the release")
         self.assertGreater(min(counts.values()), 1)
         run = step(self.tests, "Run the automated test suite")
         self.assertIn('run: python scripts/test_parts.py --lane $env:CODEX_AR_EDITION --part "$env:PART/$env:PARTS"'
@@ -773,7 +773,7 @@ class WorkflowPartsTests(unittest.TestCase):
         lanes = sum(edition_parts(self.tests).values())
         future = len(re.findall(r"(?m)^          - \{python-version: ", self.matrix))
         main_tree = declared_parts(job(workflow("test.yml"), "main-tree"))
-        self.assertEqual((len(versions), lanes, future, main_tree), (2, 10, 10, 5))
+        self.assertEqual((len(versions), lanes, future, main_tree), (2, 10, 10, 6))
         self.assertLessEqual(len(versions) * lanes + future + main_tree, 37)
 
     def test_the_future_python_runs_every_part_of_each_edition(self):

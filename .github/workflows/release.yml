@@ -80,7 +80,7 @@ jobs:
       matrix:
         # PARTS below is the length of this list; tests/test_split_runs.py holds the two together,
         # so no part of the suite can be dropped by changing one of them.
-        part: [1, 2, 3, 4, 5]
+        part: [1, 2, 3, 4, 5, 6]
 
     steps:
       # The same commit the build job builds, checked out the same way: no token left on disk, and
@@ -109,7 +109,7 @@ jobs:
         shell: pwsh
         env:
           PART: ${{ matrix.part }}
-          PARTS: "5"
+          PARTS: "6"
         run: python scripts/test_parts.py --lane release --part "$env:PART/$env:PARTS" -v --annotate
 
   build:
