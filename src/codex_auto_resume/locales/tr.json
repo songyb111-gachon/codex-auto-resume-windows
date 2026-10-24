@@ -852,6 +852,7 @@
   "nav.settings": "Ayarlar",
   "nav.statistics": "İstatistikler",
   "note.reopen_pending": "Değişikliklerinizi kaydettiğinizde veya attığınızda pencere yeni dilde veya temada yeniden açılacak.",
+  "note.reconnecting": "Bu ürünün hizmetiyle bağlantı yeniden kuruluyor. Birazdan yeniden deneyin.",
   "once.help": "Bu görev bir sonraki sefer sürdürüldüğünde, her zamanki devam mesajından sonra bir kez gönderilir. Hiçbir şeyi başlatmaz, öne almaz ya da atlamaz; gönderildikten sonra veya görev gönderilmeden bittiğinde silinir. Yalnızca burada yazılır ve tam yazdığınız gibi gönderilir.",
   "once.removed": "Bu görevin bir sonraki devam mesajı sizin sözünüz olmadan gönderilir.",
   "once.set": "Bu görevin bir sonraki devam mesajına bu seferlik söz eklendi.",

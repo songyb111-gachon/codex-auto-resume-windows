@@ -852,6 +852,7 @@
   "nav.settings": "Configurações",
   "nav.statistics": "Estatísticas",
   "note.reopen_pending": "A janela será reaberta com o novo idioma ou tema assim que você salvar ou descartar suas alterações.",
+  "note.reconnecting": "A conexão com o serviço deste produto está sendo restabelecida. Tente de novo em instantes.",
   "once.help": "Enviadas uma única vez, depois da mensagem de continuação de sempre, na próxima vez que esta tarefa for continuada. Não iniciam, adiantam nem pulam nada, e são apagadas depois de enviadas ou quando a tarefa termina sem envio. São escritas só aqui e enviadas exatamente como você escrever.",
   "once.removed": "A próxima continuação desta tarefa é enviada sem palavras suas.",
   "once.set": "Palavras para esta vez foram adicionadas à próxima continuação desta tarefa.",

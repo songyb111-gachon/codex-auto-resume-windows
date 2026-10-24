@@ -151,6 +151,59 @@ namespace CodexAutoResume
             }
         }
 
+        /// v0.6.19: the code of the answer CallAdvanced gives while the long-lived process cannot be reached.
+        internal const string ReconnectingCode = "reconnecting";
+
+        /// v0.6.19: one call of the edition's (the Advanced features page and every page built on it), which only the
+        /// long-lived process can carry: the one-shot form never reaches the edition (STANDARDS K3), so it is never
+        /// asked. While the long-lived process is given up a read is answered at once with ReconnectingCode, and an
+        /// action - a person's click - tries to open it again at once, not after RetryMilliseconds, and is carried if
+        /// it opens. A call the long-lived process failed on is answered with ReconnectingCode and never asked again:
+        /// it may already have been carried out there.
+        internal Dictionary<string, object> CallAdvanced(string command, string argument, bool action)
+        {
+            if (closed) throw new ObjectDisposedException("the window is closing");
+            if (Answers != null) return Answers(command, argument);
+            System.Threading.Interlocked.Increment(ref calls);
+            try
+            {
+                lock (gate)
+                {
+                    if (closed) throw new ObjectDisposedException("the window is closing");
+                    if (failures >= MaxFailures)
+                    {
+                        if (!action) return Reconnecting();
+                        failures = MaxFailures - 1;
+                        givenUp.Reset();
+                    }
+                    try
+                    {
+                        var reply = Ask(command, argument);
+                        failures = 0;
+                        return reply;
+                    }
+                    catch (Exception)
+                    {
+                        failures++;
+                        if (failures >= MaxFailures) givenUp.Restart();
+                        StopLocked();
+                        if (closed) throw;
+                        return Reconnecting();
+                    }
+                }
+            }
+            finally { System.Threading.Interlocked.Decrement(ref calls); }
+        }
+
+        private static Dictionary<string, object> Reconnecting()
+        {
+            var reply = new Dictionary<string, object>();
+            reply["ok"] = false;
+            reply["error"] = "the connection to the local service is being restored";
+            reply["error_code"] = ReconnectingCode;
+            return reply;
+        }
+
         /// One call on the one-shot bridge, past the long-lived process and its lock (v0.6.5): for a command that can
         /// take minutes - the compatibility refresh waits up to 150 s on the network - which on the long-lived pipe
         /// would hold every read the window paints from, and past the pipe's own 30 s reply limit would end the

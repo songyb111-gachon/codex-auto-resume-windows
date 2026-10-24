@@ -852,6 +852,7 @@
   "nav.settings": "Paramètres",
   "nav.statistics": "Statistiques",
   "note.reopen_pending": "La fenêtre se rouvrira dans la nouvelle langue ou avec le nouveau thème dès que vous aurez enregistré ou annulé vos modifications.",
+  "note.reconnecting": "La connexion au service de ce produit est en cours de rétablissement. Réessayez dans un instant.",
   "once.help": "Envoyés une seule fois, après le message de relance habituel, la prochaine fois que cette tâche reprend. Ils ne lancent, n’avancent et ne sautent rien, et sont supprimés une fois envoyés ou quand la tâche se termine sans envoi. Ils s’écrivent seulement ici et sont envoyés tels que vous les écrivez.",
   "once.removed": "La prochaine reprise de cette tâche est envoyée sans vos mots.",
   "once.set": "Des mots pour cette fois sont ajoutés à la prochaine reprise de cette tâche.",

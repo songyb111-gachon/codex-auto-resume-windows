@@ -852,6 +852,7 @@
   "nav.settings": "Ustawienia",
   "nav.statistics": "Statystyki",
   "note.reopen_pending": "Okno otworzy się ponownie w nowym języku lub motywie, gdy zapiszesz lub odrzucisz zmiany.",
+  "note.reconnecting": "Połączenie z usługą tego produktu jest przywracane. Spróbuj ponownie za chwilę.",
   "once.help": "Wysyłane jeden raz, po zwykłej wiadomości o kontynuacji, gdy to zadanie będzie następnym razem kontynuowane. Niczego nie uruchamiają, nie przyspieszają ani nie pomijają i są usuwane po wysłaniu albo gdy zadanie kończy się bez wysłania. Pisze się je tylko tutaj i są wysyłane dokładnie tak, jak je napiszesz.",
   "once.removed": "Następna kontynuacja tego zadania zostanie wysłana bez Twoich słów.",
   "once.set": "Do następnej kontynuacji tego zadania dodano słowa na ten raz.",

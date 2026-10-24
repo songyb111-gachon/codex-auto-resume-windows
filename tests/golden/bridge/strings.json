@@ -445,6 +445,7 @@
           "nav.settings": "Settings",
           "nav.statistics": "Statistics",
           "note.reopen_pending": "The window will reopen in the new language or theme once you save or discard your changes.",
+          "note.reconnecting": "The connection to this product's service is being restored. Try again in a moment.",
           "overlay.cancel_pending": "cancel requested",
           "overlay.compatibility_blocked": "Codex version not supported",
           "overlay.compatibility_failed_here": "Codex checks failed on this computer",
