@@ -295,20 +295,21 @@ namespace CodexAutoResume
         {
             Control strip = advancedTab == null ? null : advancedTab.Parent;
             if (strip == null) return MinimumSize.Width;
-            // The strip as it is now, less what the chosen tab's heavier words add to it, plus the most any tab's would:
-            // whichever page is on screen, its tab is set in nav_current (ShowPage).
-            int now = 0, heaviest = 0;
-            var any = new Size(int.MaxValue, int.MaxValue);
+            // One row of the tabs as the strip lays them out: each shown tab at the width a button of its words, padding
+            // and the regular tab font prefers, with its margins - and the most any one of them grows when it is the
+            // chosen tab, in nav_current (ShowPage) - measured on buttons of their own, never added to any control
+            // (TabWidth). v0.6.19: TextRenderer's widths of the words, which this was reckoned from before, were a few
+            // pixels short of the buttons' own on GitHub's runner, and Spanish's Chat tab was cut off there.
+            int row = 0, heaviest = 0;
             foreach (Control control in strip.Controls)
             {
                 var tab = control as NavButton;
-                if (tab == null) continue;
-                int regular = TextRenderer.MeasureText(tab.Text, Soft.RoleFont("nav"), any, TextFormatFlags.SingleLine).Width;
-                now += TextRenderer.MeasureText(tab.Text, tab.Font, any, TextFormatFlags.SingleLine).Width - regular;
-                heaviest = Math.Max(heaviest, TextRenderer.MeasureText(tab.Text, Soft.RoleFont("nav_current"), any,
-                                                                       TextFormatFlags.SingleLine).Width - regular);
+                if (tab == null || !Soft.OwnVisible(tab)) continue;
+                int regular = TabWidth(tab, Soft.RoleFont("nav"));
+                row += regular + tab.Margin.Horizontal;
+                heaviest = Math.Max(heaviest, TabWidth(tab, Soft.RoleFont("nav_current")) - regular);
             }
-            int least = strip.PreferredSize.Width - now + heaviest + nav.Padding.Horizontal + FrameWidth;
+            int least = row + heaviest + strip.Padding.Horizontal + nav.Padding.Horizontal + FrameWidth;
             int room = ScreenRoom();
             bool rows = least > room;
             if (rows) least = room;
@@ -320,6 +321,24 @@ namespace CodexAutoResume
             }
             if (MinimumSize.Width < least) MinimumSize = new Size(least, MinimumSize.Height);
             return least;
+        }
+
+        /// The width `tab` prefers in `font`: a button of its own with the tab's words and padding, set as every tab is
+        /// (DashboardBuilt), asked as the strip asks a tab - and disposed, never added to any control.
+        private static int TabWidth(NavButton tab, Font font)
+        {
+            using (var scratch = new NavButton())
+            {
+                scratch.Font = font;
+                scratch.Text = tab.Text;
+                scratch.Padding = tab.Padding;
+                scratch.AutoSize = true;
+                scratch.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                scratch.FlatStyle = FlatStyle.Flat;
+                scratch.FlatAppearance.BorderSize = 0;
+                scratch.UseVisualStyleBackColor = false;
+                return scratch.GetPreferredSize(Size.Empty).Width;
+            }
         }
 
         /// What the window's frame adds to its width, as Windows works it out from the window's style

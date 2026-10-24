@@ -146,6 +146,7 @@ namespace CodexAutoResume
                 foreach (KeyValuePair<string, object> pair in statements)
                     form.ShowAdvancedStatement(pair.Key, pair.Value as Dictionary<string, object>);
                 form.ShowAdvanced();
+                form.AuditTabsHeld("advanced tabs", findings);
                 var ids = new List<string>();
                 foreach (object entry in Items(listing, "capabilities") ?? new List<object>())
                 {
@@ -224,6 +225,38 @@ namespace CodexAutoResume
             ClientSize = new Size(Math.Max(Px(800) - Px(16), least - FrameWidth), ClientSize.Height);
             FitTabs();
             AuditNarrowest(where, findings);
+        }
+
+        /// The width HoldTabs holds the window to, against what the strip needs as laid out on this machine (v0.6.19):
+        /// with each shown tab the chosen one in turn - in nav_current, as ShowPage sets it, every other in nav - the
+        /// held width is at least the strip's own preferred width with the bar's padding and the frame, or the strip
+        /// has taken a second row. Both numbers are this machine's, so it holds wherever it runs; a reckoning a few
+        /// pixels short (Spanish's Chat tab on GitHub's runner) is a finding.
+        private void AuditTabsHeld(string where, List<string> findings)
+        {
+            var strip = advancedTab == null ? null : advancedTab.Parent as FlowLayoutPanel;
+            if (strip == null) return;
+            var fonts = new Dictionary<Control, Font>();
+            foreach (Control control in strip.Controls) fonts[control] = control.Font;
+            try
+            {
+                foreach (Control chosen in strip.Controls)
+                {
+                    if (!(chosen is NavButton) || !Soft.OwnVisible(chosen)) continue;
+                    foreach (Control control in strip.Controls)
+                        if (control is NavButton)
+                            control.Font = Soft.RoleFont(control == chosen ? "nav_current" : "nav");
+                    int held = HoldTabs();
+                    int need = strip.GetPreferredSize(Size.Empty).Width + nav.Padding.Horizontal + FrameWidth;
+                    if (held < need && !strip.WrapContents)
+                        findings.Add(where + " :: with '" + chosen.Text + "' chosen the strip needs " + need
+                                     + " px and the window is held to " + held);
+                }
+            }
+            finally
+            {
+                foreach (KeyValuePair<Control, Font> pair in fonts) pair.Key.Font = pair.Value;
+            }
         }
 
         /// The narrowest window, held to what it must never give up: every tab whole in the strip (the Walk of the
