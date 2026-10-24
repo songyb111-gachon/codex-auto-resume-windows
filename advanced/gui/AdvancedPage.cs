@@ -321,15 +321,11 @@ namespace CodexAutoResume
                 FitTabs();
             }
             if (MinimumSize.Width < least) MinimumSize = new Size(least, MinimumSize.Height);
-            tabsHeld = true;
             return least;
         }
 
         // Whether KeepTabsWhole is holding the window now: its own change of size lays the strip out again.
         private bool keepingTabs;
-        // Whether HoldTabs has held the window to its tabs once (this edition's words read): KeepTabsWhole corrects
-        // what it measured, and before it there is nothing to correct - the window is still being built.
-        private bool tabsHeld;
 
         /// Every tab whole in the strip as it is laid out, not only as HoldTabs measured it (v0.6.19). HoldTabs reckons
         /// the strip from TextRenderer's widths of the tabs' words, the chosen tab's in its heavier font included; on
@@ -340,11 +336,7 @@ namespace CodexAutoResume
         private void KeepTabsWhole()
         {
             var strip = advancedTab == null ? null : advancedTab.Parent as FlowLayoutPanel;
-            if (strip == null || keepingTabs || !tabsHeld || rendering || strip.WrapContents) return;
-            // Only a strip laid out at the width it is given: the tab bar as wide as the window, and the strip as
-            // wide as the bar's room. Layout is raised before the strip is placed, so while the window is still being
-            // laid out the strip has a width of before (a new window's own default), which says nothing.
-            if (nav.Width != ClientSize.Width || strip.Width != nav.DisplayRectangle.Width) return;
+            if (strip == null || keepingTabs || strip.WrapContents) return;
             // What one row of the tabs needs as they are now - each at its own preferred size, in the font it has -
             // asked of the strip's layout itself: Layout is raised before the strip places its tabs, so their bounds
             // are still the last layout's here.
