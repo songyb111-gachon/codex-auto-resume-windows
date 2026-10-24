@@ -175,6 +175,8 @@ namespace CodexAutoResume
             advancedPending = Items(reply, "pending");
             // The turns run here now, which the running capabilities' card lists (AdvancedRuns.cs, v0.6.16-beta.4).
             RunsApplied(reply);
+            // early_reset's line on Pending, while the status carries it (AdvancedEarly.cs, v0.6.19 #50).
+            EarlyApplied(reply);
             // The reset rules waiting, read again when the status's counts of them change (AdvancedResets.cs).
             ResetCountsApplied(reply);
             if (advancedWords == null)

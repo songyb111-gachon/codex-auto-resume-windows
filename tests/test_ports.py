@@ -91,6 +91,8 @@ ENGINE_TO_STORE = {
     # v0.6.19 (issue #50): the usage reading a person's Retry now asked for - which are asked, one taken, and
     # what it read written (a lift only where the reading says available).
     "usage_checks_asked", "usage_check_taken", "usage_checked",
+    # and the advanced edition's Check now, which opens the next early look at once and is taken by it (EARLY).
+    "early_check_asked", "early_check_taken",
     # v0.6.15-beta: a worker's own store closed once its receipt came (engine/launches.py) - never the engine's.
     "close",
     # v0.6.18: when Windows last started, read off the watcher's heartbeat, so a recovery turn begun before it is

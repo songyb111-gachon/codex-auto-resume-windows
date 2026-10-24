@@ -25,6 +25,11 @@ USAGE_READ_AVAILABLE, USAGE_READ_LIMITED, USAGE_READ_UNKNOWN = "usage_available"
 USAGE_READS = (USAGE_READ_AVAILABLE, USAGE_READ_LIMITED, USAGE_READ_UNKNOWN)
 # A request no watcher took within a day is dropped: a check is asked for now, not for whenever.
 USAGE_CHECK_LONGEST = 86400
+# And the advanced edition's Check now (early_reset, v0.6.19, issue #50): one file in the same folder, holding when it was
+# asked, for the watcher's next early look to open at once (engine/relaxed.py). Older than the five minutes between two
+# early looks it is dropped - the next look of its own has come by then.
+EARLY_CHECK = "early"
+EARLY_CHECK_LONGEST = 300
 
 
 class ScheduleMixin:
@@ -194,6 +199,41 @@ class ScheduleMixin:
             return
         try:
             (self._usage_checks() / interruption_id).unlink(missing_ok=True)
+        except OSError:
+            pass
+
+    def ask_early_check(self, now: float) -> bool:
+        """The advanced edition's Check now (EARLY_CHECK): the next early look at the records that wait for a usage reset
+        opens at once. One file however often it is asked, so repeated clicks are one request. False where it could
+        not be asked."""
+        _timestamp(now, "now")
+        try:
+            folder = self._usage_checks()
+            folder.mkdir(exist_ok=True)
+            (folder / EARLY_CHECK).write_text(repr(float(now)), encoding="ascii")
+            return True
+        except OSError:
+            return False
+
+    def early_check_asked(self, now: float) -> bool:
+        """Whether a Check now stands: asked, not taken, and younger than EARLY_CHECK_LONGEST at `now` (an older one,
+        or one that cannot be read, is dropped)."""
+        try:
+            entry = self._usage_checks() / EARLY_CHECK
+            if not entry.is_file() or entry.is_symlink():
+                return False
+            at = float(entry.read_text(encoding="ascii"))
+        except (OSError, ValueError):
+            return False
+        if 0 <= now - at < EARLY_CHECK_LONGEST:
+            return True
+        self.early_check_taken()
+        return False
+
+    def early_check_taken(self) -> None:
+        """A Check now taken by the early look it opened, or dropped."""
+        try:
+            (self._usage_checks() / EARLY_CHECK).unlink(missing_ok=True)
         except OSError:
             pass
 

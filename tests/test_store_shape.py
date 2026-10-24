@@ -61,6 +61,8 @@ METHODS = {
     # store/schedule.py (asked as a file, beside the database, so no schema changes) and store/journal.py.
     "_usage_checks", "ask_usage_check", "usage_checks_asked", "usage_check_taken", "usage_checked",
     "usage_checks_shown",
+    # and the advanced edition's Check now (early_reset), asked, standing and taken - store/schedule.py.
+    "ask_early_check", "early_check_asked", "early_check_taken",
     "_thread_tier", "thread_tier", "thread_tiers", "set_thread_tier",
     # v0.6.11: observe only's switch and its "would have been sent", a conversation first seen given
     # Only notify me, and a project's waiting records held - store/policy.py and store/claims.py.

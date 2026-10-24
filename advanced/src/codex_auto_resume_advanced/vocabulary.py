@@ -253,6 +253,13 @@ class OptionKey(StrEnum):
     # was found.
     OFFERED_VERSION = "offered_version"
     OFFERED_AT = "offered_at"
+    # v0.6.19 (issue #50; before the groundwork's block, which ends the list): early_reset's own times, for the line on
+    # Pending - when it last read usage early, when a reading found usage, when two readings lifted a limit, and when
+    # a person last asked for a reading now (Check now, control/earlycheck.py).
+    CHECKED_AT = "checked_at"
+    AVAILABLE_AT = "available_at"
+    LIFTED_AT = "lifted_at"
+    CHECK_ASKED = "check_asked"
     # v0.6.19 (the groundwork, plans/v0619-design/D-groundwork.md), added in one block so the stage's writers never edit
     # this list at once. A person's choices: how many days the analytics keep (usage_analytics), how often the status
     # feed is read in minutes (status_feed), which events are pushed (push_notices: a bit set of CourierEvent's, in its
@@ -393,6 +400,8 @@ class BridgeCommand(StrEnum):
     ADVANCED_CHAT_READ = "advanced-chat-read"
     ADVANCED_CHAT_SEND = "advanced-chat-send"
     ADVANCED_CHAT_CANCEL = "advanced-chat-cancel"
+    # v0.6.19 (issue #50): early_reset's Check now on Pending (control/earlycheck.py) - the Dashboard's alone, never MCP.
+    ADVANCED_EARLY_CHECK = "advanced-early-check"
     # v0.6.19 (the groundwork): every command the stage's designs name, in one block, each the Dashboard's alone and
     # reached by no MCP tool. Until the capability that answers one is built, the bridge passes it over as it passes a
     # command this edition does not have (surfaces.UNANSWERED). The analytics' aggregates and their CSV

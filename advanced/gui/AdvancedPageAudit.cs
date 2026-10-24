@@ -190,6 +190,11 @@ namespace CodexAutoResume
                     form.ChooseSchedule(false);
                     form.ShowAdvanced();
                 }
+                // v0.6.19 (#50): early_reset's line on Pending's Recoveries view, saying the longest of its sentences in this
+                // language.
+                form.ShowPage("pending");
+                form.AuditEarly("pending/early", findings);
+                form.ShowAdvanced();
                 // v0.6.19 (#50): the prompt queue's editor, built and never shown - for a time (its send mode showing), for
                 // after this turn, and with the longest refusal said above its buttons.
                 form.AuditEditor("editor", findings);
@@ -274,6 +279,40 @@ namespace CodexAutoResume
             Audit(where, findings);
             AuditSpoken(where, this, findings);
             AuditPins(where, findings);
+        }
+
+        /// early_reset's line at the top of Pending's Recoveries view, at its longest sentence: the standard audit's checks.
+        private void AuditEarly(string where, List<string> findings)
+        {
+            AdvancedAudited++;
+            Dictionary<string, object> longest = null;
+            int widest = -1;
+            foreach (string read in new[] { "available", "still_limited", "unknown", "not_read" })
+            {
+                var line = new Dictionary<string, object>();
+                line["checked_at"] = 1767225600.0;
+                line["read"] = read;
+                line["available_at"] = 1767225300.0;
+                line["confirm_at"] = 1767225600.0;
+                line["lifted"] = false;
+                int length = EarlyText(line).Length;
+                if (length > widest)
+                {
+                    widest = length;
+                    longest = line;
+                }
+            }
+            earlyShown = longest;
+            earlyAnswer = null;
+            FillEarlyLine();
+            PerformLayout();
+            if (currentPage != "pending" || earlyLine == null || !OwnVisible(earlyLine))
+                findings.Add(where + " :: early_reset's line is not showing");
+            Audit(where, findings);
+            AuditSpoken(where, this, findings);
+            AuditPins(where, findings);
+            earlyShown = null;
+            FillEarlyLine();
         }
 
         private void AuditAdvanced(string where, List<string> findings)
@@ -525,6 +564,13 @@ namespace CodexAutoResume
                         else Pressed.Invoke(button, new object[] { EventArgs.Empty });
                     }
                     else if (what == "tab") form.ChooseSchedule(Str(step, "name") == "scheduled");
+                    else if (what == "early_press")
+                    {
+                        // v0.6.19 (#50): early_reset's Check now, or the button to its card, pressed if it can be.
+                        Button button = Str(step, "button") == "settings" ? form.earlySettingsButton : form.earlyCheckButton;
+                        if (button == null || !button.Enabled || !OwnVisible(form.earlyLine)) disabled.Add("early_press");
+                        else Pressed.Invoke(button, new object[] { EventArgs.Empty });
+                    }
                     else if (what == "scheduled_choose") form.ChooseScheduledRow(Str(step, "key"));
                     else if (what == "scheduled_press")
                     {
@@ -940,6 +986,13 @@ namespace CodexAutoResume
             scheduled["buttons"] = scheduleButtons;
             scheduled["note"] = scheduledNote == null ? null : scheduledNote.Text;
             look["scheduled"] = scheduled;
+            // v0.6.19 (#50): early_reset's line on Pending - whether it shows, what it says, its two buttons' words.
+            var early = new Dictionary<string, object>();
+            early["shown"] = earlyLine != null && OwnVisible(earlyLine);
+            early["note"] = earlyNote == null ? null : earlyNote.Text;
+            early["check"] = earlyCheckButton == null ? null : earlyCheckButton.Text;
+            early["settings"] = earlySettingsButton == null ? null : earlySettingsButton.Text;
+            look["early"] = early;
             // v0.6.19 (#50): the prompt queue's card - its one line and Go to Scheduled.
             var queue = new Dictionary<string, object>();
             queue["go"] = queueAdd == null ? (object)null : (object)queueAdd.Enabled;
