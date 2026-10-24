@@ -1117,6 +1117,7 @@
   "settings.language_changed": "语言已更改。已打开的内容会在下次打开时更新。",
   "settings.load_failed": "无法读取本地设置",
   "settings.managed": "由管理员设置。",
+  "settings.managed_ceiling": "管理员允许的上限为 {n}。",
   "settings.restore_failed": "无法还原默认值。",
   "settings.save_failed": "无法保存。",
   "settings.saved": "已保存。监视程序会从下次检查开始使用这些设置。",

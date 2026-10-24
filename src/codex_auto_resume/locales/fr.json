@@ -1117,6 +1117,7 @@
   "settings.language_changed": "Langue modifiée. Ce qui est déjà ouvert changera à sa prochaine ouverture.",
   "settings.load_failed": "Impossible de lire les paramètres locaux",
   "settings.managed": "Défini par votre administrateur.",
+  "settings.managed_ceiling": "Votre administrateur autorise au plus {n}.",
   "settings.restore_failed": "Impossible de restaurer les valeurs par défaut.",
   "settings.save_failed": "Impossible d'enregistrer.",
   "settings.saved": "Enregistré. Le surveillant les utilise dès sa prochaine vérification.",

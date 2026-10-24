@@ -1117,6 +1117,7 @@
   "settings.language_changed": "Đã đổi ngôn ngữ. Những gì đang mở sẽ thay đổi vào lần mở tiếp theo.",
   "settings.load_failed": "Không thể đọc cài đặt cục bộ",
   "settings.managed": "Do quản trị viên của bạn đặt.",
+  "settings.managed_ceiling": "Quản trị viên của bạn cho phép tối đa {n}.",
   "settings.restore_failed": "Không thể khôi phục mặc định.",
   "settings.save_failed": "Không thể lưu.",
   "settings.saved": "Đã lưu. Bộ theo dõi dùng các cài đặt này từ lần kiểm tra tiếp theo.",

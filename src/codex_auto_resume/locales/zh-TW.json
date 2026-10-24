@@ -1117,6 +1117,7 @@
   "settings.language_changed": "語言已變更。已開啟的項目會在下次開啟時套用。",
   "settings.load_failed": "無法讀取本機設定",
   "settings.managed": "由系統管理員設定。",
+  "settings.managed_ceiling": "系統管理員允許的上限為 {n}。",
   "settings.restore_failed": "無法還原預設值。",
   "settings.save_failed": "無法儲存。",
   "settings.saved": "已儲存。監看程式會從下次檢查起套用這些設定。",

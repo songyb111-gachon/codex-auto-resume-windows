@@ -183,6 +183,16 @@ def fields(managed: Managed) -> frozenset:
     return frozenset(names)
 
 
+def ceilings(managed: Managed) -> dict:
+    """The settings a key holds under a ceiling rather than to one value, by name, with the most it
+    lets them be: the attempts, which stay the person's to choose up to `max_recovery_attempts`
+    (admit). Every other setting `fields` names is fixed while its key is set, and drawn greyed; one
+    named here stays editable, held to its ceiling, with the ceiling said beside it."""
+    if managed.max_recovery_attempts is None:
+        return {}
+    return {"max_recovery_attempts": managed.max_recovery_attempts}
+
+
 def clamp(values: dict, managed: Managed) -> dict:
     """The settings as the keys leave them: Observe only on, the attempts no higher than the
     ceiling, the quiet hours the settings show the first administrator's window, and the status

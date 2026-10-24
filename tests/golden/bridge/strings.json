@@ -786,6 +786,7 @@
           "error.managed_by_policy": "your administrator has set this",
           "error.power_unavailable": "that power action is not available on this PC",
           "settings.managed": "Set by your administrator.",
+          "settings.managed_ceiling": "Your administrator allows at most {n}.",
           "overview.off_managed": "paused by your administrator",
           "overview.managed": "{state} · managed by your administrator",
           "diag.update_managed": "turned off by your administrator",

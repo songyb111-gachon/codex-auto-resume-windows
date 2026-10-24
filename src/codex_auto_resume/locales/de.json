@@ -1117,6 +1117,7 @@
   "settings.language_changed": "Sprache geändert. Was bereits geöffnet ist, wechselt beim nächsten Öffnen.",
   "settings.load_failed": "Die lokalen Einstellungen konnten nicht gelesen werden",
   "settings.managed": "Von Ihrem Administrator festgelegt.",
+  "settings.managed_ceiling": "Ihr Administrator erlaubt höchstens {n}.",
   "settings.restore_failed": "Standardwerte konnten nicht wiederhergestellt werden.",
   "settings.save_failed": "Speichern nicht möglich.",
   "settings.saved": "Gespeichert. Der Watcher verwendet sie ab seiner nächsten Prüfung.",

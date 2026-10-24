@@ -573,7 +573,9 @@ namespace CodexAutoResume
                     IgnoreWheel(spin);
                     host.Controls.Add(NewRow(Humanise(name), number));
                     editors[name] = spin;
-                    Managed(field, number, host);
+                    // v0.6.19: a key that is a ceiling (the attempts) holds the field's maximum to it and
+                    // leaves it editable below; any other key greys it.
+                    if (!ManagedCeiling(field, spin, host)) Managed(field, number, host);
                     // v0.6.11: a limit above its "high" is warned of, under the three limits, while it is.
                     if (field.ContainsKey("high")) spin.ValueChanged += delegate { UpdateHighLimits(); };
                     if (name == "max_chain_continuations")
@@ -978,6 +980,20 @@ namespace CodexAutoResume
             if (!Equals(Get(field, "managed"), true)) return;
             editor.Enabled = false;
             host.Controls.Add(HelpText(S("settings.managed", "Set by your administrator.")));
+        }
+
+        /// v0.6.19: a number an administrator's key holds under a ceiling (its schema's `ceiling`, managed.ceilings)
+        /// stays editable, with its maximum held to the ceiling and the ceiling said under it - managed.admit keeps
+        /// any value up to there. False, and nothing done, for every other field.
+        private bool ManagedCeiling(Dictionary<string, object> field, NumericUpDown spin, TableLayoutPanel host)
+        {
+            if (!Equals(Get(field, "managed"), true) || !(Get(field, "ceiling") is double)) return false;
+            decimal ceiling = Math.Max(spin.Minimum, Math.Min(spin.Maximum, (decimal)(double)Get(field, "ceiling")));
+            if (spin.Value > ceiling) spin.Value = ceiling;
+            spin.Maximum = ceiling;
+            host.Controls.Add(HelpText(S("settings.managed_ceiling", "Your administrator allows at most {n}.",
+                "n", (int)ceiling)));
+            return true;
         }
 
         // ------------------------------------------------------------------ v0.6.16: notices that stay until clicked

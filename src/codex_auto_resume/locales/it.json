@@ -1117,6 +1117,7 @@
   "settings.language_changed": "Lingua cambiata. Ciò che è già aperto cambierà alla prossima apertura.",
   "settings.load_failed": "Impossibile leggere le impostazioni locali",
   "settings.managed": "Impostato dal tuo amministratore.",
+  "settings.managed_ceiling": "Il tuo amministratore consente al massimo {n}.",
   "settings.restore_failed": "Impossibile ripristinare i valori predefiniti.",
   "settings.save_failed": "Impossibile salvare.",
   "settings.saved": "Salvato. Il monitor le usa dal prossimo controllo.",
