@@ -1068,8 +1068,9 @@ class Runtime:
 
     def _refused_by_codex(self) -> bool:
         """The tripwire REFUSED_BY_CODEX (v0.6.16-beta.4): a route met Codex refusing a turn with no input
-        (codex/headless.EMPTY_REFUSED) - silent_continuation turns off, once, where it is registered and on. Whether it
-        was turned off."""
+        (codex/headless.EMPTY_REFUSED) - silent_continuation turns off, once, where it is registered and on, or - kept
+        on (K8, v0.6.19-beta.3) - notes it and stays on, answering DEFER for the rest of the process. Whether it was
+        turned off."""
         if not headless.EMPTY_REFUSED or self.__dict__.get("_refused_tripped") or self.registry.get(
                 silent.CAPABILITY) is None:
             return False

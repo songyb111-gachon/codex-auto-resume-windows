@@ -613,8 +613,10 @@ MODEL_FALLBACK = CapabilityDef(
 # only through a route that takes words - headless_run's turn, compact_continue's continuation - calling it with no
 # words at all under the client id it derives, its proof (core's engine/routes.py); through codex queue or a channel
 # core ignores it (M3: Codex refuses an empty queue item). It continues nothing by itself. Where Codex refuses a turn
-# with no input it answers DEFER from then on in this process, so the next attempt carries words, and it turns off
-# (REFUSED_BY_CODEX) - so it may not be kept on (keepable). It departs from A4 (no marker) and A26 (no words), stands
+# with no input it answers DEFER from then on in this process, so the next attempt carries words - it never tries an
+# empty turn again in a loop - and it turns off (REFUSED_BY_CODEX). A person may keep it on (K8; the owner's word of
+# 2026-10-24, v0.6.19-beta.3, before it could not be): kept on, that refusal is a note and it stays on, still answering
+# DEFER for the rest of the process. It departs from A4 (no marker) and A26 (no words), stands
 # on recovery_turn_tracking and rests on M3B. Ceilings: five a conversation, two dozen a day.
 SILENT_CONTINUATION = CapabilityDef(
     id="silent_continuation",
@@ -626,7 +628,6 @@ SILENT_CONTINUATION = CapabilityDef(
     journal_prefix="silent",
     make=make_silent_continuation,
     measurements=(Measurement.M3B,),
-    keepable=False,
 )
 
 # Chat with a conversation in the Dashboard (v0.6.19, stage 4's item 7; the owner's of 2026-10-02). A person
