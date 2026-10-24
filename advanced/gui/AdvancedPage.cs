@@ -320,6 +320,13 @@ namespace CodexAutoResume
                 FitTabs();
             }
             if (MinimumSize.Width < least) MinimumSize = new Size(least, MinimumSize.Height);
+            // The layout audit stands in a screen as wide as anything needs (advancedScreen), but Windows still holds a
+            // form's Width to the largest window this machine's screen allows (SystemInformation.MaxWindowTrackSize): on
+            // GitHub's runner, whose screen is small, the window stayed narrower than its tabs, the Chat tab 3 px past the
+            // strip (v0.6.19-beta's CI) - a window no screen of that size shows, where the tabs take a second row. As
+            // AuditNarrowestOn does, the audit asks for the client area itself, which Windows keeps as asked.
+            if (auditing && advancedScreen > 0 && ClientSize.Width < least - FrameWidth)
+                ClientSize = new Size(least - FrameWidth, ClientSize.Height);
             return least;
         }
 
