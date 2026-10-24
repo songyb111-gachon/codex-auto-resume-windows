@@ -179,16 +179,17 @@ namespace CodexAutoResume
                     }
                     form.AdoptReportState(item, null);
                 }
-                // Pending's Scheduled tab (AdvancedSchedule.cs, v0.6.19), with every reset rule still to act and every queued
-                // message as rows, and the Done section at its fullest.
+                // Pending's one list (AdvancedSchedule.cs, v0.6.19), with every reset rule still to act and every queued message
+                // as rows after the recoveries, each kind chosen in turn with its own buttons showing; and History with the
+                // completed messages at their fullest and Delete completed under them.
                 if (form.advancedResets != null)
                 {
                     form.advancedPrompts = Map(kept, "advanced-prompts");
                     form.ShowPage("pending");
                     form.FillScheduled();
-                    form.ChooseSchedule(true);
-                    form.AuditScheduled("pending/scheduled", findings);
-                    form.ChooseSchedule(false);
+                    form.AuditPendingKinds("pending/kinds", findings);
+                    form.ShowPage("history");
+                    form.AuditHistoryDone("history/done", findings);
                     form.ShowAdvanced();
                 }
                 // v0.6.19 (#50): early_reset's reading in Pending's Why it is waiting, saying the longest of its sentences in
@@ -300,15 +301,41 @@ namespace CodexAutoResume
             }
         }
 
-        /// Pending on its Scheduled tab: the standard audit's checks, on a page that is not this one - and each list's columns
-        /// within it.
-        private void AuditScheduled(string where, List<string> findings)
+        /// Pending's one list with a row of each kind chosen in turn - a recovery, a reset rule, a queued message - the standard
+        /// audit's checks at each, with the list's columns, the buttons under it in one row and no tab strip above it.
+        private void AuditPendingKinds(string where, List<string> findings)
         {
             AdvancedAudited++;
-            if (currentPage != "pending" || scheduleTabs == null || !OwnVisible(scheduleTabs) || !OwnVisible(scheduleView))
-                findings.Add(where + " :: the Scheduled tab is not showing");
-            if (scheduledList != null) AuditList(where + "/" + AuditName(scheduledList), scheduledList, findings);
-            if (doneList != null && OwnVisible(doneHolder)) AuditList(where + "/" + AuditName(doneList), doneList, findings);
+            if (currentPage != "pending") findings.Add(where + " :: Pending is not the page showing");
+            IntPtr made = pendingList.Handle;
+            foreach (string kind in new[] { null, KindRule, KindMessage })
+            {
+                int index = -1;
+                for (int i = 0; i < pendingList.Items.Count && index < 0; i++)
+                    if (Str(pendingList.Items[i].Tag as Dictionary<string, object>, RowKindKey) == kind) index = i;
+                if (index < 0) continue;
+                pendingList.SelectedIndices.Clear();
+                pendingList.Items[index].Selected = true;
+                UpdatePendingButtons();
+                ShowExplain();
+                PerformLayout();
+                string at = where + "/" + (kind ?? "recovery");
+                AuditList(at + "/" + AuditName(pendingList), pendingList, findings);
+                Audit(at, findings);
+                AuditSpoken(at, this, findings);
+                AuditPins(at, findings);
+            }
+        }
+
+        /// History with the completed messages listed after the recoveries and Delete completed under them: the standard
+        /// audit's checks, with the list's columns.
+        private void AuditHistoryDone(string where, List<string> findings)
+        {
+            AdvancedAudited++;
+            if (currentPage != "history") findings.Add(where + " :: History is not the page showing");
+            if (joinedDone.Count > 0 && (clearDoneButton == null || !OwnVisible(clearDoneButton)))
+                findings.Add(where + " :: Delete completed is not showing beside the completed messages");
+            AuditList(where + "/" + AuditName(historyList), historyList, findings);
             Audit(where, findings);
             AuditSpoken(where, this, findings);
             AuditPins(where, findings);
@@ -346,6 +373,27 @@ namespace CodexAutoResume
             AuditPins(where, findings);
             earlyShown = null;
             ShowExplain();
+        }
+
+        /// How many tabs (NavButton) a page holds: a tab strip of its own, which Pending no longer has (the owner's decision
+        /// of 2026-10-24).
+        private static int StrayTabs(Control parent)
+        {
+            int found = 0;
+            foreach (Control child in parent.Controls)
+            {
+                if (child is NavButton) found++;
+                found += StrayTabs(child);
+            }
+            return found;
+        }
+
+        /// A control's children as an array, for a loop that may meet a control with none.
+        private static Control[] ControlsOf(Control parent)
+        {
+            var found = new Control[parent.Controls.Count];
+            parent.Controls.CopyTo(found, 0);
+            return found;
         }
 
         private void AuditAdvanced(string where, List<string> findings)
@@ -590,13 +638,49 @@ namespace CodexAutoResume
                     }
                     else if (what == "scheduled_cancel" || what == "scheduled_go_on")
                     {
-                        // v0.6.19: the rule's row chosen on Pending's Scheduled tab, then its Cancel or Go on pressed.
+                        // v0.6.19: the rule's row chosen on Pending's one list, then its Cancel or Go on pressed.
                         form.ChooseScheduledRow("rule " + Whole(Get(step, "rule")).ToString(System.Globalization.CultureInfo.InvariantCulture));
                         Button button = what == "scheduled_cancel" ? form.scheduleCancelButton : form.scheduleGoOnButton;
                         if (button == null || !button.Enabled) disabled.Add(what);
                         else Pressed.Invoke(button, new object[] { EventArgs.Empty });
                     }
-                    else if (what == "tab") form.ChooseSchedule(Str(step, "name") == "scheduled");
+                    else if (what == "history_select")
+                    {
+                        // v0.6.19: a History row chosen, as a click on it chooses it.
+                        int index = (int)Number(step, "index");
+                        if (form.historyList == null || index < 0 || index >= form.historyList.Items.Count) disabled.Add("history_select");
+                        else
+                        {
+                            IntPtr made = form.historyList.Handle;
+                            form.historyList.SelectedIndices.Clear();
+                            form.historyList.Items[index].Selected = true;
+                            form.UpdateHistoryButtons();
+                        }
+                    }
+                    else if (what == "pending_open")
+                    {
+                        // v0.6.19: a double click on the chosen Pending row, as the list answers it (EditionRowOpened for a row
+                        // of this edition's own) - the editor it opens answered as "editor" says, never shown.
+                        var opened = Selected(form.pendingList);
+                        var record = new Dictionary<string, object>();
+                        Dictionary<string, object> answer = Map(step, "editor");
+                        if (answer == null)
+                        {
+                            answer = new Dictionary<string, object>();
+                            answer["press"] = "cancel";
+                        }
+                        form.editorAnswer = delegate(Form dialog) { form.AnswerEditor(dialog, answer, record); };
+                        try
+                        {
+                            if (EditionRow(opened)) form.EditionRowOpened(opened);
+                            else disabled.Add("pending_open");
+                        }
+                        finally
+                        {
+                            form.editorAnswer = null;
+                        }
+                        if (record.Count > 0) dialogs.Add(record);
+                    }
                     else if (what == "pending_select")
                     {
                         // v0.6.19: a Pending row chosen, as a click on it chooses it - its Why it is waiting with it.
@@ -986,47 +1070,55 @@ namespace CodexAutoResume
                 look["resets"] = resets;
             }
             else look["resets"] = null;
-            // v0.6.19 (#50): Pending's tabs and its Scheduled tab - whether the strip shows and which is chosen, each tab's
-            // words, each row as the list draws it with the key it stands for and whether it is chosen, the Done section's
-            // rows, what each button may do, Delete completed's words, and the note beside the buttons.
+            // v0.6.19 (#50; the owner's decision of 2026-10-24): Pending's one list - each row's key and kind (none for a
+            // recovery) and whether it is chosen - what each of this edition's buttons may do, Delete completed's words and
+            // whether it shows, History's rows, the note beside Pending's buttons and History's, and whether anything on
+            // Pending is a tab strip (none ever is).
             var scheduled = new Dictionary<string, object>();
-            scheduled["tabs_shown"] = scheduleTabs != null && OwnVisible(scheduleTabs);
-            scheduled["chosen"] = scheduleChosen ? "scheduled" : "recoveries";
-            // and which tab is drawn pressed (NavButton.Current), which has to be the chosen one from the first paint.
-            scheduled["pressed"] = scheduleTabs == null ? null : recoveriesTab.Current ? "recoveries"
-                                   : scheduledTab.Current ? "scheduled" : null;
-            var tabs = new List<object>();
-            if (scheduleTabs != null)
-            {
-                tabs.Add(recoveriesTab.Text);
-                tabs.Add(scheduledTab.Text);
-            }
-            scheduled["tabs"] = tabs;
-            scheduled["rows"] = ListCells(scheduledList);
             var keys = new List<object>();
+            var kinds = new List<object>();
             var chosenKeys = new List<object>();
-            if (scheduledList != null)
-                foreach (ListViewItem item in scheduledList.Items)
+            if (pendingList != null)
+                foreach (ListViewItem item in pendingList.Items)
                 {
-                    keys.Add(RowKey(item.Tag as Dictionary<string, object>));
-                    if (item.Selected) chosenKeys.Add(RowKey(item.Tag as Dictionary<string, object>));
+                    var tag = item.Tag as Dictionary<string, object>;
+                    keys.Add(ListRowId(tag));
+                    kinds.Add(Str(tag, RowKindKey));
+                    if (item.Selected) chosenKeys.Add(ListRowId(tag));
                 }
             scheduled["keys"] = keys;
+            scheduled["kinds"] = kinds;
             scheduled["selected"] = chosenKeys;
-            scheduled["done"] = ListCells(doneList);
-            scheduled["done_shown"] = doneHolder != null && OwnVisible(doneHolder);
+            scheduled["history"] = ListCells(historyList);
+            var historyKinds = new List<object>();
+            if (historyList != null)
+                foreach (ListViewItem item in historyList.Items) historyKinds.Add(Str(item.Tag as Dictionary<string, object>, RowKindKey));
+            scheduled["history_kinds"] = historyKinds;
             var scheduleButtons = new Dictionary<string, object>();
             if (scheduleAddButton != null)
             {
-                scheduleButtons["add"] = scheduleAddButton.Enabled;
-                scheduleButtons["edit"] = scheduleEditButton.Enabled;
-                scheduleButtons["cancel"] = scheduleCancelButton.Enabled;
-                scheduleButtons["go_on"] = scheduleGoOnButton.Enabled;
-                scheduleButtons["clear"] = clearDoneButton.Enabled;
+                scheduleButtons["add"] = scheduleAddButton.Enabled && OwnVisible(scheduleAddButton);
+                scheduleButtons["edit"] = scheduleEditButton.Enabled && OwnVisible(scheduleEditButton);
+                scheduleButtons["cancel"] = scheduleCancelButton.Enabled && OwnVisible(scheduleCancelButton);
+                scheduleButtons["go_on"] = scheduleGoOnButton.Enabled && OwnVisible(scheduleGoOnButton);
+            }
+            // History's Delete completed exists once History has been built.
+            if (clearDoneButton != null)
+            {
+                scheduleButtons["clear"] = clearDoneButton.Enabled && OwnVisible(clearDoneButton);
                 scheduled["clear_text"] = clearDoneButton.Text;
+                scheduled["clear_shown"] = OwnVisible(clearDoneButton);
             }
             scheduled["buttons"] = scheduleButtons;
-            scheduled["note"] = scheduledNote == null ? null : scheduledNote.Text;
+            scheduled["note"] = pendingNote == null ? null : pendingNote.Text;
+            scheduled["history_note"] = historyNote == null ? null : historyNote.Text;
+            Control pendingPage;
+            scheduled["tab_strip"] = pages.TryGetValue("pending", out pendingPage) && StrayTabs(pendingPage) > 0;
+            scheduled["group_width"] = kindButtons == null ? 0.0 : (double)kindButtons.Width;
+            var later = new List<object>();
+            foreach (Button button in new[] { cancelAllButton, rescanButton })
+                if (button != null) later.Add((double)button.Left);
+            scheduled["later_lefts"] = later;
             look["scheduled"] = scheduled;
             // v0.6.19 (#50): early_reset's reading as Why it is waiting says it (none while it is off), and the panel's
             // whole sentence under its rows; and the buttons under Pending's list, by their words, as they show.
@@ -1035,9 +1127,10 @@ namespace CodexAutoResume
             look["early"] = early;
             look["explain_note"] = explainList == null ? null : explainList.Note;
             var pendingButtons = new List<object>();
-            if (retryButton != null && retryButton.Parent != null)
-                foreach (Control button in retryButton.Parent.Controls)
-                    if (button is Button && OwnVisible(button)) pendingButtons.Add(button.Text);
+            if (cancelAllButton != null && cancelAllButton.Parent != null)
+                foreach (Control control in cancelAllButton.Parent.Controls)
+                    foreach (Control button in control is Button ? new[] { control } : ControlsOf(control))
+                        if (button is Button && OwnVisible(button)) pendingButtons.Add(button.Text);
             look["pending_buttons"] = pendingButtons;
             look["retry_enabled"] = retryButton != null && retryButton.Enabled;
             // v0.6.19 (#50): the prompt queue's card - its one line and Go to Scheduled.

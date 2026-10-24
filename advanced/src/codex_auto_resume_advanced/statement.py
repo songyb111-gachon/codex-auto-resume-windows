@@ -116,11 +116,12 @@ PAGE_KEYS = tuple(PAGE_PREFIX + name for name in (
     "watchlog.answer.other",
     # v0.6.14: the reset actions (advanced/gui/AdvancedResets.cs) - the rules of a reset credit and of a message at a
     # reset, the form they are added with, each word a rule's state and reason can be said in, the questions, notes
-    # and refusals, Pending's Scheduled group - and Longer reset messages' words in place of the limits.
+    # and refusals - and Longer reset messages' words in place of the limits. (Pending's Scheduled group's title went with
+    # it: the rules are rows of Pending's one list from v0.6.19.)
     "confirm.reset_credit", "confirm.reset_message", "done.reset_added", "done.reset_cancelled", "done.go_on",
     "confirm.credit_now", "done.credit_now", "refused.occasion_invalid", "refused.resets_full",
     "refused.message_refused", "refused.already_scheduled", "refused.being_sent", "refused.conversation_off",
-    "scheduled", "long_limits"))
+    "long_limits"))
 # The reset actions' own words, `page.resets.<name>`.
 RESETS_PREFIX = PAGE_PREFIX + "resets."
 RESETS_KEYS = tuple(RESETS_PREFIX + name for name in (
@@ -218,10 +219,11 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "scheduled.add", "queue.edit", "editor.title_new", "editor.title_edit",
     "editor.mode", "editor.mode.wait", "editor.mode.queue", "editor.mode.after_turn", "editor.save", "done.prompt_saved",
     "refused.prompt_moved"))
-# Pending's Recoveries | Scheduled tabs (v0.6.19, #50: advanced/gui/AdvancedSchedule.cs): the tabs, the list's columns, the
-# Done section and Delete completed, what a row says of a message, and the prompt queue's card pointing there.
+# Pending's one list (v0.6.19, #50; the owner's decision of 2026-10-24: advanced/gui/AdvancedSchedule.cs): the Kind of a
+# message's and a rule's row, what a message does while a turn runs, History's completed messages and Delete completed,
+# and the prompt queue's card pointing to Pending. The tab strip's words went with the strip.
 PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
-    "pending.recoveries", "pending.scheduled", "scheduled.col_mode", "scheduled.col_finished", "scheduled.done",
+    "pending.kind.message", "pending.kind.rule",
     "scheduled.clear", "confirm.clear", "done.cleared", "done.cleared_kept", "scheduled.state.delivered",
     "scheduled.state.handed_over", "scheduled.mode.wait", "scheduled.mode.queue", "queue.moved", "queue.go"))
 # early_reset on Pending (v0.6.19, #50: advanced/gui/AdvancedEarly.cs): what Why it is waiting says of its last reading. Its

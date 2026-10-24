@@ -1,20 +1,21 @@
 // ADVANCED-EDITION-CODE: in the advanced edition's window, never the standard one's.
 //
-// Codex Auto Resume - Pending's two tabs (v0.6.19, issue #50): Recoveries | Scheduled (N).
+// Codex Auto Resume - Pending is one list (v0.6.19, issue #50; the owner's decision of 2026-10-24).
 //
-// While prompt_queue stands on or watched, or a reset action's rule or a queued message waits, Pending gets a tab strip
-// drawn in the nav strip's own tabs (NavButton: the chosen one pressed into a well, its name in the accent and heavier):
-// Recoveries, which is today's Pending as it was, and Scheduled with how many wait. With nothing scheduled and the queue
-// off there is no strip: Pending looks exactly as the standard edition's. The standard page is not edited - this is the
-// PendingBuilt point (gui/Dashboard.cs): the page's own controls are moved, as they are, into the Recoveries view.
+// The reset rules still to act (AdvancedResets.cs, their own form stays on their card) and the messages still to go
+// (AdvancedQueue.cs) are rows of Pending's one list, after the recoveries - no tab strip, nothing above the list. The
+// list stays flat (window-lists-stay-flat), and its Kind column tells a recovery, a scheduled message and a reset rule
+// apart. A row of this edition's own (gui/Dashboard.cs RowKindKey) is offered none of a recovery's buttons: under the
+// list, the buttons that apply to the chosen row's kind show and the others are hidden - a recovery's Retry now,
+// Cancel, Timeline and Turn off; a message's Edit..., Go on and Cancel; a rule's Go on and Cancel - in one group as
+// wide as the widest kind's, so Cancel all, Rescan and Schedule a message... never move as the choice moves. Schedule a
+// message... is there only while the prompt queue stands on. A double click on a waiting message opens its editor
+// (AdvancedEditor.cs, the one place a message is written); on a recovery, its menu, as always. Once the editor saves,
+// the list is read again and the saved row is chosen.
 //
-// Scheduled is a flat list (window-lists-stay-flat) - the conversation, where each stands, when it goes and what it does
-// while a turn runs - of every reset rule still to act (AdvancedResets.cs, their own form stays on their card) and every
-// message still to go, with Schedule a message..., Edit... (a waiting message), Cancel and Go on under it, acting on the
-// row chosen. The editor (AdvancedEditor.cs) is the one place a message is written; once it saves, the list is read
-// again and the saved row is chosen. Under them, while any is, a Done section lists the completed messages of the last 30
-// days, newest first, and Delete completed (N)... asks, then sends the ids it shows and the generation it read
-// (advanced-prompts-clear-done) and says how many were deleted and how many kept because they changed.
+// Completed messages are History: the delivered and handed-over messages of the last 30 days are rows of History's list,
+// and Delete completed (N)... - shown under it while any is - asks, then sends the ids it shows and the generation it
+// read (advanced-prompts-clear-done) and says how many were deleted and how many kept because they changed.
 //
 // C# 5 (the in-box compiler), as the rest of the window.
 
@@ -28,207 +29,112 @@ namespace CodexAutoResume
 {
     internal sealed partial class SettingsForm
     {
-        // Pending's page, its two views, the strip that chooses between them and which is chosen.
-        private Panel scheduledPage;
-        private SoftPage recoveriesView, scheduleView;
-        private SoftFlow scheduleTabs;
-        private NavButton recoveriesTab, scheduledTab;
-        private bool scheduleChosen, scheduleWanted;
-        // The Scheduled view: its list, its buttons and note, the Done section, and what it was last filled from.
-        private ListView scheduledList, doneList;
-        private Control doneCard;
-        private SoftStack doneHolder;
+        // The kinds of row this edition joins to Pending and History (RowKindKey).
+        private const string KindMessage = "message", KindRule = "rule", KindDone = "message_done";
+        // The cells of a joined row, as CellsWritten writes them (AdvancedRuns.cs).
+        private const string RowCellsKey = "row_cells", RowSourceKey = "row_source";
+        // The chosen row's own buttons: a recovery's (core's, moved in here) and a message's or a rule's (this edition's).
+        private SoftFlow kindButtons;
         private Button scheduleAddButton, scheduleEditButton, scheduleCancelButton, scheduleGoOnButton, clearDoneButton;
-        private NoteLabel scheduledNote;
+        // What the joined rows were last made from, and the rows themselves.
         private string scheduledShown;
+        private readonly List<Dictionary<string, object>> joinedPending = new List<Dictionary<string, object>>();
+        private readonly List<Dictionary<string, object>> joinedDone = new List<Dictionary<string, object>>();
+        // What the last Delete completed did, said under History until another row there is chosen.
+        private string doneNote, doneNoteFor;
 
         // ---------------------------------------------------------------- built
-        /// Pending's tab strip and its Scheduled view, beside the page's own controls - which move, as they are, into the
-        /// Recoveries view, now and as the page adds the rest of them.
-        partial void PendingBuilt(Panel page)
+        /// Pending's buttons: the chosen row's own in one group at the start - core's four for a recovery, then Edit...,
+        /// Go on and Cancel for a message or a rule - and Schedule a message... after Rescan.
+        partial void PendingButtonsBuilt(FlowLayoutPanel row)
         {
-            scheduledPage = page;
-            recoveriesView = NewView();
-            scheduleView = NewView();
-            scheduleView.Visible = false;
-            var own = new List<Control>();
-            foreach (Control control in page.Controls) own.Add(control);
-            foreach (Control control in own)
-            {
-                page.Controls.Remove(control);
-                recoveriesView.Controls.Add(control);
-            }
-            page.Controls.Add(recoveriesView);
-            page.Controls.Add(scheduleView);
-            page.ControlAdded += delegate(object sender, ControlEventArgs e)
-            {
-                if (e.Control == recoveriesView || e.Control == scheduleView || e.Control == scheduleTabs) return;
-                page.Controls.Remove(e.Control);
-                recoveriesView.Controls.Add(e.Control);
-            };
-
-            scheduleTabs = new SoftFlow();
-            scheduleTabs.Dock = DockStyle.Top;
-            scheduleTabs.AutoSize = true;
-            scheduleTabs.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            scheduleTabs.WrapContents = false;
-            scheduleTabs.Margin = new Padding(0);
-            scheduleTabs.Padding = Pad(0, 0, 0, 8);
-            scheduleTabs.AccessibleRole = AccessibleRole.PageTabList;
-            scheduleTabs.AccessibleName = S("nav.pending", "Pending");
-            recoveriesTab = NewScheduleTab(delegate { ChooseSchedule(false); });
-            scheduledTab = NewScheduleTab(delegate { ChooseSchedule(true); });
-            scheduleTabs.Controls.Add(recoveriesTab);
-            scheduleTabs.Controls.Add(scheduledTab);
-            scheduleTabs.Visible = false;
-            // The chosen tab pressed from the strip's first paint: Recoveries, the view shown, until a tab is chosen.
-            MarkScheduleTabs();
-            page.Controls.Add(scheduleTabs);
-
-            BuildScheduleView();
-            scheduledShown = null;
-            FillScheduled();
-        }
-
-        private static SoftPage NewView()
-        {
-            var view = new SoftPage();
-            view.Dock = DockStyle.Fill;
-            view.Margin = new Padding(0);
-            view.Padding = new Padding(0);
-            view.Scrolls = false;
-            return view;
-        }
-
-        private NavButton NewScheduleTab(EventHandler click)
-        {
-            var tab = new NavButton();
-            tab.Font = Soft.RoleFont("nav");
-            tab.AutoSize = true;
-            tab.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            tab.ForeColor = Secondary;
-            // The nav strip's tab padding (BuildDashboard), inside the room NavButton keeps for its ring.
-            tab.Padding = Pad(18, 8, 18, 8);
-            tab.Margin = Pad(0, 0, 2, 0);
-            tab.Click += click;
-            return tab;
-        }
-
-        private void BuildScheduleView()
-        {
-            scheduledList = List(Word("page.scheduled", "Scheduled"),
-                                 Col(S("pending.col_conversation", "Conversation"), 150),
-                                 Col(S("pending.col_status", "Status"), 170),
-                                 Col(Word("page.queue.when", "When"), 190),
-                                 Col(Word("page.scheduled.col_mode", "While a turn runs"), 150));
-            scheduledList.SelectedIndexChanged += delegate { UpdateScheduleButtons(); };
-            scheduledList.DoubleClick += delegate { EditChosen(); };
-            Control listCard = ListCard(scheduledList);
-
-            FlowLayoutPanel row = ButtonRow();
-            scheduleAddButton = MakeButton(Word("page.scheduled.add", "Schedule a message..."), true, delegate { OpenEditor(null); });
+            kindButtons = new SoftFlow();
+            kindButtons.AutoSize = true;
+            kindButtons.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            kindButtons.WrapContents = false;
+            kindButtons.Margin = new Padding(0);
+            kindButtons.Padding = new Padding(0);
             scheduleEditButton = MakeButton(Word("page.queue.edit", "Edit..."), false, delegate { EditChosen(); });
-            scheduleCancelButton = MakeButton(Word("page.resets.cancel", "Cancel"), false, delegate { CancelChosen(); });
             scheduleGoOnButton = MakeButton(Word("page.queue.go_on", "Go on"), false, delegate { GoOnChosen(); });
-            foreach (Button button in new[] { scheduleAddButton, scheduleEditButton, scheduleCancelButton, scheduleGoOnButton })
+            scheduleCancelButton = MakeButton(Word("page.resets.cancel", "Cancel"), false, delegate { CancelChosen(); });
+            foreach (Button button in new[] { retryButton, cancelButton, timelineButton, threadButton })
+            {
+                row.Controls.Remove(button);
+                kindButtons.Controls.Add(button);
+            }
+            foreach (Button button in new[] { scheduleEditButton, scheduleGoOnButton, scheduleCancelButton })
             {
                 button.Margin = Pad(0, 0, 6, 0);
-                row.Controls.Add(button);
+                button.Visible = false;
+                kindButtons.Controls.Add(button);
             }
-            scheduledNote = Note();
-            row.Controls.Add(scheduledNote);
+            row.Controls.Add(kindButtons);
+            row.Controls.SetChildIndex(kindButtons, 0);
+            scheduleAddButton = MakeButton(Word("page.scheduled.add", "Schedule a message..."), false, delegate { OpenEditor(null); });
+            scheduleAddButton.Margin = Pad(0, 0, 6, 0);
+            scheduleAddButton.Visible = false;
+            row.Controls.Add(scheduleAddButton);
+            FitKindButtons();
+        }
 
-            // The Done section: its own card, as tall as its rows need and never more than two fifths of the view.
-            doneList = List(Word("page.scheduled.done", "Done"),
-                            Col(S("pending.col_conversation", "Conversation"), 150),
-                            Col(S("pending.col_status", "Status"), 150),
-                            Col(Word("page.queue.when", "When"), 190),
-                            Col(Word("page.scheduled.col_finished", "Finished"), 130));
-            doneCard = ListCard(doneList);
-            doneHolder = new SoftStack();
-            doneHolder.ColumnCount = 1;
-            doneHolder.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-            doneHolder.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-            doneHolder.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            doneHolder.Dock = DockStyle.Bottom;
-            doneHolder.Margin = new Padding(0);
-            doneHolder.Padding = Pad(0, Brand.PageGap, 0, 0);
-            doneHolder.Controls.Add(doneCard, 0, 0);
-            FlowLayoutPanel doneRow = ButtonRow();
-            doneRow.Dock = DockStyle.Fill;
+        /// History's buttons: Delete completed (N)..., shown while completed messages are listed.
+        partial void HistoryButtonsBuilt(FlowLayoutPanel row)
+        {
             clearDoneButton = MakeButton(Word("page.scheduled.clear", "Delete completed ({n})...", "n", 0), false,
                                          delegate { ClearDone(); });
-            doneRow.Controls.Add(clearDoneButton);
-            doneHolder.Controls.Add(doneRow, 0, 1);
-            doneHolder.Visible = false;
-
-            // Docked from the bottom up: the Done section, then the buttons, then the list fills what is left.
-            scheduleView.Controls.Add(listCard);
-            scheduleView.Controls.Add(row);
-            scheduleView.Controls.Add(doneHolder);
-            scheduleView.SizeChanged += delegate { FitDone(); };
+            clearDoneButton.Margin = Pad(0, 0, 9, 0);
+            clearDoneButton.Visible = false;
+            row.Controls.Add(clearDoneButton);
         }
 
-        private void FitDone()
+        /// The group as wide as the widest kind's buttons - Turn off and Turn on measured both - so what follows it never
+        /// moves as the chosen row's kind changes. Asked when the words are made, never from a layout.
+        private void FitKindButtons()
         {
-            // Read from its rows, not its Visible: a page never shown has no visible control.
-            if (doneHolder == null || scheduleView == null || doneList.Items.Count == 0) return;
-            int rows = Math.Max(1, doneList.Items.Count);
-            int each = doneList.SmallImageList != null ? doneList.SmallImageList.ImageSize.Height : Px(34);
-            int needed = doneHolder.Padding.Vertical + Px(16) + each * (rows + 1) + clearDoneButton.Height + Px(24);
-            int most = Math.Max(Px(140), scheduleView.ClientSize.Height * 2 / 5);
-            int height = Math.Min(needed, most);
-            if (doneHolder.Height != height) doneHolder.Height = height;
+            if (kindButtons == null) return;
+            int recovery = Across(retryButton) + Across(cancelButton) + Across(timelineButton) +
+                           Math.Max(Across(threadButton, S("action.thread_off", "Turn off for this conversation")),
+                                    Across(threadButton, S("action.thread_on", "Turn on for this conversation")));
+            int message = Across(scheduleEditButton) + Across(scheduleGoOnButton) + Across(scheduleCancelButton);
+            int widest = Math.Max(recovery, message);
+            if (kindButtons.MinimumSize.Width != widest) kindButtons.MinimumSize = new Size(widest, 0);
         }
 
-        // ---------------------------------------------------------------- shown
-        /// The strip shown while anything is scheduled or the queue stands, and the view it chooses.
-        private void ChooseSchedule(bool scheduled)
+        /// What `button` takes along the row - its width and its margins - saying `text` (its own words where null).
+        private static int Across(Button button, string text = null)
         {
-            if (scheduleTabs == null) return;
-            scheduleChosen = scheduled && scheduleWanted;
-            bool paused = scheduledPage != null && scheduledPage.IsHandleCreated && Redraw(scheduledPage, false);
-            try
-            {
-                recoveriesView.Visible = !scheduleChosen;
-                scheduleView.Visible = scheduleChosen;
-                MarkScheduleTabs();
-            }
-            finally
-            {
-                if (paused) Redraw(scheduledPage, true);
-            }
-            if (scheduleChosen && !auditing && advancedScript == null && advancedListing != null) ReadResets(null);
-            UpdateScheduleButtons();
+            if (button == null) return 0;
+            int width = button.GetPreferredSize(Size.Empty).Width;
+            if (text != null && text != button.Text)
+                width += TextRenderer.MeasureText(text, button.Font).Width - TextRenderer.MeasureText(button.Text, button.Font).Width;
+            return Math.Max(button.MinimumSize.Width, width) + button.Margin.Horizontal;
         }
 
-        /// The tab of the view shown pressed into its well, its name in the accent and heavier, as the nav strip marks its
-        /// chosen page; the other plain.
-        private void MarkScheduleTabs()
+        // ---------------------------------------------------------------- the rows
+        /// Pending's rows of this edition's own after the recoveries, and History's completed messages after its recoveries.
+        partial void ListRowsJoined(ListView list, List<Dictionary<string, object>> rows)
         {
-            foreach (NavButton tab in new[] { recoveriesTab, scheduledTab })
-            {
-                bool current = (tab == scheduledTab) == scheduleChosen;
-                tab.ForeColor = current ? Ink : Secondary;
-                tab.Font = Soft.RoleFont(current ? "nav_current" : "nav");
-                tab.Current = current;
-            }
+            if (list == null || rows == null) return;
+            if (list == pendingList) rows.AddRange(joinedPending);
+            else if (list == historyList) rows.AddRange(joinedDone);
         }
 
-        /// The list read: the queued messages read once where the prompt queue stands and they were not yet, else the tabs
-        /// shown again as the list now has it.
+        /// A joined row's cells, as it was made (CellsWritten, AdvancedRuns.cs): true where `row` is one.
+        private static bool WriteJoinedCells(Dictionary<string, object> row, string[] cells)
+        {
+            var own = Get(row, RowCellsKey) as string[];
+            if (own == null) return false;
+            for (int i = 0; i < cells.Length && i < own.Length; i++) cells[i] = own[i];
+            return true;
+        }
+
+        /// The list read: the queued messages read once where the prompt queue stands and they were not yet, else the rows
+        /// made again as the list now has it.
         private void ScheduleListingApplied()
         {
             Dictionary<string, object> queue = advancedListing == null ? null : AdvancedItem(PromptQueueId);
             if (queue != null && Standing(queue) && advancedPrompts == null && (!auditing || advancedScript != null)) ReadPrompts(null);
             else FillScheduled();
-        }
-
-        /// Whether the strip is there: prompt_queue on or watched, or anything scheduled.
-        private bool ScheduleWanted(List<object> rules, List<Dictionary<string, object>> prompts, List<Dictionary<string, object>> done)
-        {
-            Dictionary<string, object> queue = advancedListing == null ? null : AdvancedItem(PromptQueueId);
-            return (queue != null && Standing(queue)) || rules.Count + prompts.Count + done.Count > 0;
         }
 
         /// The completed messages advanced-prompts lists (control/prompts.py marks them), newest first.
@@ -247,178 +153,175 @@ namespace CodexAutoResume
             return found;
         }
 
-        /// The Scheduled view as the last reads hold it: each rule and message still to go a row, the Done section, the
-        /// strip and its count - written only when something it shows changed, the chosen row kept (or the one just saved
-        /// chosen).
+        /// The rows of this edition's own as the last reads hold them, made again only when something they show changed,
+        /// and Pending and History filled again with them - the chosen row kept, or the one just saved chosen.
         private void FillScheduled()
         {
-            if (scheduledList == null || scheduledList.IsDisposed) return;
+            // Made whether or not either page has been built yet: a page built later joins them as it is filled.
             List<object> rules = ResetRules(null, true);
             List<Dictionary<string, object>> prompts = PendingPrompts();
             List<Dictionary<string, object>> done = CompletedPrompts();
-            bool wanted = ScheduleWanted(rules, prompts, done);
             string shown = AdvancedWritten(rules) + "|" + AdvancedWritten(new List<object>(prompts.ToArray())) + "|" +
                            AdvancedWritten(new List<object>(done.ToArray())) + "|" +
-                           AdvancedWritten(ConversationsWritten()) + "|" + wanted + "|" + (advancedWords == null);
-            if (shown == scheduledShown && editorSaved < 0)
+                           AdvancedWritten(ConversationsWritten()) + "|" + (advancedWords == null);
+            if (shown != scheduledShown || editorSaved >= 0)
             {
-                UpdateScheduleButtons();
-                return;
-            }
-            scheduledShown = shown;
-            object keep = ChosenTag() == null ? null : RowKey(ChosenTag());
-            if (editorSaved >= 0) keep = "prompt " + editorSaved.ToString(CultureInfo.InvariantCulture);
-            editorSaved = -1;
-            scheduledList.BeginUpdate();
-            try
-            {
-                scheduledList.Items.Clear();
-                foreach (object entry in rules) AddScheduledRow(RuleRow(entry as Dictionary<string, object>), keep);
-                foreach (Dictionary<string, object> row in prompts) AddScheduledRow(PromptRow(row), keep);
-            }
-            finally
-            {
-                scheduledList.EndUpdate();
-            }
-            doneList.BeginUpdate();
-            try
-            {
-                doneList.Items.Clear();
-                foreach (Dictionary<string, object> row in done)
+                scheduledShown = shown;
+                joinedPending.Clear();
+                foreach (object entry in rules) joinedPending.Add(RuleRow(entry as Dictionary<string, object>));
+                foreach (Dictionary<string, object> row in prompts) joinedPending.Add(PromptRow(row));
+                joinedDone.Clear();
+                foreach (Dictionary<string, object> row in done) joinedDone.Add(DoneRow(row));
+                RefillLists();
+                // The saved row chosen once Pending's list is there to choose it in; kept until then.
+                if (editorSaved >= 0 && pendingList != null)
                 {
-                    var tag = new Dictionary<string, object>();
-                    tag["code"] = "recovered";
-                    tag["row"] = row;
-                    var item = new ListViewItem(ConversationOf(Str(row, "thread_id")));
-                    item.SubItems.Add(Str(row, "reason") == "handed_over"
-                        ? Word("page.scheduled.state.handed_over", "handed over to you")
-                        : Word("page.scheduled.state.delivered", "delivered"));
-                    item.SubItems.Add(PromptWhen(row));
-                    item.SubItems.Add(ClockTime(Number(row, "finished_at")));
-                    item.Tag = tag;
-                    doneList.Items.Add(item);
+                    ChooseScheduledRow("prompt " + editorSaved.ToString(CultureInfo.InvariantCulture));
+                    editorSaved = -1;
                 }
             }
-            finally
-            {
-                doneList.EndUpdate();
-            }
-            clearDoneButton.Text = Word("page.scheduled.clear", "Delete completed ({n})...", "n", done.Count);
-            clearDoneButton.AccessibleName = clearDoneButton.Text;
-            doneHolder.Visible = done.Count > 0;
-            recoveriesTab.Text = Word("page.pending.recoveries", "Recoveries");
-            scheduledTab.Text = Word("page.pending.scheduled", "Scheduled ({n})", "n", rules.Count + prompts.Count);
-            scheduleWanted = wanted;
-            scheduleTabs.Visible = wanted;
-            if (!wanted && scheduleChosen) ChooseSchedule(false);
-            FitDone();
-            UpdateScheduleButtons();
+            FitKindButtons();
+            UpdatePendingButtons();
+            UpdateHistoryButtons();
         }
 
-        /// The row standing for `key` ("prompt 5", "rule 2") chosen, as a click on it chooses it.
+        /// The row standing for `key` ("prompt 5", "rule 2") chosen on Pending, as a click on it chooses it.
         private void ChooseScheduledRow(string key)
         {
-            if (scheduledList == null) return;
-            foreach (ListViewItem item in scheduledList.Items)
-                if (RowKey(item.Tag as Dictionary<string, object>) == key)
+            if (pendingList == null) return;
+            foreach (ListViewItem item in pendingList.Items)
+                if (Str(item.Tag as Dictionary<string, object>, RowKeyKey) == key)
                 {
+                    pendingList.SelectedIndices.Clear();
                     item.Selected = true;
                     item.Focused = true;
                 }
-            UpdateScheduleButtons();
+            UpdatePendingButtons();
         }
 
-        private static string RowKey(Dictionary<string, object> tag)
+        /// A joined row: its kind, the key it is known by, the tone of its state, its source, its cells and what Why it is
+        /// waiting says of it.
+        private static Dictionary<string, object> Joined(string kind, string key, string code, Dictionary<string, object> source,
+                                                         string[] cells, string said)
         {
-            return Str(tag, "key");
+            var row = new Dictionary<string, object>();
+            row[RowKindKey] = kind;
+            row[RowKeyKey] = key;
+            row["code"] = code;
+            row["thread_id"] = Str(source, "thread_id");
+            row[RowSourceKey] = source;
+            row[RowCellsKey] = cells;
+            row[RowSaidKey] = said;
+            return row;
         }
 
-        private void AddScheduledRow(ListViewItem item, object keep)
-        {
-            scheduledList.Items.Add(item);
-            if (keep != null && Equals(RowKey(item.Tag as Dictionary<string, object>), keep))
-            {
-                item.Selected = true;
-                item.Focused = true;
-            }
-        }
-
-        /// A reset rule's row: its conversation (a credit has none), where it stands, what it waits for.
-        private ListViewItem RuleRow(Dictionary<string, object> rule)
+        /// A reset rule's row: its conversation (a credit has none), where it stands, a rule, what it waits for.
+        private Dictionary<string, object> RuleRow(Dictionary<string, object> rule)
         {
             string state = Str(rule, "state");
-            var tag = new Dictionary<string, object>();
-            tag["code"] = state == "held" ? "exhausted" : Equals(Get(rule, "being_sent"), true) ? "submitted" : "scheduled";
-            tag["row"] = rule;
-            tag["kind"] = "rule";
-            tag["key"] = "rule " + Whole(Get(rule, "rule_id")).ToString(CultureInfo.InvariantCulture);
+            string code = state == "held" ? "exhausted" : Equals(Get(rule, "being_sent"), true) ? "submitted" : "scheduled";
             string thread = Str(rule, "thread_id");
-            var item = new ListViewItem(thread != null ? ConversationOf(thread) : Word("name.reset_credit", "Reset credit"));
-            item.SubItems.Add(RuleStateWord(rule));
-            item.SubItems.Add(RuleWhat(rule));
-            item.SubItems.Add("");
-            item.Tag = tag;
-            return item;
+            string stands = RuleStateWord(rule), what = RuleWhat(rule);
+            var cells = new[] { thread != null ? ConversationOf(thread) : Word("name.reset_credit", "Reset credit"), stands,
+                                Word("page.pending.kind.rule", "Reset rule"), what, "", "" };
+            return Joined(KindRule, "rule " + Whole(Get(rule, "rule_id")).ToString(CultureInfo.InvariantCulture), code, rule,
+                          cells, stands + " · " + what);
         }
 
-        /// A queued message's row: its conversation, where it stands, when it goes, what it does while a turn runs.
-        private ListViewItem PromptRow(Dictionary<string, object> row)
+        /// A queued message's row: its conversation, where it stands, a message and what it does while a turn runs, when.
+        private Dictionary<string, object> PromptRow(Dictionary<string, object> row)
         {
             string state = Str(row, "state");
-            var tag = new Dictionary<string, object>();
-            tag["code"] = state == "held" || Str(row, "reason") == "withdraw_refused" ? "exhausted"
+            string code = state == "held" || Str(row, "reason") == "withdraw_refused" ? "exhausted"
                         : Equals(Get(row, "in_codex"), true) || Equals(Get(row, "being_sent"), true) ? "submitted" : "scheduled";
-            tag["row"] = row;
-            tag["kind"] = "prompt";
-            tag["key"] = "prompt " + Whole(Get(row, "prompt_id")).ToString(CultureInfo.InvariantCulture);
-            var item = new ListViewItem(ConversationOf(Str(row, "thread_id")));
-            item.SubItems.Add(PromptState(row));
-            item.SubItems.Add(PromptWhen(row));
-            item.SubItems.Add(Str(row, "trigger") == "after_turn" || Str(row, "while_running") != "wait"
+            string mode = Str(row, "trigger") == "after_turn" || Str(row, "while_running") != "wait"
                 ? Word("page.scheduled.mode.queue", "Codex's queue")
-                : Word("page.scheduled.mode.wait", "waits"));
-            item.Tag = tag;
-            return item;
+                : Word("page.scheduled.mode.wait", "waits");
+            string stands = PromptState(row), when = PromptWhen(row);
+            var cells = new[] { ConversationOf(Str(row, "thread_id")), stands,
+                                Word("page.pending.kind.message", "Scheduled message") + " · " + mode, when, "", "" };
+            return Joined(KindMessage, "prompt " + Whole(Get(row, "prompt_id")).ToString(CultureInfo.InvariantCulture), code, row,
+                          cells, stands + " · " + when);
         }
 
-        /// The chosen row's tag, read from the items themselves: a list whose window was never made has no SelectedItems yet.
-        private Dictionary<string, object> ChosenTag()
+        /// A completed message's row in History: its conversation, delivered or handed over, a message, when it was due and
+        /// when it finished.
+        private Dictionary<string, object> DoneRow(Dictionary<string, object> row)
         {
-            if (scheduledList == null) return null;
-            foreach (ListViewItem item in scheduledList.Items)
-                if (item.Selected) return item.Tag as Dictionary<string, object>;
-            return null;
+            string outcome = Str(row, "reason") == "handed_over"
+                ? Word("page.scheduled.state.handed_over", "handed over to you")
+                : Word("page.scheduled.state.delivered", "delivered");
+            var cells = new[] { ConversationOf(Str(row, "thread_id")), outcome, Word("page.pending.kind.message", "Scheduled message"),
+                                PromptWhen(row), ClockTime(Number(row, "finished_at")) };
+            return Joined(KindDone, "done " + Whole(Get(row, "prompt_id")).ToString(CultureInfo.InvariantCulture), "recovered",
+                          row, cells, outcome);
         }
 
-        private Dictionary<string, object> ChosenRow(out string kind)
-        {
-            Dictionary<string, object> tag = ChosenTag();
-            kind = Str(tag, "kind");
-            return Map(tag, "row");
-        }
-
-        private void UpdateScheduleButtons()
+        // ---------------------------------------------------------------- offered
+        /// The chosen Pending row's own buttons, by its kind: a message's Edit..., Go on and Cancel, a rule's Go on and
+        /// Cancel, shown only for them (core's four only for a recovery); Schedule a message... while the queue stands.
+        partial void PendingButtonsUpdated(Dictionary<string, object> row, bool idle)
         {
             if (scheduleAddButton == null) return;
-            bool listed = busy == 0 && advancedListing != null && advancedPrompts != null;
-            string kind;
-            Dictionary<string, object> row = ChosenRow(out kind);
+            string kind = Str(row, RowKindKey);
+            Dictionary<string, object> source = Map(row, RowSourceKey);
+            bool message = kind == KindMessage, rule = kind == KindRule;
+            Show(scheduleEditButton, message);
+            Show(scheduleGoOnButton, message || rule);
+            Show(scheduleCancelButton, message || rule);
+            bool listed = idle && advancedListing != null && advancedPrompts != null;
+            string state = Str(source, "state");
+            scheduleEditButton.Enabled = listed && message && state == "waiting";
+            scheduleCancelButton.Enabled = idle && advancedListing != null && source != null &&
+                                           !Equals(Get(source, "being_sent"), true) && Str(source, "reason") != "withdraw_refused";
+            scheduleGoOnButton.Enabled = idle && advancedListing != null && source != null && state == "held";
             Dictionary<string, object> queue = advancedListing == null ? null : AdvancedItem(PromptQueueId);
-            scheduleAddButton.Enabled = listed && queue != null && Standing(queue);
-            string state = Str(row, "state");
-            scheduleEditButton.Enabled = listed && kind == "prompt" && state == "waiting";
-            scheduleCancelButton.Enabled = busy == 0 && advancedListing != null && row != null &&
-                                           !Equals(Get(row, "being_sent"), true) && Str(row, "reason") != "withdraw_refused";
-            scheduleGoOnButton.Enabled = busy == 0 && advancedListing != null && row != null && state == "held";
-            clearDoneButton.Enabled = listed && doneList.Items.Count > 0;
+            bool standing = queue != null && Standing(queue);
+            Show(scheduleAddButton, standing);
+            scheduleAddButton.Enabled = listed && standing;
+        }
+
+        /// History's Delete completed (N)..., offered while completed messages are listed and nothing else runs.
+        partial void HistoryButtonsUpdated(Dictionary<string, object> row, bool idle)
+        {
+            if (clearDoneButton == null) return;
+            string text = Word("page.scheduled.clear", "Delete completed ({n})...", "n", joinedDone.Count);
+            if (clearDoneButton.Text != text)
+            {
+                clearDoneButton.Text = text;
+                clearDoneButton.AccessibleName = text;
+            }
+            Show(clearDoneButton, joinedDone.Count > 0);
+            clearDoneButton.Enabled = idle && advancedListing != null && advancedPrompts != null && joinedDone.Count > 0;
+            if (doneNote != null && ListRowId(Selected(historyList)) != doneNoteFor) doneNote = null;
+            if (doneNote != null && historyNote != null) SetNote(historyNote, doneNote);
+        }
+
+        /// Shown or hidden by its own bit, so nothing is laid out again while it stays as it was.
+        private static void Show(Control control, bool shown)
+        {
+            if (control != null && Soft.OwnVisible(control) != shown) control.Visible = shown;
+        }
+
+        /// A double click on a row of this edition's own: a waiting message opens its editor.
+        partial void EditionRowOpened(Dictionary<string, object> row)
+        {
+            if (Str(row, RowKindKey) == KindMessage) EditChosen();
         }
 
         // ---------------------------------------------------------------- acted on
+        private Dictionary<string, object> ChosenRow(out string kind)
+        {
+            Dictionary<string, object> chosen = Selected(pendingList);
+            kind = Str(chosen, RowKindKey);
+            return Map(chosen, RowSourceKey);
+        }
+
         private void EditChosen()
         {
             string kind;
             Dictionary<string, object> row = ChosenRow(out kind);
-            if (kind == "prompt" && scheduleEditButton.Enabled) OpenEditor(row);
+            if (kind == KindMessage && scheduleEditButton.Enabled) OpenEditor(row);
         }
 
         private void CancelChosen()
@@ -426,8 +329,8 @@ namespace CodexAutoResume
             string kind;
             Dictionary<string, object> row = ChosenRow(out kind);
             if (row == null || !scheduleCancelButton.Enabled) return;
-            if (kind == "rule") CancelReset(Whole(Get(row, "rule_id")));
-            else CancelPrompt(Whole(Get(row, "prompt_id")));
+            if (kind == KindRule) CancelReset(Whole(Get(row, "rule_id")));
+            else if (kind == KindMessage) CancelPrompt(Whole(Get(row, "prompt_id")));
         }
 
         private void GoOnChosen()
@@ -435,18 +338,18 @@ namespace CodexAutoResume
             string kind;
             Dictionary<string, object> row = ChosenRow(out kind);
             if (row == null || !scheduleGoOnButton.Enabled) return;
-            if (kind == "rule") GoOnReset(Whole(Get(row, "rule_id")));
-            else GoOnPrompt(Whole(Get(row, "prompt_id")));
+            if (kind == KindRule) GoOnReset(Whole(Get(row, "rule_id")));
+            else if (kind == KindMessage) GoOnPrompt(Whole(Get(row, "prompt_id")));
         }
 
-        /// Delete completed (N)...: asked first, then the ids the Done section shows, against the generation they were read
-        /// at; how many were deleted, and how many kept because they changed, said beside the buttons.
+        /// Delete completed (N)...: asked first, then the ids History lists, against the generation they were read at; how
+        /// many were deleted, and how many kept because they changed, said beside History's buttons.
         private void ClearDone()
         {
-            if (busy > 0 || advancedListing == null || advancedPrompts == null || doneList.Items.Count == 0) return;
+            if (busy > 0 || advancedListing == null || advancedPrompts == null || joinedDone.Count == 0) return;
             var ids = new List<string>();
-            foreach (ListViewItem item in doneList.Items)
-                ids.Add(Whole(Get(Map(item.Tag as Dictionary<string, object>, "row"), "prompt_id")).ToString(CultureInfo.InvariantCulture));
+            foreach (Dictionary<string, object> row in joinedDone)
+                ids.Add(Whole(Get(Map(row, RowSourceKey), "prompt_id")).ToString(CultureInfo.InvariantCulture));
             string question = Word("page.confirm.clear",
                 "Delete {n} completed messages from this list? Waiting, held, cancelled and failed ones are kept, and nothing in Codex changes.",
                 "n", ids.Count);
@@ -460,10 +363,13 @@ namespace CodexAutoResume
                 if (AdvancedDone(result))
                 {
                     int deleted = Whole(Get(result, "deleted")), skipped = Whole(Get(result, "skipped"));
-                    ResetNote(skipped > 0
+                    string said = skipped > 0
                         ? Word("page.done.cleared_kept", "Deleted {deleted}, kept {skipped} that changed.", "deleted", deleted)
                               .Replace("{skipped}", skipped.ToString(CultureInfo.CurrentCulture))
-                        : Word("page.done.cleared", "Deleted {deleted}.", "deleted", deleted));
+                        : Word("page.done.cleared", "Deleted {deleted}.", "deleted", deleted);
+                    doneNote = said;
+                    doneNoteFor = ListRowId(Selected(historyList));
+                    if (advancedNote != null) SetNote(advancedNote, said);
                     advancedPrompts = result;
                     FillScheduled();
                 }

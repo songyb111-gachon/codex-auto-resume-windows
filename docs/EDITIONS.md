@@ -604,7 +604,7 @@ usage, and how many credits you have and when the soonest expires must both be r
 measurement MR has passed on your version of Codex it never spends on its own: the rule waits for
 you to press *Use a reset credit now...*, which the page also offers whenever a limit is reached. The
 page shows how many credits you have, when the soonest expires and when one was last used; Pending
-shows each rule still waiting under **Scheduled**, with Cancel.
+lists each rule still waiting as a row of its own, with Cancel.
 
 **When it helps.** When your account has reset credits and you would rather spend one than wait for a
 limit you know is coming, without watching for it.
@@ -649,7 +649,7 @@ that conversation for the same reset sends your message in its place, at the ver
 resets too; it waits for your message up to 30 minutes after the reset, and then goes on. It counts from the first reading after you added it, so the window open
 then is the first to reset; a window not used yet counts once it is. While a message waits it reads
 usage every 15 minutes, at most once in five minutes. One message may wait for a conversation, and
-ten in all; the page lists each with its words, and Pending lists each under **Scheduled**, with
+ten in all; the page lists each with its words, and Pending lists each as a row of its own, with
 Cancel - its words are never shown there.
 
 **When it helps.** When you know what a conversation should do once the limit is gone - "carry on with
@@ -909,18 +909,22 @@ Codex to run after that turn; a message queued before this choice existed goes i
 did. They are paced like every recovery: fifteen minutes apart and five a day in one conversation. Codex's own
 automations are the official way to schedule work; these wait for usage and go to one exact conversation.
 
-Messages are written and changed in one place: Pending's **Scheduled** tab, beside **Recoveries** (today's Pending,
-as it was). The tab strip is there while this is on or anything is scheduled. Scheduled lists every message still
-to go and every reset rule still to act - the conversation, where it stands, when it goes and what it does while a
-turn runs, never its words - with **Schedule a message...**, **Edit...** for a message still waiting, **Cancel** and
-**Go on**. The editor shows the words larger than the rest of the window, marks the recommended mode and chooses it
-for a new message, and has **Save and return**: saved, it closes and the saved row is chosen; refused, every field
-stays as you typed it and the reason is said above the buttons. An edit reaches only a message still waiting, and
-is refused if anything changed since the list was read. Under the list, the **Done** section lists the messages of
-the last 30 days that were delivered, with **Delete completed (N)...**: it asks first, deletes only the completed
-messages it shows that are unchanged since, says how many it deleted and how many it kept because they changed, and
-never touches a waiting, held, cancelled or failed message, the recovery history or anything of Codex's. The
-Advanced features page's card for this capability keeps its switch and limits and points to the tab.
+Messages are written and changed in one place: Pending, whose one list holds every message still to go and every
+reset rule still to act as rows after the recoveries (from v0.6.19; v0.6.19-beta.2 had a Scheduled tab for them).
+There is no tab strip and the list stays flat; its **Kind** column tells a recovery, a scheduled message (with what it
+does while a turn runs) and a reset rule apart, and a row says the conversation, where it stands and when it goes,
+never its words. The buttons under the list follow the row you choose: for a recovery, Retry now, Cancel, Timeline and
+Turn off for this conversation; for a message, **Edit...** (while it is still waiting), **Go on** and **Cancel**; for a
+rule, **Go on** and **Cancel** - the others are hidden, and Cancel all, Rescan and **Schedule a message...** (shown
+while this is on) never move. A double-click on a waiting message opens its editor. The editor shows the words larger
+than the rest of the window, marks the recommended mode and chooses it for a new message, and has **Save and return**:
+saved, it closes and the saved row is chosen; refused, every field stays as you typed it and the reason is said above
+the buttons. An edit reaches only a message still waiting, and is refused if anything changed since the list was
+read. Completed messages are history: the History page lists the messages of the last 30 days that were delivered,
+with **Delete completed (N)...** under them: it asks first, deletes only the completed messages it shows that are
+unchanged since, says how many it deleted and how many it kept because they changed, and never touches a waiting,
+held, cancelled or failed message, the recovery history or anything of Codex's. The Advanced features page's card for
+this capability keeps its switch and limits and points to Pending.
 
 **When it helps.** When you want the next instruction to be there as soon as Codex can take it.
 

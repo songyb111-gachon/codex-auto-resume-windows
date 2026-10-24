@@ -629,8 +629,8 @@ One that needs another turns that one on with it, in the same confirmation and w
 shown, and turning the needed one off turns off first what needs it.
 You turn one on in the Dashboard, on the page that edition adds, **Advanced features**, and nowhere
 else; from v0.6.14 that page can also send one waiting recovery now, while Send now is on, and have a
-reset credit used, or a message of your own sent, at a usage reset you pick, each shown on Pending
-under Scheduled until it acts - and, from v0.6.19, while chat with a conversation is on, a **Chat** tab beside
+reset credit used, or a message of your own sent, at a usage reset you pick, each shown as a row of
+Pending's list until it acts - and, from v0.6.19, while chat with a conversation is on, a **Chat** tab beside
 **Advanced features** reads a conversation the Codex app has open and sends it a message of yours: the reply shows
 once its turn ends ("in progress" until then), approvals are still answered in Codex, and a message written while
 the usage limit is full waits and goes when it resets. Their code is left

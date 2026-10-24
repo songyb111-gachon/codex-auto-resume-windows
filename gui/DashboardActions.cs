@@ -991,6 +991,13 @@ namespace CodexAutoResume
                 explainList.SetRows(rows, S("explain.none_selected", "Select a task to see why it is waiting."));
                 return;
             }
+            // v0.6.19: a row of the edition's own is no recovery and has no checks; it says what it is waiting for.
+            if (EditionRow(row))
+            {
+                explainAsOf.Text = "";
+                explainList.SetRows(rows, Str(row, RowSaidKey) ?? "");
+                return;
+            }
             var gates = Map(row, "gates");
             double at = Number(row, "gates_at");
             // Said once: either when the checks were last run, or - in the list's own place -
