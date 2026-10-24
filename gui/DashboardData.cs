@@ -763,6 +763,12 @@ namespace CodexAutoResume
                 parts.Add(ThreadOn(row) ? "1" : "0");
                 // v0.6.16-beta.3: whether it has words for this time, which its menu and its note follow.
                 parts.Add(HasOnceWords(row) ? "w" : "");
+                // v0.6.19: what Why it is waiting reads off the chosen row's record - its last look and the usage reading a
+                // person's click asked for - so a new one reaches the panel even where every cell stayed the same.
+                parts.Add(Number(row, "gates_at").ToString("R", CultureInfo.InvariantCulture));
+                var check = Map(row, "usage_check");
+                parts.Add(check == null ? "" : Number(check, "at").ToString("R", CultureInfo.InvariantCulture) + Str(check, "read") +
+                                               Str(check, "source"));
             }
             return string.Join("\u001f", parts.ToArray());
         }
@@ -994,9 +1000,8 @@ namespace CodexAutoResume
             var chosen = Selected(pendingList);
             bool mine = pendingNoteFor == BulkNote || (pendingNoteFor != null && chosen != null &&
                         Str(chosen, "interruption_id") == pendingNoteFor);
-            // v0.6.19 (issue #50): once the watcher has read usage at a Retry now, the chosen row says when and what it
-            // read, and whether the recovery went on - a check told apart from a resume - after, never instead of, what a
-            // person's action on the row just said (the review of 2026-10-24).
+            // v0.6.19 (the owner's decision of 2026-10-24): what the watcher read at a Retry now or a Rescan is said in Why it
+            // is waiting (WithUsage), the one place on Pending for the usage readings; this note says what a click just did.
             string own = mine ? pendingNoteText ?? "" : "";
             // v0.6.19 (the owner's decision of 2026-10-24): a Rescan's note goes on to say what its click did about Codex's
             // usage - and, once the watcher has read it, what it read.
@@ -1005,9 +1010,6 @@ namespace CodexAutoResume
                 string usage = RescanReadText(rescanAskedAt - 5) ?? rescanUsageNote;
                 if (!string.IsNullOrEmpty(usage)) own = own.Length == 0 ? usage : own + " " + usage;
             }
-            string checkedText = UsageCheckText(Map(chosen, "usage_check"));
-            if (checkedText != null && checkedText != own)
-                own = own.Length == 0 ? checkedText : own + " " + checkedText;
             SetNote(pendingNote, own);
         }
 

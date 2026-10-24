@@ -586,6 +586,8 @@ namespace CodexAutoResume
         private string empty = "";
         // v0.6.11: a sentence under the rows - why the first check that did not pass stops it - or "".
         private string note = "";
+        /// The sentence under the rows, as it was last set (the audits and the tests read it).
+        internal string Note { get { return note; } }
 
         internal GateList()
         {
@@ -854,6 +856,9 @@ namespace CodexAutoResume
         // v0.6.19 (the owner's decision of 2026-10-24): a person's Retry now or Rescan has asked the watcher to read Codex's
         // usage once. The advanced edition counts that reading as one of early_reset's two while it stands on.
         partial void UsageAsked();
+        // v0.6.19 (the owner's decision of 2026-10-24): Why it is waiting has said the usage readings of a recovery that
+        // waits for a usage limit (WithUsage); the advanced edition adds early_reset's own to `said`.
+        partial void UsageNoted(Dictionary<string, object> row, List<string> said);
 
         // ----------------------------------------------------------------- chrome
         private void BuildDashboard()

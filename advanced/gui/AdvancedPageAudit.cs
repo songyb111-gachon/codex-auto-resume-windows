@@ -191,8 +191,8 @@ namespace CodexAutoResume
                     form.ChooseSchedule(false);
                     form.ShowAdvanced();
                 }
-                // v0.6.19 (#50): early_reset's line on Pending's Recoveries view, saying the longest of its sentences in this
-                // language.
+                // v0.6.19 (#50): early_reset's reading in Pending's Why it is waiting, saying the longest of its sentences in
+                // this language - it has no line of its own (the owner's decision of 2026-10-24).
                 form.ShowPage("pending");
                 form.AuditEarly("pending/early", findings);
                 form.ShowAdvanced();
@@ -314,7 +314,8 @@ namespace CodexAutoResume
             AuditPins(where, findings);
         }
 
-        /// early_reset's line at the top of Pending's Recoveries view, at its longest sentence: the standard audit's checks.
+        /// early_reset's reading in Pending's Why it is waiting, at its longest sentence, with the first usage-limited recovery
+        /// chosen: the standard audit's checks - and none of the line it had until the owner's decision of 2026-10-24.
         private void AuditEarly(string where, List<string> findings)
         {
             AdvancedAudited++;
@@ -336,16 +337,15 @@ namespace CodexAutoResume
                 }
             }
             earlyShown = longest;
-            earlyAnswer = null;
-            FillEarlyLine();
+            ShowExplain();
             PerformLayout();
-            if (currentPage != "pending" || earlyLine == null || !OwnVisible(earlyLine))
-                findings.Add(where + " :: early_reset's line is not showing");
+            if (currentPage != "pending")
+                findings.Add(where + " :: Pending is not the page showing");
             Audit(where, findings);
             AuditSpoken(where, this, findings);
             AuditPins(where, findings);
             earlyShown = null;
-            FillEarlyLine();
+            ShowExplain();
         }
 
         private void AuditAdvanced(string where, List<string> findings)
@@ -597,13 +597,22 @@ namespace CodexAutoResume
                         else Pressed.Invoke(button, new object[] { EventArgs.Empty });
                     }
                     else if (what == "tab") form.ChooseSchedule(Str(step, "name") == "scheduled");
-                    else if (what == "early_press")
+                    else if (what == "pending_select")
                     {
-                        // v0.6.19 (#50): early_reset's Check now, or the button to its card, pressed if it can be.
-                        Button button = Str(step, "button") == "settings" ? form.earlySettingsButton : form.earlyCheckButton;
-                        if (button == null || !button.Enabled || !OwnVisible(form.earlyLine)) disabled.Add("early_press");
-                        else Pressed.Invoke(button, new object[] { EventArgs.Empty });
+                        // v0.6.19: a Pending row chosen, as a click on it chooses it - its Why it is waiting with it.
+                        int index = (int)Number(step, "index");
+                        if (form.pendingList == null || index < 0 || index >= form.pendingList.Items.Count) disabled.Add("pending_select");
+                        else
+                        {
+                            // A list with no window of its own keeps no selection: given one first, as showing it would.
+                            IntPtr made = form.pendingList.Handle;
+                            form.pendingList.SelectedIndices.Clear();
+                            form.pendingList.Items[index].Selected = true;
+                            form.UpdatePendingButtons();
+                            form.ShowExplain();
+                        }
                     }
+                    else if (what == "usage_asked") form.UsageAsked();
                     else if (what == "scheduled_choose") form.ChooseScheduledRow(Str(step, "key"));
                     else if (what == "scheduled_press")
                     {
@@ -1019,13 +1028,18 @@ namespace CodexAutoResume
             scheduled["buttons"] = scheduleButtons;
             scheduled["note"] = scheduledNote == null ? null : scheduledNote.Text;
             look["scheduled"] = scheduled;
-            // v0.6.19 (#50): early_reset's line on Pending - whether it shows, what it says, its two buttons' words.
+            // v0.6.19 (#50): early_reset's reading as Why it is waiting says it (none while it is off), and the panel's
+            // whole sentence under its rows; and the buttons under Pending's list, by their words, as they show.
             var early = new Dictionary<string, object>();
-            early["shown"] = earlyLine != null && OwnVisible(earlyLine);
-            early["note"] = earlyNote == null ? null : earlyNote.Text;
-            early["check"] = earlyCheckButton == null ? null : earlyCheckButton.Text;
-            early["settings"] = earlySettingsButton == null ? null : earlySettingsButton.Text;
+            early["text"] = earlyShown == null ? null : EarlyText(earlyShown);
             look["early"] = early;
+            look["explain_note"] = explainList == null ? null : explainList.Note;
+            var pendingButtons = new List<object>();
+            if (retryButton != null && retryButton.Parent != null)
+                foreach (Control button in retryButton.Parent.Controls)
+                    if (button is Button && OwnVisible(button)) pendingButtons.Add(button.Text);
+            look["pending_buttons"] = pendingButtons;
+            look["retry_enabled"] = retryButton != null && retryButton.Enabled;
             // v0.6.19 (#50): the prompt queue's card - its one line and Go to Scheduled.
             var queue = new Dictionary<string, object>();
             queue["go"] = queueAdd == null ? (object)null : (object)queueAdd.Enabled;

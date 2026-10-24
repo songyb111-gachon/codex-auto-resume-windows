@@ -60,8 +60,6 @@ namespace CodexAutoResume
             }
             page.Controls.Add(recoveriesView);
             page.Controls.Add(scheduleView);
-            // early_reset's line at the top of the Recoveries view, while it stands on (AdvancedEarly.cs).
-            BuildEarlyLine(recoveriesView);
             page.ControlAdded += delegate(object sender, ControlEventArgs e)
             {
                 if (e.Control == recoveriesView || e.Control == scheduleView || e.Control == scheduleTabs) return;

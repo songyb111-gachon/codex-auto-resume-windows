@@ -145,6 +145,23 @@ try {
     $F.GetMethod('Rescan', $flags).Invoke($form, $null) | Out-Null
     Wait-For 'rescan' 2
     $out.pausedNote = [string]$F.GetField('pendingNote', $flags).GetValue($form).Text
+    # Why it is waiting: each row's reading, led by the button that asked it; the note under the buttons says none of it.
+    $readings = Parse 'dashboard-readings.json'
+    [Recorder]::Replies['dashboard'] = $readings
+    $F.GetField('pendingNoteFor', $flags).SetValue($form, $null)
+    $F.GetMethod('ApplySnapshot', $flags).Invoke($form, [object[]]@($readings)) | Out-Null
+    $explain = $F.GetField('explainList', $flags).GetValue($form)
+    $out.explain = @()
+    $out.notes = @()
+    foreach ($index in 0, 1) {
+        $list.SelectedIndices.Clear()
+        $list.Items[$index].Selected = $true
+        $F.GetMethod('ShowExplain', $flags).Invoke($form, $null) | Out-Null
+        $F.GetMethod('ShowPendingNote', $flags).Invoke($form, $null) | Out-Null
+        $out.explain += [string]$explain.GetType().GetProperty('Note', $flags).GetValue($explain, $null)
+        $out.notes += [string]$F.GetField('pendingNote', $flags).GetValue($form).Text
+    }
+    $out.order = @(foreach ($item in $list.Items) { [string]$item.Tag['interruption_id'] })
     $out.calls = @([Recorder]::Seen())
     $form.Dispose()
 } catch {
@@ -248,6 +265,16 @@ class CheckOneTests(unittest.TestCase):
                   "records": [], "woke": True}
         write("rescan-asked.json", {"ok": True, "result": dict(counts, usage_check="asked", usage_asked=2)})
         write("rescan-paused.json", {"ok": True, "result": dict(counts, usage_check="paused", usage_asked=0)})
+        readings = cls.rescan_scene.ask("dashboard", {})
+        cls.readings = {}
+        for row, source in zip(readings["pending"], ("rescan", "retry_now")):
+            row["usage_check"] = {"at": cls.rescan_scene.h.now - 30, "read": "still_limited", "lifted": False,
+                                  "why": None, "continued": False, "source": source}
+            cls.readings[row["interruption_id"]] = source
+            # As the watcher records a look: the panel says its sentences under the checks it lists.
+            row["gates"] = row.get("gates") or {"schedule": ["WAIT", "waiting_reset"]}
+            row["gates_at"] = row.get("gates_at") or cls.rescan_scene.h.now - 40
+        write("dashboard-readings.json", readings)
         probe = work / "probe.ps1"
         probe.write_text(PROBE, encoding="utf-8")
         cls.result = subprocess.run(
@@ -326,6 +353,18 @@ class CheckOneTests(unittest.TestCase):
         self.assertEqual(self.rescan_scene.reads - before, 1, "one reading for both")
         for thread in self.rescan_scene.threads:
             self.assertLess(self.rescan_scene.h.record(thread)["reset_at"], self.rescan_scene.h.now + 1)
+
+    def test_why_it_is_waiting_says_each_reading_and_who_asked_it(self):
+        """Fails with the reading said under the buttons instead (beta.2): the panel names no reading of a click."""
+        english = l10n.catalog("en")
+        limited = english["retry.checked_limited"].split("{time}")[0]
+        for index, key in enumerate(self.answer["order"][:2]):
+            with self.subTest(index):
+                by = english["action.rescan"] if self.readings[key] == "rescan" else english["action.retry_now"]
+                lines = [line for line in self.answer["explain"][index].split("\n") if limited in line]
+                self.assertEqual(len(lines), 1, self.answer["explain"][index])
+                self.assertTrue(lines[0].startswith(by + " · "), lines[0])
+                self.assertNotIn(limited, self.answer["notes"][index], "the note under the buttons says only what a click did")
 
 
 if __name__ == "__main__":

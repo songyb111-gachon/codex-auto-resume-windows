@@ -226,7 +226,10 @@ namespace CodexAutoResume
                     ? S("retry.checking", "Checking now. Every safety check still applies.")
                     : S("retry.next_poll", "The watcher checks at its next poll. Every safety check still applies.");
                 // The advanced edition: with early_reset on, this reading counts as one of its two (AdvancedEarly.cs).
-                if (check == "asked") UsageAsked();
+                if (check == "asked")
+                {
+                    UsageAsked();
+                }
                 ShowPendingNote();
                 RefreshAfterChange();
             });
@@ -597,7 +600,10 @@ namespace CodexAutoResume
                 rescanAskedAt = check == "asked" ? Now() : 0;
                 rescanUsageNote = RescanUsageText(check, Number(result, "usage_asked"));
                 // The advanced edition: with early_reset on, this reading counts as one of its two (AdvancedEarly.cs).
-                if (check == "asked") UsageAsked();
+                if (check == "asked")
+                {
+                    UsageAsked();
+                }
                 ShowPendingNote();
                 RefreshAfterChange();
             });
@@ -1021,6 +1027,11 @@ namespace CodexAutoResume
         /// when a weekly limit is what it waits for, the day and time that one resets, and the one fixed sentence that
         /// Codex's /usage can redeem a reset credit (decision C13: the standard edition keeps no credit, so it never says
         /// whether there is one). Any other task's note is as it was.
+        ///
+        /// v0.6.19 (the owner's decision of 2026-10-24): this panel is the one place on Pending that says the usage
+        /// readings. After the watcher's last reading, the one a person's Retry now or Rescan asked for this recovery,
+        /// with who asked it (UsageReadText) - and, in the advanced edition, early_reset's own (UsageNoted). The note under
+        /// the buttons says only what a click just did.
         private string WithUsage(Dictionary<string, object> row, string note)
         {
             if (Str(row, "category") != "usage_limit" || snapshot == null) return note;
@@ -1034,7 +1045,20 @@ namespace CodexAutoResume
                 said.Add(S("usage.weekly_credit", "If your account has a reset credit, /usage in Codex can redeem it."));
             }
             if (line != null) said.Add(line);
+            string asked = UsageReadText(Map(row, "usage_check"));
+            if (asked != null) said.Add(asked);
+            UsageNoted(row, said);
             return said.Count == 0 ? null : string.Join("\n", said.ToArray());
+        }
+
+        /// The reading a person's Retry now or Rescan asked for this recovery (the row's `usage_check`), led by the button
+        /// that asked it - "Retry now · Usage checked at 23:31: still limited. ..." - or null where none was asked.
+        internal string UsageReadText(Dictionary<string, object> check)
+        {
+            string text = UsageCheckText(check);
+            if (text == null) return null;
+            string by = Str(check, "source") == "rescan" ? S("action.rescan", "Rescan") : S("action.retry_now", "Retry now");
+            return by + " \u00B7 " + text;
         }
 
         /// v0.6.11: the sentence under the checks. Observe only's "would have been sent", or why the first check that
