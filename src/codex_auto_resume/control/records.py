@@ -161,7 +161,7 @@ class RecordsMixin:
                          "cwd_basename": identity.get("cwd_basename"),
                          "home": home[0] if home is not None else None,
                          "once_words": row["interruption_id"] in worded,
-                         "usage_check": checked.get(row["interruption_id"])})
+                         "usage_check": _usage_check(checked.get(row["interruption_id"]), row)})
             listed.append(item)
         return listed
 
@@ -221,3 +221,12 @@ class RecordsMixin:
             result = store.statistics(since)
         result["period_days"] = days
         return result
+
+
+def _usage_check(check, row):
+    """A row's usage check (store.usage_checks_shown), with whether the recovery has been continued since it lifted the
+    reset: sent - claimed and submitted - at or after the reading (v0.6.19, issue #50)."""
+    if not check:
+        return None
+    sent = row.get("submitted_at")
+    return dict(check, continued=bool(check.get("lifted") and isinstance(sent, (int, float)) and sent >= check["at"]))

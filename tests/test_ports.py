@@ -93,6 +93,8 @@ ENGINE_TO_STORE = {
     "usage_checks_asked", "usage_check_taken", "usage_checked",
     # and the advanced edition's Check now, which opens the next early look at once and is taken by it (EARLY).
     "early_check_asked", "early_check_taken",
+    # and a request it could not serve said not checked, and the record a tick's sweep asks why for.
+    "usage_not_checked",
     # v0.6.15-beta: a worker's own store closed once its receipt came (engine/launches.py) - never the engine's.
     "close",
     # v0.6.18: when Windows last started, read off the watcher's heartbeat, so a recovery turn begun before it is

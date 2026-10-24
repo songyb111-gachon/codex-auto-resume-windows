@@ -78,6 +78,7 @@ class AvailableTests(CheckCase):
         self.assertLess(row["reset_at"], RESET, "the reset is the newer one Codex's reading showed")
         self.assertIn("usage_checked", self.h.events(key))
         self.assertEqual(self.pending()["usage_check"]["read"], "available")
+        self.assertTrue(self.pending()["usage_check"]["continued"], "sent since the reading: the row says it went on")
 
     def test_available_still_meets_every_gate(self):
         """The reset lifted, a conversation the app does not hold still waits for it (A11): no send without every gate."""
@@ -89,6 +90,20 @@ class AvailableTests(CheckCase):
         row = self.h.record()
         self.assertLess(row["reset_at"], RESET)
         self.assertEqual(row["last_error"], "notLoaded")
+        check = self.pending()["usage_check"]
+        self.assertEqual((check["lifted"], check["continued"]), (True, False),
+                         "lifted, not continued: the row must not say it went on (the review of 2026-10-24)")
+
+    def test_mcp_retry_now_asks_for_no_reading(self):
+        """Only a person's Retry now in the Dashboard reads usage; MCP's retry_now behaves as before."""
+        key = self.waiting()
+        with mock.patch.object(control_actions.WakeEvent, "signal", lambda _self: True),                 mock.patch("time.time", lambda: self.h.now):
+            answer = control.Control(self.paths).request_retry_now(key, actor="mcp")
+        self.assertIsNone(answer["usage_check"])
+        self.assertEqual(self.h.store.usage_checks_asked(self.h.now), {})
+        before = self.reads
+        self.h.tick(advance=1)
+        self.assertEqual((self.reads, self.sends()), (before, 0))
 
     def test_the_request_is_taken_once(self):
         key = self.waiting(loaded=False)
@@ -99,7 +114,7 @@ class AvailableTests(CheckCase):
         reads = self.reads
         self.h.tick(advance=1)
         self.assertEqual(self.reads, reads, "a second look reads nothing more")
-        self.assertEqual(self.h.store.usage_checks_asked(self.h.now), set())
+        self.assertEqual(self.h.store.usage_checks_asked(self.h.now), {})
 
 
 class NothingReleasedTests(CheckCase):
@@ -111,7 +126,8 @@ class NothingReleasedTests(CheckCase):
         self.h.tick(advance=1)
         row = self.h.record()
         self.assertEqual((row["state"], row["reset_at"], self.sends()), ("waiting_reset", RESET, 0))
-        self.assertEqual(self.pending()["usage_check"], {"at": self.h.now, "read": "still_limited", "lifted": False})
+        self.assertEqual(self.pending()["usage_check"], {"at": self.h.now, "read": "still_limited", "lifted": False, "why": None,
+                                                        "continued": False})
 
     def test_an_unknown_or_failed_read_releases_nothing(self):
         for name, usage in (("unknown", lambda: {"available": None, "reason": "unknown"}),
@@ -131,7 +147,7 @@ class NothingReleasedTests(CheckCase):
         answer = self.retry(key, woke=False)
         self.assertEqual(answer["usage_check"], "not_running")
         self.assertIn("not running", answer["note"])
-        self.assertEqual(self.h.store.usage_checks_asked(self.h.now), set(), "asked now or not at all")
+        self.assertEqual(self.h.store.usage_checks_asked(self.h.now), {}, "asked now or not at all")
         before = self.reads
         self.h.tick(advance=1)
         self.assertEqual((self.reads, self.sends()), (before, 0))
@@ -149,7 +165,9 @@ class NothingReleasedTests(CheckCase):
     def test_a_pause_beats_the_click(self):
         key = self.waiting()
         self.h.store.set_enabled(False, self.h.now)
-        self.assertIsNone(self.retry(key)["usage_check"])
+        answer = self.retry(key)
+        self.assertEqual(answer["usage_check"], "paused", "no request, and the click says why (the review of 2026-10-24)")
+        self.assertEqual(self.h.store.usage_checks_asked(self.h.now), {})
 
     def test_retry_now_made_at_the_store_alone_reads_nothing(self):
         """v0.6.10's own scenarios (test_engine T31, frozen) ask the store directly: the schedule moves, nothing is read."""

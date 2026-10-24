@@ -62,6 +62,17 @@ class Engine(OptionsMixin, AnnounceMixin, FreshnessMixin, DetectMixin, Reconcile
 
     # ------------------------------------------------------------------ tick
     def tick(self):
+        # v0.6.19 (issue #50): a person's usage check is served at this tick's looks or said not checked at its end.
+        try:
+            before = self.store.usage_checks_asked(self.clock())
+        except Exception:
+            before = {}
+        try:
+            self._tick()
+        finally:
+            self._usage_checks_left(before)
+
+    def _tick(self):
         # The watch and outcome observation continue when recovery is paused: taking
         # back a queued continuation is exactly what a Pause asks for.
         try:

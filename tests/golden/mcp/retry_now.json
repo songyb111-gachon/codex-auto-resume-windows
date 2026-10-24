@@ -13,7 +13,7 @@
           "content": [
             {
               "type": "text",
-              "text": "The watcher is not running, so usage was not checked; it waits for the reset Codex gave. The watcher still revalidates it, still needs the conversation open, and still refuses anything uncertain."
+              "text": "The usage reset is at a later time; the watcher checks then, and every safety check still applies. The watcher still revalidates it, still needs the conversation open, and still refuses anything uncertain."
             }
           ],
           "structuredContent": {
@@ -21,8 +21,8 @@
             "state": "waiting_reset",
             "eligible_at": 1800002540.0,
             "woke": false,
-            "note": "the watcher is not running, so usage was not checked; it waits for the reset Codex gave",
-            "usage_check": "not_running"
+            "note": "the usage reset is at a later time; the watcher checks then, and every safety check still applies",
+            "usage_check": null
           }
         }
       }

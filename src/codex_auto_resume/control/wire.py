@@ -72,6 +72,10 @@ class UsageCheck(TypedDict):
     at: float
     read: str
     lifted: bool
+    # v0.6.19 (the review of 2026-10-24): why it was not checked (read not_checked; store/schedule.NOT_CHECKED), and
+    # whether the recovery has been continued since the reading lifted its reset.
+    why: str | None
+    continued: bool
 
 
 class PendingRow(RecordView):

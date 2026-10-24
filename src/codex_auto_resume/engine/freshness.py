@@ -9,13 +9,20 @@ and, after a sleep longer than Settings allow, whose recoveries that fell due me
 person - and a PC Windows reports without internet, for which usage is not read.
 
 v0.6.19 (issue #50; A12 amended by the owner on 2026-10-24): a person's Retry now on a recovery that waits for a usage
-reset is a moment usage is read too - once, fresh, at the look the click brought forward (`_asked_usage`).
+reset is a moment usage is read too - once, at the look the click brought forward (`_asked_usage`), a reading taken in
+the last 30 seconds answering it (C9). A request is served at the watcher's next look or not at all; one it could not
+serve - paused, observe only, quiet hours, no internet, busy too long, held - is never read later, and the row says why
+(`_usage_checks_left`).
 """
 from __future__ import annotations
 
 from .. import failures, machine, power
 from ..domain import usage as readings
 from ..machine import WAITING, WATCHED
+
+# v0.6.19 (the review of 2026-10-24): a person's request to read usage is served at the watcher's next look, or not at
+# all: one older than this at that look - a watcher busy that long - is not read, and the row says so.
+USAGE_CHECK_LONGEST = 120
 
 
 class FreshnessMixin:
@@ -47,24 +54,63 @@ class FreshnessMixin:
         record as it stands after, or None where it moved. Never a send of its own."""
         key = row["interruption_id"]
         try:
-            asked = key in self.store.usage_checks_asked(now)
+            asked = self.store.usage_checks_asked(now).get(key)
         except Exception:
-            asked = False
-        if not asked:
+            asked = None
+        if asked is None:
+            return row
+        why = self._not_served(row, now, quiet_until, vector, asked)
+        if why is not None:
+            self.store.usage_not_checked(key, now, why)
             return row
         self.store.usage_check_taken(key)
-        if (vector["consent"][0] != machine.PASS or row["category"] != failures.USAGE_LIMIT
-                or machine.gate_schedule(row, now, quiet_until=quiet_until, early=True)[0] != machine.PASS):
-            return row
-        self._usage_cache = None                        # read at the click's look, not a reading from before it
         try:
-            available = self.usage().get("available")
+            available = self.usage().get("available")   # a reading of the last 30 seconds answers it (C9)
         except Exception:
             available = None
         read = ("usage_available" if available is True else "usage_unavailable" if available is False
                 else "usage_unknown")
         found = self.store.usage_checked(key, now, read)
         return found
+
+    def _not_served(self, row, now, quiet_until, vector=None, asked=None):
+        """Why a person's request to read usage for `row` cannot be served at this look (store/schedule.NOT_CHECKED),
+        or None where it can: recovery paused or the conversation's off, observe only, quiet hours, no internet while
+        the watcher waits for one, a request older than USAGE_CHECK_LONGEST, or anything else that holds the record."""
+        settings = self.store.settings()
+        if not settings["enabled"] or self.managed.disable_auto_resume:
+            return "paused"
+        if not self.store.thread_enabled(row["thread_id"]):
+            return "conversation_off"
+        if self.observing(settings):
+            return "observe_only"
+        if quiet_until is not None:
+            return "quiet_hours"
+        if (vector is None or vector["consent"][0] != machine.PASS or row["category"] != failures.USAGE_LIMIT
+                or machine.gate_schedule(row, now, early=True)[0] != machine.PASS):
+            return "held"
+        if self.offline():
+            return "offline"
+        if asked is None or not 0 <= now - asked <= USAGE_CHECK_LONGEST:
+            return "busy"
+        return None
+
+    def _usage_checks_left(self, before) -> None:
+        """At the end of a tick: each request already standing when it began that its looks did not serve, taken and
+        said not checked, with why - never served at a later look (`before`, store.usage_checks_asked then)."""
+        if not before:
+            return
+        try:
+            now = self.clock()
+            standing = self.store.usage_checks_asked(now)
+            for key in set(before) & set(standing):
+                row = self.store.get(key)
+                if row is None:
+                    self.store.usage_check_taken(key)
+                    continue
+                self.store.usage_not_checked(key, now, self._not_served(row, now, self.quiet_until(now)) or "held")
+        except Exception:
+            pass                                        # a state that cannot be read now is swept at the next tick
 
     def last_usage(self):
         """The last usage reading this engine made that had windows, as (time, windows) - None until it

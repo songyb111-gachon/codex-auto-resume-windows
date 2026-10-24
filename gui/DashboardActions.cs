@@ -213,6 +213,8 @@ namespace CodexAutoResume
                     ? S("retry.checking_usage", "Checking usage now. If Codex says the limit has lifted, the recovery goes on through every check; otherwise it waits for the reset Codex gave.")
                     : check == "not_running"
                     ? S("retry.not_running", "The watcher is not running, so usage was not checked. It waits for the reset Codex gave.")
+                    : check != null
+                    ? NotCheckedText(check)
                     : eligible > Now() + 1 && Number(row, "reset_at") >= eligible
                     ? S("retry.later", "The usage reset is later; the watcher checks then.")
                     : eligible > Now() + 1

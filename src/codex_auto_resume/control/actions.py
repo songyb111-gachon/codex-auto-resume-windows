@@ -7,10 +7,11 @@ from __future__ import annotations
 
 import time
 
-from .. import homes, machine, oncewords, projects, quiet, settings
+from .. import homes, machine, oncewords, power, projects, quiet, settings
 from ..machine import CLAIMED, OBSERVING, WAITING
 from ..store import TERMINAL, StoreError
 from ..store.actions import CHANGED, RECHECKED, RETIRED, UNRESOLVED
+from ..win import network
 from ..windows import WakeEvent
 from .errors import (ControlError,
                      _REFUSALS_POSTPONE,
@@ -22,6 +23,12 @@ from .errors import (ControlError,
                      _refusal,
                      _thread_id)
 from .records import _other_homes, _reader
+
+# v0.6.19 (the review of 2026-10-24): why Retry now asked for no usage reading, in the reply's note (store/schedule.py
+# NOT_CHECKED's first five words, which the Dashboard says in its own words).
+_NOT_CHECKED_NOTES = {"paused": "recovery is paused", "conversation_off": "recovery is off for this conversation",
+                      "observe_only": "Observe only is on", "quiet_hours": "it is quiet hours",
+                      "offline": "Windows reports no internet"}
 
 
 # A cancel must not fail because the watcher happens to be writing. The store already
@@ -141,7 +148,11 @@ class ActionsMixin:
         read usage once, at the look it brings forward: if Codex says the limit has lifted, the
         reset is the newer one and every gate runs as usual; still limited, unknown or a failed
         read changes nothing. With no watcher running, nothing is read, and it says so
-        (`usage_check`: asked, not_running, or None where no reading was asked for).
+        (`usage_check`: asked, not_running, or None where no reading was asked for). Only a person's
+        click in the Dashboard asks (actor "gui"); MCP's retry_now reads nothing, as before. Under a
+        Pause, the conversation's recovery off, Observe only, quiet hours or no internet while the
+        watcher waits for one, nothing is asked and `usage_check` says which (the review of
+        2026-10-24: the click and the watcher agree).
         """
         key = _identifier(interruption_id)
         with self._open() as store:
@@ -150,12 +161,13 @@ class ActionsMixin:
                 raise ControlError("no such interruption", code="no_such_interruption")
             accepted, detail = store.request_retry_now(key, time.time(), actor=actor)
             now = time.time()
-            # Only where the watcher would act on the reading: recovery on, the conversation on, nothing held, no
-            # postponement of the person's own - a Pause beats a click, as it beats every recovery.
-            check = (accepted and record["category"] == "usage_limit" and (record["reset_at"] or 0) > now
-                     and (record["not_before"] or 0) <= now and not record.get("hold")
-                     and store.settings()["enabled"] and store.thread_enabled(record["thread_id"])
-                     and store.ask_usage_check(key))
+            # Only a person's click, and only where the watcher would read: a usage limit's reset still ahead, nothing
+            # held, no postponement of the person's own. What would stop the watcher reading is said, not asked.
+            wanted = (accepted and actor == "gui" and record["category"] == "usage_limit"
+                      and (record["reset_at"] or 0) > now and (record["not_before"] or 0) <= now
+                      and not record.get("hold"))
+            blocked = self._not_checked(store, record, now) if wanted else None
+            check = wanted and blocked is None and store.ask_usage_check(key, now)
         if not accepted:
             message, code = _refusal(_REFUSALS_RETRY, detail)
             raise ControlError(message, code=code)
@@ -164,7 +176,7 @@ class ActionsMixin:
             woke = WakeEvent(str(self.paths.state_dir)).signal()
         except Exception:
             woke = False
-        usage_check = None
+        usage_check = blocked
         if check and not woke:
             # Asked now or not at all: a watcher that starts later reads usage when the recovery is due, as always.
             with self._open() as store:
@@ -173,7 +185,9 @@ class ActionsMixin:
         elif check:
             usage_check = "asked"
         now = time.time()
-        if usage_check == "asked":
+        if blocked is not None:
+            note = "usage was not checked: %s; it waits for the reset Codex gave" % _NOT_CHECKED_NOTES[blocked]
+        elif usage_check == "asked":
             note = ("checking usage now: if Codex says the limit has lifted, the recovery goes on through "
                     "every safety check; otherwise it waits for the reset Codex gave")
         elif usage_check == "not_running":
@@ -191,6 +205,31 @@ class ActionsMixin:
             note = "the watcher checks at its next poll; every safety check still applies"
         return {"interruption_id": key, "state": record["state"], "eligible_at": detail,
                 "woke": woke, "note": note, "usage_check": usage_check}
+
+    def _not_checked(self, store, record, now):
+        """What would stop the watcher reading usage for `record` now, in store/schedule.NOT_CHECKED's words, or None:
+        a Pause, the conversation's recovery off, Observe only, quiet hours, or no internet while the watcher waits for
+        one - each as the watcher reads it, so the click never promises a reading the watcher will not make."""
+        stored = store.settings()
+        if not stored["enabled"]:
+            return "paused"
+        if not store.thread_enabled(record["thread_id"]):
+            return "conversation_off"
+        try:
+            values = self.get_settings()
+        except Exception:
+            values = {}
+        if stored.get("observe_only") or values.get("observe_only"):
+            return "observe_only"
+        if quiet.quiet_until(now, values) is not None:
+            return "quiet_hours"
+        if power.waits_for_network(values):
+            try:
+                if network.internet() is False:
+                    return "offline"
+            except Exception:
+                pass
+        return None
 
 
     def set_interruption_recovery(self, interruption_id, thread_id, enabled, *,

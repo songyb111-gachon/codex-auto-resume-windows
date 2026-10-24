@@ -435,7 +435,12 @@ nothing is sent unless they all pass. On a task waiting for a usage reset it als
 your usage once, at that moment: if Codex says the limit has lifted, the newer reset replaces the one
 recorded and the task goes on through every check as usual; still limited, unknown or a failed read
 changes nothing. The selected row then says when it checked, what it read and whether the task went on,
-and if the watcher is not running Retry now says so and reads nothing. Nothing is read on a schedule. **Cancel** stops recovering that interruption and
+and if the watcher is not running Retry now says so and reads nothing. While recovery is paused or off
+for that conversation, Observe only is on, it is quiet hours or Windows reports no internet (with
+**Wait for an internet connection** on), nothing is read and Retry now says why. The watcher reads at
+its next look or not at all: a check it cannot make then is never made later, and the row says why
+it was not made. A reading from the last 30 seconds answers the click, and nothing is read on a
+schedule. **Cancel** stops recovering that interruption and
 everything that continues it: a record that was never sent is cancelled outright, one that may
 already be in Codex is marked and taken back if it is still queued, and a finished one is
 marked too, so no later failure of that task can start a new chain from it. A turn already

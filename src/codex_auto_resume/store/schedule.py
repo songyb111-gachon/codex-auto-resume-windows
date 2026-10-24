@@ -23,8 +23,11 @@ USAGE_CHECKS = "usage-checks"
 # What a reading said, as the journal keeps it: the limit lifted, still limited, or nothing could be told.
 USAGE_READ_AVAILABLE, USAGE_READ_LIMITED, USAGE_READ_UNKNOWN = "usage_available", "usage_unavailable", "usage_unknown"
 USAGE_READS = (USAGE_READ_AVAILABLE, USAGE_READ_LIMITED, USAGE_READ_UNKNOWN)
-# A request no watcher took within a day is dropped: a check is asked for now, not for whenever.
-USAGE_CHECK_LONGEST = 86400
+# A request is served at the watcher's next look or not at all (engine/freshness.py, the review of 2026-10-24: never read
+# later, at no click). Why one was not served, as the journal keeps it (its value, an index here): recovery paused, the conversation's
+# recovery off, observe only, quiet hours, no internet while the watcher waits for one, a watcher busy past its bound,
+# or a hold, a postponement or a change of the record's own.
+NOT_CHECKED = ("paused", "conversation_off", "observe_only", "quiet_hours", "offline", "busy", "held")
 # And the advanced edition's Check now (early_reset, v0.6.19, issue #50): one file in the same folder, holding when it was
 # asked, for the watcher's next early look to open at once (engine/relaxed.py). Older than the five minutes between two
 # early looks it is dropped - the next look of its own has come by then.
@@ -159,23 +162,25 @@ class ScheduleMixin:
             raise OSError("the usage checks' folder is a symbolic link")
         return folder
 
-    def ask_usage_check(self, interruption_id: str) -> bool:
-        """A person's Retry now asks the watcher to read usage once for this record (USAGE_CHECKS). False where it
-        could not be asked - an id of no shape, or a folder that cannot be written."""
+    def ask_usage_check(self, interruption_id: str, now: float) -> bool:
+        """A person's Retry now asks the watcher to read usage once for this record (USAGE_CHECKS), at `now`. False
+        where it could not be asked - an id of no shape, or a folder that cannot be written."""
         if not ids.is_interruption_id(interruption_id):
             return False
+        _timestamp(now, "now")
         try:
             folder = self._usage_checks()
             folder.mkdir(exist_ok=True)
-            (folder / interruption_id).write_bytes(b"")
+            (folder / interruption_id).write_text(repr(float(now)), encoding="ascii")
             return True
         except OSError:
             return False
 
-    def usage_checks_asked(self, now: float) -> set:
-        """The records a person asked to have usage read for and no watcher took yet: their ids. A request older than a
-        day is dropped, and anything in the folder that is not exactly an id is left alone and not read."""
-        found = set()
+    def usage_checks_asked(self, now: float) -> dict:
+        """The records a person asked to have usage read for and no watcher took yet: {id: when it was asked} (0 for a
+        request whose time cannot be read, so it is never served). Anything in the folder that is not exactly an id is
+        left alone and not read."""
+        found = {}
         try:
             folder = self._usage_checks()
             entries = list(folder.iterdir()) if folder.is_dir() else []
@@ -185,13 +190,21 @@ class ScheduleMixin:
             if not ids.is_interruption_id(entry.name) or entry.is_symlink():
                 continue
             try:
-                if now - entry.stat().st_mtime > USAGE_CHECK_LONGEST:
-                    entry.unlink()
-                    continue
-            except OSError:
-                continue
-            found.add(entry.name)
+                found[entry.name] = float(entry.read_text(encoding="ascii"))
+            except (OSError, ValueError):
+                found[entry.name] = 0.0
         return found
+
+    def usage_not_checked(self, interruption_id: str, now: float, why: str) -> None:
+        """A request the watcher could not serve at its look, taken and journalled as USAGE_CHECKED with flag 2 and why
+        (NOT_CHECKED, by its index): nothing about the record changes."""
+        _timestamp(now, "now")
+        self.usage_check_taken(interruption_id)
+        with self._transaction() as connection:
+            row = self._row(connection, interruption_id)
+            if row is not None:
+                self._event(connection, now, "usage_checked", record=row, from_state=row["state"], to_state=row["state"],
+                            actor="engine", flags=2, value=NOT_CHECKED.index(why if why in NOT_CHECKED else "held"))
 
     def usage_check_taken(self, interruption_id: str) -> None:
         """The request for this record taken: whatever its reading says, it is asked once."""
