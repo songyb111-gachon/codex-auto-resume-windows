@@ -55,7 +55,7 @@ class DispatchMixin:
                 self.store.record_gates(row["interruption_id"], vector, now)
             return
         quiet_until = self.quiet_until(now)     # v0.6.11; None with no quiet hours, the default
-        vector["schedule"] = machine.gate_schedule(row, now, quiet_until=quiet_until)
+        vector["schedule"], row = self._schedule_gate(row, vector, now, quiet_until)  # v0.6.19 (#50): Retry now's read
         early = vector["schedule"][0] != machine.PASS and self._early(row, vector, now, quiet_until)
         # SEND_NOW (v0.6.14): a person's request passes the retry's wait and a postponement only.
         forced = vector["schedule"][0] != machine.PASS and self._send_now(row, vector, now, quiet_until)

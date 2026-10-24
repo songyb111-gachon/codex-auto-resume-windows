@@ -224,6 +224,11 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "pending.recoveries", "pending.scheduled", "scheduled.col_mode", "scheduled.col_finished", "scheduled.done",
     "scheduled.clear", "confirm.clear", "done.cleared", "done.cleared_kept", "scheduled.state.delivered",
     "scheduled.state.handed_over", "scheduled.mode.wait", "scheduled.mode.queue", "queue.moved", "queue.go"))
+# early_reset's line on Pending (v0.6.19, #50: advanced/gui/AdvancedEarly.cs): Check now, its card's button, what the line
+# says of the last reading, and what Check now answered.
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
+    "early.check_now", "early.settings", "early.none", "early.available_first", "early.lifted", "early.limited",
+    "early.unknown", "early.not_read", "early.asked", "early.coalesced", "early.not_running", "early.nothing_waits"))
 # The edition's own continuations' words (v0.6.15-beta): what empty_response, subagent_parent and keep_going send -
 # fixed, each passing core's continuation.validate_continuation in every language (nothing is filled in but, for a
 # subagent's line, its id and a closed kind word).

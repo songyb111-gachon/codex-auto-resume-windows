@@ -143,6 +143,10 @@ class EventCode(StrEnum):
     RESCAN_RECHECKED = "rescan_rechecked"
     RESCAN_UNRESOLVED = "rescan_unresolved"
     RESCAN_CHANGED = "rescan_changed"
+    # v0.6.19 (issue #50; A12 amended by the owner on 2026-10-24): usage read once at a person's Retry now for a record
+    # that waits for a usage reset - its reason the reading's word (usage_unavailable, usage_unknown; none where usage was
+    # available), its flag 1 where that lifted the reset (store/actions.py usage_checked).
+    USAGE_CHECKED = "usage_checked"
     OTHER = "other"
 
 

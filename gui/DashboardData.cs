@@ -994,7 +994,46 @@ namespace CodexAutoResume
             var chosen = Selected(pendingList);
             bool mine = pendingNoteFor == BulkNote || (pendingNoteFor != null && chosen != null &&
                         Str(chosen, "interruption_id") == pendingNoteFor);
-            SetNote(pendingNote, mine ? pendingNoteText : "");
+            // v0.6.19 (issue #50): once the watcher has read usage at a Retry now, the chosen row says when and what it
+            // read, and whether the recovery went on - a check told apart from a resume - after, never instead of, what a
+            // person's action on the row just said (the review of 2026-10-24).
+            string own = mine ? pendingNoteText ?? "" : "";
+            string checkedText = UsageCheckText(Map(chosen, "usage_check"));
+            if (checkedText != null && checkedText != own)
+                own = own.Length == 0 ? checkedText : own + " " + checkedText;
+            SetNote(pendingNote, own);
+        }
+
+        /// Why usage was not read at a person's Retry now (store/schedule.py NOT_CHECKED, the click's or the watcher's).
+        internal string NotCheckedText(string why)
+        {
+            // An if for each, not a string switch: the in-box compiler builds a switch of six strings on a class it names at
+            // random, and the window is reproducible (build/normalize_pe.py refuses it).
+            if (why == "paused") return S("retry.not_checked.paused", "Usage was not checked because recovery was paused. It waits for the reset Codex gave.");
+            if (why == "conversation_off") return S("retry.not_checked.conversation_off", "Usage was not checked because recovery was off for this conversation. It waits for the reset Codex gave.");
+            if (why == "observe_only") return S("retry.not_checked.observe_only", "Usage was not checked because Observe only was on. It waits for the reset Codex gave.");
+            if (why == "quiet_hours") return S("retry.not_checked.quiet_hours", "Usage was not checked because it was quiet hours. It waits for the reset Codex gave.");
+            if (why == "offline") return S("retry.not_checked.offline", "Usage was not checked because Windows reported no internet. It waits for the reset Codex gave.");
+            if (why == "busy") return S("retry.not_checked.busy", "Usage was not checked because the watcher was busy for too long. Press Retry now to ask again.");
+            return S("retry.not_checked.held", "Usage was not checked because something else held the recovery. It waits for the reset Codex gave.");
+        }
+
+        /// What a usage reading a person's Retry now asked for said (the row's `usage_check`), in words, or null.
+        internal string UsageCheckText(Dictionary<string, object> check)
+        {
+            if (check == null || !(Get(check, "at") is double)) return null;
+            string time = ClockTime(Number(check, "at"));
+            string read = Str(check, "read");
+            if (read == "not_checked") return NotCheckedText(Str(check, "why"));
+            if (read == "available")
+                return !Equals(Get(check, "lifted"), true)
+                    ? S("retry.checked_available_waiting", "Usage checked at {time}: available, but the recovery was no longer waiting for its reset.", "time", time)
+                    : Equals(Get(check, "continued"), true)
+                    ? S("retry.checked_available", "Usage checked at {time}: available. The recovery went on through every check.", "time", time)
+                    : S("retry.checked_lifted_waiting", "Usage checked at {time}: available. The reset was lifted; the recovery waits for its other checks.", "time", time);
+            if (read == "still_limited")
+                return S("retry.checked_limited", "Usage checked at {time}: still limited. It waits for the reset Codex gave.", "time", time);
+            return S("retry.checked_unknown", "Usage checked at {time}: it could not be told. Nothing changed; it waits for the reset Codex gave.", "time", time);
         }
 
         /// Whether Retry now is worth offering for this record.

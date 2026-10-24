@@ -97,6 +97,8 @@ _RECEIVERS = {
         # one a list item carries in its Tag, the fresh list compared with the shown one.
         "row": ROW, "chosen": ROW, "fresh": ROW, "Tag": ROW,
         "gates": _under(ROW, ".gates"),
+        # v0.6.19 (issue #50): the usage reading a person's Retry now asked for, on the chosen row.
+        "check": _under(ROW, ".usage_check"),
         "item": [("bridge:timeline", "result.events[]")],
         # v0.6.11: what delivery showed of each continuation, after the journal.
         "receipt": [("bridge:timeline", "result.receipts[]")],

@@ -1384,7 +1384,8 @@
                 "project": null,
                 "cwd_basename": null,
                 "home": null,
-                "once_words": false
+                "once_words": false,
+                "usage_check": null
               },
               {
                 "interruption_id": "8888888888888888888888888888888888888888888888888888888888888888",
@@ -1479,7 +1480,8 @@
                 "project": null,
                 "cwd_basename": null,
                 "home": null,
-                "once_words": false
+                "once_words": false,
+                "usage_check": null
               }
             ],
             "reasons": [

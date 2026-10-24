@@ -108,6 +108,12 @@ METHODS = {
     # and several receipts waited for at once (P12, engine/delivery.py): how many, the worker taken and freed, whether
     # the send goes to it, the hand-over and what came of it.
     "_workers", "_take_slot", "_pooled", "_launched", "_free_slot", "_settle_launch",
+    # v0.6.19 (issue #50): the schedule gate, and before it the one usage reading a person's Retry now asked for
+    # (engine/freshness.py).
+    "_schedule_gate", "_asked_usage",
+    # and (the review of 2026-10-24) why such a request cannot be served, the ones a tick did not serve, said not
+    # checked at its end, and the tick's own body that sweep is wrapped around.
+    "_not_served", "_usage_checks_left", "_tick",
     # and P8's errand of the plug, run last in the tick, and what holds back its one write.
     "_errand", "errand_held",
     # and P2 carried out: the records of the plug's own, their words, their gates and moves, their claim
