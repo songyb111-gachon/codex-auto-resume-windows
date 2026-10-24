@@ -1,5 +1,62 @@
 # Changelog
 
+## v0.6.19-beta.2 — Retry now checks usage before a recovery goes on, and the early look at a usage limit shows what it read
+
+[The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.19-beta...v0.6.19-beta.2)
+
+**A pre-release: the second of v0.6.19, with the follow-up to issue #50.** It is a GitHub pre-release, so
+`releases/latest` stays v0.6.18. An installation of v0.6.18 or of v0.6.19-beta is offered it by *Check for updates*
+only where pre-releases are offered - the check asks first and says it is tested less - and *Install another version...*
+lists it. Both editions change in the first group; the second is the advanced edition's alone, and it was already off
+until you turned it on.
+
+**Going back.** Nothing about the stored formats changes from v0.6.19-beta: the watcher's state stays schema 5 with no
+new table or column, the standard edition's settings file gains no key, and the advanced edition's file stays version 8,
+readable from 7, as that entry says. What is new is small. A click on *Retry now* writes a one-line file named by the
+recovery's opaque id into a folder of its own, `usage-checks`, beside the state; the watcher takes the file at its next
+look and the folder is left empty. The advanced edition's *Check now* writes one file, `early`, into the same folder.
+No older version reads the folder, so a file left in it does nothing there. The journal gains one kind of line, *usage
+checked*, in the table it already has; an older version shows a line of a kind it does not know as an unknown kind. So
+going back to v0.6.19-beta, v0.6.18 or earlier loses nothing and shows nothing of it.
+
+### Both editions
+
+- **Retry now checks usage.** This is the release's improvement to the standard edition, and it was suggested by
+  [@weng-wen-jun](https://github.com/weng-wen-jun) ([#50](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/50)).
+  On a recovery that waits for a usage reset, a person's *Retry now* in the Dashboard now has the watcher read Codex's
+  usage once, at its next look; a reading taken in the last 30 seconds answers the click, and nothing is read on a
+  schedule. Only if Codex says that limit has lifted does the recovery go on - the newer reset replaces the one recorded
+  and the recovery goes through every check as usual, so nothing is sent unless they all pass. Still limited, unknown or a
+  failed read changes nothing, and the recovery waits for the reset Codex gave. Nothing is read, and the click says why
+  no check was made, while recovery is paused or off for that conversation, while Observe only is on, in quiet hours, or
+  when Windows reports no internet with *Wait for an internet connection* on; with the watcher not running the click says
+  so. The watcher reads at its next look or not at all: a request it could not serve then is dropped and never read
+  later, and the row says why it was not made. The selected row says when usage was checked, what it read - the limit
+  lifted, still limited, or unknown - and whether the recovery was continued: only once it has actually been sent;
+  until then it says that the reset was lifted and the recovery waits for its other checks. The note stays for a day.
+  *Retry now* from Codex's tools reads nothing, as before. Its words are in all 18 languages, and the guide says it.
+  The owner amended standard A12 for it on 2026-10-24: the real reset is the newest one Codex reports, read when a
+  recovery is due or when a person asks for it.
+
+### Advanced edition
+
+- **Notice a usage limit that lifts early, made visible** (suggested by
+  [@weng-wen-jun](https://github.com/weng-wen-jun), [#50](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/50)).
+  While it is on, a line at the top of Pending says when it last asked Codex, what the answer was and whether anything
+  was continued because of it. **Check now** on that line asks once at once, instead of at the next five minutes, for
+  every waiting conversation together, without choosing a row. Repeated clicks are one request, a reading is never taken
+  within 30 seconds of the last, and a request older than the five minutes between two early looks is dropped. The reading
+  it takes is one of the two, five minutes apart, that must both say usage is available, so one click alone continues
+  nothing; and it never sends by itself - every other check still runs, and a postponement and quiet hours still hold. It
+  is turned on and off only on the Advanced features page, as before.
+
+### For developers
+
+- The reply of *Retry now* and each Pending row carry what the check said, in the bridge and in the tools' replies (a
+  field that is empty where no check was asked for), and the string tables of all 18 languages hold its words.
+- The review's proofs - a request left from a Pause is not read later, two readings within seconds, an unmade check
+  never promised by the click - and the new tests of both items are in the tree.
+
 ## v0.6.19-beta — Chat with a conversation in the Dashboard, the watcher started again after an unexpected stop, the PC woken for a reset, and a compatibility report from this PC
 
 [The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.18...v0.6.19-beta)
