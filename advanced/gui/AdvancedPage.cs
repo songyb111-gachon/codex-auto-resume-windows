@@ -1578,6 +1578,7 @@ namespace CodexAutoResume
             foreach (Button remove in ruleRemoves) remove.Enabled = listed;
             if (ruleAdd != null) ruleAdd.Enabled = listed;
             UpdateKeptButtons(idle);
+            UpdateRunButtons(idle);
             UpdateWordingButtons(idle);
             UpdateResetButtons(idle);
             UpdateKeepGoingButtons(idle);

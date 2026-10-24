@@ -132,6 +132,13 @@ namespace CodexAutoResume
             return false;
         }
 
+        /// What the runs' Stop... buttons may do now: nothing while another action is under way, as every other button of
+        /// the page (v0.6.19-beta.3, the controls audit: before, they stayed live and a click was silently ignored).
+        private void UpdateRunButtons(bool idle)
+        {
+            foreach (Button stop in runStops) stop.Enabled = idle;
+        }
+
         /// Ask, then hand the watcher one run's Stop: the turn is interrupted at its next look.
         private void StopRunAdvanced(string key)
         {

@@ -414,6 +414,8 @@ namespace CodexAutoResume
         ///   {"do": "ctrl-tab", "shift": bool}                 Ctrl+Tab, or Ctrl+Shift+Tab
         ///   {"do": "reply", "key": ..., "with": [...]}        what the bridge answers from now on
         ///   {"do": "answer", "with": [...]}                   what the person answers the next questions
+        ///   {"do": "busy", "on": bool}                        another action under way, or over (SetBusy), as a request
+        ///                                                     in flight holds the page
         ///   {"do": "look"}                                    what the page shows now, into "looks"
         ///   {"do": "reopen"}                                  the arguments a reopen would start the next window with,
         ///                                                     here (ReopenArguments), into "reopened"
@@ -670,6 +672,11 @@ namespace CodexAutoResume
                         }
                         record["saved"] = (double)form.editorSaved;
                         dialogs.Add(record);
+                    }
+                    else if (what == "busy")
+                    {
+                        form.SetBusy(Equals(Get(step, "on"), true));
+                        form.UpdateAdvancedButtons();
                     }
                     else if (what == "run_stop")
                     {
