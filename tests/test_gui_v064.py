@@ -509,10 +509,15 @@ $trackFill = $barType.GetMethod('TrackFill', $static)
 $trackEdge = $barType.GetMethod('TrackEdge', $static)
 $thumbFill = $barType.GetMethod('ThumbFill', $static)
 $thumbEdge = $barType.GetMethod('ThumbEdge', $static)
-# A bar is drawn on the ground it runs over, and the track's colour is chosen against it (v0.6.6): on a
-# card the groove is `inset`, and in a well that is already `inset` - the message box - it is `surface`.
+# A bar is drawn on the ground it runs over, and the track's colour is chosen against it (v0.6.6): a step
+# deeper than the ground - on a card `inset`, in a well that is already `inset` a step deeper than that.
 $onCard = $tokensType.GetField('Card', $static).GetValue($null)
 $onInset = $tokensType.GetField('Inset', $static).GetValue($null)
+$out.grounds = @{}
+foreach ($name in 'Card', 'Inset', 'Canvas', 'Surface', 'Raised') {
+    $ground = $tokensType.GetField($name, $static).GetValue($null)
+    $out.grounds[$name] = @([int]$ground.ToArgb(), [int]$trackFill.Invoke($null, [object[]]@($false, $ground)).ToArgb())
+}
 $out.contrast = @{ track = @($trackFill.Invoke($null, [object[]]@($true, $onCard)).Name, $trackEdge.Invoke($null, [object[]]@($true)).Name)
                    inset = [string]$trackFill.Invoke($null, [object[]]@($true, $onInset)).Name
                    thumb = @(); edge = @() }
@@ -831,13 +836,23 @@ class SoftScrollTests(unittest.TestCase):
         self.assertEqual(contrast["edge"], contrast["thumb"])
 
     def test_the_track_takes_its_colour_from_the_ground_it_runs_over(self):
-        """A groove has to be a step away from what surrounds it. Over a card - the list, the page, the panel - that
-        step is `inset`; in the message box, whose own well is already `inset`, an inset track would be the ground
-        itself and the pill would float on nothing, so there the track is `surface` ("스크롤바는 스크롤바가 생기는
-        곳에 따라 색이 쫌 달라져야 하지 않을까?")."""
+        """A groove has to be a step away from what surrounds it, decided by that ground alone ("스크롤바는 스크롤바가
+        생기는 곳에 따라 색이 쫌 달라져야 하지 않을까?"): one card-to-well step deeper than it. Over a card - the list, the
+        page, the panel - that is `inset`; in a well that is already `inset` - the setup window's log, the message box -
+        a step deeper than the well, and on the canvas a step deeper than the canvas. Wherever it stands, the pill
+        (`raised`) is a step and more above its groove: two colours, never one. Fails with a well's groove `surface`, a
+        step the other way, which the pill matched (the owner, 2026-10-26: "색상이 하나 뿐이네")."""
         light = self.answer["light"]
         self.assertEqual(light["track"][0], argb(brand.LIGHT["inset"]), "on a card, the groove")
-        self.assertEqual(light["inset"], argb(brand.LIGHT["surface"]), "in an inset well, a step the other way")
+        card = self.answer["grounds"]["Card"][0]
+        step = [a - b for a, b in zip(channels(card), channels(argb(brand.LIGHT["inset"])))]
+        pill = channels(argb(brand.LIGHT["raised"]))
+        for name, (ground, groove) in self.answer["grounds"].items():
+            with self.subTest(name):
+                self.assertEqual(tuple(channels(groove)), tuple(max(0, min(255, g - s)) for g, s in zip(channels(ground), step)),
+                                 "a step deeper than the ground")
+                self.assertGreaterEqual(max(abs(p - g) for p, g in zip(pill, channels(groove))), max(step),
+                                        "the pill a step and more above its groove")
 
     def test_the_bar_is_the_panels_material_and_darkens_a_step_under_the_pointer(self):
         light = self.answer["light"]

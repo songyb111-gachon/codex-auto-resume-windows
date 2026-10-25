@@ -396,6 +396,40 @@ namespace CodexAutoResume
             if (control.Parent != null) control.Parent.Invalidate(true);
         }
 
+        /// A list's own scroll bars, which its clip hides on screen, are drawn whole by DrawToBitmap - over the soft bar
+        /// beside them (the owner, 2026-10-26: "고급판 캡처에서는 우리의 스크롤이 적용이 안 되네"). Each showing list's
+        /// gutters are painted again on top, as far as the window shows that list, as the screen draws them.
+        private void PaintListGutters(Bitmap picture)
+        {
+            var hosts = new List<SoftListHost>();
+            var walk = new Stack<Control>();
+            walk.Push(this);
+            while (walk.Count > 0)
+            {
+                Control control = walk.Pop();
+                if (control != this && !Soft.OwnVisible(control)) continue;
+                var host = control as SoftListHost;
+                if (host != null) hosts.Add(host);
+                foreach (Control child in control.Controls) walk.Push(child);
+            }
+            foreach (SoftListHost host in hosts)
+            {
+                if (!host.IsHandleCreated) continue;
+                Point at = PointToClient(host.PointToScreen(Point.Empty));
+                var shown = new Rectangle(at, host.Size);
+                for (Control parent = host.Parent; parent != null && parent != this; parent = parent.Parent)
+                    if (parent.IsHandleCreated)
+                        shown.Intersect(new Rectangle(PointToClient(parent.PointToScreen(Point.Empty)), parent.ClientSize));
+                if (shown.Width <= 0 || shown.Height <= 0) continue;
+                using (Graphics g = Graphics.FromImage(picture))
+                {
+                    g.SetClip(shown);
+                    g.TranslateTransform(at.X, at.Y);
+                    host.PaintGutters(g);
+                }
+            }
+        }
+
         /// The window drawn into a bitmap the size of its client area - and over it, when the frame has one open, a
         /// drop-down's list, which is a window of its own a picture of the window would never hold, drawn by its own
         /// painter (SoftDropList.PaintSettled) where it opens.
@@ -404,6 +438,7 @@ namespace CodexAutoResume
             var picture = new Bitmap(ClientSize.Width, ClientSize.Height, PixelFormat.Format32bppArgb);
             Invalidate(true);
             DrawToBitmap(picture, new Rectangle(Point.Empty, ClientSize));
+            PaintListGutters(picture);
             renderRows = null;
             renderMenu = null;
             // v0.6.18: a Pending row's own menu, over everything: a window of its own too (SoftMenu), drawn by its own
