@@ -34,6 +34,9 @@ namespace CodexAutoResume
         private Label editorCount, editorAfterTurn, editorSaid;
         private ChoiceGroup editorMode;
         private Button editorSave, editorCancel;
+        // What FitEditor measures - the fields' stack and the buttons under it - and what it last fitted the dialog to.
+        private Control editorBody, editorButtons;
+        private string editorFitFor;
         private int editorPrompt = -1;
         private bool editorTaken;
         // The prompt the last Save and return saved, for the list read after it to choose; -1 where none waits to be.
@@ -72,6 +75,8 @@ namespace CodexAutoResume
             editorCount = editorAfterTurn = editorSaid = null;
             editorMode = null;
             editorSave = editorCancel = null;
+            editorBody = editorButtons = null;
+            editorFitFor = null;
             editorPrompt = -1;
             editorTaken = false;
         }
@@ -234,28 +239,40 @@ namespace CodexAutoResume
             editorDialog = dialog;
             ShowEditorState();
 
-            // As tall as everything with the longest refusal said: the dialog never grows under a person's hand. Each line
-            // that wraps is held to the width it is laid out at - a measure taken at a wider width read Hebrew at 200% short
-            // by two lines - and the dialog is laid out once to read how tall it all is.
-            editorSaid.Text = PromptRefusal("queue_full");
-            editorAfterTurn.Visible = editorMode.Visible = true;
+            // Each line that wraps is held to the width it is laid out at - a measure taken at a wider width read Hebrew at
+            // 200% short by two lines - and the dialog is as tall as what it shows (FitEditor).
             int inner = width - body.Padding.Horizontal;
             int lines = inner - card.Padding.Horizontal;
             foreach (Control control in card.Controls)
                 if (control is WrapLabel) control.MaximumSize = new Size(lines, 0);
             editorSaid.MaximumSize = new Size(inner, 0);
-            int buttonsTall = buttons.GetPreferredSize(new Size(width, 0)).Height;
             dialog.ClientSize = new Size(width, Px(400));
-            dialog.PerformLayout();
-            host.PerformLayout();
-            body.PerformLayout();
-            int tall = Math.Max(body.Height, body.GetPreferredSize(new Size(width, 0)).Height);
-            // As tall as all of it, and never taller than the screen it opens on lets a window be.
-            int most = Math.Min(Screen.GetWorkingArea(this).Height, SystemInformation.MaxWindowTrackSize.Height) - Px(96);
-            dialog.ClientSize = new Size(width, Math.Max(Px(240), Math.Min(tall + buttonsTall, most)));
-            editorSaid.Text = "";
+            editorBody = body;
+            editorButtons = buttons;
             ShowEditorState();
             return dialog;
+        }
+
+        /// The dialog as tall as what it shows now - the send mode's two choices for a time, or the line on after this
+        /// turn, and a refusal once one is said - and never taller than the screen it opens on lets a window be, where
+        /// what does not fit is scrolled to. Measured again only when one of those changes, never at a keystroke. Up to
+        /// v0.6.19-beta.3 it stood as tall as all of them at once, and what was not showing was an empty band above the
+        /// buttons (the owner, 2026-10-25).
+        private void FitEditor()
+        {
+            if (editorDialog == null || editorBody == null || editorButtons == null) return;
+            string showing = Soft.OwnVisible(editorMode) + "|" + Soft.OwnVisible(editorAfterTurn) + "|" + editorSaid.Text;
+            if (showing == editorFitFor) return;
+            editorFitFor = showing;
+            int width = editorDialog.ClientSize.Width;
+            editorDialog.PerformLayout();
+            editorBody.Parent.PerformLayout();
+            editorBody.PerformLayout();
+            int tall = Math.Max(editorBody.Height, editorBody.GetPreferredSize(new Size(width, 0)).Height);
+            int buttonsTall = editorButtons.GetPreferredSize(new Size(width, 0)).Height;
+            int most = Math.Min(Screen.GetWorkingArea(this).Height, SystemInformation.MaxWindowTrackSize.Height) - Px(96);
+            int want = Math.Max(Px(240), Math.Min(tall + buttonsTall, most));
+            if (editorDialog.ClientSize.Height != want) editorDialog.ClientSize = new Size(width, want);
         }
 
         private SoftCombo EditorCombo(string name, int width)
@@ -293,6 +310,7 @@ namespace CodexAutoResume
             editorCount.Text = Word("page.resets.count", "{n} of {most} characters", "n", editorWords.Box.Text.Length)
                 .Replace("{most}", EditorWordsMost().ToString(CultureInfo.CurrentCulture));
             editorSave.Enabled = busy == 0 && editorConversation.SelectedItem != null && editorWords.Box.Text.Trim().Length > 0;
+            FitEditor();
         }
 
         /// The request Save and return sends, or null where a field it needs has nothing chosen.

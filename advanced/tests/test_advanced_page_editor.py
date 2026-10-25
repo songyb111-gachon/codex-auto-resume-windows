@@ -141,6 +141,19 @@ class PageTests(PageCase):
         (request,) = sent(result, "advanced-prompt-add")
         self.assertEqual((request["trigger"], request["while_running"]), ("after_turn", "queue"))
 
+    def test_the_dialog_is_as_tall_as_what_it_shows(self):
+        """No empty band above the buttons: up to v0.6.19-beta.3 the dialog stood as tall as the send mode's choices, the
+        line on after this turn and the longest refusal all at once (the owner, 2026-10-25). A refusal said is wholly in
+        view. Fails with the dialog sized for all of them."""
+        for name in ("scenario_after_turn", "scenario_new", "scenario_refused"):
+            (editor,) = self.of(name)[0]["dialogs"]
+            self.assertLessEqual(editor["blank"], 2, "%s: %r px empty above the buttons" % (name, editor["blank"]))
+            if not editor["taken"]:
+                self.assertLessEqual(editor["blank_after"], 2, "%s, refused: %r px" % (name, editor["blank_after"]))
+                self.assertTrue(editor["said_fits"], "%s: the refusal is cut off" % name)
+        refused = self.of("scenario_refused")[0]["dialogs"][0]
+        self.assertTrue(refused["said"], "the refused scenario said its refusal")
+
     def test_edit_opens_filled_for_that_message_and_saves_it(self):
         result, expected = self.of("scenario_edit")
         (editor,) = result["dialogs"]
