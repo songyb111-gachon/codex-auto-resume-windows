@@ -140,8 +140,8 @@ class DetectionGateTests(unittest.TestCase):
                 self.assertIsNotNone(detect(failure({"codexErrorInfo": code})))
 
     def test_no_error_text_survives_detection(self):
-        secret = "workspace /home/secret/project failed: token sk-abc123"
-        found = detect(failure({"codexErrorInfo": "serverOverloaded", "message": secret}))
+        private = "workspace /home/secret/project failed: token sk-abc123"
+        found = detect(failure({"codexErrorInfo": "serverOverloaded", "message": private}))
         self.assertNotIn("secret", repr(found))
         self.assertNotIn("sk-abc", repr(found))
         self.assertNotIn("message", found)
