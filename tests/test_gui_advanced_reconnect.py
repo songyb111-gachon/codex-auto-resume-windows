@@ -41,6 +41,10 @@ static class Fake {
         }
     }
     static int Main(string[] args) {
+        // The interpreter's own options come first (-X disable-remote-debug, v0.6.19-beta.3), as python.exe reads them.
+        int options = 0;
+        while (options + 1 < args.Length && args[options] == "-X") options += 2;
+        if (options > 0) { var rest = new string[args.Length - options]; Array.Copy(args, options, rest, 0, rest.Length); args = rest; }
         string mode = Environment.GetEnvironmentVariable("CAR_FAKE_MODE") ?? "ok";
         if (Array.IndexOf(args, "serve") < 0) {
             Say("once " + string.Join(" ", args, 3, args.Length - 3));
