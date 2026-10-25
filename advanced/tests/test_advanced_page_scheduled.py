@@ -91,6 +91,21 @@ class PageTests(PageCase):
             "pending": counted["pending"]}
 
     @classmethod
+    def scenario_list_ko(cls, bridge):
+        """scenario_list's rows chosen in turn in Korean, where Turn on for this conversation (이 대화 다시 켜기) is the longer
+        of the switch's two words."""
+        counted, _found = cls.made(bridge, rule=True)
+        script = cls.opening(bridge, "ko")
+        script["advanced-resets"] = [bridge("advanced-resets", {})]
+        script["advanced-prompts"] = [bridge("advanced-prompts", {})]
+        recoveries = len(counted["pending"])
+        steps = [{"do": "snapshot", "reply": counted}, {"do": "page", "name": "pending"},
+                 {"do": "pending_select", "index": 0}, {"do": "look"},
+                 {"do": "pending_select", "index": recoveries}, {"do": "look"},
+                 {"do": "pending_select", "index": recoveries + 1}, {"do": "look"}]
+        return "ko", {"script": script, "steps": steps}, {}
+
+    @classmethod
     def scenario_history(cls, bridge):
         counted, found = cls.made(bridge)
         script = cls.opening(bridge, "en")
@@ -194,6 +209,41 @@ class PageTests(PageCase):
             self.assertTrue(look["scheduled"]["add_after_rescan"], "in the row, right after Rescan, never in the kind's group")
         lefts = {tuple(look["scheduled"]["later_lefts"]) for look in (recovery, rule, message)}
         self.assertEqual(len(lefts), 1, "Cancel all and Rescan stay where they are: %r" % lefts)
+
+    def test_the_buttons_under_the_list_stand_one_gap_apart_whatever_row_is_chosen(self):
+        """Fails with the room held for the widest kind's buttons left as a gap before Cancel all: after a message's three
+        or a rule's two, and in Korean after the shorter words of the conversation switch (the owner, 2026-10-25)."""
+        result, _expected = self.of("scenario_list")
+        _opened, recovery, rule, message, none, _saved = result["looks"]
+        looks = {"recovery": recovery, "rule": rule, "message": message, "none": none}
+        korean, _ = self.of("scenario_list_ko")
+        looks.update(zip(("ko recovery", "ko rule", "ko message"), korean["looks"]))
+        for name, look in looks.items():
+            gaps = look["scheduled"]["gaps"]
+            self.assertGreaterEqual(len(gaps), 4, "%s: %r" % (name, look["pending_buttons"]))
+            self.assertLessEqual(max(gaps) - min(gaps), 1, "%s: %r" % (name, gaps))
+        lefts = {tuple(look["scheduled"]["later_lefts"]) for look in korean["looks"]}
+        self.assertEqual(len(lefts), 1, "in Korean too, Cancel all and Rescan stay where they are: %r" % lefts)
+
+    def test_a_rules_next_check_is_short_and_no_cell_is_cut_short(self):
+        """A rule's Next check is its limit and which reset, not the whole sentence (that is Why it is waiting's). At the
+        window's opening size no cell past the conversation's is cut short in Korean, and in English, where the list has
+        no room for every cell whole, only a long state gives way - a kind and a time stay whole. Fails with the sentence
+        back in the cell, cut to "the 5-hour...", with a message's time measured as the countdown it never shows, which
+        cut "매일 09:00" to "매일 09:...", or with the room left shared in proportion, which cut every column a little
+        (the owner, 2026-10-25)."""
+        result, expected = self.of("scenario_list")
+        words, found = expected["words"], expected["found"]
+        opened, _recovery, rule_chosen = result["looks"][:3]
+        rule = opened["pending_rows"][self.index(opened, "rule %d" % found["rule"])]
+        self.assertEqual(rule[3], words["page.resets.window.300"], "the next reset of its limit")
+        self.assertIn(words["page.resets.window.300"], rule_chosen["explain_empty"], "the whole sentence is still said")
+        korean, _ = self.of("scenario_list_ko")
+        for look in korean["looks"]:
+            self.assertEqual(look["pending_cut"], [], "ko")
+        for look in (opened, rule_chosen):
+            self.assertEqual([cell for cell in look["pending_cut"] if cell.split()[0].split("/")[1] != "1"], [],
+                             "en: only a state gives way")
 
     def test_a_rules_status_is_a_short_word_and_its_whole_sentence_is_in_why_it_is_waiting(self):
         """Fails with the whole sentence back in the Status column, which cut the Next check column short."""

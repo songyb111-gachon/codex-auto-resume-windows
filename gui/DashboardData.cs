@@ -1170,13 +1170,46 @@ namespace CodexAutoResume
             cancelButton.Enabled = idle && real && recovery && !cancelled;
             timelineButton.Enabled = idle && real && recovery;
             threadButton.Enabled = idle && real && recovery;
-            string text = ThreadOn(row) ? S("action.thread_off", "Turn off for this conversation")
-                                        : S("action.thread_on", "Turn on for this conversation");
+            string off = S("action.thread_off", "Turn off for this conversation");
+            string on = S("action.thread_on", "Turn on for this conversation");
+            string text = ThreadOn(row) ? off : on;
             if (threadButton.Text != text) threadButton.Text = text;
+            HoldWidest(threadButton, off, on);
             if (cancelAllButton != null) cancelAllButton.Enabled = idle && RecoveryRows(pendingList) > 0;
             if (rescanButton != null) rescanButton.Enabled = idle && RecoveryRows(pendingList) > 0;
             PendingButtonsUpdated(row, idle);
         }
+
+        /// `button` as wide as the widest of `texts`, the words it says at one time or another (Turn off and Turn on for
+        /// this conversation): what follows it never moves when its words change, and no room is left as a gap beside it.
+        /// Up to v0.6.19-beta.3 the room for the longer words stood after the button while the shorter were shown - in
+        /// Korean "이 대화 다시 켜기" is the longer, and the owner saw the gap before Cancel all (2026-10-25).
+        private void HoldWidest(Button button, params string[] texts)
+        {
+            if (button == null) return;
+            int widest = 0;
+            foreach (string text in texts) widest = Math.Max(widest, NaturalWidth(button, text));
+            if (button.MinimumSize.Width != widest) button.MinimumSize = new Size(widest, button.MinimumSize.Height);
+        }
+
+        /// How wide `button` stands saying `text`, with nothing held: measured on a button of its font and padding that is
+        /// never shown, so a width already held is never measured into the next.
+        private int NaturalWidth(Button button, string text)
+        {
+            if (widthScratch == null)
+            {
+                widthScratch = new SoftButton(false);
+                widthScratch.AutoSize = true;
+                widthScratch.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            }
+            widthScratch.Font = button.Font;
+            widthScratch.Padding = button.Padding;
+            widthScratch.MinimumSize = new Size(Px(ButtonLeast), 0);
+            widthScratch.Text = text ?? button.Text;
+            return widthScratch.GetPreferredSize(Size.Empty).Width;
+        }
+
+        private SoftButton widthScratch;
 
         private void UpdateHistoryButtons()
         {

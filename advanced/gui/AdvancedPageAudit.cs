@@ -306,8 +306,8 @@ namespace CodexAutoResume
                 {
                     dialog.TopLevel = false;
                     SelectChoice(editorWhen, when);
-                    ShowEditorState();
                     if (when == "after_turn") editorSaid.Text = PromptRefusal("queue_full");
+                    ShowEditorState();
                     Materialise(dialog);
                     dialog.PerformLayout();
                     Walk(dialog, where + "/" + when, findings);
@@ -1037,6 +1037,7 @@ namespace CodexAutoResume
             if (Str(step, "mode") != null) editorMode.Value = Str(step, "mode");
             record["mode_shown"] = OwnVisible(editorMode);
             record["after_turn_shown"] = OwnVisible(editorAfterTurn);
+            record["blank"] = (double)EditorBlank();
             if (Str(step, "press") == "save")
             {
                 if (!editorSave.Enabled) record["save_disabled"] = true;
@@ -1045,7 +1046,23 @@ namespace CodexAutoResume
             else Pressed.Invoke(editorCancel, new object[] { EventArgs.Empty });
             record["taken"] = dialog.DialogResult == DialogResult.OK;
             record["said"] = editorSaid.Text;
+            record["blank_after"] = (double)EditorBlank();
+            record["said_fits"] = editorSaid.Text.Length == 0 ||
+                editorSaid.Top + editorSaid.Height <= editorBody.Height && editorBody.Height <= editorBody.Parent.ClientSize.Height;
+            // Where all of it is taller than the screen lets the editor be (a CI runner's 1024 by 768), it stands at that
+            // height and what does not fit is scrolled to.
+            record["at_most"] = editorDialog.ClientSize.Height >= EditorMost();
             record["words_after"] = editorWords.Box.Text;
+        }
+
+        /// The empty band between the editor's fields and its buttons, in pixels at 96 DPI: the page under the fields less
+        /// the fields.
+        private int EditorBlank()
+        {
+            if (editorBody == null || editorBody.Parent == null) return -1;
+            if (editorDialog != null) editorDialog.PerformLayout();
+            editorBody.Parent.PerformLayout();
+            return (int)Math.Round((editorBody.Parent.ClientSize.Height - editorBody.Height) / DpiScale);
         }
 
         // Control.OnClick, which raises Click as a press of the button does.
@@ -1207,6 +1224,24 @@ namespace CodexAutoResume
             // lists draw them - each cell's text - where those pages are built.
             look["run_stops"] = Tags(runStops);
             look["pending_rows"] = ListCells(pendingList);
+            // Each cell of Pending's list past the conversation's that is drawn cut short, as "row/column": none while the
+            // list has room for them whole (the owner, 2026-10-25: "5시간 한…", "매일 09:…"). Measured here from the words the
+            // cell draws - a chip's in the Status column, the switch's column left out - never from what MeasureCells took.
+            var cut = new List<object>();
+            if (pendingList != null)
+                for (int r = 0; r < pendingList.Items.Count; r++)
+                    for (int c = 1; c < pendingList.Columns.Count && c < pendingList.Items[r].SubItems.Count; c++)
+                    {
+                        if (c == ResumeColumn) continue;
+                        string drawn = pendingList.Items[r].SubItems[c].Text;
+                        int whole = (c == 1 ? Soft.ChipSize(drawn, pendingList.Font).Width
+                                     : TextRenderer.MeasureText(drawn, pendingList.Font, new Size(int.MaxValue, int.MaxValue),
+                                                                TextFormatFlags.SingleLine).Width) + Px(14);
+                        if (whole > pendingList.Columns[c].Width)
+                            cut.Add(r.ToString(System.Globalization.CultureInfo.InvariantCulture) + "/" + c.ToString(System.Globalization.CultureInfo.InvariantCulture) + " " +
+                                    drawn);
+                    }
+            look["pending_cut"] = cut;
             look["history_rows"] = ListCells(historyList);
             // The open reset action's form - what each drop-down offers and holds, the count of the words, whether Add can
             // be pressed - and the rules its Cancel, Go on counting and Use a reset credit now... buttons name; and
@@ -1304,6 +1339,27 @@ namespace CodexAutoResume
                     foreach (Control button in control is Button ? new[] { control } : ControlsOf(control))
                         if (button is Button && OwnVisible(button)) pendingButtons.Add(button.Text);
             look["pending_buttons"] = pendingButtons;
+            // The gaps between the buttons under the list, left to right, in pixels at 96 DPI: one gap everywhere, the
+            // chosen kind's group included (the owner, 2026-10-25).
+            var spans = new List<int[]>();
+            if (cancelAllButton != null && cancelAllButton.Parent != null)
+            {
+                cancelAllButton.Parent.PerformLayout();
+                foreach (Control control in cancelAllButton.Parent.Controls)
+                {
+                    if (!(control is Button)) control.PerformLayout();
+                    foreach (Control button in control is Button ? new[] { control } : ControlsOf(control))
+                        if (button is Button && OwnVisible(button))
+                        {
+                            int left = button.Left + (control is Button ? 0 : control.Left);
+                            spans.Add(new[] { left, left + button.Width });
+                        }
+                }
+            }
+            spans.Sort((x, y) => x[0].CompareTo(y[0]));
+            var gaps = new List<object>();
+            for (int i = 1; i < spans.Count; i++) gaps.Add((double)Math.Round((spans[i][0] - spans[i - 1][1]) / DpiScale));
+            scheduled["gaps"] = gaps;
             look["retry_enabled"] = retryButton != null && retryButton.Enabled;
             look["button_lines"] = cancelAllButton == null || cancelAllButton.Parent == null ? 0.0
                                  : (double)ButtonLines(cancelAllButton.Parent);
