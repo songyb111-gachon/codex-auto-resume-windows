@@ -59,7 +59,10 @@
   GitHub에 닿지 못할 때 잘못 알려 주는 업데이트 상태([#41](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/41))를 알렸고,
   사용량 한도가 풀린 뒤 목표를 다시 이어 가게 하는 수정([#49](https://github.com/songyb111-gachon/codex-auto-resume-windows/pull/49))을 보내 주셨습니다.
 - [@weng-wen-jun](https://github.com/weng-wen-jun) 님은 오래된 대기 중 복구를 정리하는 수동 '다시 살펴보고 정리'를
-  요청했습니다([#39](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/39)).
+  요청했고([#39](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/39)), 이어서 대기열 메시지를 위한 대기 중과 편집 창, 그리고 지금 다시 확인과 다시 살펴보기의
+  사용량 확인을 제안했습니다([#50](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/50)).
+- [@zerocodefast](https://github.com/zerocodefast) 님은 이 프로젝트를 awesome-ai-plugins 목록에 초대하고 그곳의 등재를
+  검토해 주셨습니다([#52](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/52)).
 
 ## AI 기여자에 대한 참고
 

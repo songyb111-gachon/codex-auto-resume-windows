@@ -61,7 +61,10 @@ Everyone below is a person outside the project who helped it, in the order they 
   was left out of recovery ([#37](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/37)) and an update status that misled when GitHub could not be reached ([#41](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/41)),
   and sent the fix that resumes a goal after a usage-limit reset ([#49](https://github.com/songyb111-gachon/codex-auto-resume-windows/pull/49)).
 - [@weng-wen-jun](https://github.com/weng-wen-jun) asked for a manual rescan that reconciles obsolete
-  pending recoveries ([#39](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/39)).
+  pending recoveries ([#39](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/39)), then proposed the Pending and editor work for queued messages and the
+  usage check behind Retry now and Rescan ([#50](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/50)).
+- [@zerocodefast](https://github.com/zerocodefast) invited the project into the awesome-ai-plugins list and reviewed its
+  listings there ([#52](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/52)).
 
 ## A note on the AI contributors
 

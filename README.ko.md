@@ -229,7 +229,7 @@ Windows **설정 > 앱**에서 제거하거나, 설치 마법사를 다시 실�
 
 **songyb111-gachon**이 두 AI 개발 도구, OpenAI Codex와 Anthropic Claude Code의 도움을 받아 만들었습니다. 자세한 내용은
 [CONTRIBUTORS.ko.md](docs/CONTRIBUTORS.ko.md)에 있습니다. 문제를 알려 주시고, 기능을 제안하고, 고친 버전을 시험하거나 직접 고쳐 주신
-모든 분께 감사드립니다([@cervinho](https://github.com/cervinho), [@barkshah2002-pixel](https://github.com/barkshah2002-pixel), [@ZionZhang42](https://github.com/ZionZhang42), [@aca22jy](https://github.com/aca22jy), [@Hunweibyn](https://github.com/Hunweibyn), [@Zephreo](https://github.com/Zephreo), [@Kdevaulo](https://github.com/Kdevaulo), [@weng-wen-jun](https://github.com/weng-wen-jun) 님 등). 각자 무엇을 도와주셨는지는 [CONTRIBUTORS.ko.md](docs/CONTRIBUTORS.ko.md)에 적었고,
+모든 분께 감사드립니다([@cervinho](https://github.com/cervinho), [@barkshah2002-pixel](https://github.com/barkshah2002-pixel), [@ZionZhang42](https://github.com/ZionZhang42), [@aca22jy](https://github.com/aca22jy), [@Hunweibyn](https://github.com/Hunweibyn), [@Zephreo](https://github.com/Zephreo), [@Kdevaulo](https://github.com/Kdevaulo), [@weng-wen-jun](https://github.com/weng-wen-jun), [@zerocodefast](https://github.com/zerocodefast) 님 등). 각자 무엇을 도와주셨는지는 [CONTRIBUTORS.ko.md](docs/CONTRIBUTORS.ko.md)에 적었고,
 그로 인해 바뀐 것은 [변경 이력](docs/CHANGELOG.ko.md)의 그 항목 옆에 이름과 함께 적어 두었습니다.
 
 MIT. [LICENSE](LICENSE)를 참고하세요.
