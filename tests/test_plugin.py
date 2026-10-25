@@ -156,8 +156,10 @@ class ManifestTests(unittest.TestCase):
     def test_marketplace_points_at_the_repository_root(self):
         entry, = self.marketplace["plugins"]
         # Root-as-plugin keeps ONE copy of src/: the engine ships with the plugin and is
-        # never duplicated into a nested plugin folder.
-        self.assertEqual(entry["source"], {"source": "local", "path": "."})
+        # never duplicated into a nested plugin folder. Written "./", not ".": Codex takes both as
+        # the marketplace root (both arrived in one change, openai/codex#28771), and plugin
+        # scanners (HOL AI Plugin Scanner) accept a local source path only with the "./" prefix.
+        self.assertEqual(entry["source"], {"source": "local", "path": "./"})
         self.assertEqual(entry["name"], PLUGIN_NAME)
         self.assertEqual(entry["name"], self.manifest["name"])
         self.assertIn(entry["policy"]["installation"], ("NOT_AVAILABLE", "AVAILABLE", "INSTALLED_BY_DEFAULT"))

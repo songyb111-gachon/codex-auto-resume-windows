@@ -20,7 +20,7 @@ Codex UI  ->  plugin skill  ->  existing CLI  ->  small safe watcher
 
 | 경로 | 용도 |
 | --- | --- |
-| `.agents/plugins/marketplace.json` | 마켓플레이스 색인. `source.path`가 `"."`인 항목 하나뿐입니다. |
+| `.agents/plugins/marketplace.json` | 마켓플레이스 색인. `source.path`가 저장소 루트를 가리키는 `"./"`인 항목 하나뿐입니다. |
 | `.codex-plugin/plugin.json` | 플러그인 매니페스트. `skills`와 카드 이미지를 선언하며, 그 밖에 실행되는 것은 없습니다. 릴리스 빌드가 자기 사본에 `mcpServers`를 더합니다(아래 참고). |
 | `skills/codex-auto-resume/SKILL.md` | "자동 재개 켜 줘"에 답하기 위해 Codex가 읽는 파일입니다. |
 | `scripts/bootstrap.ps1` | 플러그인을 설치본으로 바꿉니다(아래 참고). |
