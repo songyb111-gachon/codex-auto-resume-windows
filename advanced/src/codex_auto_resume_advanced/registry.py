@@ -44,8 +44,6 @@ asked to agree to and everything the plug holds it to:
   one off turns off what requires it; a required one an administrator's policy forbids, or whose
   compatibility is Failed here, keeps the dependent off, with that reason (arming.py). Never names
   itself, and the registry is acyclic (Registry rejects a cycle when it is made);
-* `keepable` - whether a person may keep it on (K8; v0.6.16-beta.4): False for one whose tripwire is what stops it
-  doing harm, which Keep on would turn into a note (arming.py refuses it);
 * `make` - the factory for its code: given the installation's paths, it returns an object whose
   methods are the plug's hooks for its points, each answering as a plug would.
 
@@ -178,7 +176,8 @@ class CapabilityDef:
     kind: CapabilityKind = CapabilityKind.ROUTE
     # v0.6.16-beta.4: the WordingKeys of a person's own text it keeps (state `wordings`): the wrap-up's Custom text.
     wordings: tuple = ()
-    keepable: bool = True
+    # No `keepable` (v0.6.16-beta.4 to v0.6.19-beta.2): the owner's word of 2026-10-24 is that a person may keep every
+    # capability on (K8) - the choice is offered on each, and none is kept on unless the person chose it there.
 
     def option(self, key) -> Option | None:
         """The choice of `key` this capability offers, or None."""
@@ -272,8 +271,6 @@ def problems(definition) -> list:
     if type(definition.resends) is not bool or (
             definition.resends is True and Point.SCHEDULE not in (points if isinstance(points, frozenset) else ())):
         found.append("resends")
-    if type(definition.keepable) is not bool:
-        found.append("keepable")
     requires = definition.requires
     if (not isinstance(requires, tuple)
             or not all(isinstance(other, str) for other in requires)
@@ -540,7 +537,9 @@ HEADLESS_RUN = CapabilityDef(
 # Codex session holds (`holder="session"`), it answers TO_SESSION: core's ordinary send through `codex queue`, with
 # its marker, for that session to take (M5) - taken back when that session lets go of it, and given back to waiting;
 # taken back because the session did not take it within core's delivery window, it turns off
-# (NOT_DISPATCHED_BY_SESSION), and so it may not be kept on (keepable). It departs from A15 (only the app's
+# (NOT_DISPATCHED_BY_SESSION). A person may keep it on (K8; the owner's word of 2026-10-24, v0.6.19-beta.3, before
+# it could not be): kept on, that tripwire - and a new Codex version - is a note and it stays on, while what was sent
+# is still taken back and given back to waiting, and its ceilings and every gate hold. It departs from A15 (only the app's
 # conversations are detected), A11 (sent while a session other than the app holds the conversation) and B6 (the
 # version skew guard reads which Codex wrote such a conversation off its file's first line, core's engine/kinds.py,
 # and waits while that is newer than the engine), keeps A2, A3,
@@ -556,7 +555,6 @@ OTHER_SESSIONS = CapabilityDef(
     journal_prefix="sess",
     make=make_other_sessions,
     measurements=(Measurement.M5, Measurement.MO),
-    keepable=False,
 )
 
 # Compact a full conversation, then continue (v0.6.16-beta.4, stage 4). At P17 it takes up Codex's own
@@ -612,8 +610,10 @@ MODEL_FALLBACK = CapabilityDef(
 # only through a route that takes words - headless_run's turn, compact_continue's continuation - calling it with no
 # words at all under the client id it derives, its proof (core's engine/routes.py); through codex queue or a channel
 # core ignores it (M3: Codex refuses an empty queue item). It continues nothing by itself. Where Codex refuses a turn
-# with no input it answers DEFER from then on in this process, so the next attempt carries words, and it turns off
-# (REFUSED_BY_CODEX) - so it may not be kept on (keepable). It departs from A4 (no marker) and A26 (no words), stands
+# with no input it answers DEFER from then on in this process, so the next attempt carries words - it never tries an
+# empty turn again in a loop - and it turns off (REFUSED_BY_CODEX). A person may keep it on (K8; the owner's word of
+# 2026-10-24, v0.6.19-beta.3, before it could not be): kept on, that refusal is a note and it stays on, still answering
+# DEFER for the rest of the process. It departs from A4 (no marker) and A26 (no words), stands
 # on recovery_turn_tracking and rests on M3B. Ceilings: five a conversation, two dozen a day.
 SILENT_CONTINUATION = CapabilityDef(
     id="silent_continuation",
@@ -625,7 +625,6 @@ SILENT_CONTINUATION = CapabilityDef(
     journal_prefix="silent",
     make=make_silent_continuation,
     measurements=(Measurement.M3B,),
-    keepable=False,
 )
 
 # Chat with a conversation in the Dashboard (v0.6.19, stage 4's item 7; the owner's of 2026-10-02). A person

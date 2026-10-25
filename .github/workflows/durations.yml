@@ -95,7 +95,7 @@ jobs:
           python-version: "3.13"
 
       # The tested commit's own merge, with no token: it writes the table only on enough of a gain or a stale figure.
-      # --parts is each lane's own PARTS: test.yml deals the standard lane into 3 and the advanced into 5,
+      # --parts is each lane's own PARTS: test.yml deals the standard lane into 4 and the advanced into 6,
       # and release.yml and the main-tree job deal the release lane into 5.
       - name: Weigh a new deal
         id: weigh
@@ -105,7 +105,7 @@ jobs:
           set -euo pipefail
           out="$RUNNER_TEMP/refresh"
           mkdir -p "$out"
-          python scripts/test_parts.py --refresh-seconds "$RUNNER_TEMP/seconds" --parts standard=3,advanced=5,release=5 > "$out/report.txt"
+          python scripts/test_parts.py --refresh-seconds "$RUNNER_TEMP/seconds" --parts standard=4,advanced=6,release=6 > "$out/report.txt"
           cat "$out/report.txt"
           # A table that would leave a lane's parts past SPREAD is refused and not written: say which file.
           grep '^refused: ' "$out/report.txt" | sed 's/^refused: /::warning::nothing committed: /' || true

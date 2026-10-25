@@ -7,11 +7,11 @@ properties intact.
 ## Development environment
 
 - Windows 10/11. The product is Windows-only, and so is most of the test suite.
-- Python 3.12 or newer, standard library only. There are no third-party runtime dependencies
+- Python 3.13 or newer, standard library only. There are no third-party runtime dependencies
   and no build step for the Python side. What that promise covers is decided in one file,
-  `scripts/python_support.json`: CI runs every non-live test on Python 3.12, 3.13 and 3.14 as
-  blocking jobs, and on the 3.15 pre-release as an advisory one whose result is shown but does
-  not block; releases are built with 3.13; and the archive bundles Python 3.13.15, so nobody
+  `scripts/python_support.json`: CI runs every non-live test on Python 3.13 and 3.14 as
+  blocking jobs, and on Python 3.15 as an experimental, advisory one whose result is shown but
+  does not block; releases are built with 3.14; and the archive bundles Python 3.14.9, so nobody
   installing a release needs a Python of their own. Adding a tested version never moves the
   bundled runtime. `tests/test_python_support.py` fails if the workflows, or the minimum this
   page and the README state, stop agreeing with that file.
@@ -281,8 +281,8 @@ compiler, which is why `make_gui.ps1` prints it, and on the Python that writes t
 ### Rebuilding a tag and comparing digests
 
 For a tag whose source contains `build/normalize_pe.py`, start from a fresh clone, so
-`.gitattributes` decides the line endings rather than an old checkout, and build with
-Python 3.13:
+`.gitattributes` decides the line endings rather than an old checkout, and build with the
+Python line that tag's release workflow used - 3.14 from v0.6.19-beta.3 on, 3.13 before it:
 
 ```powershell
 git clone --branch v<version> --depth 1 https://github.com/songyb111-gachon/codex-auto-resume-windows.git

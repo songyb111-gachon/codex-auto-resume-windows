@@ -528,8 +528,8 @@ namespace CodexAutoResume
             foreach (Button button in creditNowButtons) button.Enabled = listed;
             foreach (Button button in resetCancels) button.Enabled = listed;
             foreach (Button button in resetGoOns) button.Enabled = listed;
-            // v0.6.19 (#50): and Pending's Scheduled tab (AdvancedSchedule.cs).
-            UpdateScheduleButtons();
+            // v0.6.19 (#50): and Pending's buttons for a rule or a message chosen there (AdvancedSchedule.cs).
+            UpdatePendingButtons();
         }
 
         /// Which of the form's boxes or drop-downs has the keyboard, or null.
@@ -666,8 +666,13 @@ namespace CodexAutoResume
         private void ResetNote(string text)
         {
             if (advancedNote != null) SetNote(advancedNote, text);
-            // v0.6.19 (#50): and beside Pending's Scheduled buttons, where they were pressed.
-            if (scheduledNote != null) SetNote(scheduledNote, text);
+            // v0.6.19 (#50): and beside Pending's buttons, where a rule's or a message's are pressed (Pending is one list).
+            if (pendingNote != null)
+            {
+                pendingNoteFor = BulkNote;
+                pendingNoteText = text;
+                ShowPendingNote();
+            }
         }
 
         /// A refusal of a reset action in words; one of every page's as the page says it.

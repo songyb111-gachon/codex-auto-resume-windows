@@ -200,7 +200,7 @@ gives the threat model and how to report a vulnerability.
 ## Requirements
 
 - Windows 10/11 and the official Windows ChatGPT/Codex desktop app, running.
-- No Python for either install route; the installation brings its own runtime. Python 3.12 or newer
+- No Python for either install route; the installation brings its own runtime. Python 3.13 or newer
   is needed only to run it from a source checkout.
 
 ## Uninstall

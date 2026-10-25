@@ -73,8 +73,8 @@ ALPHA_SHARE = 0.35                             # the fade is complete this far i
 DEPTH_START = {"offset": 0.35, "blur": 0.55, "alpha": 0.30}
 DEPTH_LEVELS = 6                               # shadow images kept per card, from start to settled
 # A shadow drawn over the wallpaper must darken whatever is under it. Tokens lighter than this
-# (relative luminance) are redrawn in FLOAT_SHADOW_TOKEN, and a white highlight is dropped.
-FLOAT_SHADOW_TOKEN = "shadow_dark"
+# (relative luminance) are redrawn in FLOAT_SHADOW_INK, and a white highlight is dropped.
+FLOAT_SHADOW_INK = "shadow_dark"
 FLOAT_SHADOW_THEME = "dark"                    # dark's shadow_dark: near-black with the brand's blue
 DARK_ENOUGH = 0.05
 HEADER_KEY = "tray.title"                      # "Codex Auto Resume": a name, never translated
@@ -498,14 +498,14 @@ def _luminance_of(colour) -> float:
 def float_shadows(theme, design="soft") -> tuple:
     """The card recipe's outer shadows as they may be drawn over a wallpaper (see the docstring).
 
-    A shadow in a light colour is redrawn in FLOAT_SHADOW_TOKEN at the alpha that darkens a white
+    A shadow in a light colour is redrawn in FLOAT_SHADOW_INK at the alpha that darkens a white
     ground by as much; a shadow lighter than the ground it was designed for (light's highlight)
     has nothing to be lighter than here and is dropped. Inset shadows belong to the card and are
     drawn by the renderer inside it. A design without depth (v0.6.10: Classic, Plain) floats none:
     its card is its fill and its hairline, and its margin is none, as in High Contrast.
     """
     tokens = brand.palette(theme, design)
-    ink = brand.palette(FLOAT_SHADOW_THEME)[FLOAT_SHADOW_TOKEN]
+    ink = brand.palette(FLOAT_SHADOW_THEME)[FLOAT_SHADOW_INK]
     ground = tokens["canvas"]
     found = []
     for shadow in brand.shadows("card", theme, design):

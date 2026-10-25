@@ -1,5 +1,100 @@
 # Changelog
 
+## v0.6.19-beta.3 — Python 3.14.9 with remote debugging off, Retry now on the row you choose and Rescan for them all, Pending as one list, Chat as a page of its own, and Keep it on for every capability
+
+[The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.19-beta.2...v0.6.19-beta.3)
+
+**A pre-release: the third of v0.6.19.** It is a GitHub pre-release, so `releases/latest` stays v0.6.18. An installation of
+v0.6.18, v0.6.19-beta or v0.6.19-beta.2 is offered it by *Check for updates* only where pre-releases are offered - the
+check asks first and says it is tested less - and *Install another version...* lists it. Both editions change in the
+first group; the second is the advanced edition's alone, and what it adds is off until you turn it on.
+
+**Going back.** No stored format changes: the watcher's state stays schema 5, the advanced edition's file stays version
+8, readable from 7, as v0.6.19-beta's entry says, and the settings file gains no key. *Keep it on* is stored where it
+always was, as one more choice of a capability; v0.6.19-beta.2 and earlier do not offer it for the two capabilities this
+version adds it to. What does travel with the version is the Python that comes bundled: it is part of the archive the
+installer unpacks, so this version brings 3.14.9 and installing an older version brings the runtime that version was
+built with (3.13.15 up to v0.6.19-beta.2). The option that switches remote debugging off, `-X disable-remote-debug`, is
+one that Python before 3.14 ignores without a word, and the code relies on it - one command line serves every supported
+line - so a command this version wrote runs the same on an older version's runtime. The state folder's `usage-checks`
+folder is used as v0.6.19-beta.2 used it - a recovery's one-line file for a Retry now, and the one file, `early`, that
+a Retry now or a Rescan writes for the early look while it is on - and no version before v0.6.19-beta.2 reads it.
+
+### Both editions
+
+- **The bundled Python is 3.14.9, with remote debugging off in every process the product starts.** The archive bundled
+  Python 3.13.15, a line that gets no more Windows builds; the release now bundles 3.14.9, pinned by its version and its
+  SHA-256, and builds and runs its checks on it. Python 3.14 adds a way for another process to run code inside a running
+  Python process (PEP 768); every process the product starts with its Python - the watcher, the helpers of the
+  Dashboard, Settings and the panel, and the setup and installer steps - is started with that switched off, and an entry point that
+  Windows starts without the option, from a sign-in or notification-button value an older version wrote, starts itself
+  once more with it off. Running the engine from a source checkout now needs Python 3.13 or newer (3.12 is dropped); the
+  guide, the contributing notes and the verification page say so, and the README's line with them.
+- **Retry now checks the row you choose; Rescan checks all of them** (both follow-ups to
+  [#50](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/50), asked for by
+  [@weng-wen-jun](https://github.com/weng-wen-jun)). v0.6.19-beta.2 made Retry now read usage once on a recovery that waits
+  for a usage reset still ahead, but its button was greyed out exactly there; it is now offered on such a recovery, and
+  its click reads usage as that entry says. It is still not offered while recovery is paused or switched off for that
+  conversation, nor on a task held for you or postponed by you. *Rescan and reconcile* is now called **Rescan** (in
+  Korean, 다시 살펴보기), and after it looks at every waiting recovery by the watcher's own rules it also has the watcher
+  read Codex's usage once for every recovery that waits for a usage reset - one reading for all of them, with Retry now's
+  rules: one whose limit Codex says has lifted goes on through every check; still limited, unknown or a failed read
+  changes nothing. Its confirmation says it reads usage, and its note says it is reading and then what it read. Only your
+  click in the Dashboard reads. Every usage reading is now said in one place, **Why it is waiting**, under the watcher's
+  last one: the reading a Retry now or a Rescan asked for, with who asked it ("Retry now · ..."), when it checked, what it
+  read and whether the task went on; the note under the buttons says only what the click just did. Pending's buttons stand
+  on one line in every language.
+- **Attempts per interruption stays editable under an administrator's ceiling.** Where an administrator sets a maximum
+  for it, the setting is no longer locked as a managed one: it stays yours to change up to the ceiling, will not go past
+  it, and says so with *Your administrator allows at most* and the ceiling under it, in the Dashboard's Settings and in
+  the panel in Codex.
+
+### Advanced edition
+
+- **Pending is one list.** Queued messages and reset rules are rows of the same list as the recoveries (the Scheduled tab
+  of v0.6.19-beta.2 is gone), after the recoveries, with a **Kind** column that tells a recovery, a scheduled message
+  and a reset rule apart; a row says the conversation, where it stands and when it goes, never its words. The buttons
+  under the list follow the chosen row's kind - for a recovery Retry now, Cancel, Timeline and Turn off for this
+  conversation; for a message Edit..., Go on and Cancel; for a rule Go on and Cancel - and the others are hidden, while
+  Cancel all and Rescan never move. **Schedule...** stands in one place, after Cancel all and Rescan, and on the Advanced
+  features page's card for queued messages too, both opening the same editor. A double-click on a waiting message still
+  opens its editor. Delivered messages are history: the History page lists the messages of the last 30 days that were
+  delivered, and its one **Clear history** clears them with the finished recoveries - it asks first, saying how many of
+  each, deletes only the completed messages it shows that are unchanged since, and never touches a waiting, held,
+  cancelled or failed message or anything of Codex's (asked for by [@weng-wen-jun](https://github.com/weng-wen-jun),
+  [#50](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/50)).
+- **The early-reset line and its Check now are gone.** The line at the top of Pending and its two buttons, which
+  v0.6.19-beta.2 added, are replaced by the readings above: a Retry now or a Rescan reads usage at once, and while *Notice
+  a usage limit that lifts early* is on that reading counts as one of its two readings, five minutes apart; what it read
+  is said in Why it is waiting. Its switch stays on the Advanced features page.
+- **Chat is a page of its own.** The **Chat** tab opens a Chat page rather than a card on the Advanced features page, and is
+  marked as the chosen tab there; the Advanced features card for the chat keeps its switch, limits and statement, with a
+  button that opens the page, and a notification whose click goes to a conversation's chat opens the page at that
+  conversation.
+- **Keep it on is offered for every capability, and never on by default.** Two more can now be kept on - recovering CLI,
+  TUI and VS Code sessions, and continuing with no words: where a session does not take what was sent, or Codex refuses
+  an empty turn, the capability stays on, the page notes it, the message is still taken back and waits again, and the
+  next continuation carries words. Keep it on can be pressed only once the statement it confirms has been read.
+- **The Stop buttons of the turns run here are greyed while another action is under way.**
+- **The conversation pickers are documented as they are.** The pickers of queued messages, keep going, the reset
+  messages and the chat offer the switched-on conversations that Pending and History name; a conversation that has never
+  appeared in either is not offered yet. The editions guide says so.
+- **While the Dashboard's long-lived connection is given up, advanced pages say it is being restored.** A call made then
+  shows that, and a click reopens the connection.
+
+### For developers
+
+- CI runs every non-live test on Python 3.13 and 3.14 as blocking jobs and on 3.15 as an experimental, advisory one, the
+  standard lane in 4 parts and the advanced, release and main-tree lanes in 6 each, 36 jobs a run, so the longest part
+  is the advanced lane's; the ko sync tests the tree on 3.13.
+- The repository meets a plugin listing's scanner: no fixture or constant reads as a hardcoded secret, the panel
+  stylesheet tests work out `calc()` through a syntax-tree walk that allows only arithmetic and not by evaluating it, the
+  marketplace entry names the repository root as `./`, the plugin's interface links its privacy policy and terms, and a
+  `.codexignore` lists the local state, secrets and build products a bundle leaves out; a test holds each.
+- The layout audit adds two checks: a control taller than its content, and a row of buttons that does not stand on one
+  line.
+- The window tests' stand-ins for the Python executable read its options first.
+
 ## v0.6.19-beta.2 — Retry now checks usage before a recovery goes on, and the early look at a usage limit shows what it read
 
 [The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.19-beta...v0.6.19-beta.2)

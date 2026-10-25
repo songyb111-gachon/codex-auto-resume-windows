@@ -55,11 +55,14 @@ BUILT = ROOT / "build"
 STAGES = ROOT / "build" / "stage"
 
 # Pinned so the bundled runtime is a known build rather than whatever python.org serves
-# today. Verified against the published sigstore/spdx artefacts.
-PYTHON_VERSION = "3.13.15"
+# today, by version and SHA-256 (standard I10). The digest is the one python.org's release
+# file list publishes for this archive, compared with the file it served (2026-10-24).
+# 3.14 since v0.6.19-beta.3: the 3.13 line takes security fixes only, as source, from
+# October 2026, so no newer 3.13 Windows build will come; 3.14 has them until 2027-10.
+PYTHON_VERSION = "3.14.9"
 PYTHON_ZIP = "python-%s-embed-amd64.zip" % PYTHON_VERSION
 PYTHON_URL = "https://www.python.org/ftp/python/%s/%s" % (PYTHON_VERSION, PYTHON_ZIP)
-PYTHON_SHA256 = "d1f04d990aee1253d8569e8e5104e30fa9f5fa830899f14843448872d936a2cf"
+PYTHON_SHA256 = "3c01d7cfc666f746a6f064f60fb2156ab0ec464d3d738ab796371a46a9bb24a2"
 
 # Everything the installed product needs, and nothing else. Listed explicitly rather
 # than filtered, so a stray file in the working tree cannot reach a release.
@@ -234,7 +237,7 @@ def collect_runtime(stage: Path, archive: Path) -> int:
     runtime.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(archive) as bundle:
         bundle.extractall(runtime)
-    # The embeddable build ships isolated by design. Leave python313._pth exactly as
+    # The embeddable build ships isolated by design. Leave python3XX._pth (python314._pth) exactly as
     # published: our entry points do their own sys.path.insert, so no edit is needed,
     # and editing it is how people accidentally enable site-packages.
     return sum(1 for _ in runtime.rglob("*") if _.is_file())

@@ -434,20 +434,24 @@ nothing. **Retry now** only asks the watcher to look again now — every check s
 nothing is sent unless they all pass. On a task waiting for a usage reset it also has the watcher read
 your usage once, at that moment: if Codex says the limit has lifted, the newer reset replaces the one
 recorded and the task goes on through every check as usual; still limited, unknown or a failed read
-changes nothing. The selected row then says when it checked, what it read and whether the task went on,
-and if the watcher is not running Retry now says so and reads nothing. While recovery is paused or off
-for that conversation, Observe only is on, it is quiet hours or Windows reports no internet (with
-**Wait for an internet connection** on), nothing is read and Retry now says why. The watcher reads at
-its next look or not at all: a check it cannot make then is never made later, and the row says why
-it was not made. A reading from the last 30 seconds answers the click, and nothing is read on a
-schedule. **Cancel** stops recovering that interruption and
+changes nothing. **Why it is waiting** then says, under the watcher's last reading, when it checked, what it
+read and whether the task went on, led by the button that asked for it ("Retry now · ..."); the note
+under the buttons says only what the click just did - and if the watcher is not running Retry now says so
+and reads nothing. Retry now is not offered while recovery is paused or switched off for that
+conversation - the pause and the row's switch already say why - nor on a task held for you or postponed
+by you. While Observe only is on, it is quiet hours or Windows reports no internet (with **Wait for an
+internet connection** on), nothing is read and Retry now says why. The watcher reads at its next look or
+not at all: a check it cannot make then is never made later, and Why it is waiting says why it was not
+made. A reading from the last 30 seconds answers the click, and nothing is read on a schedule. Why it is
+waiting is the one place on Pending that says the usage readings: the watcher's last one, the one a
+Retry now or a Rescan asked for, and, in the advanced edition, an early check's. **Cancel** stops recovering that interruption and
 everything that continues it: a record that was never sent is cancelled outright, one that may
 already be in Codex is marked and taken back if it is still queued, and a finished one is
 marked too, so no later failure of that task can start a new chain from it. A turn already
 running in Codex is not stopped, and the confirmation says so. **Cancel all** does the same to
 every waiting recovery, one exact record at a time; there is deliberately no way to retry them
-all at once. From v0.6.16 **Rescan and reconcile**, after Cancel all, looks at every waiting recovery
-again by the watcher's own rules, once you confirm. One is retired - stopped as replaced by your own
+all at once. **Rescan** (from v0.6.16; it was called Rescan and reconcile until v0.6.19), after Cancel
+all, looks at every waiting recovery again by the watcher's own rules, once you confirm. One is retired - stopped as replaced by your own
 work - only on proof: its exact failed turn in Codex's history followed by a turn you started (a
 continuation of this tool's never counts), or, while that history has not caught up with the
 conversation's file, the same in the file itself, where nothing after a rollback counts. One that is still its conversation's latest failure
@@ -457,7 +461,14 @@ decide stays as it is and is counted as unresolved, and a recovery that changed 
 skipped. It sends nothing, writes nothing to Codex, gives no attempts back and brings nothing forward,
 and it leaves cancelled, finished and in-flight recoveries and History as they are; the note beside the
 buttons says how many were retired, rechecked, unresolved and changed meanwhile, and each one's
-Timeline says which. **Turn off for this conversation** cancels its waiting recoveries and keeps
+Timeline says which. From v0.6.19 it also has the watcher read your usage once for every recovery that
+still waits for a usage reset - one reading for all of them, with Retry now's rules: one whose limit
+Codex says has lifted goes on through every check; still limited, unknown or a failed read changes
+nothing; its confirmation says it reads usage, and its note says it is reading and then what it read.
+Retry now checks one task, Rescan checks them all. While recovery is paused, Observe only is on, it is
+quiet hours or Windows reports no internet, nothing is read and the note says why (a conversation
+switched off is passed over); with no watcher running nothing is read and it says so. Only your click in
+the Dashboard reads: a rescan asked any other way reads nothing. **Turn off for this conversation** cancels its waiting recoveries and keeps
 automatic recovery off for that conversation until you turn it back on — the Pending and History
 pages then offer **Turn on for this conversation**. From v0.6.11 each row also has a menu of its own,
 on a right click, Shift+F10 or the menu key: **Postpone** holds that task back 30 minutes, an hour,
@@ -618,9 +629,10 @@ One that needs another turns that one on with it, in the same confirmation and w
 shown, and turning the needed one off turns off first what needs it.
 You turn one on in the Dashboard, on the page that edition adds, **Advanced features**, and nowhere
 else; from v0.6.14 that page can also send one waiting recovery now, while Send now is on, and have a
-reset credit used, or a message of your own sent, at a usage reset you pick, each shown on Pending
-under Scheduled until it acts - and, from v0.6.19, while chat with a conversation is on, a **Chat** tab beside
-**Advanced features** reads a conversation the Codex app has open and sends it a message of yours: the reply shows
+reset credit used, or a message of your own sent, at a usage reset you pick, each shown as a row of
+Pending's list until it acts (a queued message is scheduled from that page's card or from Pending's Schedule..., and managed on Pending) - and, from v0.6.19, while chat with a conversation is on, a **Chat** tab beside
+**Advanced features** opens a page of its own that reads a conversation the Codex app has open and sends it a message
+of yours: the reply shows
 once its turn ends ("in progress" until then), approvals are still answered in Codex, and a message written while
 the usage limit is full waits and goes when it resets. Their code is left
 out of the standard edition's archive, and `build/edition_audit.py` proves from the archive's own
@@ -757,7 +769,7 @@ ownership information. It never acquires a lock on the app's file.
   tell them apart.
 
 **Python is not required by either install route** — the installation brings its own runtime
-(Python 3.13.15), and the plugin's setup script is PowerShell. Python 3.12 or newer is needed only if
+(Python 3.14.9), and the plugin's setup script is PowerShell. Python 3.13 or newer is needed only if
 you run the engine from a source checkout; see [Testing](#testing) for the versions CI runs.
 
 ## What is recovered, and what is not
@@ -866,7 +878,7 @@ Measurements MP1 to MP3, that the Codex app shows the panel there as it should, 
 
 For development, or if you would rather run it yourself. This is not a third way to install the
 product — it is the engine on its own, with no settings window, no panel and no bundled runtime,
-and it needs **Python 3.12 or newer** on your PATH (CI runs it on 3.12, 3.13 and 3.14).
+and it needs **Python 3.13 or newer** on your PATH (CI runs it on 3.13 and 3.14).
 
 ```bash
 git clone https://github.com/songyb111-gachon/codex-auto-resume-windows.git
@@ -1467,7 +1479,9 @@ While any of these values but `DisablePowerAction` is there, in either place, **
 version before v0.6.11-beta, the first that reads them: an older one would stop keeping them.
 
 What a value decides is drawn greyed, with **Set by your administrator** under it, in the Dashboard's
-Settings and in the panel in Codex. The Overview says **managed by your administrator** beside
+Settings and in the panel in Codex. **Attempts per interruption** under `MaxRecoveryAttempts` is the
+exception: it stays yours to change up to the ceiling, which it will not go past, with **Your administrator
+allows at most** and the ceiling under it. The Overview says **managed by your administrator** beside
 Automatic recovery - or **paused by your administrator** - and Diagnostics names the values in force. A change to a setting a value decides is refused, except a number of attempts within the
 ceiling. Your own choices stay in the settings file: nothing a value holds is written there, and they
 apply again once the value is removed. A pause is the one exception: removing `DisableAutoResume` does
@@ -1851,7 +1865,7 @@ python -m unittest discover -s tests
 
 These tests use fakes and temporary directories. They never contact the ChatGPT app and never send a
 message to any conversation, so they are safe to run anywhere and are what CI runs. CI runs every one
-of them on Python 3.12, 3.13 and 3.14, each of which has to pass, and on the 3.15 pre-release as an
+of them on Python 3.13 and 3.14, each of which has to pass, and on Python 3.15 as an experimental,
 advisory job whose result is shown but does not block.
 
 There is also an opt-in live check against your real environment. It verifies binary discovery,

@@ -107,6 +107,8 @@ namespace CodexAutoResume
         /// conversation after its label, from the status of the snapshot being shown (surfaces.rows).
         partial void CellsWritten(Dictionary<string, object> row, bool pending, string[] cells)
         {
+            // v0.6.19: a row of this edition's own on Pending or History (AdvancedSchedule.cs) is written as it was made.
+            if (WriteJoinedCells(row, cells)) return;
             string key = Str(row, "interruption_id");
             Dictionary<string, object> said = Map(Map(snapshot, "status"), "advanced");
             if (key == null || said == null) return;
@@ -130,6 +132,13 @@ namespace CodexAutoResume
             foreach (object entry in Items(said, name) ?? new List<object>())
                 if (entry as string == key) return true;
             return false;
+        }
+
+        /// What the runs' Stop... buttons may do now: nothing while another action is under way, as every other button of
+        /// the page (v0.6.19-beta.3, the controls audit: before, they stayed live and a click was silently ignored).
+        private void UpdateRunButtons(bool idle)
+        {
+            foreach (Button stop in runStops) stop.Enabled = idle;
         }
 
         /// Ask, then hand the watcher one run's Stop: the turn is interrupted at its next look.

@@ -266,12 +266,12 @@ class CustomMessageTests(unittest.TestCase):
 
 
 class NoLeakageTests(unittest.TestCase):
-    SECRET = "SECRET-7f3a"
+    PRIVATE = "SECRET-7f3a"
 
     def test_nothing_from_the_record_but_the_safe_fields_reaches_the_text(self):
         row = {"category": "usage_limit", "attempt_count": 2, "recovery_attempts": 1, "reset_at": 1_800_000_000,
-               "thread_id": self.SECRET, "prompt": self.SECRET, "title": self.SECRET,
-               "cwd": self.SECRET, "error": self.SECRET, "account": self.SECRET}
+               "thread_id": self.PRIVATE, "prompt": self.PRIVATE, "title": self.PRIVATE,
+               "cwd": self.PRIVATE, "error": self.PRIVATE, "account": self.PRIVATE}
         every = "".join("{%s}" % name for name in continuation.ALLOWED_PLACEHOLDERS)
         values = dict(settings.defaults(), continuation_language="en")
         for style in continuation.STYLES:
@@ -281,7 +281,7 @@ class NoLeakageTests(unittest.TestCase):
                 with self.subTest(style=style, mode=mode):
                     text = continuation.for_settings("usage_limit", candidate, row=row,
                                                      limits={"max_recovery_attempts": 5})
-                    self.assertNotIn(self.SECRET, text)
+                    self.assertNotIn(self.PRIVATE, text)
 
 
 class SettingsResolutionTests(unittest.TestCase):

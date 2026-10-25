@@ -159,7 +159,7 @@ namespace CodexAutoResume
             AddChatTab(tab);
             // A window that replaces one with this page on screen opens on the Overview, as the standard window opens
             // on a page it does not have, and comes back here once the page can be shown (ReturnToAdvanced).
-            advancedReturning = firstPage == AdvancedPageName;
+            advancedReturning = firstPage == AdvancedPageName || firstPage == ChatPageName;
             // The strip as tall as its rows where it has had to take two (HoldTabs): again whenever the window's width
             // or font changes, after the standard window's own fitting of it to one row.
             nav.SizeChanged += delegate { FitTabs(); };
@@ -392,6 +392,8 @@ namespace CodexAutoResume
             NavButton opened;
             bool keyed = request.Focus == "page." + AdvancedPageName && navButtons.TryGetValue(PageOrder[0], out opened) &&
                          FocusedControl() == opened;
+            // v0.6.19: a notice's click to a conversation's chat (`--chat=`), or a window reopened on the Chat page.
+            if (OpenAskedChat()) return;
             ShowAdvanced();
             if (keyed && advancedTab.CanFocus) ActiveControl = advancedTab;
         }
@@ -402,6 +404,7 @@ namespace CodexAutoResume
         static partial void ArgumentParsed(string argument, OpenRequest request)
         {
             if (argument == "--page=" + AdvancedPageName) request.Page = AdvancedPageName;
+            else if (argument == "--page=" + ChatPageName) request.Page = ChatPageName;      // v0.6.19: the Chat page
             else if (argument == "--focus=page." + AdvancedPageName) request.Focus = "page." + AdvancedPageName;
             else if (ChatArgumentParsed(argument)) { }      // v0.6.19: the chat at one conversation (AdvancedChat.cs)
             else if (argument.StartsWith(CapabilityArgument, StringComparison.Ordinal))
@@ -423,6 +426,7 @@ namespace CodexAutoResume
         static partial void ReopenArgumentsWritten(string page, string focus, List<string> arguments)
         {
             if (page == AdvancedPageName) arguments.Insert(0, "--page=" + AdvancedPageName);
+            else if (page == ChatPageName) arguments.Insert(0, "--page=" + ChatPageName);
             if (focus == "page." + AdvancedPageName) arguments.Add("--focus=" + focus);
         }
 
@@ -911,7 +915,7 @@ namespace CodexAutoResume
                            KeptShown(item) + "|" +
                            (IsReport(item) ? ReportShown() : "") + "|" +
                            ResetsShown(item) + "|" + KeepGoingShown(item) + "|" + QueueShown(item) + "|" +
-                           WordingsShown(item) + "|" + RunsShown(item) + "|" + ChatShown(item);
+                           WordingsShown(item) + "|" + RunsShown(item);
             if (shown == advancedShown)
             {
                 UpdateAdvancedButtons();
@@ -1078,10 +1082,10 @@ namespace CodexAutoResume
 
             // Under its limits (v0.6.14): Send now's waiting recoveries. Keep it on is in the head card (v0.6.16-beta.3).
             BuildSendNow(item);
-            // The turns run here now, each with its Stop (v0.6.16-beta.4, AdvancedRuns.cs), and the chat (v0.6.19,
-            // AdvancedChat.cs).
+            // The turns run here now, each with its Stop (v0.6.16-beta.4, AdvancedRuns.cs), and the button to the Chat page
+            // (v0.6.19, AdvancedChat.cs: the chat is a page of its own).
             BuildRuns(item);
-            BuildChat(item);
+            BuildChatLink(item);
             // The reset actions' rules and the form they are added with (AdvancedResets.cs); the conversations kept going
             // and the queued prompts (v0.6.15-beta) - each while its capability is on or, from v0.6.16-beta.3, watched.
             BuildResets(item);
@@ -1578,6 +1582,7 @@ namespace CodexAutoResume
             foreach (Button remove in ruleRemoves) remove.Enabled = listed;
             if (ruleAdd != null) ruleAdd.Enabled = listed;
             UpdateKeptButtons(idle);
+            UpdateRunButtons(idle);
             UpdateWordingButtons(idle);
             UpdateResetButtons(idle);
             UpdateKeepGoingButtons(idle);
@@ -1987,6 +1992,7 @@ namespace CodexAutoResume
         /// A notice in the window's own dialog (Tell); written down in a window a test drives.
         private void TellAdvanced(string text)
         {
+            if (advancedQuiet) return;
             if (advancedScript == null) Tell(text);
             else advancedTold.Add(text);
         }
@@ -2016,7 +2022,9 @@ namespace CodexAutoResume
         {
             if (advancedScript != null)
             {
-                done(AdvancedScripted(command, argument));
+                Dictionary<string, object> scripted = AdvancedScripted(command, argument);
+                if (Str(scripted, "error_code") == PersistentBridge.ReconnectingCode) AdvancedReconnecting(action, done, scripted);
+                else done(scripted);
                 UpdateAdvancedButtons();
                 return;
             }
@@ -2026,17 +2034,43 @@ namespace CodexAutoResume
             System.Threading.ThreadPool.QueueUserWorkItem(delegate
             {
                 Dictionary<string, object> reply;
-                try { reply = bridge.Call(command, argument); }
+                // v0.6.19: only the long-lived bridge carries this edition's calls (PersistentBridge.CallAdvanced).
+                try { reply = bridge.CallAdvanced(command, argument, action); }
                 catch (Exception error) { reply = Failure(error); }
                 MethodInvoker finish = delegate
                 {
                     if (action) SetBusy(false);
-                    done(reply);
+                    if (Str(reply, "error_code") == PersistentBridge.ReconnectingCode) AdvancedReconnecting(action, done, reply);
+                    else
+                    {
+                        advancedReconnectTold = false;
+                        done(reply);
+                    }
                     UpdateAdvancedButtons();
                 };
                 try { if (IsHandleCreated && !IsDisposed) BeginInvoke(finish); }
                 catch (Exception) { }
             });
+        }
+
+        // v0.6.19: whether the reconnecting note has been said since the last call the long-lived bridge answered.
+        private bool advancedReconnectTold;
+        // While a reconnecting answer is handed to its page: the page's own refusal is not said over it.
+        private bool advancedQuiet;
+
+        /// The long-lived bridge could not be reached for this call (PersistentBridge.CallAdvanced), so nothing was
+        /// carried out by this call. The page is handed the answer as any refusal, with its own words held back, and
+        /// the person is told once in the one note every page shares - after an action every time, since a click is
+        /// what tries the connection again.
+        private void AdvancedReconnecting(bool action, Action<Dictionary<string, object>> done, Dictionary<string, object> reply)
+        {
+            string words = S("note.reconnecting", "The connection to this product's service is being restored. Try again in a moment.");
+            advancedQuiet = true;
+            try { done(reply); }
+            finally { advancedQuiet = false; }
+            if (advancedNote != null) SetNote(advancedNote, words);
+            if (action || !advancedReconnectTold) TellAdvanced(words);
+            advancedReconnectTold = true;
         }
 
         /// A reply's part written out, to compare with what was shown; "" for one that cannot be.

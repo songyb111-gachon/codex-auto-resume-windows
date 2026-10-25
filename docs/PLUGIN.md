@@ -20,7 +20,7 @@ The repository root *is* the plugin root. There is exactly one copy of `src/`.
 
 | Path | Purpose |
 | --- | --- |
-| `.agents/plugins/marketplace.json` | Marketplace index; one entry whose `source.path` is `"."`. |
+| `.agents/plugins/marketplace.json` | Marketplace index; one entry whose `source.path` is `"./"`, the repository root. |
 | `.codex-plugin/plugin.json` | Plugin manifest. Declares `skills` and the card's artwork; nothing else executable. The release build adds `mcpServers` to its copy (see below). |
 | `skills/codex-auto-resume/SKILL.md` | What Codex reads to answer "turn on auto resume". |
 | `scripts/bootstrap.ps1` | Turns the plugin into an installation (see below). |

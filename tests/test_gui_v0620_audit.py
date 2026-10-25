@@ -38,7 +38,7 @@ def body(type_name: str, member: str) -> str:
     return guiscan.member_body(type_name, member)
 
 
-# A stand-in for the installation's python.exe. `-c CODE APP_SRC serve` answers one request a line; `-c CODE APP_SRC
+# A stand-in for the installation's python.exe. `[-X OPTION ...] -c CODE APP_SRC serve` answers one request a line; `-c CODE APP_SRC
 # COMMAND [-]` answers once. CAR_FAKE_MODE: ok answers {"ok":true,"echo":COMMAND,"took":LENGTH-OF-ARGUMENT}; hang
 # does not answer for two minutes (CAR_FAKE_HANG_MS), every process it starts alike; flood writes 300 KB to stderr
 # before it reads its stdin, then answers; tree starts a python.exe that keeps its stdout and a pythonw.exe of its own, and ends without a word; slow answers strings in Korean after 3 s.
@@ -81,6 +81,10 @@ static class Fake {
     }
     static int Main(string[] args) {
         if (args.Length > 0 && args[0] == "--hang") { Note(args[1]); Thread.Sleep(HangMs()); return 0; }
+        // The interpreter's own options come first (-X disable-remote-debug, v0.6.19-beta.3), as python.exe reads them.
+        int options = 0;
+        while (options + 1 < args.Length && args[options] == "-X") options += 2;
+        if (options > 0) { var rest = new string[args.Length - options]; Array.Copy(args, options, rest, 0, rest.Length); args = rest; }
         string mode = Environment.GetEnvironmentVariable("CAR_FAKE_MODE") ?? "ok";
         string command = args.Length > 3 ? args[3] : "";
         Note((command == "serve" ? "serve-" : "child-") + mode);

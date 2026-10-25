@@ -439,9 +439,9 @@ class SecondsFileTests(unittest.TestCase):
         """A file timed by a job for each Python takes their median in its lane, and the lanes are taken in
         LANES' order, as --record-durations would take them one after the other: the figure for every lane
         that a file lacked is the first lane's."""
-        for python, figure in (("3.12", 10.0), ("3.13", 60.0), ("3.14", 20.0)):
+        for python, figure in (("3.13", 60.0), ("3.14", 20.0), ("3.15", 10.0)):
             self.keep("standard", python, 1, dict({self.a: figure}, **({self.b: 3.33} if python == "3.13" else {})))
-        for python, figure in (("3.12", 4.0), ("3.13", 6.0)):
+        for python, figure in (("3.13", 6.0), ("3.15", 4.0)):
             self.keep("advanced", python, 3, {self.c: figure, self.b: 99.0, self.gone: 1.0})
         alone = self.folder / "release.json"
         alone.write_text(json.dumps({"lane": "release", "run": "37046753377", "seconds": {
@@ -499,12 +499,12 @@ class SecondsFileTests(unittest.TestCase):
     def test_a_file_named_twice_counts_once_in_its_median(self):
         """A folder and a file in it, or one file spelled two ways, is one job's figure, not two."""
         files = {python: self.keep("standard", python, 1, {self.a: figure})
-                 for python, figure in (("3.12", 10.0), ("3.13", 60.0), ("3.14", 20.0))}
+                 for python, figure in (("3.13", 60.0), ("3.14", 20.0), ("3.15", 10.0))}
         once = self.durations("once.json")
         self.assertEqual(self.merge(once, self.folder / "downloaded")[0], 0)
         self.assertEqual(self.tables(once)["lanes"]["standard"][self.a], 20.0)
         twice = self.durations("twice.json")
-        again = self.folder / "downloaded" / ".." / "downloaded" / files["3.12"].parent.name / "seconds.json"
+        again = self.folder / "downloaded" / ".." / "downloaded" / files["3.15"].parent.name / "seconds.json"
         code, said = self.merge(twice, self.folder / "downloaded", files["3.13"], again, files["3.13"])
         self.assertEqual(code, 0, said)
         self.assertEqual(self.tables(twice), self.tables(once))
@@ -756,15 +756,25 @@ class WorkflowPartsTests(unittest.TestCase):
 
     def test_every_lane_runs_in_parts_and_each_part_names_its_lane(self):
         counts = edition_parts(self.tests)
-        self.assertEqual(counts, {"standard": 3, "advanced": 5}, "the lanes' own counts (2026-10-20)")
-        self.assertEqual(declared_parts(job(workflow("test.yml"), "main-tree")), 5, "the release lane's count")
-        self.assertEqual(declared_parts(job(workflow("release.yml"), "test")), 5, "the same one in the release")
+        self.assertEqual(counts, {"standard": 4, "advanced": 6}, "the lanes' own counts (2026-10-24)")
+        self.assertEqual(declared_parts(job(workflow("test.yml"), "main-tree")), 6, "the release lane's count")
+        self.assertEqual(declared_parts(job(workflow("release.yml"), "test")), 6, "the same one in the release")
         self.assertGreater(min(counts.values()), 1)
         run = step(self.tests, "Run the automated test suite")
         self.assertIn('run: python scripts/test_parts.py --lane $env:CODEX_AR_EDITION --part "$env:PART/$env:PARTS"'
                       " -v --annotate", run)
         self.assertIn("PART: ${{ matrix.part }}", run)
         self.assertIn("fail-fast: false", self.matrix)
+
+    def test_a_dev_run_takes_at_most_37_jobs(self):
+        """GitHub runs at most 40 jobs at once for this account, and the owner keeps a run to 37 so a dev run and
+        part of another fit (2026-10-24: Python 3.12 dropped, its jobs dealt into more parts - 35 now)."""
+        versions = re.search(r'(?m)^        python-version: \[([^\]]+)\]\s*$', self.matrix).group(1).split(",")
+        lanes = sum(edition_parts(self.tests).values())
+        future = len(re.findall(r"(?m)^          - \{python-version: ", self.matrix))
+        main_tree = declared_parts(job(workflow("test.yml"), "main-tree"))
+        self.assertEqual((len(versions), lanes, future, main_tree), (2, 10, 10, 6))
+        self.assertLessEqual(len(versions) * lanes + future + main_tree, 37)
 
     def test_the_future_python_runs_every_part_of_each_edition(self):
         include = self.matrix[self.matrix.index("include:"):]

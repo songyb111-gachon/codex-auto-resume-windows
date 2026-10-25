@@ -1,96 +1,49 @@
 // ADVANCED-EDITION-CODE: in the advanced edition's window, never the standard one's.
 //
-// Codex Auto Resume - early_reset's line on Pending (v0.6.19, issue #50).
+// Codex Auto Resume - early_reset on Pending (v0.6.19, issue #50).
 //
-// While early_reset stands on, the Recoveries view of Pending has one compact line at its top: Check now, a button to
-// the capability's own card on the Advanced features page (its on/off is there and nowhere else), and what it last did -
-// when it read usage early, what that reading found and whether anything was continued (the status's
-// advanced.early_check, control/earlycheck.py). Check now asks for one fresh reading at once, for every waiting
-// conversation together, without choosing a row (advanced-early-check); the answer says whether it was asked, folded
-// into a reading just made or already asked, or not asked because the watcher is not running or nothing waits. It never
-// sends: every check still runs. With early_reset off, or a status that does not carry the line, there is no line.
+// While early_reset stands on, what it last did - when it read usage early, what that reading found and whether anything
+// was continued (the status's advanced.early_check, control/earlycheck.py) - is said in Pending's Why it is waiting panel,
+// under the usage readings core says there, for a recovery that waits for a usage limit (UsageNoted). It has no line, no
+// button and no place of its own on Pending (the owner's decision of 2026-10-24: its Check now and its settings button
+// went; its on/off is on the Advanced features page alone). A person's Retry now or Rescan asks the watcher to read
+// Codex's usage once; while early_reset stands on, that reading is one of its two (UsageAsked: advanced-early-check, the
+// probe for every waiting conversation together, answered by the click's own reading). It never sends: every check still
+// runs. With early_reset off, or a status that does not carry it, nothing is said.
 //
 // C# 5 (the in-box compiler), as the rest of the window.
 
 using System;
 using System.Collections.Generic;
-using System.Drawing;
-using System.Globalization;
 using System.Windows.Forms;
 
 namespace CodexAutoResume
 {
     internal sealed partial class SettingsForm
     {
-        private const string EarlyResetId = "early_reset";
-        private SoftFlow earlyLine;
-        private Button earlyCheckButton, earlySettingsButton;
-        private NoteLabel earlyNote;
-        // The last status's line (advanced.early_check), and Check now's answer, shown until the next reading is made.
+        // The last status's early_reset reading (advanced.early_check), or null while it is off.
         private Dictionary<string, object> earlyShown;
-        private string earlyAnswer;
-        private double earlyAnswerAt = -1;
 
-        /// The line, at the top of the Recoveries view, hidden until a status carries it.
-        private void BuildEarlyLine(Control view)
-        {
-            earlyLine = new SoftFlow();
-            earlyLine.Dock = DockStyle.Top;
-            earlyLine.AutoSize = true;
-            earlyLine.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            earlyLine.WrapContents = true;
-            earlyLine.Margin = new Padding(0);
-            earlyLine.Padding = Pad(0, 0, 0, 8);
-            earlyLine.Visible = false;
-            earlyCheckButton = MakeButton(Word("page.early.check_now", "Check now"), false, delegate { EarlyCheckNow(); });
-            earlySettingsButton = MakeButton(Word("page.early.settings", "Early reset settings"), false, delegate
-            {
-                ShowAdvanced();
-                OpenAdvanced(EarlyResetId);
-            });
-            foreach (Button button in new[] { earlyCheckButton, earlySettingsButton })
-            {
-                button.Margin = Pad(0, 0, 6, 0);
-                earlyLine.Controls.Add(button);
-            }
-            earlyNote = Note();
-            earlyLine.Controls.Add(earlyNote);
-            // The words wrap within the line's width: beside the buttons where they fit, under them where they do not.
-            earlyLine.SizeChanged += delegate { FitEarlyNote(); };
-            view.Controls.Add(earlyLine);
-        }
-
-        private void FitEarlyNote()
-        {
-            if (earlyLine == null || earlyNote == null) return;
-            int room = Math.Max(Px(120), earlyLine.ClientSize.Width - earlyLine.Padding.Horizontal - earlyNote.Margin.Horizontal);
-            if (earlyNote.MaximumSize.Width != room) earlyNote.MaximumSize = new Size(room, 0);
-        }
-
-        /// From each snapshot: the line as the status carries it, or none.
+        /// From each snapshot: what early_reset last did, as the status carries it, or none - and the panel told again
+        /// when that changed, since core drew it before this edition read the status.
         private void EarlyApplied(Dictionary<string, object> reply)
         {
-            earlyShown = Map(Map(Map(reply, "status"), "advanced"), "early_check");
-            FillEarlyLine();
+            Dictionary<string, object> shown = Map(Map(Map(reply, "status"), "advanced"), "early_check");
+            bool same = shown == null ? earlyShown == null : earlyShown != null && EarlyText(shown) == EarlyText(earlyShown);
+            earlyShown = shown;
+            if (!same) ShowExplain();
         }
 
-        private void FillEarlyLine()
+        /// v0.6.19 (the owner's decision of 2026-10-24): under the usage readings Why it is waiting says for a recovery that
+        /// waits for a usage limit, early_reset's own - when it last read, what it read, whether anything went on.
+        partial void UsageNoted(Dictionary<string, object> row, List<string> said)
         {
-            if (earlyLine == null || earlyLine.IsDisposed) return;
-            bool on = earlyShown != null;
-            if (earlyLine.Visible != on) earlyLine.Visible = on;
-            if (!on) return;
-            earlyCheckButton.Text = Word("page.early.check_now", "Check now");
-            earlyCheckButton.AccessibleName = earlyCheckButton.Text;
-            earlySettingsButton.Text = Word("page.early.settings", "Early reset settings");
-            earlySettingsButton.AccessibleName = earlySettingsButton.Text;
-            double checkedAt = Get(earlyShown, "checked_at") is double ? Number(earlyShown, "checked_at") : 0;
-            if (earlyAnswer != null && checkedAt != earlyAnswerAt) earlyAnswer = null;   // a new reading says it now
-            FitEarlyNote();
-            SetNote(earlyNote, earlyAnswer ?? EarlyText(earlyShown));
+            if (earlyShown == null || said == null) return;
+            string text = EarlyText(earlyShown);
+            if (!string.IsNullOrEmpty(text)) said.Add(text);
         }
 
-        /// What the line says of the last early reading: when, what it read, and whether anything went on.
+        /// What early_reset's last reading was, in words: when, what it read, and whether anything went on.
         internal string EarlyText(Dictionary<string, object> shown)
         {
             if (shown == null) return "";
@@ -112,22 +65,14 @@ namespace CodexAutoResume
             return Word("page.early.not_read", "Early reset check at {time}: usage was not read, because another check came first. Nothing was continued.", "time", time);
         }
 
-        /// Check now: one reading asked for at once; repeated clicks are one request (the bridge folds them).
-        private void EarlyCheckNow()
+        /// v0.6.19 (the owner's decision of 2026-10-24): a person's Retry now or Rescan asked the watcher to read Codex's
+        /// usage once. While early_reset stands on, that reading is also one of its two - the probe for every waiting
+        /// conversation together, opened at the click's look and answered by the click's own reading (advanced-early-check,
+        /// which folds a request made within one reading's life). Its answer changes nothing on the page.
+        partial void UsageAsked()
         {
-            double checkedAt = earlyShown != null && Get(earlyShown, "checked_at") is double ? Number(earlyShown, "checked_at") : 0;
-            AdvancedCall("advanced-early-check", "{}", true, delegate(Dictionary<string, object> reply)
-            {
-                Dictionary<string, object> result = AdvancedResult(reply);
-                string answer = Str(result, "check");
-                earlyAnswerAt = checkedAt;
-                if (!AdvancedDone(result)) earlyAnswer = AdvancedRefusal(result);
-                else if (answer == "asked") earlyAnswer = Word("page.early.asked", "Check asked: the watcher reads usage at its next look.");
-                else if (answer == "coalesced") earlyAnswer = Word("page.early.coalesced", "Usage was just read, or a check is already asked: nothing more is asked.");
-                else if (answer == "not_running") earlyAnswer = Word("page.early.not_running", "The watcher is not running, so nothing was checked.");
-                else earlyAnswer = Word("page.early.nothing_waits", "Nothing waits for a usage reset, so there is nothing to check.");
-                FillEarlyLine();
-            });
+            if (earlyShown == null) return;
+            AdvancedCall("advanced-early-check", "{}", false, delegate(Dictionary<string, object> reply) { });
         }
     }
 }

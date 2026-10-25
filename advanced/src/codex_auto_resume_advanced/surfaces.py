@@ -95,7 +95,7 @@ ARGUMENTS = {
     BridgeCommand.ADVANCED_CHAT_READ: frozenset({"thread_id"}),
     BridgeCommand.ADVANCED_CHAT_SEND: frozenset({"thread_id", "words", "generation"}),
     BridgeCommand.ADVANCED_CHAT_CANCEL: frozenset({"thread_id", "generation"}),
-    # v0.6.19 (issue #50): early_reset's Check now, which names no row.
+    # v0.6.19 (issue #50): early_reset's probe a person's Retry now or Rescan asks for, which names no row.
     BridgeCommand.ADVANCED_EARLY_CHECK: frozenset(),
 }
 # v0.6.19 (the groundwork): the stage's commands, in the vocabulary before any capability that answers one is built.
@@ -217,7 +217,8 @@ def status(runtime) -> dict:
     if found:
         shown["runs"] = found
     shown.update(rows(runtime))
-    # v0.6.19 (issue #50): early_reset's line on Pending, only while it stands on (control/earlycheck.py).
+    # v0.6.19 (issue #50): early_reset's last reading for Pending's Why it is waiting, only while it stands on
+    # (control/earlycheck.py).
     from .control import earlycheck
     shown.update(earlycheck.view(runtime))
     return shown

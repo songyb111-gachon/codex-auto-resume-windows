@@ -567,7 +567,7 @@ class UpgradeKeepsTheOwnersChoiceTests(unittest.TestCase):
         # is by definition a repair and never a first install.
         repair = block(self.bootstrap, "if ($null -ne $standing -and $standing -ge 0",
                        "# No lock is taken")
-        self.assertIn("@($setup, 'setup', '--keep-state')", repair)
+        self.assertIn("@('-X', 'disable-remote-debug', $setup, 'setup', '--keep-state')", repair)
 
     def test_the_bootstrap_has_no_other_route_that_runs_setup_itself(self):
         # Every other route goes through install.ps1, which decides for itself - but one: a pick

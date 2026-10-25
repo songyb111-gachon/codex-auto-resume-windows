@@ -31,7 +31,7 @@ from codex_auto_resume_advanced.vocabulary import (Actor, ArmingState, ArmingWar
                                                    ChatReason, ChatState, Measurement, Refusal, Verdict)
 from test_engine import T1  # noqa: E402
 
-SECRET = "SENTINEL-ask-about-the-blue-heron"
+PRIVATE = "SENTINEL-ask-about-the-blue-heron"
 
 
 class FakeSession:
@@ -130,7 +130,7 @@ class SendTests(ChatCase):
 
     def test_nothing_of_a_message_reaches_a_log_the_journal_the_status_or_mcp(self):
         plug = self.armed()
-        self.waiting(plug, words=SECRET)
+        self.waiting(plug, words=PRIVATE)
         self.h.tick()
         self.h.home.dispatch(T1)
         self.h.tick(advance=2)

@@ -334,7 +334,7 @@ class CodexStartMixin:
         """
         if windows.install_in_progress() is not False:
             return "not started: an installation is in progress"
-        command = startup.command_line(self.paths.home / "watcher-launcher.py")
+        command = startup.command_line(self.paths.home / "watcher-launcher.py", options=startup.NO_REMOTE_DEBUG)
         outcome = route.start(command)
         outcome = outcome if isinstance(outcome, dict) else {}
         pid = outcome.get("pid")

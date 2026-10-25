@@ -99,8 +99,9 @@ class SupervisorCase(unittest.TestCase):
         return Asked(supervise=supervise)
 
     def child_argv(self):
-        return [str((self.bin / "pythonw.exe").resolve()), str((self.home / "watcher-launcher.py").resolve()), "run",
-                self.launcher.CHILD_ARGUMENT]
+        # Remote debugging off right after the interpreter (v0.6.19-beta.3, tests/test_remote_debug_off.py).
+        return [str((self.bin / "pythonw.exe").resolve()), "-X", "disable-remote-debug",
+                str((self.home / "watcher-launcher.py").resolve()), "run", self.launcher.CHILD_ARGUMENT]
 
 
 class SuperviseTests(SupervisorCase):
@@ -207,7 +208,7 @@ class ClosedWordTests(SupervisorCase):
         built = next(node for node in ast.walk(function) if isinstance(node, ast.Assign)
                      and getattr(node.targets[0], "id", None) == "arguments")
         names = {node.id for node in ast.walk(built.value) if isinstance(node, ast.Name)}
-        self.assertEqual(names, {"str", "interpreter", "Path", "__file__", "CHILD_ARGUMENT"})
+        self.assertEqual(names, {"str", "interpreter", "NO_REMOTE_DEBUG", "Path", "__file__", "CHILD_ARGUMENT"})
         popen = [node for node in ast.walk(function) if isinstance(node, ast.Call)
                  and getattr(node.func, "attr", None) == "Popen"]
         self.assertEqual(len(popen), 1)

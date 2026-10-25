@@ -14,7 +14,8 @@ It never silences words that are not core's own template: where the continuation
 Until M3B - a turn started with no input, proven by its id - passes for the Codex in force, its statement carries the
 UNMEASURED warning. Where Codex refuses a turn with no input, the route answers "not started" with Codex's refusal,
 and from then on this answers DEFER for that Codex in this process - so the next attempt carries words (the review's
-finding: a kept-on capability is not turned off by a trip) - and it trips (REFUSED_BY_CODEX).
+finding: a kept-on capability is not turned off by a trip) - and it trips (REFUSED_BY_CODEX): off, or, kept on (K8,
+since v0.6.19-beta.3), a note while it goes on answering DEFER.
 """
 from __future__ import annotations
 

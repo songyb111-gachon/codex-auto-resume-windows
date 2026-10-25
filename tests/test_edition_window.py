@@ -140,7 +140,15 @@ class PointTests(unittest.TestCase):
         self.assertEqual(found, {"DashboardBuilt": "gui/Dashboard.cs", "SnapshotApplied": "gui/Dashboard.cs",
                                  "PendingBuilt": "gui/Dashboard.cs", "ArgumentParsed": "gui/Dashboard.cs",
                                  "ReopenArgumentsWritten": "gui/Dashboard.cs", "CellsWritten": "gui/Dashboard.cs",
-                                 "RenderStateNamed": "gui/Dashboard.cs"})
+                                 "RenderStateNamed": "gui/Dashboard.cs",
+                                 # v0.6.19 (the owner's decision of 2026-10-24).
+                                 "UsageAsked": "gui/Dashboard.cs", "UsageNoted": "gui/Dashboard.cs",
+                                 # and Pending as one list.
+                                 "ListRowsJoined": "gui/Dashboard.cs", "PendingButtonsBuilt": "gui/Dashboard.cs",
+                                 "HistoryButtonsBuilt": "gui/Dashboard.cs", "PendingButtonsUpdated": "gui/Dashboard.cs",
+                                 "HistoryButtonsUpdated": "gui/Dashboard.cs", "EditionRowOpened": "gui/Dashboard.cs",
+                                 # and History's one Clear history.
+                                 "ClearHistoryPressed": "gui/Dashboard.cs"})
         # No other shape of partial method: one with a body in a standard source would be
         # compiled into the standard window, which is the whole thing this rules out.
         whole = guiscan.whole()
@@ -156,7 +164,14 @@ class PointTests(unittest.TestCase):
                         self.assertRegex(line, r"^\s*%s\([^;]*\);\s*$" % point)
                         calls[point] = calls.get(point, 0) + 1
         self.assertEqual(calls, {"DashboardBuilt": 1, "SnapshotApplied": 2, "PendingBuilt": 1, "ArgumentParsed": 1,
-                                 "ReopenArgumentsWritten": 1, "CellsWritten": 1, "RenderStateNamed": 1})
+                                 "ReopenArgumentsWritten": 1, "CellsWritten": 1, "RenderStateNamed": 1,
+                                 # v0.6.19 (the owner's decision of 2026-10-24): a click's usage reading, and Why it is
+                                 # waiting's usage lines.
+                                 "UsageAsked": 2, "UsageNoted": 1,
+                                 # and Pending as one list.
+                                 "ListRowsJoined": 1, "PendingButtonsBuilt": 1, "HistoryButtonsBuilt": 1,
+                                 "PendingButtonsUpdated": 1, "HistoryButtonsUpdated": 1, "EditionRowOpened": 1,
+                                 "ClearHistoryPressed": 1})
 
 
 def copy_window(target: Path) -> Path:
@@ -241,7 +256,7 @@ class WindowTests(unittest.TestCase):
         # v0.6.16-beta.4: CellsWritten - what the advanced edition says beside a Pending or History row - is the sixth
         # point, declared once and called once (Cells). v0.6.16: RenderStateNamed - the page the render mode draws - is
         # the seventh, declared once and called once.
-        self.assertEqual(self.cut_lines, 7 + 8, "seven declarations and eight calls")
+        self.assertEqual(self.cut_lines, 16 + 18, "sixteen declarations and eighteen calls")
         self.assertEqual(self.standard, (self.work / "without" / WINDOW).read_bytes())
         self.assertEqual((self.work / "standard" / LAUNCHER).read_bytes(),
                          (self.work / "without" / LAUNCHER).read_bytes())

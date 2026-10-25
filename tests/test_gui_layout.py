@@ -190,13 +190,14 @@ class PersistentBridgeTests(unittest.TestCase):
         source = guiscan.dashboard()
         start = source.index("private void StartLocked()")
         method = source[start:source.index("internal void Stop()", start)]
-        self.assertIn('info.Arguments = "-c " + Bridge.Quote(code)', method,
+        # After remote debugging off (Bridge.NoRemoteDebug, v0.6.19-beta.3; tests/test_remote_debug_off.py).
+        self.assertIn('info.Arguments = Bridge.NoRemoteDebug + "-c " + Bridge.Quote(code)', method,
                       "the persistent bridge must pass its code with -c, as the one-shot bridge does")
         code = "".join(re.findall(r'"((?:[^"\\]|\\.)*)"', method[method.index("string code ="):
                                                                method.index(";", method.index('"sys.exit(')) + 1]))
         self.assertIn("controlcli import main", code)
         request = json.dumps({"id": 1, "command": "strings"}) + "\n"
-        result = subprocess.run([sys.executable, "-c", code, str(ROOT / "src"), "serve"],
+        result = subprocess.run([sys.executable, "-X", "disable-remote-debug", "-c", code, str(ROOT / "src"), "serve"],
                                 input=request, capture_output=True, text=True, encoding="utf-8",
                                 timeout=60)
         replies = [json.loads(line) for line in result.stdout.splitlines() if line.strip()]

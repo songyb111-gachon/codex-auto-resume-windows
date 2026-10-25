@@ -183,7 +183,7 @@ def probe(paths=None) -> dict:
         if not job or not k.SetInformationJobObject(job, _JOB_EXTENDED_LIMIT_INFORMATION,
                                                     ctypes.byref(info), ctypes.sizeof(info)):
             return facts
-        argv = [str(pythonw), str(bootstrap), "helper", src_paths, str(workdir),
+        argv = [str(pythonw), *startup.NO_REMOTE_DEBUG, str(bootstrap), "helper", src_paths, str(workdir),
                 str(pythonw), str(bootstrap)]
         helper = subprocess.Popen(argv, creationflags=NO_WINDOW | CREATE_SUSPENDED,
                                   stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
@@ -259,7 +259,7 @@ def _helper_main(src_paths, workdir, pythonw, bootstrap) -> None:
     from codex_auto_resume import pwsh, startup
 
     heartbeat_out = os.path.join(workdir, "heartbeat.json")
-    tokens = [pythonw, bootstrap, "heartbeat", src_paths, heartbeat_out]
+    tokens = [pythonw, *startup.NO_REMOTE_DEBUG, bootstrap, "heartbeat", src_paths, heartbeat_out]
     command_line = " ".join(startup.quote_argument(token) for token in tokens)
     try:
         pwsh.run(_WMI_SCRIPT, {"HEARTBEAT_CMD": command_line}, timeout=_WMI_TIMEOUT)
