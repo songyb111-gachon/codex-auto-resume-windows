@@ -144,13 +144,16 @@ class PageTests(PageCase):
     def test_the_dialog_is_as_tall_as_what_it_shows(self):
         """No empty band above the buttons: up to v0.6.19-beta.3 the dialog stood as tall as the send mode's choices, the
         line on after this turn and the longest refusal all at once (the owner, 2026-10-25). A refusal said is wholly in
-        view. Fails with the dialog sized for all of them."""
+        view, or - where all of it is taller than the screen lets the editor be, as on a CI runner's 1024 by 768 - the
+        editor stands as tall as the screen allows and the rest is scrolled to. Fails with the dialog sized for all of
+        them."""
         for name in ("scenario_after_turn", "scenario_new", "scenario_refused"):
             (editor,) = self.of(name)[0]["dialogs"]
             self.assertLessEqual(editor["blank"], 2, "%s: %r px empty above the buttons" % (name, editor["blank"]))
             if not editor["taken"]:
                 self.assertLessEqual(editor["blank_after"], 2, "%s, refused: %r px" % (name, editor["blank_after"]))
-                self.assertTrue(editor["said_fits"], "%s: the refusal is cut off" % name)
+                self.assertTrue(editor["said_fits"] or editor["at_most"],
+                                "%s: the refusal is cut off in an editor shorter than the screen allows" % name)
         refused = self.of("scenario_refused")[0]["dialogs"][0]
         self.assertTrue(refused["said"], "the refused scenario said its refusal")
 

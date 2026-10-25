@@ -1049,6 +1049,9 @@ namespace CodexAutoResume
             record["blank_after"] = (double)EditorBlank();
             record["said_fits"] = editorSaid.Text.Length == 0 ||
                 editorSaid.Top + editorSaid.Height <= editorBody.Height && editorBody.Height <= editorBody.Parent.ClientSize.Height;
+            // Where all of it is taller than the screen lets the editor be (a CI runner's 1024 by 768), it stands at that
+            // height and what does not fit is scrolled to.
+            record["at_most"] = editorDialog.ClientSize.Height >= EditorMost();
             record["words_after"] = editorWords.Box.Text;
         }
 

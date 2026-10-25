@@ -270,9 +270,14 @@ namespace CodexAutoResume
             editorBody.PerformLayout();
             int tall = Math.Max(editorBody.Height, editorBody.GetPreferredSize(new Size(width, 0)).Height);
             int buttonsTall = editorButtons.GetPreferredSize(new Size(width, 0)).Height;
-            int most = Math.Min(Screen.GetWorkingArea(this).Height, SystemInformation.MaxWindowTrackSize.Height) - Px(96);
-            int want = Math.Max(Px(240), Math.Min(tall + buttonsTall, most));
+            int want = Math.Max(Px(240), Math.Min(tall + buttonsTall, EditorMost()));
             if (editorDialog.ClientSize.Height != want) editorDialog.ClientSize = new Size(width, want);
+        }
+
+        /// The tallest the editor may stand: what the screen it opens on lets a window be, less room around it.
+        private int EditorMost()
+        {
+            return Math.Min(Screen.GetWorkingArea(this).Height, SystemInformation.MaxWindowTrackSize.Height) - Px(96);
         }
 
         private SoftCombo EditorCombo(string name, int width)
