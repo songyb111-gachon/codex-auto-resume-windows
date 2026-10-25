@@ -1,5 +1,60 @@
 # Changelog
 
+## v0.6.19-beta.4 — Pending's buttons one gap apart, its Next check drawn whole, and dialogs as tall as what they show
+
+[The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.19-beta.3...v0.6.19-beta.4)
+
+**A pre-release: the fourth of v0.6.19.** It is a GitHub pre-release, so `releases/latest` stays v0.6.18. An installation of
+v0.6.18 or of an earlier v0.6.19 pre-release is offered it by *Check for updates* only where pre-releases are offered - the
+check asks first and says it is tested less - and *Install another version...* lists it. Both editions change in the
+first group; the second is the advanced edition's alone.
+
+**Going back.** Nothing stored changes: the watcher's state stays schema 5, the advanced edition's file stays version 8,
+readable from 7, and the settings file gains no key. This version changes only how the Dashboard lays out what it shows,
+so going back to v0.6.19-beta.3 brings back its layout and nothing else.
+
+### Both editions
+
+- **Pending's buttons stand one gap apart.** The conversation switch under Pending's list says *Turn off for this
+  conversation* or *Turn on for this conversation*, and the room for the longer of the two stood after the button while
+  the shorter was shown - in Korean the second is the longer, so the gap before *Cancel all* was wider than every other.
+  The button is now as wide as the wider of its two words: every gap is one gap, and nothing after it moves when it
+  switches.
+- **A list's short cells stay whole.** Where Pending's or History's list has no room for every cell whole, what is left
+  past a readable width now goes first to the columns that want the least, each whole in turn: a time, a kind or a count
+  stays whole, and a long state or a conversation's name ends in an ellipsis. It was shared in proportion before, which
+  cut every column a little.
+- **The dialog for a value of your own is as tall as what it says.** The *Custom...* dialog stood tall enough for its
+  refusal from the start, an empty line above its buttons. It is now as tall as the range it says, and grows by a line
+  only where a refused value's words need one.
+
+### Advanced edition
+
+- **Pending's buttons for a message or a rule share their room.** The buttons under the list follow the chosen row's kind
+  in one group as wide as a recovery's four, so that *Cancel all*, *Rescan* and *Schedule...* never move, and a message's
+  three or a rule's two buttons left the rest of the group as a gap before *Cancel all*. They now share the group's
+  width, each a little wider, and the gap after them is the gap between any two buttons.
+- **A reset rule's Next check is short, and a scheduled message's is whole.** A rule's Next check held the whole sentence
+  that Why it is waiting says (*A message to ... when the 5-hour limit resets (the next one)*), cut to a few words; it now
+  says its limit (*the 5-hour limit*, with which reset only when it is not the next one), and the sentence stays in Why it
+  is waiting. A scheduled message's *Every day 09:00* was measured as a recovery's countdown, which it never shows, and
+  cut to *Every day 09:...*; it is measured by its own words now.
+- **The message editor is as tall as what it shows.** *Schedule a message* stood as tall as the send mode's two choices,
+  the line on *After this turn* and the longest refusal all at once, so what was not showing was an empty band above
+  *Save and return*. It is now as tall as what it shows and grows when a choice or a refusal adds a line, never past what
+  the screen allows (the rest is scrolled to).
+
+### For developers
+
+- The release check's smoke test runs the archive's interpreter with remote debugging off, and refuses to run while it is
+  on: from Python 3.14 the archive's script starts itself again in a new process, which the test's private registry hive
+  does not reach, and verifying v0.6.19-beta.3 found install and uninstall writing through the calling app's own view of
+  HKEY_CURRENT_USER (the registry outside that app was untouched). The release check also rebuilds the archives with the
+  Python the release builds with, since 3.13's zlib and 3.14's zlib-ng compress the same files to different bytes.
+- Tests hold the gaps between Pending's buttons in English and Korean for every kind of row, the editors' heights, and
+  no cell of Pending's list past the conversation's cut at the opening size in Korean; the layout audit adds an empty
+  band above a dialog's buttons.
+
 ## v0.6.19-beta.3 — Python 3.14.9 with remote debugging off, Retry now on the row you choose and Rescan for them all, Pending as one list, Chat as a page of its own, and Keep it on for every capability
 
 [The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.19-beta.2...v0.6.19-beta.3)

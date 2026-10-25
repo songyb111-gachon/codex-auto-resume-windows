@@ -964,11 +964,11 @@ seam of its own.
 
 ## v0.6.19 — The advanced edition's last stage
 
-**In development: v0.6.19-beta.3 🚧, its third pre-release, bundles Python 3.14.9 with remote debugging off in both
-editions, lets Retry now check the row you choose and Rescan check them all, makes Pending one list, gives the chat a
-page of its own and offers Keep it on for every capability. The first two, v0.6.19-beta and v0.6.19-beta.2, carried the
-groundwork, the chat inside the Dashboard, the watcher's restart after an unexpected stop, the wake for a reset, a
-compatibility report from this PC and Retry now's usage check. The rest of the stage is next.**
+**In development: v0.6.19-beta.4 🚧, its fourth pre-release, stands Pending's buttons one gap apart, draws its Next
+check whole and makes the dialogs as tall as what they show. The first three, v0.6.19-beta, v0.6.19-beta.2 and
+v0.6.19-beta.3, carried the groundwork, the chat inside the Dashboard, the watcher's restart after an unexpected stop,
+the wake for a reset, a compatibility report from this PC, Retry now's usage check, Python 3.14.9, one Pending list and
+Keep it on for every capability. The rest of the stage is next.**
 
 Stage 5, moved out of v0.6.16 by the owner on 2026-10-16 so that the v0.6.16 final comes sooner, is a release
 of its own, and the owner moved the in-app chat here the same day. Two of its small capabilities - a weekly update
@@ -1003,7 +1003,7 @@ one Codex reports, read when a recovery is due or when a person asks). In the ad
 limit shows on Pending when it last read and what that did, and a **Check now** takes one reading at once; every other
 check still runs. (Its line and its Check now are replaced in v0.6.19-beta.3 by the readings of Retry now and Rescan.)
 
-### v0.6.19-beta.3 — Python 3.14.9, one Pending list, and Keep it on for every capability (a pre-release)
+### v0.6.19-beta.3 ✅ — Python 3.14.9, one Pending list, and Keep it on for every capability (a pre-release)
 
 In both editions: the bundled Python is 3.14.9, since 3.13 gets no more Windows builds, with remote debugging off in
 every process the product starts; the source needs Python 3.13 or newer. Retry now is offered on a recovery whose usage
@@ -1014,6 +1014,15 @@ recoveries, queued messages and reset rules, with buttons that follow the row's 
 place; delivered messages are history and Clear history clears them; the early-reset line and its Check now are gone,
 Retry now and Rescan readings counting toward its two readings; the Chat is a page of its own; and Keep it on is offered
 for every capability - never on by default - by the owner's word of 2026-10-24.
+
+### v0.6.19-beta.4 — Pending's buttons one gap apart, its Next check whole, dialogs as tall as what they show (a pre-release)
+
+The owner's reports of 2026-10-25 on v0.6.19-beta.3. In both editions: the conversation switch under Pending's list is as
+wide as the wider of its two words, so the gap before Cancel all is the gap between any two buttons; where a list has no
+room for every cell whole, a time, a kind or a count stays whole and a long state or a name gives way; and the dialog for
+a value of your own is as tall as what it says. In the advanced edition: a message's or a rule's buttons share the room
+of the group they stand in; a reset rule's Next check says its limit, the whole sentence staying in Why it is waiting,
+and a scheduled message's is measured by its own words; and the message editor is as tall as what it shows.
 
 ### Around recovery
 
@@ -1355,9 +1364,15 @@ The second pre-release: Retry now checks usage in both editions, and the early l
 
         ↓
 
-v0.6.19-beta.3 → v0.6.19  🚧 In development
+v0.6.19-beta.3  ✅ Released
 The third pre-release: Python 3.14.9 with remote debugging off, Retry now and Rescan check usage, Pending as one list,
-the chat on a page of its own, Keep it on for every capability; still to come: analytics, the courier, the loopback API and remote control, account switching, the Stop hook
+the chat on a page of its own, Keep it on for every capability
+
+        ↓
+
+v0.6.19-beta.4 → v0.6.19  🚧 In development
+The fourth pre-release: Pending's buttons one gap apart, its Next check whole, dialogs as tall as what they show; still
+to come: analytics, the courier, the loopback API and remote control, account switching, the Stop hook
 continuation, Arabic and Hebrew
 
         ↓
@@ -1383,8 +1398,8 @@ Final Rust audit and stabilization: the Rust bug hunt
 Maintenance
 ```
 
-This document records the current direction; v0.6.19-beta and v0.6.19-beta.2 are out and v0.6.19-beta.3 is in development, the first
-three pre-releases of v0.6.19; v0.6.18 is out: a recovery that worked is recovered however its turn ended,
+This document records the current direction; v0.6.19-beta, v0.6.19-beta.2 and v0.6.19-beta.3 are out and v0.6.19-beta.4 is in
+development, the first four pre-releases of v0.6.19; v0.6.18 is out: a recovery that worked is recovered however its turn ended,
 the standard edition suggests the Codex homes this PC uses, Install another version runs in the setup window, the setup
 window's bar fills by real counts, the update's download is streamed, all seventeen translations were reviewed, a full
 audit's fixes landed in every layer, and the advanced edition gains Open Codex on a notice and a weekly update check while

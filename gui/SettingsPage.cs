@@ -59,6 +59,9 @@ namespace CodexAutoResume
             return Math.Min(text, NoteLines * line) + reopenNote.Padding.Vertical;
         }
 
+        // The narrowest a button stands, at 96 DPI: a short word's button is this wide.
+        private const int ButtonLeast = 112;
+
         private Button MakeButton(string text, bool primary, EventHandler onClick)
         {
             // Raised on its card, or filled with the accent when it is the page's one primary
@@ -70,7 +73,7 @@ namespace CodexAutoResume
             button.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             // The panel's button height. Its body is the whole control now, where the old one kept
             // three pixels of a 38-pixel control on every side for its own shadow.
-            button.MinimumSize = new Size(Px(112), Px(Brand.ButtonHeight));
+            button.MinimumSize = new Size(Px(ButtonLeast), Px(Brand.ButtonHeight));
             button.Padding = Pad(Brand.ButtonPadLeft, 0, Brand.ButtonPadRight, 0);
             button.Margin = Pad(9, 0, 0, 0);
             button.Click += onClick;

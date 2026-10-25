@@ -819,8 +819,12 @@ class WindowCompositionTests(unittest.TestCase):
         least = self.method(self.dashboard, "private int LeastWidth(")
         self.assertIn("Px(Brand.SwitchWidth + 2) + Px(14)", least, "the Auto-resume switch is never cut")
         measure = self.method(self.dashboard, "private void MeasureCells(")
-        self.assertIn("CountdownText(item.Tag as Dictionary<string, object>, Now())", measure,
+        self.assertIn("CellWidth(list, item, c)", measure)
+        cell = self.method(self.dashboard, "private int CellWidth(")
+        self.assertIn("CountdownText(record, Now())", cell,
                       "the countdown measured as the clock writes it, not as the last tick left it")
+        self.assertIn("!EditionRow(record)", cell,
+                      "a row of the edition's own measured by the words its cell keeps, not as a countdown it never shows")
         for draw in ("private void DrawHeader(", "private void DrawCell("):
             with self.subTest(draw):
                 self.assertIn("TextFormatFlags.EndEllipsis", self.method(self.dashboard, draw))

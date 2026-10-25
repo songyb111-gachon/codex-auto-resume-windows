@@ -83,8 +83,9 @@ namespace CodexAutoResume
         }
 
         /// The group as wide as the widest kind's buttons - Turn off and Turn on measured both - so what follows it never
-        /// moves as the chosen row's kind changes. Asked when the words are made and when the buttons are updated, never
-        /// from a layout.
+        /// moves as the chosen row's kind changes. Each button is measured as it stands with nothing held (NaturalWidth),
+        /// so the widths SpreadKindButtons gives are never measured into the next. Asked when the words are made and when
+        /// the buttons are updated, never from a layout.
         private void FitKindButtons()
         {
             if (kindButtons == null) return;
@@ -99,14 +100,37 @@ namespace CodexAutoResume
             if (kindButtons.MaximumSize.Width != widest) kindButtons.MaximumSize = new Size(widest, 0);
         }
 
-        /// What `button` takes along the row - its width and its margins - saying `text` (its own words where null).
-        private static int Across(Button button, string text = null)
+        /// What `button` takes along the row with nothing held - its width and its margins - saying `text` (its own words
+        /// where null).
+        private int Across(Button button, string text = null)
         {
-            if (button == null) return 0;
-            int width = button.GetPreferredSize(Size.Empty).Width;
-            if (text != null && text != button.Text)
-                width += TextRenderer.MeasureText(text, button.Font).Width - TextRenderer.MeasureText(button.Text, button.Font).Width;
-            return Math.Max(button.MinimumSize.Width, width) + button.Margin.Horizontal;
+            return button == null ? 0 : NaturalWidth(button, text) + button.Margin.Horizontal;
+        }
+
+        /// The chosen kind's own buttons - a message's three, a rule's two - share the group's width, each as wide as it
+        /// stands and the rest of the room dealt out evenly, so the gap after the group is the gap between any two buttons.
+        /// Up to v0.6.19-beta.3 they stood as they were and the rest of the group, held as wide as a recovery's four, was a
+        /// gap before Cancel all (the owner, 2026-10-25). A recovery's own four are as they stand.
+        private void SpreadKindButtons(params Button[] shown)
+        {
+            if (kindButtons == null) return;
+            int height = scheduleEditButton.MinimumSize.Height;
+            var widths = new int[shown.Length];
+            int taken = 0;
+            for (int i = 0; i < shown.Length; i++)
+            {
+                widths[i] = NaturalWidth(shown[i], null);
+                taken += widths[i] + shown[i].Margin.Horizontal;
+            }
+            int rest = Math.Max(0, kindButtons.MinimumSize.Width - taken);
+            for (int i = 0; i < shown.Length; i++)
+                widths[i] += rest / shown.Length + (i == shown.Length - 1 ? rest % shown.Length : 0);
+            foreach (Button button in new[] { scheduleEditButton, scheduleGoOnButton, scheduleCancelButton })
+            {
+                int index = Array.IndexOf(shown, button);
+                int width = index >= 0 ? widths[index] : Px(ButtonLeast);
+                if (button.MinimumSize.Width != width) button.MinimumSize = new Size(width, height);
+            }
         }
 
         // ---------------------------------------------------------------- the rows
@@ -222,9 +246,19 @@ namespace CodexAutoResume
             string thread = Str(rule, "thread_id");
             string stands = RuleStateWord(rule), what = RuleWhat(rule);
             var cells = new[] { thread != null ? ConversationOf(thread) : Word("name.reset_credit", "Reset credit"), RuleStateShort(rule),
-                                Word("page.pending.kind.rule", "Reset rule"), what, "", "" };
+                                Word("page.pending.kind.rule", "Reset rule"), RuleWhen(rule), "", "" };
             return Joined(KindRule, "rule " + Whole(Get(rule, "rule_id")).ToString(CultureInfo.InvariantCulture), code, rule,
                           cells, stands + " · " + what);
+        }
+
+        /// When one rule acts, short enough for Pending's Next check column: its limit ("the 5-hour limit"), and which of its
+        /// resets where it is not the next one ("the 5-hour limit (3 from now)") - in the words the whole sentence is made
+        /// of (RuleWhat), which is what Why it is waiting says of the row. Up to v0.6.19-beta.3 the column held that whole
+        /// sentence, cut to "the 5-hour..." in a window of the opening size (the owner, 2026-10-25).
+        private string RuleWhen(Dictionary<string, object> rule)
+        {
+            int minutes = Whole(Get(rule, "minutes")), ordinal = Whole(Get(rule, "ordinal"));
+            return ordinal <= 1 ? WindowWord(minutes) : WindowWord(minutes) + " (" + OrdinalWord(ordinal) + ")";
         }
 
         /// Where one rule stands, in a word short enough for Pending's Status column; the whole sentence (RuleStateWord) is
@@ -289,6 +323,9 @@ namespace CodexAutoResume
             Show(scheduleEditButton, message);
             Show(scheduleGoOnButton, message || rule);
             Show(scheduleCancelButton, message || rule);
+            if (message) SpreadKindButtons(scheduleEditButton, scheduleGoOnButton, scheduleCancelButton);
+            else if (rule) SpreadKindButtons(scheduleGoOnButton, scheduleCancelButton);
+            else SpreadKindButtons();
             bool listed = idle && advancedListing != null && advancedPrompts != null;
             string state = Str(source, "state");
             scheduleEditButton.Enabled = listed && message && state == "waiting";
