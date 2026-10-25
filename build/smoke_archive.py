@@ -22,7 +22,12 @@ installation it was run beside. Now nothing the archive runs can reach them:
   that one process with RegOverridePredefKey. Before a single module of the archive is
   imported it proves the remap: a random marker it has just written into the hive must be
   what HKEY_CURRENT_USER shows, and `Control Panel`, which every real profile has, must
-  not be there. When it cannot prove both, the command is refused, never run unprotected;
+  not be there. When it cannot prove both, the command is refused, never run unprotected.
+  The remap reaches that one process alone, so the archive's interpreter runs with remote
+  debugging off (INTERPRETER_OPTIONS): from 3.14 the archive's scripts otherwise start
+  themselves again in a new process, outside the remap, and the bootstrap refuses to run
+  while it is on (v0.6.19-beta.3's verification: install and uninstall then wrote through
+  this machine's own HKEY_CURRENT_USER);
 * the per-user folders - the profile, APPDATA (where the Start Menu entry is written) and
   LOCALAPPDATA - and CODEX_HOME point into the workspace, the bootstrap refuses to run a
   command when one of them does not, and every CODEX_AUTO_RESUME_* variable of the calling
@@ -193,9 +198,16 @@ def child_environment(workspace, base) -> dict:
                 LOCALAPPDATA=str(workspace / "no-engines"), CODEX_HOME=str(workspace / "codex"))
 
 
+# The interpreter's own options, before the bootstrap: remote debugging off (PEP 768). An archive
+# from v0.6.19-beta.3 on runs its script again with this option where it is on, in a new process
+# the remap does not reach; an interpreter before 3.14 keeps the unknown option without a word.
+INTERPRETER_OPTIONS = ("-X", "disable-remote-debug")
+
+
 def archive_command(python, hive, entry, arguments) -> list:
     """The argv of one command of the archive: its own interpreter, through the bootstrap."""
-    return [str(python), str(SELF), ISOLATED, str(hive), str(entry)] + [str(a) for a in arguments]
+    return ([str(python), *INTERPRETER_OPTIONS, str(SELF), ISOLATED, str(hive), str(entry)]
+            + [str(a) for a in arguments])
 
 
 # ------------------------------------------------------------------ the bootstrap
@@ -229,6 +241,10 @@ def isolated(argv) -> int:
         return _refuse("usage: %s <hive> <entry> [arguments]" % ISOLATED)
     if os.name != "nt":
         return _refuse("the registry remap is Windows-only")
+    remote_debug = getattr(sys, "is_remote_debug_enabled", None)
+    if remote_debug is not None and remote_debug():
+        return _refuse("remote debugging is on, and the archive would run its command again in a new "
+                       "process the remap does not reach")
     import runpy
     import uuid
     import winreg
