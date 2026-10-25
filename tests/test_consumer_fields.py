@@ -253,6 +253,12 @@ UNCHECKED = {
                                                  "(v0.6.11); the map is empty in every golden",
     ("gui/SettingsPage.cs", "keys", "id"): "each kind of notice the schema lists, by its id (v0.6.16, notice_kinds)",
     ("gui/SettingsPage.cs", "labels", "id"): "each kind an edition registered, by its id (v0.6.16, notice_kinds)",
+    # v0.6.19 (the owner's decision of 2026-10-24: Pending is one list): what a row the advanced edition joins to a list
+    # in the window says of itself (ListRowsJoined) - its kind, its key and its sentence. Made in the window, never on
+    # the wire: a recovery's row has none of them.
+    ("gui/DashboardActions.cs", "row", "RowSaidKey"): "an edition row's sentence, made in the window (ListRowsJoined)",
+    ("gui/DashboardData.cs", "row", "RowKindKey"): "an edition row's kind, made in the window (ListRowsJoined)",
+    ("gui/DashboardData.cs", "row", "RowKeyKey"): "an edition row's key, made in the window (ListRowsJoined)",
 }
 
 # Dictionaries the window writes a request into, by setting name: a name written there is one the

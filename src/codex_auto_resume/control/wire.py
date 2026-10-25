@@ -67,8 +67,8 @@ class RecordView(TypedDict):
 
 
 class UsageCheck(TypedDict):
-    """What a usage reading a person's Retry now asked for said (v0.6.19, issue #50): when, its word, and whether that
-    lifted the reset the recovery waited for."""
+    """What a usage reading a person's Retry now or Rescan asked for said (v0.6.19, issue #50): when, its word, and
+    whether that lifted the reset the recovery waited for."""
     at: float
     read: str
     lifted: bool
@@ -76,6 +76,9 @@ class UsageCheck(TypedDict):
     # whether the recovery has been continued since the reading lifted its reset.
     why: str | None
     continued: bool
+    # v0.6.19 (the owner's decision of 2026-10-24): who asked for it - a person's Retry now or their Rescan
+    # (store/schedule.py USAGE_BY_RETRY, USAGE_BY_RESCAN).
+    source: str
 
 
 class PendingRow(RecordView):

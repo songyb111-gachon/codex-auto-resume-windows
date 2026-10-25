@@ -28,7 +28,12 @@ USAGE_READS = (USAGE_READ_AVAILABLE, USAGE_READ_LIMITED, USAGE_READ_UNKNOWN)
 # recovery off, observe only, quiet hours, no internet while the watcher waits for one, a watcher busy past its bound,
 # or a hold, a postponement or a change of the record's own.
 NOT_CHECKED = ("paused", "conversation_off", "observe_only", "quiet_hours", "offline", "busy", "held")
-# And the advanced edition's Check now (early_reset, v0.6.19, issue #50): one file in the same folder, holding when it was
+# Who asked (v0.6.19, the owner's decision of 2026-10-24): a person's Retry now - one recovery, "check one" - or their
+# Rescan - every recovery that waits for a usage reset, "check all". The request's file says it after its time; the journal
+# keeps a Rescan's reading with USAGE_BY_RESCAN in its flags, so Pending's Why it is waiting says whose reading it was.
+USAGE_BY_RETRY, USAGE_BY_RESCAN = "retry_now", "rescan"
+USAGE_RESCAN_FLAG = 4
+# And the advanced edition's early probe a person's click asks for (early_reset, v0.6.19, issue #50): one file in the same folder, holding when it was
 # asked, for the watcher's next early look to open at once (engine/relaxed.py). Older than the five minutes between two
 # early looks it is dropped - the next look of its own has come by then.
 EARLY_CHECK = "early"
@@ -162,16 +167,18 @@ class ScheduleMixin:
             raise OSError("the usage checks' folder is a symbolic link")
         return folder
 
-    def ask_usage_check(self, interruption_id: str, now: float) -> bool:
-        """A person's Retry now asks the watcher to read usage once for this record (USAGE_CHECKS), at `now`. False
-        where it could not be asked - an id of no shape, or a folder that cannot be written."""
+    def ask_usage_check(self, interruption_id: str, now: float, *, source: str = USAGE_BY_RETRY) -> bool:
+        """A person's Retry now - or, `source` USAGE_BY_RESCAN, their Rescan - asks the watcher to read usage once for
+        this record (USAGE_CHECKS), at `now`. False where it could not be asked - an id of no shape, or a folder that
+        cannot be written."""
         if not ids.is_interruption_id(interruption_id):
             return False
         _timestamp(now, "now")
         try:
             folder = self._usage_checks()
             folder.mkdir(exist_ok=True)
-            (folder / interruption_id).write_text(repr(float(now)), encoding="ascii")
+            said = repr(float(now)) + (" " + USAGE_BY_RESCAN if source == USAGE_BY_RESCAN else "")
+            (folder / interruption_id).write_text(said, encoding="ascii")
             return True
         except OSError:
             return False
@@ -190,33 +197,43 @@ class ScheduleMixin:
             if not ids.is_interruption_id(entry.name) or entry.is_symlink():
                 continue
             try:
-                found[entry.name] = float(entry.read_text(encoding="ascii"))
-            except (OSError, ValueError):
+                found[entry.name] = float(entry.read_text(encoding="ascii").split()[0])
+            except (OSError, ValueError, IndexError):
                 found[entry.name] = 0.0
         return found
 
     def usage_not_checked(self, interruption_id: str, now: float, why: str) -> None:
         """A request the watcher could not serve at its look, taken and journalled as USAGE_CHECKED with flag 2 and why
-        (NOT_CHECKED, by its index): nothing about the record changes."""
+        (NOT_CHECKED, by its index) - and USAGE_RESCAN_FLAG where a Rescan asked it: nothing about the record changes."""
         _timestamp(now, "now")
-        self.usage_check_taken(interruption_id)
+        source = self.usage_check_taken(interruption_id)
         with self._transaction() as connection:
             row = self._row(connection, interruption_id)
             if row is not None:
                 self._event(connection, now, "usage_checked", record=row, from_state=row["state"], to_state=row["state"],
-                            actor="engine", flags=2, value=NOT_CHECKED.index(why if why in NOT_CHECKED else "held"))
+                            actor="engine", flags=2 | (USAGE_RESCAN_FLAG if source == USAGE_BY_RESCAN else 0),
+                            value=NOT_CHECKED.index(why if why in NOT_CHECKED else "held"))
 
-    def usage_check_taken(self, interruption_id: str) -> None:
-        """The request for this record taken: whatever its reading says, it is asked once."""
+    def usage_check_taken(self, interruption_id: str):
+        """The request for this record taken: whatever its reading says, it is asked once. Who asked it (USAGE_BY_RETRY
+        or USAGE_BY_RESCAN), or None where none stood."""
         if not ids.is_interruption_id(interruption_id):
-            return
+            return None
         try:
-            (self._usage_checks() / interruption_id).unlink(missing_ok=True)
+            entry = self._usage_checks() / interruption_id
+            if not entry.is_file() or entry.is_symlink():
+                return None
+            try:
+                words = entry.read_text(encoding="ascii").split()
+            except (OSError, ValueError):
+                words = []
+            entry.unlink(missing_ok=True)
         except OSError:
-            pass
+            return None
+        return USAGE_BY_RESCAN if words[1:2] == [USAGE_BY_RESCAN] else USAGE_BY_RETRY
 
     def ask_early_check(self, now: float) -> bool:
-        """The advanced edition's Check now (EARLY_CHECK): the next early look at the records that wait for a usage reset
+        """The advanced edition's probe a person's Retry now or Rescan asks for (EARLY_CHECK): the next early look at the records that wait for a usage reset
         opens at once. One file however often it is asked, so repeated clicks are one request. False where it could
         not be asked."""
         _timestamp(now, "now")
@@ -229,7 +246,7 @@ class ScheduleMixin:
             return False
 
     def early_check_asked(self, now: float) -> bool:
-        """Whether a Check now stands: asked, not taken, and younger than EARLY_CHECK_LONGEST at `now` (an older one,
+        """Whether such a request stands: asked, not taken, and younger than EARLY_CHECK_LONGEST at `now` (an older one,
         or one that cannot be read, is dropped)."""
         try:
             entry = self._usage_checks() / EARLY_CHECK
@@ -244,13 +261,13 @@ class ScheduleMixin:
         return False
 
     def early_check_taken(self) -> None:
-        """A Check now taken by the early look it opened, or dropped."""
+        """Such a request taken by the early look it opened, or dropped."""
         try:
             (self._usage_checks() / EARLY_CHECK).unlink(missing_ok=True)
         except OSError:
             pass
 
-    def usage_checked(self, interruption_id: str, now: float, read: str) -> dict | None:
+    def usage_checked(self, interruption_id: str, now: float, read: str, *, source=USAGE_BY_RETRY) -> dict | None:
         """What a reading taken at a person's request said of a record that waits for a usage reset, written in one
         transaction: journalled as USAGE_CHECKED with the word it read (none for available, so the journal's reasons
         stay the closed list the public reporter reads); and only where it says usage is available and
@@ -269,6 +286,7 @@ class ScheduleMixin:
                 connection.execute("UPDATE interruptions SET reset_at=?, next_retry_at=? WHERE interruption_id=?",
                                    (now, now, interruption_id))
             self._event(connection, now, "usage_checked", record=row, from_state=row["state"], to_state=row["state"],
-                        reason=None if read == USAGE_READ_AVAILABLE else read, actor="engine", flags=1 if lifted else 0,
+                        reason=None if read == USAGE_READ_AVAILABLE else read, actor="engine",
+                        flags=(1 if lifted else 0) | (USAGE_RESCAN_FLAG if source == USAGE_BY_RESCAN else 0),
                         value=row["reset_at"])
             return self._row(connection, interruption_id)

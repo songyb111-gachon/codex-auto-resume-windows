@@ -101,6 +101,8 @@ METHODS = {
     "watcher_running",
     # v0.6.19 (the review of 2026-10-24): what would stop the watcher reading usage at a person's Retry now.
     "_not_checked",
+    # v0.6.19 (the owner's decision of 2026-10-24): Rescan reads Codex's usage once for every recovery that waits.
+    "_ask_usage_for_all",
 }
 
 

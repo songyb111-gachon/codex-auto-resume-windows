@@ -159,7 +159,7 @@ namespace CodexAutoResume
             AddChatTab(tab);
             // A window that replaces one with this page on screen opens on the Overview, as the standard window opens
             // on a page it does not have, and comes back here once the page can be shown (ReturnToAdvanced).
-            advancedReturning = firstPage == AdvancedPageName;
+            advancedReturning = firstPage == AdvancedPageName || firstPage == ChatPageName;
             // The strip as tall as its rows where it has had to take two (HoldTabs): again whenever the window's width
             // or font changes, after the standard window's own fitting of it to one row.
             nav.SizeChanged += delegate { FitTabs(); };
@@ -392,6 +392,8 @@ namespace CodexAutoResume
             NavButton opened;
             bool keyed = request.Focus == "page." + AdvancedPageName && navButtons.TryGetValue(PageOrder[0], out opened) &&
                          FocusedControl() == opened;
+            // v0.6.19: a notice's click to a conversation's chat (`--chat=`), or a window reopened on the Chat page.
+            if (OpenAskedChat()) return;
             ShowAdvanced();
             if (keyed && advancedTab.CanFocus) ActiveControl = advancedTab;
         }
@@ -402,6 +404,7 @@ namespace CodexAutoResume
         static partial void ArgumentParsed(string argument, OpenRequest request)
         {
             if (argument == "--page=" + AdvancedPageName) request.Page = AdvancedPageName;
+            else if (argument == "--page=" + ChatPageName) request.Page = ChatPageName;      // v0.6.19: the Chat page
             else if (argument == "--focus=page." + AdvancedPageName) request.Focus = "page." + AdvancedPageName;
             else if (ChatArgumentParsed(argument)) { }      // v0.6.19: the chat at one conversation (AdvancedChat.cs)
             else if (argument.StartsWith(CapabilityArgument, StringComparison.Ordinal))
@@ -423,6 +426,7 @@ namespace CodexAutoResume
         static partial void ReopenArgumentsWritten(string page, string focus, List<string> arguments)
         {
             if (page == AdvancedPageName) arguments.Insert(0, "--page=" + AdvancedPageName);
+            else if (page == ChatPageName) arguments.Insert(0, "--page=" + ChatPageName);
             if (focus == "page." + AdvancedPageName) arguments.Add("--focus=" + focus);
         }
 
@@ -911,7 +915,7 @@ namespace CodexAutoResume
                            KeptShown(item) + "|" +
                            (IsReport(item) ? ReportShown() : "") + "|" +
                            ResetsShown(item) + "|" + KeepGoingShown(item) + "|" + QueueShown(item) + "|" +
-                           WordingsShown(item) + "|" + RunsShown(item) + "|" + ChatShown(item);
+                           WordingsShown(item) + "|" + RunsShown(item);
             if (shown == advancedShown)
             {
                 UpdateAdvancedButtons();
@@ -1078,10 +1082,10 @@ namespace CodexAutoResume
 
             // Under its limits (v0.6.14): Send now's waiting recoveries. Keep it on is in the head card (v0.6.16-beta.3).
             BuildSendNow(item);
-            // The turns run here now, each with its Stop (v0.6.16-beta.4, AdvancedRuns.cs), and the chat (v0.6.19,
-            // AdvancedChat.cs).
+            // The turns run here now, each with its Stop (v0.6.16-beta.4, AdvancedRuns.cs), and the button to the Chat page
+            // (v0.6.19, AdvancedChat.cs: the chat is a page of its own).
             BuildRuns(item);
-            BuildChat(item);
+            BuildChatLink(item);
             // The reset actions' rules and the form they are added with (AdvancedResets.cs); the conversations kept going
             // and the queued prompts (v0.6.15-beta) - each while its capability is on or, from v0.6.16-beta.3, watched.
             BuildResets(item);

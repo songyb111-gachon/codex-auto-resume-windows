@@ -42,7 +42,7 @@ CARRIED = frozenset((capability, choice) for capability in WINDOW_FOLLOWERS for 
 # check's last run, and the newest version it offered and when. Nothing else is ever written so.
 STAMPS = {"idle_update_check": (str(OptionKey.LAST_CHECK), str(OptionKey.OFFERED_VERSION),
                                 str(OptionKey.OFFERED_AT)),
-          # v0.6.19 (issue #50): early_reset's times for the line on Pending, and a person's Check now.
+          # v0.6.19 (issue #50): early_reset's times for Pending's Why it is waiting, and a person's click's probe.
           "early_reset": (str(OptionKey.CHECKED_AT), str(OptionKey.AVAILABLE_AT), str(OptionKey.LIFTED_AT),
                           str(OptionKey.CHECK_ASKED), str(OptionKey.FOUND_AT))}
 RULES_LIMIT = 10

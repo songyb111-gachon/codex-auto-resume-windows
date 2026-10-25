@@ -1,5 +1,9 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
-"""early_reset on Pending (v0.6.19, issue #50): the line that says what it last did, and its Check now.
+"""early_reset on Pending (v0.6.19, issue #50): what it last did, and the probe a person's click asks for.
+
+From the owner's decision of 2026-10-24 it has no line and no button of its own: what it last did is said in Pending's
+Why it is waiting (advanced/gui/AdvancedEarly.cs UsageNoted), and `check` is asked by the window when a person's Retry
+now or Rescan has asked core for a usage reading (UsageAsked), so that reading is one of early reset's two.
 
 While early_reset stands on, Pending shows one compact line: when it last read usage early, what that reading found,
 and whether anything was continued - counts and times only, never a word of a conversation. `view` makes it from the
@@ -9,7 +13,7 @@ record's look at that probe wrote in core's state: found (passed, or held for th
 limited, or nothing could be told - or not read at all, where an earlier gate (the conversation not open in the app,
 say) held the record first.
 
-`check` is Check now (the bridge's advanced-early-check): one fresh reading at once, for every waiting conversation
+`check` is that probe (the bridge's advanced-early-check): one fresh reading at once, for every waiting conversation
 together, without choosing a row. Taken only while early_reset stands on (watched, off or read down by a policy, it is
 refused) and while a record waits for a usage reset. It writes the request for both sides of the look - core's
 (store.ask_early_check, so its early window opens before its five minutes are up) and the capability's own
@@ -30,7 +34,7 @@ from ..vocabulary import ArmingState, OptionKey, Refusal
 CAPABILITY = "early_reset"
 # What the last probe read, as the line says it.
 READ_AVAILABLE, READ_LIMITED, READ_UNKNOWN, READ_NONE = "available", "still_limited", "unknown", "not_read"
-# What a Check now did: asked, coalesced into a reading just made or already asked for, or taken back with no watcher.
+# What a request for the probe did: asked, coalesced into a reading just made or already asked for, or taken back with no watcher.
 ASKED, COALESCED, NOT_RUNNING, NOTHING_WAITS = "asked", "coalesced", "not_running", "nothing_waits"
 
 
@@ -82,7 +86,7 @@ def view(runtime, store=None) -> dict:
     """{"early_check": {...}} while early_reset stands on, else {}: when it last read (`checked_at`, None before it has),
     what it read (`read`), the first yes of the count running (`available_at`) and when the second reading may come
     (`confirm_at`), when two readings last lifted a limit (`lifted_at`) and whether that was this probe (`lifted`),
-    how many records wait for a usage reset (`waiting`), and whether a Check now stands (`asked`)."""
+    how many records wait for a usage reset (`waiting`), and whether a request for the probe stands (`asked`)."""
     try:
         if not _on(runtime):
             return {}
@@ -111,7 +115,7 @@ def view(runtime, store=None) -> dict:
 
 
 def check(runtime, store=None) -> dict:
-    """advanced-early-check: a person's Check now. {"done", "refusal", "check"}: ASKED, COALESCED (a reading made within
+    """advanced-early-check: the probe a person's Retry now or Rescan asks for. {"done", "refusal", "check"}: ASKED, COALESCED (a reading made within
     the last WINDOW seconds, or a request already standing), NOT_RUNNING (no watcher to read: nothing stays asked) or
     NOTHING_WAITS. Refused (NOT_ON) unless early_reset stands on; STATE_UNAVAILABLE where a request cannot be written."""
     if runtime.registry.get(CAPABILITY) is None:

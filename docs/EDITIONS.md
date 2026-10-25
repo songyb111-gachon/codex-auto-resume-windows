@@ -492,12 +492,15 @@ minutes whether usage is available - one question for every conversation waiting
 answers at least five minutes apart both say yes, it continues the waiting conversations then,
 before the reset time Codex gave. A postponement and quiet hours still hold, and a look that finds no
 usage changes nothing about the conversation: it keeps its state and its next look. It only reads: it
-never sends anything to start a usage window or keep one open. While it is on, a line at the top of
-Pending says when it last asked, what the answer was and whether anything was continued, and
-**Check now** there asks once at once instead of at the next five minutes - for every waiting
-conversation together, without choosing a row. That answer is one of the two, which still have to be
-at least five minutes apart, and every other check still runs. It is turned on and off only on the
-Advanced features page.
+never sends anything to start a usage window or keep one open. While it is on, Pending's **Why it is
+waiting** says, for a conversation that waits for a usage limit and under the other usage readings, when
+it last asked, what the answer was and whether anything was continued. It has no line or button of its
+own on Pending (from v0.6.19; the Check now and Early reset settings buttons of v0.6.19-beta.2 are gone):
+a **Retry now** or a **Rescan** there reads usage at once, and while this is on that reading counts as
+one of its questions, for every waiting conversation together - the next one at least five minutes
+after it. If that reading says usage is available, the conversations it was asked for go on through
+every check, as they would without this; every other check still runs. It is turned on and off only on
+the Advanced features page.
 
 **When it helps.** When Codex lifts a limit before the time it gave.
 
@@ -601,7 +604,7 @@ usage, and how many credits you have and when the soonest expires must both be r
 measurement MR has passed on your version of Codex it never spends on its own: the rule waits for
 you to press *Use a reset credit now...*, which the page also offers whenever a limit is reached. The
 page shows how many credits you have, when the soonest expires and when one was last used; Pending
-shows each rule still waiting under **Scheduled**, with Cancel.
+lists each rule still waiting as a row of its own, with Cancel.
 
 **When it helps.** When your account has reset credits and you would rather spend one than wait for a
 limit you know is coming, without watching for it.
@@ -646,7 +649,7 @@ that conversation for the same reset sends your message in its place, at the ver
 resets too; it waits for your message up to 30 minutes after the reset, and then goes on. It counts from the first reading after you added it, so the window open
 then is the first to reset; a window not used yet counts once it is. While a message waits it reads
 usage every 15 minutes, at most once in five minutes. One message may wait for a conversation, and
-ten in all; the page lists each with its words, and Pending lists each under **Scheduled**, with
+ten in all; the page lists each with its words, and Pending lists each as a row of its own, with
 Cancel - its words are never shown there.
 
 **When it helps.** When you know what a conversation should do once the limit is gone - "carry on with
@@ -908,18 +911,27 @@ Codex to run after that turn; a message queued before this choice existed goes i
 did. They are paced like every recovery: fifteen minutes apart and five a day in one conversation. Codex's own
 automations are the official way to schedule work; these wait for usage and go to one exact conversation.
 
-Messages are written and changed in one place: Pending's **Scheduled** tab, beside **Recoveries** (today's Pending,
-as it was). The tab strip is there while this is on or anything is scheduled. Scheduled lists every message still
-to go and every reset rule still to act - the conversation, where it stands, when it goes and what it does while a
-turn runs, never its words - with **Schedule a message...**, **Edit...** for a message still waiting, **Cancel** and
-**Go on**. The editor shows the words larger than the rest of the window, marks the recommended mode and chooses it
-for a new message, and has **Save and return**: saved, it closes and the saved row is chosen; refused, every field
-stays as you typed it and the reason is said above the buttons. An edit reaches only a message still waiting, and
-is refused if anything changed since the list was read. Under the list, the **Done** section lists the messages of
-the last 30 days that were delivered, with **Delete completed (N)...**: it asks first, deletes only the completed
-messages it shows that are unchanged since, says how many it deleted and how many it kept because they changed, and
-never touches a waiting, held, cancelled or failed message, the recovery history or anything of Codex's. The
-Advanced features page's card for this capability keeps its switch and limits and points to the tab.
+A message is scheduled with **Schedule...** - on this capability's card on the Advanced features page, or under
+Pending's list, where it stands in one place after Cancel all and Rescan whatever row is chosen - both opening the same
+editor. From then on it is managed on Pending, whose one list holds
+every message still to go and every reset rule still to act as rows after the recoveries (from v0.6.19; v0.6.19-beta.2 had a Scheduled tab for them).
+There is no tab strip and the list stays flat; its **Kind** column tells a recovery, a scheduled message (with what it
+does while a turn runs) and a reset rule apart, and a row says the conversation, where it stands and when it goes,
+never its words. The buttons under the list follow the row you choose: for a recovery, Retry now, Cancel, Timeline and
+Turn off for this conversation; for a message, **Edit...** (while it is still waiting), **Go on** and **Cancel**; for
+a rule, **Go on** and **Cancel** - the others are hidden, Cancel all and Rescan never move, and the row stands on one
+line in every language. A double-click on a waiting message opens its editor. The editor shows the words larger
+than the rest of the window, marks the recommended mode and chooses it for a new message, and has **Save and return**:
+saved, it closes and the saved row is chosen; refused, every field stays as you typed it and the reason is said above
+the buttons. An edit reaches only a message still waiting, and is refused if anything changed since the list was
+read. A reset rule's row says where it stands in a word, and Why it is waiting says it in full. Completed messages
+are history: the History page lists the messages of the last 30 days that were delivered, their times written as a
+recovery's are, and its one **Clear history** clears them with the finished recoveries: it asks first, saying how many
+of each; hides the recoveries as it always did; deletes only the completed messages it shows that are unchanged
+since; says how many it deleted and how many it kept because they changed; and never touches a waiting, held,
+cancelled or failed message or anything of Codex's. The Advanced features page's card for
+this capability keeps its switch and limits, and **Schedule...**, and says that a message is scheduled there or on
+Pending and managed on Pending.
 
 **When it helps.** When you want the next instruction to be there as soon as Codex can take it.
 
@@ -944,8 +956,11 @@ you read the new statement once and turn it on again.
 
 ### Chat with a conversation in the Dashboard
 
-**What it does.** A **Chat** tab beside **Advanced features**, there only while this is on, opens the chat
-on that page. You pick a conversation - one the Dashboard knows from Pending and History that is switched
+**What it does.** A **Chat** tab beside **Advanced features**, there only while this is on, opens a **Chat**
+page of its own, and is marked as the chosen tab while that page is on screen (from v0.6.19; v0.6.19-beta.2's tab
+went to a card on the Advanced features page). That page's card for this capability keeps its switch, its limits
+and its statement, with a button that opens the chat; a notification whose click goes to a conversation's chat opens
+the Chat page at that conversation. You pick a conversation - one the Dashboard knows from Pending and History that is switched
 on, or the one a notice opened the chat on - and read its last twenty turns - your messages
 and Codex's replies, read from Codex's history on this PC while the chat is open, with a turn's commands and
 file changes as counts - and send a message of up to 2,000 characters. It goes into the conversation exactly

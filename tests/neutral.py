@@ -84,6 +84,8 @@ NOT_SCENARIOS = {
     "test_retry_now_usage": "asks the engine for the usage reading a person's Retry now requests (v0.6.19-beta.2), "
                             "which no scenario requests - their engines read usage only when a recovery is due",
     "test_retry_now_usage_review": "test_retry_now_usage's review proofs (v0.6.19-beta.2), the same requests",
+    "test_rescan_usage": "asks the engine for the usage reading a person's Rescan requests (v0.6.19, the owner's decision "
+                         "of 2026-10-24), which no scenario requests",
     "test_codex_schema": "reads a Codex home through the source alone; it builds no engine",
     "test_source": "reads a Codex home through the source alone; it builds no engine",
     "test_screenshots": "draws the settings window's pictures, one GUI module at a time",

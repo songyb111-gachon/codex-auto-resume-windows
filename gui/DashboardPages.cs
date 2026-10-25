@@ -389,13 +389,15 @@ namespace CodexAutoResume
             cancelAllButton = MakeButton(S("action.cancel_all", "Cancel all"), false, delegate { CancelAll(); });
             // v0.6.16 (issue #39): and every waiting recovery looked at again - one retired only on proof of newer
             // work, every other one left to wait as it was. It sends nothing and brings nothing forward.
-            rescanButton = MakeButton(S("action.rescan", "Rescan and reconcile"), false, delegate { Rescan(); });
+            rescanButton = MakeButton(S("action.rescan", "Rescan"), false, delegate { Rescan(); });
             foreach (Button button in new[] { retryButton, cancelButton, timelineButton, threadButton, cancelAllButton,
                                               rescanButton })
             {
                 button.Margin = Pad(0, 0, 6, 0);
                 row.Controls.Add(button);
             }
+            // v0.6.19: and the advanced edition's own, for the rows of its own (Pending is one list).
+            PendingButtonsBuilt(row);
             // What the last Retry now actually did, in words - it is a request to look again,
             // and saying so each time is how nobody comes to read it as "send now". It stays
             // until another row is chosen or its record leaves the list.
@@ -445,6 +447,13 @@ namespace CodexAutoResume
                 ListViewHitTestInfo hit = pendingList.HitTest(e.Location);
                 // The Auto-resume box answers each click itself, so a double-click on it opens nothing.
                 if (hit.Item == null || (hit.SubItem != null && hit.Item.SubItems.IndexOf(hit.SubItem) == ResumeColumn)) return;
+                // v0.6.19: a row of the edition's own opens what it opens (a waiting message, its editor).
+                var opened = hit.Item.Tag as Dictionary<string, object>;
+                if (EditionRow(opened))
+                {
+                    EditionRowOpened(opened);
+                    return;
+                }
                 OpenRowMenu(hit.Item, e.Location);
             };
             pendingList.ContextMenuStrip = pendingMenu;
@@ -547,6 +556,8 @@ namespace CodexAutoResume
                 button.Margin = Pad(0, 0, 9, 0);
                 row.Controls.Add(button);
             }
+            // v0.6.19: and the advanced edition's own, for the completed messages History lists.
+            HistoryButtonsBuilt(row);
             historyNote = Note();
             row.Controls.Add(historyNote);
             page.Controls.Add(ListCard(historyList));

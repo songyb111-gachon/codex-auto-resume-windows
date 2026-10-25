@@ -980,8 +980,27 @@ namespace CodexAutoResume
                     findings.Add(place + " :: is " + combo.Height + " high, not a field's " + SoftCombo.FieldHeight);
                 string fit = Fits(child, scrolls);
                 if (fit != null) findings.Add(place + " :: " + fit);
+                string band = EmptyBand(child);
+                if (band != null) findings.Add(place + " :: " + band);
                 Walk(child, place, findings);
             }
+        }
+
+        /// v0.6.19: a row of controls that sizes itself (an AutoSize FlowLayoutPanel - SoftFlow) taller than what it holds,
+        /// or null. Its preferred height is worked out at a width of its own choosing, and a row that wraps there and not
+        /// at the width it is given keeps the wrapped height: an empty band under its last control (beta.2's early_reset
+        /// line on Pending stood over one, 2026-10-24). Nothing laid out by itself is taller than its content.
+        internal static string EmptyBand(Control c)
+        {
+            var flow = c as FlowLayoutPanel;
+            if (flow == null || !flow.AutoSize || flow.Dock == DockStyle.Fill || flow.Height <= 0) return null;
+            int bottom = flow.Padding.Top;
+            foreach (Control child in flow.Controls)
+                if (OwnVisible(child)) bottom = Math.Max(bottom, child.Bottom + child.Margin.Bottom);
+            int needs = bottom + flow.Padding.Bottom;
+            return flow.Height > needs + Soft.Px(1)
+                ? "is " + flow.Height + " high where what it holds needs " + needs + ": an empty band of " + (flow.Height - needs) + " px"
+                : null;
         }
 
         /// What a control needs and does not have, or null.

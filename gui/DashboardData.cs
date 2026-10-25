@@ -484,6 +484,49 @@ namespace CodexAutoResume
             return false;
         }
 
+        /// v0.6.19: Pending and History filled again from the snapshot last read, as ApplySnapshot fills them - when the rows
+        /// the advanced edition joins to them (ListRowsJoined) changed between two snapshots.
+        private void RefillLists()
+        {
+            if (snapshot == null) return;
+            if (pendingList != null && !Unreadable(snapshot, "pending"))
+            {
+                FillList(pendingList, WithDemo(Items(snapshot, "pending"), demoPending, false), true);
+                pendingEmpty.Visible = pendingList.Items.Count == 0;
+            }
+            if (historyList != null && !Unreadable(snapshot, "history"))
+            {
+                FillList(historyList, WithDemo(Items(snapshot, "history"), demoHistory, true), false);
+                historyEmpty.Visible = historyList.Items.Count == 0;
+            }
+        }
+
+        /// v0.6.19: whether a list row is one of the edition's own rather than a recovery (RowKindKey).
+        private static bool EditionRow(Dictionary<string, object> row)
+        {
+            return !string.IsNullOrEmpty(Str(row, RowKindKey));
+        }
+
+        /// What a list row is known by across fills: a recovery's interruption id, or an edition row's key.
+        private static string ListRowId(Dictionary<string, object> row)
+        {
+            return Str(row, "interruption_id") ?? Str(row, RowKeyKey);
+        }
+
+        /// How many rows of `list` are recoveries a person can act on - not Show me what happens' made-up one, nor a row of
+        /// the edition's own: what Cancel all, Rescan and Clear history act on.
+        private static int RecoveryRows(ListView list)
+        {
+            int found = 0;
+            if (list == null) return 0;
+            foreach (ListViewItem item in list.Items)
+            {
+                var row = item.Tag as Dictionary<string, object>;
+                if (row != null && !IsDemo(row) && !EditionRow(row)) found++;
+            }
+            return found;
+        }
+
         private static bool ThreadOn(Dictionary<string, object> row)
         {
             object value = Get(row, "thread_enabled");
@@ -757,12 +800,18 @@ namespace CodexAutoResume
             var parts = new List<string>();
             foreach (var row in fresh)
             {
-                parts.Add(Str(row, "interruption_id") ?? "");
+                parts.Add(ListRowId(row) ?? "");
                 foreach (string cell in Cells(row, pending)) parts.Add(cell ?? "");
                 parts.Add(ToneFor(row).ToArgb().ToString(CultureInfo.InvariantCulture));
                 parts.Add(ThreadOn(row) ? "1" : "0");
                 // v0.6.16-beta.3: whether it has words for this time, which its menu and its note follow.
                 parts.Add(HasOnceWords(row) ? "w" : "");
+                // v0.6.19: what Why it is waiting reads off the chosen row's record - its last look and the usage reading a
+                // person's click asked for - so a new one reaches the panel even where every cell stayed the same.
+                parts.Add(Number(row, "gates_at").ToString("R", CultureInfo.InvariantCulture));
+                var check = Map(row, "usage_check");
+                parts.Add(check == null ? "" : Number(check, "at").ToString("R", CultureInfo.InvariantCulture) + Str(check, "read") +
+                                               Str(check, "source"));
             }
             return string.Join("\u001f", parts.ToArray());
         }
@@ -776,6 +825,8 @@ namespace CodexAutoResume
                     var row = entry as Dictionary<string, object>;
                     if (row != null) fresh.Add(row);
                 }
+            // v0.6.19: the advanced edition's own rows, after the recoveries (Pending is one list).
+            ListRowsJoined(list, fresh);
 
             string signature = ListSignature(fresh, pending);
             string before;
@@ -795,8 +846,7 @@ namespace CodexAutoResume
                 // to the top and a keyboard user back to its first row.
                 bool same = list.Items.Count == fresh.Count;
                 for (int i = 0; same && i < fresh.Count; i++)
-                    same = Str(list.Items[i].Tag as Dictionary<string, object>, "interruption_id") ==
-                           Str(fresh[i], "interruption_id");
+                    same = ListRowId(list.Items[i].Tag as Dictionary<string, object>) == ListRowId(fresh[i]);
                 if (same)
                 {
                     for (int i = 0; i < fresh.Count; i++)
@@ -814,11 +864,11 @@ namespace CodexAutoResume
                 else
                 {
                     var chosen = Selected(list);
-                    string selectedId = chosen == null ? null : Str(chosen, "interruption_id");
+                    string selectedId = chosen == null ? null : ListRowId(chosen);
                     string focusedId = list.FocusedItem == null ? null
-                                     : Str(list.FocusedItem.Tag as Dictionary<string, object>, "interruption_id");
+                                     : ListRowId(list.FocusedItem.Tag as Dictionary<string, object>);
                     string topId = list.TopItem == null ? null
-                                 : Str(list.TopItem.Tag as Dictionary<string, object>, "interruption_id");
+                                 : ListRowId(list.TopItem.Tag as Dictionary<string, object>);
                     ListViewItem top = null;
                     list.BeginUpdate();
                     list.Items.Clear();
@@ -829,7 +879,7 @@ namespace CodexAutoResume
                         for (int c = 1; c < cells.Length; c++) item.SubItems.Add(cells[c] ?? "");
                         item.Tag = row;
                         list.Items.Add(item);
-                        string id = Str(row, "interruption_id");
+                        string id = ListRowId(row);
                         // Kept only while that record is still here. When the chosen record has
                         // left the list nothing is selected: an action must never move onto a
                         // conversation the person did not choose.
@@ -965,6 +1015,8 @@ namespace CodexAutoResume
             if (pendingList == null) return;
             foreach (ListViewItem item in pendingList.Items)
             {
+                // v0.6.19: a row of the edition's own keeps the time its own cell was written with (ListRowsJoined).
+                if (EditionRow(item.Tag as Dictionary<string, object>)) continue;
                 string text = CountdownText(item.Tag as Dictionary<string, object>, now);
                 if (item.SubItems[CountdownColumn].Text != text) item.SubItems[CountdownColumn].Text = text;
             }
@@ -994,13 +1046,16 @@ namespace CodexAutoResume
             var chosen = Selected(pendingList);
             bool mine = pendingNoteFor == BulkNote || (pendingNoteFor != null && chosen != null &&
                         Str(chosen, "interruption_id") == pendingNoteFor);
-            // v0.6.19 (issue #50): once the watcher has read usage at a Retry now, the chosen row says when and what it
-            // read, and whether the recovery went on - a check told apart from a resume - after, never instead of, what a
-            // person's action on the row just said (the review of 2026-10-24).
+            // v0.6.19 (the owner's decision of 2026-10-24): what the watcher read at a Retry now or a Rescan is said in Why it
+            // is waiting (WithUsage), the one place on Pending for the usage readings; this note says what a click just did.
             string own = mine ? pendingNoteText ?? "" : "";
-            string checkedText = UsageCheckText(Map(chosen, "usage_check"));
-            if (checkedText != null && checkedText != own)
-                own = own.Length == 0 ? checkedText : own + " " + checkedText;
+            // v0.6.19 (the owner's decision of 2026-10-24): a Rescan's note goes on to say what its click did about Codex's
+            // usage - and, once the watcher has read it, what it read.
+            if (mine && pendingNoteFor == BulkNote && rescanNoteText != null && ReferenceEquals(pendingNoteText, rescanNoteText))
+            {
+                string usage = RescanReadText(rescanAskedAt - 5) ?? rescanUsageNote;
+                if (!string.IsNullOrEmpty(usage)) own = own.Length == 0 ? usage : own + " " + usage;
+            }
             SetNote(pendingNote, own);
         }
 
@@ -1052,11 +1107,12 @@ namespace CodexAutoResume
                            code == "scheduled" || code == "failed_retryable";
             if (!waiting) return false;
             if (Equals(Get(row, "cancel_requested"), true)) return false;
-            // Retry now brings the check forward. It never moves past a usage reset that is
-            // still ahead, and never past a pause or a conversation that is switched off; where
-            // it could do none of that it is not offered. A reset that has passed, or one that
-            // is unknown, is exactly where it helps.
-            if (Number(row, "reset_at") > now) return false;
+            // Retry now brings the check forward. It never moves past a pause or a conversation that is switched off;
+            // where it could do none of that it is not offered. A reset that has passed, or one that is unknown, is
+            // exactly where it helps - and from v0.6.19 (issue #50) so is a usage limit's reset still ahead: the click
+            // asks the watcher to read usage once (control/actions.py request_retry_now), which is how a limit that
+            // lifted early goes on. A reset ahead of anything else it cannot move, and it is not offered there.
+            if (Number(row, "reset_at") > now && Str(row, "category") != "usage_limit") return false;
             if (HasOverlay(row, "paused") || HasOverlay(row, "thread_disabled")) return false;
             // v0.6.11: nor past a hold. A held task waits for a person to let it continue, and a check
             // brought forward would only find it held again.
@@ -1104,15 +1160,22 @@ namespace CodexAutoResume
             bool cancelled = Equals(Get(row, "cancel_requested"), true);
             // v0.6.11: Show me what happens' made-up task is shown, and nothing is offered on it.
             bool real = row != null && !IsDemo(row);
-            retryButton.Enabled = real && CanRetryNow(row, idle, Now());
-            cancelButton.Enabled = idle && real && !cancelled;
-            timelineButton.Enabled = idle && real;
-            threadButton.Enabled = idle && real;
+            // v0.6.19 (the owner's decision of 2026-10-24): a row of the edition's own is offered its own buttons
+            // (PendingButtonsUpdated) and none of a recovery's, which are hidden for it rather than greyed - decided by the
+            // buttons' own bit, so nothing is laid out again while it stays as it was (Soft.OwnVisible).
+            bool recovery = !EditionRow(row);
+            foreach (Button button in new[] { retryButton, cancelButton, timelineButton, threadButton })
+                if (Soft.OwnVisible(button) != recovery) button.Visible = recovery;
+            retryButton.Enabled = real && recovery && CanRetryNow(row, idle, Now());
+            cancelButton.Enabled = idle && real && recovery && !cancelled;
+            timelineButton.Enabled = idle && real && recovery;
+            threadButton.Enabled = idle && real && recovery;
             string text = ThreadOn(row) ? S("action.thread_off", "Turn off for this conversation")
                                         : S("action.thread_on", "Turn on for this conversation");
             if (threadButton.Text != text) threadButton.Text = text;
-            if (cancelAllButton != null) cancelAllButton.Enabled = idle && pendingList.Items.Count > (demoPending == null ? 0 : 1);
-            if (rescanButton != null) rescanButton.Enabled = idle && pendingList.Items.Count > (demoPending == null ? 0 : 1);
+            if (cancelAllButton != null) cancelAllButton.Enabled = idle && RecoveryRows(pendingList) > 0;
+            if (rescanButton != null) rescanButton.Enabled = idle && RecoveryRows(pendingList) > 0;
+            PendingButtonsUpdated(row, idle);
         }
 
         private void UpdateHistoryButtons()
@@ -1122,6 +1185,11 @@ namespace CodexAutoResume
             bool idle = busy == 0;
             bool demo = IsDemo(row);
             if (demo) row = null;
+            // v0.6.19: a delivered message is a row of the edition's own - none of a recovery's buttons is offered on it.
+            bool recovery = !EditionRow(row);
+            foreach (Button button in new[] { historyTimeline, historyReset })
+                if (Soft.OwnVisible(button) != recovery) button.Visible = recovery;
+            if (!recovery) row = null;
             historyTimeline.Enabled = idle && row != null;
             bool exhausted = Str(row, "code") == "exhausted" && !Equals(Get(row, "cancel_requested"), true);
             bool resetsLeft = Number(row, "budget_resets_left") > 0;
@@ -1137,7 +1205,8 @@ namespace CodexAutoResume
             // every time laid out the button row on every snapshot (v0.6.14).
             if (Soft.OwnVisible(historyThread) != off) historyThread.Visible = off;
             historyThread.Enabled = idle && off;
-            historyClear.Enabled = idle && historyList.Items.Count > (demoHistory == null ? 0 : 1);
+            historyClear.Enabled = idle && RecoveryRows(historyList) > 0;
+            HistoryButtonsUpdated(recovery ? null : Selected(historyList), idle);
         }
 
         private void UpdateToggle()

@@ -93,20 +93,13 @@ namespace CodexAutoResume
             ForgetQueueCard();
             if (Str(item, "id") != PromptQueueId || !Standing(item) || advancedPrompts == null) return;
             TableLayoutPanel card = NewGroup(Word("page.queue.title", "Queued messages"), advancedStack);
-            // v0.6.19 (#50): one place for one result - messages are written, changed and cancelled on Pending's Scheduled
-            // tab (AdvancedSchedule.cs), and this card says so and goes there.
-            card.Controls.Add(HelpText(Word("page.queue.moved", "Messages are scheduled on {pending} > {scheduled}.", "pending",
-                                            S("nav.pending", "Pending")).Replace("{scheduled}", Word("page.scheduled", "Scheduled"))));
-            queueAdd = CardButton(card, Word("page.queue.go", "Go to Scheduled"), delegate { GoToScheduled(); });
+            // v0.6.19 (#50; the owner's decision of 2026-10-24): a message is scheduled here or with Pending's Schedule...,
+            // the same editor either way, whether or not anything is scheduled; it is then changed, let go on or cancelled
+            // as a row of Pending's one list (AdvancedSchedule.cs), and this card says so.
+            card.Controls.Add(HelpText(Word("page.queue.moved", "Schedule a message here or on {pending}, where it is then managed.",
+                                            "pending", S("nav.pending", "Pending"))));
+            queueAdd = CardButton(card, Word("page.scheduled.add", "Schedule..."), delegate { OpenEditor(null); });
             queueAdd.Margin = Pad(0, 8, 0, 4);
-        }
-
-        /// Pending, on its Scheduled tab.
-        private void GoToScheduled()
-        {
-            ShowPage("pending");
-            FillScheduled();
-            ChooseSchedule(true);
         }
 
         private void ForgetQueueCard()

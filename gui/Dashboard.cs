@@ -639,6 +639,9 @@ namespace CodexAutoResume
         private string empty = "";
         // v0.6.11: a sentence under the rows - why the first check that did not pass stops it - or "".
         private string note = "";
+        /// The sentence under the rows, as it was last set (the audits and the tests read it), and what it says with none.
+        internal string Note { get { return note; } }
+        internal string Empty { get { return empty; } }
 
         internal GateList()
         {
@@ -812,6 +815,11 @@ namespace CodexAutoResume
         private Label explainAsOf;
         // The Pending list's Auto-resume column, a check box for the task on its row.
         private const int ResumeColumn = 5;
+        // v0.6.19 (the owner's decision of 2026-10-24): a list row that is not a recovery - the advanced edition's queued
+        // message, reset rule or delivered message (ListRowsJoined) - carries what kind it is, the key it is known by in
+        // the list, and the sentence Why it is waiting says of it. Nothing of a recovery's is offered on it: no switch, no
+        // menu, none of a recovery's buttons.
+        private const string RowKindKey = "row_kind", RowKeyKey = "row_key", RowSaidKey = "row_said";
         // v0.6.11: a Pending row's own menu, and whether the right button opened it - then it is the row under
         // the pointer's, and from the keyboard the chosen row's.
         private SoftMenu pendingMenu;
@@ -835,6 +843,13 @@ namespace CodexAutoResume
             "no_progress_budget", "thread_available", "no_newer_user_work", "usage" };
         private NoteLabel pendingNote, historyNote;
         private string pendingNoteFor, pendingNoteText = "";
+        // v0.6.19 (the owner's decision of 2026-10-24): the Rescan note this belongs to, what its click did about Codex's
+        // usage, and when it asked for the reading (0: none) - so the note says what was read once the watcher has read it.
+        private string rescanNoteText, rescanUsageNote;
+        private double rescanAskedAt;
+        /// The tests' answers to the window's questions, in place of the dialog (Dialog): null for every window a person
+        /// opens, as PersistentBridge.Answers is.
+        internal static Func<string, string, bool> DialogAnswers;
         private Button historyTimeline, historyReset, historyThread, historyClear;
         // Statistics
         private ComboBox period;
@@ -897,6 +912,28 @@ namespace CodexAutoResume
         // standard window goes: a page of the advanced edition's, and what the frame asks of it, is
         // put in place here, `moved` set when anything changed.
         partial void RenderStateNamed(Dictionary<string, object> frame, RenderWriter writer, ref bool moved);
+        // v0.6.19 (the owner's decision of 2026-10-24): a person's Retry now or Rescan has asked the watcher to read Codex's
+        // usage once. The advanced edition counts that reading as one of early_reset's two while it stands on.
+        partial void UsageAsked();
+        // v0.6.19 (the owner's decision of 2026-10-24): Why it is waiting has said the usage readings of a recovery that
+        // waits for a usage limit (WithUsage); the advanced edition adds early_reset's own to `said`.
+        partial void UsageNoted(Dictionary<string, object> row, List<string> said);
+        // v0.6.19 (the owner's decision of 2026-10-24: Pending is one list): a list (Pending or History) is about to be
+        // filled from `rows` - the advanced edition adds the rows of its own to it (EditionRow), after the recoveries.
+        partial void ListRowsJoined(ListView list, List<Dictionary<string, object>> rows);
+        // Pending's buttons and History's are built (BuildPending, BuildHistory), before their notes: the advanced edition
+        // adds its own to `row`.
+        partial void PendingButtonsBuilt(FlowLayoutPanel row);
+        partial void HistoryButtonsBuilt(FlowLayoutPanel row);
+        // The chosen row of Pending, or of History, has been offered its buttons (UpdatePendingButtons,
+        // UpdateHistoryButtons): the advanced edition offers its own for a row of its own, and hides them otherwise.
+        partial void PendingButtonsUpdated(Dictionary<string, object> row, bool idle);
+        partial void HistoryButtonsUpdated(Dictionary<string, object> row, bool idle);
+        // A row of the edition's own was double-clicked on Pending (a recovery's opens its menu).
+        partial void EditionRowOpened(Dictionary<string, object> row);
+        // Clear history was pressed: the advanced edition, while History lists completed messages of its own, asks and
+        // clears them together with the finished recoveries, and says so (`handled`); otherwise Clear history is as it was.
+        partial void ClearHistoryPressed(ref bool handled);
 
         // ----------------------------------------------------------------- chrome
         private void BuildDashboard()
@@ -1478,7 +1515,7 @@ namespace CodexAutoResume
             Color quiet = Palette.Contrast && selected ? ink : Soft.Mix(ink, Secondary, 0.4);
             if (e.ColumnIndex == 1 && row != null)
                 Soft.Chip(e.Graphics, cell, text, list.Font, Palette.Contrast && selected ? ink : ToneFor(row), back);
-            else if (list == pendingList && e.ColumnIndex == ResumeColumn && row != null)
+            else if (list == pendingList && e.ColumnIndex == ResumeColumn && row != null && !EditionRow(row))
                 DrawResumeBox(e.Graphics, cell, row, back);
             else
                 TextRenderer.DrawText(e.Graphics, text, list.Font, cell, e.ColumnIndex == 0 ? ink : quiet,

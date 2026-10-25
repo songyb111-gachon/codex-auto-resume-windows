@@ -11,6 +11,7 @@ from .. import homes, machine, oncewords, power, projects, quiet, settings
 from ..machine import CLAIMED, OBSERVING, WAITING
 from ..store import TERMINAL, StoreError
 from ..store.actions import CHANGED, RECHECKED, RETIRED, UNRESOLVED
+from ..store.schedule import USAGE_BY_RESCAN
 from ..win import network
 from ..windows import WakeEvent
 from .errors import (ControlError,
@@ -29,6 +30,18 @@ from .records import _other_homes, _reader
 _NOT_CHECKED_NOTES = {"paused": "recovery is paused", "conversation_off": "recovery is off for this conversation",
                       "observe_only": "Observe only is on", "quiet_hours": "it is quiet hours",
                       "offline": "Windows reports no internet"}
+
+
+
+
+def _reads_usage(record, now) -> bool:
+    """Whether a person's click reads Codex's usage for `record` (v0.6.19, issue #50; A12 amended by the owner on
+    2026-10-24): a usage limit's reset still ahead, waiting unsent and uncancelled, nothing held, no postponement of the
+    person's own ahead. The one rule of Retry now ("check one") and Rescan ("check all"), and the window's CanRetryNow
+    offers Retry now on exactly these where nothing else in view stops it (tests/test_usage_clicks_window.py)."""
+    return (record["category"] == "usage_limit" and record["state"] in WAITING and not record["cancel_requested"]
+            and record["submitted_at"] is None and (record["reset_at"] or 0) > now
+            and (record["not_before"] or 0) <= now and not record.get("hold"))
 
 
 # A cancel must not fail because the watcher happens to be writing. The store already
@@ -163,9 +176,7 @@ class ActionsMixin:
             now = time.time()
             # Only a person's click, and only where the watcher would read: a usage limit's reset still ahead, nothing
             # held, no postponement of the person's own. What would stop the watcher reading is said, not asked.
-            wanted = (accepted and actor == "gui" and record["category"] == "usage_limit"
-                      and (record["reset_at"] or 0) > now and (record["not_before"] or 0) <= now
-                      and not record.get("hold"))
+            wanted = accepted and actor == "gui" and _reads_usage(record, now)
             blocked = self._not_checked(store, record, now) if wanted else None
             check = wanted and blocked is None and store.ask_usage_check(key, now)
         if not accepted:
@@ -295,7 +306,8 @@ class ActionsMixin:
         Bound to both identities, as the per-task switch is, and checked against the record as it
         is now. It only ever makes a record later - never earlier than now, or than a postponement
         it already has, and never more than a week ahead - and it writes that time and nothing
-        else: it sends nothing, skips no gate, and Retry now brings it forward again."""
+        else: it sends nothing and skips no gate. Retry now never shortens it (store.request_retry_now); Don't
+        postpone (unpostpone) is how a person takes it away."""
         key = _identifier(interruption_id)
         thread = _thread_id(thread_id)
         now = time.time()
@@ -529,7 +541,7 @@ class ActionsMixin:
         return {"requested": len(keys), "cancelled": cancelled,
                 "already_finished": finished, "failed": failed}
 
-    def rescan_pending(self, judge, *, actor: str = "gui") -> dict:
+    def rescan_pending(self, judge, *, actor: str = "gui", read_usage: bool = False) -> dict:
         """Rescan and reconcile (v0.6.16, issue #39): every waiting recovery looked at again, on a person's word, each
         by its own interruption id.
 
@@ -542,7 +554,17 @@ class ActionsMixin:
         to wait as it was, rechecked or unresolved. Nothing is sent, nothing is written to Codex, no budget is given
         back and no schedule is brought forward: this is no Retry now for everything, which the layer deliberately
         does not offer (cancel_all_pending). The watcher is woken once after a recheck, to look now at whatever is
-        due anyway."""
+        due anyway.
+
+        v0.6.19 (the owner's decision of 2026-10-24, "check all"): with `read_usage` - the Dashboard's click alone, its
+        bridge's `rescan`; nothing else asks it - Codex's usage is read once for every recovery that still waits for a
+        usage reset ahead after the reconcile (_reads_usage, Retry now's own rule): one request each, served at each
+        one's next look and all answered by one reading (engine/freshness.py), none of their schedules brought forward.
+        A recovery whose limit Codex says lifted goes on through every gate, as with Retry now. Under a Pause, Observe
+        only, quiet hours or no internet while the watcher waits for one nothing is asked, and `usage_check` says why;
+        a conversation switched off is passed over (said where it is the only one); with no watcher running nothing
+        stays asked and it says so. `usage_check` (asked, not_running, one of store/schedule.NOT_CHECKED, or None where
+        nothing waits for a usage reset) and `usage_asked` (how many) are in the reply."""
         with self._open() as store:
             everything = store.all_records()
         waiting = [row for row in everything if row["state"] in WAITING and not row["cancel_requested"]
@@ -577,16 +599,44 @@ class ActionsMixin:
             counts[outcome] += 1
             found.append({"interruption_id": row["interruption_id"], "thread_id": row["thread_id"],
                           "outcome": outcome, "reason": reason})
+        read_usage = read_usage is True and actor == "gui"
+        usage_check, asked = self._ask_usage_for_all() if read_usage else (None, [])
         woke = False
-        if counts[RECHECKED]:
+        if counts[RECHECKED] or asked:
             try:
                 woke = bool(WakeEvent(str(self.paths.state_dir)).signal())
             except Exception:
                 woke = False
-        return {"scanned": len(waiting),
-                "not_waiting": sum(1 for row in everything if row["state"] not in TERMINAL) - len(waiting),
-                "retired": counts[RETIRED], "rechecked": counts[RECHECKED], "unresolved": counts[UNRESOLVED],
-                "changed": counts[CHANGED], "records": found, "woke": woke}
+        if asked and not woke:
+            # Asked now or not at all, as Retry now: a watcher that starts later reads usage when each recovery is due.
+            with self._open() as store:
+                for key in asked:
+                    store.usage_check_taken(key)
+            usage_check = "not_running"
+        reply = {"scanned": len(waiting),
+                 "not_waiting": sum(1 for row in everything if row["state"] not in TERMINAL) - len(waiting),
+                 "retired": counts[RETIRED], "rechecked": counts[RECHECKED], "unresolved": counts[UNRESOLVED],
+                 "changed": counts[CHANGED], "records": found, "woke": woke}
+        if read_usage:
+            reply.update(usage_check=usage_check, usage_asked=len(asked) if usage_check == "asked" else 0)
+        return reply
+
+    def _ask_usage_for_all(self):
+        """Rescan's reading (v0.6.19): (usage_check, the ids asked for). One request for each recovery that waits for a
+        usage reset ahead (_reads_usage) and that nothing stops the watcher reading for; what stops it said where none is
+        asked - a reason every one shares (paused, observe only, quiet hours, offline) before one of its own."""
+        now = time.time()
+        with self._open() as store:
+            rows = [row for row in store.all_records() if _reads_usage(row, now)]
+            if not rows:
+                return None, []
+            blocked = {row["interruption_id"]: self._not_checked(store, row, now) for row in rows}
+            open_ = [row["interruption_id"] for row in rows if blocked[row["interruption_id"]] is None]
+            if not open_:
+                shared = [why for why in blocked.values() if why != "conversation_off"]
+                return (shared[0] if shared else "conversation_off"), []
+            asked = [key for key in open_ if store.ask_usage_check(key, now, source=USAGE_BY_RESCAN)]
+        return ("asked" if asked else "held"), asked
 
     def clear_history(self, *, actor: str = "gui") -> dict:
         """Hide finished recoveries from the History view. Deletes nothing, cancels
