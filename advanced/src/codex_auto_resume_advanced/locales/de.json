@@ -204,7 +204,7 @@
   "page.queue.go_on": "Fortfahren",
   "page.queue.hour": "Um",
   "page.queue.line": "{conversation} · {when} · {state}",
-  "page.queue.moved": "Nachrichten werden unter {pending} geplant.",
+  "page.queue.moved": "Nachrichten werden hier oder unter {pending} geplant und dort verwaltet.",
   "page.queue.none": "Keine Nachricht ist eingereiht.",
   "page.queue.series": "{every} um {time}, {sent} von {n}",
   "page.queue.state.being_sent": "wird gesendet",

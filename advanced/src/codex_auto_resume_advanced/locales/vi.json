@@ -204,7 +204,7 @@
   "page.queue.go_on": "Tiếp tục",
   "page.queue.hour": "Lúc",
   "page.queue.line": "{conversation} · {when} · {state}",
-  "page.queue.moved": "Tin nhắn được lên lịch ở {pending}.",
+  "page.queue.moved": "Lên lịch tin nhắn ở đây hoặc ở {pending}, nơi sau đó quản lý nó.",
   "page.queue.none": "Không có tin nhắn nào trong hàng đợi.",
   "page.queue.series": "{every} lúc {time}, {sent} / {n}",
   "page.queue.state.being_sent": "đang gửi",

@@ -326,17 +326,20 @@ namespace CodexAutoResume
             AdvancedAudited++;
             if (currentPage != "pending") findings.Add(where + " :: Pending is not the page showing");
             IntPtr made = pendingList.Handle;
-            foreach (string kind in new[] { null, KindRule, KindMessage })
+            // Schedule...'s place at each choice: one place, whatever is chosen (the owner, 2026-10-24).
+            var places = new HashSet<int>();
+            foreach (string kind in new[] { null, KindRule, KindMessage, "none" })
             {
                 int index = -1;
                 for (int i = 0; i < pendingList.Items.Count && index < 0; i++)
                     if (Str(pendingList.Items[i].Tag as Dictionary<string, object>, RowKindKey) == kind) index = i;
-                if (index < 0) continue;
-                pendingList.SelectedIndices.Clear();
-                pendingList.Items[index].Selected = true;
+                if (index < 0 && kind != "none") continue;
+                foreach (ListViewItem item in pendingList.Items) item.Selected = false;
+                if (index >= 0) pendingList.Items[index].Selected = true;
                 UpdatePendingButtons();
                 ShowExplain();
                 PerformLayout();
+                if (scheduleAddButton != null && OwnVisible(scheduleAddButton)) places.Add(scheduleAddButton.Left);
                 string at = where + "/" + (kind ?? "recovery");
                 AuditList(at + "/" + AuditName(pendingList), pendingList, findings);
                 // The buttons under the list on one line at the window's size, whatever the chosen row's kind (the
@@ -344,10 +347,7 @@ namespace CodexAutoResume
                 int rows = ButtonLines(cancelAllButton.Parent);
                 if (rows > 1)
                 {
-                    int needs = 0;
-                    foreach (Control control in cancelAllButton.Parent.Controls)
-                        if (OwnVisible(control) && (control is Button || control == kindButtons))
-                            needs += control.Width + control.Margin.Horizontal;
+                    int needs = RowNeeds(cancelAllButton.Parent);
                     findings.Add(at + " :: the buttons under Pending's list take " + rows + " lines: they need " + needs +
                                  " px of the row's " + cancelAllButton.Parent.ClientSize.Width);
                 }
@@ -355,6 +355,7 @@ namespace CodexAutoResume
                 AuditSpoken(at, this, findings);
                 AuditPins(at, findings);
             }
+            if (places.Count > 1) findings.Add(where + " :: Schedule... moves as the chosen row changes");
         }
 
         // A conversation the audit's Chat page is opened at: the fixtures' shape, nobody's.
@@ -426,6 +427,16 @@ namespace CodexAutoResume
             limit["full"] = true;
             view["limit"] = limit;
             return view;
+        }
+
+        /// How wide a button row's visible buttons and the chosen row's group are together, with their margins.
+        private int RowNeeds(Control row)
+        {
+            int needs = 0;
+            foreach (Control control in row.Controls)
+                if (OwnVisible(control) && (control is Button || control == kindButtons))
+                    needs += control.Width + control.Margin.Horizontal;
+            return needs;
         }
 
         /// How many lines the visible buttons of a button row stand on - those in a group within it too.
@@ -819,6 +830,13 @@ namespace CodexAutoResume
                         }
                     }
                     else if (what == "usage_asked") form.UsageAsked();
+                    else if (what == "pending_none")
+                    {
+                        // v0.6.19: no Pending row chosen.
+                        IntPtr made = form.pendingList.Handle;
+                        foreach (ListViewItem item in form.pendingList.Items) item.Selected = false;
+                        form.UpdatePendingButtons();
+                    }
                     else if (what == "chat_tab") form.OpenChat();
                     else if (what == "chat_open")
                     {
@@ -839,7 +857,8 @@ namespace CodexAutoResume
                         // v0.6.19 (#50): one of the Scheduled tab's buttons pressed, if it can be - the editor it opens
                         // answered as "editor" says, never shown; what it showed into "dialogs".
                         string name = Str(step, "button");
-                        Button button = name == "add" ? form.scheduleAddButton : name == "edit" ? form.scheduleEditButton
+                        Button button = name == "add" ? form.scheduleAddButton : name == "card_add" ? form.queueAdd
+                                      : name == "edit" ? form.scheduleEditButton
                                       : name == "cancel" ? form.scheduleCancelButton : name == "go_on" ? form.scheduleGoOnButton
                                       : name == "clear" ? form.historyClear : null;
                         if (button == null || !button.Enabled) disabled.Add("scheduled_press " + name);
@@ -1231,9 +1250,13 @@ namespace CodexAutoResume
                 foreach (ListViewItem item in historyList.Items) historyKinds.Add(Str(item.Tag as Dictionary<string, object>, RowKindKey));
             scheduled["history_kinds"] = historyKinds;
             var scheduleButtons = new Dictionary<string, object>();
-            if (scheduleAddButton != null)
+            if (scheduleEditButton != null)
             {
                 scheduleButtons["add"] = scheduleAddButton.Enabled && OwnVisible(scheduleAddButton);
+                scheduled["add_left"] = OwnVisible(scheduleAddButton) ? (double)scheduleAddButton.Left : -1.0;
+                scheduled["add_after_rescan"] = scheduleAddButton.Parent == rescanButton.Parent &&
+                    scheduleAddButton.Parent.Controls.GetChildIndex(scheduleAddButton) ==
+                    rescanButton.Parent.Controls.GetChildIndex(rescanButton) + 1;
                 scheduleButtons["edit"] = scheduleEditButton.Enabled && OwnVisible(scheduleEditButton);
                 scheduleButtons["cancel"] = scheduleCancelButton.Enabled && OwnVisible(scheduleCancelButton);
                 scheduleButtons["go_on"] = scheduleGoOnButton.Enabled && OwnVisible(scheduleGoOnButton);
@@ -1277,6 +1300,8 @@ namespace CodexAutoResume
             look["retry_enabled"] = retryButton != null && retryButton.Enabled;
             look["button_lines"] = cancelAllButton == null || cancelAllButton.Parent == null ? 0.0
                                  : (double)ButtonLines(cancelAllButton.Parent);
+            look["row_need"] = cancelAllButton == null ? 0.0 : (double)RowNeeds(cancelAllButton.Parent);
+            look["row_width"] = cancelAllButton == null ? 0.0 : (double)cancelAllButton.Parent.ClientSize.Width;
             // v0.6.19 (the owner's decision of 2026-10-24): the Chat page - whether its tab shows and is marked as chosen,
             // whether the chat's own controls are on the Chat page or on the Advanced features page, the card's button
             // there, and the conversation the chat is at.

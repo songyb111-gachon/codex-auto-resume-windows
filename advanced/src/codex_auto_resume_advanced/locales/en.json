@@ -519,7 +519,7 @@
   "page.scheduled.state.handed_over": "handed over to you",
   "page.scheduled.mode.wait": "waits",
   "page.scheduled.mode.queue": "Codex's queue",
-  "page.queue.moved": "Messages are scheduled on {pending}.",
+  "page.queue.moved": "Schedule a message here or on {pending}, where it is then managed.",
   "page.refused.prompt_refused": "That message cannot be queued: it is empty or too long, holds a marker of this product's, or is one of its own continuations.",
   "page.refused.queue_full": "As many messages are queued as may: five for a conversation, twenty in all. Cancel one to queue another.",
   "page.refused.dependency_unknown": "No message is queued before it in that conversation, so it cannot wait for one.",

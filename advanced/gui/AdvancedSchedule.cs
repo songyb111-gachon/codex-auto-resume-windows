@@ -9,8 +9,8 @@
 // list, the buttons that apply to the chosen row's kind show and the others are hidden - a recovery's Retry now,
 // Cancel, Timeline and Turn off; a message's Edit..., Go on and Cancel; a rule's Go on and Cancel - in one group as
 // wide as the widest kind's, so Cancel all and Rescan never move as the choice moves, and the row stands on one line in
-// every language. Schedule... is a message's and a rule's, there while the prompt queue stands on; with nothing scheduled
-// yet, the prompt queue's card on the Advanced features page opens the editor (AdvancedQueue.cs). A double click on a waiting message opens its editor
+// every language. Schedule... stands in one fixed place after them, whenever the prompt queue stands on, whatever row
+// is chosen or none; the prompt queue's card on the Advanced features page has it too (AdvancedQueue.cs). A double click on a waiting message opens its editor
 // (AdvancedEditor.cs, the one place a message is written); on a recovery, its menu, as always. Once the editor saves,
 // the list is read again and the saved row is chosen.
 //
@@ -47,7 +47,7 @@ namespace CodexAutoResume
 
         // ---------------------------------------------------------------- built
         /// Pending's buttons: the chosen row's own in one group at the start - core's four for a recovery, then Edit...,
-        /// Go on, Cancel and Schedule... for a message or a rule.
+        /// Go on and Cancel for a message, Go on and Cancel for a rule.
         partial void PendingButtonsBuilt(FlowLayoutPanel row)
         {
             kindButtons = new SoftFlow();
@@ -64,10 +64,7 @@ namespace CodexAutoResume
                 row.Controls.Remove(button);
                 kindButtons.Controls.Add(button);
             }
-            // Schedule... is a message's action too: in the group, with a message's and a rule's, so the row keeps the
-            // number of buttons it had and fits on one line in every language (the owner, 2026-10-24).
-            scheduleAddButton = MakeButton(Word("page.scheduled.add", "Schedule..."), false, delegate { OpenEditor(null); });
-            foreach (Button button in new[] { scheduleEditButton, scheduleGoOnButton, scheduleCancelButton, scheduleAddButton })
+            foreach (Button button in new[] { scheduleEditButton, scheduleGoOnButton, scheduleCancelButton })
             {
                 button.Margin = Pad(0, 0, 6, 0);
                 button.Visible = false;
@@ -75,21 +72,31 @@ namespace CodexAutoResume
             }
             row.Controls.Add(kindButtons);
             row.Controls.SetChildIndex(kindButtons, 0);
+            // Schedule... in one fixed place, after Cancel all and Rescan, there whenever the prompt queue stands on -
+            // whatever row is chosen, or none (the owner's decision of 2026-10-24: a button never moves on Pending).
+            // The prompt queue's card on the Advanced features page has it too.
+            scheduleAddButton = MakeButton(Word("page.scheduled.add", "Schedule..."), false, delegate { OpenEditor(null); });
+            scheduleAddButton.Margin = Pad(0, 0, 6, 0);
+            scheduleAddButton.Visible = false;
+            row.Controls.Add(scheduleAddButton);
             FitKindButtons();
         }
 
         /// The group as wide as the widest kind's buttons - Turn off and Turn on measured both - so what follows it never
-        /// moves as the chosen row's kind changes. Asked when the words are made, never from a layout.
+        /// moves as the chosen row's kind changes. Asked when the words are made and when the buttons are updated, never
+        /// from a layout.
         private void FitKindButtons()
         {
             if (kindButtons == null) return;
             int recovery = Across(retryButton) + Across(cancelButton) + Across(timelineButton) +
                            Math.Max(Across(threadButton, S("action.thread_off", "Turn off for this conversation")),
                                     Across(threadButton, S("action.thread_on", "Turn on for this conversation")));
-            int message = Across(scheduleEditButton) + Across(scheduleGoOnButton) + Across(scheduleCancelButton) +
-                          Across(scheduleAddButton);
+            int message = Across(scheduleEditButton) + Across(scheduleGoOnButton) + Across(scheduleCancelButton);
             int widest = Math.Max(recovery, message);
+            // Held at that width both ways: a size measured while one kind's buttons are shown and the other's not yet
+            // hidden is never kept (the layout audit found the group 920 px wide with no row chosen, all seven counted).
             if (kindButtons.MinimumSize.Width != widest) kindButtons.MinimumSize = new Size(widest, 0);
+            if (kindButtons.MaximumSize.Width != widest) kindButtons.MaximumSize = new Size(widest, 0);
         }
 
         /// What `button` takes along the row - its width and its margins - saying `text` (its own words where null).
@@ -268,10 +275,14 @@ namespace CodexAutoResume
 
         // ---------------------------------------------------------------- offered
         /// The chosen Pending row's own buttons, by its kind: a message's Edit..., Go on and Cancel, a rule's Go on and
-        /// Cancel, shown only for them (core's four only for a recovery); Schedule a message... while the queue stands.
+        /// Cancel, shown only for them (core's four only for a recovery).
         partial void PendingButtonsUpdated(Dictionary<string, object> row, bool idle)
         {
-            if (scheduleAddButton == null) return;
+            if (scheduleEditButton == null) return;
+            // Measured again here, with the words and the scale the window has now: the group's width taken when it was
+            // built was the buttons' before the window was scaled to its screen (at 150% the group stood 918 px for
+            // buttons of 827, and Schedule... went to a line of its own).
+            FitKindButtons();
             string kind = Str(row, RowKindKey);
             Dictionary<string, object> source = Map(row, RowSourceKey);
             bool message = kind == KindMessage, rule = kind == KindRule;
@@ -286,7 +297,7 @@ namespace CodexAutoResume
             scheduleGoOnButton.Enabled = idle && advancedListing != null && source != null && state == "held";
             Dictionary<string, object> queue = advancedListing == null ? null : AdvancedItem(PromptQueueId);
             bool standing = queue != null && Standing(queue);
-            Show(scheduleAddButton, standing && (message || rule));
+            Show(scheduleAddButton, standing);
             scheduleAddButton.Enabled = listed && standing;
         }
 

@@ -204,7 +204,7 @@
   "page.queue.go_on": "Kontynuuj",
   "page.queue.hour": "O",
   "page.queue.line": "{conversation} · {when} · {state}",
-  "page.queue.moved": "Wiadomości planuje się w {pending}.",
+  "page.queue.moved": "Zaplanuj wiadomość tutaj lub w {pending}, gdzie potem nią zarządzasz.",
   "page.queue.none": "Żadna wiadomość nie czeka w kolejce.",
   "page.queue.series": "{every} o {time}, {sent} z {n}",
   "page.queue.state.being_sent": "w trakcie wysyłania",

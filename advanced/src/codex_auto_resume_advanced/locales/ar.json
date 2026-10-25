@@ -204,7 +204,7 @@
   "page.queue.go_on": "متابعة",
   "page.queue.hour": "الساعة",
   "page.queue.line": "{conversation} · {when} · {state}",
-  "page.queue.moved": "تُجدول الرسائل في {pending}.",
+  "page.queue.moved": "جدول رسالة هنا أو في {pending}، حيث تُدار بعد ذلك.",
   "page.queue.none": "لا توجد رسالة في قائمة الانتظار.",
   "page.queue.series": "{every} الساعة {time}، {sent} من {n}",
   "page.queue.state.being_sent": "قيد الإرسال",

@@ -93,31 +93,13 @@ namespace CodexAutoResume
             ForgetQueueCard();
             if (Str(item, "id") != PromptQueueId || !Standing(item) || advancedPrompts == null) return;
             TableLayoutPanel card = NewGroup(Word("page.queue.title", "Queued messages"), advancedStack);
-            // v0.6.19 (#50): one place for one result - messages are written, changed and cancelled as rows of Pending's
-            // one list (AdvancedSchedule.cs), and this card says so and goes there.
-            card.Controls.Add(HelpText(Word("page.queue.moved", "Messages are scheduled on {pending}.", "pending",
-                                            S("nav.pending", "Pending"))));
-            // Its one button opens the editor on Pending (the one place a message is written) - the way to schedule the
-            // first one, before Pending lists any of this edition's rows to offer Schedule... on.
-            queueAdd = CardButton(card, Word("page.scheduled.add", "Schedule..."), delegate
-            {
-                GoToScheduled();
-                OpenEditor(null);
-            });
+            // v0.6.19 (#50; the owner's decision of 2026-10-24): a message is scheduled here or with Pending's Schedule...,
+            // the same editor either way, whether or not anything is scheduled; it is then changed, let go on or cancelled
+            // as a row of Pending's one list (AdvancedSchedule.cs), and this card says so.
+            card.Controls.Add(HelpText(Word("page.queue.moved", "Schedule a message here or on {pending}, where it is then managed.",
+                                            "pending", S("nav.pending", "Pending"))));
+            queueAdd = CardButton(card, Word("page.scheduled.add", "Schedule..."), delegate { OpenEditor(null); });
             queueAdd.Margin = Pad(0, 8, 0, 4);
-        }
-
-        /// Pending, with the first message chosen where one waits.
-        private void GoToScheduled()
-        {
-            ShowPage("pending");
-            FillScheduled();
-            foreach (Dictionary<string, object> row in joinedPending)
-                if (Str(row, RowKindKey) == KindMessage)
-                {
-                    ChooseScheduledRow(Str(row, RowKeyKey));
-                    break;
-                }
         }
 
         private void ForgetQueueCard()

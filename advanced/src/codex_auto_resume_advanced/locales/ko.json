@@ -227,7 +227,7 @@
   "page.queue.go_on": "계속",
   "page.queue.hour": "시각",
   "page.queue.line": "{conversation} · {when} · {state}",
-  "page.queue.moved": "메시지는 {pending}에서 예약합니다.",
+  "page.queue.moved": "메시지는 여기서나 {pending}에서 예약할 수 있고, 관리는 {pending}에서 합니다.",
   "page.queue.none": "대기열에 넣은 메시지가 없습니다.",
   "page.queue.series": "{every} {time}, {n}번 중 {sent}번",
   "page.queue.state.being_sent": "보내는 중",

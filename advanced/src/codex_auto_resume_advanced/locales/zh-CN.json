@@ -204,7 +204,7 @@
   "page.queue.go_on": "继续",
   "page.queue.hour": "时刻",
   "page.queue.line": "{conversation} · {when} · {state}",
-  "page.queue.moved": "消息在 {pending} 中安排。",
+  "page.queue.moved": "可以在这里或 {pending} 中安排消息，之后在 {pending} 中管理。",
   "page.queue.none": "没有排队的消息。",
   "page.queue.series": "{every} {time}，第 {sent} / {n} 次",
   "page.queue.state.being_sent": "正在发送",

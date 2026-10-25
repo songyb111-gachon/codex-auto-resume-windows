@@ -227,7 +227,7 @@
   "page.queue.go_on": "להמשיך",
   "page.queue.hour": "בשעה",
   "page.queue.line": "{conversation} · {when} · {state}",
-  "page.queue.moved": "הודעות מתוזמנות ב{pending}.",
+  "page.queue.moved": "מתזמנים הודעה כאן או ב{pending}, ושם מנהלים אותה אחר כך.",
   "page.queue.none": "אין הודעות בתור.",
   "page.queue.series": "{every} בשעה {time}, {sent} מתוך {n}",
   "page.queue.state.being_sent": "נשלחת",

@@ -204,7 +204,7 @@
   "page.queue.go_on": "Continuar",
   "page.queue.hour": "Às",
   "page.queue.line": "{conversation} · {when} · {state}",
-  "page.queue.moved": "As mensagens são agendadas em {pending}.",
+  "page.queue.moved": "Agende uma mensagem aqui ou em {pending}, onde ela é gerenciada depois.",
   "page.queue.none": "Nenhuma mensagem na fila.",
   "page.queue.series": "{every} às {time}, {sent} de {n}",
   "page.queue.state.being_sent": "sendo enviada",

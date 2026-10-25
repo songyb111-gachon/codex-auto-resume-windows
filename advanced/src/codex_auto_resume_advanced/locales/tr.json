@@ -204,7 +204,7 @@
   "page.queue.go_on": "Sürdür",
   "page.queue.hour": "Saat",
   "page.queue.line": "{conversation} · {when} · {state}",
-  "page.queue.moved": "İletiler {pending} bölümünde zamanlanır.",
+  "page.queue.moved": "Bir iletiyi burada ya da {pending} bölümünde zamanlayın; sonra orada yönetilir.",
   "page.queue.none": "Sırada mesaj yok.",
   "page.queue.series": "{every} {time}, {n} içinden {sent}",
   "page.queue.state.being_sent": "gönderiliyor",

@@ -204,7 +204,7 @@
   "page.queue.go_on": "Продолжить",
   "page.queue.hour": "В",
   "page.queue.line": "{conversation} · {when} · {state}",
-  "page.queue.moved": "Сообщения планируются в разделе {pending}.",
+  "page.queue.moved": "Сообщение можно запланировать здесь или в разделе {pending}, где им затем управляют.",
   "page.queue.none": "В очереди нет сообщений.",
   "page.queue.series": "{every} в {time}, {sent} из {n}",
   "page.queue.state.being_sent": "отправляется",

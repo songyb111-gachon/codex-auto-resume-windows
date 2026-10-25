@@ -204,7 +204,7 @@
   "page.queue.go_on": "続ける",
   "page.queue.hour": "時刻",
   "page.queue.line": "{conversation} · {when} · {state}",
-  "page.queue.moved": "メッセージは {pending} で予約します。",
+  "page.queue.moved": "メッセージはここか {pending} で予約でき、その後は {pending} で管理します。",
   "page.queue.none": "キューに入れたメッセージはありません。",
   "page.queue.series": "{every} {time}、{n} 回中 {sent} 回",
   "page.queue.state.being_sent": "送信中",

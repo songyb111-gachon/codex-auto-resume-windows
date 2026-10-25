@@ -204,7 +204,7 @@
   "page.queue.go_on": "Продовжити",
   "page.queue.hour": "О",
   "page.queue.line": "{conversation} · {when} · {state}",
-  "page.queue.moved": "Повідомлення плануються в розділі {pending}.",
+  "page.queue.moved": "Повідомлення можна запланувати тут або в розділі {pending}, де ним потім керують.",
   "page.queue.none": "У черзі немає повідомлень.",
   "page.queue.series": "{every} о {time}, {sent} з {n}",
   "page.queue.state.being_sent": "надсилається",

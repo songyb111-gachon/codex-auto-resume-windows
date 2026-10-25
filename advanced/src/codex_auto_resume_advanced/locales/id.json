@@ -204,7 +204,7 @@
   "page.queue.go_on": "Lanjutkan",
   "page.queue.hour": "Pukul",
   "page.queue.line": "{conversation} · {when} · {state}",
-  "page.queue.moved": "Pesan dijadwalkan di {pending}.",
+  "page.queue.moved": "Jadwalkan pesan di sini atau di {pending}, tempat pesan itu lalu dikelola.",
   "page.queue.none": "Tidak ada pesan di antrean.",
   "page.queue.series": "{every} pukul {time}, {sent} dari {n}",
   "page.queue.state.being_sent": "sedang dikirim",

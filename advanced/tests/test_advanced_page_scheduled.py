@@ -81,6 +81,8 @@ class PageTests(PageCase):
                  {"do": "pending_select", "index": 0}, {"do": "look"},
                  {"do": "pending_select", "index": recoveries}, {"do": "look"},
                  {"do": "pending_select", "index": recoveries + 1}, {"do": "look"},
+                 {"do": "pending_none"}, {"do": "look"},
+                 {"do": "pending_select", "index": recoveries + 1},
                  {"do": "reply", "key": "advanced-prompt-edit", "with": [edited]},
                  {"do": "pending_open", "editor": {"words": "the words as edited", "press": "save"}},
                  {"do": "look"}]
@@ -131,13 +133,13 @@ class PageTests(PageCase):
 
     @classmethod
     def scenario_card(cls, bridge):
-        """The Advanced page's card says where messages are scheduled, and its button goes there."""
+        """The Advanced page's card says where messages are made and managed, and its Schedule... opens the editor."""
         counted, _found = cls.made(bridge)
         script = cls.opening(bridge, "en")
         script["advanced-prompts"] = [bridge("advanced-prompts", {})]
         script["advanced-resets"] = [bridge("advanced-resets", {})]
         steps = [{"do": "snapshot", "reply": counted}, {"do": "show"}, {"do": "choose", "id": "prompt_queue"},
-                 {"do": "look"}, {"do": "press", "button": "queue_go"}, {"do": "look"}]
+                 {"do": "look"}, {"do": "scheduled_press", "button": "card_add", "editor": {"press": "cancel"}}, {"do": "look"}]
         return "en", {"script": script, "steps": steps}, {"words": script["advanced-words"][0]["result"]["words"]}
 
     # ---------------------------------------------------------------- tests
@@ -172,7 +174,7 @@ class PageTests(PageCase):
     def test_the_buttons_follow_the_chosen_rows_kind_and_what_follows_never_moves(self):
         result, expected = self.of("scenario_list")
         words = expected["words"]
-        _opened, recovery, rule, message, _saved = result["looks"]
+        _opened, recovery, rule, message, _none, _saved = result["looks"]
         english = {"retry": "Retry now", "timeline": "Timeline", "edit": words["page.queue.edit"],
                    "go_on": words["page.queue.go_on"], "add": words["page.scheduled.add"]}
         self.assertIn(english["retry"], recovery["pending_buttons"])
@@ -186,9 +188,10 @@ class PageTests(PageCase):
         self.assertNotIn(english["edit"], rule["pending_buttons"])
         self.assertIn(english["edit"], message["pending_buttons"])
         self.assertTrue(message["scheduled"]["buttons"]["edit"], "a waiting message can be edited")
-        for look in (rule, message):
-            self.assertIn(english["add"], look["pending_buttons"], "Schedule... with a message's or a rule's, while the queue stands")
-        self.assertNotIn(english["add"], recovery["pending_buttons"], "a recovery's row keeps the buttons it had")
+        none = result["looks"][4]
+        for look in (recovery, rule, message, none):
+            self.assertIn(english["add"], look["pending_buttons"], "Schedule... while the queue stands, whatever is chosen")
+            self.assertTrue(look["scheduled"]["add_after_rescan"], "in the row, right after Rescan, never in the kind's group")
         lefts = {tuple(look["scheduled"]["later_lefts"]) for look in (recovery, rule, message)}
         self.assertEqual(len(lefts), 1, "Cancel all and Rescan stay where they are: %r" % lefts)
 
@@ -200,13 +203,6 @@ class PageTests(PageCase):
         cells = opened["pending_rows"][self.index(opened, "rule %d" % found["rule"])]
         self.assertEqual(cells[1], words["page.queue.state.waiting"])
         self.assertIn(words["page.resets.state.starting"], rule["explain_empty"])
-
-    def test_schedule_is_short_and_the_buttons_stand_on_one_line_for_every_kind(self):
-        """Fails with "Schedule a message..." back: the row took a second line in English at the window's size."""
-        result, expected = self.of("scenario_list")
-        self.assertEqual(expected["words"]["page.scheduled.add"], "Schedule...")
-        for look in result["looks"][1:4]:
-            self.assertEqual(look["button_lines"], 1, look["pending_buttons"])
 
     def test_a_double_click_on_a_waiting_message_edits_it_and_the_saved_row_is_chosen_after(self):
         result, expected = self.of("scenario_list")
@@ -264,17 +260,18 @@ class PageTests(PageCase):
         self.assertEqual(look["scheduled"]["kinds"], [None] * len(expected["pending"]))
         self.assertNotIn("Schedule...", look["pending_buttons"])
 
-    def test_the_advanced_page_card_points_to_pending_and_its_button_opens_the_editor_there(self):
+    def test_the_advanced_features_card_keeps_its_schedule_button(self):
+        """The card says a message is scheduled there or on Pending, and its Schedule... opens the editor there."""
         result, expected = self.of("scenario_card")
         words = expected["words"]
         on_card, there = result["looks"]
         card = next(card for card in on_card["cards"] if card[0] == words["page.queue.title"])
         self.assertIn(words["page.queue.moved"].replace("{pending}", "Pending"), card)
         self.assertNotIn("the words as written", " ".join(card), "no message is listed or written there any more")
-        self.assertEqual(there["page"], "pending")
         self.assertTrue(on_card["queue"]["go"], "the card's one button, Schedule..., is offered")
-        self.assertEqual([kind for kind, chosen in zip(there["scheduled"]["kinds"], there["scheduled"]["keys"])
-                          if chosen in there["scheduled"]["selected"]], ["message"])
+        self.assertEqual(there["page"], "advanced", "it opens the editor where it is")
+        (editor,) = result["dialogs"]
+        self.assertEqual((editor["title"], editor["words"]), (words["page.editor.title_new"], ""), "a new message")
 
 
 if __name__ == "__main__":

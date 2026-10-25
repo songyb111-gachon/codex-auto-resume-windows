@@ -204,7 +204,7 @@
   "page.queue.go_on": "Continua",
   "page.queue.hour": "Alle",
   "page.queue.line": "{conversation} · {when} · {state}",
-  "page.queue.moved": "I messaggi si pianificano in {pending}.",
+  "page.queue.moved": "Pianifica un messaggio qui o in {pending}, dove poi si gestisce.",
   "page.queue.none": "Nessun messaggio è in coda.",
   "page.queue.series": "{every} alle {time}, {sent} di {n}",
   "page.queue.state.being_sent": "in invio",

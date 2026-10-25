@@ -204,7 +204,7 @@
   "page.queue.go_on": "繼續",
   "page.queue.hour": "時刻",
   "page.queue.line": "{conversation} · {when} · {state}",
-  "page.queue.moved": "訊息在 {pending} 中排程。",
+  "page.queue.moved": "可以在這裡或 {pending} 中排程訊息，之後在 {pending} 中管理。",
   "page.queue.none": "沒有排入佇列的訊息。",
   "page.queue.series": "{every} {time}，第 {sent} / {n} 次",
   "page.queue.state.being_sent": "正在傳送",
