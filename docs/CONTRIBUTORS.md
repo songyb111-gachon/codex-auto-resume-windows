@@ -63,8 +63,6 @@ Everyone below is a person outside the project who helped it, in the order they 
 - [@weng-wen-jun](https://github.com/weng-wen-jun) asked for a manual rescan that reconciles obsolete
   pending recoveries ([#39](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/39)), then proposed the Pending and editor work for queued messages and the
   usage check behind Retry now and Rescan ([#50](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/50)).
-- [@zerocodefast](https://github.com/zerocodefast) invited the project into the awesome-ai-plugins list and reviewed its
-  listings there ([#52](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/52)).
 
 ## A note on the AI contributors
 
