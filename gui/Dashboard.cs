@@ -1309,8 +1309,8 @@ namespace CodexAutoResume
         ///     kind cut short says nothing. From the headings alone, a status needed the window 1,239 px wide before
         ///     "waiting for the usage reset" was drawn whole (measured, 150%);
         ///   * cells past a readable width: every heading stays whole - "Next check", "Attempts" and "Auto-resume" were
-        ///     cut short in a window of v0.6.2's width - and every column keeps what it holds up to `readable`; each is
-        ///     given the same part of what it wants past that;
+        ///     cut short in a window of v0.6.2's width - and every column keeps what it holds up to `readable`; what is
+        ///     left past that goes to the columns that want the least first, each whole in turn, the widest held to one cap;
         ///   * headings wider than what their column holds, the widest first, each down to the next widest, never below
         ///     what the column holds, readable;
         ///   * last, the cells, the widest first, never below the least. Only a list narrower than every column's least
@@ -1324,7 +1324,7 @@ namespace CodexAutoResume
         /// says nothing cut - stays whole while a long state or name ends in an ellipsis.
         internal static int[] ColumnFloors(int[] heading, int[] cells, int[] least, int readable, int available)
         {
-            int count = heading.Length, others = 0, keeps = 0, holds = 0, wanted = 0;
+            int count = heading.Length, others = 0, keeps = 0, holds = 0;
             var full = new int[count];
             var hold = new int[count];
             var keep = new int[count];
@@ -1336,11 +1336,7 @@ namespace CodexAutoResume
                 full[i] = Math.Max(heading[i], i == 0 ? cell : need);
                 hold[i] = Math.Max(least[i], Math.Min(need, readable));
                 keep[i] = Math.Max(heading[i], hold[i]);
-                if (i > 0)
-                {
-                    others += full[i];
-                    wanted += full[i] - keep[i];
-                }
+                if (i > 0) others += full[i];
                 keeps += keep[i];
                 holds += hold[i];
             }
@@ -1354,9 +1350,21 @@ namespace CodexAutoResume
             }
             if (keeps <= available)
             {
+                // What is left past what each keeps goes first to the columns that want the least past it, each whole in
+                // turn, and the widest are held to one cap: a time, a kind or a count stays whole while a long state ends
+                // in an ellipsis. Up to v0.6.19-beta.3 it was shared in proportion to what each wanted, which cut every
+                // column a little - "Every day 09:00" to "Every day 09:..." beside a state cut too (the owner, 2026-10-25).
                 widths[0] = keep[0];
-                for (int i = 1; i < count; i++)
-                    widths[i] = keep[i] + (wanted > 0 ? (int)Math.Floor((full[i] - keep[i]) * (double)(available - keeps) / wanted) : 0);
+                int under = 0, over = 0;
+                for (int i = 1; i < count; i++) over = Math.Max(over, full[i]);
+                while (under < over)
+                {
+                    int cap = (under + over + 1) / 2, total = keep[0];
+                    for (int i = 1; i < count; i++) total += Math.Min(full[i], Math.Max(keep[i], cap));
+                    if (total <= available) under = cap;
+                    else over = cap - 1;
+                }
+                for (int i = 1; i < count; i++) widths[i] = Math.Min(full[i], Math.Max(keep[i], under));
                 return widths;
             }
             bool headings = holds <= available;
@@ -1404,28 +1412,34 @@ namespace CodexAutoResume
         private void MeasureCells(ListView list)
         {
             var widths = new int[list.Columns.Count];
-            var unbounded = new Size(int.MaxValue, int.MaxValue);
             int rows = 0;
             foreach (ListViewItem item in list.Items)
             {
                 // Enough to know the widths by; a history of thousands is not measured whole.
                 if (++rows > 200) break;
                 for (int c = 0; c < widths.Length && c < item.SubItems.Count; c++)
-                {
-                    // The countdown as the clock writes it now: the cell holds only what the last tick wrote, and nothing
-                    // yet in a row just added, so a list's first fit left the column no room for its time (v0.6.5).
-                    string text = list == pendingList && c == CountdownColumn ? CountdownText(item.Tag as Dictionary<string, object>, Now())
-                                : item.SubItems[c].Text;
-                    // A state chip where DrawCell draws one: the second column of a row that has its record.
-                    int width = c == 1 && item.Tag is Dictionary<string, object> ? Soft.ChipSize(text, list.Font).Width
-                              : list == pendingList && c == ResumeColumn ? Px(Brand.SwitchWidth + 2)
-                              : TextRenderer.MeasureText(text, list.Font, unbounded, TextFormatFlags.SingleLine).Width;
-                    // DrawCell's inset: 10 before, 4 after.
-                    widths[c] = Math.Max(widths[c], width + Px(14));
-                }
+                    widths[c] = Math.Max(widths[c], CellWidth(list, item, c));
             }
             cellWidths[list] = widths;
             FitColumns(list);
+        }
+
+        /// How wide `item`'s cell in `column` is drawn whole, DrawCell's inset with it.
+        private int CellWidth(ListView list, ListViewItem item, int column)
+        {
+            var record = item.Tag as Dictionary<string, object>;
+            // The countdown as the clock writes it now: the cell holds only what the last tick wrote, and nothing
+            // yet in a row just added, so a list's first fit left the column no room for its time (v0.6.5). Not for a
+            // row of the edition's own, whose cell keeps what it was written with (WriteCountdowns): measured as the
+            // countdown it never shows, its "Every day 09:00" was cut to "Every day 09:..." (the owner, 2026-10-25).
+            string text = list == pendingList && column == CountdownColumn && !EditionRow(record)
+                        ? CountdownText(record, Now()) : item.SubItems[column].Text;
+            // A state chip where DrawCell draws one: the second column of a row that has its record.
+            int width = column == 1 && record != null ? Soft.ChipSize(text, list.Font).Width
+                      : list == pendingList && column == ResumeColumn ? Px(Brand.SwitchWidth + 2)
+                      : TextRenderer.MeasureText(text, list.Font, new Size(int.MaxValue, int.MaxValue), TextFormatFlags.SingleLine).Width;
+            // DrawCell's inset: 10 before, 4 after.
+            return width + Px(14);
         }
 
         /// How much taller the tallest tab of `strip` is set in nav_current than in the font it has now: 0 where the

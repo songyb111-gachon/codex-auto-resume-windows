@@ -1224,6 +1224,24 @@ namespace CodexAutoResume
             // lists draw them - each cell's text - where those pages are built.
             look["run_stops"] = Tags(runStops);
             look["pending_rows"] = ListCells(pendingList);
+            // Each cell of Pending's list past the conversation's that is drawn cut short, as "row/column": none while the
+            // list has room for them whole (the owner, 2026-10-25: "5시간 한…", "매일 09:…"). Measured here from the words the
+            // cell draws - a chip's in the Status column, the switch's column left out - never from what MeasureCells took.
+            var cut = new List<object>();
+            if (pendingList != null)
+                for (int r = 0; r < pendingList.Items.Count; r++)
+                    for (int c = 1; c < pendingList.Columns.Count && c < pendingList.Items[r].SubItems.Count; c++)
+                    {
+                        if (c == ResumeColumn) continue;
+                        string drawn = pendingList.Items[r].SubItems[c].Text;
+                        int whole = (c == 1 ? Soft.ChipSize(drawn, pendingList.Font).Width
+                                     : TextRenderer.MeasureText(drawn, pendingList.Font, new Size(int.MaxValue, int.MaxValue),
+                                                                TextFormatFlags.SingleLine).Width) + Px(14);
+                        if (whole > pendingList.Columns[c].Width)
+                            cut.Add(r.ToString(System.Globalization.CultureInfo.InvariantCulture) + "/" + c.ToString(System.Globalization.CultureInfo.InvariantCulture) + " " +
+                                    drawn);
+                    }
+            look["pending_cut"] = cut;
             look["history_rows"] = ListCells(historyList);
             // The open reset action's form - what each drop-down offers and holds, the count of the words, whether Add can
             // be pressed - and the rules its Cancel, Go on counting and Use a reset credit now... buttons name; and

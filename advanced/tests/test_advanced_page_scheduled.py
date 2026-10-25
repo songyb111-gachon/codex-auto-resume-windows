@@ -225,6 +225,26 @@ class PageTests(PageCase):
         lefts = {tuple(look["scheduled"]["later_lefts"]) for look in korean["looks"]}
         self.assertEqual(len(lefts), 1, "in Korean too, Cancel all and Rescan stay where they are: %r" % lefts)
 
+    def test_a_rules_next_check_is_short_and_no_cell_is_cut_short(self):
+        """A rule's Next check is its limit and which reset, not the whole sentence (that is Why it is waiting's). At the
+        window's opening size no cell past the conversation's is cut short in Korean, and in English, where the list has
+        no room for every cell whole, only a long state gives way - a kind and a time stay whole. Fails with the sentence
+        back in the cell, cut to "the 5-hour...", with a message's time measured as the countdown it never shows, which
+        cut "매일 09:00" to "매일 09:...", or with the room left shared in proportion, which cut every column a little
+        (the owner, 2026-10-25)."""
+        result, expected = self.of("scenario_list")
+        words, found = expected["words"], expected["found"]
+        opened, _recovery, rule_chosen = result["looks"][:3]
+        rule = opened["pending_rows"][self.index(opened, "rule %d" % found["rule"])]
+        self.assertEqual(rule[3], words["page.resets.window.300"], "the next reset of its limit")
+        self.assertIn(words["page.resets.window.300"], rule_chosen["explain_empty"], "the whole sentence is still said")
+        korean, _ = self.of("scenario_list_ko")
+        for look in korean["looks"]:
+            self.assertEqual(look["pending_cut"], [], "ko")
+        for look in (opened, rule_chosen):
+            self.assertEqual([cell for cell in look["pending_cut"] if cell.split()[0].split("/")[1] != "1"], [],
+                             "en: only a state gives way")
+
     def test_a_rules_status_is_a_short_word_and_its_whole_sentence_is_in_why_it_is_waiting(self):
         """Fails with the whole sentence back in the Status column, which cut the Next check column short."""
         result, expected = self.of("scenario_list")

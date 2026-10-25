@@ -246,9 +246,19 @@ namespace CodexAutoResume
             string thread = Str(rule, "thread_id");
             string stands = RuleStateWord(rule), what = RuleWhat(rule);
             var cells = new[] { thread != null ? ConversationOf(thread) : Word("name.reset_credit", "Reset credit"), RuleStateShort(rule),
-                                Word("page.pending.kind.rule", "Reset rule"), what, "", "" };
+                                Word("page.pending.kind.rule", "Reset rule"), RuleWhen(rule), "", "" };
             return Joined(KindRule, "rule " + Whole(Get(rule, "rule_id")).ToString(CultureInfo.InvariantCulture), code, rule,
                           cells, stands + " · " + what);
+        }
+
+        /// When one rule acts, short enough for Pending's Next check column: its limit ("the 5-hour limit"), and which of its
+        /// resets where it is not the next one ("the 5-hour limit (3 from now)") - in the words the whole sentence is made
+        /// of (RuleWhat), which is what Why it is waiting says of the row. Up to v0.6.19-beta.3 the column held that whole
+        /// sentence, cut to "the 5-hour..." in a window of the opening size (the owner, 2026-10-25).
+        private string RuleWhen(Dictionary<string, object> rule)
+        {
+            int minutes = Whole(Get(rule, "minutes")), ordinal = Whole(Get(rule, "ordinal"));
+            return ordinal <= 1 ? WindowWord(minutes) : WindowWord(minutes) + " (" + OrdinalWord(ordinal) + ")";
         }
 
         /// Where one rule stands, in a word short enough for Pending's Status column; the whole sentence (RuleStateWord) is

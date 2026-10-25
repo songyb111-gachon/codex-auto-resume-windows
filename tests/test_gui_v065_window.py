@@ -56,8 +56,10 @@ COLUMNS = (
     (([100, 60, 60], [400, 90, 50], [48, 48, 48], 96, 205), [77, 77, 50]),
     # Room for every column whole but the conversation's, which has what they leave.
     (([92, 53, 48, 110, 70, 150], [330, 250, 104, 64, 20, 56], [48, 48, 48, 48, 48, 56], 96, 900), [216, 250, 104, 110, 70, 150]),
-    # Room for every heading whole and every column readable: what is left shared by what each wants past that.
-    (([92, 53, 48, 110, 70, 150], [330, 250, 104, 64, 20, 56], [48, 48, 48, 48, 48, 56], 96, 700), [92, 177, 100, 110, 70, 150]),
+    # Room for every heading whole and every column readable: what is left goes to the column that wants the least past
+    # that first - the kind whole - and the widest are held to one cap (up to v0.6.19-beta.3 in proportion, 177 and 100,
+    # every column a little cut).
+    (([92, 53, 48, 110, 70, 150], [330, 250, 104, 64, 20, 56], [48, 48, 48, 48, 48, 56], 96, 700), [92, 174, 104, 110, 70, 150]),
 )
 
 PROBE = r"""
