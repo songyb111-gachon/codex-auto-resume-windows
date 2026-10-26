@@ -963,7 +963,7 @@ seam of its own.
 
 ---
 
-## v0.6.19 — The advanced edition's last stage, as far as it was built 🚧
+## v0.6.19 — The advanced edition's last stage, as far as it was built ✅
 
 **Four pre-releases and a final that carries all of them. v0.6.19 carries the groundwork, the chat inside the Dashboard,
 the watcher's restart after an unexpected stop, the wake for a reset, a compatibility report from this PC, the usage
@@ -1414,7 +1414,7 @@ The fourth pre-release: Pending's buttons one gap apart, its Next check whole, d
 
         ↓
 
-v0.6.19  🚧 In development
+v0.6.19  ✅ Released
 The final, with everything the four pre-releases carried, the managed daemon's queue route with fixed-word receipt
 diagnostics, the scroll bar's groove, and M2b measured again
 
@@ -1448,7 +1448,7 @@ Maintenance
 ```
 
 This document records the current direction; the four pre-releases of v0.6.19, v0.6.19-beta to v0.6.19-beta.4, are out and
-the final v0.6.19, which carries all of them and what reached dev after them, is in development; what it did not build is
+the final v0.6.19, which carries all of them and what reached dev after them, is out; what it did not build is
 v0.6.20. v0.6.18 is out: a recovery that worked is recovered however its turn ended,
 the standard edition suggests the Codex homes this PC uses, Install another version runs in the setup window, the setup
 window's bar fills by real counts, the update's download is streamed, all seventeen translations were reviewed, a full
