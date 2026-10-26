@@ -904,28 +904,6 @@ class RouteTests(unittest.TestCase):
                 self.assertFalse(m2b_passed(view, measured))
         self.assertFalse(m2b_passed({}, {Measurement.M2B: (Verdict.PASS, ENGINE)}))
 
-    def test_live_verified_newer_engine_preserves_old_m2b_pass_and_unknowns_fail_closed(self):
-        """The live observation grants one exact newer engine, not all updates.
-
-        An injected measurement table remains an isolated version-specific
-        verdict, rather than inheriting the release's additional evidence.
-        """
-        from codex_auto_resume_advanced.measured import MEASURED, M2B_ADDITIONAL_PASSES
-        old = "codex-cli 0.163.0-alpha.10.2"
-        new = "codex-cli 0.163.0-alpha.11.2"
-        latest = "codex-cli 0.164.0-alpha.11.1"
-        self.assertEqual(M2B_ADDITIONAL_PASSES, frozenset({new, latest}))
-        self.assertTrue(m2b_passed({"engine": {"version": old}}, MEASURED))
-        self.assertTrue(m2b_passed({"engine": {"version": new}}, MEASURED))
-        self.assertTrue(m2b_passed({"engine": {"version": latest}}, MEASURED))
-        self.assertFalse(m2b_passed({"engine": {"version": "codex-cli 0.163.0-alpha.12.0"}}, MEASURED))
-        self.assertFalse(m2b_passed({"engine": {"version": "codex-cli 0.164.0-alpha.11.2"}}, MEASURED))
-        self.assertFalse(m2b_passed({"engine": {"version": new}},
-                                    {Measurement.M2B: (Verdict.PASS, old)}))
-        self.assertFalse(m2b_passed({"engine": {"version": latest}},
-                                    {Measurement.M2B: (Verdict.PASS, old)}))
-        self.assertFalse(m2b_passed({"engine": {"version": new}}, {}))
-
 
 class CodexInUseTests(GoalCase):
     """Its goals are read from the Codex home the watcher drives, and its session is with the

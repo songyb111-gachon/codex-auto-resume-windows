@@ -53,7 +53,7 @@ from codex_auto_resume.domain.plug import DEFER, Alternative
 from ..codex import inuse
 from ..codex.goals import Goals
 from ..codex.protocol import Session, SessionRefused, submitted
-from ..measured import MEASURED, M2B_ADDITIONAL_PASSES
+from ..measured import MEASURED
 from ..vocabulary import GoalStatus, Measurement, Verdict
 from .markerfree import MAX_PROMPT, _close, _queue_id
 
@@ -83,9 +83,7 @@ def m2b_passed(view, measured) -> bool:
     version = engine.get("version") if isinstance(engine, dict) else None
     entry = measured.get(Measurement.M2B) if isinstance(measured, dict) else None
     return (isinstance(version, str) and isinstance(entry, tuple) and len(entry) == 2
-            and entry[0] == Verdict.PASS
-            and (entry[1] == version
-                 or (measured is MEASURED and version in M2B_ADDITIONAL_PASSES)))
+            and entry[0] == Verdict.PASS and entry[1] == version)
 
 
 def _yes(look) -> bool:
