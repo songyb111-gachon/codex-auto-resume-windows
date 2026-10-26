@@ -79,6 +79,15 @@ class RenderTests(unittest.TestCase):
             self.draw(self.advanced, [{"page": "advanced", "capability": "usage_meter",
                                        "custom": {"key": "warn_five_hour", "value": "101"}}], "range")
 
+    def test_the_capability_list_scrolls_on_the_soft_bar_in_its_picture(self):
+        """The capability list is longer than its card, so it scrolls; on screen its own scroll bar lies under the clip and
+        the soft bar runs beside it. DrawToBitmap drew the list whole, Windows' grey bar (#F0F0F0 behind #858585) over
+        the soft one, in every Advanced features picture of v0.6.19-beta.4 (the owner, 2026-10-26). Fails with the list
+        gutters not painted again over the picture (WindowRender.PaintListGutters)."""
+        (picture,) = self.draw(self.advanced, [{"page": "advanced"}], "gutter")
+        native = sum(1 for at in range(0, len(picture), 3) if picture[at:at + 3] == b"\xf0\xf0\xf0")
+        self.assertLess(native, 50, "%d pixels of Windows' scroll bar track in the picture" % native)
+
     def test_a_page_or_a_capability_the_window_does_not_have_stops_the_render(self):
         """Fails with RenderState drawing what it has instead: the standard window's Overview for the advanced page."""
         with self.assertRaisesRegex(RuntimeError, "no page called advanced is in this window"):

@@ -27,11 +27,13 @@ CLI_0162_ALPHA_17_2 = "codex-cli 0.162.0-alpha.17.2"
 # again on it - MW, M1, M2b, M5, M6, M7, MP1-MP3, MIPC, and stage 4's MO, M6B, MX, MF and M3B. The rest
 # stay on the engine they were made on, and a statement on 0.163 calls them unmeasured.
 CLI_0163_ALPHA_10_2 = "codex-cli 0.163.0-alpha.10.2"
+# The Codex of 2026-10-26: M2b made again on it (PR #53 asked; the goal on a held thread rests on it).
+CLI_0164_ALPHA_11_1 = "codex-cli 0.164.0-alpha.11.1"
 
 MEASURED = {
     Measurement.M1: (Verdict.PASS, CLI_0163_ALPHA_10_2),
     Measurement.M2: (Verdict.FAIL, CLI_0162_ALPHA_17_2),
-    Measurement.M2B: (Verdict.PASS, CLI_0163_ALPHA_10_2),
+    Measurement.M2B: (Verdict.PASS, CLI_0164_ALPHA_11_1),
     Measurement.M3: (Verdict.FAIL, CLI_0162_ALPHA_17_2),
     Measurement.M4: (Verdict.FAIL, CLI_0162_ALPHA_17_2),
     Measurement.M5: (Verdict.PASS, CLI_0163_ALPHA_10_2),

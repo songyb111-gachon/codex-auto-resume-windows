@@ -225,6 +225,17 @@ class PageTests(PageCase):
         lefts = {tuple(look["scheduled"]["later_lefts"]) for look in korean["looks"]}
         self.assertEqual(len(lefts), 1, "in Korean too, Cancel all and Rescan stay where they are: %r" % lefts)
 
+    def test_the_editions_own_buttons_speak_the_windows_language(self):
+        """Pending is built before the bridge's words can come; its Schedule..., Edit..., Go on and Cancel were then made
+        in English and never said again in Korean (v0.6.19's live acceptance; the owner: "왜 스케쥴이라고 뜨지, 영어로?").
+        Fails with the buttons not reworded when the words come (RewordPendingButtons)."""
+        korean, _ = self.of("scenario_list_ko")
+        for look in korean["looks"]:
+            buttons = look["pending_buttons"]
+            self.assertIn("예약...", buttons)
+            for english in ("Schedule...", "Edit...", "Go on", "Cancel"):
+                self.assertNotIn(english, buttons)
+
     def test_a_rules_next_check_is_short_and_no_cell_is_cut_short(self):
         """A rule's Next check is its limit and which reset, not the whole sentence (that is Why it is waiting's). At the
         window's opening size no cell past the conversation's is cut short in Korean, and in English, where the list has

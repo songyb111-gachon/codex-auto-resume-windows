@@ -779,5 +779,19 @@ namespace CodexAutoResume
             if (native) bar.Paint(e.Graphics);
             if (nativeAcross) acrossBar.Paint(e.Graphics);
         }
+
+        /// The gutters the soft bars run in, painted again over a picture of the window: DrawToBitmap draws the list
+        /// whole, its own scroll bars with it, past the clip that hides them on screen, and so over the soft bar beside
+        /// them (WindowRender.RenderPicture; the Advanced features pictures of v0.6.19-beta.4, the owner 2026-10-26).
+        internal void PaintGutters(Graphics g)
+        {
+            using (var brush = new SolidBrush(BackColor))
+            {
+                if (native) g.FillRectangle(brush, Width - SoftBar.Gutter, 0, SoftBar.Gutter, Height);
+                if (nativeAcross) g.FillRectangle(brush, 0, Height - SoftBar.Gutter, Width, SoftBar.Gutter);
+            }
+            if (native) bar.Paint(g);
+            if (nativeAcross) acrossBar.Paint(g);
+        }
     }
 }

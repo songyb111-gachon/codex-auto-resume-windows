@@ -2,9 +2,9 @@
   "format": "codex-auto-resume-measurement/1",
   "step": "m2b",
   "verdict": "blocked",
-  "recorded_at": "2026-10-16T19:39Z",
-  "product_version": "0.6.16-beta.3",
-  "codex_version": "codex-cli 0.163.0-alpha.10.2",
+  "recorded_at": "2026-10-26T06:51Z",
+  "product_version": "0.6.19-beta.4",
+  "codex_version": "codex-cli 0.164.0-alpha.11.1",
   "windows_build": "10.0.26300",
   "observed": {
     "goal_found": true,
@@ -19,6 +19,6 @@
   "completion": {
     "verdict": "pass",
     "note": "as_expected",
-    "recorded_at": "2026-10-16T19:40Z"
+    "recorded_at": "2026-10-26T06:53Z"
   }
 }
