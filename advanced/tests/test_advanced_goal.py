@@ -913,11 +913,16 @@ class RouteTests(unittest.TestCase):
         from codex_auto_resume_advanced.measured import MEASURED, M2B_ADDITIONAL_PASSES
         old = "codex-cli 0.163.0-alpha.10.2"
         new = "codex-cli 0.163.0-alpha.11.2"
-        self.assertEqual(M2B_ADDITIONAL_PASSES, frozenset({new}))
+        latest = "codex-cli 0.164.0-alpha.11.1"
+        self.assertEqual(M2B_ADDITIONAL_PASSES, frozenset({new, latest}))
         self.assertTrue(m2b_passed({"engine": {"version": old}}, MEASURED))
         self.assertTrue(m2b_passed({"engine": {"version": new}}, MEASURED))
+        self.assertTrue(m2b_passed({"engine": {"version": latest}}, MEASURED))
         self.assertFalse(m2b_passed({"engine": {"version": "codex-cli 0.163.0-alpha.12.0"}}, MEASURED))
+        self.assertFalse(m2b_passed({"engine": {"version": "codex-cli 0.164.0-alpha.11.2"}}, MEASURED))
         self.assertFalse(m2b_passed({"engine": {"version": new}},
+                                    {Measurement.M2B: (Verdict.PASS, old)}))
+        self.assertFalse(m2b_passed({"engine": {"version": latest}},
                                     {Measurement.M2B: (Verdict.PASS, old)}))
         self.assertFalse(m2b_passed({"engine": {"version": new}}, {}))
 

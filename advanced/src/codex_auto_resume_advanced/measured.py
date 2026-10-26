@@ -34,7 +34,13 @@ CLI_0163_ALPHA_10_2 = "codex-cli 0.163.0-alpha.10.2"
 # at docs/evidence/live/m2b-0.163.0-alpha.11.2.md. Keep the original
 # M2b record in MEASURED so older verified builds do not regress.
 CLI_0163_ALPHA_11_2 = "codex-cli 0.163.0-alpha.11.2"
-M2B_ADDITIONAL_PASSES = frozenset({CLI_0163_ALPHA_11_2})
+# 2026-10-26, after the Desktop upgraded to app 26.1021.3705.0, the same
+# existing, usage-limited long-running goal was set active on 0.164, one
+# queue/add was accepted, and Codex began its next turn with that same goal
+# still active. See docs/evidence/live/m2b-0.164.0-alpha.11.1.md. Never
+# generalize this observation to other patch versions or future engines.
+CLI_0164_ALPHA_11_1 = "codex-cli 0.164.0-alpha.11.1"
+M2B_ADDITIONAL_PASSES = frozenset({CLI_0163_ALPHA_11_2, CLI_0164_ALPHA_11_1})
 
 MEASURED = {
     Measurement.M1: (Verdict.PASS, CLI_0163_ALPHA_10_2),
