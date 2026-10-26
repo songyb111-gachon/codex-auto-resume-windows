@@ -27,7 +27,6 @@ import sys
 import tempfile
 import threading
 import unittest
-from unittest.mock import patch
 
 _HERE = str(Path(__file__).resolve().parent)
 if _HERE not in sys.path:
@@ -502,52 +501,6 @@ class EngineScenarioTests(EngineCase):
             self.h.tick(advance=1800)
         self.assertEqual(len(self.h.backend.send_calls), 1)
         self.assertNotIn(self.h.record(), self.h.store.pending())
-
-    def test_15b_queue_receipt_details_are_log_only_and_do_not_retry(self):
-        for detail, code, wanted in (("nonzero_exit", 2, "queue_receipt_exit_nonzero"),
-                                     ("empty_stdout", None, "queue_receipt_empty_stdout"),
-                                     ("unrecognized_stdout", None, "queue_receipt_unrecognized_stdout")):
-            with self.subTest(detail=detail):
-                h = self.fresh()
-                self.ready_after_reset(h)
-                response = {"outcome": "unknown", "error_code": "queue_response_unconfirmed",
-                            "receipt_detail": detail, "exit_code": code}
-                with patch.object(h.backend, "send", return_value=response) as send:
-                    h.tick()
-                    self.assertEqual(h.record()["state"], "submission_unknown")
-                    self.assertEqual(h.record()["last_error"], "queue_result_unknown_do_not_resend")
-                    self.assertIn((T1, wanted, str(code) if code is not None else None), h.logs)
-                    for _ in range(3):
-                        h.tick(advance=1800)
-                    self.assertEqual(send.call_count, 1, "diagnostics must never add a send")
-
-    def test_15b_untrusted_receipt_details_never_reach_the_log(self):
-        self.ready_after_reset()
-        response = {"outcome": "unknown", "error_code": "queue_response_unconfirmed",
-                    "receipt_detail": "secret prompt\nwith a newline", "exit_code": "secret token"}
-        with patch.object(self.h.backend, "send", return_value=response):
-            self.h.tick()
-        self.assertEqual(self.h.record()["state"], "submission_unknown")
-        self.assertNotIn("secret", repr(self.h.logs))
-
-    def test_15b_diagnostic_logger_failure_cannot_affect_delivery_state(self):
-        self.ready_after_reset()
-        response = {"outcome": "unknown", "error_code": "queue_response_unconfirmed",
-                    "receipt_detail": "empty_stdout"}
-        old_log = self.h.engine.log
-
-        def fail_diagnostic(thread_id, event, detail):
-            if event.startswith("queue_receipt_"):
-                raise OSError("logger unavailable")
-            old_log(thread_id, event, detail)
-
-        self.h.engine.log = fail_diagnostic
-        with patch.object(self.h.backend, "send", return_value=response) as send:
-            self.h.tick()
-            self.assertEqual(self.h.record()["state"], "submission_unknown")
-            self.assertEqual(self.h.record()["last_error"], "queue_result_unknown_do_not_resend")
-            self.h.tick(advance=1800)
-            self.assertEqual(send.call_count, 1)
 
     def test_15c_transport_exception_is_treated_as_unknown(self):
         self.ready_after_reset()

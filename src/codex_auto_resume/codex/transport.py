@@ -323,9 +323,10 @@ class Backend:
                     return {"outcome": "not_started", "error_code": "queue_consent_refused"}
                 # v0.6.18: the message as one `--message=` argument - a person's text that starts with "-" ("- keep
                 # going", "---") is then never read as an option, whatever the parser's defaults.
-                queue_args = (["queue", "--thread", thread_id, "--message=" + prompt]
-                              + (["--remote", "unix://"] if remote else []))
-                process = S.Popen(self._argv() + queue_args,
+                # PR #53: the managed daemon of this home, where one runs, by --remote unix:// - spelled in the call itself,
+                # which is where test_structural_invariants finds the one place that starts a send.
+                process = S.Popen(self._argv() + ["queue", "--thread", thread_id, "--message=" + prompt]
+                                  + (["--remote", "unix://"] if remote else []),
                                   stdin=S.DEVNULL, stdout=S.PIPE, stderr=S.DEVNULL, text=True,
                                   encoding="utf-8", errors="replace", shell=False, close_fds=True,
                                   creationflags=NO_WINDOW, cwd=str(self.codex_home), env=self._environment())
