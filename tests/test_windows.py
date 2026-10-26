@@ -343,6 +343,39 @@ class BackendTests(unittest.TestCase):
             self.assertEqual(result["outcome"], "unknown")
             self.assertNotIn("secret", repr(result))
 
+    def test_queue_receipt_diagnostics_are_closed_words_not_cli_output(self):
+        """Failure classification must not report user text, stderr or Codex output.
+
+        No uncertain response becomes not_started: even a nonzero return may follow a
+        queued send. The owner may have enabled Once more when unsure separately.
+        """
+        cases = (
+            (2, "secret diagnostic", "nonzero_exit", 2),
+            (0, "", "empty_stdout", None),
+            (0, f"Queued message {QUEUE} for thread {QUEUE}.", "unrecognized_stdout", None),
+            (0, "secret prompt\nQueued message " + QUEUE + " for thread " + THREAD + ".",
+             "unrecognized_stdout", None),
+            (-1, "secret diagnostic", "nonzero_exit", None),
+        )
+        for returncode, stdout, kind, exit_code in cases:
+            with self.subTest(code=returncode, kind=kind):
+                process = MagicMock(returncode=returncode)
+                process.communicate.return_value = (stdout, None)
+                with patch.object(subprocess, "Popen", return_value=process):
+                    result = self.backend.send(THREAD, "secret prompt")
+                self.assertEqual(result["outcome"], "unknown")
+                self.assertEqual(result["error_code"], "queue_response_unconfirmed")
+                self.assertEqual(result["receipt_detail"], kind)
+                self.assertEqual(result.get("exit_code"), exit_code)
+                self.assertNotIn("secret", repr(result))
+
+    def test_successful_receipt_is_not_reclassified_or_logged(self):
+        process = MagicMock(returncode=0)
+        process.communicate.return_value = (f"Queued message {QUEUE} for thread {THREAD}.\n", None)
+        with patch.object(subprocess, "Popen", return_value=process):
+            self.assertEqual(self.backend.send(THREAD, "secret prompt"),
+                             {"outcome": "accepted", "queue_id": QUEUE})
+
     def test_timeout_after_start_is_unknown_even_if_kill_fails(self):
         process = MagicMock()
         process.communicate.side_effect = subprocess.TimeoutExpired("secret prompt", 45)

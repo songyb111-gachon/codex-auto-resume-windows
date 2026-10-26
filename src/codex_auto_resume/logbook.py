@@ -73,6 +73,14 @@ _MESSAGES = {
     ("checking_eligibility", None): "checking eligibility",
     ("loaded", None): "loaded",
     ("queue_submission_started", None): "reserved interruption; submitting continuation via codex queue",
+    # The CLI may have accepted a continuation even when its receipt was lost or changed.
+    # None of these read or print stdout, stderr, the message or any error text.
+    ("queue_receipt_exit_nonzero", None):
+        "Codex queue exited without a confirmed receipt (exit code {detail}); delivery unknown, held for reconciliation",
+    ("queue_receipt_empty_stdout", None):
+        "Codex queue exited successfully without a receipt; delivery unknown, held for reconciliation",
+    ("queue_receipt_unrecognized_stdout", None):
+        "Codex queue returned an unrecognized receipt; delivery unknown, held for reconciliation",
     ("continuation_submitted", None): "continuation submitted",
     # v0.6.16-beta.3: the words for this time a person added for one waiting recovery (oncewords.py) - never the words.
     ("once_words_sent", None): "the words for this time go with this continuation, and are deleted",

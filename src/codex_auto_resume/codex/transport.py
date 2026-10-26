@@ -308,7 +308,20 @@ class Backend:
             if process.returncode == 0 and match:
                 queue_id = canonical_uuid(match.group(1))
                 return {"outcome": "accepted", "queue_id": queue_id}
-            return {"outcome": "unknown", "error_code": "queue_response_unconfirmed"}
+            # Only the documented single-line receipt confirms delivery. Diagnostic fields are
+            # fixed words and an exit code; never return stdout, stderr, or the user's prompt.
+            # Even exit != 0 is uncertain after Popen: Codex may have queued the message first.
+            if process.returncode != 0:
+                if type(process.returncode) is int and 0 <= process.returncode <= 255:
+                    return {"outcome": "unknown", "error_code": "queue_response_unconfirmed",
+                            "receipt_detail": "nonzero_exit", "exit_code": process.returncode}
+                return {"outcome": "unknown", "error_code": "queue_response_unconfirmed",
+                        "receipt_detail": "nonzero_exit"}
+            if not stdout.strip():
+                return {"outcome": "unknown", "error_code": "queue_response_unconfirmed",
+                        "receipt_detail": "empty_stdout"}
+            return {"outcome": "unknown", "error_code": "queue_response_unconfirmed",
+                    "receipt_detail": "unrecognized_stdout"}
         except S.TimeoutExpired:
             try:
                 process.kill()  # only this helper; accepted delivery is still possible
