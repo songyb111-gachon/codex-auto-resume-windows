@@ -45,7 +45,7 @@ M2B_ADDITIONAL_PASSES = frozenset({CLI_0163_ALPHA_11_2, CLI_0164_ALPHA_11_1})
 MEASURED = {
     Measurement.M1: (Verdict.PASS, CLI_0163_ALPHA_10_2),
     Measurement.M2: (Verdict.FAIL, CLI_0162_ALPHA_17_2),
-    Measurement.M2B: (Verdict.PASS, CLI_0163_ALPHA_10_2),
+    Measurement.M2B: (Verdict.PASS, CLI_0164_ALPHA_11_1),
     Measurement.M3: (Verdict.FAIL, CLI_0162_ALPHA_17_2),
     Measurement.M4: (Verdict.FAIL, CLI_0162_ALPHA_17_2),
     Measurement.M5: (Verdict.PASS, CLI_0163_ALPHA_10_2),
