@@ -143,7 +143,10 @@ class TableTests(unittest.TestCase):
         added at once, each in a session of its own, each queued, run and found only in its own conversation). MQG first
         failed, inconclusive - its goal ended inside its own turn - and was made again that night with a goal that takes
         many turns: on open the queued message ran first and once, then the goal carried on, a turn at a time, to its
-        own end (nine turns), so it passed."""
+        own end (nine turns), so it passed.
+        2026-10-26, on codex-cli 0.164.0-alpha.11.1, the measurement session made M2b again (PR #53 asked): with the
+        Desktop holding the throwaway conversation and its goal paused, the probe set the goal active and queued one
+        turn; the turn ran once, and the goal stayed active and carried on after it, so it passed."""
         passed = {m for m, (verdict, _v) in measured.MEASURED.items() if verdict == Verdict.PASS}
         failed = {m for m, (verdict, _v) in measured.MEASURED.items() if verdict == Verdict.FAIL}
         self.assertEqual(passed, {Measurement.MW, Measurement.M1, Measurement.M2B, Measurement.M5,
@@ -156,12 +159,16 @@ class TableTests(unittest.TestCase):
         self.assertEqual(failed, {Measurement.M2, Measurement.M3, Measurement.M4, Measurement.MAWS,
                                   Measurement.MCLOUD, Measurement.MB, Measurement.MC2})
         new = "codex-cli 0.163.0-alpha.10.2"
-        again = {Measurement.MW, Measurement.M1, Measurement.M2B, Measurement.M5, Measurement.M6,
+        again = {Measurement.MW, Measurement.M1, Measurement.M5, Measurement.M6,
                  Measurement.M7, Measurement.MP1, Measurement.MP2, Measurement.MP3, Measurement.MIPC,
                  Measurement.MO, Measurement.M6B, Measurement.MX, Measurement.MF, Measurement.M3B}
         v0617 = {Measurement.MQO, Measurement.MQP, Measurement.MQG}
         self.assertEqual({m for m, (_v, version) in measured.MEASURED.items() if version == new}, again | v0617)
         self.assertTrue(all(measured.MEASURED[m][0] == Verdict.PASS for m in again | v0617))
+        v0164 = {Measurement.M2B}
+        self.assertEqual({m for m, (_v, version) in measured.MEASURED.items()
+                          if version == "codex-cli 0.164.0-alpha.11.1"}, v0164)
+        self.assertTrue(all(measured.MEASURED[m][0] == Verdict.PASS for m in v0164))
         self.assertEqual(set(Measurement) - passed - failed,
                          # v0.6.15-beta's own, for several conversations at once: not made yet.
                          {Measurement.MQ, Measurement.ME, Measurement.MS, Measurement.MK, Measurement.MT,
