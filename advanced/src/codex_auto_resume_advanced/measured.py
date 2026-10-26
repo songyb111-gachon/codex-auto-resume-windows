@@ -27,6 +27,20 @@ CLI_0162_ALPHA_17_2 = "codex-cli 0.162.0-alpha.17.2"
 # again on it - MW, M1, M2b, M5, M6, M7, MP1-MP3, MIPC, and stage 4's MO, M6B, MX, MF and M3B. The rest
 # stay on the engine they were made on, and a statement on 0.163 calls them unmeasured.
 CLI_0163_ALPHA_10_2 = "codex-cli 0.163.0-alpha.10.2"
+# 2026-10-23, live use of an existing usage-limited goal on app
+# 26.1016.8622.0: set active, then queue/add accepted; Codex started one
+# new turn, completed it and kept the goal active into a subsequent turn,
+# later stopped by the next usage limit. See the privacy-safe observation
+# at docs/evidence/live/m2b-0.163.0-alpha.11.2.md. Keep the original
+# M2b record in MEASURED so older verified builds do not regress.
+CLI_0163_ALPHA_11_2 = "codex-cli 0.163.0-alpha.11.2"
+# 2026-10-26, after the Desktop upgraded to app 26.1021.3705.0, the same
+# existing, usage-limited long-running goal was set active on 0.164, one
+# queue/add was accepted, and Codex began its next turn with that same goal
+# still active. See docs/evidence/live/m2b-0.164.0-alpha.11.1.md. Never
+# generalize this observation to other patch versions or future engines.
+CLI_0164_ALPHA_11_1 = "codex-cli 0.164.0-alpha.11.1"
+M2B_ADDITIONAL_PASSES = frozenset({CLI_0163_ALPHA_11_2, CLI_0164_ALPHA_11_1})
 
 MEASURED = {
     Measurement.M1: (Verdict.PASS, CLI_0163_ALPHA_10_2),

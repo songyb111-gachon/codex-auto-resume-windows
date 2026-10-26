@@ -79,6 +79,8 @@ class Backend:
         self._last_checks = None
         self.engine_version = None
         self.engine_verified = False
+        # Explicit local-daemon routing only on builds with the --remote flag.
+        self.queue_remote_supported = False
         # v0.6.13: the codex.exe paths the app main was last seen running as its children where
         # none of them ran this engine - an update that started the app's server from another
         # build - and nothing whenever that is not what the last pairing saw (app_identity).
@@ -109,7 +111,34 @@ class Backend:
         if result.returncode != 0:
             return False
         text = result.stdout
+        self.queue_remote_supported = "--remote" in text
         return all(flag in text for flag in REQUIRED_QUEUE_FLAGS)
+
+    def _queue_daemon_remote(self) -> bool:
+        """Choose the local managed daemon explicitly when Codex offers that route.
+
+        Recent Codex refuses an embedded queue server with any -c override
+        while a managed app-server daemon runs. Removing overrides would weaken
+        the telemetry safeguards. --remote unix:// retains all the overrides.
+        Fail closed to the existing invocation if the home or process is unknown.
+        Never try both routes for one send, since delivery could be uncertain.
+        """
+        if not self.queue_remote_supported:
+            return False
+        prefix = str(self.codex_home / "packages" / "app-server-daemon" / "releases").casefold() + "\\"
+        try:
+            rows = inventory()
+        except (AdapterError, OSError, ValueError):
+            return False
+        return any(
+            isinstance(row, dict)
+            and type(row.get("pid")) is int and row["pid"] > 0
+            and isinstance(row.get("path"), str)
+            and row["path"].casefold().startswith(prefix)
+            and bool(re.fullmatch(r"[^\\]+\\bin\\codex\.exe",
+                                  row["path"][len(prefix):], re.I))
+            for row in rows
+        )
 
     def engine_checks(self) -> dict:
         """The engine's three structural checks, as the Compatibility Registry reads them.
@@ -286,6 +315,7 @@ class Backend:
             self._compatible()
         except (AdapterError, ValueError):
             return {"outcome": "not_started", "error_code": "queue_preflight_failed"}
+        remote = self._queue_daemon_remote()
         process = None
         try:
             with launch_guard if launch_guard is not None else nullcontext(True) as permitted:
@@ -293,7 +323,9 @@ class Backend:
                     return {"outcome": "not_started", "error_code": "queue_consent_refused"}
                 # v0.6.18: the message as one `--message=` argument - a person's text that starts with "-" ("- keep
                 # going", "---") is then never read as an option, whatever the parser's defaults.
-                process = S.Popen(self._argv() + ["queue", "--thread", thread_id, "--message=" + prompt],
+                queue_args = (["queue", "--thread", thread_id, "--message=" + prompt]
+                              + (["--remote", "unix://"] if remote else []))
+                process = S.Popen(self._argv() + queue_args,
                                   stdin=S.DEVNULL, stdout=S.PIPE, stderr=S.DEVNULL, text=True,
                                   encoding="utf-8", errors="replace", shell=False, close_fds=True,
                                   creationflags=NO_WINDOW, cwd=str(self.codex_home), env=self._environment())
@@ -308,7 +340,20 @@ class Backend:
             if process.returncode == 0 and match:
                 queue_id = canonical_uuid(match.group(1))
                 return {"outcome": "accepted", "queue_id": queue_id}
-            return {"outcome": "unknown", "error_code": "queue_response_unconfirmed"}
+            # Only the documented single-line receipt confirms delivery. Diagnostic fields are
+            # fixed words and an exit code; never return stdout, stderr, or the user's prompt.
+            # Even exit != 0 is uncertain after Popen: Codex may have queued the message first.
+            if process.returncode != 0:
+                if type(process.returncode) is int and 0 <= process.returncode <= 255:
+                    return {"outcome": "unknown", "error_code": "queue_response_unconfirmed",
+                            "receipt_detail": "nonzero_exit", "exit_code": process.returncode}
+                return {"outcome": "unknown", "error_code": "queue_response_unconfirmed",
+                        "receipt_detail": "nonzero_exit"}
+            if not stdout.strip():
+                return {"outcome": "unknown", "error_code": "queue_response_unconfirmed",
+                        "receipt_detail": "empty_stdout"}
+            return {"outcome": "unknown", "error_code": "queue_response_unconfirmed",
+                    "receipt_detail": "unrecognized_stdout"}
         except S.TimeoutExpired:
             try:
                 process.kill()  # only this helper; accepted delivery is still possible
