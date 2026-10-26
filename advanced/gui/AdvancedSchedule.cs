@@ -82,6 +82,20 @@ namespace CodexAutoResume
             FitKindButtons();
         }
 
+        /// This edition's own Pending buttons in the words the bridge gave, once it has given them: Pending can be built
+        /// before they come, and then Schedule..., Edit..., Go on and Cancel stayed English in every language (v0.6.19's live
+        /// acceptance; the owner: "왜 스케쥴이라고 뜨지, 영어로?").
+        private void RewordPendingButtons()
+        {
+            if (scheduleAddButton == null) return;
+            scheduleAddButton.Text = Word("page.scheduled.add", "Schedule...");
+            scheduleEditButton.Text = Word("page.queue.edit", "Edit...");
+            scheduleGoOnButton.Text = Word("page.queue.go_on", "Go on");
+            scheduleCancelButton.Text = Word("page.resets.cancel", "Cancel");
+            FitKindButtons();
+            UpdatePendingButtons();
+        }
+
         /// The group as wide as the widest kind's buttons - Turn off and Turn on measured both - so what follows it never
         /// moves as the chosen row's kind changes. Each button is measured as it stands with nothing held (NaturalWidth),
         /// so the widths SpreadKindButtons gives are never measured into the next. Asked when the words are made and when

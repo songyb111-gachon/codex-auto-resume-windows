@@ -273,6 +273,7 @@ namespace CodexAutoResume
         {
             if (words == null) return;
             advancedWords = words;
+            RewordPendingButtons();
             if (advancedTab == null) return;
             advancedTab.Text = Word("page.nav", "Advanced features");
             advancedTab.AccessibleName = advancedTab.Text;
