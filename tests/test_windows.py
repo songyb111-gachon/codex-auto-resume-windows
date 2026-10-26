@@ -283,6 +283,64 @@ class BackendTests(unittest.TestCase):
         self.assertIn("analytics.enabled=false", argv)
         self.assertIn('otel.metrics_exporter="none"', argv)
 
+    def test_running_managed_daemon_uses_remote_without_losing_privacy_flags(self):
+        """No -c option can be used by an embedded queue client beside the daemon.
+
+        --remote unix:// avoids that conflict without dropping analytics and
+        OpenTelemetry restrictions. A fake subprocess is the only send here.
+        """
+        self.backend.queue_remote_supported = True
+        daemon = str(self.backend.codex_home / "packages" / "app-server-daemon" /
+                     "releases" / "0.164.0-x86_64-pc-windows-msvc" / "bin" / "codex.exe")
+        process = MagicMock(returncode=0)
+        process.communicate.return_value = (f"Queued message {QUEUE} for thread {THREAD}.\n", None)
+        with patch.object(transport, "inventory", return_value=[{"pid": 300, "path": daemon}]), \
+             patch.object(subprocess, "Popen", return_value=process) as popen:
+            result = self.backend.send(THREAD, "harmless")
+        self.assertEqual(result, {"outcome": "accepted", "queue_id": QUEUE})
+        argv = popen.call_args.args[0]
+        self.assertEqual(argv[-6:], ["queue", "--thread", THREAD, "--message=harmless",
+                                     "--remote", "unix://"])
+        self.assertIn("analytics.enabled=false", argv)
+        self.assertIn('otel.metrics_exporter="none"', argv)
+        self.assertIs(popen.call_args.kwargs["shell"], False)
+
+    def test_remote_not_used_for_other_home_or_unproven_daemon(self):
+        """Wrong home, stale process, old CLI or unreadable inventory keeps old behavior."""
+        self.backend.queue_remote_supported = True
+        own = str(self.backend.codex_home / "packages" / "app-server-daemon" /
+                  "releases" / "0.164.0" / "bin" / "codex.exe")
+        foreign = str(self.backend.codex_home / "other" / "bin" / "codex.exe")
+        for version_support, rows, error in (
+                (False, [{"pid": 10, "path": own}], None),
+                (True, [{"pid": 10, "path": foreign}], None),
+                (True, [{"pid": 0, "path": own}], None),
+                (True, [{"pid": 10, "path": own + ".old"}], None),
+                (True, None, w.AdapterError("process_inventory_unavailable"))):
+            with self.subTest(version_support=version_support, rows=rows, error=error):
+                self.backend.queue_remote_supported = version_support
+                process = MagicMock(returncode=0)
+                process.communicate.return_value = (f"Queued message {QUEUE} for thread {THREAD}.\n", None)
+                source = patch.object(transport, "inventory", side_effect=error) if error else \
+                    patch.object(transport, "inventory", return_value=rows)
+                with source, patch.object(subprocess, "Popen", return_value=process) as popen:
+                    self.assertEqual(self.backend.send(THREAD, "harmless")["outcome"], "accepted")
+                self.assertEqual(popen.call_args.args[0][-4:],
+                                 ["queue", "--thread", THREAD, "--message=harmless"])
+
+    def test_daemon_remote_failure_remains_unknown_never_falls_back_to_second_send(self):
+        self.backend.queue_remote_supported = True
+        daemon = str(self.backend.codex_home / "packages" / "app-server-daemon" /
+                     "releases" / "0.164.0" / "bin" / "codex.exe")
+        process = MagicMock(returncode=1)
+        process.communicate.return_value = ("", None)
+        with patch.object(transport, "inventory", return_value=[{"pid": 10, "path": daemon}]), \
+             patch.object(subprocess, "Popen", return_value=process) as popen:
+            result = self.backend.send(THREAD, "harmless")
+        self.assertEqual(result["outcome"], "unknown")
+        self.assertEqual(result["receipt_detail"], "nonzero_exit")
+        self.assertEqual(popen.call_count, 1)
+
     def test_spawn_failure_is_only_retryable_send_failure(self):
         with patch.object(subprocess, "Popen", side_effect=OSError("secret diagnostic")):
             result = self.backend.send(THREAD, "harmless")
