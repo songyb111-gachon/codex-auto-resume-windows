@@ -218,6 +218,8 @@ namespace CodexAutoResume
                 // v0.6.19 (#50): the prompt queue's editor, built and never shown - for a time (its send mode showing), for
                 // after this turn, and with the longest refusal said above its buttons.
                 form.AuditEditor("editor", findings);
+                // v0.6.20 (#50): Find a conversation's dialog, with names that fill the list and with the line it says.
+                form.AuditFind("find", findings);
                 form.ShowAdvancedList(null);
                 form.AuditAdvanced("advanced unread", findings);
                 if (ids.Count > 0)
@@ -316,6 +318,31 @@ namespace CodexAutoResume
                         findings.Add(where + " :: the words are not at the reading size");
                 }
                 ForgetEditor();
+            }
+        }
+
+        /// Find a conversation's dialog (AdvancedFind.cs), built and never shown, held to the standard audit's checks: nothing
+        /// cut off, nothing scrolling sideways, every control named - with the list full of long names, and with no row and
+        /// the line that says why.
+        private void AuditFind(string where, List<string> findings)
+        {
+            foreach (bool empty in new[] { false, true })
+            {
+                using (Form dialog = BuildFind())
+                {
+                    dialog.TopLevel = false;
+                    for (int i = 0; i < (empty ? 0 : 12); i++)
+                        findRows.Add(new KeyValuePair<string, string>("0a1b2c3d-00" + i.ToString("00") + "-7000-8000-000000000000",
+                                                                      new string((char)('a' + i), 6) + " " + new string('x', 66)));
+                    findFailed = empty;
+                    ShowFound();
+                    Materialise(dialog);
+                    dialog.PerformLayout();
+                    string at = where + (empty ? "/empty" : "/full");
+                    Walk(dialog, at, findings);
+                    AuditSpoken(at, dialog, findings);
+                }
+                ForgetFind();
             }
         }
 
@@ -767,6 +794,24 @@ namespace CodexAutoResume
                                     Committed.Invoke(field.Value, new object[] { EventArgs.Empty });
                                 }
                             if (Str(step, "words") != null && form.resetWords != null) form.resetWords.Box.Text = Str(step, "words");
+                            // v0.6.20 (#50): the conversation found by searching - Find a conversation... pressed and its
+                            // dialog answered as "find" says, never shown; what it showed into "dialogs".
+                            Dictionary<string, object> look = Map(step, "find");
+                            if (look != null)
+                            {
+                                var found = new Dictionary<string, object>();
+                                if (form.resetFind == null) disabled.Add("reset_find");
+                                else
+                                {
+                                    form.findAnswer = delegate(Form finder) { form.AnswerFind(finder, look, found); };
+                                    try { Pressed.Invoke(form.resetFind, new object[] { EventArgs.Empty }); }
+                                    finally { form.findAnswer = null; }
+                                    found["picked"] = form.resetConversation == null || form.resetConversation.SelectedItem == null
+                                        ? null : ((Choice)form.resetConversation.SelectedItem).Value;
+                                    found["offered"] = ItemsOf(form.resetConversation);
+                                    dialogs.Add(found);
+                                }
+                            }
                             if (!form.resetAdd.Enabled) disabled.Add("reset_add");
                             else Pressed.Invoke(form.resetAdd, new object[] { EventArgs.Empty });
                         }
@@ -1025,6 +1070,20 @@ namespace CodexAutoResume
             record["modes"] = modes;
             record["buttons"] = new List<object> { editorSave.Text, editorCancel.Text };
             record["accept"] = dialog.AcceptButton == editorSave;
+            record["find_button"] = editorFind == null ? null : editorFind.Text;
+            // v0.6.20 (#50): the conversation found by searching - Find a conversation... pressed and its dialog answered
+            // as "find" says, never shown; what it showed, and what the picker then offered and held, into "find".
+            Dictionary<string, object> look = Map(step, "find");
+            if (look != null && editorFind != null)
+            {
+                var found = new Dictionary<string, object>();
+                findAnswer = delegate(Form finder) { AnswerFind(finder, look, found); };
+                try { Pressed.Invoke(editorFind, new object[] { EventArgs.Empty }); }
+                finally { findAnswer = null; }
+                found["picked"] = editorConversation.SelectedItem == null ? null : ((Choice)editorConversation.SelectedItem).Value;
+                found["offered"] = ItemsOf(editorConversation);
+                record["find"] = found;
+            }
             foreach (KeyValuePair<string, SoftCombo> field in new Dictionary<string, SoftCombo> {
                          { "thread", editorConversation }, { "when", editorWhen }, { "hour", editorHour }, { "times", editorTimes },
                          { "depends", editorDepends } })
@@ -1053,6 +1112,45 @@ namespace CodexAutoResume
             // height and what does not fit is scrolled to.
             record["at_most"] = editorDialog.ClientSize.Height >= EditorMost();
             record["words_after"] = editorWords.Box.Text;
+        }
+
+        /// Find a conversation's dialog (AdvancedFind.cs), built and never shown, answered as `step` says - "search" typed into
+        /// its box, "thread" chosen in its list, "press" cancel (else Use this conversation) - and what it showed written
+        /// into `record`: its title, its list's rows before and after the search, the line it says, its buttons.
+        private void AnswerFind(Form dialog, Dictionary<string, object> step, Dictionary<string, object> record)
+        {
+            record["title"] = dialog.Text;
+            record["search_name"] = findSearch.Box.AccessibleName;
+            record["column"] = findList.Columns[0].Text;
+            record["buttons"] = new List<object> { findUse.Text, findCancel.Text };
+            record["accept"] = dialog.AcceptButton == findUse;
+            record["use_before"] = findUse.Enabled;
+            record["rows"] = FoundRows();
+            if (Str(step, "search") != null) findSearch.Box.Text = Str(step, "search");
+            record["rows_after"] = FoundRows();
+            record["said"] = OwnVisible(findSaid) ? findSaid.Text : "";
+            if (Str(step, "thread") != null)
+            {
+                // A list with no window of its own keeps no selection: given one first, as showing it would.
+                IntPtr made = findList.Handle;
+                foreach (ListViewItem item in findList.Items)
+                    if (Str(item.Tag as Dictionary<string, object>, "thread_id") == Str(step, "thread"))
+                    {
+                        item.Selected = true;
+                        FoundChosen();
+                    }
+            }
+            record["use_enabled"] = findUse.Enabled;
+            if (Str(step, "press") == "cancel") Pressed.Invoke(findCancel, new object[] { EventArgs.Empty });
+            else if (findUse.Enabled) Pressed.Invoke(findUse, new object[] { EventArgs.Empty });
+            record["taken"] = dialog.DialogResult == DialogResult.OK;
+        }
+
+        private List<object> FoundRows()
+        {
+            var rows = new List<object>();
+            foreach (ListViewItem item in findList.Items) rows.Add(item.Text);
+            return rows;
         }
 
         /// The empty band between the editor's fields and its buttons, in pixels at 96 DPI: the page under the fields less

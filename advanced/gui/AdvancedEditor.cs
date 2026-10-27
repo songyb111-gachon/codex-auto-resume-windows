@@ -71,6 +71,7 @@ namespace CodexAutoResume
         {
             editorDialog = null;
             editorConversation = editorWhen = editorHour = editorTimes = editorDepends = null;
+            editorFind = null;
             editorWords = null;
             editorCount = editorAfterTurn = editorSaid = null;
             editorMode = null;
@@ -132,6 +133,13 @@ namespace CodexAutoResume
             SelectChoice(editorConversation, thread);
             editorConversation.Enabled = !editing;
             card.Controls.Add(NewRow(conversation, editorConversation));
+            // Beside the picker, for a new message (the conversation of one waiting is fixed): the person's own conversations
+            // beyond the ones Pending and History list, with a search (AdvancedFind.cs).
+            if (!editing)
+                editorFind = CardButton(card, Word("page.find.button", "Find a conversation..."), delegate
+                {
+                    FindConversation(dialog, editorConversation, ShowEditorState);
+                });
             if (editorConversation.Items.Count == 0)
                 card.Controls.Add(HelpText(Word("page.resets.no_conversation",
                     "No conversation is listed yet. One is offered here once Pending or History lists it.")));
