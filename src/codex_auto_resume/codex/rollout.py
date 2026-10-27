@@ -9,6 +9,7 @@ None of these readings is a statement to a database - codex/history.py keeps eve
     named_after    the conversations whose file names an id as theirs, by name
     reset_scan     the rate-limit snapshots just before a usage-limit failure, for the reset hint
     superseded_in  whether a person's message came after a failed turn's end, for Rescan and reconcile (issue #39)
+    turn_trigger   how Codex says a turn was started - "composer" is the person's input box (issue #54)
 
 The split is Codex's (openai/codex#43422, this project's issue #30): the `threads` row keeps the
 conversation's id A, but its current file is named `..._A_B.jsonl` and its turns are projected under B,
@@ -38,6 +39,7 @@ _ROLLBACK = b"rolled_back"
 # The largest file it reads, start to end, only when a person asks for it.
 RESCAN_BYTES = 32 * 1024 * 1024
 _OURS = ids.MARKER_PREFIX.encode("utf-8")
+_TRIGGERS = {}                   # (file, turn id) -> the trigger found; a turn's is written once and never changes
 # A turn's ordinal across a split conversation: the index of the id it is recorded under (A's own 0, then each
 # split id in order) times SPAN, plus its own rollout ordinal - so a turn of a later id always comes after every
 # turn of an earlier one, whatever Codex numbered it, and a conversation never split reads its ordinals as they are.
@@ -274,3 +276,51 @@ def superseded_in(path, turn_id, limit=None) -> str:
     if not anchored:
         return NO_ANCHOR
     return ROLLED_BACK if doubt else LATER_MESSAGE if later else NOTHING_LATER
+
+
+def turn_trigger(path, turn_id=None) -> str | None:
+    """The turn_attribution.turn_trigger Codex wrote for the turn `turn_id` in its task_started event (issue #54,
+    measured on codex-cli 0.164) - else for the last turn the file starts: the file read once, up to RESCAN_BYTES, a line
+    at a time, each dropped after it is looked at. None is unknown - an older Codex wrote no attribution, the turn is not
+    in this file, the file is too large or cannot be read - and is never a value; an OSError is the caller's, as
+    session_meta's is."""
+    if turn_id is not None and not ids.is_uuid(turn_id):
+        return None
+    stat = path.stat()
+    # The last turn's answer is the file's as it stands (size and time), nothing found included; a turn's is its own for good.
+    key = (str(path), turn_id) if turn_id is not None else (str(path), None, stat.st_size, stat.st_mtime_ns)
+    if key in _TRIGGERS:
+        return _TRIGGERS[key]
+    if stat.st_size > RESCAN_BYTES:
+        return None
+    wanted, found = None if turn_id is None else turn_id.encode("utf-8"), None
+    with path.open("rb") as stream:
+        while True:
+            line = stream.readline(MAX_ITEM_BYTES + 1)
+            if not line:
+                break
+            if len(line) > MAX_ITEM_BYTES:
+                while line and not line.endswith(b"\n"):
+                    line = stream.readline(MAX_ITEM_BYTES + 1)
+                continue
+            if b'"task_started"' not in line or (wanted is not None and wanted not in line):
+                continue
+            try:
+                event = _json(line.decode("utf-8"))
+            except UnicodeError:
+                continue
+            payload = event.get("payload") if isinstance(event, dict) and event.get("type") == "event_msg" else None
+            if not isinstance(payload, dict) or payload.get("type") != "task_started":
+                continue
+            if turn_id is not None and payload.get("turn_id") != turn_id:
+                continue
+            attribution = payload.get("turn_attribution")
+            value = attribution.get("turn_trigger") if isinstance(attribution, dict) else None
+            found = value if isinstance(value, str) else None
+            if turn_id is not None:
+                break
+    if found is not None or turn_id is None:
+        if len(_TRIGGERS) >= 4096:
+            _TRIGGERS.pop(next(iter(_TRIGGERS)))
+        _TRIGGERS[key] = found
+    return found

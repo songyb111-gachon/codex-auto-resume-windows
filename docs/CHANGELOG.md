@@ -1,5 +1,42 @@
 # Changelog
 
+## v0.6.20-beta — A conversation an agent made is recovered when you started the failed turn yourself, and Find a conversation
+
+[The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.19...v0.6.20-beta)
+
+**A pre-release: two small things asked for in issues, ahead of the rest of v0.6.20.** It is a GitHub pre-release, so
+`releases/latest` stays v0.6.19. An installation of v0.6.19 or earlier is offered it by *Check for updates* only where
+pre-releases are offered - the check asks first and says it is tested less - and *Install another version...* lists it.
+Both editions change in the first group; the second is the advanced edition's alone, and what it adds is off until you
+turn it on. Image attachments in scheduled messages, a direct steer send mode and a view that follows a scheduled
+message to its end, which [#50](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/50) also asked for, stay for a later pre-release of v0.6.20, with the rest of its roadmap.
+
+**Going back.** Nothing stored changes: the watcher's state stays schema 5, the settings file gains no key, and the
+advanced edition's own file stays version 8. v0.6.19 uses everything as this pre-release leaves it.
+
+### Both editions
+
+- **A conversation an agent made is recovered when you started the failed turn yourself** (reported by
+  [@kano0222](https://github.com/kano0222), [#54](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/54)). Codex labels a conversation an agent opened as
+  `agent_created_thread`, and both editions left every such conversation alone as Codex's own work - also when you
+  had gone on using it from the input box, so a usage limit there was never recovered. Codex writes in a conversation's
+  file how each turn was started; the watcher now reads that for the failed turn and takes the conversation up as yours
+  when that turn came from the input box (`composer`), and only then. A turn Codex queued, a goal's turn, a review's,
+  or one whose start Codex did not record stays excluded as before, and so does a conversation whose file cannot be
+  read. Codex records the continuation this product sends as a queued turn, so if that continuation stops at a limit
+  too, it is not taken up again: one recovery for each turn you started. Measured on codex-cli 0.164. In the advanced
+  edition, *Recover every conversation but Codex's own* follows the same rule for these conversations.
+
+### Advanced edition
+
+- **Find a conversation...** (asked for by [@weng-wen-jun](https://github.com/weng-wen-jun),
+  [#50](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/50)). Beside the conversation picker of a new scheduled message and of the reset message
+  form, a button opens a search over your own conversations of the Codex home the watcher drives, by name: newest
+  first, at most 200, none archived and none you switched off for recovery. It reads a conversation's id and name and
+  nothing it says. The one you choose goes into the picker and is offered there, after the ones Pending and History
+  list, until the Dashboard closes. Saving a message to it asks for the same consent as before. The words are in all
+  eighteen languages.
+
 ## v0.6.19 — Retry now and Rescan that read usage, Pending as one list, Chat with a conversation in the Dashboard, a watcher started again after an unexpected stop, Python 3.14.9 with remote debugging off, and a continuation that reaches Codex's managed daemon
 
 [The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.18...v0.6.19)

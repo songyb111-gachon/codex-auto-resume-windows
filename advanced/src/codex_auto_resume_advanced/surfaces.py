@@ -97,6 +97,8 @@ ARGUMENTS = {
     BridgeCommand.ADVANCED_CHAT_CANCEL: frozenset({"thread_id", "generation"}),
     # v0.6.19 (issue #50): early_reset's probe a person's Retry now or Rescan asks for, which names no row.
     BridgeCommand.ADVANCED_EARLY_CHECK: frozenset(),
+    # v0.6.20 (issue #50): the person's own conversations and their names, for Find a conversation; names no row.
+    BridgeCommand.ADVANCED_CONVERSATIONS: frozenset(),
 }
 # v0.6.19 (the groundwork): the stage's commands, in the vocabulary before any capability that answers one is built.
 # Each is passed over - DEFER, so core says "unknown command" exactly as for a command this edition does not have -
@@ -413,6 +415,9 @@ def bridge(runtime, command, argument):
         if command == BridgeCommand.ADVANCED_CHAT_SEND:
             return chat.add(runtime, argument)
         return chat.cancel(runtime, argument)
+    if command == BridgeCommand.ADVANCED_CONVERSATIONS:
+        from .control import conversations
+        return conversations.view(runtime)
     if command == BridgeCommand.ADVANCED_WATCH_LOG:
         from . import watchlog
         return watchlog.view(runtime, argument.get("capability"))

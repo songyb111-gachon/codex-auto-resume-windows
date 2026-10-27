@@ -1071,6 +1071,15 @@ Rust core v0.6.22 and its audit v0.6.23. As in v0.6.19, every capability here is
 a person turns it on, with a statement that names the standards it departs from; some rest on a measurement of the real
 Codex, and one that fails narrows the route, or becomes a warning the person confirms, and does not drop the capability.
 
+### v0.6.20-beta 🚧 — Two small things the issues asked for (a pre-release)
+
+The owner asked on 2026-10-28 for a quick pre-release with two small parts, ahead of the rest:
+[#54](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/54), in both editions - a conversation an agent made is taken up as the person's own when the failed
+turn was started from the input box (Codex records it as `turn_attribution.turn_trigger` = `composer`, measured on
+codex-cli 0.164), and only then; and, in the advanced edition, *Find a conversation...* beside the conversation pickers,
+the searchable list of a person's own conversations that [#50](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/50) asked for. #50's image attachments, steer send mode and
+follow-through view stay with the rest of v0.6.20.
+
 ### Around recovery
 
 - usage and token analytics (the live usage meter and the wrap-up near a limit are v0.6.16's; reset credits
