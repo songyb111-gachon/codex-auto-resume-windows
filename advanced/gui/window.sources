@@ -26,6 +26,7 @@ advanced/gui/AdvancedResets.cs
 advanced/gui/AdvancedKeepGoing.cs
 advanced/gui/AdvancedQueue.cs
 advanced/gui/AdvancedEditor.cs
+advanced/gui/AdvancedFind.cs
 advanced/gui/AdvancedSchedule.cs
 advanced/gui/AdvancedEarly.cs
 advanced/gui/AdvancedReport.cs

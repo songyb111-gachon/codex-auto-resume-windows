@@ -201,6 +201,14 @@ namespace CodexAutoResume
                     int seen;
                     labels[label] = labels.TryGetValue(label, out seen) ? seen + 1 : 1;
                 }
+            // Then the ones a person found by searching (Find a conversation..., AdvancedFind.cs), after the lists' own.
+            foreach (KeyValuePair<string, string> pair in foundPicked)
+            {
+                if (found.ContainsKey(pair.Key)) continue;
+                found[pair.Key] = pair.Value;
+                int seen;
+                labels[pair.Value] = labels.TryGetValue(pair.Value, out seen) ? seen + 1 : 1;
+            }
             foreach (string thread in new List<string>(found.Keys))
                 if (labels[found[thread]] > 1 && thread.Length >= 8)
                     found[thread] = found[thread] + " (" + thread.Substring(0, 8) + ")";
@@ -309,6 +317,17 @@ namespace CodexAutoResume
                     resetConversation.Items.Add(new Choice(pair.Key, pair.Value));
                 PickDraft(resetConversation, kind + "conversation");
                 card.Controls.Add(NewRow(conversation, resetConversation));
+                string draftKey = kind + "conversation";
+                SoftCombo picker = resetConversation;
+                resetFind = CardButton(card, Word("page.find.button", "Find a conversation..."), delegate
+                {
+                    FindConversation(this, picker, delegate
+                    {
+                        var chosen = picker.SelectedItem as Choice;
+                        if (chosen != null) resetDrafts[draftKey] = chosen.Value;
+                        UpdateResetButtons(busy == 0);
+                    });
+                });
                 if (resetConversation.Items.Count == 0)
                     card.Controls.Add(HelpText(Word("page.resets.no_conversation",
                         "No conversation is listed yet. One is offered here once Pending or History lists it.")));
@@ -383,6 +402,7 @@ namespace CodexAutoResume
         private void ForgetResetCard()
         {
             resetFamily = resetOrdinal = resetRepeat = resetAsk = resetConversation = null;
+            resetFind = null;
             resetWords = null;
             resetCount = null;
             resetAdd = null;

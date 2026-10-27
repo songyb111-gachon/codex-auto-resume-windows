@@ -220,6 +220,10 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "scheduled.add", "queue.edit", "editor.title_new", "editor.title_edit",
     "editor.mode", "editor.mode.wait", "editor.mode.queue", "editor.mode.after_turn", "editor.save", "done.prompt_saved",
     "refused.prompt_moved"))
+# Find a conversation (v0.6.20, #50: advanced/gui/AdvancedFind.cs): the button beside a conversation picker, the dialog it opens
+# with its search box and its list, and what it says when nothing matches or the list could not be read.
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
+    "find.button", "find.title", "find.search", "find.use", "find.none", "find.failed"))
 # Pending's one list (v0.6.19, #50; the owner's decision of 2026-10-24: advanced/gui/AdvancedSchedule.cs): the Kind of a
 # message's and a rule's row, what a message does while a turn runs, History's completed messages and Delete completed,
 # and the prompt queue's card pointing to Pending. The tab strip's words went with the strip.
