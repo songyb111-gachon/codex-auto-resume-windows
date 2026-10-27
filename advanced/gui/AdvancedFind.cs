@@ -108,7 +108,12 @@ namespace CodexAutoResume
             dialog.MaximizeBox = false;
             dialog.ShowInTaskbar = false;
             dialog.ShowIcon = false;
-            dialog.ClientSize = new Size(Px(520), Px(440));
+            // As wide and tall as it was drawn for, or what the screen it opens on holds (a small screen at a large scaling):
+            // what is inside takes its width from the dialog, so nothing is cut off at either edge.
+            Rectangle area = Screen.GetWorkingArea(this);
+            int across = Math.Max(240, Math.Min(520, (area.Width - Px(32)) * 520 / Px(520)));
+            int tall = Math.Max(Px(240), Math.Min(Px(440), Math.Min(area.Height, SystemInformation.MaxWindowTrackSize.Height) - Px(96)));
+            dialog.ClientSize = new Size(Px(across), tall);
 
             var top = new SoftStack();
             top.Dock = DockStyle.Top;
@@ -119,19 +124,19 @@ namespace CodexAutoResume
             top.GrowStyle = TableLayoutPanelGrowStyle.AddRows;
             top.Padding = Pad(16, 16, 16, 0);
             top.BackColor = Canvas;
-            findSearch = OneLine(Word("page.find.search", "Search by name"), 488, 72);
+            findSearch = OneLine(Word("page.find.search", "Search by name"), across - 32, 72);
             findSearch.Dock = DockStyle.Fill;
             findSearch.Margin = Pad(0, 0, 0, 4);
             top.Controls.Add(findSearch);
             findSaid = Value("");
             findSaid.ForeColor = Secondary;
-            findSaid.MaximumSize = new Size(Px(488), 0);
+            findSaid.MaximumSize = new Size(Px(across - 32), 0);
             findSaid.Visible = false;
             top.Controls.Add(findSaid);
 
             // Flat hairline rows, owner-drawn as every list here is (DrawCell): one column, the conversation's name.
             string column = Word("page.resets.field.conversation", "Conversation");
-            findList = List(Word("page.find.title", "Find a conversation"), Col(column, 488));
+            findList = List(Word("page.find.title", "Find a conversation"), Col(column, across - 32));
             var host = new SoftListHost(findList);
             host.Dock = DockStyle.Fill;
             var padding = new Panel();
