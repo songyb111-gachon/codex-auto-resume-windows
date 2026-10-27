@@ -284,10 +284,14 @@ def turn_trigger(path, turn_id=None) -> str | None:
     at a time, each dropped after it is looked at. None is unknown - an older Codex wrote no attribution, the turn is not
     in this file, the file is too large or cannot be read - and is never a value; an OSError is the caller's, as
     session_meta's is."""
-    key = (str(path), turn_id)
+    if turn_id is not None and not ids.is_uuid(turn_id):
+        return None
+    stat = path.stat()
+    # The last turn's answer is the file's as it stands (size and time), nothing found included; a turn's is its own for good.
+    key = (str(path), turn_id) if turn_id is not None else (str(path), None, stat.st_size, stat.st_mtime_ns)
     if key in _TRIGGERS:
         return _TRIGGERS[key]
-    if turn_id is not None and not ids.is_uuid(turn_id) or path.stat().st_size > RESCAN_BYTES:
+    if stat.st_size > RESCAN_BYTES:
         return None
     wanted, found = None if turn_id is None else turn_id.encode("utf-8"), None
     with path.open("rb") as stream:
@@ -315,7 +319,7 @@ def turn_trigger(path, turn_id=None) -> str | None:
             found = value if isinstance(value, str) else None
             if turn_id is not None:
                 break
-    if found is not None and turn_id is not None:                 # a turn's trigger is written once and never changes
+    if found is not None or turn_id is None:
         if len(_TRIGGERS) >= 4096:
             _TRIGGERS.pop(next(iter(_TRIGGERS)))
         _TRIGGERS[key] = found

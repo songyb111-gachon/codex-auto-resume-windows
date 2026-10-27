@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 import tempfile
 import unittest
+import unittest.mock
 
 import codexsim
 from codex_auto_resume.codex import LocalSource, rollout
@@ -95,6 +96,29 @@ class AgentThreadTriggerTests(unittest.TestCase):
         other = codexsim.new_id()
         self.assertEqual(rollout.turn_trigger(self.home.rollout(thread), turn), "queue")
         self.assertIsNone(rollout.turn_trigger(self.home.rollout(thread), other))
+
+    def test_the_last_turns_trigger_is_read_once_per_version_of_the_file(self):
+        """latest() and the reads like it ask without a turn id, several times a tick: an unchanged file is not opened
+        again - whether it held a trigger or none - and a task_started appended to it is seen."""
+        thread, _ = self.failing("queue")
+        quiet, _ = self.failing(None)
+        opened, real = [], Path.open
+
+        def counting(path, *args, **kwargs):
+            opened.append(path)
+            return real(path, *args, **kwargs)
+
+        for name, file, expected in (("a trigger", self.home.rollout(thread), "queue"),
+                                     ("none", self.home.rollout(quiet), None)):
+            with self.subTest(name):
+                opened.clear()
+                with unittest.mock.patch.object(Path, "open", counting):
+                    answers = [rollout.turn_trigger(file) for _ in range(3)]
+                self.assertEqual(answers, [expected] * 3)
+                self.assertEqual(opened, [file], "opened once, not once per ask")
+        self.assertIsNone(self.source.latest(quiet))
+        started(self.home, quiet, codexsim.new_id(), "composer")
+        self.assertEqual(rollout.turn_trigger(self.home.rollout(quiet)), "composer")
 
     def test_every_other_check_still_stands(self):
         foreign = codexsim.new_id()
