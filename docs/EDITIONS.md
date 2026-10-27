@@ -994,8 +994,10 @@ version MC1 is unmeasured too.
 **What it does.** Takes up a failed turn in every conversation of the Codex app except the ones Codex makes
 for itself: subagents (Tell a parent which of its subagents stopped handles those), reviews
 (`guardian_review`), memory passes (`memory_consolidation`) and conversations an agent created
-(`agent_created_thread`). A conversation with a label Codex adds later is taken up too, instead of left
-alone. Archived conversations, those of another Codex home, and those of a terminal or VS Code are still
+(`agent_created_thread`) - except a failed turn in one of those that the person started from the input box,
+which is theirs and is taken up in both editions, whatever this switch says (a turn Codex queued, a goal's
+turn, or one whose start Codex did not record is not). A conversation with a label Codex adds later is taken
+up too, instead of left alone. Archived conversations, those of another Codex home, and those of a terminal or VS Code are still
 never taken up.
 
 **When it helps.** When a conversation of yours carries a label the standard edition does not know, so its

@@ -24,10 +24,10 @@ from .payload import (_choose_reset, _item_is_ours, _needing, _queue_has_marker,
 
 
 class HistoryMixin:
-    def _eligibility(self, thread_id: str, strict: bool = False, kinds=None):
+    def _eligibility(self, thread_id: str, strict: bool = False, kinds=None, turn_id=None):
         """(its file, None) for a conversation taken up - a person's own desktop one (A15), or of a kind the plug names
         (P18; `kinds`, else this tick's) - or (None, why not), a domain/skips.py reason and its kind word. strict=True
-        (latest) re-raises transient I/O as SourceError, so the engine defers rather than calling it changed."""
+        (latest) re-raises transient I/O as SourceError, so the engine defers; an agent-made one: `turn_id`'s trigger (#54)."""
         kinds = self.session_kinds if kinds is None else kinds
         if not ids.is_uuid(thread_id):
             return None, (skips.UNKNOWN_CONVERSATION, None)
@@ -37,7 +37,7 @@ class HistoryMixin:
                 "FROM threads WHERE id=?", (thread_id,)).fetchone()
         if row is None:
             return None, (skips.UNKNOWN_CONVERSATION, None)
-        word = eligibility.row_problem(dict(row), kinds, self.widened)
+        word = eligibility.row_problem(dict(row), kinds, self.widened, self._composed(thread_id, row, turn_id, strict))
         if word is not None:
             return None, (skips.OTHER_KIND, word)
         try:
@@ -63,13 +63,13 @@ class HistoryMixin:
         """Whether `thread_id` is a conversation taken up with `kinds` watched (P18, engine/kinds.py)."""
         return self._eligibility(thread_id, kinds=frozenset(kinds))[0] is not None
 
-    def _chain(self, thread_id: str, strict: bool = False):
+    def _chain(self, thread_id: str, strict: bool = False, turn_id=None):
         """(its file, every id its turns are recorded under - its own first, each split id oldest first, the current
         last - , why not); the file None for a conversation this does not recover (`_eligibility`). Split ids
         (codex/rollout.py, issue #30) count only when every guard holds: its current file is named exactly
         A_B.jsonl, its session_meta says A, no split id has a `threads` row and no other conversation's file names
         the current one. Any doubt is A alone, today's read. The queue and the app's hold stay under A always."""
-        path, why = self._eligibility(thread_id, strict=strict)
+        path, why = self._eligibility(thread_id, strict=strict, turn_id=turn_id)
         current = None if path is None else rollout.continued_id(thread_id, path.name)
         if current is None:
             return path, (thread_id,), why
@@ -131,7 +131,7 @@ class HistoryMixin:
                  else named[0] if len(named) == 1 else None)
         if owner is None or not ids.is_uuid(owner):
             return None, (skips.UNKNOWN_CONVERSATION, None), 0
-        path, chain, why = self._chain(owner)
+        path, chain, why = self._chain(owner, turn_id=turn_id)
         if path is None:
             return owner, why, 0
         if turns_id not in chain:

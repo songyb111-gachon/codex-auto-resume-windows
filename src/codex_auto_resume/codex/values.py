@@ -34,10 +34,18 @@ OWN_THREAD_SOURCES = frozenset({"user", "chatgpt_handoff", None})
 INTERNAL_THREAD_SOURCES = frozenset({"subagent", "guardian_review", "memory_consolidation", "agent_created_thread"})
 
 
-def taken_thread_source(value, widened=frozenset()) -> bool:
+# v0.6.20 (issue #54): a conversation an agent made becomes the person's own in the turns they start from the input box -
+# Codex records how each turn was started (rollout.turn_trigger), and "composer" is the person typing it.
+AGENT_CREATED_THREAD, COMPOSER = "agent_created_thread", "composer"
+
+
+def taken_thread_source(value, widened=frozenset(), composed=False) -> bool:
     """Whether a conversation labelled `value` is one this product takes up: a person's own (OWN_THREAD_SOURCES), or -
     while the plug widens to every desktop conversation (P19) - any label but INTERNAL_THREAD_SOURCES. The standard
-    edition's `widened` is always empty, so this is OWN_THREAD_SOURCES exactly."""
+    edition's `widened` is always empty, so this is OWN_THREAD_SOURCES exactly. An agent-made conversation is taken up
+    only where `composed`: the failed turn itself was started from the input box (issue #54), in either edition."""
+    if value == AGENT_CREATED_THREAD:
+        return bool(composed)
     if value in OWN_THREAD_SOURCES:
         return True
     return ("every_desktop" in widened and isinstance(value, str) and 0 < len(value) <= 64
