@@ -88,6 +88,8 @@ NOT_SCENARIOS = {
                          "of 2026-10-24), which no scenario requests",
     "test_codex_schema": "reads a Codex home through the source alone; it builds no engine",
     "test_source": "reads a Codex home through the source alone; it builds no engine",
+    "test_agent_thread_trigger": "reads a Codex home through the source alone for #54's composer-turn rule (v0.6.20-beta); "
+                                 "it builds no engine",
     "test_screenshots": "draws the settings window's pictures, one GUI module at a time",
     "test_plug_points": "gives every engine a plug of its own, to hold each point where it stands",
     "test_plug_points_2": "test_plug_points' second half (the capabilities that move a record's waits), its plugs the same",
