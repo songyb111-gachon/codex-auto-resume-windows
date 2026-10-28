@@ -26,5 +26,12 @@ class CaptureOpensOnThePrimaryScreenTests(unittest.TestCase):
         self.assertNotIn("Cursor.Position", main)
 
 
+    def test_the_setup_window_opens_on_the_primary_screen_for_a_picture(self):
+        """CenterScreen is the monitor under the pointer: the setup window's Welcome still was captured there (fidelity 84.9%)."""
+        window = guiscan.type_body("InstallerWindow")
+        self.assertIn("StartPosition = Soft.StillReady == null ? FormStartPosition.CenterScreen : FormStartPosition.Manual;", window)
+        self.assertIn("Rectangle primary = Screen.PrimaryScreen.WorkingArea;", window)
+
+
 if __name__ == "__main__":
     unittest.main()
