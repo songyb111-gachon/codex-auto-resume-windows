@@ -699,7 +699,8 @@ class WindowCompositionTests(unittest.TestCase):
         self.assertNotIn("AutoScrollPosition", self.window + self.dashboard)
         self.assertIn("int width = page - SoftBar.Gutter;", self.method(self.window, "private void FitSections("))
         self.assertIn("new SoftListHost(list)", self.method(self.dashboard, "private Control ListCard("))
-        self.assertIn("new SoftListHost(view)", self.method(self.dashboard, "private Form BuildTimeline("))
+        self.assertIn("DialogListCard(view)", self.method(self.dashboard, "private Form BuildTimeline("),
+                      "a dialog's list is on the soft bar by way of History's card (tests/test_dialog_list_card.py)")
         wheel = self.method(self.window, "private static void IgnoreWheel(")
         self.assertIn("handled.Handled = true;", wheel, "the drop-down must not change under the wheel")
         self.assertIn("Soft.PassWheel(sender as Control, e.Delta);", wheel, "and the page must still scroll over it")
@@ -882,7 +883,10 @@ class WindowCompositionTests(unittest.TestCase):
                                  r'\? null : status;\s+if \(heroStatus != null\) Hero\(status, null, Now\(\)\);')
         self.assertNotIn('"attention"', status)
         hero = self.method(self.window, "private void Hero(")
-        self.assertIn("stateDot.State = HeaderLight(status, pending, word);", hero)
+        # v0.6.20: the working light over it while an action is in flight (BusyLight), the advanced edition's chat after it
+        # (HeroTold); the watcher's own rule is HeaderLight still.
+        self.assertIn("string light = BusyLight(HeaderLight(status, pending, word), busy > 0);", hero)
+        self.assertIn("stateDot.State = light;", hero)
         # What "known to be running" is lives in one place (KnownRunning), which the headline reads as well, so a
         # grey light never stands over "Watching for interruptions".
         light = self.method(self.dashboard, "internal static string HeaderLight(")

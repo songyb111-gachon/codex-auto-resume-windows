@@ -666,7 +666,18 @@ namespace CodexAutoResume
         /// The screen a window opened with `request` goes on (OpeningPlace).
         internal static Screen OpeningScreen(OpenRequest request)
         {
-            return Screen.FromRectangle(OpeningPlace(request, Cursor.Position));
+            return Screen.FromRectangle(OpeningPlace(request, OpeningPointer()));
+        }
+
+        /// The point a window with no bounds of its own opens at: the pointer - or, while a picture is taken (Soft.StillReady,
+        /// build/capture_window.ps1), the middle of the primary screen, so a pointer on another monitor at another scaling
+        /// never sets a picture's screen or size (2026-10-28: a second monitor at 100% beside the 150% primary drew pictures
+        /// 1006 px wide).
+        internal static Point OpeningPointer()
+        {
+            if (Soft.StillReady == null) return Cursor.Position;
+            Rectangle primary = Screen.PrimaryScreen.WorkingArea;
+            return new Point(primary.Left + primary.Width / 2, primary.Top + primary.Height / 2);
         }
 
         // Every fixed number in this file is written at 96 DPI and scaled here.
@@ -877,6 +888,8 @@ namespace CodexAutoResume
             Shown += delegate
             {
                 shown = true;
+                // v0.6.20: the watcher's request to come forward is heard even when this window runs elevated.
+                AcceptOpenRequests();
                 // v0.6.18 B3: a window that replaces another is the size it was placed at once it is on screen, whatever
                 // creating it on a monitor of another scale than Windows' own did to that size on the way.
                 KeepPlacedBounds();
@@ -1424,7 +1437,7 @@ namespace CodexAutoResume
             Palette.Adopt(Theme.Current(Theme.Opened));
             // v0.6.18: drawn at the scale of the monitor it opens on, the pointer's or a reopen's (AdoptDisplayScale).
             Screen opening = SettingsForm.OpeningScreen(request);
-            SettingsForm.AdoptDisplayScale(SettingsForm.ScaleOfMonitor(SettingsForm.OpeningPlace(request, Cursor.Position)));
+            SettingsForm.AdoptDisplayScale(SettingsForm.ScaleOfMonitor(SettingsForm.OpeningPlace(request, SettingsForm.OpeningPointer())));
             SettingsForm.ScaleDefaultFont();
             // v0.6.11: Windows' text size, as far as the screen the window opens on holds it at its narrowest.
             double text = TextScale.Read();

@@ -619,7 +619,7 @@ namespace CodexAutoResume
                             "Light or dark for the panel in Codex alone. Same as Theme uses the choice above; Codex's theme follows Codex whatever the Theme is.")));
                     if (name == "design")
                         host.Controls.Add(HelpText(S("help.design",
-                            "Soft is raised; Classic (v0.6.2) is flat, with accent bars; Plain is flat and grey.")));
+                            "Soft is the raised, neumorphic design; Classic (v0.6.2) is flat, with accent bars; Plain is flat and grey.")));
                     // v0.6.11: what quiet hours do, under the last of their three; and what a tier does, under the
                     // default one.
                     if (name == "quiet_hours_days")
@@ -1414,8 +1414,10 @@ namespace CodexAutoResume
         {
             if (heroHeld) return;
             string word = ActivityWord(status, pending, now);
-            stateDot.State = HeaderLight(status, pending, word);
+            string light = BusyLight(HeaderLight(status, pending, word), busy > 0);
             string head = Headline(strings, status, pending);
+            HeroTold(ref light, ref head);
+            stateDot.State = light;
             string facts = string.Join("   ·   ", HeroFacts(strings, status, pending).ToArray());
             if (head == heroHead && facts == heroDetail) return;
             if (head != heroHead) headline.Text = heroHead = head;

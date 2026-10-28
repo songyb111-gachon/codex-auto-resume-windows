@@ -64,7 +64,10 @@ Everyone below is a person outside the project who helped it, in the order they 
   ([#53](https://github.com/songyb111-gachon/codex-auto-resume-windows/pull/53)).
 - [@weng-wen-jun](https://github.com/weng-wen-jun) asked for a manual rescan that reconciles obsolete
   pending recoveries ([#39](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/39)), then proposed the Pending and editor work for queued messages and the
-  usage check behind Retry now and Rescan ([#50](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/50)).
+  usage check behind Retry now and Rescan, and the searchable conversation picker that became Find a conversation
+  ([#50](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/50)).
+- [@kano0222](https://github.com/kano0222) reported that a conversation an agent made was never recovered, even when the
+  person went on using it from the input box, and traced it to the exact rule in the code ([#54](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/54)).
 
 ## A note on the AI contributors
 

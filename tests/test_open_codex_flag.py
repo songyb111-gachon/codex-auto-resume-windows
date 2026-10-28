@@ -66,7 +66,7 @@ class OpenCodexFlagTests(unittest.TestCase):
                                              lambda notice, **kwargs: delivered.append(notice)))
             self.assertEqual(cli.cmd_activate(args), cli.EXIT_OK)
         self.assertEqual([notice.kind for notice in delivered], ["cancelled"])
-        return any(notify.parse_codex_thread_uri(link) is not None for _label, link in delivered[0].actions)
+        return notify.parse_codex_thread_uri(delivered[0].click) is not None
 
     def test_the_standard_edition_ignores_the_flag(self):
         self.assertFalse(self.offers_open_codex(

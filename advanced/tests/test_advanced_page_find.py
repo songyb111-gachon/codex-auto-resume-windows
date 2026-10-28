@@ -142,6 +142,20 @@ class PageTests(PageCase):
         self.assertFalse(found["use_before"], "nothing chosen yet")
         self.assertEqual(found["column"], words["page.resets.field.conversation"])
 
+    def test_the_list_is_on_history_s_card_on_a_ground_and_no_plain_panel_holds_it(self):
+        """v0.6.20 (the owner, 2026-10-28): the dialog's list stands on the card History's does (DialogListCard): the dialog
+        built and never shown, its list's host is in a SoftCard that stands on a ground, with no plain Panel between that
+        ground and the dialog - the empty string is SettingsForm.ListOffCard finding nothing to say."""
+        found = self.of("scenario_editor")[0]["dialogs"][0]["find"]
+        self.assertEqual(found["list_card"], "")
+        for name in ("scenario_none", "scenario_failed"):
+            self.assertEqual(self.of(name)[0]["dialogs"][0]["find"]["list_card"], "", name)
+        source = (Path(__file__).resolve().parents[1] / "gui" / "AdvancedFind.cs").read_text(encoding="utf-8")
+        build = source[source.index("private Form BuildFind()"):source.index("private void FoundRead(")]
+        self.assertIn("DialogListCard(findList)", build)
+        self.assertNotIn("new Panel()", build)
+        self.assertNotIn("new SoftListHost", build)
+
     def test_a_reset_message_finds_one_too_and_the_rule_names_it(self):
         result, expected = self.of("scenario_reset")
         (found,) = result["dialogs"]

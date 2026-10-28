@@ -83,6 +83,7 @@ namespace CodexAutoResume
             AuditedSpoken = 0;
             AuditedPins = 0;
             AuditedLists = 0;
+            AuditedCards = "";
             AuditedNotes = 0;
             AuditedShortest = 0;
             AuditedHero = 0;
@@ -1067,6 +1068,29 @@ namespace CodexAutoResume
             return text.Width > room.Width ? "text needs " + text.Width + " wide, has " + room.Width : null;
         }
 
+        /// The first place in each audited list's name (pending, history, timeline, logs, versions) whose list stood on a card
+        /// on a ground, `;` after each - so that a quiet report is known to have looked at the dialogs' lists.
+        internal static string AuditedCards = "";
+
+        /// Why `list` is not on a card on a ground, as History's is (ListCard) - null where it is: its soft list host sits in a
+        /// SoftCard, the card in a ground (ISoftGround), and no plain Panel stands anywhere between that ground and the form.
+        internal static string ListOffCard(ListView list)
+        {
+            if (list == null) return "there is no list";
+            // The list stands in the host's clip (SoftListHost).
+            Control inside = list.Parent;
+            if (inside != null && !(inside is SoftListHost)) inside = inside.Parent;
+            var host = inside as SoftListHost;
+            if (host == null) return "its parent is not the soft list host";
+            var card = host.Parent as SoftCard;
+            if (card == null) return "its host is not on a SoftCard";
+            if (!(card.Parent is ISoftGround)) return "its card does not stand on a ground";
+            // A page is the ground its cards stand on (SoftPage); a dialog's list has its form to reach, by grounds alone.
+            for (Control each = card.Parent; each != null && !(each is SoftPage); each = each.Parent)
+                if (each.GetType() == typeof(Panel)) return "a plain Panel stands between its card and the dialog";
+            return null;
+        }
+
         /// How many lists the last LayoutAudit held to their width (AuditLists, AuditTimeline), so that a quiet report is
         /// known to have looked at them.
         internal static int AuditedLists;
@@ -1089,6 +1113,10 @@ namespace CodexAutoResume
         private static void AuditList(string place, ListView list, List<string> findings)
         {
             AuditedLists++;
+            // v0.6.20: and on History's card, standing on a ground, as every list here is (ListCard, DialogListCard).
+            string off = ListOffCard(list);
+            if (off != null) findings.Add(place + " :: its list is not on a card: " + off);
+            else AuditedCards += place.Split('/')[0] + ";";
             int total = 0;
             foreach (ColumnHeader column in list.Columns) total += column.Width;
             if (total > list.ClientSize.Width)

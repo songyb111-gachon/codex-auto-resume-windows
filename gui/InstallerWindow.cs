@@ -105,7 +105,9 @@ namespace CodexAutoResume
             ForeColor = Palette.Ink;
             FormBorderStyle = FormBorderStyle.FixedSingle;
             MaximizeBox = false;
-            StartPosition = FormStartPosition.CenterScreen;
+            // CenterScreen is the screen under the pointer; a picture (Soft.StillReady, build/capture_window.ps1) opens on the
+            // primary screen instead, whose scale Program.Main took for it (SettingsForm.OpeningPointer, 2026-10-28).
+            StartPosition = Soft.StillReady == null ? FormStartPosition.CenterScreen : FormStartPosition.Manual;
             AutoScaleMode = AutoScaleMode.None;
             Soft.TitleBar(this);
             try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); }
@@ -217,6 +219,11 @@ namespace CodexAutoResume
             page = showing;
             ClientSize = new Size(width, Px(16) + HeaderHeight() + Px(16) + tallest + Px(32) + Px(16) +
                                          Px(Brand.ButtonHeight) + Px(16));
+            if (StartPosition == FormStartPosition.Manual)
+            {
+                Rectangle primary = Screen.PrimaryScreen.WorkingArea;
+                Location = new Point(primary.Left + (primary.Width - Width) / 2, primary.Top + (primary.Height - Height) / 2);
+            }
             if (showing != null) ShowPage(showing);
         }
 

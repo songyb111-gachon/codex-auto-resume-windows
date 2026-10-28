@@ -15,8 +15,10 @@
 // minimized, while an action is on its way, or under a dialog - it waits for those.
 //
 // The new window is a new process, started before this one closes. The window has no
-// single-instance rule of its own - the notification-area icon and the Start menu start one
-// each time - so nothing refuses it, and this one stays until the new one is on screen. Its
+// single-instance rule of its own - the Start menu starts one each time - so nothing refuses it,
+// and this one stays until the new one is on screen. (Since v0.6.20 the notification-area icon,
+// its popup and a notification ask the window that is open to come forward first - win/handover.py
+// and TakeOpenRequest below - and start one only where none takes it; a reopen asks nothing.) Its
 // command line carries only checked values (ParseArguments), and a window it opens never
 // reopens again for what it reads as it opens more than once in a row (ReopenDecision), so a
 // disagreement between what it was started with and what it reads cannot become a loop. If the
@@ -499,6 +501,7 @@ namespace CodexAutoResume
         /// is now on a monitor of another scale (WM_DPICHANGED) - moved there, or the monitor's scaling changed.
         protected override void WndProc(ref Message m)
         {
+            if (m.Msg == WM_COPYDATA && TakeOpenRequest(ref m)) return;
             if (m.Msg == WM_DPICHANGED)
             {
                 // Taken here and not handed on: the window opens again at the new scale (CheckScale), and nothing of it
@@ -535,6 +538,78 @@ namespace CodexAutoResume
                 catch (Exception) { }
             }
             if (colours) BeginInvoke(new MethodInvoker(delegate { CheckReopen(false); }));
+        }
+
+        // ------------------------------------------------------------- asked to come forward (v0.6.20)
+        // Issue #55: every open from the notification-area icon, its popup or a notification started one more window
+        // beside this one. The watcher now asks first (win/handover.py): a WM_COPYDATA under OpenRequestMark whose bytes
+        // are a page of PageOrder in UTF-16, or none - come forward where it is. This window answers OpenRequestTaken,
+        // shows that page and comes to the front, and the watcher starts nothing. A window nobody uses refuses (the
+        // audit's, one not yet on screen or already gone), and the watcher starts one as it always did; a capture's runs
+        // from a scratch build, never the installed program the watcher asks.
+        internal const int WM_COPYDATA = 0x004A;
+        internal const long OpenRequestMark = 0x43415250;
+        internal const int OpenRequestTaken = 0x4F50454E;
+        private const int MessageFilterAllow = 1;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct CopyData { public IntPtr Data; public int Size; public IntPtr Bytes; }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool ChangeWindowMessageFilterEx(IntPtr window, int message, int action, IntPtr status);
+
+        /// The page an open request's text asks for: "" to come forward where it is, a page of PageOrder, or null when
+        /// it is neither, which this window does not take. Pure, so the rule can be checked without a window.
+        internal static string OpenRequestPage(string text)
+        {
+            if (text == null || text.Length == 0) return text;
+            return Array.IndexOf(PageOrder, text) >= 0 ? text : null;
+        }
+
+        private bool TakeOpenRequest(ref Message m)
+        {
+            if (m.LParam == IntPtr.Zero) return false;
+            CopyData copy;
+            try { copy = (CopyData)Marshal.PtrToStructure(m.LParam, typeof(CopyData)); }
+            catch (Exception) { return false; }
+            if (copy.Data.ToInt64() != OpenRequestMark) return false;
+            if (auditing || !shown || IsDisposed || Disposing) return false;
+            string text = null;
+            if (copy.Size == 0) text = "";
+            else if (copy.Size > 0 && copy.Size <= 64 && copy.Size % 2 == 0 && copy.Bytes != IntPtr.Zero)
+            {
+                try { text = Marshal.PtrToStringUni(copy.Bytes, copy.Size / 2); }
+                catch (Exception) { text = null; }
+            }
+            string page = OpenRequestPage(text);
+            if (page == null) return false;
+            m.Result = (IntPtr)OpenRequestTaken;
+            // Answered first, so the watcher waits on nothing a page takes to show.
+            BeginInvoke(new MethodInvoker(delegate { ComeForwardOn(page); }));
+            return true;
+        }
+
+        /// On `page` ("" where it is) and in front. The page is left as it is under a dialog, which comes forward with it.
+        private void ComeForwardOn(string page)
+        {
+            if (IsDisposed) return;
+            try { if (page.Length > 0 && page != currentPage && IsWindowEnabled(Handle)) ShowPage(page); }
+            catch (Exception) { /* it comes forward on the page it shows */ }
+            // Restored if minimized, then activated - which brings it to the front, as the watcher allowed it to.
+            try
+            {
+                if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;
+                Activate();
+            }
+            catch (Exception) { /* it is open, wherever Windows put it */ }
+        }
+
+        /// Once shown: a window that runs elevated still hears the watcher's request, which a window of a lower integrity
+        /// level cannot send it otherwise.
+        private void AcceptOpenRequests()
+        {
+            try { ChangeWindowMessageFilterEx(Handle, WM_COPYDATA, MessageFilterAllow, IntPtr.Zero); }
+            catch (Exception) { /* it is asked only from its own level */ }
         }
 
         /// What a window drawn at `drawn` does once it is on a monitor whose scale is `now` (v0.6.18): KeepWindow at the

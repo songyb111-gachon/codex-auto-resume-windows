@@ -9,6 +9,7 @@ from pathlib import Path
 import subprocess
 
 from ... import machine
+from ...win import handover
 
 
 
@@ -27,6 +28,12 @@ def open_dashboard(home: Path, page: str = None) -> bool:
     exe = Path(home) / "CodexAutoResumeSettings.exe"
     if not exe.is_file():
         return False
+    # v0.6.20 (issue #55): the window has no single-instance rule of its own, so every open from the icon, its
+    # popup or a notification started one more window beside the one on screen. One of this installation that is
+    # already open is asked first to come forward on the page (win/handover.py); only where none takes it is one
+    # started.
+    if handover.hand_over(exe, page):
+        return True
     arguments = [str(exe)]
     if page is not None:
         arguments.append("--page=" + page)

@@ -716,6 +716,16 @@ namespace CodexAutoResume
             return KnownRunning(status, pending) ? word : "idle";
         }
 
+        /// The header's light while an action is in flight (v0.6.20, the owner's decision of 2026-10-28: a light that does
+        /// not move while work runs reads as broken or idle): the working light the installer shows for its run,
+        /// "checking", over the light the watcher's state gives - except a watcher not known to be running (idle) or one
+        /// that needs a person (attention), whose light is true whatever the window is doing. One rule for every action
+        /// the window counts in `busy` (SetBusy: Retry now, Rescan, the advanced page's calls, ...).
+        internal static string BusyLight(string light, bool working)
+        {
+            return working && light != "idle" && light != "attention" ? "checking" : light;
+        }
+
         /// Whether what was read says the watcher runs: the status says so, and no row is held for a watcher that is
         /// not running (engine_unavailable) - the two are read a moment apart, and the row is believed until the next
         /// read settles it, so the dot is not a moving light beside "Watcher not running" (tray_popup.watcher_known_running).
@@ -1319,19 +1329,12 @@ namespace CodexAutoResume
                 }
                 // Each column's widest cell, so the columns share the dialog's width by what they hold (FitColumns).
                 MeasureCells(view);
-                var padding = new Panel();
-                padding.BackColor = Canvas;
-                padding.Dock = DockStyle.Fill;
-                padding.Padding = Pad(12, 12, 12, 12);
-                // On the soft scroll bar, as the lists in the window are (see SoftListHost).
-                var host = new SoftListHost(view);
-                host.Dock = DockStyle.Fill;
-                padding.Controls.Add(host);
-                dialog.Controls.Add(padding);
+                // On History's card, on the soft scroll bar, as the lists in the window are (DialogListCard).
+                dialog.Controls.Add(DialogListCard(view));
                 var close = MakeButton(S("action.close", "Close"), true, delegate { dialog.Close(); });
                 var buttons = ButtonRow();
                 buttons.FlowDirection = FlowDirection.RightToLeft;
-                buttons.Padding = Pad(12, 0, 12, 12);
+                buttons.Padding = Pad(16, 0, 17, 12);
                 buttons.Controls.Add(close);
                 dialog.Controls.Add(buttons);
                 dialog.AcceptButton = close;

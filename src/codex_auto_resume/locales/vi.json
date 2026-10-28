@@ -594,7 +594,7 @@
   "help.context_guard": "Số đếm của chính Codex, được đọc khi phát hiện gián đoạn, ở những nơi Codex có lưu số này. “Hiện ở Chờ xử lý” đặt số đếm cạnh tác vụ; lựa chọn “Giữ lại” còn giữ tác vụ có cuộc trò chuyện đã dùng nhiều hơn ở trạng thái chờ cho đến khi bạn cho phép tiếp tục. Không đọc gì khi tùy chọn này là Tắt. Áp dụng cho các gián đoạn được phát hiện từ đó trở đi.",
   "help.continuation_language": "Ngôn ngữ của tin nhắn gửi cho Codex. Trừ khi nó theo giao diện, việc đổi ngôn ngữ giao diện không làm nó thay đổi.",
   "help.default_tier": "Áp dụng cho mọi cuộc trò chuyện chưa có lựa chọn riêng, và cho các gián đoạn được phát hiện từ đó trở đi; để chọn cho một cuộc trò chuyện, dùng hàng của tác vụ đó ở trang Chờ xử lý. “Sau thời gian phản đối” hiện thông báo trước và chỉ gửi khi thời gian phản đối đã qua. “Hỏi tôi trước” và “Chỉ thông báo cho tôi” không gửi gì cho đến khi bạn cho phép tác vụ tiếp tục.",
-  "help.design": "Mềm có hiệu ứng nổi; Cổ điển (v0.6.2) phẳng, có thanh nhấn màu; Trơn phẳng và màu xám.",
+  "help.design": "Mềm là thiết kế neumorphism có hiệu ứng nổi; Cổ điển (v0.6.2) phẳng, có thanh nhấn màu; Trơn phẳng và màu xám.",
   "help.interface_language": "Được dùng cho Bảng điều khiển, cửa sổ bật lên ở vùng thông báo, các thông báo và khung trong Codex.",
   "help.keep_awake_hours": "Khi có tác vụ đang chờ, Windows được yêu cầu không tự cho PC này ngủ, tối đa trong số giờ đã chọn mỗi lần các tác vụ bắt đầu chờ; màn hình vẫn có thể tắt. Gập nắp máy hoặc chọn Ngủ vẫn cho PC ngủ, và không cài đặt Windows nào bị thay đổi. Với “Chỉ khi cắm điện”, PC vẫn ngủ như thường khi dùng pin.",
   "help.limits": "Quy định việc khôi phục cố gắng đến mức nào trước khi dừng lại và để tác vụ cho bạn.",

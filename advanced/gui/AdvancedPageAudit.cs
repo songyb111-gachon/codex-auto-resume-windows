@@ -340,6 +340,8 @@ namespace CodexAutoResume
                     dialog.PerformLayout();
                     string at = where + (empty ? "/empty" : "/full");
                     Walk(dialog, at, findings);
+                    string off = ListOffCard(findList);
+                    if (off != null) findings.Add(at + " :: its list is not on a card: " + off);
                     AuditSpoken(at, dialog, findings);
                 }
                 ForgetFind();
@@ -885,6 +887,13 @@ namespace CodexAutoResume
                         form.UpdatePendingButtons();
                     }
                     else if (what == "chat_tab") form.OpenChat();
+                    else if (what == "chat_poll") form.ChatPoll();      // v0.6.20: the chat's two-second read, once
+                    else if (what == "chat_send")
+                    {
+                        // v0.6.20: a message written in the chat's box and Send... pressed (answered as "answer" says).
+                        form.chatDraft = Str(step, "text") ?? "";
+                        form.SendChat();
+                    }
                     else if (what == "chat_open")
                     {
                         // v0.6.19: the Advanced features card's Open the chat, pressed if it can be.
@@ -1122,6 +1131,7 @@ namespace CodexAutoResume
             record["title"] = dialog.Text;
             record["search_name"] = findSearch.Box.AccessibleName;
             record["column"] = findList.Columns[0].Text;
+            record["list_card"] = ListOffCard(findList) ?? "";
             record["buttons"] = new List<object> { findUse.Text, findCancel.Text };
             record["accept"] = dialog.AcceptButton == findUse;
             record["use_before"] = findUse.Enabled;
@@ -1473,6 +1483,9 @@ namespace CodexAutoResume
             chat["on_advanced"] = chatConversation != null && advancedPage != null && Within(chatConversation, advancedPage);
             chat["link"] = chatOpen != null && Within(chatOpen, advancedPage);
             chat["thread"] = chatThread;
+            // v0.6.20: the Dashboard header's light and headline - busy ("checking") while a message waits or is on its way.
+            chat["light"] = stateDot.State;
+            chat["headline"] = headline.Text;
             look["chat"] = chat;
             // v0.6.19 (#50): the prompt queue's card - its one line and Go to Scheduled.
             var queue = new Dictionary<string, object>();
