@@ -146,8 +146,8 @@ Thirty-five: twenty-two that change how a recovery is made, which conversations 
 follows a turn, three that send at a time you pick - the two at a usage reset, and queued messages - three
 before a usage limit is reached - the usage meter, and the wrap-up and the forced stop that need it - one that
 checks for updates once a week, two that look after the watcher and the PC - restart the watcher if it stops unexpectedly,
-and wake this PC for a reset (v0.6.19) - and four actions: Longer messages, which only lets a message be longer, Open Codex on a notice, which only adds a button
-that shows a conversation, chat with a conversation in the Dashboard (v0.6.19), which sends a message of yours, and the
+and wake this PC for a reset (v0.6.19) - and four actions: Longer messages, which only lets a message be longer, Open Codex on a notice, which only makes a click on a notice
+show a conversation, chat with a conversation in the Dashboard (v0.6.19), which sends a message of yours, and the
 compatibility report, which only you start. Four rest on a measurement each that was made - the first three, and queue for when a conversation
 is opened. All five added in v0.6.16-beta.4 rest on measurements that were made - running a conversation
 here, the other sessions, compacting a full conversation, another model at capacity and a continuation with
@@ -571,10 +571,12 @@ day on the clock after the failure in any case.
 ### Open Codex on a notice
 
 **What it does.** While it is on, every notice about one conversation - a usage limit detected, a
-continuation being sent, how one ended - offers *Open Codex* beside *Open Dashboard*, on the program's
-card and on Windows' own notification alike. A click shows that conversation in the Codex app through
-Codex's own link to it: a running or minimized app comes to the front at that conversation, and a closed
-one starts there (measured on Codex app 26.1007). The button is offered only where Windows has something
+continuation being sent, how one ended - opens Codex when it is clicked, on the program's card and on
+Windows' own notification alike (no button is added: the buttons stay as they were, and the click that
+would have opened a page of the Dashboard opens Codex instead). The click shows that conversation in the
+Codex app through Codex's own link to it: a running or minimized app comes to the front at that
+conversation, and a closed one starts there (measured on Codex app 26.1007). A click you sent to the
+conversation's chat in the Dashboard's chat card stays there. It applies only where Windows has something
 registered for `codex:` links, which is read and never written. A notice about no one conversation - a
 warning near a limit, the memory guard, the power action - never has it.
 

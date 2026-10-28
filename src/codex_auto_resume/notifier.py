@@ -371,33 +371,32 @@ def build_cancelled(thread_id, stay=()) -> Notice:
 
 # ------------------------------------------------------------- Open Codex (v0.6.18, an edition's)
 # The standard edition's buttons cancel one interruption or open one page of the Dashboard (A28). An edition may ask
-# for one more on a notice about one conversation - the Codex app's own link to it (notify.codex_thread_uri), which
-# only shows a conversation - through what its plug adds to the icon's surface (runtime/app.py reads it); the
-# standard edition never asks, so its notices are exactly as before. The card opens the link through `activate`, which
-# has read exactly such a link since v0.6.16; the toast hands it to Windows as its other buttons are.
+# that a notice about one conversation open Codex at it - the Codex app's own link to it (notify.codex_thread_uri), which
+# only shows a conversation - through what its plug adds to the icon's surface (runtime/app.py reads it); the standard
+# edition never asks, so its notices are exactly as before. Since v0.6.20 that is not a button of its own (the owner,
+# 2026-10-28: a white button under the text was awkward): the notice itself is the target - the card's face, the
+# toast's body - which is where a click on a notice has always gone (click_uri), now sent to Codex.
 def with_open_codex(notice, on=False):
-    """`notice` with an Open Codex button beside its others when `on` is True and it is about one conversation - its
-    key that conversation's id, a UUID (notify.codex_thread_uri) - after Open Dashboard where it has that button, else
-    last; `notice` itself otherwise, and for anything that is not a Notice. A notice keeps at most
-    notify.MAX_TOAST_ACTIONS buttons, so one that has them all gains none."""
+    """`notice` with a click that opens Codex at its conversation, when `on` is True and it is about one conversation -
+    its key that conversation's id, a UUID (notify.codex_thread_uri): the card's face and the toast's body (`launch`)
+    go to that link, and the buttons stay as they were (the Cancel button alone carries the decision, below). A click
+    the in-app chat's setting sent elsewhere stays: where the chat is on and the setting chose the chat or Codex,
+    `click_uri` decided it already; only the notice that would open its Dashboard page - the setting's default -
+    opens Codex instead. `notice` itself otherwise, and for anything that is not a Notice."""
     if on is not True or not isinstance(notice, Notice):
         return notice
     link = notify.codex_thread_uri(notice.key)
-    if link is None or any(uri == link for _label, uri in notice.actions):
+    if link is None:
         return notice
     content = notice.toast_content()
-    if len(toast_actions(content)) >= notify.MAX_TOAST_ACTIONS:
-        return notice
-    button = (l10n.message("toast_button_open_codex"), link)
     # The cancel button carries the decision, for the notice its press raises from Windows' toast (notify.py).
     if content.get("uri"):
         content["uri"] = notify.with_open_codex_flag(content["uri"])
-    more = list(content.get("more") or ())
-    after = next((index + 1 for index, (_label, uri) in enumerate(more) if notify.parse_open_uri(uri) is not None),
-                 len(more))
-    more.insert(after, button)
-    content["more"] = more
-    return replace(notice, actions=toast_actions(content), content=_frozen(content))
+    click = notice.click
+    if click in ("", notify.open_uri(notice_page(notice.kind, notice.actions))):
+        click = link
+        content["launch"] = link
+    return replace(notice, click=click, actions=toast_actions(content), content=_frozen(content))
 
 
 # --------------------------------------------------------------------------- the handover
