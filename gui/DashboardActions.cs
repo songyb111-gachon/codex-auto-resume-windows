@@ -1319,19 +1319,12 @@ namespace CodexAutoResume
                 }
                 // Each column's widest cell, so the columns share the dialog's width by what they hold (FitColumns).
                 MeasureCells(view);
-                var padding = new Panel();
-                padding.BackColor = Canvas;
-                padding.Dock = DockStyle.Fill;
-                padding.Padding = Pad(12, 12, 12, 12);
-                // On the soft scroll bar, as the lists in the window are (see SoftListHost).
-                var host = new SoftListHost(view);
-                host.Dock = DockStyle.Fill;
-                padding.Controls.Add(host);
-                dialog.Controls.Add(padding);
+                // On History's card, on the soft scroll bar, as the lists in the window are (DialogListCard).
+                dialog.Controls.Add(DialogListCard(view));
                 var close = MakeButton(S("action.close", "Close"), true, delegate { dialog.Close(); });
                 var buttons = ButtonRow();
                 buttons.FlowDirection = FlowDirection.RightToLeft;
-                buttons.Padding = Pad(12, 0, 12, 12);
+                buttons.Padding = Pad(16, 0, 17, 12);
                 buttons.Controls.Add(close);
                 dialog.Controls.Add(buttons);
                 dialog.AcceptButton = close;
