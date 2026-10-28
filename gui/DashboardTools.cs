@@ -692,7 +692,7 @@ namespace CodexAutoResume
             buttons.Controls.Add(close);
             buttons.Controls.Add(copy);
 
-            dialog.Controls.Add(listGround);
+            dialog.Controls.Add(padding);
             dialog.Controls.Add(footer);
             dialog.Controls.Add(buttons);
             dialog.CancelButton = close;

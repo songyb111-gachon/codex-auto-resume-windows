@@ -699,7 +699,8 @@ class WindowCompositionTests(unittest.TestCase):
         self.assertNotIn("AutoScrollPosition", self.window + self.dashboard)
         self.assertIn("int width = page - SoftBar.Gutter;", self.method(self.window, "private void FitSections("))
         self.assertIn("new SoftListHost(list)", self.method(self.dashboard, "private Control ListCard("))
-        self.assertIn("new SoftListHost(view)", self.method(self.dashboard, "private Form BuildTimeline("))
+        self.assertIn("DialogListCard(view)", self.method(self.dashboard, "private Form BuildTimeline("),
+                      "a dialog's list is on the soft bar by way of History's card (tests/test_dialog_list_card.py)")
         wheel = self.method(self.window, "private static void IgnoreWheel(")
         self.assertIn("handled.Handled = true;", wheel, "the drop-down must not change under the wheel")
         self.assertIn("Soft.PassWheel(sender as Control, e.Delta);", wheel, "and the page must still scroll over it")
