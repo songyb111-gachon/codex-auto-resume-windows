@@ -1071,7 +1071,7 @@ Rust core v0.6.22 and its audit v0.6.23. As in v0.6.19, every capability here is
 a person turns it on, with a statement that names the standards it departs from; some rest on a measurement of the real
 Codex, and one that fails narrows the route, or becomes a warning the person confirms, and does not drop the capability.
 
-### v0.6.20-beta 🚧 — Two small things the issues asked for (a pre-release)
+### v0.6.20-beta ✅ — Two small things the issues asked for (a pre-release)
 
 The owner asked on 2026-10-28 for a quick pre-release with two small parts, ahead of the rest:
 [#54](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/54), in both editions - a conversation an agent made is taken up as the person's own when the failed
@@ -1079,6 +1079,12 @@ turn was started from the input box (Codex records it as `turn_attribution.turn_
 codex-cli 0.164), and only then; and, in the advanced edition, *Find a conversation...* beside the conversation pickers,
 the searchable list of a person's own conversations that [#50](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/50) asked for. #50's image attachments, steer send mode and
 follow-through view stay with the rest of v0.6.20.
+
+### v0.6.20-beta.2 🚧 — The tray reuses the open window, status lights for work in progress, lists on cards (a pre-release)
+
+[#55](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/55)'s window reuse from the notification area (both editions); the status light's first slices of the owner's
+audit of 2026-10-26 (an action in progress, a chat message on its way); every dialog's list on History's card; the design help line
+naming the neumorphic design; and, in the advanced edition, a click on a notice opening Codex in place of the Open Codex button.
 
 ### Around recovery
 
@@ -1127,6 +1133,9 @@ Unlike v0.6.10-alpha's refactoring, it is intentionally a broad bug hunt.
 
 Expected areas include:
 
+- a design audit (the owner, 2026-10-28): every window, dialog, page, popup, setup window and panel surface checked for anything
+  not drawn in the one neumorphic design - cards on grounds, lifts, radii, soft controls, the soft scroll bar - each fixed through
+  one shared helper, with a check that finds new ones,
 - state machine behavior,
 - race conditions and concurrency,
 - retry and recovery-chain accounting,
