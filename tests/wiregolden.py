@@ -1192,9 +1192,23 @@ def expected_files() -> dict:
 
 
 def generate(names=None) -> dict:
-    """Relative path -> the golden text the code makes now, for `names` (default: all)."""
-    files = expected_files()
-    return {name: files[name]() for name in (names if names is not None else files)}
+    """Relative path -> the golden text the code makes now, for `names` (default: all).
+
+    The goldens record core's kinds of notice alone. codex_auto_resume.notice_kinds keeps the kinds an edition registered for
+    the life of a process, so an advanced test run earlier in the same process left the plug's kinds in `describe`
+    (dev CI 40761286107, advanced part 3, after the parts were dealt again): they are held aside while the goldens are made
+    and put back after, as build/make_screenshots.edition_notice_kinds does for the pictures."""
+    from codex_auto_resume import notice_kinds
+    with notice_kinds._lock:
+        held = dict(notice_kinds._registered)
+        notice_kinds._registered.clear()
+    try:
+        files = expected_files()
+        return {name: files[name]() for name in (names if names is not None else files)}
+    finally:
+        with notice_kinds._lock:
+            notice_kinds._registered.clear()
+            notice_kinds._registered.update(held)
 
 
 def recorded(name: str):
