@@ -453,12 +453,45 @@ namespace CodexAutoResume
 
         private void ChatPoll()
         {
-            if (currentPage != ChatPageName || chatThread == null || busy > 0)
+            // Off the Chat page the read goes on only while a message of this page's is waiting or on its way: the
+            // header's light says so (HeroTold), and a view nobody reads again would keep it lit.
+            if (chatThread == null || busy > 0 || (currentPage != ChatPageName && ChatSaying() == null))
             {
                 chatTimer.Stop();
                 return;
             }
             ReadChat();
+        }
+
+        /// The words for what the chat has in hand - "Sending..." while a message waits to be taken, "Sent" while it
+        /// is on its way - or null when none is: no message in flight, the chat off, or the usage limit full (a message
+        /// waiting for the limit to reset is not work that is running, and the card says so in its own words). What
+        /// the header's light is told by (HeroTold), from the last read.
+        private string ChatSaying()
+        {
+            if (chatThread == null || chatView == null || chatTab == null || !Soft.OwnVisible(chatTab)) return null;
+            bool full = Equals(Get(Map(chatView, "limit"), "full"), true), flying = false;
+            foreach (object entry in Items(chatView, "messages") ?? new List<object>())
+            {
+                string state = Str(entry as Dictionary<string, object>, "state");
+                if (state == "waiting" && !full) return Word("page.chat.sending", "Sending...");
+                flying |= state == "in_flight";
+            }
+            return flying ? Word("page.chat.sent", "Sent") : null;
+        }
+
+        /// The Dashboard's header while a message is waiting to be delivered or on its way (the owner's report of
+        /// 2026-10-26: a light that does not move while work runs reads as broken or idle): the working light the
+        /// window already uses for work in progress - "checking", as the installer's - and the card's own word beside
+        /// it. A watcher not known to be running (idle) or one that needs a person (attention) keeps its light: the
+        /// message is not going anywhere, and saying it is would be untrue. Anything else goes back to what the
+        /// watcher's state says with the next read.
+        partial void HeroTold(ref string light, ref string head)
+        {
+            string said = ChatSaying();
+            if (said == null || light == "idle" || light == "attention") return;
+            light = "checking";
+            head = said;
         }
 
         private void ReadChat()
@@ -472,6 +505,7 @@ namespace CodexAutoResume
                     Dictionary<string, object> result = AdvancedResult(reply);
                     chatView = AdvancedDone(result) ? result : null;
                     FillChatPage(null);
+                    UpdateCountdowns();
                 });
         }
 
@@ -501,6 +535,7 @@ namespace CodexAutoResume
                     chatView = result;
                     SetNote(advancedNote, Word("page.done.chat", "Sending. The watcher takes it at its next look."));
                 }
+                UpdateCountdowns();
                 ReadAdvanced(null);
                 if (!AdvancedDone(result)) TellAdvanced(KeepOnRefusal(result));
             });
@@ -514,6 +549,7 @@ namespace CodexAutoResume
             {
                 Dictionary<string, object> result = AdvancedResult(reply);
                 if (AdvancedDone(result)) chatView = result;
+                UpdateCountdowns();
                 ReadAdvanced(null);
                 if (!AdvancedDone(result)) TellAdvanced(KeepOnRefusal(result));
             });

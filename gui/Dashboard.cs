@@ -934,6 +934,10 @@ namespace CodexAutoResume
         // Clear history was pressed: the advanced edition, while History lists completed messages of its own, asks and
         // clears them together with the finished recoveries, and says so (`handled`); otherwise Clear history is as it was.
         partial void ClearHistoryPressed(ref bool handled);
+        // v0.6.20 (the owner's report of 2026-10-26): the header's light and headline have been decided from what the window
+        // read (Hero), just before they are written: the advanced edition, while a message of its chat is waiting to be
+        // delivered or on its way, changes them to the working light and the words that say so.
+        partial void HeroTold(ref string light, ref string head);
 
         // ----------------------------------------------------------------- chrome
         private void BuildDashboard()

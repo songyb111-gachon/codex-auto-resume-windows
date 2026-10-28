@@ -148,7 +148,9 @@ class PointTests(unittest.TestCase):
                                  "HistoryButtonsBuilt": "gui/Dashboard.cs", "PendingButtonsUpdated": "gui/Dashboard.cs",
                                  "HistoryButtonsUpdated": "gui/Dashboard.cs", "EditionRowOpened": "gui/Dashboard.cs",
                                  # and History's one Clear history.
-                                 "ClearHistoryPressed": "gui/Dashboard.cs"})
+                                 "ClearHistoryPressed": "gui/Dashboard.cs",
+                                 # v0.6.20: the header's light while a chat message is on its way.
+                                 "HeroTold": "gui/Dashboard.cs"})
         # No other shape of partial method: one with a body in a standard source would be
         # compiled into the standard window, which is the whole thing this rules out.
         whole = guiscan.whole()
@@ -171,7 +173,7 @@ class PointTests(unittest.TestCase):
                                  # and Pending as one list.
                                  "ListRowsJoined": 1, "PendingButtonsBuilt": 1, "HistoryButtonsBuilt": 1,
                                  "PendingButtonsUpdated": 1, "HistoryButtonsUpdated": 1, "EditionRowOpened": 1,
-                                 "ClearHistoryPressed": 1})
+                                 "ClearHistoryPressed": 1, "HeroTold": 1})
 
 
 def copy_window(target: Path) -> Path:
