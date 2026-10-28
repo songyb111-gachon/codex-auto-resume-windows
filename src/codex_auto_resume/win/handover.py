@@ -4,7 +4,7 @@ The window has no single-instance rule of its own, so every open from the notifi
 popup or a notification's button started one more window beside the one already on screen. Before one
 is started now, a window of this same program - the process whose image is the very file the open would
 start, whatever the spelling of its path - is asked with WM_COPYDATA, under a mark of ours, to come to the
-front on that page; one that takes it answers TAKEN (gui/SettingsApp.cs, TakeOpenRequest) and nothing is
+front on that page; one that takes it answers TAKEN (gui/WindowReopen.cs, TakeOpenRequest) and nothing is
 started. A window that does not answer TAKEN - one from before v0.6.20, one closing, one that does not
 answer in time - leaves the open as it always was: a new window.
 

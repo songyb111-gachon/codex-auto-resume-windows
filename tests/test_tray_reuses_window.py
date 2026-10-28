@@ -327,12 +327,13 @@ class WindowSideTests(unittest.TestCase):
         take = guiscan.member_body("SettingsForm", "TakeOpenRequest")
         self.assertIn("if (copy.Data.ToInt64() != OpenRequestMark) return false;", take)
         # A window nobody uses refuses, and the watcher starts one as it always did.
-        self.assertIn("if (Soft.StillReady != null || auditing || !shown || IsDisposed || Disposing) return false;", take)
+        self.assertIn("if (auditing || !shown || IsDisposed || Disposing) return false;", take)
         self.assertIn("m.Result = (IntPtr)OpenRequestTaken;", take)
         self.assertLess(take.index("m.Result = (IntPtr)OpenRequestTaken;"), take.index("BeginInvoke("))
         forward = guiscan.member_body("SettingsForm", "ComeForwardOn")
         self.assertIn("ShowPage(page);", forward)
-        self.assertIn("HostApp.ComeForward(this);", forward)
+        self.assertIn("if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;", forward)
+        self.assertIn("Activate();", forward)
         self.assertIn("ChangeWindowMessageFilterEx(Handle, WM_COPYDATA, MessageFilterAllow, IntPtr.Zero);",
                       guiscan.member_body("SettingsForm", "AcceptOpenRequests"))
         # Asked as it is first shown, and from then on (a window not yet shown refuses).

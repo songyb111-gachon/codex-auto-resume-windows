@@ -544,8 +544,9 @@ namespace CodexAutoResume
         // Issue #55: every open from the notification-area icon, its popup or a notification started one more window
         // beside this one. The watcher now asks first (win/handover.py): a WM_COPYDATA under OpenRequestMark whose bytes
         // are a page of PageOrder in UTF-16, or none - come forward where it is. This window answers OpenRequestTaken,
-        // shows that page and comes to the front, and the watcher starts nothing. A window nobody uses refuses (a
-        // capture's, the audit's, one not yet on screen or already gone), and the watcher starts one as it always did.
+        // shows that page and comes to the front, and the watcher starts nothing. A window nobody uses refuses (the
+        // audit's, one not yet on screen or already gone), and the watcher starts one as it always did; a capture's runs
+        // from a scratch build, never the installed program the watcher asks.
         internal const int WM_COPYDATA = 0x004A;
         internal const long OpenRequestMark = 0x43415250;
         internal const int OpenRequestTaken = 0x4F50454E;
@@ -572,7 +573,7 @@ namespace CodexAutoResume
             try { copy = (CopyData)Marshal.PtrToStructure(m.LParam, typeof(CopyData)); }
             catch (Exception) { return false; }
             if (copy.Data.ToInt64() != OpenRequestMark) return false;
-            if (Soft.StillReady != null || auditing || !shown || IsDisposed || Disposing) return false;
+            if (auditing || !shown || IsDisposed || Disposing) return false;
             string text = null;
             if (copy.Size == 0) text = "";
             else if (copy.Size > 0 && copy.Size <= 64 && copy.Size % 2 == 0 && copy.Bytes != IntPtr.Zero)
@@ -594,7 +595,13 @@ namespace CodexAutoResume
             if (IsDisposed) return;
             try { if (page.Length > 0 && page != currentPage && IsWindowEnabled(Handle)) ShowPage(page); }
             catch (Exception) { /* it comes forward on the page it shows */ }
-            HostApp.ComeForward(this);
+            // Restored if minimized, then activated - which brings it to the front, as the watcher allowed it to.
+            try
+            {
+                if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;
+                Activate();
+            }
+            catch (Exception) { /* it is open, wherever Windows put it */ }
         }
 
         /// Once shown: a window that runs elevated still hears the watcher's request, which a window of a lower integrity
