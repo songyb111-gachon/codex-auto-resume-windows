@@ -186,14 +186,42 @@
       },
       "sha256": "d451de8f00b2cc1c1274da97fa6a18f22f2c1dab2e19ee9fcfdba169b0101cf9",
       "size": "1500x1041"
+    },
+    "docs/images/tray-popup-motion-ko.png": {
+      "bytes": 223513,
+      "frames": 257,
+      "ms": 8800,
+      "scenes": {
+        "P0": 79600,
+        "P1": 57346,
+        "P2": 83250,
+        "P3": 3214
+      },
+      "sha256": "4badac633c7240a4abb2d0dd26aad424b34fdf335ddf5f071062ab9ba6797c42",
+      "size": "752x883"
+    },
+    "docs/images/tray-popup-motion.png": {
+      "bytes": 231181,
+      "frames": 257,
+      "ms": 8800,
+      "scenes": {
+        "P0": 82034,
+        "P1": 59414,
+        "P2": 86453,
+        "P3": 3177
+      },
+      "sha256": "2f941121c76a68699f5c2e9fdfe8ce37d88b08c498fecc8ad4742a72f23c32e4",
+      "size": "752x873"
     }
   },
   "inputs": {
-    "<motion:card-en>": "d90126d63a61bd334ba4093a8eab5d5709f67bccb83b393cfd13123408f9b467",
-    "<motion:card-ko>": "2f1ca8eb280e67cf7ade05753731a3453946d5dafa6ff6204d3f91f4f01bff80",
+    "<motion:card-en>": "02e8736389cbbe4736028e237cf2b634ffd2b1e093eb56113380c1dee78ec7cd",
+    "<motion:card-ko>": "f344f18f6b162175c6e4a61bab9649d95a6c80909e7472ab443765f96939de40",
     "<motion:logo-dark>": "4dfe3238f39ea88c7af2d9415561f25a758b58ac419575cbaa549f3bd811d159",
     "<motion:logo-light>": "e30f23a553b3ff5cc333efa162e11d280073213b463e80e2da1ce125326216f9",
-    "<motion:readme-en>": "a4560c5e176b1d8ca485dfcde1a232811234afd3633d298711e78f41b6af372e",
-    "<motion:readme-ko>": "f54c5269e28800118248e950df5ee5ab06315bd32f7b4e0be73b698c3ac3ba07"
+    "<motion:popup-en>": "4ad7450acd50af1137a77bbd841fdd7feec73e738e3a9ae27b462b55253dbfb8",
+    "<motion:popup-ko>": "37b16022a61858bd487a3b72f7227443faa46e4e8963e7317b3987c501d397ad",
+    "<motion:readme-en>": "e9990df6899ceaa1039ebf63d811f47c3c04986d18bb164db9c25165b87c45dc",
+    "<motion:readme-ko>": "74a3777c5461588340fa2329e2f3ecea560cd213ade6d0113d5a5d752391e817"
   }
 }
