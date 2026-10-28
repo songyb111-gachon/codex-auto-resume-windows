@@ -1275,6 +1275,8 @@ namespace CodexAutoResume
             // start the current watcher, which migrates the state back, before the installer has run.
             if (startButton != null) startButton.Enabled = busy == 0 && !starting;
             if (powerSwitch != null) powerSwitch.Enabled = busy == 0 && powerCanSwitch;
+            // v0.6.20: the header's light follows at once, both ways (Hero, BusyLight), not at the next second's tick.
+            UpdateCountdowns();
         }
 
         /// Runs one bridge command on a worker and hands its reply back on this thread.

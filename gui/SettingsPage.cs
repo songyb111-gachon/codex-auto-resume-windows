@@ -1414,7 +1414,7 @@ namespace CodexAutoResume
         {
             if (heroHeld) return;
             string word = ActivityWord(status, pending, now);
-            string light = HeaderLight(status, pending, word);
+            string light = BusyLight(HeaderLight(status, pending, word), busy > 0);
             string head = Headline(strings, status, pending);
             HeroTold(ref light, ref head);
             stateDot.State = light;
