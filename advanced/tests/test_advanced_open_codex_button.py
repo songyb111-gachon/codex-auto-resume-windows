@@ -130,7 +130,8 @@ class NoticeTests(unittest.TestCase):
         plain = interruption()
         shown = notifier.with_open_codex(plain, True)
         # v0.6.20: no button of its own - the buttons are exactly the notice's, and its face and body go to Codex.
-        self.assertEqual(shown.actions, plain.actions)
+        # The same buttons, the Cancel one carrying the decision for the notice its press raises (notify.py).
+        self.assertEqual([label for label, _uri in shown.actions], [label for label, _uri in plain.actions])
         self.assertEqual(shown.toast_content().get("more"), plain.toast_content().get("more"))
         self.assertNotIn(LINK, [uri for _label, uri in shown.actions])
         self.assertEqual(shown.click, LINK)
