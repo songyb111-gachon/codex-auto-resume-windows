@@ -84,7 +84,7 @@
       "passed": true,
       "worst": 0
     },
-    "window": "23a56d74a5ce1739ea5dcbde120bc52e1cca8c04651566134ca42deaeb6f75da"
+    "window": "9606e85143719b650e9cfa1c3e58d06054974c2ff55af76a0ef8d88a10da50c9"
   },
   "images": {
     "docs/images/advanced-page-after-ko.png": {
@@ -153,26 +153,26 @@
     }
   },
   "inputs": {
-    "<advanced shot:P1-after:en>": "6dd1303db47c8bf0a529e06ca0ea563b7e98fa65cfd785be311f71d1476e0465",
-    "<advanced shot:P1-after:ko>": "d2027ddf20f07a5ab1af3da77f6a927d8699f206bd5f195e06cdd17e620a04d8",
-    "<advanced shot:P1-before:en>": "95d9cfb03d26b8c313c847d1767a8bbace85021e7db359d8e8407d0cc50c3589",
-    "<advanced shot:P1-before:ko>": "f62c70c196e103494813135342388e3248e8404fe7cd9d6a6fe8726e4e6f4080",
-    "<advanced shot:P4-after:en>": "9f4f0bc2368580869e8eeb1bbea438b9f2eeb7f553fc100915b75f639ddf28f7",
-    "<advanced shot:P4-after:ko>": "e16a070ad0789f308eb5c6fdc609b3b3bba61ad0fcb1d7cc996f0abf79927e33",
-    "<advanced shot:P4-before:en>": "74e085c3557ea40c02fccb69e899fc306990219d6a5ad1294239746ad3e13879",
-    "<advanced shot:P4-before:ko>": "51a7ca9658215d6bb0464380ed79b9f20dc086fc059f957f168d835eb7ea59ca",
-    "<advanced shot:P5:en>": "23c6ff61fed04de696818be15437ebfe1c3d7e42a8fa1e2995bb209768f6744b",
-    "<advanced shot:P5:ko>": "7c52b1bfa8bbb75c22c8047e801ad00005b975a5b830d3c36e5a645c59e27e9f",
-    "<advanced shot:P7-after:en>": "b6718516d8258bbd0f87b98ad1ee5b7cbd93569665a3703c23c830e9d8e53666",
-    "<advanced shot:P7-after:ko>": "8cccfbb60013193c4dc50f5dd329930a89f95f7d4b9cf1eb511a956fd253a621",
-    "<advanced shot:P7-before:en>": "5255cca1d1960b36c93cf37b0ef2288f38a43fdcfa73c5fa96679ef5ee9ce4b2",
-    "<advanced shot:P7-before:ko>": "4292df5cb1eb557494b56f5720bc3179f1c45a03403d8aeb3be0b3960f8b15b6",
-    "<advanced shot:P8:en>": "10c8c7d5e406b36c12941b0e6348cc5b9b4d4f5d9a480f6ebfe0b7614d017733",
-    "<advanced shot:P8:ko>": "dc7314e22b93f554aaf24ee7fad3393ec402007c2e0cf1d239a9e57bede8335e"
+    "<advanced shot:P1-after:en>": "5c339ae6a3b289c5fd809f3ab4850a0e8933d0b49c3d7eb6503de476ab7dc0b4",
+    "<advanced shot:P1-after:ko>": "93769e5fbbe478596eee4adfc14cd2eb9047feb73e33a3fd24e5b312fd0f381d",
+    "<advanced shot:P1-before:en>": "59bdccaaee51f253519be18c361ae62f429062b6e8ee78deda09859cc86e2525",
+    "<advanced shot:P1-before:ko>": "3d5362cf36248ec923acc9b8351cf708270dcdd95e138c674859b44a050a9b9d",
+    "<advanced shot:P4-after:en>": "0af387dbd79d2d9f3054107ee2218944f2f1b1c780d174ff505d3ed483b0b40e",
+    "<advanced shot:P4-after:ko>": "c39a4a1e936cac10295f2a19a7e5bfef57506948d41d6bba6dce93489183f922",
+    "<advanced shot:P4-before:en>": "3d3ed777fa494d7fc5c426e309e85b89f177dcc2130f55fe4c6b5c0094d54e7c",
+    "<advanced shot:P4-before:ko>": "0d7089495057127e814bcabfe6d8cedbdf0799434d83b061c3029faaed10a551",
+    "<advanced shot:P5:en>": "9fe7cf9d00802c72980f2e99afe9725158c916b1001445d10ebcd30857775e5e",
+    "<advanced shot:P5:ko>": "98272b17e78f818ce14a840e650cdcc2ec6f457b1ef0452192c0d8c3ceb225ce",
+    "<advanced shot:P7-after:en>": "5b7305e2d36cbd03a9526e9383b39f32b0b2e4b921bf932b3feb5794de5bd228",
+    "<advanced shot:P7-after:ko>": "40a53ce8b2454e962a2f371f92463a1303738aee65089f40b55207fee8beec3e",
+    "<advanced shot:P7-before:en>": "4a918d927ff57664a954232f8a8000b33ada52c6e25731d88200f6c7139f3718",
+    "<advanced shot:P7-before:ko>": "4953f72fd0abec6559606681c3c7089093a487ddd2327072aeddbe59379012e4",
+    "<advanced shot:P8:en>": "97c3380b4baa76627885055704fada2eedd318c3e0e07b9173763ed8d2d0e5d2",
+    "<advanced shot:P8:ko>": "8309cbab99e3f5d32cc7632a4ce826b763bd39b088f430ce0988410d6bc6826a"
   },
   "parts": {
     "<advanced shot:P1-after:en>": {
-      "00 strings": "5af8ae1d3a207e80",
+      "00 strings": "97219be3312002b5",
       "01 describe": "ca5545d1dbe0a6ef",
       "02 settings": "2ad1e1e4f4e97251",
       "03 status": "ae1ae04a07c3a021",
@@ -264,7 +264,7 @@
       "89 advanced-report-job": "86c6ba3742dfe498"
     },
     "<advanced shot:P1-after:ko>": {
-      "00 strings": "6bfabbc4518d8acf",
+      "00 strings": "daecb0a3dea91850",
       "01 describe": "5df697e03809ca79",
       "02 settings": "2ad1e1e4f4e97251",
       "03 status": "ae1ae04a07c3a021",
@@ -356,7 +356,7 @@
       "89 advanced-report-job": "86c6ba3742dfe498"
     },
     "<advanced shot:P1-before:en>": {
-      "00 strings": "5af8ae1d3a207e80",
+      "00 strings": "97219be3312002b5",
       "01 describe": "d64c333e8c56671b",
       "02 settings": "2ad1e1e4f4e97251",
       "03 status": "0db3af0e691e56ac",
@@ -370,7 +370,7 @@
       "11 preview-continuation": "2ff79f4373bb1e4f"
     },
     "<advanced shot:P1-before:ko>": {
-      "00 strings": "6bfabbc4518d8acf",
+      "00 strings": "daecb0a3dea91850",
       "01 describe": "d64c333e8c56671b",
       "02 settings": "2ad1e1e4f4e97251",
       "03 status": "0db3af0e691e56ac",
@@ -384,7 +384,7 @@
       "11 preview-continuation": "f44e8192af186533"
     },
     "<advanced shot:P4-after:en>": {
-      "00 strings": "5af8ae1d3a207e80",
+      "00 strings": "97219be3312002b5",
       "01 describe": "ca5545d1dbe0a6ef",
       "02 settings": "2ad1e1e4f4e97251",
       "03 status": "ae1ae04a07c3a021",
@@ -476,7 +476,7 @@
       "89 advanced-report-job": "86c6ba3742dfe498"
     },
     "<advanced shot:P4-after:ko>": {
-      "00 strings": "6bfabbc4518d8acf",
+      "00 strings": "daecb0a3dea91850",
       "01 describe": "5df697e03809ca79",
       "02 settings": "2ad1e1e4f4e97251",
       "03 status": "ae1ae04a07c3a021",
@@ -568,7 +568,7 @@
       "89 advanced-report-job": "86c6ba3742dfe498"
     },
     "<advanced shot:P4-before:en>": {
-      "00 strings": "5af8ae1d3a207e80",
+      "00 strings": "97219be3312002b5",
       "01 describe": "d64c333e8c56671b",
       "02 settings": "2ad1e1e4f4e97251",
       "03 status": "0db3af0e691e56ac",
@@ -582,7 +582,7 @@
       "11 preview-continuation": "2ff79f4373bb1e4f"
     },
     "<advanced shot:P4-before:ko>": {
-      "00 strings": "6bfabbc4518d8acf",
+      "00 strings": "daecb0a3dea91850",
       "01 describe": "d64c333e8c56671b",
       "02 settings": "2ad1e1e4f4e97251",
       "03 status": "0db3af0e691e56ac",
@@ -596,7 +596,7 @@
       "11 preview-continuation": "f44e8192af186533"
     },
     "<advanced shot:P5:en>": {
-      "00 strings": "5af8ae1d3a207e80",
+      "00 strings": "97219be3312002b5",
       "01 describe": "ca5545d1dbe0a6ef",
       "02 settings": "2ad1e1e4f4e97251",
       "03 status": "ae1ae04a07c3a021",
@@ -688,7 +688,7 @@
       "89 advanced-report-job": "86c6ba3742dfe498"
     },
     "<advanced shot:P5:ko>": {
-      "00 strings": "6bfabbc4518d8acf",
+      "00 strings": "daecb0a3dea91850",
       "01 describe": "5df697e03809ca79",
       "02 settings": "2ad1e1e4f4e97251",
       "03 status": "ae1ae04a07c3a021",
@@ -780,7 +780,7 @@
       "89 advanced-report-job": "86c6ba3742dfe498"
     },
     "<advanced shot:P7-after:en>": {
-      "00 strings": "5af8ae1d3a207e80",
+      "00 strings": "97219be3312002b5",
       "01 describe": "ca5545d1dbe0a6ef",
       "02 settings": "2ad1e1e4f4e97251",
       "03 status": "3a500e215d4877b6",
@@ -868,7 +868,7 @@
       "85 advanced-watch-log": "b8352ae5ec19bb8c"
     },
     "<advanced shot:P7-after:ko>": {
-      "00 strings": "6bfabbc4518d8acf",
+      "00 strings": "daecb0a3dea91850",
       "01 describe": "5df697e03809ca79",
       "02 settings": "2ad1e1e4f4e97251",
       "03 status": "3a500e215d4877b6",
@@ -956,7 +956,7 @@
       "85 advanced-watch-log": "b8352ae5ec19bb8c"
     },
     "<advanced shot:P7-before:en>": {
-      "00 strings": "5af8ae1d3a207e80",
+      "00 strings": "97219be3312002b5",
       "01 describe": "d64c333e8c56671b",
       "02 settings": "2ad1e1e4f4e97251",
       "03 status": "0db3af0e691e56ac",
@@ -970,7 +970,7 @@
       "11 preview-continuation": "2ff79f4373bb1e4f"
     },
     "<advanced shot:P7-before:ko>": {
-      "00 strings": "6bfabbc4518d8acf",
+      "00 strings": "daecb0a3dea91850",
       "01 describe": "d64c333e8c56671b",
       "02 settings": "2ad1e1e4f4e97251",
       "03 status": "0db3af0e691e56ac",
@@ -984,7 +984,7 @@
       "11 preview-continuation": "f44e8192af186533"
     },
     "<advanced shot:P8:en>": {
-      "00 strings": "5af8ae1d3a207e80",
+      "00 strings": "97219be3312002b5",
       "01 describe": "ca5545d1dbe0a6ef",
       "02 settings": "2ad1e1e4f4e97251",
       "03 status": "3a500e215d4877b6",
@@ -1072,7 +1072,7 @@
       "85 advanced-watch-log": "b8352ae5ec19bb8c"
     },
     "<advanced shot:P8:ko>": {
-      "00 strings": "6bfabbc4518d8acf",
+      "00 strings": "daecb0a3dea91850",
       "01 describe": "5df697e03809ca79",
       "02 settings": "2ad1e1e4f4e97251",
       "03 status": "3a500e215d4877b6",
