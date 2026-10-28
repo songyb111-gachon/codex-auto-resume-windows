@@ -716,6 +716,16 @@ namespace CodexAutoResume
             return KnownRunning(status, pending) ? word : "idle";
         }
 
+        /// The header's light while an action is in flight (v0.6.20, the owner's decision of 2026-10-28: a light that does
+        /// not move while work runs reads as broken or idle): the working light the installer shows for its run,
+        /// "checking", over the light the watcher's state gives - except a watcher not known to be running (idle) or one
+        /// that needs a person (attention), whose light is true whatever the window is doing. One rule for every action
+        /// the window counts in `busy` (SetBusy: Retry now, Rescan, the advanced page's calls, ...).
+        internal static string BusyLight(string light, bool working)
+        {
+            return working && light != "idle" && light != "attention" ? "checking" : light;
+        }
+
         /// Whether what was read says the watcher runs: the status says so, and no row is held for a watcher that is
         /// not running (engine_unavailable) - the two are read a moment apart, and the row is believed until the next
         /// read settles it, so the dot is not a moving light beside "Watcher not running" (tray_popup.watcher_known_running).
