@@ -147,6 +147,8 @@ LAYER = {_q(name): layer for layer, names in {
                  "win.powerdown",
                  # v0.6.15-beta: which folder a path names, whatever its spelling (the home's second lock).
                  "win.folderid",
+                 # v0.6.20 (#55): asking the settings window that is open to come forward on a page.
+                 "win.handover",
                  # v0.6.10-alpha: source.py became source/, and every part of it reads Codex;
                  # windows.py's other half - the CLI, the App Server, the pairing - joined it.
                  "codex.appserver", "codex.errors", "codex.history", "codex.labels",

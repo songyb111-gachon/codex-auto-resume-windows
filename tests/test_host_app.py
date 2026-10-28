@@ -922,7 +922,9 @@ class FrontTests(unittest.TestCase):
         self.assertLess(main.index("HostApp.BringToFront(window);"), main.index("Application.Run(window);"))
         run = setup_window_method("Run")
         self.assertLess(run.index("HostApp.BringToFront(window);"), run.index("Application.Run(window);"))
-        front = guiscan.member_body("HostApp", "BringToFront")
+        # v0.6.20: what it does once shown is ComeForward, which the Dashboard also does when the watcher asks it to.
+        self.assertIn("window.Shown += delegate { ComeForward(window); };", guiscan.member_body("HostApp", "BringToFront"))
+        front = guiscan.member_body("HostApp", "ComeForward")
         self.assertIn("SetForegroundWindow(window.Handle);", front)
         self.assertIn("ShowWindow(window.Handle, SwRestore);", front)
         self.assertIn("HostApp.Present(window);", guiscan.member_body("SettingsRemove", "Present"))

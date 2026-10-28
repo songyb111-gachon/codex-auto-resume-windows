@@ -187,20 +187,25 @@ namespace CodexAutoResume
         /// which the program that started it allowed (StartInFront, Relaunch). Its size and place are its own.
         internal static void BringToFront(Form window)
         {
-            window.Shown += delegate
+            window.Shown += delegate { ComeForward(window); };
+        }
+
+        /// `window`, already open, restored if minimized and brought to the front - as it is once first shown
+        /// (BringToFront), and (v0.6.20) when the watcher asks the Dashboard that is open to come forward instead of
+        /// starting another (SettingsForm.TakeOpenRequest), which the watcher allowed.
+        internal static void ComeForward(Form window)
+        {
+            try
             {
-                try
+                if (IsIconic(window.Handle) || window.WindowState == FormWindowState.Minimized)
                 {
-                    if (IsIconic(window.Handle) || window.WindowState == FormWindowState.Minimized)
-                    {
-                        ShowWindow(window.Handle, SwRestore);
-                        if (window.WindowState == FormWindowState.Minimized) window.WindowState = FormWindowState.Normal;
-                    }
-                    window.Activate();
-                    SetForegroundWindow(window.Handle);
+                    ShowWindow(window.Handle, SwRestore);
+                    if (window.WindowState == FormWindowState.Minimized) window.WindowState = FormWindowState.Normal;
                 }
-                catch (Exception) { /* it is open, wherever Windows put it */ }
-            };
+                window.Activate();
+                SetForegroundWindow(window.Handle);
+            }
+            catch (Exception) { /* it is open, wherever Windows put it */ }
         }
 
         // ------------------------------------------------------------------ the walk, live
