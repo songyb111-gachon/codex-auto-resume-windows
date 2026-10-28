@@ -882,7 +882,10 @@ class WindowCompositionTests(unittest.TestCase):
                                  r'\? null : status;\s+if \(heroStatus != null\) Hero\(status, null, Now\(\)\);')
         self.assertNotIn('"attention"', status)
         hero = self.method(self.window, "private void Hero(")
-        self.assertIn("stateDot.State = HeaderLight(status, pending, word);", hero)
+        # v0.6.20: the working light over it while an action is in flight (BusyLight), the advanced edition's chat after it
+        # (HeroTold); the watcher's own rule is HeaderLight still.
+        self.assertIn("string light = BusyLight(HeaderLight(status, pending, word), busy > 0);", hero)
+        self.assertIn("stateDot.State = light;", hero)
         # What "known to be running" is lives in one place (KnownRunning), which the headline reads as well, so a
         # grey light never stands over "Watching for interruptions".
         light = self.method(self.dashboard, "internal static string HeaderLight(")
