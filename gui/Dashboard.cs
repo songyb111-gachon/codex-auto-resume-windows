@@ -1500,6 +1500,28 @@ namespace CodexAutoResume
             return card;
         }
 
+        /// A dialog's list on the card History puts its list on (v0.6.20, the owner 2026-10-28): the same ListCard, standing on
+        /// a ground that fills the dialog's middle and keeps the room round the card that the History page's padding keeps
+        /// (CardRoom: the lift reaches 16 px up and left, 17 down and right), so the card is lifted from the dialog's
+        /// canvas as it is from the page's. The one place a dialog's list is made: the receipt (Timeline), the log, Install
+        /// another version and the advanced edition's Find a conversation all call it, and its rows stay the flat
+        /// hairline rows every list here has. The caller adds the result to its dialog, docked Fill; what is inside takes
+        /// its width from the dialog's own client width.
+        private Control DialogListCard(ListView list)
+        {
+            var ground = new SoftStack();
+            ground.Name = "dialog_list_ground";
+            ground.Dock = DockStyle.Fill;
+            ground.ColumnCount = 1;
+            ground.RowCount = 1;
+            ground.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            ground.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            ground.Padding = CardRoom();
+            ground.Margin = new Padding(0);
+            ground.Controls.Add(ListCard(list), 0, 0);
+            return ground;
+        }
+
         private void DrawHeader(object sender, DrawListViewColumnHeaderEventArgs e)
         {
             e.Graphics.FillRectangle(Soft.Fill(Card), e.Bounds);

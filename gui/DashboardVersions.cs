@@ -100,8 +100,8 @@ namespace CodexAutoResume
             // default form icon there (owner, 2026-10-10).
             dialog.Icon = Icon;
 
-            // Flat hairline rows, owner-drawn as every list here is (DrawCell): 660 px of columns in the 716 the
-            // padding leaves, shared out by FitColumns.
+            // Flat hairline rows, owner-drawn as every list here is (DrawCell): 660 px of columns in the 691 the
+            // card's room and padding leave, shared out by FitColumns.
             var view = List(S("pick.title", "Install another version"),
                             Col(S("pick.col_version", "Version"), 120),
                             Col(S("pick.col_kind", "Kind"), 130),
@@ -109,13 +109,8 @@ namespace CodexAutoResume
                             Col(S("pick.col_note", "What it means"), 300));
             // After FitColumns, which List asked first: held to the list's width however narrow Windows makes the dialog.
             view.ClientSizeChanged += delegate { HoldVersionColumns(view); };
-            var host = new SoftListHost(view);
-            host.Dock = DockStyle.Fill;
-            var padding = new Panel();
-            padding.BackColor = Canvas;
-            padding.Dock = DockStyle.Fill;
-            padding.Padding = Pad(12, 12, 12, 0);
-            padding.Controls.Add(host);
+            // On History's card, on the soft scroll bar, as the lists in the window are (DialogListCard).
+            Control listGround = DialogListCard(view);
 
             var footer = new SoftStack();
             footer.Dock = DockStyle.Bottom;
@@ -123,20 +118,20 @@ namespace CodexAutoResume
             footer.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             footer.ColumnCount = 1;
             footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-            footer.Padding = Pad(12, 8, 12, 0);
+            footer.Padding = Pad(16, 0, 17, 0);
             footer.BackColor = Canvas;
             var said = Value(S("pick.asking", "Asking GitHub for the list of releases..."));
             said.ForeColor = Secondary;
-            said.MaximumSize = new Size(Px(716), 0);
+            said.MaximumSize = new Size(Px(707), 0);
             footer.Controls.Add(said);
             var notes = Value("");
             notes.ForeColor = Secondary;
-            notes.MaximumSize = new Size(Px(716), 0);
+            notes.MaximumSize = new Size(Px(707), 0);
             footer.Controls.Add(notes);
 
             FlowLayoutPanel buttons = ButtonRow();
             buttons.FlowDirection = FlowDirection.RightToLeft;
-            buttons.Padding = Pad(12, 8, 12, 12);
+            buttons.Padding = Pad(16, 8, 17, 12);
             Button install = MakeButton(S("pick.install", "Install..."), true, delegate
             {
                 string[] row = ChosenVersion();
@@ -149,7 +144,7 @@ namespace CodexAutoResume
             buttons.Controls.Add(install);
             buttons.Controls.Add(close);
 
-            dialog.Controls.Add(padding);
+            dialog.Controls.Add(listGround);
             dialog.Controls.Add(footer);
             dialog.Controls.Add(buttons);
             // No AcceptButton: Enter installs nothing.

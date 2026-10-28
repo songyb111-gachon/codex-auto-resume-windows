@@ -441,7 +441,7 @@ namespace CodexAutoResume
             top.RowCount = 1;
             top.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             top.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-            top.Padding = Pad(12, 12, 12, 0);
+            top.Padding = Pad(16, 12, 17, 0);
             top.BackColor = Canvas;
             var query = new SoftTextArea();
             query.Dock = DockStyle.Fill;
@@ -459,13 +459,8 @@ namespace CodexAutoResume
             var view = List(S("logs.title", "Log"),
                             Col(S("logs.col_time", "Time"), 150),
                             Col(S("logs.col_entry", "Entry"), 560));
-            var host = new SoftListHost(view);
-            host.Dock = DockStyle.Fill;
-            var padding = new Panel();
-            padding.BackColor = Canvas;
-            padding.Dock = DockStyle.Fill;
-            padding.Padding = Pad(12, 12, 12, 0);
-            padding.Controls.Add(host);
+            // On History's card, on the soft scroll bar, as the lists in the window are (DialogListCard).
+            Control listGround = DialogListCard(view);
 
             var footer = new SoftStack();
             footer.Dock = DockStyle.Bottom;
@@ -473,7 +468,7 @@ namespace CodexAutoResume
             footer.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             footer.ColumnCount = 1;
             footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-            footer.Padding = Pad(12, 8, 12, 0);
+            footer.Padding = Pad(16, 0, 17, 0);
             footer.BackColor = Canvas;
             var count = Value("");
             footer.Controls.Add(count);
@@ -484,11 +479,11 @@ namespace CodexAutoResume
 
             FlowLayoutPanel buttons = ButtonRow();
             buttons.FlowDirection = FlowDirection.RightToLeft;
-            buttons.Padding = Pad(12, 8, 12, 12);
+            buttons.Padding = Pad(16, 8, 17, 12);
             var close = MakeButton(S("action.close", "Close"), false, delegate { dialog.Close(); });
             buttons.Controls.Add(close);
 
-            dialog.Controls.Add(padding);
+            dialog.Controls.Add(listGround);
             dialog.Controls.Add(top);
             dialog.Controls.Add(footer);
             dialog.Controls.Add(buttons);

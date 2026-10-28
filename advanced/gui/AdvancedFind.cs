@@ -137,24 +137,19 @@ namespace CodexAutoResume
             // Flat hairline rows, owner-drawn as every list here is (DrawCell): one column, the conversation's name.
             string column = Word("page.resets.field.conversation", "Conversation");
             findList = List(Word("page.find.title", "Find a conversation"), Col(column, across - 32));
-            var host = new SoftListHost(findList);
-            host.Dock = DockStyle.Fill;
-            var padding = new Panel();
-            padding.BackColor = Canvas;
-            padding.Dock = DockStyle.Fill;
-            padding.Padding = Pad(16, 8, 16, 0);
-            padding.Controls.Add(host);
+            // On History's card, on the soft scroll bar, as the lists in the window are (DialogListCard).
+            Control listGround = DialogListCard(findList);
 
             FlowLayoutPanel buttons = ButtonRow();
             buttons.FlowDirection = FlowDirection.RightToLeft;
-            buttons.Padding = Pad(0, 12, 16, 16);
+            buttons.Padding = Pad(0, 0, 16, 16);
             findUse = MakeButton(Word("page.find.use", "Use this conversation"), true, delegate { UseFound(dialog); });
             findUse.Enabled = false;
             findCancel = MakeButton(S("action.cancel", "Cancel"), false, delegate { dialog.Close(); });
             buttons.Controls.Add(findUse);
             buttons.Controls.Add(findCancel);
 
-            dialog.Controls.Add(padding);
+            dialog.Controls.Add(listGround);
             dialog.Controls.Add(top);
             dialog.Controls.Add(buttons);
             dialog.AcceptButton = findUse;

@@ -340,6 +340,8 @@ namespace CodexAutoResume
                     dialog.PerformLayout();
                     string at = where + (empty ? "/empty" : "/full");
                     Walk(dialog, at, findings);
+                    string off = ListOffCard(findList);
+                    if (off != null) findings.Add(at + " :: its list is not on a card: " + off);
                     AuditSpoken(at, dialog, findings);
                 }
                 ForgetFind();
@@ -1129,6 +1131,7 @@ namespace CodexAutoResume
             record["title"] = dialog.Text;
             record["search_name"] = findSearch.Box.AccessibleName;
             record["column"] = findList.Columns[0].Text;
+            record["list_card"] = ListOffCard(findList) ?? "";
             record["buttons"] = new List<object> { findUse.Text, findCancel.Text };
             record["accept"] = dialog.AcceptButton == findUse;
             record["use_before"] = findUse.Enabled;
