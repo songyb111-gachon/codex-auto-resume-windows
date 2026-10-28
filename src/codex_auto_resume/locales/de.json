@@ -781,7 +781,6 @@
   "msg.toast_button_cancel": "Nicht fortsetzen",
   "msg.toast_button_no_retry": "Nicht wiederholen",
   "msg.toast_button_open": "Dashboard öffnen",
-  "msg.toast_button_open_codex": "Codex öffnen",
   "msg.toast_cancelled_body": "Diese Aufgabe wird nicht automatisch wiederhergestellt.",
   "msg.toast_cancelled_title": "Automatische Wiederherstellung abgebrochen",
   "msg.toast_context_cost": "Die Unterhaltung hat mehr Tokens verbraucht, als die Einstellungen erlauben: Die Aufgabe wartet, bis Sie sie fortfahren lassen.",

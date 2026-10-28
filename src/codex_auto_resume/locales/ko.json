@@ -781,7 +781,6 @@
   "msg.toast_button_cancel": "재개하지 않음",
   "msg.toast_button_no_retry": "다시 시도하지 않음",
   "msg.toast_button_open": "대시보드 열기",
-  "msg.toast_button_open_codex": "Codex 열기",
   "msg.toast_cancelled_body": "이 작업은 자동으로 복구되지 않습니다.",
   "msg.toast_cancelled_title": "자동 복구를 취소했습니다",
   "msg.toast_context_cost": "대화가 설정에서 허용한 것보다 많은 토큰을 사용했습니다. 이어 가도록 허용할 때까지 기다립니다.",

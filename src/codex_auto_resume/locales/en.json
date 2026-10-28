@@ -401,7 +401,6 @@
   "msg.toast_button_cancel": "Don't resume",
   "msg.toast_button_no_retry": "Don't retry",
   "msg.toast_button_open": "Open Dashboard",
-  "msg.toast_button_open_codex": "Open Codex",
   "msg.toast_cancelled_body": "This task will not be recovered automatically.",
   "msg.toast_cancelled_title": "Automatic recovery cancelled",
   "msg.toast_exhausted_body": "Out of recovery attempts for this task.",

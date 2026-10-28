@@ -781,7 +781,6 @@
   "msg.toast_button_cancel": "Не продовжувати",
   "msg.toast_button_no_retry": "Не повторювати",
   "msg.toast_button_open": "Відкрити Dashboard",
-  "msg.toast_button_open_codex": "Відкрити Codex",
   "msg.toast_cancelled_body": "Це завдання не буде відновлено автоматично.",
   "msg.toast_cancelled_title": "Автоматичне відновлення скасовано",
   "msg.toast_context_cost": "Його розмова використала більше токенів, ніж дозволяють параметри: воно чекає, доки ви дозволите йому продовжитися.",

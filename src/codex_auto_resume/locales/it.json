@@ -781,7 +781,6 @@
   "msg.toast_button_cancel": "Non riprendere",
   "msg.toast_button_no_retry": "Non riprovare",
   "msg.toast_button_open": "Apri la Dashboard",
-  "msg.toast_button_open_codex": "Apri Codex",
   "msg.toast_cancelled_body": "Questa attività non verrà recuperata automaticamente.",
   "msg.toast_cancelled_title": "Recupero automatico annullato",
   "msg.toast_context_cost": "La sua conversazione ha usato più token di quanti ne consentano le Impostazioni: attende che tu la lasci continuare.",

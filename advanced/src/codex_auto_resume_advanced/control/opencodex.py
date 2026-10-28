@@ -1,10 +1,12 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
-"""Open Codex on a notice (v0.6.18): a button that shows a notice's conversation in the Codex app.
+"""Open Codex on a notice (v0.6.18; v0.6.20: the notice itself, no button): a click on a notice shows its
+conversation in the Codex app.
 
 The standard edition's notices offer two kinds of button and no others (A28): one that cancels one exact
-interruption, and one that opens one page of the Dashboard. With this capability on, a notice about one
-conversation - its key that conversation's id (notifier.Notice.key) - offers a third beside them, Open Codex,
-whose link is the Codex app's own link to that conversation (core's notify.codex_thread_uri, measured on Codex
+interruption, and one that opens one page of the Dashboard, and a click on the notice opens a Dashboard page. With
+this capability on, a click on a notice about one conversation - its key that conversation's id
+(notifier.Notice.key) - opens Codex instead, and the buttons are the standard edition's (the owner, 2026-10-28:
+a button of its own looked out of place). The link is the Codex app's own link to that conversation (core's notify.codex_thread_uri, measured on Codex
 app 26.1007: a running, minimized or closed app opens at that conversation). The card opens it through
 notify.open_in_codex (core's notifier.activate already reads exactly that link, and nothing else of its shape);
 Windows' own toast hands it to whatever is registered for `codex:`. The link only shows a conversation: nothing
@@ -13,8 +15,8 @@ is sent, nothing is changed, and the card still has no send path (A1).
 An action: core never asks it anything. While it stands on and Windows has a handler for `codex:` - read, never
 written, from the registry's Software\\Classes\\codex under HKEY_CURRENT_USER, then HKEY_LOCAL_MACHINE, a key
 marked "URL Protocol" as every registered URL scheme is - the icon's surface says so (surfaces.notice_view), and
-the watcher adds the button to each notice it builds about one conversation (core's notifier.with_open_codex).
-Where Windows has none, the button is not offered: a link nothing can open is not shown.
+the watcher sends the click of each notice it builds about one conversation to it (core's notifier.with_open_codex).
+Where Windows has none, the click is not sent there: a link nothing can open is not offered.
 """
 from __future__ import annotations
 

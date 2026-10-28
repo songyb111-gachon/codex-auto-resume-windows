@@ -781,7 +781,6 @@
   "msg.toast_button_cancel": "Nie wznawiaj",
   "msg.toast_button_no_retry": "Nie ponawiaj",
   "msg.toast_button_open": "Otwórz Dashboard",
-  "msg.toast_button_open_codex": "Otwórz Codex",
   "msg.toast_cancelled_body": "To zadanie nie zostanie odzyskane automatycznie.",
   "msg.toast_cancelled_title": "Anulowano automatyczne odzyskiwanie",
   "msg.toast_context_cost": "Rozmowa zużyła więcej tokenów, niż pozwalają ustawienia: zadanie czeka, aż pozwolisz mu kontynuować.",

@@ -781,7 +781,6 @@
   "msg.toast_button_cancel": "不要继续",
   "msg.toast_button_no_retry": "不要重试",
   "msg.toast_button_open": "打开仪表板",
-  "msg.toast_button_open_codex": "打开 Codex",
   "msg.toast_cancelled_body": "此任务将不会自动恢复。",
   "msg.toast_cancelled_title": "已取消自动恢复",
   "msg.toast_context_cost": "其对话使用的 Token 超过了设置允许的数量：它在等待你允许它继续。",

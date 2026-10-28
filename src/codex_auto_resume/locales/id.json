@@ -781,7 +781,6 @@
   "msg.toast_button_cancel": "Jangan lanjutkan",
   "msg.toast_button_no_retry": "Jangan coba lagi",
   "msg.toast_button_open": "Buka Dasbor",
-  "msg.toast_button_open_codex": "Buka Codex",
   "msg.toast_cancelled_body": "Tugas ini tidak akan dipulihkan secara otomatis.",
   "msg.toast_cancelled_title": "Pemulihan otomatis dibatalkan",
   "msg.toast_context_cost": "Percakapannya telah memakai lebih banyak token daripada yang diizinkan Pengaturan: tugas ini menunggu Anda mengizinkannya berlanjut.",
