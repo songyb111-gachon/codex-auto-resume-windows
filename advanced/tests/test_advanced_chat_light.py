@@ -144,7 +144,7 @@ class LightTests(PageCase):
         self.assertEqual(delivered["chat"]["light"], "monitoring", "back once it is delivered")
         self.assertEqual(delivered["chat"]["headline"], WATCHING)
         self.assertEqual(stale["chat"]["light"], "monitoring", "a read away from the page with nothing to watch is not made")
-        self.assertEqual(len(sent(result, "advanced-chat-read")), 3, "the arrival, and the two polls that had a message")
+        self.assertEqual(len(sent(result, "advanced-chat-read")), 4, "the arrival's two reads and the two polls that had a message")
 
     def test_a_watcher_that_is_not_running_keeps_its_grey_light_beside_a_waiting_message(self):
         (look,) = self.of("scenario_watcher_not_running")[0]["looks"]

@@ -533,7 +533,8 @@ namespace CodexAutoResume
                 {
                     chatDraft = "";
                     chatView = result;
-                    SetNote(advancedNote, Word("page.done.chat", "Sending. The watcher takes it at its next look."));
+                    // The Advanced features page is built when it is first shown: a chat opened straight (its tab, a notice) has no note yet.
+                    if (advancedNote != null) SetNote(advancedNote, Word("page.done.chat", "Sending. The watcher takes it at its next look."));
                 }
                 UpdateCountdowns();
                 ReadAdvanced(null);
