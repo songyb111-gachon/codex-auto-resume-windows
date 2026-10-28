@@ -61,7 +61,9 @@
   영수증 없는 대기열 응답이 무엇이었는지 정해진 말로 남기는 수정([#53](https://github.com/songyb111-gachon/codex-auto-resume-windows/pull/53))을 보내 주셨습니다.
 - [@weng-wen-jun](https://github.com/weng-wen-jun) 님은 오래된 대기 중 복구를 정리하는 수동 '다시 살펴보고 정리'를
   요청했고([#39](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/39)), 이어서 대기열 메시지를 위한 대기 중과 편집 창, 그리고 지금 다시 확인과 다시 살펴보기의
-  사용량 확인을 제안했습니다([#50](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/50)).
+  사용량 확인, 그리고 대화 찾기가 된 검색할 수 있는 대화 선택을 제안했습니다([#50](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/50)).
+- [@kano0222](https://github.com/kano0222) 님은 에이전트가 만든 대화를 사람이 입력창에서 이어 써도 복구하지 않는 문제를 알리고,
+  그 원인을 코드의 정확한 규칙까지 짚어 주셨습니다([#54](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/54)).
 
 ## AI 기여자에 대한 참고
 
