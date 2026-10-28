@@ -17,7 +17,10 @@ import sys
 import tempfile
 import unittest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+# This folder for pagecase, and tests/ for busycase - the release lane's path has neither (advancedcase.py does the same).
+for entry in (Path(__file__).resolve().parents[2] / "tests", Path(__file__).resolve().parent):
+    if str(entry) not in sys.path:
+        sys.path.insert(0, str(entry))
 
 from busycase import BusyCase  # noqa: E402
 from pagecase import CSC, POWERSHELL, compile_window  # noqa: E402
