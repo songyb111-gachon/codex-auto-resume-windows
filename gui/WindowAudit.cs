@@ -1077,7 +1077,10 @@ namespace CodexAutoResume
         internal static string ListOffCard(ListView list)
         {
             if (list == null) return "there is no list";
-            var host = list.Parent as SoftListHost;
+            // The list stands in the host's clip (SoftListHost).
+            Control inside = list.Parent;
+            if (inside != null && !(inside is SoftListHost)) inside = inside.Parent;
+            var host = inside as SoftListHost;
             if (host == null) return "its parent is not the soft list host";
             var card = host.Parent as SoftCard;
             if (card == null) return "its host is not on a SoftCard";
