@@ -781,6 +781,7 @@
   "msg.toast_button_cancel": "לא לחדש",
   "msg.toast_button_no_retry": "לא לנסות שוב",
   "msg.toast_button_open": "פתיחת לוח המחוונים",
+  "msg.toast_button_open_codex": "פתיחת Codex",
   "msg.toast_cancelled_body": "המשימה הזו לא תשוחזר אוטומטית.",
   "msg.toast_cancelled_title": "השחזור האוטומטי בוטל",
   "msg.toast_context_cost": "השיחה שלה ניצלה יותר טוקנים ממה שההגדרות מתירות: היא ממתינה לאישורך להמשיך.",

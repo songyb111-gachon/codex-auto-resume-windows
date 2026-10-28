@@ -781,6 +781,7 @@
   "msg.toast_button_cancel": "Sürdürülmesin",
   "msg.toast_button_no_retry": "Denemeyi bırak",
   "msg.toast_button_open": "Gösterge Paneli'ni aç",
+  "msg.toast_button_open_codex": "Codex'i aç",
   "msg.toast_cancelled_body": "Bu görev otomatik olarak kurtarılmayacak.",
   "msg.toast_cancelled_title": "Otomatik kurtarma iptal edildi",
   "msg.toast_context_cost": "Sohbeti, ayarların izin verdiğinden fazla token kullandı: devam etmesine izin vermenizi bekliyor.",

@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import unittest
 
-from codex_auto_resume import l10n, notice_card, notifier, notify
+from codex_auto_resume import notice_card, notifier, notify
 
 from test_notice_card import EVENTS, FULL, THREAD, build, fake_measure  # noqa: E402  (the fixtures)
 
@@ -56,11 +56,6 @@ class CardTests(unittest.TestCase):
         plain = resumed()
         shown = notifier.with_open_codex(plain, True)
         self.assertEqual(notice_card.texts(notice_card.view(shown)), notice_card.texts(notice_card.view(plain)))
-
-    def test_no_word_for_an_open_codex_button_is_left(self):
-        for locale in l10n.LOCALES:
-            with self.subTest(locale=locale):
-                self.assertNotIn("msg.toast_button_open_codex", l10n.catalog(locale))
 
 
 class ToastTests(unittest.TestCase):

@@ -781,6 +781,7 @@
   "msg.toast_button_cancel": "Không tiếp tục",
   "msg.toast_button_no_retry": "Không thử lại",
   "msg.toast_button_open": "Mở Bảng điều khiển",
+  "msg.toast_button_open_codex": "Mở Codex",
   "msg.toast_cancelled_body": "Tác vụ này sẽ không được khôi phục tự động.",
   "msg.toast_cancelled_title": "Đã hủy khôi phục tự động",
   "msg.toast_context_cost": "Cuộc trò chuyện của nó đã dùng nhiều token hơn mức Cài đặt cho phép: nó chờ bạn cho phép tiếp tục.",

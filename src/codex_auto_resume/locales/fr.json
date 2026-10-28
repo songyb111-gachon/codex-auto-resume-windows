@@ -781,6 +781,7 @@
   "msg.toast_button_cancel": "Ne pas reprendre",
   "msg.toast_button_no_retry": "Ne pas réessayer",
   "msg.toast_button_open": "Ouvrir le Tableau de bord",
+  "msg.toast_button_open_codex": "Ouvrir Codex",
   "msg.toast_cancelled_body": "Cette tâche ne sera pas récupérée automatiquement.",
   "msg.toast_cancelled_title": "Récupération automatique annulée",
   "msg.toast_context_cost": "Sa conversation a utilisé plus de jetons que les Paramètres ne le permettent : elle attend que vous la laissiez continuer.",

@@ -781,6 +781,7 @@
   "msg.toast_button_cancel": "再開しない",
   "msg.toast_button_no_retry": "再試行しない",
   "msg.toast_button_open": "ダッシュボードを開く",
+  "msg.toast_button_open_codex": "Codex を開く",
   "msg.toast_cancelled_body": "このタスクは自動的に復旧されません。",
   "msg.toast_cancelled_title": "自動復旧をキャンセルしました",
   "msg.toast_context_cost": "会話が設定で許可された以上のトークンを使用しました。続行の許可を待っています。",

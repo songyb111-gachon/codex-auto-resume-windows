@@ -781,6 +781,7 @@
   "msg.toast_button_cancel": "لا تستأنف",
   "msg.toast_button_no_retry": "لا تُعِد المحاولة",
   "msg.toast_button_open": "فتح لوحة المعلومات",
+  "msg.toast_button_open_codex": "فتح Codex",
   "msg.toast_cancelled_body": "لن تُستعاد هذه المهمة تلقائيًا.",
   "msg.toast_cancelled_title": "أُلغيت الاستعادة التلقائية",
   "msg.toast_context_cost": "استهلكت محادثتها رموزًا مميزة أكثر مما تسمح به الإعدادات: تنتظر أن تسمح لها بالمتابعة.",

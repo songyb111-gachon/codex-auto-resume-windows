@@ -781,6 +781,7 @@
   "msg.toast_button_cancel": "不要接續",
   "msg.toast_button_no_retry": "不要重試",
   "msg.toast_button_open": "開啟儀表板",
+  "msg.toast_button_open_codex": "開啟 Codex",
   "msg.toast_cancelled_body": "此任務將不會自動復原。",
   "msg.toast_cancelled_title": "已取消自動復原",
   "msg.toast_context_cost": "其對話使用的 Token 超過設定允許的數量：它正在等待您允許它接續。",
