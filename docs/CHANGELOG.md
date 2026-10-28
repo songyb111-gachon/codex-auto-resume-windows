@@ -1,5 +1,45 @@
 # Changelog
 
+## v0.6.20-beta.2 — The open Dashboard brought forward from the notification area, a status light that shows work in progress, and lists on their own card in every dialog
+
+[The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.20-beta...v0.6.20-beta.2)
+
+**A pre-release: the second of v0.6.20.** It is a GitHub pre-release, so `releases/latest` stays v0.6.19. An installation of
+v0.6.20-beta is offered it by *Check for updates* where pre-releases are offered - the check asks first and says it is tested
+less - and *Install another version...* lists it. Both editions change in the first group; the second is the advanced edition's
+alone, and what it changes is off until you turn it on.
+
+**Going back.** Nothing stored changes: the watcher's state stays schema 5, the settings file gains no key, and the advanced
+edition's own file stays version 8. v0.6.20-beta and v0.6.19 use everything as this pre-release leaves it.
+
+### Both editions
+
+- **The notification area brings the open Dashboard forward** (reported by [@CuuuuteBrainGoo](https://github.com/CuuuuteBrainGoo),
+  [#55](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/55)). *Open Dashboard*, *Show what is waiting*, the popup's
+  Dashboard button and a notification's Open each started another Dashboard window, because the window had no rule to keep to one.
+  Now each asks the window already open for this installation to show that page and come to the front, and a new window starts only
+  when none is open. Pause and Resume in the menu already acted without a window, and still do.
+- **The status light shows work in progress.** While *Retry now*, *Rescan* or another action you started is waiting for its answer,
+  the light in the Dashboard's header shows the working light, and goes back the moment the answer comes. A stopped watcher and one
+  that needs you keep their own light.
+- **Lists in dialogs stand on their own card, as History's does.** The timeline, the log and *Install another version...* put their
+  list on the same raised card the History page uses, instead of straight on the grey ground; one place in the window makes that card
+  for every dialog's list, and the layout check now finds a list that is not on one.
+- **The design choice says what Soft is.** Its help line now says that Soft is the raised, neumorphic design; the three names stay
+  as they were.
+
+### Advanced edition
+
+- **Chat shows that a message is on its way.** While a message you sent from the Chat page waits to be delivered or is on its way,
+  the header's light shows the working light and its words say *Sending...* or *Sent*, until the message is delivered, not taken,
+  failed or cancelled. Sending from a chat opened straight on its page, before the Advanced features page had been opened, no longer
+  fails.
+- **A notice opens Codex by a click, with no button for it.** With the capability that opens a conversation in Codex from a notice
+  turned on, a click on the notice itself - the card or the Windows notification - opens that conversation in Codex; the separate
+  *Open Codex* button is gone. Cancel, *Open Dashboard* and the update notice's own button are as they were, and the Chat page's own
+  choice of where a click goes still wins.
+- *Find a conversation...* puts its list on the same card.
+
 ## v0.6.20-beta — A conversation an agent made is recovered when you started the failed turn yourself, and Find a conversation
 
 [The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.19...v0.6.20-beta)
