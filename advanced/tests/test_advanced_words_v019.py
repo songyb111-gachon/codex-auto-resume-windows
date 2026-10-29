@@ -60,11 +60,15 @@ class WordTests(unittest.TestCase):
             with self.subTest(name):
                 self.assertEqual(tuple(str(word) for word in getattr(vocabulary, name)), words)
 
-    def test_each_grown_list_ends_with_the_designs_words(self):
+    def test_each_grown_list_holds_the_designs_words_together(self):
+        # The design's words were added at the end of each list; words a capability built since adds (v0.6.20:
+        # window_anchor's options) come after them, so the design's words stand together, in their order.
         for name, words in ADDED.items():
             with self.subTest(name):
                 held = tuple(str(word) for word in getattr(vocabulary, name))
-                self.assertEqual(held[-len(words):], words)
+                self.assertIn(words[0], held)
+                start = held.index(words[0])
+                self.assertEqual(held[start:start + len(words)], words)
 
     def test_every_command_the_designs_name_is_a_word(self):
         self.assertEqual(tuple(str(command) for command in BridgeCommand)[-len(COMMANDS):], COMMANDS)
