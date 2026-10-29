@@ -58,10 +58,20 @@ class ClicksMixin:
         except Exception:
             return False
 
+    def _unconfirmed_unseen(self, snapshot) -> bool:
+        """Whether the icon asks for attention for a sending nobody has confirmed (v0.6.20, control.unseen_unconfirmed):
+        the same rule as a failure's, in amber and not in red."""
+        if self.control is None or not snapshot.get("failures"):
+            return False
+        try:
+            return self.control.unconfirmed_unseen(snapshot["failures"]) is True
+        except Exception:
+            return False
+
     def _failure_seen(self):
         """A click that opens the popup has seen the failure the icon shows: say so, and let the icon go back now
         rather than at the next second."""
-        if not self._failed or self.control is None:
+        if not (self._failed or self._unconfirmed) or self.control is None:
             return
         try:
             self.control.acknowledge_failure()

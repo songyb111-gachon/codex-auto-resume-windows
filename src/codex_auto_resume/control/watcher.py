@@ -414,6 +414,8 @@ class WatcherMixin:
             "codes": codes,
             # A certain failure nobody has seen yet (unseen_failure): the taskbar button's red, as the icon's.
             "failure_unseen": self.failure_unseen(marks),
+            # v0.6.20: and a sending nobody has confirmed (unseen_unconfirmed): the same button, amber and not red.
+            "unconfirmed_unseen": self.unconfirmed_unseen(marks),
             "settings": values,
         }
         # v0.6.11: the policy keys in force, by name (managed.py) - only while there is one, so a PC

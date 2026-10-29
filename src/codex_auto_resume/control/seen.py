@@ -61,6 +61,15 @@ def unseen_failure(marks, seen_at):
     return failed if failed > seen_at else None
 
 
+def unseen_unconfirmed(marks, seen_at):
+    """The time of a sending nobody has confirmed, or None (v0.6.20): the same rule as unseen_failure, for the
+    endings the icon shows as "needs your attention" and not in red - one whose arrival cannot be confirmed, one
+    whose outcome was never verified. The icon, get_status and the taskbar button read it."""
+    if not isinstance(marks, dict) or seen_at is None:
+        return None
+    return unseen_failure({"failed_at": marks.get("unconfirmed_at"), "started_at": marks.get("started_at")}, seen_at)
+
+
 class SeenMixin:
     """Reading and writing the moment a failure was last seen."""
 
@@ -102,10 +111,18 @@ class SeenMixin:
         """Whether a failure the store's marks name is still to be shown (unseen_failure), for the icon."""
         return unseen_failure(marks, self.failure_seen_at()) is not None
 
+    def unconfirmed_unseen(self, marks) -> bool:
+        """Whether a sending nobody has confirmed is still to be shown (unseen_unconfirmed), for the icon."""
+        return unseen_unconfirmed(marks, self.failure_seen_at()) is not None
+
     def _newest_failure(self):
         try:
             with self._open(legacy_ok=True) as store:
-                return None if isinstance(store, LegacyStore) else store.failure_marks()["failed_at"]
+                if isinstance(store, LegacyStore):
+                    return None
+                marks = store.failure_marks()
+                times = [value for value in (marks["failed_at"], marks.get("unconfirmed_at")) if value is not None]
+                return max(times) if times else None
         except Exception:
             return None
 

@@ -145,6 +145,7 @@
                 "scheduled": 1
               },
               "failure_unseen": false,
+              "unconfirmed_unseen": false,
               "settings": {
                 "max_recovery_attempts": 4,
                 "max_no_progress": 3,

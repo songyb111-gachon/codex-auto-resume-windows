@@ -28,11 +28,17 @@ def tooltip(snapshot: dict, strings: dict, now: float, edition: str | None = Non
         return title
     if snapshot.get("failed"):
         line = strings.get("tray.failed", "A recovery failed")
+    elif snapshot.get("unconfirmed"):
+        # v0.6.20: a sending nobody has confirmed - the amber light's own word.
+        line = strings.get("activity.attention", "Needs your attention")
     elif not snapshot.get("enabled", True):
         line = strings.get("tray.paused", "Paused")
     else:
         waiting, running = snapshot.get("waiting", 0), snapshot.get("running", 0)
         parts = []
+        if snapshot.get("held"):
+            # v0.6.20: and a record waiting for a person: the amber light's own word, before the counts.
+            parts.append(strings.get("activity.attention", "Needs your attention"))
         if running:
             parts.append(strings.get("tray.running", "{n} running in Codex").replace("{n}", str(running)))
         if waiting:

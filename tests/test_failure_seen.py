@@ -35,8 +35,8 @@ from test_control import ControlTestCase, detection  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def marks(failed=None, started=None):
-    return {"failed_at": failed, "started_at": started}
+def marks(failed=None, started=None, unconfirmed=None):
+    return {"failed_at": failed, "started_at": started, "unconfirmed_at": unconfirmed}
 
 
 class RuleTests(unittest.TestCase):
@@ -245,12 +245,15 @@ class StoreMarkTests(ControlTestCase):
         self.assertEqual(self.marks()["failed_at"], None)
 
     def test_only_a_certain_failure_is_a_failure(self):
-        for index, state in enumerate(("submission_unknown", "terminal_failure", "retry_budget_exhausted",
-                                       "cancelled")):
+        """Since v0.6.20 (J14 as amended on 2026-10-29) a failed recovery, one whose attempts ran out and one handed
+        over are certain; a sending whose arrival or outcome cannot be confirmed is not, and has a mark of its own
+        (tests/test_failure_outcomes.py holds each ending)."""
+        for index, state in enumerate(("terminal_failure", "cancelled", "superseded", "superseded_by_user")):
             key = "%x" % (index + 10) * 64
             self.register(key=key[:64], thread_id="0a1b2c3d-0001-7000-8000-%012d" % index)
             self.set_row(key[:64], state=state, outcome_at=300.0 + index, submitted_at=290.0)
         self.assertEqual(self.marks()["failed_at"], None)
+        self.assertEqual(self.marks()["unconfirmed_at"], None)
 
     def test_get_status_says_whether_one_is_unseen(self):
         self.register()
