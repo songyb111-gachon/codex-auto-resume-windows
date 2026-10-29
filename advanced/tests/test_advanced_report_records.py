@@ -1,4 +1,4 @@
-"""The compatibility report's reader (report/records.py and report/evidence.py): it reads this PC's
+"""The compatibility report's reader (report/records.py, and core's ownreport/reading.py and evidence.py): it reads this PC's
 own records as codex-compat-reporter 1.5.0 reads them, writes nothing, and lets nothing out but
 counts, states, times and versions.
 
@@ -29,12 +29,15 @@ from reportfixtures import ENGINE, NEWER, OLDER, Home  # noqa: E402
 from codex_auto_resume import compat, config  # noqa: E402
 from codex_auto_resume.runtime.app import ENGINE_LOG_WORDS  # noqa: E402
 from codex_auto_resume.store import SCHEMA_VERSION as CORE_SCHEMA  # noqa: E402
-from codex_auto_resume_advanced.report import evidence, records  # noqa: E402
+from codex_auto_resume.ownreport import evidence, reading  # noqa: E402
+from codex_auto_resume_advanced.report import records  # noqa: E402
 from codex_auto_resume_advanced.report.records import ReadRefusal  # noqa: E402
 from codex_auto_resume_advanced.state import journal, schema as ledger_schema  # noqa: E402
 
 GOLDEN = HERE / "golden" / "report"
 PACKAGE = fixtures.ROOT / "advanced" / "src" / "codex_auto_resume_advanced" / "report"
+# v0.6.19: what every report of this PC's records reads and counts the same way is core's (the Dashboard's own report).
+CORE = fixtures.ROOT / "src" / "codex_auto_resume" / "ownreport"
 DEFAULT = object()
 ISO = re.compile(r"\A\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ\Z")
 
@@ -212,12 +215,14 @@ class ReadOnlyTests(Case):
         call that writes, makes or removes a file."""
         writes = {"write_text", "write_bytes", "mkdir", "unlink", "rename", "replace", "touch", "rmdir",
                   "commit", "executescript"}
-        for path in sorted(PACKAGE.glob("*.py")):
+        for path in sorted(PACKAGE.glob("*.py")) + sorted(CORE.glob("*.py")):
             with self.subTest(path.name):
                 tree = ast.parse(path.read_text(encoding="utf-8"))
                 names = {getattr(node, "attr", None) or getattr(node, "id", None) for node in ast.walk(tree)}
                 self.assertEqual(names & (writes | {"Store", "open_state", "AdvancedState"}), set())
-        source = (PACKAGE / "records.py").read_text(encoding="utf-8")
+        # v0.6.19: the one opener is core's (ownreport/reading.py readonly), which the ledger is opened through too.
+        self.assertNotIn("sqlite3.connect(", (PACKAGE / "records.py").read_text(encoding="utf-8"))
+        source = (CORE / "reading.py").read_text(encoding="utf-8")
         self.assertEqual(source.count("sqlite3.connect("), 1)
         self.assertIn('as_uri() + "?mode=ro", uri=True', source)
 
@@ -287,7 +292,7 @@ class RefusalTests(Case):
         self.addCleanup(blocker.close)
         blocker.execute("BEGIN EXCLUSIVE")
         self.addCleanup(blocker.rollback)
-        with mock.patch.object(records, "TIMEOUT", 0.1):
+        with mock.patch.object(reading, "TIMEOUT", 0.1):
             self.refused(ReadRefusal.STATE_BUSY, home)
 
     @unittest.skipUnless(sys.platform == "win32", "a junction is Windows'")
@@ -368,7 +373,8 @@ class RouteTests(Case):
         with mock.patch.object(journal, "EVENT_MAX_AGE", fixtures.NOW - fixtures.at(6, 1)):
             self.assertEqual(read(home, asked)["left_out"]["beyond_reach"], 0, "the reach moved with the ledger's own")
         tree = ast.parse((PACKAGE / "records.py").read_text(encoding="utf-8")
-                         + (PACKAGE / "evidence.py").read_text(encoding="utf-8"))
+                         + (CORE / "evidence.py").read_text(encoding="utf-8")
+                         + (CORE / "reading.py").read_text(encoding="utf-8"))
         numbers = {node.value for node in ast.walk(tree) if isinstance(node, ast.Constant)
                    and isinstance(node.value, int) and not isinstance(node.value, bool)}
         self.assertEqual(numbers & {90, 5000, 86400, 90 * 86400}, set())
@@ -485,12 +491,14 @@ class VocabularyTests(unittest.TestCase):
 
     def test_nothing_of_the_rest_of_the_edition_is_imported_but_the_ledgers_bounds(self):
         """So a standard export could take the two modules unchanged (the design's option X)."""
-        for path in (PACKAGE / "records.py", PACKAGE / "evidence.py"):
+        for path in (PACKAGE / "records.py", CORE / "evidence.py", CORE / "reading.py"):
             tree = ast.parse(path.read_text(encoding="utf-8"))
             relative = {(node.level, node.module) for node in ast.walk(tree)
                         if isinstance(node, ast.ImportFrom) and node.level}
             with self.subTest(path.name):
                 self.assertLessEqual(relative, {(1, None), (2, "state.journal"), (2, "state.schema")})
+        for path in (CORE / "evidence.py", CORE / "reading.py"):
+            self.assertNotIn("codex_auto_resume_advanced", path.read_text(encoding="utf-8"), path.name)
         self.assertNotIn("codex_auto_resume_advanced", inspect.getsource(evidence))
 
 

@@ -1,7 +1,9 @@
 """A JSON bridge over the shared control layer.
 
-The standalone Windows window and the MCP server both drive the product through this,
-so neither of them re-implements validation, defaults or persistence.
+The standalone Windows window drives the product through this, so it re-implements no
+validation, defaults or persistence. The MCP server calls the same control layer directly
+(mcp/server.py) and borrows only this module's line encoding, its generic refusal and its
+reading of a statistics range.
 
 Two ways to call it, one set of commands:
 
@@ -79,7 +81,12 @@ PLAIN = ("status", "settings", "describe", "defaults", "pending", "pending-all",
          "rescan",
          # v0.6.17: Diagnostics - whether the watcher and this bridge run inside another app (an MSIX app's private
          # view), and which; read only (control/tools.py host_app).
-         "host-app")
+         "host-app",
+         # v0.6.18: the Codex home Settings > Advanced offers to watch too, read only (homefind.py).
+         "home-suggestion",
+         # v0.6.19: Diagnostics - this PC's own compatibility report, written from its own records and sent nowhere
+         # (ownreport/), read only.
+         "own-report")
 WITH_ARGUMENT = ("update", "enabled", "startup", "cancel", "reset-budget", "retry-now",
                  "timeline", "statistics", "thread-enabled", "cancel-thread", "diagnostics",
                  "preview-continuation", "interruption-recovery",
@@ -99,7 +106,9 @@ WITH_ARGUMENT = ("update", "enabled", "startup", "cancel", "reset-budget", "retr
                  # caller that arms (H14) - and turned off.
                  "power-arm", "power-disarm",
                  # v0.6.16-beta.3: one waiting recovery's words for this time - read, set or taken away.
-                 "once-words")
+                 "once-words",
+                 # v0.6.18: Not now for that offer - the folder is never offered again.
+                 "home-dismiss")
 # Big enough for the largest Save the settings layer accepts: eight Custom messages of 2000
 # characters each, and the window writes every line break as a six-character escape, so a
 # valid Save can come to nearly 100 KiB. At 64 KiB such a Save was refused as "request too
@@ -397,9 +406,18 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
             # Read only: the watcher's own decisions asked on the spot, in the Interface language.
             from . import checkup
             return {"ok": True, "result": checkup.run(control)}
+        if command == "own-report":
+            # Read only: this PC's own records, written up as a compatibility report and sent nowhere.
+            from . import ownreport
+            return {"ok": True, "result": ownreport.write(control.paths)}
         if command == "demo":
             # Made-up rows for the Dashboard, and a made-up card asked of the icon: nothing is sent.
             return {"ok": True, "result": control.show_demo()}
+        if command == "home-suggestion":
+            # Read only: the account's CODEX_HOME and the Codex app's list of where it ran, and nothing is added.
+            return {"ok": True, "result": control.home_suggestion()}
+        if command == "home-dismiss":
+            return {"ok": True, "result": control.dismiss_home_suggestion((payload or {}).get("path"))}
         if command == "power-action":
             # Read only: Windows is asked whether each action is available, and nothing is done.
             return {"ok": True, "result": control.power_options()}
@@ -463,7 +481,9 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
             return {"ok": True, "result": control.cancel_all_pending(actor="gui")}
         if command == "rescan":
             from . import rescan            # the engine's own rules, loaded only when a person asks for this
-            return {"ok": True, "result": control.rescan_pending(rescan.judge_for(control), actor="gui")}
+            # v0.6.19 (the owner, 2026-10-24): the Dashboard's Rescan reads Codex's usage once too ("check all"); only here.
+            return {"ok": True, "result": control.rescan_pending(rescan.judge_for(control), actor="gui",
+                                                                 read_usage=True)}
         if command == "postpone":
             return {"ok": True, "result": control.postpone(
                 payload.get("interruption_id"), payload.get("thread_id"), until=payload.get("until"),
@@ -512,12 +532,13 @@ def dispatch(control: Control, command: str, payload: dict) -> dict:
         if command == "compat-refresh":
             return {"ok": True, "result": _compat_refresh(control)}
         if command == "diagnostics":
-            from . import checkup, diagnostics
+            from . import checkup, diagnostics, ownreport
             target = payload.get("path")
             if not isinstance(target, str) or not target.lower().endswith(".json"):
                 raise ControlError("choose a .json file to write")
             try:
-                written = diagnostics.write(control, Path(target), check=checkup.for_bundle(control))
+                written = diagnostics.write(control, Path(target), check=checkup.for_bundle(control),
+                                            report=ownreport.for_bundle(control.paths))
             except FileExistsError:
                 raise ControlError("that file already exists; choose a new name",
                                    code="file_exists") from None

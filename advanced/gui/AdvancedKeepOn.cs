@@ -123,10 +123,8 @@ namespace CodexAutoResume
                                    : Word("page.keep_on.on", "Kept on: it does not turn itself off."));
             state.ForeColor = Ink;
             card.Controls.Add(state);
-            // v0.6.16-beta.4: never for one whose turning itself off is what keeps it safe (registry.keepable).
-            if (!kept && Equals(Get(item, "keepable"), false))
-                card.Controls.Add(HelpText(Word("page.keep_on.never", "It cannot be kept on: turning itself off when something goes wrong is what keeps it safe.")));
-            else if (!kept) keepOnButton = CardButton(card, Word("page.keep_on.turn_on", "Keep it on..."), delegate { ArmAdvanced(id, StateArmed, 0, true); });
+            // Offered for every capability (the owner's word of 2026-10-24, v0.6.19-beta.3; before, never for two).
+            if (!kept) keepOnButton = CardButton(card, Word("page.keep_on.turn_on", "Keep it on..."), delegate { ArmAdvanced(id, StateArmed, 0, true); });
             if (kept && !again && !Equals(Get(item, "resends"), true) && !IsAction(item))
                 sendAgainButton = CardButton(card, Word("page.keep_on.send_again", "Also send again when unsure..."),
                                              delegate { KeepOnAdvanced(id, true); });
@@ -166,12 +164,15 @@ namespace CodexAutoResume
         }
 
         /// What the Keep it on and Send now buttons may do now: nothing while another action is under way; the turn-ons
-        /// only where an administrator's policy admits what they would do - Send again, the once-more capability too.
+        /// only where an administrator's policy admits what they would do - Send again, the once-more capability too - and
+        /// Keep it on only once the statement it confirms has been read, as Turn on (v0.6.19-beta.3: before, it was live
+        /// with the statement unread and its click did nothing, said nothing).
         private void UpdateKeptButtons(bool idle)
         {
             string id = advancedOpen;
             bool listed = idle && advancedListing != null && id != null;
-            if (keepOnButton != null) keepOnButton.Enabled = listed && PolicyAdmits(id) && PolicyRefusalOf(id, StateArmed) == null;
+            if (keepOnButton != null)
+                keepOnButton.Enabled = listed && AdvancedStatement(id) != null && PolicyAdmits(id) && PolicyRefusalOf(id, StateArmed) == null;
             if (sendAgainButton != null)
                 sendAgainButton.Enabled = listed && PolicyAdmits(id) && PolicyAdmits("once_more_when_unsure") &&
                                           Str(AdvancedItem(id), "state") != StateOff;

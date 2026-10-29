@@ -86,6 +86,8 @@ WHERE = {
     wire.PowerChoice: [("bridge:power-action", "result.actions[]")],
     wire.PowerOptions: [("bridge:power-action", "result")],
     wire.PowerDisarmed: [("bridge:power-disarm", "result")],
+    # v0.6.18: the Codex home Settings > Advanced offers to watch too, and what Not now leaves to offer.
+    wire.HomeSuggestion: [("bridge:home-suggestion", "result"), ("bridge:home-dismiss", "result")],
 }
 
 
@@ -201,8 +203,9 @@ class ContractTests(unittest.TestCase):
         # v0.6.11: and the attempts a temporary failure may have now, beside what it used.
         # v0.6.15-beta: and the alias of another Codex home's record.
         # v0.6.16-beta.3: and whether it has words for this time.
+        # v0.6.19 (issue #50): and what the last usage reading a person's Retry now asked for said.
         self.assertEqual(added, {"thread_enabled", "tier", "name", "project", "cwd_basename", "attempt_limit", "home",
-                                 "once_words"})
+                                 "once_words", "usage_check"})
 
     def test_describe_record_builds_exactly_a_record_view(self):
         """The producer itself, not only its golden: every key describe_record writes."""

@@ -33,7 +33,7 @@ from codex_auto_resume import brand, l10n, mcpserver               # noqa: E402
 from codex_auto_resume.mcp import panel as mcpui
 from codex_auto_resume import settings as policy                          # noqa: E402
 from test_mcpui_v063 import (FORCED, REDUCED, RULES, ROOT_TOKENS, SUPPORTS_MIX,  # noqa: E402
-                             cubic_bezier, declared, javascript_function)
+                             arithmetic, cubic_bezier, declared, javascript_function)
 from test_mcpui_v064 import run_page, say, snapshot                       # noqa: E402
 
 NODE = shutil.which("node")
@@ -710,7 +710,7 @@ def resolved(value: str) -> float:
                        lambda m: "(%s)" % (names.get(m.group(1)) or ROOT_TOKENS[m.group(1)]), value)
     value = value.replace("calc", "").replace("px", "")
     assert re.fullmatch(r"[\d\s.()+*/-]+", value), value
-    return float(eval(value))  # noqa: S307 - digits and arithmetic only, checked above
+    return arithmetic(value)
 
 
 def sides(value: str):

@@ -143,6 +143,10 @@ class EventCode(StrEnum):
     RESCAN_RECHECKED = "rescan_rechecked"
     RESCAN_UNRESOLVED = "rescan_unresolved"
     RESCAN_CHANGED = "rescan_changed"
+    # v0.6.19 (issue #50; A12 amended by the owner on 2026-10-24): usage read once at a person's Retry now for a record
+    # that waits for a usage reset - its reason the reading's word (usage_unavailable, usage_unknown; none where usage was
+    # available), its flag 1 where that lifted the reset (store/actions.py usage_checked).
+    USAGE_CHECKED = "usage_checked"
     OTHER = "other"
 
 
@@ -619,3 +623,6 @@ class NoticeKind(StrEnum):
     NEAR_LIMIT_NOT_CONTINUED = "near_limit_not_continued"
     # v0.6.18: the advanced edition's weekly update check offers a newer version - shown only from its plug's surface.
     UPDATE_OFFERED = "update_offered"
+    # v0.6.19: the advanced edition's crash restart left the watcher stopped after its third restart in an hour - raised by
+    # its plug in the launcher, as Windows' toast.
+    RESTART_GAVE_UP = "restart_gave_up"

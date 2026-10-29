@@ -6,10 +6,13 @@
     python -X utf8 build/make_motion.py --fidelity      # only the window held to today's stills, recorded
     python -X utf8 build/make_motion.py card-en card-ko # the notification card appearing, on its own
     python -X utf8 build/make_motion.py logo-light logo-dark   # the README's logo, moving (build/motion_logo.py)
-    python -X utf8 build/make_motion.py --all           # all six: the final's picture pass
+    python -X utf8 build/make_motion.py popup-en popup-ko   # the notification-area popup opened, used and closed
+    python -X utf8 build/make_motion.py --all           # all ten: the final's picture pass
 
 The README's two show the Dashboard alone, the window bare, with no shadow (RGBA, its rounded corners clear);
-the card's two the card appearing as the product shows it, on the canvas colour; the logos the icon's own watching motion.
+the card's two the card appearing as the product shows it, on the canvas colour; the popup's two the popup the icon
+opens, its switch turned off and on again, on the canvas colour (build/motion_popup.py); the logos the icon's own
+watching motion.
 
 A plan (build/motion_plan.py, build/motion/*.json) says what a person does, scene by scene, on one clock. Each frame
 is then drawn:
@@ -55,7 +58,10 @@ PLAN_NAMES = ("readme-en", "readme-ko")
 CARD_PLANS = ("card-en", "card-ko")
 # The README's logo, moving as the icon does while watching (build/motion_logo.py): by name, or with --all.
 LOGO_PLANS = ("logo-light", "logo-dark")
-ALL_PLANS = PLAN_NAMES + CARD_PLANS + LOGO_PLANS
+# What opens when the notification-area icon is clicked, moving (docs/images/tray-popup-motion*.png, beside the card's):
+# by name, or with --all. The still beside them, tray-popup.png, stays make_screenshots' own.
+POPUP_PLANS = ("popup-en", "popup-ko")
+ALL_PLANS = PLAN_NAMES + CARD_PLANS + POPUP_PLANS + LOGO_PLANS
 MANIFEST = ROOT / "assets" / "motion.json"
 # What the picture is made from, beside the window, the card and the icon: these files.
 CODE = ("build/make_motion.py", "build/motion_plan.py", "build/motion_window.py", "build/motion_card.py",
@@ -152,6 +158,10 @@ def render_input(plan: dict) -> str:
         return motion_logo.render_input(plan)
     import make_screenshots as shots
     parts = [json.dumps(plan, sort_keys=True, ensure_ascii=False), shots.card_drawing()]
+    if "popup" in plan:
+        # The sample rows and what draws the popup (the still's own key), and the file that sequences it.
+        parts += [shots.popup_render_input(plan["popup"].get("locale", plan["locale"])),
+                  shots.input_digest(ROOT / "build" / "motion_popup.py")]
     if "window" in plan:
         parts.append(shots.window_digest())
     if "taskbar" in plan:
@@ -222,6 +232,19 @@ def make(plan: dict, exe: Path | None, work: Path, forms=None) -> object:
         icon_top = strip["top"] + (strip["height"] - icon["size"]) // 2
         icons = tray.IconFrames(icon["size"])
         anchor = (icon_left, icon_top, icon_left + icon["size"], icon_top + icon["size"])
+    popup_plan, popup = plan.get("popup"), None
+    if popup_plan:
+        import motion_popup
+        popup = motion_popup.PopupFrames(popup_plan.get("locale", plan["locale"]), scale=popup_plan["scale"],
+                                         theme=theme, design=design)
+        if tuple(popup.size) != (width, height):
+            popup.close()
+            raise SystemExit("the popup is drawn %dx%d and the canvas is %dx%d: make the stills again, or the "
+                             "canvas the size of the popup's still" % (tuple(popup.size) + (width, height)))
+        if not popup.is_the_still(frames[0], plain, ROOT / popup_plan["still"]):
+            popup.close()
+            raise SystemExit("the popup's first frame is not %s as it is committed: make the stills again first "
+                             "(build/make_screenshots.py)" % popup_plan["still"])
     card_plan, card = plan.get("card"), None
     if card_plan:
         card = motion_card.CardFrames(card_plan.get("locale", plan["locale"]), scale=card_plan["scale"],
@@ -234,6 +257,8 @@ def make(plan: dict, exe: Path | None, work: Path, forms=None) -> object:
     seen_bounds, standing = {}, {}
 
     def draw(frame):
+        if popup is not None:
+            return popup.drawn(frame, plain)          # nobody points, and no window, strip or card
         if pictures is not None:
             _index, client, bounds = next(pictures)
             seen_bounds.update(bounds)
@@ -275,6 +300,8 @@ def make(plan: dict, exe: Path | None, work: Path, forms=None) -> object:
     finally:
         if card is not None:
             card.close()
+        if popup is not None:
+            popup.close()
 
 
 def main(argv=None) -> int:

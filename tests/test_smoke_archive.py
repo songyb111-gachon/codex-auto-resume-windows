@@ -202,9 +202,18 @@ class ContractTests(unittest.TestCase):
     def test_the_command_line_starts_with_the_bootstrap(self):
         argv = smoke.archive_command(Path("C:/p/python.exe"), Path("C:/w/user.dat"),
                                      Path("C:/p/app/src/auto_resume.py"), ("--home", Path("C:/w/home"), "install"))
-        self.assertEqual(argv[1:3], [str(SCRIPT.resolve()), smoke.ISOLATED])
-        self.assertEqual(argv[3:], [str(Path("C:/w/user.dat")), str(Path("C:/p/app/src/auto_resume.py")),
+        self.assertEqual(argv[1:3], ["-X", "disable-remote-debug"])
+        self.assertEqual(argv[3:5], [str(SCRIPT.resolve()), smoke.ISOLATED])
+        self.assertEqual(argv[5:], [str(Path("C:/w/user.dat")), str(Path("C:/p/app/src/auto_resume.py")),
                                     "--home", str(Path("C:/w/home")), "install"])
+
+    def test_the_bootstrap_refuses_while_remote_debugging_is_on(self):
+        """From 3.14 the archive's script starts itself again where remote debugging is on, in a
+        new process the remap does not reach (v0.6.19-beta.3's verification)."""
+        with patch.object(sys, "is_remote_debug_enabled", lambda: True, create=True),                 patch.object(sys, "stderr") as stderr:
+            self.assertEqual(smoke.isolated(["C:/w/user.dat", "C:/p/entry.py"]), smoke.REFUSED)
+        said = "".join(call.args[0] for call in stderr.write.call_args_list)
+        self.assertIn("remote debugging is on", said)
 
     def test_the_bootstrap_refuses_without_its_arguments(self):
         with patch.object(sys, "stderr"):
@@ -316,14 +325,22 @@ class BootstrapTests(unittest.TestCase):
         self.assertEqual(smoke.machine_state(), self.before,
                          "this machine's own registrations changed during the test")
 
-    def bootstrap(self, code, *arguments, env=None, hive=None):
+    def bootstrap(self, code, *arguments, env=None, hive=None, options=smoke.INTERPRETER_OPTIONS):
         entry = self.workspace / "entry.py"
         entry.write_text(code, encoding="utf-8")
-        done = subprocess.run([sys.executable, str(SCRIPT), smoke.ISOLATED, str(hive or self.hive),
+        done = subprocess.run([sys.executable, *options, str(SCRIPT), smoke.ISOLATED, str(hive or self.hive),
                                str(entry)] + [str(a) for a in arguments],
                               capture_output=True, text=True, encoding="utf-8", errors="replace",
                               env=env or self.env, timeout=180)
         return done.returncode, (done.stdout or "") + (done.stderr or "")
+
+    @unittest.skipUnless(hasattr(sys, "is_remote_debug_enabled"), "remote debugging is new in Python 3.14")
+    def test_it_refuses_an_interpreter_with_remote_debugging_on(self):
+        flag = self.workspace / "ran.txt"
+        code, out = self.bootstrap(_FLAG, flag, options=())
+        self.assertEqual(code, smoke.REFUSED, out)
+        self.assertIn("isolation refused: remote debugging is on", out)
+        self.assertFalse(flag.exists(), "nothing ran")
 
     def test_it_refuses_when_a_per_user_folder_is_outside_the_workspace(self):
         flag = self.workspace / "ran.txt"
@@ -341,7 +358,8 @@ class BootstrapTests(unittest.TestCase):
         entry.write_text(_FLAG, encoding="utf-8")
         driver = self.workspace / "faulted.py"
         driver.write_text(_FAULTED % (str(SCRIPT), fault), encoding="utf-8")
-        done = subprocess.run([sys.executable, str(driver), str(self.hive), str(entry), str(flag)],
+        done = subprocess.run([sys.executable, *smoke.INTERPRETER_OPTIONS, str(driver), str(self.hive), str(entry),
+                               str(flag)],
                               capture_output=True, text=True, encoding="utf-8", errors="replace",
                               env=self.env, timeout=180)
         return done.returncode, (done.stdout or "") + (done.stderr or ""), flag

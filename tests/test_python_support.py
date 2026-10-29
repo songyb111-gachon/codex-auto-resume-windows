@@ -179,7 +179,7 @@ class ShippedRuntimeLaneTests(unittest.TestCase):
 
     def test_the_test_workflow_runs_the_bundled_patch_in_its_lane(self):
         found = self.patches("test.yml")
-        self.assertTrue(found, "test.yml lets the runner choose the 3.13 patch")
+        self.assertTrue(found, "test.yml lets the runner choose the bundled line's patch")
         self.assertEqual(set(found), {POLICY["bundled_runtime"]})
 
     def test_the_release_workflow_tests_and_builds_on_the_bundled_patch(self):

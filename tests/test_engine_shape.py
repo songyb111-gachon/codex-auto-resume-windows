@@ -38,8 +38,10 @@ MIXINS = (package.OptionsMixin, package.AnnounceMixin, package.FreshnessMixin,
           package.KindsMixin,
           # a continuation sent to a conversation another Codex session holds (P16's TO_SESSION),
           package.ToSessionMixin,
-          # and a full context window's record, which a compaction turn supersedes nothing of.
-          package.CompactionMixin)
+          # and a full context window's record, which a compaction turn supersedes nothing of,
+          package.CompactionMixin,
+          # and a person's message of the plug's, marker-free through its channel.
+          package.RecordChannelMixin)
 
 # The forty-one methods the one class had, counted the day it was split.
 METHODS = {
@@ -106,6 +108,12 @@ METHODS = {
     # and several receipts waited for at once (P12, engine/delivery.py): how many, the worker taken and freed, whether
     # the send goes to it, the hand-over and what came of it.
     "_workers", "_take_slot", "_pooled", "_launched", "_free_slot", "_settle_launch",
+    # v0.6.19 (issue #50): the schedule gate, and before it the one usage reading a person's Retry now asked for
+    # (engine/freshness.py).
+    "_schedule_gate", "_asked_usage",
+    # and (the review of 2026-10-24) why such a request cannot be served, the ones a tick did not serve, said not
+    # checked at its end, and the tick's own body that sweep is wrapped around.
+    "_not_served", "_usage_checks_left", "_tick",
     # and P8's errand of the plug, run last in the tick, and what holds back its one write.
     "_errand", "errand_held",
     # and P2 carried out: the records of the plug's own, their words, their gates and moves, their claim
@@ -118,6 +126,8 @@ METHODS = {
     "_wrap_up_markers", "persons_turns", "_only_wrap_ups_after",
     # v0.6.16-beta.3: the words for this time, added once, spent at the send, deleted when not waiting.
     "_once_words", "_spend_once_words", "_prune_once_words",
+    # v0.6.18: and whether a person changed them between the read and the claim (the claim is then given back).
+    "_once_words_moved",
     # v0.6.16-beta.4: P16 asked with the app closed and nothing holding the conversation, and the look made again.
     "_unheld", "_unheld_now", "_holder", "_route", "_still_where",
     # and which conversations besides the app's are watched, asked once a tick (P18, engine/kinds.py), and whether
@@ -132,6 +142,8 @@ METHODS = {
     "compacted_since", "compaction", "foreign",
     # and P15's SILENT for a route that takes words (engine/routes.py), proven by the turn id it returned (M3B).
     "_silent", "_silent_proven",
+    # and a person's message of the plug's carried marker-free (engine/recordchannel.py).
+    "_marker_free", "_record_carried", "_record_queued", "_record_client", "_record_proof", "_record_words", "_record_carrying",
 }
 
 # What `from codex_auto_resume.engine import ...` has to keep answering (app.py, the tests).

@@ -117,9 +117,9 @@ class PageTests(PageCase):
 
     @classmethod
     def scenario_scheduled(cls, bridge):
-        """Pending's Scheduled group: hidden while nothing is read; read when the status's counts change, a line with
-        Cancel for each rule still to act - and Go on counting for one held over a gap; not read again while they stay;
-        let go on, and cancelled, read again and hidden."""
+        """Pending's one list (v0.6.19): no rule row while nothing is read; read when the status's counts change, a row for
+        each rule still to act, with Cancel - and Go on counting for one held over a gap; not read again while they stay;
+        let go on, and cancelled, read again and the row gone."""
         cls.watched(bridge, "reset_message", state="armed")
         reply = snapshot(on=1)
         thread = reply["pending"][0]["thread_id"]
@@ -247,27 +247,30 @@ class PageTests(PageCase):
                 bridge.close()
 
     def test_pending_shows_each_scheduled_rule_with_cancel_only_while_one_waits(self):
+        """v0.6.19 (#50; the owner's decision of 2026-10-24): the rules are rows of Pending's one list after the
+        recoveries, there only while one waits; no tab strip is ever built."""
         result, expected = self.of("scenario_scheduled")
         words, rule = expected["words"], expected["rule"]
         before, read, again, cancelled = result["looks"]
+        key = "rule %d" % rule
         self.assertEqual(expected["counts"]["messages"], 1)
         self.assertEqual(before["page"], "pending")
-        self.assertFalse(before["scheduled"]["group_shown"])
+        self.assertNotIn(key, before["scheduled"]["keys"])
         self.assertEqual(len(sent(result, "advanced-resets")), 3,
                          "read when the counts changed, after Go on counting and after Cancel")
-        self.assertTrue(read["scheduled"]["group_shown"])
-        self.assertEqual(read["scheduled"]["cancels"], [rule])
-        self.assertEqual(read["scheduled"]["go_ons"], [rule], "one held over a gap can be let go on from Pending too")
-        texts = read["scheduled"]["texts"]
-        self.assertEqual(texts[0], words["page.scheduled"])
-        self.assertIn(expected["pending"][0]["name"], texts[1])
-        self.assertNotIn(self.WORDS, " ".join(texts), "Pending shows no words of a message")
+        self.assertEqual(read["scheduled"]["keys"][-1], key)
+        self.assertEqual(read["scheduled"]["kinds"][-1], "rule")
+        cells = read["pending_rows"][-1]
+        self.assertIn(expected["pending"][0]["name"], cells[0])
+        self.assertEqual(cells[2], words["page.pending.kind.rule"])
+        self.assertNotIn(self.WORDS, " ".join(cells), "Pending shows no words of a message")
         self.assertEqual(again["requests"], read["requests"], "the same counts read nothing again")
         generation = sent(result, "advanced-reset-cancel")[0]["generation"]
         self.assertEqual(sent(result, "advanced-reset-go-on"), [{"rule": rule, "generation": generation}])
         self.assertEqual(sent(result, "advanced-reset-cancel"), [{"rule": rule, "generation": generation}])
-        self.assertFalse(cancelled["scheduled"]["group_shown"])
-        self.assertEqual(cancelled["scheduled"]["cancels"], [])
+        self.assertNotIn(key, cancelled["scheduled"]["keys"])
+        for look in result["looks"]:
+            self.assertFalse(look["scheduled"]["tab_strip"])
 
     def test_longer_reset_messages_says_what_it_lets_a_message_be_and_has_no_report_card(self):
         result, expected = self.of("scenario_long_messages")

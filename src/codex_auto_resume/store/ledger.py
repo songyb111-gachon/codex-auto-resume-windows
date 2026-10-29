@@ -261,15 +261,15 @@ class LedgerMixin:
         return held
 
     def _resend_claim(self, connection, settings, row, now, limits, gates, ledger, carried,
-                      quiet_until, window) -> tuple:
+                      quiet_until, window, caps=None) -> tuple:
         """The claim of an uncertain submission sent once more (v0.6.14, engine/resend.py), inside
-        `reserve_detailed`'s transaction: the record is still one that may be (resend_candidate),
-        consent and the schedule hold - its next look is the watch's, no retry's wait - nothing else
-        of the conversation's may be queued, every budget holds as core computes it, and the plug's
-        ledger is asked and pays, the schedule's answer being what it carries. Granted, the record
-        is `submitting` again with its vector, submission_safe passed as a resend, which is what marks
-        it resent; its attempt and its link of the chain are not charged again - its first claim paid
-        them. Refused, nothing is written: it stays the uncertain submission it was."""
+        `reserve_detailed`'s transaction: the record is still one that may be (resend_candidate), consent and the
+        schedule hold - its next look is the watch's, no retry's wait - nothing else of the conversation's may be
+        queued, every budget holds as core computes it, and the plug's ledger is asked and pays, the schedule's
+        answer being what it carries. Granted, the record is `submitting` again with its vector, submission_safe
+        passed as a resend, which is what marks it resent; its attempt and its link of the chain are not charged
+        again - its first claim paid them; the day and the spacing are read again here, as for a first claim
+        (v0.6.18, `_caps_refusal`). Refused, nothing is written: it stays the uncertain submission it was."""
         if gates is None or limits is None or not machine.resend_candidate(row, now, window):
             return False, "submission_safe", "possibly_sent"
         vector = dict(gates)
@@ -284,6 +284,7 @@ class LedgerMixin:
         vector.update(machine.gate_budgets(row, limits, is_usage(row)))
         found = machine.first_refusal(vector)
         refusal = (found[0], found[1][1]) if found is not None else None
+        refusal = refusal or (self._caps_refusal(connection, row, now, vector, caps, False) if caps else None)
         refusal = refusal or self._relaxation_refused(connection, row, now, vector, None, ledger, carried)
         if refusal is None and (ledger.null or Point.SCHEDULE not in carried
                                 or self._ledger_holds(connection, ledger, row, now, carried)):

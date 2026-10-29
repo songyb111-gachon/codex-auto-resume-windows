@@ -152,6 +152,25 @@ def number(value: str, unit: str = "") -> float:
     return float(value[:len(value) - len(unit)] if unit else value)
 
 
+_ARITHMETIC = {ast.Add: float.__add__, ast.Sub: float.__sub__, ast.Mult: float.__mul__, ast.Div: float.__truediv__}
+
+
+def arithmetic(text: str) -> float:
+    """The value of a calc() body once its lengths are bare numbers: numbers, + - * /, unary minus and brackets only.
+
+    Walked through the syntax tree rather than run as Python, so nothing but arithmetic can ever run."""
+    def walk(node):
+        if isinstance(node, ast.Constant) and type(node.value) in (int, float):
+            return float(node.value)
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
+            operand = walk(node.operand)
+            return -operand if isinstance(node.op, ast.USub) else operand
+        if isinstance(node, ast.BinOp) and type(node.op) in _ARITHMETIC:
+            return _ARITHMETIC[type(node.op)](walk(node.left), walk(node.right))
+        raise ValueError("not plain arithmetic: %r" % text)
+    return walk(ast.parse(text.strip(), mode="eval").body)
+
+
 def cubic_bezier(easing: str, progress: float) -> float:
     """What a CSS `cubic-bezier()` timing function gives at `progress`."""
     x1, y1, x2, y2 = (float(part) for part in
@@ -1011,7 +1030,7 @@ class StatusLightTests(unittest.TestCase):
             def at(position):
                 value = resolve(position).replace("100%", repr(box)).replace("px", "")
                 self.assertRegex(value, r"^calc\([0-9. +*/-]+\)$")
-                return eval(value[4:], {"__builtins__": {}})
+                return arithmetic(value[4:])
 
             inner_from, inner_to, outer_from, outer_to = (at(position) for position in stops)
             with self.subTest(dot=dot):

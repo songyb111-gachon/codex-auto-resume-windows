@@ -15,8 +15,10 @@
 // minimized, while an action is on its way, or under a dialog - it waits for those.
 //
 // The new window is a new process, started before this one closes. The window has no
-// single-instance rule of its own - the notification-area icon and the Start menu start one
-// each time - so nothing refuses it, and this one stays until the new one is on screen. Its
+// single-instance rule of its own - the Start menu starts one each time - so nothing refuses it,
+// and this one stays until the new one is on screen. (Since v0.6.20 the notification-area icon,
+// its popup and a notification ask the window that is open to come forward first - win/handover.py
+// and TakeOpenRequest below - and start one only where none takes it; a reopen asks nothing.) Its
 // command line carries only checked values (ParseArguments), and a window it opens never
 // reopens again for what it reads as it opens more than once in a row (ReopenDecision), so a
 // disagreement between what it was started with and what it reads cannot become a loop. If the
@@ -51,6 +53,9 @@ namespace CodexAutoResume
         internal const int MaxGeneration = 2;
 
         private const int WM_SETTINGCHANGE = 0x001A;
+        private const int WM_DPICHANGED = 0x02E0;
+        private const int WM_ENTERSIZEMOVE = 0x0231;
+        private const int WM_EXITSIZEMOVE = 0x0232;
         private const int SPI_SETHIGHCONTRAST = 0x0043;
         // DWMWA_EXTENDED_FRAME_BOUNDS: the frame the desktop draws of a window.
         private const int ExtendedFrameBounds = 9;
@@ -492,9 +497,38 @@ namespace CodexAutoResume
             });
         }
 
-        /// Windows' app mode or High Contrast changed: the theme the window would draw may have.
+        /// Windows' app mode or High Contrast changed: the theme the window would draw may have. v0.6.18: or the window
+        /// is now on a monitor of another scale (WM_DPICHANGED) - moved there, or the monitor's scaling changed.
         protected override void WndProc(ref Message m)
         {
+            if (m.Msg == WM_COPYDATA && TakeOpenRequest(ref m)) return;
+            if (m.Msg == WM_DPICHANGED)
+            {
+                // Taken here and not handed on: the window opens again at the new scale (CheckScale), and nothing of it
+                // is stretched or moved meanwhile - .NET's own handling, where it applies, scales the fonts alone.
+                m.Result = IntPtr.Zero;
+                if (auditing || !shown) return;
+                // The size it had at the scale it is drawn at, when no drag took it there (the monitor's scaling changed,
+                // or a key moved it): nothing has resized it yet. A drag took it at its start (WM_ENTERSIZEMOVE).
+                if (!scaleMoved && !sizing) drawnSize = SizeAtDrawnScale();
+                scaleMoved = true;
+                if (!sizing) BeginInvoke(new MethodInvoker(CheckScale));
+                return;
+            }
+            if (m.Msg == WM_ENTERSIZEMOVE)
+            {
+                sizing = true;
+                // v0.6.18 B3: the size it has at the scale it is drawn at, before a drag can take it to a monitor of
+                // another scale - where Windows resizes a per-monitor window to that monitor's scale itself, in the drag,
+                // so the size a reopen reads afterwards has been scaled once already.
+                if (!scaleMoved) drawnSize = SizeAtDrawnScale();
+            }
+            if (m.Msg == WM_EXITSIZEMOVE)
+            {
+                sizing = false;
+                // Dragged to a monitor of another scale: opened again there once it is let go, not under the pointer.
+                if (scaleMoved && !auditing) BeginInvoke(new MethodInvoker(CheckScale));
+            }
             base.WndProc(ref m);
             if (m.Msg != WM_SETTINGCHANGE || auditing || !IsHandleCreated) return;
             bool colours = m.WParam.ToInt64() == SPI_SETHIGHCONTRAST;
@@ -506,6 +540,143 @@ namespace CodexAutoResume
             if (colours) BeginInvoke(new MethodInvoker(delegate { CheckReopen(false); }));
         }
 
+        // ------------------------------------------------------------- asked to come forward (v0.6.20)
+        // Issue #55: every open from the notification-area icon, its popup or a notification started one more window
+        // beside this one. The watcher now asks first (win/handover.py): a WM_COPYDATA under OpenRequestMark whose bytes
+        // are a page of PageOrder in UTF-16, or none - come forward where it is. This window answers OpenRequestTaken,
+        // shows that page and comes to the front, and the watcher starts nothing. A window nobody uses refuses (the
+        // audit's, one not yet on screen or already gone), and the watcher starts one as it always did; a capture's runs
+        // from a scratch build, never the installed program the watcher asks.
+        internal const int WM_COPYDATA = 0x004A;
+        internal const long OpenRequestMark = 0x43415250;
+        internal const int OpenRequestTaken = 0x4F50454E;
+        private const int MessageFilterAllow = 1;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct CopyData { public IntPtr Data; public int Size; public IntPtr Bytes; }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool ChangeWindowMessageFilterEx(IntPtr window, int message, int action, IntPtr status);
+
+        /// The page an open request's text asks for: "" to come forward where it is, a page of PageOrder, or null when
+        /// it is neither, which this window does not take. Pure, so the rule can be checked without a window.
+        internal static string OpenRequestPage(string text)
+        {
+            if (text == null || text.Length == 0) return text;
+            return Array.IndexOf(PageOrder, text) >= 0 ? text : null;
+        }
+
+        private bool TakeOpenRequest(ref Message m)
+        {
+            if (m.LParam == IntPtr.Zero) return false;
+            CopyData copy;
+            try { copy = (CopyData)Marshal.PtrToStructure(m.LParam, typeof(CopyData)); }
+            catch (Exception) { return false; }
+            if (copy.Data.ToInt64() != OpenRequestMark) return false;
+            if (auditing || !shown || IsDisposed || Disposing) return false;
+            string text = null;
+            if (copy.Size == 0) text = "";
+            else if (copy.Size > 0 && copy.Size <= 64 && copy.Size % 2 == 0 && copy.Bytes != IntPtr.Zero)
+            {
+                try { text = Marshal.PtrToStringUni(copy.Bytes, copy.Size / 2); }
+                catch (Exception) { text = null; }
+            }
+            string page = OpenRequestPage(text);
+            if (page == null) return false;
+            m.Result = (IntPtr)OpenRequestTaken;
+            // Answered first, so the watcher waits on nothing a page takes to show.
+            BeginInvoke(new MethodInvoker(delegate { ComeForwardOn(page); }));
+            return true;
+        }
+
+        /// On `page` ("" where it is) and in front. The page is left as it is under a dialog, which comes forward with it.
+        private void ComeForwardOn(string page)
+        {
+            if (IsDisposed) return;
+            try { if (page.Length > 0 && page != currentPage && IsWindowEnabled(Handle)) ShowPage(page); }
+            catch (Exception) { /* it comes forward on the page it shows */ }
+            // Restored if minimized, then activated - which brings it to the front, as the watcher allowed it to.
+            try
+            {
+                if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;
+                Activate();
+            }
+            catch (Exception) { /* it is open, wherever Windows put it */ }
+        }
+
+        /// Once shown: a window that runs elevated still hears the watcher's request, which a window of a lower integrity
+        /// level cannot send it otherwise.
+        private void AcceptOpenRequests()
+        {
+            try { ChangeWindowMessageFilterEx(Handle, WM_COPYDATA, MessageFilterAllow, IntPtr.Zero); }
+            catch (Exception) { /* it is asked only from its own level */ }
+        }
+
+        /// What a window drawn at `drawn` does once it is on a monitor whose scale is `now` (v0.6.18): KeepWindow at the
+        /// same scale, or where the new one cannot be told (0); with unsaved edits, ReopenOnceSaved - it opens again at
+        /// the new scale once they are saved or put back; otherwise ReopenWindow. Pure, so the rule can be checked
+        /// without a second monitor.
+        internal static int ScaleDecision(double drawn, double now, bool dirty)
+        {
+            if (now <= 0 || drawn <= 0 || Math.Abs(now - drawn) < 0.005) return KeepWindow;
+            return dirty ? ReopenOnceSaved : ReopenWindow;
+        }
+
+        /// `bounds` of a window drawn at `drawn`, for one drawn at `now`: as wide and tall at the new scale as it was at
+        /// the old, from the same top left corner. PlaceOnScreen then keeps it on the screen.
+        internal static Rectangle ScaledBounds(Rectangle bounds, double drawn, double now)
+        {
+            if (drawn <= 0 || now <= 0) return bounds;
+            double factor = now / drawn;
+            return new Rectangle(bounds.X, bounds.Y, Math.Max(1, (int)Math.Round(bounds.Width * factor)),
+                                 Math.Max(1, (int)Math.Round(bounds.Height * factor)));
+        }
+
+        /// The window's size as it is drawn - its restored size while maximized - for a reopen at another scale.
+        private Size SizeAtDrawnScale()
+        {
+            return WindowState == FormWindowState.Normal ? Size : RestoreBounds.Size;
+        }
+
+        /// The bounds a window that stands at `at` opens again in at scale `now`, from the size it had while it was drawn
+        /// at `drawn` (`drawnSize`, taken before anything resized it): that size at the new scale, ScaledBounds' rule, from
+        /// where it stands now. Never from its size after the move: Windows has already scaled that once, in the drag,
+        /// and scaling it again made 1522x1052 at 144 DPI 676x467 at 96 (v0.6.18 B3). Empty `drawnSize`: `current`'s.
+        internal static Rectangle ReopenBounds(Rectangle current, Size drawnSize, double drawn, double now)
+        {
+            Size size = drawnSize.IsEmpty ? current.Size : drawnSize;
+            Rectangle scaled = ScaledBounds(new Rectangle(current.Location, size), drawn, now);
+            return scaled;
+        }
+
+        /// After WM_DPICHANGED (v0.6.18): the window opens again at the scale of the monitor it is on now (ScaleDecision),
+        /// where it is and as large as it was there - never under unsaved edits, while minimized, an action is on its
+        /// way or a dialog is open over it: the clock looks again once that is over (TickReopen). The new window reads
+        /// its monitor's scale as it opens (Program.Main), so a window at the scale of its monitor stays.
+        private void CheckScale()
+        {
+            if (!scaleMoved || sizing || auditing || reopening || IsDisposed || !IsHandleCreated) return;
+            double now = WindowScale();
+            int decision = ScaleDecision(DisplayScale, now, Dirty());
+            recheckScale = false;
+            if (decision == KeepWindow)
+            {
+                scaleMoved = false;
+                return;
+            }
+            if (decision == ReopenOnceSaved || WindowState == FormWindowState.Minimized || busy > 0 || reopenHolds > 0 ||
+                !IsWindowEnabled(Handle))
+            {
+                recheckScale = true;
+                return;
+            }
+            scaleMoved = false;
+            reopenScale = now;
+            Reopen(false);
+            // Not started: it stays as it is, and is not tried again until it moves again.
+            if (!reopening) reopenScale = 0;
+        }
+
         /// Starts this window again in what is stored, where it is, and closes this one once the new one
         /// is on screen - or after ten seconds, whatever it is doing. If the new one cannot be started,
         /// this one stays as it is: the old words and colours are better than no window.
@@ -514,6 +685,8 @@ namespace CodexAutoResume
             if (reopening || auditing || rendering) return;
             bool normal = WindowState == FormWindowState.Normal;
             Rectangle bounds = normal ? Bounds : RestoreBounds;
+            // v0.6.18: on a monitor of another scale (CheckScale), as large at that scale as it is at this one.
+            if (reopenScale > 0) bounds = ReopenBounds(bounds, drawnSize, DisplayScale, reopenScale);
             // The invisible border as it is now; maximized, as it was last measured on screen, or as the window this
             // one replaced measured it.
             Padding measured = normal ? InvisibleFrame() : Padding.Empty;
@@ -588,6 +761,7 @@ namespace CodexAutoResume
                 return;
             }
             reopening = false;
+            reopenScale = 0;
             declinedLanguage = reopenLanguage;
             declinedTheme = reopenTheme;
             declinedDesign = reopenDesign;
@@ -696,6 +870,7 @@ namespace CodexAutoResume
         {
             if (ticks % 2 == 0) WatchSettings();
             if (recheck) CheckReopen(false);
+            if (recheckScale) CheckScale();
             if (updateRearm) ListenForUpdateAgain();
         }
 
@@ -767,8 +942,16 @@ namespace CodexAutoResume
             if (auditing || installRoot == null) return;
             try
             {
+                bool created;
                 updateClose = new System.Threading.EventWaitHandle(false, System.Threading.EventResetMode.ManualReset,
-                                                                    UpdateEventName(installRoot));
+                                                                    UpdateEventName(installRoot), out created);
+                if (!created && SquattedEvent(updateClose))
+                {
+                    // Made first by someone this window takes no orders from: not listened to, as if it were not there.
+                    updateClose.Dispose();
+                    updateClose = null;
+                    return;
+                }
                 updateWait = System.Threading.ThreadPool.RegisterWaitForSingleObject(updateClose, UpdateHeard, null, -1, true);
                 FormClosed += delegate
                 {
@@ -778,6 +961,70 @@ namespace CodexAutoResume
             }
             catch (Exception) { /* no event to listen on: an update leaves this window as it always did */ }
         }
+
+        /// Whether an update event that existed before this window opened it was made by someone the window takes no
+        /// orders from (v0.6.18, security M6) - the rule the watcher's own named objects follow (win/kernel.py): a label
+        /// below Medium integrity, or an owner that is neither this account nor one only more rights can set (the
+        /// administrators, Windows itself). A Low process - a browser's sandbox, say - or another account that made it
+        /// first and set it would close every Dashboard as it opened. What cannot be read is not trusted.
+        internal static bool SquattedEvent(System.Threading.WaitHandle handle)
+        {
+            IntPtr owner, group, dacl, sacl, descriptor;
+            // SE_KERNEL_OBJECT; OWNER_SECURITY_INFORMATION | LABEL_SECURITY_INFORMATION
+            if (GetSecurityInfo(handle.SafeWaitHandle, 6, 0x1 | 0x10, out owner, out group, out dacl, out sacl,
+                                out descriptor) != 0)
+                return true;
+            try
+            {
+                string made = owner == IntPtr.Zero ? null
+                    : new System.Security.Principal.SecurityIdentifier(owner).Value;
+                using (var identity = System.Security.Principal.WindowsIdentity.GetCurrent())
+                {
+                    string me = identity.User == null ? null : identity.User.Value;
+                    return !TrustedOwner(made, me) || IntegrityRid(sacl) < MediumIntegrity;
+                }
+            }
+            catch (Exception) { return true; }
+            finally { if (descriptor != IntPtr.Zero) LocalFree(descriptor); }
+        }
+
+        private const int MediumIntegrity = 0x2000;
+
+        /// Whether an object owned by `owner` is this account's `user` own, or made by someone with more rights: the
+        /// computer's administrators (an elevated process of this account) or Windows itself. Pure.
+        internal static bool TrustedOwner(string owner, string user)
+        {
+            if (string.IsNullOrEmpty(owner) || string.IsNullOrEmpty(user)) return false;
+            return owner == user || owner == "S-1-5-32-544" || owner == "S-1-5-18";
+        }
+
+        /// The mandatory label's level in a SACL as its last RID; none is Medium, as Windows treats it.
+        private static int IntegrityRid(IntPtr sacl)
+        {
+            if (sacl == IntPtr.Zero) return MediumIntegrity;
+            int count = Marshal.ReadInt16(sacl, 4) & 0xFFFF;               // ACL.AceCount
+            IntPtr ace = sacl + 8;                                          // after the ACL header
+            for (int i = 0; i < count; i++)
+            {
+                int size = Marshal.ReadInt16(ace, 2) & 0xFFFF;             // ACE_HEADER.AceSize
+                if (Marshal.ReadByte(ace) == 0x11)                          // SYSTEM_MANDATORY_LABEL_ACE_TYPE
+                {
+                    string label = new System.Security.Principal.SecurityIdentifier(ace + 8).Value;
+                    return int.Parse(label.Substring(label.LastIndexOf('-') + 1), CultureInfo.InvariantCulture);
+                }
+                if (size <= 0) break;
+                ace += size;
+            }
+            return MediumIntegrity;
+        }
+
+        [DllImport("advapi32.dll", ExactSpelling = true)]
+        private static extern uint GetSecurityInfo(Microsoft.Win32.SafeHandles.SafeWaitHandle handle, int objectType,
+                                                   uint securityInfo, out IntPtr owner, out IntPtr group,
+                                                   out IntPtr dacl, out IntPtr sacl, out IntPtr descriptor);
+
+        [DllImport("kernel32.dll", ExactSpelling = true)]
+        private static extern IntPtr LocalFree(IntPtr memory);
 
         /// The event was set: heard once (the wait is registered to run once), and answered on the window's own thread.
         private void UpdateHeard(object state, bool timedOut)

@@ -53,6 +53,11 @@ namespace CodexAutoResume
         // to succeed on the fourth - the first version of this class failed every start for
         // a missing "-c", and the fallback hid it completely.
         private const int MaxFailures = 3;
+        // v0.6.18: and tried again once this long has passed since it was given up - a laptop resumed from sleep in
+        // the middle of a call counts as a failure, and three of those used to leave every call of the window's life,
+        // every five seconds, a fresh interpreter. One more failure gives it up for as long again.
+        internal static int RetryMilliseconds = 300000;
+        private readonly Stopwatch givenUp = new Stopwatch();
         private readonly Bridge once;
         private readonly string python;
         private readonly string appSrc;
@@ -119,6 +124,11 @@ namespace CodexAutoResume
             lock (gate)
             {
                 if (closed) throw new ObjectDisposedException("the window is closing");
+                if (failures >= MaxFailures && givenUp.ElapsedMilliseconds >= RetryMilliseconds)
+                {
+                    failures = MaxFailures - 1;
+                    givenUp.Reset();
+                }
                 if (failures < MaxFailures)
                 {
                     try
@@ -130,6 +140,7 @@ namespace CodexAutoResume
                     catch (Exception)
                     {
                         failures++;
+                        if (failures >= MaxFailures) givenUp.Restart();
                         StopLocked();
                         // Ended by Stop while the window closes: the request may already have
                         // been carried out, and there is nobody left to show a second answer to.
@@ -138,6 +149,59 @@ namespace CodexAutoResume
                 }
                 return once.Call(command, argument);
             }
+        }
+
+        /// v0.6.19: the code of the answer CallAdvanced gives while the long-lived process cannot be reached.
+        internal const string ReconnectingCode = "reconnecting";
+
+        /// v0.6.19: one call of the edition's (the Advanced features page and every page built on it), which only the
+        /// long-lived process can carry: the one-shot form never reaches the edition (STANDARDS K3), so it is never
+        /// asked. While the long-lived process is given up a read is answered at once with ReconnectingCode, and an
+        /// action - a person's click - tries to open it again at once, not after RetryMilliseconds, and is carried if
+        /// it opens. A call the long-lived process failed on is answered with ReconnectingCode and never asked again:
+        /// it may already have been carried out there.
+        internal Dictionary<string, object> CallAdvanced(string command, string argument, bool action)
+        {
+            if (closed) throw new ObjectDisposedException("the window is closing");
+            if (Answers != null) return Answers(command, argument);
+            System.Threading.Interlocked.Increment(ref calls);
+            try
+            {
+                lock (gate)
+                {
+                    if (closed) throw new ObjectDisposedException("the window is closing");
+                    if (failures >= MaxFailures)
+                    {
+                        if (!action) return Reconnecting();
+                        failures = MaxFailures - 1;
+                        givenUp.Reset();
+                    }
+                    try
+                    {
+                        var reply = Ask(command, argument);
+                        failures = 0;
+                        return reply;
+                    }
+                    catch (Exception)
+                    {
+                        failures++;
+                        if (failures >= MaxFailures) givenUp.Restart();
+                        StopLocked();
+                        if (closed) throw;
+                        return Reconnecting();
+                    }
+                }
+            }
+            finally { System.Threading.Interlocked.Decrement(ref calls); }
+        }
+
+        private static Dictionary<string, object> Reconnecting()
+        {
+            var reply = new Dictionary<string, object>();
+            reply["ok"] = false;
+            reply["error"] = "the connection to the local service is being restored";
+            reply["error_code"] = ReconnectingCode;
+            return reply;
         }
 
         /// One call on the one-shot bridge, past the long-lived process and its lock (v0.6.5): for a command that can
@@ -149,9 +213,12 @@ namespace CodexAutoResume
             if (closed) throw new ObjectDisposedException("the window is closing");
             if (Answers != null) return Answers(command, argument);
             System.Threading.Interlocked.Increment(ref calls);
-            try { return once.Call(command, argument); }
+            try { return once.Call(command, argument, Bridge.LongCallMilliseconds); }
             finally { System.Threading.Interlocked.Decrement(ref calls); }
         }
+
+        /// Whether the long-lived process is given up for now (for the tests).
+        internal bool GivenUp { get { return failures >= MaxFailures; } }
 
         private Dictionary<string, object> Ask(string command, string argument)
         {
@@ -185,7 +252,7 @@ namespace CodexAutoResume
                           "sys.exit(main(sys.argv[2:]))";
             // "-c", as the one-shot bridge has it: without it python.exe takes the code for a
             // script path, exits, and every call silently falls back to the one-shot bridge.
-            info.Arguments = "-c " + Bridge.Quote(code) + " " + Bridge.Quote(appSrc) + " serve";
+            info.Arguments = Bridge.NoRemoteDebug + "-c " + Bridge.Quote(code) + " " + Bridge.Quote(appSrc) + " serve";
             info.UseShellExecute = false;
             info.RedirectStandardInput = true;
             info.RedirectStandardOutput = true;
@@ -204,6 +271,9 @@ namespace CodexAutoResume
         internal void Stop()
         {
             closed = true;
+            // v0.6.18: the one-shot children too - the fallback of a call a worker is in the middle of, and CallOnce's -
+            // which ending `process` never reached: StopLocked had set it to null before the fallback started.
+            once.Stop();
             if (System.Threading.Monitor.TryEnter(gate))
             {
                 try { StopLocked(); }
@@ -569,6 +639,9 @@ namespace CodexAutoResume
         private string empty = "";
         // v0.6.11: a sentence under the rows - why the first check that did not pass stops it - or "".
         private string note = "";
+        /// The sentence under the rows, as it was last set (the audits and the tests read it), and what it says with none.
+        internal string Note { get { return note; } }
+        internal string Empty { get { return empty; } }
 
         internal GateList()
         {
@@ -742,10 +815,17 @@ namespace CodexAutoResume
         private Label explainAsOf;
         // The Pending list's Auto-resume column, a check box for the task on its row.
         private const int ResumeColumn = 5;
+        // v0.6.19 (the owner's decision of 2026-10-24): a list row that is not a recovery - the advanced edition's queued
+        // message, reset rule or delivered message (ListRowsJoined) - carries what kind it is, the key it is known by in
+        // the list, and the sentence Why it is waiting says of it. Nothing of a recovery's is offered on it: no switch, no
+        // menu, none of a recovery's buttons.
+        private const string RowKindKey = "row_kind", RowKeyKey = "row_key", RowSaidKey = "row_said";
         // v0.6.11: a Pending row's own menu, and whether the right button opened it - then it is the row under
         // the pointer's, and from the keyboard the chosen row's.
         private SoftMenu pendingMenu;
         private bool menuByMouse;
+        // v0.6.19: the row a double left-click opened the menu on, until the menu has read it (PrepareRowMenu).
+        private Dictionary<string, object> menuRow;
         // The times a task can be postponed by, and how much a conversation asks before it resumes, least first
         // (quiet.PRESETS, machine.IMPORTANCE_TIERS).
         private static readonly string[] PostponePresets = { "30_minutes", "1_hour", "3_hours", "tomorrow_morning" };
@@ -763,6 +843,13 @@ namespace CodexAutoResume
             "no_progress_budget", "thread_available", "no_newer_user_work", "usage" };
         private NoteLabel pendingNote, historyNote;
         private string pendingNoteFor, pendingNoteText = "";
+        // v0.6.19 (the owner's decision of 2026-10-24): the Rescan note this belongs to, what its click did about Codex's
+        // usage, and when it asked for the reading (0: none) - so the note says what was read once the watcher has read it.
+        private string rescanNoteText, rescanUsageNote;
+        private double rescanAskedAt;
+        /// The tests' answers to the window's questions, in place of the dialog (Dialog): null for every window a person
+        /// opens, as PersistentBridge.Answers is.
+        internal static Func<string, string, bool> DialogAnswers;
         private Button historyTimeline, historyReset, historyThread, historyClear;
         // Statistics
         private ComboBox period;
@@ -825,6 +912,32 @@ namespace CodexAutoResume
         // standard window goes: a page of the advanced edition's, and what the frame asks of it, is
         // put in place here, `moved` set when anything changed.
         partial void RenderStateNamed(Dictionary<string, object> frame, RenderWriter writer, ref bool moved);
+        // v0.6.19 (the owner's decision of 2026-10-24): a person's Retry now or Rescan has asked the watcher to read Codex's
+        // usage once. The advanced edition counts that reading as one of early_reset's two while it stands on.
+        partial void UsageAsked();
+        // v0.6.19 (the owner's decision of 2026-10-24): Why it is waiting has said the usage readings of a recovery that
+        // waits for a usage limit (WithUsage); the advanced edition adds early_reset's own to `said`.
+        partial void UsageNoted(Dictionary<string, object> row, List<string> said);
+        // v0.6.19 (the owner's decision of 2026-10-24: Pending is one list): a list (Pending or History) is about to be
+        // filled from `rows` - the advanced edition adds the rows of its own to it (EditionRow), after the recoveries.
+        partial void ListRowsJoined(ListView list, List<Dictionary<string, object>> rows);
+        // Pending's buttons and History's are built (BuildPending, BuildHistory), before their notes: the advanced edition
+        // adds its own to `row`.
+        partial void PendingButtonsBuilt(FlowLayoutPanel row);
+        partial void HistoryButtonsBuilt(FlowLayoutPanel row);
+        // The chosen row of Pending, or of History, has been offered its buttons (UpdatePendingButtons,
+        // UpdateHistoryButtons): the advanced edition offers its own for a row of its own, and hides them otherwise.
+        partial void PendingButtonsUpdated(Dictionary<string, object> row, bool idle);
+        partial void HistoryButtonsUpdated(Dictionary<string, object> row, bool idle);
+        // A row of the edition's own was double-clicked on Pending (a recovery's opens its menu).
+        partial void EditionRowOpened(Dictionary<string, object> row);
+        // Clear history was pressed: the advanced edition, while History lists completed messages of its own, asks and
+        // clears them together with the finished recoveries, and says so (`handled`); otherwise Clear history is as it was.
+        partial void ClearHistoryPressed(ref bool handled);
+        // v0.6.20 (the owner's report of 2026-10-26): the header's light and headline have been decided from what the window
+        // read (Hero), just before they are written: the advanced edition, while a message of its chat is waiting to be
+        // delivered or on its way, changes them to the working light and the words that say so.
+        partial void HeroTold(ref string light, ref string head);
 
         // ----------------------------------------------------------------- chrome
         private void BuildDashboard()
@@ -958,6 +1071,8 @@ namespace CodexAutoResume
             if (name == "diagnostics") LoadCompatibility();
             // The power action's card, if Settings opens on General: what Windows offers is asked once it is shown.
             if (settings) LoadPowerWhereShown();
+            // v0.6.18: the Codex home the homes' card suggests, if Settings opens on Advanced.
+            if (settings) LoadHomeSuggestionWhereShown();
             // Not when the snapshot on screen is under two seconds old: switching pages straight
             // after a read asked for the same answer again - 17-87 ms of Python and up to 45 ms of
             // redrawing, for nothing new.
@@ -1198,8 +1313,8 @@ namespace CodexAutoResume
         ///     kind cut short says nothing. From the headings alone, a status needed the window 1,239 px wide before
         ///     "waiting for the usage reset" was drawn whole (measured, 150%);
         ///   * cells past a readable width: every heading stays whole - "Next check", "Attempts" and "Auto-resume" were
-        ///     cut short in a window of v0.6.2's width - and every column keeps what it holds up to `readable`; each is
-        ///     given the same part of what it wants past that;
+        ///     cut short in a window of v0.6.2's width - and every column keeps what it holds up to `readable`; what is
+        ///     left past that goes to the columns that want the least first, each whole in turn, the widest held to one cap;
         ///   * headings wider than what their column holds, the widest first, each down to the next widest, never below
         ///     what the column holds, readable;
         ///   * last, the cells, the widest first, never below the least. Only a list narrower than every column's least
@@ -1213,7 +1328,7 @@ namespace CodexAutoResume
         /// says nothing cut - stays whole while a long state or name ends in an ellipsis.
         internal static int[] ColumnFloors(int[] heading, int[] cells, int[] least, int readable, int available)
         {
-            int count = heading.Length, others = 0, keeps = 0, holds = 0, wanted = 0;
+            int count = heading.Length, others = 0, keeps = 0, holds = 0;
             var full = new int[count];
             var hold = new int[count];
             var keep = new int[count];
@@ -1225,11 +1340,7 @@ namespace CodexAutoResume
                 full[i] = Math.Max(heading[i], i == 0 ? cell : need);
                 hold[i] = Math.Max(least[i], Math.Min(need, readable));
                 keep[i] = Math.Max(heading[i], hold[i]);
-                if (i > 0)
-                {
-                    others += full[i];
-                    wanted += full[i] - keep[i];
-                }
+                if (i > 0) others += full[i];
                 keeps += keep[i];
                 holds += hold[i];
             }
@@ -1243,9 +1354,21 @@ namespace CodexAutoResume
             }
             if (keeps <= available)
             {
+                // What is left past what each keeps goes first to the columns that want the least past it, each whole in
+                // turn, and the widest are held to one cap: a time, a kind or a count stays whole while a long state ends
+                // in an ellipsis. Up to v0.6.19-beta.3 it was shared in proportion to what each wanted, which cut every
+                // column a little - "Every day 09:00" to "Every day 09:..." beside a state cut too (the owner, 2026-10-25).
                 widths[0] = keep[0];
-                for (int i = 1; i < count; i++)
-                    widths[i] = keep[i] + (wanted > 0 ? (int)Math.Floor((full[i] - keep[i]) * (double)(available - keeps) / wanted) : 0);
+                int under = 0, over = 0;
+                for (int i = 1; i < count; i++) over = Math.Max(over, full[i]);
+                while (under < over)
+                {
+                    int cap = (under + over + 1) / 2, total = keep[0];
+                    for (int i = 1; i < count; i++) total += Math.Min(full[i], Math.Max(keep[i], cap));
+                    if (total <= available) under = cap;
+                    else over = cap - 1;
+                }
+                for (int i = 1; i < count; i++) widths[i] = Math.Min(full[i], Math.Max(keep[i], under));
                 return widths;
             }
             bool headings = holds <= available;
@@ -1293,28 +1416,34 @@ namespace CodexAutoResume
         private void MeasureCells(ListView list)
         {
             var widths = new int[list.Columns.Count];
-            var unbounded = new Size(int.MaxValue, int.MaxValue);
             int rows = 0;
             foreach (ListViewItem item in list.Items)
             {
                 // Enough to know the widths by; a history of thousands is not measured whole.
                 if (++rows > 200) break;
                 for (int c = 0; c < widths.Length && c < item.SubItems.Count; c++)
-                {
-                    // The countdown as the clock writes it now: the cell holds only what the last tick wrote, and nothing
-                    // yet in a row just added, so a list's first fit left the column no room for its time (v0.6.5).
-                    string text = list == pendingList && c == CountdownColumn ? CountdownText(item.Tag as Dictionary<string, object>, Now())
-                                : item.SubItems[c].Text;
-                    // A state chip where DrawCell draws one: the second column of a row that has its record.
-                    int width = c == 1 && item.Tag is Dictionary<string, object> ? Soft.ChipSize(text, list.Font).Width
-                              : list == pendingList && c == ResumeColumn ? Px(Brand.SwitchWidth + 2)
-                              : TextRenderer.MeasureText(text, list.Font, unbounded, TextFormatFlags.SingleLine).Width;
-                    // DrawCell's inset: 10 before, 4 after.
-                    widths[c] = Math.Max(widths[c], width + Px(14));
-                }
+                    widths[c] = Math.Max(widths[c], CellWidth(list, item, c));
             }
             cellWidths[list] = widths;
             FitColumns(list);
+        }
+
+        /// How wide `item`'s cell in `column` is drawn whole, DrawCell's inset with it.
+        private int CellWidth(ListView list, ListViewItem item, int column)
+        {
+            var record = item.Tag as Dictionary<string, object>;
+            // The countdown as the clock writes it now: the cell holds only what the last tick wrote, and nothing
+            // yet in a row just added, so a list's first fit left the column no room for its time (v0.6.5). Not for a
+            // row of the edition's own, whose cell keeps what it was written with (WriteCountdowns): measured as the
+            // countdown it never shows, its "Every day 09:00" was cut to "Every day 09:..." (the owner, 2026-10-25).
+            string text = list == pendingList && column == CountdownColumn && !EditionRow(record)
+                        ? CountdownText(record, Now()) : item.SubItems[column].Text;
+            // A state chip where DrawCell draws one: the second column of a row that has its record.
+            int width = column == 1 && record != null ? Soft.ChipSize(text, list.Font).Width
+                      : list == pendingList && column == ResumeColumn ? Px(Brand.SwitchWidth + 2)
+                      : TextRenderer.MeasureText(text, list.Font, new Size(int.MaxValue, int.MaxValue), TextFormatFlags.SingleLine).Width;
+            // DrawCell's inset: 10 before, 4 after.
+            return width + Px(14);
         }
 
         /// How much taller the tallest tab of `strip` is set in nav_current than in the font it has now: 0 where the
@@ -1371,6 +1500,28 @@ namespace CodexAutoResume
             return card;
         }
 
+        /// A dialog's list on the card History puts its list on (v0.6.20, the owner 2026-10-28): the same ListCard, standing on
+        /// a ground that fills the dialog's middle and keeps the room round the card that the History page's padding keeps
+        /// (CardRoom: the lift reaches 16 px up and left, 17 down and right), so the card is lifted from the dialog's
+        /// canvas as it is from the page's. The one place a dialog's list is made: the receipt (Timeline), the log, Install
+        /// another version and the advanced edition's Find a conversation all call it, and its rows stay the flat
+        /// hairline rows every list here has. The caller adds the result to its dialog, docked Fill; what is inside takes
+        /// its width from the dialog's own client width.
+        private Control DialogListCard(ListView list)
+        {
+            var ground = new SoftStack();
+            ground.Name = "dialog_list_ground";
+            ground.Dock = DockStyle.Fill;
+            ground.ColumnCount = 1;
+            ground.RowCount = 1;
+            ground.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            ground.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            ground.Padding = CardRoom();
+            ground.Margin = new Padding(0);
+            ground.Controls.Add(ListCard(list), 0, 0);
+            return ground;
+        }
+
         private void DrawHeader(object sender, DrawListViewColumnHeaderEventArgs e)
         {
             e.Graphics.FillRectangle(Soft.Fill(Card), e.Bounds);
@@ -1404,7 +1555,7 @@ namespace CodexAutoResume
             Color quiet = Palette.Contrast && selected ? ink : Soft.Mix(ink, Secondary, 0.4);
             if (e.ColumnIndex == 1 && row != null)
                 Soft.Chip(e.Graphics, cell, text, list.Font, Palette.Contrast && selected ? ink : ToneFor(row), back);
-            else if (list == pendingList && e.ColumnIndex == ResumeColumn && row != null)
+            else if (list == pendingList && e.ColumnIndex == ResumeColumn && row != null && !EditionRow(row))
                 DrawResumeBox(e.Graphics, cell, row, back);
             else
                 TextRenderer.DrawText(e.Graphics, text, list.Font, cell, e.ColumnIndex == 0 ? ink : quiet,

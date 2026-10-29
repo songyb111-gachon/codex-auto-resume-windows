@@ -125,15 +125,37 @@ class DeliveryMixin:
         """(the continuation with this interruption's words for this time after it, the words), or (`message`,
         None): no words, words that fail the Custom message's check as they are read again (A27), or a record not
         waiting. Built before the claim, as every word of a continuation is (A26); they change no gate."""
+        self._once_seen.pop(row.get("interruption_id"), None)
         if self.once_words is None or row.get("state") not in WAITING:
             return message, None
         try:
             words = self.once_words.words(row["interruption_id"])
+            self._once_seen[row["interruption_id"]] = words     # what the file held as this one was built
             joined = _message.with_once_words(message, words, row["category"], self.policy_values, row=row,
                                               limits=limits)
         except Exception:
             return message, None
         return (joined, words) if joined != message else (message, None)
+
+    def _once_words_moved(self, claim) -> bool:
+        """Whether a person changed this interruption's words for this time - added, edited or took them away -
+        between the read that built its continuation and the claim: True, and the claim is given back so the next
+        continuation carries what the person wrote; spending the old words would delete the new ones unsent, and a
+        continuation sent without words just added would let them be deleted with the record. Asked under the
+        file's lock after the claim, where the Dashboard can no longer add any (control/actions.py set_once_words
+        checks under the same lock); a file that cannot be had just now changes nothing."""
+        key = claim["interruption_id"]
+        if key not in self._once_seen:
+            return False
+        seen = self._once_seen.pop(key)
+        try:
+            moved = self.once_words.unchanged(key, seen) is False
+        except Exception:
+            moved = False
+        if moved:                       # given back as a pre-send look gives one back: nothing was sent
+            self._release(key, claim, "waiting_retry", "released_before_send", self.options["state_poll_seconds"])
+            self.log(claim["thread_id"], "waiting_retry", "released_before_send")
+        return moved
 
     def _spend_once_words(self, claim, words) -> bool:
         """The words taken off the file as the continuation carrying them is handed to Codex, so they are never sent
@@ -195,7 +217,26 @@ class DeliveryMixin:
                 self.transition(reserved, "waiting_retry", "queue_process_not_started",
                                 retry_count=retry, submitted_at=None, delay=delay)
         else:
+            # Persist the no-resend state first. Diagnostic logging is not allowed to
+            # be a prerequisite for the safety-critical state transition.
             self.transition(reserved, "submission_unknown", "queue_result_unknown_do_not_resend", delay=1)
+            # CLI receipt diagnostics are fixed vocabulary only: never log CLI output,
+            # which could echo a prompt or carry credentials. Do not infer non-delivery
+            # from a missing receipt, and do not turn an unknown send into a retry.
+            try:
+                if response.get("error_code") == "queue_response_unconfirmed":
+                    detail = response.get("receipt_detail")
+                    if detail == "nonzero_exit":
+                        code = response.get("exit_code")
+                        self.log(row["thread_id"], "queue_receipt_exit_nonzero",
+                                 str(code) if type(code) is int and 0 <= code <= 255 else None)
+                    elif detail == "empty_stdout":
+                        self.log(row["thread_id"], "queue_receipt_empty_stdout", None)
+                    elif detail == "unrecognized_stdout":
+                        self.log(row["thread_id"], "queue_receipt_unrecognized_stdout", None)
+            except Exception:
+                # A diagnostics sink must not affect an already-persisted delivery state.
+                pass
 
     # --------------------------------------------------------------- receipts on workers (P12, v0.6.15-beta)
     def _workers(self, due) -> int:

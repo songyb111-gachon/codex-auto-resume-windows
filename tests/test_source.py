@@ -34,7 +34,7 @@ def marker(digit="a"):
 
 MARKER = marker("a")
 # Text the tests put next to a marker. It must never come back out of the source.
-SECRET = "harmless words that must not leave SQL"
+PRIVATE = "harmless words that must not leave SQL"
 LATER_STARTED = 1788628400
 LATER_COMPLETED = 1788628500
 
@@ -225,7 +225,7 @@ class LocalSourceTests(unittest.TestCase):
     def our_turn(self, ordinal, the_marker=MARKER, status="completed", client_id=None):
         """A turn our continuation started: its first user item holds the marker."""
         turn_id = self.later_turn(ordinal, status)
-        item = self.add_item(turn_id, "userMessage", text=SECRET + " " + the_marker, client_id=client_id)
+        item = self.add_item(turn_id, "userMessage", text=PRIVATE + " " + the_marker, client_id=client_id)
         self.set_turn(turn_id, first_user_item_id=item)
         return turn_id
 
@@ -256,7 +256,7 @@ class LocalSourceTests(unittest.TestCase):
                        "next_rollout_byte_offset=excluded.next_rollout_byte_offset", (thread, size))
 
     def assertContentFree(self, value):
-        self.assertNotIn(SECRET, repr(value))
+        self.assertNotIn(PRIVATE, repr(value))
         self.assertNotIn("harmless", repr(value))
 
     # ------------------------------------------------------------ detection
@@ -329,7 +329,7 @@ class LocalSourceTests(unittest.TestCase):
         delivery of this continuation.
         """
         turn = self.later_turn(2)
-        self.add_item(turn, "agentMessage", text=SECRET + " " + MARKER)
+        self.add_item(turn, "agentMessage", text=PRIVATE + " " + MARKER)
         self.add_item(turn, "userMessage", {"type": "userMessage", "id": MARKER, "clientId": None,
                                             "content": []})
         self.add_item(turn, "userMessage", {"type": "userMessage", "id": "x1", "clientId": None,
@@ -338,9 +338,9 @@ class LocalSourceTests(unittest.TestCase):
                                             "content": [{"type": "image", "url": "data:" + MARKER}]})
         self.add_item(turn, "userMessage", {"type": "userMessage", "id": "x3", "clientId": None,
                                             "metadata": {"text": MARKER}, "content": []})
-        self.add_item(turn, "userMessage", text=SECRET + " " + MARKER, thread=SECOND)
+        self.add_item(turn, "userMessage", text=PRIVATE + " " + MARKER, thread=SECOND)
         self.assertEqual(self.source.marker_rows(TID, MARKER), [])
-        item = self.add_item(turn, "userMessage", text=SECRET + " " + MARKER)
+        item = self.add_item(turn, "userMessage", text=PRIVATE + " " + MARKER)
         self.set_turn(turn, first_user_item_id=item)
         rows = self.source.marker_rows(TID, MARKER)
         self.assertEqual(len(rows), 1)
@@ -365,9 +365,9 @@ class LocalSourceTests(unittest.TestCase):
         started = self.our_turn(2, a, status="completed")
         steered = self.later_turn(3, "somethingNewInCodex")
         self.set_turn(steered, first_user_item_id=self.add_item(steered, "userMessage"))
-        self.add_item(steered, "userMessage", text=SECRET + " " + b)
+        self.add_item(steered, "userMessage", text=PRIVATE + " " + b)
         unset = self.later_turn(4, "inProgress")
-        self.add_item(unset, "userMessage", text=SECRET + " " + c)
+        self.add_item(unset, "userMessage", text=PRIVATE + " " + c)
         cases = (
             (a, {"turn_id": started, "ordinal": 2, "status": "completed",
                  "starts_turn": True, "first_unset": False}),
@@ -387,7 +387,7 @@ class LocalSourceTests(unittest.TestCase):
     def test_marker_rows_never_claim_to_start_an_unprojected_turn(self):
         """A marker item whose turn row is not projected yet cannot say who started the
         turn: it is never reported as having started one."""
-        self.add_item(str(uuid.uuid4()), "userMessage", text=SECRET + " " + MARKER)
+        self.add_item(str(uuid.uuid4()), "userMessage", text=PRIVATE + " " + MARKER)
         for row in self.source.marker_rows(TID, MARKER):
             self.assertFalse(row["starts_turn"])
             self.assertTrue(row["first_unset"])
@@ -418,9 +418,9 @@ class LocalSourceTests(unittest.TestCase):
     def test_queued_rows_pinned_serde(self):
         """Only the version-pinned TurnInput shape {"UserInput": {...}} with the marker in
         a text item is our queued item; ids and client ids only come back."""
-        ours = self.enqueue({"UserInput": {"content": [{"type": "text", "text": SECRET + " " + MARKER}],
+        ours = self.enqueue({"UserInput": {"content": [{"type": "text", "text": PRIVATE + " " + MARKER}],
                                            "client_id": "client-1"}})
-        self.enqueue(SECRET + " " + MARKER, thread=SECOND)
+        self.enqueue(PRIVATE + " " + MARKER, thread=SECOND)
         for shape in (
                 {"type": "UserInput", "content": [{"type": "text", "text": MARKER}]},
                 {"UserInput": {"content": [{"type": "text", "text": MARKER}]}, "extra": 1},
@@ -443,11 +443,11 @@ class LocalSourceTests(unittest.TestCase):
     def test_queue_row_exists_and_has_marker(self):
         """§5.3/C16: our exact queue id, and whether it still holds our marker. A row
         someone edited in Codex reports exists without the marker, and nothing of it."""
-        ours = self.enqueue(SECRET + " " + MARKER)
+        ours = self.enqueue(PRIVATE + " " + MARKER)
         self.assertEqual(self.source.queue_row(TID, ours, MARKER), {"exists": True, "has_marker": True})
         with self.db("queue_1.sqlite") as db:
             db.execute("UPDATE queued_items SET payload_json=? WHERE id=?",
-                       (json.dumps({"UserInput": {"content": [{"type": "text", "text": SECRET}],
+                       (json.dumps({"UserInput": {"content": [{"type": "text", "text": PRIVATE}],
                                                   "client_id": None}}), ours))
         edited = self.source.queue_row(TID, ours, MARKER)
         self.assertEqual(edited, {"exists": True, "has_marker": False})
@@ -468,11 +468,11 @@ class LocalSourceTests(unittest.TestCase):
     def test_foreign_queued_counts_only(self):
         """§5.3/D18: how many items on this thread's queue are not ours - a number."""
         self.assertEqual(self.source.foreign_queued(TID, MARKER), 0)
-        self.enqueue(SECRET + " " + MARKER)
+        self.enqueue(PRIVATE + " " + MARKER)
         self.assertEqual(self.source.foreign_queued(TID, MARKER), 0)
-        self.enqueue(SECRET)
-        self.enqueue(SECRET, thread=SECOND)
-        self.enqueue({"UserInput": {"content": [{"type": "text", "text": SECRET}], "client_id": "x"}})
+        self.enqueue(PRIVATE)
+        self.enqueue(PRIVATE, thread=SECOND)
+        self.enqueue({"UserInput": {"content": [{"type": "text", "text": PRIVATE}], "client_id": "x"}})
         count = self.source.foreign_queued(TID, MARKER)
         self.assertIs(type(count), int)
         self.assertEqual(count, 2)
@@ -494,7 +494,7 @@ class LocalSourceTests(unittest.TestCase):
         self.later_turn(5, "failed")
         self.later_turn(6, "interrupted")
         user = self.later_turn(7)
-        self.set_turn(user, first_user_item_id=self.add_item(user, "userMessage", text=SECRET))
+        self.set_turn(user, first_user_item_id=self.add_item(user, "userMessage", text=PRIVATE))
         agent = self.later_turn(8)
         self.set_turn(agent, first_user_item_id=self.add_item(agent, "agentMessage", text=MARKER))
         borrowed = self.later_turn(9)
@@ -561,11 +561,11 @@ class LocalSourceTests(unittest.TestCase):
         clientId; our own message and other turns' messages do not."""
         turn = self.our_turn(2, client_id="ours-1")
         self.assertEqual(self.source.turn_observation(TID, turn, MARKER)["foreign_user_messages"], 0)
-        self.add_item(turn, "userMessage", text=SECRET, client_id=None)
-        self.add_item(turn, "userMessage", text=SECRET, client_id="a-string-id")
+        self.add_item(turn, "userMessage", text=PRIVATE, client_id=None)
+        self.add_item(turn, "userMessage", text=PRIVATE, client_id="a-string-id")
         later = self.later_turn(3)
-        self.add_item(later, "userMessage", text=SECRET)
-        self.add_item(turn, "agentMessage", text=SECRET)
+        self.add_item(later, "userMessage", text=PRIVATE)
+        self.add_item(turn, "agentMessage", text=PRIVATE)
         seen = self.source.turn_observation(TID, turn, MARKER)
         self.assertEqual(seen["foreign_user_messages"], 2)
         self.assertContentFree(seen)
@@ -614,7 +614,7 @@ class LocalSourceTests(unittest.TestCase):
         """§4.4 owner lookup: which candidate markers are in a userMessage of the failed
         turn. A marker quoted by the assistant, or in another turn or thread, is not."""
         a, b, c, d = marker("a"), marker("b"), marker("c"), marker("d")
-        self.add_item(TURN, "userMessage", text=SECRET + " " + a)
+        self.add_item(TURN, "userMessage", text=PRIVATE + " " + a)
         self.add_item(TURN, "agentMessage", text=b)
         later = self.later_turn(2)
         self.add_item(later, "userMessage", text=c)
@@ -629,11 +629,11 @@ class LocalSourceTests(unittest.TestCase):
         """§1 duplicate-owner check: any queued or history row on the thread that
         carries our marker. Counts only; other threads never count."""
         self.assertEqual(self.source.marker_presence(TID, MARKER), {"history": 0, "queue": 0})
-        self.enqueue(SECRET + " " + MARKER)
+        self.enqueue(PRIVATE + " " + MARKER)
         self.enqueue(MARKER, thread=SECOND)
         self.add_item(TURN, "userMessage", text=MARKER, thread=SECOND)
         self.assertEqual(self.source.marker_presence(TID, MARKER), {"history": 0, "queue": 1})
-        self.add_item(TURN, "userMessage", text=SECRET + " " + MARKER)
+        self.add_item(TURN, "userMessage", text=PRIVATE + " " + MARKER)
         self.add_item(TURN, "agentMessage", text=MARKER)
         presence = self.source.marker_presence(TID, MARKER)
         self.assertEqual(presence, {"history": 2, "queue": 1})
@@ -685,7 +685,7 @@ class LocalSourceTests(unittest.TestCase):
         self.later_turn(2, "inProgress")
         other = self.later_turn(1, "inProgress", thread=SECOND)
         self.later_turn(2, "completed", thread=SECOND)            # superseded: no longer running
-        self.enqueue(SECRET + " " + MARKER)
+        self.enqueue(PRIVATE + " " + MARKER)
         self.enqueue("a message of the user's", thread=SECOND)
         found = self.activity()
         self.assertEqual(found, {"history": True, "running": 1, "queued": 2})

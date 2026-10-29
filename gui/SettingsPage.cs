@@ -59,6 +59,9 @@ namespace CodexAutoResume
             return Math.Min(text, NoteLines * line) + reopenNote.Padding.Vertical;
         }
 
+        // The narrowest a button stands, at 96 DPI: a short word's button is this wide.
+        private const int ButtonLeast = 112;
+
         private Button MakeButton(string text, bool primary, EventHandler onClick)
         {
             // Raised on its card, or filled with the accent when it is the page's one primary
@@ -70,7 +73,7 @@ namespace CodexAutoResume
             button.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             // The panel's button height. Its body is the whole control now, where the old one kept
             // three pixels of a 38-pixel control on every side for its own shadow.
-            button.MinimumSize = new Size(Px(112), Px(Brand.ButtonHeight));
+            button.MinimumSize = new Size(Px(ButtonLeast), Px(Brand.ButtonHeight));
             button.Padding = Pad(Brand.ButtonPadLeft, 0, Brand.ButtonPadRight, 0);
             button.Margin = Pad(9, 0, 0, 0);
             button.Click += onClick;
@@ -573,7 +576,9 @@ namespace CodexAutoResume
                     IgnoreWheel(spin);
                     host.Controls.Add(NewRow(Humanise(name), number));
                     editors[name] = spin;
-                    Managed(field, number, host);
+                    // v0.6.19: a key that is a ceiling (the attempts) holds the field's maximum to it and
+                    // leaves it editable below; any other key greys it.
+                    if (!ManagedCeiling(field, spin, host)) Managed(field, number, host);
                     // v0.6.11: a limit above its "high" is warned of, under the three limits, while it is.
                     if (field.ContainsKey("high")) spin.ValueChanged += delegate { UpdateHighLimits(); };
                     if (name == "max_chain_continuations")
@@ -614,7 +619,7 @@ namespace CodexAutoResume
                             "Light or dark for the panel in Codex alone. Same as Theme uses the choice above; Codex's theme follows Codex whatever the Theme is.")));
                     if (name == "design")
                         host.Controls.Add(HelpText(S("help.design",
-                            "Soft is raised; Classic (v0.6.2) is flat, with accent bars; Plain is flat and grey.")));
+                            "Soft is the raised, neumorphic design; Classic (v0.6.2) is flat, with accent bars; Plain is flat and grey.")));
                     // v0.6.11: what quiet hours do, under the last of their three; and what a tier does, under the
                     // default one.
                     if (name == "quiet_hours_days")
@@ -978,6 +983,20 @@ namespace CodexAutoResume
             if (!Equals(Get(field, "managed"), true)) return;
             editor.Enabled = false;
             host.Controls.Add(HelpText(S("settings.managed", "Set by your administrator.")));
+        }
+
+        /// v0.6.19: a number an administrator's key holds under a ceiling (its schema's `ceiling`, managed.ceilings)
+        /// stays editable, with its maximum held to the ceiling and the ceiling said under it - managed.admit keeps
+        /// any value up to there. False, and nothing done, for every other field.
+        private bool ManagedCeiling(Dictionary<string, object> field, NumericUpDown spin, TableLayoutPanel host)
+        {
+            if (!Equals(Get(field, "managed"), true) || !(Get(field, "ceiling") is double)) return false;
+            decimal ceiling = Math.Max(spin.Minimum, Math.Min(spin.Maximum, (decimal)(double)Get(field, "ceiling")));
+            if (spin.Value > ceiling) spin.Value = ceiling;
+            spin.Maximum = ceiling;
+            host.Controls.Add(HelpText(S("settings.managed_ceiling", "Your administrator allows at most {n}.",
+                "n", (int)ceiling)));
+            return true;
         }
 
         // ------------------------------------------------------------------ v0.6.16: notices that stay until clicked
@@ -1395,8 +1414,10 @@ namespace CodexAutoResume
         {
             if (heroHeld) return;
             string word = ActivityWord(status, pending, now);
-            stateDot.State = HeaderLight(status, pending, word);
+            string light = BusyLight(HeaderLight(status, pending, word), busy > 0);
             string head = Headline(strings, status, pending);
+            HeroTold(ref light, ref head);
+            stateDot.State = light;
             string facts = string.Join("   ·   ", HeroFacts(strings, status, pending).ToArray());
             if (head == heroHead && facts == heroDetail) return;
             if (head != heroHead) headline.Text = heroHead = head;

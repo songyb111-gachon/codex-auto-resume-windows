@@ -436,7 +436,8 @@ class WindowTests(unittest.TestCase):
         self.assertLess(install.index("VersionRule.IsMatch(row[0])"), install.index('"-Pick "'),
                         "the version is held to the rule before it reaches the command line")
         self.assertIn('(row[1] == "advanced" ? "Advanced" : "Standard")', install)
-        self.assertIn("SetBusy(true);", install[:install.index("QueueUserWorkItem(")])
+        # v0.6.18: the pick runs in the installer window (tests/test_gui_pick_window.py), busy from before it opens.
+        self.assertIn("SetBusy(true);", install[:install.index("new InstallerWindow(")])
 
     def test_a_refused_row_stays_in_the_list_quietly_and_each_chip_has_its_tone(self):
         cell = self.body("DrawCell")

@@ -74,6 +74,7 @@ NOTICE_STATUS = {
     "near_limit_press_resume": "attention",
     "near_limit_not_continued": "attention",
     "update_offered": "attention",  # v0.6.18: the advanced edition's weekly update check offers a newer version
+    "restart_gave_up": "attention",  # v0.6.19: the advanced edition's crash restart left the watcher stopped
 }
 # v0.6.12: the power action after usage-limit recoveries (runtime/afterwork.py), whose kinds are words of
 # its own (domain/power_vocabulary.PowerNotice). Its notices are raised whatever the notification switches
@@ -163,9 +164,11 @@ def _notice(kind, content, *, key, chip=None, chip_tone=None, line=None) -> Noti
 # v0.6.16 (the owner: "팝업을 클릭하면 무언가가 이미 있나? 없다면 만들어줘"). Until then a click on a card's face only put it
 # away, and a click on a toast's body did nothing of ours. Now both go where the notice is about, and click_uri below is
 # the one place that says where. Three destinations, the setting's values: the notice's own Dashboard page (the
-# default, and the only one while the in-app chat is off); the conversation's chat here (v0.6.16-beta.4's in-app chat
-# adds it, in click_uri); and Codex itself at that conversation (notify.codex_thread_uri). The setting is offered,
-# and read, only while the chat is on (chat_on), so until the chat is merged every click opens the page.
+# default, and the only one while the in-app chat is off); the conversation's chat here (v0.6.19's in-app chat,
+# notify.chat_uri); and Codex itself at that conversation (notify.codex_thread_uri). The setting is offered - in the
+# advanced edition's chat card alone (settings.DASHBOARD_ONLY) - and read only while the chat is on, which the watcher
+# learns from the edition's plug (runtime/app.py, `_chat`): with the chat off, or in the standard edition, every click
+# opens the page.
 CLICK_SETTING = "notice_click"
 CLICK_DESTINATIONS = settings.NOTICE_CLICKS
 DEFAULT_CLICK = settings.FIELDS[CLICK_SETTING][0]
@@ -176,17 +179,11 @@ BODY_PAGES = {"starting": "pending", "resumed": "history", "failed": "history", 
               "stopped": "history", "cancelled": "history", "power_stopped": "settings"}
 
 
-def chat_on(values) -> bool:
-    """Whether the in-app chat is on in these settings. There is none yet - v0.6.16-beta.4 brings it and answers
-    here - so a click goes to the notice's page whatever CLICK_SETTING holds."""
-    return False
-
-
-def click_destination(values) -> str:
-    """Where a click on a notice goes under these settings: CLICK_SETTING's value while the chat is on, else the
-    page. Anything unknown is the page."""
+def click_destination(values, chat=False) -> str:
+    """Where a click on a notice goes under these settings: CLICK_SETTING's value while the chat is on (`chat`, True
+    only where the edition's plug says so), else the page. Anything unknown is the page."""
     values = values if isinstance(values, dict) else {}
-    chosen = values.get(CLICK_SETTING) if chat_on(values) else DEFAULT_CLICK
+    chosen = values.get(CLICK_SETTING) if chat is True else DEFAULT_CLICK
     return chosen if chosen in CLICK_DESTINATIONS else DEFAULT_CLICK
 
 
@@ -207,7 +204,10 @@ def click_uri(kind, actions, key, destination=DEFAULT_CLICK) -> str:
         link = notify.codex_thread_uri(key)
         if link is not None:
             return link
-    # destination == "chat": v0.6.16-beta.4's in-app chat returns that conversation's chat here, where key is one.
+    if destination == "chat":
+        link = notify.chat_uri(key)               # v0.6.19: that conversation's chat here, where key is one
+        if link is not None:
+            return link
     return notify.open_uri(notice_page(kind, actions))
 
 
@@ -306,11 +306,25 @@ def _build(event, detail, identity=None, *, sound=False):
         # Diagnostics, where an update is installed. A version not of a release's or a pre-release's shape says nothing.
         content = notify.update_offered_content(detail.get("version"), detail.get("prerelease") is True)
         return None if content is None else _notice("update_offered", content, key=None)
+    if event == "restart_gave_up":
+        # v0.6.19: the advanced edition's crash restart started the watcher three times in an hour and left it stopped.
+        # About this installation, not a conversation, so it has no key and replaces no card; its one button opens the
+        # Dashboard's Overview, where the watcher is started again.
+        return _notice("restart_gave_up", notify.restart_gave_up_content(), key=None)
     if event in POWER_EVENTS:
         # v0.6.12: the power action (runtime/afterwork.py). About this PC, not a conversation, so it has
         # no key and replaces no card. Only the countdown's has a stop button, named by its batch (A28).
         return _notice(event, notify.power_content(event, detail), key=None)
     if event == "stopped":
+        if detail.get("reason") in notify.NOT_RESUMED:
+            # 2026-10-22: born stopped because the person took the conversation over, or its recovery was cancelled
+            # (notify.not_resumed_content) - nothing gave up, so it is not said as a stop. The card names the new
+            # failure's reason in its chip and the sentence on its line, as a held interruption's does.
+            category = detail.get("category") or "usage_limit"
+            content = notify.not_resumed_content(thread_id, identity, reason=detail["reason"], category=category)
+            chip = l10n.text(reasons.label_key(category), l10n.current())
+            return _notice("stopped", content, key=thread_id, chip=chip, chip_tone="attention",
+                           line=notify.not_resumed_message(detail["reason"]))
         reason = ("no_progress" if state == "no_progress_exhausted"
                   else "time" if detail.get("reason") == "chain_time_cap"
                   else "attempts" if state == "retry_budget_exhausted" else None)
@@ -357,33 +371,32 @@ def build_cancelled(thread_id, stay=()) -> Notice:
 
 # ------------------------------------------------------------- Open Codex (v0.6.18, an edition's)
 # The standard edition's buttons cancel one interruption or open one page of the Dashboard (A28). An edition may ask
-# for one more on a notice about one conversation - the Codex app's own link to it (notify.codex_thread_uri), which
-# only shows a conversation - through what its plug adds to the icon's surface (runtime/app.py reads it); the
-# standard edition never asks, so its notices are exactly as before. The card opens the link through `activate`, which
-# has read exactly such a link since v0.6.16; the toast hands it to Windows as its other buttons are.
+# that a notice about one conversation open Codex at it - the Codex app's own link to it (notify.codex_thread_uri), which
+# only shows a conversation - through what its plug adds to the icon's surface (runtime/app.py reads it); the standard
+# edition never asks, so its notices are exactly as before. Since v0.6.20 that is not a button of its own (the owner,
+# 2026-10-28: a white button under the text was awkward): the notice itself is the target - the card's face, the
+# toast's body - which is where a click on a notice has always gone (click_uri), now sent to Codex.
 def with_open_codex(notice, on=False):
-    """`notice` with an Open Codex button beside its others when `on` is True and it is about one conversation - its
-    key that conversation's id, a UUID (notify.codex_thread_uri) - after Open Dashboard where it has that button, else
-    last; `notice` itself otherwise, and for anything that is not a Notice. A notice keeps at most
-    notify.MAX_TOAST_ACTIONS buttons, so one that has them all gains none."""
+    """`notice` with a click that opens Codex at its conversation, when `on` is True and it is about one conversation -
+    its key that conversation's id, a UUID (notify.codex_thread_uri): the card's face and the toast's body (`launch`)
+    go to that link, and the buttons stay as they were (the Cancel button alone carries the decision, below). A click
+    the in-app chat's setting sent elsewhere stays: where the chat is on and the setting chose the chat or Codex,
+    `click_uri` decided it already; only the notice that would open its Dashboard page - the setting's default -
+    opens Codex instead. `notice` itself otherwise, and for anything that is not a Notice."""
     if on is not True or not isinstance(notice, Notice):
         return notice
     link = notify.codex_thread_uri(notice.key)
-    if link is None or any(uri == link for _label, uri in notice.actions):
+    if link is None:
         return notice
     content = notice.toast_content()
-    if len(toast_actions(content)) >= notify.MAX_TOAST_ACTIONS:
-        return notice
-    button = (l10n.message("toast_button_open_codex"), link)
     # The cancel button carries the decision, for the notice its press raises from Windows' toast (notify.py).
     if content.get("uri"):
         content["uri"] = notify.with_open_codex_flag(content["uri"])
-    more = list(content.get("more") or ())
-    after = next((index + 1 for index, (_label, uri) in enumerate(more) if notify.parse_open_uri(uri) is not None),
-                 len(more))
-    more.insert(after, button)
-    content["more"] = more
-    return replace(notice, actions=toast_actions(content), content=_frozen(content))
+    click = notice.click
+    if click in ("", notify.open_uri(notice_page(notice.kind, notice.actions))):
+        click = link
+        content["launch"] = link
+    return replace(notice, click=click, actions=toast_actions(content), content=_frozen(content))
 
 
 # --------------------------------------------------------------------------- the handover
@@ -456,18 +469,24 @@ def _presence() -> dict:
     return notice_presence.snapshot(notify.aumid())
 
 
-def told(notice, detail, pending=None, at=None) -> dict:
+def told(notice, detail, opened=None, at=None) -> dict:
     """What the edition's plug is told of `notice` at P20 (v0.6.19): its kind; its failure category, where it has one
     (an interruption's, usage_limit when it names none, as `build` reads it), else None; its record's 1-based place in
-    Pending - `pending()` the records core lists there, asked only for a notice about one - else None; and when. Closed
-    words and numbers only: never a label, an id, a path or a word of the notice."""
+    Pending as core lists it (store.pending, oldest first) - read from `opened()`, a store of its own closed after, and
+    only for a notice about one record - else None; and when. Closed words and numbers only: never a label, an id, a
+    path or a word of the notice."""
     detail = detail if isinstance(detail, dict) else {}
     category = detail.get("category") or ("usage_limit" if notice.kind == "interruption" else None)
     key, thread = detail.get("interruption_id"), detail.get("thread_id")
     index = None
-    if pending is not None and (key or thread):
+    if opened is not None and (key or thread):
         try:
-            for place, record in enumerate(pending(), start=1):
+            store = opened()
+            try:
+                pending = store.pending()
+            finally:
+                store.close()
+            for place, record in enumerate(pending, start=1):
                 if (record.get("interruption_id") == key) if key else (record.get("thread_id") == thread):
                     index = place
                     break
@@ -477,15 +496,18 @@ def told(notice, detail, pending=None, at=None) -> dict:
             "alias_index": index, "at": time.time() if at is None else at}
 
 
-def deliver(notice, *, inbox=None, setting=True, probe=None, show=notify.show_content):
+def deliver(notice, *, inbox=None, setting=True, probe=None, show=None):
     """Show one notice by exactly one route. Returns (route, shown): route "card" or "toast".
 
     Card: the host accepted it (`shown` is True) and will end it with `complete` - the silent
     history copy once the card has been seen, or today's toast if it never could be. Toast:
     today's toast, exactly as `notify` has always raised it. The presence probes are only read
     when the card is possible at all. Called on the notifications thread, never on the tick path
-    and never on the icon's thread (raising a toast runs PowerShell).
+    and never on the icon's thread (raising a toast runs PowerShell). `show` is notify.show_content
+    unless given, looked up when called: a default bound at import kept the real toast past a test's
+    patch of notify.show_content, and test runs raised real toasts under the product's identity.
     """
+    show = notify.show_content if show is None else show
     allowed = False
     # A notice with a sound of its own (v0.6.11, a needs-you notice a person asked to hear) is Windows'
     # toast: the card makes no sound, and the sound is the toast's own audio element (notify.py).
@@ -506,7 +528,7 @@ def sounds(notice) -> bool:
     return dict(getattr(notice, "content", ()) or ()).get("sound") is True
 
 
-def complete(notice, card_shown, *, show=notify.show_content) -> bool:
+def complete(notice, card_shown, *, show=None) -> bool:
     """End a notice the card took, once its host knows how it went. Called once per notice.
 
     `card_shown` True: the card was on screen whole (or was clicked, or a newer card about the
@@ -514,8 +536,9 @@ def complete(notice, card_shown, *, show=notify.show_content) -> bool:
     notification center only. Anything else: the card could not be drawn, had no room, or its
     host went away before it was seen - today's toast is raised instead, exactly as the toast
     route raises it. Either way the notification center ends up with the notice once. Runs
-    PowerShell: a worker thread's job.
+    PowerShell: a worker thread's job. `show`, as `deliver`'s, is looked up when called.
     """
+    show = notify.show_content if show is None else show
     if notice.kind == "demo":
         return False                       # made up: no history copy, and no toast in its place
     content = notice.toast_content()
@@ -525,13 +548,16 @@ def complete(notice, card_shown, *, show=notify.show_content) -> bool:
 
 
 # ------------------------------------------------------------------------- the buttons
-def activate(uri, *, control=None, open_dashboard=None, announce=None, log=None, open_link=None, stay=()) -> str:
+def activate(uri, *, control=None, open_dashboard=None, announce=None, log=None, open_link=None, stay=(),
+             open_chat=None) -> str:
     """Do what a card button's URI asks, in process. Returns what happened, as one word.
 
     "opened" / "not_installed"  an open URI: `open_dashboard(page)` for one of the window's pages
     "opened" / "not_opened"     (v0.6.16) the Codex app's link to one conversation (notify.codex_thread_uri), the
-                                destination a click on a notice may have: `open_link(link)`, Windows' URL handler
+                                destination a click on a notice may have: `open_link(link)`, Windows' URL handler -
+                                or (v0.6.19) the chat at one conversation (notify.chat_uri): `open_chat(thread)`
     "cancelled"                  a cancel URI: that one interruption, through the control layer
+    "already_finished"           (v0.6.18) a cancel URI whose recovery had finished: nothing changed, nothing said
     "stopped"                    a power-stop URI (v0.6.12): the power action stopped for its batch
     "refused" / "failed"         the control layer said no (a coded refusal) or broke
     "ignored"                    anything else, including every malformed URI
@@ -559,6 +585,16 @@ def activate(uri, *, control=None, open_dashboard=None, announce=None, log=None,
             return "failed"
         say("thread %s: Codex opened from a notification card" % thread_id if opened
             else "notification card: Codex could not be opened")
+        return "opened" if opened else "not_opened"
+    chat_thread = notify.parse_chat_uri(uri)
+    if chat_thread is not None:
+        try:
+            opened = open_chat is not None and open_chat(chat_thread) is True
+        except Exception as exc:
+            say("notification card: opening the chat failed (%s)" % type(exc).__name__)
+            return "failed"
+        say("thread %s: the chat opened from a notification card" % chat_thread if opened
+            else "notification card: the chat could not be opened")
         return "opened" if opened else "not_opened"
     page = notify.parse_open_uri(uri)
     if page is not None:
@@ -594,9 +630,11 @@ def activate(uri, *, control=None, open_dashboard=None, announce=None, log=None,
         return "failed"
     thread_id = (result or {}).get("thread_id")
     if (result or {}).get("changed", True) is False:
+        # v0.6.18: a stale notice's Cancel on a recovery that has finished since - nothing is announced, since the
+        # notice it would raise says the recovery was cancelled, which is not true.
         say("thread %s: a notification card's cancel changed nothing; it had already finished" % thread_id)
-    else:
-        say("thread %s: cancelled from a notification card" % thread_id)
+        return "already_finished"
+    say("thread %s: cancelled from a notification card" % thread_id)
     if announce is not None and thread_id:
         try:
             announce(build_cancelled(thread_id, stay))

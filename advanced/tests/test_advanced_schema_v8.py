@@ -203,7 +203,7 @@ class CheckTests(V8Case):
                   "VALUES ('ntfy', 'recovered', 'usage_limit', 'task 12', 1.0, 0, 'waiting')",
         "feed": "INSERT INTO feed VALUES (1, 1.0, 'operational', 'degraded', 2)",
         "remote": "INSERT INTO remote VALUES ('telegram', NULL, 0, NULL, '%s', 2.0)" % ("a" * 64),
-        "opens": "INSERT INTO opens (thread_id, record_key, at, outcome) VALUES ('%s', '%s', 1.0, 'loaded')"
+        "opens": "INSERT INTO opens (thread_id, record_id, at, outcome) VALUES ('%s', '%s', 1.0, 'loaded')"
                  % (ac.THREAD, KEY),
         "restarts": "INSERT INTO restarts VALUES (1.0, 3221225477, 1)",
         "account_seen": "INSERT INTO account_seen VALUES (1, '%s', 'plus', 1.0)" % DIGEST16,
@@ -214,7 +214,7 @@ class CheckTests(V8Case):
         "INSERT INTO usage_samples VALUES ('codex', 300, 2.0, -1, NULL)",
         "INSERT INTO token_days VALUES ('22/10/2026', '%s', NULL, 1, 0, 2, 0, 1)" % ac.THREAD,
         "INSERT INTO token_days VALUES ('2026-10-22', 'not-a-thread', NULL, 1, 0, 2, 0, 1)",
-        "INSERT INTO token_days VALUES ('2026-10-22', '%s', 'C:/Users/x', 1, 0, 2, 0, 1)" % ac.THREAD,
+        "INSERT INTO token_days VALUES ('2026-10-22', '%s', 'C:/work/project', 1, 0, 2, 0, 1)" % ac.THREAD,
         "INSERT INTO token_days VALUES ('2026-10-23', '%s', NULL, -1, 0, 2, 0, 1)" % ac.THREAD,
         "INSERT INTO token_files VALUES ('C:/sessions/x.jsonl', '%s', 10, 4, 5, 1.0)" % ac.THREAD,
         "INSERT INTO outbox (channel, event, at, tries, state) VALUES ('sms', 'recovered', 1.0, 0, 'waiting')",
@@ -228,7 +228,7 @@ class CheckTests(V8Case):
         "INSERT INTO remote VALUES ('email', NULL, 0, NULL, NULL, NULL)",
         "INSERT INTO remote VALUES ('telegram', 1.0, 0, NULL, '%s', NULL)" % ("a" * 64),
         "INSERT INTO remote VALUES ('telegram', NULL, 6, NULL, NULL, NULL)",
-        "INSERT INTO opens (thread_id, record_key, at, outcome) VALUES ('%s', '%s', 1.0, 'maybe')" % (ac.THREAD, KEY),
+        "INSERT INTO opens (thread_id, record_id, at, outcome) VALUES ('%s', '%s', 1.0, 'maybe')" % (ac.THREAD, KEY),
         "INSERT INTO restarts VALUES (2.0, 1, 2)",
         "INSERT INTO account_seen VALUES (1, 'someone@example.com', 'plus', 1.0)",
         "INSERT INTO account_seen VALUES (1, NULL, 'ultra', 1.0)",
@@ -276,7 +276,7 @@ class PruneTests(V8Case):
         for at in (now - 8 * day, now - day):
             connection.execute("INSERT INTO outbox (channel, event, at, tries, state, finished_at) "
                                "VALUES ('ntfy', 'test', ?, 1, 'sent', ?)", (at, at))
-            connection.execute("INSERT INTO opens (thread_id, record_key, at, outcome) VALUES (?, ?, ?, 'opened')",
+            connection.execute("INSERT INTO opens (thread_id, record_id, at, outcome) VALUES (?, ?, ?, 'opened')",
                                (ac.THREAD, KEY, at))
             connection.execute("INSERT INTO restarts VALUES (?, 1, 1)", (at,))
         connection.execute("INSERT INTO feed VALUES (1, 1.0, 'outage', NULL, 1)")
@@ -296,7 +296,7 @@ class PruneTests(V8Case):
         for offset in range(5):
             at = self.now - 100 + offset
             connection.execute("INSERT INTO usage_samples VALUES ('codex', 300, ?, 1.0, NULL)", (at,))
-            connection.execute("INSERT INTO opens (thread_id, record_key, at, outcome) VALUES (?, ?, ?, 'opened')",
+            connection.execute("INSERT INTO opens (thread_id, record_id, at, outcome) VALUES (?, ?, ?, 'opened')",
                                (ac.THREAD, KEY, at))
             waiting = offset == 0
             connection.execute("INSERT INTO outbox (channel, event, at, tries, state, finished_at) "

@@ -138,8 +138,10 @@ class PointTests(PluggedCase):
         self.h.tick()
         self.assertEqual((plug.asked, self.h.source.widened), (0, frozenset()))
 
-    def test_p19_is_the_points_last_and_its_hook_is_eligibility(self):
-        self.assertEqual(list(Point)[-1], Point.ELIGIBILITY)
+    def test_p19_is_the_last_point_core_asks_and_its_hook_is_eligibility(self):
+        # P19 is the last question; after it comes only P20 (v0.6.19), which tells and is not asked.
+        points = list(Point)
+        self.assertEqual(points[points.index(Point.ELIGIBILITY) + 1:], [Point.NOTICE])
         self.assertEqual(Point.ELIGIBILITY.value, "eligibility")
         self.assertEqual(json.dumps(sorted(widening_of({"every_desktop"}))), '["every_desktop"]')
 

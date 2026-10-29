@@ -107,8 +107,10 @@ class SliceTests(unittest.TestCase):
         self.assertEqual(len(parts), len(holders))
         self.assertGreater(len(parts), 4, "it was four, in two files, before v0.6.10-alpha")
         # v0.6.16: SettingsRemove.cs, the uninstall's own start of the installer window, is no part of the form either.
+        # v0.6.18: nor ChildTree.cs, the one-shot bridge's child ended with what it started.
         self.assertEqual(sorted(set(guiscan.window_sources()) - set(holders)),
-                         ["gui/SettingsRemove.cs", "gui/WindowJson.cs"], "the window sources that are not the form")
+                         ["gui/ChildTree.cs", "gui/SettingsRemove.cs", "gui/WindowJson.cs"],
+                         "the window sources that are not the form")
         for part in parts:
             with self.subTest(part.splitlines()[0].strip()[:40]):
                 self.assertIn("partial", part.splitlines()[0])
@@ -152,17 +154,20 @@ class SliceTests(unittest.TestCase):
         # window - InstallerFlow, InstallerProgress, InstallerWords, InstallerLanguages, InstallerWindow, InstallerSheet
         # and InstallerBar - and SettingsRemove, the uninstall's start of it. 71 with InstallerNotes, what is new in the
         # version an update goes to; 72 with InstallerClock, the update's time limit less the Notes page's wait. 73 since
-        # v0.6.17: HostApp, whether the program runs inside another app's private view of Windows and the way out.
-        self.assertEqual(len(set(declared)), 73, "the window's types")
+        # v0.6.17: HostApp, whether the program runs inside another app's private view of Windows and the way out. 74 since
+        # v0.6.18: ChildTree, a one-shot bridge child ended with what it started, the watcher spared; 76 with SoftMenuDrop
+        # and SoftMenuLayer, a submenu and the card every right-click menu is drawn as (gui/SoftMenu.cs).
+        self.assertEqual(len(set(declared)), 76, "the window's types")
         # v0.6.11: DashboardTools.cs, the Dashboard's own tools, an eleventh part in a twelfth source; and
         # SettingsOwn.cs, Custom... beside a drop-down's choices, a twelfth part in a thirteenth. v0.6.12:
         # DashboardVersions.cs, Install another version..., a thirteenth part in a fourteenth; and SettingsPower.cs,
         # the power action's card, a fourteenth part in a fifteenth. v0.6.15-beta: SettingsHomes.cs, the Codex
         # homes' card, a fifteenth part in a sixteenth. v0.6.16: WindowRender.cs, the render mode that draws the
-        # README's motion pictures, a sixteenth part in a seventeenth.
-        self.assertEqual(len(declared) - len(set(declared)), 15,
+        # README's motion pictures, a sixteenth part in a seventeenth. v0.6.19: DashboardOwnReport.cs, this PC's own
+        # compatibility report, a seventeenth part in an eighteenth.
+        self.assertEqual(len(declared) - len(set(declared)), 16,
                          "`partial class SettingsForm` written once per file that holds part "
-                         "of it, which is sixteen of the window's seventeen sources")
+                         "of it, which is seventeen of the window's eighteen sources")
         for source, count in counts.items():
             with self.subTest(source):
                 self.assertGreater(count, 0)

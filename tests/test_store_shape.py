@@ -57,6 +57,14 @@ METHODS = {
     "unpostpone",
     # v0.6.16: what Rescan and reconcile found of one waiting record, applied unless it changed meanwhile (issue #39).
     "rescan_apply",
+    # v0.6.19 (issue #50): the usage reading a person's Retry now asks for, asked, taken, written and shown -
+    # store/schedule.py (asked as a file, beside the database, so no schema changes) and store/journal.py.
+    "_usage_checks", "ask_usage_check", "usage_checks_asked", "usage_check_taken", "usage_checked",
+    "usage_checks_shown",
+    # and the advanced edition's Check now (early_reset), asked, standing and taken - store/schedule.py.
+    "ask_early_check", "early_check_asked", "early_check_taken",
+    # and a request the watcher could not serve, said not checked (the review of 2026-10-24).
+    "usage_not_checked",
     "_thread_tier", "thread_tier", "thread_tiers", "set_thread_tier",
     # v0.6.11: observe only's switch and its "would have been sent", a conversation first seen given
     # Only notify me, and a project's waiting records held - store/policy.py and store/claims.py.
@@ -87,6 +95,8 @@ METHODS = {
     "cancel_home", "home_keys",
     # v0.6.16-beta.4: the waiting records of a kind of conversation the plug no longer watches (P18).
     "cancel_waiting",
+    # v0.6.18: the oldest version whose reader may use the state on disk (store/schema.py READABLE_FROM).
+    "readable_from",
 }
 
 # Reachable as `store.<name>` before the split, and still.

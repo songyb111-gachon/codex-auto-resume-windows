@@ -78,7 +78,7 @@ class UpgradeHandoverTests(unittest.TestCase):
 
     def test_the_watcher_is_handed_over_before_the_files_are_replaced(self):
         handover = self.source.index("$previousWatcherStillRunning = $false")
-        swap = self.source.index("Move-Item -Path $pair.dst -Destination $aside")
+        swap = self.source.index("Move-Item -LiteralPath $pair.dst -Destination $aside")
         setup = self.source.index("$setupArgs = @('setup')")
         self.assertLess(handover, swap)
         self.assertLess(swap, setup)
@@ -233,7 +233,8 @@ class DashboardAfterUpdateTests(unittest.TestCase):
                                 "set before the bootstrap starts")
                 self.assertGreater(body.index("updatingHere = false;"), on, "and cleared once it has ended")
         pick = guiscan.member_body("SettingsForm", "InstallPick")
-        finish = pick[pick.index("MethodInvoker finish = delegate"):]
+        # v0.6.18: the pick runs in the installer window, as an update does; it is cleared once that window has closed.
+        finish = pick[pick.index("window.ShowDialog(this);"):]
         self.assertIn("updatingHere = false;", finish, "cleared on the window's thread, once the pick has ended")
         said, started, left = self.run_reopen([("reopen-after-update-101.txt", "--page=history --reopened=1", None),
                                                ("reopen-after-update-202.txt", "--page=settings --reopened=1", None),

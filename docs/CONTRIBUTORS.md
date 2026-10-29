@@ -40,6 +40,8 @@ Project creator and maintainer. Copyright holder.
 - Security review and adversarial audit (three rounds, plus mutation testing, a crash-window matrix, and
   a cross-process race test)
 - Public release preparation
+- The v0.6.x development, maintenance and releases: the Dashboard, the two editions, the installer and the
+  releases themselves, as [CHANGELOG.md](CHANGELOG.md) tells release by release
 
 ## People who reported, suggested and tested
 
@@ -57,9 +59,15 @@ Everyone below is a person outside the project who helped it, in the order they 
 - [@Zephreo](https://github.com/Zephreo) suggested resuming a goal that was running ([#36](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/36)).
 - [@Kdevaulo](https://github.com/Kdevaulo) reported a terminal conversation continued in the Codex Desktop that
   was left out of recovery ([#37](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/37)) and an update status that misled when GitHub could not be reached ([#41](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/41)),
-  and sent the fix that resumes a goal after a usage-limit reset ([#49](https://github.com/songyb111-gachon/codex-auto-resume-windows/pull/49)).
+  and sent the fix that resumes a goal after a usage-limit reset ([#49](https://github.com/songyb111-gachon/codex-auto-resume-windows/pull/49)) and the one that
+  sends a continuation to Codex's managed daemon where one runs and says in fixed words what a queue answer without a receipt was
+  ([#53](https://github.com/songyb111-gachon/codex-auto-resume-windows/pull/53)).
 - [@weng-wen-jun](https://github.com/weng-wen-jun) asked for a manual rescan that reconciles obsolete
-  pending recoveries ([#39](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/39)).
+  pending recoveries ([#39](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/39)), then proposed the Pending and editor work for queued messages and the
+  usage check behind Retry now and Rescan, and the searchable conversation picker that became Find a conversation
+  ([#50](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/50)).
+- [@kano0222](https://github.com/kano0222) reported that a conversation an agent made was never recovered, even when the
+  person went on using it from the input box, and traced it to the exact rule in the code ([#54](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/54)).
 
 ## A note on the AI contributors
 
@@ -69,9 +77,13 @@ accounts.**
 They are credited here because they did meaningful design and implementation work, and because readers
 of the source deserve to know how it was produced. They are deliberately **not**:
 
-- listed as commit authors or co-authors with invented email addresses,
 - given GitHub accounts, profiles, or contributor avatars,
-- named as copyright holders.
+- named as copyright holders,
+- given an e-mail address of their own invention.
+
+The commits that were written with Claude carry a `Co-Authored-By` trailer that names the Claude model that wrote
+them, with Anthropic's own `noreply@anthropic.com` address. People, the maintainer and everyone who reported or
+suggested something, are credited by their GitHub login.
 
 Copyright is held by the human maintainer. Responsibility for the code, including its safety properties,
 rests with the maintainer, not with the tools.

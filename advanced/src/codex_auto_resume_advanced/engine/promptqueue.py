@@ -1,6 +1,6 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
 """The prompt queue (v0.6.15-beta, the plan's item 7, on reset_message's way): a person's queued messages go after the
-current turn, at a time or on a schedule, in order, each once, and their words go once they are sent - at P2.
+current turn, at a time or on a schedule, in order, each once, and their words go once each has ended - at P2.
 
 The standard edition sends one thing of its own, a continuation for a recovery that is due (A26, C4). With this on, a
 person writes messages in the Dashboard for one conversation each (control/prompts.py): after the turn now running
@@ -16,11 +16,17 @@ At P2, each conversation's prompts in their order (`position`), the first still 
   (dependency_failed) for the person to say go on or cancel;
 * due, its occurrence is made - a record with an id of its own - and handed core with its words;
 * a series' occurrences that fell while nothing ran are caught up once, the latest alone, the earlier counted as used
-  (`missed`); an occurrence not sent a day after it fell due is used as expired, and the series goes on.
+  (`missed`); an occurrence not sent a day after it fell due is used as expired, and the series goes on;
+* (v0.6.19, #50) one that waits while a turn runs (`while_running` "wait") is not handed while its conversation's
+  latest turn is in progress (read-only, codex/turns.py) - its reason turn_running - nor while that cannot be read, and
+  is handed once the turn is final; one that goes into Codex's queue ("queue", what every prompt did before) is
+  handed as always. Either way core's every gate still applies, and an uncertain send still blocks.
 
-The words leave the disk at a one-time prompt's send, at a series' end, at a cancel, at expiry, when the conversation
-is switched off and when this is turned off (state/prompts.py; watched, they are kept - v0.6.16-beta.3), and never reach a log, the journal,
-diagnostics, a notification, the status, MCP or a golden.
+The words leave the disk when a one-time prompt's occurrence ends - delivered, or ended any other way - not at its
+send: while Codex holds it they are kept, so a Pause that takes it back can send them again on Go on (state/prompts.py,
+prompt_moved) - and at a series' end, at a cancel, at expiry, when the conversation is switched off and when this is
+turned off (watched, they are kept - v0.6.16-beta.3). They never reach a log, the journal, diagnostics, a
+notification, the status, MCP or a golden.
 """
 from __future__ import annotations
 
@@ -30,7 +36,7 @@ from codex_auto_resume import continuation
 from codex_auto_resume.domain import ids
 from codex_auto_resume.domain.plug import DEFER
 
-from ..vocabulary import PromptEvery, PromptReason, PromptState, PromptTrigger, RecordState
+from ..vocabulary import PromptEvery, PromptReason, PromptState, PromptTrigger, RecordState, WhileRunning
 
 CAPABILITY = "prompt_queue"
 LONG = "long_reset_message"
@@ -53,6 +59,29 @@ def handed(row) -> dict | None:
     if row["record_state"] == RecordState.WAITING and row["words"]:
         return dict(own, state="waiting", words=row["words"], sent_at=None, queue_id=None, withdraw=False)
     return None
+
+
+def turn_in_progress(paths, thread_id):
+    """Whether conversation `thread_id`'s latest turn is in progress now (v0.6.19, #50): True, False for one that is
+    final or no turn at all, or None where that cannot be read - read-only, from Codex's turn history (codex/turns.py)
+    of the home the watcher drives (codex/inuse.py)."""
+    from ..codex import inuse
+    from ..codex.turns import Turns
+    try:
+        latest = Turns(inuse.home(paths)).latest(thread_id)
+    except Exception:
+        return None
+    return latest is not None and latest.status == "inProgress"
+
+
+def holds_for_turn(paths, row):
+    """Whether `row`, a prompt that waits while a turn runs, is held now (#50): its conversation's latest turn in
+    progress (True), or that unreadable (None - unknown never sends); False for one that goes into Codex's queue, or
+    whose conversation has no turn running."""
+    if row.get("while_running") != WhileRunning.WAIT:
+        return False
+    running = turn_in_progress(paths, row["thread_id"])
+    return True if running is None else running
 
 
 def words_problem(words, long_on) -> bool:
@@ -130,7 +159,7 @@ class PromptQueue:
                                          or last["reason"] != PromptReason.DELIVERED):
                     continue
             due = row["due_at"] if row["due_at"] is not None else now
-            if now >= due:
+            if now >= due and not holds_for_turn(self.paths, row):
                 found.append("%s:%d" % (row["prompt_id"], int(due)))
         return found
 
@@ -153,6 +182,8 @@ class PromptQueue:
         if row["state"] == PromptState.READY:
             if row["due_at"] is not None and now - row["due_at"] >= DUE_FOR:
                 return self._expired(handle, row, now)
+            if self._held_for_turn(handle, row):
+                return None
             return handed(row)
         if row["depends"]:
             before = [other for other in queue if other["position"] < row["position"]]
@@ -166,6 +197,10 @@ class PromptQueue:
         due = row["due_at"] if row["due_at"] is not None else now
         if now < due:
             return None
+        if self._held_for_turn(handle, row):
+            if row["trigger"] != PromptTrigger.RECURRING and now - due >= DUE_FOR:
+                return self._expired(handle, row, now)
+            return None
         if row["trigger"] == PromptTrigger.RECURRING:
             due = self._catch_up(handle, row, due, now)
             if due is None:
@@ -176,6 +211,16 @@ class PromptQueue:
         self._count("due")
         fresh = handle.prompt(row["prompt_id"])
         return handed(fresh) if fresh is not None else None
+
+    def _held_for_turn(self, handle, row) -> bool:
+        """Whether `row` waits for its conversation's running turn this tick (#50, holds_for_turn): its reason says so
+        where the turn is known to run."""
+        if row.get("while_running") != WhileRunning.WAIT:
+            return False
+        running = turn_in_progress(self.paths, row["thread_id"])
+        if running is True and row["reason"] != PromptReason.TURN_RUNNING:
+            handle.change(row["prompt_id"], reason=PromptReason.TURN_RUNNING)
+        return running is not False
 
     def _catch_up(self, handle, row, due, now):
         """A series' latest occurrence that fell, the earlier ones that fell while nothing ran counted as used
