@@ -81,6 +81,7 @@ class ValidationTests(unittest.TestCase):
         twice["engines"].append(dict(twice["engines"][0]))
         for name, made in (("a duplicate engine", twice), ("another format", document(format="x/1")),
                            ("an extra top key", document(advisories=[])),
+                           ("another edition line", document(_edition="anything")),
                            ("a newer product", document(minimum="9.0.0")),
                            ("expiry before publication", document(expires=NOW - 7200)),
                            ("a sequence of 0", document(sequence=0))):
@@ -89,6 +90,9 @@ class ValidationTests(unittest.TestCase):
                     read(made)
         with self.assertRaises(compatdata.Refused):
             compatdata.validate(b" " * (compatdata.MAX_BYTES + 1), product=PRODUCT)
+
+    def test_the_edition_line_may_lead_it(self):
+        self.assertEqual(read(document({}, _edition=compatdata.EDITION_MARK))["sequence"], 2)
 
     def test_a_measurement_this_build_does_not_know_is_passed_over(self):
         found = read(document({ENGINE: {"mzzz": entry(ENGINE, "mzzz"), "mopen": entry(ENGINE, "mopen")}}))

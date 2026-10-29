@@ -370,11 +370,19 @@ class Arming:
             return {}
         return found if isinstance(found, dict) else {}
 
+    def _table(self, view):
+        """`measured` for the Codex `view` names - or, where a caller replaced `measured` on this instance with a
+        callable of its own (a test's), what that answers."""
+        if "measured" in self.__dict__:
+            found = self.measured()
+            return found if isinstance(found, dict) else {}
+        return self.measured(view)
+
     def verdict(self, measurement):
         """"pass" where `measurement` passed on the Codex in force, "fail" where it failed - on whichever Codex, as
         a statement's warnings read it (`warnings_for`) - and None for neither (v0.6.14, the reset actions)."""
         view = self.view()
-        entry = self.measured(view).get(Measurement(measurement))
+        entry = self._table(view).get(Measurement(measurement))
         if not (isinstance(entry, tuple) and len(entry) == 2):
             return None
         found, measured_on = entry
@@ -386,7 +394,7 @@ class Arming:
     def warnings(self, definition, view=None) -> tuple:
         """The warnings `definition`'s statement shows now."""
         view = self.view() if view is None else view
-        return warnings_for(definition, view, self.measured(view))
+        return warnings_for(definition, view, self._table(view))
 
     # ------------------------------------------------------------------ now
     def current(self, *, view=None, policy=None) -> dict:
@@ -427,7 +435,7 @@ class Arming:
             if any(capability in since for capability in live) and view.get("status") != "ok":
                 view = self.live_view() or view
         policy = self.policy() if policy is None else policy
-        measured = self.measured(view)
+        measured = self._table(view)
         states, why = {}, {}
         for definition in self.registry:
             row = rows.get(definition.id)

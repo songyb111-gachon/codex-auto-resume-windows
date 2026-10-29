@@ -56,6 +56,10 @@ MAX_BYTES = 256 * 1024                             # the bootstrap's cap, and th
 MAX_ENGINES = 64
 MAX_MEASUREMENTS = 128
 TOP_KEYS = frozenset({"format", "sequence", "published_at", "expires_at", "min_product", "engines"})
+# The line every shipped file of the advanced tree carries near its top (tests/editions.py SENTINEL), as the catalogs carry
+# it: a document may carry it, first, and only in these words.
+EDITION_KEY = "_edition"
+EDITION_MARK = "ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's."
 ENGINE_KEYS = frozenset({"version", "measurements"})
 ENTRY_KEYS = frozenset({"verdict", "recorded_at", "evidence"})
 VERDICTS = (Verdict.PASS, Verdict.FAIL)
@@ -112,7 +116,9 @@ def validate(raw, *, product=None) -> dict:
         document = decode(raw, MAX_BYTES)
     except DocumentError as error:
         raise Refused(error.code if hasattr(error, "code") else "not_json") from None
-    if not isinstance(document, dict) or set(document) != TOP_KEYS:
+    if not isinstance(document, dict) or set(document) - {EDITION_KEY} != TOP_KEYS:
+        raise Refused("keys")
+    if EDITION_KEY in document and document[EDITION_KEY] != EDITION_MARK:
         raise Refused("keys")
     if document["format"] != FORMAT:
         raise Refused("unknown_format")
