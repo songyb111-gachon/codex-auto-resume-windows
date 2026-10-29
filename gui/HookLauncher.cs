@@ -63,7 +63,8 @@ namespace CodexAutoResume
 
             var info = new ProcessStartInfo();
             info.FileName = python;
-            info.Arguments = "-I -c " + Quote(code) + " " + Quote(source) +
+            // -X disable-remote-debug: remote debugging off, as McpLauncher starts its interpreter (PEP 768, Python 3.14).
+            info.Arguments = "-I -X disable-remote-debug -c " + Quote(code) + " " + Quote(source) +
                              " --home " + Quote(home);
             info.UseShellExecute = false;
             info.RedirectStandardInput = true;

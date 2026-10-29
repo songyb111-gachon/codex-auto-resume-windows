@@ -78,7 +78,7 @@ class SourceTests(unittest.TestCase):
     def test_it_starts_the_advanced_package_s_handler_with_the_installation_s_interpreter(self):
         self.assertIn('Path.Combine(home, "runtime", "python.exe")', self.text)
         self.assertIn("from codex_auto_resume_advanced.hook import main;", self.text)
-        self.assertIn('"-I -c "', self.text)
+        self.assertIn('"-I -X disable-remote-debug -c "', self.text)
 
 
 @unittest.skipUnless(CSC.is_file(), "the in-box C# compiler is not available")
