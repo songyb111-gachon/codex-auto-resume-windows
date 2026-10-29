@@ -338,6 +338,42 @@ namespace CodexAutoResume
                 Ex("codex_retry_settings",
                    Scene(OnPending(Tries(Rec(ExampleProject, "exhausted", "server_5xx", -130, 0), 4, 4))),
                    Scene(OnPending(Tries(Due(Rec(ExampleProject, "scheduled", "server_5xx", -130, 0), 25), 4, 8)))),
+                // v0.6.20: the capabilities the v0.6.20 seats brought.
+                Ex("usage_analytics",
+                   Scene(Says(f => f.ExampleUsage(260, 72, 0, -1))),
+                   Scene(Says(f => f.ExamplePace(72, 6, 70)),
+                         Says(f => f.ExampleTokens()))),
+                Ex("window_anchor",
+                   Scene(Says(f => f.ExampleUsage(0, 0, 0, -1))),
+                   Scene(Says(f => f.ExampleUsage(0, 0, 300, -1)),
+                         Says(f => f.Word("page.anchor.fixed", "Next reset fixed at {time}.", "time", ClockTime(Now() + 300 * 60))))),
+                Ex("push_notices",
+                   Scene(OnHistory(Rec(ExampleProject, "recovered", "usage_limit", Detected, Reset + 1))),
+                   Scene(OnHistory(Rec(ExampleProject, "recovered", "usage_limit", Detected, Reset + 1)),
+                         Says(f => f.Word("page.watchlog.answer.notice", "Pushed the notice to your phone or inbox")),
+                         Says(f => f.Word("page.courier.channel.ntfy", "ntfy") + " · " + f.Word("page.push.recovered", "Recovered")))),
+                Ex("status_feed",
+                   Scene(OnPending(Due(Rec(ExampleProject, "scheduled", "server_5xx", -20, 0), 15))),
+                   Scene(OnPending(Due(Rec(ExampleProject, "scheduled", "server_5xx", -20, 0), 15)),
+                         Says(f => f.Word("page.feed.degraded", "OpenAI reports degraded service")))),
+                Ex("account_switch",
+                   Scene(Says(f => f.ExampleField("account_switch", "instead"))),
+                   // Its button waits for the MAL measurement: the card says so, and the example says what the card says.
+                   Scene(Says(f => f.Word("page.account.signed_in", "Signed in: {account}", "account", "e•••@example.com")),
+                         Says(f => f.Word("page.refused.switch_unmeasured",
+                                          "It has not been measured on this Codex that the running app follows a sign-in made from here. Switch in Codex instead.")))),
+                Ex("steer_send",
+                   Scene(Says(f => f.ExampleField("steer_send", "instead"))),
+                   // With its warning: the line reaches the turn, and the Codex app does not show it.
+                   Scene(Says(f => f.Word("page.pending.kind.steer", "Steer") + " · " + f.Word("page.steer.state.accepted", "accepted")),
+                         Says(f => f.Word("page.steer.note.accepted", "The Codex app took it into the running turn.")),
+                         Says(f => f.Word("page.editor.steer.warning", "The Codex app does not show the steered line anywhere.")))),
+                // Hidden on the page until MHK, M4 and M4B are measured: its example waits with it.
+                Ex("stop_hook_continuation",
+                   Scene(OnHistory(Rec(ExampleProject, "recovered", "network_transient", -60, -44)),
+                         Sent(f => f.ExampleContinuation(true))),
+                   Scene(OnHistory(Rec(ExampleProject, "recovered", "network_transient", -60, -60)),
+                         Sent(f => f.ExampleContinuation(true)))),
             };
         }
 
@@ -402,6 +438,26 @@ namespace CodexAutoResume
         private string ExampleClick(string key, string fallback)
         {
             return Word("page.chat.click", "A click on a notice opens") + ": " + Word(key, fallback);
+        }
+
+        /// Usage and token analytics' pace, as its card says it: the 5-hour window `percent` used, `change` more in the last
+        /// hour, full around `minutes` from now.
+        private string ExamplePace(int percent, int change, int minutes)
+        {
+            return Word("page.analytics.used", "{window}: {percent}% used", "window", WindowName(300.0))
+                       .Replace("{percent}", percent.ToString(CultureInfo.CurrentCulture)) + " · " +
+                   Word("page.analytics.change", "{change} in the last hour", "change", "+" + change.ToString(CultureInfo.CurrentCulture) + "%") +
+                   " · " + Word("page.analytics.eta", "At this pace, full around {time}.", "time", ClockTime(Now() + minutes * 60.0));
+        }
+
+        /// One project's tokens of the last days, as the analytics card counts them.
+        private string ExampleTokens()
+        {
+            return ExampleProject + " · " +
+                   Word("page.analytics.numbers", "input {input} · cached {cached} · output {output} · reasoning {reasoning} · {turns} turns",
+                        "input", ExampleNumber(1204000))
+                       .Replace("{cached}", ExampleNumber(880000)).Replace("{output}", ExampleNumber(41000))
+                       .Replace("{reasoning}", ExampleNumber(12000)).Replace("{turns}", ExampleNumber(38));
         }
 
         /// The line a parent is told of a subagent that stopped on a temporary error (continue.subagent.line).
