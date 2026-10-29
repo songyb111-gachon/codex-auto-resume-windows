@@ -71,23 +71,16 @@ class ShippedCatalogTests(unittest.TestCase):
     def test_the_endonyms_cover_exactly_the_shipped_languages(self):
         self.assertEqual(set(l10n.ENDONYMS), set(l10n.LOCALES))
 
-    def test_eighteen_catalogs_all_offered(self):
-        """v0.6.11 shipped eighteen complete catalogs and offered sixteen: Arabic and Hebrew were held
-        until every surface mirrored right to left (l10n.HELD). v0.6.20 mirrored the Dashboard, its
-        dialogs and the setup window (gui/SoftMirror.cs), the last of them, and offers all eighteen:
-        in a picker, as a setting and as where Windows' language leads. A language held again would be
-        offered nowhere, which the loop below still holds it to."""
+    def test_eighteen_catalogs_sixteen_offered_and_two_held(self):
+        """v0.6.11 ships eighteen complete catalogs and offers sixteen: Arabic and Hebrew are held
+        until every surface mirrors right to left (l10n.HELD). Every rule in this file holds for all
+        eighteen - a held catalog is complete, current and well formed - and none of them is ever
+        offered: not in a picker, not as a setting, not as where Windows' language leads."""
         from codex_auto_resume import settings
         self.assertEqual(len(l10n.LOCALES), 18)
-        self.assertEqual(l10n.HELD, frozenset())
+        self.assertEqual(l10n.HELD, frozenset({"ar", "he"}))
         self.assertEqual(l10n.OFFERED, tuple(locale for locale in l10n.LOCALES if locale not in l10n.HELD))
-        self.assertEqual(len(l10n.OFFERED), 18)
-        for locale in l10n.RIGHT_TO_LEFT:
-            with self.subTest(offered=locale):
-                self.assertEqual(l10n.normalize(locale), locale)
-                self.assertIn(locale, l10n.offered_endonyms())
-                settings.validate_update({"interface_language": locale})
-                settings.validate_update({"continuation_language": locale})
+        self.assertEqual(len(l10n.OFFERED), 16)
         self.assertEqual(l10n.CHOICES, (l10n.SYSTEM,) + l10n.OFFERED)
         self.assertEqual(settings.CONTINUATION_LANGUAGES, (settings.FOLLOW_INTERFACE,) + l10n.OFFERED)
         # The window and the panel label their pickers from what they are given: the offered names only.
@@ -514,7 +507,8 @@ class NormalizationTests(unittest.TestCase):
                 self.assertEqual(l10n.normalize(tag), expected)
 
     def test_a_language_this_product_does_not_have_is_none_not_english(self):
-        for tag in ("sv-SE", "nb", "fi-FI", "", "   ", None, 7, "-"):
+        # A held language (l10n.HELD) is one this release does not have either.
+        for tag in ("sv-SE", "nb", "fi-FI", "ar", "he-IL", "iw", "", "   ", None, 7, "-"):
             with self.subTest(tag=tag):
                 self.assertIsNone(l10n.normalize(tag))
 
@@ -522,7 +516,7 @@ class NormalizationTests(unittest.TestCase):
         with patch.object(l10n, "preferred_languages", return_value=["sv-SE", "ko-KR"]):
             self.assertEqual(l10n.from_system(), "en")
         with patch.object(l10n, "preferred_languages", return_value=["ar-SA", "ko-KR"]):
-            self.assertEqual(l10n.from_system(), "ar")
+            self.assertEqual(l10n.from_system(), "en")
         with patch.object(l10n, "preferred_languages", return_value=["ko-KR", "en-US"]):
             self.assertEqual(l10n.from_system(), "ko")
 
@@ -553,8 +547,8 @@ class WindowsLanguageTableTests(unittest.TestCase):
         "uk-UA": "uk",
         "vi-VN": "vi",
         "id-ID": "id", "in-ID": "id",
-        # Offered from v0.6.20, once the window was mirrored for them; `iw`, Hebrew's older code.
-        "ar-SA": "ar", "ar-EG": "ar", "ar-AE": "ar", "he-IL": "he", "iw-IL": "he",
+        # Held in this release: English, as any language without a catalog is.
+        "ar-SA": "en", "ar-EG": "en", "ar-AE": "en", "he-IL": "en", "iw-IL": "en",
         # Not in the list: English, however close a neighbour is.
         "sv-SE": "en", "nb-NO": "en", "nl-NL": "en", "fi-FI": "en", "da-DK": "en", "cs-CZ": "en",
         "el-GR": "en", "hu-HU": "en", "th-TH": "en", "hi-IN": "en", "fa-IR": "en", "ca-ES": "en",

@@ -53,18 +53,19 @@ ENV_LANG = "CODEX_AUTO_RESUME_LANG"
 # is the source catalog, not because it is preferred.
 LOCALES = tuple(Locale)
 DEFAULT = "en"
-# Languages with a complete catalog that a release does not offer. From v0.6.11 to v0.6.20 this held
-# Arabic and Hebrew, written right to left, until every surface mirrored fully: the popup, the card and
-# the panel from v0.6.11, the Dashboard, its dialogs and the setup window from v0.6.20 (gui/SoftMirror.cs),
-# each held by its tests to be its left-to-right self mirrored (tests/test_right_to_left.py,
-# tests/test_gui_mirrored_window.py). A language here is listed by no picker, reached from no Windows
-# language and read as English when stored; none is now.
-HELD = frozenset()
+# Languages with a complete catalog that this release does not offer (v0.6.11). Arabic and
+# Hebrew are written right to left, and they are offered only once every surface - the
+# Dashboard, the popup, the card and the panel - mirrors fully and the window's layout audit
+# passes right to left at every scaling. Until then no picker lists them, no Windows language
+# reaches them (an Arabic Windows is answered in English, as any language without a catalog
+# is), and a stored choice of one is English. Their catalogs are kept, and held to every rule
+# a catalog is, so offering them is taking them out of this set.
+HELD = frozenset({"ar", "he"})
 # The languages a person can choose and Windows can reach: every catalog but the held ones.
 OFFERED = tuple(locale for locale in LOCALES if locale not in HELD)
 # The catalogs written right to left. A surface drawn in one of them is mirrored - what stands at
 # the left in every other language stands at the right - and reads its sentences right to left
-# (right_to_left, embedded). Offered from v0.6.20, once every surface mirrored.
+# (right_to_left, embedded). Today they are exactly the held ones; a later release offers them.
 RIGHT_TO_LEFT = frozenset({"ar", "he"})
 # What a settings field may hold. `system` is stored as a choice in its own right so
 # that "follow Windows" survives a Windows language change, which storing the resolved

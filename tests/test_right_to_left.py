@@ -59,13 +59,11 @@ def across(rect, width):
 
 # ------------------------------------------------------------------------------------------ the language
 class DirectionTests(unittest.TestCase):
-    def test_arabic_and_hebrew_are_the_right_to_left_catalogs_and_offered(self):
+    def test_arabic_and_hebrew_are_the_right_to_left_catalogs_and_still_held(self):
         self.assertEqual(l10n.RIGHT_TO_LEFT, frozenset({"ar", "he"}))
         self.assertLessEqual(l10n.RIGHT_TO_LEFT, set(l10n.LOCALES))
-        # Every surface mirrors from v0.6.20 - the window too (tests/test_gui_mirrored_window.py) - so both are
-        # offered (docs: every surface, or not at all).
-        self.assertLessEqual(l10n.RIGHT_TO_LEFT, set(l10n.OFFERED))
-        self.assertFalse(l10n.RIGHT_TO_LEFT & l10n.HELD)
+        # The window does not mirror yet, so neither is offered (docs: every surface, or not at all).
+        self.assertLessEqual(l10n.RIGHT_TO_LEFT, l10n.HELD)
         for locale in l10n.LOCALES:
             self.assertEqual(l10n.right_to_left(locale), locale in ("ar", "he"))
         self.assertFalse(l10n.right_to_left(None))
@@ -293,7 +291,7 @@ class CardMirrorTests(unittest.TestCase):
             line = notify._origin_line(identity, "A task", THREAD)
         self.assertIn("\u202a" + THREAD + "\u202c", line)
         self.assertTrue(line.startswith("\u202bمشروع\u202c"))
-        for locale in (each for each in l10n.OFFERED if not l10n.right_to_left(each)):
+        for locale in l10n.OFFERED:
             with patch.object(l10n, "current", lambda environ=None, locale=locale: locale):
                 line = notify._origin_line({"name": "A task", "project": "A project"}, "A task", THREAD)
             with self.subTest(locale=locale):
